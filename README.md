@@ -92,8 +92,8 @@ docker compose ps
 
 | Vai trò | Thành viên |
 |---|---|
-| Ledger & Transfer (Tech lead) | _TBD_ |
-| Identity & Accounts (PM) | _TBD_ |
+| Ledger & Transfer | _TBD_ |
+| Identity & Accounts | _TBD_ |
 | Async, Events & Audit | _TBD_ |
 | Risk & Fraud | _TBD_ |
 | Platform & Security | _TBD_ |

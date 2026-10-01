@@ -76,4 +76,4 @@ Chi tiết: [docs/03_HIGH_LEVEL_ARCHITECTURE.md](docs/03_HIGH_LEVEL_ARCHITECTURE
 
 ## 7. ADR
 
-Mỗi quyết định kiến trúc quan trọng là một file trong `docs/adr/`, theo [mẫu](docs/adr/0000-template.md). Viết ngay khi chốt quyết định; #1 (Tech lead) duyệt.
+Mỗi quyết định kiến trúc quan trọng là một file trong `docs/adr/`, theo [mẫu](docs/adr/0000-template.md). Viết ngay khi chốt quyết định; #1 duyệt.

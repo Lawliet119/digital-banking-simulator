@@ -16,10 +16,10 @@
 
 | # | Vai trò | Làm gì | Dẫn dắt | Câu bảo vệ | Cặp đôi |
 |---|---|---|---|---|---|
-| 1 | **Ledger** (kiêm Tech lead) | Database, chuyển tiền, nạp tiền, chống trùng, đối soát; duyệt ADR | P2 | 4, 5 | #4 |
-| 2 | **Accounts** (kiêm PM) | Đăng nhập, phân quyền, tài khoản, lịch sử, khóa tài khoản; lịch họp, nộp bài | P1 | 1, 3, 9 | #3 |
+| 1 | **Ledger** | Database, chuyển tiền, nạp tiền, chống trùng, đối soát; duyệt ADR | P2 | 4, 5 | #4 |
+| 2 | **Accounts** | Đăng nhập, phân quyền, tài khoản, lịch sử, khóa tài khoản; lịch họp, nộp bài | P1 | 1, 3, 9 | #3 |
 | 3 | **Async & Audit** | Hàng đợi, worker, thông báo, nhật ký kiểm toán | — | 7 | #2 |
-| 4 | **Fraud** (phần AI) | Hạn mức, 6 luật gian lận, review cảnh báo, báo cáo đánh giá | P5 | 12 | #1 |
+| 4 | **Fraud** | Hạn mức, 6 luật gian lận, review cảnh báo, báo cáo đánh giá | P5 | 12 | #1 |
 | 5 | **Platform** | Cloud, CI/CD, Terraform, bảo mật hạ tầng, chi phí | P3 | 8, 9, 11 | #6 |
 | 6 | **Quality** | Test tự động, load test, dashboard, giả lập sự cố, **bộ dữ liệu gian lận** | P4 | 2, 6, 10 | #5 |
 
@@ -61,7 +61,7 @@
 |---|---|
 | Chuyển tiền vẫn lỗi ở tuần 3 | Ưu tiên tuyệt đối; #4 đã cặp sẵn với #1, cần thì kéo thêm #2 |
 | Chi phí cloud vượt | Tắt môi trường ngoài giờ; #5 báo chi phí hằng tuần |
-| #1, #2 quá tải vì kiêm vai | #3 hỗ trợ P2; mỗi người tự viết phần tài liệu của mình |
+| #1, #2 quá tải vì nhiều việc | #3 hỗ trợ P2; mỗi người tự viết phần tài liệu của mình |
 | Deadline thật khác giả định | Cập nhật file này ngay khi có lịch |
 
 ## 6. Việc cần làm ngay
