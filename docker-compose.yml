@@ -1,0 +1,42 @@
+# Môi trường dev local: PostgreSQL + Valkey (Redis) + ElasticMQ (SQS)
+# Dùng:  cp .env.example .env && docker compose up -d
+name: dbs
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-banking}
+      POSTGRES_USER: ${POSTGRES_USER:-banking}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-banking_local_only}
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:latest
+    ports:
+      - "9324:9324" # SQS API
+      - "9325:9325" # giao diện xem queue
+    volumes:
+      - ./infra/local/elasticmq.conf:/opt/elasticmq.conf:ro
+
+volumes:
+  pgdata:
