@@ -32,7 +32,7 @@
 | Tuần | Ngày | Mục tiêu | Việc chính | ✅ Xong khi |
 |---|---|---|---|---|
 | **0** | 01–04/10 | Chuẩn bị | Nhận vai; chốt cloud hay VPS; tạo repo, board; mở tài khoản cloud + bật cảnh báo chi phí; hỏi deadline thật | Ai cũng biết vai, có repo |
-| **1** | 05–11/10 | **P1** + khung chạy | Cả nhóm hoàn thiện P1 từ tài liệu 01–02 · #5 CI/CD + `/health` lên cloud · #1 thiết kế DB · #6 khung test | Nộp P1; deploy tự động chạy |
+| **1** | 05–11/10 | **P1** + khung chạy | Cả nhóm hoàn thiện P1 từ tài liệu 01–02 · #5 CI/CD, build image từ `backend/Dockerfile` và đưa `/health/ready` lên cloud (khung NestJS đã có sẵn trong repo) · #1 thiết kế DB · #6 khung test | Nộp P1; deploy tự động chạy |
 | **2** | 12–18/10 | **P2** + API nền | Cả nhóm viết P2 + 3 ADR · #2 đăng nhập, mở tài khoản · #1 chuyển tiền bản đầu, nạp tiền · #3 audit log · #5 DB trên cloud | Nộp P2; mở TK → nạp tiền → xem số dư chạy trên cloud |
 | **3** | 19–25/10 | **Lõi đúng-sai** ⚠️ | #1 + #4 chuyển tiền đúng khi đồng thời, chống trùng, hạn mức · #2 phân quyền, lịch sử, rate limit · #3 outbox + hàng đợi · #5 dựng Redis · #6 test đồng thời | Test đồng thời + chống trùng xanh trong CI |
 | **4** | 26/10–01/11 | Bất đồng bộ + nhân viên | #3 worker, thông báo, DLQ, API audit · #4 6 luật gian lận · #2 khóa tài khoản + thu hồi phiên · #1 đối soát · #6 test tắt/bật worker | Chuyển tiền xong thì cảnh báo tự xuất hiện |

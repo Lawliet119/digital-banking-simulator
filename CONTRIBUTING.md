@@ -45,13 +45,14 @@ Ví dụ:
 - `fix(risk): count recipients per sliding window`
 - `docs(adr): add ADR-05 idempotency in postgres`
 
-Module: `ledger`, `accounts`, `identity`, `risk`, `audit`, `notification`, `worker`, `infra`, `ci`, `docs`.
+Module: `ledger`, `accounts`, `identity`, `risk`, `audit`, `outbox`, `notification`, `health`, `common`, `config`, `database`, `infra`, `ci`, `docs`.
 
 ## 4. Định nghĩa "xong"
 
 Một Pull Request chỉ được merge khi:
 
-- [ ] Code chạy được ở local với `docker compose`
+- [ ] Code chạy được ở local với `docker compose` + `npm run start:dev`
+- [ ] `npm run lint:check && npm run typecheck && npm test && npm run test:e2e` (trong `backend/`) đều xanh
 - [ ] Có test cho logic mới; test liên quan đến tiền chạy trên **PostgreSQL thật** (Testcontainers), không mock
 - [ ] CI xanh
 - [ ] Không có secret trong code, log hay commit
@@ -61,11 +62,20 @@ Một Pull Request chỉ được merge khi:
 ## 5. Quy tắc bắt buộc khi làm với tiền
 
 - Tiền là `bigint`/string (đơn vị đồng), **không bao giờ** dùng `number` có phần thập phân.
-- Mọi thay đổi số dư đi qua `ledger`, trong **một transaction**, kèm bút toán kép và nhật ký.
+- Mọi thay đổi số dư đi qua `ledger`, trong **một transaction** do `TransactionService.run(...)` mở, kèm bút toán kép và nhật ký.
+- **Không gọi Redis, HTTP, SQS bên trong transaction.** Deadlock làm callback bị chạy lại, và lời gọi ngoài sẽ bị lặp; sự kiện đi qua bảng outbox.
 - Không sửa, không xóa `ledger_entries` và `audit_log`.
 - Không đưa số dư vào Redis.
 
 Chi tiết: [docs/03_HIGH_LEVEL_ARCHITECTURE.md](docs/03_HIGH_LEVEL_ARCHITECTURE.md) mục 6 và 9.
+
+## 5b. Quy tắc bắt buộc khi viết backend
+
+- **Ranh giới module do eslint ép.** Import module khác chỉ qua `@modules/<tên>`; không với tay vào ruột module khác (cả `@modules/x/y` lẫn `../x/y`). Code dùng chung import qua `@common`, `@config`, `@database`, `@libs`. Xem [backend/src/modules/README.md](backend/src/modules/README.md).
+- **Lỗi có mã ổn định.** Ném `HttpException` kèm `errorCode` (enum `ErrorCode`); test theo `errorCode`, không theo câu chữ của `detail`. Chỉ thêm mã mới khi client phải rẽ nhánh theo nó.
+- **Biến môi trường mới:** khai báo trong schema (`config/validation.schema.ts`), đọc qua một file `*.config.ts`, thêm vào `env/.env.example`. Không đọc `process.env` rải rác trong code nghiệp vụ.
+- **Comment giải thích *vì sao*,** không mô tả *làm gì*. Một ràng buộc hay một sự cố đã dẫn tới quyết định thì ghi lại ở đúng chỗ code.
+- **Consumer phải idempotent** và **chỉ khởi động khi `runsWorkers()`**, để instance `api` không bao giờ poll queue.
 
 ## 6. Bảo mật repo
 

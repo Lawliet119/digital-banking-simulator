@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
-| Phiên bản | 1.0 — bản nháp để nhóm review (kế thừa `HIGH_LEVEL_ARCHITECTURE.md` v0.3) |
+| Phiên bản | 1.1 — bản nháp để nhóm review (code khởi tạo tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [01_BUSINESS_ANALYSIS.md](01_BUSINESS_ANALYSIS.md) (BG, BR) · [02_REQUIREMENTS_AND_DOMAIN_MODEL.md](02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (UC, FR, NFR, domain model) |
 | Tài liệu liên quan | [DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md](DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md) (ADR-11) · [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đánh dấu *(GĐ)* là giả định. Giá cloud là giá tham khảo, cần kiểm lại theo region |
@@ -82,8 +82,8 @@ flowchart LR
     EDGE --> API
 
     subgraph RUN[Container runtime - ECS Fargate]
-        API["<b>API</b><br/>NestJS · stateless<br/>identity · accounts · ledger<br/>risk review · audit"]
-        WRK["<b>Worker</b><br/>NestJS · không mở port<br/>outbox relay · risk scoring<br/>notification"]
+        API["<b>API</b> · APP_ROLE=api<br/>NestJS · stateless<br/>identity · accounts · ledger<br/>risk (review) · audit"]
+        WRK["<b>Worker</b> · APP_ROLE=worker<br/>cùng image · không mở port<br/>outbox · risk (chấm điểm)<br/>notification"]
     end
 
     API -->|1 ACID transaction:<br/>nghiệp vụ + audit + outbox| PG[("<b>PostgreSQL</b><br/>RDS<br/>nguồn sự thật")]
@@ -100,13 +100,23 @@ flowchart LR
 | Container | Trách nhiệm | Công nghệ | Trạng thái | Scale |
 |---|---|---|---|---|
 | **WAF + ALB** | TLS, chặn request độc hại, chia tải, health check | AWS WAF, ALB | — | Managed |
-| **API** | Toàn bộ use case đồng bộ; ghi DB trong transaction | NestJS (Node.js, TypeScript) | Stateless | Ngang: 1 → N task |
-| **Worker** | Đưa sự kiện từ outbox ra hàng đợi; chấm điểm rủi ro; gửi thông báo | NestJS standalone | Stateless | 1–2 task |
+| **API** | Toàn bộ use case đồng bộ; ghi DB trong transaction | NestJS (Node.js, TypeScript), `APP_ROLE=api` | Stateless | Ngang: 1 → N task |
+| **Worker** | Đưa sự kiện từ outbox ra hàng đợi; chấm điểm rủi ro; gửi thông báo | **Cùng image với API**, `APP_ROLE=worker`, không mở cổng HTTP | Stateless | 1–2 task |
 | **PostgreSQL** | Dữ liệu nghiệp vụ, sổ cái, mã yêu cầu, nhật ký, outbox | Amazon RDS for PostgreSQL | **Nguồn sự thật** | Dọc; Multi-AZ ở production |
 | **Redis** | Rate limit, mốc thu hồi phiên, bộ đếm gian lận, cache cấu hình | ElastiCache for Valkey | Tạm, dựng lại được | Managed |
 | **SQS + DLQ** | Mỗi consumer một queue (`risk-events`, `notification-events`), mỗi queue một DLQ giữ message lỗi | Amazon SQS | Bền vững | Managed |
 | **Cognito** | Đăng ký, đăng nhập, cấp JWT, nhóm vai trò | Amazon Cognito | — | Managed |
 | **CloudWatch** | Log, metric, dashboard, alarm | Amazon CloudWatch | — | Managed |
+
+**Một image, hai service (ADR-13).** API và Worker là cùng một ứng dụng NestJS; biến `APP_ROLE` quyết định instance chạy gì:
+
+| `APP_ROLE` | Chạy | Không chạy | Dùng ở |
+|---|---|---|---|
+| `api` | HTTP (controller) | consumer, scheduler | ECS service `api` |
+| `worker` | outbox relay, risk scoring, notification | HTTP listener | ECS service `worker` |
+| `both` (mặc định) | tất cả | — | máy local, test |
+
+Lý do: một Dockerfile, một pipeline build, một lần quét image, và module dùng chung (ví dụ `risk` vừa có API review vừa có consumer chấm điểm) nằm trong cùng một thư mục thay vì tách đôi. Quy tắc: producer (ghi bảng outbox, publish) chạy ở mọi role vì xảy ra trong request; chỉ **consumer và scheduler** bị chặn ở role `api`. Instance `worker` không có cổng HTTP nên ECS kiểm tra sức khỏe bằng lệnh riêng thay vì `/health/ready`.
 
 ---
 
@@ -116,34 +126,37 @@ Mỗi module tương ứng một bounded context ở tài liệu 02 §6.
 
 ```mermaid
 flowchart TB
-    subgraph APIAPP[API app]
+    subgraph APIM[Chạy ở role api]
         IDM[identity<br/>JWT guard, vai trò,<br/>mốc thu hồi phiên]
         ACCM[accounts<br/>khách hàng, tài khoản,<br/>khóa / mở khóa]
         LEDM[ledger<br/>nạp tiền, chuyển tiền,<br/>idempotency, hạn mức]
-        RSKM[risk-admin<br/>review cờ, cấu hình luật]
         AUDM[audit<br/>ghi + tra cứu nhật ký]
     end
-    subgraph WRKAPP[Worker app]
-        RELM[outbox-relay]
-        RSKW[risk-scoring<br/>luật R1-R6]
+    subgraph SHM[Chạy ở cả hai role]
+        RSKM[risk<br/>api: review cờ, cấu hình luật<br/>worker: chấm điểm R1-R6]
+    end
+    subgraph WRKM[Chạy ở role worker]
+        OUTM[outbox<br/>relay sự kiện ra queue]
         NOTM[notification]
     end
-    SHARED[shared kernel<br/>Money, CorrelationId,<br/>lỗi chuẩn, cấu hình]
+    COMMON[common · config · database · libs<br/>ErrorCode, app-role, TransactionService, adapter]
 
     LEDM -->|lockForUpdate, applyBalanceChange<br/>trong cùng transaction| ACCM
     LEDM --> AUDM
     ACCM --> AUDM
     RSKM --> AUDM
     ACCM -->|revokeSessions| IDM
-    RSKW --> AUDM
-    APIAPP -.-> SHARED
-    WRKAPP -.-> SHARED
+    APIM -.-> COMMON
+    SHM -.-> COMMON
+    WRKM -.-> COMMON
 ```
 
 **Quy tắc phụ thuộc giữa module:**
 - `ledger` **không** đọc hay ghi bảng `accounts` trực tiếp. Nó gọi các hàm được `accounts` export (`lockForUpdate`, `applyBalanceChange`) và **truyền transaction hiện tại** vào. Nhờ vậy chuyển tiền vẫn là một transaction mà quyền sở hữu dữ liệu không bị phá (P-4).
 - `audit` là thư viện được mọi module ghi gọi **trong transaction của chính module đó**.
-- Không có phụ thuộc vòng. Dùng lint rule (ví dụ `eslint-plugin-boundaries`) để chặn import sai.
+- Mỗi module có một `index.ts` là API công khai duy nhất; module khác chỉ import qua `@modules/<tên>`. **eslint ép quy tắc này** (chặn cả import sâu qua alias lẫn `../` sang module khác), nên không cần thêm plugin. Lý do làm ngay từ tuần 1: codebase lớn lên mà không có rào chắn thì module sẽ tự đăng ký schema của nhau và phải vá phụ thuộc vòng bằng `forwardRef` — không sửa được nữa khi đã có hàng chục module.
+- Không có phụ thuộc vòng.
+- Code trong repo: [`backend/`](../backend/README.md) (cấu trúc `common / config / database / libs / modules / scripts`).
 
 ---
 
@@ -176,7 +189,7 @@ sequenceDiagram
             A->>DB: INSERT transfer(REJECTED, reason) + audit_log
             A->>DB: UPDATE idempotency_keys SET response
             A->>DB: COMMIT
-            A-->>C: 422 {transferId, status: REJECTED, reason}
+            A-->>C: 422 problem+json {errorCode: lý do, transferId}
         else Hợp lệ
             A->>DB: INSERT transfer(COMPLETED) + 2 ledger_entries, UPDATE 2 balance
             A->>DB: INSERT outbox_events(TransferCompleted + snapshot) + audit_log
@@ -264,9 +277,31 @@ sequenceDiagram
 
 **Quy ước chung:**
 - Tiền trong request/response là **string** chứa số nguyên đồng (ví dụ `"500000"`).
-- Lỗi trả theo chuẩn `application/problem+json` (RFC 7807), kèm `correlationId`.
+- Lỗi trả theo chuẩn `application/problem+json` (RFC 7807): `type`, `title`, `status`, `detail`, kèm `errorCode` (mã ổn định để client và test rẽ nhánh — **test theo mã, không theo câu chữ**), `correlationId`, và `errors[]` cho lỗi validate.
+- Lệnh chuyển tiền bị **REJECTED** trả **422**: `errorCode` là lý do (cùng chuỗi được lưu ở `transfers.reject_reason`) và `transferId`. Trường `status` của problem+json luôn là mã HTTP.
+- Lỗi database tạm thời (deadlock còn sót sau retry, mất kết nối) trả **503 + `Retry-After`** với `errorCode = SERVICE_TEMPORARILY_UNAVAILABLE`. Yêu cầu chưa thay đổi gì, client gửi lại **cùng `Idempotency-Key`** là an toàn.
+- Lỗi không lường trước trả 500 với nội dung chung chung; chi tiết thật chỉ ghi vào log kèm `correlationId`, không ra client.
 - Truy cập tài khoản không thuộc mình trả **404** thay vì 403 để không tiết lộ tài khoản đó có tồn tại (AC-5.8).
 - Mọi response có header `X-Correlation-Id`.
+
+### 7.1 Mã lỗi (`errorCode`)
+
+Định nghĩa duy nhất ở `backend/src/common/errors/error-code.enum.ts`. **Chỉ thêm mã khi client phải rẽ nhánh theo nó**; lỗi không ai rẽ nhánh chỉ cần `detail` rõ ràng.
+
+| `errorCode` | HTTP | Khi nào | Quy tắc |
+|---|---|---|---|
+| `ACCOUNT_NOT_ACTIVE` | 422 | Tài khoản nguồn hoặc đích không `ACTIVE` | BR-05, BR-12 · lưu ở `reject_reason` |
+| `LIMIT_PER_TX_EXCEEDED` | 422 | Vượt hạn mức mỗi lần | BR-06 · lưu ở `reject_reason` |
+| `LIMIT_PER_DAY_EXCEEDED` | 422 | Vượt hạn mức trong ngày | BR-06 · lưu ở `reject_reason` |
+| `INSUFFICIENT_FUNDS` | 422 | Không đủ số dư | BR-03 · lưu ở `reject_reason` |
+| `IDEMPOTENCY_KEY_REQUIRED` | 400 | Lệnh chuyển/nạp tiền thiếu header `Idempotency-Key` | BR-07 |
+| `IDEMPOTENCY_KEY_REUSED` | 422 | Cùng `Idempotency-Key` nhưng nội dung khác | BR-07 |
+| `ACCOUNT_LIMIT_REACHED` | 409 | Khách đã có tối đa số tài khoản | BR-14 |
+| `SESSION_REVOKED` | 401 | Token phát hành trước mốc thu hồi phiên (ví dụ tài khoản bị khóa) | BR-12 · khác "hết hạn": dùng lại token không bao giờ được |
+| `RATE_LIMITED` | 429 | Vượt giới hạn tần suất | NFR-SEC-05 |
+| `SERVICE_TEMPORARILY_UNAVAILABLE` | 503 | Lỗi database tạm thời | Kèm `Retry-After`; gửi lại cùng `Idempotency-Key` |
+
+Bốn mã đầu cũng là tập `RejectReason`: chuỗi lưu trong database và chuỗi trên đường truyền là một.
 
 ---
 
@@ -488,7 +523,7 @@ flowchart LR
 | Sự cố sau commit, trước khi gửi sự kiện | Outbox: relay gửi lại | Kill worker rồi bật lại |
 | Consumer nhận sự kiện trùng | `processed_events`; bộ đếm Redis dùng `transferId` làm member | AC-9.2 |
 | Consumer lỗi liên tục | Retry + backoff → DLQ + alarm | Inject lỗi consumer |
-| Hai lệnh đồng thời trên cùng tài khoản | Khóa hàng theo thứ tự id; retry có giới hạn khi deadlock | AC-5.9 |
+| Hai lệnh đồng thời trên cùng tài khoản | Khóa hàng theo thứ tự id; deadlock (`40P01`) thì `withTransaction` chạy lại cả transaction tối đa 3 lần với backoff; còn sót thì trả 503 + `Retry-After` | AC-5.9 |
 | **Redis down hoặc chậm** | Timeout ngắn + circuit breaker; chế độ dự phòng mục 9.3 | Tắt Redis giữa load test |
 | **Redis mất dữ liệu** (restart, failover) | Bộ đếm và cache tự dựng lại; mốc thu hồi đọc lại từ Postgres | Flush Redis rồi chạy AC-11.1 |
 | Dịch vụ thông báo lỗi | Bất đồng bộ, không ảnh hưởng chuyển tiền; circuit breaker | Inject lỗi notification |
@@ -551,11 +586,11 @@ flowchart TB
 
 | | Local | Dev (cloud) | Production (demo HA, đo SLO) |
 |---|---|---|---|
-| Chạy ở | `docker compose` trên máy cá nhân | AWS, dựng/xóa theo giờ làm việc | AWS, bật trong các đợt demo và đo |
+| Chạy ở | `docker compose` cho hạ tầng + `npm run start:dev` (`APP_ROLE=both`) | AWS, dựng/xóa theo giờ làm việc | AWS, bật trong các đợt demo và đo |
 | PostgreSQL | Container | RDS Single-AZ, instance nhỏ | RDS Multi-AZ |
 | Redis | Container Valkey | 1 node nhỏ hoặc Serverless | Có replica (Serverless có sẵn Multi-AZ) |
-| API | 1 process | 1 task | ≥ 2 task trên 2 AZ |
-| Worker | 1 process | 1 task | 1–2 task |
+| API (`APP_ROLE=api`) | cùng 1 process với worker | 1 task | ≥ 2 task trên 2 AZ |
+| Worker (`APP_ROLE=worker`) | cùng 1 process với API | 1 task | 1–2 task |
 | Hàng đợi | ElasticMQ (tương thích SQS) | SQS | SQS |
 | Mục tiêu availability | — | Không cam kết | 99,9% |
 
@@ -574,9 +609,9 @@ flowchart TB
 
 | Bước | Cách làm |
 |---|---|
-| Build | Mỗi commit vào nhánh chính → lint, test (gồm Testcontainers), build image, quét lỗ hổng, đẩy lên ECR với tag = commit SHA |
+| Build | Mỗi commit vào nhánh chính → lint, typecheck, unit + e2e test (gồm Testcontainers), build **một image** (`backend/Dockerfile`), quét lỗ hổng, đẩy lên ECR với tag = commit SHA |
 | Migration | Chạy như một bước riêng trước deploy, theo kiểu backward-compatible: **expand → migrate → contract** |
-| Deploy | ECS rolling update; task mới phải qua health check `/health/ready` mới nhận traffic |
+| Deploy | Hai ECS service dùng chung image, khác `APP_ROLE`. Service `api`: rolling update, task mới phải qua `/health/ready` mới nhận traffic. Service `worker`: không có cổng HTTP nên dùng health check bằng lệnh của ECS |
 | Rollback | Cập nhật service về task definition trước đó (image cũ); migration kiểu expand nên schema vẫn tương thích |
 
 ---
@@ -609,7 +644,7 @@ Danh mục luật R1–R6 định nghĩa ở tài liệu 02 §2.1. Phần này m
 | Tầng | Chạy khi nào | Hành động | Ví dụ |
 |---|---|---|---|
 | **Sync guard** (module `ledger`) | Trong transaction, sau `FOR UPDATE` | Chặn cứng → `REJECTED` | Vượt hạn mức lần/ngày, tài khoản bị khóa |
-| **Async detection** (worker `risk-scoring`) | Sau commit, qua sự kiện `TransferCompleted` | Chỉ **gắn cờ** | R1–R6 |
+| **Async detection** (module `risk`, chạy ở role worker) | Sau commit, qua sự kiện `TransferCompleted` | Chỉ **gắn cờ** | R1–R6 |
 
 Sync guard phải rẻ (chỉ đọc tài khoản đang khóa và tổng tiền đi trong ngày, ≤ 5 ms) và không được làm hỏng giao dịch. Phân tích lịch sử chạy bất đồng bộ nên không ảnh hưởng SLO chuyển tiền. Đánh đổi: giao dịch đáng ngờ đã chuyển xong khi bị phát hiện. V1 chấp nhận vì có nhân viên review; giữ tiền chờ duyệt là hướng mở rộng.
 
@@ -691,7 +726,7 @@ flowchart LR
 
 ## 18. Architecture Decision Records
 
-Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 12.
+Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 13.
 
 | # | Quyết định | Phương án so sánh | Driver |
 |---|---|---|---|
@@ -707,22 +742,26 @@ Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 12.
 | ADR-10 | Egress mạng cho Fargate | NAT Gateway · VPC endpoints · Public subnet + security group | D-8 |
 | ADR-11 | Cloud managed services | VPS tự quản · Kết hợp | D-7, D-8 |
 | ADR-12 | Redis (Valkey) cho rate limit, mốc thu hồi, bộ đếm, cấu hình; **không** cache số dư | Không cache · Bộ nhớ từng task · Cache cả số dư; Serverless vs node | D-6, D-4 |
+| ADR-13 | **Một ứng dụng, một image, chạy theo `APP_ROLE`** (`api` / `worker` / `both`) | Hai app riêng (`apps/api`, `apps/worker`) · Hai repo | D-8 |
 
 ## 19. Tech stack
 
 | Mảng | Lựa chọn | Ghi chú |
 |---|---|---|
 | Runtime / ngôn ngữ | Node.js LTS + TypeScript (strict) | Một ngôn ngữ cho API và worker |
-| Framework | NestJS, monorepo | Mỗi module Nest = một module ở mục 5 |
+| Framework | NestJS 11, **một app** chạy theo `APP_ROLE` (ADR-13) | Mỗi thư mục trong `src/modules/` = một module ở mục 5; ranh giới do eslint ép |
 | Truy cập DB | TypeORM (CRUD, migration) + **SQL tường minh trong `QueryRunner` cho luồng chuyển tiền** | Cần `ON CONFLICT`, `FOR UPDATE`, thứ tự khóa; Kysely là phương án thay thế (ADR-07) |
 | Migration | TypeORM migrations, expand → migrate → contract | Bước riêng trong pipeline |
 | Redis | `ioredis` + storage Redis cho `@nestjs/throttler` | Timeout ngắn, circuit breaker, mọi key có TTL |
+| Cấu hình | `@nestjs/config` + **Joi validate lúc khởi động** | Thiếu/sai biến → app từ chối chạy; production bắt buộc TLS tới Postgres và Redis |
 | Validation | `class-validator` + `ValidationPipe` (whitelist) | |
+| Lỗi | `ProblemDetailsFilter` (RFC 7807) + enum `ErrorCode` | Mục 7.1 |
+| Transaction | `TransactionService` / `withTransaction` | READ COMMITTED; tự chạy lại khi deadlock (3 lần, backoff + jitter); callback phải chạy lại được an toàn |
 | API doc | `@nestjs/swagger` | Artifact API Specification của P2 |
 | Auth | Cognito JWT (JWKS) + guard vai trò + mốc thu hồi + ownership check | |
 | Queue | `@aws-sdk/client-sqs`, long polling | |
 | Resilience | `opossum` (circuit breaker), retry có backoff | Cho Redis và notification |
-| Log / metric | `nestjs-pino`, `prom-client` hoặc CloudWatch EMF, `@nestjs/terminus` | |
+| Log / metric | Nest `Logger` (đã có), `nestjs-pino` (dự kiến), `prom-client` hoặc CloudWatch EMF, `@nestjs/terminus` (health đã có) | |
 | Test | Jest + Supertest + **Testcontainers (Postgres, Valkey thật)** | Test đồng thời không được mock DB |
 | Load test | k6 | |
 | CI/CD, IaC | GitHub Actions, Terraform | |
@@ -750,4 +789,5 @@ Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 12.
 | v0.1 | Bản nháp đầu: modular monolith, Postgres, outbox, fraud rule-based |
 | v0.2 | Tài khoản SYSTEM + nạp tiền; sync guard sau `FOR UPDATE`; idempotency theo user với `ON CONFLICT`; bỏ trạng thái FAILED; audit chỉ trong transaction; event có ảnh chụp; cấu hình dev/production |
 | v0.3 | Thêm Redis với 4 mục đích, danh sách không cache, chế độ khi Redis lỗi |
-| **1.0** | Sửa luồng sự kiện: mỗi consumer một queue SQS riêng (một queue chung chỉ giao mỗi message cho một consumer). Tách bộ tài liệu thành 01 Business → 02 Requirements & Domain → 03 Architecture. Thêm architecture drivers, C4 mức 1–3, bảng API, so sánh database, bảng NFR → cơ chế. Thu hồi phiên chuyển sang mốc `sessions_revoked_at` trong DB (Redis chỉ cache). Tách `fraud_flags` và `fraud_rule_hits` |
+| 1.0 | Sửa luồng sự kiện: mỗi consumer một queue SQS riêng (một queue chung chỉ giao mỗi message cho một consumer). Tách bộ tài liệu thành 01 Business → 02 Requirements & Domain → 03 Architecture. Thêm architecture drivers, C4 mức 1–3, bảng API, so sánh database, bảng NFR → cơ chế. Thu hồi phiên chuyển sang mốc `sessions_revoked_at` trong DB (Redis chỉ cache). Tách `fraud_flags` và `fraud_rule_hits` |
+| **1.1** | Khởi tạo code tại `backend/`. **Một app chạy theo `APP_ROLE`** thay cho hai app `apps/api` + `apps/worker` (ADR-13); gộp `risk-admin` + `risk-scoring` thành module `risk`, `outbox-relay` thành module `outbox`. Thêm validate cấu hình lúc khởi động (production bắt buộc TLS), `TransactionService` có retry deadlock, enum `ErrorCode` + định dạng lỗi RFC 7807 (mục 7.1), lỗi DB tạm thời → 503 + `Retry-After`, ranh giới module do eslint ép. Lệnh bị REJECTED trả 422 problem+json thay vì `{status: REJECTED}` vì trường `status` của RFC 7807 là mã HTTP |

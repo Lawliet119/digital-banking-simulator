@@ -20,24 +20,30 @@ Backend cho một ngân hàng số quy mô nhỏ, tập trung vào 4 điều mà
 
 ```mermaid
 flowchart LR
-    C[Client] --> EDGE[WAF + ALB] --> API[API<br/>modular monolith]
+    C[Client] --> EDGE[WAF + ALB] --> API["API · APP_ROLE=api"]
     API -->|1 ACID transaction| PG[(PostgreSQL)]
     API --> RD[(Redis)]
-    WRK[Worker] -->|outbox| PG
+    WRK["Worker · APP_ROLE=worker<br/>(cùng image)"] -->|outbox| PG
     WRK --> Q[[SQS]] --> WRK
     WRK --> RD
 ```
 
-Modular monolith (NestJS) + worker bất đồng bộ. Chi tiết và lý do ở [docs/03_HIGH_LEVEL_ARCHITECTURE.md](docs/03_HIGH_LEVEL_ARCHITECTURE.md).
+Modular monolith (NestJS): **một ứng dụng, một image**, chạy thành `api` hoặc `worker` theo biến `APP_ROLE` ([ADR-13](docs/adr/0013-one-app-app-role.md)). Chi tiết và lý do ở [docs/03_HIGH_LEVEL_ARCHITECTURE.md](docs/03_HIGH_LEVEL_ARCHITECTURE.md).
 
 ## Cấu trúc repo
 
 ```
 digital-banking-simulator/
-├── apps/
-│   ├── api/              # NestJS API: identity, accounts, ledger, risk review, audit
-│   └── worker/           # outbox relay, risk scoring, notification
-├── libs/                 # shared kernel (Money, CorrelationId, lỗi chuẩn), audit
+├── backend/              # ứng dụng NestJS duy nhất — xem backend/README.md
+│   ├── src/
+│   │   ├── common/       # app-role, ErrorCode, filter lỗi, middleware, utils
+│   │   ├── config/       # cấu hình + validate biến môi trường lúc khởi động
+│   │   ├── database/     # kết nối, TransactionService, migrations
+│   │   ├── libs/         # adapter: redis, sqs, cognito
+│   │   ├── modules/      # identity, accounts, ledger, risk, audit, outbox, notification, health
+│   │   └── scripts/      # seed, công cụ chạy một lần
+│   ├── test/             # e2e
+│   └── Dockerfile        # một image cho cả api và worker
 ├── infra/
 │   ├── terraform/        # hạ tầng AWS
 │   └── local/            # cấu hình cho môi trường local (ElasticMQ...)
@@ -55,18 +61,21 @@ digital-banking-simulator/
 
 ## Chạy local
 
-**Yêu cầu:** Docker, Node.js 24 LTS.
+**Yêu cầu:** Docker, Node.js ≥ 22.
 
 ```bash
-# 1. Tạo file cấu hình local
+# 1. Hạ tầng local: PostgreSQL, Valkey (Redis), ElasticMQ (SQS)
 cp .env.example .env
-
-# 2. Dựng PostgreSQL, Valkey (Redis), ElasticMQ (SQS)
 docker compose up -d
 
-# 3. Kiểm tra
-docker compose ps
+# 2. Ứng dụng
+cd backend
+npm install
+cp env/.env.example env/.env.development
+npm run start:dev          # http://localhost:3000/health/ready · http://localhost:3000/docs
 ```
+
+Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e` (trong `backend/`). Chi tiết, quy ước và các lệnh khác: [backend/README.md](backend/README.md).
 
 | Dịch vụ | Địa chỉ |
 |---|---|
@@ -74,8 +83,6 @@ docker compose ps
 | Valkey (Redis) | `localhost:6379` |
 | ElasticMQ (SQS API) | `http://localhost:9324` |
 | ElasticMQ (giao diện xem queue) | `http://localhost:9325` |
-
-> Mã nguồn `apps/api` và `apps/worker` sẽ được khởi tạo ở tuần 1 (xem kế hoạch).
 
 ## Tài liệu
 

@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR theo [mẫu](0000-template.md): bối cảnh, các phương án, lựa chọn, lý do và đánh đổi. Đề bài yêu cầu tối thiểu 3 ADR; nhóm dự kiến 12.
+Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR theo [mẫu](0000-template.md): bối cảnh, các phương án, lựa chọn, lý do và đánh đổi. Đề bài yêu cầu tối thiểu 3 ADR; nhóm dự kiến 13.
 
 **Trạng thái:** `Proposed` (đề xuất) → `Accepted` (đã chốt) → có thể `Superseded` (bị thay bởi ADR mới).
 
@@ -18,5 +18,6 @@ Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR th
 | ADR-10 | Egress mạng cho Fargate | NAT Gateway · VPC endpoints · Public subnet | #5 | Proposed |
 | ADR-11 | Cloud managed services | VPS tự quản · Kết hợp ([phân tích](../DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md)) | #5 | Proposed |
 | ADR-12 | Redis cho rate limit, mốc thu hồi, bộ đếm, cấu hình; không cache số dư | Không cache · Bộ nhớ từng task · Cache cả số dư | #2, #4 | Proposed |
+| [ADR-13](0013-one-app-app-role.md) | Một ứng dụng, một image, chạy theo `APP_ROLE` | Hai app riêng · Hai repo | #1, #5 | Proposed (đã hiện thực, chờ nhóm xác nhận) |
 
 Tên file: `NNNN-tieu-de-ngan.md`, ví dụ `0001-modular-monolith.md`.
