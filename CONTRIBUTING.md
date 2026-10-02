@@ -56,7 +56,7 @@ Một Pull Request chỉ được merge khi:
 - [ ] Có test cho logic mới; test liên quan đến tiền chạy trên **PostgreSQL thật** (Testcontainers), không mock
 - [ ] CI xanh
 - [ ] Không có secret trong code, log hay commit
-- [ ] Nếu đổi thiết kế: cập nhật tài liệu trong `docs/` hoặc thêm ADR
+- [ ] Nếu đổi thiết kế: cập nhật `docs/components/<module>/` (hoặc `docs/01–03` nếu thuộc cấp hệ thống) và thêm ADR nếu là quyết định kiến trúc; xem [docs/README.md](docs/README.md)
 - [ ] Nếu đổi API: OpenAPI (Swagger) được cập nhật
 
 ## 5. Quy tắc bắt buộc khi làm với tiền

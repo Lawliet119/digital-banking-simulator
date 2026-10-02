@@ -22,7 +22,7 @@ Closes #
 - [ ] Có test; logic về tiền được test trên PostgreSQL thật
 - [ ] CI xanh
 - [ ] Không có secret trong code, log, commit
-- [ ] Đã cập nhật tài liệu / ADR / OpenAPI nếu cần
+- [ ] Đã cập nhật tài liệu / ADR / OpenAPI nếu cần (đổi thiết kế một module → `docs/components/<module>/`)
 
 ## Ghi chú cho người review
 

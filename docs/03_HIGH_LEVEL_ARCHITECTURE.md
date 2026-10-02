@@ -1,5 +1,7 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
+> **Status:** Draft v1.1 — chờ nhóm review · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-03
+
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |

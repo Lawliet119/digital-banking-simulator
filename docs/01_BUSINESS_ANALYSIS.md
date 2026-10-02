@@ -1,5 +1,7 @@
 # 01 — Business Analysis: Digital Banking Simulator
 
+> **Status:** Draft v1.0 — chờ nhóm review · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-03
+
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 01 / 03 — Phân tích nghiệp vụ |

@@ -1,5 +1,7 @@
 # 02 — Requirements & Domain Model: Digital Banking Simulator
 
+> **Status:** Draft v1.0 — chờ nhóm review · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-03
+
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 02 / 03 — Yêu cầu và mô hình miền nghiệp vụ |
