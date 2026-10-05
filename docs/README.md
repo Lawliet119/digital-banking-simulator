@@ -23,7 +23,7 @@ docs/
 ├── plan/                                  Kế hoạch 10 tuần + playbook theo vai
 ├── superpowers/plans/                     Implementation plan (master roadmap, plan từng task)
 ├── components/                            Tài liệu từng component: 01 concept · 02 architecture · …
-│   ├── index.md   _shared/   _templates/
+│   ├── index.md   _shared/ (database-design, event-contract, glossary)   _templates/
 │   └── ledger/  accounts/  identity/  risk/  audit/  outbox/  notification/  health/
 │       platform-infra/  ci-cd/  observability/  fraud-dataset/  load-tests/
 ├── deliverables/                          Năm bản nộp P1–P5
@@ -37,6 +37,7 @@ docs/
 | Mục tiêu, quy tắc nghiệp vụ (BR), NFR, tiêu chí chấp nhận | `01`, `02` |
 | Kiến trúc cấp hệ thống: drivers, C4, Redis, bảo mật tổng, triển khai | `03` |
 | Chi tiết **một** component: luồng, bảng, API, lỗi | `components/<tên>/02-architecture.md` |
+| Schema DB toàn hệ thống: bảng, ràng buộc, index, quyền, migration | `components/_shared/database-design.md` |
 | Hình dạng sự kiện | `components/_shared/event-contract.md` |
 | Lý do một quyết định | `adr/` |
 | Kế hoạch thực thi | `superpowers/plans/` |

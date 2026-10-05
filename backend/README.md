@@ -10,7 +10,7 @@ Một ứng dụng NestJS (TypeScript strict). **Một image, chạy theo `APP_R
 
 ## Chạy local
 
-Yêu cầu: Node.js ≥ 22, Docker.
+Yêu cầu: Node.js ≥ 24 (có `.nvmrc`, khớp với image Docker), Docker.
 
 ```bash
 # từ thư mục gốc của repo
@@ -89,6 +89,8 @@ await this.tx.run(async manager => {
 - Deadlock (`40P01`) và serialization failure (`40001`) được **chạy lại cả callback** trong transaction mới (tối đa 3 lần).
 - Vì vậy callback **phải chạy lại được an toàn**: không gọi Redis, HTTP, SQS bên trong. Sự kiện đi qua bảng outbox.
 - Truyền `manager` sang module khác để cùng một transaction.
+- **Mỗi transaction luôn có giới hạn chờ:** `lock_timeout` 2 giây, `statement_timeout` 5 giây, `idle_in_transaction_session_timeout` 10 giây (cấu hình `DATABASE_*_TIMEOUT_MS`). Lý do: nhiều lệnh cùng chờ khóa của một tài khoản nóng, mỗi lệnh giữ một kết nối trong pool; không có giới hạn thì pool cạn và mọi request khác — kể cả `/health/ready` — đứng chờ theo. Hết hạn thì trả **503 + `Retry-After`** và **không** tự thử lại (chờ thêm chỉ làm hàng đợi dài hơn). Một transaction đặc biệt (ví dụ job đối soát) được nâng giới hạn của riêng nó: `tx.run(fn, { statementTimeoutMs: 60000 })`.
+- Giữ transaction **ngắn**: không gọi dịch vụ ngoài, không xử lý nặng khi đang giữ khóa.
 
 ### 3. Lỗi: dùng `ErrorCode`, test theo mã, không theo câu chữ
 Mọi lỗi trả về `application/problem+json`:
@@ -101,6 +103,7 @@ Mọi lỗi trả về `application/problem+json`:
 - Chỉ thêm member vào `ErrorCode` khi client **phải rẽ nhánh** theo nó.
 - Lỗi DB tạm thời (deadlock còn sót sau retry, mất kết nối) → **503 + `Retry-After`**; client gửi lại **cùng `Idempotency-Key`** là an toàn.
 - Lỗi lạ → 500 với nội dung chung chung; chi tiết thật chỉ nằm trong log (kèm `correlationId`), không bao giờ ra client.
+- **`correlationId` luôn do server sinh** (header `X-Correlation-Id`); client không chọn được, nên không ai dùng lại id của người khác để làm nhiễu truy vết audit. Id do client gửi qua `X-Request-Id` (phải là UUID) chỉ được trả lại nguyên vẹn để client đối chiếu request, không dùng cho audit.
 
 ### 4. Ranh giới module do eslint ép
 Xem `src/modules/README.md`. Import xuyên module chỉ qua `@modules/<tên>`; với tay vào ruột module khác (alias hoặc `../`) là lỗi lint.
@@ -120,5 +123,11 @@ docker build -t dbs-backend backend
 docker run --rm -e APP_ROLE=api    --env-file backend/env/.env.development dbs-backend
 docker run --rm -e APP_ROLE=worker --env-file backend/env/.env.development dbs-backend
 ```
+
+### Kết nối RDS qua TLS
+Production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác minh chứng chỉ của server. Node không tin CA của Amazon RDS mặc định, nên cần tải bundle CA của AWS (`https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem`) vào image trong pipeline và đặt `DATABASE_SSL_CA_PATH` trỏ tới file đó. **Không** tắt xác minh chứng chỉ để "cho kết nối được": như vậy vẫn mã hóa nhưng chấp nhận mọi chứng chỉ, kể cả của kẻ tấn công. Bước tải bundle chưa được thử trên RDS thật — #5 kiểm khi dựng RDS ở tuần 2.
+
+### Hạ tầng phía trước app
+Production bắt buộc `TRUST_PROXY_HOPS` (≥ 1; ALB = 1). Để 0 thì mọi khách chung địa chỉ IP của ALB và rate limit theo IP sẽ chặn nhầm tất cả.
 
 Image không có `HEALTHCHECK`: service `api` được load balancer kiểm tra qua `/health/ready`, service `worker` không có cổng HTTP nên tự định nghĩa kiểm tra riêng ở ECS.

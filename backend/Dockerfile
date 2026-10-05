@@ -22,6 +22,11 @@ COPY package.json ./
 # Never run as root. The `node` user ships with the official image.
 USER node
 EXPOSE 3000
+# Connecting to RDS over TLS needs the AWS CA bundle (Node does not trust the RDS CA by default):
+# download https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem into the image in the
+# deployment pipeline and set DATABASE_SSL_CA_PATH to its location. Do NOT disable certificate
+# verification to get around the error. (Not baked in here: it has not been tried against a real
+# RDS instance yet, and an unchecked download step would break every build if the URL changed.)
 # No HEALTHCHECK here on purpose: the `api` service is checked by the load balancer
 # (GET /health/ready) and the `worker` service has no HTTP port, so each ECS service defines
 # its own check. Migrations are a separate pipeline step:

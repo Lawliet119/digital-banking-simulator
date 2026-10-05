@@ -1,7 +1,6 @@
 # Kế hoạch 10 tuần — Digital Banking Simulator
 
-> Nhóm 6 người · 10 tuần + 1 tuần chuẩn bị · Tuần 1 bắt đầu **05/10/2026**, kết thúc **13/12/2026**.
-> Ngày tháng là giả định; có deadline chính thức thì dịch theo, thứ tự công việc giữ nguyên.
+> Nhóm 6 người · Lộ trình triển khai gồm 10 tuần thực hiện và 1 tuần khởi động ban đầu. Tiến độ chi tiết bám sát các mốc tuần và thông báo chính thức của giảng viên.
 
 ## 1. Cuối kỳ phải có
 
@@ -23,51 +22,49 @@
 | 5 | **Platform** | Cloud, CI/CD, Terraform, bảo mật hạ tầng, chi phí | P3 | 8, 9, 11 | #6 |
 | 6 | **Quality** | Test tự động, load test, dashboard, giả lập sự cố, **bộ dữ liệu gian lận** | P4 | 2, 6, 10 | #5 |
 
-- **Cặp đôi** review code của nhau và làm backup khi người kia bận.
-- **Người dẫn dắt** ghép bài và nộp; ai làm phần nào tự viết phần đó.
-- **#6 làm dữ liệu gian lận, #4 viết luật** — tách người để kết quả đánh giá không bị "tự chấm bài mình".
+- **Cơ chế bắt cặp (Pair Review & Backup):** Các cặp vai trò thực hiện đánh giá chéo mã nguồn (code review) và đảm nhiệm vai trò dự phòng kỹ thuật khi thành viên trong cặp vắng mặt.
+- **Trách nhiệm tổng hợp báo cáo:** Thành viên dẫn dắt từng cột mốc chịu trách nhiệm tổ chức, biên tập và nộp báo cáo; mỗi thành viên trực tiếp soạn thảo nội dung kỹ thuật thuộc phạm vi mình phụ trách.
+- **Đảm bảo tính khách quan trong đánh giá gian lận:** Phân định độc lập giữa vai trò xây dựng tập dữ liệu kiểm chuẩn (#6) và vai trò phát hiện/cài đặt luật (#4) nhằm đảm bảo tính khách quan của thực nghiệm (tránh rủi ro data leakage và thiên kiến đánh giá).
 
 ## 3. Lịch tuần
 
-| Tuần | Ngày | Mục tiêu | Việc chính | ✅ Xong khi |
-|---|---|---|---|---|
-| **0** | 01–04/10 | Chuẩn bị | Nhận vai; chốt cloud hay VPS; tạo repo, board; mở tài khoản cloud + bật cảnh báo chi phí; hỏi deadline thật | Ai cũng biết vai, có repo |
-| **1** | 05–11/10 | **P1** + khung chạy | Cả nhóm hoàn thiện P1 từ tài liệu 01–02 · #5 CI/CD, build image từ `backend/Dockerfile` và đưa `/health/ready` lên cloud (khung NestJS đã có sẵn trong repo) · #1 thiết kế DB · #6 khung test | Nộp P1; deploy tự động chạy |
-| **2** | 12–18/10 | **P2** + API nền | Cả nhóm viết P2 + 3 ADR · #2 đăng nhập, mở tài khoản · #1 chuyển tiền bản đầu, nạp tiền · #3 audit log · #5 DB trên cloud | Nộp P2; mở TK → nạp tiền → xem số dư chạy trên cloud |
-| **3** | 19–25/10 | **Lõi đúng-sai** ⚠️ | #1 + #4 chuyển tiền đúng khi đồng thời, chống trùng, hạn mức · #2 phân quyền, lịch sử, rate limit · #3 outbox + hàng đợi · #5 dựng Redis · #6 test đồng thời | Test đồng thời + chống trùng xanh trong CI |
-| **4** | 26/10–01/11 | Bất đồng bộ + nhân viên | #3 worker, thông báo, DLQ, API audit · #4 6 luật gian lận · #2 khóa tài khoản + thu hồi phiên · #1 đối soát · #6 test tắt/bật worker | Chuyển tiền xong thì cảnh báo tự xuất hiện |
-| **5** | 02–08/11 | **Demo giữa kỳ** | #4 màn review cảnh báo · #6 bộ dữ liệu gian lận · Cả nhóm demo toàn luồng, lập danh sách việc cần sửa | Có video demo giữa kỳ |
-| **6** | 09–15/11 | **P3** bảo mật & DevOps | #5 hạ tầng gần production, rollback · #2 + #5 threat model · #6 test bảo mật · Còn lại sửa nợ kỹ thuật | Nộp P3; demo rollback |
-| **7** | 16–22/11 | Load test & giám sát | #6 load test 1×/5×/10× + tìm điểm gãy · #2 + #6 dashboard, cảnh báo · #4 đánh giá luật · #1 + #3 sửa lỗi dưới tải · #5 đo chi phí | Có báo cáo load test số liệu thật |
-| **8** | 23–29/11 | **P4** vận hành | #6 tổng hợp P4 · #5 demo failover DB · Giả lập sự cố: tắt app, mất DB, tắt Redis | Nộp P4; 5 demo chạy lại được bất cứ lúc nào |
-| **9** | 30/11–06/12 | **P5** + tổng duyệt | #4 viết P5 · #6 chạy lại toàn bộ test · Cả nhóm tổng duyệt bảo vệ | Nộp P5; không ai "bí" câu nào |
-| **10** | 07–13/12 | Dự phòng + nộp | Hoàn thiện tài liệu, slide · 2–3 ngày dự phòng, **không thêm việc mới** · #5 xóa tài nguyên cloud thừa | Nộp bài |
-
-⚠️ **Tuần 3 là tuần quan trọng nhất.** Chuyển tiền chưa đúng thì mọi thứ phía sau đều trễ.
+| Tuần | Mục tiêu | Việc chính | Tiêu chí hoàn thành (DoD) |
+|---|---|---|---|
+| **Tuần 0** | Khởi tạo dự án | Phân công vai trò; thống nhất hạ tầng cloud/VPS; khởi tạo repository, project board; thiết lập tài khoản cloud và cảnh báo chi phí; xác nhận lịch nộp chính thức | Hoàn tất phân công, sẵn sàng môi trường và repository |
+| **Tuần 1** | **P1** & Nền tảng thực thi | Hoàn thiện báo cáo P1 từ tài liệu phân tích nghiệp vụ · #5 thiết lập CI/CD, build Docker image và triển khai `/health/ready` lên cloud · #1 thiết kế lược đồ CSDL · #6 xây dựng khung kiểm thử | Nộp P1; quy trình build và deploy tự động vận hành |
+| **Tuần 2** | **P2** & Dịch vụ nền tảng | Soạn thảo P2 và 3 tài liệu ADR đầu tiên · #2 hiện thực xác thực, mở tài khoản · #1 luồng nạp tiền và chuyển tiền sơ khởi · #3 ghi nhật ký kiểm toán (audit log) · #5 triển khai CSDL lên cloud | Nộp P2; luồng mở tài khoản → nạp tiền → tra cứu số dư vận hành trên cloud |
+| **Tuần 3** | **Tính nhất quán & Đồng thời** ⚠️ | #1 + #4 giải quyết tranh chấp giao dịch đồng thời, chống trùng lặp (idempotency), kiểm soát hạn mức · #2 phân quyền truy cập, tra cứu lịch sử, giới hạn tần suất (rate limit) · #3 triển khai outbox và hàng đợi sự kiện · #5 thiết lập bộ nhớ đệm Redis · #6 kiểm thử tải đồng thời | Kiểm thử đồng thời và chống trùng lặp đạt 100% pass trên CI |
+| **Tuần 4** | Xử lý bất đồng bộ & Vận hành | #3 worker xử lý sự kiện, dịch vụ thông báo, hàng đợi DLQ, API tra cứu kiểm toán · #4 hiện thực 6 luật phát hiện gian lận · #2 khóa tài khoản và thu hồi phiên tức thì · #1 cơ chế đối soát sổ cái tự động · #6 kiểm thử khả năng phục hồi khi dừng/bật worker | Giao dịch hoàn tất tự động kích hoạt tiến trình phân tích rủi ro |
+| **Tuần 5** | **Báo cáo giữa kỳ** | #4 giao diện/API rà soát cảnh báo gian lận · #6 hoàn thiện bộ dữ liệu đánh giá rủi ro · Thực nghiệm luồng nghiệp vụ toàn trình (end-to-end), lập danh mục tối ưu hóa | Hoàn thành video báo cáo tiến độ và demo giữa kỳ |
+| **Tuần 6** | **P3** An toàn & DevOps | #5 cấu hình môi trường staging/production, quy trình rollback · #2 + #5 mô hình hóa mối đe dọa (STRIDE threat model) · #6 kiểm thử an toàn thông tin · Xử lý các tồn đọng kỹ thuật | Nộp P3; thực hiện thành công kịch bản rollback |
+| **Tuần 7** | Đo kiểm tải & Giám sát | #6 kiểm thử tải theo các kịch bản 1×/5×/10× và xác định điểm nghẽn hệ thống · #2 + #6 thiết lập dashboard giám sát SLI/SLO và cảnh báo · #4 đánh giá độ chính xác mô hình luật · #1 + #3 tối ưu hóa hiệu năng dưới tải cao · #5 đo lường chi phí vận hành | Báo cáo kiểm thử tải với số liệu thực nghiệm trên môi trường cloud |
+| **Tuần 8** | **P4** Kỹ nghệ vận hành | #6 tổng hợp hồ sơ P4 · #5 diễn tập kịch bản chuyển vùng dự phòng CSDL (DB failover) · Diễn tập xử lý sự cố hạ tầng: gián đoạn dịch vụ, mất kết nối CSDL, sự cố cache | Nộp P4; sẵn sàng kịch bản thực nghiệm cho 5 demo bắt buộc |
+| **Tuần 9** | **P5** & Tổng duyệt | #4 tổng hợp báo cáo P5 · #6 chạy hồi quy toàn bộ test suite · Tổng duyệt toàn diện kịch bản bảo vệ đồ án | Nộp P5; thành viên nắm vững nội dung và sẵn sàng bảo vệ 12 câu hỏi |
+| **Tuần 10** | Dự phòng & Hoàn tất | Chuẩn bị tài liệu thuyết trình, hoàn thiện slide báo cáo · Dự phòng tiến độ (đóng băng tính năng) · #5 thu hồi và đóng các tài nguyên cloud không cần thiết | Hoàn tất nộp hồ sơ đồ án môn học |
 
 ## 4. Quy tắc làm việc
 
-- **Họp:** 2 lần/tuần, 15 phút. Đầu tuần chốt việc, giữa tuần gỡ vướng.
-- **Demo cuối tuần:** 15 phút, quay màn hình, kể cả khi chưa xong.
-- **Code:** mọi thay đổi qua Pull Request, cặp đôi duyệt; không push thẳng vào `main`.
-- **"Xong"** nghĩa là: đã merge, có test, chạy được trên cloud.
-- **ADR:** viết ngay khi chốt quyết định, đừng để cuối kỳ.
-- **Chi phí:** code và test trên máy cá nhân; chỉ dựng cloud khi deploy, demo, load test; tắt ngoài giờ.
-- **Bận đột xuất:** báo sớm trong nhóm, cặp đôi nhận tạm. Đừng im lặng.
+- **Họp định kỳ:** 2 buổi/tuần (15 phút/buổi). Đầu tuần thống nhất kế hoạch chi tiết, giữa tuần tháo gỡ các điểm nghẽn kỹ thuật (unblock).
+- **Kiểm soát tiến độ:** Đánh giá tiến độ vào cuối tuần (15 phút), ghi hình lại kết quả thực nghiệm làm bằng chứng.
+- **Quy trình mã nguồn:** Toàn bộ thay đổi phải thông qua Pull Request, có tối thiểu 1 phê duyệt từ thành viên trong cặp phụ trách; áp dụng cơ chế bảo vệ nhánh `main`.
+- **Tiêu chuẩn hoàn thành (Definition of Done):** Mã nguồn được merge qua PR, vượt qua toàn bộ các bài kiểm thử tự động (unit/integration test) và triển khai thành công trên môi trường cloud.
+- **Ghi nhận quyết định kiến trúc:** Lập tài liệu ADR (Architecture Decision Record) ngay khi thống nhất các quyết định kỹ thuật quan trọng.
+- **Quản lý chi phí:** Phát triển và kiểm thử cục bộ (local); chỉ khởi tạo hạ tầng cloud khi deploy, demo hoặc đo kiểm tải; tắt tài nguyên ngoài khung giờ làm việc.
+- **Kế hoạch dự phòng:** Khi có phát sinh công việc ngoài dự kiến, chủ động thông báo cho nhóm và chuyển giao công việc tạm thời cho thành viên trong cặp phụ trách.
 
-## 5. Rủi ro chính
+## 5. Quản trị rủi ro
 
-| Rủi ro | Cách xử lý |
+| Rủi ro | Giải pháp giảm thiểu |
 |---|---|
-| Chuyển tiền vẫn lỗi ở tuần 3 | Ưu tiên tuyệt đối; #4 đã cặp sẵn với #1, cần thì kéo thêm #2 |
-| Chi phí cloud vượt | Tắt môi trường ngoài giờ; #5 báo chi phí hằng tuần |
-| #1, #2 quá tải vì nhiều việc | #3 hỗ trợ P2; mỗi người tự viết phần tài liệu của mình |
-| Deadline thật khác giả định | Cập nhật file này ngay khi có lịch |
+| Chậm tiến độ module chuyển tiền tại Tuần 3 | Ưu tiên tối đa nguồn lực; thành viên #4 và #2 phối hợp hỗ trợ kỹ thuật cùng #1 |
+| Chi phí hạ tầng cloud vượt ngân sách dự kiến | Áp dụng chính sách tắt tài nguyên tự động ngoài giờ; #5 theo dõi và báo cáo chi phí định kỳ |
+| Khối lượng công việc dồn ứ ở giai đoạn đầu | Phân bổ chéo công việc viết tài liệu; thành viên #3 hỗ trợ tổng hợp báo cáo P2 |
+| Lịch nộp chính thức có thay đổi so với dự kiến | Chủ động cập nhật và điều chỉnh các mốc thời gian theo thông báo chính thức của giảng viên |
 
-## 6. Việc cần làm ngay
+## 6. Kế hoạch khởi động
 
-- [ ] Mỗi người nhận 1 vai ở mục 2
-- [ ] Chốt nền tảng (cloud hay VPS) và người giữ tài khoản
-- [ ] Tạo repo `digital-banking-simulator`, board công việc, thư mục tài liệu chung
-- [ ] Bật cảnh báo chi phí cloud
-- [ ] Hỏi giảng viên deadline P1–P5
+- [ ] Phân công chính thức 6 vai trò theo bảng phân nhiệm
+- [ ] Thống nhất lựa chọn hạ tầng (AWS/VPS) và tài khoản quản trị
+- [ ] Khởi tạo repository `digital-banking-simulator`, project board và cấu trúc tài liệu dùng chung
+- [ ] Thiết lập hạn mức và cảnh báo chi phí (AWS Budget Alerts)
+- [ ] Xác nhận với giảng viên thời hạn chính thức cho các mốc P1–P5

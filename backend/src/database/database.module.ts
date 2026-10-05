@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { appConfig, databaseConfig } from '../config';
+import { buildSslOptions } from './pg-ssl';
 import { TransactionService } from './transaction.service';
 
 /**
@@ -19,7 +20,7 @@ import { TransactionService } from './transaction.service';
       useFactory: (db: ConfigType<typeof databaseConfig>, app: ConfigType<typeof appConfig>) => ({
         type: 'postgres' as const,
         url: db.url,
-        ssl: db.ssl ? { rejectUnauthorized: true } : false,
+        ssl: buildSslOptions({ enabled: db.ssl, caPath: db.sslCaPath }),
         applicationName: `dbs-${app.role}`,
         autoLoadEntities: true,
         synchronize: false,

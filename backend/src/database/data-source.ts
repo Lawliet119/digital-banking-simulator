@@ -1,6 +1,7 @@
 // Must stay the first import: it fills process.env from env/.env.<NODE_ENV> for the TypeORM CLI.
 import '../config/env.bootstrap';
 import { DataSource } from 'typeorm';
+import { buildSslOptions } from './pg-ssl';
 
 /**
  * DataSource used ONLY by the TypeORM CLI (migrations). The running app builds its own connection
@@ -10,7 +11,10 @@ import { DataSource } from 'typeorm';
 export default new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: true } : false,
+  ssl: buildSslOptions({
+    enabled: process.env.DATABASE_SSL === 'true',
+    caPath: process.env.DATABASE_SSL_CA_PATH,
+  }),
   entities: [`${__dirname}/../**/*.entity.{ts,js}`],
   migrations: [`${__dirname}/migrations/*.{ts,js}`],
 });

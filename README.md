@@ -52,8 +52,13 @@ digital-banking-simulator/
 │   ├── 02_REQUIREMENTS_AND_DOMAIN_MODEL.md
 │   ├── 03_HIGH_LEVEL_ARCHITECTURE.md
 │   ├── DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md
+│   ├── README.md         # bản đồ tài liệu: đọc gì trước, một sự thật ở một chỗ
 │   ├── adr/              # Architecture Decision Records
-│   └── plan/             # kế hoạch 10 tuần
+│   ├── plan/             # kế hoạch 10 tuần + playbook theo vai
+│   ├── components/       # tài liệu từng component: concept, architecture, ...
+│   ├── deliverables/     # 5 bản nộp P1–P5
+│   ├── notes/            # ghi chú lập luận, chưa chốt
+│   └── superpowers/plans/ # implementation plan (master roadmap)
 ├── load-tests/           # kịch bản k6
 ├── .github/              # CI/CD, PR template
 └── docker-compose.yml    # PostgreSQL, Valkey, ElasticMQ cho dev local
@@ -61,7 +66,7 @@ digital-banking-simulator/
 
 ## Chạy local
 
-**Yêu cầu:** Docker, Node.js ≥ 22.
+**Yêu cầu:** Docker, Node.js ≥ 24.
 
 ```bash
 # 1. Hạ tầng local: PostgreSQL, Valkey (Redis), ElasticMQ (SQS)
@@ -94,6 +99,10 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 | [ADR](docs/adr/README.md) | Các quyết định kiến trúc và lý do |
 | [Kế hoạch 10 tuần](docs/plan/10_WEEK_PLAN.md) | Phân vai, lịch tuần, quy tắc làm việc |
 | [Deployment options](docs/DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md) | So sánh VPS tự quản và cloud managed services |
+| [Bản đồ tài liệu](docs/README.md) | Đọc gì trước, cấu trúc `docs/`, quy tắc một sự thật ở một chỗ |
+| [Components](docs/components/index.md) | Mục lục từng module và thành phần hạ tầng, mỗi cái có concept brief và architecture |
+| [Master roadmap](docs/superpowers/plans/2026-10-02-master-roadmap.md) | Roadmap 10 tuần: task, phụ thuộc, cổng ra theo tuần |
+| [Deliverables P1–P5](docs/deliverables/README.md) | Năm bản nộp và nguồn của từng bản |
 
 ## Nhóm
 

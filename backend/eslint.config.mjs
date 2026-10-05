@@ -10,6 +10,12 @@ const aliasDeepImport = {
     'Import another module only through its public index: "@modules/<name>". Do not reach into its internals.',
 };
 
+const sharedCodeImportsAModule = {
+  group: ['@modules', '@modules/**', '**/modules', '**/modules/**'],
+  message:
+    'Shared infrastructure (common, config, database, libs) must not depend on a business module. Dependencies point from modules to infrastructure, never back.',
+};
+
 /** @param {string} up the "../" prefix that would leave the file's own module folder */
 const leavesOwnModule = up => ({
   group: [`${up}**`],
@@ -51,6 +57,15 @@ export default tseslint.config(
   {
     files: ['src/**/*.ts'],
     rules: { 'no-restricted-imports': ['error', { patterns: [aliasDeepImport] }] },
+  },
+  // The dependency arrow points one way: modules → shared infrastructure. If `common` could import
+  // a module, a shared helper would quietly start depending on business code and the "shared"
+  // folders would become the place where cycles hide.
+  {
+    files: ['src/common/**/*.ts', 'src/config/**/*.ts', 'src/database/**/*.ts', 'src/libs/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [aliasDeepImport, sharedCodeImportsAModule] }],
+    },
   },
   // A file `depth` folders below `src/modules/<name>/` may climb `depth` levels (still inside its
   // own module) but not one more. Anything further is another module or shared code, and shared

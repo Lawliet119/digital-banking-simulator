@@ -192,20 +192,32 @@ describe('HTTP error handling (e2e, no database)', () => {
       expect(res.body.correlationId).toBe(res.headers['x-correlation-id']);
     });
 
-    it('echoes a well-formed id from the caller', async () => {
-      const id = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
-      const res = await request(server).get('/v1/probe/ok').set('X-Correlation-Id', id).expect(200);
-
-      expect(res.headers['x-correlation-id']).toBe(id);
-    });
-
-    it('replaces a malformed id from the caller', async () => {
+    it('is always chosen by the server, never by the caller', async () => {
+      const chosen = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
       const res = await request(server)
         .get('/v1/probe/ok')
-        .set('X-Correlation-Id', 'forged-by-client')
+        .set('X-Correlation-Id', chosen)
         .expect(200);
 
       expect(res.headers['x-correlation-id']).toMatch(UUID);
+      expect(res.headers['x-correlation-id']).not.toBe(chosen);
+    });
+
+    it('echoes a well-formed caller X-Request-Id separately, so the client can match its request', async () => {
+      const mine = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+      const res = await request(server).get('/v1/probe/ok').set('X-Request-Id', mine).expect(200);
+
+      expect(res.headers['x-request-id']).toBe(mine);
+      expect(res.headers['x-correlation-id']).not.toBe(mine);
+    });
+
+    it('does not echo a malformed X-Request-Id', async () => {
+      const res = await request(server)
+        .get('/v1/probe/ok')
+        .set('X-Request-Id', 'forged-by-client')
+        .expect(200);
+
+      expect(res.headers['x-request-id']).toBeUndefined();
     });
 
     it('is present even on a 404 for a route that does not exist', async () => {

@@ -17,6 +17,7 @@ const production = {
   NODE_ENV: 'production',
   DATABASE_URL: 'postgres://u:p@db.internal:5432/banking',
   DATABASE_SSL: 'true',
+  TRUST_PROXY_HOPS: '1',
   REDIS_URL: 'rediss://cache.internal:6379',
   COGNITO_USER_POOL_ID: 'ap-southeast-1_abc',
   COGNITO_CLIENT_ID: 'client-id',
@@ -122,6 +123,59 @@ describe('validateEnv', () => {
 
     it('does not demand any of this in development', () => {
       expect(() => validateEnv({ ...base, NODE_ENV: 'development' })).not.toThrow();
+    });
+  });
+
+  describe('client IP behind the load balancer (per-IP rate limiting depends on it)', () => {
+    it('production must say how many proxies sit in front: forgetting makes every client share the ALB address', () => {
+      const { TRUST_PROXY_HOPS: _hops, ...forgotten } = production;
+      expect(() => validateEnv(forgotten)).toThrow(/TRUST_PROXY_HOPS/);
+    });
+
+    it('production rejects 0 hops, which would key every rate limit on the load balancer itself', () => {
+      expect(() => validateEnv({ ...production, TRUST_PROXY_HOPS: '0' })).toThrow(
+        /TRUST_PROXY_HOPS/,
+      );
+    });
+
+    it('development needs no proxy', () => {
+      expect(validateEnv(base).TRUST_PROXY_HOPS).toBe(0);
+    });
+  });
+
+  describe('database protection against a stuck transaction', () => {
+    it('has a positive timeout for every kind of wait even when nothing is configured', () => {
+      const env = validateEnv(base);
+      expect(env.DATABASE_LOCK_TIMEOUT_MS).toBeGreaterThan(0);
+      expect(env.DATABASE_STATEMENT_TIMEOUT_MS).toBeGreaterThan(0);
+      expect(env.DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS).toBeGreaterThan(0);
+    });
+
+    it.each([
+      'DATABASE_LOCK_TIMEOUT_MS',
+      'DATABASE_STATEMENT_TIMEOUT_MS',
+      'DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS',
+    ])('refuses to switch %s off with 0 (PostgreSQL treats 0 as "wait forever")', name => {
+      expect(() => validateEnv({ ...base, [name]: '0' })).toThrow(new RegExp(name));
+    });
+
+    it('reads the configured values as numbers', () => {
+      const env = validateEnv({ ...base, DATABASE_LOCK_TIMEOUT_MS: '1234' });
+      expect(env.DATABASE_LOCK_TIMEOUT_MS).toBe(1234);
+    });
+  });
+
+  describe('database TLS trust', () => {
+    it('accepts a CA file together with TLS', () => {
+      expect(() =>
+        validateEnv({ ...base, DATABASE_SSL: 'true', DATABASE_SSL_CA_PATH: '/etc/ssl/rds.pem' }),
+      ).not.toThrow();
+    });
+
+    it('rejects a CA file without TLS: it would be silently ignored while the connection stays unencrypted', () => {
+      expect(() => validateEnv({ ...base, DATABASE_SSL_CA_PATH: '/etc/ssl/rds.pem' })).toThrow(
+        /DATABASE_SSL_CA_PATH/,
+      );
     });
   });
 

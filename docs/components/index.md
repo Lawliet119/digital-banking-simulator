@@ -35,6 +35,7 @@ Khác biệt giữa component và module: xem [glossary](_shared/glossary.md).
 
 ## Dùng chung
 
+- [`_shared/database-design.md`](_shared/database-design.md) — thiết kế DB: bảng, ràng buộc, index, quyền, vòng đời dữ liệu, migration.
 - [`_shared/event-contract.md`](_shared/event-contract.md) — hình dạng sự kiện và bảng định tuyến.
 - [`_shared/glossary.md`](_shared/glossary.md) — thuật ngữ kiến trúc.
 - [`_templates/`](_templates/) — mẫu 5 file (01–05) để copy khi một component có code.

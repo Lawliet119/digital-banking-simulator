@@ -7,6 +7,7 @@ import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import {
   CORRELATION_ID_HEADER,
   correlationIdMiddleware,
+  REQUEST_ID_HEADER,
 } from './common/middleware/correlation-id.middleware';
 
 export interface HttpSettings {
@@ -34,7 +35,7 @@ export function configureHttpApp(app: NestExpressApplication, settings: HttpSett
     // Production allows only the configured origins; an empty list means "no cross-origin".
     origin: settings.corsOrigins.length > 0 ? settings.corsOrigins : !settings.isProduction,
     credentials: true,
-    exposedHeaders: [CORRELATION_ID_HEADER, 'Retry-After'],
+    exposedHeaders: [CORRELATION_ID_HEADER, REQUEST_ID_HEADER, 'Retry-After'],
   });
 
   // URI versioning: every route is /v1/… unless it opts out (health probes).

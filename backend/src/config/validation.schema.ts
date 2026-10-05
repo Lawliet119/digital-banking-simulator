@@ -18,6 +18,10 @@ export interface Env {
   DATABASE_URL: string;
   DATABASE_POOL_MAX: number;
   DATABASE_SSL: boolean;
+  DATABASE_SSL_CA_PATH?: string;
+  DATABASE_LOCK_TIMEOUT_MS: number;
+  DATABASE_STATEMENT_TIMEOUT_MS: number;
+  DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS: number;
 
   REDIS_URL: string;
   REDIS_COMMAND_TIMEOUT_MS: number;
@@ -49,8 +53,13 @@ export const validationSchema = Joi.object<Env>({
   APP_ROLE: Joi.string().valid('api', 'worker', 'both').default('both'),
   LOG_LEVEL: Joi.string().valid('fatal', 'error', 'warn', 'log', 'debug', 'verbose').default('log'),
   CORS_ORIGINS: Joi.string().allow('').default(''),
-  // How many reverse proxies (the ALB) sit in front. Rate limiting keys on the client IP.
-  TRUST_PROXY_HOPS: Joi.number().integer().min(0).max(5).default(0),
+  // How many reverse proxies (the ALB) sit in front. Per-IP rate limiting keys on the client IP:
+  // 0 behind the ALB makes every client share the ALB's address, so production must state it.
+  TRUST_PROXY_HOPS: Joi.number().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.number().integer().min(1).max(5).required(),
+    otherwise: Joi.number().integer().min(0).max(5).default(0),
+  }),
 
   DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })
@@ -62,6 +71,23 @@ export const validationSchema = Joi.object<Env>({
     then: Joi.boolean().valid(true).required(),
     otherwise: Joi.boolean().default(false),
   }),
+
+  // CA bundle for verifying the server certificate (Node does not trust the RDS CA by default).
+  // Without TLS it would be silently ignored while the connection stays unencrypted, so it is an
+  // error to set it then.
+  DATABASE_SSL_CA_PATH: Joi.string().when('DATABASE_SSL', {
+    is: true,
+    otherwise: Joi.forbidden(),
+  }),
+  // Waits that never end exhaust the pool (a hot account), so none may be switched off:
+  // PostgreSQL treats 0 as "no limit", which is why the minimum is above 0.
+  DATABASE_LOCK_TIMEOUT_MS: Joi.number().integer().min(100).max(30_000).default(2000),
+  DATABASE_STATEMENT_TIMEOUT_MS: Joi.number().integer().min(100).max(120_000).default(5000),
+  DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(600_000)
+    .default(10_000),
 
   // NFR-SEC-03: Redis is reached over TLS (`rediss://`) in production.
   REDIS_URL: Joi.string()

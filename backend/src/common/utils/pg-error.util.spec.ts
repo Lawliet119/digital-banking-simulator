@@ -52,6 +52,17 @@ describe('pg-error.util', () => {
     it('is false for an error with no code', () => {
       expect(isRetryableTransactionError(new Error('plain'))).toBe(false);
     });
+
+    it.each([
+      PgErrorCode.LOCK_NOT_AVAILABLE,
+      PgErrorCode.QUERY_CANCELED,
+      PgErrorCode.IDLE_IN_TRANSACTION_TIMEOUT,
+    ])(
+      'is false for the timeout %s: re-running a request that already waited too long only deepens the queue',
+      code => {
+        expect(isRetryableTransactionError(queryFailed(code))).toBe(false);
+      },
+    );
   });
 
   describe('isTransientDbError', () => {
@@ -61,6 +72,14 @@ describe('pg-error.util', () => {
       PgErrorCode.CONNECTION_FAILURE,
       PgErrorCode.ADMIN_SHUTDOWN,
     ])('is true for pg code %s', code => {
+      expect(isTransientDbError(queryFailed(code))).toBe(true);
+    });
+
+    it.each([
+      PgErrorCode.LOCK_NOT_AVAILABLE,
+      PgErrorCode.QUERY_CANCELED,
+      PgErrorCode.IDLE_IN_TRANSACTION_TIMEOUT,
+    ])('is true for the timeout %s, so the client gets a retryable 503 instead of a 500', code => {
       expect(isTransientDbError(queryFailed(code))).toBe(true);
     });
 

@@ -5,7 +5,7 @@
   "description": "Digital Banking Simulator backend — one NestJS app, run as api | worker | both via APP_ROLE",
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "build": "nest build",
@@ -20,8 +20,8 @@
     "lint:check": "eslint \"{src,test}/**/*.ts\"",
     "format": "prettier --write \"{src,test}/**/*.ts\"",
     "format:check": "prettier --check \"{src,test}/**/*.ts\"",
-    "test": "jest --config ./test/jest-unit.json",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test": "jest --config ./test/jest-unit.js",
+    "test:e2e": "jest --config ./test/jest-e2e.js",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
@@ -57,7 +57,7 @@
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
-    "@types/node": "^22.20.4",
+    "@types/node": "^24.19.0",
     "@types/supertest": "^7.2.1",
     "cross-env": "^10.1.0",
     "eslint": "^9.39.5",
