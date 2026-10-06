@@ -8,7 +8,7 @@
 |---|---|
 | **Slug** | `audit` |
 | **Loại** | 🟡 Supporting · module backend (thư viện + API tra cứu) |
-| **Chạy ở** | `api` (là thư viện mọi module ghi dữ liệu gọi) |
+| **Chạy ở** | `api` và `worker` (là thư viện mọi module ghi dữ liệu gọi; API tra cứu chỉ ở `api`) |
 | **Use case / NFR** | UC-8 |
 | **Sở hữu bảng** | `audit_log` (chỉ INSERT và SELECT) |
 | **Task trong roadmap** | Task 4 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |

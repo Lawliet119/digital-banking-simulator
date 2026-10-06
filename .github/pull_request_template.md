@@ -16,6 +16,13 @@ Closes #
 
 <!-- Use case, FR, NFR, AC trong docs/02 — ví dụ: UC-5, FR-LED-05, AC-5.4 -->
 
+## Đối chiếu test case
+
+<!-- Mỗi TC-* của component: test nào hiện thực, độ sâu có khớp mô tả không (khớp / đơn giản hóa + lý do / chưa làm + lý do) -->
+
+| Test case | Test | Khớp mô tả? |
+|---|---|---|
+
 ## Kiểm tra
 
 - [ ] Chạy được ở local với `docker compose`

@@ -41,6 +41,10 @@ export enum ErrorCode {
    */
   SESSION_REVOKED = 'SESSION_REVOKED',
 
+  // ── Fraud review ──
+  /** The fraud flag already has a conclusion; a second review is refused (HTTP 409). AC-10.1. */
+  FLAG_ALREADY_REVIEWED = 'FLAG_ALREADY_REVIEWED',
+
   // ── Protection ──
   /** Too many requests (HTTP 429). */
   RATE_LIMITED = 'RATE_LIMITED',

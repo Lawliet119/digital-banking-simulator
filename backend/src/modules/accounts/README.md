@@ -16,6 +16,7 @@ Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 - `CHECK (type = 'SYSTEM' OR balance >= 0)` ở mức database.
 - Khóa tài khoản = đổi trạng thái **và** thu hồi phiên của chủ tài khoản trong cùng lệnh (gọi `identity`), không chờ sự kiện.
 - Truy cập tài khoản không thuộc mình trả **404**, không phải 403.
+- `GET /v1/operator/accounts` (FR-ACC-04): nhân viên tìm tài khoản theo `accountId` hoặc tên khách, tối đa 20 kết quả, **không trả số dư**, mỗi lần tra cứu ghi nhật ký.
 
 ## Export công khai (`index.ts`)
 

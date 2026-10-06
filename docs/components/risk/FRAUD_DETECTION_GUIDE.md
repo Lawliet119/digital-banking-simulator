@@ -230,7 +230,7 @@ Mọi lần xem chi tiết và review đều ghi nhật ký. Kết luận của 
 ### 4.6 Cấu hình luật có phiên bản (UC-12)
 
 - Bảng `risk_rule_sets`: mỗi dòng là một **phiên bản bất biến** chứa tham số, trọng số và ngưỡng mức của cả 6 luật, kèm cờ bật/tắt từng luật.
-- Đổi cấu hình = thêm phiên bản mới; worker đọc phiên bản mới nhất (cache Redis `cfg:risk:v{n}`, TTL 60 giây).
+- Đổi cấu hình = thêm phiên bản mới. Worker biết phiên bản hiện hành qua key Redis `cfg:risk:latest` (TTL 60 giây; miss hoặc lỗi thì `SELECT max(version)` từ `risk_rule_sets`), rồi đọc nội dung từ `cfg:risk:v{n}` (bất biến nên TTL dài). Phiên bản mới có hiệu lực sau tối đa 60 giây.
 - Mỗi cờ ghi `ruleSetVersion`, để biết cờ được tạo theo cấu hình nào.
 - **Công tắc khẩn cấp:** tắt một luật đang báo nhầm hàng loạt chỉ cần tạo phiên bản mới với luật đó `enabled = false`.
 
@@ -300,7 +300,7 @@ Schema chính thức của `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, `
 
 - Dùng `transferId` làm member nên nhận trùng sự kiện không đếm trùng.
 - Gom các lệnh của một key vào **một `MULTI`/pipeline** để giảm round-trip.
-- **Redis lỗi → dự phòng SQL:** đếm trực tiếp trên `transfers` cùng cửa sổ. Kết quả như nhau, chỉ tốn tải DB hơn. Ghi metric `risk_redis_fallback_total`.
+- **Redis lỗi → dự phòng SQL:** đếm trực tiếp trên view `v_transfer_facts` (role `dbs_worker` không có quyền SELECT bảng `transfers`), cùng cửa sổ. Kết quả như nhau, chỉ tốn tải DB hơn. Ghi metric `risk_redis_fallback_total`.
 
 ### 5.5 Cấu trúc code
 

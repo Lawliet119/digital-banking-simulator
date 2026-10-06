@@ -80,6 +80,8 @@ Ngoài phạm vi v1 (**Won't**): đảo giao dịch, rút tiền, chuyển liên
 
 ### 1.3 Đặc tả use case chi tiết
 
+Sơ đồ người dùng tương tác với từng thành phần cho các use case lớn (UC-5, 3, 11, 10, 8) nằm ở [docs/03 mục 6](03_HIGH_LEVEL_ARCHITECTURE.md#6-luồng-xử-lý-quan-trọng), vì tài liệu này không nhắc công nghệ.
+
 #### UC-5 — Chuyển tiền nội bộ *(use case cốt lõi, đặc tả đầy đủ)*
 
 | Mục | Nội dung |
@@ -126,7 +128,7 @@ Ngoài phạm vi v1 (**Won't**): đảo giao dịch, rút tiền, chuyển liên
 |---|---|
 | Actor | Nhân viên vận hành |
 | Đầu vào | Tài khoản khách, số tiền, mã yêu cầu |
-| Luồng chính | Nhân viên nhập lệnh → hệ thống kiểm tra quyền nhân viên và tài khoản đang hoạt động → ghi **Nợ tài khoản nội bộ ngân hàng / Có tài khoản khách** → nhật ký → thông báo khách |
+| Luồng chính | Nhân viên tra cứu tài khoản của khách (FR-ACC-04) rồi nhập lệnh → hệ thống kiểm tra quyền nhân viên và tài khoản đang hoạt động → ghi **Nợ tài khoản nội bộ ngân hàng / Có tài khoản khách** → nhật ký → thông báo khách |
 | Khác UC-5 | Không kiểm tra số dư và hạn mức của tài khoản nội bộ (BR-04); vẫn chống trùng theo mã yêu cầu |
 | Ngoại lệ | Người gọi không phải nhân viên → từ chối; tài khoản khách bị khóa → `REJECTED` |
 
@@ -137,7 +139,7 @@ Ngoài phạm vi v1 (**Won't**): đảo giao dịch, rút tiền, chuyển liên
 | Actor | Nhân viên vận hành |
 | Tiền điều kiện | Có cờ đang ở trạng thái `OPEN` |
 | Luồng chính | Xem danh sách cờ (lọc theo mức rủi ro, thời gian) → mở một cờ, thấy giao dịch, các luật đã kích hoạt và giải thích → kết luận **Gian lận thật** hoặc **Báo nhầm**, kèm ghi chú → hệ thống lưu kết luận, người review, thời điểm và ghi nhật ký |
-| Ngoại lệ | Cờ đã được review → không cho review lại; người gọi không phải nhân viên → từ chối |
+| Ngoại lệ | Cờ đã được review → không cho review lại (HTTP 409, `FLAG_ALREADY_REVIEWED`); người gọi không phải nhân viên → từ chối |
 
 #### UC-11 — Khóa / mở khóa tài khoản
 
@@ -177,6 +179,7 @@ Ngoài phạm vi v1 (**Won't**): đảo giao dịch, rút tiền, chuyển liên
 | FR-ACC-01 | Mở tài khoản với số dư 0, tối đa 3 tài khoản/khách | UC-2 | BR-14 | Must |
 | FR-ACC-02 | Trả số dư mới nhất của tài khoản | UC-4 | BR-10 | Must |
 | FR-ACC-03 | Khóa và mở khóa tài khoản kèm lý do | UC-11 | BR-12 | Must |
+| FR-ACC-04 | Cho nhân viên tra cứu tài khoản của khách theo mã tài khoản hoặc tên; mỗi lần tra cứu được ghi nhật ký | UC-3, UC-11 | BR-10 | Must |
 | **Sổ cái và giao dịch** |||||
 | FR-LED-01 | Nạp tiền bằng bút toán kép từ tài khoản nội bộ | UC-3 | BR-02, 04 | Must |
 | FR-LED-02 | Chuyển tiền bằng bút toán kép nguyên tử (Nợ và Có cùng thành công hoặc cùng không xảy ra) | UC-5 | BR-02 | Must |
@@ -254,7 +257,7 @@ Viết theo dạng **Given – When – Then** để chuyển thẳng thành tes
 | AC-8.2 | Một giao dịch đã hoàn tất | Kiểm toán viên tra theo mã liên kết | Thấy đủ chuỗi: yêu cầu → ghi sổ → thông báo → (cờ → review) |
 | AC-9.1 | Giao dịch khớp luật R6 | Chấm điểm xong | Có cờ nêu rõ luật R6 |
 | AC-9.2 | Cùng một giao dịch được chấm điểm 2 lần | Chấm điểm xong | Chỉ có 1 cờ |
-| AC-10.1 | Cờ đã được kết luận | Nhân viên kết luận lại | Bị từ chối |
+| AC-10.1 | Cờ đã được kết luận | Nhân viên kết luận lại | Bị từ chối với HTTP 409, `errorCode` là `FLAG_ALREADY_REVIEWED` |
 | AC-10.2 | Khách có giao dịch bị gắn cờ | Khách xem lịch sử, trạng thái | Không thấy bất kỳ thông tin nào về cờ |
 
 ---
@@ -571,6 +574,8 @@ stateDiagram-v2
 | `AccountStatusChanged` | Tài khoản bị khóa hoặc mở khóa | Mã tài khoản, trạng thái mới, người thực hiện | Notification (việc thu hồi phiên làm ngay trong lệnh khóa, không chờ sự kiện) |
 | `FraudFlagRaised` | Cờ mới được tạo | Mã giao dịch, mức rủi ro, các luật | (Dashboard nhân viên) |
 | `FraudFlagReviewed` | Nhân viên kết luận cờ | Mã cờ, kết luận, người review | Kiểm toán, đánh giá luật |
+
+Ở v1, `FraudFlagRaised` và `FraudFlagReviewed` là khái niệm miền, chưa được phát qua hàng đợi (xem [docs/03](03_HIGH_LEVEL_ARCHITECTURE.md) mục 10).
 
 **Vì sao sự kiện mang "ảnh chụp" dữ liệu** (số dư trước giao dịch, thời điểm mở tài khoản): bên nhận xử lý sau vài giây, lúc đó số dư đã thay đổi. Luật R3 và R6 phải đánh giá theo dữ liệu **tại thời điểm giao dịch**, nên dữ liệu đó phải nằm sẵn trong sự kiện.
 

@@ -42,7 +42,7 @@ Khác biệt giữa component và module: xem [glossary](_shared/glossary.md).
 
 ## Quy ước
 
-- **Mỗi component có sẵn `01-concept-brief` và `02-architecture`** (khung, điền dần theo roadmap). `03-feature-description`, `04-test-cases`, `05-backlog` được tạo từ `_templates/` **khi component có code**, để không có file rỗng.
+- **Mỗi component có sẵn `01-concept-brief` và `02-architecture`** (khung, điền dần theo roadmap). `03-feature-description` và `04-test-cases` được tạo từ `_templates/` **khi component bắt đầu được triển khai**, trước khi viết code (trạng thái Draft); `05-backlog` được tạo **khi component có code**, để không có file rỗng.
 - Mỗi file có dòng **Status** đầu file: `Draft | Accepted | Implemented`, owner, ngày cập nhật, đã đối chiếu với code chưa.
 - **Một sự thật, một chỗ:** xem bảng ở [docs/README.md](../README.md).
 - Đổi thiết kế thì cập nhật file ở đây **trong cùng PR**.

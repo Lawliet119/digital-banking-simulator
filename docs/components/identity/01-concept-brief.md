@@ -23,6 +23,9 @@ Cần xác thực người dùng và phân quyền theo 4 vai trò mà không t�
 - Mốc thu hồi phiên `users.sessions_revoked_at` là nguồn sự thật trong Postgres; Redis chỉ cache (`revoked_at:{userId}`).
 - Rate limit toàn cục theo user và IP bằng Redis; Redis lỗi thì fail-open, WAF vẫn chặn ở biên.
 - Kiểm tra **sở hữu** ở service, không chỉ kiểm tra vai trò.
+- Dòng `users` tạo bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên của mọi vai trò; ánh xạ `sub → users.id` không đổi nên cache trong tiến trình.
+- Tài khoản nhân viên (operator, auditor, admin) do Terraform (pool, nhóm) và script seed tạo; chưa có giao diện quản lý.
+- **Cần chốt (#2 với #6):** cách xác thực khi chạy local và test, ví dụ khóa ký thử nghiệm thay cho Cognito.
 
 ## Ngoài phạm vi (v1)
 

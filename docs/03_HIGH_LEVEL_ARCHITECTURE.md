@@ -1,11 +1,11 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Draft v1.2 — chờ nhóm review · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-06
+> **Status:** Draft v1.4 — chờ nhóm review · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-06
 
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
-| Phiên bản | 1.2 — bản nháp để nhóm review (code khởi tạo tại [`backend/`](../backend/README.md)) |
+| Phiên bản | 1.4 — bản nháp để nhóm review (code khởi tạo tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [01_BUSINESS_ANALYSIS.md](01_BUSINESS_ANALYSIS.md) (BG, BR) · [02_REQUIREMENTS_AND_DOMAIN_MODEL.md](02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (UC, FR, NFR, domain model) |
 | Tài liệu liên quan | [DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md](DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md) (ADR-11) · [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đánh dấu *(GĐ)* là giả định. Giá cloud là giá tham khảo, cần kiểm lại theo region |
@@ -85,7 +85,7 @@ flowchart LR
 
     subgraph RUN[Container runtime - ECS Fargate]
         API["<b>API</b> · APP_ROLE=api<br/>NestJS · stateless<br/>identity · accounts · ledger<br/>risk (review) · audit"]
-        WRK["<b>Worker</b> · APP_ROLE=worker<br/>cùng image · không mở port<br/>outbox · risk (chấm điểm)<br/>notification"]
+        WRK["<b>Worker</b> · APP_ROLE=worker<br/>cùng image · không mở port<br/>outbox · risk (chấm điểm)<br/>notification · audit (ghi nhật ký)"]
     end
 
     API -->|1 ACID transaction:<br/>nghiệp vụ + audit + outbox| PG[("<b>PostgreSQL</b><br/>RDS<br/>nguồn sự thật")]
@@ -132,10 +132,10 @@ flowchart TB
         IDM[identity<br/>JWT guard, vai trò,<br/>mốc thu hồi phiên]
         ACCM[accounts<br/>khách hàng, tài khoản,<br/>khóa / mở khóa]
         LEDM[ledger<br/>nạp tiền, chuyển tiền,<br/>idempotency, hạn mức]
-        AUDM[audit<br/>ghi + tra cứu nhật ký]
     end
     subgraph SHM[Chạy ở cả hai role]
         RSKM[risk<br/>api: review cờ, cấu hình luật<br/>worker: chấm điểm R1-R6]
+        AUDM[audit<br/>ghi nhật ký: cả hai role<br/>tra cứu UC-8: api]
     end
     subgraph WRKM[Chạy ở role worker]
         OUTM[outbox<br/>relay sự kiện ra queue]
@@ -163,6 +163,18 @@ flowchart TB
 ---
 
 ## 6. Luồng xử lý quan trọng
+
+Mỗi use case lớn có một sơ đồ trong đó **người dùng thật** thao tác và đi qua từng thành phần của hệ thống (các container ở mục 4). Dùng bảng này để tìm sơ đồ:
+
+| Use case | Người dùng | Sơ đồ |
+|---|---|---|
+| UC-5 Chuyển tiền | Khách hàng | [6.3](#63-chuyển-tiền-uc-5--khách-hàng-đi-qua-từng-thành-phần) từ đầu đến cuối, kể cả phần bất đồng bộ · [6.1](#61-chuyển-tiền-uc-5--critical-path) chi tiết bên trong transaction |
+| UC-3 Nạp tiền tại quầy | Nhân viên vận hành, Khách hàng | [6.4](#64-nạp-tiền-tại-quầy-uc-3--nhân-viên-đi-qua-từng-thành-phần) |
+| UC-11 Khóa tài khoản | Nhân viên vận hành, Khách hàng | [6.2](#62-khóa-tài-khoản-và-thu-hồi-phiên-uc-11) |
+| UC-10 Review cờ gian lận | Nhân viên vận hành | [6.5](#65-review-cờ-gian-lận-uc-10--nhân-viên-đi-qua-từng-thành-phần); cờ do UC-9 tạo ra ở cuối 6.3 |
+| UC-8 Tra cứu nhật ký kiểm toán | Kiểm toán viên | [6.6](#66-tra-cứu-nhật-ký-kiểm-toán-uc-8--kiểm-toán-viên-đi-qua-từng-thành-phần) |
+
+Chưa có sơ đồ riêng: UC-1, 2, 4, 6, 7, 12.
 
 ### 6.1 Chuyển tiền (UC-5) — critical path
 
@@ -223,6 +235,8 @@ sequenceDiagram
 
 ### 6.2 Khóa tài khoản và thu hồi phiên (UC-11)
 
+Nhân viên tìm tài khoản cần khóa bằng `GET /v1/operator/accounts`, như ở 6.4.
+
 JWT được xác minh tại chỗ bằng khóa công khai (JWKS), nên API không tự biết token đã bị thu hồi. Cách xử lý: lưu **mốc thu hồi phiên** của user; token nào phát hành trước mốc đó thì bị từ chối.
 
 ```mermaid
@@ -253,6 +267,206 @@ sequenceDiagram
 - Khách đăng nhập lại thì nhận token mới (phát hành sau mốc) và dùng được các tài khoản khác; tài khoản bị khóa vẫn bị chặn bởi kiểm tra `ACTIVE` trong transaction.
 - Thu hồi phiên làm **đồng bộ trong lệnh khóa**, không chờ sự kiện, để đạt AC-11.1 ("yêu cầu kế tiếp bị từ chối").
 
+### 6.3 Chuyển tiền (UC-5) — khách hàng đi qua từng thành phần
+
+Cùng use case với 6.1 nhưng nhìn từ phía khách, từ lúc bấm nút đến lúc cờ gian lận và thông báo được tạo. Phần trong `BEGIN … COMMIT` được giải thích ở 6.1.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor KH as Khách hàng
+    participant APP as App của khách
+    participant EDGE as WAF + ALB
+    participant API as API (identity, accounts, ledger)
+    participant RD as Redis
+    participant DB as PostgreSQL
+    participant WRK as Worker (outbox, risk, notification)
+    participant Q as SQS
+
+    Note over KH,APP: Khách đã đăng nhập qua Cognito và giữ access token còn hạn
+    KH->>APP: Chọn tài khoản nguồn, nhập tài khoản đích và số tiền, bấm Chuyển
+    APP->>APP: Tạo Idempotency-Key K mới cho lệnh này
+    APP->>EDGE: POST /v1/transfers<br/>Bearer token, Idempotency-Key K
+    EDGE->>API: Lọc request độc hại, chuyển tiếp
+    API->>API: identity: xác minh chữ ký token bằng khóa JWKS đã cache, vai trò customer
+    API->>RD: identity: token có bị thu hồi không, đã vượt rate limit chưa
+    RD-->>API: Chưa thu hồi, chưa vượt giới hạn
+    Note over API,RD: Redis chậm hoặc lỗi: đọc mốc thu hồi từ PostgreSQL, rate limit bỏ qua
+    API->>DB: accounts: tài khoản nguồn có thuộc khách này không
+    opt Không thuộc khách
+        API-->>APP: 404, ghi nhật ký truy cập bị từ chối (outcome DENIED, transaction riêng)
+    end
+    API->>API: ledger: kiểm tra số tiền lớn hơn 0, nguồn khác đích, có Idempotency-Key
+    API->>DB: BEGIN (READ COMMITTED)
+    API->>DB: ledger: INSERT idempotency_keys ON CONFLICT DO NOTHING
+    Note over API,DB: Key K đã có: trả lại đúng response đã lưu, hoặc 422 IDEMPOTENCY_KEY_REUSED nếu nội dung khác
+    API->>DB: accounts: SELECT FOR UPDATE hai tài khoản theo thứ tự id
+    API->>API: ledger: sync guard sau khi khóa: tài khoản ACTIVE, hạn mức lần, hạn mức ngày, đủ số dư
+    alt Vi phạm một luật
+        API->>DB: INSERT transfers REJECTED, audit_log (outcome REJECTED), lưu response vào key K
+        API->>DB: COMMIT
+        API-->>APP: 422 problem json, errorCode và transferId
+        APP-->>KH: Hiện lý do bị từ chối
+    else Hợp lệ
+        API->>DB: INSERT transfers COMPLETED và 2 ledger_entries (Nợ nguồn, Có đích)
+        API->>DB: UPDATE balance của hai tài khoản
+        API->>DB: INSERT outbox_events (TransferCompleted kèm snapshot), audit_log, lưu response vào key K
+        API->>DB: COMMIT
+        API-->>APP: 201 transferId, COMPLETED
+        APP-->>KH: Hiện Chuyển tiền thành công
+    end
+
+    Note over WRK,Q: Từ đây khách không phải chờ nữa
+    loop Mỗi một giây hoặc ít hơn
+        WRK->>DB: Relay: BEGIN, SELECT outbox_events chưa gửi FOR UPDATE SKIP LOCKED
+        WRK->>Q: Gửi TransferCompleted tới risk-events và notification-events
+        WRK->>DB: Relay: UPDATE published_at, COMMIT
+    end
+    Note over WRK,Q: Relay là ngoại lệ duy nhất của quy tắc không gọi SQS trong transaction, xem mục 10
+    Q->>WRK: risk consumer nhận TransferCompleted
+    WRK->>RD: risk: cập nhật bộ đếm velocity và fan-out (lỗi thì đọc lại từ PostgreSQL)
+    WRK->>DB: risk: đọc lịch sử chuyển tiền qua view v_transfer_facts
+    WRK->>WRK: risk: chạy 6 luật R1 đến R6, cộng điểm
+    WRK->>DB: BEGIN, INSERT processed_events
+    opt Điểm từ MEDIUM trở lên
+        WRK->>DB: INSERT fraud_flags, fraud_rule_hits, audit_log
+    end
+    WRK->>DB: COMMIT
+    WRK->>Q: Xóa message sau khi đã commit
+    Q->>WRK: notification consumer nhận TransferCompleted
+    WRK->>DB: INSERT processed_events, notification_log
+    WRK-->>KH: Thông báo giao dịch (v1: giả lập bằng ghi log)
+```
+
+### 6.4 Nạp tiền tại quầy (UC-3) — nhân viên đi qua từng thành phần
+
+Cùng một luồng với 6.3, nguồn tiền là tài khoản SYSTEM `funding` và người gọi là nhân viên (`operator`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor NV as Nhân viên vận hành
+    participant APP as Công cụ của nhân viên
+    participant EDGE as WAF + ALB
+    participant API as API (identity, ledger)
+    participant RD as Redis
+    participant DB as PostgreSQL
+    participant WRK as Worker (outbox, notification)
+    participant Q as SQS
+    actor KH as Khách hàng
+
+    NV->>APP: Tìm tài khoản của khách theo tên hoặc mã tài khoản
+    APP->>API: GET /v1/operator/accounts, tìm theo tên khách hoặc accountId
+    API->>API: identity: xác minh token, vai trò operator
+    API->>DB: accounts: SELECT tài khoản và tên chủ, tối đa 20 kết quả
+    API->>DB: audit: INSERT audit_log (nhân viên tra cứu dữ liệu của khách)
+    API-->>APP: 200 danh sách tài khoản, không kèm số dư
+    NV->>APP: Nhận tiền mặt tại quầy, chọn tài khoản vừa tìm, nhập số tiền, bấm Nạp
+    APP->>APP: Tạo Idempotency-Key K mới
+    APP->>EDGE: POST /v1/operator/deposits<br/>Bearer token, Idempotency-Key K
+    EDGE->>API: Lọc request, chuyển tiếp
+    API->>API: identity: xác minh token, vai trò phải là operator
+    opt Vai trò không phải operator
+        API-->>APP: 403, ghi nhật ký truy cập bị từ chối
+    end
+    API->>RD: identity: kiểm tra mốc thu hồi và rate limit (lỗi thì đọc PostgreSQL)
+    RD-->>API: Hợp lệ
+    API->>DB: BEGIN (READ COMMITTED)
+    API->>DB: ledger: INSERT idempotency_keys ON CONFLICT DO NOTHING
+    API->>DB: accounts: SELECT FOR UPDATE tài khoản funding và tài khoản khách, theo thứ tự id
+    API->>API: ledger: chỉ kiểm tra tài khoản khách còn ACTIVE, bỏ qua số dư và hạn mức của funding
+    alt Tài khoản khách bị khóa
+        API->>DB: INSERT transfers REJECTED (ACCOUNT_NOT_ACTIVE), audit_log, lưu response vào key K
+        API->>DB: COMMIT
+        API-->>APP: 422 ACCOUNT_NOT_ACTIVE kèm transferId
+        APP-->>NV: Báo không nạp được vì tài khoản không hợp lệ
+    else Hợp lệ
+        API->>DB: INSERT transfers loại DEPOSIT và 2 ledger_entries (Nợ funding, Có khách)
+        API->>DB: UPDATE balance của funding và của khách
+        API->>DB: INSERT outbox_events (TransferCompleted), audit_log (người thực hiện là nhân viên), lưu response vào key K
+        API->>DB: COMMIT
+        API-->>APP: 201 transferId, COMPLETED
+        APP-->>NV: In biên nhận nạp tiền
+        Note over WRK,Q: Phần bất đồng bộ giống 6.3. Risk nhận sự kiện nhưng bỏ qua DEPOSIT
+        WRK->>Q: Relay gửi TransferCompleted tới risk-events và notification-events
+        Q->>WRK: notification consumer nhận sự kiện
+        WRK->>DB: INSERT processed_events, notification_log
+        WRK-->>KH: Thông báo số dư mới (v1: giả lập bằng ghi log)
+    end
+```
+
+### 6.5 Review cờ gian lận (UC-10) — nhân viên đi qua từng thành phần
+
+Cờ đã được worker tạo sau giao dịch (cuối 6.3). Khóa tài khoản sau khi kết luận gian lận là UC-11, xem 6.2.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor NV as Nhân viên vận hành
+    participant APP as Công cụ của nhân viên
+    participant API as API (identity, risk, audit)
+    participant DB as PostgreSQL
+    actor KH as Khách hàng
+
+    NV->>APP: Mở danh sách cờ chưa xử lý, lọc mức HIGH
+    APP->>API: GET /v1/operator/fraud-flags, lọc status OPEN và level HIGH
+    API->>API: identity: xác minh token, vai trò operator
+    API->>DB: risk: SELECT fraud_flags đang OPEN, HIGH lên trước, mới nhất trước
+    DB-->>API: Danh sách cờ
+    API-->>APP: 200 danh sách cờ
+    NV->>APP: Mở một cờ
+    APP->>API: GET /v1/operator/fraud-flags/{transferId}
+    API->>DB: risk: SELECT cờ, các luật đã kích hoạt, giao dịch, 10 giao dịch gần nhất của tài khoản nguồn
+    API->>DB: audit: INSERT audit_log (nhân viên xem dữ liệu của khách)
+    API-->>APP: 200 chi tiết kèm lời giải thích của từng luật
+    NV->>NV: Đọc giải thích rồi quyết định
+    NV->>APP: Chọn kết luận và ghi chú
+    APP->>API: POST /v1/operator/fraud-flags/{transferId}/review, decision và note
+    API->>DB: BEGIN
+    API->>DB: risk: UPDATE fraud_flags SET review_status WHERE transfer_id và review_status là OPEN
+    alt Không có dòng nào được cập nhật, cờ đã có kết luận
+        API->>DB: ROLLBACK
+        API-->>APP: 409 FLAG_ALREADY_REVIEWED, không cho review lại
+    else Cập nhật được một dòng
+        API->>DB: audit: INSERT audit_log (người review, kết luận, ghi chú)
+        API->>DB: COMMIT
+        API-->>APP: 200 đã ghi kết luận
+    end
+    opt Kết luận là gian lận thật
+        NV->>APP: Chọn khóa tài khoản (UC-11, xem 6.2)
+    end
+    Note over KH,API: Khách xem lịch sử hay trạng thái giao dịch: không có trường nào về cờ
+```
+
+### 6.6 Tra cứu nhật ký kiểm toán (UC-8) — kiểm toán viên đi qua từng thành phần
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor KT as Kiểm toán viên
+    participant APP as Công cụ của kiểm toán viên
+    participant EDGE as WAF + ALB
+    participant API as API (identity, audit)
+    participant DB as PostgreSQL
+
+    Note over KT,APP: Kiểm toán viên đã đăng nhập qua Cognito, thuộc nhóm auditor
+    KT->>APP: Nhập correlationId của giao dịch cần truy vết (lấy từ header X-Correlation-Id hoặc log)
+    APP->>EDGE: GET /v1/audit/entries, lọc theo correlationId
+    EDGE->>API: Lọc request, chuyển tiếp
+    API->>API: identity: xác minh token, vai trò auditor
+    API->>DB: audit: INSERT audit_log (chính việc tra cứu cũng được ghi)
+    API->>DB: audit: SELECT audit_log theo correlation_id (có index)
+    DB-->>API: Các dòng nhật ký của cùng một chuỗi xử lý
+    API-->>APP: 200 danh sách bản ghi
+    APP-->>KT: Thấy cả chuỗi: yêu cầu, ghi sổ, thông báo, cờ, review
+    KT->>APP: Thử một thao tác ghi dữ liệu, ví dụ khóa tài khoản
+    APP->>API: POST /v1/operator/accounts/{id}/lock
+    API->>API: identity: vai trò auditor chỉ được đọc
+    API-->>APP: 403 từ chối
+    Note over API,DB: Lớp bảo vệ thứ hai nếu code có lỗi: role DB của ứng dụng không có quyền UPDATE, DELETE trên audit_log, và trigger chặn cả chủ bảng
+    APP-->>KT: Báo bị từ chối
+```
+
 ---
 
 ## 7. API (tổng quan)
@@ -270,10 +484,11 @@ sequenceDiagram
 | POST | `/v1/transfers` | customer | UC-5 | **Bắt buộc** header `Idempotency-Key` |
 | GET | `/v1/transfers/{id}` | customer | UC-7 | Chỉ người gửi / người nhận |
 | POST | `/v1/operator/deposits` | operator | UC-3 | **Bắt buộc** header `Idempotency-Key` |
+| GET | `/v1/operator/accounts` | operator | UC-3, UC-11 | Tìm tài khoản của khách theo `accountId` hoặc tên khách (khớp một phần), tối đa 20 kết quả. Trả mã, loại, trạng thái, tên chủ; **không** trả số dư. Mỗi lần tra cứu được ghi nhật ký (BR-10) |
 | POST | `/v1/operator/accounts/{id}/lock` | operator | UC-11 | Thu hồi phiên ngay |
 | POST | `/v1/operator/accounts/{id}/unlock` | operator | UC-11 | |
 | GET | `/v1/operator/fraud-flags` | operator | UC-10 | Lọc theo trạng thái, mức rủi ro |
-| POST | `/v1/operator/fraud-flags/{transferId}/review` | operator | UC-10 | Chỉ review một lần |
+| POST | `/v1/operator/fraud-flags/{transferId}/review` | operator | UC-10 | Chỉ review một lần; lần hai trả 409 `FLAG_ALREADY_REVIEWED` |
 | GET | `/v1/audit/entries` | auditor | UC-8 | Lọc theo người, hành động, thời gian, `correlationId` |
 | GET | `/v1/admin/risk-config` | admin | UC-12 | Phiên bản hiện hành |
 | POST | `/v1/admin/risk-config/versions` | admin | UC-12 | Tạo phiên bản mới, không sửa phiên bản cũ |
@@ -304,6 +519,7 @@ sequenceDiagram
 | `SESSION_REVOKED` | 401 | Token phát hành trước mốc thu hồi phiên (ví dụ tài khoản bị khóa) | BR-12 · khác "hết hạn": dùng lại token không bao giờ được |
 | `RATE_LIMITED` | 429 | Vượt giới hạn tần suất | NFR-SEC-05 |
 | `SERVICE_TEMPORARILY_UNAVAILABLE` | 503 | Lỗi database tạm thời | Kèm `Retry-After`; gửi lại cùng `Idempotency-Key` |
+| `FLAG_ALREADY_REVIEWED` | 409 | Cờ gian lận đã có kết luận, không cho review lại | AC-10.1 |
 
 Bốn mã đầu cũng là tập `RejectReason`: chuỗi lưu trong database và chuỗi trên đường truyền là một.
 
@@ -422,7 +638,7 @@ Theo P2 (slide 30–31), câu hỏi không phải "có dùng Redis không?" mà 
 | **R-1** | **Rate limit toàn cục** theo user và IP | Mỗi task đếm riêng: 2 task → giới hạn thực tế gấp đôi | Counter theo cửa sổ, `INCR` + `EXPIRE` | Hết hạn theo cửa sổ (60 giây) | NFR-SEC-05 |
 | **R-2** | **Cache mốc thu hồi phiên** | Mọi request phải đọc `users` từ DB để biết token còn hợp lệ không | `revoked_at:{userId}` | TTL = thời gian sống tối đa của access token; ghi đè khi khóa | NFR-SEC-02 |
 | **R-3** | **Bộ đếm đặc trưng gian lận** cho R1 (velocity) và R5 (fan-out) | Mỗi sự kiện phải quét lịch sử bằng SQL; ở 120 RPS là tải phụ đáng kể lên RDS | Sorted set `risk:vel:{accountId}` (member = `transferId`, score = thời điểm); set người nhận `risk:fan:{accountId}` | Cửa sổ trượt bằng `ZREMRANGEBYSCORE`; TTL 1–2 giờ | NFR-FRD-01 |
-| **R-4** | **Cache cấu hình** luật và hạn mức | Mỗi lệnh và mỗi sự kiện đọc lại cấu hình từ DB | Key chứa version: `cfg:risk:v{n}` | Cache-aside, TTL 60 giây; đổi cấu hình = version mới | UC-12 |
+| **R-4** | **Cache cấu hình** luật và hạn mức | Mỗi lệnh và mỗi sự kiện đọc lại cấu hình từ DB | Hai key: `cfg:risk:latest` (số phiên bản hiện hành) và `cfg:risk:v{n}` (nội dung bất biến của phiên bản n) | `latest` TTL 60 giây, miss hoặc lỗi thì `SELECT max(version)` từ `risk_rule_sets`; `v{n}` TTL dài vì không bao giờ đổi. Đổi cấu hình = version mới, có hiệu lực sau tối đa 60 giây | UC-12 |
 
 R-3 an toàn với sự kiện trùng: member của sorted set là `transferId`, nhận cùng sự kiện hai lần vẫn chỉ có một phần tử.
 
@@ -516,6 +732,8 @@ flowchart LR
 | `TransferRejected` | Lệnh bị từ chối | `risk-events` (tín hiệu tùy chọn) |
 | `AccountStatusChanged` | Khóa / mở khóa tài khoản | `notification-events` |
 
+Ở v1 chỉ ba sự kiện trên đi qua outbox. `FraudFlagRaised` và `FraudFlagReviewed` (docs/02 §9) là khái niệm miền: việc tạo và kết luận cờ đã được lưu ở `fraud_flags` và `audit_log`, nên chưa phát sự kiện cho tới khi có bên tiêu thụ. Trường của từng sự kiện nằm ở [event-contract](components/_shared/event-contract.md).
+
 ---
 
 ## 11. Xử lý sự cố
@@ -554,7 +772,7 @@ flowchart LR
 | Lớp | Biện pháp | NFR |
 |---|---|---|
 | **Biên** | WAF; rate limit toàn cục theo user/IP (R-1) | NFR-SEC-05 |
-| **Định danh** | Cognito với nhóm `customer` / `operator` / `auditor` / `admin`; JWT xác minh bằng JWKS; access token sống ngắn *(GĐ: 15 phút)* | FR-ID-01, 03 |
+| **Định danh** | Cognito với nhóm `customer` / `operator` / `auditor` / `admin`; JWT xác minh bằng JWKS; access token sống ngắn *(GĐ: 15 phút)*. Dòng `users` được tạo bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên của **mọi** vai trò (ánh xạ `sub → users.id` không bao giờ đổi nên cache trong tiến trình). Tài khoản nhân viên (operator, auditor, admin) do Terraform (user pool, nhóm) và script seed (tài khoản demo) tạo, chưa có giao diện quản lý | FR-ID-01, 03 |
 | **Thu hồi** | Mốc `sessions_revoked_at` trong DB + cache Redis (mục 6.2) | NFR-SEC-02 |
 | **Phân quyền** | Guard theo vai trò **cộng** kiểm tra sở hữu trong service ở mọi truy vấn theo tài khoản; mã yêu cầu scope theo user; trả 404 cho tài nguyên không thuộc mình | NFR-SEC-01 |
 | **Mã hóa** | TLS ở ALB, tới RDS, tới ElastiCache; mã hóa at-rest bằng KMS cho RDS, ElastiCache, S3 | NFR-SEC-03 |
@@ -799,3 +1017,5 @@ Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 13.
 | 1.0 | Sửa luồng sự kiện: mỗi consumer một queue SQS riêng (một queue chung chỉ giao mỗi message cho một consumer). Tách bộ tài liệu thành 01 Business → 02 Requirements & Domain → 03 Architecture. Thêm architecture drivers, C4 mức 1–3, bảng API, so sánh database, bảng NFR → cơ chế. Thu hồi phiên chuyển sang mốc `sessions_revoked_at` trong DB (Redis chỉ cache). Tách `fraud_flags` và `fraud_rule_hits` |
 | 1.1 | Khởi tạo code tại `backend/`. **Một app chạy theo `APP_ROLE`** thay cho hai app `apps/api` + `apps/worker` (ADR-13); gộp `risk-admin` + `risk-scoring` thành module `risk`, `outbox-relay` thành module `outbox`. Thêm validate cấu hình lúc khởi động (production bắt buộc TLS), `TransactionService` có retry deadlock, enum `ErrorCode` + định dạng lỗi RFC 7807 (mục 7.1), lỗi DB tạm thời → 503 + `Retry-After`, ranh giới module do eslint ép. Lệnh bị REJECTED trả 422 problem+json thay vì `{status: REJECTED}` vì trường `status` của RFC 7807 là mã HTTP |
 | **1.2** | Đồng bộ với database-design: tên cột `from_account_id`/`to_account_id`, `balance_after`, bỏ `users.role` (vai trò lấy từ nhóm Cognito), `fraud_rule_hits.weight` thay `rule_version`, bỏ index `transfers(to_account, …)`. Event `TransferCompleted` thêm `sameOwner`, `fromUserId`, `toUserId`. Relay outbox là ngoại lệ của quy tắc "không gọi SQS trong transaction". Chi phí egress gồm VPC endpoint. Nêu giới hạn hàng `funding` khi nạp tiền. Staging cũng bắt buộc TLS |
+| **1.3** | Thêm bảng tra use case và 4 sơ đồ người dùng đi qua các thành phần ở mục 6: UC-5 đầu-cuối (6.3), UC-3 (6.4), UC-10 (6.5), UC-8 (6.6). UC-11 giữ nguyên ở 6.2 |
+| **1.4** | Lấp các khoảng trống trước khi implement: endpoint tra cứu tài khoản cho nhân viên (§7, §6.4), mã `FLAG_ALREADY_REVIEWED` (§7.1), key `cfg:risk:latest` (§9), ghi chú sự kiện không phát ở v1 (§10), tạo dòng `users` và tài khoản nhân viên (§12) |

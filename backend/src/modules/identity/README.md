@@ -15,6 +15,7 @@ Ai đang gọi và họ được làm gì. Dùng Cognito, không tự quản m�
 - **Mốc thu hồi phiên:** token phát hành trước `users.sessions_revoked_at` bị từ chối với `ErrorCode.SESSION_REVOKED`. Nguồn sự thật là cột trong Postgres; Redis chỉ cache (`revoked_at:{userId}`, TTL = `ACCESS_TOKEN_TTL_SECONDS`). Redis lỗi → đọc Postgres.
 - Rate limit toàn cục theo user và IP (Redis); Redis lỗi → fail-open, WAF vẫn chặn ở biên.
 - Kiểm tra **sở hữu** ở service, không chỉ vai trò.
+- Dòng `users` được tạo bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên của mọi vai trò; không bao giờ đổi `sub → users.id`.
 
 ## Export công khai (`index.ts`)
 
