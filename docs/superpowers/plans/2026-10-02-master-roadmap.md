@@ -66,9 +66,9 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 - [ ] **Nền tảng:** AWS (cần thẻ quốc tế) hay Azure for Students hay VPS — người giữ tài khoản (mặc định #5). Chặn T1. *(docs/03 §20 câu 5; ADR-11)*
 - [ ] **Deadline thật của P1–P5** từ giảng viên; cập nhật `10_WEEK_PLAN.md`. *(§20 câu 1)*
 - [ ] **TypeORM hay Kysely** cho luồng chuyển tiền. Khuyến nghị: TypeORM + SQL tường minh trong `QueryRunner` như spec §19. Chặn T3. *(ADR-07)*
-- [ ] **Event contract `TransferCompleted`:** doc 03 §10 chưa có `sameOwner`; FRAUD_GUIDE §5.2 đề xuất thêm. Chốt bản có `sameOwner`, `fromBalanceBefore`, `fromAccountCreatedAt`, `toAccountCreatedAt`, `occurredAt`, `correlationId`. Chặn T3, T4, T6. *(owner #3)*
-- [ ] **Đồng bộ ERD:** `fraud_rule_hits` có `rule_version` (doc 03 §8.2) nhưng `fraud_flags` đã có `rule_set_version` (FRAUD_GUIDE §5.3) — giữ một nơi (khuyến nghị: `rule_set_version` ở `fraud_flags`). Chặn migration T6.
-- [ ] **Mục tiêu fraud:** NFR-FRD-02 "≤ 10 cảnh báo/1.000 giao dịch" gần như không đạt với luật thủ công (FRAUD_GUIDE §6.4); chốt cặp mục tiêu mới (đề xuất recall ≥ 70 % trên kịch bản luật nhắm tới, ≤ 20 cảnh báo/1.000) và sửa `docs/02`. Chặn đánh giá T6/T7.
+- [ ] **Event contract `TransferCompleted`:** doc 03 §10 chưa có `sameOwner`; FRAUD_GUIDE §5.2 đề xuất thêm. Chốt bản có `sameOwner`, `fromBalanceBefore`, `fromAccountCreatedAt`, `toAccountCreatedAt`, `occurredAt`, `correlationId`. Chặn T3, T4, T6. *(owner #3)* — 06/10: đã đưa vào docs/03 §10 và event-contract (thêm `fromUserId`, `toUserId`), chờ #1, #4 đồng ý.
+- [ ] **Đồng bộ ERD:** `fraud_rule_hits` có `rule_version` (doc 03 §8.2) nhưng `fraud_flags` đã có `rule_set_version` (FRAUD_GUIDE §5.3) — giữ một nơi (khuyến nghị: `rule_set_version` ở `fraud_flags`). Chặn migration T6. — 06/10: đã sửa docs/02, docs/03 theo khuyến nghị.
+- [ ] **Mục tiêu fraud:** NFR-FRD-02 "≤ 10 cảnh báo/1.000 giao dịch" gần như không đạt với luật thủ công (FRAUD_GUIDE §6.4); chốt cặp mục tiêu mới (đề xuất recall ≥ 70 % trên kịch bản luật nhắm tới, ≤ 20 cảnh báo/1.000) và sửa `docs/02`. Chặn đánh giá T6/T7. — 06/10: đã ghi vào docs/01, docs/02 dưới dạng *(GĐ)*, chờ nhóm chốt.
 - [ ] **Egress Fargate (ADR-10)** và **Redis Serverless vs node (ADR-12)** — chốt trước tuần 3 để T1 dựng hạ tầng không lỡ tạo NAT Gateway. *(§20 câu 3, 4)*
 - [ ] **Giá trị tham số *(GĐ)*:** hạn mức, rate limit, thời gian sống token, thời gian giữ idempotency key (≥ 7 ngày). *(§20 câu 6)*
 
@@ -151,7 +151,7 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 
 **Files:**
 - Create: `backend/src/modules/ledger/{ledger.module.ts,transfers.controller.ts,operator-deposits.controller.ts,transfer.service.ts,sync-guard.ts,ledger-query.service.ts,reconciliation.job.ts,dto/,entities/,index.ts}`.
-- Create: migrations `transfers`, `ledger_entries`, `idempotency_keys`, `outbox_events` (+ index `ledger_entries(account_id, created_at)`, `transfers(from_account, created_at)`, `transfers(to_account, created_at)`, `transfers(from_account, to_account, created_at)`) và revoke UPDATE/DELETE trên `ledger_entries`.
+- Create: migrations `transfers`, `ledger_entries`, `idempotency_keys`, `outbox_events` (+ index `ledger_entries(account_id, created_at)`, `transfers(from_account_id, created_at)`, `transfers(from_account_id, to_account_id, created_at)` (chi tiết ở database-design §6)) và revoke UPDATE/DELETE trên `ledger_entries`.
 - Test: `backend/test/ledger/*.e2e-spec.ts` (Postgres thật).
 
 **Interfaces:**
@@ -273,7 +273,7 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 
 **Files:** `infra/terraform/envs/prod`, WAF, KMS, IAM role riêng cho task `api` và `worker`, quét image, threat model STRIDE (`docs/` cùng #2).
 
-- [ ] T4: IAM quyền tối thiểu cho từng task; DB role cho risk worker (chỉ `SELECT transfers`; chỉ `INSERT fraud_flags`, `fraud_rule_hits`, `processed_events`, `audit_log`). T6: cấu hình production, WAF, KMS, quét image, demo rollback ≤ 10 phút (về task definition cũ), threat model. T7: đo chi phí thật hằng tuần. T8: bật Multi-AZ, demo RDS failover, so sánh chi phí hai cấu hình. T10: `terraform destroy` phần thừa, kiểm tra hóa đơn.
+- [ ] T4: IAM quyền tối thiểu cho từng task; DB role `dbs_api`, `dbs_worker`, `dbs_migrator` theo ma trận database-design §8 (worker đọc giao dịch qua view `v_transfer_facts`). T6: cấu hình production, WAF, KMS, quét image, demo rollback ≤ 10 phút (về task definition cũ), threat model. T7: đo chi phí thật hằng tuần. T8: bật Multi-AZ, demo RDS failover, so sánh chi phí hai cấu hình. T10: `terraform destroy` phần thừa, kiểm tra hóa đơn.
 - [ ] `TRUST_PROXY_HOPS=1` (ALB) ở production; `DATABASE_SSL=true`, Redis `rediss://`.
 - [ ] Migration chạy như bước pipeline riêng, **không** lúc app khởi động; kiểu expand → migrate → contract.
 

@@ -1,6 +1,6 @@
 # 01 — Business Analysis: Digital Banking Simulator
 
-> **Status:** Draft v1.0 — chờ nhóm review · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-03
+> **Status:** Draft v1.0 — chờ nhóm review · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-06
 
 | Thuộc tính | Giá trị |
 |---|---|
@@ -61,7 +61,8 @@ Theo mẫu của bài giảng P1: *"Our organization needs to ______ because ___
 | **BG-3** | Truy vết đầy đủ cho kiểm toán | Tỉ lệ thao tác thay đổi dữ liệu có nhật ký | **100%** | P-4 |
 | | | Thời gian kiểm toán viên truy ra toàn bộ diễn biến của một giao dịch | **< 5 phút** *(GĐ)* | P-4 |
 | **BG-4** | Phát hiện gian lận sớm | Thời gian từ lúc giao dịch hoàn tất tới lúc có cảnh báo | **< 5 giây** (95% trường hợp) | P-5 |
-| | | Số cảnh báo trên 1.000 giao dịch (gánh nặng cho nhân viên) | **≤ 10** *(GĐ)* | P-5 |
+| | | Số cảnh báo trên 1.000 giao dịch (gánh nặng cho nhân viên) | **≤ 20** *(GĐ)* | P-5 |
+| | | Tỉ lệ bắt được gian lận (recall) trên các kịch bản luật nhắm tới | **≥ 70%** *(GĐ)* | P-5 |
 | **BG-5** | Phản ứng ngay khi phát hiện rủi ro | Thời gian từ lúc khóa tài khoản tới lúc chủ tài khoản mất quyền truy cập | **Ngay yêu cầu kế tiếp** | P-6 |
 | **BG-6** | Trải nghiệm khách hàng tốt | Thời gian phản hồi lệnh chuyển tiền | **< 300 ms** (95% trường hợp) | — |
 | | | Mức sẵn sàng của dịch vụ | **99,9%** | — |
@@ -338,7 +339,7 @@ flowchart LR
 | Vượt hạn mức nhờ gửi nhiều lệnh song song | Trung bình | Cao | BR-06: kiểm tra hạn mức trong cùng bước ghi sổ |
 | Nhật ký bị thiếu hoặc bị sửa | Thấp | Cao | BR-09: không ghi được nhật ký thì không thực hiện thao tác |
 | Kẻ gian tiếp tục dùng tài khoản sau khi bị phát hiện | Trung bình | Cao | BR-12: thu hồi quyền truy cập ngay khi khóa |
-| Quá nhiều cảnh báo nhầm làm nhân viên bỏ qua cảnh báo thật | Cao | Trung bình | BG-4: giới hạn ≤ 10 cảnh báo/1.000 giao dịch; luật có giải thích; đo tỉ lệ báo nhầm |
+| Quá nhiều cảnh báo nhầm làm nhân viên bỏ qua cảnh báo thật | Cao | Trung bình | BG-4: giới hạn ≤ 20 cảnh báo/1.000 giao dịch; luật có giải thích; đo tỉ lệ báo nhầm |
 | Lộ dữ liệu khách này cho khách khác | Thấp | Rất cao | BR-10: kiểm tra quyền sở hữu ở mọi truy vấn |
 
 ---

@@ -1,6 +1,6 @@
 # Database Design
 
-> **Status:** Draft (đề xuất, chờ #1 duyệt) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** n/a (chưa có migration nào) · **Cập nhật:** 2026-10-03
+> **Status:** Draft (đề xuất, chờ #1 duyệt) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** n/a (chưa có migration nào) · **Cập nhật:** 2026-10-06
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
@@ -43,7 +43,6 @@ erDiagram
     USERS {
         uuid id PK
         text cognito_sub UK
-        text role
         timestamptz sessions_revoked_at
     }
     CUSTOMERS {
@@ -132,7 +131,6 @@ Viết dưới dạng SQL để người viết migration chép được; mọi 
 CREATE TABLE users (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   cognito_sub         text NOT NULL UNIQUE,
-  role                text NOT NULL CHECK (role IN ('customer','operator','auditor','admin')),
   sessions_revoked_at timestamptz,                       -- NULL = chưa từng thu hồi
   created_at          timestamptz NOT NULL DEFAULT now()
 );
@@ -145,7 +143,7 @@ CREATE TABLE customers (
 );
 ```
 
-Không lưu email, số điện thoại: Cognito giữ danh tính, DB chỉ giữ `cognito_sub`. Ít dữ liệu cá nhân hơn nghĩa là ít thứ phải bảo vệ.
+Không lưu vai trò: nguồn sự thật duy nhất là nhóm Cognito trong JWT (`cognito:groups`). Lưu thêm một cột `role` là tạo hai nơi có thể lệch nhau mà không có ai dùng; nhật ký ghi vai trò tại thời điểm thao tác ở `audit_log.actor_role`. Không lưu email, số điện thoại: Cognito giữ danh tính, DB chỉ giữ `cognito_sub`. Ít dữ liệu cá nhân hơn nghĩa là ít thứ phải bảo vệ.
 
 ### 4.2 `accounts`
 
@@ -590,7 +588,9 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 
 ## 13. Điểm khác với tài liệu hiện tại và việc cần chốt
 
-Mỗi dòng là một đề xuất sửa; sau khi nhóm đồng ý, cập nhật tài liệu nguồn trong cùng PR với migration. Cột "Chặn" cho biết task nào phải đợi.
+Mỗi dòng là một đề xuất sửa. Cột "Chặn" cho biết task nào phải đợi.
+
+**Cập nhật 2026-10-06:** các điểm 1–10, 12 (phần `docker-compose.yml`) và 14 đã được sửa vào tài liệu nguồn (docs/02, docs/03, ledger brief, FRAUD guide, README module, event contract, roadmap); `SnakeNamingStrategy` làm cùng migration đầu. Bảng vẫn chờ #1 duyệt; ai thấy điểm nào sai thì mở issue.
 
 | # | Đề xuất | Hiện tại ở đâu | Chặn |
 |---|---|---|---|
@@ -607,7 +607,9 @@ Mỗi dòng là một đề xuất sửa; sau khi nhóm đồng ý, cập nhật
 | 11 | `created_at` dùng **`clock_timestamp()`** ở bảng ghi trong đường chuyển tiền | Chưa nêu | Task 3 (liên quan Review Focus #2) |
 | 12 | DB chạy **UTC**; bỏ `TZ` khỏi `docker-compose.yml`; dùng `SnakeNamingStrategy` | `docker-compose.yml` đang đặt `TZ: Asia/Ho_Chi_Minh` | Task 1 |
 | 13 | `uuid` v4 qua `gen_random_uuid()` (có sẵn từ PG13, không cần extension); uuid v7 là tối ưu tùy chọn | Chưa nêu | — |
-| 14 | Event `TransferCompleted` chỉ mang id hai **tài khoản**, chưa mang **chủ sở hữu** (user) nên `notification` chưa biết gửi cho ai | `_shared/event-contract.md` | Task 5; v1 ghi log theo tài khoản, `user_id` để NULL, hoặc thêm `fromUserId`, `toUserId` vào contract |
+| 14 | Event `TransferCompleted` chỉ mang id hai **tài khoản**, chưa mang **chủ sở hữu** (user) nên `notification` chưa biết gửi cho ai | `_shared/event-contract.md` | Task 5; thêm `fromUserId`, `toUserId` vào contract |
+| 15 | **Bỏ cột `users.role`**: vai trò chỉ lấy từ nhóm Cognito trong JWT | docs/03 ERD, README `identity` | Task 2 |
+| 16 | Hàng `funding` bị khóa ở **mỗi** lần nạp tiền → mọi lệnh nạp xếp hàng. Chấp nhận ở v1 (nạp tiền tần suất thấp, chuyển tiền không đụng `funding`); nghẽn thì chia nhiều tài khoản funding — khi đó bỏ index `accounts_single_system` | docs/03 §6.1, ADR-09 | Task 3 (chỉ khi load test thấy nghẽn) |
 
 **Về uuid v4:** khóa chính ngẫu nhiên làm chèn kém cục bộ hơn so với khóa tăng dần, nhưng ở ~10.000 giao dịch/ngày chênh lệch không đáng kể; các bảng nhiều dòng nhất (`ledger_entries`, `audit_log`, `outbox_events`) đã dùng `identity`.
 

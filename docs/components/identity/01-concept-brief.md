@@ -1,6 +1,6 @@
 # identity — Concept Brief
 
-> **Status:** Draft · **Owner:** #2 · **Cặp đôi:** #3 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #2 · **Cặp đôi:** #3 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
 
 ## Component
 
@@ -10,7 +10,7 @@
 | **Loại** | ⚪ Generic · module backend |
 | **Chạy ở** | `api` |
 | **Use case / NFR** | UC-1 (liên kết user với customer), UC-11 (thu hồi phiên) |
-| **Sở hữu bảng** | `users` (`cognito_sub`, `role`, `sessions_revoked_at`) |
+| **Sở hữu bảng** | `users` (`cognito_sub`, `sessions_revoked_at`); vai trò lấy từ nhóm Cognito trong JWT, không lưu ở DB |
 | **Task trong roadmap** | Task 2 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |
 
 ## Vấn đề

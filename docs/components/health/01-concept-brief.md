@@ -1,6 +1,6 @@
 # health — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 · **Cặp đôi:** #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #5 · **Cặp đôi:** #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
 
 ## Component
 
@@ -23,6 +23,7 @@ Load balancer cần biết instance nào còn sống và sẵn sàng nhận requ
 - `/health/ready`: kết nối được PostgreSQL (lỗi thì rút khỏi load balancer).
 - Redis không nằm trong readiness vì hệ thống vẫn đúng khi không có nó; sẽ báo *degraded*.
 - Role `worker` không có cổng HTTP nên ECS dùng health check bằng lệnh riêng.
+- **Cần chốt (#5):** ECS thay task trượt health check của ALB. Nếu ALB gọi `/health/ready` và pool kết nối bão hòa vì tài khoản nóng, ping DB có thể timeout và ECS khởi động lại nhiều task đúng lúc tải cao. (Khi mọi target đều unhealthy, ALB vẫn gửi traffic cho tất cả, nên đây không phải sập toàn bộ mà là vòng khởi động lại.) Cân nhắc: ngưỡng unhealthy rộng + `healthCheckGracePeriodSeconds`, hoặc ALB gọi `/health/live` và chỉ dùng `/health/ready` khi deploy.
 
 ## Ngoài phạm vi (v1)
 
