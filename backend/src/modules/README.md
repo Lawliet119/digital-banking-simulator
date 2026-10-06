@@ -8,7 +8,7 @@ Mỗi thư mục là một module nghiệp vụ (một bounded context ở `docs
 | [`accounts`](accounts/README.md) | 🟡 Supporting | UC-1, 2, 4, 11 | api | #2 |
 | [`identity`](identity/README.md) | ⚪ Generic | UC-1, 11 | api | #2 |
 | [`risk`](risk/README.md) | 🟠 Supporting | UC-9, 10, 12 | api + worker | #4 |
-| [`audit`](audit/README.md) | 🟡 Supporting | UC-8 | api (thư viện cho mọi module) | #3 |
+| [`audit`](audit/README.md) | 🟡 Supporting | UC-8 | api + worker (thư viện cho mọi module) | #3 |
 | [`outbox`](outbox/README.md) | Hạ tầng sự kiện | — | worker | #3 |
 | [`notification`](notification/README.md) | ⚪ Generic | — | worker | #3 |
 | [`health`](health) | Hạ tầng | — | api | #5 |

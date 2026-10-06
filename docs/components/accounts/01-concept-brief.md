@@ -23,6 +23,7 @@ Khách cần hồ sơ và tối đa 3 tài khoản; nhân viên cần khóa tài
 - Export `lockForUpdate` và `applyBalanceChange` cho `ledger`, nhận transaction của ledger thay vì tự mở transaction riêng.
 - Khóa tài khoản = đổi trạng thái **và** thu hồi phiên của chủ tài khoản trong cùng lệnh, không chờ sự kiện.
 - Truy cập tài khoản không thuộc mình trả 404, không phải 403.
+- Cho nhân viên tra cứu tài khoản của khách (`GET /v1/operator/accounts`, FR-ACC-04): không trả số dư, mỗi lần tra cứu ghi nhật ký.
 
 ## Ngoài phạm vi (v1)
 

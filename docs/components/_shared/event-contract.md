@@ -23,12 +23,39 @@
 | `sameOwner` | boolean | ngoại lệ cho R5, R6 | Hai tài khoản cùng một khách hàng (FRAUD_DETECTION_GUIDE §5.2) |
 | `fromUserId`, `toUserId` | uuid | `notification` biết gửi cho ai | Chủ của hai tài khoản tại thời điểm giao dịch (database-design §13, điểm 14) |
 
+## `AccountStatusChanged`
+
+Có chung bốn trường đầu (`eventId`, `eventType`, `occurredAt`, `correlationId`) với `TransferCompleted`.
+
+| Trường | Kiểu | Dùng cho | Ghi chú |
+|---|---|---|---|
+| `accountId` | uuid | nội dung thông báo | |
+| `ownerUserId` | uuid | `notification` biết gửi cho ai | Chủ tài khoản (`users.id`) |
+| `newStatus` | `ACTIVE` \| `LOCKED` | nội dung thông báo | |
+| `changedByUserId` | uuid | truy vết chéo với audit | Nhân viên thực hiện |
+
+Không mang lý do khóa: lý do nằm ở `audit_log`, và thông báo cho khách không bao giờ nêu lý do gian lận (BR-13).
+
+## `TransferRejected` (chưa phát ở v1)
+
+Luồng REJECTED ở docs/03 §6.1 không ghi outbox. Có phát hay không do #1 và #3 chốt ở Gate 1 của task ledger. Nếu bật, payload như sau (cùng bốn trường đầu như trên):
+
+| Trường | Kiểu | Ghi chú |
+|---|---|---|
+| `transferId` | uuid | |
+| `fromAccountId` | uuid | |
+| `reason` | `RejectReason` | `ACCOUNT_NOT_ACTIVE`, `LIMIT_PER_TX_EXCEEDED`, `LIMIT_PER_DAY_EXCEEDED`, `INSUFFICIENT_FUNDS` |
+
+## Không phát ở v1
+
+`FraudFlagRaised` và `FraudFlagReviewed` (docs/02 §9) là khái niệm miền. Cờ và kết luận đã được lưu ở `fraud_flags` và `audit_log`; thêm sự kiện khi có bên tiêu thụ.
+
 ## Bảng định tuyến
 
 | Event | Phát ra khi | Gửi tới queue |
 |---|---|---|
 | `TransferCompleted` | Nạp tiền hoặc chuyển tiền hoàn tất | `risk-events`, `notification-events` |
-| `TransferRejected` | Lệnh bị từ chối | `risk-events` (tùy chọn) |
+| `TransferRejected` | Lệnh bị từ chối | `risk-events` (tùy chọn, **chưa phát ở v1**) |
 | `AccountStatusChanged` | Khóa / mở khóa tài khoản | `notification-events` |
 
 ## Quy tắc

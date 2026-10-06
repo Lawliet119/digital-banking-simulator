@@ -140,6 +140,8 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 - [ ] Khóa tài khoản = đổi `LOCKED` + `users.sessions_revoked_at = now()` + audit + outbox(`AccountStatusChanged`) trong **một** transaction; sau commit mới `SET revoked_at:{userId}` ở Redis (TTL = thời gian sống token); Redis lỗi → đọc Postgres.
 - [ ] **Review Focus test (3):** token có `iat` **bằng** giây của `sessions_revoked_at` bị từ chối `SESSION_REVOKED`; token phát hành giây kế tiếp được chấp nhận (khi tài khoản khác còn ACTIVE).
 - [ ] Test AC-5.8: A truy cập tài khoản của C → **404**, có audit lần bị từ chối.
+- [ ] Tra cứu cho nhân viên (FR-ACC-04): `GET /v1/operator/accounts` theo `accountId` hoặc tên khách, tối đa 20 kết quả, không trả số dư, mỗi lần tra cứu ghi audit.
+- [ ] Dòng `users` tạo bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên của mọi vai trò; cách xác thực khi chạy local và test (khóa ký thử nghiệm) chốt cùng #6.
 
 **Exit:** AC-5.8, AC-11.1–11.3 xanh trong CI trên Postgres thật; OpenAPI có ví dụ cho mọi endpoint của module.
 
@@ -156,7 +158,7 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 
 **Interfaces:**
 - Consumes: `AccountsService.lockForUpdate / applyBalanceChange` (T2), `AuditService.record(manager, { actor, action, target, correlationId })` và `OutboxWriter.add(manager, event)` (T4), `RejectReason`, `ErrorCode` (đã có).
-- Produces: `POST /v1/transfers`, `POST /v1/operator/deposits` (bắt buộc `Idempotency-Key`), `LedgerQueryService.listTransactions(accountId, { cursor, from, to })` và `.getTransfer(id, userId)` (cho UC-6/7); sync guard `checkGuards(manager, lockedFrom, lockedTo, amount): RejectReason | null`; event `TransferCompleted` ghi vào outbox cùng transaction; job đối soát (tổng Nợ = tổng Có, `balance` = tổng bút toán, tổng số dư = 0).
+- Produces: `POST /v1/transfers`, `POST /v1/operator/deposits` (bắt buộc `Idempotency-Key`), `LedgerQueryService.listTransactions(accountId, { cursor, from, to })` và `.getTransfer(id, userId)` (cho UC-6/7); sync guard `checkGuards(manager, lockedFrom, lockedTo, amount): Promise<RejectReason | null>` (async: chạy truy vấn tổng tiền đi trong ngày, nên người gọi phải `await`); event `TransferCompleted` ghi vào outbox cùng transaction; job đối soát (tổng Nợ = tổng Có, `balance` = tổng bút toán, tổng số dư = 0).
 
 **Mốc theo tuần:** T1 ERD + migration đầu · T2 chuyển tiền bản thô + nạp tiền (nạp → chuyển → xem số dư) · T3 `ON CONFLICT DO NOTHING`, khóa theo thứ tự id, lưu `REJECTED`, retry deadlock, sync guard sau `FOR UPDATE` · T4 job đối soát có alarm.
 
@@ -228,6 +230,8 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 - [ ] Mọi cửa sổ thời gian tính theo `occurredAt`; R3/R6 dùng snapshot trong event, không đọc số dư hiện tại; chấm điểm chỉ `TRANSFER`, bỏ qua `DEPOSIT`; `sameOwner` miễn R5/R6.
 - [ ] Điểm = tổng trọng số luật kích hoạt (R1 30, R2 25, R3 35, R4 20, R5 40, R6 30 *(GĐ)*); `0–39 LOW` (không cờ), `40–69 MEDIUM`, `≥ 70 HIGH`; ví dụ bảng §4.3 của guide thành unit test.
 - [ ] Khách không thấy cờ: không endpoint customer nào trả trường về cờ (AC-10.2).
+- [ ] Review lần hai trả 409 `FLAG_ALREADY_REVIEWED` (AC-10.1).
+- [ ] Cấu hình luật: `cfg:risk:latest` trỏ phiên bản hiện hành (TTL 60 giây, miss thì `max(version)` từ DB), `cfg:risk:v{n}` bất biến.
 - [ ] Redis lỗi → dự phòng SQL cho R1/R5, kết quả không đổi (test bật/tắt Redis).
 - [ ] Test so khớp: `OnlineFeatureProvider` và `OfflineFeatureProvider` cho cùng đặc trưng trên cùng dữ liệu.
 - [ ] **Review Focus test (4):** sự kiện đến muộn (worker xử lý sau 30 phút) cho cùng kết quả như xử lý tức thì; hai sự kiện đảo thứ tự `occurredAt` vẫn đếm R1 đúng; cùng `transferId` hai lần → R1 không đếm đôi (member sorted set là `transferId`).
