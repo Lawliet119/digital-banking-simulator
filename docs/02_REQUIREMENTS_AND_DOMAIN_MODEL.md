@@ -1,6 +1,6 @@
 # 02 — Requirements & Domain Model: Digital Banking Simulator
 
-> **Status:** Draft v1.0 — chờ nhóm review · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-03
+> **Status:** Draft v1.0 — chờ nhóm review · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-06
 
 | Thuộc tính | Giá trị |
 |---|---|
@@ -284,7 +284,7 @@ Viết theo dạng **Given – When – Then** để chuyển thẳng thành tes
 | NFR-OBS-01 | Quan sát | Mỗi yêu cầu có mã liên kết xuyên suốt mọi thành phần | 100% | Tra log theo mã liên kết | BG-3 |
 | NFR-OBS-02 | Quan sát | Có dashboard và cảnh báo tự động cho chỉ số chính | — | Demo dashboard | — |
 | NFR-FRD-01 | Gian lận | Thời gian từ giao dịch tới khi có cờ | p95 < 5 giây | Đo trên hệ thống thật | BG-4 |
-| NFR-FRD-02 | Gian lận | Số cảnh báo trên 1.000 giao dịch | ≤ 10 *(GĐ)* | Đánh giá trên dữ liệu tổng hợp | BG-4 |
+| NFR-FRD-02 | Gian lận | Số cảnh báo trên 1.000 giao dịch, kèm recall trên các kịch bản luật nhắm tới | ≤ 20 cảnh báo; recall ≥ 70% *(GĐ)* | Đánh giá trên dữ liệu tổng hợp | BG-4 |
 | NFR-FRD-03 | Gian lận | Báo cáo precision, recall, F1 trên tập dữ liệu giữ lại | Có báo cáo | Báo cáo P5 | BG-4 |
 | NFR-MNT-01 | Vận hành | Triển khai tự động từ commit | ≤ 15 phút *(GĐ)* | CI/CD | — |
 | NFR-MNT-02 | Vận hành | Quay lui về phiên bản trước | ≤ 10 phút *(GĐ)* | Demo rollback | — |
@@ -428,12 +428,13 @@ classDiagram
     class FraudFlag {
         +RiskLevel level
         +int score
+        +int ruleSetVersion
         +ReviewStatus reviewStatus
         +review(decision, reviewer, note)
     }
     class RuleHit {
         +RuleId ruleId
-        +int ruleVersion
+        +int weight
         +String explanation
     }
     class RiskRuleSet {
@@ -462,7 +463,7 @@ classDiagram
     IdempotencyRecord "1" --> "1" Transfer : trỏ tới kết quả
     Transfer "1" --> "0..1" FraudFlag : có thể bị gắn
     FraudFlag "1" *-- "1..*" RuleHit : gồm
-    RuleHit "*" --> "1" RiskRuleSet : theo phiên bản
+    FraudFlag "*" --> "1" RiskRuleSet : theo phiên bản
 ```
 
 ### 7.1 Aggregate và bất biến
@@ -565,7 +566,7 @@ stateDiagram-v2
 
 | Sự kiện | Phát ra khi | Dữ liệu chính | Bên quan tâm |
 |---|---|---|---|
-| `TransferCompleted` | Nạp tiền hoặc chuyển tiền hoàn tất | Mã giao dịch, loại, hai tài khoản, số tiền, **số dư nguồn trước giao dịch**, **thời điểm mở của hai tài khoản**, thời điểm, mã liên kết | Risk, Notification |
+| `TransferCompleted` | Nạp tiền hoặc chuyển tiền hoàn tất | Mã giao dịch, loại, hai tài khoản và chủ của chúng, hai tài khoản có **cùng chủ** không, số tiền, **số dư nguồn trước giao dịch**, **thời điểm mở của hai tài khoản**, thời điểm, mã liên kết | Risk, Notification |
 | `TransferRejected` | Lệnh bị từ chối vì quy tắc nghiệp vụ | Mã giao dịch, tài khoản nguồn, lý do | Risk (tín hiệu tùy chọn) |
 | `AccountStatusChanged` | Tài khoản bị khóa hoặc mở khóa | Mã tài khoản, trạng thái mới, người thực hiện | Notification (việc thu hồi phiên làm ngay trong lệnh khóa, không chờ sự kiện) |
 | `FraudFlagRaised` | Cờ mới được tạo | Mã giao dịch, mức rủi ro, các luật | (Dashboard nhân viên) |

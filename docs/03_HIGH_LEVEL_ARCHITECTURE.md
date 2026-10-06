@@ -1,11 +1,11 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Draft v1.1 — chờ nhóm review · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-03
+> **Status:** Draft v1.2 — chờ nhóm review · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-06
 
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
-| Phiên bản | 1.1 — bản nháp để nhóm review (code khởi tạo tại [`backend/`](../backend/README.md)) |
+| Phiên bản | 1.2 — bản nháp để nhóm review (code khởi tạo tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [01_BUSINESS_ANALYSIS.md](01_BUSINESS_ANALYSIS.md) (BG, BR) · [02_REQUIREMENTS_AND_DOMAIN_MODEL.md](02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (UC, FR, NFR, domain model) |
 | Tài liệu liên quan | [DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md](DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md) (ADR-11) · [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đánh dấu *(GĐ)* là giả định. Giá cloud là giá tham khảo, cần kiểm lại theo region |
@@ -219,6 +219,8 @@ sequenceDiagram
 
 **Nạp tiền (UC-3)** dùng cùng luồng với `type = DEPOSIT`: tài khoản nguồn là tài khoản SYSTEM `funding`, chỉ vai trò `operator` gọi được, bỏ qua kiểm tra số dư và hạn mức của tài khoản SYSTEM nhưng vẫn có idempotency, bút toán kép, nhật ký và outbox. Script tạo dữ liệu demo cũng gọi API này thay vì sửa số dư trực tiếp, để bất biến luôn đúng.
 
+**Giới hạn đã biết:** hàng `funding` bị khóa ở mỗi lần nạp tiền, nên mọi lệnh nạp tiền xếp hàng qua một hàng duy nhất. V1 chấp nhận vì nạp tiền do nhân viên làm tại quầy, tần suất thấp, và chuyển tiền (đường nóng) không đụng tới `funding`. Seed vài nghìn lệnh nạp chạy tuần tự trong vài chục giây. Nếu load test cho thấy nghẽn, chia thành nhiều tài khoản funding và chọn ngẫu nhiên một tài khoản mỗi lệnh (ghi ở ADR-09).
+
 ### 6.2 Khóa tài khoản và thu hồi phiên (UC-11)
 
 JWT được xác minh tại chỗ bằng khóa công khai (JWKS), nên API không tự biết token đã bị thu hồi. Cách xử lý: lưu **mốc thu hồi phiên** của user; token nào phát hành trước mốc đó thì bị từ chối.
@@ -344,7 +346,6 @@ erDiagram
 
     USERS { uuid id PK
             string cognito_sub UK
-            string role
             timestamptz sessions_revoked_at }
     CUSTOMERS { uuid id PK
                 uuid user_id FK
@@ -357,8 +358,8 @@ erDiagram
                timestamptz created_at }
     TRANSFERS { uuid id PK
                 string type
-                uuid from_account FK
-                uuid to_account FK
+                uuid from_account_id FK
+                uuid to_account_id FK "NULL khi REJECTED tới tài khoản không tồn tại"
                 bigint amount
                 string status
                 string reject_reason
@@ -369,6 +370,7 @@ erDiagram
                      uuid account_id FK
                      string direction
                      bigint amount
+                     bigint balance_after
                      timestamptz created_at }
     IDEMPOTENCY_KEYS { uuid user_id PK
                        string idem_key PK
@@ -384,11 +386,11 @@ erDiagram
                   timestamptz reviewed_at }
     FRAUD_RULE_HITS { uuid transfer_id PK
                       string rule_id PK
-                      int rule_version
+                      int weight
                       string explanation }
 ```
 
-Các bảng kỹ thuật không vẽ trong sơ đồ: `outbox_events`, `processed_events`, `audit_log`, `risk_rule_sets`.
+Các bảng kỹ thuật không vẽ trong sơ đồ: `outbox_events`, `processed_events`, `audit_log`, `risk_rule_sets`, `notification_log`, `reconciliation_runs`. Sơ đồ trên là bản rút gọn; **schema đầy đủ** (cột, ràng buộc, index, quyền) chỉ nằm ở [`components/_shared/database-design.md`](components/_shared/database-design.md). Vai trò người dùng không lưu ở `users` mà lấy từ nhóm Cognito trong JWT.
 
 | Domain (tài liệu 02) | Bảng | Ràng buộc bảo vệ bất biến |
 |---|---|---|
@@ -403,7 +405,7 @@ Các bảng kỹ thuật không vẽ trong sơ đồ: `outbox_events`, `processe
 - Tiền là `BIGINT` (đồng), không dùng kiểu số thực.
 - Tài khoản SYSTEM `funding` được âm; `SUM(balance mọi tài khoản) = 0` luôn đúng (ví dụ ở tài liệu 02 §7.3).
 - Job đối soát định kỳ kiểm tra: tổng Nợ = tổng Có; `balance` mỗi tài khoản = tổng bút toán của nó; tổng số dư = 0.
-- Index chính: `ledger_entries(account_id, created_at)` cho lịch sử và hạn mức ngày; `transfers(from_account, created_at)`, `transfers(to_account, created_at)` cho luật gian lận.
+- Index chính (đầy đủ và lý do ở database-design §6): `ledger_entries(account_id, created_at)` cho lịch sử và hạn mức ngày; `transfers(from_account_id, created_at)` và `transfers(from_account_id, to_account_id, created_at)` cho luật gian lận.
 
 ---
 
@@ -478,7 +480,7 @@ flowchart LR
 | Thành phần | Thiết kế | Đảm bảo |
 |---|---|---|
 | **Outbox** | Sự kiện ghi trong cùng transaction với nghiệp vụ | Commit thì chắc chắn có sự kiện; rollback thì không có |
-| **Relay** | `SELECT … WHERE published_at IS NULL ORDER BY id LIMIT n FOR UPDATE SKIP LOCKED` → gửi tới từng queue theo bảng định tuyến → set `published_at`; job dọn sau 7 ngày *(GĐ)* | Nhiều task không lấy trùng; sự cố giữa chừng thì gửi lại cho mọi queue (**at-least-once**) |
+| **Relay** | `SELECT … WHERE published_at IS NULL ORDER BY id LIMIT n FOR UPDATE SKIP LOCKED` → gửi tới từng queue theo bảng định tuyến → set `published_at`; job dọn sau 7 ngày *(GĐ)*. Đây là **ngoại lệ duy nhất** của quy tắc "không gọi SQS trong transaction": relay chỉ khóa hàng `outbox_events` (không đụng hàng tài khoản), gửi lặp vẫn đúng vì vốn là at-least-once; relay dùng timeout riêng và không dùng cơ chế chạy lại khi deadlock của `withTransaction` | Nhiều task không lấy trùng; sự cố giữa chừng thì gửi lại cho mọi queue (**at-least-once**) |
 | **SQS standard** | Mỗi consumer một queue + một DLQ; visibility timeout; chuyển DLQ sau N lần lỗi *(GĐ: 5)* | Không mất message; consumer lỗi không ảnh hưởng consumer khác; không đảm bảo thứ tự |
 | **Phương án thay thế** | SNS topic fan-out ra các queue (relay chỉ publish một lần) | Tách producer khỏi danh sách consumer, đổi lại thêm một dịch vụ và khó giả lập ở local. Nhóm chọn bảng định tuyến vì chỉ có 2 consumer và chạy giống hệt nhau ở local (ElasticMQ) lẫn AWS. Ghi trong ADR-03 |
 | **Consumer** | Ghi `processed_events(consumer, event_id)` cùng transaction với tác động | Sự kiện trùng bị bỏ qua (**effectively-once**) |
@@ -499,7 +501,10 @@ flowchart LR
   "amount": "500000",
   "fromBalanceBefore": "520000",
   "fromAccountCreatedAt": "2026-09-30T08:00:00Z",
-  "toAccountCreatedAt": "2026-01-15T08:00:00Z"
+  "toAccountCreatedAt": "2026-01-15T08:00:00Z",
+  "sameOwner": false,
+  "fromUserId": "uuid",
+  "toUserId": "uuid"
 }
 ```
 
@@ -554,7 +559,7 @@ flowchart LR
 | **Phân quyền** | Guard theo vai trò **cộng** kiểm tra sở hữu trong service ở mọi truy vấn theo tài khoản; mã yêu cầu scope theo user; trả 404 cho tài nguyên không thuộc mình | NFR-SEC-01 |
 | **Mã hóa** | TLS ở ALB, tới RDS, tới ElastiCache; mã hóa at-rest bằng KMS cho RDS, ElastiCache, S3 | NFR-SEC-03 |
 | **Bí mật** | Secrets Manager; không có bí mật trong repo hay image; quét bí mật trong CI | NFR-SEC-04 |
-| **Quyền tối thiểu** | IAM role riêng cho task API và worker; DB role riêng cho risk consumer (chỉ đọc giao dịch, chỉ ghi cờ); Redis và RDS chỉ mở cho security group của app | NFR-SEC-06 |
+| **Quyền tối thiểu** | IAM role riêng cho task API và worker; DB role riêng cho tiến trình `api` và `worker` (`dbs_api`, `dbs_worker`; không role nào được UPDATE/DELETE sổ cái và nhật ký), risk đọc giao dịch qua view chỉ đọc `v_transfer_facts` (database-design §8); Redis và RDS chỉ mở cho security group của app | NFR-SEC-06 |
 | **Kiểm toán** | Nhật ký ghi trong transaction; ghi cả truy cập nhạy cảm và lần bị từ chối; kiểm toán viên chỉ đọc | NFR-AUD-01 |
 | **Threat model** | STRIDE cho luồng chuyển tiền và nạp tiền (P3) | — |
 
@@ -601,7 +606,7 @@ flowchart TB
 | Hạng mục | Lựa chọn | Ghi chú |
 |---|---|---|
 | Redis | Node `cache.t4g.micro` ≈ $9/tháng hoặc Serverless Valkey tối thiểu ≈ $6/tháng | ADR-12 |
-| Egress mạng | NAT Gateway (≈ $30+/tháng) · VPC endpoints · task ở public subnet chỉ nhận traffic từ ALB | ADR-10; mỗi IPv4 public đều tính phí theo giờ |
+| Egress mạng | NAT Gateway (≈ $32+/tháng mỗi AZ + phí dữ liệu) · VPC interface endpoint (≈ $7–10/tháng **mỗi endpoint mỗi AZ**; cần ít nhất ECR api, ECR dkr, CloudWatch Logs, Secrets Manager, SQS → ≈ $70+/tháng cho 2 AZ) · task ở public subnet có IP công khai, security group chỉ nhận traffic từ ALB (mỗi IPv4 ≈ $3,6/tháng) | ADR-10. JWKS của Cognito là endpoint công khai nên task vẫn cần đường ra internet. Tổng ở dòng dưới **đã tính phương án public subnet**; sơ đồ §13 vẽ ECS ở private subnet chỉ đúng nếu ADR-10 chọn NAT hoặc endpoint |
 | Tổng cấu hình dev 24/7 | ≈ $70–85/tháng (US East, ước lượng) | Chi tiết ở `DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md` |
 | Dựng/xóa theo giờ làm việc | ≈ $45–75 cho 10 tuần | Nằm trong credit AWS $200 |
 
@@ -755,7 +760,7 @@ Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 13.
 | Truy cập DB | TypeORM (CRUD, migration) + **SQL tường minh trong `QueryRunner` cho luồng chuyển tiền** | Cần `ON CONFLICT`, `FOR UPDATE`, thứ tự khóa; Kysely là phương án thay thế (ADR-07) |
 | Migration | TypeORM migrations, expand → migrate → contract | Bước riêng trong pipeline |
 | Redis | `ioredis` + storage Redis cho `@nestjs/throttler` | Timeout ngắn, circuit breaker, mọi key có TTL |
-| Cấu hình | `@nestjs/config` + **Joi validate lúc khởi động** | Thiếu/sai biến → app từ chối chạy; production bắt buộc TLS tới Postgres và Redis |
+| Cấu hình | `@nestjs/config` + **Joi validate lúc khởi động** | Thiếu/sai biến → app từ chối chạy; staging và production bắt buộc TLS tới Postgres và Redis |
 | Validation | `class-validator` + `ValidationPipe` (whitelist) | |
 | Lỗi | `ProblemDetailsFilter` (RFC 7807) + enum `ErrorCode` | Mục 7.1 |
 | Transaction | `TransactionService` / `withTransaction` | READ COMMITTED; tự chạy lại khi deadlock (3 lần, backoff + jitter); callback phải chạy lại được an toàn |
@@ -792,4 +797,5 @@ Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 13.
 | v0.2 | Tài khoản SYSTEM + nạp tiền; sync guard sau `FOR UPDATE`; idempotency theo user với `ON CONFLICT`; bỏ trạng thái FAILED; audit chỉ trong transaction; event có ảnh chụp; cấu hình dev/production |
 | v0.3 | Thêm Redis với 4 mục đích, danh sách không cache, chế độ khi Redis lỗi |
 | 1.0 | Sửa luồng sự kiện: mỗi consumer một queue SQS riêng (một queue chung chỉ giao mỗi message cho một consumer). Tách bộ tài liệu thành 01 Business → 02 Requirements & Domain → 03 Architecture. Thêm architecture drivers, C4 mức 1–3, bảng API, so sánh database, bảng NFR → cơ chế. Thu hồi phiên chuyển sang mốc `sessions_revoked_at` trong DB (Redis chỉ cache). Tách `fraud_flags` và `fraud_rule_hits` |
-| **1.1** | Khởi tạo code tại `backend/`. **Một app chạy theo `APP_ROLE`** thay cho hai app `apps/api` + `apps/worker` (ADR-13); gộp `risk-admin` + `risk-scoring` thành module `risk`, `outbox-relay` thành module `outbox`. Thêm validate cấu hình lúc khởi động (production bắt buộc TLS), `TransactionService` có retry deadlock, enum `ErrorCode` + định dạng lỗi RFC 7807 (mục 7.1), lỗi DB tạm thời → 503 + `Retry-After`, ranh giới module do eslint ép. Lệnh bị REJECTED trả 422 problem+json thay vì `{status: REJECTED}` vì trường `status` của RFC 7807 là mã HTTP |
+| 1.1 | Khởi tạo code tại `backend/`. **Một app chạy theo `APP_ROLE`** thay cho hai app `apps/api` + `apps/worker` (ADR-13); gộp `risk-admin` + `risk-scoring` thành module `risk`, `outbox-relay` thành module `outbox`. Thêm validate cấu hình lúc khởi động (production bắt buộc TLS), `TransactionService` có retry deadlock, enum `ErrorCode` + định dạng lỗi RFC 7807 (mục 7.1), lỗi DB tạm thời → 503 + `Retry-After`, ranh giới module do eslint ép. Lệnh bị REJECTED trả 422 problem+json thay vì `{status: REJECTED}` vì trường `status` của RFC 7807 là mã HTTP |
+| **1.2** | Đồng bộ với database-design: tên cột `from_account_id`/`to_account_id`, `balance_after`, bỏ `users.role` (vai trò lấy từ nhóm Cognito), `fraud_rule_hits.weight` thay `rule_version`, bỏ index `transfers(to_account, …)`. Event `TransferCompleted` thêm `sameOwner`, `fromUserId`, `toUserId`. Relay outbox là ngoại lệ của quy tắc "không gọi SQS trong transaction". Chi phí egress gồm VPC endpoint. Nêu giới hạn hàng `funding` khi nạp tiền. Staging cũng bắt buộc TLS |

@@ -68,6 +68,8 @@ Toàn bộ hệ thống nằm trên 1 VPS (hoặc 2 nếu muốn dự phòng), c
 | ElastiCache Valkey (Serverless tối thiểu ~$6, hoặc node `cache.t4g.micro` ~$9) | ~6–10 |
 | **Tổng** | **~$70–85/tháng** |
 
+Bảng trên giả định task Fargate ở **public subnet** có IP công khai (dòng IPv4), security group chỉ nhận traffic từ ALB. Đặt task ở private subnet thì phải thêm NAT Gateway (~$32+/tháng mỗi AZ + phí dữ liệu) hoặc VPC interface endpoint (~$7/tháng mỗi endpoint mỗi AZ; cần khoảng 5 endpoint → ~$70/tháng cho 2 AZ). Cả hai đều đắt hơn IP công khai ở quy mô này. Quyết định ghi ở ADR-10.
+
 | Kịch bản 10 tuần | Chi phí |
 |---|---|
 | Chạy 24/7 | ~$160–195 (chưa tính chênh lệch region Singapore) — sát hoặc vượt credit $200 |

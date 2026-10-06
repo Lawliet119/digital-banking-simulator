@@ -1,8 +1,8 @@
 # Event contract
 
-> **Status:** Proposed — chờ #3 chốt · **Owner:** #3 · **Cặp đôi:** #1, #4 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Proposed — chờ #3 chốt · **Owner:** #3 · **Cặp đôi:** #1, #4 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
 
-> Nguồn duy nhất cho hình dạng sự kiện sau khi chốt. Hiện docs/03 §10 cũng có bản JSON; khi tách docs/03 (sau P2) mục đó sẽ trỏ về đây.
+> Nguồn duy nhất cho hình dạng sự kiện sau khi chốt. Bản JSON ở docs/03 §10 đã khớp bảng dưới (2026-10-06); khi tách docs/03 (sau P2) mục đó sẽ trỏ về đây.
 > Đổi contract đã thống nhất: báo trước cho mọi bên dùng nó và cập nhật file này **trong cùng PR**.
 
 ## `TransferCompleted`
@@ -20,7 +20,8 @@
 | `fromBalanceBefore` | string (đồng) | R6 | **Snapshot** tại thời điểm giao dịch |
 | `fromAccountCreatedAt` | ISO-8601 | R3 | **Snapshot** |
 | `toAccountCreatedAt` | ISO-8601 | (dự phòng) | Có trong bản docs/03 |
-| `sameOwner` | boolean | ngoại lệ cho R5, R6 | **Đề xuất mới** (FRAUD_DETECTION_GUIDE §5.2), chưa có trong docs/03 |
+| `sameOwner` | boolean | ngoại lệ cho R5, R6 | Hai tài khoản cùng một khách hàng (FRAUD_DETECTION_GUIDE §5.2) |
+| `fromUserId`, `toUserId` | uuid | `notification` biết gửi cho ai | Chủ của hai tài khoản tại thời điểm giao dịch (database-design §13, điểm 14) |
 
 ## Bảng định tuyến
 

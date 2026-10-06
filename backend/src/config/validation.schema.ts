@@ -54,9 +54,10 @@ export const validationSchema = Joi.object<Env>({
   LOG_LEVEL: Joi.string().valid('fatal', 'error', 'warn', 'log', 'debug', 'verbose').default('log'),
   CORS_ORIGINS: Joi.string().allow('').default(''),
   // How many reverse proxies (the ALB) sit in front. Per-IP rate limiting keys on the client IP:
-  // 0 behind the ALB makes every client share the ALB's address, so production must state it.
+  // 0 behind the ALB makes every client share the ALB's address, so a deployed environment
+  // (staging or production, both behind an ALB) must state it.
   TRUST_PROXY_HOPS: Joi.number().when('NODE_ENV', {
-    is: 'production',
+    is: isDeployed,
     then: Joi.number().integer().min(1).max(5).required(),
     otherwise: Joi.number().integer().min(0).max(5).default(0),
   }),
@@ -65,9 +66,10 @@ export const validationSchema = Joi.object<Env>({
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),
   DATABASE_POOL_MAX: Joi.number().integer().min(1).max(50).default(10),
-  // NFR-SEC-03: connections to the database are encrypted in production.
+  // NFR-SEC-03: connections to the database are encrypted in every deployed environment.
+  // Staging talks to a real RDS over the same cloud network as production.
   DATABASE_SSL: Joi.boolean().when('NODE_ENV', {
-    is: 'production',
+    is: isDeployed,
     then: Joi.boolean().valid(true).required(),
     otherwise: Joi.boolean().default(false),
   }),
@@ -89,12 +91,12 @@ export const validationSchema = Joi.object<Env>({
     .max(600_000)
     .default(10_000),
 
-  // NFR-SEC-03: Redis is reached over TLS (`rediss://`) in production.
+  // NFR-SEC-03: Redis is reached over TLS (`rediss://`) in every deployed environment.
   REDIS_URL: Joi.string()
     .uri({ scheme: ['redis', 'rediss'] })
     .required()
     .when('NODE_ENV', {
-      is: 'production',
+      is: isDeployed,
       then: Joi.string().uri({ scheme: ['rediss'] }),
     }),
   // Redis is an accelerator, never the source of truth: a slow Redis must not slow a transfer.

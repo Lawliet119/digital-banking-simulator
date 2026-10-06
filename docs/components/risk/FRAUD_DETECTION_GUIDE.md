@@ -1,6 +1,6 @@
 # Fraud Detection — Hướng dẫn chi tiết
 
-> **Status:** Draft · **Owner:** #4 · **Cặp đôi:** #1, #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03 · sẽ tách thành 02/03/06 sau khi nộp P2
+> **Status:** Draft · **Owner:** #4 · **Cặp đôi:** #1, #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06 · sẽ tách thành 02/03/06 sau khi nộp P2
 
 > Tài liệu làm việc nội bộ cho mảng **Fraud** (#4) và người làm bộ dữ liệu (#6).
 > Dựa trên: `docs/01` (BR-06, BR-11, BR-13), `docs/02` (UC-9, UC-10, UC-12, FR-RSK-*, NFR-FRD-*), `docs/03` (mục 9, 10, 15).
@@ -30,7 +30,8 @@
 | Chỉ số | Mục tiêu | Nguồn |
 |---|---|---|
 | Thời gian từ giao dịch tới khi có cờ | p95 < 5 giây | NFR-FRD-01 |
-| Số cảnh báo / 1.000 giao dịch | ≤ 10 *(GĐ — xem lưu ý 6.4)* | NFR-FRD-02 |
+| Số cảnh báo / 1.000 giao dịch | ≤ 20 *(GĐ — xem lưu ý 6.4)* | NFR-FRD-02 |
+| Recall trên các kịch bản luật nhắm tới | ≥ 70 % *(GĐ)* | NFR-FRD-02 |
 | Báo cáo precision, recall, F1 trên tập giữ lại | Có, kèm phân tích từng luật | NFR-FRD-03 |
 | Chuyển tiền không chậm đi vì fraud | Sync guard thêm ≤ 5 ms | NFR-PERF-01 |
 | Lỗi ở fraud không làm hỏng chuyển tiền | 0 ảnh hưởng | D-4 |
@@ -154,14 +155,14 @@ explain: `Chuyển ${pct}% số dư (${amount}/${fromBalanceBefore})`
 ```sql
 -- R2: trung vị số tiền chuyển đi trong 30 ngày trước giao dịch
 SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY amount) AS median, COUNT(*) AS n
-FROM transfers
-WHERE from_account = $1 AND status = 'COMPLETED' AND type = 'TRANSFER'
+FROM v_transfer_facts
+WHERE from_account_id = $1 AND status = 'COMPLETED' AND type = 'TRANSFER'
   AND created_at >= $2 - interval '30 days' AND created_at < $2;
 
 -- R4: có lệnh chuyển ngược trong 1 giờ trước
 SELECT EXISTS (
-  SELECT 1 FROM transfers
-  WHERE from_account = $1 AND to_account = $2 AND status = 'COMPLETED'
+  SELECT 1 FROM v_transfer_facts
+  WHERE from_account_id = $1 AND to_account_id = $2 AND status = 'COMPLETED'
     AND created_at >= $3 - interval '1 hour' AND created_at < $3
 );
 ```
@@ -283,45 +284,12 @@ Thống nhất với #3. Bản hiện tại ở `docs/03` mục 10, **đề xu�
 
 ### 5.3 Dữ liệu
 
-```sql
-CREATE TABLE risk_rule_sets (
-  version      int PRIMARY KEY,
-  config       jsonb NOT NULL,         -- tham số, trọng số, ngưỡng, enabled của R1–R6
-  created_by   uuid NOT NULL,
-  created_at   timestamptz NOT NULL DEFAULT now()
-);
+Schema chính thức của `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, `processed_events` chỉ nằm ở [database-design §4.6, §4.8](../_shared/database-design.md) (một sự thật, một chỗ). Điểm riêng của mảng fraud:
 
-CREATE TABLE fraud_flags (
-  transfer_id      uuid PRIMARY KEY REFERENCES transfers(id),
-  score            int NOT NULL,
-  risk_level       text NOT NULL CHECK (risk_level IN ('MEDIUM','HIGH')),
-  rule_set_version int NOT NULL REFERENCES risk_rule_sets(version),
-  review_status    text NOT NULL DEFAULT 'OPEN'
-                   CHECK (review_status IN ('OPEN','CONFIRMED_FRAUD','FALSE_POSITIVE')),
-  reviewed_by      uuid,
-  reviewed_at      timestamptz,
-  review_note      text,
-  created_at       timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE fraud_rule_hits (
-  transfer_id  uuid REFERENCES fraud_flags(transfer_id),
-  rule_id      text,
-  explanation  text NOT NULL,
-  PRIMARY KEY (transfer_id, rule_id)
-);
-
-CREATE TABLE processed_events (
-  consumer     text,
-  event_id     uuid,
-  processed_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (consumer, event_id)
-);
-```
-
-Index cần cho truy vấn luật: `transfers(from_account, created_at)`, `transfers(from_account, to_account, created_at)`.
-
-**DB role riêng cho worker:** chỉ `SELECT` trên `transfers`; chỉ `INSERT` trên `fraud_flags`, `fraud_rule_hits`, `processed_events`, `audit_log`.
+- Mỗi cờ ghi `rule_set_version` ở `fraud_flags`; `fraud_rule_hits` lưu `weight` (đóng góp vào điểm) và `explanation`, không lặp lại phiên bản.
+- `risk` đọc lịch sử chuyển tiền qua view chỉ đọc `v_transfer_facts` do `ledger` sở hữu, không `SELECT` thẳng bảng `transfers`.
+- Index cho truy vấn luật: `transfers(from_account_id, created_at) INCLUDE (amount, to_account_id)` và `transfers(from_account_id, to_account_id, created_at)`, cả hai chỉ chứa hàng `status = 'COMPLETED' AND type = 'TRANSFER'`.
+- Quyền DB: worker chạy bằng role `dbs_worker` (đọc `v_transfer_facts`; ghi bảng fraud, `processed_events`, `audit_log`). Role riêng chỉ cho risk là hướng mở rộng (database-design §8.1).
 
 ### 5.4 Bộ đếm Redis (R1, R5)
 
@@ -503,7 +471,7 @@ flowchart LR
 
 Với tỉ lệ gian lận 1% thì cứ 1.000 giao dịch có ~10 vụ gian lận. Giới hạn 10 cảnh báo nghĩa là gần như **mọi cảnh báo phải đúng**: muốn recall 80% (8 vụ) thì chỉ được tối đa 2 báo nhầm, tức precision ≥ 80%. Với luật thủ công, đây là mục tiêu rất khó.
 
-**Đề xuất chốt lại với nhóm** một cặp mục tiêu thực tế hơn, ví dụ: **recall ≥ 70%** trên các kịch bản luật nhắm tới, **≤ 20 cảnh báo / 1.000** (precision ≥ ~35%). Điều chỉnh NFR-FRD-02 trong `docs/02` sau khi chốt.
+**Đề xuất chốt lại với nhóm** một cặp mục tiêu thực tế hơn, ví dụ: **recall ≥ 70%** trên các kịch bản luật nhắm tới, **≤ 20 cảnh báo / 1.000** (precision ≥ ~35%). Cặp mục tiêu này đã được ghi vào NFR-FRD-02 (`docs/02`) và BG-4 (`docs/01`) ngày 2026-10-06, vẫn đánh dấu *(GĐ)* cho tới khi nhóm chốt.
 
 ### 6.5 Hai kiểu chạy đánh giá
 

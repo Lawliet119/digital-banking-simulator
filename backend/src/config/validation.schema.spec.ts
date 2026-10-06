@@ -124,6 +124,23 @@ describe('validateEnv', () => {
     it('does not demand any of this in development', () => {
       expect(() => validateEnv({ ...base, NODE_ENV: 'development' })).not.toThrow();
     });
+
+    // Staging runs on the same cloud network as production, so it gets the same transport rules.
+    describe('staging is a deployed environment too', () => {
+      const staging = { ...production, NODE_ENV: 'staging' };
+
+      it('accepts a fully configured staging environment', () => {
+        expect(() => validateEnv(staging)).not.toThrow();
+      });
+
+      it.each([
+        ['DATABASE_SSL', { DATABASE_SSL: 'false' }],
+        ['REDIS_URL', { REDIS_URL: 'redis://cache.internal:6379' }],
+        ['TRUST_PROXY_HOPS', { TRUST_PROXY_HOPS: '0' }],
+      ])('rejects staging without %s hardening', (name, override) => {
+        expect(() => validateEnv({ ...staging, ...override })).toThrow(new RegExp(name));
+      });
+    });
   });
 
   describe('client IP behind the load balancer (per-IP rate limiting depends on it)', () => {

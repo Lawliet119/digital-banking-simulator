@@ -1,6 +1,6 @@
 # outbox — Concept Brief
 
-> **Status:** Draft · **Owner:** #3 · **Cặp đôi:** #2 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #3 · **Cặp đôi:** #2 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
 
 ## Component
 
@@ -10,7 +10,7 @@
 | **Loại** | Hạ tầng sự kiện · module backend |
 | **Chạy ở** | `worker` |
 | **Use case / NFR** | — (hạ tầng cho UC-9, thông báo) |
-| **Sở hữu bảng** | `processed_events` (`outbox_events` do ledger ghi) |
+| **Sở hữu bảng** | `outbox_events`, `processed_events` (mọi module ghi sự kiện qua `OutboxWriter.add`) |
 | **Task trong roadmap** | Task 4 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |
 
 ## Vấn đề

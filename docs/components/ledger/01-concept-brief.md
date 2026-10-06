@@ -1,6 +1,6 @@
 # ledger — Concept Brief
 
-> **Status:** Draft · **Owner:** #1 · **Cặp đôi:** #4 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #1 · **Cặp đôi:** #4 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
 
 > Tài liệu giải thích **một module**, cho người chưa đọc docs 01–03. Đọc xong bạn biết: ledger là gì, nó giữ lời hứa nào, một lệnh chuyển tiền đi qua những bước nào, và vì sao thiết kế như vậy.
 > Nguồn: `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §6.1, §8 · `docs/02_REQUIREMENTS_AND_DOMAIN_MODEL.md` (AC-5.x) · `backend/src/modules/ledger/README.md`.
@@ -10,9 +10,9 @@
 |---|---|
 | **Loại** | 🔴 Core — phần quan trọng nhất của hệ thống |
 | **Owner** | #1 Ledger (cặp đôi #4 Fraud cho phần sync guard) |
-| **Chạy ở** | role `api` (cộng job đối soát định kỳ) |
+| **Chạy ở** | role `api`; job đối soát chạy ở role `worker` (scheduler bị chặn ở role `api`, ADR-13) |
 | **Use case** | UC-3 nạp tiền · UC-5 chuyển tiền · UC-6 lịch sử · UC-7 trạng thái giao dịch |
-| **Sở hữu bảng** | `transfers` · `ledger_entries` · `idempotency_keys` · `outbox_events` |
+| **Sở hữu bảng** | `transfers` · `ledger_entries` · `idempotency_keys` · `reconciliation_runs` (sự kiện ghi vào `outbox_events` của module `outbox` qua `OutboxWriter.add`) |
 
 ---
 
@@ -79,8 +79,8 @@ erDiagram
     TRANSFERS {
         uuid id
         string type "TRANSFER hoặc DEPOSIT"
-        uuid from_account
-        uuid to_account
+        uuid from_account_id
+        uuid to_account_id
         bigint amount "đơn vị đồng, > 0"
         string status "COMPLETED hoặc REJECTED"
         string reject_reason "chỉ khi REJECTED"

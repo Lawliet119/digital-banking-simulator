@@ -63,7 +63,7 @@ Một Pull Request chỉ được merge khi:
 
 - Tiền là `bigint`/string (đơn vị đồng), **không bao giờ** dùng `number` có phần thập phân.
 - Mọi thay đổi số dư đi qua `ledger`, trong **một transaction** do `TransactionService.run(...)` mở, kèm bút toán kép và nhật ký.
-- **Không gọi Redis, HTTP, SQS bên trong transaction.** Deadlock làm callback bị chạy lại, và lời gọi ngoài sẽ bị lặp; sự kiện đi qua bảng outbox.
+- **Không gọi Redis, HTTP, SQS bên trong transaction.** Deadlock làm callback bị chạy lại, và lời gọi ngoài sẽ bị lặp; sự kiện đi qua bảng outbox. Ngoại lệ duy nhất: outbox relay (docs/03 §10).
 - Không sửa, không xóa `ledger_entries` và `audit_log`.
 - Không đưa số dư vào Redis.
 

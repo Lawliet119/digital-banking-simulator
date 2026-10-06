@@ -9,7 +9,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-banking}
       POSTGRES_USER: ${POSTGRES_USER:-banking}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-banking_local_only}
-      TZ: Asia/Ho_Chi_Minh
+    # DB local chạy UTC giống RDS. Ranh giới ngày theo giờ Việt Nam được tính trong câu SQL
+    # (AT TIME ZONE 'Asia/Ho_Chi_Minh'), nên test quanh nửa đêm cho cùng kết quả ở mọi máy.
+    # Ép bằng -c thay vì biến TZ: timezone được ghi vào volume lúc khởi tạo, -c thắng cả volume cũ.
+    command: ["postgres", "-c", "timezone=UTC"]
     ports:
       - "5432:5432"
     volumes:

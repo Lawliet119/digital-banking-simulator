@@ -17,7 +17,7 @@ Phát hiện giao dịch đáng ngờ; nhân viên review và quyết định.
 - R3, R6 dùng **ảnh chụp** trong sự kiện (`fromBalanceBefore`, `fromAccountCreatedAt`), không đọc trạng thái hiện tại.
 - Consumer idempotent: ghi `processed_events` cùng transaction với cờ; khóa chính `fraud_flags(transfer_id)` chặn cờ trùng.
 - **Consumer chỉ khởi động khi `runsWorkers()`** — instance `api` không bao giờ poll queue.
-- DB role riêng cho worker: chỉ đọc `transfers`; chỉ ghi `fraud_flags`, `fraud_rule_hits`, `processed_events`, `audit_log`.
+- Worker chạy bằng DB role `dbs_worker`: đọc giao dịch qua view `v_transfer_facts` (không đọc thẳng bảng `transfers`); chỉ ghi `fraud_flags`, `fraud_rule_hits`, `processed_events`, `audit_log` (database-design §8).
 
 ## Export công khai (`index.ts`)
 
