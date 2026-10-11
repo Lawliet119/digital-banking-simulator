@@ -70,7 +70,30 @@ export class CreateUsersCustomersAccounts1791763200000 implements MigrationInter
       VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)`);
   }
 
+  /**
+   * `npm run migration:revert` runs against whatever DATABASE_URL points at, and DROP TABLE takes
+   * every customer and account with it. So the revert only goes through while the database is
+   * still exactly as `up` left it; otherwise it throws and the migration transaction rolls back.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
+    const [state] = (await queryRunner.query(`
+      SELECT (SELECT count(*) FROM users)::int                     AS users,
+             (SELECT count(*) FROM customers)::int                 AS customers,
+             (SELECT count(*) FROM accounts)::int                  AS accounts,
+             (SELECT count(*) FROM accounts WHERE balance <> 0)::int AS moved`)) as {
+      users: number;
+      customers: number;
+      accounts: number;
+      moved: number;
+    }[];
+    if (state.users > 0 || state.customers > 0 || state.accounts !== 1 || state.moved > 0) {
+      throw new Error(
+        `Refusing to revert ${this.name}: tables hold data ` +
+          `(users=${state.users}, customers=${state.customers}, accounts=${state.accounts}, ` +
+          `accounts with a balance=${state.moved}). Reverting would drop it.`,
+      );
+    }
+
     await queryRunner.query('DROP TABLE accounts');
     await queryRunner.query('DROP TABLE customers');
     await queryRunner.query('DROP TABLE users');
