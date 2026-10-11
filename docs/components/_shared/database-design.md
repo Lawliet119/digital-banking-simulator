@@ -1,6 +1,6 @@
 # Database Design
 
-> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** n/a (chưa có migration nào) · **Cập nhật:** 2026-10-11
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12) · **Cập nhật:** 2026-10-12
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
@@ -531,7 +531,9 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 |---|---|
 | Tên bảng, cột | `snake_case`, tên bảng số nhiều (`ledger_entries`), khóa ngoại `<thực_thể>_id` |
 | Tên index | `<bảng>_<mục đích>_idx`, ràng buộc `<bảng>_<quy tắc>` |
-| Ánh xạ TypeORM | Dùng `SnakeNamingStrategy` (hoặc đặt `name:` tường minh cho từng cột), vì luồng chuyển tiền viết SQL tay trong `QueryRunner` và entity phải trỏ đúng cùng tên cột |
+| Ánh xạ TypeORM | Dùng `SnakeNamingStrategy` (hoặc đặt `name:` tường minh cho từng cột), vì luồng chuyển tiền viết SQL tay trong `QueryRunner` và entity phải trỏ đúng cùng tên cột. Tự viết ở `backend/src/database/snake-naming.strategy.ts` (không thêm thư viện), bật ở cả `DatabaseModule` và `data-source.ts`. Chiến lược không đổi tên bảng sang số nhiều: entity ghi tên bảng tường minh |
+| Tên ràng buộc | Ghi tường minh trong migration (`CONSTRAINT <bảng>_<quy tắc>`), FK ghi `ON DELETE RESTRICT`; test kiểm lỗi theo SQLSTATE và tên ràng buộc |
+| Test migration | `npm run test:db`: Postgres thật, mỗi file một database tạm, chạy migration bằng đúng cấu hình của CLI; mỗi ràng buộc mới có một hàng sai bị từ chối (checklist §12) |
 | Cột `bigint` | `pg` trả về `string`; để là `string` tới tận domain và chuyển sang `bigint` ở đó; không bao giờ `parseInt` |
 | Thời gian | Luôn `timestamptz`; đặt `timezone` của DB là `UTC` (cả local và RDS) |
 | Kiểu enum | `text` + `CHECK`, thêm giá trị mới bằng migration đổi `CHECK` |
@@ -548,7 +550,7 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 
 ### Dữ liệu khởi tạo (seed trong migration, không phải script rời)
 
-- Tài khoản SYSTEM `funding` (id cố định, `type = 'SYSTEM'`, `customer_id` NULL).
+- Tài khoản SYSTEM `funding`: id cố định **`00000000-0000-4000-8000-000000000001`**, `type = 'SYSTEM'`, `customer_id` NULL, `balance = 0` (migration `1791763200000-CreateUsersCustomersAccounts`, DBS-20). Migration ghi literal; code dùng hằng số export từ `@modules/accounts` khi task nạp tiền cần.
 - `risk_rule_sets` phiên bản 1 với tham số mặc định của R1–R6.
 - **Không** seed người dùng demo bằng `INSERT` trực tiếp số dư; dữ liệu demo đi qua API nạp tiền để bất biến luôn đúng (`scripts/seed.ts`).
 
@@ -557,7 +559,7 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 - Không `synchronize`, không chạy migration lúc app khởi động (đã có trong `DatabaseModule`).
 - **Expand → migrate → contract:** thêm cột/bảng mới trước (bản cũ vẫn chạy), chuyển dữ liệu, rồi mới xóa cái cũ ở bản sau. Thêm cột `NOT NULL` mới cần có `DEFAULT` hoặc làm 2 bước.
 - Tạo index trên bảng đã có dữ liệu dùng `CREATE INDEX CONCURRENTLY`. Lệnh này **không chạy được trong transaction**, nên migration đó phải chạy ngoài transaction (TypeORM cho tắt transaction khi chạy migration; kiểm tra tùy chọn của phiên bản đang dùng).
-- Mỗi migration phải **revert được** (`down`), trừ migration chỉ thêm dữ liệu không thể hoàn tác (ghi rõ).
+- Mỗi migration phải **revert được** (`down`), trừ migration chỉ thêm dữ liệu không thể hoàn tác (ghi rõ). `down` có `DROP TABLE` thì tự kiểm bảng còn ở trạng thái `up` để lại và từ chối nếu đã có dữ liệu (ví dụ migration 1), vì `migration:revert` chạy vào bất cứ DB nào `DATABASE_URL` trỏ tới.
 
 ### Cấu hình Postgres/RDS đáng bật
 
