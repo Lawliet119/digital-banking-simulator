@@ -7,7 +7,7 @@
 | Bạn là… | Đọc theo thứ tự |
 |---|---|
 | Người mới vào nhóm | [README gốc](../README.md) → [01](01_BUSINESS_ANALYSIS.md) → [03](03_HIGH_LEVEL_ARCHITECTURE.md) §1–5 → [kế hoạch 10 tuần](plan/10_WEEK_PLAN.md) → [playbook theo vai](plan/TEAM_ROLES_PLAYBOOK.md) |
-| Sắp làm một module | [`components/index.md`](components/index.md) → `components/<module>/01-concept-brief.md` → các mục docs/03 mà brief trỏ tới → [master roadmap](superpowers/plans/2026-10-02-master-roadmap.md) (task của module) |
+| Sắp làm một task | Skill [`dbs-delivering-task`](../.claude/skills/dbs-delivering-task/SKILL.md) (bắt buộc) → [`features/`](features/README.md) (task trước của cùng module) → [`components/index.md`](components/index.md) → các mục docs/03 liên quan |
 | Sắp viết một bản nộp | [`deliverables/README.md`](deliverables/README.md) |
 | Chuẩn bị bảo vệ | [03](03_HIGH_LEVEL_ARCHITECTURE.md) §16–18, [ADR](adr/README.md), [playbook](plan/TEAM_ROLES_PLAYBOOK.md) (bẫy hay gặp theo vai) |
 
@@ -22,6 +22,7 @@ docs/
 ├── security/                              Threat model STRIDE (P3)
 ├── plan/                                  Kế hoạch 10 tuần + playbook theo vai
 ├── superpowers/plans/                     Implementation plan (master roadmap, plan từng task)
+├── features/                              Một file cho mỗi task implement + screenshots/ (ảnh tính năng)
 ├── components/                            Concept brief từng component + thiết kế dùng chung
 │   ├── index.md   _shared/ (database-design, event-contract, glossary)
 │   └── ledger/  accounts/  identity/  risk/  audit/  outbox/  notification/  health/
@@ -39,7 +40,8 @@ docs/
 | Hình dạng sự kiện | `components/_shared/event-contract.md` |
 | Lý do một quyết định | `adr/` |
 | Mối đe dọa và biện pháp | `security/threat-model.md` |
-| Kế hoạch thực thi | `superpowers/plans/`; việc từng tuần nằm trên board của nhóm |
+| Thiết kế, test case và kết quả của **một task** | `features/DBS-<n>-<slug>.md` |
+| Kế hoạch thực thi | `superpowers/plans/` (roadmap); việc từng tuần nằm trên board của nhóm |
 
 Nơi khác chỉ **link**, không chép lại.
 
@@ -47,5 +49,5 @@ Nơi khác chỉ **link**, không chép lại.
 
 1. Mỗi file có dòng **Status** ở đầu (`Draft | Accepted | Implemented`, owner, đã đối chiếu code chưa).
 2. Đổi thiết kế → cập nhật tài liệu **trong cùng PR** (có mục kiểm trong PR template).
-3. Không tạo file docs mới cho từng component. Thiết kế mới đi vào docs/03 hoặc `_shared/`; quyết định mới đi vào ADR.
+3. Mỗi task implement có **một** file `features/DBS-<n>-<slug>.md` (kiến trúc, hành vi, test case, kết quả, ảnh chụp) theo skill `dbs-delivering-task`. Không tạo thêm file docs theo component. Thay đổi cấp hệ thống vẫn sửa docs/03 hoặc `_shared/`; quyết định mới đi vào ADR.
 4. Tài liệu hết hiệu lực thì xóa; lịch sử đã có trong git.

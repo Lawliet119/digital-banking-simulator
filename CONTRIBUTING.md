@@ -62,6 +62,10 @@ Ví dụ:
 
 Module: `ledger`, `accounts`, `identity`, `risk`, `audit`, `outbox`, `notification`, `health`, `common`, `config`, `database`, `infra`, `ci`, `docs`.
 
+## 3b. Làm task với AI agent
+
+Mọi thay đổi code, test, migration, hạ tầng hay tài liệu đi qua skill [`dbs-delivering-task`](.claude/skills/dbs-delivering-task/SKILL.md): 5 phase, 4 gate cần người duyệt (phạm vi, thiết kế, kế hoạch, bàn giao), một file `docs/features/DBS-<n>-<slug>.md` và ảnh chụp ở `docs/features/screenshots/DBS-<n>/`. Không dùng AI thì đọc skill đó và làm theo bằng tay.
+
 ## 4. Định nghĩa "xong"
 
 Một Pull Request chỉ được merge khi:
@@ -73,6 +77,7 @@ Một Pull Request chỉ được merge khi:
 - [ ] Không có secret trong code, log hay commit
 - [ ] Nếu đổi thiết kế: cập nhật `docs/03` (hoặc `docs/01–02`, `_shared/database-design.md`, `_shared/event-contract.md`) và thêm ADR nếu là quyết định kiến trúc; xem [docs/README.md](docs/README.md)
 - [ ] Nếu đổi API: OpenAPI (Swagger) được cập nhật
+- [ ] File `docs/features/DBS-<n>-<slug>.md` đã đủ mục 1–8, có ảnh chụp trong `docs/features/screenshots/DBS-<n>/`
 
 ## 5. Quy tắc bắt buộc khi làm với tiền
 
