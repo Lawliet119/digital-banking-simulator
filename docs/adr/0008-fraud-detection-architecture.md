@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Trạng thái | **Proposed** — chờ nhóm review |
+| Trạng thái | **Accepted** (2026-10-11). Kết quả cổng go/no-go cho `v3` sẽ được ghi bổ sung vào ADR này sau spike DBS-212 |
 | Ngày | 2026-10-11 |
 | Người viết | #4 (Fraud) |
 | Người duyệt | #1 (Ledger); cả nhóm |
@@ -36,19 +36,19 @@ Hệ thống cần phát hiện giao dịch chuyển tiền đáng ngờ sớm (
 
 ### Cổng go/no-go cho `v3` (cuối tuần 5, #4 làm, #1 review, nhóm quyết)
 
-`v3` chỉ được hiện thực khi cả năm điều kiện sau đúng *(GĐ, chốt số khi làm spike)*:
+`v3` chỉ được hiện thực khi cả năm điều kiện sau đúng (ngưỡng đã chốt ngày 2026-10-11):
 
 1. `onnxruntime-node` cài được trên **image production hiện tại** và ứng dụng khởi động, nạp được mô hình. Nếu chỉ chạy được khi đổi base image khỏi `node:24-alpine` thì đây là thay đổi của ADR-13 và phải được nhóm duyệt riêng.
-2. Mức tăng kích thước image được đo, ghi lại và chấp nhận (đề xuất ≤ 150 MB).
+2. Image tăng **≤ 150 MB** so với image hiện tại.
 3. Suy luận **cộng** bước quy kết nhóm (mục dưới) p95 ≤ 15 ms cho một sự kiện trên cấu hình task thật.
 4. Xác suất do Python dự đoán và do `onnxruntime-node` dự đoán lệch ≤ 1e-4 trên ít nhất 1.000 mẫu (kiểm tra float32).
-5. Trên cross-validation theo khách trong tập `tune`, `v3` có recall cao hơn `v2` ở cùng mức ≤ 20 cảnh báo / 1.000, đặc biệt ở `STRUCTURING` và `SLOW_DRIP`. Nếu không hơn thì không đáng thêm phụ thuộc.
+5. Trên cross-validation theo khách trong tập `tune`, `v3` có recall cao hơn `v2` **ít nhất 5 điểm phần trăm** ở cùng mức ≤ 20 cảnh báo / 1.000, đặc biệt ở `STRUCTURING` và `SLOW_DRIP`. Hơn ít hơn mức này thì nằm trong dao động giữa các fold và không đáng thêm phụ thuộc.
 
 ### Quy tắc cho `v3` (nếu qua cổng)
 
 - **Đặc trưng:** vector 12 đặc trưng liên tục chia thành 6 nhóm tương ứng `R1–R6`, định nghĩa ở [FRAUD guide §4.3.b](../components/risk/FRAUD_DETECTION_GUIDE.md). Mọi đặc trưng chỉ dùng dữ liệu **trước** `occurredAt` (point-in-time) và **không** dùng cột `scenario` hay `is_fraud` của bộ dữ liệu.
 - **Một nguồn tính đặc trưng:** `OfflineFeatureProvider` (TypeScript) xuất CSV đặc trưng; Python chỉ huấn luyện từ CSV đó, không tự tính đặc trưng. Nhờ vậy hai môi trường huấn luyện và chạy thật không lệch nhau.
-- **Công thức điểm:** `score = Σ trọng số luật kích hoạt + round(ml.weight × p)` nếu `p ≥ ml.threshold`, ngược lại phần mô hình bằng 0 (`p` là xác suất gian lận, mặc định `ml.weight = 40`, `ml.threshold = 0,5` *(GĐ)*). Mức rủi ro dùng cùng ngưỡng với `v1` (LOW < 40, MEDIUM 40–69, HIGH ≥ 70).
+- **Công thức điểm:** `score = Σ trọng số luật kích hoạt + round(ml.weight × p)` nếu `p ≥ ml.threshold`, ngược lại phần mô hình bằng 0 (`p` là xác suất gian lận, giá trị khởi đầu `ml.weight = 40`, `ml.threshold = 0,5`; spike DBS-212 chọn lại trên tập `tune` nếu qua cổng). Mức rủi ro dùng cùng ngưỡng với `v1` (LOW < 40, MEDIUM 40–69, HIGH ≥ 70).
 - **Quy kết về nhóm `R1–R6`:** với mỗi nhóm đặc trưng, tính đóng góp = `p − p'`, trong đó `p'` là xác suất khi đặt các đặc trưng của nhóm đó về giá trị cơ sở (trung vị trên tập `tune`, lưu trong cấu hình). Nhóm có đóng góp dương lớn nhất nhận điểm của mô hình. Cách này chỉ cần thêm 6 lần suy luận nhẹ và không cần TreeSHAP trong worker; TreeSHAP vẫn dùng ngoại tuyến để vẽ biểu đồ trong báo cáo P5.
 - **Ghi `fraud_rule_hits` (không đổi schema, khóa chính `(transfer_id, rule_id)`):** mỗi nhóm một dòng. Nếu luật của nhóm đó đã kích hoạt thì giữ dòng luật, cộng điểm mô hình vào `weight` và nối thêm « · [AI] …» vào `explanation`. Nếu chưa, tạo dòng mới với `weight` = điểm mô hình và `explanation` bắt đầu bằng «[AI-Rn]». Nhờ đó tổng `weight` của các dòng luôn bằng `score` của cờ.
 - **An toàn khi lỗi:** file mô hình có `sha256` ghi trong cấu hình (`ml.modelSha256`) và được kiểm khi nạp. Sai mã băm, không nạp được hoặc suy luận lỗi thì sự kiện đó chấm bằng 6 luật, tăng `risk_rule_error_total{rule="ML"}`. Công tắc khẩn cấp: tạo phiên bản cấu hình mới với `ml.enabled = false`.

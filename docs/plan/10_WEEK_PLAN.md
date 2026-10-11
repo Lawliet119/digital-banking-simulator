@@ -46,7 +46,7 @@
 
 - **Họp định kỳ:** 2 buổi/tuần (15 phút/buổi). Đầu tuần thống nhất kế hoạch chi tiết, giữa tuần tháo gỡ các điểm nghẽn kỹ thuật (unblock).
 - **Kiểm soát tiến độ:** Đánh giá tiến độ vào cuối tuần (15 phút), ghi hình lại kết quả thực nghiệm làm bằng chứng.
-- **Quy trình mã nguồn:** Toàn bộ thay đổi phải thông qua Pull Request, có tối thiểu 1 phê duyệt từ thành viên trong cặp phụ trách; áp dụng cơ chế bảo vệ nhánh `main`.
+- **Quy trình mã nguồn:** Toàn bộ thay đổi phải thông qua Pull Request và được thành viên trong cặp review trước khi merge (quy ước nhóm; ruleset của `main` bắt buộc PR nhưng không ép số approval); áp dụng cơ chế bảo vệ nhánh `main`.
 - **Tiêu chuẩn hoàn thành (Definition of Done):** Mã nguồn được merge qua PR, vượt qua toàn bộ các bài kiểm thử tự động (unit/integration test) và triển khai thành công trên môi trường cloud.
 - **Ghi nhận quyết định kiến trúc:** Lập tài liệu ADR (Architecture Decision Record) ngay khi thống nhất các quyết định kỹ thuật quan trọng.
 - **Quản lý chi phí:** Phát triển và kiểm thử cục bộ (local); chỉ khởi tạo hạ tầng cloud khi deploy, demo hoặc đo kiểm tải; tắt tài nguyên ngoài khung giờ làm việc.
@@ -64,7 +64,7 @@
 ## 6. Kế hoạch khởi động
 
 - [ ] Phân công chính thức 6 vai trò theo bảng phân nhiệm
-- [ ] Thống nhất lựa chọn hạ tầng (AWS/VPS) và tài khoản quản trị
-- [ ] Khởi tạo repository `digital-banking-simulator`, project board và cấu trúc tài liệu dùng chung
+- [x] Thống nhất lựa chọn hạ tầng: AWS, `ap-southeast-1`, dựng/xóa theo phiên ([ADR-11](../adr/0011-aws-managed-session-based.md))
+- [x] Khởi tạo repository `digital-banking-simulator`, project board và cấu trúc tài liệu dùng chung
 - [ ] Thiết lập hạn mức và cảnh báo chi phí (AWS Budget Alerts)
 - [ ] Xác nhận với giảng viên thời hạn chính thức cho các mốc P1–P5

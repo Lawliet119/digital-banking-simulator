@@ -1,10 +1,10 @@
 # Fraud Detection — Hướng dẫn chi tiết
 
-> **Status:** Draft · **Owner:** #4 · **Cặp đôi:** #1, #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-11 · sẽ tách thành 02/03/06 sau khi nộp P2
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #4 · **Cặp đôi:** #1, #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-11
 
 > Tài liệu làm việc nội bộ cho mảng **Fraud** (#4) và người làm bộ dữ liệu (#6).
 > Dựa trên: `docs/01` (BR-06, BR-11, BR-13), `docs/02` (UC-9, UC-10, UC-12, FR-RSK-*, NFR-FRD-*), `docs/03` (mục 9, 10, 15).
-> Mọi tham số đánh dấu *(GĐ)* là giả định ban đầu, sẽ được chỉnh bằng tập dữ liệu tune.
+> Tham số ở bảng 4.2 là phiên bản `v1` đã chốt (seed trong migration). `v2` học lại tham số trên tập tune và lưu thành phiên bản cấu hình mới; không sửa `v1`.
 
 ---
 
@@ -30,8 +30,8 @@
 | Chỉ số | Mục tiêu | Nguồn |
 |---|---|---|
 | Thời gian từ giao dịch tới khi có cờ | p95 < 5 giây | NFR-FRD-01 |
-| Số cảnh báo / 1.000 giao dịch | ≤ 20 *(GĐ — xem lưu ý 6.4)* | NFR-FRD-02 |
-| Recall trên các kịch bản luật nhắm tới | ≥ 70 % *(GĐ)* | NFR-FRD-02 |
+| Số cảnh báo / 1.000 giao dịch | ≤ 20 trên giao dịch `TRANSFER` (lưu ý 6.4) | NFR-FRD-02 |
+| Recall trên các kịch bản luật nhắm tới | ≥ 70 % gộp trên 5 kịch bản trong tầm luật | NFR-FRD-02 |
 | Báo cáo precision, recall, F1 trên tập giữ lại | Có, kèm phân tích từng luật | NFR-FRD-03 |
 | Chuyển tiền không chậm đi vì fraud | Sync guard thêm ≤ 5 ms | NFR-PERF-01 |
 | Lỗi ở fraud không làm hỏng chuyển tiền | 0 ảnh hưởng | D-4 |
@@ -74,8 +74,8 @@ Viết **cùng #1** trong luồng chuyển tiền (`docs/03` mục 6.1). Chạy 
 | Kiểm tra | Điều kiện từ chối | `reject_reason` |
 |---|---|---|
 | Trạng thái | Tài khoản nguồn hoặc đích không `ACTIVE` | `ACCOUNT_NOT_ACTIVE` |
-| Hạn mức mỗi lần | `amount > TRANSFER_LIMIT_PER_TX` (50tr *(GĐ)*) | `LIMIT_PER_TX_EXCEEDED` |
-| Hạn mức ngày | `đã chuyển hôm nay + amount > TRANSFER_LIMIT_PER_DAY` (200tr *(GĐ)*) | `LIMIT_PER_DAY_EXCEEDED` |
+| Hạn mức mỗi lần | `amount > TRANSFER_LIMIT_PER_TX` (50.000.000đ) | `LIMIT_PER_TX_EXCEEDED` |
+| Hạn mức ngày | `đã chuyển hôm nay + amount > TRANSFER_LIMIT_PER_DAY` (200.000.000đ) | `LIMIT_PER_DAY_EXCEEDED` |
 | Số dư | `balance < amount` | `INSUFFICIENT_FUNDS` |
 
 **Tính "đã chuyển hôm nay"** (ngày theo giờ Việt Nam, chỉ tính tiền đi):
@@ -104,7 +104,7 @@ WHERE account_id = $1
 
 ### 4.2 Sáu luật
 
-| ID | Luật | Điều kiện kích hoạt *(GĐ)* | Nguồn dữ liệu | Trọng số *(GĐ)* |
+| ID | Luật | Điều kiện kích hoạt (`v1`) | Nguồn dữ liệu | Trọng số (`v1`) |
 |---|---|---|---|---|
 | **R1** | Velocity | > 5 lệnh chuyển từ tài khoản nguồn trong 10 phút (tính cả lệnh này) | Redis sorted set, dự phòng SQL | 30 |
 | **R2** | Số tiền bất thường | `amount > 5 × trung vị` các lệnh chuyển 30 ngày trước của chính tài khoản; cần **≥ 5 lệnh lịch sử**, không đủ thì bỏ qua | SQL | 25 |
@@ -198,11 +198,11 @@ Cột `risk_rule_sets.config` là `jsonb` nên bộ chấm điểm (`ScoringServ
 |---|---|---|---|
 | **`v1`** (seed mặc định) | `rule_only` | 6 luật `R1–R6` với ngưỡng và trọng số ở bảng 4.2 | Bắt buộc. Mọi unit test và e2e (`AC-9.1`, bảng ví dụ 4.3) tất định 100% |
 | **`v2`** | `ml_tuned_rules` | Vẫn đúng 6 luật, nhưng ngưỡng và trọng số học từ tập `tune`. Mục tiêu: recall lớn nhất với ràng buộc ≤ 20 cảnh báo / 1.000 giao dịch (không tối ưu F2) | Phạm vi chính |
-| **`v3`** | `hybrid_onnx` | `score = Σ trọng số luật + round(ml.weight × p)` nếu `p ≥ ml.threshold` (mặc định 40 và 0,5 *(GĐ)*), `p` là xác suất gian lận của mô hình LightGBM / XGBoost xuất `.onnx` | Mở rộng có điều kiện: chỉ khi qua cổng go/no-go cuối tuần 5 |
+| **`v3`** | `hybrid_onnx` | `score = Σ trọng số luật + round(ml.weight × p)` nếu `p ≥ ml.threshold` (giá trị khởi đầu 40 và 0,5; spike DBS-212 chọn lại trên tập `tune`), `p` là xác suất gian lận của mô hình LightGBM / XGBoost xuất `.onnx` | Mở rộng có điều kiện: chỉ khi qua cổng go/no-go cuối tuần 5 |
 
 Mức rủi ro dùng chung ngưỡng với `v1` (LOW < 40, MEDIUM 40–69, HIGH ≥ 70). Các con số về kích thước và độ trễ của mô hình (ví dụ "~100 KB", "< 2 ms") chỉ là giả định cho tới khi spike đo được.
 
-**Vector 12 đặc trưng cho `v3`** *(GĐ, chốt khi làm spike)*. Mọi đặc trưng chỉ dùng dữ liệu **trước** `occurredAt`; không dùng cột `scenario` hay `is_fraud`.
+**Vector 12 đặc trưng cho `v3`** (dùng cho cả spike lẫn huấn luyện; chỉ thêm đặc trưng bằng PR có ghi lại kết quả cross-validation). Mọi đặc trưng chỉ dùng dữ liệu **trước** `occurredAt`; không dùng cột `scenario` hay `is_fraud`.
 
 | Nhóm | Đặc trưng | Cách tính | Nguồn |
 |---|---|---|---|
@@ -398,7 +398,7 @@ interface RiskRule {
 
 ### 5.7 Ngân sách hiệu năng
 
-| Bước | Ngân sách *(GĐ)* |
+| Bước | Ngân sách |
 |---|---|
 | Redis (1 pipeline cho R1, R5) | ≤ 5 ms |
 | SQL (R2, R4, kiểm tra người nhận mới) | ≤ 30 ms |
@@ -418,7 +418,7 @@ interface RiskRule {
 
 ### 6.1 Bộ dữ liệu tổng hợp (do #6 làm)
 
-**Quy mô:** ~2.000 khách hàng, mô phỏng 60 ngày, ~100.000 giao dịch, ~1% gian lận *(GĐ)*.
+**Quy mô:** ~2.000 khách hàng, mô phỏng 60 ngày, ~100.000 giao dịch, ~1% gian lận (chốt cùng #6, DBS-11).
 
 **Hành vi bình thường** — mỗi khách có "thói quen" riêng:
 
@@ -509,11 +509,19 @@ flowchart LR
 | Báo nhầm theo loại hard negative | Hard negative nào hay bị gắn cờ nhất → gợi ý cải tiến luật |
 | So sánh các chế độ (`v1`, `v2`, và `v3` nếu có) | Đóng băng tất cả trước khi chạy holdout, chạy một lần, báo cáo đủ; không chọn bản tốt nhất dựa trên holdout |
 
-### 6.4 Lưu ý về mục tiêu "≤ 10 cảnh báo / 1.000"
+### 6.4 Mục tiêu đánh giá (đã chốt)
 
 Với tỉ lệ gian lận 1% thì cứ 1.000 giao dịch có ~10 vụ gian lận. Giới hạn 10 cảnh báo nghĩa là gần như **mọi cảnh báo phải đúng**: muốn recall 80% (8 vụ) thì chỉ được tối đa 2 báo nhầm, tức precision ≥ 80%. Với luật thủ công, đây là mục tiêu rất khó.
 
-**Đề xuất chốt lại với nhóm** một cặp mục tiêu thực tế hơn, ví dụ: **recall ≥ 70%** trên các kịch bản luật nhắm tới, **≤ 20 cảnh báo / 1.000** (precision ≥ ~35%). Cặp mục tiêu này đã được ghi vào NFR-FRD-02 (`docs/02`) và BG-4 (`docs/01`) ngày 2026-10-06, vẫn đánh dấu *(GĐ)* cho tới khi nhóm chốt.
+**Đã chốt ngày 2026-10-11** (NFR-FRD-02, BG-4):
+
+| Mục tiêu | Giá trị | Cách tính |
+|---|---|---|
+| Khối lượng cảnh báo | **≤ 20 cảnh báo / 1.000 giao dịch** | Mẫu số là số giao dịch `TRANSFER` (không tính `DEPOSIT`); tử số là số giao dịch có cờ (MEDIUM hoặc HIGH) |
+| Recall | **≥ 70%** | Gộp trên 5 kịch bản trong tầm luật: `ATO_DRAIN`, `MULE_FANOUT`, `VELOCITY_BURST`, `BUST_OUT`, `ROUND_TRIP`. Ba kịch bản ngoài tầm (`SLOW_DRIP`, `STRUCTURING`, `FAN_IN`) báo cáo riêng, không tính vào mục tiêu |
+| Tập đo | Holdout, một lần, sau khi đóng băng | Tune chỉ dùng để chỉnh tham số |
+
+Với 1% gian lận, 20 cảnh báo / 1.000 tương ứng precision khoảng 35% nếu recall đạt 70%. Đây là mức nhân viên còn xử lý được, và đạt được bằng luật có giải thích. Mục tiêu tối ưu khi học tham số `v2`: **recall lớn nhất với ràng buộc ≤ 20 cảnh báo / 1.000** (không tối ưu F2).
 
 ### 6.5 Hai kiểu chạy đánh giá
 

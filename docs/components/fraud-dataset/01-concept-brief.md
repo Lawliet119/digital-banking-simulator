@@ -32,4 +32,4 @@ Không có dữ liệu thật; cần dữ liệu có nhãn để đo precision, 
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §15.4 Đánh giá.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
 - `FRAUD_DETECTION_GUIDE.md` §6 (thiết kế bộ dữ liệu và bức tường #4/#6).
-- Tiếp theo: [`02-architecture.md`](02-architecture.md).
+- Giao diện và mốc: Task 7 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).

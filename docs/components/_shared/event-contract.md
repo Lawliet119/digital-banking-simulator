@@ -1,8 +1,8 @@
 # Event contract
 
-> **Status:** Proposed — chờ #3 chốt · **Owner:** #3 · **Cặp đôi:** #1, #4 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #3 · **Cặp đôi:** #1, #4 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-11
 
-> Nguồn duy nhất cho hình dạng sự kiện sau khi chốt. Bản JSON ở docs/03 §10 đã khớp bảng dưới (2026-10-06); khi tách docs/03 (sau P2) mục đó sẽ trỏ về đây.
+> Nguồn duy nhất cho hình dạng sự kiện. Bản JSON ở docs/03 §10 là ví dụ và phải khớp bảng dưới. Type TypeScript dùng chung ở `backend/src/common/events` (DBS-24).
 > Đổi contract đã thống nhất: báo trước cho mọi bên dùng nó và cập nhật file này **trong cùng PR**.
 
 ## `TransferCompleted`
@@ -11,7 +11,7 @@
 |---|---|---|---|
 | `eventId` | uuid | chống xử lý trùng (`processed_events`) | |
 | `eventType` | string | định tuyến | `TransferCompleted` |
-| `occurredAt` | ISO-8601 UTC | **mọi cửa sổ thời gian** | Không dùng giờ của worker |
+| `occurredAt` | ISO-8601 UTC | **mọi cửa sổ thời gian** | Bằng `transfers.created_at` (thời điểm ghi giao dịch, `clock_timestamp()` của DB). Không dùng giờ của worker |
 | `correlationId` | uuid | truy vết, audit | Do server sinh |
 | `transferId` | uuid | khóa của cờ | |
 | `type` | `TRANSFER` \| `DEPOSIT` | risk bỏ qua `DEPOSIT` | |
@@ -36,9 +36,9 @@ Có chung bốn trường đầu (`eventId`, `eventType`, `occurredAt`, `correla
 
 Không mang lý do khóa: lý do nằm ở `audit_log`, và thông báo cho khách không bao giờ nêu lý do gian lận (BR-13).
 
-## `TransferRejected` (chưa phát ở v1)
+## `TransferRejected` (không phát ở v1)
 
-Luồng REJECTED ở docs/03 §6.1 không ghi outbox. Có phát hay không do #1 và #3 chốt ở Gate 1 của task ledger. Nếu bật, payload như sau (cùng bốn trường đầu như trên):
+**Đã chốt 2026-10-11: không phát ở v1.** Luồng REJECTED ở docs/03 §6.1 không ghi outbox. Lý do: chưa có bên tiêu thụ (risk chỉ chấm giao dịch hoàn tất, khách đã nhận 422 ngay trong request), và lệnh bị từ chối vẫn được lưu ở `transfers` và `audit_log`. Khi có bên tiêu thụ (ví dụ luật đếm lệnh bị từ chối liên tiếp), thêm bằng PR riêng với payload sau (cùng bốn trường đầu như trên):
 
 | Trường | Kiểu | Ghi chú |
 |---|---|---|
@@ -55,11 +55,13 @@ Luồng REJECTED ở docs/03 §6.1 không ghi outbox. Có phát hay không do #1
 | Event | Phát ra khi | Gửi tới queue |
 |---|---|---|
 | `TransferCompleted` | Nạp tiền hoặc chuyển tiền hoàn tất | `risk-events`, `notification-events` |
-| `TransferRejected` | Lệnh bị từ chối | `risk-events` (tùy chọn, **chưa phát ở v1**) |
+| `TransferRejected` | Lệnh bị từ chối | **Không phát ở v1** |
 | `AccountStatusChanged` | Khóa / mở khóa tài khoản | `notification-events` |
 
 ## Quy tắc
 
 - Consumer **không** đọc trạng thái hiện tại để thay snapshot (số dư, tuổi tài khoản đã đổi khi consumer chạy).
 - Giao hàng at-least-once, không đảm bảo thứ tự; consumer idempotent theo `eventId`.
-- Message sai schema đi thẳng DLQ, không retry.
+- Message sai schema đi thẳng DLQ, không retry. Lỗi tạm thời retry, sang DLQ sau 5 lần nhận (ADR-03).
+- Chỉ **thêm** trường để giữ tương thích; đổi tên hoặc bỏ trường là thay đổi phá vỡ, phải có PR được mọi consumer duyệt.
+- Tiền là chuỗi số nguyên đồng, thời gian là ISO-8601 UTC.

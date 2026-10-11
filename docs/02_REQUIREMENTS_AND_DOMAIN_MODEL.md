@@ -1,11 +1,11 @@
 # 02 — Requirements & Domain Model: Digital Banking Simulator
 
-> **Status:** Draft v1.0 — chờ nhóm review · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-06
+> **Status:** Accepted v1.1 (chốt 2026-10-11) · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-11
 
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 02 / 03 — Yêu cầu và mô hình miền nghiệp vụ |
-| Phiên bản | 1.0 — bản nháp để nhóm review |
+| Phiên bản | 1.1 — đã chốt NFR và tham số luật `v1` |
 | Dựa trên | [01_BUSINESS_ANALYSIS.md](01_BUSINESS_ANALYSIS.md) (mục tiêu BG, quy tắc BR, quy trình) |
 | Tài liệu tiếp theo | [03_HIGH_LEVEL_ARCHITECTURE.md](03_HIGH_LEVEL_ARCHITECTURE.md) |
 | Quy ước ID | **UC** use case · **FR** yêu cầu chức năng · **NFR** yêu cầu phi chức năng · **AC** tiêu chí chấp nhận · **BR / BG** lấy từ tài liệu 01 |
@@ -209,7 +209,7 @@ Sơ đồ người dùng tương tác với từng thành phần cho các use ca
 
 ### 2.1 Danh mục luật phát hiện gian lận (đầu vào cho FR-RSK-02)
 
-| ID | Luật | Ý tưởng | Tham số mặc định *(GĐ)* |
+| ID | Luật | Ý tưởng | Tham số của phiên bản `v1` |
 |---|---|---|---|
 | R1 | Tần suất cao (velocity) | Quá nhiều lệnh chuyển từ một tài khoản trong thời gian ngắn | > 5 lệnh / 10 phút |
 | R2 | Số tiền bất thường | Số tiền lớn hơn nhiều lần mức thường ngày của chính tài khoản đó | > 5 × trung vị 30 ngày |
@@ -218,7 +218,7 @@ Sơ đồ người dùng tương tác với từng thành phần cho các use ca
 | R5 | Phân tán (mule) | Một tài khoản chuyển cho nhiều người nhận **mới** | ≥ 5 người nhận mới / 1 giờ |
 | R6 | Rút cạn | Chuyển gần hết số dư trong một lần | ≥ 90% số dư trước giao dịch |
 
-Mỗi luật có **trọng số**. Tổng điểm quy ra mức `THẤP / TRUNG BÌNH / CAO`; từ Trung bình trở lên thì tạo cờ.
+Mỗi luật có **trọng số** (`v1`: R1 30, R2 25, R3 35, R4 20, R5 40, R6 30). Tổng điểm quy ra mức `THẤP` (< 40) / `TRUNG BÌNH` (40–69) / `CAO` (≥ 70); từ Trung bình trở lên thì tạo cờ. R2 cần ít nhất 5 lệnh lịch sử; R5, R6 không áp dụng khi hai tài khoản cùng chủ; R6 chỉ xét khi số dư trước giao dịch ≥ 1.000.000đ. Phiên bản `v2` giữ nguyên 6 luật, tham số học từ tập tune ([ADR-08](adr/0008-fraud-detection-architecture.md)).
 
 ---
 
@@ -271,8 +271,8 @@ Viết theo dạng **Given – When – Then** để chuyển thẳng thành tes
 | NFR-COR-03 | Tính đúng | Hạn mức không bị vượt khi đồng thời | 0 lần vượt | AC-5.6 | BG-1 |
 | NFR-PERF-01 | Hiệu năng | Thời gian phản hồi chuyển tiền | p95 < 300 ms ở 120 RPS | Load test | BG-6 |
 | NFR-PERF-02 | Hiệu năng | Thời gian xem số dư, lịch sử | p95 < 150 ms | Load test | BG-6 |
-| NFR-SCAL-01 | Khả năng mở rộng | Chịu tải thiết kế | 120 RPS liên tục 15 phút, lỗi < 0,1% *(GĐ)* | Load test | BG-6 |
-| NFR-SCAL-02 | Khả năng mở rộng | Tài khoản "nóng" nhận nhiều lệnh cùng lúc | 20 lệnh/giây vào 1 tài khoản vẫn đúng, p95 < 1 giây *(GĐ)* | Load test riêng | BG-1 |
+| NFR-SCAL-01 | Khả năng mở rộng | Chịu tải thiết kế | 120 RPS liên tục 15 phút, lỗi < 0,1% (không tính 422 nghiệp vụ và 429) | Load test | BG-6 |
+| NFR-SCAL-02 | Khả năng mở rộng | Tài khoản "nóng" nhận nhiều lệnh cùng lúc | 20 lệnh/giây vào 1 tài khoản vẫn đúng, p95 < 1 giây | Load test riêng | BG-1 |
 | NFR-AVL-01 | Sẵn sàng | Mức sẵn sàng ở cấu hình production | 99,9% (≈ 43,8 phút/tháng) | Theo dõi SLO; demo failover | BG-6 |
 | NFR-REC-01 | Phục hồi | Lượng dữ liệu tối đa có thể mất (RPO) | ≤ 5 phút | Diễn tập khôi phục | BG-1 |
 | NFR-REC-02 | Phục hồi | Thời gian khôi phục dịch vụ (RTO) | ≤ 30 phút | Diễn tập khôi phục | BG-6 |
@@ -280,17 +280,17 @@ Viết theo dạng **Given – When – Then** để chuyển thẳng thành tes
 | NFR-SEC-02 | Bảo mật | Thu hồi truy cập khi khóa tài khoản | Ngay yêu cầu kế tiếp | AC-11.1 | BG-5 |
 | NFR-SEC-03 | Bảo mật | Mã hóa dữ liệu khi truyền và khi lưu | 100% kết nối mã hóa; mọi nơi lưu đều mã hóa | Rà cấu hình | — |
 | NFR-SEC-04 | Bảo mật | Không có bí mật (mật khẩu, khóa) trong mã nguồn | 0 | Quét mã nguồn trong CI | — |
-| NFR-SEC-05 | Bảo mật | Giới hạn tần suất gọi theo người dùng và địa chỉ | 10 lệnh chuyển/phút/khách; 100 yêu cầu/phút/IP *(GĐ)* | Load test vượt ngưỡng | — |
+| NFR-SEC-05 | Bảo mật | Giới hạn tần suất gọi theo người dùng và địa chỉ | 10 lệnh chuyển/phút/khách; 100 yêu cầu/phút/IP | Load test vượt ngưỡng | — |
 | NFR-SEC-06 | Bảo mật | Mỗi thành phần chỉ có quyền tối thiểu cần thiết | — | Rà phân quyền | — |
 | NFR-AUD-01 | Kiểm toán | Thao tác ghi có nhật ký | 100% | Test tự động + rà nhật ký | BG-3 |
 | NFR-AUD-02 | Kiểm toán | Truy vết một giao dịch end-to-end | < 5 phút | AC-8.2 | BG-3 |
 | NFR-OBS-01 | Quan sát | Mỗi yêu cầu có mã liên kết xuyên suốt mọi thành phần | 100% | Tra log theo mã liên kết | BG-3 |
 | NFR-OBS-02 | Quan sát | Có dashboard và cảnh báo tự động cho chỉ số chính | — | Demo dashboard | — |
 | NFR-FRD-01 | Gian lận | Thời gian từ giao dịch tới khi có cờ | p95 < 5 giây | Đo trên hệ thống thật | BG-4 |
-| NFR-FRD-02 | Gian lận | Số cảnh báo trên 1.000 giao dịch, kèm recall trên các kịch bản luật nhắm tới | ≤ 20 cảnh báo; recall ≥ 70% *(GĐ)* | Đánh giá trên dữ liệu tổng hợp | BG-4 |
+| NFR-FRD-02 | Gian lận | Số cảnh báo trên 1.000 giao dịch, kèm recall trên các kịch bản luật nhắm tới | ≤ 20 cảnh báo trên 1.000 giao dịch `TRANSFER`; recall ≥ 70% gộp trên 5 kịch bản trong tầm luật (`ATO_DRAIN`, `MULE_FANOUT`, `VELOCITY_BURST`, `BUST_OUT`, `ROUND_TRIP`); đo trên tập holdout | Đánh giá trên dữ liệu tổng hợp | BG-4 |
 | NFR-FRD-03 | Gian lận | Báo cáo precision, recall, F1 trên tập dữ liệu giữ lại | Có báo cáo | Báo cáo P5 | BG-4 |
-| NFR-MNT-01 | Vận hành | Triển khai tự động từ commit | ≤ 15 phút *(GĐ)* | CI/CD | — |
-| NFR-MNT-02 | Vận hành | Quay lui về phiên bản trước | ≤ 10 phút *(GĐ)* | Demo rollback | — |
+| NFR-MNT-01 | Vận hành | Triển khai tự động từ commit | ≤ 15 phút từ merge tới chạy trên cloud | CI/CD | — |
+| NFR-MNT-02 | Vận hành | Quay lui về phiên bản trước | ≤ 10 phút | Demo rollback | — |
 | NFR-COST-01 | Chi phí | Chi phí hạ tầng môi trường phát triển | ≤ $150–200/tháng | Hóa đơn thực tế | BG-7 |
 
 ---
@@ -338,7 +338,7 @@ xychart-beta
 | Lệnh chuyển tiền / ngày | ~10.000 |
 | Bút toán | ~20.000 dòng/ngày ≈ 7,3 triệu dòng/năm |
 | Nhật ký kiểm toán | Nhiều hơn bút toán (mọi thao tác ghi + truy cập nhạy cảm + lần bị từ chối) |
-| Mã yêu cầu | ~10.000 dòng/ngày, giữ ≥ 7 ngày |
+| Mã yêu cầu | ~10.000 dòng/ngày, giữ 7 ngày (ADR-05) |
 | Tổng dung lượng | < ~10 GB/năm kể cả chỉ mục — không phải nút thắt |
 
 **Nút thắt thật** không nằm ở dung lượng hay tổng RPS mà ở **tài khoản nóng**: nhiều lệnh vào cùng một tài khoản phải xếp hàng chờ nhau (NFR-SCAL-02).
@@ -570,12 +570,12 @@ stateDiagram-v2
 | Sự kiện | Phát ra khi | Dữ liệu chính | Bên quan tâm |
 |---|---|---|---|
 | `TransferCompleted` | Nạp tiền hoặc chuyển tiền hoàn tất | Mã giao dịch, loại, hai tài khoản và chủ của chúng, hai tài khoản có **cùng chủ** không, số tiền, **số dư nguồn trước giao dịch**, **thời điểm mở của hai tài khoản**, thời điểm, mã liên kết | Risk, Notification |
-| `TransferRejected` | Lệnh bị từ chối vì quy tắc nghiệp vụ | Mã giao dịch, tài khoản nguồn, lý do | Risk (tín hiệu tùy chọn) |
+| `TransferRejected` | Lệnh bị từ chối vì quy tắc nghiệp vụ | Mã giao dịch, tài khoản nguồn, lý do | Chưa có (không phát ở v1) |
 | `AccountStatusChanged` | Tài khoản bị khóa hoặc mở khóa | Mã tài khoản, trạng thái mới, người thực hiện | Notification (việc thu hồi phiên làm ngay trong lệnh khóa, không chờ sự kiện) |
 | `FraudFlagRaised` | Cờ mới được tạo | Mã giao dịch, mức rủi ro, các luật | (Dashboard nhân viên) |
 | `FraudFlagReviewed` | Nhân viên kết luận cờ | Mã cờ, kết luận, người review | Kiểm toán, đánh giá luật |
 
-Ở v1, `FraudFlagRaised` và `FraudFlagReviewed` là khái niệm miền, chưa được phát qua hàng đợi (xem [docs/03](03_HIGH_LEVEL_ARCHITECTURE.md) mục 10).
+Ở v1, `TransferRejected`, `FraudFlagRaised` và `FraudFlagReviewed` là khái niệm miền, chưa được phát qua hàng đợi (xem [docs/03](03_HIGH_LEVEL_ARCHITECTURE.md) mục 10).
 
 **Vì sao sự kiện mang "ảnh chụp" dữ liệu** (số dư trước giao dịch, thời điểm mở tài khoản): bên nhận xử lý sau vài giây, lúc đó số dư đã thay đổi. Luật R3 và R6 phải đánh giá theo dữ liệu **tại thời điểm giao dịch**, nên dữ liệu đó phải nằm sẵn trong sự kiện.
 

@@ -1,14 +1,14 @@
 # 01 — Business Analysis: Digital Banking Simulator
 
-> **Status:** Draft v1.0 — chờ nhóm review · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-11
+> **Status:** Accepted v1.1 (chốt 2026-10-11) · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-11
 
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 01 / 03 — Phân tích nghiệp vụ |
-| Phiên bản | 1.0 — bản nháp để nhóm review |
+| Phiên bản | 1.1 — đã chốt các con số mục tiêu và quy tắc |
 | Đề tài | #4 Digital Banking Simulator — môn Cloud Application Development |
 | Tài liệu tiếp theo | [02_REQUIREMENTS_AND_DOMAIN_MODEL.md](02_REQUIREMENTS_AND_DOMAIN_MODEL.md) → [03_HIGH_LEVEL_ARCHITECTURE.md](03_HIGH_LEVEL_ARCHITECTURE.md) |
-| Lưu ý | Mô phỏng giáo dục, không có giao dịch tài chính thật. Mọi con số đánh dấu *(GĐ)* là giả định cần nhóm xác nhận |
+| Lưu ý | Mô phỏng giáo dục, không có giao dịch tài chính thật. Bối cảnh ngân hàng và stakeholder ở mục 1, 3 là giả định để mô phỏng; mọi con số mục tiêu và quy tắc đã chốt ngày 2026-10-11 |
 
 **Thứ tự của bộ tài liệu** (theo nguyên tắc *Business first, Technology second* của bài giảng P1):
 
@@ -59,10 +59,10 @@ Theo mẫu của bài giảng P1: *"Our organization needs to ______ because ___
 | **BG-1** | Tiền luôn đúng | Số lần sai lệch số dư phát hiện qua đối soát | **0** | P-2, P-3 |
 | **BG-2** | Không bao giờ trừ tiền hai lần | Số giao dịch trùng khi khách gửi lại yêu cầu | **0** | P-1 |
 | **BG-3** | Truy vết đầy đủ cho kiểm toán | Tỉ lệ thao tác thay đổi dữ liệu có nhật ký | **100%** | P-4 |
-| | | Thời gian kiểm toán viên truy ra toàn bộ diễn biến của một giao dịch | **< 5 phút** *(GĐ)* | P-4 |
+| | | Thời gian kiểm toán viên truy ra toàn bộ diễn biến của một giao dịch | **< 5 phút** | P-4 |
 | **BG-4** | Phát hiện gian lận sớm | Thời gian từ lúc giao dịch hoàn tất tới lúc có cảnh báo | **< 5 giây** (95% trường hợp) | P-5 |
-| | | Số cảnh báo trên 1.000 giao dịch (gánh nặng cho nhân viên) | **≤ 20** *(GĐ)* | P-5 |
-| | | Tỉ lệ bắt được gian lận (recall) trên các kịch bản luật nhắm tới | **≥ 70%** *(GĐ)* | P-5 |
+| | | Số cảnh báo trên 1.000 giao dịch (gánh nặng cho nhân viên) | **≤ 20** | P-5 |
+| | | Tỉ lệ bắt được gian lận (recall) trên các kịch bản luật nhắm tới | **≥ 70%** | P-5 |
 | **BG-5** | Phản ứng ngay khi phát hiện rủi ro | Thời gian từ lúc khóa tài khoản tới lúc chủ tài khoản mất quyền truy cập | **Ngay yêu cầu kế tiếp** | P-6 |
 | **BG-6** | Trải nghiệm khách hàng tốt | Thời gian phản hồi lệnh chuyển tiền | **< 300 ms** (95% trường hợp) | — |
 | | | Mức sẵn sàng của dịch vụ | **99,9%** | — |
@@ -271,7 +271,7 @@ flowchart LR
 | **BR-03** | Sổ cái | Số dư tài khoản khách hàng **không được âm** (không thấu chi) | TK còn 300k thì không chuyển được 500k |
 | **BR-04** | Nạp tiền | Tiền chỉ vào hệ thống qua nghiệp vụ **nạp tiền do nhân viên thực hiện**, ghi Nợ một tài khoản nội bộ của ngân hàng. Tài khoản nội bộ này được phép âm | Nạp 1 triệu: Nợ TK ngân hàng 1tr, Có TK khách 1tr |
 | **BR-05** | Chuyển tiền | Chỉ chủ tài khoản được chuyển tiền đi; tài khoản nguồn và đích phải **đang hoạt động** và khác nhau | Không chuyển từ TK của người khác; không chuyển cho chính TK đó |
-| **BR-06** | Hạn mức | Mỗi lần chuyển ≤ **50.000.000đ** *(GĐ)*; tổng tiền chuyển đi trong ngày (giờ Việt Nam) ≤ **200.000.000đ** *(GĐ)*. Hạn mức phải đúng **kể cả khi nhiều lệnh đến cùng lúc** | Đã chuyển 180tr trong ngày thì lệnh 30tr bị từ chối |
+| **BR-06** | Hạn mức | Mỗi lần chuyển ≤ **50.000.000đ**; tổng tiền chuyển đi trong ngày (giờ Việt Nam) ≤ **200.000.000đ**. Hạn mức phải đúng **kể cả khi nhiều lệnh đến cùng lúc** | Đã chuyển 180tr trong ngày thì lệnh 30tr bị từ chối |
 | **BR-07** | Chống trùng | Một yêu cầu (nhận diện bằng **mã yêu cầu do khách tạo**) chỉ được thực hiện **tối đa một lần**; gửi lại bao nhiêu lần cũng nhận cùng một kết quả | Mạng chậm, ứng dụng gửi lại 3 lần → chỉ trừ tiền 1 lần |
 | **BR-08** | Bất biến | Giao dịch đã hoàn tất **không được sửa hay xóa**. Sai sót được xử lý bằng một giao dịch mới (ngoài phạm vi v1) | — |
 | **BR-09** | Kiểm toán | Mọi thao tác thay đổi dữ liệu phải được ghi lại **ai — làm gì — khi nào — trên đối tượng nào**; nhật ký không sửa, không xóa được. Không ghi được nhật ký thì thao tác không được thực hiện | — |
@@ -279,7 +279,7 @@ flowchart LR
 | **BR-11** | Gian lận | Giao dịch đáng ngờ được **gắn cờ để nhân viên xem**, không tự động chặn hay đảo; chỉ nhân viên được khóa tài khoản | — |
 | **BR-12** | Khóa tài khoản | Tài khoản bị khóa **không gửi và không nhận** được tiền; chủ tài khoản **mất quyền truy cập ngay**; dữ liệu không bị xóa | — |
 | **BR-13** | Bảo mật thông tin | Khách hàng **không được biết** mình đang bị gắn cờ nghi ngờ (tránh cảnh báo cho kẻ gian) | — |
-| **BR-14** | Tài khoản | Mỗi khách hàng có tối đa **3 tài khoản** *(GĐ)* | — |
+| **BR-14** | Tài khoản | Mỗi khách hàng có tối đa **3 tài khoản** | — |
 
 ---
 

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Trạng thái | **Proposed** — đã hiện thực trong `backend/`, chờ nhóm xác nhận (đổi thành Accepted sau khi review) |
+| Trạng thái | **Accepted** (2026-10-11) — đã hiện thực trong `backend/` |
 | Ngày | 2026-10-01 |
 | Người viết | Bản nháp ban đầu; #1 và #5 rà soát và nhận làm chủ ADR |
 | Người duyệt | #1 duyệt; cả nhóm đồng ý ở buổi họp đầu tuần |
@@ -54,7 +54,7 @@ Trên AWS là hai ECS service dùng cùng image, khác `APP_ROLE`; scale độc 
 | Quên chặn consumer ở role `api` → instance API poll queue | `src/modules/index.ts` là nơi duy nhất đăng ký module theo role; module dùng chung bọc consumer bằng `runsWorkers()`; có test cho `modulesForRole` |
 | Gõ sai `APP_ROLE` âm thầm thành `both` | `parseAppRole` ném lỗi với giá trị không hợp lệ; Joi cũng kiểm tra lúc khởi động |
 | Ranh giới module dễ bị xói mòn khi mọi thứ ở chung một app | Rào chắn bằng eslint (`no-restricted-imports`): chỉ import qua `@modules/<tên>`, cấm với tay vào ruột module khác kể cả bằng `../` |
-| Worker không có cổng HTTP nên không dùng `/health/ready` | ECS health check bằng lệnh riêng cho service `worker` |
+| Worker không có cổng HTTP nên không dùng `/health/ready` | ECS thay task khi tiến trình thoát; worker treo được phát hiện qua alarm tuổi outbox và tuổi message (docs/03 §14) |
 
 **Khi nào xem lại:** nếu một thành phần cần runtime hoặc phụ thuộc khác hẳn (ví dụ chấm điểm bằng mô hình Python), tách thành service riêng — khi đó ranh giới module đã sẵn nên việc tách không đau.
 

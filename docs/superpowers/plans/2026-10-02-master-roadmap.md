@@ -20,14 +20,14 @@
 - **Transaction:** `TransactionService.run(...)`, READ COMMITTED + `SELECT … FOR UPDATE` khóa hai tài khoản **theo thứ tự id**; `lock_timeout` 2 s, `statement_timeout` 5 s, `idle_in_transaction_session_timeout` 10 s; deadlock `40P01` chạy lại cả callback tối đa 3 lần; lỗi DB tạm thời → **503 + `Retry-After`**.
 - **Không gọi Redis / HTTP / SQS bên trong transaction.** Sự kiện đi qua bảng `outbox_events`.
 - **Bất biến:** `ledger_entries` và `audit_log` chỉ INSERT (revoke UPDATE/DELETE); `CHECK (type = 'SYSTEM' OR balance >= 0)`; `SUM(balance)` mọi tài khoản = 0; **không** đưa số dư vào Redis.
-- **Hạn mức (GĐ):** 50.000.000đ/lần, 200.000.000đ/ngày (ngày theo `Asia/Ho_Chi_Minh`, chỉ tính tiền đi `DEBIT`); tối đa 3 tài khoản/khách.
+- **Hạn mức:** 50.000.000đ/lần, 200.000.000đ/ngày (ngày theo `Asia/Ho_Chi_Minh`, chỉ tính tiền đi `DEBIT`); tối đa 3 tài khoản/khách.
 - **Lỗi:** `application/problem+json` (RFC 7807) + enum `ErrorCode`; test theo `errorCode`, không theo câu chữ; lệnh `REJECTED` trả **422**; tài nguyên không thuộc mình trả **404** (không phải 403); `correlationId` do server sinh.
 - **Idempotency:** header `Idempotency-Key` bắt buộc cho chuyển/nạp tiền; `PRIMARY KEY (user_id, idem_key)`; `INSERT … ON CONFLICT DO NOTHING`.
 - **Event:** at-least-once; consumer idempotent bằng `processed_events(consumer, event_id)`; DLQ sau **5** lần lỗi; outbox poll ≤ 1 s; mỗi consumer một queue (`risk-events`, `notification-events`).
 - **Module:** import xuyên module chỉ qua `@modules/<tên>` (eslint ép); consumer chỉ khởi động khi `runsWorkers()`.
 - **NFR đích:** chuyển tiền p95 < 300 ms ở 120 RPS; đọc p95 < 150 ms; tài khoản nóng 20 lệnh/s p95 < 1 s; fraud từ giao dịch tới cờ p95 < 5 s; availability 99,9 % (production); RPO ≤ 5 phút; RTO ≤ 30 phút; chi phí ≤ $150–200/tháng.
-- **Bảo mật:** access token 15 phút *(GĐ)*; rate limit 10 lệnh chuyển/phút/khách và 100 yêu cầu/phút/IP *(GĐ)*; TLS bắt buộc ở production; không secret trong repo/image; GitHub → AWS qua OIDC.
-- **Quy trình:** không push thẳng `main`; 1 reviewer (cặp đôi) + CI xanh; squash merge; test liên quan tiền chạy trên **Postgres thật** (Testcontainers), không mock.
+- **Bảo mật:** access token 15 phút; rate limit 10 lệnh chuyển/phút/khách và 100 yêu cầu/phút/IP; TLS bắt buộc ở production; không secret trong repo/image; GitHub → AWS qua OIDC.
+- **Quy trình:** không push thẳng `main`; cặp đôi review (quy ước, ruleset không ép số approval) + CI xanh; squash merge; test liên quan tiền chạy trên **Postgres thật** (Testcontainers), không mock.
 - **"Xong"** = đã merge, có test, chạy được trên cloud.
 
 ## Review Focus
@@ -59,18 +59,18 @@ T0 Chuẩn bị ─▶ T1 Nền tảng & CI/CD ─┬▶ T2 Identity & Accounts 
 
 ---
 
-## Việc chốt trong tuần 0–1 (chặn các task bên dưới)
+## Việc chốt trong tuần 0–1 (đã chốt 2026-10-11)
 
-Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một người quyết và ghi vào ADR/issue **trước khi** task phụ thuộc bắt đầu.
+Các điểm spec từng còn mở. Tất cả đã có kết luận; lý do nằm ở ADR tương ứng.
 
-- [ ] **Nền tảng:** AWS (cần thẻ quốc tế) hay Azure for Students hay VPS — người giữ tài khoản (mặc định #5). Chặn T1. *(docs/03 §20 câu 5; ADR-11)*
-- [ ] **Deadline thật của P1–P5** từ giảng viên; cập nhật `10_WEEK_PLAN.md`. *(§20 câu 1)*
-- [ ] **TypeORM hay Kysely** cho luồng chuyển tiền. Khuyến nghị: TypeORM + SQL tường minh trong `QueryRunner` như spec §19. Chặn T3. *(ADR-07)*
-- [ ] **Event contract `TransferCompleted`:** doc 03 §10 chưa có `sameOwner`; FRAUD_GUIDE §5.2 đề xuất thêm. Chốt bản có `sameOwner`, `fromBalanceBefore`, `fromAccountCreatedAt`, `toAccountCreatedAt`, `occurredAt`, `correlationId`. Chặn T3, T4, T6. *(owner #3)* — 06/10: đã đưa vào docs/03 §10 và event-contract (thêm `fromUserId`, `toUserId`), chờ #1, #4 đồng ý.
-- [ ] **Đồng bộ ERD:** `fraud_rule_hits` có `rule_version` (doc 03 §8.2) nhưng `fraud_flags` đã có `rule_set_version` (FRAUD_GUIDE §5.3) — giữ một nơi (khuyến nghị: `rule_set_version` ở `fraud_flags`). Chặn migration T6. — 06/10: đã sửa docs/02, docs/03 theo khuyến nghị.
-- [ ] **Mục tiêu fraud:** NFR-FRD-02 "≤ 10 cảnh báo/1.000 giao dịch" gần như không đạt với luật thủ công (FRAUD_GUIDE §6.4); chốt cặp mục tiêu mới (đề xuất recall ≥ 70 % trên kịch bản luật nhắm tới, ≤ 20 cảnh báo/1.000) và sửa `docs/02`. Chặn đánh giá T6/T7. — 06/10: đã ghi vào docs/01, docs/02 dưới dạng *(GĐ)*, chờ nhóm chốt.
-- [ ] **Egress Fargate (ADR-10)** và **Redis Serverless vs node (ADR-12)** — chốt trước tuần 3 để T1 dựng hạ tầng không lỡ tạo NAT Gateway. *(§20 câu 3, 4)*
-- [ ] **Giá trị tham số *(GĐ)*:** hạn mức, rate limit, thời gian sống token, thời gian giữ idempotency key (≥ 7 ngày). *(§20 câu 6)*
+- [x] **Nền tảng:** AWS, `ap-southeast-1`, dựng/xóa theo phiên; #5 giữ tài khoản. *(ADR-11)*
+- [ ] **Deadline thật của P1–P5** từ giảng viên; cập nhật `10_WEEK_PLAN.md` và `docs/deliverables/README.md`. *(việc của #2, không phải quyết định kỹ thuật)*
+- [x] **TypeORM + SQL tường minh trong `QueryRunner`** cho luồng tiền. *(ADR-07)*
+- [x] **Event contract `TransferCompleted`** có `sameOwner`, `fromBalanceBefore`, `fromAccountCreatedAt`, `toAccountCreatedAt`, `fromUserId`, `toUserId`, `occurredAt = transfers.created_at`, `correlationId`; `TransferRejected` không phát ở v1. *(event-contract, Accepted)*
+- [x] **ERD:** `rule_set_version` ở `fraud_flags`, `weight` ở `fraud_rule_hits`. *(database-design, Accepted)*
+- [x] **Mục tiêu fraud:** recall ≥ 70% gộp trên 5 kịch bản trong tầm luật, ≤ 20 cảnh báo / 1.000 giao dịch `TRANSFER`, đo trên holdout. *(NFR-FRD-02, FRAUD guide §6.4)*
+- [x] **Egress Fargate:** public subnet, security group chỉ nhận từ ALB, không NAT. **Redis:** node `cache.t4g.micro`, cluster mode tắt. *(ADR-10, ADR-12)*
+- [x] **Giá trị tham số:** hạn mức 50 triệu/lần, 200 triệu/ngày; rate limit 10 lệnh chuyển/phút/khách, 100 yêu cầu/phút/IP; access token 15 phút; giữ idempotency key 7 ngày. *(docs/02 §4, ADR-05, ADR-06)*
 
 ---
 
@@ -85,7 +85,7 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 **Files (repo hiện có):** commit lại phần thay đổi đang treo trong working tree (`backend/…`, `README.md`) thành các commit riêng theo Conventional Commits trước khi bắt đầu tuần 1.
 
 - [ ] Gán 6 vai (README mục "Nhóm" đang `_TBD_`) và cặp đôi.
-- [ ] #5: tài khoản AWS/Azure, AWS Budget alarm, IAM user + MFA cho từng người, bảo vệ `main` (1 review + CI xanh).
+- [ ] #5: tài khoản AWS/Azure, AWS Budget alarm, IAM user + MFA cho từng người, bảo vệ `main` (bắt buộc PR, squash, chặn force push; cặp đôi review theo quy ước; CI xanh khi có CI).
 - [ ] #2: board có đủ issue tuần 1–2; lịch họp thứ Hai / thứ Năm; kênh chat; file theo dõi deadline.
 - [ ] Làm sạch working tree: review diff đang treo, tách commit, đảm bảo `npm run lint:check && npm run typecheck && npm test && npm run test:e2e` xanh trên `main`.
 
@@ -103,7 +103,7 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 - Modify: `backend/Dockerfile` (CA bundle RDS, health check cho worker), `backend/src/modules/health/health.controller.ts` (thêm trạng thái Redis *degraded*).
 
 **Interfaces:**
-- Produces (cho T2–T6): biến môi trường chuẩn trong `backend/env/.env.example`; endpoint `/health/live`, `/health/ready`; `RedisClient` với timeout ≤ 50 ms *(GĐ)* + circuit breaker (`opossum`) và API `get/set/incr/zadd…` có đường lỗi tường minh; `SqsClient.send(queue, body)` / `receive(queue)`; helper Testcontainers khởi tạo Postgres + Valkey + ElasticMQ dùng chung cho mọi e2e.
+- Produces (cho T2–T6): biến môi trường chuẩn trong `backend/env/.env.example`; endpoint `/health/live`, `/health/ready`; `RedisClient` với timeout 50 ms + circuit breaker (`opossum`) và API `get/set/incr/zadd…` có đường lỗi tường minh; `SqsClient.send(queue, body)` / `receive(queue)`; helper Testcontainers khởi tạo Postgres + Valkey + ElasticMQ dùng chung cho mọi e2e.
 - Consumes: `docker-compose.yml`, `infra/local/elasticmq.conf` (đã có).
 
 **Mốc theo tuần:**
@@ -189,7 +189,7 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 
 **Mốc theo tuần:** T1 contract + schema `outbox_events`/`processed_events` · T2 `AuditService.record` · T3 relay (`SELECT … FOR UPDATE SKIP LOCKED`, gửi theo bảng định tuyến, chạy với ElasticMQ) · T4 khung consumer idempotent, notification, DLQ, API tra cứu audit · T5 `correlationId` xuyên suốt API → outbox → consumer → audit.
 
-- [ ] Relay gửi **sau** commit, set `published_at` sau khi gửi mọi queue; sự cố giữa chừng gửi lại (at-least-once); job dọn outbox sau 7 ngày *(GĐ)*.
+- [ ] Relay gửi **sau** commit, set `published_at` sau khi gửi mọi queue; sự cố giữa chừng gửi lại (at-least-once); job dọn outbox sau 7 ngày.
 - [ ] `GET /v1/audit/entries` lọc theo người/hành động/thời gian/`correlationId`; việc tra cứu tự ghi audit; role `auditor` chỉ đọc.
 - [ ] Test AC-8.1 (auditor sửa/xóa → bị từ chối, DB role không có UPDATE/DELETE), AC-8.2 (tra theo `correlationId` thấy chuỗi yêu cầu → ghi sổ → thông báo → cờ → review).
 - [ ] **Review Focus test (4):** gửi cùng `eventId` 3 lần → 1 hiệu ứng; message sai schema → vào DLQ sau 1 lần nhận (không retry 5 lần); relay chết sau commit trước khi gửi → bật lại gửi bù.
@@ -228,7 +228,7 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 **Mốc theo tuần:** T1–2 chốt luật, schema, interface · T3 sync guard cùng #1 (thuộc Task 3) · T4 6 luật + consumer + Redis + dự phòng SQL → "chuyển tiền xong thì cờ tự xuất hiện" · T5 API review + đánh giá lần đầu trên tập tune + spike ONNX và cổng go/no-go cho `v3` (ADR-08) · T6 học tham số (`v2`), test so khớp online/offline, và `v3` chỉ nếu qua cổng · T7 đóng băng cấu hình, chạy holdout **một lần**, ablation, đường PR.
 
 - [ ] Mọi cửa sổ thời gian tính theo `occurredAt`; R3/R6 dùng snapshot trong event, không đọc số dư hiện tại; chấm điểm chỉ `TRANSFER`, bỏ qua `DEPOSIT`; `sameOwner` miễn R5/R6.
-- [ ] Điểm = tổng trọng số luật kích hoạt (R1 30, R2 25, R3 35, R4 20, R5 40, R6 30 *(GĐ)*); `0–39 LOW` (không cờ), `40–69 MEDIUM`, `≥ 70 HIGH`; ví dụ bảng §4.3 của guide thành unit test.
+- [ ] Điểm = tổng trọng số luật kích hoạt (R1 30, R2 25, R3 35, R4 20, R5 40, R6 30, phiên bản `v1`); `0–39 LOW` (không cờ), `40–69 MEDIUM`, `≥ 70 HIGH`; ví dụ bảng §4.3 của guide thành unit test.
 - [ ] Khách không thấy cờ: không endpoint customer nào trả trường về cờ (AC-10.2).
 - [ ] Review lần hai trả 409 `FLAG_ALREADY_REVIEWED` (AC-10.1).
 - [ ] Cấu hình luật: `cfg:risk:latest` trỏ phiên bản hiện hành (TTL 60 giây, miss thì `max(version)` từ DB), `cfg:risk:v{n}` bất biến.

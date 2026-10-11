@@ -4,7 +4,7 @@
 
 > Tài liệu giải thích **một module**, cho người chưa đọc docs 01–03. Đọc xong bạn biết: ledger là gì, nó giữ lời hứa nào, một lệnh chuyển tiền đi qua những bước nào, và vì sao thiết kế như vậy.
 > Nguồn: `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §6.1, §8 · `docs/02_REQUIREMENTS_AND_DOMAIN_MODEL.md` (AC-5.x) · `backend/src/modules/ledger/README.md`.
-> Các con số đánh dấu *(GĐ)* là giả định ban đầu. Con số NFR đang chờ nhóm chốt lại.
+> Các con số (hạn mức, timeout, NFR) đã chốt ngày 2026-10-11; lý do ở ADR-04, 05, 09.
 
 | | |
 |---|---|
@@ -232,7 +232,7 @@ flowchart LR
 
 ### 🛡️ Lá chắn 3 — Hạn mức đúng kể cả khi gửi song song
 
-| Quy tắc | Giá trị *(GĐ)* | Lý do từ chối |
+| Quy tắc | Giá trị | Lý do từ chối |
 |---|---|---|
 | Mỗi lần | ≤ 50.000.000đ | `LIMIT_PER_TX_EXCEEDED` |
 | Mỗi ngày (giờ Việt Nam, chỉ tiền đi) | ≤ 200.000.000đ | `LIMIT_PER_DAY_EXCEEDED` |
@@ -377,4 +377,4 @@ Tuần 3 là tuần quan trọng nhất của cả dự án: chuyển tiền ch�
 
 ---
 
-Tiếp theo: [`02-architecture.md`](02-architecture.md) · Quy tắc code: [`backend/src/modules/ledger/README.md`](../../../backend/src/modules/ledger/README.md).
+Thiết kế chi tiết: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) §6.1, §7, §8, §11 · Giao diện và mốc: Task 3 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md) · Quy tắc code: [`backend/src/modules/ledger/README.md`](../../../backend/src/modules/ledger/README.md).
