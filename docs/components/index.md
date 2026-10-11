@@ -41,7 +41,7 @@ Khác biệt giữa component và module: xem [glossary](_shared/glossary.md).
 
 ## Quy ước
 
-- Mỗi component có **một** `01-concept-brief` (giải thích ý tưởng, nguồn cho P1). Thiết kế chi tiết nằm ở [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md), [`database-design`](_shared/database-design.md) và [`event-contract`](_shared/event-contract.md); riêng `risk` có thêm `02-architecture` vì phần chấm điểm có phiên bản quá dài để đặt trong docs/03. Không tạo thêm file docs theo component: test case nằm trong file test, giới hạn đã biết ghi thẳng vào mục "Giới hạn" của bản nộp P4/P5.
+- Mỗi component có **một** `01-concept-brief` (giải thích ý tưởng, nguồn cho P1). Thiết kế chi tiết nằm ở [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md), [`database-design`](_shared/database-design.md) và [`event-contract`](_shared/event-contract.md); riêng `risk` có thêm `02-architecture` vì phần chấm điểm có phiên bản quá dài để đặt trong docs/03. Không tạo thêm file docs theo component: thiết kế, test case và kết quả của từng task nằm ở [`docs/features/`](../features/README.md); giới hạn đã biết ghi vào mục "Giới hạn" của bản nộp P4/P5.
 - Mỗi file có dòng **Status** đầu file: `Draft | Accepted | Implemented`, owner, ngày cập nhật, đã đối chiếu với code chưa.
 - **Một sự thật, một chỗ:** xem bảng ở [docs/README.md](../README.md).
 - Đổi thiết kế thì cập nhật file ở đây **trong cùng PR**.

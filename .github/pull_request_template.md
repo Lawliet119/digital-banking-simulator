@@ -3,6 +3,7 @@
 <!-- Mô tả ngắn: PR này làm gì, vì sao -->
 
 Task: DBS-
+Feature doc: docs/features/DBS-
 
 ## Loại thay đổi
 
@@ -29,6 +30,7 @@ Task: DBS-
 - [ ] Có test; logic về tiền được test trên PostgreSQL thật
 - [ ] CI xanh
 - [ ] Không có secret trong code, log, commit
+- [ ] Feature doc đủ mục 1–8 (đã qua 4 gate), ảnh chụp ở `docs/features/screenshots/DBS-<n>/`
 - [ ] Đã cập nhật tài liệu / ADR / OpenAPI nếu cần (đổi thiết kế → `docs/03` hoặc `docs/components/_shared/`)
 
 ## Ghi chú cho người review
