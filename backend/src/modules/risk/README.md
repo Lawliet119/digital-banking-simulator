@@ -12,6 +12,7 @@ Phát hiện giao dịch đáng ngờ; nhân viên review và quyết định.
 ## Phải giữ
 
 - **Hệ thống chỉ gắn cờ, không tự khóa tài khoản.** Khách hàng không bao giờ thấy cờ.
+- Mô hình ML (chế độ `v3`, chỉ khi qua cổng go/no-go của ADR-08) chỉ chạy ở worker, không đổi schema, lỗi thì rơi về 6 luật; không bao giờ là điều kiện để giao dịch hoàn tất.
 - **Luật là hàm thuần** `evaluate(event, features, params)`: không gọi Redis hay DB. Đặc trưng đến từ `FeatureProvider` (online: Redis + SQL; offline: dữ liệu trong bộ nhớ) để cùng một code luật chạy được cả trên hệ thống thật lẫn script đánh giá.
 - Mọi cửa sổ thời gian tính theo `occurredAt` của sự kiện, không theo giờ worker.
 - R3, R6 dùng **ảnh chụp** trong sự kiện (`fromBalanceBefore`, `fromAccountCreatedAt`), không đọc trạng thái hiện tại.

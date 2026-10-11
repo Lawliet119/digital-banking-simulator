@@ -6,7 +6,7 @@
 
 **Goal:** Đưa Digital Banking Simulator từ khung NestJS trống tới một luồng chạy thật trên AWS (đăng ký → mở tài khoản → nạp tiền → chuyển tiền → lịch sử → phát hiện gian lận → nhân viên review → kiểm toán tra cứu), cùng 5 demo bắt buộc và 5 bản nộp P1–P5, trong 10 tuần (05/10 → 13/12/2026).
 
-**Architecture:** Modular monolith NestJS, một image chạy theo `APP_ROLE` (`api` / `worker` / `both`). PostgreSQL là nguồn sự thật duy nhất (sổ cái bút toán kép, idempotency và audit cùng transaction); Redis chỉ là cache có đường dự phòng; sự kiện đi qua transactional outbox → SQS (mỗi consumer một queue + DLQ). Fraud là 6 luật hàm thuần chạy bất đồng bộ ở worker, chỉ gắn cờ.
+**Architecture:** Modular monolith NestJS, một image chạy theo `APP_ROLE` (`api` / `worker` / `both`). PostgreSQL là nguồn sự thật duy nhất (sổ cái bút toán kép, idempotency và audit cùng transaction); Redis chỉ là cache có đường dự phòng; sự kiện đi qua transactional outbox → SQS (mỗi consumer một queue + DLQ). Fraud là 6 luật hàm thuần chạy bất đồng bộ ở worker, chỉ gắn cờ; cấu hình luật có phiên bản và có thể học tham số (`v2`); mô hình ONNX in-process (`v3`) chỉ là mở rộng có điều kiện (ADR-08).
 
 **Tech Stack:** Node.js ≥ 24, TypeScript strict, NestJS 11, TypeORM (+ SQL tường minh trong `QueryRunner`), PostgreSQL 17, Valkey (ioredis), SQS (ElasticMQ ở local), Cognito, Jest + Supertest + Testcontainers, k6, Terraform, GitHub Actions, AWS (ECS Fargate, RDS, ElastiCache, WAF, KMS, CloudWatch).
 
@@ -225,7 +225,7 @@ Các điểm spec còn mở hoặc lệch nhau; mỗi điểm cần một ngư�
 - Consumes: event `TransferCompleted` từ `risk-events` (T4), `ConsumerBase` (T4), `RedisClient` (T1), `AuditService` (T4).
 - Produces: `interface RiskRule { id: 'R1'|…|'R6'; evaluate(event, features, params): RuleHit | null }` (hàm thuần); `FeatureProvider` (online: Redis + SQL; offline: dữ liệu trong bộ nhớ); `GET /v1/operator/fraud-flags`, `GET …/{transferId}`, `POST …/{transferId}/review` (`CONFIRMED_FRAUD`/`FALSE_POSITIVE`, chỉ một lần); `GET/POST /v1/admin/risk-config…` (phiên bản bất biến).
 
-**Mốc theo tuần:** T1–2 chốt luật, schema, interface · T3 sync guard cùng #1 (thuộc Task 3) · T4 6 luật + consumer + Redis + dự phòng SQL → "chuyển tiền xong thì cờ tự xuất hiện" · T5 API review + đánh giá lần đầu trên tập tune · T6 chỉnh tham số, test so khớp online/offline · T7 đóng băng cấu hình, chạy holdout **một lần**, ablation, đường PR.
+**Mốc theo tuần:** T1–2 chốt luật, schema, interface · T3 sync guard cùng #1 (thuộc Task 3) · T4 6 luật + consumer + Redis + dự phòng SQL → "chuyển tiền xong thì cờ tự xuất hiện" · T5 API review + đánh giá lần đầu trên tập tune + spike ONNX và cổng go/no-go cho `v3` (ADR-08) · T6 học tham số (`v2`), test so khớp online/offline, và `v3` chỉ nếu qua cổng · T7 đóng băng cấu hình, chạy holdout **một lần**, ablation, đường PR.
 
 - [ ] Mọi cửa sổ thời gian tính theo `occurredAt`; R3/R6 dùng snapshot trong event, không đọc số dư hiện tại; chấm điểm chỉ `TRANSFER`, bỏ qua `DEPOSIT`; `sameOwner` miễn R5/R6.
 - [ ] Điểm = tổng trọng số luật kích hoạt (R1 30, R2 25, R3 35, R4 20, R5 40, R6 30 *(GĐ)*); `0–39 LOW` (không cờ), `40–69 MEDIUM`, `≥ 70 HIGH`; ví dụ bảng §4.3 của guide thành unit test.

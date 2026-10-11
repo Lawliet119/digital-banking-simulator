@@ -1,6 +1,6 @@
 # Fraud Detection — Hướng dẫn chi tiết
 
-> **Status:** Draft · **Owner:** #4 · **Cặp đôi:** #1, #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06 · sẽ tách thành 02/03/06 sau khi nộp P2
+> **Status:** Draft · **Owner:** #4 · **Cặp đôi:** #1, #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-11 · sẽ tách thành 02/03/06 sau khi nộp P2
 
 > Tài liệu làm việc nội bộ cho mảng **Fraud** (#4) và người làm bộ dữ liệu (#6).
 > Dựa trên: `docs/01` (BR-06, BR-11, BR-13), `docs/02` (UC-9, UC-10, UC-12, FR-RSK-*, NFR-FRD-*), `docs/03` (mục 9, 10, 15).
@@ -12,7 +12,7 @@
 
 ### 1.1 Một câu
 
-> Sau mỗi giao dịch, **trong vòng vài giây**, chấm điểm rủi ro bằng 6 luật có giải thích; giao dịch đáng ngờ được **gắn cờ** để nhân viên xem và quyết định. Kèm theo là **bằng chứng định lượng** rằng các luật thực sự bắt được gian lận mà không làm nhân viên ngập trong báo nhầm.
+> Sau mỗi giao dịch, **trong vòng vài giây**, chấm điểm rủi ro bằng 6 luật có giải thích (`R1–R6`); giao dịch đáng ngờ được **gắn cờ** để nhân viên xem và quyết định. Luật có thể được học tham số từ dữ liệu (`v2`) và, nếu qua cổng go/no-go, bổ sung một mô hình nhẹ chạy in-process qua ONNX (`v3`) theo [ADR-08](../../adr/0008-fraud-detection-architecture.md). Kèm theo là **bằng chứng định lượng** rằng các luật thực sự bắt được gian lận mà không làm nhân viên ngập trong báo nhầm.
 
 ### 1.2 Làm và không làm
 
@@ -22,7 +22,7 @@
 | Chấm điểm mọi lệnh chuyển tiền sau khi hoàn tất (**async detection**) | Tự động khóa tài khoản |
 | Gắn cờ kèm danh sách luật và lời giải thích | Đảo giao dịch, giữ tiền chờ duyệt |
 | Cho nhân viên review: Gian lận thật / Báo nhầm | Cho khách hàng thấy cờ (BR-13) |
-| Cấu hình luật có phiên bản | Machine learning (để mở rộng nếu còn thời gian) |
+| Cấu hình luật có phiên bản (`v1` luật → `v2` luật học tham số → `v3` thêm ONNX in-process, có điều kiện) | Tách microservice Python riêng cho inference (trái ADR-13) |
 | Bộ dữ liệu tổng hợp + báo cáo đánh giá P5 | Dữ liệu thiết bị, IP, vị trí |
 
 ### 1.3 Thế nào là thành công
@@ -190,6 +190,43 @@ score = Σ trọng số các luật kích hoạt
 
 Trọng số và ngưỡng là **điểm xuất phát**, sẽ chỉnh bằng tập tune (mục 6).
 
+### 4.3.b Ba chế độ chấm điểm theo phiên bản cấu hình (`v1` → `v2` → `v3`)
+
+Cột `risk_rule_sets.config` là `jsonb` nên bộ chấm điểm (`ScoringService`) hỗ trợ 3 chế độ **không cần đổi schema**. Quyết định và cổng go/no-go nằm ở [ADR-08](../../adr/0008-fraud-detection-architecture.md); mục này là chi tiết kỹ thuật.
+
+| Phiên bản | Chế độ (`mode`) | Cách tính điểm | Trạng thái |
+|---|---|---|---|
+| **`v1`** (seed mặc định) | `rule_only` | 6 luật `R1–R6` với ngưỡng và trọng số ở bảng 4.2 | Bắt buộc. Mọi unit test và e2e (`AC-9.1`, bảng ví dụ 4.3) tất định 100% |
+| **`v2`** | `ml_tuned_rules` | Vẫn đúng 6 luật, nhưng ngưỡng và trọng số học từ tập `tune`. Mục tiêu: recall lớn nhất với ràng buộc ≤ 20 cảnh báo / 1.000 giao dịch (không tối ưu F2) | Phạm vi chính |
+| **`v3`** | `hybrid_onnx` | `score = Σ trọng số luật + round(ml.weight × p)` nếu `p ≥ ml.threshold` (mặc định 40 và 0,5 *(GĐ)*), `p` là xác suất gian lận của mô hình LightGBM / XGBoost xuất `.onnx` | Mở rộng có điều kiện: chỉ khi qua cổng go/no-go cuối tuần 5 |
+
+Mức rủi ro dùng chung ngưỡng với `v1` (LOW < 40, MEDIUM 40–69, HIGH ≥ 70). Các con số về kích thước và độ trễ của mô hình (ví dụ "~100 KB", "< 2 ms") chỉ là giả định cho tới khi spike đo được.
+
+**Vector 12 đặc trưng cho `v3`** *(GĐ, chốt khi làm spike)*. Mọi đặc trưng chỉ dùng dữ liệu **trước** `occurredAt`; không dùng cột `scenario` hay `is_fraud`.
+
+| Nhóm | Đặc trưng | Cách tính | Nguồn |
+|---|---|---|---|
+| R1 | `txCount10m`, `txCount1h` | Số lệnh chuyển từ tài khoản nguồn trong 10 phút, 1 giờ (tính cả lệnh này) | Redis, dự phòng SQL |
+| R2 | `amountToMedian30d` | `amount` / trung vị 30 ngày (0 nếu dưới 5 lệnh lịch sử) | SQL |
+| R2 | `sumOut24hToDailyLimit` | Tổng tiền đi 24 giờ (gồm lệnh này) / hạn mức ngày | SQL |
+| R2 | `smallTxCount24h` | Số lệnh trong 24 giờ có `amount` dưới 10% hạn mức mỗi lần (dấu hiệu chia nhỏ) | SQL |
+| R3 | `accountAgeHours` | Tuổi tài khoản nguồn (giờ), cắt ở 720 | Snapshot trong event |
+| R4 | `minutesSinceReverse` | Số phút từ lệnh ngược gần nhất trong 1 giờ trước (60 nếu không có) | SQL |
+| R5 | `newRecipients1h` | Số người nhận mới trong 1 giờ | Redis + SQL |
+| R5 | `distinctRecipients24h` | Số người nhận khác nhau trong 24 giờ | SQL |
+| R5 | `sameOwner` | 1 nếu hai tài khoản cùng khách hàng | Snapshot trong event |
+| R6 | `amountToBalance` | `amount` / `fromBalanceBefore` | Snapshot trong event |
+| R6 | `drain24h` | Tổng tiền đi 24 giờ / (`fromBalanceBefore` + tổng tiền đi 24 giờ trước lệnh này) | Snapshot + SQL |
+
+**Quy ước ghi giải thích (không đổi schema).** `fraud_rule_hits` giữ `CHECK (rule_id IN ('R1',…,'R6'))` và khóa chính `(transfer_id, rule_id)` ([database-design §4.8](../_shared/database-design.md)), nên mỗi mã đại diện đúng nhóm luật như bảng 4.2 và mỗi nhóm có tối đa một dòng:
+- Khi chạy `v1` và `v2`: ghi các luật vượt ngưỡng.
+- Khi chạy `v3`: điểm của mô hình được **quy về một nhóm**, là nhóm có đóng góp dương lớn nhất, với đóng góp của nhóm = `p − p'`, trong đó `p'` là xác suất khi đặt các đặc trưng của nhóm đó về giá trị cơ sở (trung vị trên tập `tune`, lưu trong cấu hình). Chỉ cần thêm 6 lần suy luận nhẹ, không cần TreeSHAP trong worker (TreeSHAP vẫn dùng ngoại tuyến để vẽ biểu đồ cho P5).
+- Nếu luật của nhóm đó đã kích hoạt: giữ dòng luật, cộng điểm mô hình vào `weight` và nối « · [AI] …» vào `explanation`. Nếu chưa: tạo dòng mới với `weight` bằng điểm mô hình và `explanation` bắt đầu bằng «[AI-Rn]». Nhờ vậy tổng `weight` luôn bằng `score` của cờ.
+
+**Đường huấn luyện.** `OfflineFeatureProvider` (TypeScript) xuất CSV đặc trưng; công cụ Python ở `backend/ml/` chỉ đọc CSV đó để huấn luyện và xuất `backend/models/fraud-model.onnx` cùng `sha256` (ghi vào `ml.modelSha256` của cấu hình). Không tính đặc trưng bằng Python để hai nơi không lệch nhau.
+
+**Giao thức đánh giá.** Dùng cross-validation theo khách trong tập `tune`. **Đóng băng cả ba phiên bản trước khi chạy holdout**, chạy holdout đúng một lần, báo cáo tất cả, không chọn phiên bản dựa trên holdout.
+
 ### 4.4 Cờ và lời giải thích
 
 Mỗi cờ lưu: giao dịch, điểm, mức, **phiên bản luật đã dùng**, và từng luật kích hoạt kèm câu giải thích bằng tiếng Việt cho nhân viên.
@@ -312,7 +349,7 @@ backend/src/modules/risk/
 ├── risk-flags.controller.ts     # role api: danh sách cờ, review (UC-10)
 ├── risk-config.controller.ts    # role api: cấu hình luật có phiên bản (UC-12)
 ├── risk-scoring.consumer.ts     # role worker: nhận message, idempotency, transaction ghi cờ
-├── scoring.service.ts           # chạy các luật, cộng điểm, ra mức
+├── scoring.service.ts           # điều phối chấm điểm (rule_only / ml_tuned_rules / hybrid_onnx)
 ├── entities/                    # fraud-flag, fraud-rule-hit, risk-rule-set
 ├── rules/
 │   ├── rule.ts                  # interface chung
@@ -322,12 +359,14 @@ backend/src/modules/risk/
 │   ├── r4-round-trip.rule.ts
 │   ├── r5-fan-out.rule.ts
 │   └── r6-drain.rule.ts
+├── ml/
+│   └── onnx-model.scorer.ts     # chỉ khi có v3: nạp backend/models/fraud-model.onnx, kiểm sha256, suy luận + quy kết nhóm R1–R6, fail-safe
 ├── features/
-│   ├── feature-provider.ts      # interface lấy đặc trưng
-│   ├── online-feature-provider.ts   # Redis + SQL (chạy thật)
-│   └── offline-feature-provider.ts  # tính từ dữ liệu trong bộ nhớ (đánh giá)
+│   ├── feature-provider.ts      # interface lấy đặc trưng (cho cả 6 luật và vector liên tục)
+│   ├── online-feature-provider.ts   # Redis + SQL v_transfer_facts (chạy thật)
+│   └── offline-feature-provider.ts  # tính từ dữ liệu CSV trong bộ nhớ (đánh giá)
 ├── config/rule-set.repository.ts
-└── index.ts                     # API công khai (gần như trống: không module nào gọi risk)
+└── index.ts                     # API công khai (chỉ export RiskModule)
 ```
 
 **Điểm thiết kế quan trọng nhất: luật là hàm thuần.**
@@ -354,6 +393,7 @@ interface RiskRule {
 | DB lỗi | Không xóa message → SQS giao lại; quá 5 lần → DLQ + alarm |
 | Message không đúng định dạng | Log + chuyển thẳng DLQ, không retry vô ích |
 | Một luật ném lỗi | Ghi lỗi luật đó, các luật khác vẫn chạy; metric `risk_rule_error_total{rule}` |
+| Mô hình ONNX lỗi, không nạp được hoặc sai `sha256` | Sự kiện đó chấm bằng 6 luật; `risk_rule_error_total{rule="ML"}`; tắt hẳn bằng phiên bản cấu hình mới có `ml.enabled = false` |
 | Worker chết | Giao dịch không bị ảnh hưởng; khi bật lại, message còn trong queue được xử lý tiếp |
 
 ### 5.7 Ngân sách hiệu năng
@@ -363,7 +403,8 @@ interface RiskRule {
 | Redis (1 pipeline cho R1, R5) | ≤ 5 ms |
 | SQL (R2, R4, kiểm tra người nhận mới) | ≤ 30 ms |
 | Ghi cờ (1 transaction) | ≤ 15 ms |
-| **Tổng xử lý một sự kiện** | **≤ 50 ms** |
+| ONNX suy luận + quy kết nhóm (chỉ `v3`) | ≤ 15 ms |
+| **Tổng xử lý một sự kiện** | **≤ 50 ms** (`v1`, `v2`), **≤ 65 ms** (`v3`) |
 | Thời gian chờ outbox relay (poll ≤ 1 giây) + SQS | ≤ 2 giây |
 | **Từ giao dịch tới khi có cờ** | **p95 < 5 giây** |
 
@@ -419,6 +460,7 @@ amount, from_balance_before, from_account_created_at, to_account_created_at,
 is_fraud, scenario
 ```
 
+- Khi đọc CSV trong `OfflineFeatureProvider`, cờ `sameOwner` được tính trực tiếp từ `from_customer === to_customer` (khớp ngữ nghĩa với trường `sameOwner` trong `TransferCompleted` của [event-contract](../_shared/event-contract.md)).
 ### 6.2 Chia tập và "bức tường" giữa #4 và #6
 
 ```mermaid
@@ -465,7 +507,7 @@ flowchart LR
 | Đóng góp từng luật (ablation) | Tắt lần lượt từng luật, đo Δ precision và Δ recall |
 | Đường precision – recall | Quét ngưỡng gắn cờ từ 20 đến 90 điểm, vẽ đường; đánh dấu điểm đang chọn |
 | Báo nhầm theo loại hard negative | Hard negative nào hay bị gắn cờ nhất → gợi ý cải tiến luật |
-| So sánh trước / sau tune | Cấu hình ban đầu vs cấu hình đóng băng, trên tập tune |
+| So sánh các chế độ (`v1`, `v2`, và `v3` nếu có) | Đóng băng tất cả trước khi chạy holdout, chạy một lần, báo cáo đủ; không chọn bản tốt nhất dựa trên holdout |
 
 ### 6.4 Lưu ý về mục tiêu "≤ 10 cảnh báo / 1.000"
 
@@ -485,7 +527,7 @@ Với tỉ lệ gian lận 1% thì cứ 1.000 giao dịch có ~10 vụ gian lậ
 
 ### 6.6 Khung báo cáo P5
 
-1. **Kiến trúc AI/Data:** hai tầng, luồng dữ liệu, vì sao rule-based (giải thích được, không cần dữ liệu huấn luyện, chi phí thấp).
+1. **Kiến trúc AI/Data:** hai tầng, luồng dữ liệu, vì sao bắt đầu từ luật (giải thích được, không cần dữ liệu huấn luyện, chi phí thấp), vì sao thêm học tham số (`v2`) và kết quả cổng go/no-go cho mô hình ONNX (`v3`), kể cả khi quyết định không đưa vào.
 2. **Bộ dữ liệu:** cách sinh, kịch bản, hard negative, cách chia tập, các giới hạn.
 3. **Kết quả:** ma trận nhầm lẫn, các chỉ số, recall theo kịch bản, ablation, đường PR.
 4. **Vận hành:** latency, tải DB, so sánh có/không Redis.
@@ -505,14 +547,15 @@ Với tỉ lệ gian lận 1% thì cứ 1.000 giao dịch có ~10 vụ gian lậ
 | Truy vết quyết định | Mỗi cờ ghi phiên bản luật; mọi review có người, thời điểm, ghi chú, nhật ký |
 | Không lộ dữ liệu cá nhân | Log và Redis chỉ chứa id, số đếm; không ghi số tài khoản đầy đủ hay tên |
 | Kiểm soát thay đổi luật | Cấu hình có phiên bản, đổi phải tạo phiên bản mới, có nhật ký |
-| Công tắc khẩn cấp | Tắt từng luật bằng phiên bản cấu hình mới |
+| Công tắc khẩn cấp | Tắt từng luật, hoặc tắt mô hình ML (`ml.enabled = false`), bằng phiên bản cấu hình mới |
 | Theo dõi báo nhầm | Metric cảnh báo / 1.000 giao dịch trên dashboard; alarm khi vượt ngân sách |
 | Không ảnh hưởng chuyển tiền | Async + DLQ; worker chết thì giao dịch vẫn chạy bình thường |
 
-**Chi phí:** rule-based **không tốn token**. Chi phí gồm:
+**Chi phí:** không gọi LLM nên **không tốn token**. Chi phí gồm:
 - CPU worker: 1 task nhỏ (đã nằm trong chi phí ECS chung).
 - Truy vấn DB: ~3–4 truy vấn mỗi sự kiện; đo tải phụ lên RDS ở 120 RPS.
 - Redis: vài lệnh mỗi sự kiện; lợi ích đo bằng thí nghiệm bật/tắt.
+- Chỉ với `v3`: gói `onnxruntime-node` (bản 1.30.0 nặng khoảng 301 MB sau giải nén) và file mô hình làm image lớn hơn; mức tăng được đo ở cổng go/no-go.
 
 Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho nhân viên, khi đó mới cần phân tích token. V1 không cần.
 
@@ -538,7 +581,7 @@ Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho n
 | #3 | Event contract `TransferCompleted` (gồm `sameOwner`, `fromBalanceBefore`, `fromAccountCreatedAt`) | Tuần 1 |
 | #1 | Vị trí và mã lỗi của sync guard trong luồng chuyển tiền | Tuần 2 |
 | #6 | Định dạng CSV, danh sách tên kịch bản, tỉ lệ chia tập, lịch giao tập tune | Tuần 2 |
-| #5 | Key Redis, DB role của worker | Tuần 3 |
+| #5 | Key Redis (`risk:vel:*`, `risk:fan:*`, `cfg:risk:*`), quyền của `dbs_worker` trên `v_transfer_facts` | Tuần 3 |
 | Cả nhóm | Mục tiêu recall / số cảnh báo (mục 6.4) | Tuần 2 |
 
 ### 8.3 Lộ trình theo tuần
@@ -549,8 +592,8 @@ Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho n
 | **2** | Bảng `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`; interface `RiskRule`, `FeatureProvider` | Bản đầu của generator (chỉ giao dịch bình thường) | Migration chạy được; code khung có test |
 | **3** | Sync guard cùng #1 (trạng thái, hạn mức lần, hạn mức ngày) | Thêm kịch bản gian lận và hard negative | AC-5.6, 5.7 xanh trong CI |
 | **4** | 6 luật + consumer + Redis + dự phòng SQL; unit test từng luật | Hoàn thiện generator, giao **tập tune** | Chuyển tiền → cờ tự xuất hiện; AC-9.1, 9.2 xanh |
-| **5** | API review (UC-10); `OfflineFeatureProvider`; đánh giá lần đầu trên tập tune | Hỗ trợ đọc kết quả, kiểm tra dữ liệu có hợp lý không | Demo giữa kỳ có phần review cờ; có số liệu đầu tiên |
-| **6** | Chỉnh tham số trên tập tune; test so khớp online/offline; cấu hình có phiên bản (UC-12 nếu kịp) | — | Có bảng "trước / sau tune" |
+| **5** | API review (UC-10); `OfflineFeatureProvider`; đánh giá lần đầu trên tập tune; **spike ONNX và cổng go/no-go cho `v3` (cuối tuần)** | Hỗ trợ đọc kết quả, kiểm tra dữ liệu có hợp lý không | Demo giữa kỳ có phần review cờ; có số liệu đầu tiên |
+| **6** | Học tham số (`v2`) trên tập tune; chỉ nếu qua cổng go/no-go: huấn luyện và tích hợp `v3`; test so khớp online/offline; cấu hình có phiên bản (UC-12) | — | Có bảng đối sánh các chế độ trên tập tune |
 | **7** | **Đóng băng cấu hình** → chạy holdout một lần; ablation, đường PR | Giao nhãn holdout; chạy đánh giá online (latency, tải DB, có/không Redis) | Có toàn bộ số liệu cho P5 |
 | **8** | Hỗ trợ P4: dashboard cảnh báo / 1.000, alarm | Failure injection cho worker (tắt Redis, DB lỗi) | Số liệu fraud có trong P4 |
 | **9** | **Viết báo cáo P5**; chuẩn bị trả lời câu 12 | Viết phần mô tả bộ dữ liệu và giới hạn | Nộp P5 |
@@ -586,6 +629,8 @@ Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho n
 | Generator trễ | Tuần 4 chưa có tập tune | #4 tự làm bộ dữ liệu nhỏ thủ công để test luật (không dùng cho đánh giá cuối) |
 | Truy vấn luật chậm | p95 xử lý sự kiện > 50 ms | Kiểm tra index; chuyển thêm đặc trưng sang Redis |
 | Event thiếu trường | Không có `sameOwner` | Tạm bỏ ngoại lệ, ghi rõ trong báo cáo; đề xuất bổ sung sớm ở tuần 1 |
+| Gói ONNX không chạy trên image hiện tại hoặc quá nặng | Spike tuần 5 không qua | Dừng ở `v2`; ghi lý do vào P5. Đổi base image khỏi `node:24-alpine` là thay đổi ADR-13, cần nhóm duyệt |
+| Mô hình quá khớp, hoặc chọn phiên bản dựa trên holdout | Recall tune rất cao, holdout thấp | Cross-validation theo khách; đóng băng cả ba phiên bản trước holdout; không dùng `scenario` làm đặc trưng |
 
 ---
 
@@ -594,21 +639,21 @@ Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho n
 | Giới hạn hiện tại | Hướng phát triển |
 |---|---|
 | Chỉ chấm phía người gửi | Luật fan-in phía người nhận (nhiều người chuyển vào một tài khoản) |
-| Không bắt được rút dần, chia nhỏ dưới ngưỡng | Luật tổng tiền theo cửa sổ dài (24h, 7 ngày); luật phát hiện số tiền sát ngưỡng |
+| `v1` và `v2` không bắt được rút dần, chia nhỏ dưới ngưỡng | Luật tổng tiền theo cửa sổ dài (24h, 7 ngày); hoặc mô hình `v3` nếu qua cổng go/no-go (chỉ đưa vào khi đo được lợi ích) |
 | Không có dữ liệu thiết bị, IP, vị trí | Giả lập header `X-Device-Id`, thêm luật "thiết bị mới + chuyển lớn" |
 | Phát hiện sau khi tiền đã đi | Giữ tiền chờ duyệt với giao dịch điểm `HIGH` |
-| Trọng số chỉnh tay | Dùng nhãn review của nhân viên để học trọng số (logistic regression), hoặc thêm mô hình anomaly; so sánh với rule-based trên cùng holdout |
+| `v2` học tham số trên dữ liệu tổng hợp, không phải nhãn thật | Dùng nhãn review của nhân viên để học lại tham số hoặc thêm mô hình anomaly; so sánh trên cùng holdout |
 | Dữ liệu tổng hợp | Thử trên bộ dữ liệu công khai (ví dụ PaySim — kiểm tra giấy phép trước) |
 
 ---
 
 ## 10. Trả lời câu bảo vệ 12: "AI: chất lượng, an toàn, chi phí?"
 
-> **Chất lượng:** chúng em đánh giá trên tập holdout ~30.000 giao dịch do người khác sinh, chưa từng thấy nhãn khi chỉnh luật. Recall đạt X% trên các kịch bản luật nhắm tới, precision Y%, Z cảnh báo trên 1.000 giao dịch. Chúng em cố ý đưa vào 3 kịch bản luật không phủ để đo trung thực; recall ở các kịch bản này thấp, và đó là giới hạn chúng em nêu rõ.
+> **Chất lượng:** chúng em đánh giá trên tập holdout ~30.000 giao dịch do thành viên #6 sinh độc lập, chưa từng thấy nhãn khi chỉnh luật và huấn luyện mô hình. Chúng em đóng băng các phiên bản trước khi chạy holdout rồi báo cáo tất cả: (`v1`) 6 luật ngưỡng cố định, (`v2`) 6 luật học tham số từ dữ liệu, và (`v3`) kết hợp thêm mô hình LightGBM/XGBoost nếu qua cổng đánh giá khả thi. Trên các kịch bản mục tiêu, recall đạt X%, precision Y%, Z cảnh báo trên 1.000 giao dịch; chúng em nêu rõ kịch bản mà luật tĩnh bỏ sót (`STRUCTURING`, `SLOW_DRIP`) và kết quả của `v3` trên đó (hoặc lý do không đưa `v3` vào), cùng giới hạn thiết kế với `FAN_IN`.
 >
-> **An toàn:** hệ thống không bao giờ tự chặn hay tự khóa — chỉ gắn cờ có giải thích, nhân viên quyết định. Khách không thấy cờ. Mỗi cờ ghi phiên bản luật, mỗi quyết định có nhật ký. Fraud chạy bất đồng bộ nên lỗi ở fraud không ảnh hưởng chuyển tiền.
+> **An toàn:** hệ thống không bao giờ tự chặn hay tự khóa — chỉ gắn cờ có giải thích tiếng Việt theo 6 nhóm rủi ro `R1–R6`, nhân viên quyết định cuối cùng. Khách không thấy cờ (AC-10.2). Mỗi cờ ghi phiên bản cấu hình `rule_set_version`, mỗi quyết định có nhật ký. Nếu dùng mô hình ONNX thì có kiểm `sha256`, fail-safe tự rơi về 6 luật và công tắc tắt khẩn cấp; toàn bộ chạy bất đồng bộ nên không bao giờ ảnh hưởng chuyển tiền.
 >
-> **Chi phí:** rule-based nên không tốn token. Chi phí là một task worker và khoảng 3–4 truy vấn mỗi giao dịch; bộ đếm Redis giảm tải RDS khoảng N% ở 120 RPS (số liệu đo được).
+> **Chi phí:** không gọi LLM nên không tốn token; nếu có `v3` thì mô hình chạy in-process trong worker (không dựng thêm container Python riêng, tuân thủ ADR-13), kèm mức tăng kích thước image và độ trễ suy luận đã đo. Chi phí chỉ gồm một task worker và 3–4 truy vấn mỗi giao dịch; bộ đếm Redis giảm tải RDS khoảng N% ở 120 RPS (số liệu đo được).
 
 Các chữ X, Y, Z, N điền từ kết quả tuần 7.
 

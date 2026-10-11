@@ -1,11 +1,11 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Draft v1.4 — chờ nhóm review · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-06
+> **Status:** Draft v1.5 — chờ nhóm review · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-11
 
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
-| Phiên bản | 1.4 — bản nháp để nhóm review (code khởi tạo tại [`backend/`](../backend/README.md)) |
+| Phiên bản | 1.5 — bản nháp để nhóm review (code khởi tạo tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [01_BUSINESS_ANALYSIS.md](01_BUSINESS_ANALYSIS.md) (BG, BR) · [02_REQUIREMENTS_AND_DOMAIN_MODEL.md](02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (UC, FR, NFR, domain model) |
 | Tài liệu liên quan | [DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md](DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md) (ADR-11) · [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đánh dấu *(GĐ)* là giả định. Giá cloud là giá tham khảo, cần kiểm lại theo region |
@@ -488,6 +488,7 @@ sequenceDiagram
 | POST | `/v1/operator/accounts/{id}/lock` | operator | UC-11 | Thu hồi phiên ngay |
 | POST | `/v1/operator/accounts/{id}/unlock` | operator | UC-11 | |
 | GET | `/v1/operator/fraud-flags` | operator | UC-10 | Lọc theo trạng thái, mức rủi ro |
+| GET | `/v1/operator/fraud-flags/{transferId}` | operator | UC-10 | Chi tiết cờ: điểm, mức, luật kích hoạt kèm giải thích, 10 giao dịch gần nhất của tài khoản nguồn; mỗi lần xem ghi audit |
 | POST | `/v1/operator/fraud-flags/{transferId}/review` | operator | UC-10 | Chỉ review một lần; lần hai trả 409 `FLAG_ALREADY_REVIEWED` |
 | GET | `/v1/audit/entries` | auditor | UC-8 | Lọc theo người, hành động, thời gian, `correlationId` |
 | GET | `/v1/admin/risk-config` | admin | UC-12 | Phiên bản hiện hành |
@@ -914,7 +915,7 @@ flowchart LR
 - **Quyền:** nhân viên xem/kết luận cờ, kiểm toán viên chỉ đọc, khách không thấy cờ (BR-13).
 - **Dữ liệu:** không ghi số tài khoản đầy đủ hay thông tin cá nhân vào log của consumer hay vào Redis.
 - **Xử lý tiền khi gian lận thật:** ngoài phạm vi v1; hướng mở rộng là giao dịch `REVERSAL` mới qua sổ cái.
-- **Chi phí:** rule-based không tốn token; chi phí là CPU worker, truy vấn DB và Redis. Nếu sau này thêm LLM để viết giải thích cho nhân viên thì mới cần phân tích token.
+- **Chi phí:** không gọi LLM nên không tốn token; chi phí là CPU worker, truy vấn DB và Redis. Nếu bật chế độ `v3` (mô hình ONNX, ADR-08) thì thêm mức tăng kích thước image và độ trễ suy luận, đo ở cổng go/no-go. Nếu sau này thêm LLM để viết giải thích cho nhân viên thì mới cần phân tích token.
 
 ---
 
@@ -962,7 +963,7 @@ Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 13.
 | ADR-05 | Idempotency trong Postgres, scope theo user, `ON CONFLICT DO NOTHING` | Redis · Không idempotency | D-2 |
 | ADR-06 | Cognito; ECS Fargate | JWT tự quản; EKS | D-8 |
 | ADR-07 | NestJS/TypeScript và tầng truy cập dữ liệu | Spring Boot · FastAPI; TypeORM vs Kysely vs Prisma | D-8 |
-| ADR-08 | Fraud rule-based, gắn cờ bất đồng bộ | ML từ đầu · Chặn đồng bộ · Không phát hiện | D-4 |
+| ADR-08 | Fraud bất đồng bộ theo phiên bản: 6 luật (`v1`), luật học tham số (`v2`), mô hình ONNX in-process (`v3`) chỉ khi qua cổng go/no-go | Chặn đồng bộ · Chỉ luật tĩnh · Microservice Python riêng · Không phát hiện | D-4 |
 | ADR-09 | Nạp tiền qua tài khoản SYSTEM, đi qua sổ cái | Sửa số dư trực tiếp · Không có nạp tiền | D-1 |
 | ADR-10 | Egress mạng cho Fargate | NAT Gateway · VPC endpoints · Public subnet + security group | D-8 |
 | ADR-11 | Cloud managed services | VPS tự quản · Kết hợp | D-7, D-8 |
@@ -1019,3 +1020,4 @@ Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 13.
 | **1.2** | Đồng bộ với database-design: tên cột `from_account_id`/`to_account_id`, `balance_after`, bỏ `users.role` (vai trò lấy từ nhóm Cognito), `fraud_rule_hits.weight` thay `rule_version`, bỏ index `transfers(to_account, …)`. Event `TransferCompleted` thêm `sameOwner`, `fromUserId`, `toUserId`. Relay outbox là ngoại lệ của quy tắc "không gọi SQS trong transaction". Chi phí egress gồm VPC endpoint. Nêu giới hạn hàng `funding` khi nạp tiền. Staging cũng bắt buộc TLS |
 | **1.3** | Thêm bảng tra use case và 4 sơ đồ người dùng đi qua các thành phần ở mục 6: UC-5 đầu-cuối (6.3), UC-3 (6.4), UC-10 (6.5), UC-8 (6.6). UC-11 giữ nguyên ở 6.2 |
 | **1.4** | Lấp các khoảng trống trước khi implement: endpoint tra cứu tài khoản cho nhân viên (§7, §6.4), mã `FLAG_ALREADY_REVIEWED` (§7.1), key `cfg:risk:latest` (§9), ghi chú sự kiện không phát ở v1 (§10), tạo dòng `users` và tài khoản nhân viên (§12) |
+| **1.5** | Đồng bộ với ADR-08 mới: chi phí fraud (§15.5), dòng ADR-08 ở bảng ADR, thêm `GET /v1/operator/fraud-flags/{transferId}` vào bảng API (§7) |

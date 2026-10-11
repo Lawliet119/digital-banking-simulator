@@ -1,6 +1,6 @@
 # Database Design
 
-> **Status:** Draft (đề xuất, chờ #1 duyệt) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** n/a (chưa có migration nào) · **Cập nhật:** 2026-10-06
+> **Status:** Draft (đề xuất, chờ #1 duyệt) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** n/a (chưa có migration nào) · **Cập nhật:** 2026-10-11
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
@@ -311,6 +311,7 @@ CREATE TABLE fraud_rule_hits (
 - **Review một lần** (AC-10.1): `UPDATE fraud_flags SET review_status = $1, … WHERE transfer_id = $2 AND review_status = 'OPEN'`; 0 dòng bị ảnh hưởng nghĩa là đã được review, từ chối. Không cần khóa riêng.
 - `risk_rule_sets` phải có **phiên bản 1 từ migration**, nếu không worker khởi động mà chưa có luật nào để chấm.
 - Bỏ `rule_version` ở `fraud_rule_hits` (docs/03 ERD có) vì thừa so với `fraud_flags.rule_set_version`.
+- Mỗi nhóm luật một dòng (khóa chính `(transfer_id, rule_id)`). Nếu sau này bật chế độ `v3` (ADR-08), điểm của mô hình được cộng vào dòng của nhóm được quy kết hoặc tạo dòng mới có `explanation` bắt đầu bằng `[AI-Rn]`; tổng `weight` luôn bằng `score` của cờ. Không đổi cột.
 
 ### 4.9 `notification_log`, `reconciliation_runs`
 

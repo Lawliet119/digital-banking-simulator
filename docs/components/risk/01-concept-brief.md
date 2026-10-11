@@ -1,6 +1,6 @@
 # risk — Concept Brief
 
-> **Status:** Draft · **Owner:** #4 · **Cặp đôi:** #1 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #4 · **Cặp đôi:** #1 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-11
 
 ## Component
 
@@ -19,17 +19,23 @@ Giao dịch đáng ngờ chỉ được phát hiện qua báo cáo hôm sau, lú
 
 ## Ý tưởng
 
-- Sau mỗi giao dịch hoàn tất, worker chấm điểm bằng 6 luật (velocity, số tiền bất thường, tài khoản mới chuyển lớn, chuyển vòng, fan-out, rút cạn) và gắn cờ nếu từ mức Trung bình.
-- Luật là hàm thuần, chạy được cả online (Redis + SQL) lẫn offline (dữ liệu trong bộ nhớ) để đánh giá precision/recall.
-- Hệ thống chỉ gắn cờ; chỉ nhân viên review và khóa tài khoản. Khách không bao giờ thấy cờ.
-- Cấu hình luật có phiên bản bất biến; mỗi cờ ghi phiên bản đã dùng.
+- Sau mỗi giao dịch chuyển tiền hoàn tất (`TransferCompleted`), worker chấm điểm bằng 6 luật giải thích được (`R1–R6`: velocity, số tiền bất thường, tài khoản mới chuyển lớn, chuyển vòng, fan-out, rút cạn) và gắn cờ nếu từ mức Trung bình.
+- Cấu hình luật có phiên bản bất biến (`risk_rule_sets`) với 3 chế độ ([ADR-08](../../adr/0008-fraud-detection-architecture.md)): **`v1`** 6 luật như thiết kế (bắt buộc, mặc định), **`v2`** vẫn 6 luật nhưng ngưỡng và trọng số học từ dữ liệu, **`v3`** thêm mô hình ML chạy in-process qua ONNX. `v3` chỉ là mở rộng có điều kiện: được đưa vào nếu qua cổng go/no-go cuối tuần 5.
+- Luật và bộ chấm điểm nhận đặc trưng từ `FeatureProvider` để chạy đồng nhất cả online (Redis + view `v_transfer_facts`) lẫn offline (dữ liệu CSV trong bộ nhớ), nhờ đó đánh giá được precision/recall.
+- Hệ thống chỉ gắn cờ (`OPEN`) kèm lời giải thích tiếng Việt theo 6 nhóm rủi ro `R1–R6`; chỉ nhân viên vận hành (`operator`) review và quyết định khóa tài khoản. Khách hàng không bao giờ thấy cờ (BR-13).
+- Mỗi cờ ghi `rule_set_version` đã dùng.
+
+## Quyết định liên quan (đang đề xuất)
+
+- [ADR-08](../../adr/0008-fraud-detection-architecture.md) — **Proposed**. Chốt `v1` và `v2` là phạm vi chính; `v3` ONNX chỉ vào khi qua cổng go/no-go.
+- ADR-12 — **Proposed** (xem [bảng ADR](../../adr/README.md)). Bộ đếm đặc trưng trên Redis (`risk:vel:{accountId}`, `risk:fan:{accountId}`) có đường dự phòng SQL và cache cấu hình bất biến (`cfg:risk:latest`, `cfg:risk:v{n}`).
 
 ## Ngoài phạm vi (v1)
 
-- Machine learning (hướng mở rộng).
-- Chặn đồng bộ hoặc giữ tiền chờ duyệt.
-- Dữ liệu thiết bị, IP, vị trí.
-- Phát hiện phía người nhận (fan-in).
+- Chặn đồng bộ giao dịch vì "đáng ngờ" hoặc giữ tiền chờ duyệt (`HELD`).
+- Tự động khóa tài khoản hoặc tự động đảo giao dịch (`REVERSAL`).
+- Dữ liệu thiết bị, IP, vị trí địa lý.
+- Tách microservice Python riêng cho inference (trái ADR-13). Nếu `v3` được bật, mô hình chạy in-process trong worker.
 
 ## Liên kết
 
