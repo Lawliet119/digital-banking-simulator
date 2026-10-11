@@ -1,6 +1,6 @@
 # 01 — Business Analysis: Digital Banking Simulator
 
-> **Status:** Draft v1.0 — chờ nhóm review · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-06
+> **Status:** Draft v1.0 — chờ nhóm review · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-11
 
 | Thuộc tính | Giá trị |
 |---|---|
@@ -294,7 +294,7 @@ flowchart LR
 | Chuyển tiền nội bộ trong ngân hàng | Chuyển liên ngân hàng (NAPAS, SWIFT) |
 | Xem số dư, lịch sử, trạng thái giao dịch | Sao kê PDF, báo cáo tài chính |
 | Nhật ký kiểm toán và tra cứu | Báo cáo theo chuẩn cơ quan quản lý |
-| Phát hiện giao dịch đáng ngờ theo luật, nhân viên xử lý cảnh báo | Mô hình học máy (để mở rộng), chặn giao dịch theo thời gian thực |
+| Phát hiện giao dịch đáng ngờ theo luật, nhân viên xử lý cảnh báo | Chặn giao dịch theo thời gian thực; mô hình học máy chỉ là phần mở rộng có điều kiện (ADR-08, cổng go/no-go tuần 5) |
 | Khóa / mở khóa tài khoản | Đảo giao dịch, hoàn tiền (để mở rộng) |
 | Thông báo giả lập | Gửi SMS / email thật |
 | Một loại tiền (VND) | Đa tiền tệ, tỉ giá |
