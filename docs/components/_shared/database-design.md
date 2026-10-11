@@ -1,10 +1,10 @@
 # Database Design
 
-> **Status:** Draft (đề xuất, chờ #1 duyệt) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** n/a (chưa có migration nào) · **Cập nhật:** 2026-10-11
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** n/a (chưa có migration nào) · **Cập nhật:** 2026-10-11
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
-Nguồn: [docs/03 §8](../../03_HIGH_LEVEL_ARCHITECTURE.md) (data architecture), [docs/02 §7–8](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (aggregate, bất biến, vòng đời), [FRAUD_DETECTION_GUIDE §5.3](../risk/FRAUD_DETECTION_GUIDE.md) (bảng fraud). Chỗ nào khác các tài liệu đó đều nằm ở [§13](#13-điểm-khác-với-tài-liệu-hiện-tại-và-việc-cần-chốt).
+Nguồn: [docs/03 §8](../../03_HIGH_LEVEL_ARCHITECTURE.md) (data architecture), [docs/02 §7–8](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (aggregate, bất biến, vòng đời), [FRAUD_DETECTION_GUIDE §5.3](../risk/FRAUD_DETECTION_GUIDE.md) (bảng fraud). Các điểm từng khác các tài liệu đó đã được sửa vào nguồn; lịch sử ở [§13](#13-các-điểm-đã-chốt).
 
 ---
 
@@ -99,7 +99,7 @@ erDiagram
     }
 ```
 
-**Năm bảng kỹ thuật không vẽ trong ERD** vì không có quan hệ nghiệp vụ: `outbox_events`, `processed_events`, `audit_log`, `notification_log` và `reconciliation_runs` (bảng mới, xem [§13](#13-điểm-khác-với-tài-liệu-hiện-tại-và-việc-cần-chốt)). Tổng: 9 bảng nghiệp vụ + 5 bảng kỹ thuật = **14 bảng** (chưa kể bảng `migrations` của TypeORM).
+**Năm bảng kỹ thuật không vẽ trong ERD** vì không có quan hệ nghiệp vụ: `outbox_events`, `processed_events`, `audit_log`, `notification_log` và `reconciliation_runs` (bảng mới, xem [§13](#13-các-điểm-đã-chốt)). Tổng: 9 bảng nghiệp vụ + 5 bảng kỹ thuật = **14 bảng** (chưa kể bảng `migrations` của TypeORM).
 
 ---
 
@@ -164,7 +164,7 @@ CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYST
 CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL;
 ```
 
-- `type` (`CHECKING`/`SAVINGS`) là giả định *(GĐ)*; docs chỉ nói UC-2 nhận "loại tài khoản". Đổi được bằng migration.
+- `type` là `CHECKING` hoặc `SAVINGS`; ở v1 hai loại hành xử giống nhau (chỉ là nhãn). Thêm loại mới bằng migration đổi `CHECK`.
 - **Giới hạn 3 tài khoản/khách (BR-14) không biểu diễn được bằng `CHECK`.** Nó được giữ bằng transaction mở tài khoản có `SELECT … FOR UPDATE` hàng `customers`, rồi `COUNT`. Có test đồng thời bắt buộc cho việc này.
 - Lý do khóa tài khoản (UC-11) **không** nằm ở bảng này mà ở `audit_log`: một tài khoản có thể bị khóa/mở nhiều lần và mỗi lần là một sự kiện.
 - Không có số tài khoản dạng người đọc được: v1 dùng `uuid` làm định danh tài khoản trong API. Chấp nhận vì đề tài là backend; thêm `account_number` sau cũng chỉ là một cột `UNIQUE`.
@@ -452,7 +452,7 @@ Ma trận quyền (S = SELECT, I = INSERT, U = UPDATE, D = DELETE):
 
 Nhìn bảng này thấy ngay: **không role nào có `UPDATE` hay `DELETE` trên `ledger_entries`, `transfers`, `audit_log`**. Với `accounts`, nên cấp `UPDATE` theo cột (`GRANT UPDATE (balance, status, updated_at)`), tương tự `fraud_flags` chỉ cho sửa các cột `review_*`.
 
-**Giới hạn cần nói thật:** playbook/FRAUD guide muốn "DB role riêng cho risk consumer, chỉ đọc `transfers` và chỉ ghi bảng fraud". Với một process `worker` chứa cả relay, risk, notification, role đó phải là **hợp** các quyền trên. Muốn tách đúng nghĩa thì `risk` phải mở một kết nối riêng với role riêng; đó là hướng mở rộng, không làm ở v1 (ghi vào `risk/05-backlog`).
+**Giới hạn cần nói thật:** playbook/FRAUD guide muốn "DB role riêng cho risk consumer, chỉ đọc `transfers` và chỉ ghi bảng fraud". Với một process `worker` chứa cả relay, risk, notification, role đó phải là **hợp** các quyền trên. Muốn tách đúng nghĩa thì `risk` phải mở một kết nối riêng với role riêng; đó là hướng mở rộng, không làm ở v1 (đã ghi ở mục rủi ro chấp nhận của [threat model](../../security/threat-model.md)).
 
 ### 8.2 View `v_transfer_facts`
 
@@ -509,10 +509,10 @@ CREATE TRIGGER ledger_entries_no_truncate
 |---|---|---|---|
 | `ledger_entries`, `transfers`, `audit_log` | **Vĩnh viễn** | Không dọn | Dữ liệu tài chính và kiểm toán |
 | `accounts`, `customers`, `users`, `risk_rule_sets`, `fraud_*` | Vĩnh viễn | Không dọn | |
-| `idempotency_keys` | **≥ 7 ngày** *(GĐ)* | Job `worker` xóa `created_at < now() - 7 days` | Gửi lại sau 7 ngày với cùng key sẽ bị coi là lệnh mới; chấp nhận và nêu trong tài liệu API |
-| `outbox_events` | Đã gửi + 7 ngày *(GĐ)* | Job `worker` xóa `published_at < now() - 7 days` | Dòng chưa gửi không bao giờ bị xóa |
-| `processed_events` | **≥ thời gian giữ message của SQS + dư** | Job `worker` | Giữ 7 ngày nếu queue giữ 4 ngày *(GĐ)*; ngắn hơn thì một message giao lại muộn sẽ bị xử lý hai lần |
-| `notification_log` | 30 ngày *(GĐ)* | Job `worker` | v1 chỉ để quan sát |
+| `idempotency_keys` | **7 ngày** (ADR-05) | Job `worker` xóa `created_at < now() - 7 days` | Gửi lại sau 7 ngày với cùng key sẽ bị coi là lệnh mới; chấp nhận và nêu trong tài liệu API |
+| `outbox_events` | Đã gửi + 7 ngày | Job `worker` xóa `published_at < now() - 7 days` | Dòng chưa gửi không bao giờ bị xóa |
+| `processed_events` | **≥ thời gian giữ message của SQS + dư** | Job `worker` | Giữ 7 ngày vì queue giữ message 4 ngày (ADR-03); ngắn hơn thì một message giao lại muộn sẽ bị xử lý hai lần |
+| `notification_log` | 30 ngày | Job `worker` | v1 chỉ để quan sát |
 | `reconciliation_runs` | 90 ngày | Job `worker` | |
 
 Job dọn **xóa theo lô nhỏ** (ví dụ 5.000 dòng mỗi lần, lặp), không `DELETE` một phát cả triệu dòng: một câu `DELETE` lớn giữ khóa và sinh bloat. Chúng dùng đúng các index dọn ở [§6.1](#6-index).
@@ -588,11 +588,11 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 
 ---
 
-## 13. Điểm khác với tài liệu hiện tại và việc cần chốt
+## 13. Các điểm đã chốt
 
-Mỗi dòng là một đề xuất sửa. Cột "Chặn" cho biết task nào phải đợi.
+Bảng giữ lại làm lịch sử: 18 điểm từng khác các tài liệu khác, **tất cả đã chốt ngày 2026-10-11** và đã sửa vào tài liệu nguồn. Cột "Chặn" là task từng phải đợi.
 
-**Cập nhật 2026-10-06:** các điểm 1–10, 12 (phần `docker-compose.yml`) và 14 đã được sửa vào tài liệu nguồn (docs/02, docs/03, ledger brief, FRAUD guide, README module, event contract, roadmap); `SnakeNamingStrategy` làm cùng migration đầu. Bảng vẫn chờ #1 duyệt; ai thấy điểm nào sai thì mở issue.
+**06/10:** điểm 1–10, 12 và 14 đã sửa vào nguồn. **11/10:** chốt nốt 11 (`clock_timestamp()`), 13 (uuid v4), 15 (bỏ `users.role`), 16 (một hàng `funding`, [ADR-09](../../adr/0009-funding-system-account.md)), 17 (upsert `users` ở token đầu tiên, [ADR-06](../../adr/0006-cognito-ecs-fargate.md)), 18 (`GET /v1/operator/accounts`). Thứ tự migration ở §11 giữ nguyên. Ai thấy điểm nào sai thì viết ADR hoặc mở PR sửa.
 
 | # | Đề xuất | Hiện tại ở đâu | Chặn |
 |---|---|---|---|

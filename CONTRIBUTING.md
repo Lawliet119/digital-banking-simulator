@@ -4,33 +4,48 @@
 
 ```mermaid
 flowchart LR
-    I[Issue trên board] --> B[Tạo nhánh từ main] --> C[Code + test] --> P[Mở Pull Request] --> R{Cặp đôi review<br/>CI xanh?}
+    I[Task DBS-n trên board] --> B[Tạo nhánh từ main] --> C[Code + test] --> P[Mở Pull Request] --> R{Cặp đôi review<br/>CI xanh?}
     R -- Chưa --> C
     R -- Đạt --> M[Squash merge vào main] --> D[Tự động deploy]
 ```
 
-1. Mỗi việc là một **issue** trên board của nhóm.
+1. Mỗi việc là một **task `DBS-n`** trên board của nhóm.
 2. Tạo nhánh từ `main` theo quy tắc đặt tên bên dưới.
 3. Mở **Pull Request** sớm (có thể để Draft) để người khác thấy tiến độ.
-4. Cần **1 người duyệt** (mặc định là cặp đôi) và **CI xanh** mới được merge.
+4. **Cặp đôi review** trước khi merge và **CI phải xanh**. Ruleset của `main` bắt buộc PR, chỉ cho squash, chặn force push và xóa nhánh, nhưng **không ép số approval** (đặt 0): việc cặp đôi review là quy ước của nhóm, GitHub không chặn. Người mở PR không tự merge khi cặp đôi chưa để lại review.
 5. Merge bằng **Squash and merge** để lịch sử `main` gọn.
 
 **Không push thẳng vào `main`.**
 
+## 1b. Quy ước board
+
+Board của nhóm (Google Sheet, mỗi tuần một tab) là nơi duy nhất theo dõi việc. Mỗi task có mã `DBS-n`, người làm, cặp đôi review, cột **Phụ thuộc** và DoD.
+
+| Khi | Đổi Status thành |
+|---|---|
+| Bắt đầu làm | `In Progress` |
+| Mở PR (kể cả Draft) | `In Review`, dán link PR vào cột Thực trạng |
+| PR đã merge và DoD đạt | `Done` |
+
+- Chỉ bắt đầu task khi mọi task ở cột Phụ thuộc đã `Done`, hoặc đã thống nhất interface với người làm task đó.
+- Bị chặn quá một buổi làm việc thì báo ngay trong kênh chat, ghi rõ cần ai.
+- Tên nhánh và tiêu đề PR có mã task, ví dụ `feat/DBS-79-idempotency-replay`.
+- Đổi interface, schema, event hay biến môi trường mà người khác dùng thì báo trước và sửa tài liệu trong cùng PR.
+
 ## 2. Đặt tên nhánh
 
 ```
-<loại>/<số-issue>-<mô-tả-ngắn>
+<loại>/DBS-<n>-<mô-tả-ngắn>
 ```
 
 | Loại | Dùng khi | Ví dụ |
 |---|---|---|
-| `feat` | Tính năng mới | `feat/12-transfer-idempotency` |
-| `fix` | Sửa lỗi | `fix/31-daily-limit-race` |
-| `docs` | Tài liệu, ADR | `docs/5-adr-04-locking` |
-| `infra` | Terraform, CI/CD | `infra/8-rds-module` |
-| `test` | Chỉ thêm/sửa test | `test/20-concurrent-transfer` |
-| `chore` | Việc lặt vặt | `chore/2-eslint-config` |
+| `feat` | Tính năng mới | `feat/DBS-79-transfer-idempotency` |
+| `fix` | Sửa lỗi | `fix/DBS-84-daily-limit-race` |
+| `docs` | Tài liệu, ADR | `docs/DBS-201-sync-docs-with-code` |
+| `infra` | Terraform, CI/CD | `infra/DBS-66-rds-module` |
+| `test` | Chỉ thêm/sửa test | `test/DBS-99-concurrent-transfer` |
+| `chore` | Việc lặt vặt | `chore/DBS-22-money-helpers` |
 
 ## 3. Commit message
 
@@ -56,7 +71,7 @@ Một Pull Request chỉ được merge khi:
 - [ ] Có test cho logic mới; test liên quan đến tiền chạy trên **PostgreSQL thật** (Testcontainers), không mock
 - [ ] CI xanh
 - [ ] Không có secret trong code, log hay commit
-- [ ] Nếu đổi thiết kế: cập nhật `docs/components/<module>/` (hoặc `docs/01–03` nếu thuộc cấp hệ thống) và thêm ADR nếu là quyết định kiến trúc; xem [docs/README.md](docs/README.md)
+- [ ] Nếu đổi thiết kế: cập nhật `docs/03` (hoặc `docs/01–02`, `_shared/database-design.md`, `_shared/event-contract.md`) và thêm ADR nếu là quyết định kiến trúc; xem [docs/README.md](docs/README.md)
 - [ ] Nếu đổi API: OpenAPI (Swagger) được cập nhật
 
 ## 5. Quy tắc bắt buộc khi làm với tiền
@@ -86,4 +101,4 @@ Chi tiết: [docs/03_HIGH_LEVEL_ARCHITECTURE.md](docs/03_HIGH_LEVEL_ARCHITECTURE
 
 ## 7. ADR
 
-Mỗi quyết định kiến trúc quan trọng là một file trong `docs/adr/`, theo [mẫu](docs/adr/0000-template.md). Viết ngay khi chốt quyết định; #1 duyệt.
+Mỗi quyết định kiến trúc quan trọng là một file trong `docs/adr/`, theo [mẫu](docs/adr/0000-template.md). 13 ADR hiện có đều đã `Accepted`. Muốn đổi một quyết định thì viết ADR mới thay thế (trạng thái cũ thành `Superseded`), không sửa nội dung ADR cũ; #1 duyệt.

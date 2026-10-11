@@ -1,14 +1,14 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Draft v1.5 — chờ nhóm review · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-11
+> **Status:** Accepted v1.6 (chốt 2026-10-11) · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-11
 
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
-| Phiên bản | 1.5 — bản nháp để nhóm review (code khởi tạo tại [`backend/`](../backend/README.md)) |
+| Phiên bản | 1.6 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [01_BUSINESS_ANALYSIS.md](01_BUSINESS_ANALYSIS.md) (BG, BR) · [02_REQUIREMENTS_AND_DOMAIN_MODEL.md](02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (UC, FR, NFR, domain model) |
-| Tài liệu liên quan | [DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md](DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md) (ADR-11) · [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) · [adr/](adr/README.md) |
-| Lưu ý | Mọi con số đánh dấu *(GĐ)* là giả định. Giá cloud là giá tham khảo, cần kiểm lại theo region |
+| Tài liệu liên quan | [ADR-01…13](adr/README.md) · [threat model](security/threat-model.md) · [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) · [adr/](adr/README.md) |
+| Lưu ý | Mọi con số đã chốt ngày 2026-10-11 (lý do ở các ADR). Giá cloud là giá tham khảo region `ap-southeast-1`; số thật lấy từ Cost Explorer |
 
 Tài liệu này trả lời câu hỏi **"xây như thế nào và vì sao"**. Mỗi quyết định đều truy về một yêu cầu ở tài liệu 02.
 
@@ -118,7 +118,7 @@ flowchart LR
 | `worker` | outbox relay, risk scoring, notification | HTTP listener | ECS service `worker` |
 | `both` (mặc định) | tất cả | — | máy local, test |
 
-Lý do: một Dockerfile, một pipeline build, một lần quét image, và module dùng chung (ví dụ `risk` vừa có API review vừa có consumer chấm điểm) nằm trong cùng một thư mục thay vì tách đôi. Quy tắc: producer (ghi bảng outbox, publish) chạy ở mọi role vì xảy ra trong request; chỉ **consumer và scheduler** bị chặn ở role `api`. Instance `worker` không có cổng HTTP nên ECS kiểm tra sức khỏe bằng lệnh riêng thay vì `/health/ready`.
+Lý do: một Dockerfile, một pipeline build, một lần quét image, và module dùng chung (ví dụ `risk` vừa có API review vừa có consumer chấm điểm) nằm trong cùng một thư mục thay vì tách đôi. Quy tắc: producer (ghi bảng outbox, publish) chạy ở mọi role vì xảy ra trong request; chỉ **consumer và scheduler** bị chặn ở role `api`. Instance `worker` không có cổng HTTP: ECS thay task khi tiến trình thoát, còn worker bị treo được phát hiện qua alarm tuổi outbox chưa gửi và tuổi message cũ nhất của queue (mục 14).
 
 ---
 
@@ -630,7 +630,7 @@ Các bảng kỹ thuật không vẽ trong sơ đồ: `outbox_events`, `processe
 
 Theo P2 (slide 30–31), câu hỏi không phải "có dùng Redis không?" mà là **data nào cache được, TTL bao nhiêu, khi nào invalidate, và Redis hỏng thì sao**. Nhóm dùng Redis cho 4 việc, mỗi việc giải quyết một vấn đề cụ thể mà Postgres hoặc bộ nhớ trong từng task không làm tốt.
 
-**Engine:** Valkey trên Amazon ElastiCache (tương thích Redis, mã nguồn mở). Dev local dùng container Valkey. Chọn Serverless hay node cố định ở ADR-12.
+**Engine:** Valkey trên Amazon ElastiCache (tương thích Redis, mã nguồn mở). Dev local dùng container Valkey. Dùng node cố định, cluster mode tắt, TLS và AUTH token ([ADR-12](adr/0012-redis-valkey-node.md)).
 
 ### 9.1 Bốn mục đích sử dụng
 
@@ -638,7 +638,7 @@ Theo P2 (slide 30–31), câu hỏi không phải "có dùng Redis không?" mà 
 |---|---|---|---|---|---|
 | **R-1** | **Rate limit toàn cục** theo user và IP | Mỗi task đếm riêng: 2 task → giới hạn thực tế gấp đôi | Counter theo cửa sổ, `INCR` + `EXPIRE` | Hết hạn theo cửa sổ (60 giây) | NFR-SEC-05 |
 | **R-2** | **Cache mốc thu hồi phiên** | Mọi request phải đọc `users` từ DB để biết token còn hợp lệ không | `revoked_at:{userId}` | TTL = thời gian sống tối đa của access token; ghi đè khi khóa | NFR-SEC-02 |
-| **R-3** | **Bộ đếm đặc trưng gian lận** cho R1 (velocity) và R5 (fan-out) | Mỗi sự kiện phải quét lịch sử bằng SQL; ở 120 RPS là tải phụ đáng kể lên RDS | Sorted set `risk:vel:{accountId}` (member = `transferId`, score = thời điểm); set người nhận `risk:fan:{accountId}` | Cửa sổ trượt bằng `ZREMRANGEBYSCORE`; TTL 1–2 giờ | NFR-FRD-01 |
+| **R-3** | **Bộ đếm đặc trưng gian lận** cho R1 (velocity) và R5 (fan-out) | Mỗi sự kiện phải quét lịch sử bằng SQL; ở 120 RPS là tải phụ đáng kể lên RDS | Sorted set `risk:vel:{accountId}` (member = `transferId`, score = `occurredAt`); sorted set người nhận `risk:fan:{accountId}` (member = tài khoản nhận, score = `occurredAt`) | Cửa sổ trượt bằng `ZREMRANGEBYSCORE`; TTL 2 giờ | NFR-FRD-01 |
 | **R-4** | **Cache cấu hình** luật và hạn mức | Mỗi lệnh và mỗi sự kiện đọc lại cấu hình từ DB | Hai key: `cfg:risk:latest` (số phiên bản hiện hành) và `cfg:risk:v{n}` (nội dung bất biến của phiên bản n) | `latest` TTL 60 giây, miss hoặc lỗi thì `SELECT max(version)` từ `risk_rule_sets`; `v{n}` TTL dài vì không bao giờ đổi. Đổi cấu hình = version mới, có hiệu lực sau tối đa 60 giây | UC-12 |
 
 R-3 an toàn với sự kiện trùng: member của sorted set là `transferId`, nhận cùng sự kiện hai lần vẫn chỉ có một phần tử.
@@ -664,7 +664,7 @@ R-3 an toàn với sự kiện trùng: member của sorted set là `transferId`,
 | R-3 Bộ đếm | **Truy vấn SQL** trên `transfers` | Kết quả như nhau, tốn tải DB hơn |
 | R-4 Cấu hình | **Đọc thẳng Postgres** | Bảng nhỏ |
 
-Client Redis đặt timeout ngắn (≤ 50 ms *(GĐ)*) và circuit breaker để Redis chậm không kéo latency API vượt SLO. Số lần rơi về đường dự phòng là một metric (mục 14).
+Client Redis đặt timeout 50 ms mỗi lệnh và circuit breaker (mở khi ≥ 50% của ít nhất 10 lệnh lỗi trong 10 giây, thử lại sau 5 giây) để Redis chậm không kéo latency API vượt SLO (ADR-12). Số lần rơi về đường dự phòng là một metric (mục 14).
 
 ### 9.4 Đo được lợi ích
 
@@ -697,8 +697,8 @@ flowchart LR
 | Thành phần | Thiết kế | Đảm bảo |
 |---|---|---|
 | **Outbox** | Sự kiện ghi trong cùng transaction với nghiệp vụ | Commit thì chắc chắn có sự kiện; rollback thì không có |
-| **Relay** | `SELECT … WHERE published_at IS NULL ORDER BY id LIMIT n FOR UPDATE SKIP LOCKED` → gửi tới từng queue theo bảng định tuyến → set `published_at`; job dọn sau 7 ngày *(GĐ)*. Đây là **ngoại lệ duy nhất** của quy tắc "không gọi SQS trong transaction": relay chỉ khóa hàng `outbox_events` (không đụng hàng tài khoản), gửi lặp vẫn đúng vì vốn là at-least-once; relay dùng timeout riêng và không dùng cơ chế chạy lại khi deadlock của `withTransaction` | Nhiều task không lấy trùng; sự cố giữa chừng thì gửi lại cho mọi queue (**at-least-once**) |
-| **SQS standard** | Mỗi consumer một queue + một DLQ; visibility timeout; chuyển DLQ sau N lần lỗi *(GĐ: 5)* | Không mất message; consumer lỗi không ảnh hưởng consumer khác; không đảm bảo thứ tự |
+| **Relay** | `SELECT … WHERE published_at IS NULL ORDER BY id LIMIT n FOR UPDATE SKIP LOCKED` → gửi tới từng queue theo bảng định tuyến → set `published_at`; poll 500 ms khi rảnh, lô 100 sự kiện; job dọn dòng đã gửi sau 7 ngày. Đây là **ngoại lệ duy nhất** của quy tắc "không gọi SQS trong transaction": relay chỉ khóa hàng `outbox_events` (không đụng hàng tài khoản), gửi lặp vẫn đúng vì vốn là at-least-once; relay dùng timeout riêng và không dùng cơ chế chạy lại khi deadlock của `withTransaction` | Nhiều task không lấy trùng; sự cố giữa chừng thì gửi lại cho mọi queue (**at-least-once**) |
+| **SQS standard** | Mỗi consumer một queue + một DLQ; visibility timeout 30 giây; long polling 20 giây; chuyển DLQ sau 5 lần nhận (`maxReceiveCount = 5`); giữ message 4 ngày (ADR-03) | Không mất message; consumer lỗi không ảnh hưởng consumer khác; không đảm bảo thứ tự |
 | **Phương án thay thế** | SNS topic fan-out ra các queue (relay chỉ publish một lần) | Tách producer khỏi danh sách consumer, đổi lại thêm một dịch vụ và khó giả lập ở local. Nhóm chọn bảng định tuyến vì chỉ có 2 consumer và chạy giống hệt nhau ở local (ElasticMQ) lẫn AWS. Ghi trong ADR-03 |
 | **Consumer** | Ghi `processed_events(consumer, event_id)` cùng transaction với tác động | Sự kiện trùng bị bỏ qua (**effectively-once**) |
 | **Thứ tự** | Không consumer nào phụ thuộc thứ tự sự kiện | An toàn với SQS standard |
@@ -730,10 +730,10 @@ flowchart LR
 | Event | Phát ra khi | Gửi tới queue |
 |---|---|---|
 | `TransferCompleted` | Nạp tiền hoặc chuyển tiền hoàn tất | `risk-events`, `notification-events` |
-| `TransferRejected` | Lệnh bị từ chối | `risk-events` (tín hiệu tùy chọn) |
+| `TransferRejected` | Lệnh bị từ chối | **Không phát ở v1** |
 | `AccountStatusChanged` | Khóa / mở khóa tài khoản | `notification-events` |
 
-Ở v1 chỉ ba sự kiện trên đi qua outbox. `FraudFlagRaised` và `FraudFlagReviewed` (docs/02 §9) là khái niệm miền: việc tạo và kết luận cờ đã được lưu ở `fraud_flags` và `audit_log`, nên chưa phát sự kiện cho tới khi có bên tiêu thụ. Trường của từng sự kiện nằm ở [event-contract](components/_shared/event-contract.md).
+Ở v1 chỉ `TransferCompleted` và `AccountStatusChanged` đi qua outbox. `TransferRejected` không phát vì chưa có bên tiêu thụ: risk chỉ chấm giao dịch hoàn tất, còn khách đã nhận 422 ngay trong request; lệnh bị từ chối vẫn được lưu ở `transfers` và `audit_log`. `occurredAt` của `TransferCompleted` là `transfers.created_at`, nên cửa sổ thời gian của luật gian lận và hạn mức ngày dùng cùng một đồng hồ (DB). `FraudFlagRaised` và `FraudFlagReviewed` (docs/02 §9) là khái niệm miền: việc tạo và kết luận cờ đã được lưu ở `fraud_flags` và `audit_log`, nên chưa phát sự kiện cho tới khi có bên tiêu thụ. Trường của từng sự kiện nằm ở [event-contract](components/_shared/event-contract.md).
 
 ---
 
@@ -748,7 +748,7 @@ flowchart LR
 | Ghi nhật ký lỗi | Cả transaction rollback (fail-closed) | Test tự động |
 | Sự cố sau commit, trước khi gửi sự kiện | Outbox: relay gửi lại | Kill worker rồi bật lại |
 | Consumer nhận sự kiện trùng | `processed_events`; bộ đếm Redis dùng `transferId` làm member | AC-9.2 |
-| Consumer lỗi liên tục | Retry + backoff → DLQ + alarm | Inject lỗi consumer |
+| Consumer lỗi liên tục | Retry + backoff → DLQ sau 5 lần nhận + alarm | Inject lỗi consumer |
 | Hai lệnh đồng thời trên cùng tài khoản | Khóa hàng theo thứ tự id; deadlock (`40P01`) thì `withTransaction` chạy lại cả transaction tối đa 3 lần với backoff; còn sót thì trả 503 + `Retry-After` | AC-5.9 |
 | **Redis down hoặc chậm** | Timeout ngắn + circuit breaker; chế độ dự phòng mục 9.3 | Tắt Redis giữa load test |
 | **Redis mất dữ liệu** (restart, failover) | Bộ đếm và cache tự dựng lại; mốc thu hồi đọc lại từ Postgres | Flush Redis rồi chạy AC-11.1 |
@@ -772,15 +772,15 @@ flowchart LR
 
 | Lớp | Biện pháp | NFR |
 |---|---|---|
-| **Biên** | WAF; rate limit toàn cục theo user/IP (R-1) | NFR-SEC-05 |
-| **Định danh** | Cognito với nhóm `customer` / `operator` / `auditor` / `admin`; JWT xác minh bằng JWKS; access token sống ngắn *(GĐ: 15 phút)*. Dòng `users` được tạo bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên của **mọi** vai trò (ánh xạ `sub → users.id` không bao giờ đổi nên cache trong tiến trình). Tài khoản nhân viên (operator, auditor, admin) do Terraform (user pool, nhóm) và script seed (tài khoản demo) tạo, chưa có giao diện quản lý | FR-ID-01, 03 |
+| **Biên** | WAF (managed rules + rate rule 1.000 yêu cầu/5 phút/IP, chỉ bật tuần 6–8); rate limit toàn cục trong app: 10 lệnh chuyển/phút/khách, 100 yêu cầu/phút/IP (R-1). Khi load test, IP của máy chạy k6 được loại khỏi rate rule của WAF và giới hạn theo IP của app được nâng qua biến môi trường; kịch bản `rate-limit` chạy với giá trị mặc định | NFR-SEC-05 |
+| **Định danh** | Cognito với nhóm `customer` / `operator` / `auditor` / `admin`; JWT xác minh bằng JWKS (kiểm `iss`, `client_id`, `token_use = access`, `exp`); vai trò lấy từ `cognito:groups`, token không thuộc nhóm nào (khách tự đăng ký) là `customer`; access token 15 phút, refresh token 1 ngày (ADR-06). Dòng `users` được tạo bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên của **mọi** vai trò (ánh xạ `sub → users.id` không bao giờ đổi nên cache trong tiến trình). Tài khoản nhân viên (operator, auditor, admin) do Terraform (user pool, nhóm) và script seed (tài khoản demo, mật khẩu ở Secrets Manager) tạo, chưa có giao diện quản lý. Local và test dùng `AUTH_MODE=local` với JWKS cục bộ; staging và production có `AUTH_MODE=local` thì app từ chối khởi động | FR-ID-01, 03 |
 | **Thu hồi** | Mốc `sessions_revoked_at` trong DB + cache Redis (mục 6.2) | NFR-SEC-02 |
 | **Phân quyền** | Guard theo vai trò **cộng** kiểm tra sở hữu trong service ở mọi truy vấn theo tài khoản; mã yêu cầu scope theo user; trả 404 cho tài nguyên không thuộc mình | NFR-SEC-01 |
 | **Mã hóa** | TLS ở ALB, tới RDS, tới ElastiCache; mã hóa at-rest bằng KMS cho RDS, ElastiCache, S3 | NFR-SEC-03 |
 | **Bí mật** | Secrets Manager; không có bí mật trong repo hay image; quét bí mật trong CI | NFR-SEC-04 |
 | **Quyền tối thiểu** | IAM role riêng cho task API và worker; DB role riêng cho tiến trình `api` và `worker` (`dbs_api`, `dbs_worker`; không role nào được UPDATE/DELETE sổ cái và nhật ký), risk đọc giao dịch qua view chỉ đọc `v_transfer_facts` (database-design §8); Redis và RDS chỉ mở cho security group của app | NFR-SEC-06 |
 | **Kiểm toán** | Nhật ký ghi trong transaction; ghi cả truy cập nhạy cảm và lần bị từ chối; kiểm toán viên chỉ đọc | NFR-AUD-01 |
-| **Threat model** | STRIDE cho luồng chuyển tiền và nạp tiền (P3) | — |
+| **Threat model** | STRIDE cho luồng chuyển tiền và nạp tiền: [security/threat-model.md](security/threat-model.md) (P3) | — |
 
 ---
 
@@ -794,9 +794,9 @@ flowchart TB
     subgraph VPC[VPC - 2 AZ]
         subgraph Pub[Public subnets]
             ALB[ALB + WAF]
+            ECS[ECS Fargate: api + worker<br/>IP công khai, SG chỉ nhận từ ALB]
         end
-        subgraph Priv[Private subnets]
-            ECS[ECS Fargate: api + worker]
+        subgraph Priv[Private subnets - không route ra internet]
             RDS[(RDS PostgreSQL)]
             REDIS[(ElastiCache Valkey)]
         end
@@ -813,10 +813,10 @@ flowchart TB
 | | Local | Dev (cloud) | Production (demo HA, đo SLO) |
 |---|---|---|---|
 | Chạy ở | `docker compose` cho hạ tầng + `npm run start:dev` (`APP_ROLE=both`) | AWS, dựng/xóa theo giờ làm việc | AWS, bật trong các đợt demo và đo |
-| PostgreSQL | Container | RDS Single-AZ, instance nhỏ | RDS Multi-AZ |
-| Redis | Container Valkey | 1 node nhỏ hoặc Serverless | Có replica (Serverless có sẵn Multi-AZ) |
-| API (`APP_ROLE=api`) | cùng 1 process với worker | 1 task | ≥ 2 task trên 2 AZ |
-| Worker (`APP_ROLE=worker`) | cùng 1 process với API | 1 task | 1–2 task |
+| PostgreSQL | Container `postgres:17` | RDS `db.t4g.micro` Single-AZ | RDS `db.t4g.small` Multi-AZ |
+| Redis | Container Valkey | 1 node `cache.t4g.micro` | 1 primary + 1 replica, Multi-AZ |
+| API (`APP_ROLE=api`) | cùng 1 process với worker | 1 task (0,5 vCPU / 1 GB) | ≥ 2 task trên 2 AZ |
+| Worker (`APP_ROLE=worker`) | cùng 1 process với API | 1 task (0,25 vCPU / 0,5 GB) | 1–2 task |
 | Hàng đợi | ElasticMQ (tương thích SQS) | SQS | SQS |
 | Mục tiêu availability | — | Không cam kết | 99,9% |
 
@@ -824,12 +824,12 @@ flowchart TB
 
 | Hạng mục | Lựa chọn | Ghi chú |
 |---|---|---|
-| Redis | Node `cache.t4g.micro` ≈ $9/tháng hoặc Serverless Valkey tối thiểu ≈ $6/tháng | ADR-12 |
-| Egress mạng | NAT Gateway (≈ $32+/tháng mỗi AZ + phí dữ liệu) · VPC interface endpoint (≈ $7–10/tháng **mỗi endpoint mỗi AZ**; cần ít nhất ECR api, ECR dkr, CloudWatch Logs, Secrets Manager, SQS → ≈ $70+/tháng cho 2 AZ) · task ở public subnet có IP công khai, security group chỉ nhận traffic từ ALB (mỗi IPv4 ≈ $3,6/tháng) | ADR-10. JWKS của Cognito là endpoint công khai nên task vẫn cần đường ra internet. Tổng ở dòng dưới **đã tính phương án public subnet**; sơ đồ §13 vẽ ECS ở private subnet chỉ đúng nếu ADR-10 chọn NAT hoặc endpoint |
-| Tổng cấu hình dev 24/7 | ≈ $70–85/tháng (US East, ước lượng) | Chi tiết ở `DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md` |
-| Dựng/xóa theo giờ làm việc | ≈ $45–75 cho 10 tuần | Nằm trong credit AWS $200 |
+| Redis | Node `cache.t4g.micro`, cluster mode tắt | ADR-12 |
+| Egress mạng | Task ở public subnet có IP công khai, security group chỉ nhận từ ALB; không NAT Gateway, không interface endpoint; gateway endpoint S3 (miễn phí) | ADR-10. NAT ≈ 43 USD/tháng mỗi AZ; 5 interface endpoint × 2 AZ ≈ 95 USD/tháng; IPv4 ≈ 3,6 USD/tháng mỗi task |
+| Dev khi đang bật | ≈ 0,14 USD/giờ (`ap-southeast-1`, ước tính) | Bảng chi tiết ở phụ lục [ADR-11](adr/0011-aws-managed-session-based.md) |
+| Dựng/xóa theo phiên, 10 tuần | ≈ 80–100 USD (gồm WAF tuần 6–8 và ~20 giờ cấu hình production) | Nằm trong credit AWS 200 USD; chạy 24/7 sẽ ≈ 230–250 USD |
 
-**Connection pool:** `số task × pool size ≤ max_connections` của RDS. Instance nhỏ có `max_connections` thấp nên chốt pool nhỏ và tính tổng cho cả cấu hình production.
+**Connection pool:** `DATABASE_POOL_MAX = 10` mỗi task, và `số task × 10 + 5 (migration, quản trị) ≤ max_connections`. `db.t4g.micro` có `max_connections` khoảng 80–110 (kiểm bằng `SHOW max_connections;`) nên dev chạy tối đa 6 task; `db.t4g.small` của cấu hình production gấp khoảng đôi.
 
 ### 13.3 Deploy và rollback
 
@@ -837,26 +837,30 @@ flowchart TB
 |---|---|
 | Build | Mỗi commit vào nhánh chính → lint, typecheck, unit + e2e test (gồm Testcontainers), build **một image** (`backend/Dockerfile`), quét lỗ hổng, đẩy lên ECR với tag = commit SHA |
 | Migration | Chạy như một bước riêng trước deploy, theo kiểu backward-compatible: **expand → migrate → contract** |
-| Deploy | Hai ECS service dùng chung image, khác `APP_ROLE`. Service `api`: rolling update, task mới phải qua `/health/ready` mới nhận traffic. Service `worker`: không có cổng HTTP nên dùng health check bằng lệnh của ECS |
+| Deploy | Hai ECS service dùng chung image, khác `APP_ROLE`. Service `api`: rolling update; ALB kiểm `/health/ready` mỗi 15 giây, timeout 5 giây, 2 lần đạt là healthy, 3 lần trượt liên tiếp là unhealthy; ECS `healthCheckGracePeriodSeconds = 60`. Ngưỡng 3 × 15 giây đủ rộng để một đợt pool bão hòa ngắn không làm ECS thay task hàng loạt. Service `worker`: không có cổng HTTP; ECS thay task khi tiến trình thoát |
 | Rollback | Cập nhật service về task definition trước đó (image cũ); migration kiểu expand nên schema vẫn tương thích |
 
 ---
 
 ## 14. Quan sát và SLI/SLO
 
-| SLI | Đo ở đâu | SLO đề xuất |
-|---|---|---|
-| Tỉ lệ chuyển tiền thành công (không tính REJECTED) | API | ≥ 99,9% |
-| Latency chuyển tiền p95 / p99 | API | p95 < 300 ms |
-| Latency đọc p95 | API | < 150 ms |
-| Thời gian từ giao dịch tới khi có cờ p95 | Worker | < 5 giây |
-| Độ sâu hàng đợi, tuổi message cũ nhất, số message trong DLQ | SQS | DLQ = 0 |
-| Kết quả đối soát sổ cái | Job đối soát | 0 lệch |
-| Latency Redis, số lần rơi về đường dự phòng, số request bị rate limit | API, Worker | Theo dõi |
+SLO chính thức (chốt 2026-10-11). Đo trong các đợt bật cấu hình production và trong load test; môi trường dev không cam kết.
+
+| SLI | Đo ở đâu | SLO | Cửa sổ | Alarm khi |
+|---|---|---|---|---|
+| Tỉ lệ request API không lỗi 5xx (422 và 429 không tính là lỗi) | ALB, API | ≥ 99,9% | 30 ngày (ngân sách lỗi ≈ 43 phút) | Tỉ lệ 5xx > 1% trong 5 phút |
+| Latency chuyển tiền p95 / p99 | API | p95 < 300 ms, p99 < 1 s ở ≤ 120 RPS | 5 phút | p95 > 300 ms trong 3 cửa sổ liên tiếp |
+| Latency đọc (số dư, lịch sử) p95 | API | < 150 ms | 5 phút | p95 > 150 ms trong 3 cửa sổ liên tiếp |
+| Thời gian từ giao dịch tới khi có cờ p95 | Worker (`fraud_flags.created_at − transfers.created_at`) | < 5 giây | 15 phút | p95 > 5 giây |
+| Tuổi outbox chưa gửi cũ nhất | Worker | < 10 giây | 1 phút | > 30 giây (relay hoặc worker treo) |
+| Số message trong DLQ; tuổi message cũ nhất của queue chính | SQS | DLQ = 0; tuổi < 60 giây | 1 phút | DLQ > 0; tuổi > 120 giây |
+| Kết quả đối soát sổ cái | Job đối soát | 0 lệch | Mỗi lần chạy | `MISMATCH` hoặc `ERROR` |
+| Cảnh báo gian lận trên 1.000 giao dịch | Worker | ≤ 20 | 24 giờ trượt, khi có ≥ 1.000 giao dịch | > 20 |
+| Latency Redis, số lần rơi về đường dự phòng (`redis_fallback_total`), số request bị rate limit | API, Worker | Theo dõi | — | Redis không truy cập được > 1 phút |
 
 - **Log:** JSON có cấu trúc, mỗi dòng có `correlationId`; mã này đi từ API → outbox → sự kiện → consumer → nhật ký kiểm toán.
 - **Dashboard:** CloudWatch (hoặc Grafana) theo các SLI trên.
-- **Alarm:** error rate, latency vượt SLO, DLQ > 0, đối soát lệch, Redis không truy cập được.
+- **Alarm:** theo cột cuối của bảng trên, gửi SNS email; tạo bằng Terraform.
 - **Health check:** `/health/ready` báo Redis ở trạng thái *degraded* chứ không *down*, vì hệ thống vẫn chạy được khi không có Redis.
 
 ---
@@ -952,23 +956,23 @@ flowchart LR
 
 ## 18. Architecture Decision Records
 
-Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 13.
+Tối thiểu 3 ADR theo đề bài; nhóm có 13, đều ở trạng thái Accepted.
 
 | # | Quyết định | Phương án so sánh | Driver |
 |---|---|---|---|
-| ADR-01 | Modular monolith + worker | Monolith thuần · Microservices | D-1, D-8 |
-| ADR-02 | PostgreSQL làm sổ cái | DynamoDB · MongoDB | D-1, D-2 |
-| ADR-03 | Chuyển tiền đồng bộ, tác vụ phụ bất đồng bộ (outbox + SQS) | Full async / saga · Đồng bộ toàn bộ | D-4, D-5 |
-| ADR-04 | Khóa `FOR UPDATE` theo thứ tự id ở READ COMMITTED | Optimistic version · SERIALIZABLE | D-1 |
-| ADR-05 | Idempotency trong Postgres, scope theo user, `ON CONFLICT DO NOTHING` | Redis · Không idempotency | D-2 |
-| ADR-06 | Cognito; ECS Fargate | JWT tự quản; EKS | D-8 |
-| ADR-07 | NestJS/TypeScript và tầng truy cập dữ liệu | Spring Boot · FastAPI; TypeORM vs Kysely vs Prisma | D-8 |
-| ADR-08 | Fraud bất đồng bộ theo phiên bản: 6 luật (`v1`), luật học tham số (`v2`), mô hình ONNX in-process (`v3`) chỉ khi qua cổng go/no-go | Chặn đồng bộ · Chỉ luật tĩnh · Microservice Python riêng · Không phát hiện | D-4 |
-| ADR-09 | Nạp tiền qua tài khoản SYSTEM, đi qua sổ cái | Sửa số dư trực tiếp · Không có nạp tiền | D-1 |
-| ADR-10 | Egress mạng cho Fargate | NAT Gateway · VPC endpoints · Public subnet + security group | D-8 |
-| ADR-11 | Cloud managed services | VPS tự quản · Kết hợp | D-7, D-8 |
-| ADR-12 | Redis (Valkey) cho rate limit, mốc thu hồi, bộ đếm, cấu hình; **không** cache số dư | Không cache · Bộ nhớ từng task · Cache cả số dư; Serverless vs node | D-6, D-4 |
-| ADR-13 | **Một ứng dụng, một image, chạy theo `APP_ROLE`** (`api` / `worker` / `both`) | Hai app riêng (`apps/api`, `apps/worker`) · Hai repo | D-8 |
+| [ADR-01](adr/0001-modular-monolith-worker.md) | Modular monolith + worker | Monolith thuần · Microservices | D-1, D-8 |
+| [ADR-02](adr/0002-postgresql-ledger.md) | PostgreSQL làm sổ cái | DynamoDB · MongoDB | D-1, D-2 |
+| [ADR-03](adr/0003-sync-transfer-async-outbox-sqs.md) | Chuyển tiền đồng bộ, tác vụ phụ bất đồng bộ (outbox + SQS) | Full async / saga · Đồng bộ toàn bộ | D-4, D-5 |
+| [ADR-04](adr/0004-row-locking-read-committed.md) | Khóa `FOR UPDATE` theo thứ tự id ở READ COMMITTED | Optimistic version · SERIALIZABLE | D-1 |
+| [ADR-05](adr/0005-idempotency-in-postgres.md) | Idempotency trong Postgres, scope theo user, `ON CONFLICT DO NOTHING` | Redis · Không idempotency | D-2 |
+| [ADR-06](adr/0006-cognito-ecs-fargate.md) | Cognito; ECS Fargate | JWT tự quản; EKS | D-8 |
+| [ADR-07](adr/0007-nestjs-typeorm-explicit-sql.md) | NestJS/TypeScript và tầng truy cập dữ liệu | Spring Boot · FastAPI; TypeORM vs Kysely vs Prisma | D-8 |
+| [ADR-08](adr/0008-fraud-detection-architecture.md) | Fraud bất đồng bộ theo phiên bản: 6 luật (`v1`), luật học tham số (`v2`), mô hình ONNX in-process (`v3`) chỉ khi qua cổng go/no-go | Chặn đồng bộ · Chỉ luật tĩnh · Microservice Python riêng · Không phát hiện | D-4 |
+| [ADR-09](adr/0009-funding-system-account.md) | Nạp tiền qua tài khoản SYSTEM, đi qua sổ cái | Sửa số dư trực tiếp · Không có nạp tiền | D-1 |
+| [ADR-10](adr/0010-fargate-egress-public-subnet.md) | Egress mạng cho Fargate | NAT Gateway · VPC endpoints · Public subnet + security group | D-8 |
+| [ADR-11](adr/0011-aws-managed-session-based.md) | Cloud managed services | VPS tự quản · Kết hợp | D-7, D-8 |
+| [ADR-12](adr/0012-redis-valkey-node.md) | Redis (Valkey) cho rate limit, mốc thu hồi, bộ đếm, cấu hình; **không** cache số dư | Không cache · Bộ nhớ từng task · Cache cả số dư; Serverless vs node | D-6, D-4 |
+| [ADR-13](adr/0013-one-app-app-role.md) | **Một ứng dụng, một image, chạy theo `APP_ROLE`** (`api` / `worker` / `both`) | Hai app riêng (`apps/api`, `apps/worker`) · Hai repo | D-8 |
 
 ## 19. Tech stack
 
@@ -997,16 +1001,16 @@ Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 13.
 - Node là single-thread, nhưng đúng-sai của đồng thời nằm ở **khóa trong DB**, không ở code ứng dụng hay Redis. Nhiều task chạy song song vẫn an toàn nhờ `FOR UPDATE`.
 - Bắt deadlock `40P01` và mất kết nối để retry có giới hạn.
 
-## 20. Câu hỏi còn mở
+## 20. Câu hỏi đã chốt
 
-| # | Câu hỏi | Ảnh hưởng |
+| # | Câu hỏi | Kết luận |
 |---|---|---|
-| 1 | Deadline chính thức của P1–P5? | [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) |
-| 2 | TypeORM hay Kysely? | ADR-07 |
-| 3 | NAT, VPC endpoints hay public subnet? | ADR-10, chi phí |
-| 4 | ElastiCache Serverless hay node `cache.t4g.micro`? | ADR-12, chi phí |
-| 5 | Nhóm có tài khoản cloud với credit không, hay phải dùng VPS? | ADR-11 |
-| 6 | Giá trị: hạn mức, ngưỡng rate limit, thời gian sống token, thời gian giữ mã yêu cầu, tham số luật | BR-06, NFR-SEC-05, FR-RSK-02 |
+| 1 | Deadline chính thức của P1–P5? | Theo lịch giảng viên; ghi ở [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) và [deliverables](deliverables/README.md) |
+| 2 | TypeORM hay Kysely? | TypeORM + SQL tường minh cho luồng tiền ([ADR-07](adr/0007-nestjs-typeorm-explicit-sql.md)) |
+| 3 | NAT, VPC endpoints hay public subnet? | Public subnet, security group chỉ nhận từ ALB ([ADR-10](adr/0010-fargate-egress-public-subnet.md)) |
+| 4 | ElastiCache Serverless hay node? | Node `cache.t4g.micro`, cluster mode tắt ([ADR-12](adr/0012-redis-valkey-node.md)) |
+| 5 | Cloud có credit hay VPS? | AWS, `ap-southeast-1`, dựng/xóa theo phiên ([ADR-11](adr/0011-aws-managed-session-based.md)) |
+| 6 | Giá trị tham số | Hạn mức 50 triệu/lần, 200 triệu/ngày; rate limit 10 lệnh chuyển/phút/khách, 100 yêu cầu/phút/IP; access token 15 phút; giữ mã yêu cầu 7 ngày; tham số luật `v1` ở docs/02 §2.1 |
 
 ## 21. Lịch sử thay đổi
 
@@ -1021,3 +1025,4 @@ Tối thiểu 3 ADR theo đề bài; nhóm dự kiến 13.
 | **1.3** | Thêm bảng tra use case và 4 sơ đồ người dùng đi qua các thành phần ở mục 6: UC-5 đầu-cuối (6.3), UC-3 (6.4), UC-10 (6.5), UC-8 (6.6). UC-11 giữ nguyên ở 6.2 |
 | **1.4** | Lấp các khoảng trống trước khi implement: endpoint tra cứu tài khoản cho nhân viên (§7, §6.4), mã `FLAG_ALREADY_REVIEWED` (§7.1), key `cfg:risk:latest` (§9), ghi chú sự kiện không phát ở v1 (§10), tạo dòng `users` và tài khoản nhân viên (§12) |
 | **1.5** | Đồng bộ với ADR-08 mới: chi phí fraud (§15.5), dòng ADR-08 ở bảng ADR, thêm `GET /v1/operator/fraud-flags/{transferId}` vào bảng API (§7) |
+| **1.6** | Chốt toàn bộ giả định: viết ADR-01…07, 09…12 và chuyển 13 ADR sang Accepted. Task ECS ở public subnet (§13, ADR-10); Redis node cố định (§9, ADR-12); `TransferRejected` không phát ở v1, `occurredAt = transfers.created_at` (§10); tham số SQS và relay (§10); vai trò từ `cognito:groups`, xác thực local (§12); health check ALB và worker (§4, §13.3); SLO chính thức kèm ngưỡng alarm (§14); câu hỏi mở chuyển thành bảng kết luận (§20) |

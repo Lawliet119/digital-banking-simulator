@@ -130,4 +130,4 @@ Staging và production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác 
 ### Hạ tầng phía trước app
 Staging và production bắt buộc `TRUST_PROXY_HOPS` (≥ 1; ALB = 1). Để 0 thì mọi khách chung địa chỉ IP của ALB và rate limit theo IP sẽ chặn nhầm tất cả.
 
-Image không có `HEALTHCHECK`: service `api` được load balancer kiểm tra qua `/health/ready`, service `worker` không có cổng HTTP nên tự định nghĩa kiểm tra riêng ở ECS.
+Image không có `HEALTHCHECK`: service `api` được load balancer kiểm tra qua `/health/ready`, service `worker` không có cổng HTTP: ECS thay task khi tiến trình thoát, còn worker treo được phát hiện qua alarm tuổi outbox và tuổi message (docs/03 §14).

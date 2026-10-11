@@ -1,8 +1,8 @@
 # Team Roles Playbook — Cách làm việc của từng vai
 
-> **Status:** Active · **Owner:** #2 (cùng cả nhóm) · **Verified against code:** n/a · **Cập nhật:** 2026-10-03
+> **Status:** Active · **Owner:** #2 (cùng cả nhóm) · **Verified against code:** n/a · **Cập nhật:** 2026-10-11
 
-> Tài liệu nội bộ, dùng kèm [`10_WEEK_PLAN.md`](10_WEEK_PLAN.md). Mỗi vai có cùng một khung: **sứ mệnh → sở hữu gì → phụ thuộc ai → thỏa thuận với ai → làm gì từng tuần → bằng chứng cần nộp → bẫy hay gặp**.
+> Tài liệu nội bộ, dùng kèm [`10_WEEK_PLAN.md`](10_WEEK_PLAN.md). Mỗi vai có cùng một khung: **sứ mệnh → sở hữu gì → thỏa thuận với ai → bằng chứng cần nộp → bẫy hay gặp**. Việc cụ thể từng tuần nằm trên board của nhóm (mỗi task có tuần, người làm, phụ thuộc), không chép lại ở đây.
 > Riêng mảng Fraud có hướng dẫn chi tiết ở [`FRAUD_DETECTION_GUIDE.md`](../components/risk/FRAUD_DETECTION_GUIDE.md).
 
 ---
@@ -87,20 +87,6 @@ Mọi đồng tiền vào, ra, di chuyển trong hệ thống đều đúng — 
 | #4 | Vị trí sync guard, danh sách `reject_reason` | Tuần 2 |
 | #6 | Cách seed dữ liệu test qua API nạp tiền (không `UPDATE balance` trực tiếp) | Tuần 2 |
 
-### Lịch tuần
-
-| Tuần | Việc | Bàn giao |
-|---|---|---|
-| 1 | Thiết kế schema bản đầu, migration đầu tiên | ERD + migration chạy được |
-| 2 | Chuyển tiền bản thô, nạp tiền; viết ADR-01, 02; dẫn dắt P2 | Nộp P2; nạp → chuyển → xem số dư chạy được |
-| 3 | `ON CONFLICT DO NOTHING`, khóa theo thứ tự id, lưu REJECTED, retry deadlock; ADR-04, 05 | AC-5.1 → 5.10 xanh trong CI |
-| 4 | Job đối soát (tổng Nợ = tổng Có, tổng số dư = 0) | Đối soát chạy định kỳ, có alarm khi lệch |
-| 5 | Sửa lỗi từ demo giữa kỳ | Danh sách nợ kỹ thuật phần ledger trống |
-| 6 | Chốt ADR-07, 09; review threat model phần chuyển tiền | ADR ở trạng thái Accepted |
-| 7 | Sửa lỗi lộ ra dưới tải: pool, deadlock, kế hoạch truy vấn | p95 chuyển tiền < 300 ms ở 120 RPS |
-| 8 | Hỗ trợ giả lập sự cố: kill task giữa transaction | Bằng chứng AC-5.10 trên cloud |
-| 9 | Tập trả lời câu 4, 5 | — |
-
 ### Bằng chứng cần có cho báo cáo
 - Test AC-5.x xanh, chạy trên Postgres thật.
 - Kết quả đối soát sau mỗi load test (ảnh chụp / log).
@@ -143,22 +129,6 @@ Mọi đồng tiền vào, ra, di chuyển trong hệ thống đều đúng — 
 | Cả nhóm | Định dạng lỗi `problem+json`, header `X-Correlation-Id` (đã có sẵn trong `backend/src/common`) | Tuần 2 |
 | #5 | Key Redis `revoked_at:{userId}`, giới hạn rate limit | Tuần 3 |
 
-### Lịch tuần
-
-| Tuần | Việc | Bàn giao |
-|---|---|---|
-| 0 | Dựng board, lịch họp, kênh chat, file theo dõi deadline | Board có đủ issue tuần 1–2 |
-| 1 | Ghép P1; thiết kế Cognito cùng #5 | Nộp P1 |
-| 2 | Onboarding, mở tài khoản, guard vai trò | Đăng ký → mở tài khoản chạy được |
-| 3 | Kiểm tra sở hữu ở mọi endpoint, lịch sử, trạng thái, rate limit | AC-5.8 xanh |
-| 4 | Khóa / mở khóa, thu hồi phiên ngay | AC-11.1 → 11.3 xanh |
-| 5 | Làm sạch OpenAPI; điều phối demo giữa kỳ | Swagger đầy đủ ví dụ; video demo |
-| 6 | Threat model STRIDE cùng #5; chốt ADR-06 | Threat model trong P3 |
-| 7 | Dashboard cùng #6 | Dashboard có SLI chính |
-| 8 | Ghép tài liệu P4 | P4 bản ghép |
-| 9 | Điều phối tổng duyệt; tập trả lời câu 1, 3, 9 | Kịch bản buổi bảo vệ |
-| 10 | Ghép bản cuối, nộp bài | Nộp |
-
 ### Việc PM hằng tuần
 
 | Khi | Việc |
@@ -200,20 +170,6 @@ Mọi sự kiện đã xảy ra đều tới được nơi cần tới (ít nh�
 | #5 | Tên queue, DLQ, số lần retry, visibility timeout (khớp `infra/local/elasticmq.conf`) | Tuần 3 |
 | #6 | Cách giả lập consumer lỗi để test DLQ | Tuần 4 |
 
-### Lịch tuần
-
-| Tuần | Việc | Bàn giao |
-|---|---|---|
-| 1 | Event contract, schema `outbox_events`, `processed_events` | Contract được #1, #4 đồng ý |
-| 2 | Module `audit` (`AuditService.record`); viết ADR-03; phần integration của P2 | #1, #2 dùng được audit |
-| 3 | Relay (`SKIP LOCKED`), gửi theo bảng định tuyến, chạy với ElasticMQ | Chuyển tiền → message vào đúng 2 queue |
-| 4 | Khung consumer idempotent, notification, DLQ, API audit (UC-8) | AC-8.1, 8.2 xanh; demo tắt/bật worker |
-| 5 | `correlationId` xuyên suốt API → outbox → consumer → audit | Tra được một giao dịch end-to-end |
-| 6 | Alarm DLQ > 0, tuổi message cũ nhất | Alarm hoạt động |
-| 7 | Tối ưu relay dưới tải: chu kỳ poll, kích thước lô | p95 tới khi có cờ < 5 giây |
-| 8 | Giả lập sự cố: consumer lỗi liên tục, message hỏng, notification chết | Bằng chứng trong P4 |
-| 9 | Tập trả lời câu 7 | — |
-
 ### Bẫy hay gặp
 - Gửi message **trước** khi transaction commit → rollback rồi mà sự kiện vẫn đi.
 - Xóa message khỏi queue **trước** khi ghi DB xong → sự cố giữa chừng là mất sự kiện.
@@ -245,18 +201,6 @@ Mọi sự kiện đã xảy ra đều tới được nơi cần tới (ít nh�
 | #6 | Định dạng CSV, tên kịch bản, cách chia tập, lịch giao dữ liệu | Tuần 2 |
 | #5 | Key Redis, DB role riêng cho worker | Tuần 3 |
 | Cả nhóm | Mục tiêu recall / số cảnh báo trên 1.000 giao dịch | Tuần 2 |
-
-### Lịch tuần (tóm tắt)
-
-| Tuần | Việc | Bàn giao |
-|---|---|---|
-| 1–2 | Chốt luật, schema, interface `RiskRule` / `FeatureProvider` | Migration + code khung |
-| 3 | Sync guard cùng #1 | AC-5.6, 5.7 xanh |
-| 4 | 6 luật + consumer + Redis + dự phòng SQL | Chuyển tiền → cờ tự xuất hiện |
-| 5 | API review, đánh giá lần đầu trên tập tune | Số liệu đầu tiên |
-| 6 | Chỉnh tham số; (ML: train model, xuất ONNX) | Bảng trước / sau tune |
-| 7 | Đóng băng cấu hình, chạy holdout **một lần** | Toàn bộ số liệu P5 |
-| 9 | Viết P5, tập câu 12 | Nộp P5 |
 
 ### Quy tắc riêng
 - **Không xem code generator của #6**; chỉ biết tên kịch bản.
@@ -295,22 +239,6 @@ Code merge vào `main` là tự lên cloud, có thể quay lui trong vài phút,
 | #2 | Nhóm Cognito, thời gian sống token | Tuần 1 |
 | #3 | Tên queue, DLQ, cấu hình retry | Tuần 3 |
 | #4 | DB role riêng cho worker | Tuần 4 |
-
-### Lịch tuần
-
-| Tuần | Việc | Bàn giao |
-|---|---|---|
-| 0 | Tài khoản AWS, Budget alarm, IAM user + MFA, Student Pack, bảo vệ nhánh `main` | Mọi người đăng nhập được, có cảnh báo chi phí |
-| 1 | Terraform nền (state S3, VPC, ECR, ECS), CI build + push, deploy `/health` | Push code → tự lên cloud |
-| 2 | RDS, Secrets Manager, app kết nối DB trên cloud | Luồng đầu tiên chạy trên cloud |
-| 3 | ElastiCache, SQS + DLQ; chốt ADR-10 (egress) | Hạ tầng đủ thành phần |
-| 4 | IAM quyền tối thiểu cho từng task, DB role | Rà quyền xong |
-| 5 | Ổn định môi trường cho demo giữa kỳ | Demo chạy trên cloud |
-| 6 | **P3:** cấu hình production, WAF, KMS, quét image, demo rollback, threat model cùng #2 | Nộp P3 |
-| 7 | Đo chi phí thật | Bảng chi phí tuần |
-| 8 | Bật Multi-AZ, demo RDS failover, so sánh chi phí hai cấu hình | Bằng chứng HA trong P4 |
-| 9 | Hỗ trợ tổng duyệt; tập câu 8, 9, 11 | — |
-| 10 | Xóa tài nguyên thừa, kiểm tra hóa đơn | Chi phí về ~0 |
 
 ### Việc định kỳ
 
@@ -352,20 +280,6 @@ Biến mọi lời hứa trong tài liệu (NFR, tiêu chí chấp nhận) thàn
 | #4 | Định dạng CSV, tên kịch bản, chia tập, lịch giao — **không chia sẻ code generator** | Tuần 2 |
 | Cả nhóm | Tên metric, nhãn log | Tuần 5 |
 | #5 | Môi trường và khung giờ chạy load test trên cloud | Tuần 6 |
-
-### Lịch tuần
-
-| Tuần | Việc | Bàn giao |
-|---|---|---|
-| 1 | Khung test với Testcontainers (Postgres, Valkey) chạy trong CI | Test mẫu xanh trong CI |
-| 2 | Thiết kế mô hình hành vi cho generator; khung test API | Bản đầu generator |
-| 3 | Test đồng thời (N luồng, tài khoản nóng, kiểm tra bất biến), test request trùng song song | AC-5.4, 5.6, 5.9 xanh |
-| 4 | Test tắt/bật worker, DLQ; hoàn thiện generator, **giao tập tune** cho #4 | Demo phục hồi; #4 có dữ liệu |
-| 5 | Metric SLI cơ bản; kiểm tra dữ liệu generator có hợp lý | Dashboard bản đầu |
-| 6 | Test bảo mật: truy cập chéo, kiểm toán viên chỉ đọc, khách không thấy cờ | AC-8.1, 10.2 xanh |
-| 7 | Load test 1× / 5× / 10× + tài khoản nóng + stress; bật/tắt Redis; **giao nhãn holdout**; đo fraud online cùng #4 | Báo cáo load test đầu tiên |
-| 8 | **P4:** giả lập sự cố đầy đủ, SLO chính thức, ghép báo cáo | Nộp P4; 5 demo chạy lại được |
-| 9 | Chạy lại toàn bộ test và load test; tập câu 2, 6, 10 | Số liệu cuối cùng |
 
 ### Bằng chứng cần có cho báo cáo
 - Kết quả k6 (p95, p99, error rate) ở từng mốc tải, kèm cấu hình môi trường lúc chạy.

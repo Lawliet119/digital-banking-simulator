@@ -32,4 +32,4 @@ Cần biết hệ thống khỏe hay không và truy vết một giao dịch xuy
 
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §14 Quan sát và SLI/SLO.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
-- Tiếp theo: [`02-architecture.md`](02-architecture.md).
+- Giao diện và mốc: Task 8 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).

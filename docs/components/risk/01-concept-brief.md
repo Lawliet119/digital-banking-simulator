@@ -42,5 +42,5 @@ Giao dịch đáng ngờ chỉ được phát hiện qua báo cáo hôm sau, lú
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §15 Kiến trúc phát hiện gian lận; §9 Redis (R-3 bộ đếm, R-4 cấu hình); §10 Outbox và event.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
 - Quy tắc code và những điều phải giữ: [`backend/src/modules/risk/README.md`](../../../backend/src/modules/risk/README.md).
-- `FRAUD_DETECTION_GUIDE.md` — hướng dẫn chi tiết, sẽ được tách thành 02/03/06 sau khi nộp P2.
-- Tiếp theo: [`02-architecture.md`](02-architecture.md).
+- [`FRAUD_DETECTION_GUIDE.md`](FRAUD_DETECTION_GUIDE.md) — hướng dẫn làm việc chi tiết (luật, đánh giá, bộ dữ liệu).
+- Thiết kế chi tiết của module: [`02-architecture.md`](02-architecture.md).

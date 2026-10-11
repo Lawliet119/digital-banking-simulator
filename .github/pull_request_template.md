@@ -2,7 +2,7 @@
 
 <!-- Mô tả ngắn: PR này làm gì, vì sao -->
 
-Closes #
+Task: DBS-
 
 ## Loại thay đổi
 
@@ -18,9 +18,9 @@ Closes #
 
 ## Đối chiếu test case
 
-<!-- Mỗi TC-* của component: test nào hiện thực, độ sâu có khớp mô tả không (khớp / đơn giản hóa + lý do / chưa làm + lý do) -->
+<!-- Mỗi tiêu chí trong DoD của task và mỗi AC (docs/02 §3) mà PR đụng tới: test nào chứng minh, độ sâu có khớp không (khớp / đơn giản hóa + lý do / chưa làm + lý do) -->
 
-| Test case | Test | Khớp mô tả? |
+| DoD / AC | Test | Khớp? |
 |---|---|---|
 
 ## Kiểm tra
@@ -29,7 +29,7 @@ Closes #
 - [ ] Có test; logic về tiền được test trên PostgreSQL thật
 - [ ] CI xanh
 - [ ] Không có secret trong code, log, commit
-- [ ] Đã cập nhật tài liệu / ADR / OpenAPI nếu cần (đổi thiết kế một module → `docs/components/<module>/`)
+- [ ] Đã cập nhật tài liệu / ADR / OpenAPI nếu cần (đổi thiết kế → `docs/03` hoặc `docs/components/_shared/`)
 
 ## Ghi chú cho người review
 

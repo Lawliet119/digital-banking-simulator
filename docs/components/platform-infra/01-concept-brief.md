@@ -22,7 +22,8 @@ Cần hạ tầng dựng lại được bằng code, an toàn, chi phí kiểm s
 - Terraform chia `bootstrap` (state S3), `modules/` và `envs/dev|prod`.
 - Phần giữ lại gần như miễn phí (S3 state, ECR, VPC, Cognito) tách khỏi phần dựng/xóa hằng ngày (RDS, ElastiCache, ALB, WAF, ECS).
 - Dev: Single-AZ, 1 task. Production: Multi-AZ, ≥ 2 task, chỉ bật khi demo HA và đo SLO.
-- Chưa tạo NAT Gateway khi chưa chốt ADR-10.
+- Không NAT Gateway: task ECS ở public subnet, security group chỉ nhận từ ALB; RDS và Redis ở private subnet ([ADR-10](../../adr/0010-fargate-egress-public-subnet.md)).
+- Region `ap-southeast-1`; tag `project=dbs`, `env`, `owner`; Budget 50/100/150 USD ([ADR-11](../../adr/0011-aws-managed-session-based.md)).
 
 ## Ngoài phạm vi (v1)
 
@@ -34,4 +35,4 @@ Cần hạ tầng dựng lại được bằng code, an toàn, chi phí kiểm s
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §13 Triển khai (baseline AWS); §12 Bảo mật; §13.2 Chi phí.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
 - Quy tắc code và những điều phải giữ: [`infra/terraform/README.md`](../../../infra/terraform/README.md).
-- Tiếp theo: [`02-architecture.md`](02-architecture.md).
+- Giao diện và mốc: Task 1, Task 9 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).

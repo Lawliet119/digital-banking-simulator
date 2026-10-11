@@ -22,8 +22,8 @@ Load balancer cần biết instance nào còn sống và sẵn sàng nhận requ
 - `/health/live`: process đang sống (lỗi thì khởi động lại task).
 - `/health/ready`: kết nối được PostgreSQL (lỗi thì rút khỏi load balancer).
 - Redis không nằm trong readiness vì hệ thống vẫn đúng khi không có nó; sẽ báo *degraded*.
-- Role `worker` không có cổng HTTP nên ECS dùng health check bằng lệnh riêng.
-- **Cần chốt (#5):** ECS thay task trượt health check của ALB. Nếu ALB gọi `/health/ready` và pool kết nối bão hòa vì tài khoản nóng, ping DB có thể timeout và ECS khởi động lại nhiều task đúng lúc tải cao. (Khi mọi target đều unhealthy, ALB vẫn gửi traffic cho tất cả, nên đây không phải sập toàn bộ mà là vòng khởi động lại.) Cân nhắc: ngưỡng unhealthy rộng + `healthCheckGracePeriodSeconds`, hoặc ALB gọi `/health/live` và chỉ dùng `/health/ready` khi deploy.
+- Role `worker` không có cổng HTTP: ECS thay task khi tiến trình thoát; worker treo được phát hiện qua alarm tuổi outbox chưa gửi và tuổi message của queue (docs/03 §14).
+- **Đã chốt:** ALB gọi `/health/ready` mỗi 15 giây, timeout 5 giây, 3 lần trượt liên tiếp mới unhealthy; ECS `healthCheckGracePeriodSeconds = 60`. Ping DB trong readiness có timeout riêng 1 giây. Ngưỡng 45 giây đủ rộng để một đợt pool bão hòa ngắn (tài khoản nóng) không làm ECS khởi động lại task hàng loạt đúng lúc tải cao (docs/03 §13.3).
 
 ## Ngoài phạm vi (v1)
 
@@ -34,4 +34,4 @@ Load balancer cần biết instance nào còn sống và sẵn sàng nhận requ
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §4 Container (health check); §13.3 Deploy và rollback; §14 Quan sát.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
 - Code: [`backend/src/modules/health/`](../../../backend/src/modules/health/).
-- Tiếp theo: [`02-architecture.md`](02-architecture.md).
+- Giao diện và mốc: Task 1 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).
