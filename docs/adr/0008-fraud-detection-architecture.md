@@ -4,7 +4,7 @@
 |---|---|
 | Trạng thái | **Proposed** — chờ nhóm review |
 | Ngày | 2026-10-11 |
-| Người viết | #4 (Fraud); chỉnh sửa lần 2 bởi tech lead (2026-10-11) |
+| Người viết | #4 (Fraud) |
 | Người duyệt | #1 (Ledger); cả nhóm |
 | Liên quan | Driver D-4 · BR-06, BR-11, BR-13 · UC-9, UC-10, UC-12 · NFR-FRD-01…03, NFR-PERF-01 · ADR-03, ADR-12, [ADR-13](0013-one-app-app-role.md) · [`docs/03` §15](../03_HIGH_LEVEL_ARCHITECTURE.md) · [FRAUD guide §4.3.b](../components/risk/FRAUD_DETECTION_GUIDE.md) |
 
@@ -34,7 +34,7 @@ Hệ thống cần phát hiện giao dịch chuyển tiền đáng ngờ sớm (
 2. **`v2` (`mode: "ml_tuned_rules"`) — phạm vi chính:** vẫn chạy đúng 6 luật `R1–R6`, nhưng ngưỡng và trọng số được **học từ dữ liệu** trên tập `tune` (Logistic Regression hoặc tìm kiếm tham số). Mục tiêu tối ưu: **recall lớn nhất với ràng buộc ≤ 20 cảnh báo / 1.000 giao dịch** (không tối ưu F2, vì F2 ưu tiên recall và dễ đẩy số cảnh báo vượt NFR-FRD-02).
 3. **`v3` (`mode: "hybrid_onnx"`) — mở rộng có điều kiện:** cộng thêm điểm từ mô hình LightGBM / XGBoost (huấn luyện bằng Python, xuất `.onnx`, chạy in-process trong worker). **Chỉ được đưa vào hệ thống nếu qua cổng go/no-go ở cuối tuần 5** (bên dưới). Không qua thì dừng ở `v2` và báo cáo P5 ghi rõ lý do, đây vẫn là kết quả hợp lệ.
 
-### Cổng go/no-go cho `v3` (cuối tuần 5, #4 làm, #1 review, tech lead quyết)
+### Cổng go/no-go cho `v3` (cuối tuần 5, #4 làm, #1 review, nhóm quyết)
 
 `v3` chỉ được hiện thực khi cả năm điều kiện sau đúng *(GĐ, chốt số khi làm spike)*:
 
