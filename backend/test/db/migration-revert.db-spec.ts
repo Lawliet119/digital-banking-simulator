@@ -7,11 +7,13 @@ const FUNDING_ID = '00000000-0000-4000-8000-000000000001';
 
 /** Runs an npm script exactly as a developer or the pipeline would, against `url`. */
 function npmRun(script: string, url: string): void {
-  execFileSync('npm', ['run', script], {
+  // npm sets npm_execpath to its own CLI script. Running that with node avoids a shell, which
+  // Windows would otherwise need for npm.cmd.
+  const npmCli = process.env.npm_execpath;
+  if (!npmCli) throw new Error('Run these tests through `npm run test:db`.');
+  execFileSync(process.execPath, [npmCli, 'run', script], {
     cwd: BACKEND_DIR,
     env: { ...process.env, DATABASE_URL: url },
-    // npm is npm.cmd on Windows, which only starts through a shell.
-    shell: process.platform === 'win32',
     stdio: 'pipe',
   });
 }
