@@ -13,7 +13,7 @@ Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR th
 | ADR-05 | Idempotency trong Postgres, scope theo user, `ON CONFLICT DO NOTHING` | Redis · Không idempotency | #1 | Proposed |
 | ADR-06 | Cognito; ECS Fargate | JWT tự quản; EKS | #2, #5 | Proposed |
 | ADR-07 | NestJS/TypeScript và tầng truy cập dữ liệu | Spring Boot · FastAPI; TypeORM vs Kysely vs Prisma | #1 | Proposed |
-| ADR-08 | Fraud rule-based, gắn cờ bất đồng bộ | ML từ đầu · Chặn đồng bộ | #4 | Proposed |
+| [ADR-08](0008-fraud-detection-architecture.md) | Fraud bất đồng bộ: 6 luật giải thích được (`R1–R6`) kết hợp mô hình ML in-process (ONNX) theo phiên bản cấu hình | Chặn đồng bộ · Chỉ luật tĩnh · Microservice Python riêng | #4 | Proposed |
 | ADR-09 | Nạp tiền qua tài khoản SYSTEM | Sửa số dư trực tiếp | #1 | Proposed |
 | ADR-10 | Egress mạng cho Fargate | NAT Gateway · VPC endpoints · Public subnet | #5 | Proposed |
 | ADR-11 | Cloud managed services | VPS tự quản · Kết hợp ([phân tích](../DEPLOYMENT_OPTIONS_VPS_VS_CLOUD.md)) | #5 | Proposed |
