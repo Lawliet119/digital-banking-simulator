@@ -1,13 +1,13 @@
 # docs — Bản đồ tài liệu
 
-> **Status:** Active · **Owner:** cả nhóm · **Verified against code:** n/a · **Cập nhật:** 2026-10-11
+> **Status:** Active · **Owner:** cả nhóm · **Verified against code:** n/a · **Cập nhật:** 2026-10-12
 
 ## Đọc gì trước
 
 | Bạn là… | Đọc theo thứ tự |
 |---|---|
 | Người mới vào nhóm | [README gốc](../README.md) → [01](01_BUSINESS_ANALYSIS.md) → [03](03_HIGH_LEVEL_ARCHITECTURE.md) §1–5 |
-| Sắp làm một task | Skill [`dbs-delivering-task`](../.claude/skills/dbs-delivering-task/SKILL.md) (bắt buộc) → [`features/`](features/README.md) (task trước của cùng module) → [`components/index.md`](components/index.md) → các mục docs/03 liên quan |
+| Sắp làm một task | Skill [`dbs-delivering-task`](../.claude/skills/dbs-delivering-task/SKILL.md) (bắt buộc) → [`BACKLOG.md`](BACKLOG.md) (việc còn tồn) → [`features/`](features/README.md) (task trước của cùng module) → [`components/index.md`](components/index.md) → các mục docs/03 liên quan |
 | Sắp viết một bản nộp | [`deliverables/README.md`](deliverables/README.md) |
 | Chuẩn bị bảo vệ | [03](03_HIGH_LEVEL_ARCHITECTURE.md) §16–18, [ADR](adr/README.md), [FRAUD guide](components/risk/FRAUD_DETECTION_GUIDE.md) |
 
@@ -18,6 +18,7 @@ docs/
 ├── 01_BUSINESS_ANALYSIS.md                Bài toán, mục tiêu, quy tắc nghiệp vụ        (cấp hệ thống)
 ├── 02_REQUIREMENTS_AND_DOMAIN_MODEL.md    Use case, FR, NFR, AC, domain model           (cấp hệ thống)
 ├── 03_HIGH_LEVEL_ARCHITECTURE.md          Kiến trúc tổng thể và chi tiết từng module    (cấp hệ thống)
+├── BACKLOG.md                             Việc còn tồn mà các task đã chuyển cho người/task khác
 ├── adr/                                   13 quyết định kiến trúc (ADR-01…13) và lý do
 ├── security/                              Threat model STRIDE (P3)
 ├── superpowers/plans/                     Implementation plan (master roadmap, plan từng task)
@@ -40,6 +41,7 @@ docs/
 | Lý do một quyết định | `adr/` |
 | Mối đe dọa và biện pháp | `security/threat-model.md` |
 | Thiết kế, test case và kết quả của **một task** | `features/DBS-<n>-<slug>.md` |
+| Việc còn tồn sau các task (DoD chưa đạt vì thiếu hạ tầng, việc bàn giao cho module khác) | `BACKLOG.md` |
 | Kế hoạch thực thi | `superpowers/plans/` (roadmap); việc từng tuần nằm trên board của nhóm |
 
 Nơi khác chỉ **link**, không chép lại.
