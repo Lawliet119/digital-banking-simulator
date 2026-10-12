@@ -5,6 +5,7 @@ Six people, three board roles: **`Dev`** (four software developers), **`#4 Fraud
 ## Taking a task (pull model)
 
 - Any Dev takes **any `Dev` task that nobody has started and whose dependencies are Done**. Write `[Nhận: name]` at the start of its Thực trạng cell and move it to In Progress; that is the claim.
+- To find a task: `node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs --next` lists the unstarted `Dev` tasks whose dependencies are Done, already in board order (`--next Fraud` and `--next Ops` for the other roles). The board lags: a task someone has already started but not claimed shows up too, so ask in the group before taking the first one.
 - Work **in board order**: earliest week first, `High` before the rest, then the lower key. Nobody waits for anybody: if a task is blocked, take another unstarted one.
 - `#4 Fraud` tasks and `#5 Platform & Ops` tasks are taken by those two people. If one falls behind, ask the group; do not silently take it.
 - There is **no module owner and no fixed pair**. `references/module-notes.md` and the playbook list areas (ledger, accounts and identity, async and audit, foundation and data) as *knowledge*: read the notes for the area you touch.

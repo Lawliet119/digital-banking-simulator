@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Print one board task (and the status of its dependencies) from the team's Google Sheet.
+// Print one board task (and the status of its dependencies) from the team's Google Sheet,
+// or list the backlog: unstarted tasks whose dependencies are Done, in the order to take them.
 // Usage: node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs DBS-79
+//        node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs --next [Dev|Fraud|Ops] [count]
 // Needs Node >= 18 (global fetch). The sheet is readable by anyone with the link, so no login is needed.
 
 const SHEET_ID = '18IHrZShDoZDc6bgnsi__ATyd99aeJxe4x4TWQ5WTz_w';
@@ -34,8 +36,9 @@ async function loadTab(tab) {
 }
 
 const key = (process.argv[2] || '').toUpperCase();
-if (!/^DBS-\d+$/.test(key)) {
-  console.error('Usage: node fetch-task.mjs DBS-<n>');
+const nextMode = key === '--NEXT';
+if (!nextMode && !/^DBS-\d+$/.test(key)) {
+  console.error('Usage: node fetch-task.mjs DBS-<n>   |   node fetch-task.mjs --next [Dev|Fraud|Ops] [count]');
   process.exit(2);
 }
 
@@ -44,6 +47,31 @@ for (const tab of TABS) {
   let rows;
   try { rows = await loadTab(tab); } catch (e) { console.error(`warn: ${e.message}`); continue; }
   for (const r of rows) if (/^DBS-\d+$/.test((r[0] || '').trim())) all.set(r[0].trim(), { tab, r });
+}
+
+if (nextMode) {
+  const roleArg = (process.argv[3] || 'Dev').toLowerCase();
+  const want = roleArg === 'fraud' ? 'fraud' : roleArg === 'ops' ? 'ops' : 'dev';
+  const count = Number(process.argv[4]) || 10;
+  const roleOf = (label) => (/fraud/i.test(label) ? 'fraud' : /platform|ops/i.test(label) ? 'ops' : 'dev');
+  const prio = { highest: -1, high: 0, medium: 1, low: 2 };
+  const num = (s) => Number(String(s).replace(/\D/g, ''));
+  const isDone = (k) => {
+    const d = all.get(k);
+    return !d || d.tab === 'Tài liệu đã chốt' || /^done$/i.test((d.r[6] || '').trim());
+  };
+  const rows = [...all.entries()]
+    .filter(([, { tab }]) => /^Tuần \d+$/.test(tab))
+    .filter(([, { r }]) => /^(to do|)$/i.test((r[6] || '').trim()) && !/\[Nhận:/i.test(r[9] || ''))
+    .filter(([, { r }]) => roleOf(r[3] || '') === want)
+    .filter(([, { r }]) => [...new Set((r[7] || '').match(/DBS-\d+/g) || [])].every(isDone))
+    .sort(([ka, a], [kb, b]) => num(a.tab) - num(b.tab)
+      || (prio[(a.r[5] || '').trim().toLowerCase()] ?? 3) - (prio[(b.r[5] || '').trim().toLowerCase()] ?? 3)
+      || num(ka) - num(kb));
+  console.log(`# Backlog: ${rows.length} unstarted ${want} task(s) with dependencies Done, in the order to take them\n`);
+  for (const [k, { tab, r }] of rows.slice(0, count)) console.log(`- ${k} (${tab}, ${(r[5] || '?').trim()}) ${r[2]}`);
+  console.log('\nTo take one: write [Nhận: name] at the start of its Thực trạng cell, set In Progress, then run fetch-task.mjs DBS-<n>.');
+  process.exit(0);
 }
 
 const hit = all.get(key);
