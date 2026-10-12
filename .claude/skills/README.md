@@ -1,6 +1,6 @@
 # Skills của Digital Banking Simulator
 
-> **Version:** 2.3 · **Cập nhật:** 2026-10-12 · Skill cho vai Dev (4 software developer); #4 Fraud và #5 Platform & Ops dùng chung phase và gate, quy tắc riêng nằm ở `references/`.
+> **Version:** 2.5 · **Cập nhật:** 2026-10-12 · Skill cho vai Dev (4 software developer); #4 Fraud và #5 Platform & Ops dùng chung phase và gate, quy tắc riêng nằm ở `references/`.
 
 ## Skill duy nhất: `dbs-delivering-task`
 
@@ -12,7 +12,7 @@ Bắt buộc cho **mọi** thay đổi trong repo, kể cả sửa một dòng h
 | 2. Thiết kế | §2 hành vi, §3 kiến trúc, §4 test case tự động, §5 kịch bản test thủ công; AI domain review ghi §6 | **G2 Thiết kế** |
 | 3. Kế hoạch | §7: từng bước, test viết trước, lệnh chứng minh | **G3 Kế hoạch** |
 | 4. Implement và test | 4a code theo TDD · 4b chạy test tự động, đối chiếu case · 4c **test thủ công** theo §5, ghi kết quả thật | — |
-| 5. Tài liệu và bàn giao | Ảnh chụp và `manual-test.txt` từ test thủ công vào `docs/features/screenshots/DBS-<n>/`, §8–§9, sửa docs liên quan, kiểm link | **G4 Bàn giao** (PR chỉ Ready sau G4; không push trước G3, sau G3 chỉ Draft PR khi người duyệt yêu cầu) |
+| 5. Tài liệu và bàn giao | Ảnh chụp và `manual-test.txt` từ test thủ công vào `docs/features/screenshots/DBS-<n>/`, §8–§9, việc bàn giao và DoD chưa đạt ghi thành dòng `BL-NNN` trong `docs/BACKLOG.md`, sửa docs liên quan, kiểm link | **G4 Bàn giao** (PR chỉ Ready sau G4; không push trước G3, sau G3 chỉ Draft PR khi người duyệt yêu cầu) |
 
 Ngoài 4 gate, agent dừng hỏi bất cứ lúc nào phải đổi ADR, schema của bảng không thuộc vai mình, event contract, `ErrorCode`, biến môi trường, quy tắc tiền, thêm thư viện hoặc rời khỏi kế hoạch §7 đã duyệt.
 
@@ -55,3 +55,4 @@ Ngoài 4 gate, agent dừng hỏi bất cứ lúc nào phải đổi ADR, schema
 | 2.2 | Sửa theo vòng 2: log thô đổi thành `manual-test.txt` (`*.log` bị gitignore), xóa token trước khi commit, không push trước G3, lưu nguyên văn trả lời của reviewer, thư mục tune CSV của fraud ngoài "bức tường", dòng cho logic thuần / CI workflow / Terraform init, `docs-style.md`, checklist G4 trong mẫu | 2 reviewer Opus 5.5 (xác minh vòng 2, đi thử DBS-120, DBS-110, DBS-88 với agent vội và kiểm toán viên thù địch): REVISE, 0 blocking, 5 + 4 should-fix |
 | 2.3 | Sửa theo vòng 3: một gate mỗi tin nhắn và chờ trả lời mới sang phase; không đưa gì lên GitHub trước G3 bằng bất kỳ công cụ nào; log thô gắn SHA commit cuối, chạy lại toàn bộ §5 sau mỗi lần sửa code; lệch kế hoạch phải có phê duyệt mới qua G4; cấm `.skip`/`.only`/`.todo`; trạng thái doc theo gate; Terraform red bằng `terraform test` với `mock_provider`; quy tắc nguồn SYSTEM chuyển tiền chính xác hơn | 1 reviewer Opus 5.5 (vòng 4): 16/16 mục sửa đúng; 1 should-fix (tài liệu fraud còn nói theo vai cũ) và 5 minor, đã sửa cùng bản này. Reviewer kết luận không còn blocking |
 | 2.4 | Cách phân việc (12/10): bỏ chủ module, cặp review cố định và cột Reviewer trên board; Dev làm không chờ nhau, task bị chặn thì làm task khác; `fetch-task.mjs --next` liệt kê task còn To Do đã gỡ phụ thuộc; review PR bởi Dev khác; bức tường fraud theo người làm generator | chưa cross-check (chỉ đổi cách phân việc, không đổi phase hay gate) |
+| 2.5 | Backlog chung `docs/BACKLOG.md`: Phase 1 đọc backlog (dòng cùng module hoặc DoD thì nhận vào phạm vi hoặc nêu ở G1); Phase 5 mọi việc bàn giao và DoD chưa đạt thành một dòng `BL-NNN`, dòng đã xử lý thì xóa; ô `BL-NNN` trong §8 và checklist G4. Lần đầu dùng: DBS-20 (BL-001 CI, BL-002, BL-003) | Baseline: 3 agent Sonnet chưa có quy tắc chỉ tìm ra backlog vì câu hỏi gợi ý, cả 3 ghi nhận "skill không nhắc backlog". GREEN: 2 agent Sonnet chỉ đọc SKILL + mẫu, không mở backlog: cả 2 đọc backlog ở Phase 1, ghi DoD chưa đạt và việc bàn giao thành `BL-NNN` ở Phase 5, giữ G4 khi bị giục |
