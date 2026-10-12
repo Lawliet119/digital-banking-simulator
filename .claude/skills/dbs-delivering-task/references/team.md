@@ -5,7 +5,7 @@ Six people, three board roles: **`Dev`** (four software developers), **`#4 Fraud
 ## Working together
 
 - **Nobody waits for anybody.** A task is blocked by a dependency that is not Done: do another task. Set the board Status when you start, so the others can see it.
-- There is **no module owner and no fixed pair**. `references/module-notes.md` and the playbook describe areas (ledger, accounts and identity, async and audit, foundation and data) as *knowledge*: read the notes for the area you touch.
+- There is **no module owner and no fixed pair**. `references/module-notes.md` describes areas (ledger, accounts and identity, async and audit, foundation and data) as *knowledge*: read the notes for the area you touch.
 - `node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs --next [Dev|Fraud|Ops]` lists the tasks still To Do whose dependencies are Done, in board order. It is a view of the board, not an assignment, and the board lags the repo: check that nobody is already on a task.
 
 ## Rules

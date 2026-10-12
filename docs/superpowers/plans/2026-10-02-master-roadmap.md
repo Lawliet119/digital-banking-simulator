@@ -10,7 +10,7 @@
 
 **Tech Stack:** Node.js ≥ 24, TypeScript strict, NestJS 11, TypeORM (+ SQL tường minh trong `QueryRunner`), PostgreSQL 17, Valkey (ioredis), SQS (ElasticMQ ở local), Cognito, Jest + Supertest + Testcontainers, k6, Terraform, GitHub Actions, AWS (ECS Fargate, RDS, ElastiCache, WAF, KMS, CloudWatch).
 
-**Spec:** [`../../01_BUSINESS_ANALYSIS.md`](../../01_BUSINESS_ANALYSIS.md) · [`../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md`](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · [`../../03_HIGH_LEVEL_ARCHITECTURE.md`](../../03_HIGH_LEVEL_ARCHITECTURE.md) · [`../plan/10_WEEK_PLAN.md`](../../plan/10_WEEK_PLAN.md) · [`plan/TEAM_ROLES_PLAYBOOK.md`](../../plan/TEAM_ROLES_PLAYBOOK.md) · [`components/risk/FRAUD_DETECTION_GUIDE.md`](../../components/risk/FRAUD_DETECTION_GUIDE.md). Số liệu bên dưới copy từ các file này; mâu thuẫn thì spec thắng.
+**Spec:** [`../../01_BUSINESS_ANALYSIS.md`](../../01_BUSINESS_ANALYSIS.md) · [`../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md`](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · [`../../03_HIGH_LEVEL_ARCHITECTURE.md`](../../03_HIGH_LEVEL_ARCHITECTURE.md) · [`../plan/10_WEEK_PLAN.md`](../../plan/10_WEEK_PLAN.md) · [`components/risk/FRAUD_DETECTION_GUIDE.md`](../../components/risk/FRAUD_DETECTION_GUIDE.md). Số liệu bên dưới copy từ các file này; mâu thuẫn thì spec thắng.
 
 ## Global Constraints
 

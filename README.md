@@ -54,7 +54,7 @@ digital-banking-simulator/
 │   ├── README.md         # bản đồ tài liệu: đọc gì trước, một sự thật ở một chỗ
 │   ├── adr/              # Architecture Decision Records (ADR-01…13)
 │   ├── security/         # threat model STRIDE
-│   ├── plan/             # kế hoạch 10 tuần + playbook theo vai
+│   ├── plan/             # kế hoạch 10 tuần
 │   ├── components/       # concept brief từng component + thiết kế dùng chung (DB, event)
 │   ├── deliverables/     # 5 bản nộp P1–P5
 │   └── superpowers/plans/ # implementation plan (master roadmap)
@@ -111,7 +111,7 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 | #4 Fraud | Phát hiện gian lận | _TBD_ |
 | #5 Platform & Ops | Cloud và vận hành | _TBD_ |
 
-Cách làm: không ai chờ ai, không có chủ module hay cặp cố định. Review PR: một Dev khác. Chi tiết vai: [TEAM_ROLES_PLAYBOOK](docs/plan/TEAM_ROLES_PLAYBOOK.md).
+Cách làm: không ai chờ ai, không có chủ module hay cặp cố định. Review PR: một Dev khác. Chi tiết: [kế hoạch 10 tuần](docs/plan/10_WEEK_PLAN.md).
 
 ## Đóng góp
 
