@@ -5,7 +5,7 @@
 
 const SHEET_ID = '18IHrZShDoZDc6bgnsi__ATyd99aeJxe4x4TWQ5WTz_w';
 const TABS = [...Array.from({ length: 11 }, (_, w) => `Tuần ${w}`), 'Tài liệu đã chốt'];
-const COLUMNS = ['Issue Key', 'Loại', 'Tóm tắt', 'Assignee (vai)', 'Reviewer (cặp đôi)', 'Ưu tiên', 'Status',
+const COLUMNS = ['Issue Key', 'Loại', 'Tóm tắt', 'Assignee (vai)', 'Reviewer', 'Ưu tiên', 'Status',
   'Phụ thuộc (phải xong trước)', 'Deliverable / Demo', 'Thực trạng', 'Expect', 'DoD (Definition of Done)'];
 
 function parseCsv(text) {
