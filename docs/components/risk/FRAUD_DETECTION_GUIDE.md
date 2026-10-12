@@ -575,21 +575,21 @@ Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho n
 
 | Người | Vai trò trong mảng fraud |
 |---|---|
-| **#4** | Chủ mảng: sync guard (cùng #1), 6 luật, tính điểm, API review, cấu hình, đánh giá offline, báo cáo P5 |
-| **#6** | Generator dữ liệu tổng hợp, giữ nhãn holdout, chạy đánh giá online cùng #4 |
-| **#1** | Cặp đôi với #4: review sync guard, đảm bảo nằm đúng trong transaction |
+| **#4** | Chủ mảng fraud: 6 luật, tính điểm, API review, cấu hình, đánh giá offline, báo cáo P5; cùng #1 thống nhất danh sách lý do từ chối của sync guard |
+| **#6** | Generator dữ liệu tổng hợp, giữ nhãn holdout, `libs/redis` và `libs/sqs`, viết script k6 |
+| **#1** | Viết sync guard (`checkGuards`, trạng thái, hạn mức lần, hạn mức ngày) trong transaction chuyển tiền; cặp đôi review code `risk` |
 | **#3** | Event contract, outbox, queue `risk-events` + DLQ, khung consumer idempotent |
 | **#2** | Thu hồi phiên khi nhân viên khóa tài khoản sau review |
-| **#5** | Redis, DB role riêng cho worker, alarm DLQ |
+| **#5** | Hạ tầng Redis và SQS trên cloud, role DB cho worker, alarm, chạy đánh giá online (k6) và diễn tập sự cố trên cloud |
 
 ### 8.2 Các thỏa thuận cần chốt sớm (tuần 1–2)
 
 | Với ai | Thỏa thuận | Hạn |
 |---|---|---|
 | #3 | Event contract `TransferCompleted` (gồm `sameOwner`, `fromBalanceBefore`, `fromAccountCreatedAt`) | Tuần 1 |
-| #1 | Vị trí và mã lỗi của sync guard trong luồng chuyển tiền | Tuần 2 |
+| #1 | Vị trí, chữ ký `checkGuards` và danh sách mã lỗi của sync guard (#1 viết, #4 thống nhất lý do từ chối) | Tuần 2 |
 | #6 | Định dạng CSV, danh sách tên kịch bản, tỉ lệ chia tập, lịch giao tập tune | Tuần 2 |
-| #5 | Key Redis (`risk:vel:*`, `risk:fan:*`, `cfg:risk:*`), quyền của `dbs_worker` trên `v_transfer_facts` | Tuần 3 |
+| #6, #5 | `libs/redis` (#6) và key Redis (`risk:vel:*`, `risk:fan:*`, `cfg:risk:*`); quyền của `dbs_worker` trên `v_transfer_facts` (#1 viết migration, #5 hạ tầng) | Tuần 3 |
 | Cả nhóm | Mục tiêu recall / số cảnh báo (mục 6.4) | Tuần 2 |
 
 ### 8.3 Lộ trình theo tuần
@@ -598,12 +598,12 @@ Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho n
 |---|---|---|---|
 | **1** | Chốt 6 luật, trọng số ban đầu; chốt event contract với #3 | Thiết kế mô hình hành vi bình thường | Bảng luật + contract được cả nhóm đồng ý |
 | **2** | Bảng `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`; interface `RiskRule`, `FeatureProvider` | Bản đầu của generator (chỉ giao dịch bình thường) | Migration chạy được; code khung có test |
-| **3** | Sync guard cùng #1 (trạng thái, hạn mức lần, hạn mức ngày) | Thêm kịch bản gian lận và hard negative | AC-5.6, 5.7 xanh trong CI |
+| **3** | Luật R1–R3 dạng hàm thuần; review sync guard của #1 | Thêm kịch bản gian lận và hard negative | AC-5.6, 5.7 xanh trong CI |
 | **4** | 6 luật + consumer + Redis + dự phòng SQL; unit test từng luật | Hoàn thiện generator, giao **tập tune** | Chuyển tiền → cờ tự xuất hiện; AC-9.1, 9.2 xanh |
 | **5** | API review (UC-10); `OfflineFeatureProvider`; đánh giá lần đầu trên tập tune; **spike ONNX và cổng go/no-go cho `v3` (cuối tuần)** | Hỗ trợ đọc kết quả, kiểm tra dữ liệu có hợp lý không | Demo giữa kỳ có phần review cờ; có số liệu đầu tiên |
 | **6** | Học tham số (`v2`) trên tập tune; chỉ nếu qua cổng go/no-go: huấn luyện và tích hợp `v3`; test so khớp online/offline; cấu hình có phiên bản (UC-12) | — | Có bảng đối sánh các chế độ trên tập tune |
-| **7** | **Đóng băng cấu hình** → chạy holdout một lần; ablation, đường PR | Giao nhãn holdout; chạy đánh giá online (latency, tải DB, có/không Redis) | Có toàn bộ số liệu cho P5 |
-| **8** | Hỗ trợ P4: dashboard cảnh báo / 1.000, alarm | Failure injection cho worker (tắt Redis, DB lỗi) | Số liệu fraud có trong P4 |
+| **7** | **Đóng băng cấu hình** → chạy holdout một lần; ablation, đường PR | Giao nhãn holdout; viết script k6 để #5 chạy đánh giá online (latency, tải DB, có/không Redis) cùng #4 | Có toàn bộ số liệu cho P5 |
+| **8** | Metric cảnh báo / 1.000 giao dịch (#4); alarm do #5 dựng | #5 diễn tập sự cố cho worker (tắt Redis, DB lỗi) bằng script của #6 | Số liệu fraud có trong P4 |
 | **9** | **Viết báo cáo P5**; chuẩn bị trả lời câu 12 | Viết phần mô tả bộ dữ liệu và giới hạn | Nộp P5 |
 
 ### 8.4 Kiểm thử

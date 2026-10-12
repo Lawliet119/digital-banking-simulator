@@ -1,11 +1,11 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Accepted v1.6 (chốt 2026-10-11) · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-11
+> **Status:** Accepted v1.7 (chốt 2026-10-11, bổ sung 2026-10-12) · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-12
 
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
-| Phiên bản | 1.6 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
+| Phiên bản | 1.7 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [01_BUSINESS_ANALYSIS.md](01_BUSINESS_ANALYSIS.md) (BG, BR) · [02_REQUIREMENTS_AND_DOMAIN_MODEL.md](02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (UC, FR, NFR, domain model) |
 | Tài liệu liên quan | [ADR-01…13](adr/README.md) · [threat model](security/threat-model.md) · [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đã chốt ngày 2026-10-11 (lý do ở các ADR). Giá cloud là giá tham khảo region `ap-southeast-1`; số thật lấy từ Cost Explorer |
@@ -225,6 +225,7 @@ sequenceDiagram
 | Khóa hai tài khoản **theo thứ tự id** | Hai lệnh A→B và B→A không khóa chéo nhau gây deadlock |
 | Sync guard đặt **sau** `FOR UPDATE` | Hạn mức ngày = tổng tiền đi hôm nay của tài khoản nguồn. Tài khoản nguồn đang bị khóa nên lệnh khác phải chờ; không thể hai lệnh cùng lọt hạn mức (AC-5.6) |
 | Lưu cả kết quả `REJECTED` cùng mã yêu cầu | Cùng mã luôn trả cùng kết quả (BR-07) |
+| Tài khoản SYSTEM `funding` chỉ là nguồn của nạp tiền | Đích là SYSTEM: lệnh `TRANSFER` bị từ chối `ACCOUNT_NOT_ACTIVE` (`to_account_id` NULL, cùng câu trả lời với tài khoản không tồn tại). Nguồn là SYSTEM: không khách nào sở hữu nó nên bước kiểm tra sở hữu tài khoản nguồn trả 404 kèm nhật ký `DENIED` (AC-5.8). Id `funding` cố định nên đoán được, không thể để khách chuyển tiền vào hay ra khỏi nó |
 | Không lưu trạng thái lỗi hệ thống | Rollback thì không có gì để lưu; client gửi lại cùng mã (AC-5.10) |
 | READ COMMITTED + `FOR UPDATE`, không dùng SERIALIZABLE | Đủ an toàn nhờ khóa hàng; không phải xử lý lỗi `40001`. Chỉ retry có giới hạn khi deadlock `40P01` hoặc mất kết nối |
 | Redis chỉ đứng trước cửa | Mọi kiểm tra quyết định đúng-sai của tiền nằm trong Postgres; tắt Redis thì luồng vẫn đúng |
@@ -1026,3 +1027,4 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 13, đều ở trạng thái Acce
 | **1.4** | Lấp các khoảng trống trước khi implement: endpoint tra cứu tài khoản cho nhân viên (§7, §6.4), mã `FLAG_ALREADY_REVIEWED` (§7.1), key `cfg:risk:latest` (§9), ghi chú sự kiện không phát ở v1 (§10), tạo dòng `users` và tài khoản nhân viên (§12) |
 | **1.5** | Đồng bộ với ADR-08 mới: chi phí fraud (§15.5), dòng ADR-08 ở bảng ADR, thêm `GET /v1/operator/fraud-flags/{transferId}` vào bảng API (§7) |
 | **1.6** | Chốt toàn bộ giả định: viết ADR-01…07, 09…12 và chuyển 13 ADR sang Accepted. Task ECS ở public subnet (§13, ADR-10); Redis node cố định (§9, ADR-12); `TransferRejected` không phát ở v1, `occurredAt = transfers.created_at` (§10); tham số SQS và relay (§10); vai trò từ `cognito:groups`, xác thực local (§12); health check ALB và worker (§4, §13.3); SLO chính thức kèm ngưỡng alarm (§14); câu hỏi mở chuyển thành bảng kết luận (§20) |
+| **1.7** | Thêm quy tắc §6.1: `TRANSFER` vào tài khoản SYSTEM bị từ chối `ACCOUNT_NOT_ACTIVE`, từ tài khoản SYSTEM thì không qua được kiểm tra sở hữu (404 kèm `DENIED`) |

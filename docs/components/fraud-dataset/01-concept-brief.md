@@ -21,6 +21,7 @@ Không có dữ liệu thật; cần dữ liệu có nhãn để đo precision, 
 
 - Generator do #6 viết; #4 chỉ biết tên và mô tả một câu của từng kịch bản, **không xem code**.
 - Chia tập theo khách hàng: ~70% tune, ~30% holdout; nhãn holdout giữ tới tuần 7.
+- Mã generator và nhãn holdout nằm trong `load-tests/fraud-dataset/` (chỉ #6 đọc). CSV tune giao cho #4 ở `backend/data/fraud/` (gitignore, chia sẻ qua link).
 - Có hard negatives (giao dịch hợp lệ trông đáng ngờ) và kịch bản ngoài tầm luật để đo recall trung thực.
 
 ## Ngoài phạm vi (v1)

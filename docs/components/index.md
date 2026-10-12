@@ -16,15 +16,15 @@ Khác biệt giữa component và module: xem [glossary](_shared/glossary.md).
 | **`audit`** | Nhật ký bất biến: ai làm gì, khi nào, trên đối tượng nào; tra cứu cho kiểm toán viên. | `AuditService.record` trong transaction, fail-closed, chỉ INSERT, tra cứu theo người/hành động/thời gian/correlationId. | #3 | [01](audit/01-concept-brief.md) |
 | **`outbox`** | Đưa sự kiện từ bảng outbox ra các queue, ít nhất một lần, kèm khung consumer idempotent. | Relay SKIP LOCKED, bảng định tuyến, mỗi consumer một queue + DLQ, processed_events, event contract. | #3 | [01](outbox/01-concept-brief.md) |
 | **`notification`** | Nhận sự kiện và gửi thông báo; v1 chỉ ghi log (giả lập). | Consumer notification-events, idempotent, retry có backoff, circuit breaker, không lộ lý do gian lận. | #3 | [01](notification/01-concept-brief.md) |
-| **`health`** | Probe sức khỏe cho load balancer: `/health/live`, `/health/ready`. | Liveness, readiness kiểm tra PostgreSQL, Redis báo degraded chứ không down. | #5 | [01](health/01-concept-brief.md) |
+| **`health`** | Probe sức khỏe cho load balancer: `/health/live`, `/health/ready`. | Liveness, readiness kiểm tra PostgreSQL, Redis báo degraded chứ không down. | #6 | [01](health/01-concept-brief.md) |
 
 ## Platform (hạ tầng, pipeline, quan sát)
 
 | Component | Purpose | Key features | Owner | Docs |
 |---|---|---|---|---|
 | **`platform-infra`** | Hạ tầng AWS bằng Terraform: VPC, ECS Fargate, RDS, ElastiCache, SQS, Cognito, WAF, KMS. | Hai cấu hình dev/prod, tách phần giữ lại và phần dựng/xóa theo giờ, không NAT Gateway, Multi-AZ khi demo HA. | #5 | [01](platform-infra/01-concept-brief.md) |
-| **`ci-cd`** | Từ commit tới cloud: lint, test, build một image, quét, đẩy ECR, deploy, rollback. | Lint → typecheck → unit → e2e (Testcontainers) → build → quét lỗ hổng/secret → ECR; OIDC; migration bước riêng. | #5 | [01](ci-cd/01-concept-brief.md) |
-| **`observability`** | SLI/SLO, log JSON có correlationId, dashboard và alarm. | SLI chính, dashboard, alarm (error rate, latency, DLQ > 0, đối soát lệch, Redis), log cấu trúc. | #6 | [01](observability/01-concept-brief.md) |
+| **`ci-cd`** | Từ commit tới cloud: lint, test, build một image, quét, đẩy ECR, deploy, rollback. | Lint → typecheck → unit → e2e (Testcontainers) → build → quét lỗ hổng/secret → ECR; OIDC; migration bước riêng. | #5 (deploy, quét); #6 (job test) | [01](ci-cd/01-concept-brief.md) |
+| **`observability`** | SLI/SLO, log JSON có correlationId, dashboard và alarm. | SLI chính, dashboard, alarm (error rate, latency, DLQ > 0, đối soát lệch, Redis), log cấu trúc. | #5 | [01](observability/01-concept-brief.md) |
 
 ## Quality (dữ liệu đánh giá, load test)
 

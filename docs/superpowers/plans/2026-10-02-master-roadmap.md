@@ -95,7 +95,7 @@ Các điểm spec từng còn mở. Tất cả đã có kết luận; lý do n�
 
 ### Task 1: Nền tảng, CI/CD, Redis/SQS adapters, khung test (tuần 1–3)
 
-**Owner:** #5 (hạ tầng, CI/CD) · #6 (khung test) · #3 (adapter SQS) · #2 (adapter Redis/Cognito JWKS). **Cặp đôi:** #5 ↔ #6.
+**Owner:** #5 (hạ tầng, deploy) · #6 (khung test, CI test, `libs/redis`, `libs/sqs`, health, logger) · #2 (xác thực Cognito JWKS). **Cặp đôi:** #5 ↔ #6.
 
 **Files:**
 - Create: `infra/terraform/{bootstrap,modules/{network,ecs,rds,redis,sqs,cognito,monitoring},envs/{dev,prod}}`, `.github/workflows/{ci.yml,deploy.yml}`.
@@ -149,7 +149,7 @@ Các điểm spec từng còn mở. Tất cả đã có kết luận; lý do n�
 
 ### Task 3: Ledger lõi — chuyển tiền, nạp tiền, idempotency, sync guard, đối soát (tuần 1–4, **đường găng**)
 
-**Owner:** #1 + #4 (sync guard) · **Cặp đôi:** #1 ↔ #4. **Use case:** UC-3, 5, 6, 7 · **AC:** AC-5.1…5.10 · **FR:** FR-LED-01…10 · **ADR:** 01, 02, 04, 05, 07, 09.
+**Owner:** #1 (gồm sync guard) · **Cặp đôi:** #1 ↔ #4. **Use case:** UC-3, 5, 6, 7 · **AC:** AC-5.1…5.10 · **FR:** FR-LED-01…10 · **ADR:** 01, 02, 04, 05, 07, 09.
 
 **Files:**
 - Create: `backend/src/modules/ledger/{ledger.module.ts,transfers.controller.ts,operator-deposits.controller.ts,transfer.service.ts,sync-guard.ts,ledger-query.service.ts,reconciliation.job.ts,dto/,entities/,index.ts}`.
@@ -225,7 +225,7 @@ Các điểm spec từng còn mở. Tất cả đã có kết luận; lý do n�
 - Consumes: event `TransferCompleted` từ `risk-events` (T4), `ConsumerBase` (T4), `RedisClient` (T1), `AuditService` (T4).
 - Produces: `interface RiskRule { id: 'R1'|…|'R6'; evaluate(event, features, params): RuleHit | null }` (hàm thuần); `FeatureProvider` (online: Redis + SQL; offline: dữ liệu trong bộ nhớ); `GET /v1/operator/fraud-flags`, `GET …/{transferId}`, `POST …/{transferId}/review` (`CONFIRMED_FRAUD`/`FALSE_POSITIVE`, chỉ một lần); `GET/POST /v1/admin/risk-config…` (phiên bản bất biến).
 
-**Mốc theo tuần:** T1–2 chốt luật, schema, interface · T3 sync guard cùng #1 (thuộc Task 3) · T4 6 luật + consumer + Redis + dự phòng SQL → "chuyển tiền xong thì cờ tự xuất hiện" · T5 API review + đánh giá lần đầu trên tập tune + spike ONNX và cổng go/no-go cho `v3` (ADR-08) · T6 học tham số (`v2`), test so khớp online/offline, và `v3` chỉ nếu qua cổng · T7 đóng băng cấu hình, chạy holdout **một lần**, ablation, đường PR.
+**Mốc theo tuần:** T1–2 chốt luật, schema, interface · T3 sync guard do #1 viết (thuộc Task 3), #4 review · T4 6 luật + consumer + Redis + dự phòng SQL → "chuyển tiền xong thì cờ tự xuất hiện" · T5 API review + đánh giá lần đầu trên tập tune + spike ONNX và cổng go/no-go cho `v3` (ADR-08) · T6 học tham số (`v2`), test so khớp online/offline, và `v3` chỉ nếu qua cổng · T7 đóng băng cấu hình, chạy holdout **một lần**, ablation, đường PR.
 
 - [ ] Mọi cửa sổ thời gian tính theo `occurredAt`; R3/R6 dùng snapshot trong event, không đọc số dư hiện tại; chấm điểm chỉ `TRANSFER`, bỏ qua `DEPOSIT`; `sameOwner` miễn R5/R6.
 - [ ] Điểm = tổng trọng số luật kích hoạt (R1 30, R2 25, R3 35, R4 20, R5 40, R6 30, phiên bản `v1`); `0–39 LOW` (không cờ), `40–69 MEDIUM`, `≥ 70 HIGH`; ví dụ bảng §4.3 của guide thành unit test.
@@ -244,7 +244,7 @@ Các điểm spec từng còn mở. Tất cả đã có kết luận; lý do n�
 
 **Owner:** #6 · **Người dùng:** #4. **Bức tường:** #4 **không** xem code generator.
 
-**Files:** `load-tests/fraud-dataset/` (generator, seed cố định, CSV tune/holdout). Định dạng: `tx_id, occurred_at, from_account, to_account, from_customer, to_customer, amount, from_balance_before, from_account_created_at, to_account_created_at, is_fraud, scenario`.
+**Files:** `load-tests/fraud-dataset/` (generator, seed cố định, nhãn holdout: chỉ #6 đọc, đây là "bức tường"). CSV **tune** (có nhãn) được #6 giao vào `backend/data/fraud/` (gitignore, chia sẻ qua link) để #4 đọc. Định dạng: `tx_id, occurred_at, from_account, to_account, from_customer, to_customer, amount, from_balance_before, from_account_created_at, to_account_created_at, is_fraud, scenario`.
 
 - [ ] ~2.000 khách, 60 ngày, ~100.000 giao dịch, ~1 % gian lận; hard negatives (tiền nhà, chuyển sang tài khoản của chính mình, khách mới nhận lương, chia tiền ăn nhóm, mượn–trả trong ngày); kịch bản `ATO_DRAIN`, `MULE_FANOUT`, `VELOCITY_BURST`, `BUST_OUT`, `ROUND_TRIP` và 3 kịch bản ngoài tầm luật `SLOW_DRIP`, `STRUCTURING`, `FAN_IN`.
 - [ ] Chia theo **khách hàng** 70 % tune / 30 % holdout; giao tập tune tuần 4; giữ nhãn holdout tới tuần 7.
@@ -255,7 +255,7 @@ Các điểm spec từng còn mở. Tất cả đã có kết luận; lý do n�
 
 ### Task 8: Quality, load test, giả lập sự cố, quan sát (tuần 1–9)
 
-**Owner:** #6 · **Cặp đôi:** #5. **ADR/NFR:** NFR-PERF/SCAL/OBS · **Demo:** 5 demo bắt buộc.
+**Owner:** #6 (test, script k6) + #5 (chạy tải, dashboard, alarm, diễn tập sự cố) · **Cặp đôi:** #5 ↔ #6. **ADR/NFR:** NFR-PERF/SCAL/OBS · **Demo:** 5 demo bắt buộc.
 
 **Files:** `backend/test/**` (concurrent, duplicate, security, failure), `load-tests/{baseline,hot-account,duplicate,stress,rate-limit}.js` (k6), `load-tests/check-invariants.sh` (hoặc script SQL), dashboard + alarm CloudWatch (cùng #2).
 

@@ -7,15 +7,18 @@ Mỗi task implement trên board (tính năng, sửa lỗi, hạ tầng, test) c
 | Mục | Nội dung | Viết ở phase |
 |---|---|---|
 | 1. Bối cảnh | Task, DoD chép từ board, phụ thuộc, phạm vi | 1 (duyệt ở G1) |
-| 2. Kiến trúc | Vị trí, interface, dữ liệu, transaction, sơ đồ | 2 |
-| 3. Hành vi | Quy tắc, ví dụ API, `errorCode`, ca biên | 3 |
-| 4. Test cases | `TC-<n>-NN`, truy vết DoD/AC | 3 (duyệt ở G2) |
-| 5. Domain review | Phát hiện của AI reviewer và cách xử lý | 3 |
-| 6. Kế hoạch | Các bước, test viết trước, lệnh chứng minh | 4 (duyệt ở G3) |
-| 7. Kết quả | Lệnh kiểm tra, đối chiếu test case, ảnh chụp | 5 (duyệt ở G4) |
-| 8. Tài liệu đã cập nhật | File docs khác đã sửa | 5 |
+| 2. Hành vi | Quy tắc, ví dụ API, `errorCode`, ca biên | 2 |
+| 3. Kiến trúc | Vị trí, interface, dữ liệu, transaction, sơ đồ | 2 |
+| 4. Test cases tự động | `TC-<n>-NN`, truy vết DoD/AC | 2 |
+| 5. Test thủ công | Kịch bản chạy tay bằng ứng dụng thật (`M-<n>-NN`) | 2 (duyệt ở G2) |
+| 6. Domain review | Phát hiện của AI reviewer và cách xử lý | 2 |
+| 7. Kế hoạch | Các bước, test viết trước, lệnh chứng minh | 3 (duyệt ở G3) |
+| 8. Kết quả | Lệnh kiểm tra, đối chiếu test case, kết quả test thủ công, ảnh chụp, bàn giao | 4–5 (duyệt ở G4) |
+| 9. Tài liệu đã cập nhật | File docs khác đã sửa | 5 |
 
-**Ảnh chụp** tính năng sau khi implement nằm ở `screenshots/DBS-<n>/NN-mo-ta.png` và được nhúng vào mục 7 của file tương ứng.
+Feature doc làm bằng mẫu 8 mục cũ (kiến trúc ở §2, hành vi ở §3, ví dụ DBS-20 khi được merge) giữ nguyên, không cần sửa lại.
+
+**Ảnh chụp** tính năng sau khi implement nằm ở `screenshots/DBS-<n>/NN-mo-ta.png` và được nhúng vào mục 8 của file tương ứng.
 
 Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 

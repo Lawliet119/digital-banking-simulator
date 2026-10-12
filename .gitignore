@@ -58,3 +58,7 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ---------- Fraud dataset (tune CSV giao qua link; nhãn holdout không commit) ----------
+backend/data/fraud/
+load-tests/fraud-dataset/holdout/

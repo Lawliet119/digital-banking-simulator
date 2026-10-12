@@ -105,14 +105,16 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 
 ## Nhóm
 
-| Vai trò | Thành viên |
-|---|---|
-| Ledger & Transfer | _TBD_ |
-| Identity & Accounts | _TBD_ |
-| Async, Events & Audit | _TBD_ |
-| Risk & Fraud | _TBD_ |
-| Platform & Security | _TBD_ |
-| Quality & Observability | _TBD_ |
+| Vai trò | Loại | Thành viên |
+|---|---|---|
+| #1 Dev · Ledger | Software developer | _TBD_ |
+| #2 Dev · Accounts & Identity | Software developer | _TBD_ |
+| #3 Dev · Async & Audit | Software developer | _TBD_ |
+| #4 Fraud | Phát hiện gian lận | _TBD_ |
+| #5 Platform & Ops | Cloud và vận hành | _TBD_ |
+| #6 Dev · Foundation & Data | Software developer | _TBD_ |
+
+Cặp đôi review: #1↔#4, #2↔#3, #5↔#6. Chi tiết vai: [TEAM_ROLES_PLAYBOOK](docs/plan/TEAM_ROLES_PLAYBOOK.md).
 
 ## Đóng góp
 
