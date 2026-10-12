@@ -276,7 +276,7 @@ query: COMMIT
 | TC-20-19 | `accounts-schema.db-spec.ts` › TC-20-19 stores the bigint maximum and refuses to overflow it | đạt |
 | TC-20-20 | kiểm tay `migration:run:prod` từ `dist/` (log ở trên) | đạt |
 | DoD #6 "kiểm tay" | psql chèn 4 hàng sai, ảnh 03 | đạt |
-| DoD #7 | PR, review #4, CI | **chưa làm**: PR mở sau G4; repo chưa có CI (quyết định G1 số 7) |
+| DoD #7 | PR, review, CI | PR mở sau G4; **CI chưa làm**: repo chưa có CI (quyết định G1 số 7), ghi ở [BL-001](../BACKLOG.md) |
 
 - **Ảnh chụp** (`docs/features/screenshots/DBS-20/`). Ảnh dựng từ output thật của các lệnh (chép nguyên văn, chỉ lọc dòng `query:` ở ảnh 01), hiển thị kiểu terminal bằng Chrome headless:
 
@@ -292,10 +292,11 @@ query: COMMIT
   - Helper test dùng `DataSource`/`QueryRunner` của TypeORM thay vì `pg.Client`: repo không có `@types/pg`, và thêm nó là thêm dependency (gate phụ). Lỗi `QueryFailedError` của TypeORM mang nguyên `code` và `constraint` của `pg`, nên test vẫn kiểm theo SQLSTATE và tên ràng buộc.
   - TC-20-13 gọi `node $npm_execpath run …`, không qua shell (tránh cảnh báo `DEP0190` của Node). Vì vậy bộ `test:db` phải được chạy bằng `npm run test:db`; chạy `npx jest` thẳng thì TC-20-13 báo lỗi rõ ràng.
   - TC-20-12 dùng chung database của file (đã sửa ghi chú ở §4).
-- **Việc để lại cho vai khác:** xem §2 "Việc bàn giao" (#3 contract `fromUserId` khi `DEPOSIT`; #1 chặn `TRANSFER` vào SYSTEM; #5 chạy `test:db` trong CI). Entity của `users`/`customers`/`accounts` làm ở task của #2.
+- **Việc để lại cho vai khác:** xem §2 "Việc bàn giao", đã ghi vào [`docs/BACKLOG.md`](../BACKLOG.md): BL-001 (CI, gồm `test:db`), BL-002 (contract `fromUserId` khi `DEPOSIT`), BL-003 (chặn `TRANSFER` vào/ra SYSTEM). Entity của `users`/`customers`/`accounts` làm ở task của #2.
 
 ## 8. Tài liệu đã cập nhật
 
 - [`docs/components/_shared/database-design.md`](../components/_shared/database-design.md): header "Verified against code"; §11 Quy ước (`SnakeNamingStrategy` tự viết, tên ràng buộc, `test:db`), Dữ liệu khởi tạo (id `funding`), Nguyên tắc triển khai (`down` tự kiểm trước khi `DROP`).
 - [`backend/README.md`](../../backend/README.md): bảng lệnh (`test:db`), dòng "Trước khi mở Pull Request", mục 6 Migration.
 - [`docs/features/README.md`](README.md): thêm dòng DBS-20.
+- [`docs/BACKLOG.md`](../BACKLOG.md) (file mới): BL-001, BL-002, BL-003; [`docs/README.md`](../README.md): link tới backlog.
