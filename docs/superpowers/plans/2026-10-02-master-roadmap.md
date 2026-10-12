@@ -10,7 +10,7 @@
 
 **Tech Stack:** Node.js ≥ 24, TypeScript strict, NestJS 11, TypeORM (+ SQL tường minh trong `QueryRunner`), PostgreSQL 17, Valkey (ioredis), SQS (ElasticMQ ở local), Cognito, Jest + Supertest + Testcontainers, k6, Terraform, GitHub Actions, AWS (ECS Fargate, RDS, ElastiCache, WAF, KMS, CloudWatch).
 
-**Spec:** [`../../01_BUSINESS_ANALYSIS.md`](../../01_BUSINESS_ANALYSIS.md) · [`../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md`](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · [`../../03_HIGH_LEVEL_ARCHITECTURE.md`](../../03_HIGH_LEVEL_ARCHITECTURE.md) · [`../plan/10_WEEK_PLAN.md`](../../plan/10_WEEK_PLAN.md) · [`components/risk/FRAUD_DETECTION_GUIDE.md`](../../components/risk/FRAUD_DETECTION_GUIDE.md). Số liệu bên dưới copy từ các file này; mâu thuẫn thì spec thắng.
+**Spec:** [`../../01_BUSINESS_ANALYSIS.md`](../../01_BUSINESS_ANALYSIS.md) · [`../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md`](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · [`../../03_HIGH_LEVEL_ARCHITECTURE.md`](../../03_HIGH_LEVEL_ARCHITECTURE.md) · [`components/risk/FRAUD_DETECTION_GUIDE.md`](../../components/risk/FRAUD_DETECTION_GUIDE.md). Số liệu bên dưới copy từ các file này; mâu thuẫn thì spec thắng.
 
 ## Global Constraints
 
@@ -64,7 +64,7 @@ T0 Chuẩn bị ─▶ T1 Nền tảng & CI/CD ─┬▶ T2 Identity & Accounts 
 Các điểm spec từng còn mở. Tất cả đã có kết luận; lý do nằm ở ADR tương ứng.
 
 - [x] **Nền tảng:** AWS, `ap-southeast-1`, dựng/xóa theo phiên; #5 giữ tài khoản. *(ADR-11)*
-- [ ] **Deadline thật của P1–P5** từ giảng viên; cập nhật `10_WEEK_PLAN.md` và `docs/deliverables/README.md`. *(việc của #2, không phải quyết định kỹ thuật)*
+- [ ] **Deadline thật của P1–P5** từ giảng viên; cập nhật `docs/deliverables/README.md`. *(việc của #2, không phải quyết định kỹ thuật)*
 - [x] **TypeORM + SQL tường minh trong `QueryRunner`** cho luồng tiền. *(ADR-07)*
 - [x] **Event contract `TransferCompleted`** có `sameOwner`, `fromBalanceBefore`, `fromAccountCreatedAt`, `toAccountCreatedAt`, `fromUserId`, `toUserId`, `occurredAt = transfers.created_at`, `correlationId`; `TransferRejected` không phát ở v1. *(event-contract, Accepted)*
 - [x] **ERD:** `rule_set_version` ở `fraud_flags`, `weight` ở `fraud_rule_hits`. *(database-design, Accepted)*
@@ -320,7 +320,7 @@ Các điểm spec từng còn mở. Tất cả đã có kết luận; lý do n�
 | Chi phí cloud vượt | Báo cáo chi phí thứ Hai > kế hoạch | `destroy` ngoài giờ; WAF chỉ bật tuần 6–8; không NAT |
 | Generator dữ liệu trễ | Tuần 4 chưa có tập tune | #4 tự làm bộ nhỏ thủ công để test luật (không dùng cho đánh giá cuối) |
 | Kết quả fraud "đẹp bất thường" | Precision/recall ≈ 100 % | Kiểm tra bức tường #4/#6, rò rỉ nhãn, chia tập sai |
-| Deadline thật khác giả định | Giảng viên báo lịch | Cập nhật `10_WEEK_PLAN.md` và bảng trên, giữ thứ tự việc |
+| Deadline thật khác giả định | Giảng viên báo lịch | Cập nhật bảng trên, giữ thứ tự việc |
 
 ## Self-review (đã chạy)
 

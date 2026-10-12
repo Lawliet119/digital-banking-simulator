@@ -7,7 +7,7 @@
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
 | Phiên bản | 1.7 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [01_BUSINESS_ANALYSIS.md](01_BUSINESS_ANALYSIS.md) (BG, BR) · [02_REQUIREMENTS_AND_DOMAIN_MODEL.md](02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (UC, FR, NFR, domain model) |
-| Tài liệu liên quan | [ADR-01…13](adr/README.md) · [threat model](security/threat-model.md) · [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) · [adr/](adr/README.md) |
+| Tài liệu liên quan | [ADR-01…13](adr/README.md) · [threat model](security/threat-model.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đã chốt ngày 2026-10-11 (lý do ở các ADR). Giá cloud là giá tham khảo region `ap-southeast-1`; số thật lấy từ Cost Explorer |
 
 Tài liệu này trả lời câu hỏi **"xây như thế nào và vì sao"**. Mỗi quyết định đều truy về một yêu cầu ở tài liệu 02.
@@ -1006,7 +1006,7 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 13, đều ở trạng thái Acce
 
 | # | Câu hỏi | Kết luận |
 |---|---|---|
-| 1 | Deadline chính thức của P1–P5? | Theo lịch giảng viên; ghi ở [plan/10_WEEK_PLAN.md](plan/10_WEEK_PLAN.md) và [deliverables](deliverables/README.md) |
+| 1 | Deadline chính thức của P1–P5? | Theo lịch giảng viên; ghi ở [deliverables](deliverables/README.md) |
 | 2 | TypeORM hay Kysely? | TypeORM + SQL tường minh cho luồng tiền ([ADR-07](adr/0007-nestjs-typeorm-explicit-sql.md)) |
 | 3 | NAT, VPC endpoints hay public subnet? | Public subnet, security group chỉ nhận từ ALB ([ADR-10](adr/0010-fargate-egress-public-subnet.md)) |
 | 4 | ElastiCache Serverless hay node? | Node `cache.t4g.micro`, cluster mode tắt ([ADR-12](adr/0012-redis-valkey-node.md)) |

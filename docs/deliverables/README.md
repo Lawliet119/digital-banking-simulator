@@ -2,7 +2,7 @@
 
 > **Status:** Active · **Owner:** #2 (ghép và nộp) · **Verified against code:** n/a · **Cập nhật:** 2026-10-03
 
-Năm bản nộp của môn học. Mỗi bản là **bản ghép trỏ về nguồn**, không viết lại: ai làm phần nào tự viết phần đó trong tài liệu nguồn, người dẫn dắt ghép và nộp. Deadline thật chờ giảng viên xác nhận; ngày dưới đây theo [10_WEEK_PLAN](../plan/10_WEEK_PLAN.md).
+Năm bản nộp của môn học. Mỗi bản là **bản ghép trỏ về nguồn**, không viết lại: ai làm phần nào tự viết phần đó trong tài liệu nguồn, người dẫn dắt ghép và nộp. Deadline thật chờ giảng viên xác nhận; ngày dưới đây là dự kiến.
 
 | Bản nộp | Chủ đề | Dẫn dắt | Tuần | Nguồn chính | Bản nộp / link |
 |---|---|---|---|---|---|
