@@ -11,7 +11,7 @@
 
 ### 0.1 Sáu vai: bốn developer và hai vai chuyên môn
 
-**Bốn software developer (#1, #2, #3, #6)** làm cùng một việc cho mọi task của mình: lên kế hoạch, implement, test, test thủ công, viết tài liệu và ảnh chụp, theo cùng một quy trình (5 phase, 4 gate). Họ khác nhau ở module sở hữu, không khác nhau ở cách làm. **#4 Fraud** lo riêng phần phát hiện gian lận. **#5 Platform & Ops** lo cloud và vận hành. Số #1–#6 là nhãn ổn định dùng trên board và PR.
+**Bốn software developer (#1, #2, #3, #6)** làm cùng một việc cho mọi task của mình: lên kế hoạch, implement, test, test thủ công, viết tài liệu và ảnh chụp, theo cùng một quy trình (5 phase, 4 gate). Họ khác nhau ở module sở hữu, không khác nhau ở cách làm. **#4 Fraud** lo riêng phần phát hiện gian lận. **#5 Platform & Ops** lo cloud và vận hành. Trên board bốn developer là **một vai «Dev»** (người nhận task ghi «[Nhận: tên]» ở đầu cột Thực trạng), còn #4 Fraud và #5 Platform & Ops giữ nhãn riêng. Nhãn #1, #2, #3, #6 và phần sở hữu module dưới đây là quy ước làm việc: ai là chủ module nào và ai review mặc định.
 
 | # | Vai | Sứ mệnh một câu | Sở hữu | Dẫn dắt | Câu bảo vệ | Cặp đôi review |
 |---|---|---|---|---|---|---|

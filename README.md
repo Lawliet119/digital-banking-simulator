@@ -114,7 +114,7 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 | #5 Platform & Ops | Cloud và vận hành | _TBD_ |
 | #6 Dev · Foundation & Data | Software developer | _TBD_ |
 
-Cặp đôi review: #1↔#4, #2↔#3, #5↔#6. Chi tiết vai: [TEAM_ROLES_PLAYBOOK](docs/plan/TEAM_ROLES_PLAYBOOK.md).
+Trên board bốn developer là một vai «Dev». Cặp review mặc định: #1↔#4, #2↔#3, #5↔#6. Chi tiết vai: [TEAM_ROLES_PLAYBOOK](docs/plan/TEAM_ROLES_PLAYBOOK.md).
 
 ## Đóng góp
 

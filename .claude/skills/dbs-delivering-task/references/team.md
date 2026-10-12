@@ -1,6 +1,6 @@
 # Team and ownership
 
-Six people, two kinds of role. **Four software developers** (#1, #2, #3, #6) all do the same job on every task: plan, implement, test, manual test. **#4 Fraud** and **#5 Platform & Ops** own a domain of their own. The numbers #1 to #6 are stable labels used on the board and in PRs.
+Six people, two kinds of role. **Four software developers** (#1, #2, #3, #6) all do the same job on every task: plan, implement, test, manual test. **#4 Fraud** and **#5 Platform & Ops** own a domain of their own. On the board the four developers are **one role, `Dev`** (the person who takes a task writes `[Nhận: name]` at the start of its Thực trạng cell), and the reviewer column says `Dev (người khác)` for developer tasks and `Dev` for #4 and #5; the board labels `#4 Fraud` and `#5 Platform & Ops` keep their numbers. The labels #1, #2, #3, #6 and the module ownership and pairs below are the working convention used in these docs and in PRs: who owns a module and who reviews it by default.
 
 | # | Role | Primary ownership | Pair (reviews its PRs) |
 |---|---|---|---|
