@@ -1,0 +1,250 @@
+8fe27713ef90231fc1ea38f826e1bfd8d5081e96
+# DBS-20 · test thủ công, output thô. Chạy 2026-10-12T11:14Z trên commit trên (commit cuối đổi code), Postgres 17 docker compose qua localhost:5433.
+
+## M1. migration:run → migration:revert → migration:run bằng CLI trên database trống (DoD #5)
+NOTICE:  database "dbs_manual" does not exist, skipping
+$ DATABASE_URL=…/dbs_manual npm run migration:run
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+1 migrations were found in the source code.
+1 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: COMMIT
+exit code: 0
+
+$ DATABASE_URL=…/dbs_manual npm run migration:revert
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+1 migrations are already loaded in the database.
+CreateUsersCustomersAccounts1791763200000 is the last executed migration. It was executed on Mon Oct 12 2026 07:00:00 GMT+0700 (Indochina Time).
+Now reverting it...
+query: START TRANSACTION
+query: 
+      SELECT (SELECT count(*) FROM users)::int                     AS users,
+             (SELECT count(*) FROM customers)::int                 AS customers,
+             (SELECT count(*) FROM accounts)::int                  AS accounts,
+             (SELECT count(*) FROM accounts WHERE balance <> 0)::int AS moved
+query: DROP TABLE accounts
+query: DROP TABLE customers
+query: DROP TABLE users
+query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been reverted successfully.
+query: COMMIT
+exit code: 0
+
+$ DATABASE_URL=…/dbs_manual npm run migration:run
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+1 migrations were found in the source code.
+1 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: COMMIT
+exit code: 0
+
+## M2. Schema accounts (DoD #1, #2, #4)
+$ psql -d dbs_manual -c "\d accounts"
+                              Table "public.accounts"
+   Column    |           Type           | Collation | Nullable |      Default      
+-------------+--------------------------+-----------+----------+-------------------
+ id          | uuid                     |           | not null | gen_random_uuid()
+ customer_id | uuid                     |           |          | 
+ type        | text                     |           | not null | 
+ status      | text                     |           | not null | 'ACTIVE'::text
+ balance     | bigint                   |           | not null | 0
+ created_at  | timestamp with time zone |           | not null | now()
+ updated_at  | timestamp with time zone |           | not null | now()
+Indexes:
+    "accounts_pkey" PRIMARY KEY, btree (id)
+    "accounts_customer_idx" btree (customer_id) WHERE customer_id IS NOT NULL
+    "accounts_single_system" UNIQUE, btree (type) WHERE type = 'SYSTEM'::text
+Check constraints:
+    "accounts_balance_non_negative" CHECK (type = 'SYSTEM'::text OR balance >= 0)
+    "accounts_owner_matches_type" CHECK ((type = 'SYSTEM'::text) = (customer_id IS NULL))
+    "accounts_status_check" CHECK (status = ANY (ARRAY['ACTIVE'::text, 'LOCKED'::text]))
+    "accounts_type_check" CHECK (type = ANY (ARRAY['CHECKING'::text, 'SAVINGS'::text, 'SYSTEM'::text]))
+Foreign-key constraints:
+    "accounts_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT
+
+## M3. Hàng funding và 4 hàng sai của DoD #6 (DoD #3, #6)
+$ psql -d dbs_manual -f bad-rows.sql
+-- Hàng funding do migration seed
+                  id                  | customer_id |  type  | status | balance 
+--------------------------------------+-------------+--------+--------+---------
+ 00000000-0000-4000-8000-000000000001 |             | SYSTEM | ACTIVE |       0
+(1 row)
+
+-- Chuẩn bị: một user và một customer
+INSERT 0 1
+INSERT 0 1
+-- 1. Khách có số dư âm
+ERROR:  new row for relation "accounts" violates check constraint "accounts_balance_non_negative"
+DETAIL:  Failing row contains (15ed5804-6b96-47b9-af04-16ebe1e31593, 22222222-2222-4222-8222-222222222222, CHECKING, ACTIVE, -1, 2026-10-12 11:14:17.535989+00, 2026-10-12 11:14:17.535989+00).
+-- 2. SYSTEM thứ hai
+ERROR:  duplicate key value violates unique constraint "accounts_single_system"
+DETAIL:  Key (type)=(SYSTEM) already exists.
+-- 3. SYSTEM có customer_id
+ERROR:  new row for relation "accounts" violates check constraint "accounts_owner_matches_type"
+DETAIL:  Failing row contains (1418356e-3c45-4a00-8aa5-3208ca9ff493, 22222222-2222-4222-8222-222222222222, SYSTEM, ACTIVE, 0, 2026-10-12 11:14:17.536767+00, 2026-10-12 11:14:17.536767+00).
+-- 4. CHECKING không có customer
+ERROR:  new row for relation "accounts" violates check constraint "accounts_owner_matches_type"
+DETAIL:  Failing row contains (5540f58b-d6fe-4d41-9fbd-0e20f5847b3f, null, CHECKING, ACTIVE, 0, 2026-10-12 11:14:17.536982+00, 2026-10-12 11:14:17.536982+00).
+-- Dọn dữ liệu demo
+DELETE 1
+DELETE 1
+
+## M4. migration:run:prod từ dist/ vào database trống (TC-20-20)
+$ npm run build && DATABASE_URL=…/dbs_manual_prod npm run migration:run:prod
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+1 migrations were found in the source code.
+1 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: COMMIT
+exit code: 0

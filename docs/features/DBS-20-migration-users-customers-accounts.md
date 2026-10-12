@@ -251,6 +251,15 @@ Migration CreateUsersCustomersAccounts1791763200000 has been executed successful
 query: COMMIT
 ```
 
+  **Chạy lại sau khi rebase lên `main` 2697594** (2026-10-12): kết quả y hệt, `lint:check` và `typecheck` sạch, unit 13/128, e2e 3/20, `test:db` 2/17 (suite/test), không có test bị bỏ qua.
+
+- **Test thủ công** chạy lại trên commit cuối đổi code `8fe2771`, output thô ở [manual-test.txt](screenshots/DBS-20/manual-test.txt):
+  - M1: ba lệnh CLI run → revert → run trên database trống, cả ba thoát mã 0 (**đạt**).
+  - M2: `\d accounts` đúng cột, CHECK, index một phần, FK `ON DELETE RESTRICT` (**đạt**).
+  - M3: hàng `funding` đúng; 4 hàng sai của DoD #6 bị DB từ chối, lần lượt bởi `accounts_balance_non_negative`, `accounts_single_system`, `accounts_owner_matches_type` (hai lần) (**đạt**).
+  - M4: `migration:run:prod` từ `dist/` (**đạt**).
+
+  Nguyên văn trả lời của domain review: [domain-review.md](screenshots/DBS-20/domain-review.md).
 - **Đối chiếu test case:**
 
 | ID | Test | Đạt? |
