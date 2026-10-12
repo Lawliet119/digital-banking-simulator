@@ -1,6 +1,6 @@
 # Team Roles Playbook — Cách làm việc của từng vai
 
-> **Status:** Active (cơ cấu vai v2, 2026-10-12) · **Owner:** cả nhóm · **Verified against code:** n/a · **Cập nhật:** 2026-10-12
+> **Status:** Active (cơ cấu vai v2, mô hình kéo, 2026-10-12) · **Owner:** cả nhóm · **Verified against code:** n/a · **Cập nhật:** 2026-10-12
 
 > Tài liệu nội bộ, dùng kèm [`10_WEEK_PLAN.md`](10_WEEK_PLAN.md). Việc cụ thể từng tuần nằm trên board của nhóm (mỗi task có tuần, người làm, phụ thuộc), không chép lại ở đây. Quy trình làm một task: skill [`dbs-delivering-task`](../../.claude/skills/dbs-delivering-task/SKILL.md).
 > Riêng mảng Fraud có hướng dẫn chi tiết ở [`FRAUD_DETECTION_GUIDE.md`](../components/risk/FRAUD_DETECTION_GUIDE.md).
@@ -9,28 +9,25 @@
 
 ## 0. Nhìn chung
 
-### 0.1 Sáu vai: bốn developer và hai vai chuyên môn
+### 0.1 Ba vai trên board, làm việc kiểu kéo
 
-**Bốn software developer (#1, #2, #3, #6)** làm cùng một việc cho mọi task của mình: lên kế hoạch, implement, test, test thủ công, viết tài liệu và ảnh chụp, theo cùng một quy trình (5 phase, 4 gate). Họ khác nhau ở module sở hữu, không khác nhau ở cách làm. **#4 Fraud** lo riêng phần phát hiện gian lận. **#5 Platform & Ops** lo cloud và vận hành. Trên board bốn developer là **một vai «Dev»** (người nhận task ghi «[Nhận: tên]» ở đầu cột Thực trạng), còn #4 Fraud và #5 Platform & Ops giữ nhãn riêng. Nhãn #1, #2, #3, #6 và phần sở hữu module dưới đây là quy ước làm việc: ai là chủ module nào và ai review mặc định.
+| Vai trên board | Số người | Sứ mệnh | Câu bảo vệ |
+|---|---|---|---|
+| **Dev** | 4 | Làm mọi task `Dev`: lên kế hoạch, implement, test, test thủ công, tài liệu và ảnh chụp, theo cùng một quy trình (5 phase, 4 gate). Các mảng: Ledger, Accounts & Identity, Async & Audit, Foundation & Data (mục 2–5) | người làm task liên quan chuẩn bị |
+| **#4 Fraud** | 1 | Phát hiện gian lận nhanh, giải thích được, đo được; dẫn dắt P5 | 12 |
+| **#5 Platform & Ops** | 1 | Hạ tầng tự động, an toàn, rẻ; vận hành chạy được; dẫn dắt P3 | 8, 9, 11 |
 
-| # | Vai | Sứ mệnh một câu | Sở hữu | Dẫn dắt | Câu bảo vệ | Cặp đôi review |
-|---|---|---|---|---|---|---|
-| 1 | **Dev · Ledger** | Tiền không bao giờ sai | `modules/ledger`, sync guard, role DB và GRANT, review mọi migration, `database-design.md` | P2 | 4, 5 | #4 |
-| 2 | **Dev · Accounts & Identity** | Đúng người, đúng quyền | `modules/identity`, `accounts`, rate limit, chất lượng OpenAPI | P1 | 1, 3, 9 | #3 |
-| 3 | **Dev · Async & Audit** | Không mất sự kiện, không thiếu nhật ký | `modules/outbox`, `notification`, `audit`, event contract, metric hàng đợi | đồng dẫn dắt P2 | 7 | #2 |
-| 4 | **Fraud** | Phát hiện gian lận nhanh, giải thích được, đo được | `modules/risk`, đánh giá offline | P5 | 12 | #1 |
-| 5 | **Platform & Ops** | Hạ tầng tự động, an toàn, rẻ; vận hành chạy được | `infra/`, deploy, tài khoản AWS và chi phí; dashboard, alarm, chạy load test và diễn tập sự cố trên cloud | P3 | 8, 9, 11 | #6 |
-| 6 | **Dev · Foundation & Data** | Nền chung vững, đo được và chứng minh được | `libs/redis`, `libs/sqs`, `health`, logger và `correlationId`, harness test, bất biến, seed, generator dữ liệu fraud, script k6, test đồng thời và bảo mật | P4 | 2, 6, 10 | #5 |
+**Cách nhận việc:** dev nào thấy task `Dev` chưa ai nhận và phụ thuộc đã Done thì nhận: ghi «[Nhận: tên]» ở đầu cột Thực trạng, chuyển In Progress, làm theo thứ tự board (tuần sớm trước, ưu tiên cao trước). Không ai chờ ai: task bị chặn thì lấy task chưa làm khác. Không có chủ module, không có cặp cố định, không cần chia đều khối lượng; điều quan trọng là kết quả đầu ra. Task của #4 và #5 do hai người đó nhận.
 
 ### 0.2 Ai phụ thuộc vào ai
 
 ```mermaid
 flowchart LR
     P5[#5 Platform & Ops<br/>cloud, CI/CD, vận hành]
-    P6[#6 Dev Foundation<br/>libs, harness, dữ liệu]
-    P1[#1 Dev Ledger<br/>schema, chuyển tiền]
-    P2[#2 Dev Accounts<br/>auth, tài khoản]
-    P3[#3 Dev Async & Audit<br/>event, outbox, audit]
+    P6[Mảng Foundation<br/>libs, harness, dữ liệu]
+    P1[Mảng Ledger<br/>schema, chuyển tiền]
+    P2[Mảng Accounts<br/>auth, tài khoản]
+    P3[Mảng Async & Audit<br/>event, outbox, audit]
     P4[#4 Fraud<br/>luật, review]
 
     P5 -->|hạ tầng, biến môi trường| P1 & P2 & P3 & P4
@@ -43,29 +40,24 @@ flowchart LR
     P6 -->|bộ dữ liệu, script k6| P4 & P5
 ```
 
-**Đường găng:** #5 + #6 (hạ tầng và nền chung tuần 1–2) → #1 + #2 (chuyển tiền đúng tuần 3) → #3 (sự kiện tuần 4) → #4 (fraud tuần 4–5). Trễ ở đầu chuỗi thì cả chuỗi trễ.
+**Đường găng:** #5 + mảng Foundation (hạ tầng và nền chung tuần 1–2) → mảng Ledger + Accounts (chuyển tiền đúng tuần 3) → mảng Async (sự kiện tuần 4) → #4 (fraud tuần 4–5). Trễ ở đầu chuỗi thì cả chuỗi trễ; vì vậy dev rảnh ưu tiên nhận task nằm trên đường găng. Mỗi tên mảng trong sơ đồ là kiến thức cần đọc, không phải người sở hữu.
 
-### 0.3 Ma trận trách nhiệm (RACI)
+### 0.3 Ai chịu trách nhiệm cuối
 
-**R** = làm · **A** = chịu trách nhiệm cuối (một người) · **C** = được hỏi ý kiến · **I** = được thông báo
-
-| Hạng mục | #1 | #2 | #3 | #4 | #5 | #6 |
-|---|---|---|---|---|---|---|
-| P1 — Business & Architecture | R | **A** | R | R | R | R |
-| P2 — App, Data & Integration | **A** | R | R | R | C | C |
-| P3 — Security & DevOps | C | R | C | I | **A** | R |
-| P4 — Production Engineering | R | R | R | R | R | **A** |
-| P5 — AI Engineering | C | I | C | **A** | I | R |
-| Schema database | **A** | C | C | C | I | I |
-| Event contract | C | I | **A** | C | I | I |
-| Hạ tầng, chi phí cloud, vận hành | I | I | I | I | **A** | C |
-| Nhất quán kiến trúc, duyệt ADR | **A** | C | C | C | C | C |
-| Lịch, board, nộp bài | I | **A** | I | I | I | I |
-| 5 demo bắt buộc chạy được | R | R | R | R | **A** | R |
+| Hạng mục | Chịu trách nhiệm cuối |
+|---|---|
+| P1, P2, P4 (chủ biên) | Một Dev, nhóm chọn khi tới mốc |
+| P3 — Security & DevOps | #5 |
+| P5 — AI Engineering | #4 |
+| Schema database, event contract | Dev đang nhận task đó; mọi migration do một Dev khác review |
+| Hạ tầng, chi phí cloud, vận hành | #5 |
+| Duyệt ADR | cả nhóm (đổi ADR cần ADR mới thay thế) |
+| Lịch, board, nộp bài | một Dev nhận làm điều phối (không quá ~20% thời gian) |
+| 5 demo bắt buộc chạy được | #5 điều phối; mọi người chạy phần của mình |
 
 ---
 
-## 1. Cách làm chung của bốn developer
+## 1. Cách làm chung của mọi task
 
 Mỗi task, dù lớn hay nhỏ, đi đủ: **lên kế hoạch → implement → test → test thủ công**. Chi tiết nằm ở skill `dbs-delivering-task`; tóm tắt:
 
@@ -77,26 +69,30 @@ Mỗi task, dù lớn hay nhỏ, đi đủ: **lên kế hoạch → implement �
 | 4. Implement và test | Code theo TDD, chạy test tự động, **chạy test thủ công thật** | — |
 | 5. Tài liệu và bàn giao | Ảnh chụp, cập nhật docs, feature doc `docs/features/DBS-<n>-<slug>.md` | G4 Bàn giao |
 
-- **Mỗi developer tự test việc của mình** (unit, integration, thủ công). Test đồng thời và bảo mật của #6 là lớp kiểm tra thêm, do người thứ hai viết, cho đường tiền và đường xác thực.
-- **Một module có một chủ.** Muốn sửa trong module người khác: thống nhất interface trong issue, rồi mở PR riêng để chủ module review.
-- **Cặp đôi review PR.** Ledger ↔ Fraud, Accounts ↔ Async & Audit, Platform & Ops ↔ Foundation & Data.
-- **Khi duyệt PR của người khác có chạm tới tiền, kiểm tra:** mọi thay đổi số dư đi qua `ledger` trong một transaction; không có `UPDATE`/`DELETE` trên `ledger_entries`, `audit_log`; có test chạy trên Postgres thật.
+- **Mỗi người tự test việc của mình** (unit, integration, thủ công). Test đồng thời và bảo mật là task riêng trên board, lớp kiểm tra thêm cho đường tiền và đường xác thực; nếu được thì do Dev không viết phần code đang được test nhận.
+- **Không có chủ module.** Hai người cùng đụng một module thì giữ PR nhỏ, rebase thường xuyên; cần interface mà task khác còn đang làm thì thống nhất trong issue trước, và không giả lập (stub) thứ mà task chưa xong sẽ giao.
+- **Review PR:** một Dev khác (không phải tác giả), ai rảnh trước thì review; tác giả không tự merge khi chưa có review. Đây là quy ước nhóm, GitHub không ép.
+- **Khi duyệt PR có chạm tới tiền, kiểm tra:** mọi thay đổi số dư đi qua `ledger` trong một transaction; không có `UPDATE`/`DELETE` trên `ledger_entries`, `audit_log`; có test chạy trên Postgres thật.
 
 ---
 
-## 2. Dev · Ledger (#1)
+## Ghi chú theo mảng việc (mục 2–5)
+
+Bốn mục dưới đây là ghi chú theo **mảng việc**: phạm vi, thỏa thuận interface, bằng chứng cần có và bẫy hay gặp. Chúng **không phải phân công**: Dev nào nhận task thuộc mảng nào thì đọc mục đó trước khi làm. «#1, #2, #3, #6» trong các bảng thỏa thuận chỉ mảng tương ứng (Ledger, Accounts & Identity, Async & Audit, Foundation & Data); #4 và #5 là hai người thật.
+
+## 2. Mảng Ledger (#1)
 
 ### Sứ mệnh
 Mọi đồng tiền vào, ra, di chuyển trong hệ thống đều đúng — kể cả khi hàng trăm request đến cùng lúc, kể cả khi client gửi lại, kể cả khi server chết giữa chừng.
 
-### Sở hữu
+### Phạm vi mảng
 
 | Loại | Nội dung |
 |---|---|
 | Code | Module `ledger`: nạp tiền (UC-3), chuyển tiền (UC-5), idempotency, **sync guard** (trạng thái, hạn mức lần, hạn mức ngày), job đối soát |
-| Database | Toàn bộ schema; migration role `dbs_api`/`dbs_worker`/`dbs_migrator` và GRANT; review mọi migration của người khác |
+| Database | Toàn bộ schema; migration role `dbs_api`/`dbs_worker`/`dbs_migrator` và GRANT; mọi migration có Dev khác review |
 | Tài liệu | `docs/03` mục 6.1, 8; ADR-01, 02, 04, 05, 07, 09 |
-| Vai phụ | Giữ tài liệu kiến trúc nhất quán; duyệt mọi ADR |
+| Việc chung | Giữ tài liệu kiến trúc nhất quán; ADR mới thay thế khi đổi quyết định |
 
 ### Thỏa thuận với người khác
 
@@ -121,19 +117,19 @@ Mọi đồng tiền vào, ra, di chuyển trong hệ thống đều đúng — 
 
 ---
 
-## 3. Dev · Accounts & Identity (#2)
+## 3. Mảng Accounts & Identity (#2)
 
 ### Sứ mệnh
 Đúng người được làm đúng việc trên đúng dữ liệu.
 
-### Sở hữu
+### Phạm vi mảng
 
 | Loại | Nội dung |
 |---|---|
 | Code | Module `identity` (xác minh JWT, guard vai trò, mốc thu hồi phiên, xác thực local/test), `accounts` (UC-1, 2, 4, 11), API lịch sử/trạng thái (UC-6, 7), rate limit |
 | API | Chất lượng OpenAPI/Swagger của cả hệ thống: tên endpoint, mã lỗi, ví dụ |
 | Tài liệu | `docs/03` mục 6.2, 7, 12 (phần ứng dụng); ADR-06 (phần Cognito) |
-| Vai phụ | Lịch họp, board công việc, theo dõi deadline, ghép và nộp bài (không quá ~20% thời gian) |
+| Việc điều phối (một Dev nhận) | Lịch họp, board công việc, theo dõi deadline, ghép và nộp bài (không quá ~20% thời gian) |
 
 ### Thỏa thuận với người khác
 
@@ -163,18 +159,18 @@ Mọi đồng tiền vào, ra, di chuyển trong hệ thống đều đúng — 
 
 ---
 
-## 4. Dev · Async & Audit (#3)
+## 4. Mảng Async & Audit (#3)
 
 ### Sứ mệnh
 Mọi sự kiện đã xảy ra đều tới được nơi cần tới (ít nhất một lần, xử lý đúng một lần), và mọi thao tác ghi đều để lại dấu vết không xóa được.
 
-### Sở hữu
+### Phạm vi mảng
 
 | Loại | Nội dung |
 |---|---|
 | Code | Module `outbox` (relay + bảng định tuyến queue; khung consumer `processed_events`, retry, DLQ), `notification`, `audit` (thư viện + API tra cứu UC-8), event contract và `common/events`, metric hàng đợi và độ trễ tới cờ |
 | Tài liệu | `docs/03` mục 10, 11; ADR-03 |
-| Vai phụ | Đồng dẫn dắt P2 (phần integration, event model); hồ sơ cuối và slide (tuần 10) |
+| Việc chung | Phần integration, event model của P2; hồ sơ cuối và slide (tuần 10) |
 
 ### Thỏa thuận với người khác
 
@@ -195,19 +191,19 @@ Mọi sự kiện đã xảy ra đều tới được nơi cần tới (ít nh�
 
 ---
 
-## 5. Dev · Foundation & Data (#6)
+## 5. Mảng Foundation & Data (#6)
 
 ### Sứ mệnh
 Làm nền chung mà mọi module dựa vào (client Redis và SQS, health, log, harness test), và biến mọi lời hứa trong tài liệu thành **test chạy được và số liệu đo được**, để khi hội đồng hỏi, nhóm trả lời bằng bằng chứng.
 
-### Sở hữu
+### Phạm vi mảng
 
 | Loại | Nội dung |
 |---|---|
 | Code nền | `libs/redis` (timeout, circuit breaker), `libs/sqs`, `modules/health`, logger JSON và `correlationId` (`AsyncLocalStorage`) |
 | Test | Harness Testcontainers và job test trong CI, script bất biến (`invariants.sql`), seed qua API, test đồng thời, test chống trùng, test bảo mật tập trung |
-| Dữ liệu và đo | Generator dữ liệu fraud (giữ nhãn holdout), script k6 (viết; #5 chạy), gói P4 |
-| Tài liệu | `docs/03` mục 14, 17; dẫn dắt P4 |
+| Dữ liệu và đo | Generator dữ liệu fraud (Dev làm giữ nhãn holdout), script k6 (viết; #5 chạy), gói P4 |
+| Tài liệu | `docs/03` mục 14, 17; hồ sơ P4 |
 
 ### Thỏa thuận với người khác
 
@@ -257,7 +253,7 @@ Sync guard (hạn mức, trạng thái tài khoản) là code của #1; #4 cùng
 | Cả nhóm | Mục tiêu recall / số cảnh báo trên 1.000 giao dịch (đã chốt ở NFR-FRD-02) | Tuần 2 |
 
 ### Quy tắc riêng
-- **Không xem code generator của #6**; chỉ biết tên kịch bản.
+- **Không xem code generator** (do Dev làm bộ dữ liệu giữ); chỉ biết tên kịch bản.
 - **Chỉ chạy holdout một lần**, sau khi đã đóng băng cấu hình.
 
 Chi tiết đầy đủ: [`FRAUD_DETECTION_GUIDE.md`](../components/risk/FRAUD_DETECTION_GUIDE.md); ghi chú cho agent: `.claude/skills/dbs-delivering-task/references/fraud.md`.
@@ -283,7 +279,7 @@ Code merge vào `main` là tự lên cloud, có thể quay lui trong vài phút,
 | CI/CD | Pipeline deploy, quét image, quét secret, OIDC tới AWS, Dockerfile (job test trong CI do #6 viết) |
 | Tài khoản | Tài khoản AWS, IAM user cho từng thành viên, MFA, AWS Budget, quyền repo GitHub |
 | **Vận hành** | Dashboard và alarm theo SLO, chạy load test (script của #6) và diễn tập sự cố trên cloud (RDS failover, kill task, tắt Redis, tắt worker), rollback, báo cáo chi phí, chạy lại demo trên cloud |
-| Tài liệu | `docs/03` mục 12, 13; ADR-06 (Fargate vs EKS), 10, 11; dẫn dắt P3 |
+| Tài liệu | `docs/03` mục 12, 13; ADR-06 (Fargate vs EKS), 10, 11; chủ biên P3 |
 
 ### Thỏa thuận với người khác
 
@@ -310,7 +306,7 @@ Code merge vào `main` là tự lên cloud, có thể quay lui trong vài phút,
 - Lưu access key AWS trong GitHub Secrets thay vì dùng OIDC.
 - Chạy migration lúc app khởi động → nhiều task cùng chạy migration một lúc.
 - Chạy load test từ laptop qua mạng nhà → đo cả độ trễ mạng. Chạy từ một máy cùng region.
-- Một người giữ mọi quyền và mật khẩu → #6 (cặp đôi) phải có quyền dự phòng.
+- Một người giữ mọi quyền và mật khẩu → phải có thêm một Dev có quyền dự phòng.
 
 Chi tiết cho agent: `.claude/skills/dbs-delivering-task/references/platform.md`.
 
@@ -330,10 +326,10 @@ Chi tiết cho agent: `.claude/skills/dbs-delivering-task/references/platform.md
 ### 8.2 Mẫu tin nhắn tình trạng tuần
 
 ```
-[Tuần N] #x — <Vai>
+[Tuần N] <tên> — <Vai>
 ✅ Xong: ...
 🔨 Đang làm: ...
-⛔ Vướng: ... (cần ai: #y)
+⛔ Vướng: ... (cần ai: <tên>)
 📅 Tuần sau: ...
 ```
 
@@ -342,12 +338,12 @@ Chi tiết cho agent: `.claude/skills/dbs-delivering-task/references/platform.md
 - **Bị chặn quá một buổi làm việc → báo ngay** trong nhóm, ghi rõ cần ai. Đừng ngồi chờ tới buổi họp.
 - **Quyết định ảnh hưởng người khác** (đổi schema, đổi contract, đổi biến môi trường) phải ghi vào issue hoặc ADR, không chỉ chốt trong tin nhắn riêng.
 - **Đổi contract đã thống nhất** (event, interface, API) → báo trước cho mọi người dùng nó và cập nhật tài liệu cùng PR.
-- **Không im lặng.** Bận đột xuất thì báo sớm, cặp đôi nhận tạm.
+- **Không im lặng.** Bận đột xuất thì báo sớm, ghi hiện trạng vào cột Thực trạng để Dev rảnh nhận tiếp.
 
-### 8.4 Khi vắng mặt — mẫu bàn giao cho cặp đôi
+### 8.4 Khi vắng mặt — mẫu bàn giao cho người nhận tiếp
 
 ```
-Bàn giao từ #x cho #y (từ ngày ... đến ...)
+Bàn giao từ <tên> cho <tên> (từ ngày ... đến ...)
 - Đang làm: <issue, nhánh>
 - Trạng thái: <đã xong gì, còn gì>
 - Cần chú ý: <bẫy, quyết định đang chờ>
@@ -356,8 +352,8 @@ Bàn giao từ #x cho #y (từ ngày ... đến ...)
 
 ### 8.5 Mỗi vai tự giữ cho mình
 
-- [ ] README trong thư mục mình sở hữu luôn đúng với code
+- [ ] README trong thư mục mình đã sửa luôn đúng với code
 - [ ] Feature doc của task (`docs/features/`) đầy đủ, kể cả test thủ công và ảnh chụp
-- [ ] ADR của mình viết ngay khi chốt quyết định
-- [ ] Có ít nhất một bằng chứng (test, số liệu, ảnh, video) cho mỗi câu bảo vệ được giao
-- [ ] Cặp đôi hiểu đủ phần của mình để thay thế khi cần
+- [ ] ADR viết ngay khi chốt quyết định
+- [ ] Có ít nhất một bằng chứng (test, số liệu, ảnh, video) cho mỗi câu bảo vệ liên quan tới việc mình làm
+- [ ] Feature doc đủ rõ để Dev khác nhận tiếp khi cần

@@ -8,7 +8,7 @@ Used in Phase 2 (writing §4 test cases) and Phase 4 (writing and running the te
 |---|---|---|---|
 | Unit | memory, fakes allowed | pure logic: rules, parsing, guard arithmetic | `npm test` |
 | Integration / e2e | real PostgreSQL (Testcontainers once the harness exists, otherwise the docker compose database); Valkey and ElasticMQ when involved | money, concurrency, constraints, triggers, DB roles, HTTP contract | `npm run test:e2e` (and `npm run test:db` where a task defines it) |
-| Load | k6 against a deployed environment | NFR numbers | #6 writes the scripts, #5 runs them |
+| Load | k6 against a deployed environment | NFR numbers | a Dev writes the scripts, #5 runs them |
 
 A test that mocks the database cannot prove a lock, `ON CONFLICT` or a trigger. Docker down means the money tests are **not run**, reported as such, never skipped into a green result.
 

@@ -1,6 +1,6 @@
 # Skills của Digital Banking Simulator
 
-> **Version:** 2.3 · **Cập nhật:** 2026-10-12 · Skill cho 4 software developer; #4 Fraud và #5 Platform & Ops dùng chung phase và gate, quy tắc riêng nằm ở `references/`.
+> **Version:** 2.3 · **Cập nhật:** 2026-10-12 · Skill cho vai Dev (4 software developer, làm theo kiểu kéo); #4 Fraud và #5 Platform & Ops dùng chung phase và gate, quy tắc riêng nằm ở `references/`.
 
 ## Skill duy nhất: `dbs-delivering-task`
 
@@ -37,7 +37,7 @@ Ngoài 4 gate, agent dừng hỏi bất cứ lúc nào phải đổi ADR, schema
 
 - **Claude Code:** mở trong thư mục repo; gõ `/dbs-delivering-task DBS-<n>`. `CLAUDE.md` ở gốc cũng buộc agent dùng skill khi bạn chỉ nhắn "làm task DBS-n".
 - **Công cụ AI khác:** bảo nó đọc `.claude/skills/dbs-delivering-task/SKILL.md` trước khi làm.
-- **Không dùng AI:** đọc cùng file và làm theo bằng tay; gate là lúc bạn đưa cặp đôi xem.
+- **Không dùng AI:** đọc cùng file và làm theo bằng tay; gate là lúc bạn đưa một Dev khác xem.
 
 ## Nguyên tắc
 
@@ -54,3 +54,4 @@ Ngoài 4 gate, agent dừng hỏi bất cứ lúc nào phải đổi ADR, schema
 | 2.1 | Sửa theo cross-check vòng 1: giới hạn "chưa chạy" và log thô; tường fraud trong SKILL và prompt review; xử lý verdict REVISE; gate thoát kế hoạch; `task-kinds.md`; bảng "chưa build"; trạng thái doc theo gate; kiểm phạm vi `git diff` ở G4 | 2 reviewer Opus 5.5 (xác minh 18 phát hiện cũ, đi thử #4, #5, DBS-90, DBS-88, DBS-35): REVISE, 13 sửa đủ, 5 sửa một phần, 1 blocking mới (thư mục dữ liệu fraud) |
 | 2.2 | Sửa theo vòng 2: log thô đổi thành `manual-test.txt` (`*.log` bị gitignore), xóa token trước khi commit, không push trước G3, lưu nguyên văn trả lời của reviewer, thư mục tune CSV của fraud ngoài "bức tường", dòng cho logic thuần / CI workflow / Terraform init, `docs-style.md`, checklist G4 trong mẫu | 2 reviewer Opus 5.5 (xác minh vòng 2, đi thử DBS-120, DBS-110, DBS-88 với agent vội và kiểm toán viên thù địch): REVISE, 0 blocking, 5 + 4 should-fix |
 | 2.3 | Sửa theo vòng 3: một gate mỗi tin nhắn và chờ trả lời mới sang phase; không đưa gì lên GitHub trước G3 bằng bất kỳ công cụ nào; log thô gắn SHA commit cuối, chạy lại toàn bộ §5 sau mỗi lần sửa code; lệch kế hoạch phải có phê duyệt mới qua G4; cấm `.skip`/`.only`/`.todo`; trạng thái doc theo gate; Terraform red bằng `terraform test` với `mock_provider`; quy tắc nguồn SYSTEM chuyển tiền chính xác hơn | 1 reviewer Opus 5.5 (vòng 4): 16/16 mục sửa đúng; 1 should-fix (tài liệu fraud còn nói theo vai cũ) và 5 minor, đã sửa cùng bản này. Reviewer kết luận không còn blocking |
+| 2.4 | Mô hình kéo (12/10): bỏ chủ module và cặp review cố định; Dev nào thấy task chưa ai nhận thì nhận (`[Nhận: tên]`), làm theo thứ tự board, không chờ ai; review bởi Dev khác bất kỳ; bức tường fraud theo người làm generator | chưa cross-check (chỉ đổi cách phân việc, không đổi phase hay gate) |

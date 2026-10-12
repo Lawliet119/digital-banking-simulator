@@ -6,7 +6,7 @@ The five phases and four gates apply to #4's tasks. This file holds what is spec
 
 | Layer | Where | Effect |
 |---|---|---|
-| Sync guard (status, limits, balance) | in the transfer transaction, after `FOR UPDATE`; code owned by #1 | `REJECTED` |
+| Sync guard (status, limits, balance) | in the transfer transaction, after `FOR UPDATE`; code from the ledger tasks | `REJECTED` |
 | Async scoring R1 to R6 | worker, after commit, from `TransferCompleted` | a flag only |
 
 The system never blocks or locks an account on its own; only an operator does.
@@ -23,7 +23,7 @@ The system never blocks or locks an account on its own; only an operator does.
 
 ## Evaluation discipline
 
-- **Never open or search `load-tests/fraud-dataset/`** (use `--glob '!load-tests/fraud-dataset/**'`): it holds the generator source and the holdout labels, which #6 keeps until week 7. #6 delivers the tune CSV (with labels) to `backend/data/fraud/` (gitignored, shared by link); that folder you may read. In week 7, after you freeze the configurations (DBS-168), #6 delivers the holdout CSV to the same folder; before that it does not exist for you.
+- **Never open or search `load-tests/fraud-dataset/`** (use `--glob '!load-tests/fraud-dataset/**'`): it holds the generator source and the holdout labels, which the Dev who builds the dataset keeps until week 7. That Dev delivers the tune CSV (with labels) to `backend/data/fraud/` (gitignored, shared by link); that folder you may read. In week 7, after you freeze the configurations (DBS-168), that Dev delivers the holdout CSV to the same folder; before that it does not exist for you.
 - Tune only on the tune set, recording each configuration version and its result.
 - **Freeze every version, then run the holdout exactly once.** A second run turns it into a tune set. Do not pick the default version by holdout results.
 - Report per scenario, including the ones no rule targets, as stated limits. Report precision, recall, F1, alerts per 1,000 transfers, ablation by rule and the precision–recall curve.

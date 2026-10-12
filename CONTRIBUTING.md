@@ -12,14 +12,14 @@ flowchart LR
 1. Mỗi việc là một **task `DBS-n`** trên board của nhóm.
 2. Tạo nhánh từ `main` theo quy tắc đặt tên bên dưới.
 3. Chưa đưa gì lên GitHub trước gate G3. Sau G3 chỉ mở **Draft PR** khi người duyệt yêu cầu (để người khác thấy tiến độ); chuyển sang Ready for review sau gate G4.
-4. **Cặp đôi review** trước khi merge và **CI phải xanh**. Ruleset của `main` bắt buộc PR, chỉ cho squash, chặn force push và xóa nhánh, nhưng **không ép số approval** (đặt 0): việc cặp đôi review là quy ước của nhóm, GitHub không chặn. Người mở PR không tự merge khi cặp đôi chưa để lại review.
+4. **Một Dev khác review** trước khi merge và **CI phải xanh**. Ruleset của `main` bắt buộc PR, chỉ cho squash, chặn force push và xóa nhánh, nhưng **không ép số approval** (đặt 0): việc review là quy ước của nhóm, GitHub không chặn. Người mở PR không tự merge khi chưa có Dev khác để lại review.
 5. Merge bằng **Squash and merge** để lịch sử `main` gọn.
 
 **Không push thẳng vào `main`.**
 
 ## 1b. Quy ước board
 
-Board của nhóm (Google Sheet, mỗi tuần một tab) là nơi duy nhất theo dõi việc. Mỗi task có mã `DBS-n`, người làm, cặp đôi review, cột **Phụ thuộc** và DoD.
+Board của nhóm (Google Sheet, mỗi tuần một tab) là nơi duy nhất theo dõi việc. Mỗi task có mã `DBS-n`, người nhận, cột **Phụ thuộc** và DoD. Dev nào thấy task chưa ai nhận (phụ thuộc đã Done) thì nhận: ghi «[Nhận: tên]» ở đầu cột Thực trạng, chuyển In Progress, làm theo thứ tự board; task bị chặn thì lấy task khác.
 
 | Khi | Đổi Status thành |
 |---|---|

@@ -9,7 +9,7 @@ description: Use when implementing a feature, fixing a bug, refactoring, or chan
 
 Every task, from a one-line hotfix to a module, goes through five phases (**1 Understand, 2 Design, 3 Plan, 4 Implement and test, 5 Docs and handover**) and four human gates. The work inside is **plan → implement → test → manual test**, none skipped. The agent writes the docs, tests and code itself; the human approves at the gates. **One task, one feature doc**: `docs/features/DBS-<n>-<slug>.md`, written before the code and finished with the evidence.
 
-Written for the four software developers (#1, #2, #3, #6). #4 Fraud and #5 Platform & Ops use the same phases and gates; read your domain file first: `references/fraud.md`, `references/platform.md`. Team and ownership: `references/team.md`. How the phases change by kind of task (bug, migration, library, pure logic, CI, infrastructure, docs): `references/task-kinds.md`.
+Written for the `Dev` role (four software developers; each takes any unstarted task). #4 Fraud and #5 Platform & Ops use the same phases and gates; read your domain file first: `references/fraud.md`, `references/platform.md`. Team and how tasks are taken: `references/team.md`. How the phases change by kind of task (bug, migration, library, pure logic, CI, infrastructure, docs): `references/task-kinds.md`.
 
 **Violating the letter of a gate is violating its spirit.** Gates exist for the urgent, "obvious" change; that is where unreviewed money bugs come from.
 
@@ -42,11 +42,11 @@ G2 also states the reviewer's model and the finding counts. G3 also states that 
 
 ## Phase 1: Understand → G1
 
-1. Get the task: `node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs DBS-<n>` prints every column and the status of each dependency. No board key (an ad-hoc bug)? See `task-kinds.md`. Ask the human to set the board row to "In Progress".
+1. Get the task: `node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs DBS-<n>` prints every column and the status of each dependency. No board key (an ad-hoc bug)? See `task-kinds.md`. Ask the human to set the board row to "In Progress" and write `[Nhận: name]` at the start of Thực trạng.
 2. The board can lag the repo, and a read can mislead: verify "Thực trạng" and any security-relevant behaviour by **running** the code; if nothing exists yet, say so at G1.
 3. If the board's role (`Dev`, `#4 Fraud`, `#5 Platform & Ops`) disagrees with the kind of work in `references/team.md` (say a Terraform task labelled `Dev`), report it at G1. Choose the baseline by what the task changes (backend code, Terraform, CI), not by role.
-4. Dependencies not Done: report them at G1 with a reduced scope. If the reduced scope is empty, recommend doing the blocking task first. **Never stub another owner's guard, service or interface**, in a money test or anywhere else; raise it at G1: the interface is agreed in an issue, and a change inside their module is a separate PR they review. Needs something not built yet for the manual test (a token helper)? `task-kinds.md`, last section.
-5. Read: the feature's docs/03 sections and docs/02 AC, the ADRs and DoD it names, the module README and `references/module-notes.md`, `docs/features/` (earlier tasks on this module), then the code; add `database-design.md`, `event-contract.md` and the risk docs when the task touches them. Before changing an exported symbol, grep its callers and list them. The fraud generator source and holdout labels in `load-tests/fraud-dataset/` are read only by #6: exclude that folder from every search (`--glob '!load-tests/fraud-dataset/**'`), review subagents included.
+4. Dependencies not Done: report them at G1 with a reduced scope. If the reduced scope is empty, recommend doing the blocking task first. **Never stub a guard, service or interface that an unfinished task is meant to deliver**, in a money test or anywhere else; raise it at G1 and pick the blocking task or another unstarted task. If another open PR already changes the code you must touch, agree the interface in an issue and keep your PR small. Needs something not built yet for the manual test (a token helper)? `task-kinds.md`, last section.
+5. Read: the feature's docs/03 sections and docs/02 AC, the ADRs and DoD it names, the module README and `references/module-notes.md`, `docs/features/` (earlier tasks on this module), then the code; add `database-design.md`, `event-contract.md` and the risk docs when the task touches them. Before changing an exported symbol, grep its callers and list them. The fraud generator source and holdout labels in `load-tests/fraud-dataset/` are read only by the Dev working on the fraud dataset tasks, never by #4 or an agent working for #4: exclude that folder from every search (`--glob '!load-tests/fraud-dataset/**'`), review subagents included.
 6. Branch `<type>/DBS-<n>-<slug>` from an up-to-date `main`. Run the baseline for the kind of task (`task-kinds.md`; backend code: `docker compose up -d`, then from `backend/` `npm run lint:check && npm run typecheck && npm test && npm run test:e2e`). A red baseline is reported at G1, not built on.
 7. Create the feature doc from `templates/feature-doc.md`, fill §1, present **G1**.
 
@@ -70,9 +70,9 @@ Fill §7: ordered steps, each with files, the test written first (and its one-li
 
 ## Phase 5: Docs and handover → G4
 
-1. **Evidence.** Screenshots of the manual test in `docs/features/screenshots/DBS-<n>/`, named `NN-what.png`, taken from the real output (docs-only tasks: say so, none needed). They exist before G4; any missing shot is named in the G4 message and the human accepts each by name. `manual-test.txt` stays beside them so the pair can re-run one step during PR review.
+1. **Evidence.** Screenshots of the manual test in `docs/features/screenshots/DBS-<n>/`, named `NN-what.png`, taken from the real output (docs-only tasks: say so, none needed). They exist before G4; any missing shot is named in the G4 message and the human accepts each by name. `manual-test.txt` stays beside them so the reviewer can re-run one step during PR review.
 2. Fill §8 (results, case table, manual test results, screenshots, deviations with their approval, handoffs) and §9 (docs changed). Update every doc whose fact changed, following `references/docs-style.md`. Add the row in `docs/features/README.md`. Run `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`.
-3. Present **G4**. After approval: push the branch, open the PR from the template (or mark the Draft ready) and ask the human to move the board row to "In Review". The agent never edits the board (sheet, Jira, browser) and never merges. The human pair (`references/team.md`) reviews the PR.
+3. Present **G4**. After approval: push the branch, open the PR from the template (or mark the Draft ready) and ask the human to move the board row to "In Review". The agent never edits the board (sheet, Jira, browser) and never merges. Another Dev (`references/team.md`) reviews the PR.
 
 ## Red flags
 

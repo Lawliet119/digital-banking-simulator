@@ -107,17 +107,14 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 
 | Vai trò | Loại | Thành viên |
 |---|---|---|
-| #1 Dev · Ledger | Software developer | _TBD_ |
-| #2 Dev · Accounts & Identity | Software developer | _TBD_ |
-| #3 Dev · Async & Audit | Software developer | _TBD_ |
+| Dev | Software developer (4 người) | _TBD_ · _TBD_ · _TBD_ · _TBD_ |
 | #4 Fraud | Phát hiện gian lận | _TBD_ |
 | #5 Platform & Ops | Cloud và vận hành | _TBD_ |
-| #6 Dev · Foundation & Data | Software developer | _TBD_ |
 
-Trên board bốn developer là một vai «Dev». Cặp review mặc định: #1↔#4, #2↔#3, #5↔#6. Chi tiết vai: [TEAM_ROLES_PLAYBOOK](docs/plan/TEAM_ROLES_PLAYBOOK.md).
+Cách làm: dev nào thấy task chưa ai nhận (phụ thuộc đã Done) thì nhận và làm theo thứ tự board, không ai chờ ai; không có chủ module hay cặp cố định. Review PR: một Dev khác bất kỳ. Chi tiết vai: [TEAM_ROLES_PLAYBOOK](docs/plan/TEAM_ROLES_PLAYBOOK.md).
 
 ## Đóng góp
 
 Đọc [CONTRIBUTING.md](CONTRIBUTING.md) trước khi mở Pull Request. Tóm tắt:
-- Không push thẳng vào `main`; mọi thay đổi qua Pull Request, cặp đôi review (quy ước nhóm, GitHub không ép số approval) và CI xanh.
+- Không push thẳng vào `main`; mọi thay đổi qua Pull Request, một Dev khác review (quy ước nhóm, GitHub không ép số approval) và CI xanh.
 - **Không bao giờ commit secret** (`.env`, key AWS, `*.tfvars`, `terraform.tfstate`).
