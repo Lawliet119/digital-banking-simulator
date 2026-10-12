@@ -69,7 +69,7 @@ Schema chính thức nằm tại [`_shared/database-design.md` §4.8](../_shared
 
 ### 3.1 Export qua `index.ts`
 - Chỉ export `RiskModule`. Không module nghiệp vụ nào gọi hàm của `risk`.
-- Riêng hàm chặn cứng đồng bộ `checkGuards(manager, lockedFrom, lockedTo, amount)` thuộc tầng 1 (Sync guard) nằm tại `backend/src/modules/ledger/sync-guard.ts` (do #4 phối hợp cùng #1).
+- Riêng hàm chặn cứng đồng bộ `checkGuards(manager, lockedFrom, lockedTo, amount)` thuộc tầng 1 (Sync guard) nằm tại `backend/src/modules/ledger/sync-guard.ts` (do #1 viết; #4 thống nhất danh sách lý do từ chối và review).
 
 ### 3.2 Sự kiện nhận vào (Queue `risk-events`)
 - Nhận sự kiện `TransferCompleted` (xem [`_shared/event-contract.md`](../_shared/event-contract.md)).

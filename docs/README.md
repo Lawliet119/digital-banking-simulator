@@ -6,10 +6,10 @@
 
 | Bạn là… | Đọc theo thứ tự |
 |---|---|
-| Người mới vào nhóm | [README gốc](../README.md) → [01](01_BUSINESS_ANALYSIS.md) → [03](03_HIGH_LEVEL_ARCHITECTURE.md) §1–5 → [kế hoạch 10 tuần](plan/10_WEEK_PLAN.md) → [playbook theo vai](plan/TEAM_ROLES_PLAYBOOK.md) |
+| Người mới vào nhóm | [README gốc](../README.md) → [01](01_BUSINESS_ANALYSIS.md) → [03](03_HIGH_LEVEL_ARCHITECTURE.md) §1–5 |
 | Sắp làm một task | Skill [`dbs-delivering-task`](../.claude/skills/dbs-delivering-task/SKILL.md) (bắt buộc) → [`features/`](features/README.md) (task trước của cùng module) → [`components/index.md`](components/index.md) → các mục docs/03 liên quan |
 | Sắp viết một bản nộp | [`deliverables/README.md`](deliverables/README.md) |
-| Chuẩn bị bảo vệ | [03](03_HIGH_LEVEL_ARCHITECTURE.md) §16–18, [ADR](adr/README.md), [playbook](plan/TEAM_ROLES_PLAYBOOK.md) (bẫy hay gặp theo vai) |
+| Chuẩn bị bảo vệ | [03](03_HIGH_LEVEL_ARCHITECTURE.md) §16–18, [ADR](adr/README.md), [FRAUD guide](components/risk/FRAUD_DETECTION_GUIDE.md) |
 
 ## Cấu trúc
 
@@ -20,7 +20,6 @@ docs/
 ├── 03_HIGH_LEVEL_ARCHITECTURE.md          Kiến trúc tổng thể và chi tiết từng module    (cấp hệ thống)
 ├── adr/                                   13 quyết định kiến trúc (ADR-01…13) và lý do
 ├── security/                              Threat model STRIDE (P3)
-├── plan/                                  Kế hoạch 10 tuần + playbook theo vai
 ├── superpowers/plans/                     Implementation plan (master roadmap, plan từng task)
 ├── features/                              Một file cho mỗi task implement + screenshots/ (ảnh tính năng)
 ├── components/                            Concept brief từng component + thiết kế dùng chung

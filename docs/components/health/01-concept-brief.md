@@ -1,6 +1,6 @@
 # health — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 · **Cặp đôi:** #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
+> **Status:** Draft · **Owner:** #6 · **Cặp đôi:** #5 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
 
 ## Component
 

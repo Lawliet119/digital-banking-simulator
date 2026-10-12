@@ -4,30 +4,31 @@
 
 ```mermaid
 flowchart LR
-    I[Task DBS-n trên board] --> B[Tạo nhánh từ main] --> C[Code + test] --> P[Mở Pull Request] --> R{Cặp đôi review<br/>CI xanh?}
+    I[Task DBS-n trên board] --> B[Tạo nhánh từ main] --> C[Code + test] --> P[Mở Pull Request] --> R{Dev khác review<br/>CI xanh?}
     R -- Chưa --> C
     R -- Đạt --> M[Squash merge vào main] --> D[Tự động deploy]
 ```
 
 1. Mỗi việc là một **task `DBS-n`** trên board của nhóm.
 2. Tạo nhánh từ `main` theo quy tắc đặt tên bên dưới.
-3. Mở **Pull Request** sớm (có thể để Draft) để người khác thấy tiến độ.
-4. **Cặp đôi review** trước khi merge và **CI phải xanh**. Ruleset của `main` bắt buộc PR, chỉ cho squash, chặn force push và xóa nhánh, nhưng **không ép số approval** (đặt 0): việc cặp đôi review là quy ước của nhóm, GitHub không chặn. Người mở PR không tự merge khi cặp đôi chưa để lại review.
+3. Chưa đưa gì lên GitHub trước gate G3. Sau G3 chỉ mở **Draft PR** khi người duyệt yêu cầu (để người khác thấy tiến độ); chuyển sang Ready for review sau gate G4.
+4. **Một Dev khác review** trước khi merge và **CI phải xanh**. Ruleset của `main` bắt buộc PR, chỉ cho squash, chặn force push và xóa nhánh, nhưng **không ép số approval** (đặt 0): việc review là quy ước của nhóm, GitHub không chặn. Người mở PR không tự merge khi chưa có Dev khác để lại review.
 5. Merge bằng **Squash and merge** để lịch sử `main` gọn.
 
 **Không push thẳng vào `main`.**
 
 ## 1b. Quy ước board
 
-Board của nhóm (Google Sheet, mỗi tuần một tab) là nơi duy nhất theo dõi việc. Mỗi task có mã `DBS-n`, người làm, cặp đôi review, cột **Phụ thuộc** và DoD.
+Board của nhóm (Google Sheet, mỗi tuần một tab) là nơi duy nhất theo dõi việc. Mỗi task có mã `DBS-n`, vai làm, cột **Phụ thuộc** và DoD. Không ai chờ ai: task bị chặn thì làm task khác; chuyển Status khi bắt đầu làm.
 
 | Khi | Đổi Status thành |
 |---|---|
 | Bắt đầu làm | `In Progress` |
-| Mở PR (kể cả Draft) | `In Review`, dán link PR vào cột Thực trạng |
+| Draft PR (sau G3) | giữ `In Progress`, dán link PR vào cột Thực trạng |
+| Ready for review (sau G4) | `In Review` |
 | PR đã merge và DoD đạt | `Done` |
 
-- Chỉ bắt đầu task khi mọi task ở cột Phụ thuộc đã `Done`, hoặc đã thống nhất interface với người làm task đó.
+- Chỉ bắt đầu task khi mọi task ở cột Phụ thuộc đã `Done`, hoặc đã thống nhất interface với người làm task đó và người duyệt G1 đồng ý phạm vi thu hẹp. Nếu phạm vi thu hẹp rỗng, làm task bị chặn trước.
 - Bị chặn quá một buổi làm việc thì báo ngay trong kênh chat, ghi rõ cần ai.
 - Tên nhánh và tiêu đề PR có mã task, ví dụ `feat/DBS-79-idempotency-replay`.
 - Đổi interface, schema, event hay biến môi trường mà người khác dùng thì báo trước và sửa tài liệu trong cùng PR.
@@ -64,7 +65,7 @@ Module: `ledger`, `accounts`, `identity`, `risk`, `audit`, `outbox`, `notificati
 
 ## 3b. Làm task với AI agent
 
-Mọi thay đổi code, test, migration, hạ tầng hay tài liệu đi qua skill [`dbs-delivering-task`](.claude/skills/dbs-delivering-task/SKILL.md): 5 phase, 4 gate cần người duyệt (phạm vi, thiết kế, kế hoạch, bàn giao), một file `docs/features/DBS-<n>-<slug>.md` và ảnh chụp ở `docs/features/screenshots/DBS-<n>/`. Không dùng AI thì đọc skill đó và làm theo bằng tay.
+Mọi thay đổi code, test, migration, hạ tầng hay tài liệu đi qua skill [`dbs-delivering-task`](.claude/skills/dbs-delivering-task/SKILL.md): 5 phase (hiểu task, thiết kế, kế hoạch, implement và test kể cả **test thủ công**, tài liệu và bàn giao), 4 gate cần người duyệt (phạm vi, thiết kế, kế hoạch, bàn giao), một file `docs/features/DBS-<n>-<slug>.md` và ảnh chụp ở `docs/features/screenshots/DBS-<n>/`. Không dùng AI thì đọc skill đó và làm theo bằng tay.
 
 ## 4. Định nghĩa "xong"
 
@@ -77,7 +78,7 @@ Một Pull Request chỉ được merge khi:
 - [ ] Không có secret trong code, log hay commit
 - [ ] Nếu đổi thiết kế: cập nhật `docs/03` (hoặc `docs/01–02`, `_shared/database-design.md`, `_shared/event-contract.md`) và thêm ADR nếu là quyết định kiến trúc; xem [docs/README.md](docs/README.md)
 - [ ] Nếu đổi API: OpenAPI (Swagger) được cập nhật
-- [ ] File `docs/features/DBS-<n>-<slug>.md` đã đủ mục 1–8, có ảnh chụp trong `docs/features/screenshots/DBS-<n>/`
+- [ ] File `docs/features/DBS-<n>-<slug>.md` đã đủ mục 1–9, test thủ công đã chạy (bước chưa chạy ghi rõ lý do), có ảnh chụp trong `docs/features/screenshots/DBS-<n>/`
 
 ## 5. Quy tắc bắt buộc khi làm với tiền
 

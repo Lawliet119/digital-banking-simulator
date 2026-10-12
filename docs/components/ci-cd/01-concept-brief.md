@@ -1,6 +1,6 @@
 # ci-cd — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 · **Cặp đôi:** #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #5 (deploy, quét image và secret); job test trong CI do #6 viết · **Cặp đôi:** #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
 
 ## Component
 

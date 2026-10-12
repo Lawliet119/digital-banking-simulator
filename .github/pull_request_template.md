@@ -30,7 +30,7 @@ Feature doc: docs/features/DBS-
 - [ ] Có test; logic về tiền được test trên PostgreSQL thật
 - [ ] CI xanh
 - [ ] Không có secret trong code, log, commit
-- [ ] Feature doc đủ mục 1–8 (đã qua 4 gate), ảnh chụp ở `docs/features/screenshots/DBS-<n>/`
+- [ ] Feature doc đủ mục 1–9 (đã qua 4 gate), test thủ công đã chạy (bước chưa chạy ghi rõ lý do), ảnh chụp ở `docs/features/screenshots/DBS-<n>/`
 - [ ] Đã cập nhật tài liệu / ADR / OpenAPI nếu cần (đổi thiết kế → `docs/03` hoặc `docs/components/_shared/`)
 
 ## Ghi chú cho người review

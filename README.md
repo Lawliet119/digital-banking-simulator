@@ -54,7 +54,6 @@ digital-banking-simulator/
 │   ├── README.md         # bản đồ tài liệu: đọc gì trước, một sự thật ở một chỗ
 │   ├── adr/              # Architecture Decision Records (ADR-01…13)
 │   ├── security/         # threat model STRIDE
-│   ├── plan/             # kế hoạch 10 tuần + playbook theo vai
 │   ├── components/       # concept brief từng component + thiết kế dùng chung (DB, event)
 │   ├── deliverables/     # 5 bản nộp P1–P5
 │   └── superpowers/plans/ # implementation plan (master roadmap)
@@ -97,7 +96,6 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 | [03 — High-Level Architecture](docs/03_HIGH_LEVEL_ARCHITECTURE.md) | Kiến trúc, luồng chuyển tiền, dữ liệu, Redis, sự kiện, bảo mật, triển khai |
 | [ADR](docs/adr/README.md) | 13 quyết định kiến trúc và lý do |
 | [Threat model](docs/security/threat-model.md) | Mối đe dọa STRIDE của luồng tiền và biện pháp |
-| [Kế hoạch 10 tuần](docs/plan/10_WEEK_PLAN.md) | Phân vai, lịch tuần, quy tắc làm việc |
 | [Bản đồ tài liệu](docs/README.md) | Đọc gì trước, cấu trúc `docs/`, quy tắc một sự thật ở một chỗ |
 | [Components](docs/components/index.md) | Mục lục từng module và thành phần hạ tầng, kèm concept brief |
 | [Master roadmap](docs/superpowers/plans/2026-10-02-master-roadmap.md) | Roadmap 10 tuần: task, phụ thuộc, cổng ra theo tuần |
@@ -105,17 +103,16 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 
 ## Nhóm
 
-| Vai trò | Thành viên |
-|---|---|
-| Ledger & Transfer | _TBD_ |
-| Identity & Accounts | _TBD_ |
-| Async, Events & Audit | _TBD_ |
-| Risk & Fraud | _TBD_ |
-| Platform & Security | _TBD_ |
-| Quality & Observability | _TBD_ |
+| Vai trò | Loại | Thành viên |
+|---|---|---|
+| Dev | Software developer (4 người) | _TBD_ · _TBD_ · _TBD_ · _TBD_ |
+| #4 Fraud | Phát hiện gian lận | _TBD_ |
+| #5 Platform & Ops | Cloud và vận hành | _TBD_ |
+
+Cách làm: không ai chờ ai, không có chủ module hay cặp cố định. Review PR: một Dev khác. Quy tắc và cách dùng skill: [CONTRIBUTING](CONTRIBUTING.md).
 
 ## Đóng góp
 
 Đọc [CONTRIBUTING.md](CONTRIBUTING.md) trước khi mở Pull Request. Tóm tắt:
-- Không push thẳng vào `main`; mọi thay đổi qua Pull Request, cặp đôi review (quy ước nhóm, GitHub không ép số approval) và CI xanh.
+- Không push thẳng vào `main`; mọi thay đổi qua Pull Request, một Dev khác review (quy ước nhóm, GitHub không ép số approval) và CI xanh.
 - **Không bao giờ commit secret** (`.env`, key AWS, `*.tfvars`, `terraform.tfstate`).
