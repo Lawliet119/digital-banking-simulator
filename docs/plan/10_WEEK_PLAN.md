@@ -19,7 +19,7 @@
 | **#4 Fraud** | 1 | 6 luật gian lận, review cảnh báo, cấu hình luật, báo cáo đánh giá | 12 |
 | **#5 Platform & Ops** | 1 | Cloud, CI/CD deploy, Terraform, bảo mật hạ tầng, chi phí; **vận hành**: dashboard, alarm, chạy load test và diễn tập sự cố | 8, 9, 11 |
 
-- **Cách làm kiểu kéo:** dev nào thấy task `Dev` chưa ai nhận (phụ thuộc đã Done) thì nhận, ghi «[Nhận: tên]» ở cột Thực trạng và làm theo thứ tự board. Không có chủ module, không có cặp cố định, không cần chia đều khối lượng, không ai chờ ai: task bị chặn thì lấy task khác. Tiêu chí là kết quả đầu ra.
+- **Cách làm:** không có chủ module, không có cặp cố định, không cần chia đều khối lượng, không ai chờ ai: task bị chặn thì làm task khác. Tiêu chí là kết quả đầu ra.
 - Mọi task đi cùng một quy trình: lên kế hoạch, implement, test, test thủ công, tài liệu và ảnh chụp (skill `dbs-delivering-task`, 4 gate). #4 và #5 dùng cùng phase và gate cho việc của mình.
 - **Trách nhiệm tổng hợp báo cáo:** mỗi mốc P1–P5 có một người chủ biên (nhóm chọn khi tới mốc; P3 do #5, P5 do #4) chịu trách nhiệm biên tập và nộp; ai làm task nào thì soạn phần kỹ thuật của task đó.
 - **Đảm bảo tính khách quan trong đánh giá gian lận:** Dev làm bộ dữ liệu kiểm chuẩn và #4 (người cài luật) là hai người khác nhau, #4 không đọc code generator, để tránh data leakage và thiên kiến đánh giá.

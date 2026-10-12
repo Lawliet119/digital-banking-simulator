@@ -1,6 +1,6 @@
 # Team Roles Playbook — Cách làm việc của từng vai
 
-> **Status:** Active (cơ cấu vai v2, mô hình kéo, 2026-10-12) · **Owner:** cả nhóm · **Verified against code:** n/a · **Cập nhật:** 2026-10-12
+> **Status:** Active (cơ cấu vai v2, 2026-10-12) · **Owner:** cả nhóm · **Verified against code:** n/a · **Cập nhật:** 2026-10-12
 
 > Tài liệu nội bộ, dùng kèm [`10_WEEK_PLAN.md`](10_WEEK_PLAN.md). Việc cụ thể từng tuần nằm trên board của nhóm (mỗi task có tuần, người làm, phụ thuộc), không chép lại ở đây. Quy trình làm một task: skill [`dbs-delivering-task`](../../.claude/skills/dbs-delivering-task/SKILL.md).
 > Riêng mảng Fraud có hướng dẫn chi tiết ở [`FRAUD_DETECTION_GUIDE.md`](../components/risk/FRAUD_DETECTION_GUIDE.md).
@@ -9,7 +9,7 @@
 
 ## 0. Nhìn chung
 
-### 0.1 Ba vai trên board, làm việc kiểu kéo
+### 0.1 Ba vai trên board
 
 | Vai trên board | Số người | Sứ mệnh | Câu bảo vệ |
 |---|---|---|---|
@@ -17,7 +17,7 @@
 | **#4 Fraud** | 1 | Phát hiện gian lận nhanh, giải thích được, đo được; dẫn dắt P5 | 12 |
 | **#5 Platform & Ops** | 1 | Hạ tầng tự động, an toàn, rẻ; vận hành chạy được; dẫn dắt P3 | 8, 9, 11 |
 
-**Cách nhận việc:** dev nào thấy task `Dev` chưa ai nhận và phụ thuộc đã Done thì nhận: ghi «[Nhận: tên]» ở đầu cột Thực trạng, chuyển In Progress, làm theo thứ tự board (tuần sớm trước, ưu tiên cao trước). Không ai chờ ai: task bị chặn thì lấy task chưa làm khác. Không có chủ module, không có cặp cố định, không cần chia đều khối lượng; điều quan trọng là kết quả đầu ra. Task của #4 và #5 do hai người đó nhận.
+**Cách làm:** không ai chờ ai: task bị chặn thì làm task khác, và chuyển Status khi bắt đầu làm để người khác biết. Không có chủ module, không có cặp cố định, không cần chia đều khối lượng; điều quan trọng là kết quả đầu ra.
 
 ### 0.2 Ai phụ thuộc vào ai
 

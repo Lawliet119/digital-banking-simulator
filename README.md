@@ -111,7 +111,7 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 | #4 Fraud | Phát hiện gian lận | _TBD_ |
 | #5 Platform & Ops | Cloud và vận hành | _TBD_ |
 
-Cách làm: dev nào thấy task chưa ai nhận (phụ thuộc đã Done) thì nhận và làm theo thứ tự board, không ai chờ ai; không có chủ module hay cặp cố định. Review PR: một Dev khác bất kỳ. Chi tiết vai: [TEAM_ROLES_PLAYBOOK](docs/plan/TEAM_ROLES_PLAYBOOK.md).
+Cách làm: không ai chờ ai, không có chủ module hay cặp cố định. Review PR: một Dev khác. Chi tiết vai: [TEAM_ROLES_PLAYBOOK](docs/plan/TEAM_ROLES_PLAYBOOK.md).
 
 ## Đóng góp
 

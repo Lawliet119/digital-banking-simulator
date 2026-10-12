@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-    I[Task DBS-n trên board] --> B[Tạo nhánh từ main] --> C[Code + test] --> P[Mở Pull Request] --> R{Cặp đôi review<br/>CI xanh?}
+    I[Task DBS-n trên board] --> B[Tạo nhánh từ main] --> C[Code + test] --> P[Mở Pull Request] --> R{Dev khác review<br/>CI xanh?}
     R -- Chưa --> C
     R -- Đạt --> M[Squash merge vào main] --> D[Tự động deploy]
 ```
@@ -19,7 +19,7 @@ flowchart LR
 
 ## 1b. Quy ước board
 
-Board của nhóm (Google Sheet, mỗi tuần một tab) là nơi duy nhất theo dõi việc. Mỗi task có mã `DBS-n`, người nhận, cột **Phụ thuộc** và DoD. Dev nào thấy task chưa ai nhận (phụ thuộc đã Done) thì nhận: ghi «[Nhận: tên]» ở đầu cột Thực trạng, chuyển In Progress, làm theo thứ tự board; task bị chặn thì lấy task khác.
+Board của nhóm (Google Sheet, mỗi tuần một tab) là nơi duy nhất theo dõi việc. Mỗi task có mã `DBS-n`, vai làm, cột **Phụ thuộc** và DoD. Không ai chờ ai: task bị chặn thì làm task khác; chuyển Status khi bắt đầu làm.
 
 | Khi | Đổi Status thành |
 |---|---|
