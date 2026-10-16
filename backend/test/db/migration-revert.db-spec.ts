@@ -4,6 +4,19 @@ import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-
 
 const BACKEND_DIR = resolve(__dirname, '..', '..');
 const FUNDING_ID = '00000000-0000-4000-8000-000000000001';
+// Tables of migrations 1 and 2, and the view of migration 2 (information_schema.tables lists views).
+const OBJECTS =
+  "('users', 'customers', 'accounts', 'transfers', 'ledger_entries', 'idempotency_keys', 'v_transfer_facts')";
+const BASE = ['accounts', 'customers', 'users'];
+const ALL = [
+  'accounts',
+  'customers',
+  'idempotency_keys',
+  'ledger_entries',
+  'transfers',
+  'users',
+  'v_transfer_facts',
+];
 
 /** Runs an npm script exactly as a developer or the pipeline would, against `url`. */
 function npmRun(script: string, url: string): void {
@@ -18,7 +31,7 @@ function npmRun(script: string, url: string): void {
   });
 }
 
-describe('migration 1: run, revert, run', () => {
+describe('migrations 1 and 2: run, revert, run', () => {
   let db: TempDatabase;
 
   afterEach(async () => {
@@ -28,7 +41,7 @@ describe('migration 1: run, revert, run', () => {
   async function tables(): Promise<string[]> {
     const rows = (await db.runner.query(
       `SELECT table_name FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_name IN ('users', 'customers', 'accounts')
+        WHERE table_schema = 'public' AND table_name IN ${OBJECTS}
         ORDER BY table_name`,
     )) as { table_name: string }[];
     return rows.map(r => r.table_name);
@@ -39,23 +52,25 @@ describe('migration 1: run, revert, run', () => {
     return rows.map(r => r.name);
   }
 
-  it('TC-20-13 migration:run → migration:revert → migration:run is green on an empty database', async () => {
+  it('TC-21-23 migration:run → revert → revert → run is green on an empty database, one migration at a time', async () => {
     db = await createTempDatabase();
 
     npmRun('migration:run', db.url);
-    expect(await tables()).toEqual(['accounts', 'customers', 'users']);
+    expect(await tables()).toEqual(ALL);
 
-    // migration:revert undoes only the newest migration (DBS-21's), so migration 1 needs a second.
+    // migration:revert undoes only the newest migration, so migration 1 needs a second revert.
+    // The first takes the three money-flow tables and the view; users, accounts and funding stay.
     npmRun('migration:revert', db.url);
-    expect(await tables()).toEqual(['accounts', 'customers', 'users']);
+    expect(await tables()).toEqual(BASE);
     expect(await appliedMigrations()).toEqual(['CreateUsersCustomersAccounts1791763200000']);
+    expect(await db.runner.query('SELECT id FROM accounts')).toEqual([{ id: FUNDING_ID }]);
 
     npmRun('migration:revert', db.url);
     expect(await tables()).toEqual([]);
     expect(await appliedMigrations()).toEqual([]);
 
     npmRun('migration:run', db.url);
-    expect(await tables()).toEqual(['accounts', 'customers', 'users']);
+    expect(await tables()).toEqual(ALL);
     expect(await appliedMigrations()).toEqual([
       'CreateUsersCustomersAccounts1791763200000',
       'CreateTransfersLedgerIdempotency1791849600000',
@@ -96,5 +111,94 @@ describe('migration 1: run, revert, run', () => {
     await q(`UPDATE accounts SET balance = 0 WHERE id = '${FUNDING_ID}'`);
     await migrate(db.url, 'undoLast');
     expect(await tables()).toEqual([]);
+  });
+});
+
+describe('migration 2: revert refuses to destroy data', () => {
+  let db: TempDatabase;
+
+  beforeAll(async () => {
+    db = await createTempDatabase();
+    await migrate(db.url);
+  });
+
+  afterAll(async () => {
+    await db?.drop();
+  });
+
+  const q = (sql: string, params: unknown[] = []) => db.runner.query(sql, params);
+
+  async function objects(): Promise<string[]> {
+    const rows = (await q(
+      `SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name IN ${OBJECTS} ORDER BY table_name`,
+    )) as { table_name: string }[];
+    return rows.map(r => r.table_name);
+  }
+
+  async function expectRefusal(): Promise<void> {
+    await expect(migrate(db.url, 'undoLast')).rejects.toThrow(/Refusing to revert/);
+    // Nothing was dropped and the migration is still recorded.
+    expect(await objects()).toEqual(ALL);
+    const applied = (await q('SELECT name FROM migrations ORDER BY timestamp')) as {
+      name: string;
+    }[];
+    expect(applied.map(r => r.name)).toEqual([
+      'CreateUsersCustomersAccounts1791763200000',
+      'CreateTransfersLedgerIdempotency1791849600000',
+    ]);
+  }
+
+  it('TC-21-24 refuses while transfers, idempotency_keys or ledger_entries holds a row, then goes through', async () => {
+    // These rows are committed (migrate() opens its own connection) and removed by the test.
+    const [user] = await q(`INSERT INTO users (cognito_sub) VALUES ('sub-revert') RETURNING id`);
+    const accounts: string[] = [];
+    for (const name of ['An', 'Bình']) {
+      const [{ id: userId }] = await q('INSERT INTO users (cognito_sub) VALUES ($1) RETURNING id', [
+        `sub-${name}`,
+      ]);
+      const [customer] = await q(
+        'INSERT INTO customers (user_id, full_name) VALUES ($1, $2) RETURNING id',
+        [userId, name],
+      );
+      const [account] = await q(
+        `INSERT INTO accounts (customer_id, type) VALUES ($1, 'CHECKING') RETURNING id`,
+        [customer.id],
+      );
+      accounts.push(account.id);
+    }
+
+    // (a) only a transfer
+    await q(
+      `INSERT INTO transfers (type, from_account_id, to_account_id, amount, status, initiated_by, correlation_id)
+       VALUES ('TRANSFER', $1, $2, 300000, 'COMPLETED', $3, gen_random_uuid())`,
+      [accounts[0], accounts[1], user.id],
+    );
+    await expectRefusal();
+    await q('DELETE FROM transfers');
+
+    // (b) only an idempotency key (no transfer yet, as in the reservation step)
+    await q(
+      `INSERT INTO idempotency_keys (user_id, idem_key, request_hash) VALUES ($1, 'k1', $2)`,
+      [user.id, 'a'.repeat(64)],
+    );
+    await expectRefusal();
+    await q('DELETE FROM idempotency_keys');
+
+    // (c) only a ledger line, which cannot exist without a transfer unless the foreign keys are
+    // switched off for this connection (needs a superuser; a missing right fails the test).
+    await q('SET session_replication_role = replica');
+    await q(
+      `INSERT INTO ledger_entries (transfer_id, account_id, direction, amount, balance_after)
+       VALUES (gen_random_uuid(), $1, 'DEBIT', 300000, 0)`,
+      [accounts[0]],
+    );
+    await q('SET session_replication_role = origin');
+    await expectRefusal();
+    await q('DELETE FROM ledger_entries');
+
+    // Back to the freshly migrated state: the revert goes through, so the guard is not a wall.
+    await migrate(db.url, 'undoLast');
+    expect(await objects()).toEqual(BASE);
   });
 });

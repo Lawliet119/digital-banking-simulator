@@ -146,7 +146,29 @@ export class CreateTransfersLedgerIdempotency1791849600000 implements MigrationI
         FROM transfers`);
   }
 
+  /**
+   * `npm run migration:revert` runs against whatever DATABASE_URL points at, and DROP TABLE takes
+   * every transfer, ledger line and idempotency key with it. Ledger rows are never deleted in a
+   * bank, so the revert only goes through while all three tables are still empty, as `up` left
+   * them; otherwise it throws and the migration transaction rolls back.
+   */
   public async down(queryRunner: QueryRunner): Promise<void> {
+    const [rows] = (await queryRunner.query(`
+      SELECT (SELECT count(*) FROM transfers)::int        AS transfers,
+             (SELECT count(*) FROM ledger_entries)::int   AS ledger_entries,
+             (SELECT count(*) FROM idempotency_keys)::int AS idempotency_keys`)) as {
+      transfers: number;
+      ledger_entries: number;
+      idempotency_keys: number;
+    }[];
+    if (rows.transfers > 0 || rows.ledger_entries > 0 || rows.idempotency_keys > 0) {
+      throw new Error(
+        `Refusing to revert ${this.name}: tables hold data ` +
+          `(transfers=${rows.transfers}, ledger_entries=${rows.ledger_entries}, ` +
+          `idempotency_keys=${rows.idempotency_keys}). Reverting would drop it.`,
+      );
+    }
+
     await queryRunner.query('DROP VIEW v_transfer_facts');
     await queryRunner.query('DROP TABLE idempotency_keys');
     await queryRunner.query('DROP TABLE ledger_entries');
