@@ -1,6 +1,6 @@
 # DBS-21 · Migration 2: transfers, ledger_entries, idempotency_keys, view v_transfer_facts
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-21-migration-transfers-ledger-idempotency` · **PR:** — · **Cập nhật:** 2026-10-17
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-21-migration-transfers-ledger-idempotency` · **PR:** — · **Cập nhật:** 2026-10-17
 
 ## 1. Bối cảnh
 
@@ -393,3 +393,5 @@ npm run test:db      → Test Suites: 3 passed, 3 total   · Tests: 49 passed, 4
 - [`docs/features/README.md`](README.md): thêm dòng DBS-21.
 - [`docs/BACKLOG.md`](../BACKLOG.md): thêm BL-004, BL-005, BL-006; sửa BL-001 (nguồn DBS-21, yêu cầu superuser). Không dòng nào bị xóa (không dòng backlog nào được task này xử lý).
 - Ngoài danh sách kế hoạch (cần chấp nhận ở G4, §8 "Lệch" mục 1): [`docs/03_HIGH_LEVEL_ARCHITECTURE.md`](../03_HIGH_LEVEL_ARCHITECTURE.md), [`docs/deliverables/P2-application-data-integration.md`](../deliverables/P2-application-data-integration.md).
+
+**Quyết định ở G4 (2026-10-17):** duyệt kết quả («ok duyet»). Gồm chấp nhận hai file ngoài danh sách §7 (`docs/03_HIGH_LEVEL_ARCHITECTURE.md`, `docs/deliverables/P2-application-data-integration.md`), chấp nhận DoD #7 "CI xanh" chưa kiểm được (BL-001), và xác nhận phương án B cùng việc bỏ khóa ngoại đơn `ledger_entries.account_id`. Các quyết định đều theo đề xuất ghi trong tin nhắn G4.
