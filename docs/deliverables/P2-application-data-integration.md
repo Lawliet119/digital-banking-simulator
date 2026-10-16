@@ -36,7 +36,7 @@ Module bên trong ứng dụng và quy tắc phụ thuộc (eslint ép ranh gi�
 ## 3. Data model
 
 - ERD rút gọn: [docs/03 §8.2](../03_HIGH_LEVEL_ARCHITECTURE.md). Schema đầy đủ (14 bảng, ràng buộc, index, quyền, vòng đời dữ liệu, thứ tự migration): [database-design](../components/_shared/database-design.md).
-- Bất biến do DB bảo vệ: số dư khách không âm; mỗi giao dịch đúng một dòng Nợ và một dòng Có; `PRIMARY KEY (user_id, idem_key)`; bảng chỉ-thêm (`ledger_entries`, `transfers`, `audit_log`, `risk_rule_sets`) bị chặn sửa/xóa bằng quyền **và** trigger.
+- Bất biến do DB bảo vệ: số dư khách không âm; mỗi giao dịch tối đa một dòng Nợ và một dòng Có, mỗi dòng đúng số tiền và đúng tài khoản của giao dịch (đủ cặp do code và đối soát giữ); `PRIMARY KEY (user_id, idem_key)`; bảng chỉ-thêm (`ledger_entries`, `transfers`, `audit_log`, `risk_rule_sets`) bị chặn sửa/xóa bằng quyền **và** trigger.
 - Tiền là `bigint` (đồng); thời gian `timestamptz`, DB chạy UTC; ranh giới ngày theo `Asia/Ho_Chi_Minh`.
 - Hai DB role cho ứng dụng (`dbs_api`, `dbs_worker`) và một role migration (`dbs_migrator`), quyền theo ma trận ở database-design §8.
 

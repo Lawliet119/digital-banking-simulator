@@ -1,0 +1,364 @@
+2cff9f1da9af02303561e8fe3162a80bad0103ea
+# DBS-21 manual test, 2026-10-16T17:39:14Z, PostgreSQL 17 (docker compose, host port 5433)
+# last commit that changes code: 2cff9f1 feat(database): guard migration 2 revert against data loss
+
+=== M-21-01 create empty database, migration:run
+$ psql -d postgres -c 'CREATE DATABASE dbs_manual_21'
+CREATE DATABASE
+$ cd backend && DATABASE_URL=postgres://banking:***@localhost:5433/dbs_manual_21 npm run migration:run
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+      CREATE TABLE users (
+      CREATE TABLE customers (
+      CREATE TABLE accounts (
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+      CREATE TABLE transfers (
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+      CREATE TABLE ledger_entries (
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+      CREATE INDEX ledger_entries_account_history_idx
+      CREATE TABLE idempotency_keys (
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+      CREATE VIEW v_transfer_facts AS
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+exit code: 0
+
+=== M-21-02 schema as designed
+$ psql -d dbs_manual_21 -c '\d transfers'
+                               Table "public.transfers"
+     Column      |           Type           | Collation | Nullable |      Default      
+-----------------+--------------------------+-----------+----------+-------------------
+ id              | uuid                     |           | not null | gen_random_uuid()
+ type            | text                     |           | not null | 
+ from_account_id | uuid                     |           | not null | 
+ to_account_id   | uuid                     |           |          | 
+ amount          | bigint                   |           | not null | 
+ status          | text                     |           | not null | 
+ reject_reason   | text                     |           |          | 
+ initiated_by    | uuid                     |           | not null | 
+ correlation_id  | uuid                     |           | not null | 
+ created_at      | timestamp with time zone |           | not null | clock_timestamp()
+Indexes:
+    "transfers_pkey" PRIMARY KEY, btree (id)
+    "transfers_account_completed_idx" btree (from_account_id, created_at) INCLUDE (amount, to_account_id) WHERE status = 'COMPLETED'::text AND type = 'TRANSFER'::text
+    "transfers_ledger_from_key" UNIQUE CONSTRAINT, btree (id, amount, status, from_account_id)
+    "transfers_ledger_to_key" UNIQUE CONSTRAINT, btree (id, amount, status, to_account_id)
+    "transfers_pair_completed_idx" btree (from_account_id, to_account_id, created_at) WHERE status = 'COMPLETED'::text AND type = 'TRANSFER'::text
+Check constraints:
+    "transfers_amount_check" CHECK (amount > 0)
+    "transfers_completed_has_target" CHECK (status <> 'COMPLETED'::text OR to_account_id IS NOT NULL)
+    "transfers_distinct_accounts" CHECK (to_account_id IS NULL OR from_account_id <> to_account_id)
+    "transfers_reason_matches_status" CHECK ((status = 'REJECTED'::text) = (reject_reason IS NOT NULL))
+    "transfers_reject_reason_check" CHECK (reject_reason = ANY (ARRAY['ACCOUNT_NOT_ACTIVE'::text, 'LIMIT_PER_TX_EXCEEDED'::text, 'LIMIT_PER_DAY_EXCEEDED'::text, 'INSUFFICIENT_FUNDS'::text]))
+    "transfers_status_check" CHECK (status = ANY (ARRAY['COMPLETED'::text, 'REJECTED'::text]))
+    "transfers_type_check" CHECK (type = ANY (ARRAY['TRANSFER'::text, 'DEPOSIT'::text]))
+Foreign-key constraints:
+    "transfers_from_account_id_fkey" FOREIGN KEY (from_account_id) REFERENCES accounts(id) ON DELETE RESTRICT
+    "transfers_initiated_by_fkey" FOREIGN KEY (initiated_by) REFERENCES users(id) ON DELETE RESTRICT
+    "transfers_to_account_id_fkey" FOREIGN KEY (to_account_id) REFERENCES accounts(id) ON DELETE RESTRICT
+Referenced by:
+    TABLE "idempotency_keys" CONSTRAINT "idempotency_keys_transfer_id_fkey" FOREIGN KEY (transfer_id) REFERENCES transfers(id) ON DELETE RESTRICT
+    TABLE "ledger_entries" CONSTRAINT "ledger_entries_transfer_credit_fkey" FOREIGN KEY (transfer_id, amount, transfer_status, credit_account) REFERENCES transfers(id, amount, status, to_account_id) ON DELETE RESTRICT
+    TABLE "ledger_entries" CONSTRAINT "ledger_entries_transfer_debit_fkey" FOREIGN KEY (transfer_id, amount, transfer_status, debit_account) REFERENCES transfers(id, amount, status, from_account_id) ON DELETE RESTRICT
+
+$ psql -d dbs_manual_21 -c '\d ledger_entries'
+                                              Table "public.ledger_entries"
+     Column      |           Type           | Collation | Nullable |                       Default                       
+-----------------+--------------------------+-----------+----------+-----------------------------------------------------
+ id              | bigint                   |           | not null | generated always as identity
+ transfer_id     | uuid                     |           | not null | 
+ account_id      | uuid                     |           | not null | 
+ direction       | text                     |           | not null | 
+ amount          | bigint                   |           | not null | 
+ balance_after   | bigint                   |           | not null | 
+ created_at      | timestamp with time zone |           | not null | clock_timestamp()
+ transfer_status | text                     |           |          | generated always as ('COMPLETED'::text) stored
+ debit_account   | uuid                     |           |          | generated always as (                              +
+                 |                          |           |          | CASE                                               +
+                 |                          |           |          |     WHEN direction = 'DEBIT'::text THEN account_id +
+                 |                          |           |          |     ELSE NULL::uuid                                +
+                 |                          |           |          | END) stored
+ credit_account  | uuid                     |           |          | generated always as (                              +
+                 |                          |           |          | CASE                                               +
+                 |                          |           |          |     WHEN direction = 'CREDIT'::text THEN account_id+
+                 |                          |           |          |     ELSE NULL::uuid                                +
+                 |                          |           |          | END) stored
+Indexes:
+    "ledger_entries_pkey" PRIMARY KEY, btree (id)
+    "ledger_entries_account_history_idx" btree (account_id, created_at DESC, id DESC)
+    "ledger_entries_daily_debit_idx" btree (account_id, created_at) INCLUDE (amount) WHERE direction = 'DEBIT'::text
+    "ledger_entries_one_per_direction" UNIQUE CONSTRAINT, btree (transfer_id, direction)
+Check constraints:
+    "ledger_entries_amount_check" CHECK (amount > 0)
+    "ledger_entries_direction_check" CHECK (direction = ANY (ARRAY['DEBIT'::text, 'CREDIT'::text]))
+Foreign-key constraints:
+    "ledger_entries_transfer_credit_fkey" FOREIGN KEY (transfer_id, amount, transfer_status, credit_account) REFERENCES transfers(id, amount, status, to_account_id) ON DELETE RESTRICT
+    "ledger_entries_transfer_debit_fkey" FOREIGN KEY (transfer_id, amount, transfer_status, debit_account) REFERENCES transfers(id, amount, status, from_account_id) ON DELETE RESTRICT
+
+$ psql -d dbs_manual_21 -c '\d idempotency_keys'
+                      Table "public.idempotency_keys"
+    Column     |           Type           | Collation | Nullable | Default 
+---------------+--------------------------+-----------+----------+---------
+ user_id       | uuid                     |           | not null | 
+ idem_key      | text                     |           | not null | 
+ request_hash  | character(64)            |           | not null | 
+ transfer_id   | uuid                     |           |          | 
+ response_code | smallint                 |           |          | 
+ response_body | jsonb                    |           |          | 
+ created_at    | timestamp with time zone |           | not null | now()
+Indexes:
+    "idempotency_keys_pkey" PRIMARY KEY, btree (user_id, idem_key)
+    "idempotency_keys_created_idx" btree (created_at)
+Check constraints:
+    "idempotency_keys_idem_key_check" CHECK (char_length(idem_key) >= 1 AND char_length(idem_key) <= 128)
+Foreign-key constraints:
+    "idempotency_keys_transfer_id_fkey" FOREIGN KEY (transfer_id) REFERENCES transfers(id) ON DELETE RESTRICT
+    "idempotency_keys_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+
+$ psql -d dbs_manual_21 -c '\d+ v_transfer_facts'
+                                    View "public.v_transfer_facts"
+     Column      |           Type           | Collation | Nullable | Default | Storage  | Description 
+-----------------+--------------------------+-----------+----------+---------+----------+-------------
+ id              | uuid                     |           |          |         | plain    | 
+ type            | text                     |           |          |         | extended | 
+ from_account_id | uuid                     |           |          |         | plain    | 
+ to_account_id   | uuid                     |           |          |         | plain    | 
+ amount          | bigint                   |           |          |         | plain    | 
+ status          | text                     |           |          |         | extended | 
+ created_at      | timestamp with time zone |           |          |         | plain    | 
+View definition:
+ SELECT id,
+    type,
+    from_account_id,
+    to_account_id,
+    amount,
+    status,
+    created_at
+   FROM transfers;
+
+$ psql -d dbs_manual_21 (row counts, accounts, migrations)
+ transfers | ledger_entries | idempotency_keys 
+-----------+----------------+------------------
+         0 |              0 |                0
+(1 row)
+
+                  id                  |  type  | status | balance 
+--------------------------------------+--------+--------+---------
+ 00000000-0000-4000-8000-000000000001 | SYSTEM | ACTIVE |       0
+(1 row)
+
+                     name                      
+-----------------------------------------------
+ CreateUsersCustomersAccounts1791763200000
+ CreateTransfersLedgerIdempotency1791849600000
+(2 rows)
+
+
+=== M-21-03 / M-21-04 / M-21-05 one psql session (variables hold the ids); seed SQL labelled
+$ psql -d dbs_manual_21 <<SQL ... SQL
+---- M-21-03 seed SQL (constraint probes only; no accounts.balance is touched)
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+---- M-21-03 success path: COMPLETED An -> Binh 300000 with its DEBIT and CREDIT
+INSERT 0 1
+INSERT 0 2
+                  id                  |   type   |           from_account_id            |            to_account_id             | amount |  status   |          created_at           
+--------------------------------------+----------+--------------------------------------+--------------------------------------+--------+-----------+-------------------------------
+ 0176fce2-8900-4710-84a1-a70d10f005fd | TRANSFER | 376656a8-9d17-44aa-86db-d5e73d9b519e | 40bceff0-d41c-41cb-b96b-1d2e76c206cd | 300000 | COMPLETED | 2026-10-16 17:39:19.319967+00
+(1 row)
+
+ id |             transfer_id              | direction | amount | balance_after | has_generated 
+----+--------------------------------------+-----------+--------+---------------+---------------
+  1 | 0176fce2-8900-4710-84a1-a70d10f005fd | DEBIT     | 300000 |             0 | t
+  2 | 0176fce2-8900-4710-84a1-a70d10f005fd | CREDIT    | 300000 |        300000 | t
+(2 rows)
+
+---- M-21-04 seed two transfers without ledger lines: T2 COMPLETED, T3 REJECTED
+INSERT 0 1
+---- M-21-04 bad row 1: second DEBIT for T1 (expect 23505 ledger_entries_one_per_direction)
+INSERT 0 1
+ERROR:  23505: duplicate key value violates unique constraint "ledger_entries_one_per_direction"
+DETAIL:  Key (transfer_id, direction)=(0176fce2-8900-4710-84a1-a70d10f005fd, DEBIT) already exists.
+SCHEMA NAME:  public
+TABLE NAME:  ledger_entries
+CONSTRAINT NAME:  ledger_entries_one_per_direction
+LOCATION:  _bt_check_unique, nbtinsert.c:666
+---- bad row 2: from = to (expect 23514 transfers_distinct_accounts)
+ERROR:  23514: new row for relation "transfers" violates check constraint "transfers_distinct_accounts"
+DETAIL:  Failing row contains (be817ab6-7337-409f-8ad1-725bf11e05c5, TRANSFER, 376656a8-9d17-44aa-86db-d5e73d9b519e, 376656a8-9d17-44aa-86db-d5e73d9b519e, 1000, COMPLETED, null, b2465e4a-9255-4f2c-9497-47ed31ff0b25, 25eb77e8-1971-4bd2-9037-336ad5503c8e, 2026-10-16 17:39:19.325724+00).
+SCHEMA NAME:  public
+TABLE NAME:  transfers
+CONSTRAINT NAME:  transfers_distinct_accounts
+LOCATION:  ExecConstraints, execMain.c:2074
+---- bad row 3: REJECTED without reject_reason (expect 23514 transfers_reason_matches_status)
+ERROR:  23514: new row for relation "transfers" violates check constraint "transfers_reason_matches_status"
+DETAIL:  Failing row contains (62f30468-0166-4974-b5c8-58e62e9284cf, TRANSFER, 376656a8-9d17-44aa-86db-d5e73d9b519e, 40bceff0-d41c-41cb-b96b-1d2e76c206cd, 1000, REJECTED, null, b2465e4a-9255-4f2c-9497-47ed31ff0b25, 2da6133a-2500-4a88-83d5-b2a3fbdb6e8e, 2026-10-16 17:39:19.325953+00).
+SCHEMA NAME:  public
+TABLE NAME:  transfers
+CONSTRAINT NAME:  transfers_reason_matches_status
+LOCATION:  ExecConstraints, execMain.c:2074
+---- bad row 4: COMPLETED without to_account_id (expect 23514 transfers_completed_has_target)
+ERROR:  23514: new row for relation "transfers" violates check constraint "transfers_completed_has_target"
+DETAIL:  Failing row contains (e9bc03dd-ee7d-43e9-bbe3-de287d86655a, TRANSFER, 376656a8-9d17-44aa-86db-d5e73d9b519e, null, 1000, COMPLETED, null, b2465e4a-9255-4f2c-9497-47ed31ff0b25, 0ef42b29-cf81-41ee-b450-f5a126cb62a5, 2026-10-16 17:39:19.326157+00).
+SCHEMA NAME:  public
+TABLE NAME:  transfers
+CONSTRAINT NAME:  transfers_completed_has_target
+LOCATION:  ExecConstraints, execMain.c:2074
+---- bad row 5: amount 0 (expect 23514 transfers_amount_check)
+ERROR:  23514: new row for relation "transfers" violates check constraint "transfers_amount_check"
+DETAIL:  Failing row contains (31342148-f801-4dac-9db1-e4b47d11cab7, TRANSFER, 376656a8-9d17-44aa-86db-d5e73d9b519e, 40bceff0-d41c-41cb-b96b-1d2e76c206cd, 0, COMPLETED, null, b2465e4a-9255-4f2c-9497-47ed31ff0b25, e22dcee1-a69f-4a2e-a0d3-e1d32c11ca3b, 2026-10-16 17:39:19.32637+00).
+SCHEMA NAME:  public
+TABLE NAME:  transfers
+CONSTRAINT NAME:  transfers_amount_check
+LOCATION:  ExecConstraints, execMain.c:2074
+---- bad row 6: amount -1 (expect 23514 transfers_amount_check)
+ERROR:  23514: new row for relation "transfers" violates check constraint "transfers_amount_check"
+DETAIL:  Failing row contains (02694755-a46f-42ba-904e-e1ffea447f97, TRANSFER, 376656a8-9d17-44aa-86db-d5e73d9b519e, 40bceff0-d41c-41cb-b96b-1d2e76c206cd, -1, COMPLETED, null, b2465e4a-9255-4f2c-9497-47ed31ff0b25, 7f6b0937-0274-4384-9dad-32f57b51f5b3, 2026-10-16 17:39:19.326596+00).
+SCHEMA NAME:  public
+TABLE NAME:  transfers
+CONSTRAINT NAME:  transfers_amount_check
+LOCATION:  ExecConstraints, execMain.c:2074
+---- bad row 7: CREDIT 1 dong for a 300000 transfer T2 (expect 23503 ledger_entries_transfer_credit_fkey)
+ERROR:  23503: insert or update on table "ledger_entries" violates foreign key constraint "ledger_entries_transfer_credit_fkey"
+DETAIL:  Key (transfer_id, amount, transfer_status, credit_account)=(f88be5e6-e0e8-4fd7-9393-1b34f3e36877, 1, COMPLETED, 40bceff0-d41c-41cb-b96b-1d2e76c206cd) is not present in table "transfers".
+SCHEMA NAME:  public
+TABLE NAME:  ledger_entries
+CONSTRAINT NAME:  ledger_entries_transfer_credit_fkey
+LOCATION:  ri_ReportViolation, ri_triggers.c:2599
+---- bad row 8: CREDIT into the source account for T2 (expect 23503 ledger_entries_transfer_credit_fkey)
+ERROR:  23503: insert or update on table "ledger_entries" violates foreign key constraint "ledger_entries_transfer_credit_fkey"
+DETAIL:  Key (transfer_id, amount, transfer_status, credit_account)=(f88be5e6-e0e8-4fd7-9393-1b34f3e36877, 300000, COMPLETED, 376656a8-9d17-44aa-86db-d5e73d9b519e) is not present in table "transfers".
+SCHEMA NAME:  public
+TABLE NAME:  ledger_entries
+CONSTRAINT NAME:  ledger_entries_transfer_credit_fkey
+LOCATION:  ri_ReportViolation, ri_triggers.c:2599
+---- bad row 9: DEBIT for the REJECTED transfer T3 (expect 23503 ledger_entries_transfer_debit_fkey)
+ERROR:  23503: insert or update on table "ledger_entries" violates foreign key constraint "ledger_entries_transfer_debit_fkey"
+DETAIL:  Key (transfer_id, amount, transfer_status, debit_account)=(08723875-bad4-46e3-9c6f-3304f08b2bff, 5000000, COMPLETED, 376656a8-9d17-44aa-86db-d5e73d9b519e) is not present in table "transfers".
+SCHEMA NAME:  public
+TABLE NAME:  ledger_entries
+CONSTRAINT NAME:  ledger_entries_transfer_debit_fkey
+LOCATION:  ri_ReportViolation, ri_triggers.c:2599
+---- bad row 10: idem_key of 129 characters (expect 23514 idempotency_keys_idem_key_check)
+ERROR:  23514: new row for relation "idempotency_keys" violates check constraint "idempotency_keys_idem_key_check"
+DETAIL:  Failing row contains (b2465e4a-9255-4f2c-9497-47ed31ff0b25, kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk..., aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, null, null, null, 2026-10-16 17:39:19.327706+00).
+SCHEMA NAME:  public
+TABLE NAME:  idempotency_keys
+CONSTRAINT NAME:  idempotency_keys_idem_key_check
+LOCATION:  ExecConstraints, execMain.c:2074
+---- M-21-05 boundaries that must be accepted
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ transfers | ledger_entries | idempotency_keys 
+-----------+----------------+------------------
+         5 |              2 |                1
+(1 row)
+
+
+=== M-21-06 revert while data exists must be refused
+$ cd backend && DATABASE_URL=postgres://banking:***@localhost:5433/dbs_manual_21 npm run migration:revert
+query: ROLLBACK
+Error during migration revert:
+Error: Refusing to revert CreateTransfersLedgerIdempotency1791849600000: tables hold data (transfers=5, ledger_entries=2, idempotency_keys=1). Reverting would drop it.
+exit code: 1
+$ psql -d dbs_manual_21 (objects and migrations after the refusal)
+    table_name    | table_type 
+------------------+------------
+ idempotency_keys | BASE TABLE
+ ledger_entries   | BASE TABLE
+ transfers        | BASE TABLE
+ v_transfer_facts | VIEW
+(4 rows)
+
+                     name                      
+-----------------------------------------------
+ CreateUsersCustomersAccounts1791763200000
+ CreateTransfersLedgerIdempotency1791849600000
+(2 rows)
+
+
+=== M-21-07 remove migration 2 rows, revert, run again
+$ psql -d dbs_manual_21 -c 'DELETE ... idempotency_keys, ledger_entries, transfers'
+DELETE 1
+DELETE 2
+DELETE 5
+$ cd backend && DATABASE_URL=postgres://banking:***@localhost:5433/dbs_manual_21 npm run migration:revert
+query: DROP VIEW v_transfer_facts
+query: DROP TABLE idempotency_keys
+query: DROP TABLE ledger_entries
+query: DROP TABLE transfers
+Migration CreateTransfersLedgerIdempotency1791849600000 has been reverted successfully.
+exit code: 0
+$ psql -d dbs_manual_21 (after revert: objects, migration 1 data)
+ table_name | table_type 
+------------+------------
+ accounts   | BASE TABLE
+ customers  | BASE TABLE
+ users      | BASE TABLE
+(3 rows)
+
+ users | customers | accounts 
+-------+-----------+----------
+     2 |         2 |        3
+(1 row)
+
+                   name                    
+-------------------------------------------
+ CreateUsersCustomersAccounts1791763200000
+(1 row)
+
+$ cd backend && DATABASE_URL=postgres://banking:***@localhost:5433/dbs_manual_21 npm run migration:run
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+exit code: 0
+$ psql -d dbs_manual_21 (after run again)
+    table_name    | table_type 
+------------------+------------
+ idempotency_keys | BASE TABLE
+ ledger_entries   | BASE TABLE
+ transfers        | BASE TABLE
+ v_transfer_facts | VIEW
+(4 rows)
+
+ transfers | ledger_entries | idempotency_keys 
+-----------+----------------+------------------
+         0 |              0 |                0
+(1 row)
+
+
+=== M-21-08 compiled migrations from dist/ into an empty database
+$ cd backend && npm run build
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+exit code: 0
+$ psql -d postgres -c 'CREATE DATABASE dbs_manual_21_prod'
+CREATE DATABASE
+$ cd backend && DATABASE_URL=postgres://banking:***@localhost:5433/dbs_manual_21_prod npm run migration:run:prod
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+exit code: 0
+$ psql -d dbs_manual_21_prod (tables and view)
+    table_name    | table_type 
+------------------+------------
+ accounts         | BASE TABLE
+ customers        | BASE TABLE
+ idempotency_keys | BASE TABLE
+ ledger_entries   | BASE TABLE
+ migrations       | BASE TABLE
+ transfers        | BASE TABLE
+ users            | BASE TABLE
+ v_transfer_facts | VIEW
+(8 rows)
+
+$ psql -d postgres -c 'DROP DATABASE dbs_manual_21' / dbs_manual_21_prod
+DROP DATABASE
+DROP DATABASE
+
+# done
