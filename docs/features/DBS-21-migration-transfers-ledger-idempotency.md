@@ -1,6 +1,6 @@
 # DBS-21 · Migration 2: transfers, ledger_entries, idempotency_keys, view v_transfer_facts
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-21-migration-transfers-ledger-idempotency` · **PR:** — · **Cập nhật:** 2026-10-16
+> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-21-migration-transfers-ledger-idempotency` · **PR:** — · **Cập nhật:** 2026-10-17
 
 ## 1. Bối cảnh
 
@@ -301,8 +301,95 @@ Mọi lệnh chạy từ `backend/`, với `DATABASE_URL=postgres://banking:bank
 
 ## 8. Kết quả
 
-_(Phase 4–5)_
+- **Lệnh kiểm tra** (chạy lúc bàn giao, 2026-10-17, nhánh `feat/DBS-21-migration-transfers-ledger-idempotency`, từ `backend/`, Postgres 17 `timezone=UTC` của docker compose qua `localhost:5433`):
+
+```text
+npm run lint:check   → sạch (exit 0)
+npm run typecheck    → sạch (exit 0)
+npm test             → Test Suites: 13 passed, 13 total · Tests: 128 passed, 128 total   (baseline 13 / 128, không đổi)
+npm run test:e2e     → Test Suites: 3 passed, 3 total   · Tests: 20 passed, 20 total     (baseline 3 / 20, không đổi)
+npm run test:db      → Test Suites: 3 passed, 3 total   · Tests: 49 passed, 49 total     (baseline 2 / 17: +1 suite, +32 test)
+                       failed 0, skipped 0, todo 0; không có .skip/.only/.todo trong test của task
+```
+
+  `test:db` tăng 32 test: `ledger-schema.db-spec.ts` mới 31 test, `migration-revert.db-spec.ts` từ 2 thành 3 (thêm TC-21-24; TC-21-23 thay TC-20-13).
+- **Đối chiếu test case** (tên test trong `backend/test/db/`; `ledger` = `ledger-schema.db-spec.ts`, `revert` = `migration-revert.db-spec.ts`):
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-21-01 | `ledger` › shape › TC-21-01 has exactly the designed columns, types, nullability, defaults and generated columns | đạt (đạt ngay lần chạy đầu vì kiểm cấu trúc đã dựng ở bước 1–3; xem đột biến ở §7) |
+| TC-21-02 | `ledger` › shape › TC-21-02 starts empty… | đạt |
+| TC-21-03 | `ledger` › transfers › TC-21-03 accepts completed transfers and deposits, and rejected orders with or without a target | đạt |
+| TC-21-04 | `ledger` › transfers › TC-21-04 rejects an unknown type, status or reject_reason | đạt |
+| TC-21-05 | `ledger` › transfers › TC-21-05 rejects an amount of 0 or less | đạt |
+| TC-21-06 | `ledger` › transfers › TC-21-06 rejects a transfer from an account to itself | đạt |
+| TC-21-07 | `ledger` › transfers › TC-21-07 rejects a REJECTED order without a reason and a COMPLETED one with a reason | đạt |
+| TC-21-08 | `ledger` › transfers › TC-21-08 rejects a COMPLETED transfer without a target account | đạt |
+| TC-21-09 | `ledger` › transfers › TC-21-09 rejects references to accounts or a user that do not exist | đạt |
+| TC-21-10 | `ledger` › shape › TC-21-10 v_transfer_facts shows exactly seven columns of transfers, and no more | đạt |
+| TC-21-11 | `ledger` › transfers › TC-21-11 (transfers) defaults created_at to clock_timestamp()… và ledger_entries › TC-21-11 (ledger_entries)… | đạt (hai test, mỗi bảng một) |
+| TC-21-12 | `ledger` › ledger_entries › TC-21-12 numbers lines with an identity the caller cannot choose | đạt |
+| TC-21-13 | `ledger` › ledger_entries › TC-21-13 allows one DEBIT and one CREDIT per transfer, no more | đạt |
+| TC-21-14 | `ledger` › ledger_entries › TC-21-14 rejects a non-positive amount, an unknown direction and a missing balance_after | đạt |
+| TC-21-15 | `ledger` › ledger_entries › TC-21-15 rejects a line whose transfer or account does not exist | đạt (4 hàng, mỗi hàng đúng một ràng buộc) |
+| TC-21-16 | `ledger` › idempotency_keys › TC-21-16 is unique per user and key… | đạt |
+| TC-21-17 | `ledger` › idempotency_keys › TC-21-17 limits the key to 1–128 characters, counting characters and not bytes | đạt |
+| TC-21-18 | `ledger` › idempotency_keys › TC-21-18 holds a 64-character request_hash, and a row reserved before its response is known | đạt |
+| TC-21-19 | `ledger` › idempotency_keys › TC-21-19 rejects a user or a transfer that does not exist | đạt |
+| TC-21-20 | `ledger` › shape › TC-21-20 creates exactly the designed indexes, and none of the ones database-design §6.2 forbids | đạt (tập index từng bảng bằng đúng danh sách; đã kiểm đột biến) |
+| TC-21-21 | `ledger` › shape › TC-21-21 all seven foreign keys are RESTRICT, and each refuses to delete the row it protects | đạt (7 ca xóa, mỗi ca một ràng buộc; đã kiểm đột biến) |
+| TC-21-22 | `ledger` › ledger_entries › indexes serve the queries… › TC-21-22 | đạt (kiểm khả năng dùng index: loại node và tên index; không đo hiệu năng, việc của DBS-69). Truy vấn lịch sử dùng đủ cột như UC-6 thật |
+| TC-21-23 | `revert` › TC-21-23 migration:run → revert → revert → run is green on an empty database, one migration at a time | đạt (bốn lệnh `npm run` thật, tiến trình con) |
+| TC-21-24 | `revert` › migration 2: revert refuses to destroy data › TC-21-24 … (a)(b)(c) | đạt (ca (c) cần superuser; đã kiểm đột biến cho phần đếm `ledger_entries`) |
+| TC-21-25 | `ledger` › transfers › TC-21-25 keeps transfers.reject_reason in step with REJECT_REASONS | đạt |
+| TC-21-26 | `ledger` › transfers › TC-21-26 (transfers)… và ledger_entries › TC-21-26 (ledger_entries)… | đạt (hai test; kiểm cả `22003` ở `amount` và `balance_after`) |
+| TC-21-27 | `ledger` › ledger_entries › TC-21-27 rejects a line whose amount differs… | đạt |
+| TC-21-28 | `ledger` › ledger_entries › TC-21-28 rejects a line on the wrong account | đạt |
+| TC-21-29 | `ledger` › ledger_entries › TC-21-29 rejects any line for a REJECTED transfer… | đạt |
+| TC-21-30 | `ledger` › ledger_entries › TC-21-30 does not (yet) enforce a complete pair or the balance_after value | đạt (ghi lại giới hạn, BL-006) |
+| TC-21-31 | `ledger` › ledger_entries › TC-21-31 does not let the caller write the generated columns | đạt |
+| TC-20-18 (sửa) | `revert` › TC-20-18 refuses to revert, and drops nothing, once the tables hold data | đạt (gọi thêm một lần hoàn tác migration 2 trước; ý nghĩa test của DBS-20 không đổi) |
+| DoD #1–#6 | các TC trên | đạt cả sáu (DoD #6 "kiểm" bằng TC-21-04…08, 13, 23, 24 và M-21-04, 06, 07) |
+| DoD #7 | PR, review, CI | **chưa** kiểm được: PR mở sau G4; repo chưa có CI, ghi ở [BL-001](../BACKLOG.md) |
+
+  Không có TC nào "đơn giản hóa" hay "chưa làm". Bốn test cấu trúc (TC-21-01, 02, 20, 21) đạt ngay lần chạy đầu; để chắc chúng không đạt vô nghĩa, mình đã đột biến migration (thêm index `transfers(created_at)`, đổi một khóa ngoại sang `CASCADE`) và hai test đỏ đúng lý do, rồi khôi phục.
+- **Test thủ công** chạy trên commit cuối đổi code `2cff9f1`, output thô ở [manual-test.txt](screenshots/DBS-21/manual-test.txt) (dòng đầu là SHA đầy đủ; mật khẩu DB được che `***` trong dòng lệnh, đã grep: 0 lần xuất hiện). Script chạy từ scratchpad, không nằm trong repo; chạy tổng cộng 4 lần trên cùng commit: lần đầu cả 8 bước đạt, các lần sau chỉ đổi cách in nhãn (`\warn` thay `\echo`, vì `\echo` ra stdout còn lỗi ra stderr nên nhãn bị lệch một dòng so với lỗi) và sửa một lỗi script của mình; bản lưu là lần cuối. M-21-03, 04, 05 chạy trong **một** phiên psql để giữ id (`\gset`); dòng seed ghi "seed SQL", chỉ trên database tạm `dbs_manual_21`, không đụng `banking` và không đụng `accounts.balance`.
+
+| Bước | Lệnh, phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-21-01 | `CREATE DATABASE dbs_manual_21`; `migration:run`: `Migration CreateUsersCustomersAccounts… has been executed successfully.`, `Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.`, `exit code: 0` | **đạt** |
+| M-21-02 | `\d transfers`, `\d ledger_entries`, `\d idempotency_keys`, `\d+ v_transfer_facts`: cột, `CHECK`, 7 khóa ngoại `ON DELETE RESTRICT`, index đúng §3, 3 cột sinh ra, view 7 cột; 3 bảng 0 hàng; `accounts` chỉ có `funding` `…0001`; `migrations` 2 dòng | **đạt** |
+| M-21-03 | seed 2 user/khách/tài khoản (An, Bình); `COMPLETED TRANSFER` An→Bình 300000 + `DEBIT`/`CREDIT` đều `INSERT` được; `v_transfer_facts` trả đúng 1 hàng 7 cột; `ledger_entries` có 2 dòng với cột sinh ra có giá trị | **đạt** (seed SQL) |
+| M-21-04 | 10 hàng sai, mỗi hàng đúng SQLSTATE và tên ràng buộc: `23505 ledger_entries_one_per_direction`; `23514 transfers_distinct_accounts`, `transfers_reason_matches_status`, `transfers_completed_has_target`, `transfers_amount_check` ×2; `23503 ledger_entries_transfer_credit_fkey` ×2, `ledger_entries_transfer_debit_fkey`; `23514 idempotency_keys_idem_key_check` | **đạt** (seed SQL cho T2, T3) |
+| M-21-05 | `amount = 1`; `idem_key` 128 ký tự; `REJECTED/ACCOUNT_NOT_ACTIVE` với `to_account_id NULL`: cả ba `INSERT 0 1`; đếm cuối `transfers=5, ledger_entries=2, idempotency_keys=1` | **đạt** |
+| M-21-06 | `migration:revert` khi còn dữ liệu: `Error: Refusing to revert CreateTransfersLedgerIdempotency1791849600000: tables hold data (transfers=5, ledger_entries=2, idempotency_keys=1). Reverting would drop it.`, `exit code: 1`; sau đó 4 đối tượng và 2 dòng `migrations` còn nguyên | **đạt** |
+| M-21-07 | xóa dòng của migration 2 (`DELETE 1`, `2`, `5`); `migration:revert`: `DROP VIEW`, `DROP TABLE` ×3, `has been reverted successfully`, `exit code: 0`; còn `accounts`, `customers`, `users` với dữ liệu migration 1 (2 user, 2 khách, 3 tài khoản); `migration:run` lại: 3 bảng + view, 0 hàng | **đạt** |
+| M-21-08 | `npm run build` (exit 0); database `dbs_manual_21_prod` trống; `migration:run:prod` từ `dist/`: cả hai migration `executed successfully`, `exit code: 0`; 8 đối tượng (7 bảng gồm `migrations` + view); `DROP DATABASE` cả hai | **đạt** |
+
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` (13 file ở thời điểm viết, chưa tính 5 ảnh và commit của mục này): `backend/src/database/migrations/1791849600000-CreateTransfersLedgerIdempotency.ts` (mới), `backend/test/db/ledger-schema.db-spec.ts` (mới), `backend/test/db/migration-revert.db-spec.ts`, `backend/README.md`, `docs/components/_shared/database-design.md`, `docs/adr/0002-postgresql-ledger.md`, `docs/BACKLOG.md`, `docs/features/README.md`, feature doc này, `docs/features/screenshots/DBS-21/*`, và **hai file ngoài danh sách §7** (xem "Lệch"). Không đổi `src/` ngoài migration, không đổi `test/support/`, không thêm dependency.
+- **Ảnh chụp** (`docs/features/screenshots/DBS-21/`; dựng từ output thật của lệnh bằng Chrome headless, chép nguyên văn; chỉ ảnh 03 bỏ các dòng `DETAIL`/`SCHEMA NAME`/`TABLE NAME`/`LOCATION` của mỗi lỗi, ảnh 05 dựng từ kết quả JSON của Jest):
+
+![migration:run trên database trống, hai migration chạy, exit code 0](screenshots/DBS-21/01-migration-run.png)
+
+![\d ledger_entries (cột sinh ra, hai khóa ngoại tổng hợp, index) và view v_transfer_facts](screenshots/DBS-21/02-schema-ledger.png)
+
+![Đường thành công, mười hàng sai bị DB từ chối với đúng tên ràng buộc, các biên được chấp nhận](screenshots/DBS-21/03-constraint-rejections.png)
+
+![migration:revert bị từ chối khi còn dữ liệu, rồi chạy được sau khi dọn; run lại](screenshots/DBS-21/04-revert-guard.png)
+
+![npm run test:db: 49 test đạt](screenshots/DBS-21/05-test-db-results.png)
+
+- **Lệch so với kế hoạch** (mỗi chỗ cần người duyệt nêu tên ở G4):
+  1. **Hai file ngoài danh sách §7:** [`docs/03_HIGH_LEVEL_ARCHITECTURE.md`](../03_HIGH_LEVEL_ARCHITECTURE.md) (một dòng bảng "Ràng buộc bảo vệ bất biến" của Transfer + LedgerEntry) và [`docs/deliverables/P2-application-data-integration.md`](../deliverables/P2-application-data-integration.md) (một gạch đầu dòng "Bất biến do DB bảo vệ", vốn nói "đúng một dòng Nợ và một dòng Có", nay sửa cho khớp). Cả hai là câu khẳng định về ràng buộc sổ cái mà phương án B làm đổi; sửa theo quy tắc "mọi doc có fact bị đổi" của Phase 5. **Chưa có phê duyệt gate phụ**: nhờ bạn chấp nhận ở G4, hoặc nói thì mình hoàn lại hai file (mỗi file một dòng).
+  2. **Test sổ cái:** truy vấn lịch sử trong TC-21-22 đổi từ `SELECT id, created_at` sang truy vấn đủ cột như UC-6, vì giả định ban đầu của test (planner phải chọn `Index Scan`) sai: với truy vấn chỉ chọn cột có trong index, Postgres dùng `Index Only Scan` (vẫn không `Sort`). Lỗi ở test, không ở migration. Không đổi phạm vi.
+  3. Hai thay đổi thiết kế đã được duyệt đúng gate, ghi để đối chiếu: phương án B (G2 câu 1, bạn trả lời «duyet») và bỏ khóa ngoại đơn `ledger_entries.account_id` (G3 câu 2, bạn trả lời «duye»). Cả hai theo đề xuất ghi trong tin nhắn của gate; mình đã nêu ở G3 rằng sẽ hỏi lại nếu ý bạn là phương án A.
+- **Bàn giao cho vai khác** (đã ghi vào [`docs/BACKLOG.md`](../BACKLOG.md)): **BL-001** (thêm nguồn DBS-21, và yêu cầu service Postgres chạy `test:db` phải là superuser); **BL-004** (`request_hash` có hai định nghĩa: database-design §4.5 và ADR-05; task idempotency/chuyển tiền); **BL-005** (migration 6 làm các ca `DELETE` của test báo `42501`; migration 7 và chủ view `v_transfer_facts`; người làm migration 6, 7); **BL-006** (DB chưa ép "đủ cặp" Nợ/Có và `balance_after`; người làm trigger). Người viết entity của `ledger_entries` đọc ghi chú về ba cột sinh ra ở §3 và database-design §4.4.
 
 ## 9. Tài liệu đã cập nhật
 
-_(Phase 5)_
+- [`docs/components/_shared/database-design.md`](../components/_shared/database-design.md): header "Verified against code"; ERD `LEDGER_ENTRIES`; §4.3 (hai `UNIQUE` có tên); §4.4 viết lại (ba cột sinh ra, hai khóa ngoại tổng hợp có tên, bỏ hai khóa ngoại đơn, phần còn ngoài DB); §5 hàng BR-02; §6.1 tên index; §6.2 ngoại lệ hai `UNIQUE`; §11 tên migration 2 và ví dụ `down` tự kiểm.
+- [`docs/adr/0002-postgresql-ledger.md`](../adr/0002-postgresql-ledger.md) dòng "lớp phòng thủ thứ hai": nói đúng DB chặn gì và phần còn lại do đối soát (đã duyệt ở G2).
+- [`backend/README.md`](../../backend/README.md) mục 6 Migration: `migration:revert` chỉ hoàn tác migration mới nhất, `down` tự kiểm, yêu cầu superuser của TC-21-24.
+- [`docs/features/README.md`](README.md): thêm dòng DBS-21.
+- [`docs/BACKLOG.md`](../BACKLOG.md): thêm BL-004, BL-005, BL-006; sửa BL-001 (nguồn DBS-21, yêu cầu superuser). Không dòng nào bị xóa (không dòng backlog nào được task này xử lý).
+- Ngoài danh sách kế hoạch (cần chấp nhận ở G4, §8 "Lệch" mục 1): [`docs/03_HIGH_LEVEL_ARCHITECTURE.md`](../03_HIGH_LEVEL_ARCHITECTURE.md), [`docs/deliverables/P2-application-data-integration.md`](../deliverables/P2-application-data-integration.md).
