@@ -45,13 +45,21 @@ describe('migration 1: run, revert, run', () => {
     npmRun('migration:run', db.url);
     expect(await tables()).toEqual(['accounts', 'customers', 'users']);
 
+    // migration:revert undoes only the newest migration (DBS-21's), so migration 1 needs a second.
+    npmRun('migration:revert', db.url);
+    expect(await tables()).toEqual(['accounts', 'customers', 'users']);
+    expect(await appliedMigrations()).toEqual(['CreateUsersCustomersAccounts1791763200000']);
+
     npmRun('migration:revert', db.url);
     expect(await tables()).toEqual([]);
     expect(await appliedMigrations()).toEqual([]);
 
     npmRun('migration:run', db.url);
     expect(await tables()).toEqual(['accounts', 'customers', 'users']);
-    expect(await appliedMigrations()).toEqual(['CreateUsersCustomersAccounts1791763200000']);
+    expect(await appliedMigrations()).toEqual([
+      'CreateUsersCustomersAccounts1791763200000',
+      'CreateTransfersLedgerIdempotency1791849600000',
+    ]);
     expect(await db.runner.query('SELECT id, type, balance FROM accounts')).toEqual([
       { id: FUNDING_ID, type: 'SYSTEM', balance: '0' },
     ]);
@@ -61,6 +69,10 @@ describe('migration 1: run, revert, run', () => {
     db = await createTempDatabase();
     await migrate(db.url);
     const q = (sql: string) => db.runner.query(sql);
+
+    // Undo migration 2 (DBS-21, empty) so migration 1 is the one being reverted below.
+    await migrate(db.url, 'undoLast');
+    expect(await appliedMigrations()).toEqual(['CreateUsersCustomersAccounts1791763200000']);
 
     // A user and a customer exist.
     await q(

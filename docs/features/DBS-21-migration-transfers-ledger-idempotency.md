@@ -1,6 +1,6 @@
 # DBS-21 · Migration 2: transfers, ledger_entries, idempotency_keys, view v_transfer_facts
 
-> **Status:** Design approved · **Vai:** Dev · **Nhánh:** `feat/DBS-21-migration-transfers-ledger-idempotency` · **PR:** — · **Cập nhật:** 2026-10-16
+> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-21-migration-transfers-ledger-idempotency` · **PR:** — · **Cập nhật:** 2026-10-16
 
 ## 1. Bối cảnh
 
@@ -267,7 +267,7 @@ Mọi lệnh chạy từ `backend/`, với `DATABASE_URL=postgres://banking:bank
 
 | Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
-| 1 | `test/db/migration-revert.db-spec.ts` (sửa tối thiểu: TC-20-13 thêm một `migration:revert` và một `migration:run`; TC-20-18 gọi `undoLast` một lần trước); `test/db/ledger-schema.db-spec.ts` (mới, khung + fixture); `src/database/migrations/1791849600000-CreateTransfersLedgerIdempotency.ts` (mới): bảng `transfers` với mọi ràng buộc, hai `UNIQUE` cho khóa tổng hợp, hai index risk; `down` xóa `transfers` | TC-20-13 và TC-20-18 đã sửa (đỏ vì chưa có migration 2: lần hoàn tác thêm lại xóa migration 1); TC-21-03…09, 25, TC-21-11 và TC-21-26 (phần `transfers`) | _(điền)_ | `npm run test:db` | `feat(database): migration 2 transfers table` |
+| 1 | `test/db/migration-revert.db-spec.ts` (sửa tối thiểu: TC-20-13 thêm một `migration:revert` và một `migration:run`; TC-20-18 gọi `undoLast` một lần trước); `test/db/ledger-schema.db-spec.ts` (mới, khung + fixture); `src/database/migrations/1791849600000-CreateTransfersLedgerIdempotency.ts` (mới): bảng `transfers` với mọi ràng buộc, hai `UNIQUE` cho khóa tổng hợp, hai index risk; `down` xóa `transfers` | TC-20-13 và TC-20-18 đã sửa (đỏ vì chưa có migration 2: lần hoàn tác thêm lại xóa migration 1); TC-21-03…09, 25, TC-21-11 và TC-21-26 (phần `transfers`) | 12 test đỏ: các test `transfers` báo `relation "transfers" does not exist`; TC-20-13 và TC-20-18 đã sửa đỏ vì chưa có migration 2. Sau migration: 27/27 đạt | `npm run test:db` | `feat(database): migration 2 transfers table` |
 | 2 | cùng file migration: bảng `ledger_entries` (identity, ba cột sinh ra, hai khóa ngoại tổng hợp, `UNIQUE`, hai index), `down` xóa thêm `ledger_entries`; `ledger-schema.db-spec.ts` | TC-21-11 (phần sổ cái), 12, 13, 14, 15, 22, 26 (phần sổ cái), 27, 28, 29, 30, 31 | _(điền)_ | `npm run test:db -- ledger-schema` | `feat(database): migration 2 ledger_entries with composite foreign keys` |
 | 3 | cùng file migration: bảng `idempotency_keys` + index; `down` xóa thêm; `ledger-schema.db-spec.ts` | TC-21-16, 17, 18, 19 | _(điền)_ | `npm run test:db -- ledger-schema` | `feat(database): migration 2 idempotency_keys` |
 | 4 | cùng file migration: view `v_transfer_facts`; `down` xóa view trước hết; `ledger-schema.db-spec.ts` | TC-21-10, 01, 02, 20, 21 (cấu trúc cả 3 bảng và view, tập index, 7 khóa ngoại `RESTRICT`, các ca xóa) | _(điền)_ | `npm run test:db -- ledger-schema` | `feat(database): migration 2 view v_transfer_facts` |
@@ -297,7 +297,7 @@ Mọi lệnh chạy từ `backend/`, với `DATABASE_URL=postgres://banking:bank
 - *Windows PostgreSQL chiếm cổng 5432:* chỉ ảnh hưởng máy này; test lấy cổng từ `DATABASE_URL`.
 - *Cách lùi tổng:* PR chỉ thêm một migration, một file test và sửa một file test; revert PR là đủ.
 
-**Quyết định ở G3:** chờ duyệt.
+**Quyết định ở G3 (2026-10-17):** duyệt kế hoạch. Câu trả lời chỉ ghi «duye», nên theo đề xuất ghi trong tin nhắn G3: xác nhận phương án B, bỏ khóa ngoại đơn `ledger_entries.account_id` (7 khóa ngoại), chưa mở Draft PR (push và PR sau G4).
 
 ## 8. Kết quả
 
