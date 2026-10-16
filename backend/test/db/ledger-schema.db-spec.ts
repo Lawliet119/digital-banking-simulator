@@ -626,4 +626,91 @@ describe('migration 2: transfers, ledger_entries, idempotency_keys', () => {
       });
     });
   });
+
+  // ---- idempotency_keys ---------------------------------------------------------------------
+
+  const HASH = 'a'.repeat(64); // sha256 in hex is 64 characters
+
+  function insertKey(row: {
+    userId: string;
+    key: string;
+    hash?: string | null;
+    transferId?: string | null;
+  }) {
+    return attempt<{ request_hash: string }>(
+      runner,
+      `INSERT INTO idempotency_keys (user_id, idem_key, request_hash, transfer_id)
+       VALUES ($1, $2, $3, $4) RETURNING request_hash`,
+      [row.userId, row.key, row.hash === undefined ? HASH : row.hash, row.transferId ?? null],
+    );
+  }
+
+  describe('idempotency_keys', () => {
+    it('TC-21-16 is unique per user and key, and two users may use the same key', async () => {
+      const u = await newUser();
+      const v = await newUser();
+
+      await insertKey({ userId: u, key: 'k1' });
+      await expect(insertKey({ userId: u, key: 'k1' })).rejects.toMatchObject({
+        code: '23505',
+        constraint: 'idempotency_keys_pkey',
+      });
+      // Another user's identical key is a different row: it never sees the first user's response.
+      await insertKey({ userId: v, key: 'k1' });
+    });
+
+    it('TC-21-17 limits the key to 1–128 characters, counting characters and not bytes', async () => {
+      const u = await newUser();
+
+      for (const key of ['', 'a'.repeat(129)]) {
+        await expect(insertKey({ userId: u, key })).rejects.toMatchObject({
+          code: '23514',
+          constraint: 'idempotency_keys_idem_key_check',
+        });
+      }
+      // Boundaries, and 128 two-byte characters (256 bytes).
+      for (const key of ['x', 'a'.repeat(128), 'đ'.repeat(128)]) {
+        await insertKey({ userId: u, key });
+      }
+    });
+
+    it('TC-21-18 holds a 64-character request_hash, and a row reserved before its response is known', async () => {
+      const u = await newUser();
+
+      await insertKey({ userId: u, key: 'full', hash: HASH });
+      await expect(insertKey({ userId: u, key: 'long', hash: HASH + 'b' })).rejects.toMatchObject({
+        code: '22001',
+      });
+      await expect(insertKey({ userId: u, key: 'none', hash: null })).rejects.toMatchObject({
+        code: '23502',
+      });
+
+      // char(n) quirks, recorded so nobody relies on the database to check the hash shape:
+      // trailing spaces beyond 64 are cut, and a short value is padded with spaces to 64.
+      await insertKey({ userId: u, key: 'trailing-space', hash: HASH + ' ' });
+      const [padded] = await insertKey({ userId: u, key: 'short', hash: 'ab' });
+      expect(padded.request_hash).toHaveLength(64);
+
+      // The reservation row: transfer_id, response_code and response_body are still NULL.
+      const rows = await runner.query(
+        `SELECT transfer_id, response_code, response_body FROM idempotency_keys
+          WHERE user_id = $1 AND idem_key = 'full'`,
+        [u],
+      );
+      expect(rows).toEqual([{ transfer_id: null, response_code: null, response_body: null }]);
+    });
+
+    it('TC-21-19 rejects a user or a transfer that does not exist', async () => {
+      const u = await newUser();
+
+      await expect(insertKey({ userId: MISSING, key: 'k' })).rejects.toMatchObject({
+        code: '23503',
+        constraint: 'idempotency_keys_user_id_fkey',
+      });
+      await expect(insertKey({ userId: u, key: 'k', transferId: MISSING })).rejects.toMatchObject({
+        code: '23503',
+        constraint: 'idempotency_keys_transfer_id_fkey',
+      });
+    });
+  });
 });

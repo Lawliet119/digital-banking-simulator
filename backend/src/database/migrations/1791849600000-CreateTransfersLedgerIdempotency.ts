@@ -109,9 +109,36 @@ export class CreateTransfersLedgerIdempotency1791849600000 implements MigrationI
     await queryRunner.query(`
       CREATE INDEX ledger_entries_account_history_idx
         ON ledger_entries (account_id, created_at DESC, id DESC)`);
+
+    // The key is per user: a global unique key would hand user A the stored response of user B.
+    // transfer_id and response_* are NULL because the row is reserved first (INSERT ... ON CONFLICT
+    // DO NOTHING) and the result is only known at the end of the transaction; request_hash is the
+    // sha256 hex of the request.
+    await queryRunner.query(`
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )`);
+    // The cleanup job deletes keys older than 7 days (ADR-05).
+    await queryRunner.query(
+      'CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)',
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query('DROP TABLE idempotency_keys');
     await queryRunner.query('DROP TABLE ledger_entries');
     await queryRunner.query('DROP TABLE transfers');
   }
