@@ -627,6 +627,280 @@ describe('migration 2: transfers, ledger_entries, idempotency_keys', () => {
     });
   });
 
+  // ---- shape of all three tables, the view, indexes and foreign keys -------------------------
+
+  describe('shape', () => {
+    interface ColumnRow {
+      table_name: string;
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+      column_default: string | null;
+      is_identity: string;
+      identity_generation: string | null;
+      generation_expression: string | null;
+    }
+
+    const TABLES = `('transfers', 'ledger_entries', 'idempotency_keys')`;
+
+    it('TC-21-01 has exactly the designed columns, types, nullability, defaults and generated columns', async () => {
+      const rows = (await runner.query(
+        `SELECT table_name, column_name, data_type, is_nullable, column_default,
+                is_identity, identity_generation, generation_expression
+           FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name IN ${TABLES}
+          ORDER BY table_name, ordinal_position`,
+      )) as ColumnRow[];
+      // PostgreSQL pretty-prints a CASE over several lines; compare it as one line.
+      for (const row of rows) {
+        row.generation_expression &&= row.generation_expression.replace(/\s+/g, ' ').trim();
+      }
+
+      const tz = 'timestamp with time zone';
+      const col = (
+        table: string,
+        column: string,
+        type: string,
+        nullable: 'YES' | 'NO',
+        extra: Partial<ColumnRow> = {},
+      ): ColumnRow => ({
+        table_name: table,
+        column_name: column,
+        data_type: type,
+        is_nullable: nullable,
+        column_default: null,
+        is_identity: 'NO',
+        identity_generation: null,
+        generation_expression: null,
+        ...extra,
+      });
+      const clock = { column_default: 'clock_timestamp()' };
+
+      expect(rows).toEqual([
+        col('idempotency_keys', 'user_id', 'uuid', 'NO'),
+        col('idempotency_keys', 'idem_key', 'text', 'NO'),
+        col('idempotency_keys', 'request_hash', 'character', 'NO'),
+        col('idempotency_keys', 'transfer_id', 'uuid', 'YES'),
+        col('idempotency_keys', 'response_code', 'smallint', 'YES'),
+        col('idempotency_keys', 'response_body', 'jsonb', 'YES'),
+        col('idempotency_keys', 'created_at', tz, 'NO', { column_default: 'now()' }),
+        col('ledger_entries', 'id', 'bigint', 'NO', {
+          is_identity: 'YES',
+          identity_generation: 'ALWAYS',
+        }),
+        col('ledger_entries', 'transfer_id', 'uuid', 'NO'),
+        col('ledger_entries', 'account_id', 'uuid', 'NO'),
+        col('ledger_entries', 'direction', 'text', 'NO'),
+        col('ledger_entries', 'amount', 'bigint', 'NO'),
+        col('ledger_entries', 'balance_after', 'bigint', 'NO'),
+        col('ledger_entries', 'created_at', tz, 'NO', clock),
+        col('ledger_entries', 'transfer_status', 'text', 'YES', {
+          generation_expression: "'COMPLETED'::text",
+        }),
+        col('ledger_entries', 'debit_account', 'uuid', 'YES', {
+          generation_expression:
+            "CASE WHEN (direction = 'DEBIT'::text) THEN account_id ELSE NULL::uuid END",
+        }),
+        col('ledger_entries', 'credit_account', 'uuid', 'YES', {
+          generation_expression:
+            "CASE WHEN (direction = 'CREDIT'::text) THEN account_id ELSE NULL::uuid END",
+        }),
+        col('transfers', 'id', 'uuid', 'NO', { column_default: 'gen_random_uuid()' }),
+        col('transfers', 'type', 'text', 'NO'),
+        col('transfers', 'from_account_id', 'uuid', 'NO'),
+        col('transfers', 'to_account_id', 'uuid', 'YES'),
+        col('transfers', 'amount', 'bigint', 'NO'),
+        col('transfers', 'status', 'text', 'NO'),
+        col('transfers', 'reject_reason', 'text', 'YES'),
+        col('transfers', 'initiated_by', 'uuid', 'NO'),
+        col('transfers', 'correlation_id', 'uuid', 'NO'),
+        col('transfers', 'created_at', tz, 'NO', clock),
+      ]);
+    });
+
+    it('TC-21-02 starts empty: no transfers, entries or keys, and funding is still the only account', async () => {
+      const [counts] = await runner.query(
+        `SELECT (SELECT count(*) FROM transfers)::int AS transfers,
+                (SELECT count(*) FROM ledger_entries)::int AS ledger_entries,
+                (SELECT count(*) FROM idempotency_keys)::int AS idempotency_keys`,
+      );
+      expect(counts).toEqual({ transfers: 0, ledger_entries: 0, idempotency_keys: 0 });
+
+      const accounts = await runner.query('SELECT id FROM accounts');
+      expect(accounts).toEqual([{ id: FUNDING_ID }]);
+
+      const applied = await runner.query('SELECT name FROM migrations ORDER BY timestamp');
+      expect(applied).toEqual([
+        { name: 'CreateUsersCustomersAccounts1791763200000' },
+        { name: 'CreateTransfersLedgerIdempotency1791849600000' },
+      ]);
+    });
+
+    it('TC-21-10 v_transfer_facts shows exactly seven columns of transfers, and no more', async () => {
+      const cols = await runner.query(
+        `SELECT column_name, data_type FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'v_transfer_facts'
+          ORDER BY ordinal_position`,
+      );
+      expect(cols).toEqual([
+        { column_name: 'id', data_type: 'uuid' },
+        { column_name: 'type', data_type: 'text' },
+        { column_name: 'from_account_id', data_type: 'uuid' },
+        { column_name: 'to_account_id', data_type: 'uuid' },
+        { column_name: 'amount', data_type: 'bigint' },
+        { column_name: 'status', data_type: 'text' },
+        { column_name: 'created_at', data_type: 'timestamp with time zone' },
+      ]);
+
+      const { a, b, user } = await twoAccounts();
+      const [{ id }] = await insertTransfer({ from: a, to: b, initiatedBy: user });
+      const fromTable = await runner.query(
+        `SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+           FROM transfers WHERE id = $1`,
+        [id],
+      );
+      const fromView = await runner.query('SELECT * FROM v_transfer_facts WHERE id = $1', [id]);
+      expect(fromView).toEqual(fromTable);
+      expect(fromView).toHaveLength(1);
+    });
+
+    it('TC-21-20 creates exactly the designed indexes, and none of the ones database-design §6.2 forbids', async () => {
+      const rows = (await runner.query(
+        `SELECT tablename, indexname, indexdef FROM pg_indexes
+          WHERE schemaname = 'public' AND tablename IN ${TABLES}
+          ORDER BY tablename, indexname`,
+      )) as { tablename: string; indexname: string; indexdef: string }[];
+      const def = (name: string) => rows.find(r => r.indexname === name)?.indexdef;
+
+      // The whole set per table, primary keys and UNIQUE constraints included: an index that is
+      // not on this list (§6.2: transfers(to_account_id, created_at), transfers(created_at), ...)
+      // fails the test.
+      expect(rows.map(r => `${r.tablename}.${r.indexname}`)).toEqual([
+        'idempotency_keys.idempotency_keys_created_idx',
+        'idempotency_keys.idempotency_keys_pkey',
+        'ledger_entries.ledger_entries_account_history_idx',
+        'ledger_entries.ledger_entries_daily_debit_idx',
+        'ledger_entries.ledger_entries_one_per_direction',
+        'ledger_entries.ledger_entries_pkey',
+        'transfers.transfers_account_completed_idx',
+        'transfers.transfers_ledger_from_key',
+        'transfers.transfers_ledger_to_key',
+        'transfers.transfers_pair_completed_idx',
+        'transfers.transfers_pkey',
+      ]);
+
+      expect(def('ledger_entries_daily_debit_idx')).toBe(
+        'CREATE INDEX ledger_entries_daily_debit_idx ON public.ledger_entries ' +
+          'USING btree (account_id, created_at) INCLUDE (amount) ' +
+          "WHERE (direction = 'DEBIT'::text)",
+      );
+      expect(def('ledger_entries_account_history_idx')).toBe(
+        'CREATE INDEX ledger_entries_account_history_idx ON public.ledger_entries ' +
+          'USING btree (account_id, created_at DESC, id DESC)',
+      );
+      expect(def('ledger_entries_one_per_direction')).toBe(
+        'CREATE UNIQUE INDEX ledger_entries_one_per_direction ON public.ledger_entries ' +
+          'USING btree (transfer_id, direction)',
+      );
+      expect(def('idempotency_keys_pkey')).toBe(
+        'CREATE UNIQUE INDEX idempotency_keys_pkey ON public.idempotency_keys ' +
+          'USING btree (user_id, idem_key)',
+      );
+      expect(def('idempotency_keys_created_idx')).toBe(
+        'CREATE INDEX idempotency_keys_created_idx ON public.idempotency_keys USING btree (created_at)',
+      );
+      expect(def('transfers_account_completed_idx')).toBe(
+        'CREATE INDEX transfers_account_completed_idx ON public.transfers ' +
+          'USING btree (from_account_id, created_at) INCLUDE (amount, to_account_id) ' +
+          "WHERE ((status = 'COMPLETED'::text) AND (type = 'TRANSFER'::text))",
+      );
+      expect(def('transfers_pair_completed_idx')).toBe(
+        'CREATE INDEX transfers_pair_completed_idx ON public.transfers ' +
+          'USING btree (from_account_id, to_account_id, created_at) ' +
+          "WHERE ((status = 'COMPLETED'::text) AND (type = 'TRANSFER'::text))",
+      );
+      expect(def('transfers_ledger_from_key')).toBe(
+        'CREATE UNIQUE INDEX transfers_ledger_from_key ON public.transfers ' +
+          'USING btree (id, amount, status, from_account_id)',
+      );
+      expect(def('transfers_ledger_to_key')).toBe(
+        'CREATE UNIQUE INDEX transfers_ledger_to_key ON public.transfers ' +
+          'USING btree (id, amount, status, to_account_id)',
+      );
+    });
+
+    it('TC-21-21 all seven foreign keys are RESTRICT, and each refuses to delete the row it protects', async () => {
+      const fks = await runner.query(
+        `SELECT conname, confdeltype FROM pg_constraint
+          WHERE contype = 'f' AND conrelid IN
+                ('transfers'::regclass, 'ledger_entries'::regclass, 'idempotency_keys'::regclass)
+          ORDER BY conname`,
+      );
+      expect(fks).toEqual(
+        [
+          'idempotency_keys_transfer_id_fkey',
+          'idempotency_keys_user_id_fkey',
+          'ledger_entries_transfer_credit_fkey',
+          'ledger_entries_transfer_debit_fkey',
+          'transfers_from_account_id_fkey',
+          'transfers_initiated_by_fkey',
+          'transfers_to_account_id_fkey',
+        ].map(conname => ({ conname, confdeltype: 'r' })),
+      );
+
+      // Only the two transfers keys point at accounts: ledger lines reach an account through them.
+      const toAccounts = await runner.query(
+        `SELECT conname FROM pg_constraint
+          WHERE contype = 'f' AND confrelid = 'accounts'::regclass ORDER BY conname`,
+      );
+      expect(toAccounts).toEqual([
+        { conname: 'transfers_from_account_id_fkey' },
+        { conname: 'transfers_to_account_id_fkey' },
+      ]);
+
+      // One referencing constraint per case, so the constraint named is the one that fired. The
+      // users used here have no customer row (customers_user_id_fkey would fire first).
+      const refuses = (sql: string, params: unknown[], constraint: string) =>
+        expect(attempt(runner, sql, params)).rejects.toMatchObject({ code: '23503', constraint });
+
+      const t = await completedTransfer();
+      await refuses('DELETE FROM accounts WHERE id = $1', [t.a], 'transfers_from_account_id_fkey');
+      await refuses('DELETE FROM accounts WHERE id = $1', [t.b], 'transfers_to_account_id_fkey');
+      await refuses('DELETE FROM users WHERE id = $1', [t.user], 'transfers_initiated_by_fkey');
+
+      const debitOnly = await completedTransfer();
+      await insertEntry({
+        transferId: debitOnly.id,
+        accountId: debitOnly.a,
+        direction: 'DEBIT',
+        amount: debitOnly.amount,
+      });
+      await refuses('DELETE FROM transfers WHERE id = $1', [debitOnly.id], DEBIT_FKEY);
+
+      const creditOnly = await completedTransfer();
+      await insertEntry({
+        transferId: creditOnly.id,
+        accountId: creditOnly.b,
+        direction: 'CREDIT',
+        amount: creditOnly.amount,
+      });
+      await refuses('DELETE FROM transfers WHERE id = $1', [creditOnly.id], CREDIT_FKEY);
+
+      const withKey = await completedTransfer();
+      const keyUser = await newUser();
+      await insertKey({ userId: keyUser, key: 'k1', transferId: withKey.id });
+      await refuses(
+        'DELETE FROM transfers WHERE id = $1',
+        [withKey.id],
+        'idempotency_keys_transfer_id_fkey',
+      );
+
+      const keyOnly = await newUser();
+      await insertKey({ userId: keyOnly, key: 'k2' });
+      await refuses('DELETE FROM users WHERE id = $1', [keyOnly], 'idempotency_keys_user_id_fkey');
+    });
+  });
+
   // ---- idempotency_keys ---------------------------------------------------------------------
 
   const HASH = 'a'.repeat(64); // sha256 in hex is 64 characters

@@ -135,9 +135,19 @@ export class CreateTransfersLedgerIdempotency1791849600000 implements MigrationI
     await queryRunner.query(
       'CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)',
     );
+
+    // The read-only contract the risk module reads instead of `transfers` itself (§8.2). The view
+    // runs with its owner's rights (no security_invoker on purpose), so the worker role later needs
+    // SELECT on the view only, never on transfers. Its columns are what risk may rely on: ledger
+    // changes `transfers`, then edits the view.
+    await queryRunner.query(`
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query('DROP VIEW v_transfer_facts');
     await queryRunner.query('DROP TABLE idempotency_keys');
     await queryRunner.query('DROP TABLE ledger_entries');
     await queryRunner.query('DROP TABLE transfers');
