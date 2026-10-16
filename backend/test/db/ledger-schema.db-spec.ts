@@ -263,4 +263,367 @@ describe('migration 2: transfers, ledger_entries, idempotency_keys', () => {
       expect(inDatabase).toEqual([...REJECT_REASONS].sort());
     });
   });
+
+  // ---- ledger_entries -----------------------------------------------------------------------
+
+  interface EntryRow {
+    transferId: string;
+    accountId: string;
+    direction: string;
+    amount: string;
+    balanceAfter?: string;
+  }
+
+  function insertEntry(row: EntryRow) {
+    return attempt<{ id: string; created_at: Date }>(
+      runner,
+      `INSERT INTO ledger_entries (transfer_id, account_id, direction, amount, balance_after)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at`,
+      [row.transferId, row.accountId, row.direction, row.amount, row.balanceAfter ?? '0'],
+    );
+  }
+
+  /** A COMPLETED 300.000đ transfer a → b with no ledger lines yet. */
+  async function completedTransfer(amount = '300000') {
+    const { a, b, user } = await twoAccounts();
+    const [{ id }] = await insertTransfer({ from: a, to: b, amount, initiatedBy: user });
+    return { id, a, b, user, amount };
+  }
+
+  const DEBIT_FKEY = 'ledger_entries_transfer_debit_fkey';
+  const CREDIT_FKEY = 'ledger_entries_transfer_credit_fkey';
+
+  describe('ledger_entries', () => {
+    it('TC-21-11 (ledger_entries) defaults created_at to clock_timestamp(), not the transaction start', async () => {
+      const t = await completedTransfer();
+      const [{ now }] = await runner.query('SELECT now() AS now');
+
+      await runner.query('SELECT pg_sleep(0.01)');
+      const [debit] = await insertEntry({
+        transferId: t.id,
+        accountId: t.a,
+        direction: 'DEBIT',
+        amount: t.amount,
+      });
+      await runner.query('SELECT pg_sleep(0.01)');
+      const [credit] = await insertEntry({
+        transferId: t.id,
+        accountId: t.b,
+        direction: 'CREDIT',
+        amount: t.amount,
+      });
+
+      expect(debit.created_at.getTime()).toBeGreaterThan((now as Date).getTime());
+      expect(credit.created_at.getTime()).toBeGreaterThan(debit.created_at.getTime());
+    });
+
+    it('TC-21-12 numbers lines with an identity the caller cannot choose', async () => {
+      const t = await completedTransfer();
+
+      await expect(
+        attempt(
+          runner,
+          `INSERT INTO ledger_entries (id, transfer_id, account_id, direction, amount, balance_after)
+           VALUES (1, $1, $2, 'DEBIT', $3, 0)`,
+          [t.id, t.a, t.amount],
+        ),
+      ).rejects.toMatchObject({ code: '428C9' });
+
+      const [debit] = await insertEntry({
+        transferId: t.id,
+        accountId: t.a,
+        direction: 'DEBIT',
+        amount: t.amount,
+      });
+      const [credit] = await insertEntry({
+        transferId: t.id,
+        accountId: t.b,
+        direction: 'CREDIT',
+        amount: t.amount,
+      });
+      expect(BigInt(credit.id)).toBeGreaterThan(BigInt(debit.id));
+    });
+
+    it('TC-21-13 allows one DEBIT and one CREDIT per transfer, no more', async () => {
+      const t = await completedTransfer();
+      const other = await completedTransfer();
+      const debit = { transferId: t.id, accountId: t.a, direction: 'DEBIT', amount: t.amount };
+      const credit = { transferId: t.id, accountId: t.b, direction: 'CREDIT', amount: t.amount };
+
+      await insertEntry(debit);
+      await expect(insertEntry(debit)).rejects.toMatchObject({
+        code: '23505',
+        constraint: 'ledger_entries_one_per_direction',
+      });
+      await insertEntry(credit);
+      await expect(insertEntry(credit)).rejects.toMatchObject({
+        code: '23505',
+        constraint: 'ledger_entries_one_per_direction',
+      });
+      // Another transfer has its own pair.
+      await insertEntry({
+        transferId: other.id,
+        accountId: other.a,
+        direction: 'DEBIT',
+        amount: other.amount,
+      });
+    });
+
+    it('TC-21-14 rejects a non-positive amount, an unknown direction and a missing balance_after', async () => {
+      const t = await completedTransfer();
+      const line = { transferId: t.id, accountId: t.a, direction: 'DEBIT', amount: t.amount };
+
+      for (const amount of ['0', '-5']) {
+        await expect(insertEntry({ ...line, amount })).rejects.toMatchObject({
+          code: '23514',
+          constraint: 'ledger_entries_amount_check',
+        });
+      }
+      await expect(insertEntry({ ...line, direction: 'debit' })).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'ledger_entries_direction_check',
+      });
+      await expect(
+        attempt(
+          runner,
+          `INSERT INTO ledger_entries (transfer_id, account_id, direction, amount, balance_after)
+           VALUES ($1, $2, 'DEBIT', $3, NULL)`,
+          [t.id, t.a, t.amount],
+        ),
+      ).rejects.toMatchObject({ code: '23502' });
+
+      // A negative balance_after is allowed: the SYSTEM funding account goes negative (ADR-09).
+      const [{ id }] = await insertEntry({ ...line, balanceAfter: '-1' });
+      const rows = await runner.query('SELECT balance_after FROM ledger_entries WHERE id = $1', [
+        id,
+      ]);
+      expect(rows).toEqual([{ balance_after: '-1' }]);
+    });
+
+    it('TC-21-15 rejects a line whose transfer or account does not exist', async () => {
+      const t = await completedTransfer();
+
+      // The transfer does not exist (the accounts do).
+      await expect(
+        insertEntry({ transferId: MISSING, accountId: t.a, direction: 'DEBIT', amount: t.amount }),
+      ).rejects.toMatchObject({ code: '23503', constraint: DEBIT_FKEY });
+      await expect(
+        insertEntry({ transferId: MISSING, accountId: t.b, direction: 'CREDIT', amount: t.amount }),
+      ).rejects.toMatchObject({ code: '23503', constraint: CREDIT_FKEY });
+      // The account does not exist (the transfer does, and has no line yet).
+      await expect(
+        insertEntry({ transferId: t.id, accountId: MISSING, direction: 'DEBIT', amount: t.amount }),
+      ).rejects.toMatchObject({ code: '23503', constraint: DEBIT_FKEY });
+      await expect(
+        insertEntry({
+          transferId: t.id,
+          accountId: MISSING,
+          direction: 'CREDIT',
+          amount: t.amount,
+        }),
+      ).rejects.toMatchObject({ code: '23503', constraint: CREDIT_FKEY });
+    });
+
+    it('TC-21-27 rejects a line whose amount differs from the transfer, and accepts the matching pair', async () => {
+      const t = await completedTransfer('300000');
+
+      await expect(
+        insertEntry({ transferId: t.id, accountId: t.b, direction: 'CREDIT', amount: '1' }),
+      ).rejects.toMatchObject({ code: '23503', constraint: CREDIT_FKEY });
+      await expect(
+        insertEntry({ transferId: t.id, accountId: t.a, direction: 'DEBIT', amount: '299999' }),
+      ).rejects.toMatchObject({ code: '23503', constraint: DEBIT_FKEY });
+      await expect(
+        insertEntry({ transferId: t.id, accountId: t.b, direction: 'CREDIT', amount: '300001' }),
+      ).rejects.toMatchObject({ code: '23503', constraint: CREDIT_FKEY });
+
+      await insertEntry({ transferId: t.id, accountId: t.a, direction: 'DEBIT', amount: '300000' });
+      await insertEntry({
+        transferId: t.id,
+        accountId: t.b,
+        direction: 'CREDIT',
+        amount: '300000',
+      });
+    });
+
+    it('TC-21-28 rejects a line on the wrong account', async () => {
+      const t = await completedTransfer();
+      const third = await newAccount();
+
+      await expect(
+        insertEntry({ transferId: t.id, accountId: t.a, direction: 'CREDIT', amount: t.amount }),
+      ).rejects.toMatchObject({ code: '23503', constraint: CREDIT_FKEY }); // CREDIT on the source
+      await expect(
+        insertEntry({ transferId: t.id, accountId: t.b, direction: 'DEBIT', amount: t.amount }),
+      ).rejects.toMatchObject({ code: '23503', constraint: DEBIT_FKEY }); // DEBIT on the target
+      await expect(
+        insertEntry({ transferId: t.id, accountId: third, direction: 'DEBIT', amount: t.amount }),
+      ).rejects.toMatchObject({ code: '23503', constraint: DEBIT_FKEY }); // a third account
+    });
+
+    it('TC-21-29 rejects any line for a REJECTED transfer, even with matching amount and accounts', async () => {
+      const { a, b, user } = await twoAccounts();
+      const [withTarget] = await insertTransfer({
+        from: a,
+        to: b,
+        status: 'REJECTED',
+        rejectReason: 'INSUFFICIENT_FUNDS',
+        initiatedBy: user,
+      });
+      const [noTarget] = await insertTransfer({
+        from: a,
+        to: null,
+        status: 'REJECTED',
+        rejectReason: 'ACCOUNT_NOT_ACTIVE',
+        initiatedBy: user,
+      });
+
+      await expect(
+        insertEntry({
+          transferId: withTarget.id,
+          accountId: a,
+          direction: 'DEBIT',
+          amount: '300000',
+        }),
+      ).rejects.toMatchObject({ code: '23503', constraint: DEBIT_FKEY });
+      await expect(
+        insertEntry({
+          transferId: withTarget.id,
+          accountId: b,
+          direction: 'CREDIT',
+          amount: '300000',
+        }),
+      ).rejects.toMatchObject({ code: '23503', constraint: CREDIT_FKEY });
+      await expect(
+        insertEntry({
+          transferId: noTarget.id,
+          accountId: a,
+          direction: 'DEBIT',
+          amount: '300000',
+        }),
+      ).rejects.toMatchObject({ code: '23503', constraint: DEBIT_FKEY });
+    });
+
+    it('TC-21-30 does not (yet) enforce a complete pair or the balance_after value', async () => {
+      // Recorded limitation (§2.8, BL-006): a COMPLETED transfer with only its DEBIT line commits,
+      // and balance_after is whatever the caller wrote. Whoever adds a deferred constraint trigger
+      // turns this test around on purpose.
+      const t = await completedTransfer();
+
+      await insertEntry({
+        transferId: t.id,
+        accountId: t.a,
+        direction: 'DEBIT',
+        amount: t.amount,
+        balanceAfter: '999',
+      });
+
+      const rows = await runner.query(
+        'SELECT count(*)::int AS count FROM ledger_entries WHERE transfer_id = $1',
+        [t.id],
+      );
+      expect(rows).toEqual([{ count: 1 }]);
+    });
+
+    it('TC-21-31 does not let the caller write the generated columns', async () => {
+      const t = await completedTransfer();
+
+      for (const [column, value] of [
+        ['transfer_status', "'COMPLETED'"],
+        ['debit_account', `'${t.a}'`],
+        ['credit_account', 'NULL'],
+      ]) {
+        await expect(
+          attempt(
+            runner,
+            `INSERT INTO ledger_entries (transfer_id, account_id, direction, amount, balance_after, ${column})
+             VALUES ($1, $2, 'DEBIT', $3, 0, ${value})`,
+            [t.id, t.a, t.amount],
+          ),
+        ).rejects.toMatchObject({ code: '428C9' });
+      }
+    });
+
+    it('TC-21-26 (ledger_entries) keeps amounts above 2^53 exact and refuses one above the bigint maximum', async () => {
+      for (const value of ['9007199254740993', '9223372036854775807']) {
+        const t = await completedTransfer(value);
+        const [{ id }] = await insertEntry({
+          transferId: t.id,
+          accountId: t.a,
+          direction: 'DEBIT',
+          amount: value,
+          balanceAfter: value,
+        });
+        const rows = await runner.query(
+          'SELECT amount, balance_after FROM ledger_entries WHERE id = $1',
+          [id],
+        );
+        expect(rows).toEqual([{ amount: value, balance_after: value }]);
+      }
+
+      const t = await completedTransfer();
+      const line = { transferId: t.id, accountId: t.a, direction: 'DEBIT', amount: t.amount };
+      await expect(insertEntry({ ...line, amount: '9223372036854775808' })).rejects.toMatchObject({
+        code: '22003',
+      });
+      await expect(
+        insertEntry({ ...line, balanceAfter: '9223372036854775808' }),
+      ).rejects.toMatchObject({
+        code: '22003',
+      });
+    });
+
+    describe('indexes serve the queries they were made for (TC-21-22)', () => {
+      interface PlanNode {
+        'Node Type': string;
+        'Index Name'?: string;
+        Plans?: PlanNode[];
+      }
+
+      /** Plans `sql` with sequential and bitmap scans off, so the planner must pick an index path. */
+      async function planNodes(sql: string, params: unknown[]): Promise<PlanNode[]> {
+        await runner.query('SET LOCAL enable_seqscan = off');
+        await runner.query('SET LOCAL enable_bitmapscan = off');
+        const rows = (await runner.query(`EXPLAIN (FORMAT JSON) ${sql}`, params)) as {
+          'QUERY PLAN': { Plan: PlanNode }[];
+        }[];
+        const nodes: PlanNode[] = [];
+        const walk = (node: PlanNode) => {
+          nodes.push(node);
+          node.Plans?.forEach(walk);
+        };
+        walk(rows[0]['QUERY PLAN'][0].Plan);
+        return nodes;
+      }
+
+      it('TC-21-22 the daily limit uses an index-only scan, the history page an ordered index scan', async () => {
+        const account = await newAccount();
+
+        const daily = await planNodes(
+          `SELECT coalesce(sum(amount), 0) FROM ledger_entries
+            WHERE account_id = $1 AND direction = 'DEBIT' AND created_at >= $2`,
+          [account, '2026-10-17T00:00:00+07:00'],
+        );
+        expect(daily).toContainEqual(
+          expect.objectContaining({
+            'Node Type': 'Index Only Scan',
+            'Index Name': 'ledger_entries_daily_debit_idx',
+          }),
+        );
+
+        const history = await planNodes(
+          `SELECT id, transfer_id, direction, amount, balance_after, created_at FROM ledger_entries
+            WHERE account_id = $1 ORDER BY created_at DESC, id DESC LIMIT 20`,
+          [account],
+        );
+        expect(history).toContainEqual(
+          expect.objectContaining({
+            'Node Type': 'Index Scan',
+            'Index Name': 'ledger_entries_account_history_idx',
+          }),
+        );
+        expect(history.map(n => n['Node Type'])).not.toContain('Sort');
+      });
+    });
+  });
 });

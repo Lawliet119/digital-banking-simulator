@@ -62,9 +62,57 @@ export class CreateTransfersLedgerIdempotency1791849600000 implements MigrationI
     await queryRunner.query(`
       CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
         WHERE status = 'COMPLETED' AND type = 'TRANSFER'`);
+
+    // Double entry: one DEBIT and one CREDIT per transfer at most (the UNIQUE), each with the
+    // transfer's own amount, on the transfer's own account, and only for a COMPLETED transfer
+    // (the two composite foreign keys). A DEBIT row points at transfers.from_account_id and a
+    // CREDIT row at transfers.to_account_id: of debit_account and credit_account exactly one is
+    // non-NULL, and with MATCH SIMPLE a NULL column switches that key off, so one lookup per row.
+    // The keys also cover "the transfer exists" and "the account exists" (a transfer's accounts are
+    // foreign keys to accounts), so there is no separate foreign key on transfer_id or account_id.
+    // "Exactly two lines per COMPLETED transfer" and balance_after are not enforced here; code and
+    // the reconciliation job keep them (docs/features/DBS-21 §2.8).
+    await queryRunner.query(`
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )`);
+
+    // Daily limit: SUM of an account's DEBIT lines since midnight (Asia/Ho_Chi_Minh), read while the
+    // account row is locked. INCLUDE (amount) makes it an index-only scan, so the hot path never
+    // touches the table.
+    await queryRunner.query(`
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'`);
+    // Transaction history with a (created_at, id) cursor (UC-6): stable when lines share a time.
+    await queryRunner.query(`
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query('DROP TABLE ledger_entries');
     await queryRunner.query('DROP TABLE transfers');
   }
 }
