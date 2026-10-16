@@ -27,3 +27,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | Task | Tóm tắt | Vai | Trạng thái |
 |---|---|---|---|
 | [DBS-20](DBS-20-migration-users-customers-accounts.md) | Migration 1: users, customers, accounts và tài khoản SYSTEM funding | #1 Ledger | Implemented |
+| [DBS-21](DBS-21-migration-transfers-ledger-idempotency.md) | Migration 2: transfers, ledger_entries, idempotency_keys, view v_transfer_facts | Dev | Implemented |

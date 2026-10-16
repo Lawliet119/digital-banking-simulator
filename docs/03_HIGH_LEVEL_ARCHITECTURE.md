@@ -613,7 +613,7 @@ Các bảng kỹ thuật không vẽ trong sơ đồ: `outbox_events`, `processe
 | Domain (tài liệu 02) | Bảng | Ràng buộc bảo vệ bất biến |
 |---|---|---|
 | Account | `accounts` | `CHECK (type = 'SYSTEM' OR balance >= 0)` |
-| Transfer + LedgerEntry | `transfers`, `ledger_entries` | `amount > 0`; quyền DB thu hồi UPDATE/DELETE trên `ledger_entries` |
+| Transfer + LedgerEntry | `transfers`, `ledger_entries` | `amount > 0`; `UNIQUE (transfer_id, direction)`; khóa ngoại tổng hợp (dòng sổ đúng số tiền và tài khoản của giao dịch `COMPLETED`); quyền DB thu hồi UPDATE/DELETE trên `ledger_entries` |
 | IdempotencyRecord | `idempotency_keys` | `PRIMARY KEY (user_id, idem_key)` |
 | FraudFlag + RuleHit | `fraud_flags`, `fraud_rule_hits` | Khóa chính theo `transfer_id` và `(transfer_id, rule_id)` → không cờ trùng |
 | AuditEntry | `audit_log` | Chỉ cấp quyền INSERT và SELECT |

@@ -1,6 +1,6 @@
 # Database Design
 
-> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12) · **Cập nhật:** 2026-10-12
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) · **Cập nhật:** 2026-10-17
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
@@ -74,6 +74,9 @@ erDiagram
         text direction "DEBIT CREDIT"
         bigint amount
         bigint balance_after
+        text transfer_status "sinh ra: COMPLETED"
+        uuid debit_account "sinh ra"
+        uuid credit_account "sinh ra"
     }
     IDEMPOTENCY_KEYS {
         uuid user_id PK
@@ -186,7 +189,10 @@ CREATE TABLE transfers (
   created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT transfers_distinct_accounts       CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
   CONSTRAINT transfers_reason_matches_status   CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
-  CONSTRAINT transfers_completed_has_target    CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL)
+  CONSTRAINT transfers_completed_has_target    CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+  -- đích của khóa ngoại tổng hợp từ ledger_entries (xem §4.4); transfers chỉ-thêm nên các cột này không đổi
+  CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+  CONSTRAINT transfers_ledger_to_key   UNIQUE (id, amount, status, to_account_id)
 );
 ```
 
@@ -200,17 +206,29 @@ Hai điểm thiết kế cần giải thích:
 ```sql
 CREATE TABLE ledger_entries (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  transfer_id   uuid   NOT NULL REFERENCES transfers(id),
-  account_id    uuid   NOT NULL REFERENCES accounts(id),
+  transfer_id   uuid   NOT NULL,
+  account_id    uuid   NOT NULL,
   direction     text   NOT NULL CHECK (direction IN ('DEBIT','CREDIT')),
   amount        bigint NOT NULL CHECK (amount > 0),
   balance_after bigint NOT NULL,                          -- số dư của account_id ngay sau bút toán này
   created_at    timestamptz NOT NULL DEFAULT clock_timestamp(),
-  CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction)
+  -- ba cột sinh ra, chỉ để làm khóa của hai khóa ngoại tổng hợp bên dưới; không ghi được
+  transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+  debit_account   uuid GENERATED ALWAYS AS (CASE WHEN direction = 'DEBIT'  THEN account_id END) STORED,
+  credit_account  uuid GENERATED ALWAYS AS (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+  CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+  CONSTRAINT ledger_entries_transfer_debit_fkey
+    FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+    REFERENCES transfers (id, amount, status, from_account_id),
+  CONSTRAINT ledger_entries_transfer_credit_fkey
+    FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+    REFERENCES transfers (id, amount, status, to_account_id)
 );
 ```
 
-- `UNIQUE (transfer_id, direction)` biến luật "**đúng một Nợ và một Có** cho mỗi giao dịch" thành ràng buộc DB. Giao dịch `REJECTED` có 0 dòng vì code không `INSERT`.
+- `UNIQUE (transfer_id, direction)` biến luật "**tối đa một Nợ và một Có** cho mỗi giao dịch" thành ràng buộc DB. Giao dịch `REJECTED` có 0 dòng vì code không `INSERT`, và DB cũng từ chối nếu có (xem dưới).
+- **Hai khóa ngoại tổng hợp (DBS-21)** ép ba điều ngay ở DB: dòng sổ có **đúng số tiền** của giao dịch, nằm **đúng tài khoản** (Nợ ở `from_account_id`, Có ở `to_account_id`), và chỉ tồn tại cho giao dịch `COMPLETED`. Mỗi dòng có đúng một trong `debit_account`/`credit_account` khác NULL, và với `MATCH SIMPLE` cột NULL tắt khóa ngoại kia, nên mỗi dòng chỉ tra một khóa. Khóa này đã bao luôn "giao dịch tồn tại" và "tài khoản tồn tại", vì vậy **không** có khóa ngoại đơn `transfer_id` hay `account_id`; hai `UNIQUE` ở §4.3 là đích bắt buộc của chúng. Ghi tường minh `transfer_status`, `debit_account` hay `credit_account` bị từ chối (`428C9`); entity phải đánh dấu ba cột không insert/update, và SQL tay liệt kê cột tường minh.
+- **Còn ngoài DB:** "`COMPLETED` có đúng 2 dòng" (một giao dịch chỉ có dòng Nợ vẫn commit được, nên Nợ = Có về số tiền chưa được DB bảo đảm) và `balance_after` khớp `accounts.balance`. Do code cùng transaction và job đối soát (§10) giữ; muốn DB ép "đủ cặp" cần constraint trigger `DEFERRABLE INITIALLY DEFERRED` (xem `docs/BACKLOG.md`).
 - **`balance_after` là cột nên thêm** (spec chưa có). Chi phí 8 byte/dòng, lợi ích: (1) job đối soát kiểm tra được từng bước, không chỉ tổng; (2) dựng lại số dư tại bất kỳ thời điểm nào; (3) `fromBalanceBefore` của event bằng `balance_after + amount` của dòng Nợ; (4) debug nhanh khi đối soát lệch. Không cần khóa thêm vì tài khoản đã bị khóa lúc ghi.
 
 ### 4.5 `idempotency_keys`
@@ -347,7 +365,7 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | Quy tắc | Ràng buộc DB | Còn cần gì ngoài DB |
 |---|---|---|
 | BR-01 tiền là số nguyên đồng | Kiểu `bigint` | Không dùng `number` ở code |
-| BR-02 bút toán kép | `UNIQUE (transfer_id, direction)`; `amount > 0` | Cùng transaction ghi 2 dòng; job đối soát kiểm tổng |
+| BR-02 bút toán kép | `UNIQUE (transfer_id, direction)`; `amount > 0`; khóa ngoại tổng hợp: dòng sổ đúng số tiền, đúng tài khoản của giao dịch `COMPLETED`, không có dòng cho `REJECTED` | Cùng transaction ghi đủ 2 dòng (DB chưa ép "đủ cặp"); job đối soát kiểm tổng |
 | BR-03 số dư khách ≥ 0 | `CHECK (type = 'SYSTEM' OR balance >= 0)` | Sync guard (để trả `INSUFFICIENT_FUNDS` thay vì lỗi DB) |
 | BR-05 khác tài khoản | `CHECK (from_account_id <> to_account_id)` | |
 | BR-06 hạn mức | — (không biểu diễn được) | Sync guard sau `FOR UPDATE`; test AC-5.6 |
@@ -369,14 +387,14 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | Truy vấn (ai chạy) | Index | Vì sao |
 |---|---|---|
 | Khóa tài khoản `WHERE id = ANY($1) ORDER BY id FOR UPDATE` (ledger) | PK `accounts(id)` | Có sẵn |
-| **Hạn mức ngày:** `SUM(amount)` tiền đi hôm nay của một tài khoản (ledger, **trong lúc đang giữ khóa**) | `ledger_entries (account_id, created_at) INCLUDE (amount) WHERE direction = 'DEBIT'` | Index một phần + `INCLUDE` cho phép *index-only scan*: không đọc bảng. Chạy khi đang giữ khóa nên mỗi mili-giây đều làm tài khoản nóng chậm đi |
-| Lịch sử giao dịch phân trang cursor (UC-6) | `ledger_entries (account_id, created_at DESC, id DESC)` | Cursor là cặp `(created_at, id)`: ổn định khi nhiều dòng cùng thời điểm |
+| **Hạn mức ngày:** `SUM(amount)` tiền đi hôm nay của một tài khoản (ledger, **trong lúc đang giữ khóa**) | `ledger_entries_daily_debit_idx`: `ledger_entries (account_id, created_at) INCLUDE (amount) WHERE direction = 'DEBIT'` | Index một phần + `INCLUDE` cho phép *index-only scan*: không đọc bảng. Chạy khi đang giữ khóa nên mỗi mili-giây đều làm tài khoản nóng chậm đi |
+| Lịch sử giao dịch phân trang cursor (UC-6) | `ledger_entries_account_history_idx`: `ledger_entries (account_id, created_at DESC, id DESC)` | Cursor là cặp `(created_at, id)`: ổn định khi nhiều dòng cùng thời điểm |
 | Trạng thái một giao dịch (UC-7) | PK `transfers(id)` | Có sẵn |
-| **R1/R2/R5** đếm lệnh, trung vị số tiền, người nhận mới (risk) | `transfers (from_account_id, created_at) INCLUDE (amount, to_account_id) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Một index phục vụ cả ba luật, và nhỏ vì loại `REJECTED` và `DEPOSIT` |
-| **R4** có lệnh chuyển ngược trong 1 giờ (risk) | `transfers (from_account_id, to_account_id, created_at) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Truy vấn theo cặp |
+| **R1/R2/R5** đếm lệnh, trung vị số tiền, người nhận mới (risk) | `transfers_account_completed_idx`: `transfers (from_account_id, created_at) INCLUDE (amount, to_account_id) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Một index phục vụ cả ba luật, và nhỏ vì loại `REJECTED` và `DEPOSIT` |
+| **R4** có lệnh chuyển ngược trong 1 giờ (risk) | `transfers_pair_completed_idx`: `transfers (from_account_id, to_account_id, created_at) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Truy vấn theo cặp |
 | Relay lấy sự kiện chưa gửi (`outbox`) | `outbox_events (id) WHERE published_at IS NULL` | Chỉ chứa các dòng đang chờ: luôn nhỏ dù bảng lớn |
 | Dọn outbox cũ | `outbox_events (published_at) WHERE published_at IS NOT NULL` | |
-| Dọn idempotency cũ | `idempotency_keys (created_at)` | |
+| Dọn idempotency cũ | `idempotency_keys_created_idx`: `idempotency_keys (created_at)` | |
 | Truy vết theo `correlationId` (UC-8, AC-8.2) | `audit_log (correlation_id)` | Truy vấn nóng nhất của kiểm toán viên |
 | Lọc audit theo người, theo hành động | `audit_log (actor_user_id, occurred_at DESC)`, `audit_log (action, occurred_at DESC)` | |
 | Hàng đợi cờ chưa review, HIGH lên trước (UC-10) | `fraud_flags (risk_level, created_at DESC) WHERE review_status = 'OPEN'` | Chỉ chứa cờ OPEN, cỡ nhỏ và đúng truy vấn |
@@ -395,6 +413,8 @@ PostgreSQL **không tự đánh index cho cột khóa ngoại**. Các cột khó
 | Index tìm tên khách trên `customers` | Nhân viên tra cứu khớp một phần trên khoảng 50.000 dòng, giới hạn 20 kết quả; quét tuần tự đủ nhanh. Thêm index trigram khi đo thấy chậm |
 | GIN trên `payload`, `metadata` (jsonb) | Chỉ đọc theo khóa chính hoặc `correlation_id`, không tìm theo nội dung |
 | Index mọi cột cho "chắc ăn" | Mỗi lệnh chuyển ghi 5+ dòng; thừa index = chậm đường găng |
+
+**Ngoại lệ đã biết:** `transfers_ledger_from_key` và `transfers_ledger_to_key` (§4.3) là index duy nhất 4 cột, không phục vụ truy vấn nào; chúng tồn tại vì Postgres đòi `UNIQUE` đúng bộ cột làm đích của hai khóa ngoại tổng hợp ở §4.4. Mỗi lệnh chuyển ghi một dòng `transfers`, nên thêm hai index vào đúng một lần ghi; chi phí chưa đo (load test NFR-SCAL-02).
 
 ### 6.3 Dung lượng và có cần phân vùng không
 
@@ -541,7 +561,7 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 ### Thứ tự migration đầu tiên (một PR mỗi nhóm, #1 review tất cả)
 
 1. `users`, `customers`, `accounts` (+ index, + tạo tài khoản SYSTEM `funding` với id cố định)
-2. `transfers`, `ledger_entries`, `idempotency_keys`, view `v_transfer_facts`
+2. `transfers`, `ledger_entries`, `idempotency_keys`, view `v_transfer_facts` (migration `1791849600000-CreateTransfersLedgerIdempotency`, DBS-21)
 3. `outbox_events`, `processed_events`, `audit_log`
 4. `risk_rule_sets` (+ **seed phiên bản 1**), `fraud_flags`, `fraud_rule_hits`
 5. `notification_log`, `reconciliation_runs`
@@ -559,7 +579,7 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 - Không `synchronize`, không chạy migration lúc app khởi động (đã có trong `DatabaseModule`).
 - **Expand → migrate → contract:** thêm cột/bảng mới trước (bản cũ vẫn chạy), chuyển dữ liệu, rồi mới xóa cái cũ ở bản sau. Thêm cột `NOT NULL` mới cần có `DEFAULT` hoặc làm 2 bước.
 - Tạo index trên bảng đã có dữ liệu dùng `CREATE INDEX CONCURRENTLY`. Lệnh này **không chạy được trong transaction**, nên migration đó phải chạy ngoài transaction (TypeORM cho tắt transaction khi chạy migration; kiểm tra tùy chọn của phiên bản đang dùng).
-- Mỗi migration phải **revert được** (`down`), trừ migration chỉ thêm dữ liệu không thể hoàn tác (ghi rõ). `down` có `DROP TABLE` thì tự kiểm bảng còn ở trạng thái `up` để lại và từ chối nếu đã có dữ liệu (ví dụ migration 1), vì `migration:revert` chạy vào bất cứ DB nào `DATABASE_URL` trỏ tới.
+- Mỗi migration phải **revert được** (`down`), trừ migration chỉ thêm dữ liệu không thể hoàn tác (ghi rõ). `down` có `DROP TABLE` thì tự kiểm bảng còn ở trạng thái `up` để lại và từ chối nếu đã có dữ liệu (ví dụ migration 1 và 2), vì `migration:revert` chạy vào bất cứ DB nào `DATABASE_URL` trỏ tới.
 
 ### Cấu hình Postgres/RDS đáng bật
 
