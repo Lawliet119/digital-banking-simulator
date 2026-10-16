@@ -36,6 +36,8 @@
   7. **Board:** nhờ bạn đặt hàng DBS-21 sang "In Progress" (agent không sửa board).
   8. **DoD #7 "CI xanh"** không kiểm được (repo chưa có workflow, BL-001). *Đề xuất:* như DBS-20, dán kết quả chạy local (bốn lệnh + `test:db`) vào PR và thêm DBS-21 vào nguồn của BL-001.
 
+> **Cập nhật sau G2:** câu 5 ở trên được viết trước khi biết khóa ngoại tổng hợp ép được số tiền và tài khoản của từng dòng sổ. G2 chọn phương án B; chỉ còn "đủ cặp" và `balance_after` do code và đối soát giữ (xem §2.8). `BL-NNN` của câu 5 thu hẹp thành "đủ cặp".
+
 **Quyết định ở G1 (2026-10-16):** duyệt cả 8 đề xuất trên, không sửa. Hệ quả: tạo thêm hai index `transfers` cho risk (câu 2); hàng sổ cái trong test là "seed SQL" chỉ trên database tạm (câu 4); có một dòng backlog mới cho bất biến liên dòng (câu 5); không thêm `CHECK` thứ tư cho `to_account_id` (câu 6).
 
 ## 2. Hành vi
@@ -169,7 +171,7 @@ Tất cả lớp **db** (`npm run test:db`, Postgres thật, database tạm ch�
 | TC-21-10 | DoD #4 | đọc cột của view `v_transfer_facts` · đúng 7 cột, thứ tự và kiểu; không có `reject_reason`, `initiated_by`, `correlation_id`; `SELECT` view trả đúng hàng vừa chèn | — |
 | TC-21-11 | DoD #4 | hai `INSERT` `transfers` và hai `INSERT` `ledger_entries` trong **một** transaction, giữa hai lần `pg_sleep(0.01)`, không ghi `created_at` · hai `created_at` khác nhau và đều lớn hơn `now()` của transaction (với `now()` thì bằng nhau) | — |
 | TC-21-12 | DoD #2 | `INSERT ledger_entries` với `id` tường minh · từ chối; hai `INSERT` thường · `id` tăng dần | `428C9` |
-| TC-21-13 | DoD #2, #6 | (mọi dòng sổ khớp giao dịch, xem §2.3) giao dịch T có một `DEBIT` · thêm `DEBIT` thứ hai cho T · từ chối; `CREDIT` thứ hai cho T · từ chối; `CREDIT` đầu tiên cho T · chấp nhận; `DEBIT` cho T' khác · chấp nhận | `23505` / `ledger_entries_one_per_direction` |
+| TC-21-13 | DoD #2, #6 | (mọi dòng sổ khớp giao dịch, xem §2.3) giao dịch T có một `DEBIT` · thêm `DEBIT` thứ hai cho T · từ chối; `CREDIT` đầu tiên cho T · chấp nhận; `CREDIT` thứ hai cho T · từ chối; `DEBIT` cho T' khác · chấp nhận | `23505` / `ledger_entries_one_per_direction` |
 | TC-21-14 | DoD #2, #6 | `amount` = `0`, `-5`; `direction = 'debit'`; `balance_after` NULL; `balance_after = -1` · bốn hàng đầu bị từ chối, hàng cuối chấp nhận | `23514` / `ledger_entries_amount_check`, `ledger_entries_direction_check`; `23502` |
 | TC-21-15 | DoD #2, rule 8 | `transfer_id` ngẫu nhiên (tài khoản có thật) với dòng `DEBIT`, rồi `CREDIT`; `account_id` ngẫu nhiên (giao dịch có thật, chưa có dòng nào) với dòng `DEBIT`, rồi `CREDIT` · từ chối từng hàng (4 hàng, mỗi hàng đúng một ràng buộc) | `23503` / `ledger_entries_transfer_debit_fkey` (hai hàng `DEBIT`), `ledger_entries_transfer_credit_fkey` (hai hàng `CREDIT`) |
 | TC-21-16 | DoD #3 | user U · chèn `(U, 'k1')` hai lần · từ chối lần hai; user V cùng `'k1'` · chấp nhận | `23505` / `idempotency_keys_pkey` |
@@ -212,7 +214,7 @@ Bước M-21-03 và M-21-05 dùng SQL seed cho hàng thử ràng buộc (task-ki
 
 ## 6. Domain review (AI)
 
-**Reviewer:** subagent mới (không có lịch sử), model Claude Opus, ngày 2026-10-16, 4 vòng (vòng 5 xác nhận sau khi áp dụng phương án B) · **Kết quả vòng 1:** 10 phát hiện (blocking 0, should-fix 4, minor 6), verdict REVISE → đã sửa §2–§5 như dưới; phát hiện #1 thành câu hỏi G2. **Vòng 2** (chạy lại trên các mục đã sửa, cùng model): 7 phát hiện (blocking 0, should-fix 2, minor 5), verdict REVISE → đã sửa như bảng "Vòng 2" cuối mục này. **Vòng 3** (chỉ các sửa của vòng 2): 2 phát hiện minor, verdict **APPROVE**; đã sửa cả hai (yêu cầu superuser cho CI ở TC-21-24; mở rộng ảnh hưởng của phương án B). · [trả lời nguyên văn cả hai vòng](screenshots/DBS-21/domain-review.md)
+**Reviewer:** subagent mới (không có lịch sử), model Claude Opus, ngày 2026-10-16 đến 17, 5 vòng · **Kết quả vòng 1:** 10 phát hiện (blocking 0, should-fix 4, minor 6), verdict REVISE → đã sửa §2–§5 như dưới; phát hiện #1 thành câu hỏi G2. **Vòng 2** (chạy lại trên các mục đã sửa, cùng model): 7 phát hiện (blocking 0, should-fix 2, minor 5), verdict REVISE → đã sửa như bảng "Vòng 2" cuối mục này. **Vòng 3** (chỉ các sửa của vòng 2): 2 phát hiện minor, verdict **APPROVE**; đã sửa cả hai (yêu cầu superuser cho CI ở TC-21-24; mở rộng ảnh hưởng của phương án B). · [trả lời nguyên văn cả 5 vòng](screenshots/DBS-21/domain-review.md)
 
 | # | Mức | Phát hiện | Xử lý |
 |---|---|---|---|
@@ -246,7 +248,7 @@ Bước M-21-03 và M-21-05 dùng SQL seed cho hàng thử ràng buộc (task-ki
 - **Chi phí của B:** 2 unique index nữa trên `transfers` (mỗi lệnh chuyển ghi 1 dòng `transfers`), 3 cột sinh ra trên mỗi dòng sổ và, vì khóa ngoại tổng hợp theo `MATCH SIMPLE` có một trong hai cột `debit_account`/`credit_account` NULL, chỉ **1** lần tra khóa ngoại tổng hợp mỗi dòng sổ (2 lần mỗi lệnh), nằm trong đoạn đang giữ khóa tài khoản; chưa đo (NFR-SCAL-02 đo bằng load test). Bù lại, hai khóa ngoại đơn của thiết kế gốc (`transfer_id`, `account_id`) trở nên thừa và **bị bỏ** (vòng 4), nên số lần tra khóa ngoại mỗi dòng sổ giảm từ 2 xuống 1. Entity của #2 phải ánh xạ ba cột sinh ra là không ghi. Đổi database-design §4.3, §4.4, §6.1/§6.2 (hai unique index không nằm trong danh sách «cố ý KHÔNG tạo» nhưng DoD #5 cần được hiểu là không thêm index ngoài thiết kế). Nếu để sau thì thêm cột sinh ra và khóa ngoại trên bảng đã có dữ liệu phải quét kiểm tra toàn bảng.
 - **Đã áp dụng B** (xem dòng quyết định dưới): thêm TC-21-27…31; sửa §2.3, §2.6, §2.8, §3, TC-21-01, 13, 15, 20, 21 và M-21-04 (bỏ hai khóa ngoại đơn `transfer_id`, `account_id` nên dòng sổ có `transfer_id` hay `account_id` lạ báo khóa ngoại tổng hợp; ca "tài khoản chỉ có dòng sổ" bỏ vì không còn seed được; ca xóa giao dịch dùng giao dịch chỉ có một dòng sổ). Domain review chạy lại trên các mục đó: xem bảng "Vòng 4".
 
-**Vòng 4** (chạy lại sau khi áp dụng B, cùng model, có chạy SQL thật): 6 phát hiện (blocking 0, should-fix 2, minor 4), verdict REVISE → đã sửa như dưới. Vòng 5 chạy sau để xác nhận.
+**Vòng 4** (chạy lại sau khi áp dụng B, cùng model, có chạy SQL thật): 6 phát hiện (blocking 0, should-fix 2, minor 4), verdict REVISE → đã sửa như dưới. **Vòng 5** (xác nhận, cũng chạy SQL thật: toàn bộ §2.3, TC-21-15/21/27/28/29, M-21-04, luồng idempotency, nạp tiền từ `funding`): 3 phát hiện minor, verdict **APPROVE**; đã sửa cả ba (ghi chú sau câu 5 ở §1; "cả 5 vòng" ở tiêu đề mục này; sắp xếp lại thứ tự bước của TC-21-13).
 
 | # | Mức | Phát hiện | Xử lý |
 |---|---|---|---|
@@ -261,7 +263,41 @@ Bước M-21-03 và M-21-05 dùng SQL seed cho hàng thử ràng buộc (task-ki
 
 ## 7. Kế hoạch triển khai
 
-_(Phase 3)_
+Mọi lệnh chạy từ `backend/`, với `DATABASE_URL=postgres://banking:banking_local_only@localhost:5433/banking` (§1, ghi chú môi trường). Mỗi bước: viết test → chạy, thấy đỏ **đúng lý do** (điền một dòng vào cột "đỏ") → viết code tối thiểu → xanh → commit (`type(module): imperative`, kèm dòng Co-Authored-By). Migration là **một file** `1791849600000-CreateTransfersLedgerIdempotency.ts` lớn dần qua các bước 1–5; `down` ban đầu chỉ `DROP` ngược thứ tự, bước 5 thêm kiểm trước khi xóa. Test fixture (user, tài khoản, giao dịch, dòng sổ) là helper trong `ledger-schema.db-spec.ts`; dòng sổ là seed SQL trong `BEGIN … ROLLBACK`.
+
+| Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `test/db/migration-revert.db-spec.ts` (sửa tối thiểu: TC-20-13 thêm một `migration:revert` và một `migration:run`; TC-20-18 gọi `undoLast` một lần trước); `test/db/ledger-schema.db-spec.ts` (mới, khung + fixture); `src/database/migrations/1791849600000-CreateTransfersLedgerIdempotency.ts` (mới): bảng `transfers` với mọi ràng buộc, hai `UNIQUE` cho khóa tổng hợp, hai index risk; `down` xóa `transfers` | TC-20-13 và TC-20-18 đã sửa (đỏ vì chưa có migration 2: lần hoàn tác thêm lại xóa migration 1); TC-21-03…09, 25, TC-21-11 và TC-21-26 (phần `transfers`) | _(điền)_ | `npm run test:db` | `feat(database): migration 2 transfers table` |
+| 2 | cùng file migration: bảng `ledger_entries` (identity, ba cột sinh ra, hai khóa ngoại tổng hợp, `UNIQUE`, hai index), `down` xóa thêm `ledger_entries`; `ledger-schema.db-spec.ts` | TC-21-11 (phần sổ cái), 12, 13, 14, 15, 22, 26 (phần sổ cái), 27, 28, 29, 30, 31 | _(điền)_ | `npm run test:db -- ledger-schema` | `feat(database): migration 2 ledger_entries with composite foreign keys` |
+| 3 | cùng file migration: bảng `idempotency_keys` + index; `down` xóa thêm; `ledger-schema.db-spec.ts` | TC-21-16, 17, 18, 19 | _(điền)_ | `npm run test:db -- ledger-schema` | `feat(database): migration 2 idempotency_keys` |
+| 4 | cùng file migration: view `v_transfer_facts`; `down` xóa view trước hết; `ledger-schema.db-spec.ts` | TC-21-10, 01, 02, 20, 21 (cấu trúc cả 3 bảng và view, tập index, 7 khóa ngoại `RESTRICT`, các ca xóa) | _(điền)_ | `npm run test:db -- ledger-schema` | `feat(database): migration 2 view v_transfer_facts` |
+| 5 | cùng file migration: `down` kiểm cả ba bảng rồi mới xóa (`throw new Error('Refusing to revert CreateTransfersLedgerIdempotency…')`); `test/db/migration-revert.db-spec.ts`: TC-20-13 thành TC-21-23 (bốn lệnh CLI, `tables()` thấy 3 bảng mới và view, `migrations` hai tên), TC-20-18 giữ bản đã sửa | TC-21-24 (a)(b)(c), TC-21-23. TC-21-24 đỏ vì `down` chưa có kiểm: `undoLastMigration` xóa luôn dữ liệu thay vì ném lỗi | _(điền)_ | `npm run test:db -- migration-revert` | `feat(database): guard migration 2 revert against data loss` |
+| 6 | — (không đổi code) | Test thủ công M-21-01…08 theo §5 trên database tạm, trên **commit cuối đổi code**; `npm run build` rồi `migration:run:prod` vào database trống (M-21-08) | — | script ở §5, ghi `docs/features/screenshots/DBS-21/manual-test.txt` (dòng đầu là SHA) | — |
+| 7 | docs: `docs/components/_shared/database-design.md` (header; §4.3 hai `UNIQUE` có tên; §4.4 ba cột sinh ra, hai khóa ngoại tổng hợp có tên, bỏ hai khóa ngoại đơn; §5 hàng BR-02; §6.1 và §6.2 ghi hai unique là đích khóa ngoại; §11 tên migration 2); `docs/adr/0002-postgresql-ledger.md` dòng 41; `backend/README.md` mục Migration; `docs/features/README.md` (thêm DBS-21); `docs/BACKLOG.md` (BL-004…006 mới, BL-001 thêm nguồn); feature doc §8–§9 | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` sạch | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(database): record migration 2, composite ledger keys` |
+| 8 | ảnh chụp ở `docs/features/screenshots/DBS-21/` (`01-migration-run.png`, `02-schema-ledger.png`, `03-constraint-rejections.png`, `04-revert-guard.png`, `05-test-db-results.png`), chụp từ output thật; chạy lại §5 nếu có đổi code | Toàn bộ | — | `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db` | — |
+
+**Đối chiếu DoD với kế hoạch (plan sweep):** DoD #1 → bước 1 (+4); #2 → bước 2; #3 → bước 3; #4 → bước 4 (+1, 2 cho `clock_timestamp()`); #5 → bước 4 (TC-21-20, tập index đúng bằng danh sách); #6 → bước 1, 2, 5 và M-21-04, M-21-06, M-21-07; #7 → quy trình (PR, review, CI chưa có theo G1 câu 8). Các giới hạn trong database-design cho 3 bảng: "`to_account_id` NULL chỉ khi `REJECTED/ACCOUNT_NOT_ACTIVE`" → ngoài phạm vi, đã duyệt ở G1 câu 6 (TC-21-03 ghi lại); test bắt buộc "không bao giờ thấy dòng idempotency thiếu response sau commit" (§4.5) và job dọn 7 ngày (§10) → thuộc task chuyển tiền và task dọn, ngoài phạm vi (BL ghi ở bước 7 nếu cần); `CONCURRENTLY` (§12) → không áp dụng (bảng rỗng); `forbid_mutation` và `GRANT` → migration 6, 7 (BL-005); entity và service → task của họ; mỗi mục của checklist §12 (tiền `bigint` + `amount > 0`, `timestamptz`, `text` + `CHECK`, FK `RESTRICT`, lý do từng index, `down`, test trên Postgres thật) có TC tương ứng.
+
+**File dự kiến trong `git diff --stat main...HEAD` (để đối chiếu ở §8):** `backend/src/database/migrations/1791849600000-CreateTransfersLedgerIdempotency.ts`, `backend/test/db/ledger-schema.db-spec.ts`, `backend/test/db/migration-revert.db-spec.ts`, `backend/README.md`, `docs/components/_shared/database-design.md`, `docs/adr/0002-postgresql-ledger.md`, `docs/BACKLOG.md`, `docs/features/README.md`, `docs/features/DBS-21-migration-transfers-ledger-idempotency.md`, `docs/features/screenshots/DBS-21/*`. Không đổi `src/` ngoài migration, không đổi `test/support/`, không thêm dependency.
+
+**Backlog sẽ ghi ở bước 7** (`docs/BACKLOG.md`, `BL-NNN` kế tiếp, mỗi dòng trỏ về doc này):
+
+| Dự kiến | Việc | Vai đề xuất | Đóng khi |
+|---|---|---|---|
+| BL-004 | `request_hash` có hai định nghĩa đầu vào (database-design §4.5 `(from, to, amount, type)` và ADR-05 method, path, body chuẩn hóa) | Dev làm task idempotency / chuyển tiền | Hai tài liệu cùng một định nghĩa và có test |
+| BL-005 | Migration 6 (`forbid_mutation`) làm các ca `DELETE` trong TC-20-18, TC-21-21, TC-21-24, M-21-07 báo `42501` thay vì `23503` và chặn phần dọn; migration 7: nếu đổi chủ bảng sang `dbs_migrator` thì phải đổi chủ view `v_transfer_facts` theo, nếu không `dbs_worker` lỗi quyền | Dev làm migration 6, 7 | Test được sửa theo trigger; `dbs_worker` `SELECT` được view |
+| BL-006 | DB chưa ép "`COMPLETED` có đúng 2 dòng (một Nợ, một Có)" và `balance_after` khớp `accounts.balance`; đề xuất constraint trigger `DEFERRABLE INITIALLY DEFERRED` cùng task trigger (migration 6) | Dev làm migration 6 | Có trigger hoặc ADR-02 ghi rõ phần do đối soát |
+| BL-001 (sửa) | Thêm DBS-21 vào nguồn; thêm yêu cầu: service Postgres chạy `test:db` phải là superuser (TC-21-24 dùng `session_replication_role = replica`) | #5 Platform & Ops | như cũ |
+
+**Rủi ro và cách lùi:**
+- *Hiệu năng tài khoản nóng:* khóa ngoại tổng hợp và 2 unique rộng thêm chi phí mỗi lệnh ghi, **chưa đo** (NFR-SCAL-02). Cách lùi: một migration sau bỏ hai khóa ngoại và các cột sinh ra; migration 2 chưa chạy ở môi trường nào nên chưa có dữ liệu bị ảnh hưởng.
+- *`session_replication_role = replica` cần superuser* (TC-21-24 (c)): đã kiểm với role `banking` local; test fail rõ ràng khi thiếu quyền; yêu cầu cho CI ghi ở BL-001.
+- *Test sổ cái phụ thuộc thứ tự Postgres kiểm* (`CHECK` → `UNIQUE` → khóa ngoại): mỗi ca được thiết kế để vi phạm đúng một ràng buộc và đã chạy thử ở review vòng 4 và 5.
+- *Test DBS-20 bị sửa* (TC-20-13, TC-20-18): kiểm bước 1 bằng chạy cả `test:db`; ý nghĩa test giữ nguyên.
+- *Windows PostgreSQL chiếm cổng 5432:* chỉ ảnh hưởng máy này; test lấy cổng từ `DATABASE_URL`.
+- *Cách lùi tổng:* PR chỉ thêm một migration, một file test và sửa một file test; revert PR là đủ.
+
+**Quyết định ở G3:** chờ duyệt.
 
 ## 8. Kết quả
 

@@ -66,3 +66,30 @@ Checked and matching the doc (no finding):
 - **`status`/`amount` as FK targets are safe:** before migration 6, an UPDATE of `status` or `amount` on a `COMPLETED` transfer with ledger rows is itself rejected with `23503`, while updating other columns works.
 
 Verdict: REVISE
+
+---
+
+<!-- Vòng 5 (cùng reviewer, model Claude Opus, 2026-10-17), xác nhận các sửa của vòng 4. Nguyên văn, không sửa. -->
+
+| # | Severity (blocking / should-fix / minor) | Section | Finding | Evidence | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | minor | §1, open question 5 (line 34) | The G1 question text still says that "Nợ = Có về số tiền, đúng tài khoản, đúng 2 dòng cho COMPLETED" are kept by code, and it proposes a deferred trigger to check "cùng số tiền, đúng tài khoản". Under plan B, the DB now enforces per-row amount and account. R4-3 fixed only the "Ngoài phạm vi" bullet (line 27), so this question still contradicts §2.8 for a reader of §1. | Line 34 compared with line 27 and §2.8 (line 115). In the experiments, a CREDIT of 1đ, a CREDIT on the source account and a DEBIT on a third account each fail with `23503`. | Add a short note after Q5 or after the G1 decision line, for example "(G2 chọn B: số tiền/tài khoản từng dòng do khóa ngoại tổng hợp ép; chỉ còn 'đủ cặp' và `balance_after`, xem §2.8)". Narrow the BL wording to "đủ cặp". |
+| 2 | minor | §6 header (line 215) | The link text says "trả lời nguyên văn cả hai vòng", but `domain-review.md` holds rounds 1–4. | `domain-review.md` has comment headers for rounds 2, 3 and 4 (lines 20, 36, 49). | Change it to "tất cả các vòng" (or "4 vòng"). |
+| 3 | minor | §4 TC-21-13 | The order in the step list is impossible as written. T has only a DEBIT, so "CREDIT thứ hai cho T · từ chối" is listed before "CREDIT đầu tiên cho T · chấp nhận". Run in that order, the "second" CREDIT would be the first one and would be accepted. | Text of TC-21-13 (line 172). Experiment: on a transfer that already had a DEBIT and a CREDIT, a second matching CREDIT gave `23505 ledger_entries_one_per_direction`. | Reorder the steps: first CREDIT accepted, then second CREDIT rejected. |
+
+What I checked in the throwaway database `dbs_review5_x` on Postgres 17 (dropped afterwards; `banking` was not touched). The schema was built exactly as §3 says. Everything below matched the doc, with each bad row reporting exactly one constraint:
+
+- **Foreign keys:** 7 new ones, all with `confdeltype='r'` and MATCH SIMPLE. `ledger_entries` has only 4 internal RI triggers (two foreign keys × ins/upd). Only the two `transfers` foreign keys reference `accounts`.
+- **§2.3:** every row as stated, including `23505` before `23503` and `428C9` for an explicit generated column or explicit NULL (DEFAULT is accepted).
+- **TC-21-15:** all 4 rows gave the debit/credit foreign key the doc expects.
+- **TC-21-21:** all 7 deletes gave exactly the constraint named.
+- **TC-21-27/28/29:** gave the expected constraint each time, including REJECTED with `to_account_id` NULL.
+- **M-21-04:** run in the doc's order, all 10 rows gave the expected codes and constraints, with T1 holding DEBIT+CREDIT and T2/T3 empty.
+- **Idempotency flow:** the placeholder `ON CONFLICT DO NOTHING`, then transfer, then ledger rows, then `UPDATE` of the key works.
+- **DEPOSIT from funding:** accepted with `balance_after = -1000000`.
+- **TC-21-24(c):** inserting the orphan row under replica mode works.
+- **View and indexes:** the view has 7 columns, and the index sets equal §3.
+
+The grep found no stale "8 khóa ngoại", "2 lookups" or `ledger_entries_transfer_id_fkey`. `ledger_entries_account_id_fkey` appears only in the historical R2-4/R4-1 rows of §6, which is acceptable.
+
+Verdict: APPROVE
