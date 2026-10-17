@@ -38,7 +38,7 @@ Every gate message, in Vietnamese:
 Trả lời «duyệt G<n>» để đi tiếp, hoặc góp ý để mình sửa.
 ```
 
-G2 also states the reviewer's model and the finding counts. G3 also states that the plan sweep ran and its result. G4 also carries the **G4 checklist** at the end of `templates/feature-doc.md`.
+G2 also states the reviewer's model and effort (Opus 5.5, effort medium) and the finding counts. G3 also states that the plan sweep ran and its result. G4 also carries the **G4 checklist** at the end of `templates/feature-doc.md`.
 
 ## Phase 1: Understand → G1
 
@@ -54,7 +54,7 @@ G2 also states the reviewer's model and the finding counts. G3 also states that 
 
 Fill, in this order: **§2 behaviour** (rules, API examples with real JSON, `errorCode`s, edge cases), **§3 architecture** (module and role `api`/`worker`, interfaces with real signatures, data touched, transaction boundary, a mermaid diagram when more than one component is involved; for a bug, the reproduced root cause), **§4 automated test cases** `TC-<n>-NN` (each traces to a DoD bullet or AC; layer; expected `errorCode`; rules in `references/testing.md`), **§5 manual test script** (`references/manual-testing.md`). A DoD bullet that is only process (PR merged, review, CI green) gets a "quy trình" row; one that belongs to another unit's task (say, a provider) is handed to that task at G1 or G2.
 
-Then the **AI domain review, mandatory**: dispatch a fresh subagent (strongest model available) with `prompts/domain-review.md`; with no subagent tool, ask the human to run the prompt in a new chat and paste the reply back. Save the reviewer's raw reply verbatim as `docs/features/screenshots/DBS-<n>/domain-review.md` and link it from §6. Record each finding in §6 as *đã sửa* or *không sửa + lý do*; findings that belong to another developer go to §8, "Bàn giao". Every blocking finding left unfixed becomes a numbered question at G2. After a REVISE verdict, re-run the review on every section you changed. Paste the final verdict line into the G2 message.
+Then the **AI domain review, mandatory**: dispatch a fresh subagent on **Opus 5.5, effort medium** (`model: opus`, `effort: medium`) with `prompts/domain-review.md`; with no subagent tool, ask the human to run the prompt in a new chat on Opus 5.5, effort medium, and paste the reply back. Save the reviewer's raw reply verbatim as `docs/features/screenshots/DBS-<n>/domain-review.md` and link it from §6. Record each finding in §6 as *đã sửa* or *không sửa + lý do*; findings that belong to another developer go to §8, "Bàn giao". Every blocking finding left unfixed becomes a numbered question at G2. After a REVISE verdict, re-run the review on every section you changed. Paste the final verdict line into the G2 message.
 
 ## Phase 3: Plan → G3
 

@@ -1,6 +1,6 @@
 # Prompt: AI domain review (Phase 2)
 
-Fill the `<…>` parts and send the whole prompt to a fresh subagent with no memory of the task (or a new chat with no history). Use the strongest model available. The reviewer only reads; it never edits files.
+Fill the `<…>` parts and send the whole prompt to a fresh subagent with no memory of the task (or a new chat with no history). Use Opus 5.5 at effort medium. The reviewer only reads; it never edits files.
 
 ---
 
