@@ -1,6 +1,6 @@
 # DBS-22 · @common/money: kiểu tiền bigint/string và DTO validator
 
-> **Status:** Draft · **Vai:** Dev · **Nhánh:** `feat/DBS-22-common-money` · **PR:** — · **Cập nhật:** 2026-10-17
+> **Status:** Design approved · **Vai:** Dev · **Nhánh:** `feat/DBS-22-common-money` · **PR:** — · **Cập nhật:** 2026-10-17
 
 ## 1. Bối cảnh
 
@@ -270,11 +270,53 @@ M-22-07 chỉ chứng minh không hỏng khởi động; việc `worker` thật 
 
 **Tổng kết:** 3 vòng, 23 phát hiện (blocking 1, should-fix 7, minor 15), đều đã xử lý hoặc chuyển sang §8 Bàn giao; verdict cuối **APPROVE**. Chưa có phát hiện nào "không sửa".
 
-**Quyết định ở G2:** (điền sau khi được duyệt)
+**Quyết định ở G2 (2026-10-17):** duyệt «duyệt G2», không sửa. Hệ quả: thêm kiểu `Balance` ngoài `Money` (câu 1, vượt DoD đã được duyệt); `main.ts` được sửa một dòng import (câu 2); `installBigIntJson()` ném lỗi lúc khởi động khi gặp `toJSON` làm mất chữ số (câu 3); service dùng `parsePositiveMoney` (câu 4); ba file hỗ trợ test ở `backend/test/support/` (câu 5). Người duyệt **cho phép bật Docker** cho M-22-07 (câu 6): được bật Docker Desktop và `docker compose` với file override cổng 5433 nằm ngoài repo.
 
 ## 7. Kế hoạch triển khai
 
-(Phase 3)
+Mọi bước theo thứ tự test trước: viết test, chạy, thấy **đỏ vì đúng lý do**, viết code tối thiểu, chạy xanh, dọn, commit (cuối commit có dòng `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`). Task thuần thư viện nên không có migration, service hay audit/outbox. Lệnh chạy từ `backend/`; `UT` = `npx jest --config ./test/jest-unit.js`, `E2E` = `npx jest --config ./test/jest-e2e.js`.
+
+| Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1. `Money` | mới: `src/common/money/money.ts`, `money.spec.ts`, `test/support/money-cases.ts` (`MONEY_REJECT`) | TC-22-01…12 | (điền) | `UT src/common/money/money.spec.ts` | `feat(money): Money type with parse, format and safe arithmetic` |
+| 2. `Balance` | mới: `balance.ts`, `balance.spec.ts`; `money-cases.ts` (`BALANCE_REJECT`) | TC-22-13…17 | (điền) | `UT src/common/money/balance.spec.ts` rồi `npm run typecheck` (TC-22-17 là kiểm biên dịch) | `feat(money): signed Balance for account balances` |
+| 3. `@IsMoneyAmount` | mới: `is-money-amount.decorator.ts`, `.spec.ts` | TC-22-18…21 | (điền) | `UT src/common/money/is-money-amount.decorator.spec.ts` | `feat(money): IsMoneyAmount DTO validator` |
+| 4. JSON an toàn cho `bigint` | mới: `bigint-json.ts`, `bigint-json.spec.ts`, `bigint-json.bootstrap.ts`, `bigint-json.bootstrap.spec.ts` | TC-22-22, 23, 24 | (điền) | `UT src/common/money/bigint-json` | `feat(money): JSON-safe bigint with fail-fast on lossy toJSON` |
+| 5. Cửa vào `@common/money` và `main.ts` | mới: `index.ts`, `main-wiring.spec.ts`; sửa: `src/main.ts` (một dòng import) | TC-22-25 | (điền) | `UT src/common/money/main-wiring.spec.ts` | `feat(money): public index and worker bootstrap import` |
+| 6. HTTP với cấu hình thật | mới: `test/support/money-probe.ts`, `test/money.e2e-spec.ts`; sửa: `src/app.setup.ts` (gọi `installBigIntJson()`) | TC-22-26…30 | (điền) | `E2E test/money.e2e-spec.ts`; rồi cả `npm run test:e2e` (health, error-handling vẫn xanh) | `feat(money): install JSON-safe bigint in configureHttpApp` |
+| 7. Script lái cho test thủ công | mới: `test/support/money-driver.ts` (mục `table`, `json-number`, `arithmetic`, `serve`) | không có TC; được kiểm bằng chính M-22-01…05b | không áp dụng | `npx ts-node -r tsconfig-paths/register test/support/money-driver.ts table` chạy được | `test(money): manual-test driver for @common/money` |
+| 8. Kiểm tra tự động toàn bộ | không sửa file | cả bộ | không áp dụng | `npm run lint:check && npm run typecheck && npm test && npm run test:e2e`; kiểm không có `.skip`, `.only`, `.todo` trong test của task | (nếu phải sửa lỗi lint thì commit riêng `fix(money): …`) |
+| 9. Test thủ công (4c) | `docs/features/screenshots/DBS-22/manual-test.txt` (dòng đầu là SHA commit cuối đổi code), ảnh `01…0N-*.png` | M-22-01…07 | không áp dụng | theo §5; M-22-07 cần Docker (được phép bật) | `docs(features): DBS-22 manual test evidence` |
+| 10. Tài liệu (Phase 5) | `backend/README.md` (cách dùng, điều cấm `parseInt`/`Number`, dòng cấu trúc `common/`); `database-design.md` §11; `threat-model.md` T5; `docs/BACKLOG.md`; `docs/features/README.md`; feature doc §8, §9 | TC-22-31 (đọc lại), `check-doc-links.mjs` | không áp dụng | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs: DBS-22 README, database-design, threat model, backlog` |
+
+**Sweep (đã chạy):** mỗi DoD bullet và mỗi giới hạn nêu trong tài liệu có một dòng kế hoạch hoặc một dòng "ngoài phạm vi".
+
+| Nguồn | Xử lý |
+|---|---|
+| DoD #1 (kiểu, parse, format, cộng trừ) | bước 1, 2 |
+| DoD #2 (validator) | bước 3 |
+| DoD #3 (`9007199254740993` qua DTO → domain → serialize; sáu giá trị bị từ chối) | bước 1 (TC-22-02), 3 (TC-22-19), 6 (TC-22-26…28) |
+| DoD #4 (JSON không ném lỗi) | bước 4, 5, 6 (TC-22-22…25, 29) |
+| DoD #5 (README) | bước 10 |
+| DoD #6 (merge, CI, review, bảng đối chiếu) | quy trình: bảng đối chiếu điền ở PR; "CI xanh" chưa kiểm được (BL-001); chờ review của Dev khác |
+| ADR-07 dòng 58 ("cấm `parseInt` và `Number` trên tiền") | bước 10 (README); lint chặn là ngoài phạm vi, `BL-NNN` mới (G1 câu 4) |
+| threat-model T5 (Thiết kế → Đã kiểm) | bước 10 |
+| database-design §11 hàng "Cột `bigint`" | bước 10 |
+| `config/validation.schema.ts` `MONEY_PATTERN`, `config/limits.config.ts` `BigInt()` | ngoài phạm vi, `BL-NNN` mới (G1 câu 1) |
+| event-contract `fromBalanceBefore` có thể âm; DBS-24 `common/events` | không sửa trong PR này; thêm vào BL-002 (§3 Bàn giao) |
+| BL-001 | thêm DBS-22 vào nguồn (bước 10) |
+| `CONTRIBUTING.md` §5, README module `ledger`, `src/scripts/README.md` | không sửa: quy tắc không đổi, script lái nằm ở `test/support/` |
+| `eslint.config.mjs` dòng 53 (ví dụ `@common/money`) | đã đúng, không sửa |
+
+**Rủi ro và cách lùi:**
+- *`BigInt.prototype.toJSON` là thay đổi toàn cục.* Lùi: bỏ hai lời gọi `installBigIntJson()` (`main.ts`, `configureHttpApp`); `formatMoney` / `formatBalance` vẫn là đường chính thức nên không hàm nào của thư viện hỏng.
+- *Ném lỗi lúc khởi động khi gặp `toJSON` lạ.* Đã kiểm `node_modules` không có gói nào gắn `toJSON`. Lùi: đổi `throw` thành cảnh báo log và ghi đè.
+- *Kiểu nhãn (`Money`, `Balance`) làm người dùng sau phải đi qua `parseMoney` / `toMoney`.* Đó là chủ đích; nếu quá cứng thì nới `Money` thành `bigint` trần ở một PR sau mà không đổi hàm nào.
+- *Thêm `Balance` vượt DoD.* Đã được duyệt ở G2. Lùi: xóa `balance.ts` và các TC-22-13…17; `Money` không phụ thuộc vào nó.
+- *Docker và cổng 5433 ở M-22-07.* Dùng file override ngoài repo như DBS-20, DBS-21. Sau khi chạy: `docker compose … stop` (không `down -v`, không xóa volume).
+- *Nhánh docs của skill chưa merge.* Nhánh này tách từ `main` nên `SKILL.md`, `CLAUDE.md` còn bản cũ; không ảnh hưởng code, và PR này không đụng hai file đó.
+
+**Quyết định ở G3:** (điền sau khi được duyệt)
 
 ## 8. Kết quả
 
