@@ -1,0 +1,239 @@
+b25b5de937aac55441925c41ee8824ec7b7932ed
+
+=== M-22-01, M-22-02, M-22-03, M-22-04: money-driver table ===
+$ npx ts-node -r tsconfig-paths/register test/support/money-driver.ts table
+=== M-22-01, M-22-02: validator and parsers on boundary values ===
+input                       DTO       parseMoney              parsePositiveMoney      formatMoney(parse)          JSON.stringify              same 
+"9007199254740993"          ACCEPT    9007199254740993n       9007199254740993n       "9007199254740993"          "9007199254740993"          true 
+"9223372036854775807"       ACCEPT    9223372036854775807n    9223372036854775807n    "9223372036854775807"       "9223372036854775807"       true 
+"9223372036854775808"       REJECT    OVERFLOW                OVERFLOW                -                           -                           -    
+"0"                         REJECT    0n                      NOT_POSITIVE            "0"                         "0"                         true 
+"-1"                        REJECT    INVALID                 INVALID                 -                           -                           -    
+"1.5"                       REJECT    INVALID                 INVALID                 -                           -                           -    
+"1e3"                       REJECT    INVALID                 INVALID                 -                           -                           -    
+"01"                        REJECT    INVALID                 INVALID                 -                           -                           -    
+" 1"                        REJECT    INVALID                 INVALID                 -                           -                           -    
+
+=== not a string: the validator refuses every one ===
+1000                        REJECT  
+9007199254740992            REJECT  
+null                        REJECT  
+undefined                   REJECT  
+[]                          REJECT  
+["1"]                       REJECT  
+{}                          REJECT  
+
+=== M-22-03: what a JSON number does to 2^53 + 1 ===
+JSON.parse('{"amount":9007199254740993}').amount = 9007199254740992  (typeof number)
+  validator on that number : REJECT   <- digits already lost, refused
+  validator on the string  : ACCEPT   <- same digits, kept
+
+=== M-22-04: arithmetic and the funding account ===
+2^53 + 1                       = 9007199254740993n
+MAX + 1                        = OVERFLOW
+0 - 1                          = UNDERFLOW
+funding after deposit 1        = -300000
+funding after deposit 2        = -600000
+funding + A + B                = 0   (A=300000, B=300000)
+exit code: 0
+
+=== M-22-05, M-22-05b: real HTTP through configureHttpApp (terminal A = serve, terminal B = curl) ===
+$ npx ts-node -r tsconfig-paths/register test/support/money-driver.ts serve   # terminal A
+--- M-22-05 success: 2^53 + 1 ---
+
+$ curl -i -X POST localhost:3999/v1/probe/money -H 'content-type: application/json' -d '{"amount":"9007199254740993"}'   # terminal B
+HTTP/1.1 201 Created
+X-Correlation-Id: 431f74ac-bbac-4c46-b69b-77fe8e1214e0
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/json; charset=utf-8
+Content-Length: 95
+ETag: W/"5f-0p/cIYedA2c9Z5TlmrmrgfsyVH4"
+Date: Sat, 17 Oct 2026 14:18:13 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"received":"9007199254740993","plusOne":"9007199254740994","fundingAfter":"-9007199254740993"}
+--- M-22-05b refused bodies ---
+
+$ curl -i -X POST localhost:3999/v1/probe/money -H 'content-type: application/json' -d '{"amount":"1.5"}'   # terminal B
+HTTP/1.1 400 Bad Request
+X-Correlation-Id: b4a25023-77e1-4837-8316-aa808d61172d
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 324
+ETag: W/"144-iuRQLtRueveXKzgdH3TMNm2VoEA"
+Date: Sat, 17 Oct 2026 14:18:13 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"Request validation failed","errors":["amount must be a whole number of dong greater than zero, written as a string of digits (no sign, leading zero, decimals or exponent), at most 9223372036854775807"],"correlationId":"b4a25023-77e1-4837-8316-aa808d61172d"}
+
+$ curl -i -X POST localhost:3999/v1/probe/money -H 'content-type: application/json' -d '{"amount":9007199254740993}'   # terminal B
+HTTP/1.1 400 Bad Request
+X-Correlation-Id: fbbdd23d-108d-4d54-9a28-7c99067cbfe6
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 324
+ETag: W/"144-vnQU3nwbJPuIXx7errt/lgzAetg"
+Date: Sat, 17 Oct 2026 14:18:13 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"Request validation failed","errors":["amount must be a whole number of dong greater than zero, written as a string of digits (no sign, leading zero, decimals or exponent), at most 9223372036854775807"],"correlationId":"fbbdd23d-108d-4d54-9a28-7c99067cbfe6"}
+
+$ curl -i -X POST localhost:3999/v1/probe/money -H 'content-type: application/json' -d '{"amount":1000}'   # terminal B
+HTTP/1.1 400 Bad Request
+X-Correlation-Id: 4edd059d-bbfd-4c35-b476-841aca4bc575
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 324
+ETag: W/"144-aDzZ2C1mRGFoUG39+jgVOkNgYNU"
+Date: Sat, 17 Oct 2026 14:18:13 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"Request validation failed","errors":["amount must be a whole number of dong greater than zero, written as a string of digits (no sign, leading zero, decimals or exponent), at most 9223372036854775807"],"correlationId":"4edd059d-bbfd-4c35-b476-841aca4bc575"}
+
+$ curl -i -X POST localhost:3999/v1/probe/money -H 'content-type: application/json' -d '{"amount":"0"}'   # terminal B
+HTTP/1.1 400 Bad Request
+X-Correlation-Id: 11cd871c-cb40-4b1f-a54b-432732a37587
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 324
+ETag: W/"144-LinG0beyjbfJH8I7CaYi/TAcFME"
+Date: Sat, 17 Oct 2026 14:18:13 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"Request validation failed","errors":["amount must be a whole number of dong greater than zero, written as a string of digits (no sign, leading zero, decimals or exponent), at most 9223372036854775807"],"correlationId":"11cd871c-cb40-4b1f-a54b-432732a37587"}
+
+--- terminal A output (what the server printed; a refused request prints nothing) ---
+Probe listening on http://127.0.0.1:3999  (POST /v1/probe/money). Ctrl+C to stop.
+handler ran: amount="9007199254740993"
+
+=== M-22-06: build and alias rewriting ===
+$ npm run build
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+exit code: 0
+
+$ grep -n "common/money" dist/app.setup.js dist/main.js
+dist/app.setup.js:12:const money_1 = require("./common/money");
+dist/main.js:4:require("./common/money/bigint-json.bootstrap");
+
+$ grep -rn "@common/" dist/ || echo none
+dist/common/money/bigint-json.js:10:                '(2^53 + 1 does not serialize exactly). Remove it so that @common/money can install a ' +
+
+$ node -e "const m=require('./dist/common/money');console.log(m.formatMoney(m.parseMoney('9007199254740993')))"
+9007199254740993
+exit code: 0
+
+--- M-22-06 note: the one hit above is the text of an error message, not an import. The check that matches the intent (no un-rewritten require/import of an alias):
+$ grep -rnE "(require\(|from )[\"']@(common|config|database|libs|modules)" dist/ || echo none
+none
+
+=== M-22-07: real start of api and worker (docker compose) ===
+$ docker compose -f docker-compose.yml -f <override outside the repo: postgres also on 5433> up -d --wait postgres valkey elasticmq
+ Container dbs-elasticmq-1  Starting
+ Container dbs-valkey-1  Starting
+ Container dbs-postgres-1  Starting
+ Container dbs-valkey-1  Started
+ Container dbs-elasticmq-1  Started
+ Container dbs-postgres-1  Started
+ Container dbs-postgres-1  Waiting
+ Container dbs-valkey-1  Waiting
+ Container dbs-elasticmq-1  Waiting
+ Container dbs-elasticmq-1  Healthy
+ Container dbs-valkey-1  Healthy
+ Container dbs-postgres-1  Healthy
+exit code: 0
+$ docker compose ps
+SERVICE     STATUS                   PORTS
+elasticmq   Up 6 seconds             0.0.0.0:9324-9325->9324-9325/tcp
+postgres    Up 6 seconds (healthy)   0.0.0.0:5432->5432/tcp, 0.0.0.0:5433->5432/tcp
+valkey      Up 6 seconds (healthy)   0.0.0.0:6379->6379/tcp
+
+$ DATABASE_URL=postgres://banking:***@localhost:5433/banking APP_ROLE=api node dist/main.js   # terminal A
+$ curl -i localhost:3000/health/live   # terminal B
+HTTP/1.1 200 OK
+{"status":"ok"}
+
+--- terminal A (api) first lines ---
+Listening on http://localhost:3000 (role=api)
+Swagger UI: http://localhost:3000/docs
+
+$ DATABASE_URL=postgres://banking:***@localhost:5433/banking APP_ROLE=worker node dist/main.js
+--- worker output ---
+Worker started (role=worker) — no HTTP listener
