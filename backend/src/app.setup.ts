@@ -3,6 +3,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
 import helmet from 'helmet';
+import { installBigIntJson } from '@common/money';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import {
   CORRELATION_ID_HEADER,
@@ -23,6 +24,11 @@ export interface HttpSettings {
  * wiring: correlation id, security headers, CORS, versioning, error format, validation.
  */
 export function configureHttpApp(app: NestExpressApplication, settings: HttpSettings): void {
+  // A bigint left in a response body becomes a string instead of a 500. main.ts also installs it
+  // for the worker, which has no HTTP; calling it again changes nothing, and having it here means
+  // the e2e tests, which use this function and not main.ts, exercise the same behaviour.
+  installBigIntJson();
+
   // Behind the ALB, req.ip must be the client, not the load balancer (per-IP rate limiting).
   if (settings.trustProxyHops > 0) {
     app.set('trust proxy', settings.trustProxyHops);
