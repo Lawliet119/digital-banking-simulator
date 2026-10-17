@@ -1,6 +1,6 @@
 # DBS-22 · @common/money: kiểu tiền bigint/string và DTO validator
 
-> **Status:** Design approved · **Vai:** Dev · **Nhánh:** `feat/DBS-22-common-money` · **PR:** — · **Cập nhật:** 2026-10-17
+> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-22-common-money` · **PR:** — · **Cập nhật:** 2026-10-17
 
 ## 1. Bối cảnh
 
@@ -316,7 +316,7 @@ Mọi bước theo thứ tự test trước: viết test, chạy, thấy **đỏ
 - *Docker và cổng 5433 ở M-22-07.* Dùng file override ngoài repo như DBS-20, DBS-21. Sau khi chạy: `docker compose … stop` (không `down -v`, không xóa volume).
 - *Nhánh docs của skill chưa merge.* Nhánh này tách từ `main` nên `SKILL.md`, `CLAUDE.md` còn bản cũ; không ảnh hưởng code, và PR này không đụng hai file đó.
 
-**Quyết định ở G3:** (điền sau khi được duyệt)
+**Quyết định ở G3 (2026-10-17):** duyệt «duyệt G3», không sửa. Kế hoạch 10 bước giữ nguyên; không có file ngoài danh sách.
 
 ## 8. Kết quả
 
