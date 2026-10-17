@@ -554,7 +554,7 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 | Ánh xạ TypeORM | Dùng `SnakeNamingStrategy` (hoặc đặt `name:` tường minh cho từng cột), vì luồng chuyển tiền viết SQL tay trong `QueryRunner` và entity phải trỏ đúng cùng tên cột. Tự viết ở `backend/src/database/snake-naming.strategy.ts` (không thêm thư viện), bật ở cả `DatabaseModule` và `data-source.ts`. Chiến lược không đổi tên bảng sang số nhiều: entity ghi tên bảng tường minh |
 | Tên ràng buộc | Ghi tường minh trong migration (`CONSTRAINT <bảng>_<quy tắc>`), FK ghi `ON DELETE RESTRICT`; test kiểm lỗi theo SQLSTATE và tên ràng buộc |
 | Test migration | `npm run test:db`: Postgres thật, mỗi file một database tạm, chạy migration bằng đúng cấu hình của CLI; mỗi ràng buộc mới có một hàng sai bị từ chối (checklist §12) |
-| Cột `bigint` | `pg` trả về `string`; để là `string` tới tận domain và chuyển sang `bigint` ở đó; không bao giờ `parseInt` |
+| Cột `bigint` | `pg` trả về `string`; để là `string` tới tận domain và chuyển sang `bigint` ở đó; không bao giờ `parseInt`. Dùng `@common/money` ([backend/README §7](../../../backend/README.md)): `parseMoney` / `parsePositiveMoney` cho số tiền (`transfers.amount`, `ledger_entries.amount`), `parseBalance` cho số dư có dấu (`accounts.balance`, `ledger_entries.balance_after`, vì `funding` âm), `formatMoney` / `formatBalance` cho tham số ghi lại |
 | Thời gian | Luôn `timestamptz`; đặt `timezone` của DB là `UTC` (cả local và RDS) |
 | Kiểu enum | `text` + `CHECK`, thêm giá trị mới bằng migration đổi `CHECK` |
 
