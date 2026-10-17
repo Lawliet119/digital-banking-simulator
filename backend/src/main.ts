@@ -1,6 +1,9 @@
 // Must stay the first import: fills process.env from env/.env.<NODE_ENV> before AppModule is
 // evaluated, because APP_ROLE decides which modules AppModule imports.
 import './config/env.bootstrap';
+// Every role, the worker included, must be able to JSON.stringify a bigint (SQS payloads, outbox,
+// audit jsonb); the worker never goes through configureHttpApp.
+import '@common/money/bigint-json.bootstrap';
 import { type ConfigType } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';

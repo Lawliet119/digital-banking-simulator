@@ -1,6 +1,6 @@
 # Threat model: chuyển tiền và nạp tiền (STRIDE)
 
-> **Status:** Accepted (2026-10-11) · **Owner:** #2 (ứng dụng), #5 (hạ tầng) · **Cặp đôi:** #3, #6 · **Verified against code:** chưa (bằng chứng là các task DBS-n ghi ở cột cuối; điền link test hoặc ảnh khi task xong) · **Cập nhật:** 2026-10-11
+> **Status:** Accepted (2026-10-11) · **Owner:** #2 (ứng dụng), #5 (hạ tầng) · **Cặp đôi:** #3, #6 · **Verified against code:** chưa (bằng chứng là các task DBS-n ghi ở cột cuối; điền link test hoặc ảnh khi task xong; T5 đã kiểm bởi DBS-22) · **Cập nhật:** 2026-10-17
 
 Phạm vi: hai luồng đụng tới tiền, UC-5 chuyển tiền và UC-3 nạp tiền tại quầy, cùng các thành phần chúng đi qua. Nguồn thiết kế: [docs/03 §6, §12, §13](../03_HIGH_LEVEL_ARCHITECTURE.md), [ADR-05](../adr/0005-idempotency-in-postgres.md), [ADR-06](../adr/0006-cognito-ecs-fargate.md), [ADR-10](../adr/0010-fargate-egress-public-subnet.md), [database-design §8](../components/_shared/database-design.md).
 
@@ -72,7 +72,7 @@ Trạng thái: **Thiết kế** = biện pháp đã nằm trong thiết kế, ch
 | T2 | **S**poofing | Token cũ của tài khoản đã bị khóa vẫn dùng được tới khi hết hạn | Mốc `sessions_revoked_at` ghi cùng transaction khóa; guard so `iat` (token cùng giây với mốc bị từ chối); Redis chỉ là cache, miss thì đọc DB | AC-11.1, DBS-114, DBS-115, DBS-186 | Thiết kế |
 | T3 | **S**poofing | Đường xác thực local (`AUTH_MODE=local`) lọt lên cloud | Validation schema từ chối khởi động ở staging/production; khóa dev sinh vào thư mục bị gitignore | DBS-53 | Thiết kế |
 | T4 | **T**ampering | Sửa hoặc xóa bút toán, giao dịch, nhật ký | `dbs_api`, `dbs_worker` không có `UPDATE/DELETE` trên bảng chỉ-thêm; trigger `forbid_mutation` chặn cả chủ bảng | DBS-27, DBS-122 | Thiết kế |
-| T5 | **T**ampering | Client gửi số tiền âm, thập phân, vượt 2^63 hoặc dạng số mũ để làm sai số dư | DTO chỉ nhận chuỗi số nguyên dương; DB `CHECK (amount > 0)`; tiền là `bigint` | DBS-22, DBS-21 | Thiết kế |
+| T5 | **T**ampering | Client gửi số tiền âm, thập phân, vượt 2^63 hoặc dạng số mũ để làm sai số dư | DTO chỉ nhận chuỗi số nguyên dương; DB `CHECK (amount > 0)`; tiền là `bigint` | [DBS-22](../features/DBS-22-common-money-type-dto-validator.md) (TC-22-19, 20, 27, 28; M-22-05b), DBS-21 | **Đã kiểm** |
 | T6 | **T**ampering | Gửi song song nhiều lệnh để vượt hạn mức ngày hoặc rút quá số dư | Khóa `FOR UPDATE` theo thứ tự id, sync guard sau khóa; DB `CHECK (balance >= 0)` cho tài khoản khách | AC-5.6, AC-5.9, DBS-98, DBS-99 | Thiết kế |
 | T7 | **T**ampering | Gửi lại một lệnh (replay) để trừ tiền nhiều lần | `Idempotency-Key` bắt buộc, `PRIMARY KEY (user_id, idem_key)`, `ON CONFLICT DO NOTHING`, cùng transaction | AC-5.3, 5.4, 5.10, DBS-97, DBS-185 | Thiết kế |
 | T8 | **T**ampering | Dùng cùng key với nội dung khác để đổi số tiền của lệnh đã chạy | `request_hash` SHA-256; khác hash → `422 IDEMPOTENCY_KEY_REUSED` | AC-5.5, DBS-79 | Thiết kế |

@@ -57,7 +57,7 @@ backend/
 │   ├── main.ts              # chọn http hay worker theo APP_ROLE
 │   ├── app.module.ts
 │   ├── app.setup.ts         # cấu hình HTTP dùng chung với test: correlation id, helmet, CORS, version, filter, pipe
-│   ├── common/              # app-role, errors (ErrorCode), filters, middleware, utils — không chứa nghiệp vụ
+│   ├── common/              # app-role, errors (ErrorCode), filters, middleware, money (@common/money), utils — không chứa nghiệp vụ
 │   ├── config/              # mỗi nhóm cấu hình một file + validation.schema.ts (Joi)
 │   ├── database/            # kết nối, TransactionService / withTransaction, migrations/
 │   ├── libs/                # adapter dịch vụ ngoài (redis, sqs, cognito)
@@ -116,6 +116,39 @@ Xem `src/modules/README.md`. Import xuyên module chỉ qua `@modules/<tên>`; v
 
 ### 6. Migration
 Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`). Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1 và 2). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser.
+
+### 7. Tiền: một cách duy nhất, qua `@common/money`
+`JSON` và `Number`/`parseInt` làm tròn mọi số trên 2^53: `9007199254740993` thành `9007199254740992` mà không báo lỗi. Nên tiền trên dây (API, event, tham số SQL) là **chuỗi** số nguyên đồng, trong domain là **`bigint`**, và chỉ đổi qua lại bằng `@common/money` (import `from '@common/money'`, không import file bên trong).
+
+| Cần | Dùng |
+|---|---|
+| số tiền của một lệnh (0 .. 2^63−1) | `Money`, `parseMoney`, `addMoney`, `subtractMoney` |
+| số tiền chuyển hoặc nạp (phải > 0) | `parsePositiveMoney` ở service, `@IsMoneyAmount()` ở DTO |
+| số dư có dấu (`funding` âm theo ADR-09) | `Balance`, `parseBalance`, `creditBalance`, `debitBalance` |
+| `bigint` tính ra ngoài thư viện (một `SUM`) | `toMoney`, `toBalance` (kiểm miền rồi gắn kiểu) |
+| ra chuỗi (response, event, tham số SQL) | `formatMoney`, `formatBalance` |
+
+```ts
+class TransferDto {
+  @IsMoneyAmount() // trường kiểu string; số JSON bị 400 kể cả khi chính xác
+  amount!: string;
+}
+
+// trong service
+const amount = parsePositiveMoney(dto.amount); // ném MoneyError nếu sai
+const next = debitBalance(parseBalance(row.balance), amount); // số dư đọc từ pg là chuỗi
+await manager.query('UPDATE accounts SET balance = $1 WHERE id = $2', [formatBalance(next), id]);
+return { amount: formatMoney(amount) };
+```
+
+**Điều cấm:**
+- `parseInt`, `parseFloat`, `Number(…)`, `+x`, `Math.*` trên tiền; kiểu `number` cho số tiền hay số dư, kể cả `amount: number` trong DTO.
+- `@Transform` của class-transformer đổi chuỗi tiền thành `bigint`: nó chạy **trước** validator nên validator không còn thấy dữ liệu client gửi.
+- Số JSON cho tiền (`{"amount": 1000}`): luôn 400. Tiền luôn là chuỗi `"1000"`.
+- Bỏ `parsePositiveMoney` ở service vì "DTO đã kiểm": lệnh đi vào từ worker không qua DTO, và `0` rơi xuống `CHECK (amount > 0)` thành lỗi 500.
+- So `===` giữa `Money` và `Balance` (hai kiểu khác nhãn): dùng `<`, `>`, hoặc mở rộng trước `(a as bigint) === b`.
+
+`MoneyError` (`reason`: `INVALID`, `OVERFLOW`, `UNDERFLOW`, `NOT_POSITIVE`) không phải lỗi HTTP: bắt nó ở chỗ có ý nghĩa nghiệp vụ; lọt ra ngoài thì thành 500 chung chung, không lộ gì. Lỗi DTO là 400 với danh sách `errors`, **không có `errorCode`** (client chỉ cần sửa và gửi lại). `main.ts` và `configureHttpApp` gọi `installBigIntJson()` để `JSON.stringify` ra chuỗi cho `bigint` còn sót; đó là lưới an toàn, không thay cho `formatMoney`. Chưa có luật lint chặn `parseInt`/`Number` trên tiền (BL-008): review code phải bắt.
 
 ## Docker
 
