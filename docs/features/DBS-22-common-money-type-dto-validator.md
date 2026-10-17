@@ -361,7 +361,7 @@ npm run test:db      Test Suites: 3 passed, 3 total · Tests: 49 passed, 49 tota
 | M-22-06 | **đạt** | build thoát 0; `dist/app.setup.js:12 require("./common/money")`, `dist/main.js:4 require("./common/money/bigint-json.bootstrap")`; in ra `9007199254740993`. Lệnh `grep` bản đầu có 1 kết quả (xem Lệch) |
 | M-22-07 | **đạt** | `docker compose up -d --wait` xong; `api`: `Listening on http://localhost:3000 (role=api)` và `/health/live` 200 `{"status":"ok"}`; `worker`: `Worker started (role=worker) — no HTTP listener`. Mật khẩu trong `DATABASE_URL` được che bằng `***` trong output |
 
-- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` (31 file, 1903 thêm, 7 bớt) khớp danh sách ở §7, không có file lạ:
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` (31 file, 1979 thêm, 7 bớt) khớp danh sách ở §7, không có file lạ:
 
 ```text
 backend/src/common/money/{money,balance,is-money-amount.decorator,bigint-json,bigint-json.bootstrap,index}.ts   mới
