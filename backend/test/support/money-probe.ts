@@ -26,10 +26,13 @@ export class MoneyProbeDto {
 export class MoneyProbeController {
   /** How many times a handler body ran. A refused request must leave it untouched. */
   calls = 0;
+  /** Set by the manual-test driver to print each call; a refused request never reaches it. */
+  onCall?: (dto: MoneyProbeDto) => void;
 
   @Post('money')
   money(@Body() dto: MoneyProbeDto): Record<string, unknown> {
     this.calls += 1;
+    this.onCall?.(dto);
     const amount = parsePositiveMoney(dto.amount);
     return {
       received: formatMoney(amount),
