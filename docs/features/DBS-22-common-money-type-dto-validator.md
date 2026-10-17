@@ -1,6 +1,6 @@
 # DBS-22 · @common/money: kiểu tiền bigint/string và DTO validator
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-22-common-money` · **PR:** — · **Cập nhật:** 2026-10-17
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-22-common-money` · **PR:** — · **Cập nhật:** 2026-10-17
 
 ## 1. Bối cảnh
 
@@ -317,6 +317,8 @@ Mọi bước theo thứ tự test trước: viết test, chạy, thấy **đỏ
 - *Nhánh docs của skill chưa merge.* Nhánh này tách từ `main` nên `SKILL.md`, `CLAUDE.md` còn bản cũ; không ảnh hưởng code, và PR này không đụng hai file đó.
 
 **Quyết định ở G3 (2026-10-17):** duyệt «duyệt G3», không sửa. Kế hoạch 10 bước giữ nguyên; không có file ngoài danh sách.
+
+**Quyết định ở G4 (2026-10-17):** duyệt «duyệt G4», chấp nhận cả ba mục nêu đích danh: (1) lệch lệnh `grep` của M-22-06, (2) giới hạn `worker` có `toJSON` mới kiểm tĩnh (`BL-009`), (3) DoD #6 "CI xanh" chưa kiểm được (BL-001).
 
 ## 8. Kết quả
 
