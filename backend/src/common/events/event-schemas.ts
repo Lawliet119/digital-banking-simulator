@@ -95,3 +95,17 @@ export const accountStatusChangedFields = {
   newStatus: Joi.string().valid('ACTIVE', 'LOCKED').required(),
   changedByUserId: uuid,
 } satisfies Record<keyof AccountStatusChanged, Joi.Schema>;
+
+export const transferCompletedSchema = Joi.object(transferCompletedFields);
+
+/**
+ * `reason` is forbidden: the event carries no lock reason (it lives in `audit_log`) and a customer
+ * notification never states a fraud reason (BR-13). This is a tripwire on one name, not the BR-13
+ * control (a field called `lockReason` still passes as an unknown field): the real control is that
+ * the notification template never prints a reason. It sits outside `accountStatusChangedFields`
+ * because `reason` is not a field of the type.
+ */
+export const accountStatusChangedSchema = Joi.object({
+  ...accountStatusChangedFields,
+  reason: Joi.any().forbidden(),
+});

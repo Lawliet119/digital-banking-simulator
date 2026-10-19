@@ -1,5 +1,4 @@
-import * as Joi from 'joi';
-import { accountStatusChangedFields, transferCompletedFields } from './event-schemas';
+import { accountStatusChangedSchema, transferCompletedSchema } from './event-schemas';
 import { EVENT_TYPES, type DomainEvent } from './event-types';
 
 /**
@@ -55,8 +54,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 const SCHEMAS = {
-  TransferCompleted: Joi.object(transferCompletedFields),
-  AccountStatusChanged: Joi.object(accountStatusChangedFields),
+  TransferCompleted: transferCompletedSchema,
+  AccountStatusChanged: accountStatusChangedSchema,
 };
 
 /**
@@ -101,11 +100,37 @@ function onePerPath(issues: EventIssue[]): EventIssue[] {
 }
 
 /**
+ * The DEPOSIT rule (BL-002), which no single field can express: the source of a deposit is the
+ * SYSTEM funding account, which has no owner. So `type = DEPOSIT` needs `fromUserId` null and
+ * `sameOwner` false; any other type needs a real `fromUserId`.
+ *
+ * It runs only when `type` itself passed (without a valid type there is no telling which rule
+ * applies, and a bad `type` must give one issue, not two), and only for a field that passed its
+ * own check (a `fromUserId: 5` is already a WRONG_TYPE; the rule adds nothing to it).
+ */
+function crossFieldIssues(payload: Record<string, unknown>, failed: Set<string>): EventIssue[] {
+  if (failed.has('type')) return [];
+  const found: EventIssue[] = [];
+  if (payload.type === 'DEPOSIT') {
+    if (!failed.has('fromUserId') && payload.fromUserId !== null) {
+      found.push(issue('fromUserId', 'NOT_ALLOWED'));
+    }
+    if (!failed.has('sameOwner') && payload.sameOwner !== false) {
+      found.push(issue('sameOwner', 'NOT_ALLOWED'));
+    }
+  } else if (!failed.has('fromUserId') && payload.fromUserId === null) {
+    found.push(issue('fromUserId', 'WRONG_TYPE'));
+  }
+  return found;
+}
+
+/**
  * Checks a message that arrived as `unknown` (parsed JSON) and says what is wrong with it, all at
  * once. On success `event` is the very object that was passed in (not a copy, not modified).
  *
  * Order: (1) a plain object, else NOT_AN_OBJECT; (2) `eventType` picks the schema; (3) each field
- * with `joi`, no type coercion, unknown fields allowed.
+ * with `joi`, no type coercion, unknown fields allowed; (4) the DEPOSIT rule, for a TransferCompleted
+ * whose type is valid; (5) one issue per path.
  */
 export function validateEvent(payload: unknown): EventValidation {
   if (!isPlainObject(payload)) return { ok: false, issues: [issue('', 'NOT_AN_OBJECT')] };
@@ -124,10 +149,13 @@ export function validateEvent(payload: unknown): EventValidation {
     allowUnknown: true,
     abortEarly: false,
   });
-  if (error) {
-    const found = error.details.map(detail => issue(detail.path.join('.'), codeOf(detail.type)));
-    return { ok: false, issues: onePerPath(found) };
+  const found = (error?.details ?? []).map(detail =>
+    issue(detail.path.join('.'), codeOf(detail.type)),
+  );
+  if (eventType === EVENT_TYPES.TransferCompleted) {
+    found.push(...crossFieldIssues(payload, new Set(found.map(f => f.path))));
   }
+  if (found.length > 0) return { ok: false, issues: onePerPath(found) };
 
   return { ok: true, event: payload as unknown as DomainEvent };
 }

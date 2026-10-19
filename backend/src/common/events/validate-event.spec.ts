@@ -346,4 +346,78 @@ describe('validateEvent (DBS-24)', () => {
       });
     },
   );
+
+  // ── DEPOSIT rules and the forbidden `reason` (step 5) ─────────────────────────────────────────
+
+  it('TC-24-11 a DEPOSIT has no owner on the source: fromUserId must be null, sameOwner false', () => {
+    const owner = TRANSFER_SAMPLE.fromUserId as string;
+
+    expect(pairsOf(withField(DEPOSIT_SAMPLE, 'fromUserId', owner))).toEqual([
+      ['fromUserId', 'NOT_ALLOWED'],
+    ]);
+    expect(pairsOf(withField(DEPOSIT_SAMPLE, 'sameOwner', true))).toEqual([
+      ['sameOwner', 'NOT_ALLOWED'],
+    ]);
+    expect(pairsOf({ ...clone(DEPOSIT_SAMPLE), fromUserId: owner, sameOwner: true })).toEqual([
+      ['fromUserId', 'NOT_ALLOWED'],
+      ['sameOwner', 'NOT_ALLOWED'],
+    ]);
+  });
+
+  it('TC-24-11 type is checked before the cross-field rule: a field of the wrong type stays WRONG_TYPE', () => {
+    // fromUserId: 5 and sameOwner: "true" are wrong-type problems even on a DEPOSIT.
+    expect(pairsOf(withField(DEPOSIT_SAMPLE, 'fromUserId', 5))).toEqual([
+      ['fromUserId', 'WRONG_TYPE'],
+    ]);
+    expect(pairsOf(withField(DEPOSIT_SAMPLE, 'sameOwner', 'true'))).toEqual([
+      ['sameOwner', 'WRONG_TYPE'],
+    ]);
+    // A malformed uuid is a format problem; the cross-field rule does not pile a second one on it.
+    expect(pairsOf(withField(DEPOSIT_SAMPLE, 'fromUserId', 'abc'))).toEqual([
+      ['fromUserId', 'INVALID_FORMAT'],
+    ]);
+  });
+
+  it('TC-24-11 a TRANSFER needs the sender: null is WRONG_TYPE, a missing key is MISSING_FIELD', () => {
+    expect(pairsOf(withField(TRANSFER_SAMPLE, 'fromUserId', null))).toEqual([
+      ['fromUserId', 'WRONG_TYPE'],
+    ]);
+    const missing: Record<string, unknown> = { ...clone(TRANSFER_SAMPLE) };
+    delete missing.fromUserId;
+    expect(pairsOf(missing)).toEqual([['fromUserId', 'MISSING_FIELD']]);
+  });
+
+  it('TC-24-11 a wrong or missing type gives ONE issue at type, on a DEPOSIT shape and a TRANSFER shape', () => {
+    // The cross-field rule needs a valid type to know which rule applies; without one it is skipped.
+    for (const sample of [DEPOSIT_SAMPLE, TRANSFER_SAMPLE]) {
+      for (const type of ['WITHDRAWAL', 5, null]) {
+        const issues = pairsOf(withField(sample, 'type', type));
+
+        expect(issues).toHaveLength(1);
+        expect(issues[0][0]).toBe('type');
+      }
+      const missing: Record<string, unknown> = { ...clone(sample) };
+      delete missing.type;
+      expect(pairsOf(missing)).toEqual([['type', 'MISSING_FIELD']]);
+    }
+  });
+
+  it('TC-24-13 AccountStatusChanged carries no reason (BR-13): any value of it is NOT_ALLOWED', () => {
+    for (const reason of ['fraud', '', null, 0, false, {}, []]) {
+      expect(pairsOf(withField(ACCOUNT_LOCKED_SAMPLE, 'reason', reason))).toEqual([
+        ['reason', 'NOT_ALLOWED'],
+      ]);
+    }
+    // `undefined` is the same as absent, so it is not a reason.
+    expect(validateEvent(withField(ACCOUNT_LOCKED_SAMPLE, 'reason', undefined)).ok).toBe(true);
+    // The ban is for this event only; a TransferCompleted may carry any extra field.
+    expect(validateEvent(withField(TRANSFER_SAMPLE, 'reason', 'anything')).ok).toBe(true);
+  });
+
+  it('TC-24-22 impossible balances are deliberately NOT checked: the database and producer own them', () => {
+    // BR-03 and ADR-09 say a customer is never below zero and funding never above; the contract
+    // does not, so the validator stays out of it. Pinned so a later change is a visible decision.
+    expect(validateEvent(withField(TRANSFER_SAMPLE, 'fromBalanceBefore', '-5')).ok).toBe(true);
+    expect(validateEvent(withField(DEPOSIT_SAMPLE, 'fromBalanceBefore', '100')).ok).toBe(true);
+  });
 });
