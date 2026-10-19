@@ -233,7 +233,7 @@ Loại "thư viện chưa có người gọi" (`task-kinds.md`): một **script 
 | M-24-02 (từ chối) | cùng lệnh, mục `rejected` | mỗi payload sai (thiếu trường, `amount` là số, `amount` `"01"`, giờ có `+07:00`, uuid chữ hoa, `eventType` lạ, `type: 5`, `DEPOSIT` mang `fromUserId`, chuỗi JSON thô, `null`, `new Date()`) in danh sách `path` và `code` đúng như §2, mỗi `path` một lỗi |
 | M-24-03 (tương thích tiến) | cùng lệnh, mục `forward-compat` | payload có trường lạ `riskScore` vẫn `ok: true` và trường đó còn trong `event`; `AccountStatusChanged` có `reason` bị `NOT_ALLOWED` |
 | M-24-04 (phát hiện lúc build) | trong thư mục scratchpad (ngoài repo): một tệp `.ts` tạm có đúng 4 dòng cố ý sai (`amount: 500000`; thiếu một trường; `DEPOSIT` với `fromUserId` là chuỗi; `eventType: "Other"`), **không dùng `console` hay biến Node** (không tìm thấy `@types/node` từ đó), và một `tsconfig.json` tạm: `extends` là **đường dẫn tuyệt đối** tới `backend/tsconfig.json`, `compilerOptions` đặt `"outDir": null`, `"incremental": false`, `"noEmit": true` (không thì `tsc` báo TS5009 vì scratchpad ở ổ `C:` còn repo ở `F:`), `include` chỉ tệp tạm. Chạy **từ `backend/`**: `npx tsc -p <tsconfig tạm>` | đúng 4 lỗi biên dịch (loại `TS2322`, `TS2741` hay `TS2353`), mỗi lỗi ở một trong 4 dòng cố ý sai (lỗi `eventType` sai ở dòng thuộc tính, lỗi thiếu trường và `fromUserId` ở dòng khai báo), và **không** có lỗi nào khác (đặc biệt không phải `TS5009`); thoát mã khác 0 |
-| M-24-05 (build) | `npm run build`; `node -e "const e=require('./dist/common/events');console.log(JSON.stringify(e.validateEvent({}).ok))"`; `grep -rnE "(require\(\|from )[\"']@(common\|config\|database\|libs\|modules)" dist/ \|\| echo none` | build sạch; in `false`; grep in `none` (alias đã được viết lại, gồm `@common/money` bên trong `events`) |
+| M-24-05 (build) | `npm run build`; `node -e "const e=require('./dist/common/events');console.log(JSON.stringify(e.validateEvent({}).ok))"`; `grep -rnE "(require\(\|from )[\"']@(common\|config\|database\|libs\|modules)" dist/ \|\| echo none` | build sạch; in `false`; grep in `none` (không `require` hay `import` alias nào còn sót). Thêm `grep -n "money" dist/common/events/event-schemas.js` phải thấy `require("../money")`: `nest build` viết lại alias `@common/money` thành đường dẫn tương đối, nên chữ `common/money` không còn trong `dist` |
 
 ## 6. Domain review (AI)
 
@@ -283,16 +283,16 @@ Mọi bước theo thứ tự test trước: viết test, chạy, thấy **đỏ
 | Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
 | 0. Môi trường | worktree DBS-24: nối `backend/node_modules` về `node_modules` của repo chính bằng junction (không chạy `npm ci`, không commit gì) | không có | không áp dụng | `npm run typecheck` chạy được trong worktree | không có |
-| 1. Kiểu | mới: `src/common/events/event-types.ts`, `event-types.spec.ts`, `test/support/event-samples.ts` (mẫu `TRANSFER`, `DEPOSIT`, `AccountStatusChanged`) | TC-24-19 (kiểm biên dịch: `@ts-expect-error`, `switch` thu hẹp kiểu) | (điền) | `UT src/common/events/event-types.spec.ts` rồi `npm run typecheck` | `feat(events): event types for TransferCompleted and AccountStatusChanged` |
-| 2. Hợp lệ, phong bì, thiếu trường | mới: `validate-event.ts`, `event-schemas.ts` (schema `Record<keyof T, Joi.Schema>`, mới chỉ buộc có mặt), `validate-event.spec.ts` | TC-24-01, 02, 03, 04, 12, 14, 15 | (điền) | `UT src/common/events/validate-event.spec.ts` | `feat(events): validateEvent for valid events, envelope and missing fields` |
-| 3. Kiểu và một lỗi mỗi `path` | sửa: `event-schemas.ts`, `validate-event.ts` (kiểu cơ sở, ánh xạ `joi` sang `code`, gộp theo ưu tiên) | TC-24-05, 10, 16, 23 | (điền) | `UT src/common/events/validate-event.spec.ts` | `feat(events): type checks and one issue per path` |
-| 4. Định dạng | sửa: `event-schemas.ts` (uuid chữ thường, tiền qua `parsePositiveMoney` và `parseBalance`, thời gian UTC có `Z` kiểm lịch thật) | TC-24-06, 07, 08, 09 | (điền) | `UT src/common/events/validate-event.spec.ts` | `feat(events): uuid, money and UTC time formats` |
-| 5. Liên trường và cấm `reason` | sửa: `validate-event.ts` (bước (4) chỉ khi `type` hợp lệ), `event-schemas.ts` (`reason` bị cấm) | TC-24-11, 13, 22 | (điền) | `UT src/common/events/validate-event.spec.ts` | `feat(events): DEPOSIT rules and forbidden reason` |
-| 6. An toàn và `assertEvent` | sửa: `validate-event.ts` (`message` dựng từ `code`, `InvalidEventError`, `assertEvent`) | TC-24-17, 18 | (điền) | `UT src/common/events/validate-event.spec.ts` | `feat(events): safe messages and assertEvent` |
-| 7. Cửa vào và đồng bộ kiểu, schema | mới: `index.ts`, `event-schemas.spec.ts`, `index.spec.ts` | TC-24-20, 21 | (điền) | `UT src/common/events` | `feat(events): public index and type-schema sync check` |
-| 8. Script lái | mới: `test/support/events-driver.ts` (mục `table`) | không có TC; kiểm bằng M-24-01…03 | không áp dụng | `npx ts-node -r tsconfig-paths/register test/support/events-driver.ts` chạy được | `test(events): manual-test driver for @common/events` |
-| 9. Kiểm tra tự động toàn bộ | không sửa file | cả bộ | không áp dụng | `npm run lint:check && npm run typecheck && npm test && npm run test:e2e`; không có `.skip`, `.only`, `.todo`; phá code có chủ ý vài lần (bỏ ưu tiên gộp, cho `+00:00` qua, bỏ luật `DEPOSIT`) để chắc test đỏ | nếu phải sửa lint thì commit riêng `fix(events): …` |
-| 10. Test thủ công (4c) | `docs/features/screenshots/DBS-24/manual-test.txt` (dòng đầu là SHA commit cuối đổi code), ảnh `01…0N-*.png` | M-24-01…05 | không áp dụng | theo §5; không cần Docker | `docs(features): DBS-24 manual test evidence` |
+| 1. Kiểu | mới: `src/common/events/event-types.ts`, `event-types.spec.ts`, `test/support/event-samples.ts` (mẫu `TRANSFER`, `DEPOSIT`, `AccountStatusChanged`) | TC-24-19 (kiểm biên dịch: `@ts-expect-error`, `switch` thu hẹp kiểu) | `TS2307 Cannot find module './event-types'`; 4 dòng `@ts-expect-error` báo `TS2578 Unused directive` vì kiểu chưa có | `UT src/common/events/event-types.spec.ts` rồi `npm run typecheck` | `feat(events): event types for TransferCompleted and AccountStatusChanged` (`b27f2c4`) |
+| 2. Hợp lệ, phong bì, thiếu trường | mới: `validate-event.ts`, `event-schemas.ts` (schema `Record<keyof T, Joi.Schema>`, mới chỉ buộc có mặt), `validate-event.spec.ts` | TC-24-01, 02, 03, 04, 12, 14, 15 | `TS2307 Cannot find module './validate-event'`; sau khi có code, 3 ca "mẫu hợp lệ" và ca object khác realm đỏ vì kiểm tra "prototype là `Object.prototype`" từ chối nhầm object tạo ở realm khác (lỗi thật của cách kiểm object thuần, sửa trong bước này) | `UT src/common/events/validate-event.spec.ts` | `feat(events): validateEvent for valid events, envelope and missing fields` (`836a3c0`) |
+| 3. Kiểu và một lỗi mỗi `path` | sửa: `event-schemas.ts`, `validate-event.ts` (kiểu cơ sở, ánh xạ `joi` sang `code`, gộp theo ưu tiên) | TC-24-05, 10, 16, 23 | 45 đỏ, 52 xanh: schema mới chỉ buộc có mặt nên mọi sai kiểu đều lọt | `UT src/common/events/validate-event.spec.ts` | `feat(events): type checks and one issue per path` (`7f0c8ca`) |
+| 4. Định dạng | sửa: `event-schemas.ts` (uuid chữ thường, tiền qua `parsePositiveMoney` và `parseBalance`, thời gian UTC có `Z` kiểm lịch thật) | TC-24-06, 07, 08, 09 | 33 đỏ, 98 xanh: schema mới chỉ kiểm "là chuỗi" nên uuid, tiền, thời gian sai đều lọt | `UT src/common/events/validate-event.spec.ts` | `feat(events): uuid, money and UTC time formats` (`1e932b9`) |
+| 5. Liên trường và cấm `reason` | sửa: `validate-event.ts` (bước (4) chỉ khi `type` hợp lệ), `event-schemas.ts` (`reason` bị cấm) | TC-24-11, 13, 22 | 3 đỏ, 134 xanh: lệnh `DEPOSIT` mang `fromUserId`, `TRANSFER` với `fromUserId: null`, `reason` đều lọt; 3 ca mới còn lại (kiểm kiểu trước, `type` sai chỉ một lỗi, TC-24-22) xanh sẵn vì là rào chắn chống hồi quy | `UT src/common/events/validate-event.spec.ts` | `feat(events): DEPOSIT rules and forbidden reason` (`87b2ede`) |
+| 6. An toàn và `assertEvent` | sửa: `validate-event.ts` (`message` dựng từ `code`, `InvalidEventError`, `assertEvent`) | TC-24-17, 18 | `TS2305 Module has no exported member 'assertEvent'` và `'InvalidEventError'`; TC-24-17 (`message`, `__proto__`) sẽ xanh sẵn vì `message` đã dựng từ `code` từ bước 2 | `UT src/common/events/validate-event.spec.ts` | `feat(events): safe messages and assertEvent` (`a10cfba`) |
+| 7. Cửa vào và đồng bộ kiểu, schema | mới: `index.ts`, `event-schemas.spec.ts`, `index.spec.ts` | TC-24-20, 21 | `TS2307 Cannot find module './index'` và `'@common/events'`; TC-24-20 xanh sẵn vì schema vốn đã khớp kiểu (rào chắn chống lệch về sau) | `UT src/common/events` | `feat(events): public index and type-schema sync check` (`6be4d49`) |
+| 8. Script lái | mới: `test/support/events-driver.ts` (mục `table`) | không có TC; kiểm bằng M-24-01…03 | không áp dụng | `npx ts-node -r tsconfig-paths/register test/support/events-driver.ts` chạy được | `test(events): manual-test driver for @common/events` (`47edf1e`) |
+| 9. Kiểm tra tự động toàn bộ | không sửa file | cả bộ | không áp dụng | `npm run lint:check && npm run typecheck && npm test && npm run test:e2e`; không có `.skip`, `.only`, `.todo`; phá code có chủ ý vài lần (bỏ ưu tiên gộp, cho `+00:00` qua, bỏ luật `DEPOSIT`) để chắc test đỏ | không phải sửa gì (lint sạch; các lỗi lint và kiểu nhỏ ở bước 2, 4, 5, 6 sửa trước khi commit từng bước) |
+| 10. Test thủ công (4c) | `docs/features/screenshots/DBS-24/manual-test.txt` (dòng đầu là SHA commit cuối đổi code), ảnh `01…0N-*.png` | M-24-01…05 | không áp dụng | theo §5; không cần Docker | `docs(features): DBS-24 manual test evidence` (`9e1c7c5`) |
 | 11. Tài liệu (Phase 5) | [`event-contract.md`](../components/_shared/event-contract.md) (5 chỗ ở §3); [`threat-model.md`](../security/threat-model.md) T9 (thêm DBS-24 vào bằng chứng, giữ *Thiết kế*); `docs/BACKLOG.md` (sửa BL-002, thêm một câu vào BL-003, thêm DBS-24 vào nguồn BL-001, thêm BL-010 và BL-011); `docs/features/README.md`; feature doc §8, §9 | TC-24-24 (quy trình), `check-doc-links.mjs` | không áp dụng | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs: DBS-24 event contract, threat model, backlog` |
 
 **Sweep (đã chạy):** mỗi DoD bullet và mỗi giới hạn nêu trong tài liệu có một dòng kế hoạch hoặc một dòng "ngoài phạm vi".
@@ -326,8 +326,75 @@ Mọi bước theo thứ tự test trước: viết test, chạy, thấy **đỏ
 
 ## 8. Kết quả
 
-(Phase 4–5)
+- **Lệnh kiểm tra** (từ `backend/` của worktree DBS-24, trên commit cuối đổi code `47edf1e`, nhánh từ `origin/main` `4dae992`, 2026-10-19):
+
+```text
+npm run lint:check   sạch
+npm run typecheck    sạch
+npm test             Test Suites: 23 passed, 23 total · Tests: 349 passed, 349 total   (baseline 19/201: +4 suite, +148 test)
+npm run test:e2e     Test Suites: 4 passed, 4 total · Tests: 25 passed, 25 total       (không đổi)
+```
+
+  Không chạy `test:db` và không bật Docker: task không chạm DB. 0 skipped, 0 todo; không có `.skip`, `.only`, `.todo` trong test của task (`grep` chỉ khớp chuỗi `'any.only'`, là tên lỗi của `joi`). Ngoài ra mình phá code có chủ ý tám lần: bỏ bước gộp một lỗi mỗi `path`, cho `+00:00` qua, bỏ luật `DEPOSIT`, bỏ cấm `reason`, nhận uuid chữ hoa, trả bản sao thay vì object đầu vào, chạy luật liên trường cả khi `type` sai, nhận tiền bằng `0`: cả tám lần test đều đỏ (6, 8, 3, 2, 22, 2, 5, 3 test), rồi hoàn nguyên. (Lần thử đầu của đột biến "bỏ luật `DEPOSIT`" làm bộ test không biên dịch nên không có giá trị; thử lại bằng cách bỏ lời gọi hàm.)
+- **Đối chiếu test case** (23 test tự động đạt đủ độ sâu, 0 đơn giản hóa; 1 quy trình chưa kiểm được):
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-24-01, 02, 03 | `src/common/events/validate-event.spec.ts` › `TC-24-01`, `TC-24-02`, `TC-24-03` | đạt |
+| TC-24-04 | `validate-event.spec.ts` › `TC-24-04 a missing field in the %s sample` (46 ca: mọi trường của bốn mẫu) | đạt |
+| TC-24-05 | `validate-event.spec.ts` › `TC-24-05 a wrong JSON type in the %s sample` (42 ca) | đạt |
+| TC-24-06 | `validate-event.spec.ts` › `TC-24-06 a malformed uuid in the %s sample` (24 ca) và ca id `funding` | đạt |
+| TC-24-07, 08, 09 | `validate-event.spec.ts` › `TC-24-07`, `TC-24-08`, `TC-24-09 a time field of the %s sample` (8 ca) | đạt |
+| TC-24-10 | `validate-event.spec.ts` › `TC-24-10 a value outside an enum…` | đạt |
+| TC-24-11 | `validate-event.spec.ts` › bốn ca `TC-24-11` (`DEPOSIT`, kiểm kiểu trước, `TRANSFER`, `type` sai) | đạt |
+| TC-24-12, 13, 14, 15, 16 | `validate-event.spec.ts` › `TC-24-12`, `TC-24-13`, `TC-24-14`, `TC-24-15` (gồm object khác realm), `TC-24-16` | đạt |
+| TC-24-17, 18 | `validate-event.spec.ts` › hai ca `TC-24-17` (`__proto__`, `message` không lặp giá trị) và hai ca `TC-24-18` (`assertEvent`, `InvalidEventError`) | đạt |
+| TC-24-19 | `src/common/events/event-types.spec.ts` (3 ca: kiểm biên dịch, `switch` thu hẹp kiểu, `EVENT_TYPES`) | đạt: mọi dòng `@ts-expect-error` đã được thấy là lỗi biên dịch thật |
+| TC-24-20 | `src/common/events/event-schemas.spec.ts` | đạt (nửa biên dịch là `satisfies Record<keyof T, …>`, M-24-04 minh họa) |
+| TC-24-21 | `src/common/events/index.spec.ts` (3 ca) | đạt |
+| TC-24-22, 23 | `validate-event.spec.ts` › `TC-24-22`, `TC-24-23` | đạt |
+| TC-24-24 | PR merge, CI xanh, Dev review, bảng "Đối chiếu test case" | **chưa kiểm được**: repo chưa có CI (BL-001); chờ Dev review |
+
+- **Test thủ công** (trên `47edf1e`; SHA ở dòng đầu [manual-test.txt](screenshots/DBS-24/manual-test.txt); không có bước "chưa chạy"):
+
+| Bước | Kết quả | Ghi chú |
+|---|---|---|
+| M-24-01 | **đạt** | bốn mẫu hợp lệ (`TRANSFER`, `DEPOSIT` có `fromUserId: null` và `fromBalanceBefore` âm, `AccountStatusChanged` `LOCKED` và `ACTIVE`) đều `ok: true`, cả khi đi một vòng `JSON.stringify` rồi `JSON.parse`; `amount` `"9007199254740993"` giữ nguyên chữ số |
+| M-24-02 | **đạt** | 17 payload sai, mỗi `path` một lỗi đúng như §2: `amount` thiếu → `MISSING_FIELD`, số `500000` → `WRONG_TYPE`, `"01"` và `"0"` → `INVALID_FORMAT`; `+07:00`, `2026-02-30`, uuid chữ hoa → `INVALID_FORMAT`; `eventType` lạ → `UNKNOWN_EVENT_TYPE`; `type: 5` → `WRONG_TYPE`, `"WITHDRAWAL"` → `NOT_ALLOWED`; `DEPOSIT` có chủ → `NOT_ALLOWED`; `TRANSFER` với `fromUserId: null` → `WRONG_TYPE`; ba lỗi cùng lúc ra đủ ba; chuỗi JSON thô, `null`, `Date` → `NOT_AN_OBJECT` |
+| M-24-03 | **đạt** | trường lạ `riskScore` qua và còn trong kết quả; `reason` trên `AccountStatusChanged` → `NOT_ALLOWED` |
+| M-24-04 | **đạt** | `tsc` thoát mã 2 với đúng 4 lỗi `TS2322` ở dòng 10, 13, 16, 19 của tệp tạm (`amount` số, thiếu trường, `DEPOSIT` với `fromUserId` chuỗi, `eventType: "Other"`), `TS5009` có mặt: 0 |
+| M-24-05 | **đạt** | build thoát 0; `require("../money")` trong `dist/common/events/event-schemas.js` (alias đã viết lại); `validateEvent({}).ok` in `false`; grep alias còn sót in `none`. Lệnh `grep -n "common/money"` đầu tiên không ra gì (xem Lệch) |
+
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` (số liệu ở cuối mục này) khớp danh sách ở §7, không có file lạ.
+
+DIFFSTAT_PLACEHOLDER
+
+- **Ảnh chụp** (`docs/features/screenshots/DBS-24/`; kết quả Jest gộp các ca cùng `TC` thành một dòng, nêu ở tiêu đề ảnh):
+
+![M-24-01: sự kiện hợp lệ, vừa dựng và sau một vòng JSON](screenshots/DBS-24/01-valid-events.png)
+
+![M-24-02: sự kiện sai, mỗi path một lỗi](screenshots/DBS-24/02-rejected-events.png)
+
+![M-24-03: trường lạ được giữ, reason bị cấm](screenshots/DBS-24/03-forward-compat.png)
+
+![M-24-04: tsc từ chối đúng bốn dòng cố ý sai](screenshots/DBS-24/04-compile-errors.png)
+
+![M-24-05: build và alias được viết lại](screenshots/DBS-24/05-build.png)
+
+![Test của task: kết quả Jest](screenshots/DBS-24/06-tests.png)
+
+- **Lệch so với kế hoạch** (cần người duyệt chấp nhận ở G4):
+  1. **Cách kiểm "object thuần" (§2.1).** Bản đã duyệt nói "prototype là `Object.prototype` hoặc `null`". Bước 2 cho thấy cách đó từ chối nhầm object tạo ở realm khác (`structuredClone` trong Jest, `vm`, worker), vì `Object.prototype` của realm đó là một đối tượng khác. Đã đổi thành "prototype là prototype gốc (không còn prototype nào) hoặc `null`, và `Object.prototype.toString` ra `[object Object]`"; TC-24-15 thêm ca object khác realm; §2.1 đã sửa. Ý của quy tắc (chỉ nhận object thuần, từ chối `Date`, `Map`, mảng, instance của lớp) không đổi.
+  2. **Lệnh `grep` của M-24-05.** Script có thêm `grep -n "common/money" dist/common/events/event-schemas.js` và nó không ra gì, vì `nest build` viết lại alias thành `../money`. Mình chạy thêm `grep -n "money"` cho thấy `require("../money")`; cả hai output giữ trong `manual-test.txt`, §5 đã sửa. Chỉ đổi cách kiểm, không bỏ ca nào, không đổi code.
+  3. **Worktree riêng.** Task làm trong git worktree `F:\Cloud Application\digital-banking-simulator-dbs24` (`node_modules` nối bằng junction, không đưa vào repo), vì thư mục chính bị một phiên khác chuyển sang nhánh `infra/DBS-35-ci-github-actions`. Không ảnh hưởng code hay PR.
+  4. Ngoài kế hoạch nhưng không thêm file: tám lần phá code có chủ ý (ở trên).
+- **Bàn giao cho vai khác:** [BL-001](../BACKLOG.md) (thêm DBS-24 vào nguồn: DoD #4 "CI xanh" chưa kiểm được); **BL-002** sửa lời (contract và schema đã xong ở đây; còn việc của task nạp tiền: `fromUserId: null`, `formatBalance`, `toISOString()`, id chữ thường); **BL-003** thêm một câu (`assertEvent` ném khi chuyển vào hoặc ra SYSTEM chưa bị chặn); **BL-010** (chính sách consumer với `UNKNOWN_EVENT_TYPE`, JSON hỏng vào DLQ); **BL-011** (`OutboxWriter.add` gọi `assertEvent`, đóng khi lỗi).
 
 ## 9. Tài liệu đã cập nhật
 
-(Phase 5)
+- [`event-contract`](../components/_shared/event-contract.md): `fromUserId` là uuid hoặc `null` (null khi `DEPOSIT`), `sameOwner` `false` khi `DEPOSIT`, `fromBalanceBefore` có dấu (âm khi nguồn là `funding`), `amount` > 0, thời gian UTC có `Z`, uuid chữ thường, mục mới "Định dạng", consumer chấp nhận trường lạ, `AccountStatusChanged` không có `reason`, link tới `@common/events`; đầu file cập nhật.
+- [`threat-model`](../security/threat-model.md): T9 thêm DBS-24 vào cột bằng chứng (trạng thái giữ *Thiết kế* vì chưa có consumer); đầu file cập nhật ngày.
+- [`docs/BACKLOG.md`](../BACKLOG.md): **thêm** BL-010, BL-011; **sửa** BL-001 (thêm nguồn DBS-24), BL-002 (còn phần task nạp tiền), BL-003 (một câu về `assertEvent`). Không xóa dòng nào: BL-002 mới được xử lý một phần.
+- [`docs/features/README.md`](README.md): thêm hàng DBS-24 (trạng thái chuyển thành *Implemented* sau khi G4 được duyệt).
+- `check-doc-links.mjs`: sạch.
+- Không sửa: docs/03 §10 (ví dụ JSON là `TRANSFER` và vẫn hợp lệ), ADR, `CONTRIBUTING.md`, README module, `module-notes.md`.
