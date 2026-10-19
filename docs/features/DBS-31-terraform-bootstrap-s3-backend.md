@@ -139,12 +139,12 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
 
 | Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
-| 1 | `bootstrap/versions.tf`, `variables.tf` (`account_id` + validation 12 chữ số), `tests/bootstrap.tftest.hcl` (khung) | TC-31-11 | | `terraform test -filter=tests/bootstrap.tftest.hcl` | `chore(infra): bootstrap terraform scaffold` |
-| 2 | `bootstrap/main.tf` (bucket, versioning, SSE, public access block, ownership), `outputs.tf` | TC-31-01, 02, 03, 05, 06, 08 | | `terraform test` | `chore(infra): s3 state bucket with versioning, encryption, access block` |
-| 3 | `main.tf` (policy deny non-TLS, lifecycle) | TC-31-04, 07 | | `terraform test` | `chore(infra): deny insecure transport and lifecycle for state bucket` |
-| 4 | `bootstrap/backend.tf`, `backend.hcl.example`, `.gitignore` (`backend.hcl`) | TC-31-09, 10 (script grep) | | `grep` theo TC; `terraform init -backend=false && terraform validate` | `chore(infra): s3 backend with native lockfile` |
-| 5 | `infra/terraform/README.md` (cây thư mục, tag, key state, quy trình bootstrap, ghi chú bảo mật) | TC-31-12 (grep) | | grep theo TC-31-12 | `docs(infra): terraform conventions and bootstrap runbook` |
-| 6 | `.terraform.lock.hcl` (bootstrap), `fmt` | TC-31-13 | | `terraform fmt -check -recursive && terraform validate && terraform test` | `chore(infra): commit provider lock file` |
+| 1 | `bootstrap/versions.tf`, `variables.tf` (`account_id` + validation 12 chữ số), `tests/bootstrap.tftest.hcl` (khung) | TC-31-11 | `unknown provider aws` (chưa có cấu hình), 0 passed | `terraform test -filter=tests/bootstrap.tftest.hcl` | `chore(infra): bootstrap terraform scaffold` |
+| 2 | `bootstrap/main.tf` (bucket, versioning, SSE, public access block, ownership), `outputs.tf` | TC-31-01, 02, 03, 05, 06, 08 | `aws_s3_bucket.state` chưa khai báo: 1 passed, 1 failed, 5 skipped | `terraform test` | `chore(infra): s3 state bucket with versioning, encryption, access block` |
+| 3 | `main.tf` (policy deny non-TLS, lifecycle) | TC-31-04, 07 | `aws_s3_bucket_policy.state` chưa khai báo: 7 passed, 1 failed, 1 skipped | `terraform test` | `chore(infra): deny insecure transport and lifecycle for state bucket` |
+| 4 | `bootstrap/backend.tf`, `backend.hcl.example`, `.gitignore` (`backend.hcl`) | TC-31-09, 10 (script grep) | grep `backend.tf` exit 2 (file chưa có) | `grep` theo TC; `terraform init -backend=false && terraform validate` | `chore(infra): s3 backend with native lockfile` |
+| 5 | `infra/terraform/README.md` (cây thư mục, tag, key state, quy trình bootstrap, ghi chú bảo mật) | TC-31-12 (grep) | 6 từ khóa thiếu trong README | grep theo TC-31-12 | `docs(infra): terraform conventions and bootstrap runbook` |
+| 6 | `.terraform.lock.hcl` (bootstrap), `fmt` | TC-31-13 | không đỏ (kiểm tra tĩnh); thêm hash 5 nền tảng cho lock file | `terraform fmt -check -recursive && terraform validate && terraform test` | `chore(infra): commit provider lock file` |
 | 7 | Chỉ khi bạn báo xong: chạy M-31-00…08 trên AWS cùng bạn, ảnh chụp, §8, `docs/features/README.md`, BACKLOG, `check-doc-links.mjs` | M-31-xx | | theo §5 | `docs(features): DBS-31 results` |
 
 **Rủi ro và cách lùi:** mọi bước 1–6 là file cục bộ, `git revert` được. Bước 7 tạo bucket thật nhưng có `prevent_destroy`; nếu lỗi giữa chừng trước khi migrate thì xóa bucket bằng tay (còn rỗng) rồi làm lại. Không có chi phí đáng kể (S3 vài MB).
