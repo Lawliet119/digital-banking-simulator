@@ -1,6 +1,6 @@
 # DBS-35 · GitHub Actions CI: lint → typecheck → unit → build trên mỗi PR
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `infra/DBS-35-ci-github-actions` · **PR:** — · **Cập nhật:** 2026-10-19
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `infra/DBS-35-ci-github-actions` · **PR:** — · **Cập nhật:** 2026-10-19
 
 ## 1. Bối cảnh
 
