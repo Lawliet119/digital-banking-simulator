@@ -1,6 +1,6 @@
 # DBS-24 · Type TypeScript dùng chung cho event trong common/events + test schema
 
-> **Status:** Draft · **Vai:** Dev · **Nhánh:** `feat/DBS-24-common-events` · **PR:** — · **Cập nhật:** 2026-10-19
+> **Status:** Design approved · **Vai:** Dev · **Nhánh:** `feat/DBS-24-common-events` · **PR:** — · **Cập nhật:** 2026-10-19
 
 ## 1. Bối cảnh
 
@@ -274,11 +274,55 @@ Loại "thư viện chưa có người gọi" (`task-kinds.md`): một **script 
 
 **Tổng kết:** 4 vòng, 18 phát hiện (blocking 0, should-fix 6, minor 12). Đã sửa hoặc chuyển bàn giao hết, trừ #8 vòng 1 (cố ý không kiểm trạng thái bất khả, có TC-24-22 ghim) và hai điểm để G2 chốt (thắt chặt contract thời gian và uuid, cấm `reason`). Verdict cuối: **APPROVE**.
 
-**Quyết định ở G2:** (điền sau khi được duyệt)
+**Quyết định ở G2 (2026-10-19):** người duyệt trả lời «ok chốt 1-5». Mình hiểu là chấp nhận đề xuất của cả 5 câu (không có lựa chọn nào khác được nêu trong tin nhắn). Hệ quả: (1) siết contract: thời gian UTC có `Z`, uuid chữ thường dạng chuẩn, sửa `event-contract.md` trong cùng PR; (2) giữ luật cấm `reason` trên `AccountStatusChanged` như một dây chăng; (3) có `assertEvent` bên cạnh `validateEvent`; (4) `TransferCompleted` là kiểu hợp phân biệt theo `type`, mọi trường mới đặt ở phần chung; (5) chính sách của consumer với `UNKNOWN_EVENT_TYPE` là bàn giao, không quyết ở đây. Ghi chú môi trường: nhánh này làm trong git worktree riêng `F:\Cloud Application\digital-banking-simulator-dbs24` vì thư mục chính đã bị chuyển sang nhánh `infra/DBS-35-ci-github-actions` bởi một phiên khác.
 
 ## 7. Kế hoạch triển khai
 
-(Phase 3)
+Mọi bước theo thứ tự test trước: viết test, chạy, thấy **đỏ vì đúng lý do**, viết code tối thiểu, chạy xanh, dọn, commit (cuối commit có dòng `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`). Task thuần thư viện nên không có migration, service, audit hay outbox. Lệnh chạy từ `backend/` của worktree DBS-24; `UT` = `npx jest --config ./test/jest-unit.js`. Các bước chia theo nhóm hành vi để mỗi nhóm test thật sự đỏ trước khi có code của nhóm đó: bước 2 chỉ cho phép trường có mặt và kiểu `any`, nên các ca về kiểu, định dạng và liên trường đỏ ở các bước sau.
+
+| Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 0. Môi trường | worktree DBS-24: nối `backend/node_modules` về `node_modules` của repo chính bằng junction (không chạy `npm ci`, không commit gì) | không có | không áp dụng | `npm run typecheck` chạy được trong worktree | không có |
+| 1. Kiểu | mới: `src/common/events/event-types.ts`, `event-types.spec.ts`, `test/support/event-samples.ts` (mẫu `TRANSFER`, `DEPOSIT`, `AccountStatusChanged`) | TC-24-19 (kiểm biên dịch: `@ts-expect-error`, `switch` thu hẹp kiểu) | (điền) | `UT src/common/events/event-types.spec.ts` rồi `npm run typecheck` | `feat(events): event types for TransferCompleted and AccountStatusChanged` |
+| 2. Hợp lệ, phong bì, thiếu trường | mới: `validate-event.ts`, `event-schemas.ts` (schema `Record<keyof T, Joi.Schema>`, mới chỉ buộc có mặt), `validate-event.spec.ts` | TC-24-01, 02, 03, 04, 12, 14, 15 | (điền) | `UT src/common/events/validate-event.spec.ts` | `feat(events): validateEvent for valid events, envelope and missing fields` |
+| 3. Kiểu và một lỗi mỗi `path` | sửa: `event-schemas.ts`, `validate-event.ts` (kiểu cơ sở, ánh xạ `joi` sang `code`, gộp theo ưu tiên) | TC-24-05, 10, 16, 23 | (điền) | `UT src/common/events/validate-event.spec.ts` | `feat(events): type checks and one issue per path` |
+| 4. Định dạng | sửa: `event-schemas.ts` (uuid chữ thường, tiền qua `parsePositiveMoney` và `parseBalance`, thời gian UTC có `Z` kiểm lịch thật) | TC-24-06, 07, 08, 09 | (điền) | `UT src/common/events/validate-event.spec.ts` | `feat(events): uuid, money and UTC time formats` |
+| 5. Liên trường và cấm `reason` | sửa: `validate-event.ts` (bước (4) chỉ khi `type` hợp lệ), `event-schemas.ts` (`reason` bị cấm) | TC-24-11, 13, 22 | (điền) | `UT src/common/events/validate-event.spec.ts` | `feat(events): DEPOSIT rules and forbidden reason` |
+| 6. An toàn và `assertEvent` | sửa: `validate-event.ts` (`message` dựng từ `code`, `InvalidEventError`, `assertEvent`) | TC-24-17, 18 | (điền) | `UT src/common/events/validate-event.spec.ts` | `feat(events): safe messages and assertEvent` |
+| 7. Cửa vào và đồng bộ kiểu, schema | mới: `index.ts`, `event-schemas.spec.ts`, `index.spec.ts` | TC-24-20, 21 | (điền) | `UT src/common/events` | `feat(events): public index and type-schema sync check` |
+| 8. Script lái | mới: `test/support/events-driver.ts` (mục `table`) | không có TC; kiểm bằng M-24-01…03 | không áp dụng | `npx ts-node -r tsconfig-paths/register test/support/events-driver.ts` chạy được | `test(events): manual-test driver for @common/events` |
+| 9. Kiểm tra tự động toàn bộ | không sửa file | cả bộ | không áp dụng | `npm run lint:check && npm run typecheck && npm test && npm run test:e2e`; không có `.skip`, `.only`, `.todo`; phá code có chủ ý vài lần (bỏ ưu tiên gộp, cho `+00:00` qua, bỏ luật `DEPOSIT`) để chắc test đỏ | nếu phải sửa lint thì commit riêng `fix(events): …` |
+| 10. Test thủ công (4c) | `docs/features/screenshots/DBS-24/manual-test.txt` (dòng đầu là SHA commit cuối đổi code), ảnh `01…0N-*.png` | M-24-01…05 | không áp dụng | theo §5; không cần Docker | `docs(features): DBS-24 manual test evidence` |
+| 11. Tài liệu (Phase 5) | [`event-contract.md`](../components/_shared/event-contract.md) (5 chỗ ở §3); [`threat-model.md`](../security/threat-model.md) T9 (thêm DBS-24 vào bằng chứng, giữ *Thiết kế*); `docs/BACKLOG.md` (sửa BL-002, thêm một câu vào BL-003, thêm DBS-24 vào nguồn BL-001, thêm BL-010 và BL-011); `docs/features/README.md`; feature doc §8, §9 | TC-24-24 (quy trình), `check-doc-links.mjs` | không áp dụng | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs: DBS-24 event contract, threat model, backlog` |
+
+**Sweep (đã chạy):** mỗi DoD bullet và mỗi giới hạn nêu trong tài liệu có một dòng kế hoạch hoặc một dòng "ngoài phạm vi".
+
+| Nguồn | Xử lý |
+|---|---|
+| DoD #1 (kiểu cho `TransferCompleted`, `AccountStatusChanged`, export qua index) | bước 1, 7 (TC-24-19, 21) |
+| DoD #1 "và `TransferRejected` nếu bật" | ngoài phạm vi: contract chốt không phát ở v1 (G1 câu 5) |
+| DoD #2 (hàm kiểm tra `unknown`; mẫu hợp lệ qua, thiếu trường hay sai kiểu bị từ chối với lỗi rõ) | bước 2 đến 6 (TC-24-01…18, 22, 23) |
+| DoD #3 (tiền là chuỗi, thời gian ISO-8601 UTC) | bước 4 (TC-24-07, 08, 09) |
+| DoD #4 (merge, CI xanh, Dev review, bảng đối chiếu) | quy trình: chưa kiểm được "CI xanh" (BL-001); bảng đối chiếu điền ở PR |
+| event-contract: `fromUserId` null khi `DEPOSIT`, `fromBalanceBefore` có dấu, thời gian UTC có `Z`, uuid chữ thường, trường lạ, không `reason` | bước 11 (sửa contract); schema ở bước 2 đến 5 |
+| BL-002 (phần event contract) | xử lý một phần ở bước 11: sửa lời, giữ phần producer nạp tiền (DBS-60) |
+| BL-003 (SYSTEM) | bước 11: thêm một câu về `assertEvent` trong transaction |
+| BL-001 | bước 11: thêm DBS-24 vào nguồn |
+| threat-model T9 (message giả hoặc hỏng) | bước 11: thêm DBS-24 vào bằng chứng, giữ *Thiết kế* vì chưa có consumer |
+| Bàn giao: chính sách consumer với `UNKNOWN_EVENT_TYPE`, `JSON.parse` lỗi vào DLQ, dùng `code` không dùng `message` | bước 11: **BL-010** mới |
+| Bàn giao: `OutboxWriter.add` gọi `assertEvent` trong transaction, đóng khi lỗi | bước 11: **BL-011** mới |
+| Bàn giao: task nạp tiền (DBS-60) phát `fromUserId: null`, `fromBalanceBefore` bằng `formatBalance`, thời gian bằng `toISOString()` | giữ trong BL-002 (sửa lời) |
+| docs/03 §10 (ví dụ JSON) | không sửa: ví dụ là `TRANSFER` và vẫn hợp lệ theo quy tắc mới |
+| `CONTRIBUTING.md`, ADR, README module, `module-notes.md` | không sửa: quy tắc không đổi |
+
+**Rủi ro và cách lùi:**
+- *Siết contract (thời gian UTC có `Z`, uuid chữ thường) có thể làm một producer tương lai bị từ chối.* Chưa có producer hay consumer nào, nên không ảnh hưởng chạy thật; ghi rõ trong contract và BL-002. Lùi: nới regex trong `event-schemas.ts` và sửa lại contract.
+- *`joi` phát nhiều lỗi cho cùng một trường, chính sách gộp theo ưu tiên.* Đã kiểm trên `joi` 18.2.9 qua 4 vòng review; test TC-24-04, 05, 11, 23 chạy trên mọi trường của mọi mẫu. Lùi: viết tay phần phân loại, thư viện vẫn giữ API.
+- *Kiểu hợp phân biệt (`Record<keyof T>` chỉ thấy khóa chung) bỏ sót trường chỉ nằm ở một nhánh.* Quy ước: mọi trường mới đặt ở phần chung (ghi ở §3).
+- *Worktree dùng chung `node_modules` của repo chính.* Nếu phiên DBS-35 đổi `package.json`, bản nối có thể lệch; mình báo ngay nếu thấy lỗi lạ khi chạy.
+- *Thư mục chính bị phiên khác dùng.* Mọi lệnh của task này chạy trong `...-dbs24`; mình sẽ kiểm `git branch --show-current` trước mỗi commit.
+
+**Quyết định ở G3:** (điền sau khi được duyệt)
 
 ## 8. Kết quả
 
