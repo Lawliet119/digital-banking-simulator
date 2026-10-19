@@ -103,3 +103,40 @@ run "outputs" {
     error_message = "region output wrong"
   }
 }
+
+# TC-31-04: chặn truy cập không TLS
+run "denies_insecure_transport" {
+  command = apply
+
+  assert {
+    condition = anytrue([
+      for s in jsondecode(aws_s3_bucket_policy.state.policy).Statement :
+      s.Effect == "Deny" &&
+      s.Action == "s3:*" &&
+      s.Condition.Bool["aws:SecureTransport"] == "false" &&
+      contains(s.Resource, aws_s3_bucket.state.arn) &&
+      contains(s.Resource, "${aws_s3_bucket.state.arn}/*")
+    ])
+    error_message = "policy must deny s3:* over non-TLS on bucket and objects"
+  }
+}
+
+# TC-31-07: lifecycle
+run "lifecycle_rules" {
+  command = apply
+
+  assert {
+    condition     = one(aws_s3_bucket_lifecycle_configuration.state.rule).noncurrent_version_expiration[0].noncurrent_days == 90
+    error_message = "noncurrent versions must expire after 90 days"
+  }
+
+  assert {
+    condition     = one(aws_s3_bucket_lifecycle_configuration.state.rule).abort_incomplete_multipart_upload[0].days_after_initiation == 7
+    error_message = "incomplete multipart uploads must abort after 7 days"
+  }
+
+  assert {
+    condition     = one(aws_s3_bucket_lifecycle_configuration.state.rule).expiration[0].expired_object_delete_marker == true
+    error_message = "expired delete markers must be removed"
+  }
+}
