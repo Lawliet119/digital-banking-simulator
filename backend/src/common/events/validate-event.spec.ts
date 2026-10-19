@@ -114,4 +114,66 @@ describe('validateEvent (DBS-24)', () => {
       true,
     );
   });
+
+  /** Values of the wrong JSON type for a field whose valid value is `value`. */
+  function wrongTypesFor(key: string, value: unknown): unknown[] {
+    if (typeof value === 'boolean') return ['true', 'false', 1, 0, null, {}];
+    if (value === null) return [5, true, {}, []]; // fromUserId of a DEPOSIT: null is the valid value
+    // `fromUserId: null` is a valid shape for the type check; the TRANSFER-needs-an-owner rule
+    // is a cross-field rule (TC-24-11).
+    const forString = [5, true, {}, ['x'], new Date(0)];
+    return key === 'fromUserId' ? forString : [...forString, null];
+  }
+
+  describe.each(Object.entries(VALID_SAMPLES))(
+    'TC-24-05 a wrong JSON type in the %s sample',
+    (_name, sample) => {
+      const keys = Object.keys(sample).filter(key => key !== 'eventType'); // eventType: TC-24-14
+      it.each(keys)('%s gives exactly one WRONG_TYPE at that path', key => {
+        const original = (sample as unknown as Record<string, unknown>)[key];
+        for (const wrong of wrongTypesFor(key, original)) {
+          const payload: Record<string, unknown> = { ...clone(sample), [key]: wrong };
+
+          expect(pairsOf(payload)).toEqual([[key, 'WRONG_TYPE']]);
+        }
+      });
+    },
+  );
+
+  it('TC-24-10 a value outside an enum is NOT_ALLOWED at that path, whatever its case', () => {
+    for (const sample of [TRANSFER_SAMPLE, DEPOSIT_SAMPLE]) {
+      for (const type of ['WITHDRAWAL', 'transfer', 'Deposit']) {
+        expect(pairsOf({ ...clone(sample), type })).toEqual([['type', 'NOT_ALLOWED']]);
+      }
+    }
+    for (const newStatus of ['FROZEN', 'active', 'locked', 'PENDING']) {
+      expect(pairsOf({ ...clone(ACCOUNT_LOCKED_SAMPLE), newStatus })).toEqual([
+        ['newStatus', 'NOT_ALLOWED'],
+      ]);
+    }
+  });
+
+  it('TC-24-16 reports every problem at once, one issue per path', () => {
+    const payload = { ...clone(TRANSFER_SAMPLE), amount: 5, sameOwner: 'x', toUserId: null };
+
+    expect(pairsOf(payload)).toEqual([
+      ['amount', 'WRONG_TYPE'],
+      ['sameOwner', 'WRONG_TYPE'],
+      ['toUserId', 'WRONG_TYPE'],
+    ]);
+  });
+
+  it('TC-24-23 a wrong TYPE on an enum field is WRONG_TYPE alone, never also NOT_ALLOWED', () => {
+    // joi reports both `any.only` and `string.base` for these; the issue list folds them to one.
+    for (const sample of [TRANSFER_SAMPLE, DEPOSIT_SAMPLE]) {
+      for (const type of [5, null]) {
+        expect(pairsOf({ ...clone(sample), type })).toEqual([['type', 'WRONG_TYPE']]);
+      }
+    }
+    for (const newStatus of [5, null, true]) {
+      expect(pairsOf({ ...clone(ACCOUNT_LOCKED_SAMPLE), newStatus })).toEqual([
+        ['newStatus', 'WRONG_TYPE'],
+      ]);
+    }
+  });
 });

@@ -59,10 +59,45 @@ const SCHEMAS = {
   AccountStatusChanged: Joi.object(accountStatusChangedFields),
 };
 
-/** `joi` error type to our code. Anything not listed becomes INVALID_FORMAT: never ignored. */
-function codeOf(joiType: string): EventIssueCode {
-  if (joiType === 'any.required') return 'MISSING_FIELD';
-  return 'INVALID_FORMAT';
+/**
+ * `joi` error type to our code, by EXACT name (`string.pattern.base` is a format problem even
+ * though it ends in `.base`). Anything not listed becomes INVALID_FORMAT: never ignored, and the
+ * function never throws on a type it has not met.
+ */
+const CODE_OF_JOI_TYPE: Readonly<Record<string, EventIssueCode>> = {
+  'any.required': 'MISSING_FIELD',
+  'string.base': 'WRONG_TYPE',
+  'boolean.base': 'WRONG_TYPE',
+  'string.empty': 'INVALID_FORMAT',
+  'string.pattern.base': 'INVALID_FORMAT',
+  'any.custom': 'INVALID_FORMAT',
+  'any.only': 'NOT_ALLOWED',
+  'any.unknown': 'NOT_ALLOWED',
+};
+
+const codeOf = (joiType: string): EventIssueCode => CODE_OF_JOI_TYPE[joiType] ?? 'INVALID_FORMAT';
+
+/**
+ * `joi` can report two problems for one field (`type: 5` is both "not in the list" and "not a
+ * string"). The list is meant to say ONE thing per field, and the most basic one wins: a missing
+ * field, then a wrong type, then a bad format, then a value that is not allowed.
+ */
+const PRIORITY: readonly EventIssueCode[] = [
+  'MISSING_FIELD',
+  'WRONG_TYPE',
+  'INVALID_FORMAT',
+  'NOT_ALLOWED',
+];
+
+function onePerPath(issues: EventIssue[]): EventIssue[] {
+  const best = new Map<string, EventIssue>();
+  for (const found of issues) {
+    const kept = best.get(found.path);
+    if (kept === undefined || PRIORITY.indexOf(found.code) < PRIORITY.indexOf(kept.code)) {
+      best.set(found.path, found);
+    }
+  }
+  return [...best.values()];
 }
 
 /**
@@ -90,8 +125,8 @@ export function validateEvent(payload: unknown): EventValidation {
     abortEarly: false,
   });
   if (error) {
-    const issues = error.details.map(detail => issue(detail.path.join('.'), codeOf(detail.type)));
-    return { ok: false, issues };
+    const found = error.details.map(detail => issue(detail.path.join('.'), codeOf(detail.type)));
+    return { ok: false, issues: onePerPath(found) };
   }
 
   return { ok: true, event: payload as unknown as DomainEvent };

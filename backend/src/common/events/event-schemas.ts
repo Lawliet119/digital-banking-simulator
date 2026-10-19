@@ -11,34 +11,36 @@ import type { AccountStatusChanged, TransferCompleted } from './event-types';
  * Internal to `@common/events`: callers use `validateEvent`, never `joi` directly.
  */
 
-/** Presence only for now; the kind of each field is tightened in the next steps of DBS-24. */
-const present = Joi.any().required();
+/** A required string. Its format (uuid, money, time) is tightened in the next steps of DBS-24. */
+const text = Joi.string().required();
 
 export const transferCompletedFields = {
-  eventId: present,
-  eventType: present,
-  occurredAt: present,
-  correlationId: present,
-  transferId: present,
-  type: present,
-  fromAccountId: present,
-  toAccountId: present,
-  amount: present,
-  fromBalanceBefore: present,
-  fromAccountCreatedAt: present,
-  toAccountCreatedAt: present,
-  sameOwner: present,
-  fromUserId: present,
-  toUserId: present,
+  eventId: text,
+  eventType: Joi.string().valid('TransferCompleted').required(),
+  occurredAt: text,
+  correlationId: text,
+  transferId: text,
+  type: Joi.string().valid('TRANSFER', 'DEPOSIT').required(),
+  fromAccountId: text,
+  toAccountId: text,
+  amount: text,
+  fromBalanceBefore: text,
+  fromAccountCreatedAt: text,
+  toAccountCreatedAt: text,
+  sameOwner: Joi.boolean().required(),
+  // uuid or null; null only means something for a DEPOSIT (a cross-field rule, applied later).
+  // Not Joi.alternatives(): its error type, `alternatives.types`, would hide a WRONG_TYPE.
+  fromUserId: Joi.string().allow(null).required(),
+  toUserId: text,
 } satisfies Record<keyof TransferCompleted, Joi.Schema>;
 
 export const accountStatusChangedFields = {
-  eventId: present,
-  eventType: present,
-  occurredAt: present,
-  correlationId: present,
-  accountId: present,
-  ownerUserId: present,
-  newStatus: present,
-  changedByUserId: present,
+  eventId: text,
+  eventType: Joi.string().valid('AccountStatusChanged').required(),
+  occurredAt: text,
+  correlationId: text,
+  accountId: text,
+  ownerUserId: text,
+  newStatus: Joi.string().valid('ACTIVE', 'LOCKED').required(),
+  changedByUserId: text,
 } satisfies Record<keyof AccountStatusChanged, Joi.Schema>;
