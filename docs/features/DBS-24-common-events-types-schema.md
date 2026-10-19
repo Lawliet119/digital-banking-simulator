@@ -1,6 +1,6 @@
 # DBS-24 · Type TypeScript dùng chung cho event trong common/events + test schema
 
-> **Status:** Design approved · **Vai:** Dev · **Nhánh:** `feat/DBS-24-common-events` · **PR:** — · **Cập nhật:** 2026-10-19
+> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-24-common-events` · **PR:** — · **Cập nhật:** 2026-10-19
 
 ## 1. Bối cảnh
 
@@ -322,7 +322,7 @@ Mọi bước theo thứ tự test trước: viết test, chạy, thấy **đỏ
 - *Worktree dùng chung `node_modules` của repo chính.* Nếu phiên DBS-35 đổi `package.json`, bản nối có thể lệch; mình báo ngay nếu thấy lỗi lạ khi chạy.
 - *Thư mục chính bị phiên khác dùng.* Mọi lệnh của task này chạy trong `...-dbs24`; mình sẽ kiểm `git branch --show-current` trước mỗi commit.
 
-**Quyết định ở G3:** (điền sau khi được duyệt)
+**Quyết định ở G3 (2026-10-19):** duyệt «duyệt G3», không sửa. Kế hoạch 12 bước giữ nguyên; không có file ngoài danh sách.
 
 ## 8. Kết quả
 
