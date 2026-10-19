@@ -53,7 +53,8 @@ assertEvent(payload: unknown): DomainEvent   // validateEvent, rồi ném Invali
 ```
 
 - `ok: true`: `event` là **chính object đầu vào** (không sao chép, không sửa), kiểu `DomainEvent`; trường lạ giữ nguyên.
-- `ok: false`: **mọi** lỗi cùng lúc, không dừng ở lỗi đầu. Mỗi lỗi có `path` (tên trường; `''` cho cả payload), `code` và `message` ngắn **không chép lại giá trị đã nhận** (giá trị có thể là rác dài từ queue và message lọt vào log hay DLQ).
+- `ok: false`: **mọi** lỗi cùng lúc, không dừng ở lỗi đầu, và mỗi `path` chỉ có **một** lỗi. Mỗi lỗi có `path` (tên trường; `''` cho cả payload), `code` và `message` ngắn **dựng từ `code`** (câu cố định): không chép lại giá trị đã nhận và không chuyển tiếp thông báo của `joi` (vài luật của `joi` chép lại giá trị; giá trị có thể là rác dài từ queue và message lọt vào log hay DLQ).
+- **Thứ tự kiểm tra:** (1) payload phải là object thuần (`typeof` là `object`, khác `null`, không phải mảng, prototype là `Object.prototype` hoặc `null`; `Date`, `Map` và instance của lớp bị từ chối), nếu không báo `NOT_AN_OBJECT` rồi dừng; (2) `eventType` chọn schema; (3) kiểm từng trường bằng `joi` với `convert: false` (không ép kiểu, nên `"true"` không thành boolean), `allowUnknown: true`, `abortEarly: false`; (4) luật liên trường của `DEPOSIT` (2.4), chỉ chạy cho trường đã qua bước 3; (5) gộp mỗi `path` về một lỗi (2.2).
 - `assertEvent` cho producer (kiểm trước khi ghi outbox): lỗi của producer là lỗi lập trình nên ném. Consumer dùng `validateEvent` để tự quyết (sai schema thì vào DLQ ngay, ADR-03).
 - Không có hàm đọc JSON: message SQS là chuỗi, adapter `libs/sqs` (task khác) tự `JSON.parse`. Chuỗi đưa vào đây bị từ chối `NOT_AN_OBJECT`.
 
@@ -61,7 +62,7 @@ assertEvent(payload: unknown): DomainEvent   // validateEvent, rồi ném Invali
 
 | `code` | Khi nào | `path` ví dụ |
 |---|---|---|
-| `NOT_AN_OBJECT` | payload là `null`, `undefined`, chuỗi (kể cả chuỗi JSON thô), số, boolean, mảng | `''` |
+| `NOT_AN_OBJECT` | payload là `null`, `undefined`, chuỗi (kể cả chuỗi JSON thô), số, boolean, mảng, `Date`, `Map` hay instance của lớp | `''` |
 | `UNKNOWN_EVENT_TYPE` | `eventType` là chuỗi nhưng không thuộc `TransferCompleted`, `AccountStatusChanged` (so khớp đúng chữ hoa, chữ thường) | `eventType` |
 | `MISSING_FIELD` | thiếu trường bắt buộc (không có khóa, hoặc `undefined`) | `amount` |
 | `WRONG_TYPE` | sai kiểu JSON: số thay chuỗi, chuỗi `"true"` thay boolean, `null` cho trường không cho null, object thay chuỗi | `amount` |
@@ -70,11 +71,15 @@ assertEvent(payload: unknown): DomainEvent   // validateEvent, rồi ném Invali
 
 `eventType` thiếu hoặc không phải chuỗi thì không chọn được schema: chỉ báo đúng một lỗi ở `eventType` (`MISSING_FIELD` hoặc `WRONG_TYPE`).
 
+**Ánh xạ từ `joi` sang `code`** (đã thử trên `joi` 18.2.9 với `convert: false`, `abortEarly: false`): `any.required` → `MISSING_FIELD`; mọi `*.base` (`string.base`, `boolean.base`) → `WRONG_TYPE`; `string.empty`, `string.pattern.base`, `any.custom` → `INVALID_FORMAT`; `any.only`, `object.unknown` (khóa bị cấm) → `NOT_ALLOWED`. `joi` có thể báo **hai** lỗi cho cùng một trường (ví dụ `type: 5` ra cả `any.only` lẫn `string.base`), nên mỗi `path` giữ một lỗi theo thứ tự ưu tiên `MISSING_FIELD`, `WRONG_TYPE`, `INVALID_FORMAT`, `NOT_ALLOWED`. Vậy `type: 5` hay `newStatus: null` cho đúng một lỗi `WRONG_TYPE`, không phải `NOT_ALLOWED`.
+
+**Chính sách của consumer với `UNKNOWN_EVENT_TYPE`** không nằm ở thư viện: thư viện chỉ phân loại. Khi triển khai cuốn chiếu (ADR-13), worker cũ có thể nhận loại sự kiện mới; consumer phải chọn có chủ ý giữa "xác nhận và ghi log" và "đẩy DLQ" (bàn giao ở §8). Mọi lỗi còn lại là sai schema: DLQ ngay, không retry (ADR-03).
+
 **2.3 `TransferCompleted`** (event-contract; mọi trường đều bắt buộc)
 
 | Trường | Quy tắc |
 |---|---|
-| `eventId`, `correlationId`, `transferId`, `fromAccountId`, `toAccountId`, `toUserId` | uuid (8-4-4-4-12 chữ số hex, chữ hoa chữ thường đều được). Chấp nhận cả id cố định của tài khoản `funding`, `00000000-0000-4000-8000-000000000001` |
+| `eventId`, `correlationId`, `transferId`, `fromAccountId`, `toAccountId`, `toUserId` | uuid dạng chuẩn **chữ thường**, đúng `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` (không ngoặc nhọn, không bỏ dấu gạch, không chữ hoa). Lý do: Postgres và `randomUUID()` sinh chữ thường, còn khóa Redis của luật gian lận (`risk:vel:{accountId}`, `risk:fan:{accountId}`, docs/03 R-3) là chuỗi thường nên uuid chữ hoa làm tách bộ đếm. Chấp nhận cả id cố định của tài khoản `funding`, `00000000-0000-4000-8000-000000000001` |
 | `eventType` | đúng `TransferCompleted` |
 | `occurredAt`, `fromAccountCreatedAt`, `toAccountCreatedAt` | thời gian ISO-8601 UTC (2.5) |
 | `type` | `TRANSFER` hoặc `DEPOSIT` (đúng chữ hoa) |
@@ -85,11 +90,11 @@ assertEvent(payload: unknown): DomainEvent   // validateEvent, rồi ném Invali
 
 **2.4 Nạp tiền và chuyển tiền** (BL-002, đã duyệt ở G1): nguồn của `DEPOSIT` là tài khoản SYSTEM không có chủ.
 
-- `type = DEPOSIT`: `fromUserId` **phải là `null`** và `sameOwner` **phải là `false`**; có uuid hay `true` thì báo `NOT_ALLOWED` ở trường đó; thiếu khóa báo `MISSING_FIELD`.
-- Mọi `type` khác (kể cả `TRANSFER` và giá trị sai): `fromUserId` phải là uuid (`null` báo `WRONG_TYPE`, thiếu báo `MISSING_FIELD`), `sameOwner` là boolean. Nên một `type` sai chỉ cho đúng một lỗi, ở `type`.
-- Không kiểm các ràng buộc liên trường khác (ví dụ `fromAccountId` khác `toAccountId`): đó là việc của cơ sở dữ liệu (`transfers_distinct_accounts`) và của producer.
+- **Kiểm kiểu trước, cho mọi `type`:** `fromUserId` là uuid hoặc `null`, `sameOwner` là boolean. Sai kiểu thì báo như mọi trường (`fromUserId: 5` hay `sameOwner: "true"` là `WRONG_TYPE`; thiếu khóa là `MISSING_FIELD`), kể cả khi là `DEPOSIT`.
+- **Luật liên trường** (chỉ chạy cho trường đã đúng kiểu): `type = DEPOSIT` thì `fromUserId` phải là `null` và `sameOwner` phải là `false`, vi phạm báo `NOT_ALLOWED` ở trường đó; mọi `type` khác (kể cả giá trị sai) thì `fromUserId` không được `null`, vi phạm báo `WRONG_TYPE`. Nên một `type` sai (ví dụ `"WITHDRAWAL"`) chỉ cho đúng một lỗi, ở `type`.
+- **Cố ý không kiểm:** (a) trạng thái bất khả như `TRANSFER` có `fromBalanceBefore` âm (BR-03, `accounts_balance_non_negative` giữ) hay `DEPOSIT` có `fromBalanceBefore` dương (ADR-09: `funding` luôn ≤ 0); contract không nói và đó là bất biến của dữ liệu, nên việc của producer và cơ sở dữ liệu. (b) Ràng buộc liên trường khác (ví dụ `fromAccountId` khác `toAccountId`, `transfers_distinct_accounts`).
 
-**2.5 Thời gian.** Chuỗi `YYYY-MM-DDTHH:mm:ss` + phần thập phân của giây (tùy chọn, 1 đến 9 chữ số) + `Z`. Ngày giờ phải **có thật**: tháng 1–12, ngày đúng theo tháng và năm nhuận, giờ 00–23, phút và giây 00–59. Từ chối: có offset (`+07:00`, cả `+00:00`), không có múi giờ, chỉ có ngày, dấu cách thay cho `T`, `2026-02-30T00:00:00Z`, `2026-10-17T24:00:00Z`, số epoch, đối tượng `Date`. Không dùng `Date.parse` để kiểm vì V8 chấp nhận `2026-02-30` (tự cuộn sang 2/3) và `24:00:00` (sang ngày sau). Producer tạo bằng `Date.prototype.toISOString()` (luôn có mili giây và `Z`); không nhét thẳng giá trị JSON của Postgres (`to_json` ra `+00:00`).
+**2.5 Thời gian.** Chuỗi `YYYY-MM-DDTHH:mm:ss` + phần thập phân của giây (tùy chọn, 1 đến 9 chữ số) + `Z`. Ngày giờ phải **có thật**: tháng 1–12, ngày đúng theo tháng và năm nhuận, giờ 00–23, phút và giây 00–59. Từ chối: có offset (`+07:00`, cả `+00:00`), không có múi giờ, chỉ có ngày, dấu cách thay cho `T`, `2026-02-30T00:00:00Z`, `2026-10-17T24:00:00Z`, số epoch, đối tượng `Date`. Không dùng `Date.parse` để kiểm vì V8 chấp nhận `2026-02-30` (tự cuộn sang 2/3) và `24:00:00` (sang ngày sau). Producer tạo bằng `Date.prototype.toISOString()` (luôn có mili giây và `Z`); không nhét thẳng giá trị JSON của Postgres (`to_json` ra `+00:00`). Quy tắc "UTC có `Z`" và "chữ thường" của uuid (2.3) **chặt hơn** chữ trong contract hiện nay (chỉ ghi "ISO-8601", "uuid"); đây là thay đổi contract cần chốt ở G2.
 
 **2.6 Tiền** (cùng quy tắc với `@common/money`, DBS-22): luôn là **chuỗi**, vì `JSON.parse` làm tròn số trên 2^53 trước khi code của ta thấy.
 
@@ -102,7 +107,7 @@ assertEvent(payload: unknown): DomainEvent   // validateEvent, rồi ném Invali
 | `"9223372036854775808"` | `INVALID_FORMAT` | `INVALID_FORMAT` |
 | số JSON `500000` (kể cả chính xác) | `WRONG_TYPE` | `WRONG_TYPE` |
 
-**2.7 `AccountStatusChanged`** (mọi trường bắt buộc): `eventId`, `correlationId`, `accountId`, `ownerUserId`, `changedByUserId` là uuid; `eventType` đúng `AccountStatusChanged`; `occurredAt` là thời gian ISO-8601 UTC; `newStatus` là `ACTIVE` hoặc `LOCKED`. Contract nói sự kiện **không mang lý do khóa** (lý do nằm ở `audit_log`, thông báo cho khách không bao giờ nêu lý do gian lận, BR-13): trường `reason`, nếu có, bị `NOT_ALLOWED`.
+**2.7 `AccountStatusChanged`** (mọi trường bắt buộc): `eventId`, `correlationId`, `accountId`, `ownerUserId`, `changedByUserId` là uuid; `eventType` đúng `AccountStatusChanged`; `occurredAt` là thời gian ISO-8601 UTC; `newStatus` là `ACTIVE` hoặc `LOCKED`. Contract nói sự kiện **không mang lý do khóa** (lý do nằm ở `audit_log`, thông báo cho khách không bao giờ nêu lý do gian lận, BR-13): trường `reason`, nếu có, bị `NOT_ALLOWED`. Đây là **dây chăng (tripwire)** chứ không phải biện pháp kiểm soát BR-13: tên khác như `lockReason` vẫn lọt qua luật trường lạ (2.8); biện pháp thật là mẫu thông báo của consumer không bao giờ in lý do, còn phía producer thì kiểm tra thuộc tính thừa của TypeScript đã chặn `reason` trong object literal. Cần người duyệt chốt ở G2 vì contract chỉ nói "không mang lý do khóa".
 
 **2.8 Trường lạ.** Contract chỉ cho **thêm** trường để giữ tương thích, nên consumer cũ gặp trường mới không được coi là sai. Mọi trường ngoài danh sách trên (trừ `reason` ở 2.7) được phép và giữ nguyên trong `event`.
 
@@ -144,13 +149,21 @@ Cùng payload nhưng `"amount": 300000` (số), `"fromUserId": "a7c2e4f1-0b93-4d
 
 ```ts
 export const EVENT_TYPES = { TransferCompleted: 'TransferCompleted', AccountStatusChanged: 'AccountStatusChanged' } as const;
-export type EventType = keyof typeof EVENT_TYPES;
-interface EventBase { eventId: string; eventType: EventType; occurredAt: string; correlationId: string }
+interface EventBase { eventId: string; occurredAt: string; correlationId: string }
+interface TransferCompletedCommon extends EventBase {
+  eventType: 'TransferCompleted';              // literal: DomainEvent phân biệt được theo eventType
+  /* transferId, fromAccountId, toAccountId, amount, fromBalanceBefore,
+     fromAccountCreatedAt, toAccountCreatedAt, toUserId */
+}
 export type TransferCompleted = TransferCompletedCommon & (
   | { type: 'TRANSFER'; fromUserId: string; sameOwner: boolean }
   | { type: 'DEPOSIT'; fromUserId: null; sameOwner: false });   // gõ sai luật DEPOSIT là lỗi biên dịch
-export interface AccountStatusChanged extends EventBase { /* accountId, ownerUserId, newStatus, changedByUserId */ }
+export interface AccountStatusChanged extends EventBase {
+  eventType: 'AccountStatusChanged';           // literal
+  /* accountId, ownerUserId, newStatus: 'ACTIVE' | 'LOCKED', changedByUserId */
+}
 export type DomainEvent = TransferCompleted | AccountStatusChanged;
+export type EventType = DomainEvent['eventType'];
 export type EventIssueCode = 'NOT_AN_OBJECT' | 'UNKNOWN_EVENT_TYPE' | 'MISSING_FIELD' | 'WRONG_TYPE' | 'INVALID_FORMAT' | 'NOT_ALLOWED';
 export interface EventIssue { path: string; code: EventIssueCode; message: string }
 export type EventValidation = { ok: true; event: DomainEvent } | { ok: false; issues: EventIssue[] };
@@ -159,7 +172,7 @@ export function validateEvent(payload: unknown): EventValidation;
 export function assertEvent(payload: unknown): DomainEvent;
 ```
 
-- **Vì sao "sai khác bị phát hiện lúc build hoặc test" (Expect):** (1) producer gõ object với kiểu `TransferCompleted`, nên thiếu trường, sai kiểu, `amount` là số hay `DEPOSIT` mang `fromUserId` là **lỗi biên dịch**; (2) mỗi schema khai theo kiểu `Record<keyof T, Joi.Schema>`, nên thêm trường vào kiểu mà quên schema là lỗi biên dịch; (3) payload mẫu gõ kiểu `T` được đưa qua `validateEvent` trong test, nên schema chặt hơn hay lỏng hơn kiểu thì test đỏ. `joi` không suy ra kiểu từ schema, nên kiểu viết tay là nguồn chuẩn.
+- **Vì sao "sai khác bị phát hiện lúc build hoặc test" (Expect):** (1) producer gõ object với kiểu `TransferCompleted`, nên thiếu trường, sai kiểu, `amount` là số hay `DEPOSIT` mang `fromUserId` là **lỗi biên dịch**; (2) mỗi schema khai theo kiểu `Record<keyof T, Joi.Schema>`, nên thêm trường vào kiểu mà quên schema là lỗi biên dịch (**giới hạn:** với `TransferCompleted`, `keyof` của hợp `A | B` chỉ thấy khóa chung của hai nhánh, nên **mọi trường mới phải đặt ở phần chung** `TransferCompletedCommon`; chỉ `type`, `fromUserId`, `sameOwner` được nằm riêng theo nhánh); (3) payload mẫu gõ kiểu `T` được đưa qua `validateEvent` trong test, nên schema chặt hơn hay lỏng hơn kiểu thì test đỏ. `joi` không suy ra kiểu từ schema, nên kiểu viết tay là nguồn chuẩn.
 - **Dùng:** `joi` (đã là dependency) và `@common/money` (`parsePositiveMoney`, `parseBalance`); `joi` là chi tiết nội bộ, schema không được export. Người gọi hiện tại: không có. Sau này: `OutboxWriter.add` (DBS-57) nhận `DomainEvent` và gọi `assertEvent`; relay (DBS-90) đọc `event.eventType` để định tuyến; consumer risk và notification gọi `validateEvent`, sai thì DLQ.
 - **Dữ liệu, transaction:** không chạm bảng nào, không có transaction.
 
@@ -169,10 +182,13 @@ flowchart LR
   O --> R[Relay] --> Q[[SQS]] --> A["Adapter libs/sqs<br/>JSON.parse"]
   A --> V{validateEvent}
   V -->|ok: true| C[Consumer xử lý]
-  V -->|ok: false| D[[DLQ ngay, không retry]]
+  V -->|"ok: false, UNKNOWN_EVENT_TYPE"| U["Consumer chọn: xác nhận và ghi log,<br/>hoặc DLQ (bàn giao)"]
+  V -->|ok: false, lỗi khác| D[[DLQ ngay, không retry]]
 ```
 
-- **Thay đổi cấp hệ thống:** [event-contract](../components/_shared/event-contract.md) trong cùng PR: `fromUserId` là `uuid` hoặc `null` (null khi `DEPOSIT`), `sameOwner = false` khi `DEPOSIT`, `fromBalanceBefore` có dấu (âm khi nguồn là `funding`), dạng thời gian (UTC có `Z`), consumer chấp nhận trường lạ, link tới `@common/events`. [threat-model](../security/threat-model.md) T9 (message giả hoặc hỏng): thêm DBS-24 vào cột bằng chứng, trạng thái giữ *Thiết kế* vì chưa có consumer. `docs/BACKLOG.md`: sửa BL-002 (bỏ phần task này đã làm, giữ phần producer nạp tiền), BL-001 thêm nguồn. `docs/features/README.md`. Không có ADR mới.
+- **Bàn giao cho người khác** (không sửa trong PR này, ghi ở §8): (1) task nạp tiền (DBS-60, phần còn lại của BL-002): phát `fromUserId: null` và `sameOwner: false`, dựng `fromBalanceBefore` bằng `formatBalance` (âm), dựng mọi thời gian bằng `Date#toISOString()`, không dùng đầu ra JSON của Postgres. (2) Chủ BL-003 (sync guard): chừng nào chuyển tiền vào hoặc ra tài khoản SYSTEM chưa bị từ chối bằng `ACCOUNT_NOT_ACTIVE`, một lệnh như vậy có `fromUserId` hoặc `toUserId` rỗng, và `assertEvent` trong `OutboxWriter.add` sẽ ném, rollback và trả 500 thay vì 422. (3) `OutboxWriter` (DBS-57): `assertEvent` ném **trong transaction nghiệp vụ**, nên một lỗi schema chặn mọi lệnh chuyển tiền (đóng khi lỗi, đúng chủ ý); cần ghi rõ ở đó. (4) Consumer risk và notification: chính sách cho `UNKNOWN_EVENT_TYPE`, xác nhận loại biết nhưng không xử lý, dùng `code` chứ không dùng `message`. (5) `libs/sqs`: `JSON.parse` lỗi đi thẳng DLQ, không bao giờ tới hàm kiểm tra.
+
+- **Thay đổi cấp hệ thống:** [event-contract](../components/_shared/event-contract.md) trong cùng PR: `fromUserId` là `uuid` hoặc `null` (null khi `DEPOSIT`), `sameOwner = false` khi `DEPOSIT`, `fromBalanceBefore` có dấu (âm khi nguồn là `funding`), dạng thời gian (UTC có `Z`), uuid chữ thường dạng chuẩn, consumer chấp nhận trường lạ, `AccountStatusChanged` không có `reason`, link tới `@common/events`. BL-003 thêm một câu về `assertEvent` (xem bàn giao). [threat-model](../security/threat-model.md) T9 (message giả hoặc hỏng): thêm DBS-24 vào cột bằng chứng, trạng thái giữ *Thiết kế* vì chưa có consumer. `docs/BACKLOG.md`: sửa BL-002 (bỏ phần task này đã làm, giữ phần producer nạp tiền), BL-001 thêm nguồn. `docs/features/README.md`. Không có ADR mới.
 
 ## 4. Test cases tự động
 
@@ -184,24 +200,26 @@ Tất cả **unit** (`npm test`, `*.spec.ts` cạnh file; không DB, không Dock
 | TC-24-02 | DoD #2 | mẫu `DEPOSIT` (`fromUserId: null`, `sameOwner: false`, `fromBalanceBefore: "-1000000"`, `fromAccountId` của `funding`) · `ok: true` | — |
 | TC-24-03 | DoD #1, #2 | `AccountStatusChanged` với `ACTIVE` và với `LOCKED` · `ok: true` | — |
 | TC-24-04 | DoD #2 | bỏ lần lượt từng trường của mỗi mẫu (cả `fromUserId` của `DEPOSIT`) · đúng 1 lỗi tại trường đó | `MISSING_FIELD` |
-| TC-24-05 | DoD #2 | đổi kiểu lần lượt từng trường (uuid thành số, tiền thành số, boolean thành `"true"`, thời gian thành số epoch, chuỗi thành `null`) · đúng 1 lỗi tại trường đó | `WRONG_TYPE` |
-| TC-24-06 | DoD #2 | mọi trường uuid nhận `"abc"`, `""`, thiếu một nhóm, ký tự `g`, chuỗi 100000 ký tự · `INVALID_FORMAT`; chuỗi dài xong ngay, `message` không chứa chuỗi đó | `INVALID_FORMAT` |
+| TC-24-05 | DoD #2 | đổi kiểu lần lượt **từng trường của mọi mẫu, `DEPOSIT` gồm cả `fromUserId` và `sameOwner`** (uuid thành số, tiền thành số, boolean thành `"true"`, thời gian thành số epoch, chuỗi thành `null`) · đúng 1 lỗi tại trường đó | `WRONG_TYPE` |
+| TC-24-06 | DoD #2 | mọi trường uuid nhận `"abc"`, `""`, thiếu một nhóm, ký tự `g`, **ngoặc nhọn quanh uuid hợp lệ, bỏ dấu gạch, chữ hoa**, chuỗi 100000 ký tự · `INVALID_FORMAT`; chuỗi dài xong ngay, `message` không chứa chuỗi đó | `INVALID_FORMAT` |
 | TC-24-07 | DoD #3 | `amount`: `"9007199254740993"`, `"9223372036854775807"` qua; `500000` (số) → `WRONG_TYPE`; `"0"`, `"-1"`, `"1.5"`, `"01"`, `" 1"`, `"9223372036854775808"` → `INVALID_FORMAT` | như cột |
 | TC-24-08 | DoD #3 | `fromBalanceBefore`: `"-1000000"`, `"0"`, `"-9223372036854775808"` qua; `"-0"`, `"1e3"`, `"9223372036854775808"` → `INVALID_FORMAT`; số → `WRONG_TYPE` | như cột |
 | TC-24-09 | DoD #3 | thời gian của cả ba trường: `…Z`, `….123Z`, `….123456Z`, `2028-02-29T00:00:00Z` qua; `+07:00`, `+00:00`, thiếu múi giờ, chỉ ngày, dấu cách, `2026-02-30T…Z`, `2026-02-29T…Z`, `2026-13-01T…Z`, `2026-10-17T24:00:00Z`, `…T10:60:00Z` → `INVALID_FORMAT` | `INVALID_FORMAT` |
 | TC-24-10 | DoD #2 | `type: "WITHDRAWAL"`, `"transfer"`; `newStatus: "FROZEN"`, `"active"` · `NOT_ALLOWED` tại trường đó | `NOT_ALLOWED` |
-| TC-24-11 | DoD #2, BL-002 | `DEPOSIT` mang `fromUserId` uuid, hoặc `sameOwner: true` → `NOT_ALLOWED`; `TRANSFER` với `fromUserId: null` → `WRONG_TYPE`, thiếu khóa → `MISSING_FIELD`; `type: "WITHDRAWAL"` (còn lại hợp lệ) → đúng 1 lỗi ở `type` | như mô tả |
+| TC-24-11 | DoD #2, BL-002 | `DEPOSIT` mang `fromUserId` uuid, hoặc `sameOwner: true` → `NOT_ALLOWED`; `DEPOSIT` với `fromUserId: 5` hay `sameOwner: "true"` → `WRONG_TYPE` (không phải `NOT_ALLOWED`); `TRANSFER` với `fromUserId: null` → `WRONG_TYPE`, thiếu khóa → `MISSING_FIELD`; `type: "WITHDRAWAL"` (còn lại hợp lệ) → đúng 1 lỗi ở `type` | như mô tả |
 | TC-24-12 | DoD #1 | thêm `riskScore` (số) và `futureField` (object) vào từng mẫu · `ok: true`, hai trường còn nguyên trong `event` | — |
 | TC-24-13 | BR-13 | `AccountStatusChanged` có `reason` (bất kỳ giá trị) · lỗi tại `reason` | `NOT_ALLOWED` |
 | TC-24-14 | DoD #2 | `eventType` thiếu → `MISSING_FIELD`; không phải chuỗi → `WRONG_TYPE`; `"FraudFlagRaised"`, `"transfercompleted"` → `UNKNOWN_EVENT_TYPE`; mỗi ca đúng 1 lỗi ở `eventType` | như mô tả |
-| TC-24-15 | DoD #2 | payload là `null`, `undefined`, chuỗi JSON thô, `42`, `true`, `[]` · đúng 1 lỗi, `path ''` | `NOT_AN_OBJECT` |
+| TC-24-15 | DoD #2 | payload là `null`, `undefined`, chuỗi JSON thô, `42`, `true`, `[]`, `new Date()`, `new Map()`, instance của một lớp · đúng 1 lỗi, `path ''` | `NOT_AN_OBJECT` |
 | TC-24-16 | DoD #2 | payload có 3 trường hỏng cùng lúc · đủ 3 lỗi, mỗi `path` một lần (không dừng ở lỗi đầu) | — |
-| TC-24-17 | bảo mật | payload từ `JSON.parse` có khóa `__proto__` · `Object.prototype` không bị ô nhiễm; input không bị sửa (so sâu trước và sau); `message` của mọi lỗi không chứa giá trị sai (chuỗi chứa `secret`) | — |
+| TC-24-17 | bảo mật | payload từ `JSON.parse` có khóa `__proto__` · `Object.prototype` không bị ô nhiễm; input không bị sửa (so sâu trước và sau); `message` của mọi lỗi không chứa giá trị sai (chuỗi chứa `secret`, đưa vào trường uuid, tiền và thời gian, tức cả các luật theo mẫu mà `joi` hay chép lại giá trị) | — |
 | TC-24-18 | DoD #1, #2 | `assertEvent`: payload đúng trả `event`; payload sai ném `InvalidEventError` có `issues` giống `validateEvent` | — |
-| TC-24-19 | Expect (build) | `// @ts-expect-error -- <lý do>`: object thiếu trường, `amount: 500000`, `DEPOSIT` với `fromUserId: "…"`, `TRANSFER` với `fromUserId: null`, `eventType: "Other"` · `typecheck` báo lỗi đúng dòng; `switch` trên `DomainEvent['eventType']` có nhánh `never` cuối | — |
-| TC-24-20 | Expect (đồng bộ) | khóa của mẫu đầy đủ gõ kiểu `T` bằng khóa schema nội bộ, cho cả hai sự kiện; schema khai `Record<keyof T, …>` nên `typecheck` đỏ khi thêm khóa vào kiểu mà quên schema | — |
+| TC-24-19 | Expect (build) | `// @ts-expect-error -- <lý do>`: object thiếu trường, `amount: 500000`, `DEPOSIT` với `fromUserId: "…"`, `TRANSFER` với `fromUserId: null`, `eventType: "Other"` · `typecheck` báo lỗi đúng dòng; `switch` trên `DomainEvent['eventType']` thu hẹp đúng kiểu từng nhánh và có nhánh `never` cuối, và `eventType: "AccountStatusChanged"` trên một `TransferCompleted` là lỗi. Lỗi thiếu trường và lỗi nhánh `DEPOSIT`/`TRANSFER` nằm ở dòng khai báo `const _x: T =`, còn `amount: 500000` nằm ở dòng thuộc tính, nên mỗi `@ts-expect-error` đặt trên đúng dòng đó (Prettier tách object literal nhiều dòng) và các biến mẫu có tiền tố `_` (eslint) | — |
+| TC-24-20 | Expect (đồng bộ) | khóa của mẫu đầy đủ gõ kiểu `T` bằng khóa schema nội bộ, cho cả hai sự kiện; schema khai `Record<keyof T, …>` nên `typecheck` đỏ khi thêm khóa vào kiểu mà quên schema (chỉ với khóa chung của `TransferCompleted`; khóa đặt riêng ở một nhánh không được bắt, nên mọi trường mới phải ở phần chung, §3) | — |
 | TC-24-21 | DoD #1 | `@common/events` export `validateEvent`, `assertEvent`, `InvalidEventError`, `EVENT_TYPES` và các kiểu; không export schema `joi` | — |
-| TC-24-22 | DoD #4 | quy trình: PR merge, CI xanh, Dev review, bảng "Đối chiếu test case" | chưa kiểm được: BL-001 |
+| TC-24-22 | 2.4 (ghim chủ ý) | `TRANSFER` với `fromBalanceBefore: "-5"` và `DEPOSIT` với `fromBalanceBefore: "100"` · `ok: true` (cố ý không kiểm trạng thái bất khả; ghim để ai đổi sau này thấy rõ) | — |
+| TC-24-23 | DoD #2 | `type: 5`, `newStatus: null`, `type: null` · đúng **một** lỗi `WRONG_TYPE` tại trường đó (không kèm `NOT_ALLOWED`) | `WRONG_TYPE` |
+| TC-24-24 | DoD #4 | quy trình: PR merge, CI xanh, Dev review, bảng "Đối chiếu test case" | chưa kiểm được: BL-001 |
 
 **Checklist bảo mật** (`testing.md`): *lỗi không lộ nội bộ* → TC-24-06, TC-24-17; *không để lý do khóa lọt vào sự kiện (BR-13)* → TC-24-13; *đầu vào bị làm giả hay hỏng (threat-model T9)* → TC-24-04…16. Các mục còn lại (role guard, kiểm sở hữu, `Idempotency-Key`, audit, SQL tham số hóa, TLS) **không áp dụng**: hàm thuần, không endpoint, không DB.
 
@@ -212,14 +230,31 @@ Loại "thư viện chưa có người gọi" (`task-kinds.md`): một **script 
 | Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
 | M-24-01 (thành công) | `npx ts-node -r tsconfig-paths/register test/support/events-driver.ts` | ba mẫu (`TRANSFER`, `DEPOSIT` có `fromUserId: null` và `fromBalanceBefore` âm, `AccountStatusChanged`) đều `ok: true`; mỗi mẫu `JSON.stringify` rồi `JSON.parse` (dạng trên dây) vẫn `ok: true`, `amount` `"9007199254740993"` giữ nguyên chữ số |
-| M-24-02 (từ chối) | cùng lệnh, mục `rejected` | mỗi payload sai (thiếu trường, `amount` là số, `amount` `"01"`, giờ có `+07:00`, `eventType` lạ, `DEPOSIT` mang `fromUserId`, chuỗi JSON thô, `null`) in danh sách `path` và `code` đúng như §2 |
+| M-24-02 (từ chối) | cùng lệnh, mục `rejected` | mỗi payload sai (thiếu trường, `amount` là số, `amount` `"01"`, giờ có `+07:00`, uuid chữ hoa, `eventType` lạ, `type: 5`, `DEPOSIT` mang `fromUserId`, chuỗi JSON thô, `null`, `new Date()`) in danh sách `path` và `code` đúng như §2, mỗi `path` một lỗi |
 | M-24-03 (tương thích tiến) | cùng lệnh, mục `forward-compat` | payload có trường lạ `riskScore` vẫn `ok: true` và trường đó còn trong `event`; `AccountStatusChanged` có `reason` bị `NOT_ALLOWED` |
-| M-24-04 (phát hiện lúc build) | tệp tạm ngoài repo và `tsconfig` tạm (trong thư mục scratchpad) chứa 4 dòng cố ý sai: `amount: 500000`, thiếu trường, `DEPOSIT` với `fromUserId` chuỗi, `eventType: "Other"`; `npx tsc --noEmit -p <tsconfig tạm>` | `tsc` thoát mã khác 0 và báo lỗi đúng 4 dòng đó |
+| M-24-04 (phát hiện lúc build) | trong thư mục scratchpad (ngoài repo): một tệp `.ts` tạm có đúng 4 dòng cố ý sai (`amount: 500000`; thiếu một trường; `DEPOSIT` với `fromUserId` là chuỗi; `eventType: "Other"`), **không dùng `console` hay biến Node** (không tìm thấy `@types/node` từ đó), và một `tsconfig.json` tạm: `extends` là **đường dẫn tuyệt đối** tới `backend/tsconfig.json`, `compilerOptions` đặt `"outDir": null`, `"incremental": false`, `"noEmit": true` (không thì `tsc` báo TS5009 vì scratchpad ở ổ `C:` còn repo ở `F:`), `include` chỉ tệp tạm. Chạy **từ `backend/`**: `npx tsc -p <tsconfig tạm>` | đúng 4 lỗi biên dịch (loại `TS2322`, `TS2741` hay `TS2353`), mỗi lỗi ở một trong 4 dòng cố ý sai, và **không** có lỗi nào khác (đặc biệt không phải `TS5009`); thoát mã khác 0 |
 | M-24-05 (build) | `npm run build`; `node -e "const e=require('./dist/common/events');console.log(JSON.stringify(e.validateEvent({}).ok))"`; `grep -rnE "(require\(\|from )[\"']@(common\|config\|database\|libs\|modules)" dist/ \|\| echo none` | build sạch; in `false`; grep in `none` (alias đã được viết lại, gồm `@common/money` bên trong `events`) |
 
 ## 6. Domain review (AI)
 
-(Phase 2: reviewer Opus 5.5, effort medium)
+**Reviewer:** subagent Claude Opus 5.5, effort medium, 2026-10-19 · **Vòng 1:** 12 phát hiện (blocking 0, should-fix 5, minor 7), verdict **REVISE** · [trả lời nguyên văn](screenshots/DBS-24/domain-review.md)
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | should-fix | "Mỗi trường một lỗi" không đúng với `joi` 18: `type: 5` ra cả `any.only` lẫn `string.base`; `Joi.valid()` không có kiểu cơ sở ra `NOT_ALLOWED` thay vì `WRONG_TYPE`; nhánh `DEPOSIT` của `Joi.when` ra `any.only` cho `fromUserId: 5` | **đã sửa** (§2.1, §2.2, §2.4, TC-24-05, 11, 23): thêm bảng ánh xạ `joi` sang `code` và luật một lỗi mỗi `path` (ưu tiên `MISSING_FIELD`, `WRONG_TYPE`, `INVALID_FORMAT`, `NOT_ALLOWED`); kiểm kiểu trước rồi mới chạy luật liên trường, nên `DEPOSIT` với `fromUserId: 5` là `WRONG_TYPE` |
+| 2 | should-fix | `EventBase.eventType: EventType` không phân biệt được `DomainEvent` theo `eventType` (TS2339, `never` hỏng, `TransferCompleted` mang `eventType` kia vẫn biên dịch được) | **đã sửa** §3: `eventType` là literal trên từng sự kiện, `EventType` suy ra từ `DomainEvent`; TC-24-19 thêm ca `switch` thu hẹp kiểu |
+| 3 | should-fix | Thay đổi contract ngoài các câu đã duyệt ở G1: thời gian chỉ nhận UTC có `Z` (kể cả `fromAccountCreatedAt`), cấm `reason` trên `AccountStatusChanged` | **thành câu hỏi của G2** (đổi contract là gate phụ); §2.5, §2.7 ghi rõ đây là điểm cần chốt |
+| 4 | should-fix | `Joi.string().uuid()` nhận ngoặc nhọn và uuid không dấu gạch; chữ hoa làm tách khóa Redis `risk:vel:{accountId}` (đã kiểm docs/03 R-3, ADR-12) | **đã sửa** §2.3 và TC-24-06: regex tường minh, chữ thường; thắt chặt contract này thêm vào câu hỏi chốt ở G2 |
+| 5 | should-fix | M-24-04 sẽ "đạt" vì lý do sai (TS5009 do scratchpad ở ổ `C:`, repo ở `F:`) | **đã sửa** §5: `tsconfig` tạm với `extends` tuyệt đối, `outDir: null`, `incremental: false`, `noEmit`; tệp tạm không dùng Node global; mong đợi đúng 4 lỗi ở 4 dòng, không có TS5009 |
+| 6 | minor | `message` của `joi` chép lại giá trị đã nhận (`string.pattern.base`) | **đã sửa** §2.1: `message` dựng từ `code`; TC-24-17 đưa chuỗi `secret` vào uuid, tiền, thời gian |
+| 7 | minor | `Joi.object().validate(undefined)` trả OK; `Date`, `Map` qua kiểm object | **đã sửa** §2.1, §2.2: kiểm object thuần trước `joi`; TC-24-15 thêm `Date`, `Map`, instance của lớp |
+| 8 | minor | Trạng thái bất khả (`TRANSFER` số dư âm, `DEPOSIT` số dư dương) lọt qua | **không sửa**: §2.4 ghi rõ là cố ý không kiểm (contract không nói; là bất biến của dữ liệu, BR-03 và ADR-09, do producer và DB giữ); TC-24-22 ghim quyết định |
+| 9 | minor | Cấm riêng khóa `reason` là dây chăng theo tên, không phải kiểm soát BR-13 | **đã sửa** §2.7 nói rõ là tripwire; biện pháp thật nằm ở mẫu thông báo của consumer; chốt ở G2 |
+| 10 | minor | `Record<keyof T>` trên `Common & (A \| B)` chỉ thấy khóa chung | **đã sửa** §3 và TC-24-20: mọi trường mới đặt ở phần chung |
+| 11 | minor | `@ts-expect-error` phải đặt đúng dòng lỗi; biến mẫu cần tiền tố `_` | **đã sửa** TC-24-19 |
+| 12 | minor | Chính sách của consumer với `UNKNOWN_EVENT_TYPE` (triển khai cuốn chiếu) chưa nêu | **chuyển sang §8 Bàn giao**; §2.2 và sơ đồ §3 tách riêng nhánh này |
+
+**Quyết định ở G2:** (điền sau khi được duyệt)
 
 ## 7. Kế hoạch triển khai
 
