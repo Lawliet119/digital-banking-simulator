@@ -367,7 +367,15 @@ npm run test:e2e     Test Suites: 4 passed, 4 total · Tests: 25 passed, 25 tota
 
 - **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` (số liệu ở cuối mục này) khớp danh sách ở §7, không có file lạ.
 
-DIFFSTAT_PLACEHOLDER
+```text
+backend/src/common/events/{event-types,event-schemas,validate-event,index}.ts   mới
+backend/src/common/events/{event-types,event-schemas,validate-event,index}.spec.ts   mới
+backend/test/support/{event-samples,events-driver}.ts   mới
+docs/components/_shared/event-contract.md, docs/security/threat-model.md, docs/BACKLOG.md, docs/features/README.md
+docs/features/DBS-24-common-events-types-schema.md, docs/features/screenshots/DBS-24/{domain-review.md, manual-test.txt, 01…06 *.png}   mới
+```
+
+23 file, 1869 thêm, 17 bớt (số dòng của chính feature doc đổi vài dòng khi ghi mục này). Không sửa file code nào có sẵn.
 
 - **Ảnh chụp** (`docs/features/screenshots/DBS-24/`; kết quả Jest gộp các ca cùng `TC` thành một dòng, nêu ở tiêu đề ảnh):
 
