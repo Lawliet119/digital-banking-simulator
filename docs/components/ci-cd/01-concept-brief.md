@@ -1,6 +1,6 @@
 # ci-cd — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 (deploy, quét image và secret); job test trong CI do #6 viết · **Cặp đôi:** #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #5 (deploy, quét image và secret); job test trong CI do #6 viết · **Cặp đôi:** #6 · **Verified against code:** một phần (job test trong `ci.yml`; deploy, quét image và secret chưa có code) · **Cập nhật:** 2026-10-19
 
 ## Component
 
@@ -19,6 +19,7 @@ Code merge vào `main` phải tự lên cloud, quay lui được trong vài phú
 
 ## Ý tưởng
 
+- Job test (có code): [`ci.yml`](../../../.github/workflows/ci.yml) chạy sáu job song song `lint`, `typecheck`, `unit`, `e2e`, `db`, `build` trên mỗi PR và mỗi lần push vào `main`. Tên job là hợp đồng với required status checks của `main`; cách đọc kết quả ở [CONTRIBUTING mục 4b](../../../CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions).
 - Một image (`backend/Dockerfile`) cho cả `api` và `worker`; tag = commit SHA.
 - GitHub Actions kết nối AWS qua OIDC, không lưu access key.
 - Migration là bước riêng trước deploy, theo kiểu expand → migrate → contract.

@@ -20,7 +20,6 @@ Several things this file mentions do not exist at the time of writing. Check wit
 |---|---|---|
 | Testcontainers harness (Postgres, Valkey, ElasticMQ, DB roles, template database per suite) | DBS-39, 40, 41 | Use the docker compose database through `DATABASE_URL`; create and drop your own temporary database; fail loudly when it is unreachable |
 | `backend/test/support/invariants.sql` | DBS-69 | Run the four checks as hand-written SQL in the manual test; say so |
-| CI workflows (`.github/workflows/` holds only `.gitkeep`) | DBS-35 | "CI green" cannot be met: paste the local command results and mark the DoD bullet as not yet verifiable |
 | Dev token helper (`npm run auth:dev-token`) | DBS-53 | `task-kinds.md`, last section |
 | `npm run test:db` | defined by the first task that needs it | Use `test:e2e` against the docker compose database |
 
