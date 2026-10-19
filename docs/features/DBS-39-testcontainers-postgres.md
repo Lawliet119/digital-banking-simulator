@@ -1,6 +1,6 @@
 # DBS-39 · Testcontainers: helper Postgres 17 chạy migration cho test
 
-> **Status:** Plan approved · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-39-testcontainers-postgres` · **PR:** — · **Cập nhật:** 2026-10-19
+> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-39-testcontainers-postgres` · **PR:** — · **Cập nhật:** 2026-10-19
 
 ## 1. Bối cảnh
 
