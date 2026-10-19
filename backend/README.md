@@ -42,7 +42,7 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm run format` / `format:check` | prettier |
 | `npm test` | unit test (`src/**/*.spec.ts`) |
 | `npm run test:e2e` | e2e (`test/*.e2e-spec.ts`) |
-| `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Cần `docker compose up -d` và biến `DATABASE_URL` trong môi trường (Jest đặt `NODE_ENV=test` nên không đọc `env/.env.development`); thiếu DB thì test đỏ, không bỏ qua |
+| `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Tự động khởi tạo PostgreSQL 17 qua Testcontainers (hoặc dùng `DATABASE_URL` có sẵn nếu đã xuất ra môi trường). Cần Docker Desktop bật; nếu Docker tắt thì test báo lỗi ngay, không treo |
 | `npm run migration:run` · `migration:revert` · `migration:show` | migration trên DB local |
 | `npm run migration:generate -- src/database/migrations/<Tên>` | sinh migration từ thay đổi entity |
 | `npm run migration:create -- src/database/migrations/<Tên>` | tạo migration rỗng |
@@ -113,6 +113,15 @@ Xem `src/modules/README.md`. Import xuyên module chỉ qua `@modules/<tên>`; v
 - Unit test đặt **cạnh file** được test (`*.spec.ts`).
 - Test đúng-sai về tiền (đồng thời, idempotency) chạy trên **PostgreSQL thật** (Testcontainers), không mock database. Test `withTransaction` hiện tại dùng fake chỉ để kiểm tra logic retry/rollback — nó **không** chứng minh hành vi khóa của Postgres.
 - Test e2e dùng `configureHttpApp` từ `app.setup.ts` để chạy đúng cấu hình như production.
+
+#### Cách làm sạch dữ liệu giữa các test (Data Isolation & Cleanup)
+Hệ thống sử dụng bảng sổ cái chỉ-thêm (`append-only ledger` như `transfers`, `journal_entries`) với ràng buộc khóa ngoại chặt chẽ. Để kiểm thử không làm phá vỡ tính toàn vẹn hoặc sequence/trigger:
+1. **Cô lập bằng Database tạm thời (Temp Database):** Khuyến nghị mặc định là mỗi test file (`*.db-spec.ts`) gọi `createTempDatabase()` trong `beforeAll` để tạo một database hoàn toàn độc lập (`dbs_test_<random_hex>`) trên PostgreSQL container, chạy migration trên đó và tự động xóa (`db.drop()`) trong `afterAll`. Nhờ vậy các test suite chạy song song không bao giờ xung đột dữ liệu.
+2. **Cô lập giữa các test cases trong cùng suite:** Sử dụng transaction `BEGIN` trong `beforeEach` và `ROLLBACK` trong `afterEach`. Mọi thay đổi dữ liệu của ca kiểm thử sẽ được hoàn tác sạch sẽ mà không tốn chi phí khởi tạo lại schema.
+3. **Quy tắc làm sạch (TRUNCATE):** Tuyệt đối không gọi `TRUNCATE` thô bạo trên các bảng chỉ-thêm mà không kiểm soát. Nếu cần xóa trắng dữ liệu bảng để thử nghiệm kịch bản đặc biệt, phải:
+   - Dùng role chủ sở hữu bảng (hoặc superuser) để truncate theo thứ tự phụ thuộc (`TRUNCATE TABLE journal_entries, transfers, accounts, customers, users RESTART IDENTITY CASCADE`).
+   - Sau khi truncate, phải tái tạo lại ngay bản ghi tài khoản cấp vốn hệ thống (`SYSTEM` funding account với UUID `00000000-0000-4000-8000-000000000001`), vì nếu thiếu tài khoản này thì các logic chuyển khoản và hạch toán kép sẽ bị lỗi toàn bộ.
+
 
 ### 6. Migration
 Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`). Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1 và 2). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser.
