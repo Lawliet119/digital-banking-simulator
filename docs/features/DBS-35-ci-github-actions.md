@@ -192,7 +192,7 @@ Bảng kiểm bảo mật ([testing.md](../../.claude/skills/dbs-delivering-task
 
 Điều kiện chạy: Docker Desktop bật; máy này có PostgreSQL native chiếm cổng 5432 nên dùng container tạm ở cổng 25432.
 
-**Ai chạy bước nào (chốt ở G2):** agent chạy M-35-01, M-35-02, M-35-03 (cục bộ, không cần GitHub) và ghi vào `manual-test.txt`. **M-35-04 đến M-35-10 cần chạy thật trên GitHub Actions và do chủ task (người) tự chạy tay sau khi task xong**; agent không mở Draft PR, không đẩy commit thử. Trong §8 các bước đó ghi **chưa chạy (chủ task tự chạy)**, và các case lớp Actions ghi tương ứng; chủ task chấp nhận từng bước theo tên ở G4. Không bước nào được ghi "đạt" nếu chưa có lần chạy thật.
+**Ai chạy bước nào (chốt ở G2):** agent chạy M-35-01, M-35-02, M-35-03 (cục bộ, không cần GitHub) và ghi vào `manual-test.txt`. **M-35-04 đến M-35-10 cần chạy thật trên GitHub Actions và do chủ task (người) tự chạy tay sau khi task xong**; agent không mở Draft PR, không đẩy commit thử. (Cập nhật sau bàn giao: chủ task mở PR #11 và đồng ý cho agent chạy M-35-05…09; xem §8, Lệch so với kế hoạch.) Trong §8 các bước đó ghi **chưa chạy (chủ task tự chạy)**, và các case lớp Actions ghi tương ứng; chủ task chấp nhận từng bước theo tên ở G4. Không bước nào được ghi "đạt" nếu chưa có lần chạy thật.
 
 | Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
@@ -349,21 +349,21 @@ process.exit(bad ? 1 : 0);
 | TC-35-01 | M-35-01: `actionlint` 1.7.12 thoát 0, in rỗng; và thoát 1 báo `"runs-on" section is missing` trên bản sao bị hỏng | đạt |
 | TC-35-02 | kiểm tĩnh, 6 dòng đầu PASS (`on:`, không `paths`/`pull_request_target`, nhóm `concurrency`, `cancel-in-progress`) | đạt |
 | TC-35-03 | Windows (baseline) và Linux `node:24` (M-35-02, lần 2): sáu lệnh exit 0, 201 / 25 / 49. Lần 1 đỏ vì `npm ci`, đã sửa bằng commit `6ab5d4f` (§8 Lệch kế hoạch) | đạt |
-| TC-35-04 | cần Draft PR và Actions | chưa chạy (chủ task tự chạy) |
-| TC-35-05 | cần Actions; phần `main` quan sát ở M-35-10 | chưa chạy (chủ task tự chạy) |
-| TC-35-06 | cần Actions (log `setup-node`) | chưa chạy (chủ task tự chạy) |
-| TC-35-07 | cần Actions (tổng thời gian) | chưa chạy (chủ task tự chạy) |
-| TC-35-08 | phần tĩnh đạt (`name:` = id, sáu tên, khớp bảng trong CONTRIBUTING 4b); phần "check trên PR" chưa chạy | đơn giản hóa (chưa thấy sáu check thật trên PR) |
-| TC-35-09 | cần Actions | chưa chạy (chủ task tự chạy) |
-| TC-35-10 | cần Actions | chưa chạy (chủ task tự chạy) |
-| TC-35-11 | cần Actions | chưa chạy (chủ task tự chạy) |
+| TC-35-04 | [run #1](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39256485215) trên PR #11 (Draft): đủ sáu check xanh; đã đọc log của cả sáu job: mỗi job chạy `npm ci` rồi đúng một lệnh (`lint:check`, `typecheck`, `npm test`, `test:e2e`, `test:db`, `build`) | đạt |
+| TC-35-05 | phần PR: push hai commit rỗng cách nhau 10 giây → run #2 **Cancelled** sau 26 giây, [run #3](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39257508505) xanh 1m 3s (ảnh 06). Phần `main` (hai merge liên tiếp không hủy nhau) chưa thể quan sát trước khi merge | đơn giản hóa (phần `main` chưa chạy, xem M-35-10) |
+| TC-35-06 | run #1, job `lint`, log `setup-node`: `npm cache is not found` (miss); [run #3](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39257508505), cùng bước: `Cache hit for: node-cache-Linux-x64-npm-…`, `Cache restored from key` (ảnh 07); bước Post của `setup-node` chỉ 0 giây (không lưu lại) | đạt |
+| TC-35-07 | tổng thời gian workflow: run #1 (cache miss) **50 giây**, run #3 (cache hit) **1 phút 3 giây**, run #5 47 giây; đều ≤ 10 phút (Node 24.21.0 trên runner) | đạt |
+| TC-35-08 | phần tĩnh đạt; trên PR #11 đúng sáu check `lint`, `typecheck`, `unit`, `e2e`, `db`, `build` (ảnh 08, 12), khớp `name:` trong `ci.yml` và bảng ở CONTRIBUTING 4b | đạt |
+| TC-35-09 | [run #4](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39257863694) (commit lint hỏng `0f0bf74`): chỉ `lint` đỏ, năm job còn lại xanh; log: `src/ci-probe.ts` `3:7 error 'unused' is assigned a value but never used … @typescript-eslint/no-unused-vars`, `1 problem`; PR hiện ✗ (ảnh 08, 09) | đạt |
+| TC-35-10 | [run #6](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39258326502) (commit test hỏng `14dff24`): chỉ `unit` đỏ, năm job còn lại xanh; log: `FAIL src/ci-probe.spec.ts`, `Expected: 3 / Received: 2`, `Tests: 1 failed, 349 passed, 350 total` (ảnh 10, 11) | đạt |
+| TC-35-11 | sau revert lint (`dfd1705`) run #5 xanh 47 giây; sau revert test (`52aec98`) run #7 xanh cả sáu; diff của PR trở lại +768/−35, 17 file, không còn file `ci-probe*` (ảnh 06, 12) | đạt |
 | TC-35-12 | `grep` thấy đủ sáu tên, "Re-run failed jobs", "xung đột", "Expected" trong CONTRIBUTING 4b; tên trong bảng khớp `ci.yml`; `check-doc-links.mjs`: 0 link hỏng | đạt |
 | TC-35-13 | quy trình (merge, review, `push main` xanh) | chưa kiểm được (sau merge, xem BL-014) |
-| TC-35-14 | bước `Kiểm Postgres` và 49 test chạy đạt trong container Linux với đúng image, env, health check của service; chưa chạy bằng service container thật của Actions | đơn giản hóa (chưa có lần chạy trên Actions) |
+| TC-35-14 | job `db` trên Actions ([run #1](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39256485215)): service `postgres:17` khỏe (`Initialize containers` 11 giây, các bước sau chạy), bước `Kiểm Postgres` in `rolsuper=t timezone=Etc/UTC`, `Test Suites: 3 passed`, `Tests: 49 passed` | đạt |
 | TC-35-15 | M-35-03: cổng sai → 49 test đỏ, `Cannot reach PostgreSQL … ECONNREFUSED`, exit 1 | đạt |
 | TC-35-16 | kiểm tĩnh (`permissions`, không `secrets.`, không `${{` trong `run:`, mọi `uses:` ghim SHA, `persist-credentials: false` ở cả sáu checkout) | đạt |
 
-  Tổng: 6 đạt, 2 đơn giản hóa (TC-35-08, 14), 7 chưa chạy (TC-35-04…07, 09…11; cần Actions), 1 quy trình chưa kiểm được (TC-35-13).
+  Tổng: **14 đạt** (TC-35-01…04, 06…12, 14…16), 1 đơn giản hóa (TC-35-05: phần `main` chưa quan sát được), 1 quy trình chưa kiểm được (TC-35-13, sau merge; xem BL-014).
 - **Test thủ công** (chạy trên commit `6ab5d4f`; output thô ở [manual-test.txt](screenshots/DBS-35/manual-test.txt)):
 
 | Bước | Kết quả |
@@ -371,10 +371,16 @@ process.exit(bad ? 1 : 0);
 | M-35-01 | **đạt**: `docker run … rhysd/actionlint:1.7.12 -color` → `actionlint exit 0`, không in gì. Lần đầu (trước khi có `ci.yml`) thoát 3 `could not read ".github/workflows/ci.yml"` |
 | M-35-02 | **đạt** (lần 2). Lần 1 trên `903daf1` **đỏ**: `npm ci` lỗi `Missing: @emnapi/core@1.11.3 from lock file` (mã nguồn lỗi ở `package-lock.json`, xem Lệch kế hoạch). Lần 2: postgres healthy sau 3 giây; `Kiểm Postgres` qua TCP: `rolsuper=t timezone=Etc/UTC`; `lint:check`, `typecheck`, `build` exit 0; `test` 201; `test:e2e` 25; `test:db` 49 |
 | M-35-03 | **đạt**: `DATABASE_URL` trỏ cổng 25999 → `npm run test:db` exit 1, 49 test đỏ, `Cannot reach PostgreSQL at DATABASE_URL (connect ECONNREFUSED …:25999)` |
-| M-35-04…10 | **chưa chạy (chủ task tự chạy sau khi task xong, G2)**: Draft PR và sáu check xanh, hủy khi hai commit liền nhau, cache hit và thời gian, lint đỏ rồi xanh, test đỏ rồi xanh, `push main` |
+| M-35-04 | **đạt**: Draft PR #11, [run #1](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39256485215) (commit `50c1029`): sáu check xanh, tổng 50 giây (lint 19s, typecheck 23s, unit 19s, e2e 20s, db 46s, build 26s); `setup-node` ghi `npm cache is not found`; `Kiểm Postgres`: `rolsuper=t timezone=Etc/UTC`; `test:db` 3 suite / 49 test (ảnh 05) |
+| M-35-05 | **đạt**: hai commit rỗng `61c865f`, `9f4a307` cách nhau 10 giây → run #2 Cancelled (26 giây), [run #3](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39257508505) xanh 1m 3s, `Cache hit for: node-cache-Linux-x64-npm-…`, `Cache restored from key` (ảnh 06, 07) |
+| M-35-06 | **đạt**: sau khi chạy cục bộ năm lệnh (chỉ `lint:check` đỏ), đẩy `src/ci-probe.ts` → [run #4](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39257863694): chỉ `lint` đỏ, log chỉ đúng `src/ci-probe.ts` dòng `3:7` và luật `@typescript-eslint/no-unused-vars` (ảnh 08, 09) |
+| M-35-07 | **đạt**: `git revert` → run #5 xanh cả sáu, 47 giây (ảnh 06) |
+| M-35-08 | **đạt**: sau khi chạy cục bộ năm lệnh (chỉ `test` đỏ), đẩy `src/ci-probe.spec.ts` → [run #6](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39258326502): chỉ `unit` đỏ, `Expected: 3 / Received: 2` (ảnh 10, 11) |
+| M-35-09 | **đạt**: `git revert` → run #7 (commit `52aec98`) xanh cả sáu; PR trở lại +768/−35, 17 file (ảnh 12) |
+| M-35-10 | **chưa chạy (chờ merge)**: lần chạy `push main` đầu tiên và việc hai merge liền nhau không hủy nhau |
 
 - **Phạm vi so với §7** (`git diff --stat origin/main..HEAD`, 10 file; thêm feature doc và ảnh khi commit bước 6): `.github/workflows/ci.yml` (+155), `.github/workflows/.gitkeep` (xóa), `CONTRIBUTING.md`, `README.md`, `backend/README.md`, `docs/BACKLOG.md`, `docs/components/ci-cd/01-concept-brief.md`, `docs/features/README.md`, `.claude/skills/dbs-delivering-task/references/testing.md` đều có trong §7. **Một file ngoài kế hoạch: `backend/package-lock.json`** (xem dưới).
-- **Ảnh chụp** (từ output thật của `manual-test.txt`, render bằng Chrome headless; ảnh trang Checks của Actions do chủ task chụp khi tự chạy M-35-04…09, chưa có):
+- **Ảnh chụp:** 01–04 từ output thật của `manual-test.txt` (render bằng Chrome headless); 05–12 chụp từ trang GitHub Actions và PR #11 bằng Claude in Chrome (JPEG):
 
 ![Lần 1 đỏ: npm ci lỗi trong container Linux](screenshots/DBS-35/01-lan1-npm-ci-do.png)
 
@@ -384,12 +390,29 @@ process.exit(bad ? 1 : 0);
 
 ![test:db với cổng sai: đỏ rõ ràng](screenshots/DBS-35/04-test-db-cong-sai-do.png)
 
+![Run #1: sáu job xanh, 50 giây](screenshots/DBS-35/05-run1-sau-check-xanh.jpg)
+
+![Các lần chạy: #2 Cancelled, #4 đỏ, #5 xanh](screenshots/DBS-35/06-danh-sach-run-huy-do-xanh.jpg)
+
+![Cache hit ở run #3](screenshots/DBS-35/07-cache-hit-run3.jpg)
+
+![PR #11: lint đỏ, năm check còn lại xanh](screenshots/DBS-35/08-pr-checks-lint-do.jpg)
+
+![Log lint đỏ: ci-probe.ts dòng 3:7](screenshots/DBS-35/09-lint-log-do.jpg)
+
+![PR #11: unit đỏ, năm check còn lại xanh](screenshots/DBS-35/10-pr-checks-unit-do.jpg)
+
+![Log unit đỏ: Expected 3, Received 2](screenshots/DBS-35/11-unit-log-do.jpg)
+
+![PR #11 sau hai lần revert: sáu check xanh](screenshots/DBS-35/12-pr-checks-xanh-cuoi.jpg)
+
   Ảnh 01 là output của script nên chỉ thấy `exit 127` sau lỗi; dòng lỗi gốc `Missing: @emnapi/core@1.11.3 from lock file` nằm ở phần "CHẨN ĐOÁN LẦN 1" cuối `manual-test.txt`.
 - **Lệch so với kế hoạch:**
   1. **`backend/package-lock.json` (gate phụ, đã duyệt: «duyệt A»).** Chạy `ci.yml` trong container Linux phát hiện `npm ci` lỗi trên npm 11.19 (Node 24.22, bản mà `setup-node` với `"24"` cài): lockfile thiếu `@emnapi/core` và `@emnapi/runtime` mà `@napi-rs/wasm-runtime` (optional, dev) cần; npm 11.6 chấp nhận nên không ai thấy. Không sửa thì cả sáu job đỏ ngay lần chạy đầu. Commit `6ab5d4f` tạo lại lockfile (+28/−27 dòng: hai entry mới và bỏ cờ `"peer": true`, không đổi phiên bản gói nào); kiểm lại: `npm ci` exit 0 ở npm 11.6.2 (Windows) và 11.19.1 (Linux).
-  2. Không có lệch nào khác: các bước 1, 2, 4, 5 làm đúng §7.
+  2. **Agent đẩy commit thử lên PR (gate phụ, đã duyệt: «đồng ý»).** G2 giao M-35-04…10 cho chủ task tự chạy và agent không đẩy commit thử. Sau G4, chủ task mở PR #11 rồi đồng ý cho agent chạy M-35-05…09 qua `git push` và đọc kết quả bằng Claude in Chrome. Hậu quả: nhánh có thêm 6 commit thử và revert (`61c865f`, `9f4a307`, `0f0bf74`, `dfd1705`, `14dff24`, `52aec98`); squash merge sẽ gộp bỏ, cây làm việc cuối không còn file `ci-probe*`.
+  3. Không có lệch nào khác: các bước 1, 2, 4, 5 làm đúng §7.
 - **Bàn giao cho vai khác** (đã thêm vào [`docs/BACKLOG.md`](../BACKLOG.md)): **BL-012** (DBS-37: required checks, nguồn "GitHub Actions", cần lần chạy trước, `merge_group` nếu có merge queue); **BL-013** (#5: workflow deploy/quét đặt tên job khác, giữ ghim SHA); **BL-014** (chủ task DBS-35: bằng chứng trên Actions M-35-04…10 chưa có, và việc đóng thật của BL-001 phụ thuộc lần chạy `push main` đầu tiên).
-- **Việc chủ task cần làm trên GitHub** (không thuộc commit nào): kiểm *Settings → Actions → General* (Actions bật; nếu "Allow select actions" thì cho phép `actions/checkout`, `actions/setup-node`), đẩy nhánh, mở PR, chạy M-35-04…10, và báo kết quả lần chạy `push main` đầu tiên (tùy chọn: "Require approval for first-time contributors").
+- **Việc còn lại của chủ task trên GitHub:** chuyển PR sang Ready for review, nhờ một Dev khác review, merge (squash), rồi báo kết quả lần chạy `push main` đầu tiên (M-35-10; nếu hai PR merge sát nhau thì cả hai lần chạy phải còn nguyên) để đóng BL-014. Cài đặt Actions của repo đã ổn: Actions chạy được, hai action `actions/*` được phép.
 
 ## 9. Tài liệu đã cập nhật
 
