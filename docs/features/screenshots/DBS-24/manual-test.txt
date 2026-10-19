@@ -1,0 +1,79 @@
+47edf1ecdefc64d4f5c0e79cad35f08c94cdc97d
+
+=== M-24-01, M-24-02, M-24-03: events-driver ===
+$ npx ts-node -r tsconfig-paths/register test/support/events-driver.ts
+=== M-24-01: valid events, as built and after a trip over the wire (JSON) ===
+TRANSFER                                       ok: true
+TRANSFER (over the wire)                       ok: true
+DEPOSIT (fromUserId null, funding at -1000000) ok: true
+DEPOSIT (fromUserId null, funding at -1000000) (over the wire) ok: true
+AccountStatusChanged LOCKED                    ok: true
+AccountStatusChanged LOCKED (over the wire)    ok: true
+AccountStatusChanged ACTIVE                    ok: true
+AccountStatusChanged ACTIVE (over the wire)    ok: true
+TRANSFER amount 9007199254740993 (2^53 + 1)    ok: true
+  amount after the wire: 9007199254740993  same digits: true
+
+=== M-24-02: broken events, every issue listed (path:code) ===
+TRANSFER without amount                        ok: false  amount:MISSING_FIELD
+amount is the JSON number 500000               ok: false  amount:WRONG_TYPE
+amount "01"                                    ok: false  amount:INVALID_FORMAT
+amount "0"                                     ok: false  amount:INVALID_FORMAT
+occurredAt with +07:00                         ok: false  occurredAt:INVALID_FORMAT
+occurredAt 2026-02-30 (not a real day)         ok: false  occurredAt:INVALID_FORMAT
+eventId in upper case                          ok: false  eventId:INVALID_FORMAT
+eventType "FraudFlagRaised"                    ok: false  eventType:UNKNOWN_EVENT_TYPE
+type is the number 5                           ok: false  type:WRONG_TYPE
+type "WITHDRAWAL"                              ok: false  type:NOT_ALLOWED
+DEPOSIT with an owner (fromUserId)             ok: false  fromUserId:NOT_ALLOWED
+TRANSFER with fromUserId null                  ok: false  fromUserId:WRONG_TYPE
+newStatus "FROZEN"                             ok: false  newStatus:NOT_ALLOWED
+three problems at once                         ok: false  amount:WRONG_TYPE, sameOwner:WRONG_TYPE, toUserId:WRONG_TYPE
+raw JSON text instead of an object             ok: false  (payload):NOT_AN_OBJECT
+null                                           ok: false  (payload):NOT_AN_OBJECT
+a Date                                         ok: false  (payload):NOT_AN_OBJECT
+
+=== M-24-03: forward compatibility, and the one forbidden field ===
+TRANSFER plus an unknown field riskScore       ok: true
+  riskScore kept in the result: true
+AccountStatusChanged with a reason             ok: false  reason:NOT_ALLOWED
+exit code: 0
+
+=== M-24-04: the compiler refuses four deliberately wrong lines (scratch file outside the repo) ===
+$ npx tsc -p <scratch tsconfig>   # extends backend/tsconfig.json; negative.ts has 4 wrong lines
+negative.ts(10,58): error TS2322: Type 'number' is not assignable to type 'string'.
+negative.ts(13,14): error TS2322: Type '{ eventType: "TransferCompleted"; transferId: string; fromAccountId: string; toAccountId: string; fromBalanceBefore: string; fromAccountCreatedAt: string; toAccountCreatedAt: string; ... 6 more ...; sameOwner: boolean; } | { ...; }' is not assignable to type 'TransferCompleted'.
+  Type '{ eventType: "TransferCompleted"; transferId: string; fromAccountId: string; toAccountId: string; fromBalanceBefore: string; fromAccountCreatedAt: string; toAccountCreatedAt: string; toUserId: string; ... 5 more ...; sameOwner: boolean; }' is not assignable to type 'TransferCompleted'.
+    Type '{ eventType: "TransferCompleted"; transferId: string; fromAccountId: string; toAccountId: string; fromBalanceBefore: string; fromAccountCreatedAt: string; toAccountCreatedAt: string; toUserId: string; ... 5 more ...; sameOwner: boolean; }' is not assignable to type 'TransferCompletedCommon & { type: "TRANSFER"; fromUserId: string; sameOwner: boolean; }'.
+      Property 'amount' is missing in type '{ eventType: "TransferCompleted"; transferId: string; fromAccountId: string; toAccountId: string; fromBalanceBefore: string; fromAccountCreatedAt: string; toAccountCreatedAt: string; toUserId: string; ... 5 more ...; sameOwner: boolean; }' but required in type 'TransferCompletedCommon'.
+negative.ts(16,14): error TS2322: Type '{ fromUserId: string; eventType: "TransferCompleted"; transferId: string; fromAccountId: string; toAccountId: string; amount: string; fromBalanceBefore: string; fromAccountCreatedAt: string; ... 6 more ...; sameOwner: false; }' is not assignable to type 'TransferCompleted'.
+  Type '{ fromUserId: string; eventType: "TransferCompleted"; transferId: string; fromAccountId: string; toAccountId: string; amount: string; fromBalanceBefore: string; fromAccountCreatedAt: string; ... 6 more ...; sameOwner: false; }' is not assignable to type 'TransferCompletedCommon & { type: "TRANSFER"; fromUserId: string; sameOwner: boolean; }'.
+    Type '{ fromUserId: string; eventType: "TransferCompleted"; transferId: string; fromAccountId: string; toAccountId: string; amount: string; fromBalanceBefore: string; fromAccountCreatedAt: string; ... 6 more ...; sameOwner: false; }' is not assignable to type '{ type: "TRANSFER"; fromUserId: string; sameOwner: boolean; }'.
+      Types of property 'type' are incompatible.
+        Type '"DEPOSIT"' is not assignable to type '"TRANSFER"'.
+negative.ts(19,52): error TS2322: Type '"Other"' is not assignable to type '"TransferCompleted" | "AccountStatusChanged"'.
+exit code: 2
+errors reported: 4   TS5009 present: 0
+
+=== M-24-05: build, run from dist/, no alias left over ===
+$ npm run build
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+exit code: 0
+
+$ grep -n "common/money" dist/common/events/event-schemas.js
+
+$ node -e "const e=require('./dist/common/events');console.log(JSON.stringify(e.validateEvent({}).ok))"
+false
+exit code: 0
+
+$ grep -rnE "(require\(|from )[\"']@(common|config|database|libs|modules)" dist/ || echo none
+none
+
+--- M-24-05 note: the first grep printed nothing because nest build rewrites the alias @common/money to a relative path (../money), so the text 'common/money' is gone. The check that matches the intent:
+$ grep -n "money" dist/common/events/event-schemas.js
+38:const money_1 = require("../money");
+62:    (0, money_1.parsePositiveMoney)(value);
+68:    (0, money_1.parseBalance)(value);

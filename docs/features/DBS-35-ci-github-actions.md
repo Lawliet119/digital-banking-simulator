@@ -358,7 +358,7 @@ process.exit(bad ? 1 : 0);
 | TC-35-10 | cần Actions | chưa chạy (chủ task tự chạy) |
 | TC-35-11 | cần Actions | chưa chạy (chủ task tự chạy) |
 | TC-35-12 | `grep` thấy đủ sáu tên, "Re-run failed jobs", "xung đột", "Expected" trong CONTRIBUTING 4b; tên trong bảng khớp `ci.yml`; `check-doc-links.mjs`: 0 link hỏng | đạt |
-| TC-35-13 | quy trình (merge, review, `push main` xanh) | chưa kiểm được (sau merge, xem BL-012) |
+| TC-35-13 | quy trình (merge, review, `push main` xanh) | chưa kiểm được (sau merge, xem BL-014) |
 | TC-35-14 | bước `Kiểm Postgres` và 49 test chạy đạt trong container Linux với đúng image, env, health check của service; chưa chạy bằng service container thật của Actions | đơn giản hóa (chưa có lần chạy trên Actions) |
 | TC-35-15 | M-35-03: cổng sai → 49 test đỏ, `Cannot reach PostgreSQL … ECONNREFUSED`, exit 1 | đạt |
 | TC-35-16 | kiểm tĩnh (`permissions`, không `secrets.`, không `${{` trong `run:`, mọi `uses:` ghim SHA, `persist-credentials: false` ở cả sáu checkout) | đạt |
@@ -388,7 +388,7 @@ process.exit(bad ? 1 : 0);
 - **Lệch so với kế hoạch:**
   1. **`backend/package-lock.json` (gate phụ, đã duyệt: «duyệt A»).** Chạy `ci.yml` trong container Linux phát hiện `npm ci` lỗi trên npm 11.19 (Node 24.22, bản mà `setup-node` với `"24"` cài): lockfile thiếu `@emnapi/core` và `@emnapi/runtime` mà `@napi-rs/wasm-runtime` (optional, dev) cần; npm 11.6 chấp nhận nên không ai thấy. Không sửa thì cả sáu job đỏ ngay lần chạy đầu. Commit `6ab5d4f` tạo lại lockfile (+28/−27 dòng: hai entry mới và bỏ cờ `"peer": true`, không đổi phiên bản gói nào); kiểm lại: `npm ci` exit 0 ở npm 11.6.2 (Windows) và 11.19.1 (Linux).
   2. Không có lệch nào khác: các bước 1, 2, 4, 5 làm đúng §7.
-- **Bàn giao cho vai khác** (đã thêm vào [`docs/BACKLOG.md`](../BACKLOG.md)): **BL-010** (DBS-37: required checks, nguồn "GitHub Actions", cần lần chạy trước, `merge_group` nếu có merge queue); **BL-011** (#5: workflow deploy/quét đặt tên job khác, giữ ghim SHA); **BL-012** (chủ task DBS-35: bằng chứng trên Actions M-35-04…10 chưa có, và việc đóng thật của BL-001 phụ thuộc lần chạy `push main` đầu tiên).
+- **Bàn giao cho vai khác** (đã thêm vào [`docs/BACKLOG.md`](../BACKLOG.md)): **BL-012** (DBS-37: required checks, nguồn "GitHub Actions", cần lần chạy trước, `merge_group` nếu có merge queue); **BL-013** (#5: workflow deploy/quét đặt tên job khác, giữ ghim SHA); **BL-014** (chủ task DBS-35: bằng chứng trên Actions M-35-04…10 chưa có, và việc đóng thật của BL-001 phụ thuộc lần chạy `push main` đầu tiên).
 - **Việc chủ task cần làm trên GitHub** (không thuộc commit nào): kiểm *Settings → Actions → General* (Actions bật; nếu "Allow select actions" thì cho phép `actions/checkout`, `actions/setup-node`), đẩy nhánh, mở PR, chạy M-35-04…10, và báo kết quả lần chạy `push main` đầu tiên (tùy chọn: "Require approval for first-time contributors").
 
 ## 9. Tài liệu đã cập nhật
@@ -397,6 +397,6 @@ process.exit(bad ? 1 : 0);
 - [README.md](../../README.md) và [backend/README.md](../../backend/README.md): lệnh trước khi mở PR có `test:db`, trỏ tới CONTRIBUTING 4b.
 - [ci-cd concept brief](../components/ci-cd/01-concept-brief.md): thêm job test của CI, cập nhật dòng Status.
 - [testing.md](../../.claude/skills/dbs-delivering-task/references/testing.md): xóa dòng "CI workflows … DBS-35" khỏi bảng "chưa xây".
-- [docs/BACKLOG.md](../BACKLOG.md): **xóa BL-001** (CI đã có; việc đóng thật phụ thuộc lần chạy `push main` đầu tiên, theo dõi ở BL-012); **thêm BL-010, BL-011, BL-012**.
+- [docs/BACKLOG.md](../BACKLOG.md): **xóa BL-001** (CI đã có; việc đóng thật phụ thuộc lần chạy `push main` đầu tiên, theo dõi ở BL-014); **thêm BL-012, BL-013, BL-014**.
 - [docs/features/README.md](README.md): thêm dòng DBS-35.
 - Không đổi: ADR, schema, event contract, `ErrorCode`, biến môi trường của ứng dụng, docs/03. Các feature doc cũ (DBS-20, 21, 22) vẫn nhắc BL-001 như lịch sử, không sửa.
