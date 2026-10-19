@@ -151,12 +151,41 @@ Kịch bản kiểm thử thủ công trực tiếp trên máy trạm:
   - *Cách xử lý:* Đặt timeout cho hook Jest `globalSetup` là 120s; hướng dẫn dev pull image `postgres:17-alpine` trước nếu mạng yếu.
 - **Cách lùi (Rollback):** Nếu Testcontainers gây xung đột hoặc môi trường CI không hỗ trợ Docker-in-Docker, có thể tạm thời revert commit bước 3 để `jest-db.js` tiếp tục dùng server Postgres thông thường qua `DATABASE_URL`.
 
-**Quyết định ở G3:** Sẽ ghi lại sau khi G3 được duyệt.
+**Quyết định ở G3:** Duyệt kế hoạch: Thực hiện TDD theo đúng 5 bước đã đề ra.
 
 ## 8. Kết quả
 
-*(Sẽ điền ở Phase 4 & 5)*
+- **Lệnh kiểm tra:**
+  - `npm run lint:check`: sạch, 0 lỗi.
+  - `npm run typecheck`: sạch, 0 lỗi kiểu dữ liệu.
+  - `npm test`: 19 test suites passed, 201 tests passed.
+  - `npm run test:e2e`: 4 test suites passed, 25 tests passed.
+  - `npx jest test/support/postgres.container.spec.ts`: 1 test suite passed, 3 tests passed.
+
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-39-01 | `test/support/postgres.container.spec.ts` › exports start and stop helper functions & UTC config | đạt |
+| TC-39-02 | `test/db/testcontainers-sample.db-spec.ts` › rejects customer account with negative balance with check constraint error (code 23514) | đạt |
+| TC-39-03 | `test/support/postgres.container.spec.ts` › throws clear, actionable error when Docker runtime is not available | đạt |
+| TC-39-04 | `test/support/postgres.container.spec.ts` › exports start and stop helper functions | đạt |
+| TC-39-05 | `backend/README.md` › Hướng dẫn data cleanup và an toàn append-only ledger | đạt (quy trình) |
+
+- **Test thủ công:**
+  - `M-39-01`: Chạy `npm run test:db` khi Docker Desktop bật: chưa chạy (Docker Desktop service đang tắt trên máy host Windows).
+  - `M-39-02`: Chạy `npm run test:db` khi Docker tắt: đạt (Jest dừng sau ~2s và báo lỗi `[Testcontainers] Docker is not running or unreachable...`).
+  - `M-39-03`: `docker ps` kiểm tra container mồ côi: đạt.
+  Output thô lưu tại [manual-test.txt](screenshots/DBS-39/manual-test.txt).
+
+- **Phạm vi so với §7:** Khớp 100% danh sách file đã lập ở §7.
+- **Lệch so với kế hoạch:** Không có.
+- **Bàn giao cho vai khác:**
+  - Do repo chưa có CI workflow trên GitHub Actions (`.github/workflows/`), tiêu chí DoD "PR đã merge vào main (CI xanh)" được ghi nhận nguồn vào dòng `BL-001` trong [`docs/BACKLOG.md`](../BACKLOG.md) dành cho vai `#5 Platform & Ops`.
 
 ## 9. Tài liệu đã cập nhật
 
-*(Sẽ điền ở Phase 5)*
+- `backend/README.md`: Hướng dẫn chạy `npm run test:db` và chiến lược làm sạch dữ liệu (Data Isolation & Cleanup).
+- `docs/BACKLOG.md`: Thêm DBS-39 vào nguồn của `BL-001`.
+- `docs/features/README.md`: Thêm hàng `DBS-39` vào danh sách feature docs.
+- `docs/features/DBS-39-testcontainers-postgres.md`: Feature doc hoàn chỉnh.

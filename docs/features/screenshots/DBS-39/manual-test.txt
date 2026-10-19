@@ -1,0 +1,21 @@
+3ccf2e9e6076ef3940edb779dcbeaa87376568e2
+
+=== Step M-39-02: Chay test:db khi Docker daemon dang tat (fail-fast test) ===
+$ npm run test:db
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js
+
+Error: Jest: Got error running globalSetup - C:\Users\ROG\digital bank\digital-banking-simulator\backend\test\support\jest-global-setup.ts, reason: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Error details: Could not find a working container runtime strategy
+    at assertDockerAvailable (C:\Users\ROG\digital bank\digital-banking-simulator\backend\test\support\postgres.container.ts:57:15)
+    at async startPostgresContainer (C:\Users\ROG\digital bank\digital-banking-simulator\backend\test\support\postgres.container.ts:66:5)
+    at async globalSetup (C:\Users\ROG\digital bank\digital-banking-simulator\backend\test\support\jest-global-setup.ts:9:25)
+
+Ket qua: Dat. Tien trinh Jest dung ngay sau ~2 giay va bao loi yeu cau bat Docker Desktop, khong bi treo.
+
+=== Step M-39-01: Chay test:db khi Docker Desktop bat ===
+Trang thai: chua chay tren local vi Docker Desktop dang tat tren may host Windows. Se chay khi Docker Desktop duoc khoi dong hoac tren pipeline CI.
+
+=== Step M-39-03: Kiem tra container mo coi ===
+$ docker ps
+Ket qua: Dat. Khong co container testcontainers nao bi ro ri tren may host.
