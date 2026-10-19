@@ -89,3 +89,40 @@ Verdict: REVISE
 - **Consistency:** §2.2, §2.4, §4 and §6 agree. TC ids TC-24-01 to TC-24-24 are unique and consecutive.
 
 Verdict: REVISE
+
+
+---
+
+<!-- Vòng 4 (2026-10-19): trả lời nguyên văn của reviewer (subagent Claude Opus 5.5, effort medium), vòng xác nhận ngắn sau khi sửa theo vòng 3. Không sửa. -->
+
+| # | Severity (blocking / should-fix / minor) | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| — | — | — | No defects found. Both round-3 edits are in the text. They agree with each other, with §4 and with the §2.9 example. The probe results are in the notes below. | `docs/features/DBS-24-common-events-types-schema.md` §2.2 line 74, §2.4 line 93, §2.9, TC-24-05/06/09/11/23 | None |
+
+Verdict: APPROVE
+
+Notes (what I verified):
+
+- **The two edits are present.**
+  - §2.2 now maps only `string.base` and `boolean.base` to `WRONG_TYPE`, matched by exact name, and says it does not include `string.pattern.base`.
+  - §2.4 names the schema `Joi.string().pattern(UUID).allow(null).required()` and bans `Joi.alternatives()`.
+  - §6 round-3 rows #1 and #2 describe the same changes.
+- **Probe setup.** joi 18.2.9, run from the sibling worktree's `backend/node_modules` because the dbs24 worktree has no `node_modules`. Options were `convert: false`, `allowUnknown: true`, `abortEarly: false`. The schema was written exactly as §2.3 and §2.4 describe. TRANSFER and DEPOSIT samples gave the same results, as follows:
+  - **Bad `fromAccountId`** (`"ABC"`, or an upper-case uuid): `string.pattern.base` → `INVALID_FORMAT`. This matches TC-24-06.
+  - **`occurredAt` with `+07:00`**: `string.pattern.base` → `INVALID_FORMAT`. This matches TC-24-09.
+  - **`fromUserId: 5`**: `string.base` only → `WRONG_TYPE`. This matches TC-24-05 and TC-24-11, including the DEPOSIT case.
+  - **`fromUserId: "abc"`**: `string.pattern.base` → `INVALID_FORMAT`. Because that field failed step 3, the cross-field rule skips it.
+  - **`fromUserId: ""`**: `string.empty` → `INVALID_FORMAT`.
+  - **`fromUserId: null`**: joi accepts it on both samples. The cross-field rule then gives `WRONG_TYPE` on TRANSFER (TC-24-11) and passes on DEPOSIT (TC-24-02).
+  - **`fromUserId` missing**: `any.required` → `MISSING_FIELD`.
+  - **`type: 5` and `type: null`**: joi reports both `any.only` and `string.base`. The priority rule reduces this to one `WRONG_TYPE`, and the cross-field rule is skipped. This matches TC-24-23.
+- **The §2.9 example.** joi alone reports `amount` `string.base` and `occurredAt` `string.pattern.base`. The DEPOSIT rule then adds `NOT_ALLOWED` on `fromUserId`. That gives exactly the 3 issues the doc shows.
+- **Other checks:**
+  - `sameOwner: "true"` gives `boolean.base` → `WRONG_TYPE`.
+  - `reason: null` and `reason: 5` under `forbidden()` give `any.unknown` → `NOT_ALLOWED`. This matches TC-24-13.
+  - A null-prototype object passes joi.
+  - A `__proto__` key from `JSON.parse` does not pollute `Object.prototype`.
+  - joi's `value` is a copy of the input, not the input itself. The implementer must therefore return the input object, which §2.1 already requires.
+  - The `any.custom` and `string.pattern.base` messages repeat the received value. §2.1's rule that `message` is a fixed sentence built from `code` is necessary, and TC-24-17 covers it.
+- **Money rules.** `parsePositiveMoney` and `parseBalance` in `backend/src/common/money/money.ts` and `balance.ts` use `^(0|[1-9][0-9]*)$` and `^(0|-?[1-9][0-9]*)$` with range checks. This agrees with every row of the §2.6 table and with TC-24-07 and TC-24-08.
+- **Second read of §2–§6.** I found no remaining statement that is ambiguous, contradictory or impossible to implement. The UTC-with-`Z` rule, lower-case uuids and the `reason` tripwire are still left to G2, as instructed.

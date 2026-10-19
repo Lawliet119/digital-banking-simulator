@@ -270,6 +270,10 @@ Loại "thư viện chưa có người gọi" (`task-kinds.md`): một **script 
 | 1 | minor | Bảng ánh xạ tự mâu thuẫn: "mọi `*.base` → `WRONG_TYPE`" cũng khớp `string.pattern.base`, vốn được xếp vào `INVALID_FORMAT` | **đã sửa** §2.2: chỉ `string.base`, `boolean.base` là `WRONG_TYPE`, so khớp đúng tên, không gồm `string.pattern.base` |
 | 2 | minor | Chưa nêu dạng schema của `fromUserId`; dùng `Joi.alternatives()` thì `fromUserId: 5` ra `alternatives.types` (chưa ánh xạ, rơi về `INVALID_FORMAT`) thay vì `WRONG_TYPE` | **đã sửa** §2.4: khai `Joi.string().pattern(UUID).allow(null).required()` và không dùng `Joi.alternatives()` |
 
+**Vòng 4** (vòng xác nhận ngắn, cùng reviewer, chạy lại `joi` cho `fromAccountId`, `occurredAt`, `fromUserId` ở nhiều giá trị trên mẫu `TRANSFER` và `DEPOSIT`): không còn phát hiện, verdict **APPROVE**. Trả lời nguyên văn ở cuối [file trên](screenshots/DBS-24/domain-review.md).
+
+**Tổng kết:** 4 vòng, 18 phát hiện (blocking 0, should-fix 6, minor 12). Đã sửa hoặc chuyển bàn giao hết, trừ #8 vòng 1 (cố ý không kiểm trạng thái bất khả, có TC-24-22 ghim) và hai điểm để G2 chốt (thắt chặt contract thời gian và uuid, cấm `reason`). Verdict cuối: **APPROVE**.
+
 **Quyết định ở G2:** (điền sau khi được duyệt)
 
 ## 7. Kế hoạch triển khai
