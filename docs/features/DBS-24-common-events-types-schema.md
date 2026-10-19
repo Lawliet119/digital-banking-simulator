@@ -71,7 +71,7 @@ assertEvent(payload: unknown): DomainEvent   // validateEvent, rồi ném Invali
 
 `eventType` thiếu hoặc không phải chuỗi thì không chọn được schema: chỉ báo đúng một lỗi ở `eventType` (`MISSING_FIELD` hoặc `WRONG_TYPE`).
 
-**Ánh xạ từ `joi` sang `code`** (đã thử trên `joi` 18.2.9 với `convert: false`, `abortEarly: false`): `any.required` → `MISSING_FIELD`; mọi `*.base` (`string.base`, `boolean.base`) → `WRONG_TYPE`; `string.empty`, `string.pattern.base`, `any.custom` → `INVALID_FORMAT`; `any.only`, `any.unknown` (khóa bị cấm, khai bằng `forbidden()`) → `NOT_ALLOWED`; loại lỗi `joi` nào chưa có trong bảng này rơi về `INVALID_FORMAT` (không bao giờ bị bỏ qua, cũng không làm hàm ném). `joi` có thể báo **hai** lỗi cho cùng một trường (ví dụ `type: 5` ra cả `any.only` lẫn `string.base`), nên mỗi `path` giữ một lỗi theo thứ tự ưu tiên `MISSING_FIELD`, `WRONG_TYPE`, `INVALID_FORMAT`, `NOT_ALLOWED`. Vậy `type: 5` hay `newStatus: null` cho đúng một lỗi `WRONG_TYPE`, không phải `NOT_ALLOWED`.
+**Ánh xạ từ `joi` sang `code`** (đã thử trên `joi` 18.2.9 với `convert: false`, `abortEarly: false`): `any.required` → `MISSING_FIELD`; `string.base`, `boolean.base` (kiểm kiểu cơ sở; so khớp đúng tên, **không** gồm `string.pattern.base`) → `WRONG_TYPE`; `string.empty`, `string.pattern.base`, `any.custom` → `INVALID_FORMAT`; `any.only`, `any.unknown` (khóa bị cấm, khai bằng `forbidden()`) → `NOT_ALLOWED`; loại lỗi `joi` nào chưa có trong bảng này rơi về `INVALID_FORMAT` (không bao giờ bị bỏ qua, cũng không làm hàm ném). `joi` có thể báo **hai** lỗi cho cùng một trường (ví dụ `type: 5` ra cả `any.only` lẫn `string.base`), nên mỗi `path` giữ một lỗi theo thứ tự ưu tiên `MISSING_FIELD`, `WRONG_TYPE`, `INVALID_FORMAT`, `NOT_ALLOWED`. Vậy `type: 5` hay `newStatus: null` cho đúng một lỗi `WRONG_TYPE`, không phải `NOT_ALLOWED`.
 
 **Chính sách của consumer với `UNKNOWN_EVENT_TYPE`** không nằm ở thư viện: thư viện chỉ phân loại. Khi triển khai cuốn chiếu (ADR-13), worker cũ có thể nhận loại sự kiện mới; consumer phải chọn có chủ ý giữa "xác nhận và ghi log" và "đẩy DLQ" (bàn giao ở §8). Mọi lỗi còn lại là sai schema: DLQ ngay, không retry (ADR-03).
 
@@ -90,7 +90,7 @@ assertEvent(payload: unknown): DomainEvent   // validateEvent, rồi ném Invali
 
 **2.4 Nạp tiền và chuyển tiền** (BL-002, đã duyệt ở G1): nguồn của `DEPOSIT` là tài khoản SYSTEM không có chủ.
 
-- **Kiểm kiểu trước, cho mọi `type`:** `fromUserId` là uuid hoặc `null`, `sameOwner` là boolean. Sai kiểu thì báo như mọi trường (`fromUserId: 5` hay `sameOwner: "true"` là `WRONG_TYPE`; thiếu khóa là `MISSING_FIELD`), kể cả khi là `DEPOSIT`.
+- **Kiểm kiểu trước, cho mọi `type`:** `fromUserId` là uuid hoặc `null`, `sameOwner` là boolean. Schema khai `fromUserId: Joi.string().pattern(UUID).allow(null).required()` và `sameOwner: Joi.boolean().required()`; **không** dùng `Joi.alternatives()` cho `fromUserId`, vì nó phát `alternatives.types` (không nằm trong bảng ánh xạ ở 2.2) nên `fromUserId: 5` sẽ ra `INVALID_FORMAT` thay vì `WRONG_TYPE`. Sai kiểu thì báo như mọi trường (`fromUserId: 5` hay `sameOwner: "true"` là `WRONG_TYPE`; thiếu khóa là `MISSING_FIELD`), kể cả khi là `DEPOSIT`.
 - **Luật liên trường** (chỉ chạy khi `type` đã hợp lệ, và chỉ cho trường đã đúng kiểu): `type = DEPOSIT` thì `fromUserId` phải là `null` và `sameOwner` phải là `false`, vi phạm báo `NOT_ALLOWED` ở trường đó; `type = TRANSFER` thì `fromUserId` không được `null`, vi phạm báo `WRONG_TYPE`. Khi `type` thiếu hay sai thì **bỏ qua** luật này, nên một `type` sai (ví dụ `"WITHDRAWAL"`, `5`, `null`) chỉ cho đúng một lỗi, ở `type`, dù phần còn lại có hình dạng `DEPOSIT` (`fromUserId: null`) hay `TRANSFER`.
 - **Cố ý không kiểm:** (a) trạng thái bất khả như `TRANSFER` có `fromBalanceBefore` âm (BR-03, `accounts_balance_non_negative` giữ) hay `DEPOSIT` có `fromBalanceBefore` dương (ADR-09: `funding` luôn ≤ 0); contract không nói và đó là bất biến của dữ liệu, nên việc của producer và cơ sở dữ liệu. (b) Ràng buộc liên trường khác (ví dụ `fromAccountId` khác `toAccountId`, `transfers_distinct_accounts`).
 
@@ -262,6 +262,13 @@ Loại "thư viện chưa có người gọi" (`task-kinds.md`): một **script 
 | 2 | minor | `joi` không bao giờ phát `object.unknown` khi `allowUnknown: true`; khóa bị cấm (`forbidden()`) ra `any.unknown`; `forbidden()` chấp nhận `undefined` | **đã sửa** §2.2: dùng `any.unknown`, và loại lỗi chưa có trong bảng rơi về `INVALID_FORMAT`; TC-24-13: mọi giá trị JSON kể cả `null`, không thử `undefined` |
 | 3 | minor | TC-24-06 "chữ hoa" trên mọi uuid: id `funding` toàn chữ số không đổi khi viết hoa, `fromUserId: null` không viết hoa được | **đã sửa** TC-24-06: biến thể chữ hoa chỉ trên uuid có chữ `a` đến `f`, bỏ qua trường `null` |
 | 4 | minor | TC-24-19 và M-24-04 mới phân loại ba kiểu dòng lỗi; `eventType` sai nằm ở dòng thuộc tính | **đã sửa** TC-24-19 và M-24-04 |
+
+**Vòng 3** (cùng reviewer; xác nhận cả 4 phát hiện vòng 2 đã sửa đúng, chạy lại `joi` và `tsc`): 2 phát hiện, đều minor về độ chính xác của câu chữ, verdict **REVISE**. Trả lời nguyên văn ở cuối [file trên](screenshots/DBS-24/domain-review.md).
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | minor | Bảng ánh xạ tự mâu thuẫn: "mọi `*.base` → `WRONG_TYPE`" cũng khớp `string.pattern.base`, vốn được xếp vào `INVALID_FORMAT` | **đã sửa** §2.2: chỉ `string.base`, `boolean.base` là `WRONG_TYPE`, so khớp đúng tên, không gồm `string.pattern.base` |
+| 2 | minor | Chưa nêu dạng schema của `fromUserId`; dùng `Joi.alternatives()` thì `fromUserId: 5` ra `alternatives.types` (chưa ánh xạ, rơi về `INVALID_FORMAT`) thay vì `WRONG_TYPE` | **đã sửa** §2.4: khai `Joi.string().pattern(UUID).allow(null).required()` và không dùng `Joi.alternatives()` |
 
 **Quyết định ở G2:** (điền sau khi được duyệt)
 

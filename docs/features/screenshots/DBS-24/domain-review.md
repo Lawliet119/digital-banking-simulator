@@ -54,3 +54,38 @@ Other checks:
 - M-24-05 matches the DBS-22 `dist/common/...` layout.
 
 Verdict: REVISE
+
+
+---
+
+<!-- Vòng 3 (2026-10-19): trả lời nguyên văn của reviewer (subagent Claude Opus 5.5, effort medium) cho §1–§6 sau khi sửa theo vòng 2. Không sửa. -->
+
+| # | Severity (blocking / should-fix / minor) | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | minor | §2.2, the joi-to-`code` mapping paragraph | New defect. The mapping contradicts itself. "mọi `*.base` → `WRONG_TYPE`" also matches `string.pattern.base`, and the same paragraph lists `string.pattern.base` under `INVALID_FORMAT`. No rule says which one wins. An implementation that follows the text with `type.endsWith('.base')` sends every pattern failure (uuid, time) to `WRONG_TYPE`. That breaks TC-24-06, TC-24-09, the `occurredAt` row of the §2.9 example and the uuid case in M-24-02. The tests would catch it, but the spec gives the wrong instruction. | joi 18.2.9 probe: a bad uuid or a time with `+07:00` both give `string.pattern.base`; doc §2.2 | Write "`string.base`, `boolean.base` (the base type checks; not `string.pattern.base`) → `WRONG_TYPE`", or say that an exact match in the table wins over the `*.base` rule. |
+| 2 | minor | §2.4 (type check), §2.2 mapping; TC-24-11, TC-24-05 | The doc does not say how to build the `fromUserId` schema ("uuid hoặc `null`"). With `Joi.alternatives().try(Joi.string().pattern(UUID), Joi.valid(null))`, `fromUserId: 5` and `true` give `alternatives.types`. That type is unmapped, so it falls back to `INVALID_FORMAT`, while TC-24-11 and TC-24-05 expect `WRONG_TYPE`. With `Joi.string().pattern(UUID).allow(null).required()`, the doc's expectations all hold. | Probe: `alternatives` gives `["alternatives.types"]` for 5 and true; `string().pattern().allow(null)` gives `string.base` for 5 and `string.pattern.base` for "abc" | In §2.4, name the schema shape `Joi.string().pattern(UUID).allow(null).required()`, or map `alternatives.types` → `WRONG_TYPE`. |
+
+**Round-2 findings, checked against the doc text (not only §6). All are fixed.**
+- **#1 (should-fix):** §2.1 step (4) and §2.4 now run the cross-field rule only when `type` passed step 3, and "(kể cả giá trị sai)" is gone. I applied the §2.1 pipeline mechanically to the §2.9 sample, with `convert:false, allowUnknown:true, abortEarly:false`:
+  - `type` set to `5` or `null` gives exactly one issue, `type`/`WRONG_TYPE` (`any.only` + `string.base`, folded by priority).
+  - `"WITHDRAWAL"` and `"transfer"` give exactly one `type`/`NOT_ALLOWED`.
+  - Removing `type` gives exactly one `type`/`MISSING_FIELD`.
+  - The TRANSFER sample gives the same results.
+- **#2:** §2.2 uses `any.unknown` and has the `INVALID_FORMAT` fallback. With `Joi.any().forbidden()`, `reason` set to `"x"`, `null`, `0`, `{}`, `[]` or `false` gives one `NOT_ALLOWED`. `reason: undefined` passes, which matches TC-24-13 excluding `undefined`.
+- **#3:** TC-24-06 now limits the upper-case variant to uuids with a–f and skips `null` fields. Upper case, braces and `""` each give one `INVALID_FORMAT`. A 100000-character string finishes in about 0 ms.
+- **#4:** I ran `tsc` (TS 5.9.3, the repo `tsconfig`, scratch config on `C:` with absolute `extends`, `outDir:null`, `incremental:false`, `noEmit`). It confirms the TC-24-19 and M-24-04 line placement:
+  - On the property line: `amount: 500000` (18,3), `eventType: 'Other'` (35,3), and `'AccountStatusChanged'` on a `TransferCompleted` (49,3).
+  - On the `const` line (col 14): a missing field, `DEPOSIT` with a string `fromUserId`, and `TRANSFER` with `null`.
+  - All errors are TS2322. There is no TS5009. The `switch` with a `never` default compiles.
+
+**Other checks**
+- **TC-24-04 and TC-24-05, all fields of the DEPOSIT, TRANSFER and AccountStatusChanged samples:** I dropped each field in turn and changed each to the wrong type. Every case gives exactly one issue at that field, with the expected code.
+- **DEPOSIT cases (TC-24-11):** `fromUserId` 5 → `WRONG_TYPE`; "abc" → `INVALID_FORMAT`, with the cross-field rule correctly skipped; `sameOwner` "true" or null → `WRONG_TYPE`; `sameOwner` true → `NOT_ALLOWED`.
+- **TRANSFER cases (TC-24-11):** `fromUserId` null → `WRONG_TYPE`; key removed → `MISSING_FIELD`.
+- **`newStatus` (TC-24-23):** null and 5 each give one `WRONG_TYPE`.
+- **`eventType` (TC-24-14):** null or 5 → `WRONG_TYPE`; missing → `MISSING_FIELD`; wrong case → `UNKNOWN_EVENT_TYPE`.
+- **§2.9 example:** exactly the 3 issues shown.
+- **`__proto__` key:** no pollution. An `Object.create(null)` payload is accepted.
+- **Consistency:** §2.2, §2.4, §4 and §6 agree. TC ids TC-24-01 to TC-24-24 are unique and consecutive.
+
+Verdict: REVISE
