@@ -176,4 +176,174 @@ describe('validateEvent (DBS-24)', () => {
       ]);
     }
   });
+
+  // ── formats (step 4) ──────────────────────────────────────────────────────────────────────────
+
+  const UUID_FIELDS: Record<keyof typeof VALID_SAMPLES, string[]> = {
+    TRANSFER: [
+      'eventId',
+      'correlationId',
+      'transferId',
+      'fromAccountId',
+      'toAccountId',
+      'fromUserId',
+      'toUserId',
+    ],
+    // fromUserId is null for a DEPOSIT: nothing to break
+    DEPOSIT: ['eventId', 'correlationId', 'transferId', 'fromAccountId', 'toAccountId', 'toUserId'],
+    ACCOUNT_LOCKED: ['eventId', 'correlationId', 'accountId', 'ownerUserId', 'changedByUserId'],
+    ACCOUNT_ACTIVE: ['eventId', 'correlationId', 'accountId', 'ownerUserId', 'changedByUserId'],
+  };
+
+  const TIME_FIELDS: Record<keyof typeof VALID_SAMPLES, string[]> = {
+    TRANSFER: ['occurredAt', 'fromAccountCreatedAt', 'toAccountCreatedAt'],
+    DEPOSIT: ['occurredAt', 'fromAccountCreatedAt', 'toAccountCreatedAt'],
+    ACCOUNT_LOCKED: ['occurredAt'],
+    ACCOUNT_ACTIVE: ['occurredAt'],
+  };
+
+  const withField = (sample: object, key: string, value: unknown): Record<string, unknown> => ({
+    ...clone(sample),
+    [key]: value,
+  });
+
+  describe.each(Object.entries(VALID_SAMPLES))(
+    'TC-24-06 a malformed uuid in the %s sample',
+    (name, sample) => {
+      it.each(UUID_FIELDS[name as keyof typeof VALID_SAMPLES])(
+        '%s is INVALID_FORMAT, whatever the way it is malformed',
+        key => {
+          const valid = (sample as unknown as Record<string, string>)[key];
+          const malformed = [
+            'abc',
+            '',
+            valid.slice(0, -5), // a group too short
+            valid.replace(/.$/, 'g'), // not hex
+            `{${valid}}`, // braces
+            valid.replaceAll('-', ''), // no hyphens
+            `${valid} `, // trailing space
+            `${valid}\n`, // trailing newline
+            'x'.repeat(100_000), // must be refused at once, and never echoed
+            ...(/[a-f]/.test(valid) ? [valid.toUpperCase()] : []), // upper case splits Redis keys
+          ];
+          for (const value of malformed) {
+            const issues = issuesOf(withField(sample, key, value));
+
+            expect(issues.map(i => [i.path, i.code])).toEqual([[key, 'INVALID_FORMAT']]);
+            expect(issues[0].message).not.toContain('xxxx');
+          }
+        },
+      );
+    },
+  );
+
+  it('TC-24-06 the funding account id (no letters, version 4, variant 8) is a valid uuid', () => {
+    expect(validateEvent(clone(DEPOSIT_SAMPLE)).ok).toBe(true);
+  });
+
+  it('TC-24-07 amount is a canonical decimal string above zero and within 2^63 - 1', () => {
+    for (const amount of ['1', '500000', '9007199254740993', '9223372036854775807']) {
+      expect(validateEvent(withField(TRANSFER_SAMPLE, 'amount', amount)).ok).toBe(true);
+    }
+    for (const amount of [
+      '0',
+      '-1',
+      '1.5',
+      '01',
+      ' 1',
+      '1e3',
+      '',
+      '9223372036854775808',
+      '99999999999999999999',
+    ]) {
+      expect(pairsOf(withField(TRANSFER_SAMPLE, 'amount', amount))).toEqual([
+        ['amount', 'INVALID_FORMAT'],
+      ]);
+    }
+    // A JSON number is refused even when exact: by the time we see it the digits may be gone.
+    expect(pairsOf(withField(TRANSFER_SAMPLE, 'amount', 500000))).toEqual([
+      ['amount', 'WRONG_TYPE'],
+    ]);
+  });
+
+  it('TC-24-08 fromBalanceBefore is a signed canonical decimal string, negative allowed', () => {
+    for (const balance of [
+      '-1000000',
+      '0',
+      '520000',
+      '-9223372036854775808',
+      '9223372036854775807',
+    ]) {
+      expect(validateEvent(withField(TRANSFER_SAMPLE, 'fromBalanceBefore', balance)).ok).toBe(true);
+    }
+    for (const balance of [
+      '-0',
+      '01',
+      '1.5',
+      '1e3',
+      ' 1',
+      '',
+      '9223372036854775808',
+      '-9223372036854775809',
+    ]) {
+      expect(pairsOf(withField(TRANSFER_SAMPLE, 'fromBalanceBefore', balance))).toEqual([
+        ['fromBalanceBefore', 'INVALID_FORMAT'],
+      ]);
+    }
+    expect(pairsOf(withField(TRANSFER_SAMPLE, 'fromBalanceBefore', -5))).toEqual([
+      ['fromBalanceBefore', 'WRONG_TYPE'],
+    ]);
+  });
+
+  describe.each(Object.entries(VALID_SAMPLES))(
+    'TC-24-09 a time field of the %s sample is UTC with Z and a real date',
+    (name, sample) => {
+      const valid = [
+        '2026-10-19T03:15:42Z',
+        '2026-10-19T03:15:42.1Z',
+        '2026-10-19T03:15:42.123Z',
+        '2026-10-19T03:15:42.123456Z',
+        '2026-10-19T03:15:42.123456789Z',
+        '2026-12-31T23:59:59.999Z',
+        '2028-02-29T00:00:00Z', // leap year
+        '2000-02-29T12:00:00Z', // leap year, divisible by 400
+        '0400-02-29T00:00:00Z', // leap, and a year below 100 must not be read as 19xx
+      ];
+      const invalid = [
+        '2026-10-19T10:15:42+07:00', // an offset
+        '2026-10-19T03:15:42+00:00', // even a zero offset: the contract says Z
+        '2026-10-19T03:15:42', // no zone
+        '2026-10-19', // date only
+        '2026-10-19 03:15:42Z', // space instead of T
+        '2026-10-19t03:15:42z', // lower case
+        '2026-10-19T03:15:42.Z', // empty fraction
+        '2026-10-19T03:15:42.1234567890Z', // ten fraction digits
+        '2026-10-19T03:15:42ZZ',
+        ' 2026-10-19T03:15:42Z',
+        '2026-02-30T00:00:00Z', // V8 would roll this to 2 March
+        '2026-02-29T00:00:00Z', // not a leap year
+        '2100-02-29T00:00:00Z', // divisible by 100, not by 400
+        '0100-02-29T00:00:00Z', // same, in a year below 100
+        '2026-04-31T00:00:00Z',
+        '2026-13-01T00:00:00Z',
+        '2026-00-10T00:00:00Z',
+        '2026-10-00T00:00:00Z',
+        '2026-10-32T00:00:00Z',
+        '2026-10-17T24:00:00Z', // V8 would roll this to the next day
+        '2026-10-17T10:60:00Z',
+        '2026-10-17T10:00:60Z',
+      ];
+
+      it.each(TIME_FIELDS[name as keyof typeof VALID_SAMPLES])('%s', key => {
+        for (const time of valid) expect(validateEvent(withField(sample, key, time)).ok).toBe(true);
+        for (const time of invalid) {
+          expect(pairsOf(withField(sample, key, time))).toEqual([[key, 'INVALID_FORMAT']]);
+        }
+        // An epoch number or a Date object is the wrong TYPE, not a bad format.
+        for (const wrong of [1_760_843_742_000, new Date(0)]) {
+          expect(pairsOf(withField(sample, key, wrong))).toEqual([[key, 'WRONG_TYPE']]);
+        }
+      });
+    },
+  );
 });
