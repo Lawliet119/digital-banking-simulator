@@ -23,3 +23,34 @@
 - `libs/sqs`: a `JSON.parse` failure goes straight to the DLQ (never reaches the validator).
 
 Verdict: REVISE
+
+
+---
+
+<!-- Vòng 2 (2026-10-19): trả lời nguyên văn của reviewer (subagent Claude Opus 5.5, effort medium) cho §1–§6 sau khi sửa theo vòng 1. Không sửa. -->
+
+| # | Severity | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | should-fix | §2.4 (luật liên trường), §2.1 step (4); TC-24-04, TC-24-05, TC-24-10, TC-24-11, TC-24-23 | New defect, introduced by the fix for round-1 #1. §2.4 says that for "mọi `type` khác (**kể cả giá trị sai**)" a `null` `fromUserId` is `WRONG_TYPE`, and then claims "một `type` sai (ví dụ `"WITHDRAWAL"`) chỉ cho đúng một lỗi, ở `type`". The claim is false whenever the rest of the payload has DEPOSIT shape (`fromUserId: null`): you get **two** issues, one at `type` and one `WRONG_TYPE` at `fromUserId`. This breaks tests that run over the DEPOSIT sample: TC-24-04 (drop `type`, expects exactly 1 issue), TC-24-05 (`type` set to a number or `null`, 1 issue), TC-24-10 (`type: "transfer"`), TC-24-23 (`type: 5` / `type: null`, "đúng một lỗi"), and TC-24-11 (`"WITHDRAWAL"` with the rest valid). It also contradicts §2.1 step (4), which says the cross-field rule runs only for fields that passed step 3: here it runs even though `type` failed. | The rule as written in doc §2.4. The joi probe (18.2.9, `convert:false, allowUnknown:true, abortEarly:false`) shows that `fromUserId: Joi.string().pattern(UUID).allow(null)` accepts `null` in step 3, so only step 4 emits the second issue. | Run the whole step 4 only when `type` passed step 3 (`TRANSFER` or `DEPOSIT`). When `type` failed, skip the `fromUserId`/`sameOwner` rule. Remove "(kể cả giá trị sai)". Add a case to TC-24-11/23: DEPOSIT sample with `type: 5` gives exactly 1 issue. |
+| 2 | minor | §2.2 joi-to-`code` mapping; TC-24-13 | The mapping sends forbidden keys through `object.unknown`. With `allowUnknown: true`, joi never emits `object.unknown`. The natural way to forbid `reason` is `Joi.any().forbidden()`, which emits **`any.unknown`**, and that type is not in the mapping. So a literal implementation leaves `reason` with no code. Related: `forbidden()` accepts `reason: undefined`, while TC-24-13 says "bất kỳ giá trị". That is consistent with §2.2 (undefined counts as absent), but the test must not include `undefined`. | Probe: `reason:'x'` and `reason:null` give `any.unknown`, `reason:undefined` gives OK. Doc §2.2 says "`object.unknown` (khóa bị cấm)". | Replace `object.unknown` with `any.unknown`. Add a rule for unmapped joi types, for example throw in tests or fall back to `INVALID_FORMAT`. Change TC-24-13 to "any JSON value (including `null`)". |
+| 3 | minor | TC-24-06 | "chữ hoa" runs on "mọi trường uuid" of every sample. The DEPOSIT sample's `fromAccountId` is the `funding` id `00000000-0000-4000-8000-000000000001`, which has no letters, so `toUpperCase()` returns the same, valid value. A generic loop then expects `INVALID_FORMAT` and gets `ok: true`. The DEPOSIT `fromUserId` is `null`, so it cannot be upper-cased either. | database-design.md line 573 (funding id); doc §2.3, §2.9 | In TC-24-06, run the upper-case variant only on ids that contain a-f, or use a fixed upper-case uuid. Skip `null` fields. |
+| 4 | minor | TC-24-19 (round-1 #11 only partly fixed) | The text classifies where only three error kinds land. I compiled the §3 types with the repo `tsconfig` (TS 5.9.3, strict): `eventType: "Other"` (line 13 col 3) and `eventType: "AccountStatusChanged"` on a `TransferCompleted` land on the **property** line, like `amount: 500000`. Missing field, DEPOSIT with a string `fromUserId` and TRANSFER with a `null` `fromUserId` land on the `const` line (col 14). An `@ts-expect-error` placed by the doc's rule for these two eventType cases can be "unused". | My `tsc -p` run of a scratch copy of the §3 snippet | Add "`eventType` sai: dòng thuộc tính" to TC-24-19 and to M-24-04's line list. |
+
+Verified as fixed. Round-1 #1: the joi side is correct. `type:5`, `type:null` and `newStatus:null` give `any.only` + `string.base`, so the priority rule yields one `WRONG_TYPE`. `fromUserId:5` gives `string.base`, `sameOwner:"true"` gives `boolean.base`, `""` gives `string.empty`, money gives `any.custom`, a pattern gives `string.pattern.base`. The cross-field side is row 1 above.
+- #2: the literal `eventType` union narrows in `switch` with a `never` default and compiles. A wrong `eventType` errors.
+- #3 and #9: left to G2, as stated.
+- #4: §2.3 uses the lower-case regex, TC-24-06 extended.
+- #5: tested with a scratch `tsconfig` on `C:` with absolute `extends`, `outDir:null`, `incremental:false`, `noEmit`. No TS5009, `@common/money` and its imports resolve with no extra errors, all errors are TS2322, and the errors land on the intended lines.
+- #6: joi echoes the value in `string.pattern.base`; §2.1 now builds `message` from the code.
+- #7: the pre-check is described in §2.1.
+- #8: deliberate, pinned by TC-24-22.
+- #10: confirmed. `Record<keyof Common & (A|B)>` misses keys that exist in only one branch, and the limit is documented. A missing key in a plain `Record` gives TS2741.
+- #12: listed in the hand-off list.
+
+Other checks:
+- §2.9 examples: every uuid matches the lower-case regex, every time is UTC with `Z`, and the 3-issue example matches §2.2 and §2.4.
+- `parseBalance` accepts `-2^63`, which matches TC-24-08.
+- A JSON `__proto__` key does not pollute (probe).
+- M-24-05 matches the DBS-22 `dist/common/...` layout.
+
+Verdict: REVISE
