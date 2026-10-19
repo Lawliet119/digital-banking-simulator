@@ -1,0 +1,103 @@
+6ab5d4f
+# DBS-35 manual-test.txt. SHA ở dòng 1 là commit cuối đổi code (ci.yml, package-lock.json). Phần "LẦN 1" chạy trên 903daf1 và ĐỎ (npm ci lỗi); phần "LẦN 2" chạy trên 6ab5d4f sau khi sửa lockfile.
+
+##### LẦN 1 (commit 903daf1, ĐỎ)
+=== M-35-01: actionlint 1.7.12 (Git Bash, MSYS_NO_PATHCONV=1)
+actionlint exit 0
+
+=== M-35-02: docker network + postgres:17 (cùng env và health check như service trong ci.yml)
+postgres health: healthy (sau 3 giây)
+=== Kiểm Postgres (superuser, UTC) từ container client postgres:17 qua TCP, đúng URL như CI
+rolsuper=t timezone=Etc/UTC
+Kiểm Postgres: OK
+kiểm Postgres exit 0
+=== node:24 (Linux): clone nhánh, npm ci, năm lệnh KHÔNG đặt DATABASE_URL, rồi test:db
+uname: Linux 6.6.87.2-microsoft-standard-WSL2  node: v24.22.0  HEAD: 903daf1
+DATABASE_URL đang đặt? <không>
+npm notice
+npm error A complete log of this run can be found in: /root/.npm/_logs/2026-10-19T11_45_05_307Z-debug-0.log
+----- npm run lint:check
+npm run lint:check -> exit 127
+----- npm run typecheck
+npm run typecheck -> exit 127
+----- npm run test
+npm run test -> exit 127
+----- npm run test:e2e
+npm run test:e2e -> exit 127
+----- npm run build
+npm run build -> exit 127
+----- npm run test:db (DATABASE_URL trỏ vào service)
+npm run test:db -> exit 127
+
+=== M-35-03: DATABASE_URL trỏ vào cổng không có Postgres (phải đỏ rõ ràng, không bỏ qua)
+npm run test:db (cổng sai) -> exit 127
+
+##### LẦN 2 (commit 6ab5d4f, sau khi sửa lockfile)
+=== M-35-01: actionlint 1.7.12 (Git Bash, MSYS_NO_PATHCONV=1)
+actionlint exit 0
+
+=== M-35-02: docker network + postgres:17 (cùng env và health check như service trong ci.yml)
+postgres health: healthy (sau 3 giây)
+=== Kiểm Postgres (superuser, UTC) từ container client postgres:17 qua TCP, đúng URL như CI
+rolsuper=t timezone=Etc/UTC
+Kiểm Postgres: OK
+kiểm Postgres exit 0
+=== node:24 (Linux): clone nhánh, npm ci, năm lệnh KHÔNG đặt DATABASE_URL, rồi test:db
+uname: Linux 6.6.87.2-microsoft-standard-WSL2  node: v24.22.0  HEAD: 6ab5d4f
+DATABASE_URL đang đặt? <không>
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+----- npm run lint:check
+npm run lint:check -> exit 0
+----- npm run typecheck
+npm run typecheck -> exit 0
+----- npm run test
+PASS src/common/errors/reject-reason.spec.ts (13.622 s)
+PASS src/common/utils/pg-error.util.spec.ts (16.227 s)
+Test Suites: 19 passed, 19 total
+Tests:       201 passed, 201 total
+npm run test -> exit 0
+----- npm run test:e2e
+PASS test/error-handling.e2e-spec.ts
+Test Suites: 4 passed, 4 total
+Tests:       25 passed, 25 total
+npm run test:e2e -> exit 0
+----- npm run build
+npm run build -> exit 0
+----- npm run test:db (DATABASE_URL trỏ vào service)
+Test Suites: 3 passed, 3 total
+Tests:       49 passed, 49 total
+npm run test:db -> exit 0
+
+=== M-35-03: DATABASE_URL trỏ vào cổng không có Postgres (phải đỏ rõ ràng, không bỏ qua)
+     49       29 |       `Cannot reach PostgreSQL at DATABASE_URL (${(error as Error).message}). ` +
+     49     Cannot reach PostgreSQL at DATABASE_URL (connect ECONNREFUSED 172.24.0.2:25999). Is `docker compose up -d` running?
+      1 Test Suites: 3 failed, 3 total
+      1 Tests:       49 failed, 49 total
+npm run test:db (cổng sai) -> exit 1
+
+##### CHẨN ĐOÁN LẦN 1 (chạy tay trong container node:24, trên bản sao; không đổi repo). Trích nguyên văn từ output.
+== npm ci trong container node:24 (Node v24.22.0, npm 11.19.1) trên commit 903daf1
+npm error code EUSAGE
+npm error `npm ci` can only install packages when your package.json and package-lock.json or npm-shrinkwrap.json are in sync. Please update your lock file with `npm install` before continuing.
+npm error Missing: @emnapi/core@1.11.3 from lock file
+npm error Missing: @emnapi/runtime@1.11.3 from lock file
+exit 1
+== so sánh: Windows npm 11.6.2 / Node v24.11.1, bản clone sạch, cùng lockfile: npm ci exit 0 (baseline ở §1)
+== bản sao trong container: npm install --package-lock-only (npm 11.19.1)
+exit 0
+ backend/package-lock.json | 55 ++++++++++++++++++++++++-----------------------
+ 1 file changed, 28 insertions(+), 27 deletions(-)
++    "node_modules/@emnapi/core": { "version": "1.11.3", ... dev, optional }
++    "node_modules/@emnapi/runtime": { "version": "1.11.3", ... dev, optional }
+(còn lại: bỏ các dòng "peer": true)
+== bản sao: npm ci sau khi tạo lại lockfile: exit 0
+== Windows npm 11.6.2, bản clone sạch, lockfile mới: npm ci exit 0; lint:check, typecheck, build exit 0; test 201 passed; test:e2e 25 passed
+
+##### BƯỚC 1 ĐỎ (§7, trước khi có ci.yml). Trích nguyên văn từ output.
+$ docker run … rhysd/actionlint:1.7.12 -color .github/workflows/ci.yml
+could not read ".github/workflows/ci.yml": open .github/workflows/ci.yml: no such file or directory
+actionlint exit 3
+$ node check-ci.mjs
+FAIL file: ENOENT: no such file or directory, open '…\.github\workflows\ci.yml'
+static exit 1
