@@ -1,8 +1,8 @@
 # Event contract
 
-> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #3 · **Cặp đôi:** #1, #4 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-11
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #3 · **Cặp đôi:** #1, #4 · **Verified against code:** `TransferCompleted`, `AccountStatusChanged`, mục "Định dạng" (DBS-24, 2026-10-19, `backend/src/common/events`) · **Cập nhật:** 2026-10-19
 
-> Nguồn duy nhất cho hình dạng sự kiện. Bản JSON ở docs/03 §10 là ví dụ và phải khớp bảng dưới. Type TypeScript dùng chung ở `backend/src/common/events` (DBS-24).
+> Nguồn duy nhất cho hình dạng sự kiện. Bản JSON ở docs/03 §10 là ví dụ và phải khớp bảng dưới. Type TypeScript và hàm kiểm tra dùng chung ở `backend/src/common/events` (`@common/events`, DBS-24): `validateEvent` (consumer) và `assertEvent` (producer).
 > Đổi contract đã thống nhất: báo trước cho mọi bên dùng nó và cập nhật file này **trong cùng PR**.
 
 ## `TransferCompleted`
@@ -11,17 +11,18 @@
 |---|---|---|---|
 | `eventId` | uuid | chống xử lý trùng (`processed_events`) | |
 | `eventType` | string | định tuyến | `TransferCompleted` |
-| `occurredAt` | ISO-8601 UTC | **mọi cửa sổ thời gian** | Bằng `transfers.created_at` (thời điểm ghi giao dịch, `clock_timestamp()` của DB). Không dùng giờ của worker |
+| `occurredAt` | ISO-8601 UTC có `Z` | **mọi cửa sổ thời gian** | Bằng `transfers.created_at` (thời điểm ghi giao dịch, `clock_timestamp()` của DB). Không dùng giờ của worker |
 | `correlationId` | uuid | truy vết, audit | Do server sinh |
 | `transferId` | uuid | khóa của cờ | |
 | `type` | `TRANSFER` \| `DEPOSIT` | risk bỏ qua `DEPOSIT` | |
 | `fromAccountId`, `toAccountId` | uuid | R1, R2, R4, R5 | |
-| `amount` | string (đồng) | R2, R3, R6 | Không dùng `number` |
-| `fromBalanceBefore` | string (đồng) | R6 | **Snapshot** tại thời điểm giao dịch |
-| `fromAccountCreatedAt` | ISO-8601 | R3 | **Snapshot** |
-| `toAccountCreatedAt` | ISO-8601 | (dự phòng) | Có trong bản docs/03 |
-| `sameOwner` | boolean | ngoại lệ cho R5, R6 | Hai tài khoản cùng một khách hàng (FRAUD_DETECTION_GUIDE §5.2) |
-| `fromUserId`, `toUserId` | uuid | `notification` biết gửi cho ai | Chủ của hai tài khoản tại thời điểm giao dịch (database-design §13, điểm 14) |
+| `amount` | string (đồng), > 0 | R2, R3, R6 | Không dùng `number`. Số nguyên đồng dạng chuẩn, ≤ 2^63−1 (`parsePositiveMoney`) |
+| `fromBalanceBefore` | string (đồng), **có dấu** | R6 | **Snapshot** tại thời điểm giao dịch. **Âm khi nguồn là `funding`** (nạp tiền, ADR-09). Kiểm bằng `parseBalance` |
+| `fromAccountCreatedAt` | ISO-8601 UTC có `Z` | R3 | **Snapshot** |
+| `toAccountCreatedAt` | ISO-8601 UTC có `Z` | (dự phòng) | Có trong bản docs/03 |
+| `sameOwner` | boolean | ngoại lệ cho R5, R6 | Hai tài khoản cùng một khách hàng (FRAUD_DETECTION_GUIDE §5.2). **`false` khi `DEPOSIT`** |
+| `fromUserId` | uuid hoặc `null` | `notification` biết gửi cho ai | Chủ của tài khoản nguồn tại thời điểm giao dịch (database-design §13, điểm 14). **`null` khi và chỉ khi `type = DEPOSIT`**: nguồn là tài khoản SYSTEM `funding` không có chủ (BL-002) |
+| `toUserId` | uuid | `notification` biết gửi cho ai | Chủ của tài khoản đích tại thời điểm giao dịch |
 
 ## `AccountStatusChanged`
 
@@ -34,7 +35,18 @@ Có chung bốn trường đầu (`eventId`, `eventType`, `occurredAt`, `correla
 | `newStatus` | `ACTIVE` \| `LOCKED` | nội dung thông báo | |
 | `changedByUserId` | uuid | truy vết chéo với audit | Nhân viên thực hiện |
 
-Không mang lý do khóa: lý do nằm ở `audit_log`, và thông báo cho khách không bao giờ nêu lý do gian lận (BR-13).
+Không mang lý do khóa: lý do nằm ở `audit_log`, và thông báo cho khách không bao giờ nêu lý do gian lận (BR-13). Hàm kiểm tra từ chối trường tên `reason` trên sự kiện này; đó chỉ là dây chăng theo tên, biện pháp thật là mẫu thông báo của consumer không bao giờ in lý do.
+
+## Định dạng
+
+Do `@common/events` kiểm (`validateEvent`), cả hai sự kiện:
+
+| Trường | Quy tắc |
+|---|---|
+| uuid | dạng chuẩn **chữ thường** (`8-4-4-4-12` chữ số hex), không ngoặc nhọn, không bỏ dấu gạch. Chữ hoa làm tách khóa Redis của luật gian lận (`risk:vel:{accountId}`) |
+| thời gian | `YYYY-MM-DDTHH:mm:ss` + phần thập phân của giây (tùy chọn, 1 đến 9 chữ số) + **`Z`**; ngày giờ phải có thật. Không nhận offset, kể cả `+00:00`. Producer dựng bằng `Date#toISOString()`, không dùng đầu ra JSON của Postgres (`+00:00`) |
+| tiền | **chuỗi**, không bao giờ số JSON (kể cả số chính xác): `JSON.parse` làm tròn số trên 2^53 trước khi code thấy |
+| trường lạ | được phép và giữ nguyên: consumer cũ không coi trường mới là sai (xem "Quy tắc") |
 
 ## `TransferRejected` (không phát ở v1)
 
@@ -63,5 +75,6 @@ Không mang lý do khóa: lý do nằm ở `audit_log`, và thông báo cho khá
 - Consumer **không** đọc trạng thái hiện tại để thay snapshot (số dư, tuổi tài khoản đã đổi khi consumer chạy).
 - Giao hàng at-least-once, không đảm bảo thứ tự; consumer idempotent theo `eventId`.
 - Message sai schema đi thẳng DLQ, không retry. Lỗi tạm thời retry, sang DLQ sau 5 lần nhận (ADR-03).
-- Chỉ **thêm** trường để giữ tương thích; đổi tên hoặc bỏ trường là thay đổi phá vỡ, phải có PR được mọi consumer duyệt.
+- Chỉ **thêm** trường để giữ tương thích; đổi tên hoặc bỏ trường là thay đổi phá vỡ, phải có PR được mọi consumer duyệt. Consumer phải chấp nhận trường lạ (`validateEvent` làm vậy).
+- Mọi trường mới của `TransferCompleted` đặt ở phần chung của kiểu (`TransferCompletedCommon`), để kiểm tra "quên khai schema" của `@common/events` thấy được.
 - Tiền là chuỗi số nguyên đồng, thời gian là ISO-8601 UTC.
