@@ -6,7 +6,13 @@ import {
   TRANSFER_SAMPLE,
   VALID_SAMPLES,
 } from '../../../test/support/event-samples';
-import { validateEvent, type EventIssue, type EventIssueCode } from './validate-event';
+import {
+  assertEvent,
+  InvalidEventError,
+  validateEvent,
+  type EventIssue,
+  type EventIssueCode,
+} from './validate-event';
 
 /** What a failed validation says, sorted by path so a test never depends on the order of issues. */
 function issuesOf(payload: unknown): EventIssue[] {
@@ -420,4 +426,88 @@ describe('validateEvent (DBS-24)', () => {
     expect(validateEvent(withField(TRANSFER_SAMPLE, 'fromBalanceBefore', '-5')).ok).toBe(true);
     expect(validateEvent(withField(DEPOSIT_SAMPLE, 'fromBalanceBefore', '100')).ok).toBe(true);
   });
+
+  // ── safety and assertEvent (step 6) ───────────────────────────────────────────────────────────
+
+  it('TC-24-17 a __proto__ key in the parsed JSON pollutes nothing, and the input is not changed', () => {
+    const body = `${JSON.stringify(ACCOUNT_LOCKED_SAMPLE).slice(0, -1)},"__proto__":{"polluted":true}}`;
+    const payload = JSON.parse(body) as unknown;
+    const before = structuredClone(payload);
+
+    expect(validateEvent(payload).ok).toBe(true);
+    expect(payload).toEqual(before);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(Object.prototype).not.toHaveProperty('polluted');
+  });
+
+  it('TC-24-17 no message repeats the value it refused, whatever the field and the rule', () => {
+    const hostile = 'secret-value-123';
+    const attempts: [string, Record<string, unknown>][] = [
+      ['eventId', withField(TRANSFER_SAMPLE, 'eventId', hostile)], // pattern rule
+      ['amount', withField(TRANSFER_SAMPLE, 'amount', hostile)], // custom rule
+      ['occurredAt', withField(TRANSFER_SAMPLE, 'occurredAt', hostile)], // custom rule
+      ['type', withField(TRANSFER_SAMPLE, 'type', hostile)], // enum rule
+      ['eventType', withField(TRANSFER_SAMPLE, 'eventType', hostile)], // unknown type
+      ['newStatus', withField(ACCOUNT_LOCKED_SAMPLE, 'newStatus', hostile)],
+      ['reason', withField(ACCOUNT_LOCKED_SAMPLE, 'reason', hostile)], // forbidden key
+    ];
+    for (const [path, payload] of attempts) {
+      const issues = issuesOf(payload);
+
+      expect(issues).toHaveLength(1);
+      expect(issues[0].path).toBe(path);
+      expect(JSON.stringify(issues)).not.toContain('secret');
+      expect(issues[0].message.length).toBeLessThan(60); // a fixed sentence, not an echo
+    }
+  });
+
+  it('TC-24-18 assertEvent returns the event when it is valid and throws InvalidEventError when not', () => {
+    const payload = structuredClone(TRANSFER_SAMPLE);
+    expect(assertEvent(payload)).toBe(payload);
+
+    const bad = {
+      ...structuredClone(DEPOSIT_SAMPLE),
+      amount: 5,
+      fromUserId: TRANSFER_SAMPLE.fromUserId,
+    };
+    let thrown: unknown;
+    try {
+      assertEvent(bad);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(InvalidEventError);
+    expect(thrown).toBeInstanceOf(Error);
+    const error = thrown as InvalidEventError;
+    expect(error.name).toBe('InvalidEventError');
+    // The same issues validateEvent reports, so a consumer and a producer see one truth.
+    expect(error.issues).toEqual(issuesOfUnsorted(bad));
+    expect(error.issues.map(i => [i.path, i.code]).sort()).toEqual([
+      ['amount', 'WRONG_TYPE'],
+      ['fromUserId', 'NOT_ALLOWED'],
+    ]);
+  });
+
+  it('TC-24-18 the error message names the fields and codes, never a value', () => {
+    const hostile = withField(TRANSFER_SAMPLE, 'amount', 'secret-value-123');
+    let message = '';
+    try {
+      assertEvent(hostile);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toContain('amount');
+    expect(message).toContain('INVALID_FORMAT');
+    expect(message).not.toContain('secret');
+    // A payload that is not an object has no field name to show.
+    expect(() => assertEvent('not an object')).toThrow(/\(payload\) NOT_AN_OBJECT/);
+  });
 });
+
+/** The issues exactly as validateEvent returns them (unsorted), for comparing with the error's. */
+function issuesOfUnsorted(payload: unknown): EventIssue[] {
+  const result = validateEvent(payload);
+  return result.ok ? [] : result.issues;
+}

@@ -159,3 +159,26 @@ export function validateEvent(payload: unknown): EventValidation {
 
   return { ok: true, event: payload as unknown as DomainEvent };
 }
+
+/**
+ * Thrown by `assertEvent`. Carries the same `issues` as `validateEvent`; the message lists field
+ * names and codes only, never a value (it reaches logs and, for a consumer, the DLQ).
+ */
+export class InvalidEventError extends Error {
+  constructor(readonly issues: readonly EventIssue[]) {
+    super(`Invalid event: ${issues.map(i => `${i.path || '(payload)'} ${i.code}`).join(', ')}`);
+    this.name = 'InvalidEventError';
+  }
+}
+
+/**
+ * `validateEvent` that throws, for a PRODUCER about to write an event to the outbox: a bad event
+ * there is a programming error, not a message to route. It runs inside the business transaction,
+ * so a schema bug makes the transaction fail (closed, on purpose): see BL-011 for what the writer
+ * must say about that. A consumer should use `validateEvent` and decide itself (DLQ at once).
+ */
+export function assertEvent(payload: unknown): DomainEvent {
+  const result = validateEvent(payload);
+  if (!result.ok) throw new InvalidEventError(result.issues);
+  return result.event;
+}
