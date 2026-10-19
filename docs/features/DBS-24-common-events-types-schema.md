@@ -1,6 +1,6 @@
 # DBS-24 · Type TypeScript dùng chung cho event trong common/events + test schema
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-24-common-events` · **PR:** — · **Cập nhật:** 2026-10-19
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-24-common-events` · **PR:** — · **Cập nhật:** 2026-10-19
 
 ## 1. Bối cảnh
 
