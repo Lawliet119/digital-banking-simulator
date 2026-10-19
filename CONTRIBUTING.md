@@ -72,13 +72,36 @@ Mọi thay đổi code, test, migration, hạ tầng hay tài liệu đi qua ski
 Một Pull Request chỉ được merge khi:
 
 - [ ] Code chạy được ở local với `docker compose` + `npm run start:dev`
-- [ ] `npm run lint:check && npm run typecheck && npm test && npm run test:e2e` (trong `backend/`) đều xanh
+- [ ] `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db` (trong `backend/`) đều xanh
 - [ ] Có test cho logic mới; test liên quan đến tiền chạy trên **PostgreSQL thật** (Testcontainers), không mock
-- [ ] CI xanh
+- [ ] CI xanh: đủ sáu check ở [mục 4b](#4b-đọc-kết-quả-ci-trên-github-actions)
 - [ ] Không có secret trong code, log hay commit
 - [ ] Nếu đổi thiết kế: cập nhật `docs/03` (hoặc `docs/01–02`, `_shared/database-design.md`, `_shared/event-contract.md`) và thêm ADR nếu là quyết định kiến trúc; xem [docs/README.md](docs/README.md)
 - [ ] Nếu đổi API: OpenAPI (Swagger) được cập nhật
 - [ ] File `docs/features/DBS-<n>-<slug>.md` đã đủ mục 1–9, test thủ công đã chạy (bước chưa chạy ghi rõ lý do), có ảnh chụp trong `docs/features/screenshots/DBS-<n>/`
+
+## 4b. Đọc kết quả CI trên GitHub Actions
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) chạy khi mở, cập nhật hay mở lại PR và khi push vào `main`. Sáu job chạy **song song**, mỗi job một lệnh trong `backend/`, nên một job đỏ không che job khác. Mỗi job tối đa 10 phút.
+
+| Check trên PR (tên job) | Lệnh chạy lại ở local (trong `backend/`) | Đỏ khi |
+|---|---|---|
+| `lint` | `npm run lint:check` | eslint báo lỗi, gồm luật ranh giới module |
+| `typecheck` | `npm run typecheck` | `tsc` báo lỗi kiểu |
+| `unit` | `npm test` | một test `src/**/*.spec.ts` đỏ |
+| `e2e` | `npm run test:e2e` | một test `test/**/*.e2e-spec.ts` đỏ |
+| `db` | `npm run test:db` (cần `docker compose up -d` và `DATABASE_URL`) | một test `test/db/*.db-spec.ts` đỏ, hoặc không nối được PostgreSQL (đỏ, không bao giờ bỏ qua); hoặc role không phải superuser, hay timezone không phải UTC |
+| `build` | `npm run build` | `nest build` lỗi |
+
+**Cách đọc khi có check đỏ:**
+1. Cuối trang PR, ở khung kiểm tra, bấm **Details** cạnh check đỏ (hoặc mở tab **Checks** rồi chọn job). Bước đỏ tự mở sẵn trong log.
+2. Đọc dòng lỗi đầu tiên: eslint ghi `file:dòng:cột` và tên luật; `tsc` ghi `file(dòng,cột): error TS…`; jest ghi `●` kèm tên test, giá trị mong đợi và nhận được.
+3. Chạy đúng lệnh của job đó ở local (bảng trên), sửa, rồi push. CI chạy lại tự động và hủy lần chạy cũ của cùng PR; thấy lần cũ ghi "Cancelled" là bình thường.
+4. Lỗi tạm thời (mạng, runner, không liên quan code): bấm **Re-run failed jobs** ở góc trên trang lần chạy; không đẩy commit rỗng.
+5. Mọi job đỏ ngay bước `npm ci`: `package-lock.json` không khớp `package.json` hoặc không khớp phiên bản npm mới nhất của Node 24. Chạy `npm ci` ở local; nếu lỗi giống nhau thì cập nhật lockfile bằng `npm install`, commit lại.
+6. PR **không có check nào**, hoặc các check hiện "Expected" mãi: PR đang xung đột với `main` (GitHub không chạy workflow khi PR xung đột). Gỡ xung đột rồi push.
+
+**Quy tắc về tên job:** sáu tên `lint`, `typecheck`, `unit`, `e2e`, `db`, `build` là tên mà required status checks của `main` (DBS-37) khớp theo. Không đổi tên job mà không đổi ruleset cùng lúc, không đặt `paths:` ở trigger của `ci.yml`, và workflow khác không đặt job trùng một trong sáu tên. Action trong workflow ghim theo SHA commit; muốn nâng phiên bản thì đổi SHA và comment phiên bản cùng lúc.
 
 ## 5. Quy tắc bắt buộc khi làm với tiền
 
