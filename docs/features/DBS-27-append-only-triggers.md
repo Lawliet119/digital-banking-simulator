@@ -1,6 +1,6 @@
 # DBS-27 · Hàm forbid_mutation và trigger chặn sửa/xóa các bảng chỉ-thêm
 
-> **Status:** Plan approved · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** — · **Cập nhật:** 2026-10-22
+> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** — · **Cập nhật:** 2026-10-22
 
 ## 1. Bối cảnh
 
@@ -271,7 +271,7 @@ Mermaid §3 đã render thành công bằng mermaid-cli 12.0.0; nội dung sơ �
 
 ## 8. Kết quả
 
-**Trạng thái:** triển khai local hoàn tất, chờ G4; chưa push/PR/CI/Dev review/merge. Code cuối `e9d580ad0f22154847d32a5871fdb0fd9b0750e3` ở dòng đầu transcript; nhánh `feat/DBS-27-append-only-triggers`. Bắt đầu từ code audit thật `1310dfd`, sau đó fast-forward dependency đến `0b8ebd418bef253c5038198fc875c6a8138e4d7a` (HEAD nhánh26 khi bàn giao). Diff riêng task là `feat/DBS-26-migration-audit-log...HEAD`; diff so main chứa dependency26 đã duyệt ở G1. Không có source25 trên nhánh27 và không có bảng audit giả.
+**Trạng thái:** đã được người dùng duyệt G4; triển khai local hoàn tất, bàn giao qua PR. Dev review/CI/merge theo trạng thái PR. Code cuối `e9d580ad0f22154847d32a5871fdb0fd9b0750e3` ở dòng đầu transcript; nhánh `feat/DBS-27-append-only-triggers`. Bắt đầu từ code audit thật `1310dfd`, sau đó fast-forward dependency đến `0b8ebd418bef253c5038198fc875c6a8138e4d7a` (HEAD nhánh26 khi bàn giao). Diff riêng task là `feat/DBS-26-migration-audit-log...HEAD`; diff so main chứa dependency26 đã duyệt ở G1. Không có source25 trên nhánh27 và không có bảng audit giả.
 
 **Automated:** lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **6 suite / 112 test**, 0 skip. Có 25 lượt append-only mới, 87 lượt audit/helper/legacy kế thừa. [verification.txt](screenshots/DBS-27/verification.txt) trích nguyên bước M-27-07 từ transcript cùng SHA, không phải lần chạy khác. Toàn bộ test dùng PostgreSQL thật cho migration/owner/constraint, không mock database. [Kiểm tương thích ba task trong bản sao tạm](screenshots/DBS-27/integration-verification.txt) được ghi riêng; không tạo nhánh bàn giao gộp.
 
@@ -330,6 +330,8 @@ Có **24** expected trigger errors trong transcript (12 populated/same-value + 3
 
 **Bàn giao/giới hạn:** thu hẹp BL-005 còn production grants/chủ view; giữ BL-006 complete-pair/balance_after và BL-017 service/API/metadata/fail-closed/production roles. BL-019 giao cặp trigger risk_rule_sets cho task fraud; BL-020 Dev review/CI/merge. T4 chỉ kiểm lớp trigger owner local, không nhận production-role coverage, chống owner cố ý sửa DDL hoặc toàn bộ AC-8.1 đã đạt. Agent không sửa board hoặc merge main.
 
+**Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
+
 ## 9. Tài liệu đã cập nhật
 
 Feature doc và raw review/transcript/ảnh trong screenshots/DBS-27; database-design §4.7/§8.3/§11 (thực trạng trigger và hướng dẫn risk_rule_sets); README audit/ledger, backend/README, threat-model T4, feature index; BACKLOG thu hẹp BL-005, cập nhật phần còn thiếu BL-017, thêm BL-019/020. Không xóa ID backlog nào vì BL-005 còn việc; BL-006 giữ nguyên.
@@ -341,5 +343,5 @@ Feature doc và raw review/transcript/ảnh trong screenshots/DBS-27; database-d
 - [x] Sáu ảnh output thật, raw transcript và lượt manual lỗi được giữ riêng, đã rà secret.
 - [x] Diff so base26 đúng allowlist §7, diff main ghi rõ dependency26; không source25/workbook.
 - [x] Sáu baseline đạt, unit349/e2e25/DB112, 0 skip; integration có evidence riêng.
-- [x] Docs/feature index cập nhật, status Plan approved chờ G4; link checker 87 file / 0 lỗi.
+- [x] Docs/feature index cập nhật, status Implemented sau G4; link checker 87 file / 0 lỗi.
 - [x] Handoff/DoD quy trình chưa đạt ghi BL-005/006/017/019/020; không nhận CI/Dev review/merge đã xong.
