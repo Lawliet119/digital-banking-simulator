@@ -1,6 +1,6 @@
 # DBS-25 · Migration: outbox_events và processed_events
 
-> **Status:** Plan approved · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-25-migration-outbox-events` · **PR:** — · **Cập nhật:** 2026-10-22
+> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-25-migration-outbox-events` · **PR:** — · **Cập nhật:** 2026-10-22
 
 ## 1. Bối cảnh
 
@@ -217,7 +217,7 @@ Mermaid ở §3 đã render thành công bằng mermaid-cli 12.0.0 sau lần ch�
 
 ## 8. Kết quả
 
-**Trạng thái:** hoàn tất triển khai local, chờ G4; chưa push, PR/CI/Dev review/merge chưa có. Code cuối: `b0f4714c7cbb58080451319dda8b2b0c4b951866` (dòng đầu transcript). Nhánh `feat/DBS-25-migration-outbox-events`, thực hiện trong worktree riêng để không bị checkout bên ngoài làm đổi source khi kiểm CLI.
+**Trạng thái:** đã được người dùng duyệt G4; triển khai local hoàn tất, bàn giao qua PR. Dev review/CI/merge theo trạng thái PR. Code cuối: `b0f4714c7cbb58080451319dda8b2b0c4b951866` (dòng đầu transcript). Nhánh `feat/DBS-25-migration-outbox-events`, thực hiện trong worktree riêng để không bị checkout bên ngoài làm đổi source khi kiểm CLI.
 
 **Kiểm tra bàn giao:** xem [output đầy đủ](screenshots/DBS-25/verification.txt): lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **4 suite / 87 test** đạt; 0 skip. Bộ DB gồm 49 test cũ và 38 lượt mới trong outbox-schema. Không có mock DB.
 
@@ -282,6 +282,8 @@ Kiểm tương thích ba task trong bản sao tạm phát hiện 13 lượt đ�
 **Bàn giao/giới hạn:** BL-015 index và cleanup processed_events; BL-016 Dev review/CI/merge. BL-002/003/009/010/011 vẫn ngoài scope G1. Writer/relay/consumer, quyền production và kiểm at-least-once chưa được chứng minh bởi migration này. Transcript không có token, Authorization, password, AWS ID/ARN; UUID kỹ thuật tổng hợp được giữ.
 
 
+**Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
+
 ## 9. Tài liệu đã cập nhật
 
 Feature doc này, raw review và evidence trong screenshots/DBS-25; database-design §6/§11 và phạm vi schema đã triển khai; README outbox, backend/README, feature index; BACKLOG thêm BL-015/016. Không xóa backlog cũ chưa giải quyết.
@@ -293,5 +295,5 @@ Feature doc này, raw review và evidence trong screenshots/DBS-25; database-des
 - [x] Sáu ảnh output thật, transcript đã rà secret; UUID kỹ thuật được giữ.
 - [x] Diff main...HEAD chỉ có allowlist §7; không workbook hoặc source task khác.
 - [x] Sáu lệnh kiểm tra bàn giao đạt, 0 test skip.
-- [x] Reference docs và feature index đã cập nhật; link checker 85 file / 0 lỗi; status Plan approved chờ G4.
+- [x] Reference docs và feature index đã cập nhật; link checker 85 file / 0 lỗi; status Implemented sau G4.
 - [x] Handoff và DoD quy trình chưa hoàn thành có BL-015/016; backlog cũ ngoài scope giữ nguyên.
