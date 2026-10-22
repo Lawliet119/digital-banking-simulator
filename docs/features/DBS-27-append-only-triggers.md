@@ -1,6 +1,6 @@
 # DBS-27 · Hàm forbid_mutation và trigger chặn sửa/xóa các bảng chỉ-thêm
 
-> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** — · **Cập nhật:** 2026-10-22
+> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/14) · **Cập nhật:** 2026-10-22
 
 ## 1. Bối cảnh
 
