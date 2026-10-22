@@ -1,4 +1,23 @@
-3ccf2e9e6076ef3940edb779dcbeaa87376568e2
+3e0b270f6a22d345ca8177ea6f56655b90b3d01c
+
+=== Step M-39-01: Chay test:db khi Docker Desktop bat ===
+$ npm run test:db
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js
+
+PASS test/db/testcontainers-sample.db-spec.ts (5.016 s)
+PASS test/db/accounts-schema.db-spec.ts (5.069 s)
+PASS test/db/ledger-schema.db-spec.ts (5.097 s)
+PASS test/db/migration-revert.db-spec.ts (17.998 s)
+
+Test Suites: 4 passed, 4 total
+Tests:       51 passed, 51 total
+Snapshots:   0 total
+Time:        18.613 s
+Ran all test suites.
+
+Ket qua: Dat. Testcontainers tu dong khoi dong PostgreSQL 17 container (postgres:17-alpine) voi timezone UTC, chay toan bo 4 test suites tren temp database doc lap va drop sach se sau moi suite. Thoi gian chay toan bo ~18.6s (<= 60s theo DoD #4).
 
 === Step M-39-02: Chay test:db khi Docker daemon dang tat (fail-fast test) ===
 $ npm run test:db
@@ -13,9 +32,8 @@ Error: Jest: Got error running globalSetup - C:\Users\ROG\digital bank\digital-b
 
 Ket qua: Dat. Tien trinh Jest dung ngay sau ~2 giay va bao loi yeu cau bat Docker Desktop, khong bi treo.
 
-=== Step M-39-01: Chay test:db khi Docker Desktop bat ===
-Trang thai: chua chay tren local vi Docker Desktop dang tat tren may host Windows. Se chay khi Docker Desktop duoc khoi dong hoac tren pipeline CI.
-
 === Step M-39-03: Kiem tra container mo coi ===
 $ docker ps
-Ket qua: Dat. Khong co container testcontainers nao bi ro ri tren may host.
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+
+Ket qua: Dat. Khong co container testcontainers nao bi ro ri tren may host sau khi globalTeardown hoan tat.
