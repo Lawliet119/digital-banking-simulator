@@ -2,9 +2,11 @@
 
 Nhật ký bất biến: ai làm gì, khi nào, trên đối tượng nào.
 
-> **Status:** Schema implemented · **Owner:** #3 · **Verified against code:** migration và DB tests; service/API chưa triển khai.
+> **Status:** Schema và trigger implemented · **Owner:** #3 · **Verified against code:** migration và DB tests; service/API chưa triển khai.
 
-Migration `CreateAuditLog1792627200001` tạo [schema audit](../../../../docs/components/_shared/database-design.md#47-auditlog), actor nullable với FK `ON DELETE RESTRICT`, outcome CHECK và ba index truy vết. `down` chỉ cho phép transaction READ COMMITTED, khóa bảng rồi từ chối bằng SQLSTATE `55000` nếu có dữ liệu. [Bằng chứng DBS-26](../../../../docs/features/DBS-26-migration-audit-log.md#8-kết-quả) gồm CLI run/revert/run và tranh chấp khóa trên PostgreSQL thật. Trigger bất biến, production roles, `AuditService` và API tra cứu còn là các bước bàn giao; các quy tắc bên dưới là hợp đồng triển khai các bước đó.
+Migration `CreateAuditLog1792627200001` tạo [schema audit](../../../../docs/components/_shared/database-design.md#47-auditlog), actor nullable với FK `ON DELETE RESTRICT`, outcome CHECK và ba index truy vết. `down` chỉ cho phép transaction READ COMMITTED, khóa bảng rồi từ chối bằng SQLSTATE `55000` nếu có dữ liệu. [Bằng chứng DBS-26](../../../../docs/features/DBS-26-migration-audit-log.md#8-kết-quả) gồm CLI run/revert/run và tranh chấp khóa trên PostgreSQL thật. Production roles, `AuditService` và API tra cứu còn là các bước bàn giao; các quy tắc bên dưới là hợp đồng triển khai các bước đó.
+
+Migration `AddAppendOnlyTriggers1792627200002` cung cấp hai trigger audit: UPDATE/DELETE theo hàng và TRUNCATE theo statement, cùng `public.forbid_mutation()` trả SQLSTATE `42501`. [DBS-27](../../../../docs/features/DBS-27-append-only-triggers.md) kiểm owner NOSUPERUSER, quyền thực và context RAISE; INSERT vẫn được phép. Revert27 gỡ trigger, giữ dữ liệu, nhưng bỏ lớp bảo vệ này. Thu quyền production và kiểm AC-8.1 đầy đủ còn chờ task roles.
 
 | | |
 |---|---|

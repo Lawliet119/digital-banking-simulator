@@ -1,0 +1,15 @@
+DBS-25 code: b0f4714c7cbb58080451319dda8b2b0c4b951866
+DBS-26 code: d940d3aa2395af191c3bfe010918f071a92def9e
+DBS-27 code: e9d580ad0f22154847d32a5871fdb0fd9b0750e3
+Local disposable copy of backend sources; no combined delivery branch.
+$ npm run test:db -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+
+Test Suites: 7 passed, 7 total
+Tests:       150 passed, 150 total
+Snapshots:   0 total
+Time:        111.007 s
+Ran all test suites.
