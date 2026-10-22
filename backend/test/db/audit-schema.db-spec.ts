@@ -29,11 +29,20 @@ describe('audit storage migration', () => {
   let db: TempDatabase;
   let source: DataSource;
   let migration: MigrationInterface;
+  let initialHistory: { name: string; timestamp: string }[];
   beforeEach(async () => {
     db = await createTempDatabase();
     await migrateThrough(db.url, TARGET);
     source = await createMigrationDataSource(db.url).initialize();
     migration = source.migrations.find(m => m.name === TARGET)!;
+    initialHistory = await db.runner.query(
+      'SELECT name,timestamp FROM migrations ORDER BY timestamp',
+    );
+    expect(initialHistory.at(-1)?.name).toBe(TARGET);
+    expect(initialHistory.slice(0, 2).map(row => row.name)).toEqual([
+      'CreateUsersCustomersAccounts1791763200000',
+      'CreateTransfersLedgerIdempotency1791849600000',
+    ]);
   });
   afterEach(async () => {
     if (db?.runner.isTransactionActive) await db.runner.rollbackTransaction();
@@ -322,7 +331,7 @@ describe('audit storage migration', () => {
     const before = await catalog();
     cli('migration:revert');
     expect((await catalog()).columns).toEqual([]);
-    expect((await catalog()).history).toHaveLength(2);
+    expect((await catalog()).history).toEqual(initialHistory.slice(0, -1));
     expect(await q("SELECT to_regclass('public.audit_log_id_seq') AS name")).toEqual([
       { name: null },
     ]);
@@ -363,7 +372,7 @@ describe('audit storage migration', () => {
       expect(await pending).toMatchObject({ driverError: { code: '55000' } });
       await b.rollbackTransaction();
       expect(await rows()).toHaveLength(1);
-      expect((await catalog()).history).toHaveLength(3);
+      expect((await catalog()).history).toEqual(initialHistory);
     } finally {
       if (db.runner.isTransactionActive) await db.runner.rollbackTransaction();
       await pending;
@@ -406,7 +415,7 @@ describe('audit storage migration', () => {
       driverError: { code: '42P07' },
     });
     expect((await catalog()).columns).toEqual([]);
-    expect((await catalog()).history).toHaveLength(2);
+    expect((await catalog()).history).toEqual(initialHistory.slice(0, -1));
     expect(await q("SELECT to_regclass('public.audit_log_actor_occurred_idx') AS name")).toEqual([
       { name: 'audit_log_actor_occurred_idx' },
     ]);
@@ -450,6 +459,6 @@ describe('audit storage migration', () => {
     });
     await db.runner.rollbackTransaction();
     expect(await rows()).toHaveLength(1);
-    expect((await catalog()).history).toHaveLength(3);
+    expect((await catalog()).history).toEqual(initialHistory);
   });
 });
