@@ -81,7 +81,7 @@ describe('outbox migration schema and safety', () => {
   let migration: MigrationInterface;
   beforeEach(async () => {
     db = await createTempDatabase();
-    await migrate(db.url);
+    await migrateThrough(db.url, OUTBOX);
     source = await createMigrationDataSource(db.url).initialize();
     migration = source.migrations.find(m => m.name === OUTBOX)!;
   });
@@ -93,6 +93,15 @@ describe('outbox migration schema and safety', () => {
   const q = (sql: string, params: unknown[] = []) => db.runner.query(sql, params);
   const rows = () => q('SELECT * FROM outbox_events ORDER BY id');
   const history = () => q('SELECT name,timestamp FROM migrations ORDER BY timestamp');
+  async function revertSuccessors() {
+    const applied: { name: string; timestamp: string }[] = await history();
+    const position = applied.findIndex(row => row.name === OUTBOX);
+    expect(position).toBeGreaterThanOrEqual(0);
+    for (let index = applied.length - 1; index > position; index--) {
+      cli('migration:revert', db.url);
+      expect(await history()).toEqual(applied.slice(0, index));
+    }
+  }
   async function catalog() {
     return {
       columns: await q(
@@ -368,10 +377,13 @@ describe('outbox migration schema and safety', () => {
     }
   });
   it('TC-25-13 production CLI run/revert/run preserves base objects', async () => {
+    cli('migration:run', db.url);
+    await revertSuccessors();
     cli('migration:revert', db.url);
     expect(await q("SELECT to_regclass('public.outbox_events') AS name")).toEqual([{ name: null }]);
     expect(await history()).toHaveLength(2);
     cli('migration:run', db.url);
+    await revertSuccessors();
     expect(await history()).toHaveLength(3);
     expect(await rows()).toEqual([]);
     expect(await q('SELECT id,balance FROM accounts')).toEqual([
@@ -439,7 +451,9 @@ describe('outbox migration schema and safety', () => {
   it('TC-25-16 atomic failed up leaves sentinel only; recovery succeeds', async () => {
     await migrate(db.url, 'undoLast');
     await q('CREATE TABLE processed_events(sentinel text)');
-    await expect(migrate(db.url)).rejects.toMatchObject({ driverError: { code: '42P07' } });
+    await expect(migrateThrough(db.url, OUTBOX)).rejects.toMatchObject({
+      driverError: { code: '42P07' },
+    });
     expect(await q("SELECT to_regclass('public.outbox_events') AS name")).toEqual([{ name: null }]);
     expect(await history()).toHaveLength(2);
     expect(
@@ -448,7 +462,7 @@ describe('outbox migration schema and safety', () => {
       ),
     ).toEqual([{ column_name: 'sentinel' }]);
     await q('DROP TABLE processed_events');
-    await migrate(db.url);
+    await migrateThrough(db.url, OUTBOX);
     expect(await rows()).toEqual([]);
     expect(await history()).toHaveLength(3);
   });
