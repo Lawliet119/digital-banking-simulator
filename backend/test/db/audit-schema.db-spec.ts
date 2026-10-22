@@ -3,7 +3,13 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { DataSource, type MigrationInterface } from 'typeorm';
 import { createMigrationDataSource } from '@database/data-source';
-import { createTempDatabase, migrate, attempt, type TempDatabase } from '../support/temp-database';
+import {
+  createTempDatabase,
+  migrate,
+  migrateThrough,
+  attempt,
+  type TempDatabase,
+} from '../support/temp-database';
 
 const TARGET = 'CreateAuditLog1792627200001';
 const INSERT =
@@ -25,7 +31,7 @@ describe('audit storage migration', () => {
   let migration: MigrationInterface;
   beforeEach(async () => {
     db = await createTempDatabase();
-    await migrate(db.url);
+    await migrateThrough(db.url, TARGET);
     source = await createMigrationDataSource(db.url).initialize();
     migration = source.migrations.find(m => m.name === TARGET)!;
   });
@@ -78,6 +84,19 @@ describe('audit storage migration', () => {
       env: { ...process.env, DATABASE_URL: db.url },
       stdio: 'pipe',
     });
+  }
+  async function revertSuccessors() {
+    const history: { name: string; timestamp: string }[] = await q(
+      'SELECT name,timestamp FROM migrations ORDER BY timestamp,id',
+    );
+    const position = history.findIndex(row => row.name === TARGET);
+    expect(position).toBeGreaterThanOrEqual(0);
+    for (let index = history.length - 1; index > position; index--) {
+      cli('migration:revert');
+      expect(await q('SELECT name,timestamp FROM migrations ORDER BY timestamp,id')).toEqual(
+        history.slice(0, index),
+      );
+    }
   }
 
   it('TC-26-01 exact schema, defaults, named PK/FK/CHECK and unchanged base', async () => {
@@ -298,6 +317,8 @@ describe('audit storage migration', () => {
     }
   });
   it('TC-26-13 CLI run/revert/run removes only audit storage and restores it', async () => {
+    cli('migration:run');
+    await revertSuccessors();
     const before = await catalog();
     cli('migration:revert');
     expect((await catalog()).columns).toEqual([]);
@@ -306,6 +327,7 @@ describe('audit storage migration', () => {
       { name: null },
     ]);
     cli('migration:run');
+    await revertSuccessors();
     expect(await catalog()).toEqual(before);
   });
   it.each([false, true])(
@@ -380,14 +402,16 @@ describe('audit storage migration', () => {
     await migrate(db.url, 'undoLast');
     await q('CREATE TABLE audit_sentinel(id int)');
     await q('CREATE INDEX audit_log_actor_occurred_idx ON audit_sentinel(id)');
-    await expect(migrate(db.url)).rejects.toMatchObject({ driverError: { code: '42P07' } });
+    await expect(migrateThrough(db.url, TARGET)).rejects.toMatchObject({
+      driverError: { code: '42P07' },
+    });
     expect((await catalog()).columns).toEqual([]);
     expect((await catalog()).history).toHaveLength(2);
     expect(await q("SELECT to_regclass('public.audit_log_actor_occurred_idx') AS name")).toEqual([
       { name: 'audit_log_actor_occurred_idx' },
     ]);
     await q('DROP TABLE audit_sentinel');
-    await migrate(db.url);
+    await migrateThrough(db.url, TARGET);
     expect((await catalog()).columns).toHaveLength(10);
   });
   it('TC-26-19 hostile input is bound, stored verbatim and never executed', async () => {
