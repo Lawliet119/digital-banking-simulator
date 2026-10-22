@@ -19,6 +19,21 @@ const role = `dbs_test_owner_${randomBytes(6).toString('hex')}`;
 const log = (label: string, value?: unknown) =>
   console.log(label, value === undefined ? '' : JSON.stringify(value));
 
+export function unmatchedMutationSql(
+  table: (typeof TABLES)[number],
+  verb: 'UPDATE' | 'DELETE',
+): string {
+  const column =
+    table === 'ledger_entries'
+      ? 'balance_after'
+      : table === 'transfers'
+        ? 'correlation_id'
+        : 'target_id';
+  return verb === 'UPDATE'
+    ? `UPDATE ${table} SET ${column}=${column} WHERE false RETURNING id`
+    : `DELETE FROM ${table} WHERE false RETURNING id`;
+}
+
 function cli(script: string, db: TempDatabase, args: string[] = []) {
   assert(existsSync(npm));
   log(`$ npm run ${script} ${args.join(' ')} [temporary database: ${db.name}]`);
@@ -299,12 +314,9 @@ async function main() {
     await db.runner.startTransaction();
     try {
       for (const table of TABLES)
-        for (const verb of ['UPDATE', 'DELETE']) {
+        for (const verb of ['UPDATE', 'DELETE'] as const) {
           await ownership(db);
-          const text =
-            verb === 'UPDATE'
-              ? `UPDATE ${table} SET id=id WHERE false RETURNING id`
-              : `DELETE FROM ${table} WHERE false RETURNING id`;
+          const text = unmatchedMutationSql(table, verb);
           log(`SQL> ${text}`);
           const result = await db.runner.query(text, undefined, true);
           log('NO-MATCH RESULT', result);
@@ -415,10 +427,12 @@ async function main() {
   }
   log('ALL APPEND-ONLY MANUAL STEPS PASS');
 }
-main().catch((error: unknown) => {
-  console.error(
-    'APPEND-ONLY MANUAL FAILED',
-    error instanceof Error ? error.message : String(error),
-  );
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error: unknown) => {
+    console.error(
+      'APPEND-ONLY MANUAL FAILED',
+      error instanceof Error ? error.message : String(error),
+    );
+    process.exitCode = 1;
+  });
+}

@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { DataSource } from 'typeorm';
+import { unmatchedMutationSql } from '../manual/append-only.manual';
 import {
   createTempDatabase,
   migrate,
@@ -314,21 +315,11 @@ describe('append-only migration with a real non-superuser table owner', () => {
       try {
         await owner();
         const before = await snapshot();
-        const column =
-          table === 'ledger_entries'
-            ? 'balance_after'
-            : table === 'transfers'
-              ? 'correlation_id'
-              : 'target_id';
         expect(
-          await db.runner.query(
-            `UPDATE ${table} SET ${column}=${column} WHERE false RETURNING id`,
-            undefined,
-            true,
-          ),
+          await db.runner.query(unmatchedMutationSql(table, 'UPDATE'), undefined, true),
         ).toMatchObject({ records: [], affected: 0 });
         expect(
-          await db.runner.query(`DELETE FROM ${table} WHERE false RETURNING id`, undefined, true),
+          await db.runner.query(unmatchedMutationSql(table, 'DELETE'), undefined, true),
         ).toMatchObject({ records: [], affected: 0 });
         expect(await snapshot()).toEqual(before);
       } finally {
