@@ -2,6 +2,10 @@
 
 Nhật ký bất biến: ai làm gì, khi nào, trên đối tượng nào.
 
+> **Status:** Schema implemented · **Owner:** #3 · **Verified against code:** migration và DB tests; service/API chưa triển khai.
+
+Migration `CreateAuditLog1792627200001` tạo [schema audit](../../../../docs/components/_shared/database-design.md#47-auditlog), actor nullable với FK `ON DELETE RESTRICT`, outcome CHECK và ba index truy vết. `down` chỉ cho phép transaction READ COMMITTED, khóa bảng rồi từ chối bằng SQLSTATE `55000` nếu có dữ liệu. [Bằng chứng DBS-26](../../../../docs/features/DBS-26-migration-audit-log.md#8-kết-quả) gồm CLI run/revert/run và tranh chấp khóa trên PostgreSQL thật. Trigger bất biến, production roles, `AuditService` và API tra cứu còn là các bước bàn giao; các quy tắc bên dưới là hợp đồng triển khai các bước đó.
+
 | | |
 |---|---|
 | Use case | UC-8 tra cứu cho kiểm toán viên · ghi nhật ký cho mọi thao tác thay đổi dữ liệu |

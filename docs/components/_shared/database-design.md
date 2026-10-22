@@ -1,6 +1,6 @@
 # Database Design
 
-> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) · **Cập nhật:** 2026-10-17
+> **Status:** Accepted · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1–4.5, §4.7, §8.2 và các index của các bảng đó (DBS-20/21/26); các phần còn lại là thiết kế · **Cập nhật:** 2026-10-22
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
@@ -279,7 +279,7 @@ CREATE TABLE processed_events (
 CREATE TABLE audit_log (
   id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   occurred_at    timestamptz NOT NULL DEFAULT clock_timestamp(),
-  actor_user_id  uuid REFERENCES users(id),               -- NULL = hệ thống (worker)
+  actor_user_id  uuid REFERENCES users(id) ON DELETE RESTRICT, -- NULL = hệ thống (worker)
   actor_role     text NOT NULL,
   action         text NOT NULL,                           -- 'transfer.create', 'account.lock', 'audit.search', 'access.denied'...
   outcome        text NOT NULL CHECK (outcome IN ('SUCCESS','REJECTED','DENIED')),
@@ -291,6 +291,10 @@ CREATE TABLE audit_log (
 ```
 
 `outcome = 'DENIED'` là lần bị từ chối quyền (A mở tài khoản của B): vẫn phải ghi (FR-AUD-02). Không dùng chuỗi hash nối các dòng (kiểu blockchain) vì mọi lệnh ghi sẽ tranh nhau cập nhật "dòng cuối", tạo nút thắt đúng ở đường chuyển tiền. Bảo vệ chống sửa bằng quyền, trigger và (tùy chọn) export sang S3 Object Lock.
+
+Schema audit đã triển khai trong migration `CreateAuditLog1792627200001`, độc lập với outbox; [DBS-26](../../features/DBS-26-migration-audit-log.md) đối chiếu từng cột, constraint và index bằng PostgreSQL thật. Các constraint được đặt tên `audit_log_pkey`, `audit_log_actor_user_id_fkey`, `audit_log_outcome_check`. Role/action/target_type vẫn là text mở; metadata là JSONB và schema không tự lọc PII. Runtime AuditService, trigger và quyền production có task riêng.
+
+Ba index ngoài PK là `audit_log_correlation_idx (correlation_id)`, `audit_log_actor_occurred_idx (actor_user_id, occurred_at DESC)` và `audit_log_action_occurred_idx (action, occurred_at DESC)`, đều B-tree không unique. Migration `down` yêu cầu transaction READ COMMITTED, lấy ACCESS EXCLUSIVE rồi dùng statement mới kiểm dữ liệu; có dòng thì lỗi `55000` và giữ nguyên bảng/history. Không xóa audit để hoàn tác schema.
 
 ### 4.8 Nhóm fraud
 
@@ -562,7 +566,7 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 
 1. `users`, `customers`, `accounts` (+ index, + tạo tài khoản SYSTEM `funding` với id cố định)
 2. `transfers`, `ledger_entries`, `idempotency_keys`, view `v_transfer_facts` (migration `1791849600000-CreateTransfersLedgerIdempotency`, DBS-21)
-3. `outbox_events`, `processed_events`, `audit_log`
+3. `outbox_events`, `processed_events` (migration riêng DBS-25); `audit_log` (migration `1792627200001-CreateAuditLog`, DBS-26). Hai nhóm độc lập, không gộp migration hoặc PR.
 4. `risk_rule_sets` (+ **seed phiên bản 1**), `fraud_flags`, `fraud_rule_hits`
 5. `notification_log`, `reconciliation_runs`
 6. Hàm `forbid_mutation()` và các trigger

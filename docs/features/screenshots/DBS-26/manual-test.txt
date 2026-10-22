@@ -1,0 +1,3147 @@
+d940d3aa2395af191c3bfe010918f071a92def9e
+NAME              IMAGE                                  COMMAND                  SERVICE     CREATED       STATUS                 PORTS
+dbs-elasticmq-1   softwaremill/elasticmq-native:latest   "/sbin/tini -- /opt/…"   elasticmq   6 hours ago   Up 6 hours             0.0.0.0:9324-9325->9324-9325/tcp, [::]:9324-9325->9324-9325/tcp
+dbs-postgres-1    postgres:17-alpine                     "docker-entrypoint.s…"   postgres    6 hours ago   Up 6 hours (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+dbs-valkey-1      valkey/valkey:8-alpine                 "tini -- docker-entr…"   valkey      6 hours ago   Up 6 hours (healthy)   0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+
+$ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts lifecycle
+AUDIT MANUAL MODE "lifecycle"
+TEMP DATABASE "dbs_test_0f06cca35842"
+$ npm run migration:run [private database URL: dbs_test_0f06cca35842] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+$ npm run migration:revert [private database URL: dbs_test_0f06cca35842] 
+
+> digital-banking-simulator-backend@0.1.0 migration:revert
+> npm run typeorm -- migration:revert
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:revert
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+3 migrations are already loaded in the database.
+CreateAuditLog1792627200001 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+Now reverting it...
+query: START TRANSACTION
+query: DO $$ BEGIN
+      IF current_setting('transaction_isolation') <> 'read committed' THEN
+        RAISE EXCEPTION 'Reverting audit requires READ COMMITTED' USING ERRCODE = '55000';
+      END IF;
+    END $$
+query: LOCK TABLE audit_log IN ACCESS EXCLUSIVE MODE
+query: DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM audit_log) THEN
+        RAISE EXCEPTION 'Refusing to revert audit: table holds data' USING ERRCODE = '55000';
+      END IF;
+    END $$
+query: DROP TABLE audit_log
+query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been reverted successfully.
+query: COMMIT
+
+SCHEMA audit_log 
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"}]
+$ npm run migration:run [private database URL: dbs_test_0f06cca35842] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+2 migrations are already loaded in the database.
+3 migrations were found in the source code.
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+1 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+CLEANUP database dropped "dbs_test_0f06cca35842"
+MANUAL MODE PASS "lifecycle"
+
+$ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts rows
+AUDIT MANUAL MODE "rows"
+TEMP DATABASE "dbs_test_51be07e48be5"
+$ npm run migration:run [private database URL: dbs_test_51be07e48be5] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+SQL> SELECT setval(pg_get_serial_sequence('audit_log','id'),9007199254740992,true) []
+RESULT [{"setval":"9007199254740992"}]
+RESULT system defaults {"id":"9007199254740993","occurred_at":"2026-10-22T14:59:47.159Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"ea82b8b2-db58-450e-981f-7cfa32b38b7b","metadata":{}}
+SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * ["22afc655-8a20-46e9-a8ee-8e202375ce65","operator","audit.search","REJECTED","correlation","account-absent","1adb4850-5ee0-4ae4-bbfc-93ebd9218479",{"reason":"ACCOUNT_NOT_ACTIVE"}]
+RESULT [{"id":"9007199254740994","occurred_at":"2026-10-22T14:59:47.172Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"REJECTED","target_type":"correlation","target_id":"account-absent","correlation_id":"1adb4850-5ee0-4ae4-bbfc-93ebd9218479","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * ["22afc655-8a20-46e9-a8ee-8e202375ce65","operator","audit.search","DENIED","correlation","account-absent","39976493-0312-42f6-b26f-ebc0ab4ead12",{"reason":"ACCOUNT_NOT_ACTIVE"}]
+RESULT [{"id":"9007199254740995","occurred_at":"2026-10-22T14:59:47.177Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"DENIED","target_type":"correlation","target_id":"account-absent","correlation_id":"39976493-0312-42f6-b26f-ebc0ab4ead12","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+SQL> SELECT * FROM audit_log WHERE actor_user_id=$1 ORDER BY occurred_at DESC ["22afc655-8a20-46e9-a8ee-8e202375ce65"]
+RESULT [{"id":"9007199254740995","occurred_at":"2026-10-22T14:59:47.177Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"DENIED","target_type":"correlation","target_id":"account-absent","correlation_id":"39976493-0312-42f6-b26f-ebc0ab4ead12","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}},{"id":"9007199254740994","occurred_at":"2026-10-22T14:59:47.172Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"REJECTED","target_type":"correlation","target_id":"account-absent","correlation_id":"1adb4850-5ee0-4ae4-bbfc-93ebd9218479","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+SQL> SELECT * FROM audit_log WHERE action='audit.search' ORDER BY occurred_at DESC []
+RESULT [{"id":"9007199254740995","occurred_at":"2026-10-22T14:59:47.177Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"DENIED","target_type":"correlation","target_id":"account-absent","correlation_id":"39976493-0312-42f6-b26f-ebc0ab4ead12","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}},{"id":"9007199254740994","occurred_at":"2026-10-22T14:59:47.172Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"REJECTED","target_type":"correlation","target_id":"account-absent","correlation_id":"1adb4850-5ee0-4ae4-bbfc-93ebd9218479","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}},{"id":"9007199254740993","occurred_at":"2026-10-22T14:59:47.159Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"ea82b8b2-db58-450e-981f-7cfa32b38b7b","metadata":{}}]
+SQL> SELECT * FROM audit_log WHERE correlation_id=$1 ["ea82b8b2-db58-450e-981f-7cfa32b38b7b"]
+RESULT [{"id":"9007199254740993","occurred_at":"2026-10-22T14:59:47.159Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"ea82b8b2-db58-450e-981f-7cfa32b38b7b","metadata":{}}]
+CLEANUP database dropped "dbs_test_51be07e48be5"
+MANUAL MODE PASS "rows"
+
+$ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts rejections
+AUDIT MANUAL MODE "rejections"
+TEMP DATABASE "dbs_test_69e569f66bc8"
+$ npm run migration:run [private database URL: dbs_test_69e569f66bc8] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+SQL rejection input {"index":3,"bad":"FAILED"}
+EXPECTED POSTGRES ERROR {"code":"23514","constraint":"audit_log_outcome_check"}
+SQL rejection input {"index":0,"bad":"c8c9dccd-473f-47e8-b2aa-c6b258bc1694"}
+EXPECTED POSTGRES ERROR {"code":"23503","constraint":"audit_log_actor_user_id_fkey"}
+SQL rejection input {"index":6,"bad":null}
+EXPECTED POSTGRES ERROR {"code":"23502","column":"correlation_id"}
+SQL rejection input {"index":6,"bad":"bad"}
+EXPECTED POSTGRES ERROR {"code":"22P02"}
+SQL rejection input {"index":7,"bad":"{broken"}
+EXPECTED POSTGRES ERROR {"code":"22P02"}
+EXPECTED POSTGRES ERROR {"code":"23505","constraint":"audit_log_pkey"}
+SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * [null,"system","audit.search","SUCCESS","correlation","account-absent","6e71489f-d1a4-42e1-b6d1-712b8baad86a",{"reason":"ACCOUNT_NOT_ACTIVE"}]
+RESULT [{"id":"5","occurred_at":"2026-10-22T14:59:53.337Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"6e71489f-d1a4-42e1-b6d1-712b8baad86a","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+CLEANUP database dropped "dbs_test_69e569f66bc8"
+MANUAL MODE PASS "rejections"
+
+$ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts revert-guard
+AUDIT MANUAL MODE "revert-guard"
+TEMP DATABASE "dbs_test_fce603a2f2f8"
+$ npm run migration:run [private database URL: dbs_test_fce603a2f2f8] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * [null,"system","audit.search","SUCCESS","correlation","account-absent","6f0e8da0-3da4-4390-a5b4-3cada077770c",{"reason":"ACCOUNT_NOT_ACTIVE"}]
+RESULT [{"id":"1","occurred_at":"2026-10-22T14:59:59.484Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"6f0e8da0-3da4-4390-a5b4-3cada077770c","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+$ npm run migration:revert [private database URL: dbs_test_fce603a2f2f8] 
+QueryFailedError: Refusing to revert audit: table holds data
+    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CreateAuditLog1792627200001.down (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
+    at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+    at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
+    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+  query: 'DO $$ BEGIN\n' +
+    '      IF EXISTS (SELECT 1 FROM audit_log) THEN\n' +
+    "        RAISE EXCEPTION 'Refusing to revert audit: table holds data' USING ERRCODE = '55000';\n" +
+    '      END IF;\n' +
+    '    END $$',
+  parameters: undefined,
+  driverError: error: Refusing to revert audit: table holds data
+      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateAuditLog1792627200001.down (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
+      at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+      at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
+      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+    length: 157,
+    severity: 'ERROR',
+    code: '55000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: 'PL/pgSQL function inline_code_block line 3 at RAISE',
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'pl_exec.c',
+    line: '3897',
+    routine: 'exec_stmt_raise'
+  },
+  length: 157,
+  severity: 'ERROR',
+  code: '55000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: 'PL/pgSQL function inline_code_block line 3 at RAISE',
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'pl_exec.c',
+  line: '3897',
+  routine: 'exec_stmt_raise'
+}
+
+> digital-banking-simulator-backend@0.1.0 migration:revert
+> npm run typeorm -- migration:revert
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:revert
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+3 migrations are already loaded in the database.
+CreateAuditLog1792627200001 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+Now reverting it...
+query: START TRANSACTION
+query: DO $$ BEGIN
+      IF current_setting('transaction_isolation') <> 'read committed' THEN
+        RAISE EXCEPTION 'Reverting audit requires READ COMMITTED' USING ERRCODE = '55000';
+      END IF;
+    END $$
+query: LOCK TABLE audit_log IN ACCESS EXCLUSIVE MODE
+query: DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM audit_log) THEN
+        RAISE EXCEPTION 'Refusing to revert audit: table holds data' USING ERRCODE = '55000';
+      END IF;
+    END $$
+query failed: DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM audit_log) THEN
+        RAISE EXCEPTION 'Refusing to revert audit: table holds data' USING ERRCODE = '55000';
+      END IF;
+    END $$
+error: error: Refusing to revert audit: table holds data
+query: ROLLBACK
+Error during migration revert:
+
+QueryFailedError: Refusing to revert audit: table holds data
+    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CreateAuditLog1792627200001.down (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
+    at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+    at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
+    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+  query: 'DO $$ BEGIN\n' +
+    '      IF EXISTS (SELECT 1 FROM audit_log) THEN\n' +
+    "        RAISE EXCEPTION 'Refusing to revert audit: table holds data' USING ERRCODE = '55000';\n" +
+    '      END IF;\n' +
+    '    END $$',
+  parameters: undefined,
+  driverError: error: Refusing to revert audit: table holds data
+      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateAuditLog1792627200001.down (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
+      at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+      at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
+      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+    length: 157,
+    severity: 'ERROR',
+    code: '55000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: 'PL/pgSQL function inline_code_block line 3 at RAISE',
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'pl_exec.c',
+    line: '3897',
+    routine: 'exec_stmt_raise'
+  },
+  length: 157,
+  severity: 'ERROR',
+  code: '55000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: 'PL/pgSQL function inline_code_block line 3 at RAISE',
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'pl_exec.c',
+  line: '3897',
+  routine: 'exec_stmt_raise'
+}
+
+EXPECTED CLI EXIT 1
+EXPECTED POSTGRES ERROR {"code":"55000"}
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+PRESERVED committed audit rows [{"id":"1","occurred_at":"2026-10-22T14:59:59.484Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"6f0e8da0-3da4-4390-a5b4-3cada077770c","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+$ npm run migration:run [private database URL: dbs_test_fce603a2f2f8] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+No migrations are pending
+
+CLEANUP database dropped "dbs_test_fce603a2f2f8"
+MANUAL MODE PASS "revert-guard"
+
+$ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts locking
+AUDIT MANUAL MODE "locking"
+TEMP DATABASE "dbs_test_2170024e8526"
+$ npm run migration:run [private database URL: dbs_test_2170024e8526] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * [null,"system","audit.search","SUCCESS","correlation","account-absent","54269db7-2b96-4a2b-9616-fab9af777b5c",{"reason":"ACCOUNT_NOT_ACTIVE"}]
+RESULT [{"id":"1","occurred_at":"2026-10-22T15:00:12.303Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"54269db7-2b96-4a2b-9616-fab9af777b5c","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+OBSERVED LOCK WAIT {"order":"writer-first","pid":12613,"wait_event_type":"Lock","wait_event":"relation"}
+EXPECTED POSTGRES ERROR {"code":"55000","order":"writer-first"}
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+CLEANUP database dropped "dbs_test_2170024e8526"
+TEMP DATABASE "dbs_test_6f736ff385e3"
+$ npm run migration:run [private database URL: dbs_test_6f736ff385e3] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+OBSERVED LOCK WAIT {"order":"down-first","pid":12628,"wait_event_type":"Lock","wait_event":"relation"}
+EXPECTED POSTGRES ERROR {"code":"57014","order":"down-first"}
+EXPECTED POSTGRES ERROR {"code":"42P01"}
+CLEANUP database dropped "dbs_test_6f736ff385e3"
+MANUAL MODE PASS "locking"
+
+$ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts recovery
+AUDIT MANUAL MODE "recovery"
+TEMP DATABASE "dbs_test_89a620c79bc9"
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+SQL> CREATE TABLE audit_sentinel(id int) []
+RESULT []
+SQL> CREATE INDEX audit_log_actor_occurred_idx ON audit_sentinel(id) []
+RESULT []
+$ npm run migration:run [private database URL: dbs_test_89a620c79bc9] 
+QueryFailedError: relation "audit_log_actor_occurred_idx" already exists
+    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CreateAuditLog1792627200001.up (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
+    at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
+    at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
+    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
+  query: 'CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)',
+  parameters: undefined,
+  driverError: error: relation "audit_log_actor_occurred_idx" already exists
+      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateAuditLog1792627200001.up (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
+      at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
+      at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
+      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
+    length: 110,
+    severity: 'ERROR',
+    code: '42P07',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'index.c',
+    line: '904',
+    routine: 'index_create'
+  },
+  length: 110,
+  severity: 'ERROR',
+  code: '42P07',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'index.c',
+  line: '904',
+  routine: 'index_create'
+}
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+2 migrations are already loaded in the database.
+3 migrations were found in the source code.
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+1 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query failed: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+error: error: relation "audit_log_actor_occurred_idx" already exists
+Migration "CreateAuditLog1792627200001" failed, error: relation "audit_log_actor_occurred_idx" already exists
+query: ROLLBACK
+Error during migration run:
+
+QueryFailedError: relation "audit_log_actor_occurred_idx" already exists
+    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async CreateAuditLog1792627200001.up (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
+    at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
+    at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
+    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
+  query: 'CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)',
+  parameters: undefined,
+  driverError: error: relation "audit_log_actor_occurred_idx" already exists
+      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateAuditLog1792627200001.up (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
+      at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
+      at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
+      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
+    length: 110,
+    severity: 'ERROR',
+    code: '42P07',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'index.c',
+    line: '904',
+    routine: 'index_create'
+  },
+  length: 110,
+  severity: 'ERROR',
+  code: '42P07',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'index.c',
+  line: '904',
+  routine: 'index_create'
+}
+
+EXPECTED CLI EXIT 1
+Migration "CreateAuditLog1792627200001" failed, error: relation "audit_log_actor_occurred_idx" already exists
+EXPECTED POSTGRES ERROR {"code":"42P07"}
+SCHEMA audit_log 
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"}]
+SQL> DROP TABLE audit_sentinel []
+RESULT []
+$ npm run migration:run [private database URL: dbs_test_89a620c79bc9] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+2 migrations are already loaded in the database.
+3 migrations were found in the source code.
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+1 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+CLEANUP database dropped "dbs_test_89a620c79bc9"
+MANUAL MODE PASS "recovery"
+
+$ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts preconditions
+AUDIT MANUAL MODE "preconditions"
+TEMP DATABASE "dbs_test_1d263facec7b"
+$ npm run migration:run [private database URL: dbs_test_1d263facec7b] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+LOCK GUARD preconditions {"isolation":"NONE","active":false}
+EXPECTED POSTGRES ERROR {"code":"55000"}
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+CLEANUP database dropped "dbs_test_1d263facec7b"
+TEMP DATABASE "dbs_test_7d012e8b97ef"
+$ npm run migration:run [private database URL: dbs_test_7d012e8b97ef] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+LOCK GUARD preconditions {"isolation":"READ UNCOMMITTED","active":true}
+EXPECTED POSTGRES ERROR {"code":"55000"}
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+CLEANUP database dropped "dbs_test_7d012e8b97ef"
+TEMP DATABASE "dbs_test_eafd3b5fa974"
+$ npm run migration:run [private database URL: dbs_test_eafd3b5fa974] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+LOCK GUARD preconditions {"isolation":"SERIALIZABLE","active":true}
+EXPECTED POSTGRES ERROR {"code":"55000"}
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+CLEANUP database dropped "dbs_test_eafd3b5fa974"
+TEMP DATABASE "dbs_test_a95f475373a1"
+$ npm run migration:run [private database URL: dbs_test_a95f475373a1] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+LOCK GUARD preconditions {"isolation":"REPEATABLE READ","active":true}
+SQL> SELECT * FROM audit_log []
+RESULT []
+EXPECTED POSTGRES ERROR {"code":"55000"}
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+CLEANUP database dropped "dbs_test_a95f475373a1"
+MANUAL MODE PASS "preconditions"
+
+$ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts legacy-lifecycle
+AUDIT MANUAL MODE "legacy-lifecycle"
+TEMP DATABASE "dbs_test_8fe224a65964"
+$ npm run migration:run [private database URL: dbs_test_8fe224a65964] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SQL> SHOW server_version []
+RESULT [{"server_version":"17.11"}]
+SQL> SHOW timezone []
+RESULT [{"TimeZone":"UTC"}]
+SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
+RESULT [{"current_user":"banking","rolsuper":true}]
+$ npm run migration:revert [private database URL: dbs_test_8fe224a65964] 
+
+> digital-banking-simulator-backend@0.1.0 migration:revert
+> npm run typeorm -- migration:revert
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:revert
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+3 migrations are already loaded in the database.
+CreateAuditLog1792627200001 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+Now reverting it...
+query: START TRANSACTION
+query: DO $$ BEGIN
+      IF current_setting('transaction_isolation') <> 'read committed' THEN
+        RAISE EXCEPTION 'Reverting audit requires READ COMMITTED' USING ERRCODE = '55000';
+      END IF;
+    END $$
+query: LOCK TABLE audit_log IN ACCESS EXCLUSIVE MODE
+query: DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM audit_log) THEN
+        RAISE EXCEPTION 'Refusing to revert audit: table holds data' USING ERRCODE = '55000';
+      END IF;
+    END $$
+query: DROP TABLE audit_log
+query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been reverted successfully.
+query: COMMIT
+
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000"}]
+$ npm run migration:revert [private database URL: dbs_test_8fe224a65964] 
+
+> digital-banking-simulator-backend@0.1.0 migration:revert
+> npm run typeorm -- migration:revert
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:revert
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+2 migrations are already loaded in the database.
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+Now reverting it...
+query: START TRANSACTION
+query: 
+      SELECT (SELECT count(*) FROM transfers)::int        AS transfers,
+             (SELECT count(*) FROM ledger_entries)::int   AS ledger_entries,
+             (SELECT count(*) FROM idempotency_keys)::int AS idempotency_keys
+query: DROP VIEW v_transfer_facts
+query: DROP TABLE idempotency_keys
+query: DROP TABLE ledger_entries
+query: DROP TABLE transfers
+query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been reverted successfully.
+query: COMMIT
+
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000"}]
+$ npm run migration:revert [private database URL: dbs_test_8fe224a65964] 
+
+> digital-banking-simulator-backend@0.1.0 migration:revert
+> npm run typeorm -- migration:revert
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:revert
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+1 migrations are already loaded in the database.
+CreateUsersCustomersAccounts1791763200000 is the last executed migration. It was executed on Mon Oct 12 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+Now reverting it...
+query: START TRANSACTION
+query: 
+      SELECT (SELECT count(*) FROM users)::int                     AS users,
+             (SELECT count(*) FROM customers)::int                 AS customers,
+             (SELECT count(*) FROM accounts)::int                  AS accounts,
+             (SELECT count(*) FROM accounts WHERE balance <> 0)::int AS moved
+query: DROP TABLE accounts
+query: DROP TABLE customers
+query: DROP TABLE users
+query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been reverted successfully.
+query: COMMIT
+
+HISTORY []
+$ npm run migration:run [private database URL: dbs_test_8fe224a65964] 
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+3 migrations were found in the source code.
+3 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: 
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query: 
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query: 
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query: 
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query: 
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query: 
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query: 
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query: 
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query: 
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query: 
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: COMMIT
+
+SCHEMA audit_log 
+COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
+COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_user_id","data_type":"uuid","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"actor_role","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"action","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"outcome","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"target_id","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null}
+COLUMN {"column_name":"metadata","data_type":"jsonb","is_nullable":"NO","column_default":"'{}'::jsonb","is_identity":"NO","identity_generation":null}
+INDEX {"indexname":"audit_log_action_occurred_idx","indexdef":"CREATE INDEX audit_log_action_occurred_idx ON public.audit_log USING btree (action, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_actor_occurred_idx","indexdef":"CREATE INDEX audit_log_actor_occurred_idx ON public.audit_log USING btree (actor_user_id, occurred_at DESC)"}
+INDEX {"indexname":"audit_log_correlation_idx","indexdef":"CREATE INDEX audit_log_correlation_idx ON public.audit_log USING btree (correlation_id)"}
+INDEX {"indexname":"audit_log_pkey","indexdef":"CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id)"}
+CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT"}
+CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
+CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
+HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
+CLEANUP database dropped "dbs_test_8fe224a65964"
+MANUAL MODE PASS "legacy-lifecycle"
