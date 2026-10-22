@@ -1,5 +1,10 @@
 import type { QueryRunner } from 'typeorm';
-import { attempt, createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+import {
+  attempt,
+  createTempDatabase,
+  migrateThrough,
+  type TempDatabase,
+} from '../support/temp-database';
 
 // DBS-20: the database itself protects the account invariants (database-design §4.1, §4.2, §5).
 // Every rejection is asserted by SQLSTATE and constraint name, never by message text. Each bad
@@ -15,7 +20,7 @@ describe('migration 1: users, customers, accounts', () => {
   beforeAll(async () => {
     db = await createTempDatabase();
     runner = db.runner;
-    await migrate(db.url);
+    await migrateThrough(db.url, 'CreateUsersCustomersAccounts1791763200000');
   });
 
   afterAll(async () => {
