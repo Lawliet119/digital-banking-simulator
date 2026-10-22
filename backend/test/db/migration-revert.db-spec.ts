@@ -1,6 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+import {
+  createTempDatabase,
+  migrate,
+  migrateThrough,
+  type TempDatabase,
+} from '../support/temp-database';
 
 const BACKEND_DIR = resolve(__dirname, '..', '..');
 const FUNDING_ID = '00000000-0000-4000-8000-000000000001';
@@ -56,6 +61,13 @@ describe('migrations 1 and 2: run, revert, run', () => {
     db = await createTempDatabase();
 
     npmRun('migration:run', db.url);
+    const latest = await appliedMigrations();
+    while ((await appliedMigrations()).length > 2) {
+      const before = await appliedMigrations();
+      npmRun('migration:revert', db.url);
+      expect(await appliedMigrations()).toEqual(before.slice(0, -1));
+      expect(await tables()).toEqual(ALL);
+    }
     expect(await tables()).toEqual(ALL);
 
     // migration:revert undoes only the newest migration, so migration 1 needs a second revert.
@@ -71,10 +83,7 @@ describe('migrations 1 and 2: run, revert, run', () => {
 
     npmRun('migration:run', db.url);
     expect(await tables()).toEqual(ALL);
-    expect(await appliedMigrations()).toEqual([
-      'CreateUsersCustomersAccounts1791763200000',
-      'CreateTransfersLedgerIdempotency1791849600000',
-    ]);
+    expect(await appliedMigrations()).toEqual(latest);
     expect(await db.runner.query('SELECT id, type, balance FROM accounts')).toEqual([
       { id: FUNDING_ID, type: 'SYSTEM', balance: '0' },
     ]);
@@ -82,7 +91,7 @@ describe('migrations 1 and 2: run, revert, run', () => {
 
   it('TC-20-18 refuses to revert, and drops nothing, once the tables hold data', async () => {
     db = await createTempDatabase();
-    await migrate(db.url);
+    await migrateThrough(db.url, 'CreateTransfersLedgerIdempotency1791849600000');
     const q = (sql: string) => db.runner.query(sql);
 
     // Undo migration 2 (DBS-21, empty) so migration 1 is the one being reverted below.
@@ -119,7 +128,7 @@ describe('migration 2: revert refuses to destroy data', () => {
 
   beforeAll(async () => {
     db = await createTempDatabase();
-    await migrate(db.url);
+    await migrateThrough(db.url, 'CreateTransfersLedgerIdempotency1791849600000');
   });
 
   afterAll(async () => {

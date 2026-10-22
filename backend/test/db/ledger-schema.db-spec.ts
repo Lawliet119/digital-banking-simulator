@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { QueryRunner } from 'typeorm';
 import { REJECT_REASONS } from '@common/errors/reject-reason';
-import { attempt, createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+import {
+  attempt,
+  createTempDatabase,
+  migrateThrough,
+  type TempDatabase,
+} from '../support/temp-database';
 
 // DBS-21: the database itself protects the money-flow invariants (database-design §4.3–4.5, §5,
 // §8.2). Every rejection is asserted by SQLSTATE and constraint name, never by message text. Each
@@ -22,7 +27,7 @@ describe('migration 2: transfers, ledger_entries, idempotency_keys', () => {
   beforeAll(async () => {
     db = await createTempDatabase();
     runner = db.runner;
-    await migrate(db.url);
+    await migrateThrough(db.url, 'CreateTransfersLedgerIdempotency1791849600000');
   });
 
   afterAll(async () => {
