@@ -201,7 +201,13 @@ describe('audit storage migration', () => {
     const [after] = await q('SELECT clock_timestamp() AS time');
     expect(a.occurred_at.getTime()).toBeGreaterThanOrEqual(before.time.getTime());
     expect(a.occurred_at.getTime()).toBeLessThanOrEqual(after.time.getTime());
-    expect((await q('SHOW timezone'))[0].TimeZone).toBe('UTC');
+    expect(['UTC', 'Etc/UTC']).toContain((await q('SHOW timezone'))[0].TimeZone);
+    // Debian's PostgreSQL image reports the UTC alias Etc/UTC; both must stay at zero offset.
+    expect(
+      await q(`SELECT
+        extract(timezone FROM timestamptz '2026-01-15T00:00:00Z')::int AS winter_offset,
+        extract(timezone FROM timestamptz '2026-07-15T00:00:00Z')::int AS summer_offset`),
+    ).toEqual([{ winter_offset: 0, summer_offset: 0 }]);
     const [r] = await q(
       "INSERT INTO audit_log(occurred_at,actor_role,action,outcome,target_type,target_id,correlation_id) VALUES('2026-10-22T10:00:00+07:00','system','audit.search','SUCCESS','correlation','absent',gen_random_uuid()) RETURNING occurred_at",
     );
