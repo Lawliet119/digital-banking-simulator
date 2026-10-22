@@ -1,6 +1,6 @@
 # Database Design
 
-> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) · **Cập nhật:** 2026-10-17
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) ; §4.6 và hai partial indexes outbox (DBS-25) · **Cập nhật:** 2026-10-22
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
@@ -392,8 +392,8 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | Trạng thái một giao dịch (UC-7) | PK `transfers(id)` | Có sẵn |
 | **R1/R2/R5** đếm lệnh, trung vị số tiền, người nhận mới (risk) | `transfers_account_completed_idx`: `transfers (from_account_id, created_at) INCLUDE (amount, to_account_id) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Một index phục vụ cả ba luật, và nhỏ vì loại `REJECTED` và `DEPOSIT` |
 | **R4** có lệnh chuyển ngược trong 1 giờ (risk) | `transfers_pair_completed_idx`: `transfers (from_account_id, to_account_id, created_at) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Truy vấn theo cặp |
-| Relay lấy sự kiện chưa gửi (`outbox`) | `outbox_events (id) WHERE published_at IS NULL` | Chỉ chứa các dòng đang chờ: luôn nhỏ dù bảng lớn |
-| Dọn outbox cũ | `outbox_events (published_at) WHERE published_at IS NOT NULL` | |
+| Relay lấy sự kiện chưa gửi (`outbox`) | `outbox_unpublished_idx`: `outbox_events (id) WHERE published_at IS NULL` | Chỉ chứa các dòng đang chờ: luôn nhỏ dù bảng lớn |
+| Dọn outbox cũ | `outbox_published_cleanup_idx`: `outbox_events (published_at) WHERE published_at IS NOT NULL` | Truy vấn tuổi dòng đã gửi |
 | Dọn idempotency cũ | `idempotency_keys_created_idx`: `idempotency_keys (created_at)` | |
 | Truy vết theo `correlationId` (UC-8, AC-8.2) | `audit_log (correlation_id)` | Truy vấn nóng nhất của kiểm toán viên |
 | Lọc audit theo người, theo hành động | `audit_log (actor_user_id, occurred_at DESC)`, `audit_log (action, occurred_at DESC)` | |
@@ -562,7 +562,7 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 
 1. `users`, `customers`, `accounts` (+ index, + tạo tài khoản SYSTEM `funding` với id cố định)
 2. `transfers`, `ledger_entries`, `idempotency_keys`, view `v_transfer_facts` (migration `1791849600000-CreateTransfersLedgerIdempotency`, DBS-21)
-3. `outbox_events`, `processed_events`, `audit_log`
+3. `outbox_events`, `processed_events` (migration `1792627200000-CreateOutboxEventsProcessedEvents`, DBS-25); `audit_log` tạo bằng migration riêng của DBS-26.
 4. `risk_rule_sets` (+ **seed phiên bản 1**), `fraud_flags`, `fraud_rule_hits`
 5. `notification_log`, `reconciliation_runs`
 6. Hàm `forbid_mutation()` và các trigger

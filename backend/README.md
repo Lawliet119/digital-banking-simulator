@@ -115,7 +115,12 @@ Xem `src/modules/README.md`. Import xuyên module chỉ qua `@modules/<tên>`; v
 - Test e2e dùng `configureHttpApp` từ `app.setup.ts` để chạy đúng cấu hình như production.
 
 ### 6. Migration
-Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`). Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1 và 2). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser.
+Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`). Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1, 2 và outbox). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser.
+
+
+**Schema outbox.**
+
+Migration `1792627200000-CreateOutboxEventsProcessedEvents` tạo outbox/processed và hai partial index. Down cần transaction READ COMMITTED; khóa bảng trước kiểm dữ liệu, không cho DROP nếu còn dòng. Test schema legacy dùng `migrateThrough` phiên bản thật; CLI regression vẫn chạy production tới latest và revert từng bước. Runtime writer/relay chưa có.
 
 ### 7. Tiền: một cách duy nhất, qua `@common/money`
 `JSON` và `Number`/`parseInt` làm tròn mọi số trên 2^53: `9007199254740993` thành `9007199254740992` mà không báo lỗi. Nên tiền trên dây (API, event, tham số SQL) là **chuỗi** số nguyên đồng, trong domain là **`bigint`**, và chỉ đổi qua lại bằng `@common/money` (import `from '@common/money'`, không import file bên trong).
