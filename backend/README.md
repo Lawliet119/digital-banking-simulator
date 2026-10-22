@@ -114,13 +114,12 @@ Xem `src/modules/README.md`. Import xuyên module chỉ qua `@modules/<tên>`; v
 - Test đúng-sai về tiền (đồng thời, idempotency) chạy trên **PostgreSQL thật** (Testcontainers), không mock database. Test `withTransaction` hiện tại dùng fake chỉ để kiểm tra logic retry/rollback — nó **không** chứng minh hành vi khóa của Postgres.
 - Test e2e dùng `configureHttpApp` từ `app.setup.ts` để chạy đúng cấu hình như production.
 
-#### Cách làm sạch dữ liệu giữa các test (Data Isolation & Cleanup)
-Hệ thống sử dụng bảng sổ cái chỉ-thêm (`append-only ledger` như `transfers`, `journal_entries`) với ràng buộc khóa ngoại chặt chẽ. Để kiểm thử không làm phá vỡ tính toàn vẹn hoặc sequence/trigger:
-1. **Cô lập bằng Database tạm thời (Temp Database):** Khuyến nghị mặc định là mỗi test file (`*.db-spec.ts`) gọi `createTempDatabase()` trong `beforeAll` để tạo một database hoàn toàn độc lập (`dbs_test_<random_hex>`) trên PostgreSQL container, chạy migration trên đó và tự động xóa (`db.drop()`) trong `afterAll`. Nhờ vậy các test suite chạy song song không bao giờ xung đột dữ liệu.
-2. **Cô lập giữa các test cases trong cùng suite:** Sử dụng transaction `BEGIN` trong `beforeEach` và `ROLLBACK` trong `afterEach`. Mọi thay đổi dữ liệu của ca kiểm thử sẽ được hoàn tác sạch sẽ mà không tốn chi phí khởi tạo lại schema.
-3. **Quy tắc làm sạch (TRUNCATE):** Tuyệt đối không gọi `TRUNCATE` thô bạo trên các bảng chỉ-thêm mà không kiểm soát. Nếu cần xóa trắng dữ liệu bảng để thử nghiệm kịch bản đặc biệt, phải:
-   - Dùng role chủ sở hữu bảng (hoặc superuser) để truncate theo thứ tự phụ thuộc (`TRUNCATE TABLE journal_entries, transfers, accounts, customers, users RESTART IDENTITY CASCADE`).
-   - Sau khi truncate, phải tái tạo lại ngay bản ghi tài khoản cấp vốn hệ thống (`SYSTEM` funding account với UUID `00000000-0000-4000-8000-000000000001`), vì nếu thiếu tài khoản này thì các logic chuyển khoản và hạch toán kép sẽ bị lỗi toàn bộ.
+#### Cách làm sạch và cô lập dữ liệu khi kiểm thử (Data Isolation & Cleanup)
+Hệ thống sử dụng bảng sổ cái chỉ-thêm (`append-only ledger` như `transfers`, `ledger_entries`) với ràng buộc khóa ngoại chặt chẽ và phụ thuộc vào tài khoản cấp vốn hệ thống (`SYSTEM` funding account với UUID `00000000-0000-4000-8000-000000000001`). Vì vậy, **tuyệt đối không sử dụng `TRUNCATE` hoặc `DELETE` bừa bãi** giữa các ca kiểm thử vì sẽ phá vỡ sequence, trigger và làm mất tài khoản hệ thống.
+
+Để kiểm thử hoàn toàn độc lập, an toàn và có thể chạy song song:
+1. **Cô lập theo Test Suite bằng Database tạm thời (Temp Database):** Khuyến nghị mặc định là mỗi test file (`*.db-spec.ts`) gọi `createTempDatabase()` trong `beforeAll` để tạo một database hoàn toàn độc lập (`dbs_test_<random_hex>`) trên PostgreSQL container, chạy migration trên đó và tự động xóa sạch database (`db.drop()`) trong `afterAll`. Nhờ vậy các test suite chạy song song không bao giờ xung đột dữ liệu.
+2. **Cô lập giữa các test case trong cùng suite:** Sử dụng transaction `BEGIN` trong `beforeEach` và `ROLLBACK` trong `afterEach`. Mọi thay đổi dữ liệu của từng ca kiểm thử sẽ được hoàn tác sạch sẽ mà không tốn chi phí khởi tạo lại schema.
 
 
 ### 6. Migration

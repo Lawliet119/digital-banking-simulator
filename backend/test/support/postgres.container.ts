@@ -1,9 +1,6 @@
 import { getContainerRuntimeClient } from 'testcontainers';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 
-export const ENV_FILE_PATH = path.resolve(__dirname, '../../.testcontainers-db.env');
 export const STARTUP_TIMEOUT_MS = 60_000;
 
 export interface StartedPostgres {
@@ -45,10 +42,10 @@ export async function startPostgresContainer(): Promise<StartedPostgres> {
     .start();
 
   activeContainer = container;
+  (
+    globalThis as unknown as { __POSTGRES_CONTAINER__?: StartedPostgreSqlContainer }
+  ).__POSTGRES_CONTAINER__ = container;
   const databaseUrl = container.getConnectionUri();
-
-  // Persist connection URI to temp env file so Jest test workers can read it
-  fs.writeFileSync(ENV_FILE_PATH, `DATABASE_URL=${databaseUrl}\n`, 'utf-8');
   process.env.DATABASE_URL = databaseUrl;
 
   return {
@@ -61,40 +58,22 @@ export async function startPostgresContainer(): Promise<StartedPostgres> {
 }
 
 /**
- * Stops the running PostgreSQL container and removes the temporary env file.
+ * Stops the running PostgreSQL container and clears DATABASE_URL.
  */
 export async function stopPostgresContainer(): Promise<void> {
-  if (activeContainer) {
-    try {
-      await activeContainer.stop();
-    } finally {
-      activeContainer = null;
-    }
-  }
+  const container =
+    activeContainer ??
+    (globalThis as unknown as { __POSTGRES_CONTAINER__?: StartedPostgreSqlContainer })
+      .__POSTGRES_CONTAINER__;
 
-  if (fs.existsSync(ENV_FILE_PATH)) {
-    try {
-      fs.unlinkSync(ENV_FILE_PATH);
-    } catch {
-      // Ignore cleanup error if already removed
+  try {
+    if (container) {
+      await container.stop();
     }
+  } finally {
+    activeContainer = null;
+    delete (globalThis as unknown as { __POSTGRES_CONTAINER__?: StartedPostgreSqlContainer })
+      .__POSTGRES_CONTAINER__;
+    delete process.env.DATABASE_URL;
   }
-}
-
-/**
- * Reads the DATABASE_URL from .testcontainers-db.env or process.env.
- */
-export function getPostgresContainerUrl(): string | undefined {
-  if (process.env.DATABASE_URL) {
-    return process.env.DATABASE_URL;
-  }
-  if (fs.existsSync(ENV_FILE_PATH)) {
-    const content = fs.readFileSync(ENV_FILE_PATH, 'utf-8');
-    const match = content.match(/^DATABASE_URL=(.+)$/m);
-    if (match?.[1]) {
-      process.env.DATABASE_URL = match[1].trim();
-      return process.env.DATABASE_URL;
-    }
-  }
-  return undefined;
 }

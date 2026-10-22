@@ -13,7 +13,7 @@
   4. Docker không chạy thì test báo lỗi rõ ràng, không treo; khởi tạo container ≤ 60 giây
   5. PR đã merge vào main (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ
 - **Phụ thuộc:**
-  - `DBS-20` (Tuần 1): Done — Migration 1: `users`, `customers`, `accounts` và tài khoản `SYSTEM` funding đã có tại `src/database/migrations/1710000000000-InitialMigration.ts`.
+  - `DBS-20` (Tuần 1): Done — Migration 1: `users`, `customers`, `accounts` và tài khoản `SYSTEM` funding đã có tại `src/database/migrations/1791763200000-CreateUsersCustomersAccounts.ts` (và `1791849600000-CreateTransfersLedgerIdempotency.ts`).
 - **Đã có gì:**
   - `backend/test/support/temp-database.ts`: hàm `createTempDatabase()`, `migrate()`, `attempt()` cho phép tạo database ngẫu nhiên `dbs_test_<hex>` trên server `DATABASE_URL`.
   - `backend/test/jest-db.js`: Jest config cho `test/db/**/*.db-spec.ts`.
@@ -31,8 +31,8 @@
 - **Hành vi:**
   - Jest gọi `globalSetup` trong `backend/test/support/jest-global-setup.ts`.
   - Helper kiểm tra Docker daemon. Nếu khả dụng, khởi chạy container `postgres:17-alpine` với timezone `UTC` bằng flag `-c timezone=UTC` và biến môi trường `TZ=UTC`.
-  - Áp dụng migration TypeORM bằng cách chạy `runMigrations()` trên cơ sở dữ liệu mẫu ban đầu.
-  - Lưu connection string vào file tạm thời `.testcontainers-db.env` (và cấu hình `process.env.DATABASE_URL`) để các worker processes của Jest đọc được biến môi trường này.
+  - Gán connection URI vào `process.env.DATABASE_URL` trong tiến trình gốc của Jest, tự động kế thừa sang các test worker processes.
+  - Mỗi test suite tự tạo cơ sở dữ liệu tạm thời riêng biệt (`createTempDatabase()`) và áp dụng migrations TypeORM (`migrate()`) độc lập trên database tạm đó.
   - Thời gian khởi tạo giới hạn trong ≤ 60 giây.
 
 ### 2.2. Xử lý Fail-Fast khi Docker không chạy
@@ -107,7 +107,7 @@ sequenceDiagram
 | ID | Truy vết (DoD / AC) | Lớp | Given · When · Then | Mã lỗi / Kết quả mong đợi |
 |---|---|---|---|---|
 | TC-39-01 | DoD #1, #4 | db integration | Given Docker đang chạy · When `startPostgresContainer()` được gọi · Then container khởi động trong ≤ 60s, timezone là UTC và trả về DATABASE_URL kết nối được | Thành công, connection OK, `SHOW timezone` trả về `UTC` |
-| TC-39-02 | DoD #3 | db constraint | Given Postgres container đã khởi động và migrate DBS-20 xong · When thêm một tài khoản khách hàng (`CustomerAccount`) với số dư âm (`balance = -50000`) · Then PostgreSQL từ chối câu lệnh do vi phạm check constraint | Postgres error code `23514` (`chk_accounts_customer_balance_non_negative`) |
+| TC-39-02 | DoD #3 | db constraint | Given Postgres container đã khởi động và migrate DBS-20 xong · When thêm một tài khoản khách hàng (`CustomerAccount`) với số dư âm (`balance = -50000`) · Then PostgreSQL từ chối câu lệnh do vi phạm check constraint | Postgres error code `23514` (`accounts_balance_non_negative`) |
 | TC-39-03 | DoD #4 | unit / harness | Given Docker daemon bị tắt hoặc không phản hồi · When khởi chạy `globalSetup` · Then ném lỗi rõ ràng chứa hướng dẫn bật Docker và dừng ngay, không bị treo | Error message chứa `Docker is not running` |
 | TC-39-04 | DoD #1 | db harness | Given container đang chạy · When gọi `stopPostgresContainer()` · Then container dừng và giải phóng port | Thành công, port không còn lắng nghe |
 | TC-39-05 | DoD #2, #5 | Quy trình & Docs | Given yêu cầu tài liệu hoá · When dev đọc `backend/README.md` · Then có mục hướng dẫn data cleanup và nguyên tắc bảo vệ append-only ledger | Quy trình |
@@ -130,11 +130,11 @@ Kịch bản kiểm thử thủ công trực tiếp trên máy trạm:
 
 | # | Mức | Phát hiện | Xử lý |
 |---|---|---|---|
-| 1 | should-fix | Jest `globalSetup` chạy trong process riêng biệt, gán `process.env` không tự propagate sang worker. | Đã sửa §2.1 & §3.1: helper ghi `DATABASE_URL` ra `.testcontainers-db.env` và test workers tự load qua hook. |
+| 1 | should-fix | Kiểm tra truyền biến môi trường sang test workers. | Jest tự động kế thừa `process.env.DATABASE_URL` từ `globalSetup` sang worker processes. Đã bỏ file tạm để tránh lộ thông tin và lỗi connection cũ. |
 | 2 | should-fix | Cần đảm bảo server Postgres nhận cờ `-c timezone=UTC`. | Đã sửa §2.1: truyền cờ `-c timezone=UTC` vào command khởi động container. |
-| 3 | minor | Nêu rõ tên check constraint `chk_accounts_customer_balance_non_negative` trong TC-39-02. | Đã ghi rõ tên constraint trong bảng test cases §4. |
+| 3 | minor | Nêu rõ tên check constraint `accounts_balance_non_negative` trong TC-39-02. | Đã ghi rõ tên constraint trong bảng test cases §4. |
 
-**Quyết định ở G2:** Duyệt thiết kế: Thống nhất cơ chế chia sẻ `DATABASE_URL` từ Jest `globalSetup` qua file tạm thời `.testcontainers-db.env` và tự dọn dẹp ở `globalTeardown`; áp dụng timezone UTC qua cờ `-c timezone=UTC`.
+**Quyết định ở G2:** Duyệt thiết kế: Thống nhất cơ chế truyền `DATABASE_URL` trực tiếp qua `process.env.DATABASE_URL`, quản lý lifecycle bằng handle an toàn trên `globalThis`, tự dọn dẹp ở `globalTeardown`; áp dụng timezone UTC qua cờ `-c timezone=UTC`.
 
 ## 7. Kế hoạch triển khai
 
@@ -158,24 +158,24 @@ Kịch bản kiểm thử thủ công trực tiếp trên máy trạm:
 - **Lệnh kiểm tra:**
   - `npm run lint:check`: sạch, 0 lỗi.
   - `npm run typecheck`: sạch, 0 lỗi kiểu dữ liệu.
-  - `npm test`: 19 test suites passed, 201 tests passed.
+  - `npm test`: 20 test suites passed, 209 tests passed (bao gồm `test/support/postgres.container.spec.ts`).
   - `npm run test:e2e`: 4 test suites passed, 25 tests passed.
-  - `npx jest test/support/postgres.container.spec.ts`: 1 test suite passed, 3 tests passed.
+  - `npm run test:db`: 4 test suites passed, 51 tests passed trên PostgreSQL 17 Testcontainers (~18.6s).
 
 - **Đối chiếu test case:**
 
 | ID | Test | Đạt? |
 |---|---|---|
-| TC-39-01 | `test/support/postgres.container.spec.ts` › exports start and stop helper functions & UTC config | đạt |
-| TC-39-02 | `test/db/testcontainers-sample.db-spec.ts` › rejects customer account with negative balance with check constraint error (code 23514) | đạt |
+| TC-39-01 | `test/db/testcontainers-sample.db-spec.ts` › verifies database server runs in UTC timezone (`SHOW timezone`) & `test/support/postgres.container.spec.ts` › exports start helper | đạt |
+| TC-39-02 | `test/db/testcontainers-sample.db-spec.ts` › rejects customer account with negative balance with check constraint error (code 23514 `accounts_balance_non_negative`) | đạt |
 | TC-39-03 | `test/support/postgres.container.spec.ts` › throws clear, actionable error when Docker runtime is not available | đạt |
-| TC-39-04 | `test/support/postgres.container.spec.ts` › exports start and stop helper functions | đạt |
-| TC-39-05 | `backend/README.md` › Hướng dẫn data cleanup và an toàn append-only ledger | đạt (quy trình) |
+| TC-39-04 | `test/support/postgres.container.spec.ts` › stops container and cleans up `process.env.DATABASE_URL` & `jest-global-teardown.ts` | đạt |
+| TC-39-05 | `backend/README.md` › Hướng dẫn data cleanup và an toàn append-only ledger qua temp database | đạt (quy trình) |
 
 - **Test thủ công:**
-  - `M-39-01`: Chạy `npm run test:db` khi Docker Desktop bật: chưa chạy (Docker Desktop service đang tắt trên máy host Windows).
+  - `M-39-01`: Chạy `npm run test:db` khi Docker Desktop bật: đạt (4 test suites passed, 51 tests passed, hoàn thành trong ~18.6s trên PostgreSQL 17).
   - `M-39-02`: Chạy `npm run test:db` khi Docker tắt: đạt (Jest dừng sau ~2s và báo lỗi `[Testcontainers] Docker is not running or unreachable...`).
-  - `M-39-03`: `docker ps` kiểm tra container mồ côi: đạt.
+  - `M-39-03`: `docker ps` kiểm tra container mồ côi: đạt (không có container nào còn sót lại sau teardown).
   Output thô lưu tại [manual-test.txt](screenshots/DBS-39/manual-test.txt).
 
 - **Phạm vi so với §7:** Khớp 100% danh sách file đã lập ở §7.

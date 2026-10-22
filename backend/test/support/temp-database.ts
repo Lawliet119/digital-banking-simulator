@@ -1,7 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { DataSource, type QueryRunner } from 'typeorm';
 import { createMigrationDataSource } from '@database/data-source';
-import { getPostgresContainerUrl } from './postgres.container';
 
 const TEMP_NAME = /^dbs_test_[0-9a-f]{12}$/;
 
@@ -11,11 +10,11 @@ const TEMP_NAME = /^dbs_test_[0-9a-f]{12}$/;
  * of skipping it — a skipped constraint test would read as green.
  */
 export function requireDatabaseUrl(): string {
-  const url = process.env.DATABASE_URL || getPostgresContainerUrl();
+  const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error(
-      'DATABASE_URL is not set. Start PostgreSQL with `docker compose up -d` and export ' +
-        'DATABASE_URL, or ensure Testcontainers is running.',
+      'DATABASE_URL is not set. Ensure Jest globalSetup (Testcontainers) has run, ' +
+        'or export DATABASE_URL explicitly.',
     );
   }
   return url;
@@ -28,7 +27,7 @@ async function connect(url: string): Promise<DataSource> {
   } catch (error) {
     throw new Error(
       `Cannot reach PostgreSQL at DATABASE_URL (${(error as Error).message}). ` +
-        'Is `docker compose up -d` running?',
+        'Is the PostgreSQL container or service running and accessible?',
     );
   }
 }
