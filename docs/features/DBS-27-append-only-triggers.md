@@ -1,6 +1,6 @@
 # DBS-27 · Hàm forbid_mutation và trigger chặn sửa/xóa các bảng chỉ-thêm
 
-> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/14) · **Cập nhật:** 2026-10-22
+> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/14) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -271,7 +271,7 @@ Mermaid §3 đã render thành công bằng mermaid-cli 12.0.0; nội dung sơ �
 
 ## 8. Kết quả
 
-**Trạng thái:** đã được người dùng duyệt G4; triển khai local hoàn tất, bàn giao qua PR. Dev review/CI/merge theo trạng thái PR. Code cuối `e9d580ad0f22154847d32a5871fdb0fd9b0750e3` ở dòng đầu transcript; nhánh `feat/DBS-27-append-only-triggers`. Bắt đầu từ code audit thật `1310dfd`, sau đó fast-forward dependency đến `0b8ebd418bef253c5038198fc875c6a8138e4d7a` (HEAD nhánh26 khi bàn giao). Diff riêng task là `feat/DBS-26-migration-audit-log...HEAD`; diff so main chứa dependency26 đã duyệt ở G1. Không có source25 trên nhánh27 và không có bảng audit giả.
+**Trạng thái:** đã được người dùng duyệt G4; triển khai local hoàn tất, bàn giao qua PR. Dev review/CI/merge theo trạng thái PR. Code cuối `6545701df7fdb3bc49677c859172f899a6726634` ở dòng đầu transcript; nhánh `feat/DBS-27-append-only-triggers`. Bắt đầu từ code audit thật `1310dfd`, sau đó cập nhật dependency đến `0cbfb814037abc6a353af0a0d2311e39ea10a06f` để kế thừa kiểm tra UTC đã sửa sau CI. Diff riêng task là `feat/DBS-26-migration-audit-log...HEAD`; diff so main chứa dependency26 đã duyệt ở G1. Không có source25 trên nhánh27 và không có bảng audit giả.
 
 **Automated:** lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **6 suite / 112 test**, 0 skip. Có 25 lượt append-only mới, 87 lượt audit/helper/legacy kế thừa. [verification.txt](screenshots/DBS-27/verification.txt) trích nguyên bước M-27-07 từ transcript cùng SHA, không phải lần chạy khác. Toàn bộ test dùng PostgreSQL thật cho migration/owner/constraint, không mock database. [Kiểm tương thích ba task trong bản sao tạm](screenshots/DBS-27/integration-verification.txt) được ghi riêng; không tạo nhánh bàn giao gộp.
 
@@ -302,7 +302,7 @@ Lượt manual đầu dừng M-27-04 vì driver dùng `UPDATE ... SET id=id WHER
 | Bước | Lệnh / response thực | Kết quả |
 |---|---|---|
 | M-27-01 | Compose up; CLI migration:run thật; history4, function PL/pgSQL security invoker, sáu trigger enabled tgtype27/34; catalog ba bảng/constraint/index | đạt |
-| M-27-02 | Owner `dbs_test_owner_2274641c3474` NOSUPERUSER sở hữu đúng ba bảng; kiểm đủ DML/SELECT/TRUNCATE và cascade/ngoài scope; INSERT transfer1/ledger2/audit1 dưới owner, admin seed idem key1 trong cùng transaction rồi kiểm lại owner | đạt |
+| M-27-02 | Owner `dbs_test_owner_cf7774720ab3` NOSUPERUSER sở hữu đúng ba bảng; kiểm đủ DML/SELECT/TRUNCATE và cascade/ngoài scope; INSERT transfer1/ledger2/audit1 dưới owner, admin seed idem key1 trong cùng transaction rồi kiểm lại owner | đạt |
 | M-27-03 | 9 UPDATE/DELETE/TRUNCATE có hàng + 3 UPDATE cùng giá trị; từng lần owner/quyền đủ, lỗi42501 và `forbid_mutation() line 3 at RAISE`; rollback savepoint và snapshot toàn hàng/key/balance giữ nguyên | đạt |
 | M-27-04 | DB rỗng thứ hai: 3 TRUNCATE vẫn đúng context42501; trên DB fixture, 6 UPDATE/DELETE WHERE false trả records[]/affected0; có quyền cascade idem, không lỗi ACL | đạt |
 | M-27-05 | CLI revert27 khi có dữ liệu; function/sáu trigger mất, history chỉ bỏ27, rows và domain sequences giữ nguyên. Đối chứng owner UPDATE audit affected1, TRUNCATE transfers CASCADE làm transfers/ledger/keys rỗng trong savepoint, rollback phục hồi snapshot | đạt |
@@ -331,6 +331,8 @@ Có **24** expected trigger errors trong transcript (12 populated/same-value + 3
 **Bàn giao/giới hạn:** thu hẹp BL-005 còn production grants/chủ view; giữ BL-006 complete-pair/balance_after và BL-017 service/API/metadata/fail-closed/production roles. BL-019 giao cặp trigger risk_rule_sets cho task fraud; BL-020 Dev review/CI/merge. T4 chỉ kiểm lớp trigger owner local, không nhận production-role coverage, chống owner cố ý sửa DDL hoặc toàn bộ AC-8.1 đã đạt. Agent không sửa board hoặc merge main.
 
 **Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
+
+**CI sau G4:** [job DB đầu của PR14](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39804977079/job/119915902694) gặp cùng lỗi TC-26-04 kế thừa từ DBS-26: PostgreSQL Debian trả tên timezone `Etc/UTC`, local trả `UTC`. Bản sửa `0cbfb81` của DBS-26 nhận hai tên tương đương và kiểm offset mùa đông/mùa hè đều bằng 0, giữ nguyên migration và toàn bộ test case. Nhánh này đã nhận bản sửa bằng commit code nêu trên, rồi chạy lại đầy đủ M-27-01…08, sáu baseline và bộ kiểm tương thích 150 test. Transcript, ảnh, verification và owner trong bảng kết quả đều thuộc lượt chạy mới; CI của commit bàn giao được xác nhận riêng trên PR.
 
 ## 9. Tài liệu đã cập nhật
 
