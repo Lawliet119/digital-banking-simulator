@@ -1,0 +1,32 @@
+CI failure excerpt, before fix 0cbfb81. Source: PR13 job119915640569. Database URLs redacted before capture.
+2026-10-22T15:28:02.7112266Z FAIL test/db/audit-schema.db-spec.ts (15.823 s)
+2026-10-22T15:28:02.7166002Z   ● Console
+2026-10-22T15:28:02.7166134Z 
+2026-10-22T15:28:02.7166328Z     console.log
+2026-10-22T15:28:02.7167012Z       [4mMigration "CreateAuditLog1792627200001" failed, error: relation "audit_log_actor_occurred_idx" already exists[24m
+2026-10-22T15:28:02.7167364Z 
+2026-10-22T15:28:02.7167554Z       at PlatformTools.log (src/platform/PlatformTools.ts:274:17)
+2026-10-22T15:28:02.7167767Z 
+2026-10-22T15:28:02.7168621Z   ● audit storage migration › TC-26-04 wall-clock default, UTC and supplied offset preserve instant
+2026-10-22T15:28:02.7168944Z 
+2026-10-22T15:28:02.7169294Z     expect(received).toBe(expected) // Object.is equality
+2026-10-22T15:28:02.7169499Z 
+2026-10-22T15:28:02.7169584Z     Expected: "UTC"
+2026-10-22T15:28:02.7169784Z     Received: "Etc/UTC"
+2026-10-22T15:28:02.7169902Z 
+2026-10-22T15:28:02.7170488Z     [0m [90m 202 |[39m     expect(a[33m.[39moccurred_at[33m.[39mgetTime())[33m.[39mtoBeGreaterThanOrEqual(before[33m.[39mtime[33m.[39mgetTime())[33m;[39m
+2026-10-22T15:28:02.7171464Z      [90m 203 |[39m     expect(a[33m.[39moccurred_at[33m.[39mgetTime())[33m.[39mtoBeLessThanOrEqual(after[33m.[39mtime[33m.[39mgetTime())[33m;[39m
+2026-10-22T15:28:02.7172440Z     [31m[1m>[22m[39m[90m 204 |[39m     expect(([36mawait[39m q([32m'SHOW timezone'[39m))[[35m0[39m][33m.[39m[33mTimeZone[39m)[33m.[39mtoBe([32m'UTC'[39m)[33m;[39m
+2026-10-22T15:28:02.7173224Z      [90m     |[39m                                                    [31m[1m^[22m[39m
+2026-10-22T15:28:02.7173721Z      [90m 205 |[39m     [36mconst[39m [r] [33m=[39m [36mawait[39m q(
+2026-10-22T15:28:02.7175009Z      [90m 206 |[39m       [32m"INSERT INTO audit_log(occurred_at,actor_role,action,outcome,target_type,target_id,correlation_id) VALUES('2026-10-22T10:00:00+07:00','system','audit.search','SUCCESS','correlation','absent',gen_random_uuid()) RETURNING occurred_at"[39m[33m,[39m
+2026-10-22T15:28:02.7176183Z      [90m 207 |[39m     )[33m;[39m[0m
+2026-10-22T15:28:02.7176350Z 
+2026-10-22T15:28:02.7176566Z       at Object.<anonymous> (test/db/audit-schema.db-spec.ts:204:52)
+2026-10-22T15:28:02.7176820Z 
+2026-10-22T15:28:02.7772889Z Test Suites: 1 failed, 4 passed, 5 total
+2026-10-22T15:28:02.7773354Z Tests:       1 failed, 86 passed, 87 total
+2026-10-22T15:28:02.7773622Z Snapshots:   0 total
+2026-10-22T15:28:02.7773820Z Time:        16.218 s
+2026-10-22T15:28:02.7774018Z Ran all test suites.
+2026-10-22T15:28:02.8158878Z ##[error]Process completed with exit code 1.
