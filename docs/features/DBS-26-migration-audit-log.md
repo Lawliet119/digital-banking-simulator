@@ -1,6 +1,6 @@
 # DBS-26 · Migration: audit_log
 
-> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-26-migration-audit-log` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/13) · **Cập nhật:** 2026-10-22
+> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-26-migration-audit-log` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/13) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -215,7 +215,7 @@ Mermaid ở §3 đã render thành công bằng mermaid-cli 12.0.0 sau chỉnh s
 
 ## 8. Kết quả
 
-**Trạng thái:** đã được người dùng duyệt G4; triển khai local hoàn tất, bàn giao qua PR. Dev review/CI/merge theo trạng thái PR. Code cuối: `d940d3aa2395af191c3bfe010918f071a92def9e` (dòng đầu transcript), thuộc nhánh riêng `feat/DBS-26-migration-audit-log`; không có source DBS-25. Worktree kiểm tra độc lập dùng nhánh tạm local `codex/dbs26-build`, fast-forward kết quả vào nhánh feat tương ứng trước bàn giao.
+**Trạng thái:** đã được người dùng duyệt G4; triển khai local hoàn tất, bàn giao qua PR. Dev review/CI/merge theo trạng thái PR. Code cuối: `0cbfb814037abc6a353af0a0d2311e39ea10a06f` (dòng đầu transcript), thuộc nhánh riêng `feat/DBS-26-migration-audit-log`; không có source DBS-25. Worktree kiểm tra độc lập dùng nhánh tạm local `codex/dbs26-build`, fast-forward kết quả vào nhánh feat tương ứng trước bàn giao.
 
 **Kiểm tra bàn giao:** [output đầy đủ](screenshots/DBS-26/verification.txt): lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **5 suite / 87 test** đạt, 0 skip. Có 49 test nền và 38 lượt mới audit/helper. Không có mock database.
 
@@ -279,6 +279,8 @@ Kiểm chuỗi với trigger27 phát hiện sáu regression đỏ do audit khôn
 **Bàn giao:** BL-017 AuditService/API/metadata/fail-closed/production roles, trigger do DBS-27 cung cấp; BL-018 Dev review/CI/merge. BL-005 quyền/chủ view còn nguyên; task26 không nhận AC-8.1 production roles hoặc AC-8.2 HTTP đã đạt. Fixture chỉ có UUID/mã kỹ thuật tổng hợp; transcript đã rà không có token, Authorization, password, AWS ID/ARN.
 
 **Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
+
+**CI sau G4:** [job DB đầu của PR13](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39804974688/job/119915640569) phát hiện TC-26-04 so tên timezone quá chặt: PostgreSQL Debian trả `Etc/UTC`, local trả `UTC`; [trích output lỗi](screenshots/DBS-26/ci-timezone-failure.txt). Đã tái hiện đỏ bằng session options trên DB tạm, rồi sửa test nhận hai tên UTC tương đương và kiểm offset mùa đông/mùa hè đều bằng 0. Toàn bộ 87 test DB với `Etc/UTC` đã xanh trước commit `0cbfb81`; production migration, env và schema không đổi. Sau commit, đã chạy lại đủ chín bước manual, sáu baseline và kiểm tương thích 150 test; transcript/ảnh mới mang SHA nêu trên. CI của commit bàn giao được xác nhận riêng trên PR.
 
 ## 9. Tài liệu đã cập nhật
 

@@ -1,4 +1,4 @@
-d940d3aa2395af191c3bfe010918f071a92def9e
+0cbfb814037abc6a353af0a0d2311e39ea10a06f
 NAME              IMAGE                                  COMMAND                  SERVICE     CREATED       STATUS                 PORTS
 dbs-elasticmq-1   softwaremill/elasticmq-native:latest   "/sbin/tini -- /opt/…"   elasticmq   6 hours ago   Up 6 hours             0.0.0.0:9324-9325->9324-9325/tcp, [::]:9324-9325->9324-9325/tcp
 dbs-postgres-1    postgres:17-alpine                     "docker-entrypoint.s…"   postgres    6 hours ago   Up 6 hours (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
@@ -6,8 +6,8 @@ dbs-valkey-1      valkey/valkey:8-alpine                 "tini -- docker-entr…
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts lifecycle
 AUDIT MANUAL MODE "lifecycle"
-TEMP DATABASE "dbs_test_0f06cca35842"
-$ npm run migration:run [private database URL: dbs_test_0f06cca35842] 
+TEMP DATABASE "dbs_test_98c649f372c1"
+$ npm run migration:run [private database URL: dbs_test_98c649f372c1] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -217,7 +217,7 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-$ npm run migration:revert [private database URL: dbs_test_0f06cca35842] 
+$ npm run migration:revert [private database URL: dbs_test_98c649f372c1] 
 
 > digital-banking-simulator-backend@0.1.0 migration:revert
 > npm run typeorm -- migration:revert
@@ -252,7 +252,7 @@ query: COMMIT
 
 SCHEMA audit_log 
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"}]
-$ npm run migration:run [private database URL: dbs_test_0f06cca35842] 
+$ npm run migration:run [private database URL: dbs_test_98c649f372c1] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -312,13 +312,13 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-CLEANUP database dropped "dbs_test_0f06cca35842"
+CLEANUP database dropped "dbs_test_98c649f372c1"
 MANUAL MODE PASS "lifecycle"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts rows
 AUDIT MANUAL MODE "rows"
-TEMP DATABASE "dbs_test_51be07e48be5"
-$ npm run migration:run [private database URL: dbs_test_51be07e48be5] 
+TEMP DATABASE "dbs_test_85a88c721a6b"
+$ npm run migration:run [private database URL: dbs_test_85a88c721a6b] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -511,24 +511,24 @@ SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
 RESULT [{"current_user":"banking","rolsuper":true}]
 SQL> SELECT setval(pg_get_serial_sequence('audit_log','id'),9007199254740992,true) []
 RESULT [{"setval":"9007199254740992"}]
-RESULT system defaults {"id":"9007199254740993","occurred_at":"2026-10-22T14:59:47.159Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"ea82b8b2-db58-450e-981f-7cfa32b38b7b","metadata":{}}
-SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * ["22afc655-8a20-46e9-a8ee-8e202375ce65","operator","audit.search","REJECTED","correlation","account-absent","1adb4850-5ee0-4ae4-bbfc-93ebd9218479",{"reason":"ACCOUNT_NOT_ACTIVE"}]
-RESULT [{"id":"9007199254740994","occurred_at":"2026-10-22T14:59:47.172Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"REJECTED","target_type":"correlation","target_id":"account-absent","correlation_id":"1adb4850-5ee0-4ae4-bbfc-93ebd9218479","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
-SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * ["22afc655-8a20-46e9-a8ee-8e202375ce65","operator","audit.search","DENIED","correlation","account-absent","39976493-0312-42f6-b26f-ebc0ab4ead12",{"reason":"ACCOUNT_NOT_ACTIVE"}]
-RESULT [{"id":"9007199254740995","occurred_at":"2026-10-22T14:59:47.177Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"DENIED","target_type":"correlation","target_id":"account-absent","correlation_id":"39976493-0312-42f6-b26f-ebc0ab4ead12","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
-SQL> SELECT * FROM audit_log WHERE actor_user_id=$1 ORDER BY occurred_at DESC ["22afc655-8a20-46e9-a8ee-8e202375ce65"]
-RESULT [{"id":"9007199254740995","occurred_at":"2026-10-22T14:59:47.177Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"DENIED","target_type":"correlation","target_id":"account-absent","correlation_id":"39976493-0312-42f6-b26f-ebc0ab4ead12","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}},{"id":"9007199254740994","occurred_at":"2026-10-22T14:59:47.172Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"REJECTED","target_type":"correlation","target_id":"account-absent","correlation_id":"1adb4850-5ee0-4ae4-bbfc-93ebd9218479","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+RESULT system defaults {"id":"9007199254740993","occurred_at":"2026-10-22T15:32:54.569Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"aa61c52a-80aa-4dba-9b83-efdd8dad5815","metadata":{}}
+SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * ["ec4bf370-9bfd-4a0e-ab66-0adf228326bc","operator","audit.search","REJECTED","correlation","account-absent","d066f776-ca0c-4759-9fc4-79a70c766212",{"reason":"ACCOUNT_NOT_ACTIVE"}]
+RESULT [{"id":"9007199254740994","occurred_at":"2026-10-22T15:32:54.583Z","actor_user_id":"ec4bf370-9bfd-4a0e-ab66-0adf228326bc","actor_role":"operator","action":"audit.search","outcome":"REJECTED","target_type":"correlation","target_id":"account-absent","correlation_id":"d066f776-ca0c-4759-9fc4-79a70c766212","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * ["ec4bf370-9bfd-4a0e-ab66-0adf228326bc","operator","audit.search","DENIED","correlation","account-absent","7af4139f-3f29-48f3-bcba-b996ba40f734",{"reason":"ACCOUNT_NOT_ACTIVE"}]
+RESULT [{"id":"9007199254740995","occurred_at":"2026-10-22T15:32:54.587Z","actor_user_id":"ec4bf370-9bfd-4a0e-ab66-0adf228326bc","actor_role":"operator","action":"audit.search","outcome":"DENIED","target_type":"correlation","target_id":"account-absent","correlation_id":"7af4139f-3f29-48f3-bcba-b996ba40f734","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+SQL> SELECT * FROM audit_log WHERE actor_user_id=$1 ORDER BY occurred_at DESC ["ec4bf370-9bfd-4a0e-ab66-0adf228326bc"]
+RESULT [{"id":"9007199254740995","occurred_at":"2026-10-22T15:32:54.587Z","actor_user_id":"ec4bf370-9bfd-4a0e-ab66-0adf228326bc","actor_role":"operator","action":"audit.search","outcome":"DENIED","target_type":"correlation","target_id":"account-absent","correlation_id":"7af4139f-3f29-48f3-bcba-b996ba40f734","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}},{"id":"9007199254740994","occurred_at":"2026-10-22T15:32:54.583Z","actor_user_id":"ec4bf370-9bfd-4a0e-ab66-0adf228326bc","actor_role":"operator","action":"audit.search","outcome":"REJECTED","target_type":"correlation","target_id":"account-absent","correlation_id":"d066f776-ca0c-4759-9fc4-79a70c766212","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
 SQL> SELECT * FROM audit_log WHERE action='audit.search' ORDER BY occurred_at DESC []
-RESULT [{"id":"9007199254740995","occurred_at":"2026-10-22T14:59:47.177Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"DENIED","target_type":"correlation","target_id":"account-absent","correlation_id":"39976493-0312-42f6-b26f-ebc0ab4ead12","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}},{"id":"9007199254740994","occurred_at":"2026-10-22T14:59:47.172Z","actor_user_id":"22afc655-8a20-46e9-a8ee-8e202375ce65","actor_role":"operator","action":"audit.search","outcome":"REJECTED","target_type":"correlation","target_id":"account-absent","correlation_id":"1adb4850-5ee0-4ae4-bbfc-93ebd9218479","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}},{"id":"9007199254740993","occurred_at":"2026-10-22T14:59:47.159Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"ea82b8b2-db58-450e-981f-7cfa32b38b7b","metadata":{}}]
-SQL> SELECT * FROM audit_log WHERE correlation_id=$1 ["ea82b8b2-db58-450e-981f-7cfa32b38b7b"]
-RESULT [{"id":"9007199254740993","occurred_at":"2026-10-22T14:59:47.159Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"ea82b8b2-db58-450e-981f-7cfa32b38b7b","metadata":{}}]
-CLEANUP database dropped "dbs_test_51be07e48be5"
+RESULT [{"id":"9007199254740995","occurred_at":"2026-10-22T15:32:54.587Z","actor_user_id":"ec4bf370-9bfd-4a0e-ab66-0adf228326bc","actor_role":"operator","action":"audit.search","outcome":"DENIED","target_type":"correlation","target_id":"account-absent","correlation_id":"7af4139f-3f29-48f3-bcba-b996ba40f734","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}},{"id":"9007199254740994","occurred_at":"2026-10-22T15:32:54.583Z","actor_user_id":"ec4bf370-9bfd-4a0e-ab66-0adf228326bc","actor_role":"operator","action":"audit.search","outcome":"REJECTED","target_type":"correlation","target_id":"account-absent","correlation_id":"d066f776-ca0c-4759-9fc4-79a70c766212","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}},{"id":"9007199254740993","occurred_at":"2026-10-22T15:32:54.569Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"aa61c52a-80aa-4dba-9b83-efdd8dad5815","metadata":{}}]
+SQL> SELECT * FROM audit_log WHERE correlation_id=$1 ["aa61c52a-80aa-4dba-9b83-efdd8dad5815"]
+RESULT [{"id":"9007199254740993","occurred_at":"2026-10-22T15:32:54.569Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"aa61c52a-80aa-4dba-9b83-efdd8dad5815","metadata":{}}]
+CLEANUP database dropped "dbs_test_85a88c721a6b"
 MANUAL MODE PASS "rows"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts rejections
 AUDIT MANUAL MODE "rejections"
-TEMP DATABASE "dbs_test_69e569f66bc8"
-$ npm run migration:run [private database URL: dbs_test_69e569f66bc8] 
+TEMP DATABASE "dbs_test_897b683a8ca8"
+$ npm run migration:run [private database URL: dbs_test_897b683a8ca8] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -721,7 +721,7 @@ SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
 RESULT [{"current_user":"banking","rolsuper":true}]
 SQL rejection input {"index":3,"bad":"FAILED"}
 EXPECTED POSTGRES ERROR {"code":"23514","constraint":"audit_log_outcome_check"}
-SQL rejection input {"index":0,"bad":"c8c9dccd-473f-47e8-b2aa-c6b258bc1694"}
+SQL rejection input {"index":0,"bad":"817dfc9b-5283-404b-a9bd-f05f8464c7fa"}
 EXPECTED POSTGRES ERROR {"code":"23503","constraint":"audit_log_actor_user_id_fkey"}
 SQL rejection input {"index":6,"bad":null}
 EXPECTED POSTGRES ERROR {"code":"23502","column":"correlation_id"}
@@ -730,15 +730,15 @@ EXPECTED POSTGRES ERROR {"code":"22P02"}
 SQL rejection input {"index":7,"bad":"{broken"}
 EXPECTED POSTGRES ERROR {"code":"22P02"}
 EXPECTED POSTGRES ERROR {"code":"23505","constraint":"audit_log_pkey"}
-SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * [null,"system","audit.search","SUCCESS","correlation","account-absent","6e71489f-d1a4-42e1-b6d1-712b8baad86a",{"reason":"ACCOUNT_NOT_ACTIVE"}]
-RESULT [{"id":"5","occurred_at":"2026-10-22T14:59:53.337Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"6e71489f-d1a4-42e1-b6d1-712b8baad86a","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
-CLEANUP database dropped "dbs_test_69e569f66bc8"
+SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * [null,"system","audit.search","SUCCESS","correlation","account-absent","f1af566b-7f65-4c5c-9ef4-665d407b8b2b",{"reason":"ACCOUNT_NOT_ACTIVE"}]
+RESULT [{"id":"5","occurred_at":"2026-10-22T15:33:01.489Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"f1af566b-7f65-4c5c-9ef4-665d407b8b2b","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+CLEANUP database dropped "dbs_test_897b683a8ca8"
 MANUAL MODE PASS "rejections"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts revert-guard
 AUDIT MANUAL MODE "revert-guard"
-TEMP DATABASE "dbs_test_fce603a2f2f8"
-$ npm run migration:run [private database URL: dbs_test_fce603a2f2f8] 
+TEMP DATABASE "dbs_test_1efe95d80eb9"
+$ npm run migration:run [private database URL: dbs_test_1efe95d80eb9] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -929,8 +929,8 @@ SQL> SHOW timezone []
 RESULT [{"TimeZone":"UTC"}]
 SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
 RESULT [{"current_user":"banking","rolsuper":true}]
-SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * [null,"system","audit.search","SUCCESS","correlation","account-absent","6f0e8da0-3da4-4390-a5b4-3cada077770c",{"reason":"ACCOUNT_NOT_ACTIVE"}]
-RESULT [{"id":"1","occurred_at":"2026-10-22T14:59:59.484Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"6f0e8da0-3da4-4390-a5b4-3cada077770c","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * [null,"system","audit.search","SUCCESS","correlation","account-absent","a87a2b55-7673-4063-adad-9b4af8831e7c",{"reason":"ACCOUNT_NOT_ACTIVE"}]
+RESULT [{"id":"1","occurred_at":"2026-10-22T15:33:07.894Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"a87a2b55-7673-4063-adad-9b4af8831e7c","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
 SCHEMA audit_log 
 COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
 COLUMN {"column_name":"occurred_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null}
@@ -950,11 +950,11 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-$ npm run migration:revert [private database URL: dbs_test_fce603a2f2f8] 
+$ npm run migration:revert [private database URL: dbs_test_1efe95d80eb9] 
 QueryFailedError: Refusing to revert audit: table holds data
     at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateAuditLog1792627200001.down (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
+    at async CreateAuditLog1792627200001.down (D:\UET_PROJECT\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
     at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
     at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
     at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
@@ -968,7 +968,7 @@ QueryFailedError: Refusing to revert audit: table holds data
       at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
       at processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateAuditLog1792627200001.down (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
+      at async CreateAuditLog1792627200001.down (D:\UET_PROJECT\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
       at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
       at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
       at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
@@ -1047,7 +1047,7 @@ Error during migration revert:
 QueryFailedError: Refusing to revert audit: table holds data
     at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateAuditLog1792627200001.down (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
+    at async CreateAuditLog1792627200001.down (D:\UET_PROJECT\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
     at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
     at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
     at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
@@ -1061,7 +1061,7 @@ QueryFailedError: Refusing to revert audit: table holds data
       at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
       at processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateAuditLog1792627200001.down (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
+      at async CreateAuditLog1792627200001.down (D:\UET_PROJECT\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:46:5)
       at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
       at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
       at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
@@ -1123,8 +1123,8 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-PRESERVED committed audit rows [{"id":"1","occurred_at":"2026-10-22T14:59:59.484Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"6f0e8da0-3da4-4390-a5b4-3cada077770c","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
-$ npm run migration:run [private database URL: dbs_test_fce603a2f2f8] 
+PRESERVED committed audit rows [{"id":"1","occurred_at":"2026-10-22T15:33:07.894Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"a87a2b55-7673-4063-adad-9b4af8831e7c","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+$ npm run migration:run [private database URL: dbs_test_1efe95d80eb9] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -1139,13 +1139,13 @@ query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'publi
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 No migrations are pending
 
-CLEANUP database dropped "dbs_test_fce603a2f2f8"
+CLEANUP database dropped "dbs_test_1efe95d80eb9"
 MANUAL MODE PASS "revert-guard"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts locking
 AUDIT MANUAL MODE "locking"
-TEMP DATABASE "dbs_test_2170024e8526"
-$ npm run migration:run [private database URL: dbs_test_2170024e8526] 
+TEMP DATABASE "dbs_test_ef38868ae56d"
+$ npm run migration:run [private database URL: dbs_test_ef38868ae56d] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -1336,9 +1336,9 @@ SQL> SHOW timezone []
 RESULT [{"TimeZone":"UTC"}]
 SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
 RESULT [{"current_user":"banking","rolsuper":true}]
-SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * [null,"system","audit.search","SUCCESS","correlation","account-absent","54269db7-2b96-4a2b-9616-fab9af777b5c",{"reason":"ACCOUNT_NOT_ACTIVE"}]
-RESULT [{"id":"1","occurred_at":"2026-10-22T15:00:12.303Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"54269db7-2b96-4a2b-9616-fab9af777b5c","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
-OBSERVED LOCK WAIT {"order":"writer-first","pid":12613,"wait_event_type":"Lock","wait_event":"relation"}
+SQL> INSERT INTO audit_log(actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING * [null,"system","audit.search","SUCCESS","correlation","account-absent","c164446a-1e92-4e92-8230-793f3d0b0139",{"reason":"ACCOUNT_NOT_ACTIVE"}]
+RESULT [{"id":"1","occurred_at":"2026-10-22T15:33:22.400Z","actor_user_id":null,"actor_role":"system","action":"audit.search","outcome":"SUCCESS","target_type":"correlation","target_id":"account-absent","correlation_id":"c164446a-1e92-4e92-8230-793f3d0b0139","metadata":{"reason":"ACCOUNT_NOT_ACTIVE"}}]
+OBSERVED LOCK WAIT {"order":"writer-first","pid":17985,"wait_event_type":"Lock","wait_event":"relation"}
 EXPECTED POSTGRES ERROR {"code":"55000","order":"writer-first"}
 SCHEMA audit_log 
 COLUMN {"column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"}
@@ -1359,9 +1359,9 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-CLEANUP database dropped "dbs_test_2170024e8526"
-TEMP DATABASE "dbs_test_6f736ff385e3"
-$ npm run migration:run [private database URL: dbs_test_6f736ff385e3] 
+CLEANUP database dropped "dbs_test_ef38868ae56d"
+TEMP DATABASE "dbs_test_3d652a4e73ff"
+$ npm run migration:run [private database URL: dbs_test_3d652a4e73ff] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -1552,15 +1552,15 @@ SQL> SHOW timezone []
 RESULT [{"TimeZone":"UTC"}]
 SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
 RESULT [{"current_user":"banking","rolsuper":true}]
-OBSERVED LOCK WAIT {"order":"down-first","pid":12628,"wait_event_type":"Lock","wait_event":"relation"}
+OBSERVED LOCK WAIT {"order":"down-first","pid":17993,"wait_event_type":"Lock","wait_event":"relation"}
 EXPECTED POSTGRES ERROR {"code":"57014","order":"down-first"}
 EXPECTED POSTGRES ERROR {"code":"42P01"}
-CLEANUP database dropped "dbs_test_6f736ff385e3"
+CLEANUP database dropped "dbs_test_3d652a4e73ff"
 MANUAL MODE PASS "locking"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts recovery
 AUDIT MANUAL MODE "recovery"
-TEMP DATABASE "dbs_test_89a620c79bc9"
+TEMP DATABASE "dbs_test_a58e726a581a"
 SQL> SHOW server_version []
 RESULT [{"server_version":"17.11"}]
 SQL> SHOW timezone []
@@ -1571,11 +1571,11 @@ SQL> CREATE TABLE audit_sentinel(id int) []
 RESULT []
 SQL> CREATE INDEX audit_log_actor_occurred_idx ON audit_sentinel(id) []
 RESULT []
-$ npm run migration:run [private database URL: dbs_test_89a620c79bc9] 
+$ npm run migration:run [private database URL: dbs_test_a58e726a581a] 
 QueryFailedError: relation "audit_log_actor_occurred_idx" already exists
     at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateAuditLog1792627200001.up (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
+    at async CreateAuditLog1792627200001.up (D:\UET_PROJECT\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
     at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
     at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
     at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
@@ -1585,7 +1585,7 @@ QueryFailedError: relation "audit_log_actor_occurred_idx" already exists
       at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
       at processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateAuditLog1792627200001.up (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
+      at async CreateAuditLog1792627200001.up (D:\UET_PROJECT\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
       at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
       at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
       at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
@@ -1669,7 +1669,7 @@ Error during migration run:
 QueryFailedError: relation "audit_log_actor_occurred_idx" already exists
     at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
     at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateAuditLog1792627200001.up (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
+    at async CreateAuditLog1792627200001.up (D:\UET_PROJECT\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
     at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
     at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
     at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
@@ -1679,7 +1679,7 @@ QueryFailedError: relation "audit_log_actor_occurred_idx" already exists
       at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
       at processTicksAndRejections (node:internal/process/task_queues:104:5)
       at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateAuditLog1792627200001.up (C:\Users\Admin\.codex\worktrees\dbs26-audit\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
+      at async CreateAuditLog1792627200001.up (D:\UET_PROJECT\digital-banking-simulator\backend\src\database\migrations\1792627200001-CreateAuditLog.ts:26:5)
       at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
       at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
       at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
@@ -1727,7 +1727,7 @@ SCHEMA audit_log
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"}]
 SQL> DROP TABLE audit_sentinel []
 RESULT []
-$ npm run migration:run [private database URL: dbs_test_89a620c79bc9] 
+$ npm run migration:run [private database URL: dbs_test_a58e726a581a] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -1787,13 +1787,13 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-CLEANUP database dropped "dbs_test_89a620c79bc9"
+CLEANUP database dropped "dbs_test_a58e726a581a"
 MANUAL MODE PASS "recovery"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts preconditions
 AUDIT MANUAL MODE "preconditions"
-TEMP DATABASE "dbs_test_1d263facec7b"
-$ npm run migration:run [private database URL: dbs_test_1d263facec7b] 
+TEMP DATABASE "dbs_test_90bfb81dec69"
+$ npm run migration:run [private database URL: dbs_test_90bfb81dec69] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -2005,9 +2005,9 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-CLEANUP database dropped "dbs_test_1d263facec7b"
-TEMP DATABASE "dbs_test_7d012e8b97ef"
-$ npm run migration:run [private database URL: dbs_test_7d012e8b97ef] 
+CLEANUP database dropped "dbs_test_90bfb81dec69"
+TEMP DATABASE "dbs_test_4bea46638d1e"
+$ npm run migration:run [private database URL: dbs_test_4bea46638d1e] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -2219,9 +2219,9 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-CLEANUP database dropped "dbs_test_7d012e8b97ef"
-TEMP DATABASE "dbs_test_eafd3b5fa974"
-$ npm run migration:run [private database URL: dbs_test_eafd3b5fa974] 
+CLEANUP database dropped "dbs_test_4bea46638d1e"
+TEMP DATABASE "dbs_test_f7c546ba0613"
+$ npm run migration:run [private database URL: dbs_test_f7c546ba0613] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -2433,9 +2433,9 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-CLEANUP database dropped "dbs_test_eafd3b5fa974"
-TEMP DATABASE "dbs_test_a95f475373a1"
-$ npm run migration:run [private database URL: dbs_test_a95f475373a1] 
+CLEANUP database dropped "dbs_test_f7c546ba0613"
+TEMP DATABASE "dbs_test_85ef6ebb55fb"
+$ npm run migration:run [private database URL: dbs_test_85ef6ebb55fb] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -2649,13 +2649,13 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-CLEANUP database dropped "dbs_test_a95f475373a1"
+CLEANUP database dropped "dbs_test_85ef6ebb55fb"
 MANUAL MODE PASS "preconditions"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/audit-migration-driver.ts legacy-lifecycle
 AUDIT MANUAL MODE "legacy-lifecycle"
-TEMP DATABASE "dbs_test_8fe224a65964"
-$ npm run migration:run [private database URL: dbs_test_8fe224a65964] 
+TEMP DATABASE "dbs_test_09681e5fee07"
+$ npm run migration:run [private database URL: dbs_test_09681e5fee07] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -2846,7 +2846,7 @@ SQL> SHOW timezone []
 RESULT [{"TimeZone":"UTC"}]
 SQL> SELECT current_user,rolsuper FROM pg_roles WHERE rolname=current_user []
 RESULT [{"current_user":"banking","rolsuper":true}]
-$ npm run migration:revert [private database URL: dbs_test_8fe224a65964] 
+$ npm run migration:revert [private database URL: dbs_test_09681e5fee07] 
 
 > digital-banking-simulator-backend@0.1.0 migration:revert
 > npm run typeorm -- migration:revert
@@ -2880,7 +2880,7 @@ Migration CreateAuditLog1792627200001 has been reverted successfully.
 query: COMMIT
 
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000"}]
-$ npm run migration:revert [private database URL: dbs_test_8fe224a65964] 
+$ npm run migration:revert [private database URL: dbs_test_09681e5fee07] 
 
 > digital-banking-simulator-backend@0.1.0 migration:revert
 > npm run typeorm -- migration:revert
@@ -2910,7 +2910,7 @@ Migration CreateTransfersLedgerIdempotency1791849600000 has been reverted succes
 query: COMMIT
 
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000"}]
-$ npm run migration:revert [private database URL: dbs_test_8fe224a65964] 
+$ npm run migration:revert [private database URL: dbs_test_09681e5fee07] 
 
 > digital-banking-simulator-backend@0.1.0 migration:revert
 > npm run typeorm -- migration:revert
@@ -2940,7 +2940,7 @@ Migration CreateUsersCustomersAccounts1791763200000 has been reverted successful
 query: COMMIT
 
 HISTORY []
-$ npm run migration:run [private database URL: dbs_test_8fe224a65964] 
+$ npm run migration:run [private database URL: dbs_test_09681e5fee07] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -3143,5 +3143,5 @@ CONSTRAINT {"conname":"audit_log_actor_user_id_fkey","definition":"FOREIGN KEY (
 CONSTRAINT {"conname":"audit_log_outcome_check","definition":"CHECK ((outcome = ANY (ARRAY['SUCCESS'::text, 'REJECTED'::text, 'DENIED'::text])))"}
 CONSTRAINT {"conname":"audit_log_pkey","definition":"PRIMARY KEY (id)"}
 HISTORY [{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateAuditLog1792627200001","timestamp":"1792627200001"}]
-CLEANUP database dropped "dbs_test_8fe224a65964"
+CLEANUP database dropped "dbs_test_09681e5fee07"
 MANUAL MODE PASS "legacy-lifecycle"

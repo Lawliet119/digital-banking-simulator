@@ -1,18 +1,15 @@
-Local compatibility check in a disposable copy outside delivery branches.
-Shell: PowerShell; final stdout from the real PostgreSQL command is preserved below.
-DBS-25 source commit: b0f4714c7cbb58080451319dda8b2b0c4b951866
-DBS-26 source commit: d940d3aa2395af191c3bfe010918f071a92def9e
-DBS-27 migration and append-only test were copied from the implementation worktree before its commit.
-SHA256 DBS-27 migration: 4909E50E439E8C4FF2875236A3D1A941184E1285F5F7A81976F0CD4D377DD706
-SHA256 DBS-27 append-only test: F1AE7E9B5814FD9565D0DF21B5F24A0D00328497EF790A963353885D681C4BE7
-Command, from backend/: npm run test:db -- --runInBand
-No merged delivery branch was created. This is local validation, not GitHub CI.
+DBS-25 code: b0f4714c7cbb58080451319dda8b2b0c4b951866
+DBS-26 code: 0cbfb814037abc6a353af0a0d2311e39ea10a06f
+DBS-27 code: 6545701df7fdb3bc49677c859172f899a6726634
+Local disposable copy of backend sources; no combined delivery branch.
+$ npm run test:db -- --runInBand
 
-Final stdout:
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
 
 Test Suites: 7 passed, 7 total
 Tests:       150 passed, 150 total
 Snapshots:   0 total
-Time:        104.116 s
+Time:        115.896 s
 Ran all test suites.
-
