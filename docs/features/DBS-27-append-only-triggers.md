@@ -1,6 +1,6 @@
 # DBS-27 · Hàm forbid_mutation và trigger chặn sửa/xóa các bảng chỉ-thêm
 
-> **Status:** Plan approved (chờ duyệt lại G4 sau khi merge `main`, xem §8) · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/14) · **Cập nhật:** 2026-10-24
+> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/14) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -271,7 +271,7 @@ Mermaid §3 đã render thành công bằng mermaid-cli 12.0.0; nội dung sơ �
 
 ## 8. Kết quả
 
-**Trạng thái:** G4 ngày 2026-10-22 đã duyệt kết quả trên code cũ; vì `main` có thêm DBS-25/26/39 nên nhánh đã merge `origin/main` (commit `79a1a03`) và chạy lại toàn bộ bằng chứng. **Chờ duyệt lại G4** trên bằng chứng mới; status là Plan approved cho đến khi đó. Code cuối `79a1a03b7a86792036c66da1b99bbf0baf043f52` (merge commit, commit cuối đổi code) ở dòng đầu transcript; nhánh `feat/DBS-27-append-only-triggers`. Diff riêng task so với `origin/main` gồm migration, `append-only.db-spec.ts`, driver manual, tài liệu và bằng chứng DBS-27; không còn phần DBS-26, không có source25 hay bảng audit giả.
+**Trạng thái:** G4 ngày 2026-10-22 đã duyệt kết quả trên code cũ; vì `main` có thêm DBS-25/26/39 nên nhánh đã merge `origin/main` (commit `79a1a03`) và chạy lại toàn bộ bằng chứng. G4 đã được duyệt lại ngày 2026-10-24 trên bằng chứng mới; status Implemented. Code cuối `79a1a03b7a86792036c66da1b99bbf0baf043f52` (merge commit, commit cuối đổi code) ở dòng đầu transcript; nhánh `feat/DBS-27-append-only-triggers`. Diff riêng task so với `origin/main` gồm migration, `append-only.db-spec.ts`, driver manual, tài liệu và bằng chứng DBS-27; không còn phần DBS-26, không có source25 hay bảng audit giả.
 
 **Automated** (trên `79a1a03`): lint/typecheck/build đạt; unit **25 suite / 367 test**, e2e **4 suite / 25 test**, PostgreSQL **8 suite / 154 test**, 0 skip. Có 25 lượt append-only mới, 129 lượt của DBS-20/21/25/26/39 và harness kế thừa từ main. [verification.txt](screenshots/DBS-27/verification.txt) trích nguyên bước M-27-07 từ transcript cùng SHA, không phải lần chạy khác. Test migration/owner/constraint dùng PostgreSQL thật, không mock. Bản kiểm tương thích ba task trong bản sao tạm của lượt cũ đã bị loại bỏ vì DBS-25/26 nay nằm trên `main`; nhánh này tự chạy trên chuỗi migration thật gồm năm migration.
 
@@ -330,7 +330,9 @@ Có **24** expected trigger errors trong transcript (12 populated/same-value + 3
 
 **Bàn giao/giới hạn:** thu hẹp BL-005 còn production grants/chủ view; giữ BL-006 complete-pair/balance_after và BL-019 service/API/metadata/fail-closed/production roles (DBS-27 thêm làm nguồn). BL-021 giao cặp trigger risk_rule_sets cho task fraud; BL-022 Dev review/CI/merge. T4 chỉ kiểm lớp trigger owner local, không nhận production-role coverage, chống owner cố ý sửa DDL hoặc toàn bộ AC-8.1 đã đạt. Agent không sửa board hoặc merge main.
 
-**Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4» cho kết quả, tài liệu và bằng chứng của lượt chạy cũ (code `6545701`); trạng thái khi đó chuyển Implemented. Quyết định này **không** phủ lượt chạy mới trên `79a1a03` (merge `origin/main`, đánh số lại BL-021/022, ảnh và transcript mới), nên G4 được trình lại; status về Plan approved đến khi người dùng duyệt lại. Không push thêm, không sửa board hoặc merge PR.
+**Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4» cho kết quả, tài liệu và bằng chứng của lượt chạy cũ (code `6545701`); trạng thái khi đó chuyển Implemented. Quyết định này **không** phủ lượt chạy mới trên `79a1a03` (merge `origin/main`, đánh số lại BL-021/022, ảnh và transcript mới), nên G4 được trình lại.
+
+**Quyết định ở G4 lần hai (2026-10-24):** người dùng trả lời «ok duyệt» cho kết quả, tài liệu và bằng chứng trên `79a1a03` (kèm ba câu hỏi: push nhánh, người merge dùng squash, kiểm tra trạng thái `Done` của board). Status trở lại Implemented; được phép push nhánh. Agent không sửa board hoặc merge PR; Dev khác review.
 
 **CI sau G4:** [job DB đầu của PR14](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39804977079/job/119915902694) gặp lỗi TC-26-04 kế thừa từ DBS-26: PostgreSQL Debian trả `Etc/UTC`, local trả `UTC`. Bản sửa nhận hai tên tương đương nay nằm trong `main` (qua #13) và đã vào nhánh bằng merge `origin/main`; bản chạy lại trên `79a1a03` đạt 154 test DB. CI của commit bàn giao cuối được xác nhận riêng trên PR, chưa có ở thời điểm viết.
 
@@ -345,5 +347,5 @@ Feature doc và raw review/transcript/ảnh trong screenshots/DBS-27; database-d
 - [x] Sáu ảnh chụp lại từ transcript mới, raw transcript và lượt manual lỗi cũ được giữ riêng; đã quét credential (không có password/token/Authorization/AWS ID/ARN).
 - [x] Diff so `origin/main` chỉ gồm file DBS-27 theo allowlist §7; không source25, workbook hay phần DBS-26.
 - [x] Sáu baseline đạt trong M-27-07: unit 25 suite / 367, e2e 4 / 25, DB 8 / 154, lint, typecheck, build; 0 skip.
-- [x] Docs/feature index cập nhật, status Plan approved đến khi G4 được duyệt lại; link checker chạy lại ở bước cuối.
+- [x] Docs/feature index cập nhật, status Implemented sau khi G4 được duyệt lại (2026-10-24); link checker chạy lại ở bước cuối.
 - [x] Handoff/DoD quy trình chưa đạt ghi BL-005/006/019/021/022 (đã đánh số lại sau merge `main`); không nhận CI/Dev review/merge đã xong.
