@@ -1,6 +1,6 @@
 # FRAUD-API-01 · Fraud không tự train model: quyết định kiến trúc API AI
 
-> **Status:** Implemented · **Loại:** docs-only, chưa triển khai backend fraud · **Vai:** #4 Fraud · **Review:** domain/plan đã APPROVE; review bổ sung còn ba điểm mở (§8.6), chưa ready · **Nhánh:** `docs/FRAUD-API-01-rules-external-ai` · **PR:** đang chuẩn bị Draft · **Cập nhật:** 2026-10-24
+> **Status:** Implemented · **Loại:** docs-only, chưa triển khai backend fraud · **Vai:** #4 Fraud · **Review:** domain/plan đã APPROVE; review bổ sung còn ba điểm mở (§8.6), chưa ready · **Nhánh:** `docs/FRAUD-API-01-rules-external-ai` · **PR:** [#20 — Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/20) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -428,6 +428,8 @@ Smoke helper runtime hiện hữu: registry api/both chỉ HealthModule, worker 
 Ranh giới tài nguyên chưa được chứng minh bằng load: risk chia sẻ worker với relay/notification, PostgreSQL/Redis với hệ thống. Queue riêng không cách ly CPU/memory/pool; không tuyên bố consumer khác không thể bị chậm. Trước enable phải đối chiếu gate fraud với SLO chuyển tiền, đọc dữ liệu, tuổi outbox/queue và pool theo BL-026/027.
 
 **Kiểm trước xuất bản trên nền main mới:** snapshot chỉ gồm `7ce5a23` và đúng 19 file Markdown trong index cho kết quả `99 files checked, 0 broken link(s)`, exit 0. Danh sách staged khớp allowlist 19 file; quét nội dung không thấy mẫu credential hoặc conflict marker. Backlog không trùng ID và giữ nguyên mọi dòng backlog/feature của upstream. Không chạy lại backend suite vì payload chỉ là tài liệu; CI remote chưa được nhận là xanh.
+
+**Đã xuất bản:** commit nội dung kiến trúc `e2de6ef` đã push lên nhánh trên và mở [Draft PR #20](https://github.com/Lawliet119/digital-banking-simulator/pull/20), base `main`. CI theo tab Checks của PR; mở PR không đồng nghĩa CI xanh, Dev đã review hoặc nhóm Accepted ADR-14. Chưa chuyển ready, merge hoặc sửa board.
 
 ## 9. Tài liệu đã cập nhật
 
