@@ -1,6 +1,6 @@
 # Tài liệu từng task (feature docs)
 
-> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-19
+> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-23
 
 Mỗi task implement trên board (tính năng, sửa lỗi, hạ tầng, test) có **một file** ở đây: `DBS-<n>-<slug>.md`. File được viết trước khi code và hoàn tất khi bàn giao, theo skill [`dbs-delivering-task`](../../.claude/skills/dbs-delivering-task/SKILL.md) và mẫu [`feature-doc.md`](../../.claude/skills/dbs-delivering-task/templates/feature-doc.md).
 
@@ -22,6 +22,8 @@ Feature doc làm bằng mẫu 8 mục cũ (kiến trúc ở §2, hành vi ở §
 
 Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 
+`FRAUD-API-01` là mã task kiến trúc nội bộ đã được người yêu cầu cho phép tạo, không phải mã issue trên sheet.
+
 ## Danh sách
 
 | Task | Tóm tắt | Vai | Trạng thái |
@@ -35,3 +37,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-35](DBS-35-ci-github-actions.md) | GitHub Actions CI: sáu job song song (lint, typecheck, unit, e2e, db, build) trên mỗi PR và push `main` | Dev | Implemented |
 | [DBS-39](DBS-39-testcontainers-postgres.md) | Testcontainers: helper Postgres 17 chạy migration cho test | Dev | Implemented |
 | [DBS-25](DBS-25-migration-outbox-events.md) | Migration outbox_events và processed_events | Dev | Implemented |
+| [FRAUD-API-01](FRAUD-API-01-external-ai-decision.md) | Hồ sơ ADR-14/thiết kế Proposed đã hoàn tất; giữ rules + API, chưa triển khai backend fraud | Fraud | Implemented (docs-only) |
