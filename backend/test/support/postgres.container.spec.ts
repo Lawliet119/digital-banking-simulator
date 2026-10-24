@@ -1,5 +1,6 @@
 import {
   assertDockerAvailable,
+  DOCKER_CHECK_TIMEOUT_MS,
   stopPostgresContainer,
   STARTUP_TIMEOUT_MS,
   startPostgresContainer,
@@ -36,6 +37,38 @@ describe('postgres.container and test harness helpers', () => {
     it('TC-39-03: resolves cleanly when Docker runtime is available', async () => {
       const mockGetRuntimeClient = jest.fn().mockResolvedValue({});
       await expect(assertDockerAvailable(mockGetRuntimeClient)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('assertDockerAvailable timeout (TC-39-08)', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('gives up after 15 s when the daemon accepts the socket but never answers', async () => {
+      const neverAnswers = jest.fn().mockReturnValue(new Promise(() => undefined));
+      const outcome = assertDockerAvailable(neverAnswers).catch((error: Error) => error);
+
+      await jest.advanceTimersByTimeAsync(DOCKER_CHECK_TIMEOUT_MS);
+      const error = (await outcome) as Error;
+
+      expect(DOCKER_CHECK_TIMEOUT_MS).toBe(15_000);
+      expect(error.message).toMatch(/Docker is not running/);
+      expect(error.message).toMatch(/within 15s/);
+      expect(error.message.match(/\[Testcontainers\]/g)).toHaveLength(1);
+      expect(jest.getTimerCount()).toBe(0);
+    });
+
+    it('does not fire early and leaves no timer behind when Docker answers', async () => {
+      const answers = jest.fn().mockResolvedValue({});
+
+      await expect(assertDockerAvailable(answers)).resolves.toBeUndefined();
+
+      expect(jest.getTimerCount()).toBe(0);
     });
   });
 

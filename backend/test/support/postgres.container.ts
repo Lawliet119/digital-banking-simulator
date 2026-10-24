@@ -2,6 +2,20 @@ import { getContainerRuntimeClient } from 'testcontainers';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 export const STARTUP_TIMEOUT_MS = 60_000;
+/** Longest we wait for the Docker daemon to answer before giving up. */
+export const DOCKER_CHECK_TIMEOUT_MS = 15_000;
+
+/**
+ * Rejects with `message` if `work` has not settled within `ms`. The timer is always cleared so it
+ * never keeps the Jest process alive.
+ */
+export function withTimeout<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const expired = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([work, expired]).finally(() => clearTimeout(timer));
+}
 
 export interface StartedPostgres {
   databaseUrl: string;
@@ -17,7 +31,11 @@ export async function assertDockerAvailable(
   clientGetter: () => Promise<unknown> = getContainerRuntimeClient,
 ): Promise<void> {
   try {
-    await clientGetter();
+    await withTimeout(
+      clientGetter(),
+      DOCKER_CHECK_TIMEOUT_MS,
+      `Docker daemon did not respond within ${DOCKER_CHECK_TIMEOUT_MS / 1000}s`,
+    );
   } catch (error) {
     throw new Error(
       '[Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. ' +
