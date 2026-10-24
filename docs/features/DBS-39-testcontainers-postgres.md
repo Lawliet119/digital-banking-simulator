@@ -1,6 +1,6 @@
 # DBS-39 · Testcontainers: helper Postgres 17 chạy migration cho test
 
-> **Status:** In Progress (đợt sửa vòng 2 sau review, G3 đã duyệt, đang implement) · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-39-testcontainers-postgres` · **PR:** — · **Cập nhật:** 2026-10-24
+> **Status:** Implemented (đợt sửa vòng 2 sau review, chờ G4) · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-39-testcontainers-postgres` · **PR:** — · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -174,11 +174,11 @@ Kịch bản kiểm thử thủ công trực tiếp trên máy trạm:
 | Bước | Việc làm (lệnh hoặc thao tác) | Kết quả mong đợi |
 |---|---|---|
 | M-39-01 | Bật Docker Desktop. Tại `backend/`, chạy `npm run test:db` | Testcontainer tự kéo image (nếu chưa có), khởi động Postgres 17, chạy toàn bộ test specs trong `test/db/`, tất cả test pass xanh (100%), container tự hủy khi xong. |
-| M-39-02 | Tắt Docker Desktop (hoặc tạm dừng daemon). Chạy `npm run test:db` | Jest dừng nhanh chóng (trong vòng 5s) và in thông báo lỗi rõ ràng yêu cầu bật Docker, không bị treo. |
+| M-39-02 | Tắt Docker Desktop (hoặc tạm dừng daemon; nếu máy đang chạy container dự án khác thì mô phỏng bằng `DOCKER_HOST=tcp://127.0.0.1:1`, làm Testcontainers không tới được daemon dù Docker thật vẫn chạy). Chạy `npm run test:db` | Jest dừng nhanh chóng (trong vòng 5s) và in thông báo lỗi rõ ràng yêu cầu bật Docker, không bị treo. |
 | M-39-03 | Kiểm tra container còn sót lại bằng lệnh `docker ps` sau khi chạy xong | Không có container Postgres nào bị mồ côi (dangling/leaked). |
-| M-39-04 | Pull lần đầu trong hạn tổng. Điều kiện đầu, kiểm từng cái: (1) `Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue`, rồi `echo $env:DATABASE_URL` phải rỗng (nếu không, `globalSetup` bỏ qua container và không pull gì); (2) `docker compose down` ở thư mục gốc repo (service `postgres` của compose, container `dbs-postgres-1`, dùng đúng image này; `docker rmi` sẽ báo xung đột kể cả khi nó đã dừng); (3) `docker rmi postgres:17-alpine`, rồi `docker images postgres:17-alpine` phải rỗng. Sau đó tại `backend/` chạy `$env:DEBUG='testcontainers*'; $start = Get-Date; npm run test:db *> pull.log; (Get-Date) - $start` | Log `pull.log` có dòng pull image `postgres:17-alpine` (bằng chứng đã pull); `test:db` vẫn xanh (4 suite, 51 test); tổng thời gian (pull + khởi động + chạy test) < 300 giây; khoảng cách giữa dòng `Started container for image "postgres:17-alpine"` và dòng `Container is ready` trong `pull.log` (đọc từ mốc thời gian của log) < 60 giây. Ghi cả hai số vào §8 |
+| M-39-04 | Pull lần đầu trong hạn tổng. Điều kiện đầu, kiểm từng cái: (1) `Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue`, rồi `echo $env:DATABASE_URL` phải rỗng (nếu không, `globalSetup` bỏ qua container và không pull gì); (2) `docker compose down` ở thư mục gốc repo (service `postgres` của compose, container `dbs-postgres-1`, dùng đúng image này; `docker rmi` sẽ báo xung đột kể cả khi nó đã dừng); (3) `docker rmi postgres:17-alpine`, rồi `docker images postgres:17-alpine` phải rỗng. Sau đó tại `backend/` chạy `$env:DEBUG='testcontainers*'; $start = Get-Date; npm run test:db *> pull.log; (Get-Date) - $start` | Log `pull.log` có dòng pull image `postgres:17-alpine` (bằng chứng đã pull); `test:db` vẫn xanh (4 suite, 51 test); tổng thời gian (pull + khởi động + chạy test) < 300 giây; khoảng cách giữa dòng `Started container for image "postgres:17-alpine"` và dòng `Container is ready` **của cùng mã container** (không lấy dòng của container Ryuk) trong `pull.log` (đọc từ mốc thời gian của log) < 60 giây. Ghi cả hai số vào §8 |
 | M-39-05 | Sau M-39-04 chạy `docker ps -a --filter label=org.testcontainers=true --filter ancestor=postgres:17-alpine` | Rỗng: không còn container Postgres nào do Testcontainers tạo (hai bộ lọc cùng áp dụng nên container compose không có nhãn, và container Ryuk khác image, đều không lẫn vào) |
-| M-39-06 | `DATABASE_URL` từ ngoài trong **một tiến trình Jest chạy nhiều lượt** (chế độ watch chạy lại `globalSetup` và `globalTeardown` mỗi lượt). Tại thư mục gốc repo `docker compose up -d`; tại `backend/`: `$env:DATABASE_URL='postgres://banking:banking_local_only@localhost:5432/banking'; $env:DEBUG='testcontainers*'; npm run test:db -- --watchAll`; chờ lượt 1 xong, nhấn Enter để chạy lượt 2, rồi nhấn `q` thoát | Cả hai lượt xanh và toàn bộ đầu ra của cả hai lượt không có dòng `Creating new Reaper` hay `Starting container` (không lượt nào khởi container). Nếu `stopPostgresContainer()` xóa `DATABASE_URL` khi không có handle thì lượt 2 sẽ khởi container và bước này đỏ |
+| M-39-06 | `DATABASE_URL` từ ngoài trong **một tiến trình Jest chạy nhiều lượt** (chế độ watch chạy lại `globalSetup` và `globalTeardown` mỗi lượt). Cần một Postgres 17 đang chạy mà bạn biết mật khẩu: Postgres của `docker compose up -d` ở thư mục gốc repo nếu volume còn mật khẩu mặc định, hoặc một container tạm (`docker run -d -p 55433:5432 -e POSTGRES_USER=banking -e POSTGRES_PASSWORD=<mật khẩu> -e POSTGRES_DB=banking postgres:17-alpine`). Tại `backend/`: `$env:DATABASE_URL='postgres://banking:<mật khẩu>@localhost:<cổng>/banking'; $env:DEBUG='testcontainers*'; npm run test:db -- --watchAll`; chờ lượt 1 xong, kích lượt 2 bằng cách nhấn Enter, hoặc (shell không tương tác) `touch test/db/testcontainers-sample.db-spec.ts`; rồi dừng tiến trình | Cả hai lượt xanh và toàn bộ đầu ra của cả hai lượt không có dòng `Creating new Reaper` hay `Starting container` (không lượt nào khởi container). Nếu `stopPostgresContainer()` xóa `DATABASE_URL` khi không có handle thì lượt 2 sẽ khởi container và bước này đỏ |
 
 Điều kiện chạy: Node >= 24, Docker Desktop (WSL2/Hyper-V).
 
@@ -235,10 +235,10 @@ Thứ tự: test viết trước → chạy thấy đỏ → code ít nhất đ�
 
 | Bước | File | Test viết trước | Kết quả đỏ (1 dòng, điền khi chạy) | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
-| 1 | `test/support/postgres.container.ts`, `test/support/postgres.container.spec.ts` | TC-39-04 viết lại: handle giả trên `globalThis`, `afterEach` dọn `globalThis` và `DATABASE_URL`; thêm case `stop` ném lỗi vẫn dọn, case không handle thì giữ `DATABASE_URL` từ ngoài. Code: bỏ biến module `activeContainer`, chỉ xóa `DATABASE_URL` khi có handle | _điền khi chạy_ | `npx jest --config ./test/jest-unit.js test/support/postgres.container.spec.ts` | `fix(test): stopPostgresContainer chỉ dọn DATABASE_URL khi có handle` |
-| 2 | `test/support/postgres.container.ts`, `test/support/postgres.container.spec.ts` | TC-39-08 (fake timers: getter không resolve, tiến 15 000 ms, lỗi khớp `/Docker is not running/` và `/within 15s/`, một tiền tố, `getTimerCount() === 0`) và TC-39-03 phần `assertDockerAvailable`. Code: `DOCKER_CHECK_TIMEOUT_MS`, `withTimeout`, `assertDockerAvailable` dùng `withTimeout` | _điền khi chạy_ | cùng lệnh bước 1 | `fix(test): giới hạn 15 giây cho bước kiểm tra Docker` |
-| 3 | `test/support/postgres.container.ts`, `test/support/postgres.container.spec.ts` | Mock `testcontainers` và `@testcontainers/postgresql` (builder chuỗi) như §4. TC-39-06 (a)(b)(c) và TC-39-07(a): quá 300 000 ms reject đúng thông điệp, `start()` xong muộn thì `stop()` đúng 1 lần, xong trong hạn thì `stop()` không được gọi và `getTimerCount() === 0`, `startPostgresContainer()` trả đúng `{ databaseUrl }`, không đụng `process.env`, builder nhận `postgres:17-alpine`, `TZ=UTC`, `-c timezone=UTC`, `withStartupTimeout(60000)`. Code: `OVERALL_START_TIMEOUT_MS`, bao `start()` bằng `withTimeout`, `.then(c => c.stop()).catch(...)` chỉ khi quá hạn, bỏ `container`/`stop()` khỏi `StartedPostgres`, bỏ dòng gán `process.env` | _điền khi chạy_ | cùng lệnh bước 1 | `fix(test): hạn tổng 300 giây cho khởi động container, helper thuần` |
-| 4 | `test/support/jest-global-setup.ts`, `test/support/jest-global.spec.ts` (mới) | TC-39-03 (phần `globalSetup`: `getContainerRuntimeClient` giả bị reject, `start()` của builder không được gọi) và TC-39-07(b)(c) (đúng 1 lần `start()` khi chưa có `DATABASE_URL`, biến bằng URL trả về; có sẵn thì không gọi `start()`, biến giữ nguyên). Test này khóa hành vi ngay sau bước 3 nên có thể không đỏ tự nhiên: chứng minh đỏ bằng cách tạm bỏ dòng gán trong `globalSetup`, thấy đỏ, rồi hoàn lại. Code: `globalSetup` dùng kết quả `{ databaseUrl }`, bỏ comment "Also assign" | _điền khi chạy_ | `npx jest --config ./test/jest-unit.js test/support` | `test(db): khóa hành vi globalSetup gán DATABASE_URL một lần` |
+| 1 | `test/support/postgres.container.ts`, `test/support/postgres.container.spec.ts` | TC-39-04 viết lại: handle giả trên `globalThis`, `afterEach` dọn `globalThis` và `DATABASE_URL`; thêm case `stop` ném lỗi vẫn dọn, case không handle thì giữ `DATABASE_URL` từ ngoài. Code: bỏ biến module `activeContainer`, chỉ xóa `DATABASE_URL` khi có handle | `Expected: "postgresql://ci:ci@db.example:5432/banking"` / `Received: undefined` (hàm xóa `DATABASE_URL` từ ngoài) | `npx jest --config ./test/jest-unit.js test/support/postgres.container.spec.ts` | `fix(test): stopPostgresContainer chỉ dọn DATABASE_URL khi có handle` |
+| 2 | `test/support/postgres.container.ts`, `test/support/postgres.container.spec.ts` | TC-39-08 (fake timers: getter không resolve, tiến 15 000 ms, lỗi khớp `/Docker is not running/` và `/within 15s/`, một tiền tố, `getTimerCount() === 0`) và TC-39-03 phần `assertDockerAvailable`. Code: `DOCKER_CHECK_TIMEOUT_MS`, `withTimeout`, `assertDockerAvailable` dùng `withTimeout` | `TS2305: Module './postgres.container' has no exported member 'DOCKER_CHECK_TIMEOUT_MS'` | cùng lệnh bước 1 | `fix(test): giới hạn 15 giây cho bước kiểm tra Docker` |
+| 3 | `test/support/postgres.container.ts`, `test/support/postgres.container.spec.ts` | Mock `testcontainers` và `@testcontainers/postgresql` (builder chuỗi) như §4. TC-39-06 (a)(b)(c) và TC-39-07(a): quá 300 000 ms reject đúng thông điệp, `start()` xong muộn thì `stop()` đúng 1 lần, xong trong hạn thì `stop()` không được gọi và `getTimerCount() === 0`, `startPostgresContainer()` trả đúng `{ databaseUrl }`, không đụng `process.env`, builder nhận `postgres:17-alpine`, `TZ=UTC`, `-c timezone=UTC`, `withStartupTimeout(60000)`. Code: `OVERALL_START_TIMEOUT_MS`, bao `start()` bằng `withTimeout`, `.then(c => c.stop()).catch(...)` chỉ khi quá hạn, bỏ `container`/`stop()` khỏi `StartedPostgres`, bỏ dòng gán `process.env` | `TS2305 ... no exported member 'OVERALL_START_TIMEOUT_MS'`; sau khi thêm riêng hằng số: 4 test đỏ, TC-39-07(a) `toStrictEqual` thừa `container`/`stop`, TC-39-06(a)(b)(b') `Exceeded timeout of 5000 ms` | cùng lệnh bước 1 | `fix(test): hạn tổng 300 giây cho khởi động container, helper thuần` |
+| 4 | `test/support/jest-global-setup.ts`, `test/support/jest-global.spec.ts` (mới) | TC-39-03 (phần `globalSetup`: `getContainerRuntimeClient` giả bị reject, `start()` của builder không được gọi) và TC-39-07(b)(c) (đúng 1 lần `start()` khi chưa có `DATABASE_URL`, biến bằng URL trả về; có sẵn thì không gọi `start()`, biến giữ nguyên). Test này khóa hành vi ngay sau bước 3 nên có thể không đỏ tự nhiên: chứng minh đỏ bằng cách tạm bỏ dòng gán trong `globalSetup`, thấy đỏ, rồi hoàn lại. Code: `globalSetup` dùng kết quả `{ databaseUrl }`, bỏ comment "Also assign" | không đỏ tự nhiên (hành vi đã đúng sau bước 3); đột biến bỏ dòng gán: TC-39-07(b) `Expected: "postgres://test:test@localhost:55432/test"` / `Received: undefined` | `npx jest --config ./test/jest-unit.js test/support` | `test(db): khóa hành vi globalSetup gán DATABASE_URL một lần` |
 | 5 | `backend/README.md` | TC-39-05 (quy trình, không có test tự động): kiểm bằng `grep` có đoạn giới hạn `BEGIN`/`ROLLBACK` (một kết nối) và không còn `TRUNCATE ... journal_entries` | không có (tài liệu) | `grep -n "một kết nối\|một connection" README.md` và `grep -n "journal_entries" README.md` (rỗng) | `docs(backend): nêu giới hạn BEGIN/ROLLBACK khi cô lập dữ liệu test` |
 | 6 | `test/db/testcontainers-sample.db-spec.ts` | TC-39-02: không đổi hành vi, chỉ thêm comment nói test cố ý trùng DBS-20, là test khói cho chuỗi Testcontainers → temp database → migration (DoD #3). Không có test mới | không có (comment) | `npm run test:db -- test/db/testcontainers-sample.db-spec.ts` | `docs(test): ghi lý do test số dư âm của DBS-39 trùng DBS-20` |
 | 7 | — | Chạy bộ kiểm tra tự động trên commit code cuối: `lint:check`, `typecheck`, `npm test` (kỳ vọng 21 suite: 20 hiện có + `jest-global.spec.ts`; số test ghi lại thật), `test:e2e` (4 suite, 25 test), `test:db` (4 suite, 51 test) | — | các lệnh trên | không có commit |
@@ -270,37 +270,69 @@ Thứ tự: test viết trước → chạy thấy đỏ → code ít nhất đ�
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra:**
-  - `npm run lint:check`: sạch, 0 lỗi.
-  - `npm run typecheck`: sạch, 0 lỗi kiểu dữ liệu.
-  - `npm test`: 20 test suites passed, 209 tests passed (bao gồm `test/support/postgres.container.spec.ts`).
-  - `npm run test:e2e`: 4 test suites passed, 25 tests passed.
-  - `npm run test:db`: 4 test suites passed, 51 tests passed trên PostgreSQL 17 Testcontainers (~18.6s).
+### 8.1. Đợt sửa vòng 2 (2026-10-24)
 
-- **Đối chiếu test case:**
+- **Commit code và tài liệu của đợt này** (trên `b14691a`, chưa push): `400e3aa` bước 1 · `ee1beef` bước 2 · `0b9fca1` bước 3 · `b88c317` bước 4 · `8f903e4` bước 5 · `d8e264a` bước 6 (commit cuối đổi code) · hai commit docs thiết kế và kế hoạch (`6591087`, `eddcce1`), và các commit bằng chứng/kết quả ở cuối.
+- **Lệnh kiểm tra** (trên `d8e264a`, Docker Desktop 27.3.1, không set `DATABASE_URL`):
+  - `npm run lint:check`: sạch, 0 lỗi.
+  - `npm run typecheck`: sạch, 0 lỗi.
+  - `npm test`: **21 suite, 219 test** xanh (trước đợt này: 20 suite, 209 test; thêm `jest-global.spec.ts` (3 test) và 7 test trong `postgres.container.spec.ts`).
+  - `npm run test:e2e`: 4 suite, 25 test xanh.
+  - `npm run test:db`: 4 suite, 51 test xanh, 17,9 đến 19,7 giây trên PostgreSQL 17 Testcontainers.
+  - Không có `.skip`, `.only`, `.todo` trong test của task (đã `grep`); số test bị bỏ qua: 0.
+- **Kiểm đột biến** (test có thật sự bắt lỗi): bỏ `.catch(() => undefined)` ở nhánh dừng container muộn → TC-39-06(b) "failing late stop" đỏ; bỏ dòng gán `DATABASE_URL` trong `globalSetup` → TC-39-07(b) đỏ; đưa lại dòng `delete process.env.DATABASE_URL` khi không có handle → M-39-06 thấy lượt 2 khởi Ryuk và Postgres. Cả ba đã hoàn lại, không commit.
+
+### 8.2. Đối chiếu test case
 
 | ID | Test | Đạt? |
 |---|---|---|
-| TC-39-01 | `test/db/testcontainers-sample.db-spec.ts` › verifies database server runs in UTC timezone (`SHOW timezone`) & `test/support/postgres.container.spec.ts` › exports start helper | đạt |
-| TC-39-02 | `test/db/testcontainers-sample.db-spec.ts` › rejects customer account with negative balance with check constraint error (code 23514 `accounts_balance_non_negative`) | đạt |
-| TC-39-03 | `test/support/postgres.container.spec.ts` › throws clear, actionable error when Docker runtime is not available | đạt |
-| TC-39-04 | `test/support/postgres.container.spec.ts` › stops container and cleans up `process.env.DATABASE_URL` & `jest-global-teardown.ts` | đạt |
-| TC-39-05 | `backend/README.md` › Hướng dẫn data cleanup và an toàn append-only ledger qua temp database | đạt (quy trình) |
+| TC-39-01 | `test/db/testcontainers-sample.db-spec.ts` › TC-39-01 UTC (`SHOW timezone`); `postgres.container.spec.ts` › TC-39-07(a) (image, `TZ=UTC`, `-c timezone=UTC`, `withStartupTimeout(60000)`); hạn 60 giây trên container thật đo ở M-39-04: Postgres sẵn sàng sau 1,24 giây | đạt |
+| TC-39-02 | `test/db/testcontainers-sample.db-spec.ts` › TC-39-02 (code `23514`, `accounts_balance_non_negative`); không đổi hành vi, thêm comment lý do trùng DBS-20 | đạt |
+| TC-39-03 | `postgres.container.spec.ts` › TC-39-03 (`assertDockerAvailable`, hai test); `jest-global.spec.ts` › TC-39-03 (`globalSetup` với Docker không tới được, `start()` không được gọi) | đạt |
+| TC-39-04 | `postgres.container.spec.ts` › `stopPostgresContainer (TC-39-04)`: dừng đúng 1 lần và xóa handle + `DATABASE_URL`; `stop()` lỗi vẫn dọn và báo lỗi; không handle thì giữ `DATABASE_URL` từ ngoài. Dùng handle giả: container thật dừng được chứng minh ở M-39-03 | đạt (phần dọn dẹp) |
+| TC-39-05 | `backend/README.md` › mục "Cách làm sạch và cô lập dữ liệu khi kiểm thử": thêm giới hạn "chỉ đúng khi test dùng một kết nối"; không còn `TRUNCATE`/`journal_entries` (`grep` rỗng) | đạt (quy trình) |
+| TC-39-06 | `postgres.container.spec.ts` › TC-39-06(a) quá 300 giây reject đúng thông điệp; TC-39-06(b) container xong muộn bị dừng đúng 1 lần, và `stop()` lỗi không gây unhandled rejection; TC-39-06(c) xong trong hạn không `stop()` và `getTimerCount() === 0` | đạt |
+| TC-39-07 | (a) `postgres.container.spec.ts` › TC-39-07(a); (b)(c) `jest-global.spec.ts` › TC-39-07(b), TC-39-07(c) | đạt |
+| TC-39-08 | `postgres.container.spec.ts` › `assertDockerAvailable timeout (TC-39-08)` (hai test: cắt sau 15 giây, một tiền tố, không còn timer; trả lời nhanh thì không còn timer) | đạt |
 
-- **Test thủ công:**
-  - `M-39-01`: Chạy `npm run test:db` khi Docker Desktop bật: đạt (4 test suites passed, 51 tests passed, hoàn thành trong ~18.6s trên PostgreSQL 17).
-  - `M-39-02`: Chạy `npm run test:db` khi Docker tắt: đạt (Jest dừng sau ~2s và báo lỗi `[Testcontainers] Docker is not running or unreachable...`).
-  - `M-39-03`: `docker ps` kiểm tra container mồ côi: đạt (không có container nào còn sót lại sau teardown).
-  Output thô lưu tại [manual-test.txt](screenshots/DBS-39/manual-test.txt).
+Dòng "kết quả đỏ" của từng bước đã điền ở bảng §7. Riêng bước 4 không đỏ tự nhiên (hành vi đã đúng sau bước 3), đã chứng minh bằng đột biến như đã được duyệt ở G3.
 
-- **Phạm vi so với §7:** Khớp 100% danh sách file đã lập ở §7.
-- **Lệch so với kế hoạch:** Không có.
-- **Bàn giao cho vai khác:**
-  - Do repo chưa có CI workflow trên GitHub Actions (`.github/workflows/`), tiêu chí DoD "PR đã merge vào main (CI xanh)" được ghi nhận nguồn vào dòng `BL-001` trong [`docs/BACKLOG.md`](../BACKLOG.md) dành cho vai `#5 Platform & Ops`.
+### 8.3. Test thủ công
+
+Chạy trên `d8e264a` (dòng đầu của [manual-test.txt](screenshots/DBS-39/manual-test.txt)); output đã lọc ANSI và rút gọn log DEBUG, mật khẩu của Postgres tạm đã ẩn.
+
+| Bước | Kết quả |
+|---|---|
+| M-39-01 | **đạt**: `npm run test:db` khi Docker bật, không có `DATABASE_URL`: 4 suite, 51 test, 19,7 giây, container tự khởi động và tự hủy |
+| M-39-02 | **đạt (mô phỏng)**: dùng `DOCKER_HOST=tcp://127.0.0.1:1` vì Docker Desktop đang chạy container của các dự án khác nên không tắt; Jest dừng sau 3,9 giây với thông báo bật Docker, không treo. **Chưa chạy với Docker Desktop thật sự tắt**: cần bạn chấp nhận mô phỏng này ở G4 |
+| M-39-03 | **đạt**: sau M-39-01 và M-39-02 không còn container Testcontainers nào |
+| M-39-04 | **đạt**: sau `docker compose down` và `docker rmi`, image được pull lại (17,2 giây), Postgres sẵn sàng sau 1,24 giây (hạn 60 giây), tổng 43,1 giây (hạn 300 giây), 4 suite / 51 test xanh |
+| M-39-05 | **đạt**: không còn container Postgres nào (lọc theo nhãn và image); container Ryuk còn sống một lúc, đúng như §5 dự đoán |
+| M-39-06 | **đạt** ở lần chạy thứ hai: hai lượt trong một tiến trình Jest, mỗi lượt 51/51, không có dòng `Starting container` / `Creating new Reaper`. Lần thử đầu dùng Postgres của compose bị hủy vì volume cũ có mật khẩu khác (lỗi môi trường, không phải lỗi code); đã thay bằng Postgres tạm và xóa sau khi xong. Với bản lỗi tạm đưa lại, lượt 2 khởi container, nên bước này phân biệt được hai bản |
+
+- **Ảnh chụp màn hình:** không chụp. Output thô của cả sáu bước nằm ở `manual-test.txt`; cần bạn chấp nhận việc thiếu ảnh theo từng bước ở G4.
+
+### 8.4. Lệch so với kế hoạch và so với thiết kế đã duyệt
+
+- Phạm vi file khớp §7. Bước 5: lệnh `grep` chứng minh trong §7 dùng cụm "một kết nối" nhưng cụm này đã có ở dòng khác của README; bằng chứng thực tế là dòng "Giới hạn" mới ở mục cô lập dữ liệu (xem commit `8f903e4`).
+- Ba chỗ của §5 được sửa chữ khi chạy thật (hành vi test không đổi, cần bạn biết vì §5 là thiết kế đã duyệt ở G2): M-39-02 thêm cách mô phỏng bằng `DOCKER_HOST` giả; M-39-04 yêu cầu lấy hai dòng log của **cùng mã container** (dòng `Container is ready` đầu tiên là của Ryuk); M-39-06 cho phép dùng Postgres tạm vì mật khẩu mặc định của compose không đảm bảo đúng với volume cũ, và kích lượt 2 bằng `touch` khi shell không tương tác. Đây là chỉnh sửa tài liệu, không đổi phạm vi code.
+- Không có thay đổi nào ngoài danh sách file của §7 và không có test case bị bỏ.
+
+### 8.5. Bàn giao cho vai khác
+
+| ID | Việc | Vai đề xuất |
+|---|---|---|
+| `BL-015` | `TC-21-11` (DBS-21) đỏ một lần, lệch ~1 giây giữa `created_at` và `now()`, chạy lại xanh | Dev (DBS-21) |
+| `BL-016` | CI trên `main` cấp `DATABASE_URL` nên đường Testcontainers không chạy trong CI; DoD #5 "CI xanh" chỉ phủ test DB trên service | #5 Platform & Ops (DBS-35) |
+| `BL-017` | Test DB chạy bằng superuser (Testcontainers và service CI) nên chưa chứng minh quyền của role ứng dụng; liên quan `BL-005` | Dev (DBS-40, DBS-41) |
+
+- **Lưu ý khi merge `main`:** `main` đã xóa hàng `BL-001` (DBS-35 làm xong CI) và đã dùng `BL-010` đến `BL-014`; vì vậy ba hàng trên lấy ID từ `BL-015`. Hàng `BL-001` trên nhánh này (có DBS-39 làm nguồn) sẽ xung đột với `main` khi merge; cách giải đúng là bỏ hàng đó như `main`.
 
 ## 9. Tài liệu đã cập nhật
 
-- `backend/README.md`: Hướng dẫn chạy `npm run test:db` và chiến lược làm sạch dữ liệu (Data Isolation & Cleanup).
-- `docs/BACKLOG.md`: Thêm DBS-39 vào nguồn của `BL-001`.
-- `docs/features/README.md`: Thêm hàng `DBS-39` vào danh sách feature docs.
-- `docs/features/DBS-39-testcontainers-postgres.md`: Feature doc hoàn chỉnh.
+- `backend/README.md`: nêu giới hạn của `BEGIN`/`ROLLBACK` (chỉ một kết nối) ở mục cô lập dữ liệu.
+- `docs/BACKLOG.md`: thêm `BL-015`, `BL-016`, `BL-017`. Không xóa hàng nào (không hàng nào do task này giải quyết); `BL-001` giữ nguyên trên nhánh này vì `main` đã xử lý.
+- `docs/features/DBS-39-testcontainers-postgres.md`: viết lại §1.1, §2–§8; thêm TC-39-06…08 và M-39-04…06.
+- `docs/features/screenshots/DBS-39/domain-review.md`: thêm hai khối trả lời nguyên văn của reviewer (đợt sửa vòng 2).
+- `docs/features/screenshots/DBS-39/manual-test.txt`: thay bằng bằng chứng của lần chạy trên `d8e264a`.
+- `docs/features/README.md`: không đổi (hàng DBS-39 đã có).
