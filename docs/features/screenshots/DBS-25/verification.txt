@@ -1,4 +1,4 @@
-99731366b14ba346f1f52fa211babd885ade6e0d
+5d8f57c8ac92d437428a4f88e2018624375922be
 
 $ npm run lint:check
 
@@ -18,10 +18,10 @@ $ npm run test
 > jest --config ./test/jest-unit.js
 
 
-Test Suites: 23 passed, 23 total
-Tests:       349 passed, 349 total
+Test Suites: 25 passed, 25 total
+Tests:       367 passed, 367 total
 Snapshots:   0 total
-Time:        18.734 s, estimated 30 s
+Time:        24.816 s
 Ran all test suites.
 
 $ npm run test:e2e
@@ -33,7 +33,7 @@ $ npm run test:e2e
 Test Suites: 4 passed, 4 total
 Tests:       25 passed, 25 total
 Snapshots:   0 total
-Time:        5.772 s, estimated 11 s
+Time:        7.355 s
 Ran all test suites.
 
 $ npm run test:db
@@ -42,10 +42,10 @@ $ npm run test:db
 > jest --config ./test/jest-db.js --runInBand
 
 
-Test Suites: 4 passed, 4 total
-Tests:       89 passed, 89 total
+Test Suites: 5 passed, 5 total
+Tests:       91 passed, 91 total
 Snapshots:   0 total
-Time:        38.345 s
+Time:        36.155 s, estimated 41 s
 Ran all test suites.
 
 $ npm run build

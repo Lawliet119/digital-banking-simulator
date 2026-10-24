@@ -221,9 +221,11 @@ Mermaid ở §3 đã render thành công bằng mermaid-cli 12.0.0 sau lần ch�
 
 ## 8. Kết quả
 
-**Trạng thái:** G4 ngày 2026-10-22 đã duyệt kết quả ở code `b0f4714`; đợt sửa sau review ngày 2026-10-24 (mục «Sửa sau review» bên dưới) đổi test và driver, đã được G4 duyệt lại cùng ngày. Dev review/CI/merge theo trạng thái PR. Code cuối: `99731366b14ba346f1f52fa211babd885ade6e0d` (dòng đầu transcript). Nhánh `feat/DBS-25-migration-outbox-events`, thực hiện trong worktree riêng để không bị checkout bên ngoài làm đổi source khi kiểm CLI.
+**Trạng thái:** G4 ngày 2026-10-22 đã duyệt kết quả ở code `b0f4714`; đợt sửa sau review ngày 2026-10-24 (mục «Sửa sau review» bên dưới) đổi test và driver, đã được G4 duyệt lại cùng ngày. Dev review/CI/merge theo trạng thái PR. Code cuối: `5d8f57c8ac92d437428a4f88e2018624375922be` (dòng đầu transcript), là commit gộp `origin/main` (có DBS-39, #15) vào nhánh sau khi PR xung đột; phần code DBS-25 vẫn là `9973136`. Nhánh `feat/DBS-25-migration-outbox-events`, thực hiện trong worktree riêng để không bị checkout bên ngoài làm đổi source khi kiểm CLI.
 
-**Kiểm tra bàn giao:** xem [output đầy đủ](screenshots/DBS-25/verification.txt), chạy trên `9973136` với màu tắt (`NO_COLOR=1`): lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **4 suite / 89 test** đạt; 0 skip. Bộ DB gồm 49 test cũ và 40 lượt trong outbox-schema (38 ban đầu và 2 ca thành công mới của TC-25-17/20). Không có mock DB.
+**Kiểm tra bàn giao:** xem [output đầy đủ](screenshots/DBS-25/verification.txt), chạy trên `5d8f57c` (sau khi gộp `main`) với màu tắt (`NO_COLOR=1`): lint/typecheck/build đạt; unit **25 suite / 367 test**, e2e **4 suite / 25 test**, PostgreSQL **5 suite / 91 test** đạt; 0 skip. Bộ DB gồm 49 test cũ, 40 lượt trong outbox-schema (38 ban đầu và 2 ca thành công mới của TC-25-17/20) và 2 test Testcontainers của DBS-39. Chạy thêm một lượt `test:db` không đặt `DATABASE_URL` để Testcontainers tự khởi Postgres: 5 suite / 91 test đạt. Không có mock DB.
+
+**Gộp `main` (2026-10-24).** PR #12 xung đột với `main` sau khi DBS-39 (#15) được merge, nên CI không chạy trên HEAD cũ. Commit gộp `5d8f57c` giải quyết hai xung đột chỉ ở tài liệu: `docs/features/README.md` giữ cả hai dòng; `docs/BACKLOG.md` đánh số lại dòng của DBS-25 từ BL-015 thành BL-018 vì DBS-39 đã dùng BL-015…017, và bỏ dòng review/CI/merge (xem «Bàn giao/giới hạn»). `temp-database.ts` và `backend/README.md` tự gộp được; vì `temp-database.ts` đổi nên toàn bộ baseline và §5 được chạy lại trên `5d8f57c`.
 
 **TDD:** helper đỏ TS2305 thiếu `migrateThrough`, rồi 50 test DB xanh. Test migration đỏ vì chưa có cột/bảng (`42P01`, 37 ca đỏ), sau migration 87 test DB xanh. Hai lỗi lint assertion dư đã sửa trước snapshot commit helper cuối `977a986`; commit migration `b2ece08`, driver `100b717`. Không bịa lỗi đỏ cho verification/docs.
 
@@ -252,7 +254,7 @@ Kiểm tương thích ba task trong bản sao tạm phát hiện 13 lượt đ�
 | TC-25-19 | `outbox-schema.db-spec.ts` TC-25-19 | đạt |
 | TC-25-20 | `outbox-schema.db-spec.ts` TC-25-20 (RR hai bảng, READ UNCOMMITTED, SERIALIZABLE bị từ chối; READ COMMITTED tường minh với bảng rỗng revert thành công) | đạt |
 
-**Manual:** [transcript nguyên văn](screenshots/DBS-25/manual-test.txt), Git Bash, chạy lại đủ 8 mode trên `9973136` (SHA ở dòng đầu), `DATABASE_URL` trỏ cổng 55432 như §1, màu tắt (`NO_COLOR=1`). Seed SQL chỉ trên DB tạm do helper tạo, không ghi banking hoặc accounts.balance. Bảng kết quả bên dưới giữ nguyên lệnh và kết quả vì output của lượt chạy lại giống lượt `b0f4714`.
+**Manual:** [transcript nguyên văn](screenshots/DBS-25/manual-test.txt), Git Bash, chạy lại đủ 8 mode trên `5d8f57c` (SHA ở dòng đầu), `DATABASE_URL` trỏ cổng 55432 như §1, màu tắt (`NO_COLOR=1`). Seed SQL chỉ trên DB tạm do helper tạo, không ghi banking hoặc accounts.balance. Bảng kết quả bên dưới giữ nguyên lệnh và kết quả vì output của lượt chạy lại giống lượt `b0f4714`.
 
 | Bước | Lệnh driver / phản hồi thực | Kết quả |
 |---|---|---|
@@ -269,7 +271,7 @@ Kiểm tương thích ba task trong bản sao tạm phát hiện 13 lượt đ�
 
 **Phạm vi:** toàn bộ file code, test, driver và docs thuộc allowlist §7; `git diff --stat main...HEAD` được đối chiếu trước bàn giao. Không đổi ADR/event contract/env/dependency. Lượt manual tại checkout chính đã bị gián đoạn do chuyển nhánh bên ngoài; không dùng làm evidence. Đã chạy lại đủ tám mode trong worktree trên SHA code nêu trên.
 
-**Ảnh:** bản chụp trình duyệt hiển thị các đoạn output CLI thật lấy từ transcript, không phải ảnh terminal hệ điều hành; không thay dữ liệu kết quả. Đã kiểm ảnh đọc được và không cắt thông tin. Sáu ảnh chụp từ lượt chạy `b0f4714`, **không chụp lại** sau lượt `9973136`: so hai transcript sau khi bỏ nhiễu môi trường (đường dẫn máy chạy, ngôn ngữ của ngày giờ, mốc thời gian ghi, tên DB tạm, PID, stack frame) thì 3358 dòng còn lại giống hệt, nên chỉ tên DB tạm, PID và mốc thời gian trong ảnh khác transcript mới.
+**Ảnh:** bản chụp trình duyệt hiển thị các đoạn output CLI thật lấy từ transcript, không phải ảnh terminal hệ điều hành; không thay dữ liệu kết quả. Đã kiểm ảnh đọc được và không cắt thông tin. Sáu ảnh chụp từ lượt chạy `b0f4714`, **không chụp lại** sau các lượt `9973136` và `5d8f57c`: so các transcript sau khi bỏ nhiễu môi trường (đường dẫn máy chạy, ngôn ngữ của ngày giờ, mốc thời gian ghi, tên DB tạm, PID, stack frame) thì 3358 dòng còn lại giống hệt, nên chỉ tên DB tạm, PID và mốc thời gian trong ảnh khác transcript mới.
 
 **Sửa sau review (2026-10-24).** Review nhánh theo gate phát hiện bốn điểm; ba điểm đổi code (chỉ file test và driver, không đổi migration) và một điểm là ghi nhận sai lệch:
 
