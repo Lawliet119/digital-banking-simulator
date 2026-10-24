@@ -1,6 +1,6 @@
 # DBS-25 · Migration: outbox_events và processed_events
 
-> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-25-migration-outbox-events` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/12) · **Cập nhật:** 2026-10-22
+> **Status:** Plan approved (đợt sửa sau review chờ G4 duyệt lại) · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-25-migration-outbox-events` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/12) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -27,6 +27,8 @@
   | `npm run test:db -- --runInBand` | PostgreSQL thật: 3 suite, 49 test đạt; 0 bỏ qua |
   | `npm run build` | Đạt |
   | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | Baseline: 83 file, 0 liên kết hỏng |
+
+  **Môi trường chạy lại ngày 2026-10-24 (đợt sửa sau review):** máy có dịch vụ PostgreSQL 18 của Windows (`postgresql-x64-18`) chiếm cổng 5432, nên `localhost:5432` không tới container compose. Container `dbs-postgres-1` (PostgreSQL 17.11, UTC, role `banking` là superuser, volume `dbs_pgdata` giữ nguyên) được ánh xạ sang cổng `55432` bằng một file override compose đặt ngoài repo; `DATABASE_URL` trỏ `localhost:55432`. Không sửa `docker-compose.yml` hay dịch vụ của máy.
 
 - **Phạm vi đề xuất:** một migration riêng cho hai bảng đúng §4.6, các constraint đặt tên tường minh, hai partial index của outbox đúng §6; test PostgreSQL thật; `down` từ chối trước mọi DROP nếu một trong hai bảng có dữ liệu; điều chỉnh regression CLI hiện tại đang giả định chỉ có hai migration; manual run → revert → run trên database tạm; tài liệu và bằng chứng riêng cho DBS-25. Cập nhật danh sách migration trong database-design theo việc tách ticket, không thay quyết định ADR.
 - **Ngoài phạm vi:** writer DBS-57 và `assertEvent` (BL-011), relay, consumer và chính sách lỗi (BL-010), job cleanup, kiểm worker serialize bigint (BL-009), producer deposit/SYSTEM guard (BL-002/BL-003), DB roles/GRANT. §6 chưa chỉ định index `processed_at`; đề xuất giữ index này ngoài task migration hiện tại và bàn giao cho task cleanup, không tự thêm index ngoài thiết kế. Không đặt CHECK danh sách đóng cho `event_type`/`consumer`, không thêm FK cho aggregate/event ID, không đổi event contract. Outbox phải cập nhật `published_at` và cleanup được, nên không gắn trigger append-only của DBS-27 vào hai bảng này.
@@ -215,15 +217,17 @@ Mermaid ở §3 đã render thành công bằng mermaid-cli 12.0.0 sau lần ch�
 
 **Quyết định ở G3 (2026-10-22):** người dùng trả lời «duyệt G3» cho cả ba task. Kế hoạch §7 được duyệt; triển khai test-first, commit riêng theo bước xanh và trình G4 trước khi push. Status: Plan approved.
 
+**Quyết định ở G3 bổ sung (2026-10-24):** sau review nhánh, người dùng trả lời «ok duyệt nhé» cho kế hoạch sửa phát hiện 1–4 (siết TC-25-17/20, guard `npm_execpath`, nhịp poll khóa, ghi sai lệch §7), kèm «mấy cái kiểu khoảng trống thừa để kệ kh phải động», nên lỗi trình bày nhỏ ở tài liệu không sửa. Không push; chạy lại §5 và trình G4 lần hai.
+
 ## 8. Kết quả
 
-**Trạng thái:** đã được người dùng duyệt G4; triển khai local hoàn tất, bàn giao qua PR. Dev review/CI/merge theo trạng thái PR. Code cuối: `b0f4714c7cbb58080451319dda8b2b0c4b951866` (dòng đầu transcript). Nhánh `feat/DBS-25-migration-outbox-events`, thực hiện trong worktree riêng để không bị checkout bên ngoài làm đổi source khi kiểm CLI.
+**Trạng thái:** G4 ngày 2026-10-22 đã duyệt kết quả ở code `b0f4714`. Đợt sửa sau review ngày 2026-10-24 (mục «Sửa sau review» bên dưới) đổi test và driver nên **chờ G4 duyệt lại**; Dev review/CI/merge theo trạng thái PR. Code cuối: `99731366b14ba346f1f52fa211babd885ade6e0d` (dòng đầu transcript). Nhánh `feat/DBS-25-migration-outbox-events`, thực hiện trong worktree riêng để không bị checkout bên ngoài làm đổi source khi kiểm CLI.
 
-**Kiểm tra bàn giao:** xem [output đầy đủ](screenshots/DBS-25/verification.txt): lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **4 suite / 87 test** đạt; 0 skip. Bộ DB gồm 49 test cũ và 38 lượt mới trong outbox-schema. Không có mock DB.
+**Kiểm tra bàn giao:** xem [output đầy đủ](screenshots/DBS-25/verification.txt), chạy trên `9973136` với màu tắt (`NO_COLOR=1`): lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **4 suite / 89 test** đạt; 0 skip. Bộ DB gồm 49 test cũ và 40 lượt trong outbox-schema (38 ban đầu và 2 ca thành công mới của TC-25-17/20). Không có mock DB.
 
 **TDD:** helper đỏ TS2305 thiếu `migrateThrough`, rồi 50 test DB xanh. Test migration đỏ vì chưa có cột/bảng (`42P01`, 37 ca đỏ), sau migration 87 test DB xanh. Hai lỗi lint assertion dư đã sửa trước snapshot commit helper cuối `977a986`; commit migration `b2ece08`, driver `100b717`. Không bịa lỗi đỏ cho verification/docs.
 
-Kiểm tương thích ba task trong bản sao tạm phát hiện 13 lượt đỏ ở suite audit/outbox do giả định migration đích luôn là latest và đếm cứng history. Commit `b0f4714` chọn prefix outbox cho schema test; TC-25-13 vẫn chạy CLI production latest, đọc history rồi revert successor trước khi kiểm migration đích, không thay CLI bằng adapter. Sau sửa cả hai suite, [kiểm tra tương thích](screenshots/DBS-25/integration-verification.txt) đạt **7 suite / 150 test**, 0 skip; không tạo nhánh bàn giao gộp. Đã chạy lại toàn bộ manual sau commit đổi test.
+Kiểm tương thích ba task trong bản sao tạm phát hiện 13 lượt đỏ ở suite audit/outbox do giả định migration đích luôn là latest và đếm cứng history. Commit `b0f4714` chọn prefix outbox cho schema test; TC-25-13 vẫn chạy CLI production latest, đọc history rồi revert successor trước khi kiểm migration đích, không thay CLI bằng adapter. Sau sửa cả hai suite, [kiểm tra tương thích](screenshots/DBS-25/integration-verification.txt) đạt **7 suite / 150 test**, 0 skip; không tạo nhánh bàn giao gộp. Đã chạy lại toàn bộ manual sau commit đổi test. Kiểm tra tương thích này ở code `b0f4714` và **chưa chạy lại** sau đợt sửa 2026-10-24 (cần nhánh DBS-26/27, nằm ngoài nhánh này); đợt sửa chỉ thêm ca vào `outbox-schema.db-spec.ts` và nhịp poll, không đổi migration hay helper dùng chung.
 
 | ID | Test / chứng cứ | Kết quả |
 |---|---|---|
@@ -243,12 +247,12 @@ Kiểm tương thích ba task trong bản sao tạm phát hiện 13 lượt đ�
 | TC-25-14 | `outbox-schema.db-spec.ts` TC-25-14 | đạt |
 | TC-25-15 | `outbox-schema.db-spec.ts` TC-25-15 | đạt |
 | TC-25-16 | `outbox-schema.db-spec.ts` TC-25-16 | đạt |
-| TC-25-17 | `outbox-schema.db-spec.ts` TC-25-17 | đạt |
+| TC-25-17 | `outbox-schema.db-spec.ts` TC-25-17 (2 ca: lỗi đúng thông báo guard khi chưa BEGIN; `down` từ transaction đang hoạt động với bảng rỗng xóa cả bảng và index) | đạt |
 | TC-25-18 | `migration-revert.db-spec.ts` TC-21-23/24, TC-20-18 + accounts/ledger schema prefix; production CLI latest → 2 → 1 → 0 → latest | đạt |
 | TC-25-19 | `outbox-schema.db-spec.ts` TC-25-19 | đạt |
-| TC-25-20 | `outbox-schema.db-spec.ts` TC-25-20 | đạt |
+| TC-25-20 | `outbox-schema.db-spec.ts` TC-25-20 (RR hai bảng, READ UNCOMMITTED, SERIALIZABLE bị từ chối; READ COMMITTED tường minh với bảng rỗng revert thành công) | đạt |
 
-**Manual:** [transcript nguyên văn](screenshots/DBS-25/manual-test.txt), Git Bash, seed SQL chỉ trên DB tạm do helper tạo, không ghi banking hoặc accounts.balance.
+**Manual:** [transcript nguyên văn](screenshots/DBS-25/manual-test.txt), Git Bash, chạy lại đủ 8 mode trên `9973136` (SHA ở dòng đầu), `DATABASE_URL` trỏ cổng 55432 như §1, màu tắt (`NO_COLOR=1`). Seed SQL chỉ trên DB tạm do helper tạo, không ghi banking hoặc accounts.balance. Bảng kết quả bên dưới giữ nguyên lệnh và kết quả vì output của lượt chạy lại giống lượt `b0f4714`.
 
 | Bước | Lệnh driver / phản hồi thực | Kết quả |
 |---|---|---|
@@ -265,7 +269,18 @@ Kiểm tương thích ba task trong bản sao tạm phát hiện 13 lượt đ�
 
 **Phạm vi:** toàn bộ file code, test, driver và docs thuộc allowlist §7; `git diff --stat main...HEAD` được đối chiếu trước bàn giao. Không đổi ADR/event contract/env/dependency. Lượt manual tại checkout chính đã bị gián đoạn do chuyển nhánh bên ngoài; không dùng làm evidence. Đã chạy lại đủ tám mode trong worktree trên SHA code nêu trên.
 
-**Ảnh:** bản chụp trình duyệt hiển thị các đoạn output CLI thật lấy từ transcript, không phải ảnh terminal hệ điều hành; không thay dữ liệu kết quả. Đã kiểm ảnh đọc được và không cắt thông tin.
+**Ảnh:** bản chụp trình duyệt hiển thị các đoạn output CLI thật lấy từ transcript, không phải ảnh terminal hệ điều hành; không thay dữ liệu kết quả. Đã kiểm ảnh đọc được và không cắt thông tin. Sáu ảnh chụp từ lượt chạy `b0f4714`, **không chụp lại** sau lượt `9973136`: so hai transcript sau khi bỏ nhiễu môi trường (đường dẫn máy chạy, ngôn ngữ của ngày giờ, mốc thời gian ghi, tên DB tạm, PID, stack frame) thì 3358 dòng còn lại giống hệt, nên chỉ tên DB tạm, PID và mốc thời gian trong ảnh khác transcript mới.
+
+**Sửa sau review (2026-10-24).** Review nhánh theo gate phát hiện bốn điểm; ba điểm đổi code (chỉ file test và driver, không đổi migration) và một điểm là ghi nhận sai lệch:
+
+| Điểm | Việc đã làm | Lượt đỏ thực tế |
+|---|---|---|
+| 1. TC-25-17/20 nông hơn case nhưng ghi «đạt» | Assert đúng thông báo `Reverting outbox requires a transaction`; thêm ca `down` thành công từ transaction đang hoạt động (TC-25-17) và từ transaction READ COMMITTED tường minh (TC-25-20) | Tạm xóa guard `isTransactionActive`: assert mới đỏ vì nhận `LOCK TABLE can only be used in transaction blocks`. Nghĩa là assert `toThrow()` cũ vẫn xanh khi không có guard. Hai ca thành công mô tả hành vi đã có nên xanh ngay. Guard đã khôi phục, `git status` chỉ còn file spec |
+| 2. `cli()` dùng `process.env.npm_execpath!` | Kiểm tra giá trị, ném `Run these tests through \`npm run test:db\`.` như `npmRun` ở `migration-revert.db-spec.ts` | Chạy jest trực tiếp: `Cannot find module '...\backend\undefined'` |
+| 3. Commit `b0f4714` ngoài §7 | Ghi ở mục này: commit thứ năm sau bước 4, chỉ sửa `outbox-schema.db-spec.ts` (trong allowlist bước 2), không thêm phạm vi, không bỏ test case; lý do ở đoạn «Kiểm tra tương thích» phía trên. Kế hoạch chưa nêu bước này; G4 ngày 2026-10-22 đã trình và duyệt kết quả chứa nó, chưa có câu duyệt riêng cho sai lệch | — |
+| 4. Poll khóa không nghỉ | Chờ 25 ms giữa các lần đọc `pg_stat_activity` ở `waitLock` (spec) và `wait` (driver); deadline 10 s giữ nguyên | Không có hành vi mới nên không có lượt đỏ; TC-25-15 và M-25-07 vẫn xanh |
+
+Hai commit: `5e57abc` (điểm 1–2) và `9973136` (điểm 4). Điểm 5 của review (khoảng trắng thừa ở `database-design.md` và `backend/README.md`) được người dùng quyết định không sửa.
 
 ![01-run-revert-run](screenshots/DBS-25/01-run-revert-run.png)
 
@@ -290,10 +305,10 @@ Feature doc này, raw review và evidence trong screenshots/DBS-25; database-des
 
 ## Checklist G4
 
-- [x] 20/20 TC đủ độ sâu, 0 đơn giản hóa; 38 lượt test mới thực chạy.
+- [x] 20/20 TC đủ độ sâu, 0 đơn giản hóa; 40 lượt test mới thực chạy (sau khi siết TC-25-17/20).
 - [x] M-25-01…08 đạt trên SHA code ở dòng đầu manual-test.txt; đường thành công đã chạy.
 - [x] Sáu ảnh output thật, transcript đã rà secret; UUID kỹ thuật được giữ.
 - [x] Diff main...HEAD chỉ có allowlist §7; không workbook hoặc source task khác.
 - [x] Sáu lệnh kiểm tra bàn giao đạt, 0 test skip.
-- [x] Reference docs và feature index đã cập nhật; link checker 85 file / 0 lỗi; status Implemented sau G4.
+- [x] Reference docs và feature index đã cập nhật; link checker 85 file / 0 lỗi; status Implemented sau khi G4 duyệt lại đợt sửa 2026-10-24 (hiện Plan approved).
 - [x] Handoff và DoD quy trình chưa hoàn thành có BL-015/016; backlog cũ ngoài scope giữ nguyên.

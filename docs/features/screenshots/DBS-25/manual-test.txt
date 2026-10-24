@@ -1,9 +1,9 @@
-b0f4714c7cbb58080451319dda8b2b0c4b951866
+99731366b14ba346f1f52fa211babd885ade6e0d
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/outbox-migration-driver.ts roundtrip
 OUTBOX MANUAL MODE "roundtrip"
-TEMP DATABASE "dbs_test_a5757c8ba99a"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_a5757c8ba99a] 
+TEMP DATABASE "dbs_test_48484f920f07"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_48484f920f07] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -194,7 +194,7 @@ Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed succe
 query: COMMIT
 
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-$ npm run migration:show [DATABASE_URL supplied privately for dbs_test_a5757c8ba99a] 
+$ npm run migration:show [DATABASE_URL supplied privately for dbs_test_48484f920f07] 
 
 > digital-banking-simulator-backend@0.1.0 migration:show
 > npm run typeorm -- migration:show
@@ -207,7 +207,7 @@ $ npm run migration:show [DATABASE_URL supplied privately for dbs_test_a5757c8ba
 [X] 2 CreateTransfersLedgerIdempotency1791849600000
 [X] 3 CreateOutboxEventsProcessedEvents1792627200000
 
-$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_a5757c8ba99a] 
+$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_48484f920f07] 
 
 > digital-banking-simulator-backend@0.1.0 migration:revert
 > npm run typeorm -- migration:revert
@@ -221,7 +221,7 @@ query: SELECT * FROM current_schema()
 query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 3 migrations are already loaded in the database.
-CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Indochina Time).
 Now reverting it...
 query: START TRANSACTION
 query: DO $$ BEGIN
@@ -242,7 +242,7 @@ Migration CreateOutboxEventsProcessedEvents1792627200000 has been reverted succe
 query: COMMIT
 
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"}],"columns":[],"indexes":[],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_a5757c8ba99a] 
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_48484f920f07] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -257,7 +257,7 @@ query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'publi
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 2 migrations are already loaded in the database.
 3 migrations were found in the source code.
-CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Indochina Time).
 1 migrations are new migrations must be executed.
 query: START TRANSACTION
 query: 
@@ -289,13 +289,13 @@ Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed succe
 query: COMMIT
 
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-CLEANUP database dropped "dbs_test_a5757c8ba99a"
+CLEANUP database dropped "dbs_test_48484f920f07"
 MANUAL MODE PASS "roundtrip"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/outbox-migration-driver.ts schema
 OUTBOX MANUAL MODE "schema"
-TEMP DATABASE "dbs_test_2dbf5e9ae606"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_2dbf5e9ae606] 
+TEMP DATABASE "dbs_test_f81f62b5f97c"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_f81f62b5f97c] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -490,7 +490,7 @@ RESULT [{"server_version":"17.11"}]
 SQL> SHOW timezone []
 RESULT [{"TimeZone":"UTC"}]
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-$ docker compose exec -T postgres psql -d dbs_test_2dbf5e9ae606 -c \d outbox_events 
+$ docker compose exec -T postgres psql -d dbs_test_f81f62b5f97c -c \d outbox_events 
                                   Table "public.outbox_events"
      Column     |           Type           | Collation | Nullable |           Default            
 ----------------+--------------------------+-----------+----------+------------------------------
@@ -509,7 +509,7 @@ Indexes:
     "outbox_unpublished_idx" btree (id) WHERE published_at IS NULL
 
 
-$ docker compose exec -T postgres psql -d dbs_test_2dbf5e9ae606 -c \d processed_events 
+$ docker compose exec -T postgres psql -d dbs_test_f81f62b5f97c -c \d processed_events 
                      Table "public.processed_events"
     Column    |           Type           | Collation | Nullable | Default 
 --------------+--------------------------+-----------+----------+---------
@@ -520,13 +520,13 @@ Indexes:
     "processed_events_pkey" PRIMARY KEY, btree (consumer, event_id)
 
 
-CLEANUP database dropped "dbs_test_2dbf5e9ae606"
+CLEANUP database dropped "dbs_test_f81f62b5f97c"
 MANUAL MODE PASS "schema"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/outbox-migration-driver.ts rejection
 OUTBOX MANUAL MODE "rejection"
-TEMP DATABASE "dbs_test_f4db6b265faf"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_f4db6b265faf] 
+TEMP DATABASE "dbs_test_6ddd7d320ef4"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_6ddd7d320ef4] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -717,22 +717,22 @@ Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed succe
 query: COMMIT
 
 SQL> INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id) VALUES($1,$2,$3,$4,$5) RETURNING * ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","AccountStatusChanged","1d9f6a38-4e72-4c15-a083-b6d2e7c4f951",{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","eventType":"AccountStatusChanged","occurredAt":"2026-10-19T04:02:10.456Z","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","newStatus":"LOCKED","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836"]
-RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-22T14:59:56.393Z","published_at":null}]
+RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-24T07:14:28.494Z","published_at":null}]
 EXPECTED POSTGRES ERROR {"code":"23505","constraint":"outbox_events_event_id_key"}
 EXPECTED POSTGRES ERROR {"code":"23502","column":"correlation_id"}
 EXPECTED POSTGRES ERROR {"code":"428C9"}
 SQL> INSERT INTO processed_events(consumer,event_id) VALUES('risk',$1),('notification',$1) RETURNING * ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514"]
-RESULT [{"consumer":"risk","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","processed_at":"2026-10-22T14:59:56.399Z"},{"consumer":"notification","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","processed_at":"2026-10-22T14:59:56.399Z"}]
+RESULT [{"consumer":"risk","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","processed_at":"2026-10-24T07:14:28.499Z"},{"consumer":"notification","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","processed_at":"2026-10-24T07:14:28.499Z"}]
 EXPECTED POSTGRES ERROR {"code":"23505","constraint":"processed_events_pkey"}
 SQL> INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id) VALUES($1,$2,$3,$4,$5) RETURNING * ["22222222-2222-4222-8222-222222222222","AccountStatusChanged","1d9f6a38-4e72-4c15-a083-b6d2e7c4f951",{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","eventType":"AccountStatusChanged","occurredAt":"2026-10-19T04:02:10.456Z","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","newStatus":"LOCKED","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836"]
-RESULT [{"id":"4","event_id":"22222222-2222-4222-8222-222222222222","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-22T14:59:56.411Z","published_at":null}]
-CLEANUP database dropped "dbs_test_f4db6b265faf"
+RESULT [{"id":"4","event_id":"22222222-2222-4222-8222-222222222222","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-24T07:14:28.515Z","published_at":null}]
+CLEANUP database dropped "dbs_test_6ddd7d320ef4"
 MANUAL MODE PASS "rejection"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/outbox-migration-driver.ts lifecycle
 OUTBOX MANUAL MODE "lifecycle"
-TEMP DATABASE "dbs_test_fdfd36fe7c36"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_fdfd36fe7c36] 
+TEMP DATABASE "dbs_test_b7a4d345cec8"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_b7a4d345cec8] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -923,15 +923,15 @@ Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed succe
 query: COMMIT
 
 SQL> INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id) VALUES($1,$2,$3,$4,$5) RETURNING * ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","AccountStatusChanged","1d9f6a38-4e72-4c15-a083-b6d2e7c4f951",{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","eventType":"AccountStatusChanged","occurredAt":"2026-10-19T04:02:10.456Z","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","newStatus":"LOCKED","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836"]
-RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-22T15:00:02.456Z","published_at":null}]
+RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-24T07:14:33.434Z","published_at":null}]
 SQL> UPDATE outbox_events SET published_at=clock_timestamp() RETURNING * []
-RESULT [[{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-22T15:00:02.456Z","published_at":"2026-10-22T15:00:02.463Z"}],1]
+RESULT [[{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-24T07:14:33.434Z","published_at":"2026-10-24T07:14:33.439Z"}],1]
 SQL> SELECT id FROM outbox_events WHERE published_at IS NULL []
 RESULT []
 SQL> SELECT id FROM outbox_events WHERE published_at IS NOT NULL []
 RESULT [{"id":"1"}]
 SQL> INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id) VALUES($1,$2,$3,$4,$5) RETURNING * ["22222222-2222-4222-8222-222222222222","AccountStatusChanged","1d9f6a38-4e72-4c15-a083-b6d2e7c4f951",{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","eventType":"AccountStatusChanged","occurredAt":"2026-10-19T04:02:10.456Z","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","newStatus":"LOCKED","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836"]
-RESULT [{"id":"2","event_id":"22222222-2222-4222-8222-222222222222","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-22T15:00:02.470Z","published_at":null}]
+RESULT [{"id":"2","event_id":"22222222-2222-4222-8222-222222222222","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-24T07:14:33.443Z","published_at":null}]
 SQL> INSERT INTO processed_events(consumer,event_id) VALUES('risk',$1) ["22222222-2222-4222-8222-222222222222"]
 RESULT []
 SQL> DELETE FROM outbox_events WHERE published_at IS NOT NULL RETURNING id []
@@ -939,14 +939,14 @@ RESULT [[{"id":"1"}],1]
 SQL> INSERT INTO processed_events(consumer,event_id) VALUES('risk',$1) ["22222222-2222-4222-8222-222222222222"]
 RESULT []
 SQL> DELETE FROM processed_events RETURNING * []
-RESULT [[{"consumer":"risk","event_id":"22222222-2222-4222-8222-222222222222","processed_at":"2026-10-22T15:00:02.481Z"}],1]
-CLEANUP database dropped "dbs_test_fdfd36fe7c36"
+RESULT [[{"consumer":"risk","event_id":"22222222-2222-4222-8222-222222222222","processed_at":"2026-10-24T07:14:33.448Z"}],1]
+CLEANUP database dropped "dbs_test_b7a4d345cec8"
 MANUAL MODE PASS "lifecycle"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/outbox-migration-driver.ts revert-guard
 OUTBOX MANUAL MODE "revert-guard"
-TEMP DATABASE "dbs_test_fdab75640476"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_fdab75640476] 
+TEMP DATABASE "dbs_test_0bf8836ca5b6"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_0bf8836ca5b6] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -1138,16 +1138,16 @@ query: COMMIT
 
 GUARD SCENARIO "unpublished"
 SQL> INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id) VALUES($1,$2,$3,$4,$5) RETURNING * ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","AccountStatusChanged","1d9f6a38-4e72-4c15-a083-b6d2e7c4f951",{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","eventType":"AccountStatusChanged","occurredAt":"2026-10-19T04:02:10.456Z","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","newStatus":"LOCKED","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836"]
-RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-22T15:00:08.691Z","published_at":null}]
+RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-24T07:14:39.951Z","published_at":null}]
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_fdab75640476] 
+$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_0bf8836ca5b6] 
 QueryFailedError: Refusing to revert outbox: tables hold data
-    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-    at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-    at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+    at PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+    at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+    at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+    at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
   query: 'DO $$ BEGIN\n' +
     '      IF EXISTS (SELECT 1 FROM outbox_events) OR EXISTS (SELECT 1 FROM processed_events) THEN\n' +
     "        RAISE EXCEPTION 'Refusing to revert outbox: tables hold data' USING ERRCODE = '55000';\n" +
@@ -1155,13 +1155,13 @@ QueryFailedError: Refusing to revert outbox: tables hold data
     '    END $$',
   parameters: undefined,
   driverError: error: Refusing to revert outbox: tables hold data
-      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
-      at processTicksAndRejections (node:internal/process/task_queues:104:5)
-      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-      at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-      at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+      at C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+      at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+      at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+      at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
     length: 158,
     severity: 'ERROR',
     code: '55000',
@@ -1211,7 +1211,7 @@ query: SELECT * FROM current_schema()
 query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 3 migrations are already loaded in the database.
-CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Indochina Time).
 Now reverting it...
 query: START TRANSACTION
 query: DO $$ BEGIN
@@ -1235,12 +1235,12 @@ query: ROLLBACK
 Error during migration revert:
 
 QueryFailedError: Refusing to revert outbox: tables hold data
-    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-    at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-    at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+    at PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+    at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+    at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+    at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
   query: 'DO $$ BEGIN\n' +
     '      IF EXISTS (SELECT 1 FROM outbox_events) OR EXISTS (SELECT 1 FROM processed_events) THEN\n' +
     "        RAISE EXCEPTION 'Refusing to revert outbox: tables hold data' USING ERRCODE = '55000';\n" +
@@ -1248,13 +1248,13 @@ QueryFailedError: Refusing to revert outbox: tables hold data
     '    END $$',
   parameters: undefined,
   driverError: error: Refusing to revert outbox: tables hold data
-      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
-      at processTicksAndRejections (node:internal/process/task_queues:104:5)
-      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-      at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-      at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+      at C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+      at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+      at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+      at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
     length: 158,
     severity: 'ERROR',
     code: '55000',
@@ -1299,7 +1299,7 @@ SQL> DELETE FROM outbox_events WHERE event_id=$1 RETURNING id ["a1c9e3b7-4d52-4f
 RESULT [[{"id":"1"}],1]
 SQL> DELETE FROM processed_events WHERE event_id=$1 RETURNING * ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514"]
 RESULT [[],0]
-$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_fdab75640476] 
+$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_0bf8836ca5b6] 
 
 > digital-banking-simulator-backend@0.1.0 migration:revert
 > npm run typeorm -- migration:revert
@@ -1313,7 +1313,7 @@ query: SELECT * FROM current_schema()
 query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 3 migrations are already loaded in the database.
-CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Indochina Time).
 Now reverting it...
 query: START TRANSACTION
 query: DO $$ BEGIN
@@ -1333,7 +1333,7 @@ query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAME
 Migration CreateOutboxEventsProcessedEvents1792627200000 has been reverted successfully.
 query: COMMIT
 
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_fdab75640476] 
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_0bf8836ca5b6] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -1348,7 +1348,7 @@ query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'publi
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 2 migrations are already loaded in the database.
 3 migrations were found in the source code.
-CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Indochina Time).
 1 migrations are new migrations must be executed.
 query: START TRANSACTION
 query: 
@@ -1380,9 +1380,9 @@ Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed succe
 query: COMMIT
 
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-CLEANUP database dropped "dbs_test_fdab75640476"
-TEMP DATABASE "dbs_test_ac94e020639a"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_ac94e020639a] 
+CLEANUP database dropped "dbs_test_0bf8836ca5b6"
+TEMP DATABASE "dbs_test_19ebaa817e12"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_19ebaa817e12] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -1574,18 +1574,18 @@ query: COMMIT
 
 GUARD SCENARIO "published"
 SQL> INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id) VALUES($1,$2,$3,$4,$5) RETURNING * ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","AccountStatusChanged","1d9f6a38-4e72-4c15-a083-b6d2e7c4f951",{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","eventType":"AccountStatusChanged","occurredAt":"2026-10-19T04:02:10.456Z","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","newStatus":"LOCKED","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836"]
-RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-22T15:00:21.775Z","published_at":null}]
+RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-24T07:14:51.642Z","published_at":null}]
 SQL> UPDATE outbox_events SET published_at=clock_timestamp() []
 RESULT [[],1]
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_ac94e020639a] 
+$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_19ebaa817e12] 
 QueryFailedError: Refusing to revert outbox: tables hold data
-    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-    at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-    at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+    at PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+    at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+    at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+    at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
   query: 'DO $$ BEGIN\n' +
     '      IF EXISTS (SELECT 1 FROM outbox_events) OR EXISTS (SELECT 1 FROM processed_events) THEN\n' +
     "        RAISE EXCEPTION 'Refusing to revert outbox: tables hold data' USING ERRCODE = '55000';\n" +
@@ -1593,13 +1593,13 @@ QueryFailedError: Refusing to revert outbox: tables hold data
     '    END $$',
   parameters: undefined,
   driverError: error: Refusing to revert outbox: tables hold data
-      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
-      at processTicksAndRejections (node:internal/process/task_queues:104:5)
-      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-      at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-      at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+      at C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+      at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+      at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+      at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
     length: 158,
     severity: 'ERROR',
     code: '55000',
@@ -1649,7 +1649,7 @@ query: SELECT * FROM current_schema()
 query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 3 migrations are already loaded in the database.
-CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Indochina Time).
 Now reverting it...
 query: START TRANSACTION
 query: DO $$ BEGIN
@@ -1673,12 +1673,12 @@ query: ROLLBACK
 Error during migration revert:
 
 QueryFailedError: Refusing to revert outbox: tables hold data
-    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-    at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-    at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+    at PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+    at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+    at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+    at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
   query: 'DO $$ BEGIN\n' +
     '      IF EXISTS (SELECT 1 FROM outbox_events) OR EXISTS (SELECT 1 FROM processed_events) THEN\n' +
     "        RAISE EXCEPTION 'Refusing to revert outbox: tables hold data' USING ERRCODE = '55000';\n" +
@@ -1686,13 +1686,13 @@ QueryFailedError: Refusing to revert outbox: tables hold data
     '    END $$',
   parameters: undefined,
   driverError: error: Refusing to revert outbox: tables hold data
-      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
-      at processTicksAndRejections (node:internal/process/task_queues:104:5)
-      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-      at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-      at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+      at C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+      at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+      at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+      at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
     length: 158,
     severity: 'ERROR',
     code: '55000',
@@ -1737,7 +1737,7 @@ SQL> DELETE FROM outbox_events WHERE event_id=$1 RETURNING id ["a1c9e3b7-4d52-4f
 RESULT [[{"id":"1"}],1]
 SQL> DELETE FROM processed_events WHERE event_id=$1 RETURNING * ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514"]
 RESULT [[],0]
-$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_ac94e020639a] 
+$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_19ebaa817e12] 
 
 > digital-banking-simulator-backend@0.1.0 migration:revert
 > npm run typeorm -- migration:revert
@@ -1751,7 +1751,7 @@ query: SELECT * FROM current_schema()
 query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 3 migrations are already loaded in the database.
-CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Indochina Time).
 Now reverting it...
 query: START TRANSACTION
 query: DO $$ BEGIN
@@ -1771,7 +1771,7 @@ query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAME
 Migration CreateOutboxEventsProcessedEvents1792627200000 has been reverted successfully.
 query: COMMIT
 
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_ac94e020639a] 
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_19ebaa817e12] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -1786,7 +1786,7 @@ query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'publi
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 2 migrations are already loaded in the database.
 3 migrations were found in the source code.
-CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Indochina Time).
 1 migrations are new migrations must be executed.
 query: START TRANSACTION
 query: 
@@ -1818,9 +1818,9 @@ Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed succe
 query: COMMIT
 
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-CLEANUP database dropped "dbs_test_ac94e020639a"
-TEMP DATABASE "dbs_test_acf5465bfc32"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_acf5465bfc32] 
+CLEANUP database dropped "dbs_test_19ebaa817e12"
+TEMP DATABASE "dbs_test_a25d9bc217de"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_a25d9bc217de] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -2014,14 +2014,14 @@ GUARD SCENARIO "processed"
 SQL> INSERT INTO processed_events(consumer,event_id) VALUES('risk',$1) ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514"]
 RESULT []
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_acf5465bfc32] 
+$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_a25d9bc217de] 
 QueryFailedError: Refusing to revert outbox: tables hold data
-    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-    at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-    at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+    at PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+    at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+    at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+    at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
   query: 'DO $$ BEGIN\n' +
     '      IF EXISTS (SELECT 1 FROM outbox_events) OR EXISTS (SELECT 1 FROM processed_events) THEN\n' +
     "        RAISE EXCEPTION 'Refusing to revert outbox: tables hold data' USING ERRCODE = '55000';\n" +
@@ -2029,13 +2029,13 @@ QueryFailedError: Refusing to revert outbox: tables hold data
     '    END $$',
   parameters: undefined,
   driverError: error: Refusing to revert outbox: tables hold data
-      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
-      at processTicksAndRejections (node:internal/process/task_queues:104:5)
-      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-      at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-      at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+      at C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+      at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+      at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+      at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
     length: 158,
     severity: 'ERROR',
     code: '55000',
@@ -2085,7 +2085,7 @@ query: SELECT * FROM current_schema()
 query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 3 migrations are already loaded in the database.
-CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Indochina Time).
 Now reverting it...
 query: START TRANSACTION
 query: DO $$ BEGIN
@@ -2109,12 +2109,12 @@ query: ROLLBACK
 Error during migration revert:
 
 QueryFailedError: Refusing to revert outbox: tables hold data
-    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-    at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-    at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+    at PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+    at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+    at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+    at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
   query: 'DO $$ BEGIN\n' +
     '      IF EXISTS (SELECT 1 FROM outbox_events) OR EXISTS (SELECT 1 FROM processed_events) THEN\n' +
     "        RAISE EXCEPTION 'Refusing to revert outbox: tables hold data' USING ERRCODE = '55000';\n" +
@@ -2122,13 +2122,13 @@ QueryFailedError: Refusing to revert outbox: tables hold data
     '    END $$',
   parameters: undefined,
   driverError: error: Refusing to revert outbox: tables hold data
-      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
-      at processTicksAndRejections (node:internal/process/task_queues:104:5)
-      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
-      at async MigrationExecutor.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
-      at async DataSource.undoLastMigration (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:424:9)
-      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+      at C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateOutboxEventsProcessedEvents1792627200000.down (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:46:5)
+      at async MigrationExecutor.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:472:17)
+      at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:424:9)
+      at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
     length: 158,
     severity: 'ERROR',
     code: '55000',
@@ -2172,8 +2172,8 @@ CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","time
 SQL> DELETE FROM outbox_events WHERE event_id=$1 RETURNING id ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514"]
 RESULT [[],0]
 SQL> DELETE FROM processed_events WHERE event_id=$1 RETURNING * ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514"]
-RESULT [[{"consumer":"risk","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","processed_at":"2026-10-22T15:00:35.066Z"}],1]
-$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_acf5465bfc32] 
+RESULT [[{"consumer":"risk","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","processed_at":"2026-10-24T07:15:03.426Z"}],1]
+$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_a25d9bc217de] 
 
 > digital-banking-simulator-backend@0.1.0 migration:revert
 > npm run typeorm -- migration:revert
@@ -2187,7 +2187,7 @@ query: SELECT * FROM current_schema()
 query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 3 migrations are already loaded in the database.
-CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Indochina Time).
 Now reverting it...
 query: START TRANSACTION
 query: DO $$ BEGIN
@@ -2207,7 +2207,7 @@ query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAME
 Migration CreateOutboxEventsProcessedEvents1792627200000 has been reverted successfully.
 query: COMMIT
 
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_acf5465bfc32] 
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_a25d9bc217de] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -2222,7 +2222,7 @@ query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'publi
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 2 migrations are already loaded in the database.
 3 migrations were found in the source code.
-CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Indochina Time).
 1 migrations are new migrations must be executed.
 query: START TRANSACTION
 query: 
@@ -2254,22 +2254,22 @@ Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed succe
 query: COMMIT
 
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-CLEANUP database dropped "dbs_test_acf5465bfc32"
+CLEANUP database dropped "dbs_test_a25d9bc217de"
 MANUAL MODE PASS "revert-guard"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/outbox-migration-driver.ts atomic-up
 OUTBOX MANUAL MODE "atomic-up"
-TEMP DATABASE "dbs_test_898ae42c2448"
+TEMP DATABASE "dbs_test_201f46db61bf"
 SQL> CREATE TABLE processed_events(sentinel text) []
 RESULT []
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_898ae42c2448] 
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_201f46db61bf] 
 QueryFailedError: relation "processed_events" already exists
-    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateOutboxEventsProcessedEvents1792627200000.up (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:20:5)
-    at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
-    at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
-    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
+    at PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async CreateOutboxEventsProcessedEvents1792627200000.up (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:20:5)
+    at async MigrationExecutor.executePendingMigrations (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
+    at async DataSource.runMigrations (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:404:13)
+    at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
   query: '\n' +
     '      CREATE TABLE processed_events (\n' +
     '        consumer text NOT NULL,\n' +
@@ -2279,13 +2279,13 @@ QueryFailedError: relation "processed_events" already exists
     '      )',
   parameters: undefined,
   driverError: error: relation "processed_events" already exists
-      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
-      at processTicksAndRejections (node:internal/process/task_queues:104:5)
-      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateOutboxEventsProcessedEvents1792627200000.up (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:20:5)
-      at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
-      at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
-      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
+      at C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateOutboxEventsProcessedEvents1792627200000.up (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:20:5)
+      at async MigrationExecutor.executePendingMigrations (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
+      at async DataSource.runMigrations (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:404:13)
+      at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
     length: 110,
     severity: 'ERROR',
     code: '42P07',
@@ -2336,7 +2336,7 @@ query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'publi
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 2 migrations are already loaded in the database.
 3 migrations were found in the source code.
-CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Indochina Time).
 1 migrations are new migrations must be executed.
 query: START TRANSACTION
 query: 
@@ -2372,12 +2372,12 @@ query: ROLLBACK
 Error during migration run:
 
 QueryFailedError: relation "processed_events" already exists
-    at PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
-    at processTicksAndRejections (node:internal/process/task_queues:104:5)
-    at async CreateOutboxEventsProcessedEvents1792627200000.up (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:20:5)
-    at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
-    at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
-    at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
+    at PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async CreateOutboxEventsProcessedEvents1792627200000.up (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:20:5)
+    at async MigrationExecutor.executePendingMigrations (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
+    at async DataSource.runMigrations (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:404:13)
+    at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
   query: '\n' +
     '      CREATE TABLE processed_events (\n' +
     '        consumer text NOT NULL,\n' +
@@ -2387,13 +2387,13 @@ QueryFailedError: relation "processed_events" already exists
     '      )',
   parameters: undefined,
   driverError: error: relation "processed_events" already exists
-      at D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\pg\lib\client.js:694:17
-      at processTicksAndRejections (node:internal/process/task_queues:104:5)
-      at async PostgresQueryRunner.query (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
-      at async CreateOutboxEventsProcessedEvents1792627200000.up (C:\Users\Admin\.codex\worktrees\dbs25-outbox\digital-banking-simulator\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:20:5)
-      at async MigrationExecutor.executePendingMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
-      at async DataSource.runMigrations (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\data-source\DataSource.ts:404:13)
-      at async Object.handler (D:\UET_PROJECT\digital-banking-simulator\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
+      at C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\pg\lib\client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async PostgresQueryRunner.query (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\typeorm\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at async CreateOutboxEventsProcessedEvents1792627200000.up (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\src\database\migrations\1792627200000-CreateOutboxEventsProcessedEvents.ts:20:5)
+      at async MigrationExecutor.executePendingMigrations (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\migration\MigrationExecutor.ts:346:17)
+      at async DataSource.runMigrations (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\data-source\DataSource.ts:404:13)
+      at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\feat-DBS-25-migration-outbox-events\backend\node_modules\src\commands\MigrationRunCommand.ts:76:13) {
     length: 110,
     severity: 'ERROR',
     code: '42P07',
@@ -2437,7 +2437,7 @@ EXPECTED POSTGRES ERROR {"code":"42P07"}
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"}],"columns":[{"table_name":"processed_events","column_name":"sentinel","data_type":"text","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null}],"indexes":[],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
 SQL> DROP TABLE processed_events []
 RESULT []
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_898ae42c2448] 
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_201f46db61bf] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -2452,7 +2452,7 @@ query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'publi
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 2 migrations are already loaded in the database.
 3 migrations were found in the source code.
-CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Indochina Time).
 1 migrations are new migrations must be executed.
 query: START TRANSACTION
 query: 
@@ -2484,13 +2484,13 @@ Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed succe
 query: COMMIT
 
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-CLEANUP database dropped "dbs_test_898ae42c2448"
+CLEANUP database dropped "dbs_test_201f46db61bf"
 MANUAL MODE PASS "atomic-up"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/outbox-migration-driver.ts revert-race
 OUTBOX MANUAL MODE "revert-race"
-TEMP DATABASE "dbs_test_24ed8d58ce52"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_24ed8d58ce52] 
+TEMP DATABASE "dbs_test_fdfb3be8cd1b"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_fdfb3be8cd1b] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -2682,14 +2682,14 @@ query: COMMIT
 
 SQL> LOCK TABLE outbox_events IN ROW EXCLUSIVE MODE []
 RESULT []
-OBSERVED LOCK WAIT {"pid":12763,"wait_event_type":"Lock","wait_event":"relation"}
+OBSERVED LOCK WAIT {"pid":2223,"wait_event_type":"Lock","wait_event":"relation"}
 SQL> INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id) VALUES($1,$2,$3,$4,$5) RETURNING * ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","AccountStatusChanged","1d9f6a38-4e72-4c15-a083-b6d2e7c4f951",{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","eventType":"AccountStatusChanged","occurredAt":"2026-10-19T04:02:10.456Z","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","newStatus":"LOCKED","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836"]
-RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-22T15:01:05.020Z","published_at":null}]
+RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-24T07:15:27.496Z","published_at":null}]
 DOWN REFUSED after writer commit {"code":"55000","table":"outbox_events"}
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-CLEANUP database dropped "dbs_test_24ed8d58ce52"
-TEMP DATABASE "dbs_test_3fc3dc03b195"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_3fc3dc03b195] 
+CLEANUP database dropped "dbs_test_fdfb3be8cd1b"
+TEMP DATABASE "dbs_test_6e5c93803277"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_6e5c93803277] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -2881,18 +2881,18 @@ query: COMMIT
 
 SQL> LOCK TABLE processed_events IN ROW EXCLUSIVE MODE []
 RESULT []
-OBSERVED LOCK WAIT {"pid":12777,"wait_event_type":"Lock","wait_event":"relation"}
+OBSERVED LOCK WAIT {"pid":2235,"wait_event_type":"Lock","wait_event":"relation"}
 SQL> INSERT INTO processed_events(consumer,event_id) VALUES('risk',$1) ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514"]
 RESULT []
 DOWN REFUSED after writer commit {"code":"55000","table":"processed_events"}
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
-CLEANUP database dropped "dbs_test_3fc3dc03b195"
+CLEANUP database dropped "dbs_test_6e5c93803277"
 MANUAL MODE PASS "revert-race"
 
 $ node -r ts-node/register -r tsconfig-paths/register test/support/outbox-migration-driver.ts isolation-guard
 OUTBOX MANUAL MODE "isolation-guard"
-TEMP DATABASE "dbs_test_c6845992e800"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_c6845992e800] 
+TEMP DATABASE "dbs_test_66cc39ba1d90"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_66cc39ba1d90] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -3088,13 +3088,13 @@ SQL> SELECT * FROM outbox_events []
 RESULT []
 EXPECTED POSTGRES ERROR {"code":"55000"}
 SQL> SELECT * FROM outbox_events []
-RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-22T15:01:13.803Z","published_at":null}]
+RESULT [{"id":"1","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","event_type":"AccountStatusChanged","aggregate_id":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","payload":{"eventId":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","accountId":"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951","eventType":"AccountStatusChanged","newStatus":"LOCKED","occurredAt":"2026-10-19T04:02:10.456Z","ownerUserId":"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783","correlationId":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","changedByUserId":"4a6d9e02-8c17-4b53-a2f6-0e5d3c8b1974"},"correlation_id":"e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836","created_at":"2026-10-24T07:15:36.740Z","published_at":null}]
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
 SQL> DELETE FROM outbox_events WHERE event_id=$1 ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514"]
 RESULT [[],1]
 SQL> SHOW transaction_isolation []
 RESULT [{"transaction_isolation":"read committed"}]
-$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_c6845992e800] 
+$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_66cc39ba1d90] 
 
 > digital-banking-simulator-backend@0.1.0 migration:revert
 > npm run typeorm -- migration:revert
@@ -3108,7 +3108,7 @@ query: SELECT * FROM current_schema()
 query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 3 migrations are already loaded in the database.
-CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Indochina Time).
 Now reverting it...
 query: START TRANSACTION
 query: DO $$ BEGIN
@@ -3128,7 +3128,7 @@ query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAME
 Migration CreateOutboxEventsProcessedEvents1792627200000 has been reverted successfully.
 query: COMMIT
 
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_c6845992e800] 
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_66cc39ba1d90] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -3143,7 +3143,7 @@ query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'publi
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 2 migrations are already loaded in the database.
 3 migrations were found in the source code.
-CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Indochina Time).
 1 migrations are new migrations must be executed.
 query: START TRANSACTION
 query: 
@@ -3174,9 +3174,9 @@ query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETE
 Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed successfully.
 query: COMMIT
 
-CLEANUP database dropped "dbs_test_c6845992e800"
-TEMP DATABASE "dbs_test_e7041d156976"
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_e7041d156976] 
+CLEANUP database dropped "dbs_test_66cc39ba1d90"
+TEMP DATABASE "dbs_test_f32907e568d2"
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_f32907e568d2] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -3372,13 +3372,13 @@ SQL> SELECT * FROM processed_events []
 RESULT []
 EXPECTED POSTGRES ERROR {"code":"55000"}
 SQL> SELECT * FROM processed_events []
-RESULT [{"consumer":"risk","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","processed_at":"2026-10-22T15:01:23.971Z"}]
+RESULT [{"consumer":"risk","event_id":"a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514","processed_at":"2026-10-24T07:15:47.071Z"}]
 CATALOG {"migrations":[{"name":"CreateUsersCustomersAccounts1791763200000","timestamp":"1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000","timestamp":"1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000","timestamp":"1792627200000"}],"columns":[{"table_name":"outbox_events","column_name":"id","data_type":"bigint","is_nullable":"NO","column_default":null,"is_identity":"YES","identity_generation":"ALWAYS"},{"table_name":"outbox_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":"gen_random_uuid()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"event_type","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"aggregate_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"payload","data_type":"jsonb","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"correlation_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"created_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"clock_timestamp()","is_identity":"NO","identity_generation":null},{"table_name":"outbox_events","column_name":"published_at","data_type":"timestamp with time zone","is_nullable":"YES","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"consumer","data_type":"text","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"event_id","data_type":"uuid","is_nullable":"NO","column_default":null,"is_identity":"NO","identity_generation":null},{"table_name":"processed_events","column_name":"processed_at","data_type":"timestamp with time zone","is_nullable":"NO","column_default":"now()","is_identity":"NO","identity_generation":null}],"indexes":[{"indexname":"outbox_events_event_id_key","indexdef":"CREATE UNIQUE INDEX outbox_events_event_id_key ON public.outbox_events USING btree (event_id)"},{"indexname":"outbox_events_pkey","indexdef":"CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id)"},{"indexname":"outbox_published_cleanup_idx","indexdef":"CREATE INDEX outbox_published_cleanup_idx ON public.outbox_events USING btree (published_at) WHERE (published_at IS NOT NULL)"},{"indexname":"outbox_unpublished_idx","indexdef":"CREATE INDEX outbox_unpublished_idx ON public.outbox_events USING btree (id) WHERE (published_at IS NULL)"},{"indexname":"processed_events_pkey","indexdef":"CREATE UNIQUE INDEX processed_events_pkey ON public.processed_events USING btree (consumer, event_id)"}],"funding":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","balance":"0"}]}
 SQL> DELETE FROM processed_events WHERE event_id=$1 ["a1c9e3b7-4d52-4f06-8b3a-6e0d2c7f9514"]
 RESULT [[],1]
 SQL> SHOW transaction_isolation []
 RESULT [{"transaction_isolation":"read committed"}]
-$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_e7041d156976] 
+$ npm run migration:revert [DATABASE_URL supplied privately for dbs_test_f32907e568d2] 
 
 > digital-banking-simulator-backend@0.1.0 migration:revert
 > npm run typeorm -- migration:revert
@@ -3392,7 +3392,7 @@ query: SELECT * FROM current_schema()
 query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 3 migrations are already loaded in the database.
-CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateOutboxEventsProcessedEvents1792627200000 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Indochina Time).
 Now reverting it...
 query: START TRANSACTION
 query: DO $$ BEGIN
@@ -3412,7 +3412,7 @@ query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAME
 Migration CreateOutboxEventsProcessedEvents1792627200000 has been reverted successfully.
 query: COMMIT
 
-$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_e7041d156976] 
+$ npm run migration:run [DATABASE_URL supplied privately for dbs_test_f32907e568d2] 
 
 > digital-banking-simulator-backend@0.1.0 migration:run
 > npm run typeorm -- migration:run
@@ -3427,7 +3427,7 @@ query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'publi
 query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
 2 migrations are already loaded in the database.
 3 migrations were found in the source code.
-CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Giờ Đông Dương).
+CreateTransfersLedgerIdempotency1791849600000 is the last executed migration. It was executed on Tue Oct 13 2026 07:00:00 GMT+0700 (Indochina Time).
 1 migrations are new migrations must be executed.
 query: START TRANSACTION
 query: 
@@ -3458,5 +3458,5 @@ query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETE
 Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed successfully.
 query: COMMIT
 
-CLEANUP database dropped "dbs_test_e7041d156976"
+CLEANUP database dropped "dbs_test_f32907e568d2"
 MANUAL MODE PASS "isolation-guard"
