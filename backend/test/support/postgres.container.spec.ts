@@ -1,11 +1,27 @@
+import { getContainerRuntimeClient } from 'testcontainers';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import {
   assertDockerAvailable,
   DOCKER_CHECK_TIMEOUT_MS,
+  OVERALL_START_TIMEOUT_MS,
   stopPostgresContainer,
   STARTUP_TIMEOUT_MS,
   startPostgresContainer,
 } from './postgres.container';
 import { requireDatabaseUrl } from './temp-database';
+
+// The real libraries are replaced by test doubles at the library boundary, so the helper itself
+// (including its own call to assertDockerAvailable) runs for real and no test touches Docker.
+const mockBuilder = {
+  withEnvironment: jest.fn(),
+  withCommand: jest.fn(),
+  withStartupTimeout: jest.fn(),
+  start: jest.fn(),
+};
+jest.mock('testcontainers', () => ({ getContainerRuntimeClient: jest.fn() }));
+jest.mock('@testcontainers/postgresql', () => ({
+  PostgreSqlContainer: jest.fn(() => mockBuilder),
+}));
 
 describe('postgres.container and test harness helpers', () => {
   const originalDatabaseUrl = process.env.DATABASE_URL;
@@ -130,9 +146,104 @@ describe('postgres.container and test harness helpers', () => {
     });
   });
 
-  describe('startPostgresContainer export', () => {
-    it('TC-39-01: exports startPostgresContainer function', () => {
-      expect(typeof startPostgresContainer).toBe('function');
+  describe('startPostgresContainer (TC-39-01 config, TC-39-06, TC-39-07)', () => {
+    const CONNECTION_URI = 'postgres://test:test@localhost:55432/test';
+    const fakeContainer = {
+      getConnectionUri: () => CONNECTION_URI,
+      stop: jest.fn(),
+    };
+    const handle = () =>
+      (globalThis as unknown as { __POSTGRES_CONTAINER__?: unknown }).__POSTGRES_CONTAINER__;
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      delete process.env.DATABASE_URL;
+      fakeContainer.stop.mockReset().mockResolvedValue(undefined);
+      (getContainerRuntimeClient as jest.Mock).mockReset().mockResolvedValue({});
+      for (const method of [
+        mockBuilder.withEnvironment,
+        mockBuilder.withCommand,
+        mockBuilder.withStartupTimeout,
+      ]) {
+        method.mockReset().mockReturnValue(mockBuilder);
+      }
+      mockBuilder.start.mockReset().mockResolvedValue(fakeContainer);
+      (PostgreSqlContainer as unknown as jest.Mock).mockClear();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      delete (globalThis as unknown as { __POSTGRES_CONTAINER__?: unknown }).__POSTGRES_CONTAINER__;
+    });
+
+    it('TC-39-07(a): returns only the URL, leaves process.env alone and configures Postgres 17 in UTC', async () => {
+      const started = await startPostgresContainer();
+
+      expect(started).toStrictEqual({ databaseUrl: CONNECTION_URI });
+      expect(process.env.DATABASE_URL).toBeUndefined();
+      expect(handle()).toBe(fakeContainer);
+      expect(PostgreSqlContainer).toHaveBeenCalledWith('postgres:17-alpine');
+      expect(mockBuilder.withEnvironment).toHaveBeenCalledWith({ TZ: 'UTC' });
+      expect(mockBuilder.withCommand).toHaveBeenCalledWith(['postgres', '-c', 'timezone=UTC']);
+      expect(mockBuilder.withStartupTimeout).toHaveBeenCalledWith(60_000);
+    });
+
+    it('TC-39-06(c): finishing in time does not stop the container and leaves no timer', async () => {
+      await startPostgresContainer();
+
+      expect(fakeContainer.stop).not.toHaveBeenCalled();
+      expect(jest.getTimerCount()).toBe(0);
+    });
+
+    it('TC-39-06(a): rejects with an actionable message once the overall 300 s are used up', async () => {
+      expect(OVERALL_START_TIMEOUT_MS).toBe(300_000);
+      mockBuilder.start.mockReturnValue(new Promise(() => undefined));
+      const outcome = startPostgresContainer().catch((error: Error) => error);
+
+      await jest.advanceTimersByTimeAsync(OVERALL_START_TIMEOUT_MS);
+      const error = (await outcome) as Error;
+
+      expect(error.message).toMatch(/did not become ready within 300s/);
+      expect(error.message).toMatch(/docker pull postgres:17-alpine/);
+      expect(handle()).toBeUndefined();
+      expect(process.env.DATABASE_URL).toBeUndefined();
+      expect(jest.getTimerCount()).toBe(0);
+    });
+
+    it('TC-39-06(b): stops a container that only finishes starting after the deadline', async () => {
+      let finishStart: (container: unknown) => void = () => undefined;
+      mockBuilder.start.mockReturnValue(
+        new Promise(resolve => {
+          finishStart = resolve;
+        }),
+      );
+      const outcome = startPostgresContainer().catch((error: Error) => error);
+      await jest.advanceTimersByTimeAsync(OVERALL_START_TIMEOUT_MS);
+      await outcome;
+
+      finishStart(fakeContainer);
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(fakeContainer.stop).toHaveBeenCalledTimes(1);
+      expect(handle()).toBeUndefined();
+    });
+
+    it('TC-39-06(b): a failing late stop() is swallowed, not an unhandled rejection', async () => {
+      let finishStart: (container: unknown) => void = () => undefined;
+      mockBuilder.start.mockReturnValue(
+        new Promise(resolve => {
+          finishStart = resolve;
+        }),
+      );
+      fakeContainer.stop.mockRejectedValue(new Error('stop failed'));
+      const outcome = startPostgresContainer().catch((error: Error) => error);
+      await jest.advanceTimersByTimeAsync(OVERALL_START_TIMEOUT_MS);
+      await outcome;
+
+      finishStart(fakeContainer);
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(fakeContainer.stop).toHaveBeenCalledTimes(1);
     });
   });
 });

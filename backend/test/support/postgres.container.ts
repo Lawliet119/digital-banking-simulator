@@ -2,6 +2,8 @@ import { getContainerRuntimeClient } from 'testcontainers';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 export const STARTUP_TIMEOUT_MS = 60_000;
+/** Longest the whole `start()` may take, image pull included; STARTUP_TIMEOUT_MS only covers readiness. */
+export const OVERALL_START_TIMEOUT_MS = 300_000;
 /** Longest we wait for the Docker daemon to answer before giving up. */
 export const DOCKER_CHECK_TIMEOUT_MS = 15_000;
 
@@ -19,8 +21,6 @@ export function withTimeout<T>(work: Promise<T>, ms: number, message: string): P
 
 export interface StartedPostgres {
   databaseUrl: string;
-  container: StartedPostgreSqlContainer;
-  stop(): Promise<void>;
 }
 
 /**
@@ -51,25 +51,36 @@ export async function assertDockerAvailable(
 export async function startPostgresContainer(): Promise<StartedPostgres> {
   await assertDockerAvailable();
 
-  const container = await new PostgreSqlContainer('postgres:17-alpine')
+  const starting = new PostgreSqlContainer('postgres:17-alpine')
     .withEnvironment({ TZ: 'UTC' })
     .withCommand(['postgres', '-c', 'timezone=UTC'])
     .withStartupTimeout(STARTUP_TIMEOUT_MS)
     .start();
 
+  let container: StartedPostgreSqlContainer;
+  try {
+    container = await withTimeout(
+      starting,
+      OVERALL_START_TIMEOUT_MS,
+      `[Testcontainers] PostgreSQL did not become ready within ${OVERALL_START_TIMEOUT_MS / 1000}s ` +
+        '(including the image pull of postgres:17-alpine). Check your network, or run ' +
+        '`docker pull postgres:17-alpine` first and retry.',
+    );
+  } catch (error) {
+    // Jest skips globalTeardown when globalSetup throws, so a start() that only finishes after we
+    // gave up would leak its container. Ryuk is the main cleanup; this is the fallback while the
+    // process is still alive.
+    void starting.then(late => late.stop()).catch(() => undefined);
+    throw error;
+  }
+
+  // Held on globalThis (shared by Jest's globalSetup and globalTeardown); globalSetup alone
+  // decides what to do with the URL, this function never touches process.env.
   (
     globalThis as unknown as { __POSTGRES_CONTAINER__?: StartedPostgreSqlContainer }
   ).__POSTGRES_CONTAINER__ = container;
-  const databaseUrl = container.getConnectionUri();
-  process.env.DATABASE_URL = databaseUrl;
 
-  return {
-    databaseUrl,
-    container,
-    async stop() {
-      await stopPostgresContainer();
-    },
-  };
+  return { databaseUrl: container.getConnectionUri() };
 }
 
 /**
