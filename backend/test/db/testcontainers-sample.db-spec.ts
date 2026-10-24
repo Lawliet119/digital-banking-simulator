@@ -31,6 +31,9 @@ describe('DBS-39 Testcontainers sample: PostgreSQL 17 migration and constraints'
     expect(tz).toMatch(/^(UTC|Etc\/UTC)$/i);
   });
 
+  // Deliberately overlaps accounts-schema.db-spec.ts (DBS-20), which already covers
+  // accounts_balance_non_negative: DBS-39's DoD asks for this constraint as the sample test, and it
+  // is the smoke test for the whole chain Testcontainers -> temp database -> migrations.
   it('TC-39-02: rejects customer account with negative balance with check constraint error (code 23514)', async () => {
     // 1. Seed user
     const userRows = await attempt<{ id: string }>(
