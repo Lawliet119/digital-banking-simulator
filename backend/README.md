@@ -42,7 +42,7 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm run format` / `format:check` | prettier |
 | `npm test` | unit test (`src/**/*.spec.ts`) |
 | `npm run test:e2e` | e2e (`test/*.e2e-spec.ts`) |
-| `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Cần `docker compose up -d` và biến `DATABASE_URL` trong môi trường (Jest đặt `NODE_ENV=test` nên không đọc `env/.env.development`); thiếu DB thì test đỏ, không bỏ qua |
+| `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Tự động khởi tạo PostgreSQL 17 qua Testcontainers (hoặc dùng `DATABASE_URL` có sẵn nếu đã xuất ra môi trường). Cần Docker Desktop bật; nếu Docker tắt thì test báo lỗi ngay, không treo |
 | `npm run migration:run` · `migration:revert` · `migration:show` | migration trên DB local |
 | `npm run migration:generate -- src/database/migrations/<Tên>` | sinh migration từ thay đổi entity |
 | `npm run migration:create -- src/database/migrations/<Tên>` | tạo migration rỗng |
@@ -114,11 +114,26 @@ Xem `src/modules/README.md`. Import xuyên module chỉ qua `@modules/<tên>`; v
 - Test đúng-sai về tiền (đồng thời, idempotency) chạy trên **PostgreSQL thật** (Testcontainers), không mock database. Test `withTransaction` hiện tại dùng fake chỉ để kiểm tra logic retry/rollback — nó **không** chứng minh hành vi khóa của Postgres.
 - Test e2e dùng `configureHttpApp` từ `app.setup.ts` để chạy đúng cấu hình như production.
 
+#### Cách làm sạch và cô lập dữ liệu khi kiểm thử (Data Isolation & Cleanup)
+Hệ thống sử dụng bảng sổ cái chỉ-thêm (`append-only ledger` như `transfers`, `ledger_entries`) với ràng buộc khóa ngoại chặt chẽ và phụ thuộc vào tài khoản cấp vốn hệ thống (`SYSTEM` funding account với UUID `00000000-0000-4000-8000-000000000001`). Vì vậy, **tuyệt đối không sử dụng `TRUNCATE` hoặc `DELETE` bừa bãi** giữa các ca kiểm thử vì sẽ phá vỡ sequence, trigger và làm mất tài khoản hệ thống.
+
+Để kiểm thử hoàn toàn độc lập, an toàn và có thể chạy song song:
+1. **Cô lập theo Test Suite bằng Database tạm thời (Temp Database):** Khuyến nghị mặc định là mỗi test file (`*.db-spec.ts`) gọi `createTempDatabase()` trong `beforeAll` để tạo một database hoàn toàn độc lập (`dbs_test_<random_hex>`) trên PostgreSQL container, chạy migration trên đó và tự động xóa sạch database (`db.drop()`) trong `afterAll`. Nhờ vậy các test suite chạy song song không bao giờ xung đột dữ liệu.
+2. **Cô lập giữa các test case trong cùng suite:** Sử dụng transaction `BEGIN` trong `beforeEach` và `ROLLBACK` trong `afterEach`. Mọi thay đổi dữ liệu của từng ca kiểm thử sẽ được hoàn tác sạch sẽ mà không tốn chi phí khởi tạo lại schema.
+   - **Giới hạn:** cách này chỉ đúng khi test dùng **một kết nối** (một `QueryRunner`). Test đồng thời (hai kết nối để thử khóa, `SELECT ... FOR UPDATE`) không thấy dữ liệu chưa commit của nhau, và `ROLLBACK` không dọn được dữ liệu đã commit ở kết nối khác. Test loại đó dựa vào temp database riêng của spec (mục 1) và tự tạo dữ liệu của mình, không dùng `BEGIN`/`ROLLBACK` để cô lập.
+
+
 ### 6. Migration
+Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`). Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1, 2, outbox và audit). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser.
 
-Schema `audit_log` nằm trong migration riêng `1792627200001-CreateAuditLog`: [DBS-26](../docs/features/DBS-26-migration-audit-log.md). Bảng có ba index theo correlation, actor/thời gian và action/thời gian. Revert audit yêu cầu transaction READ COMMITTED và bảng rỗng: guard kiểm isolation trước khóa ACCESS EXCLUSIVE, sau đó kiểm dữ liệu bằng statement mới; có dữ liệu thì SQLSTATE `55000` và giữ schema/history. Không xóa audit để ép rollback. Test nền 20/21 chọn prefix bằng helper test, còn CLI production luôn chạy latest theo lịch sử thực.
 
-Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`). Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1 và 2). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser.
+**Schema outbox.**
+
+Migration `1792627200000-CreateOutboxEventsProcessedEvents` tạo outbox/processed và hai partial index. Down cần transaction READ COMMITTED; khóa bảng trước kiểm dữ liệu, không cho DROP nếu còn dòng. Test schema legacy dùng `migrateThrough` phiên bản thật; CLI regression vẫn chạy production tới latest và revert từng bước. Runtime writer/relay chưa có.
+
+**Schema audit.**
+
+Migration `1792627200001-CreateAuditLog` ([DBS-26](../docs/features/DBS-26-migration-audit-log.md)) tạo `audit_log` với ba index theo correlation, actor/thời gian và action/thời gian. Revert audit yêu cầu transaction READ COMMITTED và bảng rỗng: guard kiểm isolation trước khóa ACCESS EXCLUSIVE, sau đó kiểm dữ liệu bằng statement mới; có dữ liệu thì SQLSTATE `55000` và giữ schema/history. Không xóa audit để ép rollback. Test nền 20/21 chọn prefix bằng helper test, còn CLI production luôn chạy latest theo lịch sử thực.
 
 ### 7. Tiền: một cách duy nhất, qua `@common/money`
 `JSON` và `Number`/`parseInt` làm tròn mọi số trên 2^53: `9007199254740993` thành `9007199254740992` mà không báo lỗi. Nên tiền trên dây (API, event, tham số SQL) là **chuỗi** số nguyên đồng, trong domain là **`bigint`**, và chỉ đổi qua lại bằng `@common/money` (import `from '@common/money'`, không import file bên trong).

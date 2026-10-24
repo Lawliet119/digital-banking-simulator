@@ -276,7 +276,7 @@ Kiểm chuỗi với trigger27 phát hiện sáu regression đỏ do audit khôn
 
 ![05-locking-recovery](screenshots/DBS-26/05-locking-recovery.png)
 
-**Bàn giao:** BL-017 AuditService/API/metadata/fail-closed/production roles, trigger do DBS-27 cung cấp; BL-018 Dev review/CI/merge. BL-005 quyền/chủ view còn nguyên; task26 không nhận AC-8.1 production roles hoặc AC-8.2 HTTP đã đạt. Fixture chỉ có UUID/mã kỹ thuật tổng hợp; transcript đã rà không có token, Authorization, password, AWS ID/ARN.
+**Bàn giao:** BL-019 AuditService/API/metadata/fail-closed/production roles, trigger do DBS-27 cung cấp; BL-020 Dev review/CI/merge. BL-005 quyền/chủ view còn nguyên; task26 không nhận AC-8.1 production roles hoặc AC-8.2 HTTP đã đạt. Fixture chỉ có UUID/mã kỹ thuật tổng hợp; transcript đã rà không có token, Authorization, password, AWS ID/ARN.
 
 **Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
 
@@ -284,7 +284,7 @@ Kiểm chuỗi với trigger27 phát hiện sáu regression đỏ do audit khôn
 
 ## 9. Tài liệu đã cập nhật
 
-Feature doc này, raw reviews và evidence screenshots/DBS-26; database-design §4.7/§11 (schema/index/revert và migration riêng), README audit, backend/README, feature index; BACKLOG thêm BL-017/018. Không xóa backlog chưa giải quyết.
+Feature doc này, raw reviews và evidence screenshots/DBS-26; database-design §4.7/§11 (schema/index/revert và migration riêng), README audit, backend/README, feature index; BACKLOG thêm BL-019/020. Không xóa backlog chưa giải quyết.
 
 ## Checklist G4
 
@@ -294,4 +294,4 @@ Feature doc này, raw reviews và evidence screenshots/DBS-26; database-design �
 - [x] Diff main...HEAD chỉ thuộc allowlist §7; không workbook hoặc source task25.
 - [x] Sáu lệnh kiểm tra bàn giao đạt, 0 skip.
 - [x] Reference docs/feature index cập nhật; link checker được chạy trước commit tài liệu, status Implemented sau G4.
-- [x] Handoff và DoD quy trình chưa đạt có BL-017/018; backlog cũ ngoài scope giữ nguyên.
+- [x] Handoff và DoD quy trình chưa đạt có BL-019/020; backlog cũ ngoài scope giữ nguyên.
