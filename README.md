@@ -78,7 +78,7 @@ cp env/.env.example env/.env.development
 npm run start:dev          # http://localhost:3000/health/ready · http://localhost:3000/docs
 ```
 
-Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e` (trong `backend/`). Chi tiết, quy ước và các lệnh khác: [backend/README.md](backend/README.md).
+Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db` (trong `backend/`). CI chạy đúng các lệnh này (cộng `build`) trên mỗi PR; cách đọc kết quả: [CONTRIBUTING mục 4b](CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions). Chi tiết, quy ước và các lệnh khác: [backend/README.md](backend/README.md).
 
 | Dịch vụ | Địa chỉ |
 |---|---|

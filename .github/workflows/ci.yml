@@ -1,0 +1,155 @@
+# CI cho mọi PR và mọi lần push vào main (DBS-35). Cách đọc kết quả: CONTRIBUTING.md mục 4b.
+#
+# TÊN JOB LÀ HỢP ĐỒNG. Required status checks của `main` (DBS-37) khớp theo tên `lint`, `typecheck`,
+# `unit`, `e2e`, `db`, `build`. Đổi tên một job mà không đổi ruleset cùng lúc thì mọi PR treo ở
+# "Expected" vĩnh viễn. Vì cùng lý do không đặt `paths:` ở trigger, và workflow khác không được đặt
+# job trùng một trong sáu tên này.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # PR: một nhóm theo ref, commit mới hủy lần chạy cũ. push: mỗi lần một nhóm riêng (run_id), vì một
+  # lần chạy đang chờ trong nhóm chung vẫn bị lần mới đè dù cancel-in-progress là false, và commit
+  # merge nằm giữa sẽ mất kết quả.
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: "24"
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint:check
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+
+  unit:
+    name: unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run test:e2e
+
+  db:
+    name: db
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: banking
+        ports:
+          - 5432:5432
+        # -h 127.0.0.1: pg_isready mặc định nối qua Unix socket, mà server tạm của bước khởi tạo
+        # image chỉ nghe socket, nên không có -h thì "sẵn sàng" có thể đến trước khi server thật nghe
+        # TCP. Interval mặc định là 30 giây nên hạ xuống.
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d banking"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/banking
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      # TC-21-24 dùng `session_replication_role = replica` nên role phải là superuser, và ADR-02 yêu
+      # cầu timezone UTC. Không dựa vào mặc định của image: sai thì job đỏ ngay ở đây, với lý do rõ.
+      - name: Kiểm Postgres (superuser, UTC)
+        shell: bash
+        run: |
+          superuser=$(psql "$DATABASE_URL" -tAc "select rolsuper from pg_roles where rolname = current_user")
+          timezone=$(psql "$DATABASE_URL" -tAc "show timezone")
+          echo "rolsuper=$superuser timezone=$timezone"
+          test "$superuser" = t
+          case "$timezone" in UTC | Etc/UTC) ;; *) echo "timezone phải là UTC"; exit 1 ;; esac
+      - run: npm run test:db
+
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run build

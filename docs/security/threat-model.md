@@ -1,6 +1,6 @@
 # Threat model: chuyển tiền và nạp tiền (STRIDE)
 
-> **Status:** Accepted (2026-10-11) · **Owner:** #2 (ứng dụng), #5 (hạ tầng) · **Cặp đôi:** #3, #6 · **Verified against code:** chưa (bằng chứng là các task DBS-n ghi ở cột cuối; điền link test hoặc ảnh khi task xong; T5 đã kiểm bởi DBS-22) · **Cập nhật:** 2026-10-17
+> **Status:** Accepted (2026-10-11) · **Owner:** #2 (ứng dụng), #5 (hạ tầng) · **Cặp đôi:** #3, #6 · **Verified against code:** chưa (bằng chứng là các task DBS-n ghi ở cột cuối; điền link test hoặc ảnh khi task xong; T5 đã kiểm bởi DBS-22; T9 có hàm kiểm tra schema từ DBS-24, chờ consumer) · **Cập nhật:** 2026-10-19
 
 Phạm vi: hai luồng đụng tới tiền, UC-5 chuyển tiền và UC-3 nạp tiền tại quầy, cùng các thành phần chúng đi qua. Nguồn thiết kế: [docs/03 §6, §12, §13](../03_HIGH_LEVEL_ARCHITECTURE.md), [ADR-05](../adr/0005-idempotency-in-postgres.md), [ADR-06](../adr/0006-cognito-ecs-fargate.md), [ADR-10](../adr/0010-fargate-egress-public-subnet.md), [database-design §8](../components/_shared/database-design.md).
 
@@ -76,7 +76,7 @@ Trạng thái: **Thiết kế** = biện pháp đã nằm trong thiết kế, ch
 | T6 | **T**ampering | Gửi song song nhiều lệnh để vượt hạn mức ngày hoặc rút quá số dư | Khóa `FOR UPDATE` theo thứ tự id, sync guard sau khóa; DB `CHECK (balance >= 0)` cho tài khoản khách | AC-5.6, AC-5.9, DBS-98, DBS-99 | Thiết kế |
 | T7 | **T**ampering | Gửi lại một lệnh (replay) để trừ tiền nhiều lần | `Idempotency-Key` bắt buộc, `PRIMARY KEY (user_id, idem_key)`, `ON CONFLICT DO NOTHING`, cùng transaction | AC-5.3, 5.4, 5.10, DBS-97, DBS-185 | Thiết kế |
 | T8 | **T**ampering | Dùng cùng key với nội dung khác để đổi số tiền của lệnh đã chạy | `request_hash` SHA-256; khác hash → `422 IDEMPOTENCY_KEY_REUSED` | AC-5.5, DBS-79 | Thiết kế |
-| T9 | **T**ampering | Message giả hoặc hỏng trong queue làm sai cờ | Chỉ IAM role của worker gửi/nhận được SQS; consumer validate schema, sai thì vào DLQ ngay; idempotent theo `eventId` | DBS-101, DBS-104, DBS-120 | Thiết kế |
+| T9 | **T**ampering | Message giả hoặc hỏng trong queue làm sai cờ | Chỉ IAM role của worker gửi/nhận được SQS; consumer validate schema, sai thì vào DLQ ngay; idempotent theo `eventId` | [DBS-24](../features/DBS-24-common-events-types-schema.md) (hàm kiểm tra `validateEvent`), DBS-101, DBS-104, DBS-120 | Thiết kế |
 | T10 | **R**epudiation | Nhân viên chối đã nạp tiền, khóa tài khoản hay kết luận cờ | Mọi thao tác ghi có `audit_log` cùng transaction (fail-closed), kèm người, vai trò, lý do, `correlationId` | AC-11.3, AC-8.2, DBS-56, DBS-135 | Thiết kế |
 | T11 | **R**epudiation | Lần truy cập bị từ chối không để lại dấu vết | Ghi `outcome = DENIED` cho truy cập trái quyền, ở transaction riêng để không bị rollback theo lỗi | AC-5.8, DBS-56, DBS-86 | Thiết kế |
 | T12 | **I**nformation disclosure | Khách A đọc tài khoản hoặc giao dịch của khách B (IDOR) | Kiểm sở hữu trong service ở mọi endpoint có id; trả 404 giống hệt cho "không tồn tại" và "không phải của bạn" | AC-5.8, DBS-86, DBS-158 | Thiết kế |

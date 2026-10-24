@@ -1,6 +1,6 @@
 # DBS-39 · Testcontainers: helper Postgres 17 chạy migration cho test
 
-> **Status:** Plan approved (đợt sửa vòng 2 sau review xong, chờ G4; chuyển Implemented sau khi G4 được duyệt) · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-39-testcontainers-postgres` · **PR:** — · **Cập nhật:** 2026-10-24
+> **Status:** Implemented (đợt sửa vòng 2 sau review, G4 đã duyệt 2026-10-24) · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-39-testcontainers-postgres` · **PR:** — · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -36,7 +36,7 @@
   4. README nêu giới hạn của `BEGIN`/`ROLLBACK` (DoD #2).
   5. Test số dư âm (trùng DBS-20): giữ làm test khói, ghi rõ lý do (DoD #3).
   6. *(thêm sau domain review, **cần duyệt ở G2** vì ngoài danh sách G1)* Hạn riêng **15 giây** (`DOCKER_CHECK_TIMEOUT_MS`) cho bước kiểm tra Docker. Daemon nhận socket nhưng không trả lời (Docker Desktop đang khởi động) làm `assertDockerAvailable()` treo mà không hạn nào bao, trái DoD #4 "không treo" (TC-39-08).
-- **Ngoài phạm vi:** merge hoặc rebase `main` vào nhánh; bộ chặn `DATABASE_URL` trỏ ra server không-local.
+- **Ngoài phạm vi:** rebase `main` vào nhánh (merge `main` thì đã làm ở G4 theo yêu cầu của người giữ repo, xem §8.5); bộ chặn `DATABASE_URL` trỏ ra server không-local.
 - **Bàn giao cho vai khác (vào `docs/BACKLOG.md` ở Phase 5):**
 
 | Việc | Vai đề xuất | Bằng chứng | Điều kiện đóng |
@@ -317,6 +317,7 @@ Chạy trên `d8e264a` (dòng đầu của [manual-test.txt](screenshots/DBS-39/
 - Phạm vi file khớp §7. Bước 5: lệnh `grep` chứng minh trong §7 dùng cụm "một kết nối" nhưng cụm này đã có ở dòng khác của README; bằng chứng thực tế là dòng "Giới hạn" mới ở mục cô lập dữ liệu (xem commit `8f903e4`).
 - Ba chỗ của §5 được sửa chữ khi chạy thật (hành vi test không đổi, cần bạn biết vì §5 là thiết kế đã duyệt ở G2): M-39-02 thêm cách mô phỏng bằng `DOCKER_HOST` giả; M-39-04 yêu cầu lấy hai dòng log của **cùng mã container** (dòng `Container is ready` đầu tiên là của Ryuk); M-39-06 cho phép dùng Postgres tạm vì mật khẩu mặc định của compose không đảm bảo đúng với volume cũ, và kích lượt 2 bằng `touch` khi shell không tương tác. Đây là chỉnh sửa tài liệu, không đổi phạm vi code.
 - Không có thay đổi nào ngoài danh sách file của §7 và không có test case bị bỏ.
+- **Phê duyệt ở G4 (2026-10-24):** người giữ repo chấp nhận M-39-02 ở dạng mô phỏng bằng `DOCKER_HOST` giả, chấp nhận việc thiếu ảnh chụp màn hình của cả sáu bước, duyệt ba chỉnh sửa chữ của §5 ở trên, và cho phép merge `main` vào nhánh để giải xung đột.
 
 ### 8.5. Bàn giao cho vai khác
 
@@ -326,13 +327,14 @@ Chạy trên `d8e264a` (dòng đầu của [manual-test.txt](screenshots/DBS-39/
 | `BL-016` | CI trên `main` cấp `DATABASE_URL` nên đường Testcontainers không chạy trong CI; DoD #5 "CI xanh" chỉ phủ test DB trên service | #5 Platform & Ops (DBS-35) |
 | `BL-017` | Test DB chạy bằng superuser (Testcontainers và service CI) nên chưa chứng minh quyền của role ứng dụng; liên quan `BL-005` | Dev (DBS-40, DBS-41) |
 
-- **Lưu ý khi merge `main`:** `main` đã xóa hàng `BL-001` (DBS-35 làm xong CI) và đã dùng `BL-010` đến `BL-014`; vì vậy ba hàng trên lấy ID từ `BL-015`. Hàng `BL-001` trên nhánh này (có DBS-39 làm nguồn) sẽ xung đột với `main` khi merge; cách giải đúng là bỏ hàng đó như `main`.
+- **Merge `main` vào nhánh (quyết định của người giữ repo ở G4, 2026-10-24):** `main` đã xóa hàng `BL-001` (DBS-35 làm xong CI) và đã dùng `BL-010` đến `BL-014`; vì vậy ba hàng trên lấy ID từ `BL-015`. Đã merge `origin/main` (`d158296`) vào nhánh bằng một merge commit, không rebase, không ghi đè lịch sử. Hai file xung đột, đều là docs: `docs/BACKLOG.md` (bỏ `BL-001` như `main`, lấy `BL-002` và `BL-003` bản của `main`, giữ `BL-010…014` của `main` rồi `BL-015…017` của task này, ngày cập nhật mới nhất) và `docs/features/README.md` (giữ cả hàng DBS-24, DBS-35 và DBS-39, xếp theo số task). Code không xung đột.
+- **Kiểm tra lại trên kết quả merge** (tree có thêm code của `main`: `@common/events`, `ci.yml`): `lint:check` và `typecheck` sạch · `npm test` 25 suite / 367 test xanh · `test:e2e` 4 suite / 25 test xanh · `test:db` 4 suite / 51 test xanh (18,7 giây, Testcontainers). Code của task không đổi sau `d8e264a` nên không chạy lại M-39-01…06; không còn container Postgres nào sót lại.
 
 ## 9. Tài liệu đã cập nhật
 
 - `backend/README.md`: nêu giới hạn của `BEGIN`/`ROLLBACK` (chỉ một kết nối) ở mục cô lập dữ liệu.
-- `docs/BACKLOG.md`: thêm `BL-015`, `BL-016`, `BL-017`. Không xóa hàng nào (không hàng nào do task này giải quyết); `BL-001` giữ nguyên trên nhánh này vì `main` đã xử lý.
+- `docs/BACKLOG.md`: thêm `BL-015`, `BL-016`, `BL-017`. Không hàng nào do task này giải quyết. Hàng `BL-001` đã bỏ khi giải xung đột với `main`, vì DBS-35 đã xóa nó ở `main` (CI đã có); không phải do DBS-39.
+- `docs/features/README.md`: giải xung đột khi merge `main` (giữ cả DBS-24, DBS-35, DBS-39); không đổi nội dung hàng DBS-39.
 - `docs/features/DBS-39-testcontainers-postgres.md`: viết lại §1.1, §2–§8; thêm TC-39-06…08 và M-39-04…06.
 - `docs/features/screenshots/DBS-39/domain-review.md`: thêm hai khối trả lời nguyên văn của reviewer (đợt sửa vòng 2).
 - `docs/features/screenshots/DBS-39/manual-test.txt`: thay bằng bằng chứng của lần chạy trên `d8e264a`.
-- `docs/features/README.md`: không đổi (hàng DBS-39 đã có).
