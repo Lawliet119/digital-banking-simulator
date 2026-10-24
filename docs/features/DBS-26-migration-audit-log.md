@@ -1,6 +1,6 @@
 # DBS-26 · Migration: audit_log
 
-> **Status:** Implemented (chờ duyệt lại G4 sau merge `main`, §8) · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-26-migration-audit-log` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/13) · **Cập nhật:** 2026-10-24
+> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-26-migration-audit-log` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/13) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -215,7 +215,7 @@ Mermaid ở §3 đã render thành công bằng mermaid-cli 12.0.0 sau chỉnh s
 
 ## 8. Kết quả
 
-**Trạng thái:** G4 đã được duyệt ngày 2026-10-22 trên SHA cũ; sau đó nhánh được merge `origin/main` (DBS-25, DBS-39) và chạy lại toàn bộ bằng chứng, nên **cần duyệt lại G4** (xem "Sau G4" bên dưới). Code cuối: `8c79baf58b86c46643fe9d28b4570128cec4dad8` (dòng đầu `manual-test.txt` và `verification.txt`), nhánh `feat/DBS-26-migration-audit-log`. Dev review/CI/merge theo trạng thái PR.
+**Trạng thái:** G4 được duyệt ngày 2026-10-22 và **duyệt lại ngày 2026-10-24** sau khi nhánh merge `origin/main` (DBS-25, DBS-39) và chạy lại toàn bộ bằng chứng (xem "Sau G4" và "Duyệt lại G4"). Code cuối: `8c79baf58b86c46643fe9d28b4570128cec4dad8` (dòng đầu `manual-test.txt` và `verification.txt`), nhánh `feat/DBS-26-migration-audit-log`. Dev review/CI/merge theo trạng thái PR.
 
 **Kiểm tra bàn giao:** [output đầy đủ](screenshots/DBS-26/verification.txt): lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **5 suite / 87 test** đạt, 0 skip. Có 49 test nền và 38 lượt mới audit/helper. Không có mock database.
 
@@ -268,7 +268,7 @@ Kiểm chuỗi với trigger27 phát hiện sáu regression đỏ do audit khôn
 - **Môi trường kiểm lại:** `npm ci` lại sau merge (`main` thêm `testcontainers`); lần đầu dùng `node_modules` cũ cho lỗi `TS2307`, không phải lỗi code. Test DB chạy trên Postgres 17 tạm như ghi ở M-26-01, và trên worktree merge thử còn chạy đường Testcontainers của DBS-39 (7 suite / 129 test).
 - **Ảnh:** năm ảnh được dựng lại từ `manual-test.txt` mới (các dòng nguyên văn, bỏ mã màu ANSI) bằng Edge headless; mỗi ảnh ghi SHA `8c79baf`.
 - **Chưa xác minh được:** CI xanh của PR #13 trên SHA này (chưa push, `gh` chưa đăng nhập); do đó vẫn thuộc BL-020.
-- **Duyệt lại G4:** commit `0cbfb81`/`d0af33b` (sửa timezone sau CI) và merge này đổi SHA cùng bằng chứng đã được duyệt ở G4 ngày 2026-10-22; bằng chứng mới cần duyệt lại trước khi push.
+- **Duyệt lại G4:** commit `0cbfb81`/`d0af33b` (sửa timezone sau CI) và merge này đổi SHA cùng bằng chứng đã duyệt ngày 2026-10-22; bằng chứng mới đã được duyệt lại ngày 2026-10-24.
 
 **Phạm vi và cách vận hành:** allowlist §7 được giữ; không đổi dependency, ADR, ErrorCode, env hoặc quy tắc tiền. Dùng worktree độc lập để source CLI không đổi khi checkout chính chuyển nhánh. Output thô có trailing spaces/newline của npm, được giữ nguyên; whitespace check loại riêng các file .txt trong evidence.
 
@@ -287,6 +287,8 @@ Kiểm chuỗi với trigger27 phát hiện sáu regression đỏ do audit khôn
 **Bàn giao:** BL-019 AuditService/API/metadata/fail-closed/production roles, trigger do DBS-27 cung cấp; BL-020 Dev review/CI/merge. BL-005 quyền/chủ view còn nguyên; task26 không nhận AC-8.1 production roles hoặc AC-8.2 HTTP đã đạt. Fixture chỉ có UUID/mã kỹ thuật tổng hợp; transcript đã rà không có token, Authorization, password, AWS ID/ARN.
 
 **Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
+
+**Duyệt lại G4 (2026-10-24):** người dùng trả lời «duyệt» cho bộ bằng chứng trên SHA `8c79baf` (sau merge `main`, driver đã sửa, chạy trên Postgres tạm như ghi ở M-26-01). Được phép push nhánh riêng để cập nhật PR #13. Domain review độc lập cho code và test chưa được yêu cầu, giữ làm đề xuất cho Dev review. Agent không merge PR hay sửa board.
 
 **CI sau G4:** [job DB đầu của PR13](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39804974688/job/119915640569) phát hiện TC-26-04 so tên timezone quá chặt: PostgreSQL Debian trả `Etc/UTC`, local trả `UTC`; [trích output lỗi](screenshots/DBS-26/ci-timezone-failure.txt). Đã tái hiện đỏ bằng session options trên DB tạm, rồi sửa test nhận hai tên UTC tương đương và kiểm offset mùa đông/mùa hè đều bằng 0. Toàn bộ 87 test DB với `Etc/UTC` đã xanh trước commit `0cbfb81`; production migration, env và schema không đổi. Sau commit đó đã chạy lại manual và baseline (SHA khi ấy `0cbfb81`); các bằng chứng này được thay bằng bộ chạy trên `8c79baf` ở mục "Sau G4" phía trên. CI của commit bàn giao được xác nhận riêng trên PR.
 
