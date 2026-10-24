@@ -1,6 +1,6 @@
 # DBS-25 · Migration: outbox_events và processed_events
 
-> **Status:** Plan approved (đợt sửa sau review chờ G4 duyệt lại) · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-25-migration-outbox-events` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/12) · **Cập nhật:** 2026-10-24
+> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-25-migration-outbox-events` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/12) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -221,7 +221,7 @@ Mermaid ở §3 đã render thành công bằng mermaid-cli 12.0.0 sau lần ch�
 
 ## 8. Kết quả
 
-**Trạng thái:** G4 ngày 2026-10-22 đã duyệt kết quả ở code `b0f4714`. Đợt sửa sau review ngày 2026-10-24 (mục «Sửa sau review» bên dưới) đổi test và driver nên **chờ G4 duyệt lại**; Dev review/CI/merge theo trạng thái PR. Code cuối: `99731366b14ba346f1f52fa211babd885ade6e0d` (dòng đầu transcript). Nhánh `feat/DBS-25-migration-outbox-events`, thực hiện trong worktree riêng để không bị checkout bên ngoài làm đổi source khi kiểm CLI.
+**Trạng thái:** G4 ngày 2026-10-22 đã duyệt kết quả ở code `b0f4714`; đợt sửa sau review ngày 2026-10-24 (mục «Sửa sau review» bên dưới) đổi test và driver, đã được G4 duyệt lại cùng ngày. Dev review/CI/merge theo trạng thái PR. Code cuối: `99731366b14ba346f1f52fa211babd885ade6e0d` (dòng đầu transcript). Nhánh `feat/DBS-25-migration-outbox-events`, thực hiện trong worktree riêng để không bị checkout bên ngoài làm đổi source khi kiểm CLI.
 
 **Kiểm tra bàn giao:** xem [output đầy đủ](screenshots/DBS-25/verification.txt), chạy trên `9973136` với màu tắt (`NO_COLOR=1`): lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **4 suite / 89 test** đạt; 0 skip. Bộ DB gồm 49 test cũ và 40 lượt trong outbox-schema (38 ban đầu và 2 ca thành công mới của TC-25-17/20). Không có mock DB.
 
@@ -299,6 +299,8 @@ Hai commit: `5e57abc` (điểm 1–2) và `9973136` (điểm 4). Điểm 5 của
 
 **Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
 
+**Quyết định ở G4 lần hai (2026-10-24):** người dùng trả lời «ok duyệt» cho thông điệp G4 gồm bốn đề xuất: giữ sáu ảnh vì transcript giống hệt sau khi bỏ nhiễu môi trường; chạy lại kiểm tra tương thích DBS-26/27 khi tích hợp; ghi nhận sai lệch `b0f4714` ở §8; push nhánh để cập nhật PR #12. Status trở lại Implemented. Agent không sửa board hoặc merge PR; Dev khác review.
+
 ## 9. Tài liệu đã cập nhật
 
 Feature doc này, raw review và evidence trong screenshots/DBS-25; database-design §6/§11 và phạm vi schema đã triển khai; README outbox, backend/README, feature index; BACKLOG thêm BL-015/016. Không xóa backlog cũ chưa giải quyết.
@@ -310,5 +312,5 @@ Feature doc này, raw review và evidence trong screenshots/DBS-25; database-des
 - [x] Sáu ảnh output thật, transcript đã rà secret; UUID kỹ thuật được giữ.
 - [x] Diff main...HEAD chỉ có allowlist §7; không workbook hoặc source task khác.
 - [x] Sáu lệnh kiểm tra bàn giao đạt, 0 test skip.
-- [x] Reference docs và feature index đã cập nhật; link checker 85 file / 0 lỗi; status Implemented sau khi G4 duyệt lại đợt sửa 2026-10-24 (hiện Plan approved).
+- [x] Reference docs và feature index đã cập nhật; link checker 85 file / 0 lỗi; status Implemented sau G4 duyệt lại đợt sửa 2026-10-24.
 - [x] Handoff và DoD quy trình chưa hoàn thành có BL-015/016; backlog cũ ngoài scope giữ nguyên.
