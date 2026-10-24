@@ -1,0 +1,162 @@
+32015c609b1af8b06633fcb8fb44a949a7dd512b
+Manual runtime logging check; source app, PostgreSQL Compose, synthetic secrets only.
+
+$ APP_ROLE=api LOG_LEVEL=debug PORT=<ephemeral> node -r ts-node/register -r tsconfig-paths/register src/main.ts
+PASS api started
+PASS M-42-01 ready=200 against real PostgreSQL
+PASS M-42-01 server chooses correlationId
+HTTP ready status=200 correlationId=ddf360e0-bda0-46cc-bdbe-bb22a72039a9
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}
+PASS M-42-02 unknown route=404
+HTTP missing status=404 correlationId=93ab7c44-196e-49e3-927c-666931cf4954
+Selected problem fields: {"status":404,"correlationId":"93ab7c44-196e-49e3-927c-666931cf4954"}
+PASS M-42-01 response ID appears in JSON log
+APPLICATION STDOUT:
+{"level":30,"time":"2026-10-24T08:38:13.695Z","appRole":"api","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":30,"time":"2026-10-24T08:38:13.710Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.710Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.711Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.711Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.711Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.744Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.744Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TerminusModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.745Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.746Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"HealthModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.765Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.766Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:13.785Z","appRole":"api","role":"api","correlationId":null,"context":"RoutesResolver","message":"HealthController {/health} (version: Neutral):"}
+{"level":30,"time":"2026-10-24T08:38:13.787Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/live, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-10-24T08:38:13.787Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/ready, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-10-24T08:38:13.788Z","appRole":"api","role":"api","correlationId":null,"context":"NestApplication","message":"Nest application successfully started"}
+{"level":30,"time":"2026-10-24T08:38:13.790Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","port":57775,"message":"HTTP listener started"}
+{"level":30,"time":"2026-10-24T08:38:13.790Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","message":"Swagger UI available at /docs"}
+{"level":30,"time":"2026-10-24T08:38:13.887Z","appRole":"api","req":{"method":"GET"},"role":"api","correlationId":"49ecf5e8-62a9-430c-9c03-c088f6243edb","res":{"statusCode":200},"responseTime":7,"message":"Request completed"}
+{"level":30,"time":"2026-10-24T08:38:13.895Z","appRole":"api","req":{"method":"GET"},"role":"api","correlationId":"ddf360e0-bda0-46cc-bdbe-bb22a72039a9","res":{"statusCode":200},"responseTime":4,"message":"Request completed"}
+{"level":40,"time":"2026-10-24T08:38:13.925Z","appRole":"api","req":{"method":"POST"},"role":"api","correlationId":"93ab7c44-196e-49e3-927c-666931cf4954","res":{"statusCode":404},"responseTime":8,"message":"Request completed"}
+PASS no plain-text stderr
+PASS M-42-02 no sensitive fixtures in logs
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+
+$ APP_ROLE=worker LOG_LEVEL=debug PORT=<ephemeral> node -r ts-node/register -r tsconfig-paths/register src/main.ts
+PASS worker started
+PASS M-42-03 worker has no HTTP listener
+APPLICATION STDOUT:
+{"level":30,"time":"2026-10-24T08:38:15.235Z","appRole":"worker","role":"worker","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":30,"time":"2026-10-24T08:38:15.250Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:15.250Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:15.250Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:15.250Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:15.251Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:15.285Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:15.285Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:15.303Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:15.303Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:15.305Z","appRole":"worker","role":"worker","correlationId":null,"context":"Bootstrap","message":"Worker started — no HTTP listener"}
+PASS no plain-text stderr
+PASS M-42-02 no sensitive fixtures in logs
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-03 worker role and null startup ID
+
+$ APP_ROLE=both LOG_LEVEL=debug PORT=<ephemeral> node -r ts-node/register -r tsconfig-paths/register src/main.ts
+PASS both started
+PASS M-42-01 ready=200 against real PostgreSQL
+PASS M-42-01 server chooses correlationId
+HTTP ready status=200 correlationId=0b58676f-9df8-4535-ad98-496964a401eb
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}
+PASS M-42-02 unknown route=404
+HTTP missing status=404 correlationId=74f11804-3b34-433e-9801-76c46785ffa5
+Selected problem fields: {"status":404,"correlationId":"74f11804-3b34-433e-9801-76c46785ffa5"}
+PASS M-42-01 response ID appears in JSON log
+APPLICATION STDOUT:
+{"level":30,"time":"2026-10-24T08:38:16.813Z","appRole":"both","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":30,"time":"2026-10-24T08:38:16.828Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.828Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.828Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.828Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.829Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.861Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.861Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"TerminusModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.862Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.862Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"HealthModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.877Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.877Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
+{"level":30,"time":"2026-10-24T08:38:16.900Z","appRole":"both","role":"api","correlationId":null,"context":"RoutesResolver","message":"HealthController {/health} (version: Neutral):"}
+{"level":30,"time":"2026-10-24T08:38:16.901Z","appRole":"both","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/live, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-10-24T08:38:16.901Z","appRole":"both","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/ready, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-10-24T08:38:16.903Z","appRole":"both","role":"api","correlationId":null,"context":"NestApplication","message":"Nest application successfully started"}
+{"level":30,"time":"2026-10-24T08:38:16.904Z","appRole":"both","role":"api","correlationId":null,"context":"Bootstrap","port":57797,"message":"HTTP listener started"}
+{"level":30,"time":"2026-10-24T08:38:16.904Z","appRole":"both","role":"api","correlationId":null,"context":"Bootstrap","message":"Swagger UI available at /docs"}
+{"level":30,"time":"2026-10-24T08:38:16.963Z","appRole":"both","req":{"method":"GET"},"role":"api","correlationId":"47e11a0f-a398-4387-9f5a-40f0f31d80bb","res":{"statusCode":200},"responseTime":4,"message":"Request completed"}
+{"level":30,"time":"2026-10-24T08:38:16.968Z","appRole":"both","req":{"method":"GET"},"role":"api","correlationId":"0b58676f-9df8-4535-ad98-496964a401eb","res":{"statusCode":200},"responseTime":4,"message":"Request completed"}
+{"level":40,"time":"2026-10-24T08:38:16.980Z","appRole":"both","req":{"method":"POST"},"role":"api","correlationId":"74f11804-3b34-433e-9801-76c46785ffa5","res":{"statusCode":404},"responseTime":9,"message":"Request completed"}
+PASS no plain-text stderr
+PASS M-42-02 no sensitive fixtures in logs
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS both keeps appRole and HTTP role
+
+$ APP_ROLE=api LOG_LEVEL=error PORT=<ephemeral> node -r ts-node/register -r tsconfig-paths/register src/main.ts
+PASS api started
+PASS M-42-01 ready=200 against real PostgreSQL
+PASS M-42-01 server chooses correlationId
+HTTP ready status=200 correlationId=413651a6-1d90-415b-ad7f-4ba6c1d03062
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}
+PASS M-42-02 unknown route=404
+HTTP missing status=404 correlationId=8b951a32-e980-4919-ba99-163536470041
+Selected problem fields: {"status":404,"correlationId":"8b951a32-e980-4919-ba99-163536470041"}
+APPLICATION STDOUT:
+(empty)
+PASS no plain-text stderr
+PASS M-42-02 no sensitive fixtures in logs
+PASS M-42-04 error level suppresses successful startup, 200 and 404 logs
+
+All manual runtime checks passed. Error paths are additionally executed by logging-bootstrap/logging HTTP e2e suites.

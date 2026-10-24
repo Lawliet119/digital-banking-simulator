@@ -19,7 +19,10 @@ describe('main.ts wiring of @common/money (DBS-22)', () => {
 
     const envAt = indexOfLine(/^import '\.\/config\/env\.bootstrap';$/);
     const moneyAt = indexOfLine(/^import '@common\/money\/bigint-json\.bootstrap';$/);
-    const appModuleAt = indexOfLine(/^import \{ AppModule \} from '\.\/app\.module';$/);
+    // AppModule is loaded inside the guarded bootstrap so configuration errors are logged safely.
+    const appModuleAt = indexOfLine(
+      /^\s*const \{ AppModule \} = await import\('\.\/app\.module'\);$/,
+    );
 
     expect(envAt).toBeGreaterThanOrEqual(0);
     expect(appModuleAt).toBeGreaterThanOrEqual(0);

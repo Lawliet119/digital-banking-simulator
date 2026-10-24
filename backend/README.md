@@ -103,7 +103,7 @@ Mọi lỗi trả về `application/problem+json`:
 - Ném `HttpException` kèm `errorCode` (và các trường khác muốn trả); filter chuyển tiếp chúng. Các trường RFC (`type`, `title`, `status`, `detail`) luôn thắng — đừng gửi `status: 'REJECTED'`, hãy dùng `errorCode` + `transferId`.
 - Chỉ thêm member vào `ErrorCode` khi client **phải rẽ nhánh** theo nó.
 - Lỗi DB tạm thời (deadlock còn sót sau retry, mất kết nối) → **503 + `Retry-After`**; client gửi lại **cùng `Idempotency-Key`** là an toàn.
-- Lỗi lạ → 500 với nội dung chung chung; chi tiết thật chỉ nằm trong log (kèm `correlationId`), không bao giờ ra client.
+- Lỗi lạ → 500 với nội dung chung chung; log chỉ giữ loại lỗi, mã kỹ thuật an toàn và `correlationId`. Không ghi raw error message, stack, SQL hoặc credential.
 - **`correlationId` luôn do server sinh** (header `X-Correlation-Id`); client không chọn được, nên không ai dùng lại id của người khác để làm nhiễu truy vết audit. Id do client gửi qua `X-Request-Id` (phải là UUID) chỉ được trả lại nguyên vẹn để client đối chiếu request, không dùng cho audit.
 
 ### 4. Ranh giới module do eslint ép
@@ -163,6 +163,27 @@ return { amount: formatMoney(amount) };
 - So `===` giữa `Money` và `Balance` (hai kiểu khác nhãn): dùng `<`, `>`, hoặc mở rộng trước `(a as bigint) === b`.
 
 `MoneyError` (`reason`: `INVALID`, `OVERFLOW`, `UNDERFLOW`, `NOT_POSITIVE`) không phải lỗi HTTP: bắt nó ở chỗ có ý nghĩa nghiệp vụ; lọt ra ngoài thì thành 500 chung chung, không lộ gì. Lỗi DTO là 400 với danh sách `errors`, **không có `errorCode`** (client chỉ cần sửa và gửi lại). `main.ts` và `configureHttpApp` gọi `installBigIntJson()` để `JSON.stringify` ra chuỗi cho `bigint` còn sót; đó là lưới an toàn, không thay cho `formatMoney`. Chưa có luật lint chặn `parseInt`/`Number` trên tiền (BL-008): review code phải bắt.
+
+### 8. Log JSON
+
+Log ứng dụng dùng `nestjs-pino`, mỗi dòng là một JSON object trên stdout, áp dụng cả API, worker và bootstrap. Thông báo npm/compiler/Docker không thuộc log ứng dụng.
+
+| Trường | Quy ước |
+|---|---|
+| `level` | Số Pino: trace 10, debug 20, info 30, warn 40, error 50, fatal 60 |
+| `time` | ISO 8601 UTC, có `Z` |
+| `message` | Thông điệp chẩn đoán cố định, không nội suy dữ liệu cá nhân hoặc error text |
+| `role` | `api` hoặc `worker`; tiến trình `both` mặc định `api`, HTTP luôn `api` |
+| `appRole` | Vai trò tiến trình `api`, `worker` hoặc `both` |
+| `correlationId` | UUID server của HTTP request; `null` ngoài request/context |
+
+`LOG_LEVEL` giữ nguyên sáu giá trị: `verbose`→trace, `debug`→debug, `log`→info, `warn`→warn, `error`→error, `fatal`→fatal. Chỉ ghi mức đã chọn và các mức nghiêm trọng hơn. Dùng `new Logger(TenService.name)` từ Nest để log đi qua cùng cấu hình.
+
+HTTP completion chỉ ghi method, status và thời gian xử lý; không ghi URL/path/query, headers/cookies, địa chỉ mạng hoặc request/response body. Logger gắn trước CORS và body parser để cả preflight và JSON lỗi có correlationId. Log retry và filter lỗi chỉ ghi thông điệp cố định, số lần thử và mã SQLSTATE/network được phép. Error message/stack/cause và SQL/parameters không được ghi.
+
+Các key chứa Authorization, token, password/secret, cookie, số tài khoản/thẻ được che đệ quy, kể cả trong mảng và tham số định dạng. Serialization hook không được thực thi trong metadata đã lọc. Đây là bảo vệ bổ sung: không truyền payload khách hàng hoặc chuỗi lỗi thô vào logger. Log vận hành không thay cho audit log trong transaction.
+
+Context xuyên worker/message và provider AsyncLocalStorage chung thuộc DBS-43; khi chạy `both`, tác vụ nền phải gắn context `role=worker` qua tích hợp đó. Chi tiết và bằng chứng: [DBS-42](../docs/features/DBS-42-json-logger.md).
 
 ## Docker
 
