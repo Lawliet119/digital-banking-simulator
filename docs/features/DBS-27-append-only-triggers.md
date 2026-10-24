@@ -1,10 +1,10 @@
 # DBS-27 · Hàm forbid_mutation và trigger chặn sửa/xóa các bảng chỉ-thêm
 
-> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/14) · **Cập nhật:** 2026-10-24
+> **Status:** Plan approved (chờ duyệt lại G4 sau khi merge `main`, xem §8) · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/14) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
-- **Nguồn yêu cầu:** workbook local `Jira chạy bằng cơm (1).xlsx`, tab `Tuần 1`, hàng 12, cột A–K; workbook chỉ đọc và không đưa vào Git. Đã chạy `fetch-task.mjs DBS-27`: yêu cầu giống workbook; board trực tiếp ghi `In Progress`, workbook ghi `To Do`. Agent không đổi trạng thái board.
+- **Nguồn yêu cầu:** workbook local `Jira chạy bằng cơm (1).xlsx`, tab `Tuần 1`, hàng 12, cột A–K; workbook chỉ đọc và không đưa vào Git. Đã chạy `fetch-task.mjs DBS-27`: yêu cầu giống workbook; board trực tiếp ghi `In Progress`, workbook ghi `To Do`. Ngày 2026-10-24 `fetch-task.mjs DBS-27` ghi `Done` dù PR #14 chưa merge nên DoD #5 chưa đạt; đã báo người dùng, agent không đổi trạng thái board.
 - **Task trên board:** Task, Tuần 1, ưu tiên Highest, assignee theo vai `Dev`, Deliverable/Demo `P2`; không có cá nhân được chỉ định trong workbook. Vai Dev phù hợp migration backend.
 - **Expect:** Dù code có lỗi hay ai đó có quyền, sổ cái và nhật ký không bị sửa hoặc xóa.
 - **DoD** (nguyên văn, đánh số):
@@ -18,7 +18,7 @@
   | Dependency | Workbook | Board trực tiếp / repository | Hệ quả |
   |---|---|---|---|
   | DBS-21 | To Do | Done; migration `1791849600000` đã có và chạy thành công | Đủ `transfers`, `ledger_entries`; workbook chậm hơn code |
-  | DBS-26 | To Do | In Progress; `audit_log` chưa tồn tại | Chỉ triển khai/kiểm hoàn chỉnh DBS-27 sau khi có migration thật của DBS-26; không tạo bảng hoặc service giả |
+  | DBS-26 | To Do | Lúc G1: In Progress, `audit_log` chưa tồn tại. Từ 2026-10-24: Done, đã squash-merge vào `main` (#13) cùng DBS-25 (#12) và DBS-39 (#15) | Chỉ triển khai/kiểm hoàn chỉnh DBS-27 trên migration thật của DBS-26; không tạo bảng hoặc service giả. Nhánh đã merge `origin/main`, bỏ phần dependency tạm (§8) |
 
 - **Đã có gì:** [database-design §8.3, §11–12](../components/_shared/database-design.md); [ADR-02](../adr/0002-postgresql-ledger.md); [DBS-21](DBS-21-migration-transfers-ledger-idempotency.md); [DBS-26](DBS-26-migration-audit-log.md); [backlog BL-005/BL-006](../BACKLOG.md); [threat model](../security/threat-model.md); [test ledger hiện tại](../../backend/test/db/ledger-schema.db-spec.ts); [test rollback hiện tại](../../backend/test/db/migration-revert.db-spec.ts); [harness database tạm](../../backend/test/support/temp-database.ts).
 - **Thực trạng đã chạy kiểm tra:** sau khi chạy hai migration nền trên database tạm bằng data source thật, catalog có `transfers`/`ledger_entries`, không có `audit_log`; số hàm `public.forbid_mutation` = 0 và số user trigger trong schema public = 0. Đã drop database tạm sau kiểm. Chưa có production roles `dbs_api`/`dbs_migrator` từ migration quyền; không dùng stub để nhận đủ production-role coverage.
@@ -31,7 +31,7 @@
   2. **Phạm vi regression/backlog:** đề xuất nhận phần trigger/test của BL-005; giữ phần quyền/chủ view và BL-006 ngoài task, không xóa cả dòng khi chưa xử lý hết điều kiện đóng.
   3. **Nhánh phụ thuộc:** ba task luôn dùng ba tên nhánh và commit riêng. Đề xuất DBS-27 dựa trên nhánh DBS-26 sau khi DBS-26 có commit migration hoàn chỉnh; phần diff của DBS-27 chỉ chứa trigger/test/tài liệu DBS-27 so với base DBS-26. Khi DBS-26 được Dev merge vào main mới chuyển base DBS-27 sang main. Nếu chỉ cho phép base main, DBS-27 cần chờ DBS-26 được merge; agent không tự merge.
 
-**Quyết định ở G1 (2026-10-22):** người dùng trả lời «duyệt G1», chấp nhận cả ba đề xuất: fixture `seed SQL` chỉ trong database tạm, không sửa `accounts.balance`; nhận phần trigger/test của BL-005, giữ phần quyền/chủ view và BL-006 ngoài phạm vi; ba nhánh riêng, DBS-27 dựa trên DBS-26 sau khi migration audit hoàn chỉnh. Chưa viết production code hoặc test mới, chưa commit/push. Status giữ `Draft` đến khi G2 được duyệt.
+**Quyết định ở G1 (2026-10-22):** người dùng trả lời «duyệt G1», chấp nhận cả ba đề xuất: fixture `seed SQL` chỉ trong database tạm, không sửa `accounts.balance`; nhận phần trigger/test của BL-005, giữ phần quyền/chủ view và BL-006 ngoài phạm vi; ba nhánh riêng, DBS-27 dựa trên DBS-26 sau khi migration audit hoàn chỉnh. Chưa viết production code hoặc test mới, chưa commit/push. Status giữ `Draft` đến khi G2 được duyệt. **Cập nhật 2026-10-24:** theo đúng quyết định 3, DBS-26 đã vào `main` nên nhánh này đã merge `origin/main` (§8) và PR so với `main` chỉ còn diff của DBS-27.
 
 ## 2. Hành vi
 
@@ -237,7 +237,7 @@ Mermaid §3 đã render thành công bằng mermaid-cli 12.0.0; nội dung sơ �
 
 ## 7. Kế hoạch triển khai
 
-**Base và phạm vi file.** Nhánh `feat/DBS-27-append-only-triggers` sẽ đặt trên commit code đã hoàn chỉnh của nhánh DBS-26 theo G1. Chốt SHA base đó vào §8 trước khi viết code; không stub audit. Diff riêng DBS-27 so với base 26 chỉ có scope dưới đây. `main...HEAD` sẽ bao gồm dependency 26: báo riêng dependency và diff task, không coi code 26 là phần triển khai 27. Agent không tự merge nhánh 26 vào main.
+**Base và phạm vi file.** Nhánh `feat/DBS-27-append-only-triggers` sẽ đặt trên commit code đã hoàn chỉnh của nhánh DBS-26 theo G1. Chốt SHA base đó vào §8 trước khi viết code; không stub audit. Diff riêng DBS-27 so với base 26 chỉ có scope dưới đây. `main...HEAD` sẽ bao gồm dependency 26: báo riêng dependency và diff task, không coi code 26 là phần triển khai 27. Agent không tự merge nhánh 26 vào main. *Cập nhật 2026-10-24:* DBS-26 đã vào `main` (#13), nên `main...HEAD` chỉ còn diff DBS-27 sau khi merge `origin/main` (§8); phần so base26 ở trên không còn cần.
 
 **Quy tắc thực thi.** Mọi đường dẫn dưới đây tính từ repo root; lệnh npm chạy tại `backend/`. Viết test trước từng hành vi, chạy và ghi đúng một dòng lỗi đỏ thực tế, rồi mới viết code tối thiểu cho xanh. Cột đỏ ghi lỗi thực đã quan sát và kết quả sau sửa; chi tiết tại §8. Chỉ commit khi bước hoàn chỉnh xanh, không bỏ test hoặc dùng `--no-verify`. Mỗi commit chỉ stage allowlist của task; trước commit kiểm `git diff --cached --name-only` và nội dung staged, tuyệt đối không có workbook, secret hoặc file task khác.
 
@@ -271,11 +271,11 @@ Mermaid §3 đã render thành công bằng mermaid-cli 12.0.0; nội dung sơ �
 
 ## 8. Kết quả
 
-**Trạng thái:** đã được người dùng duyệt G4; triển khai local hoàn tất, bàn giao qua PR. Dev review/CI/merge theo trạng thái PR. Code cuối `6545701df7fdb3bc49677c859172f899a6726634` ở dòng đầu transcript; nhánh `feat/DBS-27-append-only-triggers`. Bắt đầu từ code audit thật `1310dfd`, sau đó cập nhật dependency đến `0cbfb814037abc6a353af0a0d2311e39ea10a06f` để kế thừa kiểm tra UTC đã sửa sau CI. Diff riêng task là `feat/DBS-26-migration-audit-log...HEAD`; diff so main chứa dependency26 đã duyệt ở G1. Không có source25 trên nhánh27 và không có bảng audit giả.
+**Trạng thái:** G4 ngày 2026-10-22 đã duyệt kết quả trên code cũ; vì `main` có thêm DBS-25/26/39 nên nhánh đã merge `origin/main` (commit `79a1a03`) và chạy lại toàn bộ bằng chứng. **Chờ duyệt lại G4** trên bằng chứng mới; status là Plan approved cho đến khi đó. Code cuối `79a1a03b7a86792036c66da1b99bbf0baf043f52` (merge commit, commit cuối đổi code) ở dòng đầu transcript; nhánh `feat/DBS-27-append-only-triggers`. Diff riêng task so với `origin/main` gồm migration, `append-only.db-spec.ts`, driver manual, tài liệu và bằng chứng DBS-27; không còn phần DBS-26, không có source25 hay bảng audit giả.
 
-**Automated:** lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **6 suite / 112 test**, 0 skip. Có 25 lượt append-only mới, 87 lượt audit/helper/legacy kế thừa. [verification.txt](screenshots/DBS-27/verification.txt) trích nguyên bước M-27-07 từ transcript cùng SHA, không phải lần chạy khác. Toàn bộ test dùng PostgreSQL thật cho migration/owner/constraint, không mock database. [Kiểm tương thích ba task trong bản sao tạm](screenshots/DBS-27/integration-verification.txt) được ghi riêng; không tạo nhánh bàn giao gộp.
+**Automated** (trên `79a1a03`): lint/typecheck/build đạt; unit **25 suite / 367 test**, e2e **4 suite / 25 test**, PostgreSQL **8 suite / 154 test**, 0 skip. Có 25 lượt append-only mới, 129 lượt của DBS-20/21/25/26/39 và harness kế thừa từ main. [verification.txt](screenshots/DBS-27/verification.txt) trích nguyên bước M-27-07 từ transcript cùng SHA, không phải lần chạy khác. Test migration/owner/constraint dùng PostgreSQL thật, không mock. Bản kiểm tương thích ba task trong bản sao tạm của lượt cũ đã bị loại bỏ vì DBS-25/26 nay nằm trên `main`; nhánh này tự chạy trên chuỗi migration thật gồm năm migration.
 
-**TDD/commit:** lượt đầu 22 đỏ / 3 xanh: thiếu function/trigger làm mutation được phép và down chưa có đích27; ba no-match còn lộ khác biệt raw QueryRunner `[[],0]`, đã dùng structured result `records/affected`. Sau triển khai, 25 test task và toàn bộ DB xanh. Commit `ee07327` chứa migration + TC, `c275957` driver. TC-27-13/14 dùng prefix/helper thật đã kế thừa26; không cần sửa lại legacy hoặc tạo commit rỗng cho bước2.
+**TDD/commit:** lượt đầu 22 đỏ / 3 xanh: thiếu function/trigger làm mutation được phép và down chưa có đích27; ba no-match còn lộ khác biệt raw QueryRunner `[[],0]`, đã dùng structured result `records/affected`. Sau triển khai, 25 test task và toàn bộ DB xanh. Commit `ee07327` chứa migration + TC, `c275957` driver. TC-27-13/14 dùng prefix/helper thật đã kế thừa26; không cần sửa lại legacy hoặc tạo commit rỗng cho bước2. Sau G4 có thêm commit merge `origin/main` (`79a1a03`), giải quyết xung đột tay (README, database-design, BACKLOG; file DBS-26 và driver audit lấy bản main) và đánh số lại backlog; không đổi code của task.
 
 Lượt manual đầu dừng M-27-04 vì driver dùng `UPDATE ... SET id=id WHERE false` trên identity ALWAYS. [Output thất bại nguyên văn](screenshots/DBS-27/manual-test-failed-no-match.txt) được giữ, không dùng làm evidence PASS. Đã nối TC-27-09 với chính hàm dựng SQL của driver: chạy đỏ 2 ca ledger/audit vì identity, sửa sang balance_after/correlation_id/target_id rồi chạy toàn bộ 112 test xanh. Commit `e9d580a` sửa driver + regression; sau đó chạy lại **toàn bộ** M-27-01…08, không chỉ bước lỗi. `unmatchedMutationSql` chỉ dùng trong test/manual; hai caller là M-27-04 và TC-27-09, không có export production mới.
 
@@ -290,29 +290,29 @@ Lượt manual đầu dừng M-27-04 vì driver dùng `UPDATE ... SET id=id WHER
 | TC-27-07 | `append-only.db-spec.ts` TC-27-07 | đạt |
 | TC-27-08 | `append-only.db-spec.ts` TC-27-08 | đạt |
 | TC-27-09 | `append-only.db-spec.ts` TC-27-09 | đạt |
-| TC-27-10 | `append-only.db-spec.ts` TC-27-10 | đạt |
+| TC-27-10 | `append-only.db-spec.ts` TC-27-10 | đơn giản hóa: thiết kế yêu cầu seed trên schema prefix DBS-26 rồi migrate lên DBS-27; test chạy up → undo → up trên schema mới nhất với dữ liệu seed trước undo, kiểm cùng snapshot hàng, bảng, cột, index, FK và sequence. Cùng bảo đảm nhưng không phải đúng lộ trình prefix |
 | TC-27-11 | `append-only.db-spec.ts` TC-27-11 | đạt |
 | TC-27-12 | `append-only.db-spec.ts` TC-27-12 | đạt |
-| TC-27-13 | `ledger-schema.db-spec.ts` TC-21-21 (bảy FK + lỗi code/constraint); append-only TC-27-13/14 | đạt |
-| TC-27-14 | `migration-revert.db-spec.ts` TC-20-18/TC-21-23/24; append-only TC-27-13/14, CLI latest4 → 2 → 1 → 0 → latest4 | đạt |
+| TC-27-13 | `ledger-schema.db-spec.ts` TC-21-21 (bảy FK + lỗi `23503` kèm tên constraint, chạy trên schema prefix DBS-21 qua `migrateThrough`); `append-only.db-spec.ts` TC-27-13/14 chỉ kiểm bảy FK `RESTRICT` và hàm chưa tồn tại ở prefix | đạt (oracle `23503` nằm ở TC-21-21, không ở file append-only) |
+| TC-27-14 | `migration-revert.db-spec.ts` TC-20-18/TC-21-23/24; append-only TC-27-13/14, CLI latest5 → 2 → 1 → 0 → latest5 | đạt |
 | DOC-27-01 | database-design §8.3 và hướng dẫn dependency/down/owner tests cho risk_rule_sets; BL-021 | đạt |
 
-**Manual:** [manual-test.txt](screenshots/DBS-27/manual-test.txt), Git Bash UTF-8, command `node -r ts-node/register -r tsconfig-paths/register test/manual/append-only.manual.ts` từ backend. Seed SQL chỉ trong database tạm theo ngoại lệ G1, không UPDATE accounts.balance. Fixture transfer/ledger không phải lệnh tiền qua API và không chứng minh complete-pair/balance_after invariants nghiệp vụ.
+**Manual:** [manual-test.txt](screenshots/DBS-27/manual-test.txt), chạy lại toàn bộ M-27-01…08 trên `79a1a03`, Git Bash, command `node -r ts-node/register -r tsconfig-paths/register test/manual/append-only.manual.ts` từ backend, thoát mã 0. Server là container `postgres:17-alpine` (17.11, role superuser) tạo riêng cho lượt này ở cổng 55432 rồi xóa sau khi chạy, vì mật khẩu của Postgres compose đang chạy trên máy không khớp biến môi trường và agent không đổi mật khẩu database dev; URL không được in vào bằng chứng. Seed SQL chỉ trong database tạm theo ngoại lệ G1, không UPDATE accounts.balance. Fixture transfer/ledger không phải lệnh tiền qua API và không chứng minh complete-pair/balance_after invariants nghiệp vụ.
 
 | Bước | Lệnh / response thực | Kết quả |
 |---|---|---|
-| M-27-01 | Compose up; CLI migration:run thật; history4, function PL/pgSQL security invoker, sáu trigger enabled tgtype27/34; catalog ba bảng/constraint/index | đạt |
-| M-27-02 | Owner `dbs_test_owner_cf7774720ab3` NOSUPERUSER sở hữu đúng ba bảng; kiểm đủ DML/SELECT/TRUNCATE và cascade/ngoài scope; INSERT transfer1/ledger2/audit1 dưới owner, admin seed idem key1 trong cùng transaction rồi kiểm lại owner | đạt |
+| M-27-01 | Compose up; CLI migration:run thật; history5 (có outbox), function PL/pgSQL security invoker, sáu trigger enabled tgtype27/34; catalog ba bảng/constraint/index | đạt |
+| M-27-02 | Owner `dbs_test_owner_e363242edbd2` NOSUPERUSER sở hữu đúng ba bảng; kiểm đủ DML/SELECT/TRUNCATE và cascade/ngoài scope; INSERT transfer1/ledger2/audit1 dưới owner, admin seed idem key1 trong cùng transaction rồi kiểm lại owner | đạt |
 | M-27-03 | 9 UPDATE/DELETE/TRUNCATE có hàng + 3 UPDATE cùng giá trị; từng lần owner/quyền đủ, lỗi42501 và `forbid_mutation() line 3 at RAISE`; rollback savepoint và snapshot toàn hàng/key/balance giữ nguyên | đạt |
 | M-27-04 | DB rỗng thứ hai: 3 TRUNCATE vẫn đúng context42501; trên DB fixture, 6 UPDATE/DELETE WHERE false trả records[]/affected0; có quyền cascade idem, không lỗi ACL | đạt |
 | M-27-05 | CLI revert27 khi có dữ liệu; function/sáu trigger mất, history chỉ bỏ27, rows và domain sequences giữ nguyên. Đối chứng owner UPDATE audit affected1, TRUNCATE transfers CASCADE làm transfers/ledger/keys rỗng trong savepoint, rollback phục hồi snapshot | đạt |
 | M-27-06 | CLI run khôi phục function/sáu trigger; snapshot/sequence nguyên trước DML; 9 mutation lại42501 đúng context, INSERT audit mới thành công rồi rollback; balance giữ0 | đạt |
-| M-27-07 | `test:db`, `lint:check`, `typecheck`, `test`, `test:e2e`, `build` qua npm thật, exit0; DB112/unit349/e2e25, 0 skip | đạt |
+| M-27-07 | `test:db`, `lint:check`, `typecheck`, `test`, `test:e2e`, `build` qua npm thật, exit0; DB154/unit367/e2e25, 0 skip | đạt |
 | M-27-08 | Drop đúng hai DB driver đã tạo, rồi DROP đúng owner của run; truy vấn chính các tên đã tạo trả `databases:[],roles:[]`. Không nhận đã dọn các database/role ngoài run | đạt |
 
 Có **24** expected trigger errors trong transcript (12 populated/same-value + 3 empty + 9 rerun), đều kiểm context, không nhận `42501` đơn lẻ. Không bước manual nào bị bỏ. Bằng chứng giữ UUID kỹ thuật và dữ liệu tổng hợp; đã rà credential, không có password/token/Authorization/AWS ID/ARN.
 
-**Ảnh:** bản chụp trình duyệt hiển thị đoạn output CLI thật lấy từ transcript, không phải ảnh terminal hệ điều hành; không sửa dữ liệu kết quả. Sáu ảnh đã kiểm đọc được, không cắt kết quả.
+**Ảnh:** bản chụp trình duyệt (Chrome headless) hiển thị đoạn trích output CLI thật lấy từ transcript, không phải ảnh terminal hệ điều hành; dòng `query:` của TypeORM và dòng trống được lọc, không sửa dữ liệu kết quả. Dòng catalog quá dài (định nghĩa hàm/trigger ở M-27-01, sao chép cột/constraint) bị cắt và ghi rõ "[cắt N ký tự]" ngay trong ảnh; bản đầy đủ nằm trong `manual-test.txt`. Sáu ảnh được chụp lại trên `79a1a03` và đã xem đọc được.
 
 ![01-migrations-owner](screenshots/DBS-27/01-migrations-owner.png)
 
@@ -326,13 +326,13 @@ Có **24** expected trigger errors trong transcript (12 populated/same-value + 3
 
 ![06-regression-results](screenshots/DBS-27/06-regression-results.png)
 
-**Phạm vi:** mọi thay đổi riêng27 nằm trong allowlist §7. Tách SQL no-match nội bộ để regression dùng đúng command driver, giữ nguyên thiết kế G2 và tất cả case. Không đổi ADR, schema cột/FK/index, money rule, dependency, env, production grants hoặc event contract. Giữ nguyên raw output .txt kể cả whitespace; diff whitespace kiểm source/docs và loại file .txt evidence.
+**Phạm vi:** mọi thay đổi riêng27 nằm trong allowlist §7. Tách SQL no-match nội bộ để regression dùng đúng command driver, giữ nguyên thiết kế G2 và tất cả case. Không đổi ADR, schema cột/FK/index, money rule, dependency, env, production grants hoặc event contract. Giữ nguyên raw output .txt kể cả whitespace; diff whitespace kiểm source/docs và loại file .txt evidence. Sau merge `origin/main`, `git diff --stat origin/main...HEAD` chỉ gồm file DBS-27; xem checklist.
 
 **Bàn giao/giới hạn:** thu hẹp BL-005 còn production grants/chủ view; giữ BL-006 complete-pair/balance_after và BL-019 service/API/metadata/fail-closed/production roles (DBS-27 thêm làm nguồn). BL-021 giao cặp trigger risk_rule_sets cho task fraud; BL-022 Dev review/CI/merge. T4 chỉ kiểm lớp trigger owner local, không nhận production-role coverage, chống owner cố ý sửa DDL hoặc toàn bộ AC-8.1 đã đạt. Agent không sửa board hoặc merge main.
 
-**Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
+**Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4» cho kết quả, tài liệu và bằng chứng của lượt chạy cũ (code `6545701`); trạng thái khi đó chuyển Implemented. Quyết định này **không** phủ lượt chạy mới trên `79a1a03` (merge `origin/main`, đánh số lại BL-021/022, ảnh và transcript mới), nên G4 được trình lại; status về Plan approved đến khi người dùng duyệt lại. Không push thêm, không sửa board hoặc merge PR.
 
-**CI sau G4:** [job DB đầu của PR14](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39804977079/job/119915902694) gặp cùng lỗi TC-26-04 kế thừa từ DBS-26: PostgreSQL Debian trả tên timezone `Etc/UTC`, local trả `UTC`. Bản sửa `0cbfb81` của DBS-26 nhận hai tên tương đương và kiểm offset mùa đông/mùa hè đều bằng 0, giữ nguyên migration và toàn bộ test case. Nhánh này đã nhận bản sửa bằng commit code nêu trên, rồi chạy lại đầy đủ M-27-01…08, sáu baseline và bộ kiểm tương thích 150 test. Transcript, ảnh, verification và owner trong bảng kết quả đều thuộc lượt chạy mới; CI của commit bàn giao được xác nhận riêng trên PR.
+**CI sau G4:** [job DB đầu của PR14](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39804977079/job/119915902694) gặp lỗi TC-26-04 kế thừa từ DBS-26: PostgreSQL Debian trả `Etc/UTC`, local trả `UTC`. Bản sửa nhận hai tên tương đương nay nằm trong `main` (qua #13) và đã vào nhánh bằng merge `origin/main`; bản chạy lại trên `79a1a03` đạt 154 test DB. CI của commit bàn giao cuối được xác nhận riêng trên PR, chưa có ở thời điểm viết.
 
 ## 9. Tài liệu đã cập nhật
 
@@ -340,10 +340,10 @@ Feature doc và raw review/transcript/ảnh trong screenshots/DBS-27; database-d
 
 ## Checklist G4
 
-- [x] 14/14 TC và DOC-27-01 đủ độ sâu, 0 đơn giản hóa; 25 lượt test task mới thực chạy.
-- [x] M-27-01…08 đạt trên SHA code dòng đầu transcript; chạy lại đủ sau lỗi driver và commit sửa.
-- [x] Sáu ảnh output thật, raw transcript và lượt manual lỗi được giữ riêng, đã rà secret.
-- [x] Diff so base26 đúng allowlist §7, diff main ghi rõ dependency26; không source25/workbook.
-- [x] Sáu baseline đạt, unit349/e2e25/DB112, 0 skip; integration có evidence riêng.
-- [x] Docs/feature index cập nhật, status Implemented sau G4; link checker 87 file / 0 lỗi.
-- [x] Handoff/DoD quy trình chưa đạt ghi BL-005/006/017/019/020; không nhận CI/Dev review/merge đã xong.
+- [x] 14/14 TC và DOC-27-01; TC-27-10 ghi "đơn giản hóa" kèm lý do, 13 TC còn lại đủ độ sâu; 25 lượt test task mới thực chạy.
+- [x] M-27-01…08 đạt trên `79a1a03` (SHA ở dòng đầu transcript, thoát mã 0); chạy lại toàn bộ sau merge `origin/main`.
+- [x] Sáu ảnh chụp lại từ transcript mới, raw transcript và lượt manual lỗi cũ được giữ riêng; đã quét credential (không có password/token/Authorization/AWS ID/ARN).
+- [x] Diff so `origin/main` chỉ gồm file DBS-27 theo allowlist §7; không source25, workbook hay phần DBS-26.
+- [x] Sáu baseline đạt trong M-27-07: unit 25 suite / 367, e2e 4 / 25, DB 8 / 154, lint, typecheck, build; 0 skip.
+- [x] Docs/feature index cập nhật, status Plan approved đến khi G4 được duyệt lại; link checker chạy lại ở bước cuối.
+- [x] Handoff/DoD quy trình chưa đạt ghi BL-005/006/019/021/022 (đã đánh số lại sau merge `main`); không nhận CI/Dev review/merge đã xong.
