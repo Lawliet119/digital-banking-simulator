@@ -101,9 +101,6 @@ jobs:
           env -u DATABASE_URL npm run test:db -- --runInBand --runTestsByPath \
             test/db/testcontainers-sample.db-spec.ts \
             test/db/migration-revert.db-spec.ts
-      # DBS-41 draft PR drill: remove this intentionally failing step after recording the red run.
-      - name: DBS-41 controlled red check (temporary)
-        run: exit 1
 
   db:
     name: db
