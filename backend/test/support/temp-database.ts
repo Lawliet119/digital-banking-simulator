@@ -13,8 +13,8 @@ export function requireDatabaseUrl(): string {
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error(
-      'DATABASE_URL is not set. Start PostgreSQL with `docker compose up -d` and export ' +
-        'DATABASE_URL (e.g. postgres://banking:banking_local_only@localhost:5432/banking).',
+      'DATABASE_URL is not set. Ensure Jest globalSetup (Testcontainers) has run, ' +
+        'or export DATABASE_URL explicitly.',
     );
   }
   return url;
@@ -27,7 +27,7 @@ async function connect(url: string): Promise<DataSource> {
   } catch (error) {
     throw new Error(
       `Cannot reach PostgreSQL at DATABASE_URL (${(error as Error).message}). ` +
-        'Is `docker compose up -d` running?',
+        'Is the PostgreSQL container or service running and accessible?',
     );
   }
 }

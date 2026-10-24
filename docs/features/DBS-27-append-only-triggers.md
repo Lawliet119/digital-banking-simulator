@@ -295,7 +295,7 @@ Lượt manual đầu dừng M-27-04 vì driver dùng `UPDATE ... SET id=id WHER
 | TC-27-12 | `append-only.db-spec.ts` TC-27-12 | đạt |
 | TC-27-13 | `ledger-schema.db-spec.ts` TC-21-21 (bảy FK + lỗi code/constraint); append-only TC-27-13/14 | đạt |
 | TC-27-14 | `migration-revert.db-spec.ts` TC-20-18/TC-21-23/24; append-only TC-27-13/14, CLI latest4 → 2 → 1 → 0 → latest4 | đạt |
-| DOC-27-01 | database-design §8.3 và hướng dẫn dependency/down/owner tests cho risk_rule_sets; BL-019 | đạt |
+| DOC-27-01 | database-design §8.3 và hướng dẫn dependency/down/owner tests cho risk_rule_sets; BL-021 | đạt |
 
 **Manual:** [manual-test.txt](screenshots/DBS-27/manual-test.txt), Git Bash UTF-8, command `node -r ts-node/register -r tsconfig-paths/register test/manual/append-only.manual.ts` từ backend. Seed SQL chỉ trong database tạm theo ngoại lệ G1, không UPDATE accounts.balance. Fixture transfer/ledger không phải lệnh tiền qua API và không chứng minh complete-pair/balance_after invariants nghiệp vụ.
 
@@ -328,7 +328,7 @@ Có **24** expected trigger errors trong transcript (12 populated/same-value + 3
 
 **Phạm vi:** mọi thay đổi riêng27 nằm trong allowlist §7. Tách SQL no-match nội bộ để regression dùng đúng command driver, giữ nguyên thiết kế G2 và tất cả case. Không đổi ADR, schema cột/FK/index, money rule, dependency, env, production grants hoặc event contract. Giữ nguyên raw output .txt kể cả whitespace; diff whitespace kiểm source/docs và loại file .txt evidence.
 
-**Bàn giao/giới hạn:** thu hẹp BL-005 còn production grants/chủ view; giữ BL-006 complete-pair/balance_after và BL-017 service/API/metadata/fail-closed/production roles. BL-019 giao cặp trigger risk_rule_sets cho task fraud; BL-020 Dev review/CI/merge. T4 chỉ kiểm lớp trigger owner local, không nhận production-role coverage, chống owner cố ý sửa DDL hoặc toàn bộ AC-8.1 đã đạt. Agent không sửa board hoặc merge main.
+**Bàn giao/giới hạn:** thu hẹp BL-005 còn production grants/chủ view; giữ BL-006 complete-pair/balance_after và BL-019 service/API/metadata/fail-closed/production roles (DBS-27 thêm làm nguồn). BL-021 giao cặp trigger risk_rule_sets cho task fraud; BL-022 Dev review/CI/merge. T4 chỉ kiểm lớp trigger owner local, không nhận production-role coverage, chống owner cố ý sửa DDL hoặc toàn bộ AC-8.1 đã đạt. Agent không sửa board hoặc merge main.
 
 **Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
 
@@ -336,7 +336,7 @@ Có **24** expected trigger errors trong transcript (12 populated/same-value + 3
 
 ## 9. Tài liệu đã cập nhật
 
-Feature doc và raw review/transcript/ảnh trong screenshots/DBS-27; database-design §4.7/§8.3/§11 (thực trạng trigger và hướng dẫn risk_rule_sets); README audit/ledger, backend/README, threat-model T4, feature index; BACKLOG thu hẹp BL-005, cập nhật phần còn thiếu BL-017, thêm BL-019/020. Không xóa ID backlog nào vì BL-005 còn việc; BL-006 giữ nguyên.
+Feature doc và raw review/transcript/ảnh trong screenshots/DBS-27; database-design §4.7/§8.3/§11 (thực trạng trigger và hướng dẫn risk_rule_sets); README audit/ledger, backend/README, threat-model T4, feature index; BACKLOG thu hẹp BL-005, thêm DBS-27 làm nguồn cho BL-019, thêm BL-021/022 (đánh số lại sau khi merge `main` vì BL-019/020 đã thuộc DBS-26). Không xóa ID backlog nào vì BL-005 còn việc; BL-006 giữ nguyên.
 
 ## Checklist G4
 

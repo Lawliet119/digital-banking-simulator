@@ -1,4 +1,4 @@
-0cbfb814037abc6a353af0a0d2311e39ea10a06f
+8c79baf58b86c46643fe9d28b4570128cec4dad8
 
 $ npm run lint:check
 
@@ -15,37 +15,37 @@ $ npm run typecheck
 $ npm run test
 
 > digital-banking-simulator-backend@0.1.0 test
-> jest --config ./test/jest-unit.js --runInBand
+> jest --config ./test/jest-unit.js
 
 
-Test Suites: 23 passed, 23 total
-Tests:       349 passed, 349 total
+Test Suites: 25 passed, 25 total
+Tests:       367 passed, 367 total
 Snapshots:   0 total
-Time:        6.951 s, estimated 10 s
+Time:        20.587 s, estimated 23 s
 Ran all test suites.
 
 $ npm run test:e2e
 
 > digital-banking-simulator-backend@0.1.0 test:e2e
-> jest --config ./test/jest-e2e.js --runInBand
+> jest --config ./test/jest-e2e.js
 
 
 Test Suites: 4 passed, 4 total
 Tests:       25 passed, 25 total
 Snapshots:   0 total
-Time:        5.909 s, estimated 8 s
+Time:        8.472 s, estimated 10 s
 Ran all test suites.
 
 $ npm run test:db
 
 > digital-banking-simulator-backend@0.1.0 test:db
-> jest --config ./test/jest-db.js --runInBand
+> jest --config ./test/jest-db.js
 
 
-Test Suites: 5 passed, 5 total
-Tests:       87 passed, 87 total
+Test Suites: 7 passed, 7 total
+Tests:       129 passed, 129 total
 Snapshots:   0 total
-Time:        54.552 s
+Time:        36.486 s, estimated 40 s
 Ran all test suites.
 
 $ npm run build

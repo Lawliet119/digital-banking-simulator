@@ -124,7 +124,7 @@ async function main() {
       cli(db, 'migration:revert');
       const undone = await state(db);
       assert.equal(undone.columns.length, 0);
-      assert.equal(undone.history.length, 2);
+      assert.deepEqual(undone.history, before.history.slice(0, -1));
       assert.deepEqual(undone.funding, before.funding);
       cli(db, 'migration:run');
       assert.deepEqual(await state(db), before);
