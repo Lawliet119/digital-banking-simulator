@@ -1,6 +1,6 @@
 # DBS-40 · Testcontainers cho Valkey và ElasticMQ
 
-> **Status:** Implemented (local; chờ PR/CI/Dev review) · **Vai:** Dev · **Nhánh:** `test/DBS-40-valkey-elasticmq` · **PR:** chưa có · **Cập nhật:** 2026-10-24
+> **Status:** Implemented (PR mở; chờ CI/Dev review/merge) · **Vai:** Dev · **Nhánh:** `test/DBS-40-valkey-elasticmq` · **PR:** [#18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -72,7 +72,7 @@ Commit code cuối: `83b9803341b26fbd69d7e32d5280b73ea8b65d28`. Test thủ công
 | TC-40-01/02 | `testcontainers.services-spec.ts` + M-40-01 | đạt |
 | TC-40-03/04 | Cùng suite + M-40-02, pause/resume/down/restart | đạt; pause mô phỏng không phản hồi, không có proxy độ trễ hữu hạn |
 | TC-40-05 | `service-container.spec.ts` + M-40-03 | đạt |
-| TC-40-06 | PR, CI, Dev review, merge | chưa đạt, BL-024 |
+| TC-40-06 | [PR #18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) đã mở; CI, Dev review, merge | chưa đạt đủ, BL-024 |
 
 ![Output thật của sample service](screenshots/DBS-40/01-services-success.png)
 
@@ -80,9 +80,9 @@ Commit code cuối: `83b9803341b26fbd69d7e32d5280b73ea8b65d28`. Test thủ công
 
 Hai ảnh là phần hiển thị được dựng từ **dòng output thật** trong `manual-test.txt`; transcript đầy đủ có container ID, cổng và exit code. Không có credential AWS thật. Không có `.skip` trong task test; lượt test chọn riêng Valkey khi debug có 1 test không được chọn, lượt cuối chạy đủ 2/2.
 
-CI hiện tại chưa gọi `test:services`; [BL-023](../BACKLOG.md) bàn giao việc này cho DBS-41. PR/CI/Dev review/merge [BL-024](../BACKLOG.md) còn chờ; không kéo Done.
+CI hiện tại chưa gọi `test:services`; [BL-023](../BACKLOG.md) bàn giao việc này cho DBS-41. [PR #18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) đã mở; CI/Dev review/merge [BL-024](../BACKLOG.md) còn chờ; không kéo Done.
 
-Checklist bàn giao: test case kỹ thuật TC-40-01…05 đạt, TC-40-06 còn chờ; M-40-01…03 đã chạy trên commit code cuối; ảnh và transcript không chứa token/secret thật; link check 93 file, 0 link hỏng. Chưa có bằng chứng review Dev hoặc CI trên PR.
+Checklist bàn giao: test case kỹ thuật TC-40-01…05 đạt, TC-40-06 còn chờ; M-40-01…03 đã chạy trên commit code cuối; ảnh và transcript không chứa token/secret thật; link check 93 file, 0 link hỏng. Chưa có bằng chứng review Dev hoặc CI xanh trên PR.
 
 ## 9. Tài liệu đã cập nhật
 
