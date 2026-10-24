@@ -1,0 +1,25 @@
+run=40093791694 head=77075cde7cc9dc7ff81beaa4db0c15bc4a47e508 status=completed conclusion=failure elapsed_seconds=85 url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093791694
+job=db conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093791694/job/120871726576
+job=unit conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093791694/job/120871726705
+job=build conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093791694/job/120871726722
+job=e2e conclusion=failure url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093791694/job/120871726778
+  step=Run npm run test:e2e conclusion=success
+  step=Testcontainers PostgreSQL 17 (DBS-39 sample + migration run/revert/run) conclusion=success
+  step=DBS-41 controlled red check (temporary) conclusion=failure
+job=typecheck conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093791694/job/120871726780
+job=lint conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093791694/job/120871726872
+run=40093940028 head=adc1e6393c56624af3740f280f8cb14ae1f5124c status=completed conclusion=success elapsed_seconds=92 url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093940028
+job=build conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093940028/job/120872162124
+job=db conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093940028/job/120872162282
+job=e2e conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093940028/job/120872162288
+  step=Run npm run test:e2e conclusion=success
+  step=Testcontainers PostgreSQL 17 (DBS-39 sample + migration run/revert/run) conclusion=success
+job=unit conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093940028/job/120872162292
+job=typecheck conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093940028/job/120872162295
+job=lint conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093940028/job/120872162447
+Green e2e job log excerpt (actual downloaded log):
+2026-10-24T12:27:11.8781390Z ##[group]Run env -u DATABASE_URL npm run test:db -- --runInBand --runTestsByPath \
+2026-10-24T12:27:35.3110323Z PASS test/db/migration-revert.db-spec.ts (12.553 s)
+2026-10-24T12:27:35.5672826Z PASS test/db/testcontainers-sample.db-spec.ts
+2026-10-24T12:27:35.5692619Z Test Suites: 2 passed, 2 total
+2026-10-24T12:27:35.5693270Z Tests:       5 passed, 5 total

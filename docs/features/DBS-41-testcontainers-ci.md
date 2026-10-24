@@ -1,6 +1,6 @@
 # DBS-41 · Testcontainers trong CI và migration run → revert → run
 
-> **Status:** In Progress · **Vai:** Dev · **Nhánh:** `infra/DBS-41-testcontainers-ci` · **PR:** chưa có · **Cập nhật:** 2026-10-24
+> **Status:** Implemented (Draft PR; CI xanh; chờ Dev review/merge) · **Vai:** Dev · **Nhánh:** `infra/DBS-41-testcontainers-ci` · **PR:** [#19](https://github.com/Lawliet119/digital-banking-simulator/pull/19) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -55,8 +55,29 @@ Rollback: revert commit workflow. Không có migration/data của môi trường
 
 ## 8. Kết quả
 
-Đang triển khai. Chưa có số đo CI thật hoặc PR cho DBS-41.
+Commit workflow cuối: `adc1e6393c56624af3740f280f8cb14ae1f5124c`. [Draft PR #19](https://github.com/Lawliet119/digital-banking-simulator/pull/19) có bảng đối chiếu test case. Local sau thay đổi: lint, typecheck, build đạt; 25 suite / 367 unit, 4 suite / 25 e2e, 8 suite / 154 DB test đạt. Riêng hai suite của step mới đạt 2 suite / 5 test với `DATABASE_URL` rỗng. YAML parse được và sáu job name giữ nguyên; `actionlint` chưa cài local, bằng chứng thực thi là GitHub Actions.
+
+**CI thật:** [run đỏ chủ ý #40093791694](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093791694) trên `77075cd` hoàn tất trong 85 giây. `test:e2e` và bước Testcontainers đều **success**, bước `exit 1` tạm sau đó làm `e2e` failure. Sau khi xóa bước tạm, [run xanh #40093940028](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093940028) trên `adc1e63` có cả sáu job **success**. Run xanh từ `run_started_at` đến `updated_at` là **92 giây** (hai timestamp `created_at`/`run_started_at` trùng nhau ở run này); job `e2e` 61 giây, step Testcontainers 24 giây, job `db` 87 giây. Run này đạt mục tiêu ≤10–12 phút; đây là một phép đo thực, không khẳng định mọi run tương lai đều như vậy. [Metadata và trích log](screenshots/DBS-41/ci-runs.txt) ghi `env -u DATABASE_URL`, `PASS migration-revert`, `PASS testcontainers-sample`, 2 suite/5 test.
+
+| Case | Bằng chứng | Kết luận |
+|---|---|---|
+| TC-41-01 | Job `e2e` trên run xanh; lệnh `env -u DATABASE_URL`, setup chỉ có đường tự tạo container khi biến rỗng, sample DBS-39 PASS | đạt; không có startup marker/ID riêng trong Actions log |
+| TC-41-02 | `migration-revert.db-spec.ts` PASS trong cùng step; TC-21-23 tạo `dbs_test_*`, chạy CLI run/revert/run và kiểm lịch sử/bảng/funding | đạt theo smoke requirement; migration mới hơn chưa assert mọi object |
+| TC-41-03 | Sáu job name nguyên vẹn; run xanh 92 giây | đạt trên run này |
+| TC-41-04 | [PR #19](https://github.com/Lawliet119/digital-banking-simulator/pull/19) có bảng đối chiếu, CI xanh; Dev review/merge | chưa đạt đủ, BL-025 |
+
+**Test thủ công:** [manual-test.txt](screenshots/DBS-41/manual-test.txt) bắt đầu bằng SHA workflow cuối. M-41-01: dừng Compose PostgreSQL, `docker compose ps` chỉ còn Valkey/ElasticMQ; xóa `DATABASE_URL` và chạy hai suite, 2/2 suite, 5/5 test, exit 0; Compose PostgreSQL được khôi phục. M-41-02: `DOCKER_HOST=tcp://127.0.0.1:1` làm global setup báo Docker unreachable, exit 1, không skip. M-41-03: hai Actions run nêu trên, run cuối xanh và đã đo thời gian.
+
+![Local Testcontainers smoke](screenshots/DBS-41/01-local-container-tests.png)
+
+![CI red then green](screenshots/DBS-41/02-ci-red-green.png)
+
+Hai ảnh hiển thị trích đoạn **output thật** từ transcript local và Actions API/job log; bản text đầy đủ giữ bên cạnh. Không có AWS credential hoặc token thật.
+
+BL-016 được giải quyết bởi step Testcontainers trên Actions và đã xóa khỏi BACKLOG trong PR. BL-017 (test production DB role) vẫn ngoài scope. `test:services` của [DBS-40 PR #18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) chưa có trên `main` của nhánh này; việc tích hợp suite đó thuộc BL-023 của PR #18 sau khi nó merge. Dev review và merge cho DBS-41 là BL-025. Không kéo Done trước các bước này.
+
+Checklist G4: TC-41-01…03 đạt trên CI thật, TC-41-04 chờ Dev review/merge; M-41-01…03 đã chạy; ảnh và transcript không có secret thật; code diff chỉ workflow theo §7; link check và diff check ghi ở §9; sáu kiểm tra local đã chạy, CI xanh trên commit workflow cuối.
 
 ## 9. Tài liệu đã cập nhật
 
-Feature doc này; các tài liệu khác sẽ ghi sau khi có bằng chứng.
+[`backend/README`](../../backend/README.md) mô tả hai đường CI; [feature index](README.md) thêm DBS-41; [`BACKLOG`](../BACKLOG.md) xóa BL-016, thêm BL-025. Không sửa ADR, schema, migration hoặc env var production. Link check: đang chạy ở bước bàn giao.
