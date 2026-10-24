@@ -4,6 +4,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import { databaseConfig } from '../config/database.config';
 import { type TransactionOptions, withTransaction } from './transaction.helper';
+import { safeErrorMetadata } from '@common/logging/logging.options';
 
 /**
  * Injectable wrapper around `withTransaction`, so services never manage query runners themselves.
@@ -28,9 +29,7 @@ export class TransactionService {
       statementTimeoutMs: this.config.statementTimeoutMs,
       idleInTransactionTimeoutMs: this.config.idleInTransactionTimeoutMs,
       onRetry: ({ attempt, error }) => {
-        this.logger.warn(
-          `Transaction retry #${attempt}: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        this.logger.warn({ attempt, ...safeErrorMetadata(error) }, 'Transaction retry');
       },
       ...options,
     });

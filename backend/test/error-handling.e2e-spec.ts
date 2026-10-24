@@ -157,13 +157,14 @@ describe('HTTP error handling (e2e, no database)', () => {
       expect(res.body.errorCode).toBeUndefined();
     });
 
-    it('logs the real error server-side with the correlation id, so it can still be diagnosed', async () => {
+    it('TC-42-07 logs safe diagnostics with the correlation id without credentials', async () => {
       const res = await request(server).get('/v1/probe/boom').expect(500);
 
       expect(logError).toHaveBeenCalledWith(
-        expect.stringContaining(`[${res.body.correlationId as string}]`),
-        expect.stringContaining('hunter2'),
+        expect.objectContaining({ correlationId: res.body.correlationId, errorType: 'Error' }),
+        'Unhandled exception',
       );
+      expect(JSON.stringify(logError.mock.calls)).not.toContain('hunter2');
     });
   });
 
