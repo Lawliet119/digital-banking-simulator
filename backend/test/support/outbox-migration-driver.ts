@@ -109,6 +109,7 @@ async function wait(db: TempDatabase, pid: number) {
       log('OBSERVED LOCK WAIT', r);
       return;
     }
+    await new Promise(resolve => setTimeout(resolve, 25));
   }
   throw new Error('Expected lock wait not observed');
 }

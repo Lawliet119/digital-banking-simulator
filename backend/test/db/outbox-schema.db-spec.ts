@@ -138,6 +138,7 @@ describe('outbox migration schema and safety', () => {
         [pid],
       );
       if (state?.wait_event_type === 'Lock') return;
+      await new Promise(resolve => setTimeout(resolve, 25));
     }
     throw new Error('Backend never waited for the expected lock');
   }
