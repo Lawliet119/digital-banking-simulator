@@ -120,6 +120,7 @@ Hệ thống sử dụng bảng sổ cái chỉ-thêm (`append-only ledger` như
 Để kiểm thử hoàn toàn độc lập, an toàn và có thể chạy song song:
 1. **Cô lập theo Test Suite bằng Database tạm thời (Temp Database):** Khuyến nghị mặc định là mỗi test file (`*.db-spec.ts`) gọi `createTempDatabase()` trong `beforeAll` để tạo một database hoàn toàn độc lập (`dbs_test_<random_hex>`) trên PostgreSQL container, chạy migration trên đó và tự động xóa sạch database (`db.drop()`) trong `afterAll`. Nhờ vậy các test suite chạy song song không bao giờ xung đột dữ liệu.
 2. **Cô lập giữa các test case trong cùng suite:** Sử dụng transaction `BEGIN` trong `beforeEach` và `ROLLBACK` trong `afterEach`. Mọi thay đổi dữ liệu của từng ca kiểm thử sẽ được hoàn tác sạch sẽ mà không tốn chi phí khởi tạo lại schema.
+   - **Giới hạn:** cách này chỉ đúng khi test dùng **một kết nối** (một `QueryRunner`). Test đồng thời (hai kết nối để thử khóa, `SELECT ... FOR UPDATE`) không thấy dữ liệu chưa commit của nhau, và `ROLLBACK` không dọn được dữ liệu đã commit ở kết nối khác. Test loại đó dựa vào temp database riêng của spec (mục 1) và tự tạo dữ liệu của mình, không dùng `BEGIN`/`ROLLBACK` để cô lập.
 
 
 ### 6. Migration
