@@ -135,6 +135,10 @@ Migration `1792627200000-CreateOutboxEventsProcessedEvents` tạo outbox/process
 
 Migration `1792627200001-CreateAuditLog` ([DBS-26](../docs/features/DBS-26-migration-audit-log.md)) tạo `audit_log` với ba index theo correlation, actor/thời gian và action/thời gian. Revert audit yêu cầu transaction READ COMMITTED và bảng rỗng: guard kiểm isolation trước khóa ACCESS EXCLUSIVE, sau đó kiểm dữ liệu bằng statement mới; có dữ liệu thì SQLSTATE `55000` và giữ schema/history. Không xóa audit để ép rollback. Test nền 20/21 chọn prefix bằng helper test, còn CLI production luôn chạy latest theo lịch sử thực.
 
+**Append-only.**
+
+Migration `1792627200002-AddAppendOnlyTriggers` đặt hàm `public.forbid_mutation()` và sáu trigger cho `transfers`, `ledger_entries`, `audit_log`: [DBS-27](../docs/features/DBS-27-append-only-triggers.md). INSERT vẫn được; UPDATE/DELETE có hàng và TRUNCATE kể cả bảng rỗng bị `42501` từ trigger. Revert27 chỉ gỡ trigger/hàm, giữ dữ liệu/sequence, nên phải đánh giá việc bỏ lớp bảo vệ trước khi dùng ngoài DB tạm. Test schema của từng migration dùng prefix thật; CLI vẫn run latest và đọc lịch sử khi revert. Quyền production thuộc task roles, không suy ra từ owner fixture.
+
 ### 7. Tiền: một cách duy nhất, qua `@common/money`
 `JSON` và `Number`/`parseInt` làm tròn mọi số trên 2^53: `9007199254740993` thành `9007199254740992` mà không báo lỗi. Nên tiền trên dây (API, event, tham số SQL) là **chuỗi** số nguyên đồng, trong domain là **`bigint`**, và chỉ đổi qua lại bằng `@common/money` (import `from '@common/money'`, không import file bên trong).
 
