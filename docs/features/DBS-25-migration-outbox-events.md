@@ -294,7 +294,7 @@ Hai commit: `5e57abc` (điểm 1–2) và `9973136` (điểm 4). Điểm 5 của
 
 ![06-isolation-guard](screenshots/DBS-25/06-isolation-guard.png)
 
-**Bàn giao/giới hạn:** BL-015 index và cleanup processed_events; BL-016 Dev review/CI/merge. BL-002/003/009/010/011 vẫn ngoài scope G1. Writer/relay/consumer, quyền production và kiểm at-least-once chưa được chứng minh bởi migration này. Transcript không có token, Authorization, password, AWS ID/ARN; UUID kỹ thuật tổng hợp được giữ.
+**Bàn giao/giới hạn:** BL-018 index và cleanup processed_events (đánh số lại từ BL-015 khi gộp `main`, vì DBS-39 đã dùng BL-015…017). Dev review, CI và merge do techlead tự thực hiện (2026-10-24) nên dòng backlog riêng cho việc này (BL-016 cũ) được xóa và việc đó đóng khi PR được merge. BL-002/003/009/010/011 vẫn ngoài scope G1. Writer/relay/consumer, quyền production và kiểm at-least-once chưa được chứng minh bởi migration này. Transcript không có token, Authorization, password, AWS ID/ARN; UUID kỹ thuật tổng hợp được giữ.
 
 
 **Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
@@ -303,7 +303,7 @@ Hai commit: `5e57abc` (điểm 1–2) và `9973136` (điểm 4). Điểm 5 của
 
 ## 9. Tài liệu đã cập nhật
 
-Feature doc này, raw review và evidence trong screenshots/DBS-25; database-design §6/§11 và phạm vi schema đã triển khai; README outbox, backend/README, feature index; BACKLOG thêm BL-015/016. Không xóa backlog cũ chưa giải quyết.
+Feature doc này, raw review và evidence trong screenshots/DBS-25; database-design §6/§11 và phạm vi schema đã triển khai; README outbox, backend/README, feature index; BACKLOG thêm BL-018. Không xóa backlog cũ chưa giải quyết.
 
 ## Checklist G4
 
@@ -313,4 +313,4 @@ Feature doc này, raw review và evidence trong screenshots/DBS-25; database-des
 - [x] Diff main...HEAD chỉ có allowlist §7; không workbook hoặc source task khác.
 - [x] Sáu lệnh kiểm tra bàn giao đạt, 0 test skip.
 - [x] Reference docs và feature index đã cập nhật; link checker 85 file / 0 lỗi; status Implemented sau G4 duyệt lại đợt sửa 2026-10-24.
-- [x] Handoff và DoD quy trình chưa hoàn thành có BL-015/016; backlog cũ ngoài scope giữ nguyên.
+- [x] Handoff và DoD quy trình chưa hoàn thành có BL-018 (phần review/CI/merge đóng khi techlead merge PR); backlog cũ ngoài scope giữ nguyên.

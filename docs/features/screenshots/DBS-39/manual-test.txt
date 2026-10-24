@@ -1,0 +1,100 @@
+d8e264ab092304bb1c24a4f6aef4d86a003b1112
+# DBS-39 test thủ công đợt sửa vòng 2, chạy ngày 2026-10-24 trên Windows 11, Git Bash, Docker Desktop 27.3.1.
+# Dòng đầu là SHA của commit cuối đổi code. Các lệnh PowerShell trong §5 được chạy bằng lệnh Git Bash tương đương.
+# Mã màu ANSI đã lọc bỏ. Log DEBUG dài (hàng nghìn dòng) chỉ giữ các dòng chứng minh bước; file log đầy đủ không đưa vào repo.
+# Mật khẩu của Postgres tạm ở M-39-06 đã thay bằng <đã ẩn>.
+
+=== M-39-01: Docker Desktop bật, chạy npm run test:db ===
+$ docker version --format "{{.Server.Version}}"   -> 27.3.1
+$ echo "DATABASE_URL=[$DATABASE_URL]"             -> DATABASE_URL=[]
+$ npm run test:db
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js
+
+
+Test Suites: 4 passed, 4 total
+Tests:       51 passed, 51 total
+Snapshots:   0 total
+Time:        19.712 s
+Ran all test suites.
+Kết quả: đạt (4 suite, 51 test, Time 19.7 s; container Testcontainers tự khởi động và tự hủy).
+
+=== M-39-02: Docker không dùng được (mô phỏng bằng DOCKER_HOST giả, KHÔNG tắt Docker Desktop thật) ===
+# Lý do: Docker Desktop đang gánh container của các dự án khác trên máy này nên không tắt. DOCKER_HOST=tcp://127.0.0.1:1 làm
+# Testcontainers không tới được daemon ngay cả khi Docker thật đang chạy. Người giữ repo cần chấp nhận mô phỏng này ở G4.
+$ time DOCKER_HOST=tcp://127.0.0.1:1 npm run test:db
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js
+
+Error: Jest: Got error running globalSetup - F:\Cloud Application\digital-banking-simulator-dbs39\backend\test\support\jest-global-setup.ts, reason: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Error details: Could not find a working container runtime strategy
+real	0m3.867s   (lần đo riêng; < 5 giây)
+Kết quả: đạt (mô phỏng): dừng sau ~3,9 giây, thông báo yêu cầu bật Docker, không treo, không khởi container.
+
+=== M-39-03: container mồ côi sau khi chạy xong ===
+$ docker ps -a --filter label=org.testcontainers=true     (chạy ngay sau M-39-01 và M-39-02)
+(không có dòng nào)
+Kết quả: đạt.
+
+=== M-39-04: pull lần đầu trong hạn tổng ===
+# Điều kiện đầu:
+$ echo "DATABASE_URL=[$DATABASE_URL]"   -> DATABASE_URL=[]
+$ docker compose -f ../docker-compose.yml down   -> đã gỡ dbs-postgres-1, dbs-valkey-1, dbs-elasticmq-1, mạng dbs_default
+$ docker rmi postgres:17-alpine         -> Untagged + Deleted (10 lớp)
+$ docker images postgres:17-alpine -q   -> (rỗng)
+$ time DEBUG='testcontainers*' npm run test:db > pull-raw.txt 2>&1
+real	0m43.108s
+2026-10-24T06:32:07.978Z testcontainers [DEBUG] Pulling image "postgres:17-alpine"...
+2026-10-24T06:32:25.200Z testcontainers [DEBUG] Pulled image "postgres:17-alpine"
+2026-10-24T06:32:25.221Z testcontainers [DEBUG] Creating new Reaper for session "a3cbd7cd5e2c" with socket path "//var/run/docker.sock"...
+2026-10-24T06:32:25.626Z testcontainers [INFO] [312949d3c80b] Starting container for image "testcontainers/ryuk:0.11.0"...
+2026-10-24T06:32:25.992Z testcontainers [INFO] [312949d3c80b] Started container for image "testcontainers/ryuk:0.11.0"
+2026-10-24T06:32:26.043Z testcontainers [INFO] [312949d3c80b] Container is ready
+2026-10-24T06:32:27.080Z testcontainers [INFO] [b52fdb7957c2] Starting container for image "postgres:17-alpine"...
+2026-10-24T06:32:27.298Z testcontainers [INFO] [b52fdb7957c2] Started container for image "postgres:17-alpine"
+2026-10-24T06:32:28.540Z testcontainers [INFO] [b52fdb7957c2] Container is ready
+Test Suites: 4 passed, 4 total
+Tests:       51 passed, 51 total
+Time:        18.207 s, estimated 20 s
+# Đọc mốc thời gian (cùng mã container b52fdb7957c2 của postgres:17-alpine):
+#   pull image:       06:32:07.978 -> 06:32:25.200 = 17,2 giây
+#   Started container -> Container is ready: 06:32:27.298 -> 06:32:28.540 = 1,24 giây (hạn 60 giây)
+#   tổng thời gian (pull + Ryuk + khởi động + 4 suite): 43,1 giây (hạn 300 giây)
+# (Dòng "Container is ready" của [312949d3c80b] là container Ryuk, không phải Postgres.)
+Kết quả: đạt.
+
+=== M-39-05: container Postgres còn sót lại sau M-39-04 ===
+$ docker ps -a --filter label=org.testcontainers=true --filter ancestor=postgres:17-alpine
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+$ docker ps -a --filter label=org.testcontainers=true      (thêm, để thấy Ryuk)
+312949d3c80b   testcontainers/ryuk:0.11.0   "/bin/ryuk"   31 seconds ago   Up 30 seconds   0.0.0.0:32775->8080/tcp   testcontainers-ryuk-a3cbd7cd5e2c
+# Ryuk còn sống một lúc sau khi Jest thoát (đúng như dự đoán ở §5), nên bước lọc theo cả nhãn lẫn image.
+Kết quả: đạt (không còn container Postgres nào).
+
+=== M-39-06: DATABASE_URL từ ngoài, hai lượt trong một tiến trình Jest (--watchAll) ===
+# Lần thử đầu bị hủy: dùng Postgres của docker compose (banking/banking_local_only@localhost:5432) nhưng volume dbs_pgdata cũ
+# đã khởi tạo với mật khẩu khác, nên cả 51 test đỏ với "password authentication failed for user banking". Đó là lỗi môi trường,
+# không phải lỗi của code, và không dùng làm bằng chứng. Mình không xóa volume dev đó.
+    Cannot reach PostgreSQL at DATABASE_URL (password authentication failed for user "banking"). Is the PostgreSQL container or service running and accessible?
+# Chạy lại với một Postgres 17 tạm riêng (container dbs39-external-pg, cổng 55433, đã xóa sau khi xong):
+$ docker run -d --name dbs39-external-pg -e POSTGRES_USER=banking -e POSTGRES_PASSWORD=<đã ẩn> -e POSTGRES_DB=banking -p 55433:5432 postgres:17-alpine postgres -c timezone=UTC
+$ DATABASE_URL=postgres://banking:<đã ẩn>@localhost:55433/banking DEBUG='testcontainers*' npm run test:db -- --watchAll
+# lượt 2 được kích bằng `touch test/db/testcontainers-sample.db-spec.ts` (Enter thủ công không làm được trong shell không tương tác)
+Test Suites: 4 passed, 4 total
+Tests:       51 passed, 51 total
+Test Suites: 4 passed, 4 total
+Tests:       51 passed, 51 total
+Số dòng "Starting container" / "Creating new Reaper" trong cả hai lượt: 0
+Kết quả: đạt (hai lượt xanh, 51/51 mỗi lượt, không lượt nào khởi container).
+
+# Kiểm chứng bước này bắt được lỗi cũ: tạm đưa lại dòng `delete process.env.DATABASE_URL` vào nhánh "không có handle" của stopPostgresContainer,
+# chạy lại đúng lệnh trên, rồi hoàn lại bằng `git checkout` (không commit). Kết quả với bản lỗi:
+Test Suites: 4 passed, 4 total
+Tests:       51 passed, 51 total
+2026-10-24T06:35:38.915Z testcontainers [DEBUG] Creating new Reaper for session "1fa70517d1c3" with socket path "//var/run/docker.sock"...
+2026-10-24T06:35:40.350Z testcontainers [INFO] [195b1cb22286] Starting container for image "postgres:17-alpine"...
+Test Suites: 4 passed, 4 total
+Tests:       51 passed, 51 total
+=> Với bản lỗi, lượt 2 lặng lẽ khởi Ryuk và một container Postgres mới; với bản đúng thì không. M-39-06 phân biệt được hai bản.
+
+=== Dọn sau khi xong ===
+docker rm -f dbs39-external-pg; image postgres:17-alpine đã được pull lại; stack docker compose đã `up -d` lại; chỉ còn container Ryuk (tự thoát).
