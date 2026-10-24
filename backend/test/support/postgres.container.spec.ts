@@ -54,25 +54,46 @@ describe('postgres.container and test harness helpers', () => {
   });
 
   describe('stopPostgresContainer (TC-39-04)', () => {
+    const handle = () =>
+      (globalThis as unknown as { __POSTGRES_CONTAINER__?: unknown }).__POSTGRES_CONTAINER__;
+    const setHandle = (value: unknown) => {
+      (globalThis as unknown as { __POSTGRES_CONTAINER__?: unknown }).__POSTGRES_CONTAINER__ =
+        value;
+    };
+
+    afterEach(() => {
+      setHandle(undefined);
+    });
+
     it('stops the container and cleans up process.env.DATABASE_URL and globalThis handle', async () => {
       const mockStop = jest.fn().mockResolvedValue(undefined);
-      (globalThis as unknown as { __POSTGRES_CONTAINER__?: unknown }).__POSTGRES_CONTAINER__ = {
-        stop: mockStop,
-      };
+      setHandle({ stop: mockStop });
       process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
 
       await stopPostgresContainer();
 
       expect(mockStop).toHaveBeenCalledTimes(1);
       expect(process.env.DATABASE_URL).toBeUndefined();
-      expect(
-        (globalThis as unknown as { __POSTGRES_CONTAINER__?: unknown }).__POSTGRES_CONTAINER__,
-      ).toBeUndefined();
+      expect(handle()).toBeUndefined();
     });
 
-    it('handles cleanup gracefully when no container is running', async () => {
-      delete process.env.DATABASE_URL;
+    it('still clears the handle and DATABASE_URL when stop() rejects, and surfaces the error', async () => {
+      const mockStop = jest.fn().mockRejectedValue(new Error('stop failed'));
+      setHandle({ stop: mockStop });
+      process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test_db';
+
+      await expect(stopPostgresContainer()).rejects.toThrow('stop failed');
+
+      expect(process.env.DATABASE_URL).toBeUndefined();
+      expect(handle()).toBeUndefined();
+    });
+
+    it('leaves an externally supplied DATABASE_URL alone when this run started no container', async () => {
+      process.env.DATABASE_URL = 'postgresql://ci:ci@db.example:5432/banking';
+
       await expect(stopPostgresContainer()).resolves.toBeUndefined();
+
+      expect(process.env.DATABASE_URL).toBe('postgresql://ci:ci@db.example:5432/banking');
     });
   });
 

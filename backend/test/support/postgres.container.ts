@@ -9,8 +9,6 @@ export interface StartedPostgres {
   stop(): Promise<void>;
 }
 
-let activeContainer: StartedPostgreSqlContainer | null = null;
-
 /**
  * Checks whether Docker runtime is available and reachable.
  * Throws a clear, actionable error if Docker is down to fail-fast within seconds.
@@ -41,7 +39,6 @@ export async function startPostgresContainer(): Promise<StartedPostgres> {
     .withStartupTimeout(STARTUP_TIMEOUT_MS)
     .start();
 
-  activeContainer = container;
   (
     globalThis as unknown as { __POSTGRES_CONTAINER__?: StartedPostgreSqlContainer }
   ).__POSTGRES_CONTAINER__ = container;
@@ -61,19 +58,18 @@ export async function startPostgresContainer(): Promise<StartedPostgres> {
  * Stops the running PostgreSQL container and clears DATABASE_URL.
  */
 export async function stopPostgresContainer(): Promise<void> {
-  const container =
-    activeContainer ??
-    (globalThis as unknown as { __POSTGRES_CONTAINER__?: StartedPostgreSqlContainer })
-      .__POSTGRES_CONTAINER__;
+  const holder = globalThis as unknown as { __POSTGRES_CONTAINER__?: StartedPostgreSqlContainer };
+  const container = holder.__POSTGRES_CONTAINER__;
+  // No handle: this run started no container, so DATABASE_URL came from outside (CI, or exported
+  // by the developer) and is not ours to clear — a watch re-run must keep using it.
+  if (!container) {
+    return;
+  }
 
   try {
-    if (container) {
-      await container.stop();
-    }
+    await container.stop();
   } finally {
-    activeContainer = null;
-    delete (globalThis as unknown as { __POSTGRES_CONTAINER__?: StartedPostgreSqlContainer })
-      .__POSTGRES_CONTAINER__;
+    delete holder.__POSTGRES_CONTAINER__;
     delete process.env.DATABASE_URL;
   }
 }

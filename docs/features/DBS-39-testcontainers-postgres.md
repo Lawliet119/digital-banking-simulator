@@ -1,6 +1,6 @@
 # DBS-39 · Testcontainers: helper Postgres 17 chạy migration cho test
 
-> **Status:** Draft (đợt sửa vòng 2 sau review, G2 đã duyệt, §7 xong, chờ G3) · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-39-testcontainers-postgres` · **PR:** — · **Cập nhật:** 2026-10-24
+> **Status:** In Progress (đợt sửa vòng 2 sau review, G3 đã duyệt, đang implement) · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-39-testcontainers-postgres` · **PR:** — · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -266,7 +266,7 @@ Thứ tự: test viết trước → chạy thấy đỏ → code ít nhất đ�
 - **Rủi ro:** thêm `jest-global.spec.ts` làm số suite của `npm test` tăng; con số cũ trong doc (20) lệch. *Cách xử lý:* ghi số đo thật ở §8.
 - **Cách lùi:** mỗi bước là một commit riêng; `git revert <sha>` từng bước. Bước 1–4 chỉ đổi file test hỗ trợ và `postgres.container.ts`, không đụng code production hay migration. Nếu hạn tổng gây lỗi trên máy khác, revert bước 3 đưa lại hành vi `b14691a`.
 
-**Quyết định ở G3:** ghi lại sau khi được duyệt.
+**Quyết định ở G3 (2026-10-24):** Duyệt kế hoạch 9 bước. Chấp nhận bước 4 chứng minh đỏ bằng cách tạm bỏ dòng gán; số suite `npm test` từ 20 lên 21 và ghi theo số đo thật; M-39-04 và M-39-06 chạy sau cùng, bước nào không chạy được thì ghi chưa chạy; mình commit từng bước, không push trước G4 (sau G4 mới push theo yêu cầu của người giữ repo).
 
 ## 8. Kết quả
 
