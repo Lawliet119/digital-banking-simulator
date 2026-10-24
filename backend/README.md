@@ -43,11 +43,14 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm test` | unit test (`src/**/*.spec.ts`) |
 | `npm run test:e2e` | e2e (`test/*.e2e-spec.ts`) |
 | `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Tự động khởi tạo PostgreSQL 17 qua Testcontainers (hoặc dùng `DATABASE_URL` có sẵn nếu đã xuất ra môi trường). Cần Docker Desktop bật; nếu Docker tắt thì test báo lỗi ngay, không treo |
+| `npm run test:services -- --runInBand` | sample Valkey 8 và ElasticMQ thật (`test/services/`): mỗi lần chạy tự tạo container/cổng động, thử SET/GET, SQS send/receive, pause/resume và stop/start rồi dọn container. Cần Docker; không lấy endpoint từ Compose |
 | `npm run migration:run` · `migration:revert` · `migration:show` | migration trên DB local |
 | `npm run migration:generate -- src/database/migrations/<Tên>` | sinh migration từ thay đổi entity |
 | `npm run migration:create -- src/database/migrations/<Tên>` | tạo migration rỗng |
 
 Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db`. CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) chạy đúng các lệnh này cộng `npm run build`, mỗi lệnh một job; cách đọc kết quả: [CONTRIBUTING mục 4b](../CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions).
+
+Helper DBS-40 ở `test/support/valkey.container.ts` và `elasticmq.container.ts` trả endpoint động và `pause()`, `resume()`, `stop()`. `pause()` làm dịch vụ không phản hồi để kiểm timeout/fallback; nó không mô phỏng được độ trễ hữu hạn tùy chỉnh. ElasticMQ quảng bá queue URL theo địa chỉ nội bộ trong config; helper lấy đường dẫn queue thật rồi ghép với endpoint Testcontainers. CI hiện chưa chạy `test:services`; DBS-41 phụ trách tích hợp suite này vào CI.
 
 ## Cấu trúc
 
