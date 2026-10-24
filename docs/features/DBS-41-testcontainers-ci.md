@@ -1,6 +1,6 @@
 # DBS-41 · Testcontainers trong CI và migration run → revert → run
 
-> **Status:** Implemented (Draft PR; CI xanh; chờ Dev review/merge) · **Vai:** Dev · **Nhánh:** `infra/DBS-41-testcontainers-ci` · **PR:** [#19](https://github.com/Lawliet119/digital-banking-simulator/pull/19) · **Cập nhật:** 2026-10-24
+> **Status:** Implemented (PR Ready for review; CI xanh; chờ Dev review/merge) · **Vai:** Dev · **Nhánh:** `infra/DBS-41-testcontainers-ci` · **PR:** [#19](https://github.com/Lawliet119/digital-banking-simulator/pull/19) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -55,9 +55,11 @@ Rollback: revert commit workflow. Không có migration/data của môi trường
 
 ## 8. Kết quả
 
-Commit workflow cuối: `adc1e6393c56624af3740f280f8cb14ae1f5124c`. [Draft PR #19](https://github.com/Lawliet119/digital-banking-simulator/pull/19) có bảng đối chiếu test case. Local sau thay đổi: lint, typecheck, build đạt; 25 suite / 367 unit, 4 suite / 25 e2e, 8 suite / 154 DB test đạt. Riêng hai suite của step mới đạt 2 suite / 5 test với `DATABASE_URL` rỗng. YAML parse được và sáu job name giữ nguyên; `actionlint` chưa cài local, bằng chứng thực thi là GitHub Actions.
+Commit workflow cuối: `adc1e6393c56624af3740f280f8cb14ae1f5124c`. [PR #19 Ready for review](https://github.com/Lawliet119/digital-banking-simulator/pull/19) có bảng đối chiếu test case. Local sau thay đổi: lint, typecheck, build đạt; 25 suite / 367 unit, 4 suite / 25 e2e, 8 suite / 154 DB test đạt. Riêng hai suite của step mới đạt 2 suite / 5 test với `DATABASE_URL` rỗng. YAML parse được và sáu job name giữ nguyên; `actionlint` chưa cài local, bằng chứng thực thi là GitHub Actions.
 
 **CI thật:** [run đỏ chủ ý #40093791694](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093791694) trên `77075cd` hoàn tất trong 85 giây. `test:e2e` và bước Testcontainers đều **success**, bước `exit 1` tạm sau đó làm `e2e` failure. Sau khi xóa bước tạm, [run xanh #40093940028](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40093940028) trên `adc1e63` có cả sáu job **success**. Run xanh từ `run_started_at` đến `updated_at` là **92 giây** (hai timestamp `created_at`/`run_started_at` trùng nhau ở run này); job `e2e` 61 giây, step Testcontainers 24 giây, job `db` 87 giây. Run này đạt mục tiêu ≤10–12 phút; đây là một phép đo thực, không khẳng định mọi run tương lai đều như vậy. [Metadata và trích log](screenshots/DBS-41/ci-runs.txt) ghi `env -u DATABASE_URL`, `PASS migration-revert`, `PASS testcontainers-sample`, 2 suite/5 test.
+
+[Run #40094209631](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40094209631) trên commit tài liệu `240c530` cũng xanh 6/6 job, **113 giây**. PR đã chuyển từ Draft sang Ready for review sau run này.
 
 | Case | Bằng chứng | Kết luận |
 |---|---|---|

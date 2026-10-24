@@ -23,3 +23,10 @@ Green e2e job log excerpt (actual downloaded log):
 2026-10-24T12:27:35.5672826Z PASS test/db/testcontainers-sample.db-spec.ts
 2026-10-24T12:27:35.5692619Z Test Suites: 2 passed, 2 total
 2026-10-24T12:27:35.5693270Z Tests:       5 passed, 5 total
+run=40094209631 head=240c5303dc1aea8a995916efcfaae0400eb22cb5 status=completed conclusion=success elapsed_seconds=113 url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40094209631
+job=e2e conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40094209631/job/120872962891
+job=db conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40094209631/job/120872963089
+job=typecheck conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40094209631/job/120872963094
+job=unit conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40094209631/job/120872963111
+job=lint conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40094209631/job/120872963118
+job=build conclusion=success url=https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40094209631/job/120872963131
