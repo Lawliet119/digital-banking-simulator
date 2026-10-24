@@ -1,6 +1,6 @@
 # DBS-26 · Migration: audit_log
 
-> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-26-migration-audit-log` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/13) · **Cập nhật:** 2026-10-24
+> **Status:** Implemented (chờ duyệt lại G4 sau merge `main`, §8) · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-26-migration-audit-log` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/13) · **Cập nhật:** 2026-10-24
 
 ## 1. Bối cảnh
 
@@ -188,7 +188,7 @@ Mermaid ở §3 đã render thành công bằng mermaid-cli 12.0.0 sau chỉnh s
 
 **Quy tắc thực thi.** Mọi đường dẫn dưới đây tính từ repo root; lệnh npm chạy tại `backend/`. Viết test trước từng hành vi, chạy và ghi đúng một dòng lỗi đỏ thực tế, rồi mới viết code tối thiểu cho xanh. Cột đỏ ghi lỗi thực đã quan sát và kết quả sau sửa; chi tiết tại §8. Chỉ commit khi bước hoàn chỉnh xanh, không bỏ test hoặc dùng `--no-verify`. Mỗi commit chỉ stage allowlist của task; trước commit kiểm `git diff --cached --name-only` và nội dung staged, tuyệt đối không có workbook, secret hoặc file task khác.
 
-**Kiểm tra bàn giao:** `npm run lint:check`, `npm run typecheck`, `npm test -- --runInBand`, `npm run test:e2e -- --runInBand`, `npm run test:db -- --runInBand`, `npm run build`; đọc toàn bộ output và số skip. DB thật qua docker compose, thiếu DB phải fail. Sau commit cuối đổi code, chạy toàn bộ §5 bằng Git Bash, SHA ở dòng đầu transcript, ảnh từ output thật. Nếu sửa code sau manual phải chạy lại toàn bộ §5. Tài liệu/evidence commit sau manual không làm thay SHA code. Không nhận local pass là CI/merge; agent không sửa board hoặc tự merge.
+**Kiểm tra bàn giao (SHA `8c79baf`, sau merge `main`):** [output đầy đủ](screenshots/DBS-26/verification.txt): lint/typecheck/build đạt; unit **25 suite / 367 test**, e2e **4 suite / 25 test**, PostgreSQL **7 suite / 129 test** đạt, 0 skip. Trước khi merge, riêng nhánh DBS-26 đạt unit 23 / 349, e2e 4 / 25, DB 5 / 87 (49 test nền và 38 lượt mới audit/helper); phần tăng thêm là test của DBS-25 và DBS-39 từ `main`. Không có mock database.
 
 | Bước | File được phép sửa/tạo | Test viết trước / mục tiêu | Kết quả đỏ thực tế | Lệnh chứng minh | Commit dự kiến |
 |---|---|---|---|---|---|
@@ -215,13 +215,13 @@ Mermaid ở §3 đã render thành công bằng mermaid-cli 12.0.0 sau chỉnh s
 
 ## 8. Kết quả
 
-**Trạng thái:** đã được người dùng duyệt G4; triển khai local hoàn tất, bàn giao qua PR. Dev review/CI/merge theo trạng thái PR. Code cuối: `0cbfb814037abc6a353af0a0d2311e39ea10a06f` (dòng đầu transcript), thuộc nhánh riêng `feat/DBS-26-migration-audit-log`; không có source DBS-25. Worktree kiểm tra độc lập dùng nhánh tạm local `codex/dbs26-build`, fast-forward kết quả vào nhánh feat tương ứng trước bàn giao.
+**Trạng thái:** G4 đã được duyệt ngày 2026-10-22 trên SHA cũ; sau đó nhánh được merge `origin/main` (DBS-25, DBS-39) và chạy lại toàn bộ bằng chứng, nên **cần duyệt lại G4** (xem "Sau G4" bên dưới). Code cuối: `8c79baf58b86c46643fe9d28b4570128cec4dad8` (dòng đầu `manual-test.txt` và `verification.txt`), nhánh `feat/DBS-26-migration-audit-log`. Dev review/CI/merge theo trạng thái PR.
 
 **Kiểm tra bàn giao:** [output đầy đủ](screenshots/DBS-26/verification.txt): lint/typecheck/build đạt; unit **23 suite / 349 test**, e2e **4 suite / 25 test**, PostgreSQL **5 suite / 87 test** đạt, 0 skip. Có 49 test nền và 38 lượt mới audit/helper. Không có mock database.
 
 **TDD và commit:** helper đỏ do thiếu export `migrateThrough` (TS2305), migration đỏ do thiếu `audit_log` (`42P01`) trước khi viết production migration; sau đó toàn bộ test DB xanh. Helper commit `b991fba`, schema `76fb216`, driver `1310dfd`. Driver dùng SQL/CLI thật, không chạy Jest để thay manual. Chỉnh typing QueryRunner trước commit driver để lint/typecheck xanh.
 
-Kiểm chuỗi với trigger27 phát hiện sáu regression đỏ do audit không còn là latest; sửa ở `e36d50b` bằng prefix audit và CLI đọc/revert successor thật. Kiểm thêm cả outbox25 phát hiện history có thêm migration hợp lệ; commit `d940d3a` so toàn bộ history trước/sau thay vì đếm cứng 2/3. [Bản sao kiểm tương thích](screenshots/DBS-26/integration-verification.txt) sau sửa đạt **7 suite / 150 test**, 0 skip. Không gộp source25 hoặc sửa production loader. Toàn bộ manual đã chạy lại trên SHA code mới sau các sửa test này.
+Kiểm chuỗi với trigger27 phát hiện sáu regression đỏ do audit không còn là latest; sửa ở `e36d50b` bằng prefix audit và CLI đọc/revert successor thật. Kiểm thêm cả outbox25 phát hiện history có thêm migration hợp lệ; commit `d940d3a` so toàn bộ history trước/sau thay vì đếm cứng 2/3. [Bản sao kiểm tương thích](screenshots/DBS-26/integration-verification.txt) (150 test, giữ làm lịch sử) đã được thay bằng kiểm thật sau khi DBS-25 vào `main`: nhánh đã merge đạt 7 suite / 129 test.
 
 | ID | Test / chứng cứ | Kết quả |
 |---|---|---|
@@ -252,15 +252,23 @@ Kiểm chuỗi với trigger27 phát hiện sáu regression đỏ do audit khôn
 
 | Bước | Lệnh / phản hồi thực | Kết quả |
 |---|---|---|
-| M-26-01 | `docker compose -f ../docker-compose.yml ps`; driver in PostgreSQL17.11/UTC và context local superuser. PostgreSQL/Valkey healthy, ElasticMQ Up | đạt |
-| M-26-02 | Mode `lifecycle`: CLI run → revert26 → run; history 3 → 2 → 3; in đủ catalog cột/default/constraint/ba index/sequence, bảng nền giữ nguyên | đạt |
+| M-26-01 | `docker compose -f ../docker-compose.yml ps` (stack compose Up); driver in PostgreSQL 17 / UTC và context superuser. **Lưu ý:** lần chạy này `DATABASE_URL` trỏ tới Postgres 17 tạm (container riêng, cổng 55432, `timezone=UTC`, user `banking` là superuser) vì volume compose có mật khẩu riêng của người dùng; compose chỉ chứng minh Docker/stack lên được | đạt |
+| M-26-02 | Mode `lifecycle`: CLI run → revert26 → run; history 4 → 3 → 4 (thêm migration outbox của DBS-25); in đủ catalog cột/default/constraint/ba index/sequence, bảng nền giữ nguyên | đạt |
 | M-26-03 | Mode `rows`: SUCCESS hệ thống, REJECTED/DENIED có actor; metadata mặc định {}, các filter đúng; identity `9007199254740993` giữ đủ chữ số | đạt |
 | M-26-04 | Mode `rejections`: outcome23514, FK23503, NULL23502, UUID/JSON22P02, PK23505; rollback savepoint rồi INSERT hợp lệ được | đạt |
 | M-26-05 | Mode `revert-guard`: audit đã commit làm CLI revert exit1, direct down55000; snapshot/catalog/history nguyên, run no-op thành công | đạt |
 | M-26-06 | Mode `locking`: writer-first quan sát PID chờ relation lock rồi down55000 giữ row; down-first quan sát PID chờ, cancel57014, sau down thử INSERT42P01; PID cụ thể nằm trong transcript | đạt |
 | M-26-07 | Mode `recovery`: index sentinel làm up42P07, không bảng/history nửa vời; bỏ sentinel fixture rồi run thành công | đạt |
 | M-26-08 | Mode `preconditions`: NONE/RU/SERIALIZABLE/RR đều55000 trước DDL; RR snapshot cũ vẫn không thể xóa row writer đã commit; fresh SELECT/history/catalog nguyên | đạt |
-| M-26-09 | Mode `legacy-lifecycle`: production CLI latest3 → 2 → 1 → 0 → latest3, đọc tên migration thật; giữ funding/bảng nền ở từng mốc | đạt |
+| M-26-09 | Mode `legacy-lifecycle`: production CLI latest4 → 3 → 2 → 1 → 0 → latest4, đọc tên migration thật; giữ funding/bảng nền ở từng mốc | đạt |
+
+**Sau G4 (2026-10-24): merge `main`.** `origin/main` đã nhận DBS-25 (#12) và DBS-39 (#15) sau khi nhánh tách ra. Merge commit `a95c9a3` giải ba conflict tài liệu (`backend/README.md`, `docs/BACKLOG.md`, `database-design.md`), giữ cả khối outbox lẫn audit; code tự merge sạch. Hệ quả:
+- **BL đổi số:** `main` đã dùng BL-017/018 cho nội dung khác, nên hai dòng của DBS-26 thành **BL-019** (AuditService/API/roles) và **BL-020** (Dev review/CI/merge); §8, §9 và checklist cập nhật theo.
+- **Lỗi của công cụ manual:** lần chạy §5 đầu trên merge commit đỏ ở `lifecycle` vì driver gán cứng "còn 2 migration sau revert" (`3 !== 2`). Sửa ở `8c79baf` (`audit-migration-driver.ts`, nằm trong allowlist §7 bước 3): so với lịch sử chụp trước revert, `before.history.slice(0, -1)`. Vì vậy SHA code là `8c79baf` và toàn bộ baseline lẫn §5 được chạy lại từ đầu.
+- **Môi trường kiểm lại:** `npm ci` lại sau merge (`main` thêm `testcontainers`); lần đầu dùng `node_modules` cũ cho lỗi `TS2307`, không phải lỗi code. Test DB chạy trên Postgres 17 tạm như ghi ở M-26-01, và trên worktree merge thử còn chạy đường Testcontainers của DBS-39 (7 suite / 129 test).
+- **Ảnh:** năm ảnh được dựng lại từ `manual-test.txt` mới (các dòng nguyên văn, bỏ mã màu ANSI) bằng Edge headless; mỗi ảnh ghi SHA `8c79baf`.
+- **Chưa xác minh được:** CI xanh của PR #13 trên SHA này (chưa push, `gh` chưa đăng nhập); do đó vẫn thuộc BL-020.
+- **Duyệt lại G4:** commit `0cbfb81`/`d0af33b` (sửa timezone sau CI) và merge này đổi SHA cùng bằng chứng đã được duyệt ở G4 ngày 2026-10-22; bằng chứng mới cần duyệt lại trước khi push.
 
 **Phạm vi và cách vận hành:** allowlist §7 được giữ; không đổi dependency, ADR, ErrorCode, env hoặc quy tắc tiền. Dùng worktree độc lập để source CLI không đổi khi checkout chính chuyển nhánh. Output thô có trailing spaces/newline của npm, được giữ nguyên; whitespace check loại riêng các file .txt trong evidence.
 
@@ -280,18 +288,18 @@ Kiểm chuỗi với trigger27 phát hiện sáu regression đỏ do audit khôn
 
 **Quyết định ở G4 (2026-10-22):** người dùng trả lời «duyệt g4», chấp nhận kết quả, tài liệu và bằng chứng bàn giao; trạng thái chuyển Implemented. Được phép push nhánh riêng và mở PR theo template. Agent không sửa board hoặc merge PR; Dev khác review.
 
-**CI sau G4:** [job DB đầu của PR13](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39804974688/job/119915640569) phát hiện TC-26-04 so tên timezone quá chặt: PostgreSQL Debian trả `Etc/UTC`, local trả `UTC`; [trích output lỗi](screenshots/DBS-26/ci-timezone-failure.txt). Đã tái hiện đỏ bằng session options trên DB tạm, rồi sửa test nhận hai tên UTC tương đương và kiểm offset mùa đông/mùa hè đều bằng 0. Toàn bộ 87 test DB với `Etc/UTC` đã xanh trước commit `0cbfb81`; production migration, env và schema không đổi. Sau commit, đã chạy lại đủ chín bước manual, sáu baseline và kiểm tương thích 150 test; transcript/ảnh mới mang SHA nêu trên. CI của commit bàn giao được xác nhận riêng trên PR.
+**CI sau G4:** [job DB đầu của PR13](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39804974688/job/119915640569) phát hiện TC-26-04 so tên timezone quá chặt: PostgreSQL Debian trả `Etc/UTC`, local trả `UTC`; [trích output lỗi](screenshots/DBS-26/ci-timezone-failure.txt). Đã tái hiện đỏ bằng session options trên DB tạm, rồi sửa test nhận hai tên UTC tương đương và kiểm offset mùa đông/mùa hè đều bằng 0. Toàn bộ 87 test DB với `Etc/UTC` đã xanh trước commit `0cbfb81`; production migration, env và schema không đổi. Sau commit đó đã chạy lại manual và baseline (SHA khi ấy `0cbfb81`); các bằng chứng này được thay bằng bộ chạy trên `8c79baf` ở mục "Sau G4" phía trên. CI của commit bàn giao được xác nhận riêng trên PR.
 
 ## 9. Tài liệu đã cập nhật
 
-Feature doc này, raw reviews và evidence screenshots/DBS-26; database-design §4.7/§11 (schema/index/revert và migration riêng), README audit, backend/README, feature index; BACKLOG thêm BL-019/020. Không xóa backlog chưa giải quyết.
+Feature doc này, raw reviews và evidence screenshots/DBS-26; database-design §4.7/§11 (schema/index/revert và migration riêng), README audit, backend/README, feature index; BACKLOG thêm BL-019/020 (đánh số lại từ BL-017/018 sau khi `main` dùng hai số đó); `database-design.md` giữ mốc "chốt 2026-10-11" và thêm §4.7 vào phần đã kiểm với code; `backend/README.md` §6 thêm khối "Schema audit" cạnh "Schema outbox". Không xóa backlog chưa giải quyết.
 
 ## Checklist G4
 
 - [x] 22/22 TC đủ độ sâu, 0 đơn giản hóa; 38 lượt test mới thực chạy.
-- [x] M-26-01…09 đạt trên SHA code ở dòng đầu manual-test.txt, gồm đường thành công.
+- [x] M-26-01…09 đạt trên SHA code ở dòng đầu manual-test.txt (`8c79baf`), gồm đường thành công; chạy trên Postgres tạm như ghi ở M-26-01.
 - [x] Năm ảnh output thật và transcript đã rà secret; giữ UUID kỹ thuật.
-- [x] Diff main...HEAD chỉ thuộc allowlist §7; không workbook hoặc source task25.
-- [x] Sáu lệnh kiểm tra bàn giao đạt, 0 skip.
+- [x] Diff `origin/main...HEAD` chỉ thuộc allowlist §7; không workbook; DBS-25/39 đến từ `main`, không phải từ diff của nhánh.
+- [x] Sáu lệnh kiểm tra bàn giao đạt trên `8c79baf`, 0 skip (25/367 unit, 4/25 e2e, 7/129 DB).
 - [x] Reference docs/feature index cập nhật; link checker được chạy trước commit tài liệu, status Implemented sau G4.
 - [x] Handoff và DoD quy trình chưa đạt có BL-019/020; backlog cũ ngoài scope giữ nguyên.
