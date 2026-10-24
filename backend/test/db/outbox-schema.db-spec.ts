@@ -68,7 +68,9 @@ const INSERT =
   'INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id) VALUES($1,$2,$3,$4,$5) RETURNING *';
 
 function cli(script: string, url: string) {
-  execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+  const npmCli = process.env.npm_execpath;
+  if (!npmCli) throw new Error('Run these tests through `npm run test:db`.');
+  execFileSync(process.execPath, [npmCli, 'run', script], {
     cwd: resolve(__dirname, '../..'),
     env: { ...process.env, DATABASE_URL: url },
     stdio: 'pipe',
@@ -468,8 +470,26 @@ describe('outbox migration schema and safety', () => {
   });
   it('TC-25-17 down requires an active QueryRunner transaction', async () => {
     const before = await catalog();
-    await expect(migration.down(db.runner)).rejects.toThrow();
+    // Without the guard, LOCK TABLE outside a transaction also errors, so match the guard's message.
+    await expect(migration.down(db.runner)).rejects.toThrow(
+      'Reverting outbox requires a transaction',
+    );
     expect(await catalog()).toEqual(before);
+  });
+  it('TC-25-17 down from an active transaction drops both empty tables and their indexes', async () => {
+    await db.runner.startTransaction();
+    await migration.down(db.runner);
+    await db.runner.commitTransaction();
+    expect(
+      await q(
+        "SELECT to_regclass('public.outbox_events') AS outbox, to_regclass('public.processed_events') AS processed",
+      ),
+    ).toEqual([{ outbox: null, processed: null }]);
+    expect(
+      await q(
+        "SELECT indexname FROM pg_indexes WHERE schemaname='public' AND tablename IN ('outbox_events','processed_events')",
+      ),
+    ).toEqual([]);
   });
   it.each(['outbox_events', 'processed_events'])(
     'TC-25-20 stale RR snapshot cannot drop committed %s',
@@ -489,6 +509,19 @@ describe('outbox migration schema and safety', () => {
       expect(await history()).toHaveLength(3);
     },
   );
+  it('TC-25-20 empty tables revert in an explicit READ COMMITTED transaction', async () => {
+    await db.runner.startTransaction('READ COMMITTED');
+    expect(await q('SHOW transaction_isolation')).toEqual([
+      { transaction_isolation: 'read committed' },
+    ]);
+    await migration.down(db.runner);
+    await db.runner.commitTransaction();
+    expect(
+      await q(
+        "SELECT to_regclass('public.outbox_events') AS outbox, to_regclass('public.processed_events') AS processed",
+      ),
+    ).toEqual([{ outbox: null, processed: null }]);
+  });
   it.each(['READ UNCOMMITTED', 'SERIALIZABLE'] as const)(
     'TC-25-20 refuses unsafe isolation %s before DDL',
     async isolation => {
