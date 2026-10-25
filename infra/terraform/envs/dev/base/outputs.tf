@@ -79,3 +79,8 @@ output "db_subnet_group_name" {
 output "db_security_group_id" {
   value = aws_security_group.db.id
 }
+
+output "github_deploy_role_arn" {
+  description = "Đặt vào biến repo GitHub AWS_DEPLOY_ROLE_ARN (do chủ repo tạo)."
+  value       = aws_iam_role.github_deploy.arn
+}
