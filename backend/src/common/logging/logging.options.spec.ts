@@ -82,6 +82,124 @@ describe('DBS-42 JSON logging options', () => {
     expect(log.rows()[0].message).toBe('Operation completed');
   });
 
+  describe('TC-42-03 key redaction and string scanning', () => {
+    const SECRET_KEYS = [
+      'accountNo',
+      'accountNum',
+      'toAccountNo',
+      'cardNo',
+      'cardNum',
+      'pan',
+      'cardPan',
+      'card_pan',
+      'panNumber',
+      'apiKey',
+      'api_key',
+      'privateKey',
+      'credentials',
+      'pwd',
+      'jwt',
+      'passphrase',
+      'connectionString',
+      'databaseUrl',
+      'securityCode',
+      'cardSecurityCode',
+      'otp',
+      'smsOtp',
+      'otpCode',
+      'otp_value',
+      'totp',
+      'totpCode',
+      'mfaCode',
+      'smsCode',
+      'verificationCode',
+      'pin',
+      'newPin',
+      'pinCode',
+      'cardPin',
+      'cvc',
+      'cvc2',
+      'sid',
+      'sessionId',
+      'pass',
+      'dsn',
+      'signature',
+    ];
+
+    it.each(SECRET_KEYS)('redacts the key %s', key => {
+      const log = capture();
+      log.logger.info({ [key]: 'sensitive-key-fixture', attempt: 1 }, 'Fixed message');
+      expect(log.text()).not.toContain('sensitive-');
+      expect(log.rows()[0].attempt).toBe(1);
+    });
+
+    it('omits headers and rawHeaders entirely', () => {
+      const log = capture();
+      log.logger.info(
+        {
+          headers: { 'x-api-key': 'sensitive-header' },
+          rawHeaders: ['Authorization', 'sensitive-raw'],
+        },
+        'Fixed message',
+      );
+      expect(log.text()).not.toContain('sensitive-');
+    });
+
+    it('keeps near-miss keys that only contain a short secret word', () => {
+      const log = capture();
+      const safe = {
+        footprint: 'safe-1',
+        panel: 'safe-2',
+        span: 'safe-3',
+        snapshotPolicy: 'safe-4',
+        notPaid: 'safe-5',
+        cardNotPresent: 'safe-6',
+        accountNotFound: 'safe-7',
+        status: 'safe-8',
+      };
+      log.logger.info(safe, 'Fixed message');
+      expect(log.rows()[0]).toMatchObject(safe);
+    });
+
+    it('scans every string value, not only message', () => {
+      const log = capture();
+      log.logger.info(
+        {
+          a: 'postgres://u:sensitive-uri@h/db',
+          b: 'Bearer sensitive-bearer',
+          c: 'Basic c2Vuc2l0aXZlLWJhc2ljOnB3',
+          d: '{"password":"sensitive-json"}',
+          e: 'eyJhbGciOiJIUzI1.eyJzdWIiOiJzZW5zaXRpdmU.sensitive_signature',
+          nested: [{ f: 'password=sensitive-kv' }],
+        },
+        'Fixed message',
+      );
+      expect(log.text()).not.toContain('sensitive');
+      expect(log.text()).not.toContain('c2Vuc2l0aXZl');
+    });
+
+    it('leaves ordinary identifiers and codes untouched', () => {
+      const log = capture();
+      const ordinary = {
+        id: '12345678-1234-4234-8234-123456789012',
+        at: '2026-10-25T10:24:44.824Z',
+        sqlstate: '40P01',
+        errorCode: 'SERVICE_TEMPORARILY_UNAVAILABLE',
+      };
+      log.logger.info(ordinary, 'Fixed message');
+      expect(log.rows()[0]).toMatchObject(ordinary);
+    });
+
+    it('does not scan a very long string, so it cannot stall the event loop', () => {
+      const log = capture();
+      const started = Date.now();
+      log.logger.info({ big: 'eyJ'.repeat(20_000), edge: 'a'.repeat(4096) }, 'Fixed message');
+      expect(Date.now() - started).toBeLessThan(50);
+      expect(log.rows()[0].big).toBe('[Omitted]');
+      expect(log.rows()[0].edge).toBe('a'.repeat(4096));
+    });
+  });
+
   it('TC-42-04 never serializes raw Error messages, stacks, causes, SQL or parameters', () => {
     const log = capture();
     const error = Object.assign(new Error('postgres://u:sensitive-uri-fixture@host/db'), {

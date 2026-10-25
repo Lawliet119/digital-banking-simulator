@@ -20,8 +20,34 @@ const LEVELS: Record<string, Level> = {
   error: 'error',
   fatal: 'fatal',
 };
+// Keys are normalised first (lower case, no "_" or "-"). Long, specific words match as a
+// substring. Short words that also sit inside harmless keys ("footprint" holds "otp", "span"
+// holds "pan") match the whole key, or only as a suffix, so "toAccountNo" and "newPin" are
+// caught while "cardNotPresent" and "accountNotFound" are not.
 const PRIVATE_KEY =
-  /authorization|password|passwd|secret|token|cookie|accountnumber|iban|cardnumber|cvv/;
+  /authorization|password|passwd|secret|token|cookie|accountnumber|iban|cardnumber|cvv|credential|apikey|privatekey|pwd|jwt|passphrase|connectionstring|databaseurl|securitycode/;
+const PRIVATE_EXACT_KEYS = new Set([
+  'pan',
+  'cardpan',
+  'pannumber',
+  'otpcode',
+  'otpvalue',
+  'totp',
+  'totpcode',
+  'mfacode',
+  'smscode',
+  'verificationcode',
+  'pincode',
+  'cardpin',
+  'cvc2',
+  'sid',
+  'sessionid',
+  'pass',
+  'dsn',
+  'signature',
+  'auth',
+]);
+const PRIVATE_KEY_SUFFIXES = ['accountno', 'accountnum', 'cardno', 'cardnum', 'pin', 'otp', 'cvc'];
 const OMITTED_KEYS = new Set([
   'body',
   'query',
@@ -32,7 +58,19 @@ const OMITTED_KEYS = new Set([
   'url',
   'originalurl',
   'raw',
+  'headers',
+  'rawheaders',
 ]);
+/** A longer string is replaced, not scanned: the scan must stay linear and cheap per log call. */
+const MAX_SCANNED_LENGTH = 4096;
+
+function isPrivateKey(normalized: string): boolean {
+  return (
+    PRIVATE_KEY.test(normalized) ||
+    PRIVATE_EXACT_KEYS.has(normalized) ||
+    PRIVATE_KEY_SUFFIXES.some(suffix => normalized.endsWith(suffix))
+  );
+}
 const METHODS = new Set([
   'GET',
   'POST',
@@ -115,6 +153,7 @@ function isErrorRecord(value: unknown): value is Record<string, unknown> {
 function sanitize(value: unknown, seen = new WeakSet<object>(), depth = 0): unknown {
   if (value instanceof Error) return safeErrorMetadata(value);
   if (typeof value === 'function' || typeof value === 'symbol') return undefined;
+  if (typeof value === 'string') return scrubSecrets(value);
   if (value === null || typeof value !== 'object') return value;
   if (isErrorRecord(value)) return safeErrorMetadata(value);
   if (seen.has(value) || depth > 12) return '[Omitted]';
@@ -123,7 +162,7 @@ function sanitize(value: unknown, seen = new WeakSet<object>(), depth = 0): unkn
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => {
       const normalized = key.toLowerCase().replace(/[_-]/g, '');
-      if (PRIVATE_KEY.test(normalized) || OMITTED_KEYS.has(normalized)) return [key, REDACTED];
+      if (isPrivateKey(normalized) || OMITTED_KEYS.has(normalized)) return [key, REDACTED];
       if (key === 'req') return [key, requestFields(item)];
       if (key === 'res') return [key, responseFields(item)];
       if (key === 'err' || key === 'error') return [key, safeErrorMetadata(item)];
@@ -134,16 +173,27 @@ function sanitize(value: unknown, seen = new WeakSet<object>(), depth = 0): unkn
   );
 }
 
-/** Defence in depth for diagnostic text; callers must still use fixed, non-sensitive messages. */
-function safeMessage(message: string): string {
-  return message
+/**
+ * Defence in depth for any string: credentials in URIs, Bearer and Basic headers, password=… and
+ * "password":"…" pairs, and raw JWTs. Callers must still keep secrets out of logs. Every pattern
+ * is anchored or bounded so the scan stays linear; a string over MAX_SCANNED_LENGTH is not scanned.
+ */
+function scrubSecrets(text: string): string {
+  if (text.length > MAX_SCANNED_LENGTH) return '[Omitted]';
+  return text
     .replace(/\b(?:https?|postgres(?:ql)?|rediss?):\/\/[^\s]+/gi, '[Redacted URI]')
     .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [Redacted]')
+    .replace(/\bBasic\s+[A-Za-z0-9+/=]{8,}/gi, 'Basic [Redacted]')
     .replace(
-      /\b(password|passwd|token|secret|authorization)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,
+      /\b(password|passwd|token|secret|authorization)"?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,
       '$1=[Redacted]',
     )
-    .replace(/\b\d{8,}\b/g, '[Redacted number]');
+    .replace(/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]+/g, '[Redacted JWT]');
+}
+
+/** Defence in depth for diagnostic text; callers must still use fixed, non-sensitive messages. */
+function safeMessage(message: string): string {
+  return scrubSecrets(message).replace(/\b\d{8,}\b/g, '[Redacted number]');
 }
 
 function requestId(req: IncomingMessage, res: ServerResponse): string {
