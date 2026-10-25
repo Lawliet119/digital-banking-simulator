@@ -39,4 +39,5 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-31](DBS-31-terraform-bootstrap-s3-backend.md) | Terraform bootstrap: S3 state có versioning, mã hóa và khóa state | #5 Platform & Ops | Implemented |
 | [DBS-33](DBS-33-terraform-vpc-ecr.md) | Terraform: VPC 2 AZ, gateway endpoint S3 và ECR `dbs-api` (stack `envs/dev/base`) | #5 Platform & Ops | Implemented |
 | [DBS-34](DBS-34-terraform-ecs-alb.md) | Terraform: ECS Fargate cluster, service api và ALB HTTPS (nhóm xóa hằng ngày) | #5 Platform & Ops | Implemented |
+| [DBS-54](DBS-54-terraform-cognito.md) | Terraform: Cognito user pool, 4 nhóm, app client và script seed tài khoản nhân viên demo | #5 Platform & Ops | Implemented |
 | [DBS-36](DBS-36-ci-build-push-ecr-oidc.md) | CI: build image và đẩy ECR tag SHA bằng OIDC (role chỉ tin repo và nhánh main) | #5 Platform & Ops | Implemented |
