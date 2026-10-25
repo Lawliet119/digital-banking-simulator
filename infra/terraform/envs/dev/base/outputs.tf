@@ -66,3 +66,16 @@ output "cognito_issuer" {
   description = "Giá trị COGNITO_ISSUER của app."
   value       = "https://cognito-idp.${var.region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
 }
+
+output "kms_key_arn" {
+  description = "CMK dùng chung của dev (alias/dbs-dev)."
+  value       = aws_kms_key.main.arn
+}
+
+output "db_subnet_group_name" {
+  value = aws_db_subnet_group.main.name
+}
+
+output "db_security_group_id" {
+  value = aws_security_group.db.id
+}
