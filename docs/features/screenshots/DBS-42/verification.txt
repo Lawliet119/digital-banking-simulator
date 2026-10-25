@@ -1,0 +1,16 @@
+23ddfe3c4488596cb73a1be083bb549cefdac5ae
+Node v24.11.1, npm 11.6.2; run from backend/ on the commit above (last commit that changes code)
+$ npm run lint:check -> exit 0
+$ npm run typecheck -> exit 0
+$ npm run build -> exit 0
+$ npm test
+Test Suites: 27 passed, 27 total
+Tests:       469 passed, 469 total
+$ npm run test:e2e
+Test Suites: 6 passed, 6 total
+Tests:       47 passed, 47 total
+$ npm run test:db (Testcontainers postgres:17-alpine)
+Test Suites: 8 passed, 8 total
+Tests:       154 passed, 154 total
+$ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs (run from the repo root after the final doc edits)
+100 files checked, 0 broken link(s)

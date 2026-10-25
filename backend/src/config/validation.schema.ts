@@ -142,7 +142,40 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   const result = validationSchema.validate(raw, { abortEarly: false, allowUnknown: true });
   if (result.error) {
     const problems = result.error.details.map(detail => `  - ${detail.message}`).join('\n');
-    throw new Error(`Invalid environment configuration:\n${problems}`);
+    throw new ConfigValidationError(
+      `Invalid environment configuration:\n${problems}`,
+      invalidKeysOf(result.error.details),
+    );
   }
   return result.value;
+}
+
+/** Label for a rule that spans several keys (it reports an empty path). */
+export const CROSS_FIELD = '<cross-field>';
+
+/**
+ * A startup failure must say which keys are wrong without repeating their values (a value can be
+ * a credential or a URL). `message` keeps the full text for callers that already read it; the
+ * logger uses only this list. Only names that exist in the schema are accepted.
+ */
+export class ConfigValidationError extends Error {
+  constructor(
+    message: string,
+    readonly invalidKeys: string[],
+  ) {
+    super(message);
+    this.name = 'ConfigValidationError';
+  }
+}
+
+const SCHEMA_KEYS = new Set(
+  Object.keys((validationSchema.describe().keys ?? {}) as Record<string, unknown>),
+);
+
+function invalidKeysOf(details: Joi.ValidationErrorItem[]): string[] {
+  const keys = details.map(detail => {
+    const key = detail.path[0];
+    return typeof key === 'string' && SCHEMA_KEYS.has(key) ? key : CROSS_FIELD;
+  });
+  return [...new Set(keys)];
 }

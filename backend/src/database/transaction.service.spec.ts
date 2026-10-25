@@ -1,4 +1,6 @@
 import type { ConfigType } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
+import { SafeLogger } from '../common/logging/safe-logger';
 import { fakeDataSource } from '../../test/support/fake-data-source';
 import type { databaseConfig } from '../config/database.config';
 import { TransactionService } from './transaction.service';
@@ -14,6 +16,58 @@ const config: ConfigType<typeof databaseConfig> = {
 };
 
 describe('TransactionService', () => {
+  it('TC-42-08 retries without logging raw database error messages or credentials', async () => {
+    const log = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    try {
+      const { dataSource } = fakeDataSource();
+      const service = new TransactionService(dataSource, config);
+      let calls = 0;
+      await service.run(
+        () => {
+          if (calls++ === 0)
+            throw Object.assign(new Error('sensitive-retry-fixture'), {
+              driverError: { code: '40P01' },
+            });
+          return Promise.resolve();
+        },
+        { sleep: () => Promise.resolve() },
+      );
+      expect(log).toHaveBeenCalledWith(
+        { attempt: 1, errorType: 'Error', code: '40P01' },
+        'Transaction retry',
+      );
+      expect(JSON.stringify(log.mock.calls)).not.toContain('sensitive-');
+      expect(calls).toBe(2);
+    } finally {
+      log.mockRestore();
+    }
+  });
+  it('TC-42-08 still retries and returns normally when the logger itself fails', async () => {
+    const broken = () => {
+      throw new Error('sensitive-logger-fixture');
+    };
+    Logger.overrideLogger(new SafeLogger({ log: broken, error: broken, warn: broken }));
+    try {
+      const { dataSource } = fakeDataSource();
+      const service = new TransactionService(dataSource, config);
+      let calls = 0;
+      const result = await service.run(
+        () => {
+          if (calls++ === 0)
+            throw Object.assign(new Error('sensitive-retry-fixture'), {
+              driverError: { code: '40P01' },
+            });
+          return Promise.resolve('done');
+        },
+        { sleep: () => Promise.resolve() },
+      );
+      expect(result).toBe('done');
+      expect(calls).toBe(2);
+    } finally {
+      Logger.overrideLogger(false);
+    }
+  });
+
   it('applies the timeouts from configuration to every transaction it opens', async () => {
     const { dataSource, runners } = fakeDataSource();
     const service = new TransactionService(dataSource, config);
