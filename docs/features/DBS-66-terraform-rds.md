@@ -1,6 +1,6 @@
 # DBS-66 · Terraform: RDS PostgreSQL 17 (dev), mã hóa và ép TLS
 
-> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-66-terraform-rds` (xếp chồng trên `chore/DBS-54-terraform-cognito`) · **PR:** (điền sau khi mở) · **Cập nhật:** 2026-10-26
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-66-terraform-rds` (xếp chồng trên `chore/DBS-54-terraform-cognito`) · **PR:** [#27](https://github.com/Lawliet119/digital-banking-simulator/pull/27) · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
