@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # One image, two ECS services: the same image runs as `api` or `worker` depending on APP_ROLE.
 #   docker build -t dbs-backend backend
 #   docker run -e APP_ROLE=api    -e DATABASE_URL=… dbs-backend
@@ -19,16 +20,18 @@ WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
+# Node does not trust the Amazon RDS CA by default, so the AWS bundle is part of the image and the
+# task sets DATABASE_SSL=true and DATABASE_SSL_CA_PATH to this path. The checksum pins the file: if
+# AWS publishes a new bundle the build fails loudly; refresh the hash as described in
+# infra/terraform/README.md (RDS section). Never disable certificate verification to get around a
+# connection error.
+ADD --checksum=sha256:90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b --chmod=0444 \
+  https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/rds/global-bundle.pem
 # Never run as root. The `node` user ships with the official image.
 USER node
 EXPOSE 3000
-# Connecting to RDS over TLS needs the AWS CA bundle (Node does not trust the RDS CA by default):
-# download https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem into the image in the
-# deployment pipeline and set DATABASE_SSL_CA_PATH to its location. Do NOT disable certificate
-# verification to get around the error. (Not baked in here: it has not been tried against a real
-# RDS instance yet, and an unchecked download step would break every build if the URL changed.)
 # No HEALTHCHECK here on purpose: the `api` service is checked by the load balancer
 # (GET /health/ready) and the `worker` service has no HTTP port, so each ECS service defines
-# its own check. Migrations are a separate pipeline step:
+# its own check. Migrations are a separate pipeline step (npm run migration:run:prod):
 #   docker run … dbs-backend node ./node_modules/typeorm/cli.js -d dist/database/data-source.js migration:run
 CMD ["node", "dist/main.js"]
