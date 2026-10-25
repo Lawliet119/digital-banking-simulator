@@ -1,6 +1,6 @@
 # DBS-54 · Terraform: Cognito user pool, 4 nhóm, app client và script seed tài khoản nhân viên demo
 
-> **Status:** Draft (đang làm, đến G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-54-terraform-cognito` (xếp chồng trên `chore/DBS-34-ecs-alb`) · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-54-terraform-cognito` (xếp chồng trên `chore/DBS-34-ecs-alb`) · **PR:** (điền sau khi mở) · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
@@ -172,8 +172,55 @@ Rủi ro và cách lùi: pool có tài khoản thật sau khi khách đăng ký;
 
 ## 8. Kết quả
 
-(Điền ở Phase 4–5.)
+- **Lệnh kiểm tra** (lúc bàn giao): `terraform fmt -check -recursive` sạch; `validate` sạch ở 3 thư mục; `terraform test`: bootstrap 9/9, `envs/dev/base` **24/24** (17 cũ + 7 mới), `envs/dev/session` 9/9 (thêm một assert Cognito); `python3 infra/scripts/tests/test_seed_cognito.py` **12/12**; `python3 .github/scripts/check-image-workflow.py` → `OK`; `check-doc-links.mjs` 0 link hỏng. Không có `.skip`/`.only`. Test script bắt được một lỗi thật khi viết: vài hàm nháp truyền JSON secret làm đối số của `python3` (lộ qua argv); đã xóa, test xanh.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-54-01 | `base/tests/cognito.tftest.hcl` › `user_pool`, `deletion_protection_follows_variable` | đạt |
+| TC-54-02 | › `password_policy` | đạt |
+| TC-54-03 | › `groups` | đạt |
+| TC-54-04 | › `app_client` (không secret, ba flow, user existence, revocation) | đạt |
+| TC-54-05 | › `app_client` (15/15 phút, 1 ngày) | đạt |
+| TC-54-06 | › `issuer_output`, `rejects_bad_deletion_protection` | đạt |
+| TC-54-07 | `session.tftest.hcl` › `task_definition` (ba biến `COGNITO_*`) | đạt |
+| TC-54-08 | `test_seed_cognito.py` › `test_first_run_orders_secret_before_users` | đạt |
+| TC-54-09 | › `test_passwords_never_leak` (argv của `aws` và `python3`, stdout/stderr, byte stdin không `\n`, TMPDIR rỗng, không `--debug`) | đạt |
+| TC-54-10 | › `test_second_run_is_idempotent` | đạt |
+| TC-54-11 | › `test_failure_midway_then_rerun` | đạt |
+| TC-54-12 | › `test_rotate_order_and_signout`, `test_rotate_failure_then_plain_rerun_signs_out_remaining` | đạt |
+| TC-54-12b | › `test_access_denied_stops_before_cognito`, `test_secret_without_current_version_does_not_loop`, `test_existing_user_extra_group_removed` | đạt |
+| TC-54-13 | › `test_dry_run_calls_nothing`, `test_missing_pool_id_fails` | đạt |
+| TC-54-14 | › `StaticChecks.test_no_hardcoded_secrets` (`rg -P` đổi thành regex Python tương đương, cùng loại trừ) | đạt (đơn giản hóa: regex Python thay cho `rg`, không đổi phạm vi) |
+| TC-54-15 | các test cũ của `base` (17) và `session` (9) | đạt |
+| TC-54-16 | quy trình | chưa làm (chờ review và merge) |
+
+16 test case: 15 đạt đủ độ sâu (TC-54-14 ghi chú công cụ), 1 quy trình.
+
+- **Test thủ công** (SHA `d6ef68dd0d3ad843d0d853a9178d2cda5b31995c` ở dòng đầu [manual-test.txt](screenshots/DBS-54/manual-test.txt); đã thay id tài khoản và pool; `apply` theo đồng ý của người dùng ngày 2026-10-26; mật khẩu không bao giờ in ra):
+
+| Bước | Kết quả |
+|---|---|
+| M-54-00 | đạt: `6 to add, 0 to change, 0 to destroy` (pool, 4 nhóm, app client) |
+| M-54-01 | đạt: `Apply complete! 6 added`; pool `dbs`, MFA `OFF`, tier `ESSENTIALS`, `CaseSensitive False`, `AllowAdminCreateUserOnly False`, mật khẩu tối thiểu 12; client không secret, ba flow, 15/15 phút, 1 ngày, `ENABLED`, revocation `true`; 4 nhóm |
+| M-54-02 | đạt: dry-run in kế hoạch, không gọi AWS |
+| M-54-03 | đạt: 3 user `CONFIRMED`, mỗi user đúng một nhóm; secret `dbs/dev/demo-accounts` có tag `project/env/owner` |
+| M-54-04, 05 | đạt: operator, auditor, admin đăng nhập thật; access token `token_use=access`, đúng `client_id`, `cognito:groups` đúng vai, `iss` khớp, `exp - iat = 900`; email viết hoa đăng nhập được cùng tài khoản |
+| M-54-06 | đạt: sai mật khẩu và email không tồn tại cùng `NotAuthorizedException`; `ADMIN_USER_PASSWORD_AUTH` `InvalidParameterException` "flow not enabled" |
+| M-54-07 | đạt: chữ ký RS256 xác minh bằng JWKS công khai |
+| M-54-08 | đạt: chạy lại không đổi secret, vẫn 3 user, mật khẩu cũ vẫn đăng nhập được |
+| M-54-09 | đạt: rotate xong secret đổi, cờ `pending_signout` được xóa, `AWSPREVIOUS` giữ mật khẩu cũ; mật khẩu cũ và refresh token cũ bị `NotAuthorizedException`; mật khẩu mới đăng nhập được |
+| M-54-10 | đạt phần mật khẩu yếu (`InvalidPasswordException`); **đăng ký thành công cần email thật: chưa chạy** |
+| M-54-11 | đạt phần plan: `INACTIVE -> ACTIVE` là `1 to change`; **việc chặn xóa thật chưa kiểm** (cần `apply` ACTIVE rồi `destroy`, bỏ qua để không rủi ro mất pool) |
+| M-54-12 | **chưa chạy**: backend chưa có guard JWT (DBS-50/51) và task api chưa chạy (BL-038): BL-100 |
+
+- **DoD 4 chỉ đạt một phần:** đăng nhập thật bằng tài khoản demo và token hợp lệ đã chứng minh; "gọi endpoint bảo vệ trên cloud" chưa làm được. Người duyệt cần chấp nhận từng ý này ở G4 (và Dev biết trên board).
+- **Phạm vi so với §7:** `git diff --stat` khớp: `base/{cognito.tf,variables.tf,outputs.tf}` + `tests/cognito.tftest.hcl` + mock id pool trong các test cũ của `base`; `session/ecs.tf` + test; `infra/scripts/{seed-cognito.sh,tests/test_seed_cognito.py,tests/fake_aws.py}`; README, BACKLOG, doc. `fake_aws.py` là một file test thuộc kế hoạch bước 3 nhưng không ghi tên riêng ở §7. Không có file lạ.
+- **Ảnh chụp:** không áp dụng (người dùng bỏ qua ảnh console).
+- **Lệch so với kế hoạch:** (1) `fake_aws.py` là file riêng; (2) TC-54-14 dùng regex Python thay `rg -P`; (3) các test cũ của `base` cần mock id pool Cognito hợp lệ (provider kiểm định dạng khi `apply`). Không lệch nào cần gate phụ.
+- **Bàn giao:** BL-100 (DoD 4: gọi endpoint bảo vệ, cần guard JWT của Dev và BL-038), BL-101 (role IAM tối thiểu cho script seed, CI chạy test script). BL-028 nhận thêm nguồn: `terraform test` và test script cần chạy trong CI.
+- **Chi phí:** Cognito (ESSENTIALS, dưới 10.000 MAU miễn phí) và secret ≈ 0,40 USD/tháng; không có gì tính tiền theo giờ nên giữ lại, không `destroy`.
 
 ## 9. Tài liệu đã cập nhật
 
-(Điền ở Phase 4–5.)
+`infra/terraform/README.md` (mục Cognito và tài khoản nhân viên demo: lệnh seed, quyền tối thiểu, teardown), `docs/BACKLOG.md` (thêm BL-100, BL-101), `docs/features/README.md` (hàng DBS-54). Không xóa dòng BACKLOG nào: BL-032 hết phần DBS-54 nhưng còn phần DBS-66.
