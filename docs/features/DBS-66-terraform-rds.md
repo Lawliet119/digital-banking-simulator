@@ -1,6 +1,6 @@
 # DBS-66 · Terraform: RDS PostgreSQL 17 (dev), mã hóa và ép TLS
 
-> **Status:** Draft (đang làm, đến G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-66-terraform-rds` (xếp chồng trên `chore/DBS-54-terraform-cognito`) · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-66-terraform-rds` (xếp chồng trên `chore/DBS-54-terraform-cognito`) · **PR:** (điền sau khi mở) · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
@@ -166,8 +166,50 @@ Rủi ro và cách lùi: RDS tính tiền theo giờ; `destroy` ngay sau khi ki�
 
 ## 8. Kết quả
 
-(Điền ở Phase 4–5.)
+- **Lệnh kiểm tra** (lúc bàn giao): `terraform fmt -check -recursive` sạch; `validate` sạch ở 3 thư mục; `terraform test`: bootstrap 9/9, `envs/dev/base` **27/27** (24 cũ + 3 mới), `envs/dev/session` **13/13** (9 cũ + 4 mới); test script Cognito 12/12; `check-image-workflow.py` `OK`; `check-doc-links.mjs` 0 link hỏng. Không có `.skip`/`.only`.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-66-01 | `session.tftest.hcl` › `rds_instance` | đạt |
+| TC-66-02 | › `rds_security` | đạt |
+| TC-66-03 | › `rds_parameter_group` | đạt (cấu hình; xem lưu ý về `--source user` ở M-66-03) |
+| TC-66-04 | › `rds_instance` | đạt |
+| TC-66-05 | › `rds_security` (kể cả output `db_master_secret_arn`) | đạt |
+| TC-66-06 | `base/tests/rds_network.tftest.hcl` › `db_security_group` | đạt; egress rỗng thật kiểm ở M-66-01 |
+| TC-66-07 | › `api_egress_to_db` | đạt |
+| TC-66-08 | `session` › `rds_security` (subnet group, SG) | đạt |
+| TC-66-09 | `base` › `kms_key` | đạt |
+| TC-66-10 | `session` › `rds_variables` | đạt |
+| TC-66-11 | các test cũ của `base` (24) và `session` (9) | đạt |
+| TC-66-12 | M-66-04…M-66-07 | đạt (thủ công) |
+| TC-66-13 | quy trình | chưa làm (chờ review và merge) |
+
+13 test case: 12 đạt đủ độ sâu, 1 quy trình.
+
+- **Test thủ công** (SHA `c9bd21794c6aae4875fd1dc23828fe3b751ab38b` ở dòng đầu [manual-test.txt](screenshots/DBS-66/manual-test.txt); đã thay id tài khoản, host RDS, id SG, IP; `apply` và `destroy` theo đồng ý của người dùng ngày 2026-10-26; mật khẩu không bao giờ in ra):
+
+| Bước | Kết quả |
+|---|---|
+| M-66-00 | đạt: `6 to add, 0 to change, 0 to destroy` (KMS key và alias, subnet group, SG `db`, 2 luật) |
+| M-66-01 | đạt: SG `db` chỉ có ingress 5432 từ SG `api` (0 CIDR), **0 luật egress** thật; SG `api` có egress 5432 tới SG `db` và 443; xoay khóa KMS `True`, alias `alias/dbs-dev` |
+| M-66-02 | đạt: `15 to add, 0 to change, 0 to destroy` (13 tài nguyên cũ + parameter group + instance) |
+| M-66-03 | đạt: `Apply complete! 15 added` (18:13:06Z đến 18:22:08Z, ≈ 9 phút); instance `available`, `postgres 17.9`, `db.t4g.micro`, `MultiAZ False`, `StorageEncrypted True` với CMK, `PubliclyAccessible False`, parameter group `dbs-dev-postgres17` `in-sync`, backup 1 ngày, CA `rds-ca-rsa2048-g1`, `gp3` 20 GB |
+| M-66-03b | **không đạt như viết, đã sửa kỳ vọng:** `describe-db-parameters --source user` trả rỗng vì `rds.force_ssl = 1` và `timezone = UTC` trùng mặc định của engine nên AWS ghi nguồn `system`, không phải `user` (khớp phát hiện review #8). Kiểm bằng tên (không lọc nguồn): `rds.force_ssl 1`, `timezone UTC`. Giá trị hiệu lực đúng; tham số tường minh vô hại và giữ để không phụ thuộc mặc định của AWS |
+| M-66-04..06 | đạt: task thử `exit code 0`; phiên không TLS bị từ chối với `FATAL: no pg_hba.conf entry for host "<ip>", user "dbs_master", database "dbs", no encryption`; phiên `sslmode=require` trả `t`, `TLSv1.3` (từ `pg_stat_ssl` của chính phiên), `UTC`, `max_connections = 79`, `superuser_reserved_connections = 3`, `reserved_connections = 2`, `PostgreSQL 17.9` |
+| M-66-07 | đạt: task với SG tạm (có egress 443 và 5432 nhưng không có trong ingress SG `db`) báo `timeout expired`, `psql exit=2` |
+| M-66-08 | đạt: role tạm `NoSuchEntity`, 0 task definition `dbs-probe-db` còn ACTIVE, SG tạm đã xóa |
+| M-66-09 | đạt: `Destroy complete! Resources: 15 destroyed` (18:24:57Z đến 18:26:59Z, ≈ 2 phút) |
+| M-66-10 | đạt: 0 instance, 0 snapshot thủ công, `describe-db-instance-automated-backups` báo `DBInstanceAutomatedBackupNotFound` (không còn backup tự động), 0 secret RDS kể cả đang chờ xóa, 0 ENI trong VPC; state `session` rỗng |
+| M-66-11 | **chưa chạy ở bước này** (billing trễ): BL-102 |
+
+- **Con số cần cho tài liệu:** `max_connections = 79` trên `db.t4g.micro`; khả dụng cho ứng dụng = 79 − 3 − 2 = 74; `6 × 10 + 5 = 65 ≤ 74`, nên dev chạy tối đa 6 task (khớp docs/03 §13.2). Instance sống ≈ 13 phút (18:13 đến 18:27); chi phí ≈ 0,01 USD. Chi phí khi bật: RDS ≈ 0,025 + gp3 ≈ 0,004 USD/giờ (DoD 3; đối chiếu Cost Explorer: BL-102).
+- **Phạm vi so với §7:** `git diff --stat` khớp: `base/{kms.tf,rds_network.tf,outputs.tf}` + test mới và mock id Cognito thêm vào các test cũ của `base` (không có trong §7); `session/{rds.tf,variables.tf,outputs.tf}` + test; README, BACKLOG, doc.
+- **Ảnh chụp:** không áp dụng (người dùng bỏ qua ảnh console).
+- **Lệch so với kế hoạch:** (1) bản engine thực tế là `17.9` (không phải 17.11 như ước tính); (2) M-66-03b: kỳ vọng `--source user` sai, đã sửa bằng kiểm theo tên; (3) mock id Cognito hợp lệ thêm vào mọi test của `base` (provider kiểm định dạng khi `apply`). Không lệch nào cần gate phụ.
+- **Bàn giao:** BL-102 (đối chiếu chi phí RDS thật), BL-103 (DBS-67: secret master, `DATABASE_URL`, quyền execution role, CA bundle `rds-ca-rsa2048-g1`; DBS-68: DB role và migration; ngưỡng task). `terraform test` của `base` và `session` cần chạy trong CI chung (BL-028).
+- **Chi phí còn lại:** KMS CMK ≈ 1 USD/tháng chạy liên tục (giữ lại); không còn gì tính tiền theo giờ.
 
 ## 9. Tài liệu đã cập nhật
 
-(Điền ở Phase 4–5.)
+`infra/terraform/README.md` (mục RDS PostgreSQL 17: mạng, KMS, parameter group, chi phí, tên database, CA), `docs/BACKLOG.md` (thêm BL-102, BL-103), `docs/features/README.md` (hàng DBS-66). **Đã xóa BL-032** khỏi `docs/BACKLOG.md`: mọi việc trong dòng đó đã làm xong (DBS-34 và DBS-66: security group và subnet group ở `base`; DBS-36: role OIDC; DBS-54: Cognito ở `base`).
