@@ -1,6 +1,6 @@
 # DBS-34 · Terraform: ECS Fargate cluster, service api và ALB (môi trường dev)
 
-> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-34-ecs-alb` (xếp chồng trên `chore/DBS-36-ci-ecr-oidc`) · **PR:** (điền sau khi mở) · **Cập nhật:** 2026-10-26
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-34-ecs-alb` (xếp chồng trên `chore/DBS-36-ci-ecr-oidc`) · **PR:** [#25](https://github.com/Lawliet119/digital-banking-simulator/pull/25) · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
