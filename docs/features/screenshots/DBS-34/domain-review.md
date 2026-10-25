@@ -22,3 +22,20 @@
 Đã kiểm và đúng: health check khớp docs/03 §13.3; grace 60 s; `/health/ready` không có version prefix; `TRUST_PROXY_HOPS=1` đúng cho một ALB; `X86_64` đúng; validation 40 hex khớp tag `github.sha`; ALB dùng 2 public subnet ở 2 AZ; 503 khi không có target là đúng; base hiện có 13 run.
 
 Verdict: REVISE
+
+---
+
+# Vòng 2 (subagent opus, 2026-10-26), trả lời nguyên văn
+
+Đã sửa xong từ vòng 1: 2, 3, 4, 5, 6, 8, 9 (một phần), 10, 11, 12, 14, 15, 16. Không có phát hiện blocking.
+
+| # | Severity | Section | Finding | Evidence | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | should-fix | §2 Execution role, §4 TC-34-09 | Inline policy giới hạn Logs theo "ARN log group" lấy từ output base `api_log_group_arn`. Với provider AWS ≥ 4 (repo ghim `~> 6.0`), `aws_cloudwatch_log_group.arn` không còn hậu tố `:*`. `logs:CreateLogStream`/`PutLogEvents` tác động lên log-stream (`…:log-group:/dbs/dev/api:log-stream:*`); policy trên ARN trần bị từ chối, task thật lỗi `ResourceInitializationError` khi khởi động (chỉ thấy ở M-34-10). | base/versions.tf `~> 6.0`; doc dòng 54, 82 | Resource `"${api_log_group_arn}:*"` cho các action Logs; ECR `BatchGetImage`/`GetDownloadUrlForLayer` (cùng `BatchCheckLayerAvailability`) trên ARN repo, `GetAuthorizationToken` trên `*`. TC-34-09 assert đúng chuỗi Resource. |
+| 2 | should-fix | §5 M-34-07 | Bước mới có thể đạt giả. (a) Public subnet có `map_public_ip_on_launch = false`, bước không nói `assignPublicIp=ENABLED`, không có IP công khai. (b) Không kiểm task đã RUNNING; nếu pull lỗi hoặc task dừng thì `curl -m 10` cũng timeout, kết quả "bị SG chặn" không được chứng minh. (c) Nửa còn lại của ADR-10 ("Qua ALB → 200") vẫn hoãn, dù task tạm làm được ngay. | base/network.tf; ADR-10 "Cách kiểm chứng"; doc dòng 137, 140 | Ghi rõ `--launch-type FARGATE --network-configuration awsvpcConfiguration={subnets=[pub-a],securityGroups=[sg-api],assignPublicIp=ENABLED}`, family khác `dbs-api`; `aws ecs wait tasks-running` và `describe-tasks` (RUNNING) trước khi curl; thêm đối chứng dương: lệnh `sh -c "mkdir -p health && echo ok > health/ready && python -m http.server 3000"`, rồi `register-targets` IP task, `describe-target-health` = healthy, `curl -sk https://<alb>/health/ready` = 200; sau đó `deregister-targets`, `stop-task`, deregister task definition trước M-34-08. |
+| 3 | minor | §1 câu 3, §3 `tls.tf` | Đặc tả chứng chỉ self-signed quá mỏng: `tls_self_signed_cert` cần `allowed_uses` và `validity_period_hours`; ACM/ALB chỉ nhận RSA 2048/3072/4096, ECDSA P-256/P-384. | hashicorp/tls schema | `tls_private_key` RSA 2048, `common_name` (ví dụ `dbs-dev.local`), `allowed_uses = ["key_encipherment","digital_signature","server_auth"]`, `validity_period_hours = 720`; assert `ssl_policy`/`certificate_arn` ở TC-34-05. |
+| 4 | minor | §1 câu 6 | Chi phí còn "≈ 0,0225 USD/giờ" ở §1 trong khi §2 dùng 0,03 (ADR-11). | doc dòng 34 vs 77 | Dùng 0,03 cả hai nơi. |
+| 5 | minor | §5 M-34-00, M-34-01, M-34-09 | Lệnh `plan`/`apply` của base thiếu `-var account_id=<id>`; `describe-clusters --clusters dbs-dev` sau destroy trả cluster `INACTIVE`, không rỗng. | base/variables.tf; README dòng 90 | Viết `terraform plan -out=base.tfplan -var account_id=<id>` / `apply base.tfplan`; kỳ vọng `status INACTIVE` hoặc `failures`. |
+| 6 | minor | §1 câu 3, §2 "Rủi ro còn lại" | Chủ của BACKLOG cho chứng chỉ công khai vẫn là "DBS-38 hoặc tuần 6–8"; DBS-38 chỉ là pipeline deploy, không có domain/chứng chỉ. | fetch-task DBS-38 | Gán một chủ (dòng BACKLOG mới cho việc WAF/ALB tuần 6–8), không phải DBS-38. |
+
+Verdict: REVISE
