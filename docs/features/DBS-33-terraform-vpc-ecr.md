@@ -1,6 +1,6 @@
 # DBS-33 · Terraform: VPC (≥ 2 AZ) và ECR
 
-> **Status:** Design approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-33-terraform-vpc-ecr` · **PR:** — · **Cập nhật:** 2026-10-25
+> **Status:** Plan approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-33-terraform-vpc-ecr` · **PR:** — · **Cập nhật:** 2026-10-25
 
 ## 1. Bối cảnh
 
@@ -155,4 +155,4 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
 
 **Rủi ro và cách lùi:** bước 1–6 chỉ là file cục bộ, `git revert` được. Bước 7 tạo tài nguyên miễn phí; lỗi giữa chừng thì `destroy` `base` (ECR phải rỗng). `delete-repository` ở M-33-04 chỉ chạy khi repo có image. `apply` chỉ trên account `516807978519` (`allowed_account_ids`).
 
-**Quyết định ở G3:** (chờ duyệt)
+**Quyết định ở G3:** duyệt G3 (2026-10-25); không mở Draft PR cho DBS-33 trước G4; chạy bước 1–6 ngay, bước 7 chỉ khi bạn go-ahead.
