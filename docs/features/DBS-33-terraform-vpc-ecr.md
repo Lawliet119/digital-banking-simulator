@@ -1,6 +1,6 @@
 # DBS-33 · Terraform: VPC (≥ 2 AZ) và ECR
 
-> **Status:** Draft · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-33-terraform-vpc-ecr` · **PR:** — · **Cập nhật:** 2026-10-25
+> **Status:** Design approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-33-terraform-vpc-ecr` · **PR:** — · **Cập nhật:** 2026-10-25
 
 ## 1. Bối cảnh
 
@@ -131,4 +131,28 @@ Ghi id tài nguyên trong `manual-test.txt` đã ẩn account id và ARN. Chi ph
 
 **Vòng 2 (review lại bản đã sửa):** 12 phát hiện (blocking 1, should-fix 5, minor 6), verdict REVISE, nguyên văn ở cùng file. Đã sửa hết: ca B11 chứng minh bằng `delete-repository` không `--force` (không `terraform destroy`); B12 đẩy image khác digest; `session` không dùng `mock_provider`, không có lock file, chỉ khai báo `state_bucket`; grep giới hạn `*.tf`; `python3` thay `jq`; `describe-notifications-for-budget`; preview lifecycle bất đồng bộ, `fileb://`, phương án một layer; assert route private ghi "chỉ cấu hình"; `*.tfplan` vào `.gitignore`; README ghi security group ở `base` và ngoại lệ `dbs-api`; `! grep -q` cho `session`.
 
-**Quyết định ở G2:** (chờ duyệt)
+**Quyết định ở G2:** duyệt G2 (2026-10-25), đồng ý cả 4 câu: M-33-04 đẩy image thật bằng CLI; security group và subnet group ở `base`; ngoại lệ tên `dbs-api`; xin phép `destroy` cuối phiên cùng go-ahead `apply`, dựng lại `base`/`session` để giữ.
+
+## 7. Kế hoạch triển khai
+
+**Plan dự kiến (`terraform plan` ở `base`, điền số thật ở 4b):** `Plan: 17 to add, 0 to change, 0 to destroy`: 1 `aws_vpc`, 1 `aws_internet_gateway`, 4 `aws_subnet`, 2 `aws_route_table`, 1 `aws_route` (public → IGW), 4 `aws_route_table_association`, 1 `aws_vpc_endpoint` (Gateway S3), 1 `aws_default_security_group`, 1 `aws_ecr_repository`, 1 `aws_ecr_lifecycle_policy`. Không có `aws_nat_gateway`, `aws_eip`, endpoint Interface. `session`: 0 tài nguyên, chỉ "Changes to Outputs".
+
+**Chi phí và tài nguyên tính tiền:** không có tài nguyên tính theo giờ. ECR vài KB (image thử `t1` bị xóa ngay). Không để gì chạy qua đêm; cuối phiên `destroy` rồi dựng lại `base` và `session` (miễn phí) để giữ cho DBS-34/66. Mọi `apply` và `destroy` ở bước 7 cần go-ahead của bạn trong hội thoại, xin kèm phép tắt.
+
+Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết tối thiểu cho xanh, commit. Lệnh test: `cd infra/terraform/envs/dev/base && ../../../../../.tools/bin/terraform test` (tương tự `session`).
+
+| Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `envs/dev/base/versions.tf`, `variables.tf`, `tests/base.tftest.hcl` (khung) | TC-33-09 | | `terraform init -backend=false && terraform test` | `chore(infra): scaffold dev base stack` |
+| 2 | `base/network.tf` (VPC, IGW, 4 subnet, 2 route table, route, 4 association, endpoint S3, default SG) | TC-33-01, 02, 03, 04, 05, 08 | | `terraform test` | `chore(infra): vpc with public/private subnets and s3 gateway endpoint` |
+| 3 | `base/ecr.tf` | TC-33-06, 07 | | `terraform test` | `chore(infra): ecr repository with scan on push and lifecycle` |
+| 4 | `base/outputs.tf`, `base/backend.tf`, `base/backend.hcl.example`; `envs/dev/session/` (`versions.tf`, `variables.tf`, `remote_state.tf`, `outputs.tf`, `backend.tf`, `backend.hcl.example`, `tests/session.tftest.hcl`) | TC-33-10, 11, 04b | | `terraform test` ở hai stack; `grep` theo TC | `chore(infra): dev base outputs, backend and session skeleton` |
+| 5 | `infra/terraform/README.md` (thứ tự dựng/xóa, biến, security group ở `base`, ngoại lệ `dbs-api`), `.gitignore` (`*.tfplan`) | TC-33-12 | | `grep` theo TC-33-12 | `docs(infra): build and teardown order for dev base and session` |
+| 6 | `base/.terraform.lock.hcl` (hash 5 nền tảng), `terraform fmt -recursive` | TC-33-13 | không đỏ (kiểm tĩnh) | `terraform fmt -check -recursive && terraform validate` ở ba stack | `chore(infra): commit provider lock file for dev base` |
+| 7 | Chỉ khi bạn báo go-ahead: chạy M-33-00…08, `manual-test.txt`, §8–§9, `docs/features/README.md`, BACKLOG (bàn giao và xác nhận Cost Explorer ngày hôm sau), `check-doc-links.mjs` | M-33-xx | | theo §5 | `docs/features: DBS-33 results` |
+
+**Quét DoD và giới hạn:** D1 → bước 2, 3; D2 → bước 4; D3 → bước 7 (apply/destroy thật) + BACKLOG cho Cost Explorer ngày hôm sau; D4 → bước 5; D5 → quy trình sau G4. CI cho Terraform là BL-028 (DBS-37), ngoài phạm vi. Không còn file hoặc quy tắc nào nêu trong docs mà thiếu hàng.
+
+**Rủi ro và cách lùi:** bước 1–6 chỉ là file cục bộ, `git revert` được. Bước 7 tạo tài nguyên miễn phí; lỗi giữa chừng thì `destroy` `base` (ECR phải rỗng). `delete-repository` ở M-33-04 chỉ chạy khi repo có image. `apply` chỉ trên account `516807978519` (`allowed_account_ids`).
+
+**Quyết định ở G3:** (chờ duyệt)
