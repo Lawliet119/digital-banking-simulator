@@ -38,4 +38,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-39](DBS-39-testcontainers-postgres.md) | Testcontainers: helper Postgres 17 chạy migration cho test | Dev | Implemented |
 | [DBS-25](DBS-25-migration-outbox-events.md) | Migration outbox_events và processed_events | Dev | Implemented |
 | [DBS-42](DBS-42-json-logger.md) | Logger JSON, redaction, log level và HTTP correlation | Dev | Implemented (PR #16, chờ Dev review và CI) |
-| [FRAUD-API-01](FRAUD-API-01-external-ai-decision.md) | Hồ sơ ADR-14/thiết kế Proposed đã hoàn tất; giữ rules + API, chưa triển khai backend fraud | Fraud | Implemented (docs-only) |
+| [FRAUD-API-01](FRAUD-API-01-external-ai-decision.md) | Hồ sơ ADR-14 (Proposed): giữ R1–R6, thêm API AI bổ sung, không tự train; phương án Proposed tách khỏi tài liệu Accepted; chưa triển khai backend fraud | Fraud | Implemented (docs-only, Draft PR #20 chờ Dev review và CI) |
