@@ -1,6 +1,6 @@
 # DBS-42 · Logger JSON bằng nestjs-pino với trường chuẩn
 
-> **Status:** Plan approved (G3 của lần rà soát và sửa đã duyệt 2026-10-25; đang ở Phase 4) · **Vai:** Dev · **Review:** Dev khác, chưa xác nhận người review · **Nhánh:** `feat/DBS-42-json-logger` · **PR:** #16 (đã mở, tác giả minhduc47) · **Cập nhật:** 2026-10-25
+> **Status:** Implemented (G4 đã duyệt 2026-10-25; PR #16 chờ Dev review và CI) · **Vai:** Dev · **Review:** Dev khác, chưa xác nhận người review · **Nhánh:** `feat/DBS-42-json-logger` · **PR:** #16 (đã mở, tác giả minhduc47) · **Cập nhật:** 2026-10-25
 
 ## 1. Bối cảnh
 
@@ -334,7 +334,7 @@ Bốn ảnh dưới là trang HTML hiển thị trích đoạn output thật, ch
 
 ![Kiểm tra tự động trên SHA cuối](screenshots/DBS-42/04-automated-verification.png)
 
-### Lệch so với kế hoạch (xin duyệt ở G4)
+### Lệch so với kế hoạch (đã duyệt ở G4, 2026-10-25)
 
 1. **Quy trình gate:** bản gốc (`442e99b`) bỏ G1 đến G4 theo chỉ dẫn lúc đó. Lần rà soát này chạy đủ G1, G2, G3 (đã duyệt); G4 là gate còn lại.
 2. **Thêm ngoài thiết kế G2, do review implementation:** ngân sách quét 64 KiB mỗi lần ghi kèm chi phí cố định 32 ký tự mỗi chuỗi, giới hạn 1000 phần tử đầu của mảng, quét dạng JSON mã hóa hai lần, tập từ khoá quét chuỗi bằng với tập khoá, mẫu JWT tìm theo từng đoạn ký tự một lần. Đã ghi vào §2 và §4.
@@ -368,6 +368,6 @@ Bốn ảnh dưới là trang HTML hiển thị trích đoạn output thật, ch
 - [x] Đủ 4 ảnh trong `screenshots/DBS-42/`; `manual-test.txt` không có token, `Authorization`, mật khẩu DB hay chuỗi kết nối. Ảnh là trang HTML hiển thị output thật, không phải ảnh terminal
 - [x] `git diff --stat b2606dc..HEAD` khớp §7, trừ `test/error-handling.e2e-spec.ts` (xin chấp nhận ở G4)
 - [x] Baseline có số đếm: lint, typecheck, build exit 0; 469 unit, 47 e2e, 154 DB; 0 bỏ qua
-- [x] Doc có fact thay đổi đã cập nhật; `check-doc-links.mjs` sạch; trạng thái doc chuyển Implemented sau khi G4 được duyệt
+- [x] Doc có fact thay đổi đã cập nhật; `check-doc-links.mjs` sạch; trạng thái doc đã chuyển Implemented sau khi G4 được duyệt (2026-10-25)
 - [x] Bàn giao và DoD chưa đạt có BL-023 đến BL-026 trong `docs/BACKLOG.md`
 - [ ] Dev review, CI trên GitHub và merge main: chưa có, chưa đủ điều kiện Done (BL-025)
