@@ -166,7 +166,7 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
 | M-31-02 | đạt: Enabled, AES256, 4 cờ true, BucketOwnerEnforced, 3 tag |
 | M-31-03 | đạt: HTTP `AccessDenied` (explicit deny), HTTPS thành công |
 | M-31-04 | đạt: `bootstrap.tfstate` trong bucket, plan "No changes" |
-| M-31-05 | **chưa chạy**: cần người thứ hai và IAM tối thiểu (xem BL-010) |
+| M-31-05 | **chưa chạy**: cần người thứ hai và IAM tối thiểu (xem BL-027) |
 | M-31-06 | đạt (cách khác §5): hai `plan` chồng nhau, tiến trình sau báo `Error acquiring the state lock` |
 | M-31-07 | đạt: `prevent_destroy` chặn, bucket còn |
 | M-31-08 | đạt: 3 phiên bản `bootstrap.tfstate`, tag trả về `platform` |
@@ -178,8 +178,8 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
   2. M-31-06: `terraform console` không giữ khóa nên dùng hai `plan` chồng nhau; không cần `apply` dừng ở prompt vì không có thay đổi.
   3. M-31-08: đổi tạm tag trong working tree rồi `git checkout`, không commit.
   4. Quyền S3 của `faker`: user thuộc group `dbs-admin` (AdministratorAccess); policy `dbs-require-mfa` đã bị chủ tài khoản gỡ khỏi group (2026-10-25) vì không cần cho dự án cá nhân, nên README mục credential (IAM user có MFA, `get-session-token`) không còn khớp thực tế. README mục credential đã sửa theo thực tế (G4, 2026-10-25).
-- **Bàn giao cho vai khác:** BL-010 (M-31-05 và IAM tối thiểu), BL-011 (DBS-37: kiểm tra Terraform trong CI), BL-012 (DBS-208: teardown bucket state).
+- **Bàn giao cho vai khác:** BL-027 (M-31-05 và IAM tối thiểu), BL-028 (DBS-37: kiểm tra Terraform trong CI), BL-029 (DBS-208: teardown bucket state).
 
 ## 9. Tài liệu đã cập nhật
 
-`docs/features/README.md` (thêm dòng DBS-31), `docs/BACKLOG.md` (thêm BL-010, BL-011, BL-012; không xóa dòng nào).
+`docs/features/README.md` (thêm dòng DBS-31), `docs/BACKLOG.md` (thêm BL-027, BL-028, BL-029; không xóa dòng nào).

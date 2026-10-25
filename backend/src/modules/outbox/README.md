@@ -2,6 +2,10 @@
 
 Đưa sự kiện từ bảng `outbox_events` ra các queue, ít nhất một lần.
 
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** schema outbox/processed và partial indexes; writer/relay/consumer chưa triển khai.
+
+Hai bảng có migration và test PostgreSQL thật. `published_at` được UPDATE khi relay gửi xong, các bảng cho phép cleanup DELETE; không gắn trigger append-only. `processed_events` chống trùng theo cặp consumer/event, không phải khóa ngoại của outbox. `down` chỉ chạy trong transaction READ COMMITTED, khóa cả hai bảng rồi từ chối nếu còn dữ liệu. Hành vi phát/gửi/xử lý sự kiện vẫn chờ các task runtime.
+
 | | |
 |---|---|
 | Chạy ở | **`worker`** |

@@ -13,8 +13,8 @@ export function requireDatabaseUrl(): string {
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error(
-      'DATABASE_URL is not set. Start PostgreSQL with `docker compose up -d` and export ' +
-        'DATABASE_URL (e.g. postgres://banking:banking_local_only@localhost:5432/banking).',
+      'DATABASE_URL is not set. Ensure Jest globalSetup (Testcontainers) has run, ' +
+        'or export DATABASE_URL explicitly.',
     );
   }
   return url;
@@ -27,7 +27,7 @@ async function connect(url: string): Promise<DataSource> {
   } catch (error) {
     throw new Error(
       `Cannot reach PostgreSQL at DATABASE_URL (${(error as Error).message}). ` +
-        'Is `docker compose up -d` running?',
+        'Is the PostgreSQL container or service running and accessible?',
     );
   }
 }
@@ -83,6 +83,48 @@ export async function migrate(url: string, direction: 'up' | 'undoLast' = 'up'):
     else await dataSource.undoLastMigration({ transaction: 'all' });
   } finally {
     await dataSource.destroy();
+  }
+}
+
+/** Runs actual migration classes through a known version, never undoing a newer schema. */
+export async function migrateThrough(url: string, migrationName: string): Promise<void> {
+  const source = createMigrationDataSource(url);
+  await source.initialize();
+  try {
+    const timestamp = (name: string) => Number(name.match(/\d{13}$/)?.[0]);
+    const ordered = [...source.migrations].sort((a, b) => timestamp(a.name!) - timestamp(b.name!));
+    const target = ordered.findIndex(m => m.name === migrationName);
+    if (target < 0) {
+      throw Object.assign(new Error('Unknown migration target'), {
+        code: 'MIGRATION_TARGET_UNKNOWN',
+      });
+    }
+    const [{ present }] = await source.query<{ present: boolean }[]>(
+      "SELECT to_regclass('public.migrations') IS NOT NULL AS present",
+    );
+    const applied = present
+      ? await source.query<
+          {
+            name: string;
+            timestamp: string;
+          }[]
+        >('SELECT name, timestamp FROM migrations ORDER BY timestamp, id')
+      : [];
+    if (
+      applied.length > target + 1 ||
+      applied.some(
+        (row, i) => row.name !== ordered[i]?.name || Number(row.timestamp) !== timestamp(row.name),
+      )
+    ) {
+      throw Object.assign(new Error('Migration history is not the requested prefix'), {
+        code: 'MIGRATION_HISTORY_INVALID',
+      });
+    }
+    // Keep real class instances loaded by the production factory; only limit their test version.
+    source.migrations.splice(0, source.migrations.length, ...ordered.slice(0, target + 1));
+    await source.runMigrations({ transaction: 'all' });
+  } finally {
+    await source.destroy();
   }
 }
 

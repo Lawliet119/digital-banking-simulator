@@ -1,0 +1,51 @@
+Phase 1 baseline on main source commit 3b81c55 (2026-10-24); not final implementation evidence.
+Node v24.19.0; npm 11.17.0; npm ci completed using the existing lockfile.
+Docker Desktop initially stopped; started using docker desktop start. First image pull failed EOF; retry succeeded.
+COMMAND: lint-check; EXIT: 0
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+COMMAND: typecheck; EXIT: 0
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+COMMAND: test; EXIT: 0
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js
+
+
+Test Suites: 25 passed, 25 total
+Tests:       367 passed, 367 total
+Snapshots:   0 total
+Time:        41.047 s
+Ran all test suites.
+COMMAND: test-e2e; EXIT: 0
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js
+
+
+Test Suites: 4 passed, 4 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        13.163 s
+Ran all test suites.
+COMMAND: test-db; EXIT: 0
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js
+
+
+Test Suites: 5 passed, 5 total
+Tests:       91 passed, 91 total
+Snapshots:   0 total
+Time:        33.284 s
+Ran all test suites.
+COMMAND: build; EXIT: 0
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+

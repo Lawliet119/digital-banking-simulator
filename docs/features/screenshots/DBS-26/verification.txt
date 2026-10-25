@@ -1,0 +1,55 @@
+8c79baf58b86c46643fe9d28b4570128cec4dad8
+
+$ npm run lint:check
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+$ npm run typecheck
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+$ npm run test
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js
+
+
+Test Suites: 25 passed, 25 total
+Tests:       367 passed, 367 total
+Snapshots:   0 total
+Time:        20.587 s, estimated 23 s
+Ran all test suites.
+
+$ npm run test:e2e
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js
+
+
+Test Suites: 4 passed, 4 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        8.472 s, estimated 10 s
+Ran all test suites.
+
+$ npm run test:db
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js
+
+
+Test Suites: 7 passed, 7 total
+Tests:       129 passed, 129 total
+Snapshots:   0 total
+Time:        36.486 s, estimated 40 s
+Ran all test suites.
+
+$ npm run build
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+

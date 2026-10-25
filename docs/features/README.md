@@ -1,6 +1,6 @@
 # Tài liệu từng task (feature docs)
 
-> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-17
+> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-19
 
 Mỗi task implement trên board (tính năng, sửa lỗi, hạ tầng, test) có **một file** ở đây: `DBS-<n>-<slug>.md`. File được viết trước khi code và hoàn tất khi bàn giao, theo skill [`dbs-delivering-task`](../../.claude/skills/dbs-delivering-task/SKILL.md) và mẫu [`feature-doc.md`](../../.claude/skills/dbs-delivering-task/templates/feature-doc.md).
 
@@ -29,4 +29,11 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-20](DBS-20-migration-users-customers-accounts.md) | Migration 1: users, customers, accounts và tài khoản SYSTEM funding | #1 Ledger | Implemented |
 | [DBS-21](DBS-21-migration-transfers-ledger-idempotency.md) | Migration 2: transfers, ledger_entries, idempotency_keys, view v_transfer_facts | Dev | Implemented |
 | [DBS-22](DBS-22-common-money-type-dto-validator.md) | @common/money: `Money`, `Balance`, `@IsMoneyAmount`, JSON an toàn cho bigint | Dev | Implemented |
+| [DBS-24](DBS-24-common-events-types-schema.md) | @common/events: kiểu và hàm kiểm tra cho TransferCompleted, AccountStatusChanged | Dev | Implemented |
+| [DBS-26](DBS-26-migration-audit-log.md) | Audit schema, ba index, revert giữ dữ liệu và manual PostgreSQL | Dev | Implemented |
+| [DBS-27](DBS-27-append-only-triggers.md) | Trigger append-only ba bảng, test owner NOSUPERUSER và revert giữ dữ liệu | Dev | Implemented |
+| [DBS-35](DBS-35-ci-github-actions.md) | GitHub Actions CI: sáu job song song (lint, typecheck, unit, e2e, db, build) trên mỗi PR và push `main` | Dev | Implemented |
+| [DBS-39](DBS-39-testcontainers-postgres.md) | Testcontainers: helper Postgres 17 chạy migration cho test | Dev | Implemented |
+| [DBS-25](DBS-25-migration-outbox-events.md) | Migration outbox_events và processed_events | Dev | Implemented |
+| [DBS-42](DBS-42-json-logger.md) | Logger JSON, redaction, log level và HTTP correlation | Dev | Implemented (PR #16, chờ Dev review và CI) |
 | [DBS-31](DBS-31-terraform-bootstrap-s3-backend.md) | Terraform bootstrap: S3 state có versioning, mã hóa và khóa state | #5 Platform & Ops | Implemented |

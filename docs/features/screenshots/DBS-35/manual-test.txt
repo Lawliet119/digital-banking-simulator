@@ -1,0 +1,121 @@
+6ab5d4f
+# DBS-35 manual-test.txt. SHA ở dòng 1 là commit cuối đổi code (ci.yml, package-lock.json). Phần "LẦN 1" chạy trên 903daf1 và ĐỎ (npm ci lỗi); phần "LẦN 2" chạy trên 6ab5d4f sau khi sửa lockfile.
+
+##### LẦN 1 (commit 903daf1, ĐỎ)
+=== M-35-01: actionlint 1.7.12 (Git Bash, MSYS_NO_PATHCONV=1)
+actionlint exit 0
+
+=== M-35-02: docker network + postgres:17 (cùng env và health check như service trong ci.yml)
+postgres health: healthy (sau 3 giây)
+=== Kiểm Postgres (superuser, UTC) từ container client postgres:17 qua TCP, đúng URL như CI
+rolsuper=t timezone=Etc/UTC
+Kiểm Postgres: OK
+kiểm Postgres exit 0
+=== node:24 (Linux): clone nhánh, npm ci, năm lệnh KHÔNG đặt DATABASE_URL, rồi test:db
+uname: Linux 6.6.87.2-microsoft-standard-WSL2  node: v24.22.0  HEAD: 903daf1
+DATABASE_URL đang đặt? <không>
+npm notice
+npm error A complete log of this run can be found in: /root/.npm/_logs/2026-10-19T11_45_05_307Z-debug-0.log
+----- npm run lint:check
+npm run lint:check -> exit 127
+----- npm run typecheck
+npm run typecheck -> exit 127
+----- npm run test
+npm run test -> exit 127
+----- npm run test:e2e
+npm run test:e2e -> exit 127
+----- npm run build
+npm run build -> exit 127
+----- npm run test:db (DATABASE_URL trỏ vào service)
+npm run test:db -> exit 127
+
+=== M-35-03: DATABASE_URL trỏ vào cổng không có Postgres (phải đỏ rõ ràng, không bỏ qua)
+npm run test:db (cổng sai) -> exit 127
+
+##### LẦN 2 (commit 6ab5d4f, sau khi sửa lockfile)
+=== M-35-01: actionlint 1.7.12 (Git Bash, MSYS_NO_PATHCONV=1)
+actionlint exit 0
+
+=== M-35-02: docker network + postgres:17 (cùng env và health check như service trong ci.yml)
+postgres health: healthy (sau 3 giây)
+=== Kiểm Postgres (superuser, UTC) từ container client postgres:17 qua TCP, đúng URL như CI
+rolsuper=t timezone=Etc/UTC
+Kiểm Postgres: OK
+kiểm Postgres exit 0
+=== node:24 (Linux): clone nhánh, npm ci, năm lệnh KHÔNG đặt DATABASE_URL, rồi test:db
+uname: Linux 6.6.87.2-microsoft-standard-WSL2  node: v24.22.0  HEAD: 6ab5d4f
+DATABASE_URL đang đặt? <không>
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+----- npm run lint:check
+npm run lint:check -> exit 0
+----- npm run typecheck
+npm run typecheck -> exit 0
+----- npm run test
+PASS src/common/errors/reject-reason.spec.ts (13.622 s)
+PASS src/common/utils/pg-error.util.spec.ts (16.227 s)
+Test Suites: 19 passed, 19 total
+Tests:       201 passed, 201 total
+npm run test -> exit 0
+----- npm run test:e2e
+PASS test/error-handling.e2e-spec.ts
+Test Suites: 4 passed, 4 total
+Tests:       25 passed, 25 total
+npm run test:e2e -> exit 0
+----- npm run build
+npm run build -> exit 0
+----- npm run test:db (DATABASE_URL trỏ vào service)
+Test Suites: 3 passed, 3 total
+Tests:       49 passed, 49 total
+npm run test:db -> exit 0
+
+=== M-35-03: DATABASE_URL trỏ vào cổng không có Postgres (phải đỏ rõ ràng, không bỏ qua)
+     49       29 |       `Cannot reach PostgreSQL at DATABASE_URL (${(error as Error).message}). ` +
+     49     Cannot reach PostgreSQL at DATABASE_URL (connect ECONNREFUSED 172.24.0.2:25999). Is `docker compose up -d` running?
+      1 Test Suites: 3 failed, 3 total
+      1 Tests:       49 failed, 49 total
+npm run test:db (cổng sai) -> exit 1
+
+##### CHẨN ĐOÁN LẦN 1 (chạy tay trong container node:24, trên bản sao; không đổi repo). Trích nguyên văn từ output.
+== npm ci trong container node:24 (Node v24.22.0, npm 11.19.1) trên commit 903daf1
+npm error code EUSAGE
+npm error `npm ci` can only install packages when your package.json and package-lock.json or npm-shrinkwrap.json are in sync. Please update your lock file with `npm install` before continuing.
+npm error Missing: @emnapi/core@1.11.3 from lock file
+npm error Missing: @emnapi/runtime@1.11.3 from lock file
+exit 1
+== so sánh: Windows npm 11.6.2 / Node v24.11.1, bản clone sạch, cùng lockfile: npm ci exit 0 (baseline ở §1)
+== bản sao trong container: npm install --package-lock-only (npm 11.19.1)
+exit 0
+ backend/package-lock.json | 55 ++++++++++++++++++++++++-----------------------
+ 1 file changed, 28 insertions(+), 27 deletions(-)
++    "node_modules/@emnapi/core": { "version": "1.11.3", ... dev, optional }
++    "node_modules/@emnapi/runtime": { "version": "1.11.3", ... dev, optional }
+(còn lại: bỏ các dòng "peer": true)
+== bản sao: npm ci sau khi tạo lại lockfile: exit 0
+== Windows npm 11.6.2, bản clone sạch, lockfile mới: npm ci exit 0; lint:check, typecheck, build exit 0; test 201 passed; test:e2e 25 passed
+
+##### BƯỚC 1 ĐỎ (§7, trước khi có ci.yml). Trích nguyên văn từ output.
+$ docker run … rhysd/actionlint:1.7.12 -color .github/workflows/ci.yml
+could not read ".github/workflows/ci.yml": open .github/workflows/ci.yml: no such file or directory
+actionlint exit 3
+$ node check-ci.mjs
+FAIL file: ENOENT: no such file or directory, open '…\.github\workflows\ci.yml'
+static exit 1
+
+##### GITHUB ACTIONS (M-35-04…09): trích từ trang run/PR #11, đọc bằng Claude in Chrome. Run: https://github.com/Lawliet119/digital-banking-simulator/actions/runs/<id>
+run #1  39256485215  commit 50c1029  opened          success    50s   lint 19s, typecheck 23s, unit 19s, e2e 20s, db 46s, build 26s
+run #2  (không lấy id) commit 61c865f synchronize      cancelled  26s   (bị hủy khi commit 9f4a307 đến 10 giây sau)
+run #3  39257508505  commit 9f4a307  synchronize      success    1m 3s lint 22s, typecheck 17s, unit 23s, e2e 28s, db 45s, build 26s
+run #4  39257863694  commit 0f0bf74  synchronize      failure    51s   chỉ lint đỏ
+run #5  (không lấy id) commit dfd1705 synchronize      success    47s   sau revert lint
+run #6  39258326502  commit 14dff24  synchronize      failure    ~1m   chỉ unit đỏ
+run #7  (không lấy id) commit 52aec98 synchronize      success          sau revert test, sáu check xanh (PR checks trang: .../pull/11/checks)
+-- run #1, job lint, setup-node:  "Found in cache @ /opt/hostedtoolcache/node/24.21.0/x64" ... "npm cache is not found"
+-- run #1, job db:  "rolsuper=t timezone=Etc/UTC"; "Test Suites: 3 passed, 3 total"; "Tests: 49 passed, 49 total"
+-- run #3, job lint, setup-node:  "Cache hit for: node-cache-Linux-x64-npm-071f268e72232291cfdde7c9142ec6fd66c79397421b4ecf18c085f4eb8bc4aa" ... "Cache restored successfully"
+-- run #4, job lint:  "/home/runner/work/digital-banking-simulator/digital-banking-simulator/backend/src/ci-probe.ts"
+                      "Error: 3:7 error 'unused' is assigned a value but never used. Allowed unused vars must match /^_/u @typescript-eslint/no-unused-vars"
+                      "✖ 1 problem (1 error, 0 warnings)"  "Error: Process completed with exit code 1."
+-- run #6, job unit:  "FAIL src/ci-probe.spec.ts"  "● ci probe › fails on purpose"  "Expected: 3"  "Received: 2"
+                      "Test Suites: 1 failed, 23 passed, 24 total"  "Tests: 1 failed, 349 passed, 350 total"
+-- Post Run actions/setup-node ở run đỏ (#4, #6): bị bỏ qua (cache chỉ lưu khi job xanh)
