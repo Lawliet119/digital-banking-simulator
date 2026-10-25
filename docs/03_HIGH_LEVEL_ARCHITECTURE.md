@@ -859,7 +859,7 @@ SLO chính thức (chốt 2026-10-11). Đo trong các đợt bật cấu hình p
 | Cảnh báo gian lận trên 1.000 giao dịch | Worker | ≤ 20 | 24 giờ trượt, khi có ≥ 1.000 giao dịch | > 20 |
 | Latency Redis, số lần rơi về đường dự phòng (`redis_fallback_total`), số request bị rate limit | API, Worker | Theo dõi | — | Redis không truy cập được > 1 phút |
 
-- **Log:** `nestjs-pino` xuất JSON với `level`, `time` ISO UTC, `message`, `role` (`api|worker`) và `correlationId` (UUID của request, `null` ngoài context). HTTP logger dùng ID do server sinh, gắn trước CORS/body parser; không ghi URL/query, headers hoặc body. Chi tiết redaction và log level: [backend — Log JSON](../backend/README.md#8-log-json). Mã truy vết được thiết kế đi từ API → outbox → sự kiện → consumer → nhật ký kiểm toán; context xuyên worker/message còn thuộc DBS-43.
+- **Log:** `nestjs-pino` xuất JSON với `level`, `time` ISO UTC, `message`, `role` (`api|worker`) và `correlationId` (UUID của request, `null` ngoài context). HTTP logger dùng ID do server sinh, gắn trước CORS/body parser; không ghi URL/query, headers hoặc body. Cấu hình sai khi khởi động ghi tên biến sai (`invalidKeys`) mà không kèm giá trị, và lỗi lọt cấp tiến trình ra đúng một dòng JSON `fatal` thay vì stack text. Chi tiết redaction và log level: [backend — Log JSON](../backend/README.md#8-log-json). Mã truy vết được thiết kế đi từ API → outbox → sự kiện → consumer → nhật ký kiểm toán; context xuyên worker/message còn thuộc DBS-43.
 - **Dashboard:** CloudWatch (hoặc Grafana) theo các SLI trên.
 - **Alarm:** theo cột cuối của bảng trên, gửi SNS email; tạo bằng Terraform.
 - **Health check:** `/health/ready` báo Redis ở trạng thái *degraded* chứ không *down*, vì hệ thống vẫn chạy được khi không có Redis.

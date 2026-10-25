@@ -225,6 +225,18 @@ Reviewer Opus 5.5, effort medium, subagent mới. **0 blocking**, 4 should-fix, 
 
 **Vòng 4 không chạy.** Các sửa của vòng 3 là siết thêm điều kiện đã có (bọc try/catch, neo regex, thêm khoá và ca test), không đổi cơ chế; đã đề nghị người dùng quyết ở G2 có cần vòng 4 hay không.
 
+### Review implementation của bản sửa (2026-10-25)
+
+Reviewer độc lập **Opus 5.5, effort medium**, subagent mới không đọc các review cũ, review diff `65f2b94..fbfb38b` rồi `c8ae1fa` so với thiết kế đã duyệt. Skill chưa có prompt riêng cho bước này nên dùng prompt tự viết. Nguyên văn: [implementation-review-fixes.md](screenshots/DBS-42/implementation-review-fixes.md) và [implementation-review-fixes-round2.md](screenshots/DBS-42/implementation-review-fixes-round2.md).
+
+| Vòng | Kết quả | Xử lý |
+|---|---|---|
+| 1 | 0 blocking, 2 should-fix, 4 minor, **REVISE** | **Đã sửa cả 6** ở `c8ae1fa`, mỗi lỗi có test đỏ trước: mẫu JWT còn bậc hai và chưa có ngân sách tổng; bộ quét `password=` không bắt `PGPASSWORD`, `client_secret`, `access_token`, `apiKey`; thứ tự tìm mã lỗi khác `pg-error.util`; SQLSTATE của driver bị mất khi pino log thẳng một Error; dòng trống trước mọi bản ghi crash; thiếu ba test (vòng, số ngắn, baseline binding của DBS-43) |
+| 2 | 0 blocking, 3 should-fix, 4 minor, **REVISE** | **Đã sửa cả 7** ở `5458d01`: look-behind làm lọt `id-eyJ…` (hồi quy do vòng 1 gây ra); JSON mã hóa hai lần; `secretKey`/`tokenValue`/`password_hash`/`jwt`/`pass`/`api key`; chi phí cố định cho mỗi chuỗi và giới hạn 1000 phần tử mảng; sửa chú thích về `flushSync` (SonicBoom bỏ qua lần ghi đang bay, không ném); cập nhật §2 và TC-42-03; bỏ assertion thời gian |
+| 3 | **không chạy** | Các sửa của vòng 2 là mở rộng bộ regex đã được reviewer đo tuyến tính; tôi tự đo lại 10 đầu vào độc hại ở 1/2/4 KiB, mọi mẫu dưới 0,06 ms. Xin người dùng quyết ở G4 |
+
+Một phát hiện của vòng 2 (chia sẻ ngân sách quét giữa các đối số của chuỗi định dạng) được thực hiện trong mã nhưng không có test: message dài hơn 4096 ký tự vốn đã thành `[Omitted]` toàn bộ, nên hiệu quả chỉ là giảm chi phí quét, không quan sát được qua đầu ra.
+
 ## 7. Kế hoạch triển khai
 
 ### Kế hoạch sửa sau rà soát lần 2 (chờ G3)
@@ -265,78 +277,97 @@ Mỗi bước: viết test trước, chạy và xác nhận đỏ đúng lý do,
 
 ### Code và kiểm tra tự động
 
-Commit cuối thay đổi code: **32015c609b1af8b06633fcb8fb44a949a7dd512b** (`feat(logging): add safe JSON application logging (DBS-42)`). Các commit sau chỉ hoàn tất docs/evidence.
+Commit cuối thay đổi code: **23ddfe3c4488596cb73a1be083bb549cefdac5ae** (`test(logging): cover failure and recovery in the manual driver`). Các commit sau chỉ có tài liệu và bằng chứng. Các commit code của lần rà soát (chồng lên `442e99b`, sau merge `b2606dc` từ `main`): `65f2b94`, `777c277`, `0844c9c`, `c128eb6`, `6ce77ec`, `b21bac6`, `fbfb38b`, `c8ae1fa`, `5458d01`, `23ddfe3`. [verification.txt](screenshots/DBS-42/verification.txt) là output thật của các lệnh dưới đây trên `23ddfe3`.
 
-| Kiểm tra | Kết quả đã chạy |
-|---|---|
-| npm run lint:check | Exit 0 |
-| npm run typecheck | Exit 0 |
-| npm run build | Exit 0 |
-| npm test -- --runInBand | 26 suite / **385 test đạt**, 0 bỏ qua |
-| npm run test:e2e -- --runInBand | 6 suite / **36 test đạt**, 0 bỏ qua |
-| npm run test:db -- --runInBand | 5 suite / **91 test đạt**, 0 bỏ qua; Docker/PostgreSQL thật |
+| Kiểm tra | `442e99b` (bản gốc) | Sau merge `main` | Cuối (`23ddfe3`) |
+|---|---|---|---|
+| lint, typecheck, build | exit 0 | exit 0 | exit 0 |
+| npm test | 26 suite / 385 test | 26 / 385 | 27 suite / **469 test**, 0 bỏ qua |
+| npm run test:e2e | 6 / 36 | 6 / 36 | 6 suite / **47 test**, 0 bỏ qua |
+| npm run test:db (Docker, PostgreSQL 17 thật) | 5 / 91 | 8 / 154 | 8 suite / **154 test**, 0 bỏ qua |
 
-Red/green: spec logger đầu tiên lỗi vì thiếu dependency/module; test filter tái hiện raw credential trong stack; review regression tái hiện interpolation/toJSON/plain Error, rồi root envelope bị mất. Các lỗi đều được sửa và test xanh. Test bigint bootstrap của DBS-22 được cập nhật để nhận nạp AppModule động trong try/catch, vẫn kiểm bootstrap bigint chạy sau env và trước AppModule. Không xóa/skip test cũ để làm xanh.
+Không có `.skip`, `.only` hay `.todo` trong các file của task. `npm audit` không chạy lại ở lần rà soát này (bản gốc ghi 13 advisory, không có pino/nestjs-pino/pino-http); không đổi dependency.
+
+Red/green: mỗi bước 1 đến 7 có test đỏ trước, chạy và xác nhận lý do trước khi viết mã (ví dụ `safeErrorMetadata` ném `TypeError` với Proxy bị thu hồi và mất `28P01`/`cause`; 40 khoá bí mật ra nguyên văn; khoá envelope lặp, `message` object, getter ném lỗi; thiếu `SafeLogger` nên `onRetry` ném; `correlationId` hai lần trên dòng filter 500 và 503; `validateEnv` không có `invalidKeys`; crash in stack text). Riêng TC-42-13 đã xanh sau bước 3 nên đã chứng minh đỏ bằng cách tạm thay `logging.options.ts` bằng bản `442e99b`: cả hai dòng filter (500 và 503) và ca không có correlation middleware đều đỏ, rồi khôi phục. Test `TC-42-07` dạng mock trong `error-handling.e2e-spec.ts` từng khẳng định filter tự đưa `correlationId` vào object log; nay đổi thành không có khoá đó, id đến từ binding của request logger và được chứng minh bởi TC-42-13.
 
 | Case | Test hiện thực | Độ sâu |
 |---|---|---|
-| TC-42-01 | logging.options.spec.ts: required fields, worker/api/both mapping, child bindings, serialized root error envelope | Đạt |
-| TC-42-02 | logging.options.spec.ts: 6 mức và invalid fallback | Đạt |
-| TC-42-03 | logging.options.spec.ts: nested/array secrets, interpolation, serialization hooks | Đạt |
-| TC-42-04 | logging.options.spec.ts: Error/cause, plain/nested/root error, allowlisted code | Đạt |
-| TC-42-05/06 | logging.e2e-spec.ts: handler/completion IDs, client header không chọn ID, headers/query/body không có trong log | Đạt; HTTP thật trong harness không DB |
-| TC-42-07 | logging.e2e-spec.ts + error-handling.e2e-spec.ts: 500/503 contract và không log dữ liệu lỗi thô | Đạt |
-| TC-42-08 | transaction.service.spec.ts: retry 2 lần gọi, code 40P01, không có raw error text | Đạt; fake DB chỉ kiểm hành vi retry/log, không chứng minh khóa DB |
-| TC-42-10 | logging.e2e-spec.ts: preflight, malformed JSON, oversized JSON đúng một completion record | Đạt; oversized giữ hành vi cũ 500, xem BL-023 |
-| TC-42-11 | logging-bootstrap.e2e-spec.ts: subprocess API/worker cấu hình sai, role sai, DB không kết nối | Đạt; exit khác 0, JSON-only, không có synthetic secret |
+| TC-42-01 | logging.options.spec.ts: trường bắt buộc, ánh xạ api/worker/both, binding, envelope của lỗi serialized | Đạt |
+| TC-42-02 | logging.options.spec.ts: 6 mức và fallback | Đạt |
+| TC-42-03 | logging.options.spec.ts: 40 khoá bí mật, `headers`/`rawHeaders`, ca âm (`footprint`, `span`, `cardNotPresent`, `tokenizer`…), quét chuỗi (URI, Bearer, Basic, JSON và JSON mã hóa hai lần, `PGPASSWORD`…, JWT kể cả `id-eyJ…`), chuỗi dài, ngân sách 64 KiB, mảng 1000 phần tử | Đạt |
+| TC-42-04 | logging.options.spec.ts: `safeErrorMetadata` toàn phần, SQLSTATE của driver, mã trần theo lớp, thứ tự `error`/`driverError`/`cause`, lỗi do pino log thẳng | Đạt |
+| TC-42-05/06 | logging.e2e-spec.ts dựng giống `main.ts` (bootstrap logger, `SafeLogger`, không `bufferLogs`): ID handler/completion/header, client không chọn ID, headers/query/body không có; thêm ca không có correlation middleware | Đạt; HTTP thật trong harness không DB |
+| TC-42-07 | logging.e2e-spec.ts + error-handling.e2e-spec.ts: hợp đồng 500/503 và không log dữ liệu lỗi thô | Đạt |
+| TC-42-08 | transaction.service.spec.ts + safe-logger.spec.ts: retry khi logger ném lỗi, kể cả lúc ghi dự phòng | Đạt; fake DB chỉ kiểm hành vi retry/log, không chứng minh khóa DB |
+| TC-42-10 | logging.e2e-spec.ts: preflight, JSON hỏng, JSON quá lớn, đúng một completion | Đạt; JSON quá lớn giữ hành vi cũ 500, xem BL-023 |
+| TC-42-11 | logging-bootstrap.e2e-spec.ts: 4 ca lỗi cũ, 4 ca `invalidKeys` (hai khoá, `<cross-field>`, giá trị nằm trong message Joi, `APP_ROLE`), 4 ca crash (api và worker, `uncaughtException` và `unhandledRejection`: đúng một dòng `level:60`, exit 1, stderr rỗng, không có dòng trống); main-wiring.spec.ts ghim thứ tự import | Đạt |
+| TC-42-12 | logging.options.spec.ts: lỗi dạng serialized, `err` là chuỗi, số dài; `Date`, `Buffer`, object dùng chung, object vòng, số ngắn | Đạt; vài ca là khóa hồi quy (đã xanh trên `442e99b`), nêu ở §6 |
+| TC-42-13 | logging.e2e-spec.ts: `correlationId` đúng một lần trên dòng filter 500 và 503, bằng ID response | Đạt; đỏ trên `442e99b` (đã chứng minh) |
+| TC-42-14 | logging.options.spec.ts + safe-logger.spec.ts: envelope một lần kể cả UUID hợp lệ của caller, không sửa object của caller, `message` luôn chuỗi, đối số thừa bị bỏ, getter/Proxy lồng nhau, hook hỏng và stream ném lỗi, qua `Logger` của Nest với `SafeLogger`; ghi lại baseline binding của DBS-43 | Đạt; **khác thiết kế**: getter ném lỗi ở cấp cao nhất đi thẳng vào pino vẫn giữ field khỏe (`bad: [Omitted]`), còn Proxy bị thu hồi hoặc đi qua Nest `Logger` thì ra dòng `Log call failed` có envelope |
 | TC-42-09 | Dev review, CI, PR merge | **Chưa đạt**, xem BL-025 |
 
 ### Chạy runtime thực tế
 
-Chạy từ backend:
+Chạy từ backend (Git Bash, UTF-8):
 
 ```bash
-node -r ts-node/register -r tsconfig-paths/register test/support/logging-driver.ts
+DBS42_DATABASE_URL=<chuỗi kết nối tới PostgreSQL khác nếu cổng 5432 bị chiếm> \
+  node -r ts-node/register -r tsconfig-paths/register test/support/logging-driver.ts
 ```
 
-[manual-test.txt](screenshots/DBS-42/manual-test.txt) là output UTF-8 thật sau commit code nêu trên, dòng đầu là SHA. Driver khởi động AppModule thật ở cổng tạm, lấy env ví dụ trong tiến trình, gọi HTTP thật và dừng đúng các process do nó tạo. PostgreSQL Compose được giữ nguyên; không dùng cloud credential. Driver kết thúc exit 0 với **80 assertion đạt**.
+[manual-test.txt](screenshots/DBS-42/manual-test.txt) là output thật; dòng đầu là SHA `23ddfe3` của commit code cuối. Driver exit 0 với **137 dòng PASS**, không có FAIL. Trên máy này PostgreSQL native của Windows đang nghe cổng 5432 nên container Compose không tới được; tôi dùng một container `postgres:17-alpine` tạm ở cổng 55432 (mật khẩu ngẫu nhiên, đã xóa container sau khi chạy) qua `DBS42_DATABASE_URL`; dòng thứ ba của transcript ghi host đích, không ghi mật khẩu. Transcript không chứa mật khẩu, chuỗi kết nối hay fixture `sensitive-` (đã grep).
 
-- **M-42-01:** API và both khởi động, `/health/ready` 200 trên PostgreSQL thật; UUID server khác client, xuất hiện trong JSON log; mọi dòng ứng dụng có trường chuẩn.
-- **M-42-02:** request có synthetic header/query/body đến route không tồn tại trả 404; stdout ứng dụng không có fixture nhạy cảm, số tài khoản, URL hoặc body. Transcript chỉ hiển thị status/correlationId của problem response để không sao chép dữ liệu fixture từ detail.
-- **M-42-03:** worker khởi động, không mở HTTP tại cổng được cấp, log role=worker và correlationId=null ngoài context.
-- **M-42-04:** both có appRole=both và HTTP role=api. API LOG_LEVEL=error trả 200/404 đúng nhưng không phát info/warn. Hành vi error-level riêng được kiểm qua unit và subprocess/e2e.
-- **M-42-05:** các test ở bảng TC thực sự chạy; không gọi harness lỗi là AppModule production có endpoint lỗi.
+- **M-42-01:** API khởi động, `/health/ready` 200 trên PostgreSQL thật; UUID server khác ID client, xuất hiện trong JSON log; mọi dòng có trường chuẩn.
+- **M-42-02:** request có header/query/body giả đến route không tồn tại trả 404; stdout không có fixture, số tài khoản, URL hay body.
+- **M-42-03:** worker khởi động, không mở HTTP, `role=worker`, `correlationId=null`.
+- **M-42-04:** both có `appRole=both` và HTTP `role=api`; API `LOG_LEVEL=error` trả 200/404 nhưng không phát log info/warn.
+- **M-42-05:** các test ở bảng TC thực sự chạy.
+- **M-42-06 (mới, đường lỗi và phục hồi):** (a) `LOG_LEVEL=INFO` ra `invalidKeys: ["LOG_LEVEL"]`; (b) `PORT=not-a-number` ra `["PORT"]`; (b2) `TRANSFER_LIMIT_PER_TX=sensitive-limit-fixture` ra `["TRANSFER_LIMIT_PER_TX"]` và chuỗi fixture không có trong output; (c) PostgreSQL không tới được với mật khẩu giả: exit 1, dòng cuối `Application startup failed` kèm mã `ECONNREFUSED`, không có mật khẩu giả; (d) worker bị lỗi chưa bắt trong khi khởi động: đúng một dòng `fatal`, exit 1, stderr rỗng; (e) chạy lại API ngay sau đó: ready 200. Mỗi ca kiểm exit khác 0, stderr rỗng, mọi dòng là JSON, không có chuỗi fixture, không có stack text. Trong ca (d), dòng `fatal` xuất hiện trước vài dòng khởi động có `time` sớm hơn: đúng giới hạn đã ghi (sắp xếp theo `time`).
 
-Ảnh dưới là ảnh chụp trình duyệt **hiển thị trích đoạn transcript đã chạy**, không phải ảnh terminal tương tác hoặc dữ liệu mô phỏng lại. Output đầy đủ và correlationId vẫn nằm ở manual-test.txt.
+Bốn ảnh dưới là trang HTML hiển thị trích đoạn output thật, chụp bằng Chrome headless; **không phải ảnh terminal** (xin chấp nhận từng ảnh ở G4). Output đầy đủ nằm ở manual-test.txt và verification.txt.
 
 ![API runtime transcript](screenshots/DBS-42/01-api-log-transcript.png)
 
 ![Worker runtime transcript](screenshots/DBS-42/02-worker-log-transcript.png)
 
-### Giới hạn, quyết định và bàn giao
+![Lỗi và phục hồi](screenshots/DBS-42/03-failure-and-recovery.png)
 
-- Người dùng yêu cầu bỏ điểm chờ duyệt G1–G4 và tự triển khai; đã giữ thiết kế, independent AI review, TDD, test tự động và runtime. Đây không phải Dev review PR. Không tự push, mở PR, merge hay sửa board vì yêu cầu hiện tại là code local.
-- **BL-023:** phát hiện filter hiện có trả 500 cho body vượt giới hạn, trong khi malformed JSON được Nest đổi thành 400. DBS-42 bảo toàn HTTP contract và chứng minh không lộ body trong log; việc chuẩn hóa 413 được tách riêng.
-- **BL-024:** DBS-43 triển khai provider context chung, worker/message và role worker trong tiến trình both. HTTP logger dùng API công khai `PinoLogger.runInContext`; không import storage nội bộ thư viện. Gợi ý dùng cùng API làm adapter, nhưng thiết kế DBS-43 sẽ tự chốt.
-- **BL-025:** cần PR, CI trên GitHub, review Dev khác và merge; chưa có URL/bằng chứng cho các bước này. Không kéo Done.
-- `npm audit` báo 13 advisory trong dependency tree (7 moderate, 5 high, 1 critical); danh sách package advisory không có pino/nestjs-pino/pino-http. Không chạy audit fix làm đổi các dependency ngoài task.
+![Kiểm tra tự động trên SHA cuối](screenshots/DBS-42/04-automated-verification.png)
+
+### Lệch so với kế hoạch (xin duyệt ở G4)
+
+1. **Quy trình gate:** bản gốc (`442e99b`) bỏ G1 đến G4 theo chỉ dẫn lúc đó. Lần rà soát này chạy đủ G1, G2, G3 (đã duyệt); G4 là gate còn lại.
+2. **Thêm ngoài thiết kế G2, do review implementation:** ngân sách quét 64 KiB mỗi lần ghi kèm chi phí cố định 32 ký tự mỗi chuỗi, giới hạn 1000 phần tử đầu của mảng, quét dạng JSON mã hóa hai lần, tập từ khoá quét chuỗi bằng với tập khoá, mẫu JWT tìm theo từng đoạn ký tự một lần. Đã ghi vào §2 và §4.
+3. **File ngoài bảng §7:** chỉ `backend/test/error-handling.e2e-spec.ts` (đổi một assertion mock của filter, giải thích ở phần Red/green). Các file ngoài danh sách của bản gốc (`process-logging.bootstrap.ts`, `safe-logger.ts`, `config/validation.schema.ts`, `config/index.ts`, `crash-preload.ts`) đã được duyệt ở G1 và G2.
+4. **Biến `DBS42_DATABASE_URL`** trong `logging-driver.ts`: chỉ cho test tay, không phải biến của ứng dụng, không vào `.env.example` hay schema (đã duyệt ở G2).
+5. **Review không chạy đủ:** domain review vòng 4 không chạy (đã duyệt ở G2); review implementation vòng 3 không chạy (xem §6).
+6. **Tác dụng phụ trên môi trường của bạn:** (a) Docker Desktop được bật lại để chạy `test:db`; (b) container `dbs42-pg` tạm đã xóa; (c) ở lần làm trước trên nhánh tham khảo (không push), tôi đã chạy `ALTER ROLE banking` trên DB Compose dùng chung (volume `dbs_pgdata`) và đổi mật khẩu cũ của role đó; việc đó không giải quyết được vấn đề cổng 5432 và tôi không khôi phục được mật khẩu cũ, nếu worktree khác đang dùng mật khẩu cũ thì cần đặt lại.
+7. **Ảnh không phải ảnh terminal** (xem trên).
+8. **Push:** commit chồng lên `442e99b` kèm merge commit `b2606dc` từ `main`, không ghi đè lịch sử; push thường (không `--force`) và chỉ sau khi G4 được duyệt. Nhánh `review/DBS-42-reference-impl` (bản viết lại của tôi ở lần trước) giữ local, không push.
+
+### Bàn giao cho vai khác
+
+- **BL-023** (Dev làm HTTP error handling): JSON quá lớn trả 500 thay vì 413.
+- **BL-024** (Dev làm DBS-43): context worker/message, `role=worker` trong `both`, binding của child logger không được che hay khử trùng khoá, `PinoLogger`/`req.log` trực tiếp không qua `SafeLogger`, consumer không log PII.
+- **BL-025** (Dev làm DBS-42): Dev khác review, CI xanh trên bản sửa và merge (TC-42-09, DoD #5). **Chưa đạt**, không kéo Done.
+- **BL-026** (Dev làm observability): lỗi nội bộ Nest/TypeORM chỉ còn `Diagnostic event`; `process.emitWarning` và lỗi đồng bộ của `env.bootstrap` vẫn ra stderr dạng text.
 
 ## 9. Tài liệu đã cập nhật
 
-- [backend/README](../../backend/README.md): quy ước JSON, trường log, mức log, dữ liệu không được ghi và giới hạn DBS-43.
-- [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §7/14/19: logger hiện có, trường dữ liệu và safe error diagnostics.
-- [threat model](../security/threat-model.md) T15: bằng chứng logger/HTTP/bootstrap, không tuyên bố phần Redis đã kiểm.
-- [feature index](README.md), feature doc này và các evidence liên kết ở §1/§6/§8.
-- [BACKLOG](../BACKLOG.md): thêm BL-023/024/025; không xóa backlog của task khác.
-- Kiểm cuối: `check-doc-links.mjs` kiểm **91 file, 0 link hỏng**; `git diff --check` không lỗi khoảng trắng.
+- [backend/README](../../backend/README.md) §8: danh sách khoá được che, quét chuỗi, envelope một lần, `SafeLogger`, `invalidKeys`, lỗi cấp tiến trình và các giới hạn đã biết.
+- [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §14: lỗi khởi động chỉ nêu tên biến, lỗi cấp tiến trình ra một dòng JSON.
+- [threat model](../security/threat-model.md) T15: bằng chứng logger/HTTP, bootstrap và lỗi cấp tiến trình, không tuyên bố phần Redis đã kiểm.
+- [feature index](README.md), feature doc này và bằng chứng ở `screenshots/DBS-42/` (`manual-test.txt`, `verification.txt`, bốn ảnh, các review domain và implementation).
+- [BACKLOG](../BACKLOG.md): đánh lại ba dòng của bản gốc từ BL-019/020/021 thành **BL-023/024/025** vì `main` đã dùng BL-019 đến BL-022 cho DBS-26/27; viết lại BL-024 và BL-025 theo bản sửa; thêm **BL-026**. Không xóa dòng của task khác.
+- Kiểm cuối: `check-doc-links.mjs` sạch.
 
 ## Checklist G4
 
-- [x] Test cases và bảng đối chiếu có độ sâu/giới hạn thật, TC quy trình còn thiếu ghi riêng.
-- [x] Runtime chạy trên commit cuối đổi code; SHA ở đầu manual-test.txt; output đầy đủ.
-- [x] Có ảnh chụp hiển thị output thật; transcript không có credential thật hoặc dữ liệu fixture nhạy cảm từ HTTP detail.
-- [x] Diff khớp plan đã cập nhật; bootstrap/middleware, error sanitizer và wiring test được ghi trong §3/§7/§8 theo chỉ dẫn tự triển khai.
-- [x] Baseline và test task đã chạy, có số đếm thật.
-- [x] Docs có fact thay đổi đã cập nhật; trạng thái Implemented chỉ cho local, điểm chờ G4 được người dùng bỏ.
-- [x] Bàn giao/DoD chưa đạt có BL-023/024/025; không xóa dòng chưa xử lý.
-- [ ] Dev review, CI và merge main; chưa đủ điều kiện Done.
+- [x] 13/14 test case đạt đủ độ sâu, TC-42-14 ghi rõ chỗ khác thiết kế, TC-42-09 là quy trình chưa đạt (BL-025)
+- [x] Test thủ công chạy trên commit code cuối `23ddfe3` (SHA ở dòng đầu `manual-test.txt`): M-42-01 đến M-42-06 đều đạt, đường thành công và đường lỗi/phục hồi đã chạy, không có bước «chưa chạy»
+- [x] Đủ 4 ảnh trong `screenshots/DBS-42/`; `manual-test.txt` không có token, `Authorization`, mật khẩu DB hay chuỗi kết nối. Ảnh là trang HTML hiển thị output thật, không phải ảnh terminal
+- [x] `git diff --stat b2606dc..HEAD` khớp §7, trừ `test/error-handling.e2e-spec.ts` (xin chấp nhận ở G4)
+- [x] Baseline có số đếm: lint, typecheck, build exit 0; 469 unit, 47 e2e, 154 DB; 0 bỏ qua
+- [x] Doc có fact thay đổi đã cập nhật; `check-doc-links.mjs` sạch; trạng thái doc chuyển Implemented sau khi G4 được duyệt
+- [x] Bàn giao và DoD chưa đạt có BL-023 đến BL-026 trong `docs/BACKLOG.md`
+- [ ] Dev review, CI trên GitHub và merge main: chưa có, chưa đủ điều kiện Done (BL-025)

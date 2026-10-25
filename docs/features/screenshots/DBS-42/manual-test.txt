@@ -1,38 +1,39 @@
-32015c609b1af8b06633fcb8fb44a949a7dd512b
+23ddfe3c4488596cb73a1be083bb549cefdac5ae
 Manual runtime logging check; source app, PostgreSQL Compose, synthetic secrets only.
+Database host: 127.0.0.1:55432
 
 $ APP_ROLE=api LOG_LEVEL=debug PORT=<ephemeral> node -r ts-node/register -r tsconfig-paths/register src/main.ts
 PASS api started
 PASS M-42-01 ready=200 against real PostgreSQL
 PASS M-42-01 server chooses correlationId
-HTTP ready status=200 correlationId=ddf360e0-bda0-46cc-bdbe-bb22a72039a9
+HTTP ready status=200 correlationId=43b4f2dd-cb8f-4f1f-ae87-2d366031f169
 {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}
 PASS M-42-02 unknown route=404
-HTTP missing status=404 correlationId=93ab7c44-196e-49e3-927c-666931cf4954
-Selected problem fields: {"status":404,"correlationId":"93ab7c44-196e-49e3-927c-666931cf4954"}
+HTTP missing status=404 correlationId=e53f7f65-d796-4d2f-b7bf-49792d800e3c
+Selected problem fields: {"status":404,"correlationId":"e53f7f65-d796-4d2f-b7bf-49792d800e3c"}
 PASS M-42-01 response ID appears in JSON log
 APPLICATION STDOUT:
-{"level":30,"time":"2026-10-24T08:38:13.695Z","appRole":"api","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
-{"level":30,"time":"2026-10-24T08:38:13.710Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.710Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.711Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.711Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.711Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.744Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.744Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TerminusModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.745Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.746Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"HealthModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.765Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.766Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:13.785Z","appRole":"api","role":"api","correlationId":null,"context":"RoutesResolver","message":"HealthController {/health} (version: Neutral):"}
-{"level":30,"time":"2026-10-24T08:38:13.787Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/live, GET} (version: Neutral) route"}
-{"level":30,"time":"2026-10-24T08:38:13.787Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/ready, GET} (version: Neutral) route"}
-{"level":30,"time":"2026-10-24T08:38:13.788Z","appRole":"api","role":"api","correlationId":null,"context":"NestApplication","message":"Nest application successfully started"}
-{"level":30,"time":"2026-10-24T08:38:13.790Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","port":57775,"message":"HTTP listener started"}
-{"level":30,"time":"2026-10-24T08:38:13.790Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","message":"Swagger UI available at /docs"}
-{"level":30,"time":"2026-10-24T08:38:13.887Z","appRole":"api","req":{"method":"GET"},"role":"api","correlationId":"49ecf5e8-62a9-430c-9c03-c088f6243edb","res":{"statusCode":200},"responseTime":7,"message":"Request completed"}
-{"level":30,"time":"2026-10-24T08:38:13.895Z","appRole":"api","req":{"method":"GET"},"role":"api","correlationId":"ddf360e0-bda0-46cc-bdbe-bb22a72039a9","res":{"statusCode":200},"responseTime":4,"message":"Request completed"}
-{"level":40,"time":"2026-10-24T08:38:13.925Z","appRole":"api","req":{"method":"POST"},"role":"api","correlationId":"93ab7c44-196e-49e3-927c-666931cf4954","res":{"statusCode":404},"responseTime":8,"message":"Request completed"}
+{"level":30,"time":"2026-10-25T12:05:19.966Z","appRole":"api","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":30,"time":"2026-10-25T12:05:19.983Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:19.983Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:19.983Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:19.983Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:19.983Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:20.042Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:20.043Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TerminusModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:20.043Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:20.043Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"HealthModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:20.073Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:20.074Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:20.125Z","appRole":"api","role":"api","correlationId":null,"context":"RoutesResolver","message":"HealthController {/health} (version: Neutral):"}
+{"level":30,"time":"2026-10-25T12:05:20.127Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/live, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-10-25T12:05:20.127Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/ready, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-10-25T12:05:20.128Z","appRole":"api","role":"api","correlationId":null,"context":"NestApplication","message":"Nest application successfully started"}
+{"level":30,"time":"2026-10-25T12:05:20.132Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","port":61546,"message":"HTTP listener started"}
+{"level":30,"time":"2026-10-25T12:05:20.133Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","message":"Swagger UI available at /docs"}
+{"level":30,"time":"2026-10-25T12:05:20.167Z","appRole":"api","req":{"method":"GET"},"role":"api","correlationId":"41fb84df-4c78-44bd-b1ab-65feb3217726","res":{"statusCode":200},"responseTime":3,"message":"Request completed"}
+{"level":30,"time":"2026-10-25T12:05:20.177Z","appRole":"api","req":{"method":"GET"},"role":"api","correlationId":"43b4f2dd-cb8f-4f1f-ae87-2d366031f169","res":{"statusCode":200},"responseTime":6,"message":"Request completed"}
+{"level":40,"time":"2026-10-25T12:05:20.191Z","appRole":"api","req":{"method":"POST"},"role":"api","correlationId":"e53f7f65-d796-4d2f-b7bf-49792d800e3c","res":{"statusCode":404},"responseTime":10,"message":"Request completed"}
 PASS no plain-text stderr
 PASS M-42-02 no sensitive fixtures in logs
 PASS M-42-01 JSON record has required fields
@@ -61,17 +62,17 @@ $ APP_ROLE=worker LOG_LEVEL=debug PORT=<ephemeral> node -r ts-node/register -r t
 PASS worker started
 PASS M-42-03 worker has no HTTP listener
 APPLICATION STDOUT:
-{"level":30,"time":"2026-10-24T08:38:15.235Z","appRole":"worker","role":"worker","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
-{"level":30,"time":"2026-10-24T08:38:15.250Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:15.250Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:15.250Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:15.250Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:15.251Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:15.285Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:15.285Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:15.303Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:15.303Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:15.305Z","appRole":"worker","role":"worker","correlationId":null,"context":"Bootstrap","message":"Worker started — no HTTP listener"}
+{"level":30,"time":"2026-10-25T12:05:21.516Z","appRole":"worker","role":"worker","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":30,"time":"2026-10-25T12:05:21.544Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:21.544Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:21.544Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:21.544Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:21.544Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:21.601Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:21.601Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:21.624Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:21.625Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:21.626Z","appRole":"worker","role":"worker","correlationId":null,"context":"Bootstrap","message":"Worker started — no HTTP listener"}
 PASS no plain-text stderr
 PASS M-42-02 no sensitive fixtures in logs
 PASS M-42-01 JSON record has required fields
@@ -91,34 +92,34 @@ $ APP_ROLE=both LOG_LEVEL=debug PORT=<ephemeral> node -r ts-node/register -r tsc
 PASS both started
 PASS M-42-01 ready=200 against real PostgreSQL
 PASS M-42-01 server chooses correlationId
-HTTP ready status=200 correlationId=0b58676f-9df8-4535-ad98-496964a401eb
+HTTP ready status=200 correlationId=9e68a2f5-50f0-4078-bb71-a764c53eaf13
 {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}
 PASS M-42-02 unknown route=404
-HTTP missing status=404 correlationId=74f11804-3b34-433e-9801-76c46785ffa5
-Selected problem fields: {"status":404,"correlationId":"74f11804-3b34-433e-9801-76c46785ffa5"}
+HTTP missing status=404 correlationId=238aba78-fa51-4d61-aa32-377cd1692208
+Selected problem fields: {"status":404,"correlationId":"238aba78-fa51-4d61-aa32-377cd1692208"}
 PASS M-42-01 response ID appears in JSON log
 APPLICATION STDOUT:
-{"level":30,"time":"2026-10-24T08:38:16.813Z","appRole":"both","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
-{"level":30,"time":"2026-10-24T08:38:16.828Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.828Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.828Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.828Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.829Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.861Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.861Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"TerminusModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.862Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.862Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"HealthModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.877Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.877Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
-{"level":30,"time":"2026-10-24T08:38:16.900Z","appRole":"both","role":"api","correlationId":null,"context":"RoutesResolver","message":"HealthController {/health} (version: Neutral):"}
-{"level":30,"time":"2026-10-24T08:38:16.901Z","appRole":"both","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/live, GET} (version: Neutral) route"}
-{"level":30,"time":"2026-10-24T08:38:16.901Z","appRole":"both","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/ready, GET} (version: Neutral) route"}
-{"level":30,"time":"2026-10-24T08:38:16.903Z","appRole":"both","role":"api","correlationId":null,"context":"NestApplication","message":"Nest application successfully started"}
-{"level":30,"time":"2026-10-24T08:38:16.904Z","appRole":"both","role":"api","correlationId":null,"context":"Bootstrap","port":57797,"message":"HTTP listener started"}
-{"level":30,"time":"2026-10-24T08:38:16.904Z","appRole":"both","role":"api","correlationId":null,"context":"Bootstrap","message":"Swagger UI available at /docs"}
-{"level":30,"time":"2026-10-24T08:38:16.963Z","appRole":"both","req":{"method":"GET"},"role":"api","correlationId":"47e11a0f-a398-4387-9f5a-40f0f31d80bb","res":{"statusCode":200},"responseTime":4,"message":"Request completed"}
-{"level":30,"time":"2026-10-24T08:38:16.968Z","appRole":"both","req":{"method":"GET"},"role":"api","correlationId":"0b58676f-9df8-4535-ad98-496964a401eb","res":{"statusCode":200},"responseTime":4,"message":"Request completed"}
-{"level":40,"time":"2026-10-24T08:38:16.980Z","appRole":"both","req":{"method":"POST"},"role":"api","correlationId":"74f11804-3b34-433e-9801-76c46785ffa5","res":{"statusCode":404},"responseTime":9,"message":"Request completed"}
+{"level":30,"time":"2026-10-25T12:05:23.054Z","appRole":"both","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":30,"time":"2026-10-25T12:05:23.073Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.073Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.073Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.074Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.074Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.137Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.138Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"TerminusModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.138Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.138Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"HealthModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.163Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.163Z","appRole":"both","role":"api","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:23.186Z","appRole":"both","role":"api","correlationId":null,"context":"RoutesResolver","message":"HealthController {/health} (version: Neutral):"}
+{"level":30,"time":"2026-10-25T12:05:23.187Z","appRole":"both","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/live, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-10-25T12:05:23.188Z","appRole":"both","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/ready, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-10-25T12:05:23.189Z","appRole":"both","role":"api","correlationId":null,"context":"NestApplication","message":"Nest application successfully started"}
+{"level":30,"time":"2026-10-25T12:05:23.193Z","appRole":"both","role":"api","correlationId":null,"context":"Bootstrap","port":61568,"message":"HTTP listener started"}
+{"level":30,"time":"2026-10-25T12:05:23.193Z","appRole":"both","role":"api","correlationId":null,"context":"Bootstrap","message":"Swagger UI available at /docs"}
+{"level":30,"time":"2026-10-25T12:05:23.200Z","appRole":"both","req":{"method":"GET"},"role":"api","correlationId":"eb76d70a-0ee6-49fe-94f6-9aae705641f4","res":{"statusCode":200},"responseTime":3,"message":"Request completed"}
+{"level":30,"time":"2026-10-25T12:05:23.204Z","appRole":"both","req":{"method":"GET"},"role":"api","correlationId":"9e68a2f5-50f0-4078-bb71-a764c53eaf13","res":{"statusCode":200},"responseTime":4,"message":"Request completed"}
+{"level":40,"time":"2026-10-25T12:05:23.214Z","appRole":"both","req":{"method":"POST"},"role":"api","correlationId":"238aba78-fa51-4d61-aa32-377cd1692208","res":{"statusCode":404},"responseTime":9,"message":"Request completed"}
 PASS no plain-text stderr
 PASS M-42-02 no sensitive fixtures in logs
 PASS M-42-01 JSON record has required fields
@@ -148,15 +149,147 @@ $ APP_ROLE=api LOG_LEVEL=error PORT=<ephemeral> node -r ts-node/register -r tsco
 PASS api started
 PASS M-42-01 ready=200 against real PostgreSQL
 PASS M-42-01 server chooses correlationId
-HTTP ready status=200 correlationId=413651a6-1d90-415b-ad7f-4ba6c1d03062
+HTTP ready status=200 correlationId=34021329-d200-4ae9-9523-030f2291690d
 {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}
 PASS M-42-02 unknown route=404
-HTTP missing status=404 correlationId=8b951a32-e980-4919-ba99-163536470041
-Selected problem fields: {"status":404,"correlationId":"8b951a32-e980-4919-ba99-163536470041"}
+HTTP missing status=404 correlationId=05efeca5-fed9-42a3-a010-c8db8c900b2b
+Selected problem fields: {"status":404,"correlationId":"05efeca5-fed9-42a3-a010-c8db8c900b2b"}
 APPLICATION STDOUT:
 (empty)
 PASS no plain-text stderr
 PASS M-42-02 no sensitive fixtures in logs
 PASS M-42-04 error level suppresses successful startup, 200 and 404 logs
+
+$ APP_ROLE=<set> LOG_LEVEL=<set> node -r ts-node/register -r tsconfig-paths/register src/main.ts
+(M-42-06 LOG_LEVEL=INFO)
+{"level":30,"time":"2026-10-25T12:05:26.224Z","appRole":"api","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":50,"time":"2026-10-25T12:05:26.226Z","appRole":"api","role":"api","correlationId":null,"context":"ExceptionHandler","err":{"errorType":"Error"},"message":"Diagnostic event"}
+{"level":50,"time":"2026-10-25T12:05:26.227Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","errorType":"Error","invalidKeys":["LOG_LEVEL"],"message":"Application startup failed"}
+PASS M-42-06 LOG_LEVEL=INFO: exits with a non-zero code (1)
+PASS M-42-06 LOG_LEVEL=INFO: nothing on stderr
+PASS M-42-06 LOG_LEVEL=INFO: every line is JSON
+PASS M-42-06 LOG_LEVEL=INFO: no fixture value in the output
+PASS M-42-06 LOG_LEVEL=INFO: no stack trace text
+PASS M-42-06 LOG_LEVEL=INFO names LOG_LEVEL and not its value
+
+$ APP_ROLE=<set> PORT=<set> node -r ts-node/register -r tsconfig-paths/register src/main.ts
+(M-42-06 PORT=not-a-number)
+{"level":30,"time":"2026-10-25T12:05:27.696Z","appRole":"api","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":50,"time":"2026-10-25T12:05:27.700Z","appRole":"api","role":"api","correlationId":null,"context":"ExceptionHandler","err":{"errorType":"Error"},"message":"Diagnostic event"}
+{"level":50,"time":"2026-10-25T12:05:27.700Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","errorType":"Error","invalidKeys":["PORT"],"message":"Application startup failed"}
+PASS M-42-06 PORT=not-a-number: exits with a non-zero code (1)
+PASS M-42-06 PORT=not-a-number: nothing on stderr
+PASS M-42-06 PORT=not-a-number: every line is JSON
+PASS M-42-06 PORT=not-a-number: no fixture value in the output
+PASS M-42-06 PORT=not-a-number: no stack trace text
+PASS M-42-06 PORT names PORT and not its value
+
+$ APP_ROLE=<set> TRANSFER_LIMIT_PER_TX=<set> node -r ts-node/register -r tsconfig-paths/register src/main.ts
+(M-42-06 a value the validation text quotes)
+{"level":30,"time":"2026-10-25T12:05:29.304Z","appRole":"api","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":50,"time":"2026-10-25T12:05:29.312Z","appRole":"api","role":"api","correlationId":null,"context":"ExceptionHandler","err":{"errorType":"Error"},"message":"Diagnostic event"}
+{"level":50,"time":"2026-10-25T12:05:29.313Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","errorType":"Error","invalidKeys":["TRANSFER_LIMIT_PER_TX"],"message":"Application startup failed"}
+PASS M-42-06 a value the validation text quotes: exits with a non-zero code (1)
+PASS M-42-06 a value the validation text quotes: nothing on stderr
+PASS M-42-06 a value the validation text quotes: every line is JSON
+PASS M-42-06 a value the validation text quotes: no fixture value in the output
+PASS M-42-06 a value the validation text quotes: no stack trace text
+PASS M-42-06 TRANSFER_LIMIT_PER_TX names the key, the quoted value stays out of the log
+
+$ APP_ROLE=<set> DATABASE_URL=<set> node -r ts-node/register -r tsconfig-paths/register src/main.ts
+(M-42-06 PostgreSQL unreachable, fake password)
+{"level":30,"time":"2026-10-25T12:05:30.759Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:30.820Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:30.821Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TerminusModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:30.821Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:30.821Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"HealthModule dependencies initialized"}
+{"level":50,"time":"2026-10-25T12:05:30.830Z","appRole":"api","role":"api","correlationId":null,"context":"TypeOrmModule","err":{"errorType":"Error"},"message":"Diagnostic event"}
+{"level":50,"time":"2026-10-25T12:05:32.840Z","appRole":"api","role":"api","correlationId":null,"context":"TypeOrmModule","err":{"errorType":"Error"},"message":"Diagnostic event"}
+{"level":50,"time":"2026-10-25T12:05:34.849Z","appRole":"api","role":"api","correlationId":null,"context":"TypeOrmModule","err":{"errorType":"Error"},"message":"Diagnostic event"}
+{"level":50,"time":"2026-10-25T12:05:36.867Z","appRole":"api","role":"api","correlationId":null,"context":"TypeOrmModule","err":{"errorType":"Error"},"message":"Diagnostic event"}
+{"level":50,"time":"2026-10-25T12:05:38.882Z","appRole":"api","role":"api","correlationId":null,"context":"TypeOrmModule","err":{"errorType":"Error"},"message":"Diagnostic event"}
+{"level":50,"time":"2026-10-25T12:05:38.883Z","appRole":"api","role":"api","correlationId":null,"context":"ExceptionHandler","err":{"errorType":"Error","code":"ECONNREFUSED"},"message":"Diagnostic event"}
+{"level":50,"time":"2026-10-25T12:05:38.883Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","errorType":"Error","code":"ECONNREFUSED","message":"Application startup failed"}
+PASS M-42-06 PostgreSQL unreachable, fake password: exits with a non-zero code (1)
+PASS M-42-06 PostgreSQL unreachable, fake password: nothing on stderr
+PASS M-42-06 PostgreSQL unreachable, fake password: every line is JSON
+PASS M-42-06 PostgreSQL unreachable, fake password: no fixture value in the output
+PASS M-42-06 PostgreSQL unreachable, fake password: no stack trace text
+
+$ APP_ROLE=<set> DBS42_CRASH=<set> node -r ts-node/register -r tsconfig-paths/register src/main.ts
+(M-42-06 worker uncaught exception)
+{"level":30,"time":"2026-10-25T12:05:40.191Z","appRole":"worker","role":"worker","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":60,"time":"2026-10-25T12:05:40.268Z","appRole":"worker","role":"worker","correlationId":null,"errorType":"Error","message":"Uncaught exception"}
+{"level":30,"time":"2026-10-25T12:05:40.209Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:40.209Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:40.209Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:40.209Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:40.209Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:40.265Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:40.265Z","appRole":"worker","role":"worker","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
+PASS M-42-06 worker uncaught exception: exits with a non-zero code (1)
+PASS M-42-06 worker uncaught exception: nothing on stderr
+PASS M-42-06 worker uncaught exception: every line is JSON
+PASS M-42-06 worker uncaught exception: no fixture value in the output
+PASS M-42-06 worker uncaught exception: no stack trace text
+PASS M-42-06 the crash ends as exactly one fatal JSON record
+
+Recovery: the same app starts normally right after the failures.
+
+$ APP_ROLE=api LOG_LEVEL=debug PORT=<ephemeral> node -r ts-node/register -r tsconfig-paths/register src/main.ts
+PASS api started
+PASS M-42-01 ready=200 against real PostgreSQL
+PASS M-42-01 server chooses correlationId
+HTTP ready status=200 correlationId=7a34771d-a234-4ab6-a0b7-aaf646fa81ee
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}
+PASS M-42-02 unknown route=404
+HTTP missing status=404 correlationId=6942d4a8-31eb-4744-a959-2e1f737a80e0
+Selected problem fields: {"status":404,"correlationId":"6942d4a8-31eb-4744-a959-2e1f737a80e0"}
+PASS M-42-01 response ID appears in JSON log
+APPLICATION STDOUT:
+{"level":30,"time":"2026-10-25T12:05:41.656Z","appRole":"api","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":30,"time":"2026-10-25T12:05:41.671Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.671Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.671Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.671Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.671Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.726Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.726Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TerminusModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.726Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.730Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"HealthModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.757Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.757Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
+{"level":30,"time":"2026-10-25T12:05:41.779Z","appRole":"api","role":"api","correlationId":null,"context":"RoutesResolver","message":"HealthController {/health} (version: Neutral):"}
+{"level":30,"time":"2026-10-25T12:05:41.781Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/live, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-10-25T12:05:41.781Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/ready, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-10-25T12:05:41.782Z","appRole":"api","role":"api","correlationId":null,"context":"NestApplication","message":"Nest application successfully started"}
+{"level":30,"time":"2026-10-25T12:05:41.786Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","port":61611,"message":"HTTP listener started"}
+{"level":30,"time":"2026-10-25T12:05:41.787Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","message":"Swagger UI available at /docs"}
+{"level":30,"time":"2026-10-25T12:05:41.830Z","appRole":"api","req":{"method":"GET"},"role":"api","correlationId":"556d1b3c-bbcc-487f-9669-da5ed80cbfc8","res":{"statusCode":200},"responseTime":3,"message":"Request completed"}
+{"level":30,"time":"2026-10-25T12:05:41.835Z","appRole":"api","req":{"method":"GET"},"role":"api","correlationId":"7a34771d-a234-4ab6-a0b7-aaf646fa81ee","res":{"statusCode":200},"responseTime":4,"message":"Request completed"}
+{"level":40,"time":"2026-10-25T12:05:41.844Z","appRole":"api","req":{"method":"POST"},"role":"api","correlationId":"6942d4a8-31eb-4744-a959-2e1f737a80e0","res":{"statusCode":404},"responseTime":8,"message":"Request completed"}
+PASS no plain-text stderr
+PASS M-42-02 no sensitive fixtures in logs
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
+PASS M-42-01 JSON record has required fields
 
 All manual runtime checks passed. Error paths are additionally executed by logging-bootstrap/logging HTTP e2e suites.

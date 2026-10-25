@@ -189,9 +189,22 @@ Log ứng dụng dùng `nestjs-pino`, mỗi dòng là một JSON object trên st
 
 HTTP completion chỉ ghi method, status và thời gian xử lý; không ghi URL/path/query, headers/cookies, địa chỉ mạng hoặc request/response body. Logger gắn trước CORS và body parser để cả preflight và JSON lỗi có correlationId. Log retry và filter lỗi chỉ ghi thông điệp cố định, số lần thử và mã SQLSTATE/network được phép. Error message/stack/cause và SQL/parameters không được ghi.
 
-Các key chứa Authorization, token, password/secret, cookie, số tài khoản/thẻ được che đệ quy, kể cả trong mảng và tham số định dạng. Serialization hook không được thực thi trong metadata đã lọc. Đây là bảo vệ bổ sung: không truyền payload khách hàng hoặc chuỗi lỗi thô vào logger. Log vận hành không thay cho audit log trong transaction.
+**Che dữ liệu nhạy cảm.** Khoá được chuẩn hóa (chữ thường, bỏ `_` và `-`) rồi so với danh sách: `authorization`, `password`, `passwd`, `pwd`, `secret`, `token`, `cookie`, `credential`, `apikey`, `privatekey`, `passphrase`, `jwt`, `iban`, `cvv`, `securitycode`, `connectionstring`, `databaseurl` (chứa chuỗi con); `pan`, `cardpan`, `pannumber`, `otpcode`, `totp`, `mfacode`, `smscode`, `pincode`, `cvc2`, `sid`, `sessionid`, `pass`, `dsn`, `signature`, `auth` (nguyên khoá); và khoá kết thúc bằng `accountno`, `accountnum`, `cardno`, `cardnum`, `pin`, `otp`, `cvc` (ví dụ `toAccountNo`, `newPin`). `headers` và `rawHeaders` bị bỏ hẳn. `footprint`, `panel`, `span`, `cardNotPresent`, `accountNotFound` không bị che. Mọi giá trị chuỗi (không chỉ `message`) còn được quét: URI có credential, `Bearer`/`Basic`, `Authorization: …`, các cặp `tên=giá trị` như `PGPASSWORD`, `client_secret`, `password_hash` (kể cả JSON và JSON mã hóa hai lần) và JWT thô. Đây là lớp bảo vệ bổ sung: **không truyền payload khách hàng hoặc chuỗi lỗi thô vào logger**. Log vận hành không thay cho audit log trong transaction.
 
-Context xuyên worker/message và provider AsyncLocalStorage chung thuộc DBS-43; khi chạy `both`, tác vụ nền phải gắn context `role=worker` qua tích hợp đó. Chi tiết và bằng chứng: [DBS-42](../docs/features/DBS-42-json-logger.md).
+**Envelope và độ bền.** Mỗi khoá `level`, `time`, `message`, `appRole`, `role`, `correlationId` xuất hiện đúng một lần: object bạn truyền vào log không đặt được các khoá này (kể cả giá trị hợp lệ). `message` luôn là chuỗi; đối số không có chỗ điền trong chuỗi định dạng bị bỏ. Một lời gọi log hỏng (getter ném lỗi, Proxy bị thu hồi) không bao giờ làm hỏng kết quả của caller: `SafeLogger` (bọc `Logger` của Nest) và hook của pino ghi dòng cố định `Log call failed` thay vì ném lỗi. Chuỗi dài hơn 4096 ký tự thành `[Omitted]`, mỗi lần ghi log quét tối đa 64 KiB và giữ 1000 phần tử đầu của một mảng.
+
+**Lỗi khi khởi động và lỗi cấp tiến trình.** Cấu hình sai (Joi hoặc `APP_ROLE`) ghi một dòng `Application startup failed` có `invalidKeys`: tên biến sai, hoặc `<cross-field>` cho quy tắc giữa nhiều biến, **không** kèm giá trị. `uncaughtException` và `unhandledRejection` ghi đúng một dòng JSON `level:60` rồi thoát mã 1, không in stack ra stderr.
+
+**Giới hạn đã biết:**
+- Heuristic che số từ 8 chữ số chỉ chạy trên `message`; số tài khoản trong field khác chỉ được che theo tên khoá (v1 định danh tài khoản bằng UUID).
+- Tên khoá bí mật không có trong danh sách ở trên vẫn lọt; giá trị bí mật dạng khác (ví dụ chuỗi base64 trần) không bị quét.
+- Binding của `logger.child(...)`, `PinoLogger.assign()` và `runInContext` do code khác tạo **không** được che hay khử trùng khoá (pino đặt lại bộ lọc binding ở mỗi child); gán lại `correlationId` trên logger đã có cho hai khoá. Code gọi thẳng `PinoLogger` hoặc `req.log` chỉ được bảo vệ ở hook của pino, không qua `SafeLogger`.
+- Lỗi ném đồng bộ khi nạp `env.bootstrap` và cảnh báo `process.emitWarning` (ví dụ `sslmode` của `pg-connection-string`) vẫn ra stderr dạng text.
+- Dòng log đang ghi dở khi tiến trình crash có thể bị cắt và dính với dòng `fatal`; dòng trước crash có thể xuất hiện sau `fatal` (dùng `time` để sắp xếp).
+- Lỗi nội bộ do Nest hoặc TypeORM phát ra (`ExceptionHandler`, `TypeOrmModule`) chỉ còn `context`, loại lỗi, mã SQLSTATE và thông điệp `Diagnostic event`, vì message gốc có thể chứa SQL hoặc credential.
+- Khi chạy `both`, tác vụ nền log `role=api` cho tới khi DBS-43 gắn context (`role=worker`); context xuyên worker/message và provider AsyncLocalStorage chung thuộc DBS-43.
+
+Chi tiết và bằng chứng: [DBS-42](../docs/features/DBS-42-json-logger.md).
 
 ## Docker
 
