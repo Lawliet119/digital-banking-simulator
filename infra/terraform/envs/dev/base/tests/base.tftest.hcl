@@ -124,3 +124,58 @@ run "default_security_group_locked" {
     error_message = "default security group must have no rules"
   }
 }
+
+# TC-33-06: ECR repo
+run "ecr_repository" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_ecr_repository.api.name == "dbs-api" &&
+      aws_ecr_repository.api.image_tag_mutability == "IMMUTABLE" &&
+      aws_ecr_repository.api.force_delete == false
+    )
+    error_message = "unexpected ECR repository settings"
+  }
+
+  assert {
+    condition     = aws_ecr_repository.api.image_scanning_configuration[0].scan_on_push == true
+    error_message = "scan on push must be enabled"
+  }
+
+  assert {
+    condition     = aws_ecr_repository.api.encryption_configuration[0].encryption_type == "AES256"
+    error_message = "ECR must be encrypted with AES256"
+  }
+
+  assert {
+    condition     = aws_ecr_repository.api.tags["Name"] == "dbs-api"
+    error_message = "missing Name tag"
+  }
+}
+
+# TC-33-07: lifecycle policy, priorities and counts
+run "ecr_lifecycle" {
+  command = plan
+
+  assert {
+    condition = (
+      jsondecode(aws_ecr_lifecycle_policy.api.policy).rules[0].rulePriority == 1 &&
+      jsondecode(aws_ecr_lifecycle_policy.api.policy).rules[0].selection.tagStatus == "untagged" &&
+      jsondecode(aws_ecr_lifecycle_policy.api.policy).rules[0].selection.countType == "sinceImagePushed" &&
+      jsondecode(aws_ecr_lifecycle_policy.api.policy).rules[0].selection.countUnit == "days" &&
+      jsondecode(aws_ecr_lifecycle_policy.api.policy).rules[0].selection.countNumber == 7
+    )
+    error_message = "rule 1 must expire untagged images after 7 days"
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_ecr_lifecycle_policy.api.policy).rules[1].rulePriority == 2 &&
+      jsondecode(aws_ecr_lifecycle_policy.api.policy).rules[1].selection.tagStatus == "any" &&
+      jsondecode(aws_ecr_lifecycle_policy.api.policy).rules[1].selection.countType == "imageCountMoreThan" &&
+      jsondecode(aws_ecr_lifecycle_policy.api.policy).rules[1].selection.countNumber == 20
+    )
+    error_message = "rule 2 must keep the 20 newest images (tagStatus any needs the highest priority number)"
+  }
+}
