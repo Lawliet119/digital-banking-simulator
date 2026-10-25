@@ -35,13 +35,16 @@ const crashLogger = pino(createLoggingOptions(settings), pino.destination({ dest
 function logFatalAndExit(error: unknown, message: string): never {
   let flushed = true;
   try {
+    // SonicBoom skips a write that is already in flight (it does not throw), so a line being
+    // written right now can still be cut short by the exit; the README lists this limit. It
+    // throws only when it cannot flush at all.
     rootDestination.flushSync();
   } catch {
-    flushed = false; // a write still in flight cannot be flushed; the fatal line matters more
+    flushed = false;
   }
   if (!flushed) {
     try {
-      // The in-flight write may be cut short: start the fatal record on a line of its own.
+      // Whatever is buffered may be half written: start the fatal record on a line of its own.
       writeSync(1, '\n');
     } catch {
       /* stdout closed or full */

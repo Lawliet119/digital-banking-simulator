@@ -65,6 +65,10 @@ const OMITTED_KEYS = new Set([
 const MAX_SCANNED_LENGTH = 4096;
 /** Total characters scanned in one log call, so many long strings cannot add up to a stall. */
 const SCAN_BUDGET = 65_536;
+/** Flat cost of scanning one string, on top of its length. */
+const STRING_COST = 32;
+/** Entries of one array that are kept; a log line is not the place for a huge collection. */
+const MAX_ARRAY_ITEMS = 1000;
 
 interface ScanBudget {
   left: number;
@@ -213,7 +217,10 @@ function sanitize(
       guarded(() => sanitize(read(), path, depth + 1, budget), OMITTED);
     if (Array.isArray(value)) {
       const items = value as unknown[];
-      return Array.from({ length: items.length }, (_, index) => child(() => items[index]));
+      const kept = Math.min(items.length, MAX_ARRAY_ITEMS);
+      const copy: unknown[] = Array.from({ length: kept }, (_, index) => child(() => items[index]));
+      if (items.length > kept) copy.push(`[+${items.length - kept} omitted]`);
+      return copy;
     }
     const record = value as Record<string, unknown>;
     return Object.fromEntries(
@@ -250,10 +257,11 @@ function placeholderCount(template: string): number {
 
 /** Renders a format string, dropping arguments that fill no placeholder instead of appending them. */
 function render(template: string, extras: unknown[]): string {
+  const budget: ScanBudget = { left: SCAN_BUDGET };
   const used = extras
     .slice(0, placeholderCount(template))
-    .map(arg => guarded(() => sanitize(arg), OMITTED));
-  return safeMessage(format(template, ...used));
+    .map(arg => guarded(() => sanitize(arg, undefined, 0, budget), OMITTED));
+  return safeMessage(format(template, ...used), budget);
 }
 
 /** The one place a log call's arguments are rebuilt: always `[message]` or `[fields, message]`. */
@@ -276,8 +284,10 @@ function prepareArgs(args: unknown[]): [string] | [object, string] {
 function scrubSecrets(text: string, budget?: ScanBudget): string {
   if (text.length > MAX_SCANNED_LENGTH) return OMITTED;
   if (budget) {
-    if (text.length > budget.left) return OMITTED;
-    budget.left -= text.length;
+    // A flat cost per string as well, so many tiny strings also run the budget down.
+    const cost = text.length + STRING_COST;
+    if (cost > budget.left) return OMITTED;
+    budget.left -= cost;
   }
   return (
     text
@@ -286,16 +296,17 @@ function scrubSecrets(text: string, budget?: ScanBudget): string {
       .replace(/\bBasic\s+[A-Za-z0-9+/=]{8,}/gi, 'Basic [Redacted]')
       // No leading \b below: the secret word often sits inside a longer name (PGPASSWORD,
       // db_password, client_secret, access_token). A scheme such as "Token x" follows the header.
-      .replace(/authorization"?\s*[:=]\s*[^,;\n]+/gi, 'authorization=[Redacted]')
+      .replace(/authorization(?:\\?")?\s*[:=]\s*[^,;\n]+/gi, 'authorization=[Redacted]')
+      // The same words as PRIVATE_KEY, plus a short suffix (secretKey, tokenValue, password_hash),
+      // and JSON that was serialized twice (\"password\":\"x\"). "tokenizer" and "secretary" stay.
       .replace(
-        /(password|passwd|pwd|secret|token|credential|api[_-]?key)"?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,
+        /(password|passwd|pwd|\bpass(?![A-Za-z0-9_])|secret|token|credentials?|passphrase|jwt|api[ _-]?key|private[ _-]?key)(?:[_-]?(?:key|value|hash|id|code|secret|token))?(?:\\?")?\s*[:=]\s*(?:\\?"[^"]*"|'[^']*'|[^\s,;]+)/gi,
         '$1=[Redacted]',
       )
-      // The look-behind lets a run of token characters start a match only once, so a hostile
-      // "eyJ-eyJ-…" cannot make the scan quadratic.
-      .replace(
-        /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]+/g,
-        '[Redacted JWT]',
+      // Find each run of token characters once (the look-behind), so a hostile "eyJ-eyJ-…" cannot
+      // make the scan quadratic, then keep only runs whose first segment holds an "eyJ" header.
+      .replace(/(?<![\w-])[\w-]{8,}\.[\w-]{5,}\.[\w-]+/g, run =>
+        /(?:^|[-_])eyJ/.test(run.slice(0, run.indexOf('.'))) ? '[Redacted JWT]' : run,
       )
   );
 }

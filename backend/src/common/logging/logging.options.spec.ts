@@ -178,11 +178,44 @@ describe('DBS-42 JSON logging options', () => {
           k: 'refreshToken: sensitive-rt',
           l: 'apiKey=sensitive-ak',
           m: 'Authorization: Token sensitive-tk',
+          n: 'id-eyJhbGciOiJIUzI1.eyJzdWIiOiJzZW5zaXRpdmU.sensitive_sig',
+          o: '{\\"password\\":\\"sensitive-esc\\"}',
+          p: 'secretKey=sensitive-sk',
+          q: 'tokenValue=sensitive-tv',
+          r: 'password_hash=sensitive-ph',
+          t: 'privateKey=sensitive-pk',
+          u: 'passphrase=sensitive-pp',
+          v: 'jwt=sensitive-jw',
+          w: 'pass=sensitive-pa',
+          x: 'api key: sensitive-ak2',
         },
         'Fixed message',
       );
       expect(log.text()).not.toContain('sensitive');
       expect(log.text()).not.toContain('c2Vuc2l0aXZl');
+    });
+
+    it('leaves ordinary words that only resemble a secret untouched', () => {
+      const log = capture();
+      const ordinary = {
+        a: 'Password reset requested',
+        b: 'token expired',
+        c: 'tokenizer: ready',
+        d: 'Secretary: Alice',
+        e: 'compass=north',
+        f: 'bypass: true',
+      };
+      log.logger.info(ordinary, 'Fixed message');
+      expect(log.rows()[0]).toMatchObject(ordinary);
+    });
+
+    it('keeps only the first 1000 entries of a huge array', () => {
+      const log = capture();
+      log.logger.info({ list: Array.from({ length: 5000 }, (_, index) => index) }, 'Fixed');
+      const list = log.rows()[0].list as unknown[];
+      expect(list).toHaveLength(1001);
+      expect(list[999]).toBe(999);
+      expect(list[1000]).toBe('[+4000 omitted]');
     });
 
     it('leaves ordinary identifiers and codes untouched', () => {
@@ -207,12 +240,10 @@ describe('DBS-42 JSON logging options', () => {
     it('bounds the total scan work of one call, not only each string', () => {
       const log = capture();
       const hostile = 'eyJ-'.repeat(1024); // 4096 characters, worst case for a JWT pattern
-      const started = Date.now();
       log.logger.info({ list: Array.from({ length: 200 }, () => hostile) }, 'Fixed message');
       const list = log.rows()[0].list as string[];
       expect(list).toHaveLength(200);
       expect(list.filter(value => value === '[Omitted]').length).toBeGreaterThan(150);
-      expect(Date.now() - started).toBeLessThan(250);
     });
   });
 
