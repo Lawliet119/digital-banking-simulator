@@ -148,6 +148,52 @@ describe('DBS-42 JSON logging options', () => {
     expect(log.rows()[0].message).toBe('Fixed message');
   });
 
+  describe('TC-42-04 safeErrorMetadata', () => {
+    it('never throws on a revoked Proxy or a throwing getter', () => {
+      const revoked = Proxy.revocable({}, {});
+      revoked.revoke();
+      const throwingCode = {
+        get code(): string {
+          throw new Error('sensitive-getter-fixture');
+        },
+      };
+      const throwingDriver = {
+        get driverError(): never {
+          throw new Error('sensitive-getter-fixture');
+        },
+      };
+      for (const hostile of [revoked.proxy, throwingCode, throwingDriver])
+        expect(safeErrorMetadata(hostile)).toEqual({ errorType: 'NonError' });
+    });
+
+    it('keeps any 5-character SQLSTATE found on driverError', () => {
+      expect(safeErrorMetadata({ driverError: { code: '22P02' } })).toEqual({
+        errorType: 'NonError',
+        code: '22P02',
+      });
+      expect(safeErrorMetadata({ driverError: { code: '25P02' } }).code).toBe('25P02');
+      expect(safeErrorMetadata({ driverError: { code: 'sensitive-code-fixture' } })).toEqual({
+        errorType: 'NonError',
+      });
+      expect(safeErrorMetadata({ driverError: { code: 'ab12c' } })).toEqual({
+        errorType: 'NonError',
+      });
+    });
+
+    it('keeps a bare code only for the allowlisted classes and network codes', () => {
+      for (const code of ['28P01', '3D000', '25P03', '40P01', '23505', 'ECONNREFUSED'])
+        expect(safeErrorMetadata({ code }).code).toBe(code);
+      for (const code of ['22P02', 'AB12C', 'untrusted-arbitrary-code'])
+        expect(safeErrorMetadata({ code })).toEqual({ errorType: 'NonError' });
+    });
+
+    it('finds the code on error, driverError or cause in the order pg-error.util uses', () => {
+      expect(safeErrorMetadata({ cause: { code: '40P01' } }).code).toBe('40P01');
+      expect(safeErrorMetadata({ cause: { driverError: { code: '23505' } } }).code).toBe('23505');
+      expect(safeErrorMetadata({ code: '40001', cause: { code: '40P01' } }).code).toBe('40001');
+    });
+  });
+
   it('TC-42-01 preserves request bindings without replacing them by null', () => {
     const log = capture('both');
     log.logger

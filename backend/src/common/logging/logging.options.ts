@@ -46,19 +46,50 @@ const METHODS = new Set([
 ]);
 const REDACTED = '[Redacted]';
 
-/** Error text can contain SQL values and credentials; only a bounded technical code is safe. */
+const MAX_CAUSE_DEPTH = 4;
+/** A SQLSTATE read from the driver is 5 characters and never carries data. */
+const DRIVER_SQLSTATE = /^[0-9A-Z]{5}$/;
+/** A bare `code` may come from anywhere, so only classes with no user data are kept. */
+const BARE_SQLSTATE = /^(?:08|23|25|28|3D|40|42|53|55|57|58)[A-Z0-9]{3}$/;
+const NETWORK_CODE = /^(?:ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|ENOTFOUND|EAI_AGAIN)$/;
+
+/** First `code` on the error or what it wraps, in the order pg-error.util walks it. */
+function findCode(error: unknown): { code: string; fromDriver: boolean } | undefined {
+  let current: unknown = error;
+  for (let depth = 0; depth < MAX_CAUSE_DEPTH && current && typeof current === 'object'; depth++) {
+    const record = current as { code?: unknown; driverError?: unknown; cause?: unknown };
+    const driver = record.driverError;
+    if (driver && typeof driver === 'object') {
+      const driverCode = (driver as { code?: unknown }).code;
+      if (typeof driverCode === 'string') return { code: driverCode, fromDriver: true };
+    }
+    if (typeof record.code === 'string') return { code: record.code, fromDriver: false };
+    current = driver ?? record.cause;
+  }
+  return undefined;
+}
+
+/**
+ * Error text can contain SQL values and credentials; only a bounded technical code is safe.
+ * Total: a hostile value (revoked Proxy, throwing getter) yields `NonError`, never an exception,
+ * because callers use it on error paths where a second failure would hide the first.
+ */
 export function safeErrorMetadata(error: unknown): { errorType: string; code?: string } {
-  const record = error && typeof error === 'object' ? (error as Record<string, unknown>) : {};
-  const driver = record.driverError;
-  const code = driver && typeof driver === 'object' && 'code' in driver ? driver.code : record.code;
-  const validCode =
-    typeof code === 'string' &&
-    (/^(?:08|23|40|42|53|55|57|58)[A-Z0-9]{3}$/.test(code) ||
-      /^(?:ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|ENOTFOUND|EAI_AGAIN)$/.test(code));
-  return {
-    errorType: error instanceof Error || record.errorType === 'Error' ? 'Error' : 'NonError',
-    ...(validCode ? { code } : {}),
-  };
+  try {
+    const record = error && typeof error === 'object' ? (error as Record<string, unknown>) : {};
+    const found = findCode(error);
+    const validCode =
+      found !== undefined &&
+      ((found.fromDriver && DRIVER_SQLSTATE.test(found.code)) ||
+        BARE_SQLSTATE.test(found.code) ||
+        NETWORK_CODE.test(found.code));
+    return {
+      errorType: error instanceof Error || record.errorType === 'Error' ? 'Error' : 'NonError',
+      ...(validCode ? { code: found.code } : {}),
+    };
+  } catch {
+    return { errorType: 'NonError' };
+  }
 }
 
 function requestFields(value: unknown): { method?: string } {
