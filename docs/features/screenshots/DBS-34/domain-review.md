@@ -39,3 +39,18 @@ Verdict: REVISE
 | 6 | minor | §1 câu 3, §2 "Rủi ro còn lại" | Chủ của BACKLOG cho chứng chỉ công khai vẫn là "DBS-38 hoặc tuần 6–8"; DBS-38 chỉ là pipeline deploy, không có domain/chứng chỉ. | fetch-task DBS-38 | Gán một chủ (dòng BACKLOG mới cho việc WAF/ALB tuần 6–8), không phải DBS-38. |
 
 Verdict: REVISE
+
+---
+
+# Vòng 3 (subagent opus, 2026-10-26), trả lời nguyên văn
+
+6/6 phát hiện vòng 2 đã sửa. Phát hiện mới đều ở bước M-34-07 mới:
+
+| # | Severity | Section | Finding | Evidence | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | minor | §5 M-34-07, 07c | Lệnh probe thiếu `--cluster`: `run-task`, `wait tasks-running`, `describe-tasks`, `stop-task` đi vào cluster `default` (không tồn tại): `ClusterNotFoundException`. `register-task-definition` cho Fargate cần `--requires-compatibilities FARGATE --network-mode awsvpc --cpu 256 --memory 512`. | doc dòng 137; cluster là `dbs-dev` | Thêm `--cluster dbs-dev` (và `--tasks <arn>`); ghi đủ cờ `register-task-definition`; không cần execution role hay logConfiguration cho image công khai. |
+| 2 | minor | §5 M-34-07, 07b | `python:3-alpine` không đặt WORKDIR nên `http.server` phục vụ `/`; trong lúc 07b, cả filesystem container (kể cả `/proc/*/environ`) liệt kê được qua ALB mở `0.0.0.0/0`. Rủi ro thấp (probe không có task role) nhưng tránh được. | doc dòng 137 | `sh -c "mkdir -p /srv/health && echo ok > /srv/health/ready && python -m http.server 3000 --directory /srv"`. |
+| 3 | minor | §5 M-34-07a | 07a chỉ đạt nếu task RUNNING, nhưng RUNNING chưa chứng minh có gì lắng nghe port 3000. | doc dòng 138 | Tính 07a đạt chỉ sau khi 07b thành công, hoặc chạy 07a sau 07b, trước 07c. |
+| 4 | minor | §5 M-34-07c | `deregister-task-definition` chỉ đánh dấu INACTIVE; revision vẫn còn. | hành vi AWS ECS | Thêm `aws ecs delete-task-definitions --task-definitions dbs-probe:1` hoặc đổi kỳ vọng thành "INACTIVE". |
+
+Verdict: APPROVE

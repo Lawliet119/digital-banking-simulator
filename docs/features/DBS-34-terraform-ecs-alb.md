@@ -134,10 +134,10 @@ flowchart LR
 | M-34-04b | `curl -s -o /dev/null -w '%{http_code} %{redirect_url}' http://<alb_dns_name>/` | `301` và `redirect_url` bắt đầu bằng `https://` |
 | M-34-05 | `aws elbv2 describe-target-groups --target-group-arns <output>` và `describe-target-health` | health check `/health/ready` 15/5/2/3, `200`; `0` target |
 | M-34-06 | `aws ecs describe-task-definition --task-definition <output>` | `APP_ROLE=api`, `TRUST_PROXY_HOPS=1`; execution role khác task role; log group `/dbs/dev/api` |
-| M-34-07 | Task tạm, family `dbs-probe` (không phải `dbs-api`), image `public.ecr.aws/docker/library/python:3-alpine`, lệnh `sh -c "mkdir -p health && echo ok > health/ready && python -m http.server 3000"`, đăng ký bằng `aws ecs register-task-definition`; `aws ecs run-task --launch-type FARGATE --network-configuration "awsvpcConfiguration={subnets=[<pub-a>],securityGroups=[<sg-api>],assignPublicIp=ENABLED}"`; `aws ecs wait tasks-running` và `describe-tasks` có `lastStatus = RUNNING`; lấy IP riêng và IP công khai của task | task RUNNING, có IP công khai |
-| M-34-07a | **Ca bị từ chối:** `curl -m 10 http://<ip công khai>:3000/health/ready` | **timeout** (SG `api` chỉ nhận từ SG `alb`); chỉ tính là đạt khi M-34-07 đã chứng minh task RUNNING |
+| M-34-07 | Task tạm, family `dbs-probe` (không phải `dbs-api`), image `public.ecr.aws/docker/library/python:3-alpine`, lệnh `sh -c "mkdir -p /srv/health && echo ok > /srv/health/ready && python -m http.server 3000 --directory /srv"` (chỉ phục vụ `/srv`, không lộ filesystem), đăng ký bằng `aws ecs register-task-definition --requires-compatibilities FARGATE --network-mode awsvpc --cpu 256 --memory 512` (không cần execution role hay logConfiguration cho image công khai); `aws ecs run-task --cluster dbs-dev --launch-type FARGATE --network-configuration "awsvpcConfiguration={subnets=[<pub-a>],securityGroups=[<sg-api>],assignPublicIp=ENABLED}"`; `aws ecs wait tasks-running --cluster dbs-dev --tasks <arn>` và `describe-tasks` có `lastStatus = RUNNING`; lấy IP riêng và IP công khai của task | task RUNNING, có IP công khai |
 | M-34-07b | **Đối chứng dương:** `aws elbv2 register-targets` IP riêng của task vào target group; chờ `describe-target-health` = `healthy` (2 lần × 15 s); `curl -sk https://<alb_dns_name>/health/ready` | `healthy`, rồi `200` và body `ok` (khớp ADR-10 "Qua ALB → 200") |
-| M-34-07c | Dọn: `deregister-targets`, `aws ecs stop-task`, `deregister-task-definition` (family `dbs-probe`) | không còn task, target hay task definition tạm |
+| M-34-07a | **Ca bị từ chối:** `curl -m 10 http://<ip công khai>:3000/health/ready` | **timeout** (SG `api` chỉ nhận từ SG `alb`); chạy **sau M-34-07b** (khi task đã được chứng minh có tiến trình lắng nghe port 3000 qua ALB), nên timeout chỉ có thể do SG |
+| M-34-07c | Dọn: `deregister-targets`, `aws ecs stop-task --cluster dbs-dev --task <arn>`, `deregister-task-definition` rồi `aws ecs delete-task-definitions --task-definitions dbs-probe:1` | không còn task, target hay task definition tạm (revision ở trạng thái INACTIVE/DELETE_IN_PROGRESS) |
 | M-34-08 | `terraform destroy` session với đủ biến; ghi giờ kết thúc | `Destroy complete` |
 | M-34-09 | Kiểm sạch (chạy lại sau 5 phút nếu còn): `aws elbv2 describe-load-balancers`, `describe-target-groups`, `aws ecs describe-clusters --clusters dbs-dev` (kỳ vọng `status INACTIVE` hoặc `failures`), `aws ecs list-tasks --cluster dbs-dev`, `aws ec2 describe-addresses`, `aws ec2 describe-network-interfaces --filters Name=vpc-id,Values=<vpc>` (mọi trạng thái), `aws acm list-certificates` | không còn tài nguyên của session; ENI trong VPC rỗng |
 | M-34-10 | Task chạy thật, ALB healthy, `GET /health/ready` = 200 | **chưa chạy (chờ image sau merge DBS-36, DBS-66, DBS-67, DBS-54, task ElastiCache)**: BACKLOG |
@@ -146,11 +146,48 @@ Thời gian dựng ALB khoảng 2–3 phút; tổng thời gian tính tiền dư
 
 ## 6. Domain review (AI)
 
-(Đang chạy vòng 2.)
+**Reviewer:** subagent, model opus, 2026-10-26 · [trả lời nguyên văn của ba vòng](screenshots/DBS-34/domain-review.md)
+
+| Vòng | Phát hiện | Verdict |
+|---|---|---|
+| 1 | 16 (blocking 1, should-fix 7, minor 8) | REVISE |
+| 2 | 6 phát hiện mới (should-fix 2, minor 4) | REVISE (không blocking) |
+| 3 | 4 minor (đều ở bước probe M-34-07) | APPROVE |
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| V1-1 | blocking | listener HTTP-only lệch NFR-SEC-03 | đã sửa: HTTPS self-signed, 80 → 301; ghi lại quyết định G1 sai; rủi ro ở §2; BL cho chứng chỉ công khai/WAF |
+| V1-2 | should-fix | thiếu `depends_on` listener | đã sửa §3, TC-34-03 |
+| V1-3 | should-fix | `desired_count` mặc định 1 | đã sửa: mặc định 0 + bảng biến còn thiếu |
+| V1-4 | should-fix | hợp đồng `image_tag` với DBS-38, quyền execution role cho DBS-67 | đã sửa §1 câu 8; BL cho DBS-38/67 |
+| V1-5 | should-fix | log group trong `session` | đã sửa: chuyển sang `base` |
+| V1-6 | should-fix | test không assert được dưới mock | đã sửa: `jsonencode`, override đủ output, grep tĩnh cho task role |
+| V1-7 | should-fix | lệnh thiếu biến | đã sửa §5 và README (khi code) |
+| V1-8 | should-fix | kiểm sạch chưa đủ (ENI, cluster) | đã sửa M-34-09 |
+| V1-9..16 | minor | probe timeout, dereg delay, inline policy, egress 6379, chi phí, đánh số, file provider/lock, denylist | đã sửa |
+| V2-1 | should-fix | ARN log group thiếu `:*` | đã sửa §2 và TC-34-09 |
+| V2-2 | should-fix | probe có thể đạt giả (public IP, RUNNING) | đã sửa M-34-07/07a/07b/07c |
+| V2-3..6 | minor | đặc tả tls, chi phí, `-var account_id`, chủ BACKLOG | đã sửa |
+| V3-1..4 | minor | `--cluster`, thư mục phục vụ, thứ tự 07a, xóa task definition | đã sửa §5 |
+
+**Quyết định ở G2** (tự duyệt theo `CLAUDE_local.md`, 2026-10-26): chấp nhận mọi xử lý; câu hỏi blocking duy nhất (HTTPS) đã được giải quyết bằng thiết kế đúng NFR, không còn câu hỏi mở.
 
 ## 7. Kế hoạch triển khai
 
-(Điền ở Phase 3.)
+Gate: G2 tự duyệt (ba vòng review, verdict cuối APPROVE). Rà soát kế hoạch: mọi file ở §3, mọi DoD và mọi giới hạn ở §1/§2 có hàng bên dưới hoặc nằm ngoài phạm vi.
+
+**Tóm tắt `plan` dự kiến:** `base`: thêm 2 SG, các luật ingress/egress và 1 log group, `0 to change`, `0 to destroy`. `session` (tạo mới): cluster, task definition, service, ALB, target group, 2 listener, khóa riêng + chứng chỉ self-signed + ACM, 2 role và 2 inline policy (khoảng 18 tài nguyên), `0 to destroy`.
+
+| Bước | File | Test viết trước | Kết quả đỏ | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `base/{security_groups,logs}.tf`, `outputs.tf` | `base/tests/ecs_network.tftest.hcl` (TC-34-01, 02, 08 phần base) | điền khi chạy | `cd infra/terraform/envs/dev/base && terraform test` | `feat(infra): ecs and alb security groups and api log group` |
+| 2 | `session/{versions,variables,iam,tls,alb,ecs,outputs}.tf`, `.terraform.lock.hcl`, `tests/session.tftest.hcl` (viết lại) | TC-34-03..10, 12 | điền khi chạy | `cd infra/terraform/envs/dev/session && terraform init -backend=false && terraform test` | `feat(infra): ecs fargate service, alb and https for dev session` |
+| 3 | `infra/terraform/README.md`, `docs/BACKLOG.md` | `check-doc-links.mjs` | n/a | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(infra): ecs alb build order and handoffs` |
+| 4 | (không file) | M-34-00..10 trên AWS thật, rồi `destroy` session | n/a | theo §5, output vào `screenshots/DBS-34/manual-test.txt` | `docs(features): DBS-34 results` |
+
+Rủi ro và cách lùi: `terraform destroy` session xóa ALB và mọi thứ tính tiền; SG và log group ở `base` miễn phí nên để lại. Nếu `destroy` kẹt vì ENI của ALB nhả chậm: đợi 5 phút rồi chạy lại. Nếu ACM không nhận chứng chỉ: đổi sang ECDSA P-256. Không để ALB chạy qua đêm (quy tắc chi phí).
+
+**Quyết định ở G3** (tự duyệt theo `CLAUDE_local.md`): kế hoạch như trên; người dùng đã đồng ý `apply` và `destroy` ngày 2026-10-26 cho tuần 1–2.
 
 ## 8. Kết quả
 
