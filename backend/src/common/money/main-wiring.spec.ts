@@ -29,4 +29,17 @@ describe('main.ts wiring of @common/money (DBS-22)', () => {
     expect(moneyAt).toBeGreaterThan(envAt); // env.bootstrap must stay the first import
     expect(moneyAt).toBeLessThan(appModuleAt);
   });
+
+  it('TC-42-11 imports the process logging bootstrap once, right after env and before bigint', () => {
+    const pattern =
+      /^import \{ bootstrapLogger \} from '\.\/common\/logging\/process-logging\.bootstrap';$/;
+    expect(lines.filter(line => pattern.test(line))).toHaveLength(1);
+
+    const envAt = indexOfLine(/^import '\.\/config\/env\.bootstrap';$/);
+    const loggingAt = indexOfLine(pattern);
+    const moneyAt = indexOfLine(/^import '@common\/money\/bigint-json\.bootstrap';$/);
+
+    expect(loggingAt).toBeGreaterThan(envAt); // LOG_LEVEL and APP_ROLE must already be loaded
+    expect(loggingAt).toBeLessThan(moneyAt); // and the crash handlers must precede the rest
+  });
 });
