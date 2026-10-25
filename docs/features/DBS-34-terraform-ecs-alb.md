@@ -1,6 +1,6 @@
 # DBS-34 · Terraform: ECS Fargate cluster, service api và ALB (môi trường dev)
 
-> **Status:** Draft (đang làm, đến G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-34-ecs-alb` (xếp chồng trên `chore/DBS-36-ci-ecr-oidc`) · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-34-ecs-alb` (xếp chồng trên `chore/DBS-36-ci-ecr-oidc`) · **PR:** (điền sau khi mở) · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
@@ -176,7 +176,7 @@ Thời gian dựng ALB khoảng 2–3 phút; tổng thời gian tính tiền dư
 
 Gate: G2 tự duyệt (ba vòng review, verdict cuối APPROVE). Rà soát kế hoạch: mọi file ở §3, mọi DoD và mọi giới hạn ở §1/§2 có hàng bên dưới hoặc nằm ngoài phạm vi.
 
-**Tóm tắt `plan` dự kiến:** `base`: thêm 2 SG, các luật ingress/egress và 1 log group, `0 to change`, `0 to destroy`. `session` (tạo mới): cluster, task definition, service, ALB, target group, 2 listener, khóa riêng + chứng chỉ self-signed + ACM, 2 role và 2 inline policy (khoảng 18 tài nguyên), `0 to destroy`.
+**Tóm tắt `plan` dự kiến:** `base`: thêm 2 SG, các luật ingress/egress và 1 log group, `0 to change`, `0 to destroy`. `session` (tạo mới): cluster, task definition, service, ALB, target group, 2 listener, khóa riêng + chứng chỉ self-signed + ACM, 2 role và 2 inline policy (13 tài nguyên), `0 to destroy`.
 
 | Bước | File | Test viết trước | Kết quả đỏ | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
@@ -191,8 +191,53 @@ Rủi ro và cách lùi: `terraform destroy` session xóa ALB và mọi thứ t�
 
 ## 8. Kết quả
 
-(Điền ở Phase 4–5.)
+- **Lệnh kiểm tra** (lúc bàn giao): `terraform fmt -check -recursive` sạch; `validate` sạch ở 3 thư mục; `terraform test`: bootstrap 9/9, `envs/dev/base` **17/17** (13 cũ + 4 mới), `envs/dev/session` **9/9** (viết lại với `mock_provider`); `python3 .github/scripts/check-image-workflow.py` → `OK`. Không có `.skip`/`.only`. Đã thử làm hỏng một chỗ (`/health/ready` thành `/health/live`): `target_group` đỏ.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-34-01 | `base/tests/ecs_network.tftest.hcl` › `api_security_group` | đạt |
+| TC-34-02 | › `alb_security_group` | đạt |
+| TC-34-03 | `session.tftest.hcl` › `service`, `service_desired_count_variable` | đạt phần cấu hình; `depends_on` listener được chứng minh bằng `apply` thật thành công (mock không chứng minh thứ tự) |
+| TC-34-04 | › `target_group` | đạt |
+| TC-34-05 | › `alb` (listener 443, chính sách TLS, chứng chỉ, redirect 301, RSA 2048, 720 giờ) | đạt |
+| TC-34-06 | › `task_definition` | đạt |
+| TC-34-07 | › `task_definition` (không có biến bí mật) | đạt |
+| TC-34-08 | `base` › `api_log_group` + `session` › `task_definition` (awslogs) | đạt |
+| TC-34-09 | › `iam` + grep tĩnh M-34-02b (task role không gắn policy) | đạt |
+| TC-34-10 | › `rejects_latest_tag`, `rejects_short_tag` | đạt |
+| TC-34-11 | M-34-06 (tag `project/env/owner` trên cluster và ALB) | đạt (thủ công) |
+| TC-34-12 | các run cũ của base (13) và `reexports_base_network` | đạt |
+| TC-34-13 | M-34-03, 08, 09 | đạt (thủ công) |
+| TC-34-14 | quy trình | chưa làm (chờ review và merge) |
+
+14 test case: 12 đạt đủ độ sâu, 1 đạt có ghi chú (TC-34-03), 1 quy trình.
+
+- **Test thủ công** (SHA `a4c645486c74b3ac097793cf2d6fb80e92436e5d` ở dòng đầu [manual-test.txt](screenshots/DBS-34/manual-test.txt); đã thay id tài khoản, DNS ALB và id SG; `apply` và `destroy` theo đồng ý của người dùng ngày 2026-10-26):
+
+| Bước | Kết quả |
+|---|---|
+| M-34-00 | đạt: `8 to add, 0 to change, 0 to destroy` (2 SG, 5 luật, 1 log group) |
+| M-34-01 | đạt: SG `alb` nhận 80 và 443 từ `0.0.0.0/0`, đi ra 3000 tới SG `api`; SG `api` nhận 3000 từ SG `alb`, đi ra 443; log group `/dbs/dev/api`, giữ 7 ngày |
+| M-34-02 | đạt: `13 to add, 0 to change, 0 to destroy`; M-34-02b: không policy nào gắn vào task role |
+| M-34-03 | đạt: `Apply complete! 13 added` (17:24:31Z) |
+| M-34-04, 04b | đạt: HTTPS không target trả `503`; HTTP trả `301` tới `https://<alb>:443/` |
+| M-34-05 | đạt: `/health/ready`, 15 s, 5 s, 2, 3, `200`, port 3000, `ip`; 0 target |
+| M-34-06 | đạt: `dbs-api`, 512/1024, execution role khác task role, env `APP_ROLE=api`, `TRUST_PROXY_HOPS=1`, `NODE_ENV=staging`; log group `/dbs/dev/api`; tag `project=dbs`, `env=dev`, `owner=platform` |
+| M-34-07 | đạt: task `dbs-probe` RUNNING, có IP công khai |
+| M-34-07b | đạt: target `healthy`, `https://<alb>/health/ready` trả `ok`, `200` (khớp ADR-10 "Qua ALB → 200") |
+| M-34-07a | đạt: `curl` thẳng IP công khai của task bị timeout (`exit 28`), SG `api` chặn |
+| M-34-07c | đạt: bỏ target, dừng task, task definition tạm `INACTIVE` rồi `DELETE_IN_PROGRESS` |
+| M-34-08 | đạt: `Destroy complete! 13 destroyed` (17:30:32Z); ALB và mọi thứ tính tiền tồn tại khoảng 6 phút |
+| M-34-09 | đạt: sau 60 giây ALB 0, target group 0, cluster `INACTIVE`, task 0, EIP 0, ENI trong VPC 0, ACM 0 |
+| M-34-10 | **chưa chạy (chờ image sau merge DBS-36, DBS-66, DBS-67, DBS-54, task ElastiCache)**: BL-037 |
+
+- **Phạm vi so với §7:** `git diff --stat` khớp: các file `.tf` của `base` (SG, log group, outputs) và test; các file `.tf` của `session` (versions, variables, tls, iam, alb, ecs, outputs), lock file, test; README, BACKLOG, doc. Thêm `session/locals.tf` (chỉ gom `local.base` và tag), không có trong §7; không có file lạ nào khác.
+- **Ảnh chụp:** không áp dụng (người dùng bỏ qua ảnh console, 2026-10-25).
+- **Lệch so với kế hoạch:** (1) quyết định G1 câu 3 (HTTP-only) tự duyệt sai, đã sửa thành HTTPS sau domain review vòng 1, trước G2; (2) §7 ghi "khoảng 18 tài nguyên", thực tế 13, đã sửa; (3) thêm `locals.tf`. Không lệch nào cần gate phụ.
+- **Bàn giao:** BL-036 (chứng chỉ công khai, WAF tuần 6–8), BL-037 (task chạy thật, M-34-10), BL-038 (DBS-38 cách đổi `image_tag`; DBS-67 quyền execution role; DBS-66 và task ElastiCache thêm egress SG-to-SG). `terraform test` của `session` cần chạy trong CI chung (BL-028).
+- **Chi phí:** ALB và task tạm tồn tại khoảng 6 phút (≈ 0,005 USD); sau `destroy` kiểm không còn gì tính tiền. SG và log group ở `base` miễn phí và được giữ.
 
 ## 9. Tài liệu đã cập nhật
 
-(Điền ở Phase 4–5.)
+`infra/terraform/README.md` (provider `tls`, biến `session`, lệnh dựng và xóa, ghi chú HTTPS self-signed), `docs/BACKLOG.md` (thêm BL-036, BL-037, BL-038), `docs/features/README.md` (hàng DBS-34). Không xóa dòng BACKLOG nào: BL-031 còn phần DBS-66/54.
