@@ -10,6 +10,7 @@ import type { Response } from 'express';
 import { ErrorCode } from '../errors/error-code.enum';
 import type { RequestWithCorrelationId } from '../middleware/correlation-id.middleware';
 import { isTransientDbError } from '../utils/pg-error.util';
+import { safeErrorMetadata } from '../logging/logging.options';
 
 export const PROBLEM_JSON = 'application/problem+json';
 
@@ -58,8 +59,8 @@ function titleFor(status: number): string {
  *  - HttpException           → its own status; extra body keys (errorCode, …) pass through.
  *  - transient database error → 503 + `Retry-After`; the request made no change, so the client
  *                               may retry with the same Idempotency-Key.
- *  - anything else            → 500 with a generic detail; the real error goes to the log only,
- *                               never to the client.
+ *  - anything else            → 500 with a generic detail; only safe technical error metadata
+ *                               goes to logs, never raw SQL, credentials or stack text.
  */
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
@@ -71,7 +72,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const request = http.getRequest<RequestWithCorrelationId>();
     const correlationId = request.correlationId;
 
-    const { problem, retryAfterSeconds } = this.toProblem(exception, request, correlationId);
+    const { problem, retryAfterSeconds } = this.toProblem(exception, correlationId);
     if (retryAfterSeconds !== undefined) {
       response.setHeader('Retry-After', String(retryAfterSeconds));
     }
@@ -80,7 +81,6 @@ export class ProblemDetailsFilter implements ExceptionFilter {
 
   private toProblem(
     exception: unknown,
-    request: RequestWithCorrelationId,
     correlationId: string | undefined,
   ): { problem: ProblemDetails; retryAfterSeconds?: number } {
     if (exception instanceof HttpException) {
@@ -88,11 +88,8 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     }
 
     if (isTransientDbError(exception)) {
-      this.logger.warn(
-        `Transient database error on ${request.method} ${request.url} [${correlationId ?? '-'}]: ${
-          exception instanceof Error ? exception.message : String(exception)
-        }`,
-      );
+      // The request logger already binds correlationId; repeating it here would write it twice.
+      this.logger.warn(safeErrorMetadata(exception), 'Transient database error');
       return {
         problem: {
           type: 'about:blank',
@@ -106,10 +103,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       };
     }
 
-    this.logger.error(
-      `Unhandled exception on ${request.method} ${request.url} [${correlationId ?? '-'}]`,
-      exception instanceof Error ? exception.stack : String(exception),
-    );
+    this.logger.error(safeErrorMetadata(exception), 'Unhandled exception');
     return {
       problem: {
         type: 'about:blank',

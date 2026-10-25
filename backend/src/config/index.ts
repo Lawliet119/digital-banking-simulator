@@ -4,5 +4,5 @@ export { databaseConfig } from './database.config';
 export { limitsConfig } from './limits.config';
 export { redisConfig } from './redis.config';
 export { sqsConfig } from './sqs.config';
-export { validateEnv, validationSchema } from './validation.schema';
+export { ConfigValidationError, validateEnv, validationSchema } from './validation.schema';
 export type { Env } from './validation.schema';
