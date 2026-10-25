@@ -143,10 +143,10 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
 
 | Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
-| 1 | `envs/dev/base/versions.tf`, `variables.tf`, `tests/base.tftest.hcl` (khung) | TC-33-09 | | `terraform init -backend=false && terraform test` | `chore(infra): scaffold dev base stack` |
-| 2 | `base/network.tf` (VPC, IGW, 4 subnet, 2 route table, route, 4 association, endpoint S3, default SG) | TC-33-01, 02, 03, 04, 05, 08 | | `terraform test` | `chore(infra): vpc with public/private subnets and s3 gateway endpoint` |
-| 3 | `base/ecr.tf` | TC-33-06, 07 | | `terraform test` | `chore(infra): ecr repository with scan on push and lifecycle` |
-| 4 | `base/outputs.tf`, `base/backend.tf`, `base/backend.hcl.example`; `envs/dev/session/` (`versions.tf`, `variables.tf`, `remote_state.tf`, `outputs.tf`, `backend.tf`, `backend.hcl.example`, `tests/session.tftest.hcl`) | TC-33-10, 11, 04b | | `terraform test` ở hai stack; `grep` theo TC | `chore(infra): dev base outputs, backend and session skeleton` |
+| 1 | `envs/dev/base/versions.tf`, `variables.tf`, `locals.tf`, `tests/base.tftest.hcl` (khung) | TC-33-09 | `unknown provider aws`, 0 passed | `terraform init -backend=false && terraform test` | `chore(infra): scaffold dev base stack` |
+| 2 | `base/network.tf` (VPC, IGW, 4 subnet, 2 route table, route, 4 association, endpoint S3, default SG) | TC-33-01, 02, 03, 04, 05, 08 | `Reference to undeclared resource` (aws_vpc.main…): 1 passed, 1 failed, 4 skipped | `terraform test` | `chore(infra): vpc with public/private subnets and s3 gateway endpoint` |
+| 3 | `base/ecr.tf` | TC-33-06, 07 | `Reference to undeclared resource` (aws_ecr_repository.api…): 6 passed, 1 failed, 1 skipped | `terraform test` | `chore(infra): ecr repository with scan on push and lifecycle` |
+| 4 | `base/outputs.tf`, `base/backend.tf`, `base/backend.hcl.example`; `envs/dev/session/` (`versions.tf`, `variables.tf`, `remote_state.tf`, `outputs.tf`, `backend.tf`, `backend.hcl.example`, `tests/session.tftest.hcl`) | TC-33-10, 11, 04b | `Reference to undeclared output value` (session): 0 passed, 1 failed | `terraform test` ở hai stack; `grep` theo TC | `chore(infra): dev base outputs, backend and session skeleton` |
 | 5 | `infra/terraform/README.md` (thứ tự dựng/xóa, biến, security group ở `base`, ngoại lệ `dbs-api`), `.gitignore` (`*.tfplan`) | TC-33-12 | | `grep` theo TC-33-12 | `docs(infra): build and teardown order for dev base and session` |
 | 6 | `base/.terraform.lock.hcl` (hash 5 nền tảng), `terraform fmt -recursive` | TC-33-13 | không đỏ (kiểm tĩnh) | `terraform fmt -check -recursive && terraform validate` ở ba stack | `chore(infra): commit provider lock file for dev base` |
 | 7 | Chỉ khi bạn báo go-ahead: chạy M-33-00…08, `manual-test.txt`, §8–§9, `docs/features/README.md`, BACKLOG (bàn giao và xác nhận Cost Explorer ngày hôm sau), `check-doc-links.mjs` | M-33-xx | | theo §5 | `docs/features: DBS-33 results` |
@@ -156,3 +156,53 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
 **Rủi ro và cách lùi:** bước 1–6 chỉ là file cục bộ, `git revert` được. Bước 7 tạo tài nguyên miễn phí; lỗi giữa chừng thì `destroy` `base` (ECR phải rỗng). `delete-repository` ở M-33-04 chỉ chạy khi repo có image. `apply` chỉ trên account `516807978519` (`allowed_account_ids`).
 
 **Quyết định ở G3:** duyệt G3 (2026-10-25); không mở Draft PR cho DBS-33 trước G4; chạy bước 1–6 ngay, bước 7 chỉ khi bạn go-ahead.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (2026-10-25): `terraform fmt -check -recursive` sạch; `validate` sạch ở `bootstrap`, `envs/dev/base`, `envs/dev/session`; `terraform test`: `bootstrap` 9 passed, `base` 8 passed, `session` 1 passed, 0 failed, 0 skipped.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-33-01 | `base/tests/base.tftest.hcl` › `vpc` | đạt |
+| TC-33-02 | › `subnets` | đạt |
+| TC-33-03 | › `routing` (`command = apply`) | đạt (phần "private không có route 0.0.0.0/0" chỉ cấu hình, bằng chứng thật M-33-02) |
+| TC-33-04 | › `s3_gateway_endpoint` (`command = apply`) | đạt |
+| TC-33-04b | `! grep` trong `base/*.tf` + plan JSON (M-33-01) | đạt |
+| TC-33-05 | › `subnets` (map_public_ip) + `default_security_group_locked` | đạt (SG chỉ cấu hình; M-33-02 là bằng chứng thật: 0 rule) |
+| TC-33-06 | › `ecr_repository` | đạt |
+| TC-33-07 | › `ecr_lifecycle` | đạt |
+| TC-33-08 | › `subnets` (Name); `default_tags` thật ở M-33-02, M-33-03 | đạt |
+| TC-33-09 | › `rejects_malformed_account_id`; `allowed_account_ids` ở `versions.tf`; M-33-01 | đạt |
+| TC-33-10 | `session/tests/session.tftest.hcl` › `reexports_base_network`; `! grep -q '^resource ' session/*.tf` | đạt |
+| TC-33-11 | `grep` hai `backend.tf` (key, `use_lockfile`, `encrypt`) | đạt |
+| TC-33-12 | `grep` README | đạt |
+| TC-33-13 | `fmt -check`, `validate` | đạt |
+| TC-33-14 | M-33-02, 06, 08 đạt; PR, CI, Dev review chờ sau G4; Cost Explorer ngày hôm sau chưa kiểm được | một phần (xem BL-030) |
+
+- **Test thủ công** (output thô: [manual-test.txt](screenshots/DBS-33/manual-test.txt)):
+
+| Bước | Kết quả |
+|---|---|
+| M-33-00 | đạt một phần: account đúng, chưa có VPC `dbs`; **Budget thiếu cảnh báo ACTUAL > 150 USD** (người dùng tự xử lý) |
+| M-33-01 | đạt: 17 to add, loại tài nguyên đúng, endpoint Gateway, account sai bị từ chối |
+| M-33-02 | đạt: VPC, 4 subnet 2 AZ, private không có `0.0.0.0/0`, endpoint 2 route table, 0 NAT/EIP, default SG 0 rule, tag đủ |
+| M-33-03 | đạt: IMMUTABLE, scan on push, AES256, hai rule lifecycle, 4 tag ECR |
+| M-33-04 | đạt: đẩy image bằng CLI; cùng manifest → `ImageAlreadyExistsException`; digest khác → `ImageTagAlreadyExistsException`; preview `COMPLETE` 0 kết quả; `delete-repository` → `RepositoryNotEmptyException` |
+| M-33-05 | đạt: sau khi xóa image, plan "No changes" |
+| M-33-06 | đạt: "Changes to Outputs", apply 0 tài nguyên, ba khóa output khớp `base`, plan sau "No changes" |
+| M-33-07 | đạt (khác kịch bản): apply của tiến trình một dừng ở prompt, `plan -lock-timeout=0s` báo `Error acquiring the state lock`; apply bị hủy (EOF), không đổi gì |
+| M-33-08 | đạt: destroy `session` và `base` (17), không còn VPC/NAT/ENI/EIP/endpoint/ECR; dựng lại 17 tài nguyên để giữ, plan "No changes" |
+
+- **Phạm vi so với §7:** `git diff --stat main...HEAD` cũng gồm các file của DBS-31 (nhánh xếp chồng). Riêng DBS-33 (từ commit `6eb49e3`): `.gitignore`, `docs/features/DBS-33-…md`, `docs/features/README.md`, `docs/features/screenshots/DBS-33/*`, `docs/BACKLOG.md`, `infra/terraform/README.md`, `envs/dev/base/{versions,variables,locals,network,ecr,outputs,backend}.tf`, `backend.hcl.example`, `.terraform.lock.hcl`, `tests/base.tftest.hcl`, `envs/dev/session/{versions,variables,remote_state,outputs,backend}.tf`, `backend.hcl.example`, `tests/session.tftest.hcl`. Đúng danh sách §7; thêm `locals.tf` (tag mặc định) mà §3 chưa liệt kê.
+- **Ảnh chụp:** không áp dụng (người dùng đã bỏ qua ảnh console, 2026-10-25); output thô ở `manual-test.txt`.
+- **Lệch so với kế hoạch:**
+  1. M-33-07: `apply` dừng ở prompt chạy bằng `sleep 25 | terraform apply` (Bash không có TTY), không dùng tab terminal riêng; hiệu quả như nhau.
+  2. M-33-01 `account_id=123456789012` chỉ kiểm B9, không thay đổi gì.
+  3. Thêm `locals.tf` ngoài danh sách file ở §7 (chứa tag mặc định, `versions.tf` tham chiếu). Không đổi hành vi.
+  4. Trạng thái cuối: sau M-33-08 đã dựng lại `base` (VPC mới) và `session` để giữ, theo phép của người dùng.
+- **Bàn giao cho vai khác:** không có việc nào cho Dev. Việc của #5 ghi vào BACKLOG: BL-030 (xác nhận Cost Explorer ngày hôm sau cho DoD 3), BL-031 (DBS-34/66: security group và subnet group đặt trong `base`; DBS-36: role OIDC chỉ push vào `ecr_repository_arn`, bỏ qua khi tag SHA đã tồn tại, không `latest`; DBS-54: Cognito đặt trong `envs/dev/base`), BL-032 (Budget thiếu cảnh báo ACTUAL > 150 USD, người dùng tự xử lý, cần xác nhận lại).
+
+## 9. Tài liệu đã cập nhật
+
+`infra/terraform/README.md` (thứ tự dựng/xóa, bảng biến, security group ở `base`, ngoại lệ `dbs-api`, lệnh kiểm tra cho ba stack), `.gitignore` (`*.tfplan`), `docs/features/README.md` (dòng DBS-33), `docs/BACKLOG.md` (thêm BL-030, BL-031, BL-032; không xóa dòng nào).
