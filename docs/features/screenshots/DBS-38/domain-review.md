@@ -20,3 +20,22 @@
 Đã kiểm, đúng, không cần đổi: `ecs:DescribeServices`, `ecs:UpdateService` hỗ trợ ARN service; `RegisterTaskDefinition`, `DescribeTaskDefinition` ở `*`; `elbv2:DescribeLoadBalancers` cần `*`; `iam:PassRole` được đánh giá lúc `RegisterTaskDefinition`, điều kiện `PassedToService = ecs-tasks.amazonaws.com` đúng; rollback tay không cần `ListTaskDefinitions` trong role; ECS không kiểm image tồn tại lúc register/update khi `desired = 0` nhưng kiểm ECR của script nghĩa là M-38-04 vẫn cần manifest thật với config và blob (kỹ thuật DBS-33); SG ALB cho 0.0.0.0/0 ở 443; hướng `unittest` với `aws`/`curl` giả và `mock_provider` khả thi.
 
 Verdict: REVISE
+
+---
+
+# Vòng 2 (subagent opus, 2026-10-26), trả lời nguyên văn
+
+Cả 14 phát hiện vòng 1 đã sửa đúng. Phát hiện mới:
+
+| # | Severity | Section | Finding | Evidence | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | should-fix | §5 M-38-07 | `terraform destroy -target=aws_ecs_service.api` chỉ hủy target và những gì phụ thuộc vào nó, không hủy phụ thuộc của nó: "destroy (cùng `-target`)" sẽ để lại ALB (tính tiền theo giờ), listener, target group, ACM, cluster, task definition và hai role; kiểm sạch báo không sạch và trái memory "destroy ngay". | ngữ nghĩa `-target` khi destroy; closure của `aws_ecs_service.api` | M-38-07 dùng `terraform destroy` **không** `-target` (state chỉ chứa phần đã dựng, RDS chưa từng tạo nên không bị đụng), hoặc liệt kê `-target` cho mọi tài nguyên đã dựng. Thêm `terraform state list` rỗng vào kiểm sạch. |
+| 2 | should-fix | §2 hàng "head_sha không còn là đầu main", §3 sơ đồ, TC-38-12, §5 M-38-02…05 | Kiểm đầu `main` nằm trong `deploy.sh` và chạy trước mọi bước khác: mọi lần chạy tay với SHA giả `aaaa…` (M-38-02..05) đều thoát 0 ở "đã có commit mới hơn" và không tới nhánh cần kiểm; lần chạy tay còn cần `gh` đã đăng nhập; "chạy tay `deploy.sh`" để rollback hay áp thay đổi Terraform với SHA không phải đầu `main` cũng bị chặn. | §3 sequenceDiagram; §5 M-38-02 | Chỉ kiểm đầu `main` khi `GITHUB_EVENT_NAME=workflow_run` (hoặc cờ tường minh `CHECK_MAIN_HEAD=1` do `deploy.yml` đặt); lần chạy tay bỏ qua kiểm này, ghi ở README. Thêm unit case: không có biến thì không gọi `gh`. |
+| 3 | minor | §5 M-38-03/04 (`-target`) | Closure của `-target=aws_ecs_service.api` không gồm `aws_iam_role_policy.execution` (policy tham chiếu role chứ không ngược lại): execution role không có quyền kéo ECR hay ghi log, nên ở M-38-04 task hỏng vì AccessDenied khi pull. RDS **không** bị kéo vào; service tạo được với `image_tag` giữ chỗ vì ECS không kiểm image khi `desired_count = 0`. | `session/iam.tf`; `session/ecs.tf` | Thêm `-target=aws_iam_role_policy.execution` (và tùy chọn `aws_lb_listener.http`); ghi nguyên nhân hỏng quan sát được (`stoppedReason`). |
+| 4 | minor | §3 `deploy.yml` permissions, TC-38-16 | `permissions` ở mức job **thay thế toàn bộ** mức workflow: job chỉ khai `id-token: write` sẽ có `contents: none`; checkout và `gh api repos/{repo}/commits/main` với `GH_TOKEN=github.token` cần `contents: read`. `image.yml` khai lại cả hai ở mức job. | `image.yml` | Job `deploy` khai đúng `{contents: read, id-token: write}`; `check-image-workflow.py` kiểm đúng tập này; `GH_TOKEN: ${{ github.token }}` qua `env:`. |
+| 5 | minor | §2 "Tag SHA chưa có trên ECR", TC-38-07 | `batch-get-image` thoát 0 khi `ImageNotFound`, lỗi chỉ nằm trong `failures`; thiết kế chưa nói phải đếm `images`. | `image.yml` bước `exists` (`--query 'length(images)'`) | Ghi rõ dùng `length(images)`; `aws` giả trả mã 0 kèm `failures` trong TC-38-07. |
+| 6 | minor | §3 render, TC-38-01/02 | `describe-task-definition --include TAGS` trả `tags` ở **cấp trên cùng** của phản hồi, cạnh `taskDefinition`: allowlist áp lên `taskDefinition` làm mất tag âm thầm. | dạng phản hồi API ECS | Render lấy `taskDefinition` lọc qua allowlist cộng `tags` lấy từ gốc phản hồi; fixture TC-38-02 dùng đúng dạng đó. |
+
+Đã kiểm, đúng: PRIMARY theo ARN mới và `rolloutState`; render từ family-latest; `if:` đủ điều kiện, checkout mặc định là đầu `main` cho `workflow_run`; `ClusterNotFoundException`; poll riêng 20 phút dưới `timeout-minutes: 30`; `-target` không kéo RDS; mô phỏng IAM đủ action; `--include TAGS` và `ecs:TagResource` với `ecs:CreateAction`; spec theo từng workflow, cấm cache; `Image` không lọc `paths:` nên kiểm đầu `main` không bỏ sót commit chỉ sửa tài liệu.
+
+Verdict: REVISE
