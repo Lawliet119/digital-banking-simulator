@@ -88,10 +88,8 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     }
 
     if (isTransientDbError(exception)) {
-      this.logger.warn(
-        { ...safeErrorMetadata(exception), correlationId },
-        'Transient database error',
-      );
+      // The request logger already binds correlationId; repeating it here would write it twice.
+      this.logger.warn(safeErrorMetadata(exception), 'Transient database error');
       return {
         problem: {
           type: 'about:blank',
@@ -105,7 +103,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       };
     }
 
-    this.logger.error({ ...safeErrorMetadata(exception), correlationId }, 'Unhandled exception');
+    this.logger.error(safeErrorMetadata(exception), 'Unhandled exception');
     return {
       problem: {
         type: 'about:blank',

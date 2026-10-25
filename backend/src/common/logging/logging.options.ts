@@ -273,7 +273,7 @@ function safeMessage(message: string): string {
   return scrubSecrets(message).replace(/\b\d{8,}\b/g, '[Redacted number]');
 }
 
-function requestId(req: IncomingMessage, res: ServerResponse): string {
+export function requestId(req: IncomingMessage, res: ServerResponse): string {
   const request = req as RequestWithCorrelationId;
   // configureHttpApp normally assigned it already; the fallback is also server-generated.
   if (!request.correlationId) {

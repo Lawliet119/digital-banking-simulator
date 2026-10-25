@@ -3,10 +3,12 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { Writable } from 'node:stream';
 import { Logger as PinoNestLogger, LoggerModule, PinoLogger } from 'nestjs-pino';
+import express from 'express';
 import request from 'supertest';
 import { configureHttpApp } from '../src/app.setup';
 import { createLoggingOptions } from '../src/common/logging/logging.options';
 import { createHttpLogging } from '../src/common/logging/http-logging';
+import { SafeLogger } from '../src/common/logging/safe-logger';
 
 @Controller('logging-probe')
 class LoggingProbeController {
@@ -36,6 +38,7 @@ class LoggingProbeController {
 
 describe('DBS-42 logger HTTP integration (no database)', () => {
   let app: NestExpressApplication;
+  let pinoLogger: PinoLogger;
   let output = '';
   const rows = () =>
     output
@@ -51,24 +54,30 @@ describe('DBS-42 logger HTTP integration (no database)', () => {
         done();
       },
     });
+    // Same order as main.ts: the bootstrap PinoLogger is created first and becomes the root that
+    // nestjs-pino reuses (the first one wins), the Nest logger wraps it in SafeLogger, and the app
+    // gets it as its logger. No bufferLogs, no useLogger.
+    const settings = { role: 'both', logLevel: 'debug' } as const;
+    const logger = new SafeLogger(
+      new PinoNestLogger(
+        new PinoLogger({ pinoHttp: [createLoggingOptions(settings), stream] }),
+        {},
+      ),
+    );
     const moduleRef = await Test.createTestingModule({
-      imports: [
-        LoggerModule.forRoot({
-          forRoutes: [],
-          pinoHttp: [createLoggingOptions({ role: 'both', logLevel: 'debug' }), stream],
-        }),
-      ],
+      imports: [LoggerModule.forRoot({ forRoutes: [], pinoHttp: createLoggingOptions(settings) })],
       controllers: [LoggingProbeController],
-    }).compile();
-    app = moduleRef.createNestApplication<NestExpressApplication>({ bufferLogs: true });
-    app.useLogger(app.get(PinoNestLogger));
+    })
+      .setLogger(logger)
+      .compile();
+    app = moduleRef.createNestApplication<NestExpressApplication>();
+    pinoLogger = await app.resolve(PinoLogger);
     configureHttpApp(
       app,
       { trustProxyHops: 0, corsOrigins: [], isProduction: false },
-      createHttpLogging(await app.resolve(PinoLogger), { role: 'both', logLevel: 'debug' }),
+      createHttpLogging(pinoLogger, settings),
     );
     await app.init();
-    app.flushLogs();
   });
 
   afterAll(async () => {
@@ -148,6 +157,42 @@ describe('DBS-42 logger HTTP integration (no database)', () => {
       if (status === 503) expect(res.headers['retry-after']).toBe('5');
     },
   );
+
+  it.each([
+    ['boom', 500, 'Unhandled exception'],
+    ['transient', 503, 'Transient database error'],
+  ] as const)(
+    'TC-42-13 writes correlationId once on the %s filter line, equal to the response id',
+    async (path, status, message) => {
+      const res = await request(app.getHttpServer())
+        .get(`/v1/logging-probe/${path}`)
+        .expect(status);
+      const line = output.split('\n').find(row => row.includes(`"message":"${message}"`));
+      expect(line).toBeDefined();
+      expect(line?.split('"correlationId":').length).toBe(2);
+      expect((JSON.parse(line ?? '{}') as Record<string, unknown>).correlationId).toBe(
+        res.headers['x-correlation-id'],
+      );
+    },
+  );
+
+  it('TC-42-05 gives handler, completion and header the same id without the correlation middleware', async () => {
+    const web = express();
+    web.use(createHttpLogging(pinoLogger, { role: 'both', logLevel: 'debug' }));
+    web.get('/plain', (_req, res) => {
+      new Logger('Probe').log('Inside handler');
+      res.json({ ok: true });
+    });
+    const res = await request(web).get('/plain').expect(200);
+    const id = res.headers['x-correlation-id'];
+    expect(id).toMatch(/^[a-f0-9-]{36}$/);
+    expect(rows().find(row => row.message === 'Inside handler')).toMatchObject({
+      correlationId: id,
+    });
+    expect(rows().find(row => row.message === 'Request completed')).toMatchObject({
+      correlationId: id,
+    });
+  });
 
   it('TC-42-10 logs a CORS preflight exactly once before module middleware', async () => {
     const res = await request(app.getHttpServer())
