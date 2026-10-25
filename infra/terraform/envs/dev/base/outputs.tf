@@ -53,3 +53,16 @@ output "api_log_group_arn" {
   description = "Không có hậu tố `:*`; policy của task phải thêm `:*` cho các action trên log stream."
   value       = aws_cloudwatch_log_group.api.arn
 }
+
+output "cognito_user_pool_id" {
+  value = aws_cognito_user_pool.main.id
+}
+
+output "cognito_client_id" {
+  value = aws_cognito_user_pool_client.app.id
+}
+
+output "cognito_issuer" {
+  description = "Giá trị COGNITO_ISSUER của app."
+  value       = "https://cognito-idp.${var.region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
+}
