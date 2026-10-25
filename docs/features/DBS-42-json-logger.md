@@ -1,6 +1,6 @@
 # DBS-42 · Logger JSON bằng nestjs-pino với trường chuẩn
 
-> **Status:** Design approved (G2 của lần rà soát và sửa đã duyệt 2026-10-25; đang ở Phase 3) · **Vai:** Dev · **Review:** Dev khác, chưa xác nhận người review · **Nhánh:** `feat/DBS-42-json-logger` · **PR:** #16 (đã mở, tác giả minhduc47) · **Cập nhật:** 2026-10-25
+> **Status:** Plan approved (G3 của lần rà soát và sửa đã duyệt 2026-10-25; đang ở Phase 4) · **Vai:** Dev · **Review:** Dev khác, chưa xác nhận người review · **Nhánh:** `feat/DBS-42-json-logger` · **PR:** #16 (đã mở, tác giả minhduc47) · **Cập nhật:** 2026-10-25
 
 ## 1. Bối cảnh
 
