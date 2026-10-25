@@ -43,3 +43,18 @@ Vòng 1: 15/17 đã sửa trọn; #2 sửa gần trọn; #8 sinh lỗi mới; #1
 | 9 | minor | §3 test shell, TC-54-09…12 | Chưa đặc tả `aws` giả: cần giữ trạng thái (secret, user, mật khẩu, nhóm), tự đọc stdin khi gặp `file:///dev/stdin`, trả lỗi đúng định dạng CLI (`An error occurred (ResourceNotFoundException) when calling …`, mã 254), tiêm lỗi ở lần gọi thứ n; kiểm "không có tệp tạm chứa mật khẩu" đụng tệp trạng thái của chính `aws` giả. | §3; TC-54-09, 11 | Trạng thái của `aws` giả ở thư mục riêng của test, loại khỏi phép kiểm; script chạy với `TMPDIR` trỏ thư mục rỗng, assert sau khi chạy vẫn rỗng; biến `FAKE_AWS_FAIL_ON=<op>:<n>` để tiêm lỗi. |
 
 Verdict: REVISE
+
+---
+
+# Vòng 3 (subagent opus, 2026-10-26), trả lời nguyên văn
+
+Cả 9 phát hiện vòng 2 đã sửa. Kiểm với AWS CLI v2.38.1 (`.tools/bin/aws`, endpoint giả `127.0.0.1`, khóa giả): `--auth-parameters file:///dev/stdin` nhận JSON map đúng kể cả mật khẩu có `,=["`; `--password file:///dev/stdin` và `--secret-string file:///dev/stdin` chạy được; `--tags` trên `create-secret` gửi đúng; lỗi dịch vụ trả mã 254 với stderr `aws: [ERROR]: An error occurred (ResourceNotFoundException) when calling the GetSecretValue operation …`, phân loại bằng chuỗi con vẫn đúng; một lệnh đọc stdin hai lần thì lần hai báo lỗi (252), thiết kế không cần đọc hai lần.
+
+| # | Severity | Section | Finding | Evidence | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | should-fix | §1 câu 4, TC-54-12b | "`create-secret` gặp `ResourceExistsException` thì đọc lại và làm lại từ (a)" có thể lặp vô hạn: nếu secret đã tồn tại mà chưa có phiên bản `AWSCURRENT` (tạo không kèm giá trị, hoặc tạo tay trên console), `get-secret-value` vẫn trả `ResourceNotFoundException`; script coi là "chưa có", `create-secret` lại `ResourceExistsException`, quay lại (a) mãi. | Tài liệu `GetSecretValue`: thiếu `AWSCURRENT` thì `ResourceNotFoundException` (từ tài liệu AWS, không chạy được trên endpoint giả) | Giới hạn số lần thử lại (ví dụ 3), quá thì thoát khác 0. Khi `ResourceExistsException` mà đọc vẫn không thấy, dùng `describe-secret` để phân biệt "chưa có giá trị", rồi thoát khác 0 hoặc `put-secret-value`. Thêm ca này vào TC-54-12b. |
+| 2 | minor | §1 câu 4, §2 "Script chạy lại", TC-54-12 | Phục hồi `--rotate` còn hở: rotate lỗi ở user 2 rồi chạy lại không `--rotate` chỉ đặt mật khẩu theo secret, không `admin-user-global-sign-out`; refresh token cũ của user 2 và 3 còn đổi được access token tới 1 ngày. | Suy luận từ tài liệu thiết kế; `AdminSetUserPassword` không thu hồi refresh token (vòng 1 #13) | Phục hồi bằng cách chạy lại `--rotate`; hoặc ghi trạng thái "đang rotate" vào secret (`pending_signout`) để lần chạy thường vẫn sign-out user còn tồn. TC-54-12 assert user 2 và 3 có `admin-user-global-sign-out` sau phục hồi. |
+| 3 | minor | §3 `aws` giả, TC-54-08…12 | `file:///dev/stdin` giữ nguyên ký tự xuống dòng cuối: nếu python in mật khẩu bằng `print()`, Cognito nhận `"…\n"`; `aws` giả đọc bằng `$(cat)` tự cắt `\n` nên test xanh và che lỗi. | Chạy thử: `printf 'line\n' \| aws … admin-set-user-password --password file:///dev/stdin` gửi `"Password": "line\n"` | `aws` giả lưu stdin đúng từng byte, so khớp chính xác với secret; script ghi mật khẩu bằng `sys.stdout.write` (không `\n`); thêm assert "không có `\n` cuối" vào TC-54-09. |
+| 4 | minor | §5 M-54-09 | Bước "refresh token cũ bị từ chối" phải giữ refresh token từ trước rotate tới sau rotate; §5 cấm tệp tạm và biến shell giữ bí mật lâu. | §5; M-54-09 | Đăng nhập, rotate và thử refresh trong cùng một tiến trình python (refresh token chỉ trong bộ nhớ, đẩy qua stdin cho `initiate-auth --auth-flow REFRESH_TOKEN_AUTH --auth-parameters file:///dev/stdin`); không in token. |
+
+Verdict: REVISE
