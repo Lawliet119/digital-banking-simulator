@@ -2,7 +2,7 @@
 
 > **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) ; §4.6 và hai partial indexes outbox (DBS-25); §4.7 và ba index audit (DBS-26); §8.3 trigger ba bảng `transfers`, `ledger_entries`, `audit_log` bằng owner local (DBS-27); production roles và các phần còn lại là thiết kế · **Cập nhật:** 2026-10-24
 
-> **Phần mở rộng Proposed, chưa triển khai:** [ADR-14](../../adr/0014-fraud-rules-external-ai.md) đề xuất bổ sung `risk_decisions` và thay invariant điểm risk. Các đoạn có nhãn **Proposed** dưới đây không phải migration đã tồn tại và không đổi trạng thái Accepted của [ADR-08](../../adr/0008-fraud-detection-architecture.md); ADR-08 chỉ được thay phần train/ONNX khi nhóm chấp nhận ADR-14. Phạm vi đã đối chiếu code ở trên không bao gồm schema risk.
+> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
@@ -17,7 +17,7 @@ Nguồn: [docs/03 §8](../../03_HIGH_LEVEL_ARCHITECTURE.md) (data architecture),
 | 1 | **PostgreSQL là nguồn sự thật duy nhất.** Redis và SQS mất thì dựng lại được | P-1 trong docs/03 |
 | 2 | **Tiền là `bigint` (đồng)**, luôn `CHECK (amount > 0)` cho số tiền giao dịch | BR-01; `numeric`/`float` sinh sai số |
 | 3 | **Bất biến nằm ở DB**, không chỉ ở code: `CHECK`, `UNIQUE`, `FK`, trigger chặn sửa/xóa | Code có lỗi hoặc bị bỏ qua, ràng buộc DB thì không |
-| 4 | **Bảng ghi một lần (append-only):** `ledger_entries`, `transfers`, `audit_log`, `risk_rule_sets` bị chặn `UPDATE`/`DELETE` bằng quyền **và** trigger; **Proposed:** thêm `risk_decisions` | BR-08, BR-09; provenance quyết định risk |
+| 4 | **Bảng ghi một lần (append-only):** `ledger_entries`, `transfers`, `audit_log`, `risk_rule_sets` bị chặn `UPDATE`/`DELETE` bằng quyền **và** trigger | BR-08, BR-09 |
 | 5 | **Trạng thái và loại là `text` + `CHECK`**, không dùng kiểu `ENUM` của Postgres | `ENUM` khó đổi (thêm/bớt giá trị) khi làm migration kiểu expand → contract |
 | 6 | **Mọi thời điểm là `timestamptz`**, DB chạy UTC; ranh giới ngày tính bằng `AT TIME ZONE 'Asia/Ho_Chi_Minh'` | Hạn mức ngày theo giờ Việt Nam (BR-06) |
 | 7 | **Khóa chính `uuid`** cho thực thể nghiệp vụ, **`bigint identity`** cho bảng chỉ thêm (`ledger_entries`, `audit_log`, `outbox_events`) | uuid khó đoán, lộ ra ngoài API được; identity cho thứ tự và phân trang |
@@ -27,9 +27,7 @@ Nguồn: [docs/03 §8](../../03_HIGH_LEVEL_ARCHITECTURE.md) (data architecture),
 
 ---
 
-## 2. Bức tranh: 14 bảng Accepted, 15 bảng nếu nhận đề xuất
-
-ERD thể hiện schema Accepted cùng phần mở rộng **Proposed** `RISK_DECISIONS` và quan hệ decision–flag. Quan hệ flag–hit cho phép 0 hit ở đề xuất vì AI có thể tự đưa tổng lên MEDIUM; baseline Accepted chỉ tạo cờ từ luật.
+## 2. Bức tranh: 14 bảng
 
 ```mermaid
 erDiagram
@@ -40,12 +38,9 @@ erDiagram
     ACCOUNTS ||--o{ TRANSFERS : "nguồn / đích"
     USERS ||--o{ IDEMPOTENCY_KEYS : "gửi"
     IDEMPOTENCY_KEYS }o--o| TRANSFERS : "trỏ tới kết quả"
-    TRANSFERS ||--o| RISK_DECISIONS : "Proposed quyết định đầu"
-    RISK_DECISIONS ||--o| FRAUD_FLAGS : "Proposed có thể tạo cờ"
     TRANSFERS ||--o| FRAUD_FLAGS : "có thể bị gắn"
-    FRAUD_FLAGS ||--o{ FRAUD_RULE_HITS : "gồm các luật thật"
+    FRAUD_FLAGS ||--|{ FRAUD_RULE_HITS : "gồm"
     RISK_RULE_SETS ||--o{ FRAUD_FLAGS : "phiên bản đã dùng"
-    RISK_RULE_SETS ||--o{ RISK_DECISIONS : "Proposed phiên bản đã dùng"
 
     USERS {
         uuid id PK
@@ -91,18 +86,6 @@ erDiagram
         char request_hash
         jsonb response_body
     }
-    RISK_DECISIONS {
-        uuid transfer_id PK, FK
-        uuid event_id
-        int rule_set_version FK
-        text mode
-        int rule_score
-        jsonb feature_snapshot
-        text ai_status
-        int ai_applied_weight
-        float probability
-        timestamptz decided_at
-    }
     FRAUD_FLAGS {
         uuid transfer_id PK
         int score
@@ -121,7 +104,7 @@ erDiagram
     }
 ```
 
-**Năm bảng kỹ thuật không vẽ trong ERD** vì không có quan hệ nghiệp vụ: `outbox_events`, `processed_events`, `audit_log`, `notification_log` và `reconciliation_runs` (xem [§13](#13-các-điểm-đã-chốt)). Schema Accepted: 9 bảng nghiệp vụ + 5 bảng kỹ thuật = **14 bảng**; nếu ADR-14 được nhận, thêm `risk_decisions` thành 10 + 5 = **15 bảng** (không kể `migrations` của TypeORM). Đây là số bảng thiết kế, không phải số bảng đã migrate.
+**Năm bảng kỹ thuật không vẽ trong ERD** vì không có quan hệ nghiệp vụ: `outbox_events`, `processed_events`, `audit_log`, `notification_log` và `reconciliation_runs` (bảng mới, xem [§13](#13-các-điểm-đã-chốt)). Tổng: 9 bảng nghiệp vụ + 5 bảng kỹ thuật = **14 bảng** (chưa kể bảng `migrations` của TypeORM).
 
 ---
 
@@ -136,7 +119,7 @@ erDiagram
 | `ledger` | `transfers`, `ledger_entries`, `idempotency_keys`, `reconciliation_runs` | Duy nhất được đổi `accounts.balance`, **thông qua** `AccountsService.applyBalanceChange` |
 | `outbox` | `outbox_events`, `processed_events` | Mọi module ghi sự kiện đều gọi `OutboxWriter.add` |
 | `audit` | `audit_log` | Mọi module ghi qua `AuditService.record`, trong transaction của mình |
-| `risk` | `fraud_flags`, `fraud_rule_hits`, `risk_rule_sets`; **Proposed:** `risk_decisions` | Decision bất biến cho mọi TRANSFER được xử lý, kể cả LOW/fallback; không thêm bảng assessment riêng |
+| `risk` | `fraud_flags`, `fraud_rule_hits`, `risk_rule_sets` | |
 | `notification` | `notification_log` | v1 chỉ ghi log |
 
 Ngoại lệ đáng chú ý: `risk` cần **đọc** lịch sử chuyển tiền (luật R2, R4, R5). Thay vì cho `risk` `SELECT` thẳng bảng `transfers` (vi phạm quy tắc 9), `ledger` cung cấp một **view chỉ đọc** `v_transfer_facts` làm hợp đồng dữ liệu ổn định. Xem [§8](#8-quyền-truy-cập-và-tính-bất-biến-ở-mức-db).
@@ -145,7 +128,7 @@ Ngoại lệ đáng chú ý: `risk` cần **đọc** lịch sử chuyển tiền
 
 ## 4. Thiết kế từng bảng
 
-Viết dưới dạng SQL thiết kế; mọi tên đã theo quy ước ở [§11](#11-migration-và-dữ-liệu-khởi-tạo). SQL có nhãn Proposed chỉ dành cho migration tương lai sau khi ADR-14 được nhóm chấp nhận.
+Viết dưới dạng SQL để người viết migration chép được; mọi tên đã theo quy ước ở [§11](#11-migration-và-dữ-liệu-khởi-tạo).
 
 ### 4.1 `users`, `customers`
 
@@ -317,10 +300,6 @@ Ba index ngoài PK là `audit_log_correlation_idx (correlation_id)`, `audit_log_
 
 ### 4.8 Nhóm fraud
 
-#### Schema baseline Accepted
-
-Phần này mô tả thiết kế baseline R1–R6. Phần mở rộng API và invariant thay thế nằm ngay sau SQL; chưa có migration risk được xác nhận trong phạm vi tài liệu này.
-
 ```sql
 CREATE TABLE risk_rule_sets (
   version    int PRIMARY KEY,
@@ -331,7 +310,7 @@ CREATE TABLE risk_rule_sets (
 
 CREATE TABLE fraud_flags (
   transfer_id      uuid PRIMARY KEY REFERENCES transfers(id),       -- tối đa 1 cờ / giao dịch
-  score            int  NOT NULL CHECK (score >= 0),                -- baseline: tổng trọng số rule, có thể > 100
+  score            int  NOT NULL CHECK (score >= 0),                -- tổng trọng số, có thể > 100
   risk_level       text NOT NULL CHECK (risk_level IN ('MEDIUM','HIGH')),
   rule_set_version int  NOT NULL REFERENCES risk_rule_sets(version),
   review_status    text NOT NULL DEFAULT 'OPEN'
@@ -355,72 +334,8 @@ CREATE TABLE fraud_rule_hits (
 
 - **Review một lần** (AC-10.1): `UPDATE fraud_flags SET review_status = $1, … WHERE transfer_id = $2 AND review_status = 'OPEN'`; 0 dòng bị ảnh hưởng nghĩa là đã được review, từ chối. Không cần khóa riêng.
 - `risk_rule_sets` phải có **phiên bản 1 từ migration**, nếu không worker khởi động mà chưa có luật nào để chấm.
-- Bỏ `rule_version` ở `fraud_rule_hits` vì thừa so với `fraud_flags.rule_set_version`.
-- Baseline Accepted: mỗi luật thật một dòng `(transfer_id, rule_id)`, `sum(weight) = fraud_flags.score`. Không dùng hit giả hoặc quy kết AI vào R1–R6 trong phương án API dưới đây.
-
-#### Phần mở rộng Proposed: `risk_decisions`
-
-Một dòng bất biến cho **mọi TRANSFER đã xử lý**, ở cả `rule_only` và `rules_with_external_ai`, kể cả LOW không có cờ và mọi fallback. `DEPOSIT` chỉ dedup/ack theo contract consumer, không có decision hoặc API call. `event_id` giữ sự kiện đầu tiên thắng claim; không thay bằng event giao lại. Không sửa event, ledger, outbox hay bảng transfer để phục vụ AI.
-
-SQL sau là **đề xuất chưa có migration**, bổ sung vào baseline nếu ADR-14 được nhóm chấp nhận:
-
-```sql
-CREATE TABLE risk_decisions (
-  transfer_id        uuid PRIMARY KEY REFERENCES transfers(id) ON DELETE RESTRICT,
-  event_id           uuid NOT NULL,
-  rule_set_version   int NOT NULL REFERENCES risk_rule_sets(version) ON DELETE RESTRICT,
-  mode               text NOT NULL CHECK (mode IN ('rule_only','rules_with_external_ai')),
-  rule_score         int NOT NULL CHECK (rule_score >= 0),
-  feature_snapshot   jsonb NOT NULL CHECK (jsonb_typeof(feature_snapshot) = 'object'),
-  ai_status          text NOT NULL CHECK (ai_status IN
-                       ('DISABLED','SUCCEEDED','UNAVAILABLE','REFUSED',
-                        'INVALID_RESPONSE','BUDGET_EXHAUSTED')),
-  ai_applied_weight  int NOT NULL CHECK (ai_applied_weight >= 0),
-  probability        double precision,
-  provider           text,
-  requested_model    text,
-  response_model     text,
-  rubric_sha256      text CHECK (rubric_sha256 ~ '^[0-9a-f]{64}$'),
-  input_sha256       text CHECK (input_sha256 ~ '^[0-9a-f]{64}$'),
-  provider_request_id text,
-  decided_at         timestamptz NOT NULL DEFAULT clock_timestamp(),
-  CONSTRAINT risk_decisions_transfer_version UNIQUE (transfer_id, rule_set_version),
-  CONSTRAINT risk_decisions_total_fits_int CHECK
-    (rule_score::bigint + ai_applied_weight::bigint <= 2147483647),
-  CONSTRAINT risk_decisions_mode_metadata CHECK (
-    (mode = 'rule_only' AND ai_status = 'DISABLED'
-      AND probability IS NULL AND ai_applied_weight = 0
-      AND provider IS NULL AND requested_model IS NULL AND response_model IS NULL
-      AND rubric_sha256 IS NULL AND input_sha256 IS NULL AND provider_request_id IS NULL)
-    OR
-    (mode = 'rules_with_external_ai' AND ai_status <> 'DISABLED'
-      AND provider IS NOT NULL AND requested_model IS NOT NULL
-      AND rubric_sha256 IS NOT NULL AND input_sha256 IS NOT NULL)
-  ),
-  CONSTRAINT risk_decisions_status_probability CHECK (
-    (ai_status = 'SUCCEEDED' AND probability IS NOT NULL
-      AND probability >= 0 AND probability <= 1)
-    OR
-    (ai_status <> 'SUCCEEDED' AND probability IS NULL AND ai_applied_weight = 0)
-  )
-);
-
-ALTER TABLE fraud_flags
-  ADD CONSTRAINT fraud_flags_decision_fk
-  FOREIGN KEY (transfer_id, rule_set_version)
-  REFERENCES risk_decisions (transfer_id, rule_set_version) ON DELETE RESTRICT;
-
-ALTER TABLE fraud_rule_hits
-  ADD CONSTRAINT fraud_rule_hits_weight_nonnegative CHECK (weight >= 0);
-```
-
-- `requested_model` là identifier được yêu cầu; `response_model` chỉ ghi nếu provider thực sự cung cấp, có thể NULL. `provider_request_id` cũng tùy response. Không tự điền model trả về hoặc hứa alias là snapshot bất biến. Mode AI bắt buộc provider/model yêu cầu/hai hash ngay cả khi không gửi được vì hết budget.
-- `feature_snapshot` chỉ chứa allowlist feature đã chốt ở [thiết kế §2.3](../../features/FRAUD-API-01-external-ai-decision.md#23-dữ-liệu-và-câu-hỏi-gửi-api): tiền canonical, tuổi, sameOwner và thống kê point-in-time; không chứa ID, tên, email, ghi chú, nhãn, kịch bản hoặc lịch sử thô. DB CHECK chỉ ép object; risk phải kiểm đủ key/type/allowlist trước ghi và trước gửi. Không lưu body/Authorization hay chain-of-thought. Snapshot dùng `occurredAt`, R3/R6 lấy ảnh chụp event; rule không đọc số dư hiện tại.
-- Cấu hình, mode, rubric và model identifier theo rule-set version bất biến. `rule_only` là seed mặc định. Mode AI chỉ opt-in sau gate; không tự seed threshold/weight/model vào vận hành. Threshold hữu hạn thuộc `(0,1]`, weight nguyên không âm; tổng tối đa phải vừa `int`.
-- **Invariant Proposed:** `rule_score = sum(fraud_rule_hits.weight)` khi có cờ; `fraud_flags.score = rule_score + ai_applied_weight`. AI chỉ cộng fixed configured weight khi `SUCCEEDED` và p hữu hạn đạt threshold, còn lại 0; không dùng `p*100`, không trừ điểm hoặc xóa cờ baseline. `fraud_rule_hits` chỉ R1–R6 thật, weight không âm. Cờ AI-only có 0 hit và rule_score=0. LOW không có cờ/hits nhưng vẫn có decision/snapshot. Operator dùng tổng `score`, không cộng riêng hits để suy ra total.
-- FK tổng hợp ép cờ cùng transfer/version với decision. Kiểm tổng hit/score, threshold/mode/weight theo config, cờ đúng mức và decision chỉ cho `COMPLETED`/`TRANSFER` là ràng buộc liên bảng: migration tương lai phải bổ sung constraint trigger kiểm tại commit, không giả là CHECK ở trên đã bảo vệ đủ. Rule evaluation/snapshot parity vẫn cần test runtime.
-- Trước lấy config/tính feature/gọi API: tra `processed_events` và decision theo `transfer_id`. Decision đã commit thắng ở mọi mode, kể cả rule-only LOW rồi nhận eventId mới sau đổi cấu hình. Trong một SQL transaction, claim event rồi `INSERT risk_decisions ... ON CONFLICT (transfer_id) DO NOTHING RETURNING transfer_id`. Thua event: không ghi phụ; thua transfer: chỉ commit dedup event mới, dùng decision cũ. Chỉ bên thắng transfer mới ghi cờ/hits nếu đủ ngưỡng và audit decision. SQL/audit lỗi → rollback, không ack; API lỗi/refusal/budget → baseline có trạng thái, không DLQ chỉ vì provider.
-- Không gọi Redis/HTTP/SQS trong callback SQL có retry. API gọi ngoài transaction; hai worker đua có thể gọi hai lần trước claim nhưng chỉ một decision/cờ commit. Rollback rồi giao lại có thể gọi lại, không hứa exactly-once billing. Khóa decision không hết hạn cùng `processed_events`.
+- Bỏ `rule_version` ở `fraud_rule_hits` (docs/03 ERD có) vì thừa so với `fraud_flags.rule_set_version`.
+- Mỗi nhóm luật một dòng (khóa chính `(transfer_id, rule_id)`). Nếu sau này bật chế độ `v3` (ADR-08), điểm của mô hình được cộng vào dòng của nhóm được quy kết hoặc tạo dòng mới có `explanation` bắt đầu bằng `[AI-Rn]`; tổng `weight` luôn bằng `score` của cờ. Không đổi cột.
 
 ### 4.9 `notification_log`, `reconciliation_runs`
 
@@ -464,9 +379,6 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | BR-08 giao dịch bất biến | Trigger chặn `UPDATE/DELETE` + thu quyền | |
 | BR-09 audit bất biến | Trigger chặn `UPDATE/DELETE` + thu quyền | Ghi cùng transaction (fail-closed) |
 | BR-11/FR-RSK-04 tối đa 1 cờ | `PRIMARY KEY (transfer_id)` ở `fraud_flags` | |
-| **Proposed:** một quyết định đầu / TRANSFER, mọi mode và LOW | PK `risk_decisions(transfer_id)` + trigger append-only | Kiểm trước API; claim event và transfer cùng transaction; race/rollback bằng Postgres thật |
-| **Proposed:** cờ gắn đúng decision/version | FK tổng hợp `fraud_flags(transfer_id, rule_set_version)` → `risk_decisions` | Chỉ bên thắng claim tạo cờ/hits/audit; eventId mới không chấm lại transfer |
-| **Proposed:** score/provenance hợp lệ | CHECK mode/status/nullability/p và tổng vừa int; constraint trigger liên bảng ở commit phải được viết trong migration tương lai | Kiểm policy threshold/weight, snapshot allowlist; SQL mẫu §4.8 chưa có đầy đủ trigger |
 | Mỗi luật tối đa 1 lần / cờ | `PRIMARY KEY (transfer_id, rule_id)` | |
 | Chỉ review một lần | `fraud_flags_review_consistent` | `UPDATE … WHERE review_status = 'OPEN'` |
 | Chỉ một tài khoản SYSTEM | Unique index một phần `accounts_single_system` | |
@@ -492,8 +404,6 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | Truy vết theo `correlationId` (UC-8, AC-8.2) | `audit_log (correlation_id)` | Truy vấn nóng nhất của kiểm toán viên |
 | Lọc audit theo người, theo hành động | `audit_log (actor_user_id, occurred_at DESC)`, `audit_log (action, occurred_at DESC)` | |
 | Hàng đợi cờ chưa review, HIGH lên trước (UC-10) | `fraud_flags (risk_level, created_at DESC) WHERE review_status = 'OPEN'` | Chỉ chứa cờ OPEN, cỡ nhỏ và đúng truy vấn |
-| **Proposed:** tra decision trước scoring/API và claim transfer | PK `risk_decisions(transfer_id)` | Có cả LOW/fallback nên tra được duplicate dù không có cờ |
-| **Proposed:** FK cờ tới đúng decision/version | UNIQUE `risk_decisions(transfer_id, rule_set_version)` | PostgreSQL cần đúng bộ khóa làm đích FK, không phải index tìm kiếm thứ hai |
 | Đăng nhập / tra user | `users(cognito_sub)` (UNIQUE) | Có sẵn |
 | Liệt kê tài khoản của khách | `accounts (customer_id)` | |
 
@@ -508,7 +418,6 @@ PostgreSQL **không tự đánh index cho cột khóa ngoại**. Các cột khó
 | `transfers (created_at)` đơn lẻ | Không có truy vấn theo thời gian trên toàn bảng |
 | Index tìm tên khách trên `customers` | Nhân viên tra cứu khớp một phần trên khoảng 50.000 dòng, giới hạn 20 kết quả; quét tuần tự đủ nhanh. Thêm index trigram khi đo thấy chậm |
 | GIN trên `payload`, `metadata` (jsonb) | Chỉ đọc theo khóa chính hoặc `correlation_id`, không tìm theo nội dung |
-| **Proposed:** GIN `risk_decisions.feature_snapshot`, index probability/model/status | Chỉ tra decision bằng transfer_id trong luồng nóng; không tạo index phân tích khi chưa có truy vấn đo được |
 | Index mọi cột cho "chắc ăn" | Mỗi lệnh chuyển ghi 5+ dòng; thừa index = chậm đường găng |
 
 **Ngoại lệ đã biết:** `transfers_ledger_from_key` và `transfers_ledger_to_key` (§4.3) là index duy nhất 4 cột, không phục vụ truy vấn nào; chúng tồn tại vì Postgres đòi `UNIQUE` đúng bộ cột làm đích của hai khóa ngoại tổng hợp ở §4.4. Mỗi lệnh chuyển ghi một dòng `transfers`, nên thêm hai index vào đúng một lần ghi; chi phí chưa đo (load test NFR-SCAL-02).
@@ -564,15 +473,12 @@ Ma trận quyền (S = SELECT, I = INSERT, U = UPDATE, D = DELETE):
 | `fraud_flags` | S U (cột `review_*`) | S I |
 | `fraud_rule_hits` | S | S I |
 | `risk_rule_sets` | S I | S |
-| **Proposed:** `risk_decisions` | S (qua API review/audit có guard) | S I |
 | `notification_log` | — | I D |
 | `reconciliation_runs` | S | I |
 
 Nhìn bảng này thấy ngay: **không role nào có `UPDATE` hay `DELETE` trên `ledger_entries`, `transfers`, `audit_log`**. Với `accounts`, nên cấp `UPDATE` theo cột (`GRANT UPDATE (balance, status, updated_at)`), tương tự `fraud_flags` chỉ cho sửa các cột `review_*`.
 
-**Proposed:** không cấp U/D/TRUNCATE trên `risk_decisions` cho cả hai role ứng dụng; áp `forbid_mutation` và chặn TRUNCATE như bảng append-only khác. Quyền SELECT của `dbs_api` không phải quyền customer: chỉ projection operator/audit theo nhu cầu; mọi API/notification customer phải loại decision, `aiAssessment` và provenance. `aiAssessment` là projection từ decision, không có bảng assessment thứ hai.
-
-**Giới hạn quyền theo process:** một process `worker` chứa relay, risk và notification nên `dbs_worker` là **hợp** các quyền trên, không phải role DB riêng chỉ cho risk. Risk chỉ dùng view giao dịch và các bảng thuộc phạm vi của mình qua ranh giới module; đây không phải cách ly DB giữa các module trong cùng process. Muốn tách đúng nghĩa thì risk cần kết nối/role riêng, là hướng mở rộng, không được tự thêm trong đề xuất API (rủi ro chấp nhận ở [threat model](../../security/threat-model.md)).
+**Giới hạn cần nói thật:** FRAUD guide muốn "DB role riêng cho risk consumer, chỉ đọc `transfers` và chỉ ghi bảng fraud". Với một process `worker` chứa cả relay, risk, notification, role đó phải là **hợp** các quyền trên. Muốn tách đúng nghĩa thì `risk` phải mở một kết nối riêng với role riêng; đó là hướng mở rộng, không làm ở v1 (đã ghi ở mục rủi ro chấp nhận của [threat model](../../security/threat-model.md)).
 
 ### 8.2 View `v_transfer_facts`
 
@@ -603,8 +509,6 @@ CREATE TRIGGER ledger_entries_no_truncate
   BEFORE TRUNCATE ON ledger_entries
   FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();
 ```
-
-**Proposed:** migration `risk_decisions` phải tạo cùng hai trigger chặn UPDATE/DELETE và TRUNCATE, cộng constraint trigger liên bảng ở §4.8. Đây là yêu cầu triển khai/test, không phải trigger đã có. `fraud_flags` vẫn chỉ được cập nhật phần review, không được sửa score/version để khớp kết quả AI mới.
 
 **Test bắt buộc (cho AC-8.1):** kết nối bằng `dbs_api` thử `UPDATE`/`DELETE` các bảng trên, nhận `permission denied`; kết nối bằng `dbs_migrator` thử cũng bị trigger chặn. Test này phải chạy trên Postgres thật (Testcontainers) với các role được tạo đúng như production, nếu không sẽ không chứng minh được gì.
 
@@ -638,7 +542,6 @@ Down của migration fraud phải DROP hai trigger của mình trước khi DROP
 | Tài khoản nóng: các lệnh xếp hàng chờ khóa | Giữ thời gian giữ khóa ngắn: các lệnh sau `FOR UPDATE` chỉ là sync guard (index-only), 1 `INSERT transfers`, 2 `INSERT ledger_entries`, 2 `UPDATE accounts`, `INSERT outbox`, `INSERT audit`, `UPDATE idempotency_keys`. Khoảng 9 câu lệnh, mỗi câu cỡ 1 ms trong cùng AZ, nên ước lượng trần lý thuyết cỡ vài chục lệnh/giây cho **một** tài khoản. Cần đo bằng load test hot-account (NFR-SCAL-02), không tin ước lượng này |
 | `accounts` bị `UPDATE` liên tục trên cùng hàng | `fillfactor = 80` và **không** index cột `balance`/`status` để các cập nhật là HOT (không phải ghi lại index, ít bloat). Theo dõi `n_dead_tup` và autovacuum của `accounts` khi load test |
 | Giữ khóa trong lúc gọi dịch vụ ngoài | Cấm: không Redis/HTTP/SQS trong transaction; sự kiện đi qua `outbox_events` |
-| **Proposed:** worker đua cùng transfer khác eventId/mode | Đọc decision sớm; claim `processed_events` rồi PK `risk_decisions` trong một transaction. Thua claim transfer chỉ commit dedup event mới; không tạo cờ/hits/audit-create lần hai. Rollback bên thắng cho phép bên còn lại claim theo ON CONFLICT |
 | Pool | `DATABASE_POOL_MAX` mỗi task × số task ≤ `max_connections` của RDS. Kiểm bằng `SHOW max_connections;` trên instance thật (instance nhỏ chỉ cỡ khoảng một trăm). Chưa cần RDS Proxy/PgBouncer |
 
 ---
@@ -649,7 +552,6 @@ Down của migration fraud phải DROP hai trigger của mình trước khi DROP
 |---|---|---|---|
 | `ledger_entries`, `transfers`, `audit_log` | **Vĩnh viễn** | Không dọn | Dữ liệu tài chính và kiểm toán |
 | `accounts`, `customers`, `users`, `risk_rule_sets`, `fraud_*` | Vĩnh viễn | Không dọn | |
-| **Proposed:** `risk_decisions` | Vĩnh viễn, cùng vòng đời risk/cờ/cấu hình | Không dọn | Giữ cả LOW/fallback để quyết định đầu không mất khi dedup event hết hạn; không lưu raw history/body provider. Điều kiện retention của provider phải được duyệt riêng trước gửi dữ liệu, không mặc định ZDR |
 | `idempotency_keys` | **7 ngày** (ADR-05) | Job `worker` xóa `created_at < now() - 7 days` | Gửi lại sau 7 ngày với cùng key sẽ bị coi là lệnh mới; chấp nhận và nêu trong tài liệu API |
 | `outbox_events` | Đã gửi + 7 ngày | Job `worker` xóa `published_at < now() - 7 days` | Dòng chưa gửi không bao giờ bị xóa |
 | `processed_events` | **≥ thời gian giữ message của SQS + dư** | Job `worker` | Giữ 7 ngày vì queue giữ message 4 ngày (ADR-03); ngắn hơn thì một message giao lại muộn sẽ bị xử lý hai lần |
@@ -689,12 +591,10 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 6. Hàm `public.forbid_mutation()` và sáu trigger trên ledger_entries/transfers/audit_log (`1792627200002-AddAppendOnlyTriggers`, DBS-27); task fraud thêm cặp trigger risk_rule_sets khi bảng tồn tại
 7. Role và `GRANT` (có thể idempotent; chạy bằng tài khoản đủ quyền)
 
-**Phần mở rộng Proposed sau ADR-14:** trong nhóm migration risk, thứ tự là `risk_rule_sets` → `risk_decisions` → `fraud_flags`/FK tổng hợp → `fraud_rule_hits` → constraint/append-only triggers → quyền S/I phù hợp ở §8. Nếu baseline risk đã có dữ liệu khi cutover, task migration phải thiết kế chuyển đổi và chứng minh không bịa event đầu/snapshot/provenance; không tự backfill dữ liệu không truy được. Không có migration mới được tạo hoặc chạy trong task tài liệu này; danh sách trên không là bằng chứng các nhóm 3–7 đã triển khai.
-
 ### Dữ liệu khởi tạo (seed trong migration, không phải script rời)
 
 - Tài khoản SYSTEM `funding`: id cố định **`00000000-0000-4000-8000-000000000001`**, `type = 'SYSTEM'`, `customer_id` NULL, `balance = 0` (migration `1791763200000-CreateUsersCustomersAccounts`, DBS-20). Migration ghi literal; code dùng hằng số export từ `@modules/accounts` khi task nạp tiền cần.
-- `risk_rule_sets` phiên bản 1 với tham số mặc định của R1–R6. **Proposed:** seed `mode=rule_only`, AI tắt; không tự seed credential, threshold/weight/model vận hành cho AI.
+- `risk_rule_sets` phiên bản 1 với tham số mặc định của R1–R6.
 - **Không** seed người dùng demo bằng `INSERT` trực tiếp số dư; dữ liệu demo đi qua API nạp tiền để bất biến luôn đúng (`scripts/seed.ts`).
 
 ### Nguyên tắc triển khai

@@ -1,153 +1,173 @@
 # risk — Architecture
 
-> **Status:** Proposed — phương án API theo ADR-14, chưa triển khai · **Owner:** #4 · **Cặp đôi:** #1 · **Verified against code:** module risk hiện chỉ có README, chưa có consumer/service/controller fraud · **Cập nhật:** 2026-10-23
+> **Status:** Draft · **Owner:** #4 · **Cặp đôi:** #1 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-11
 
-> Nguồn thiết kế: [FRAUD-API-01 §§2–7](../../features/FRAUD-API-01-external-ai-decision.md), [ADR-14 Proposed](../../adr/0014-fraud-rules-external-ai.md), [database-design](../_shared/database-design.md), [event contract](../_shared/event-contract.md). [ADR-08](../../adr/0008-fraud-detection-architecture.md) vẫn Accepted/unmodified; ADR-14 đề xuất thay riêng nghĩa vụ train/học tham số/ONNX, chưa phải quyết định nhóm đã Accepted.
+> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
-## 1. Cấu trúc đích — không phải danh sách file đã tồn tại
+> Tài liệu kiến trúc chi tiết của module `risk` (Task 6 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)), đồng bộ với [`docs/03` §15](../../03_HIGH_LEVEL_ARCHITECTURE.md), [`_shared/database-design.md`](../_shared/database-design.md), [`_shared/event-contract.md`](../_shared/event-contract.md) và [ADR-08](../../adr/0008-fraud-detection-architecture.md).
 
-Thiết kế đặt `RiskModule` ở `sharedModules`: HTTP ở role `api`, consumer chỉ có lifecycle khi `runsWorkers()`. Runtime fraud và các adapter phụ thuộc vẫn phải được xây ở task riêng; không tạo stub để coi dependency đã hoàn thành. Nhánh API không cần pipeline Python, model artifact hoặc native inference runtime.
+---
 
-| Thành phần dự kiến | Chạy ở | Trách nhiệm |
+## 1. Cấu trúc
+
+Module `risk` nằm trọn trong `backend/src/modules/risk/` (đăng ký ở `sharedModules` trong `backend/src/modules/index.ts` vì vừa phục vụ HTTP ở role `api`, vừa chạy consumer ở role `worker` khi `runsWorkers() === true`), kèm công cụ đánh giá offline ở `backend/src/scripts/`; công cụ huấn luyện ML (chỉ khi `v3` qua cổng go/no-go của ADR-08) ở `backend/ml/` và artifact ở `backend/models/`, cả hai nằm ngoài `src`.
+
+| File / Thư mục | Chạy ở | Trách nhiệm |
 |---|---|---|
-| `risk.module.ts`, `index.ts` | `api` + `worker` | Wiring; chỉ export `RiskModule`, không module nghiệp vụ nào gọi trực tiếp scoring |
-| `risk-flags.controller.ts` | `api` | UC-10 operator: danh sách, chi tiết, review một lần |
-| `risk-config.controller.ts` | `api` | UC-12 admin: đọc cấu hình, thêm version bất biến |
-| `risk-scoring.consumer.ts` | `worker` | Validate event, early dedup theo event/transfer, điều phối và claim/commit decision |
-| `scoring.service.ts` | `worker` + offline | R1–R6 thuần và policy cộng phần AI riêng, không tự gọi module khác để sửa transfer |
-| `rules/rule.ts`, `rules/r1-…` đến `r6-…` | `worker` + offline | `RiskRule.evaluate(event, features, params): RuleHit \| null` |
-| `features/feature-provider.ts` | `worker` + offline | `FeatureProvider.extract(event): Promise<Features>` |
-| Online/offline feature providers | `worker` / offline | Redis + SQL truth / dữ liệu được phép dùng; cùng money/event-time/snapshot semantics |
-| Adapter OpenAI Decisions nội bộ | `worker` / spike được duyệt | Allowlist projection, typed response validation, deadline và trạng thái fallback; không Jev adapter hoặc fallback provider |
-| Rule-set repository | `api` + `worker` | `risk_rule_sets`; cache `cfg:risk:latest` TTL 60s, `cfg:risk:v{n}` bất biến TTL 24h |
-| Decision/flag repositories, entities, DTO | `api` + `worker` | Schema đích ở §2, quyền tối thiểu, audit cùng SQL transaction |
-| Script đánh giá offline | CLI | B0/B1/B2, capture/replay policy, chỉ số chất lượng; không gọi API tính phí trong CI acceptance tất định |
+| `risk.module.ts` | `api` + `worker` | Đăng ký controller, service, repository; chỉ khởi tạo `RiskScoringConsumer` khi `runsWorkers()` |
+| `risk-flags.controller.ts` | `api` | Endpoint UC-10 cho `operator`: danh sách cờ, chi tiết cờ (+ 10 giao dịch gần nhất), duyệt cờ một lần |
+| `risk-config.controller.ts` | `api` | Endpoint UC-12 cho `admin`: xem cấu hình hiện hành, tạo phiên bản cấu hình mới (`risk_rule_sets`) |
+| `risk-scoring.consumer.ts` | `worker` | Nhận `TransferCompleted` từ queue `risk-events`, kiểm tra idempotency (`processed_events`), gọi `ScoringService`, ghi `fraud_flags` + `fraud_rule_hits` + `audit_log` trong một transaction |
+| `scoring.service.ts` | `worker` + script | Điều phối chấm điểm theo phiên bản `RiskRuleSet`: chạy 6 luật hàm thuần `R1–R6` và (khi cấu hình bật `ml`) kết hợp bộ chấm điểm `OnnxModelScorer` |
+| `rules/rule.ts` | `worker` + script | Định nghĩa `RiskRule`, `RuleHit`, `Features`, `RuleSetConfig` |
+| `rules/r1-velocity.rule.ts` … `r6-drain.rule.ts` | `worker` + script | 6 luật hàm thuần `evaluate(event, features, params): RuleHit \| null`, không gọi I/O |
+| `ml/onnx-model.scorer.ts` | `worker` + script | **Chỉ khi có `v3`.** Nạp `backend/models/fraud-model.onnx` bằng `onnxruntime-node` sau khi kiểm `sha256` khớp `ml.modelSha256`; suy luận xác suất từ vector 12 đặc trưng ([guide §4.3.b](FRAUD_DETECTION_GUIDE.md)); quy kết về nhóm `R1–R6` bằng cách đặt từng nhóm đặc trưng về giá trị cơ sở; bọc `try/catch` fail-safe |
+| `backend/models/fraud-model.onnx` | `worker` + script | **Chỉ khi có `v3`.** Artifact mô hình LightGBM/XGBoost, `COPY` rõ ràng vào image (không dựa vào `nest build`); kích thước thực đo ở cổng go/no-go |
+| `features/feature-provider.ts` | `worker` + script | Interface `FeatureProvider.extract(event): Promise<Features>` |
+| `features/online-feature-provider.ts` | `worker` | Trích xuất đặc trưng từ Redis (`risk:vel:{accountId}`, `risk:fan:{accountId}`) + truy vấn view `v_transfer_facts` trên PostgreSQL; tự động rơi về SQL khi Redis lỗi/chậm |
+| `features/offline-feature-provider.ts` | script | Trích xuất cùng tập đặc trưng từ dữ liệu CSV trong bộ nhớ để đánh giá offline tốc độ cao |
+| `config/rule-set.repository.ts` | `api` + `worker` | Đọc/ghi `risk_rule_sets`, quản lý cache Redis `cfg:risk:latest` (TTL 60s) và `cfg:risk:v{n}` (bất biến) |
+| `entities/*.entity.ts` | `api` + `worker` | `RiskRuleSetEntity`, `FraudFlagEntity`, `FraudRuleHitEntity` |
+| `dto/*.dto.ts` | `api` | DTO validate query/body cho review cờ và tạo phiên bản cấu hình |
+| `index.ts` | `api` + `worker` | Chỉ export `RiskModule` (không module nào khác gọi trực tiếp vào `risk`) |
+| `../../scripts/evaluate-rules.ts` | CLI / offline | Chạy đánh giá trên tập CSV (`tune` / `holdout`), xuất Precision, Recall, F1, Recall theo kịch bản, Ablation và đường cong PR cho các chế độ đã đóng băng; có lệnh `export-features` xuất CSV đặc trưng cho huấn luyện |
+| `backend/ml/` (`train.py`, `requirements.txt`) | CLI / offline | Chỉ đọc CSV đặc trưng do `export-features` xuất (không tự tính đặc trưng), huấn luyện `v2` (Logistic Regression) và `v3` (LightGBM/XGBoost), xuất `fraud-model.onnx` cùng `sha256` và báo cáo SHAP. Công cụ dev, **không** vào image production |
 
-## 2. Dữ liệu đề xuất — chưa có migration trong PR này
+---
 
-### 2.1 Bảng risk-owned
+## 2. Dữ liệu
 
-Schema/ràng buộc chi tiết tại [database-design §4.8](../_shared/database-design.md#48-nhóm-fraud). Bốn bảng trong thiết kế đích:
+Schema chính thức nằm tại [`_shared/database-design.md` §4.8](../_shared/database-design.md). Module `risk` sở hữu 3 bảng và sử dụng 2 đối tượng dùng chung:
 
-| Bảng | Khóa / bất biến |
-|---|---|
-| `risk_rule_sets` | PK `version`; append-only, config chứa mode, ngưỡng MEDIUM/HIGH, R1–R6 và policy AI bất biến; seed `rule_only` |
-| `risk_decisions` | PK `transfer_id`, FK tới `transfers`; một hàng bất biến cho **mọi TRANSFER/mode**, kể cả LOW và AI fallback; dùng làm claim theo transfer |
-| `fraud_flags` | Tối đa một cờ/transfer, chỉ MEDIUM/HIGH; tham chiếu decision cùng transfer/version; review `OPEN` chỉ một lần |
-| `fraud_rule_hits` | PK `(transfer_id, rule_id)`; `rule_id` chỉ R1–R6; lưu weight và giải thích tiếng Việt của rule, không chứa điểm/quy kết AI |
+### 2.1 Bảng sở hữu
 
-`risk_decisions` lưu `event_id` đầu tiên, `rule_set_version` (FK), `mode`, `rule_score`, `feature_snapshot`, `ai_status`, `ai_applied_weight`, `probability`, `provider`, `requested_model`, `response_model`, `rubric_sha256`, `input_sha256`, `provider_request_id`, `decided_at`. Snapshot đủ replay rule/policy và hash input AI, không lưu raw response. Decision append-only; `dbs_api`/`dbs_worker` không được sửa/xóa decision. Quyền đọc phục vụ operator/audit theo nhu cầu, không customer; không thêm bảng assessment thứ hai.
-
-| Mode / status | Ràng buộc |
-|---|---|
-| `rule_only` | `ai_status = DISABLED`, `probability = NULL`, `ai_applied_weight = 0`; provider/model/hashes/request id đều null |
-| `rules_with_external_ai` | Provider, requested model và hai hash bắt buộc; status không DISABLED |
-| `SUCCEEDED` | p hữu hạn trong [0,1]; weight đúng policy threshold |
-| `UNAVAILABLE`, `REFUSED`, `INVALID_RESPONSE`, `BUDGET_EXHAUSTED` | p null, weight 0, vẫn lưu decision baseline |
-
-`response_model` và `provider_request_id` nullable, chỉ ghi khi provider cung cấp; không giả alias model là immutable snapshot hoặc bịa request id.
-
-### 2.2 Điểm và provenance
-
-`rule_score = sum(ruleHits.weight)`; `ai_applied_weight = ai.weight` cố định khi response hợp lệ với p ≥ `ai.threshold`, còn lại 0. `score = rule_score + ai_applied_weight`, không `p*100`, không nhân weight với p. Khi có cờ: `sum(fraud_rule_hits.weight) = risk_decisions.rule_score` và `fraud_flags.score = rule_score + ai_applied_weight`. LOW không có flag/hits nhưng vẫn có decision/snapshot. AI không xóa cờ hoặc làm giảm điểm rule.
-
-Config validate weight nguyên không âm, tổng điểm tối đa vừa PostgreSQL `int`; threshold AI hữu hạn trong `(0,1]`. Ngưỡng baseline MEDIUM/HIGH là 40/70. AI mode không có giá trị vận hành mặc định cho threshold/weight/rubric/model.
-
-### 2.3 Dữ liệu lịch sử, tiền và cache
-
-- `dbs_worker` đọc lịch sử qua `v_transfer_facts`, không SELECT trực tiếp `transfers`. Truy vấn phải có `status = 'COMPLETED' AND type = 'TRANSFER'` và bound theo `event.occurredAt` để dùng đúng partial index.
-- Tiền trên wire là chuỗi đồng canonical; nội bộ bigint/numeric chính xác theo `@common/money`, không `Number`, `parseInt` hay floating-point cho predicate. Median chẵn phải giữ phần nửa đồng chính xác; R6 so bằng nhân chéo, không `0.9 * number`.
-- R3 dùng `fromAccountCreatedAt`, R6 dùng `fromBalanceBefore`, R5/R6 giữ miễn trừ `sameOwner`. Các trường này đã có trong event contract/runtime type; malformed event không được thay default hoặc bỏ ngoại lệ.
-- Redis là cache, không là truth: `risk:vel:{accountId}` dùng member transferId, score event time; `risk:fan:{accountId}` chỉ phục vụ distinct recipients khi đã chứng minh coverage/ngữ nghĩa “mới” bằng SQL. Thiếu/lạnh/chậm/lỗi/không đủ coverage cửa sổ thì SQL, không suy cache rỗng = 0.
-- Trim theo wall clock/retention của cache, **không trim theo occurredAt của event đang xử lý**; event trễ ngoài vùng đã giữ phải SQL. Đếm cửa sổ vẫn theo event time, không theo wall clock. Một sorted set người nhận với timestamp bị ghi đè không đủ bảo đảm event đảo thứ tự.
-- Redis/config/feature I/O đều trước `BEGIN`, ghi metric path trả lời. Parity online/offline phải có test in-order/warm-cache; cold/delayed/out-of-order và SQL fallback là case riêng, không suy từ mock hoặc tự hứa p live bất biến.
-
-## 3. Interface và quyền
-
-### 3.1 Event vào
-
-Nhận `TransferCompleted` từ `risk-events` theo contract hiện hữu. Chỉ TRANSFER được chấm; DEPOSIT chỉ dedup rồi ack theo consumer contract, không decision fraud/AI. Không đổi event/outbox/ledger transaction/sync guard/queue vì đổi provider. Chính sách unknown event type còn phụ thuộc BL-010; không tự coi mọi event lạ là đã xử lý thành công.
-
-### 3.2 HTTP đích
-
-| Method & Path | Vai trò | Hành vi |
+| Bảng | Khóa chính | Ràng buộc & Đặc điểm chính |
 |---|---|---|
-| `GET /v1/operator/fraud-flags` | operator | Lọc status/level, cursor/limit; HIGH trước rồi mới nhất |
-| `GET /v1/operator/fraud-flags/:transferId` | operator | Giữ `score`, `riskLevel`, `hits`, thêm `aiAssessment` riêng từ decision (baseline null); giao dịch và 10 dòng gần nhất qua `LedgerQueryService.listTransactions`; audit view |
-| `POST /v1/operator/fraud-flags/:transferId/review` | operator | `{ decision: 'CONFIRMED_FRAUD' \| 'FALSE_POSITIVE', note?: string }`; atomic update OPEN và audit cùng tx; lần sau HTTP 409 `FLAG_ALREADY_REVIEWED` |
-| `GET /v1/admin/risk-config` | admin | Version hiện hành |
-| `POST /v1/admin/risk-config/versions` | admin | Thêm version bất biến và audit; cache update ngoài callback SQL có retry |
+| **`risk_rule_sets`** | `version int` | Append-only (có trigger `forbid_mutation`). Cột `config jsonb` chứa ngưỡng mức (`medium`, `high`), cấu hình `R1..R6` (`enabled`, `weight`, tham số) và cấu hình `ml` (`enabled`, `mode`, `modelVersion`, `modelSha256`, `weight`, `threshold`, `baseline`). API tạo phiên bản (UC-12) phải validate khối `ml` để cấu hình sai không làm worker lỗi. Migration khởi tạo sẵn `version = 1` (`mode = 'rule_only'`). |
+| **`fraud_flags`** | `transfer_id uuid` | Tối đa 1 cờ/giao dịch. `score int >= 0`, `risk_level IN ('MEDIUM','HIGH')`, `rule_set_version` tham chiếu `risk_rule_sets(version)`, `review_status IN ('OPEN','CONFIRMED_FRAUD','FALSE_POSITIVE')`. Ràng buộc `fraud_flags_review_consistent` đảm bảo `OPEN` khi và chỉ khi `reviewed_by IS NULL AND reviewed_at IS NULL`. |
+| **`fraud_rule_hits`** | `(transfer_id, rule_id)` | `rule_id CHECK (rule_id IN ('R1','R2','R3','R4','R5','R6'))`, `weight int`, `explanation text` (tiếng Việt). Mỗi nhóm một dòng; tổng `weight` các dòng bằng `score` của cờ. |
 
-`aiAssessment` gồm status, provider/model provenance có thật, p nullable và `appliedWeight`; lời giải thích do policy tạo, không phải chain-of-thought hoặc giải thích nhân quả của model. Client dùng `score`, hoặc cộng rule hits + appliedWeight, không chỉ tổng hits. Customer API/notification không chứa risk/assessment/provenance. Auditor không review/sửa config; admin không sửa/xóa version cũ. Operator review không tự khóa tài khoản.
+### 2.2 Quy ước tương thích Schema cho 3 chế độ chấm điểm (`v1` → `v2` → `v3`)
 
-## 4. Luồng nội bộ đề xuất
+Để giữ nguyên `CHECK (rule_id IN ('R1','R2','R3','R4','R5','R6'))` và khóa chính `(transfer_id, rule_id)` trong `database-design.md`, mỗi mã `R1–R6` là một **nhóm luật** đúng như định nghĩa ở [docs/02 §2.1](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (R1 velocity, R2 số tiền bất thường, R3 tài khoản mới chuyển lớn, R4 chuyển vòng, R5 fan-out, R6 rút cạn):
+- Khi chạy **`v1`** và **`v2`**: `fraud_rule_hits` ghi các luật vượt ngưỡng.
+- Khi chạy **`v3`**: điểm của mô hình được quy về một nhóm; nếu luật của nhóm đó đã kích hoạt thì cộng điểm vào dòng đó và nối `[AI]` vào `explanation`, nếu chưa thì tạo dòng mới có `explanation` bắt đầu bằng `[AI-Rn]`. Công thức điểm, vector đặc trưng và cách quy kết nằm ở [guide §4.3.b](FRAUD_DETECTION_GUIDE.md) và [ADR-08](../../adr/0008-fraud-detection-architecture.md).
 
-### 4.1 Consumer và quyết định đầu tiên thắng
+### 2.3 Đối tượng đọc/ghi phối hợp và Index
+
+- **Đọc lịch sử giao dịch:** Worker (`dbs_worker`) không đọc bảng `transfers` mà chỉ `SELECT` trên view chỉ đọc `v_transfer_facts (id, type, from_account_id, to_account_id, amount, status, created_at)`.
+- **Index phục vụ truy vấn của `risk`:**
+  - `transfers (from_account_id, created_at) INCLUDE (amount, to_account_id) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` (cho R1 fallback, R2, R5).
+  - `transfers (from_account_id, to_account_id, created_at) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` (cho R4).
+  - `fraud_flags (risk_level, created_at DESC) WHERE review_status = 'OPEN'` (cho hàng đợi review của nhân viên ở UC-10).
+- **Key Redis (R-3, R-4):**
+  - `risk:vel:{accountId}`: Sorted Set (`member = transferId`, `score = occurredAtMs`, TTL 7200s).
+  - `risk:fan:{accountId}`: Sorted Set (`member = toAccountId` mới, `score = occurredAtMs`, TTL 7200s).
+  - `cfg:risk:latest`: lưu số phiên bản hiện hành (TTL 60s); `cfg:risk:v{n}`: lưu JSON cấu hình của phiên bản `n` (TTL 24h, bất biến).
+
+---
+
+## 3. Interface công khai
+
+### 3.1 Export qua `index.ts`
+- Chỉ export `RiskModule`. Không module nghiệp vụ nào gọi hàm của `risk`.
+- Riêng hàm chặn cứng đồng bộ `checkGuards(manager, lockedFrom, lockedTo, amount)` thuộc tầng 1 (Sync guard) nằm tại `backend/src/modules/ledger/sync-guard.ts` (do #1 viết; #4 thống nhất danh sách lý do từ chối và review).
+
+### 3.2 Sự kiện nhận vào (Queue `risk-events`)
+- Nhận sự kiện `TransferCompleted` (xem [`_shared/event-contract.md`](../_shared/event-contract.md)).
+- Chỉ chấm điểm khi `event.type === 'TRANSFER'`; nếu `event.type === 'DEPOSIT'` thì chỉ đánh dấu `processed_events` rồi bỏ qua.
+
+### 3.3 Endpoint HTTP (chạy ở role `api`)
+
+| Method & Path | Vai trò | UC | Mô tả & Hành vi chính |
+|---|---|---|---|
+| `GET /v1/operator/fraud-flags` | `operator` | UC-10 | Lọc theo `status` (`OPEN` mặc định, `CONFIRMED_FRAUD`, `FALSE_POSITIVE`), `level` (`MEDIUM`, `HIGH`), phân trang `cursor`/`limit`. Sắp xếp `HIGH` trước, `created_at DESC` trước. |
+| `GET /v1/operator/fraud-flags/:transferId` | `operator` | UC-10 | Trả chi tiết cờ, mảng `hits` (`ruleId`, `weight`, `explanation`), thông tin giao dịch và 10 dòng giao dịch gần nhất của tài khoản nguồn (lấy qua `LedgerQueryService.listTransactions`, không đọc thẳng bảng của ledger). Ghi `audit_log` (`action = 'fraud_flag.view'`). |
+| `POST /v1/operator/fraud-flags/:transferId/review` | `operator` | UC-10 | Body: `{ decision: 'CONFIRMED_FRAUD' \| 'FALSE_POSITIVE', note?: string }`. Cập nhật nguyên tử `WHERE transfer_id = $1 AND review_status = 'OPEN'` + ghi `audit_log`. Nếu cờ đã review trước đó → trả **409 `FLAG_ALREADY_REVIEWED`** (AC-10.1). |
+| `GET /v1/admin/risk-config` | `admin` | UC-12 | Trả phiên bản cấu hình `risk_rule_sets` mới nhất đang có hiệu lực. |
+| `POST /v1/admin/risk-config/versions` | `admin` | UC-12 | Tạo phiên bản cấu hình mới (`version = max + 1`) trong `risk_rule_sets`, ghi `audit_log`, cập nhật `cfg:risk:latest` và `cfg:risk:v{n}` trên Redis. |
+
+---
+
+## 4. Luồng nội bộ
+
+### 4.1 Luồng chấm điểm bất đồng bộ tại Worker (UC-9)
 
 ```mermaid
 sequenceDiagram
+    autonumber
     participant Q as SQS risk-events
-    participant W as Risk worker
-    participant P as OpenAI Decisions
-    participant DB as PostgreSQL
-    Q->>W: Valid TransferCompleted
-    W->>DB: Read event dedup and risk_decisions by transfer_id
-    alt Committed decision or duplicate event
-        W->>DB: Persist new event dedup if needed, reuse first decision
-        W->>Q: Ack after commit
-    else New TRANSFER
-        W->>W: Select config snapshot, extract features, run R1-R6
-        opt AI mode and admission plus budget allow
-            W->>P: Allowlisted feature projection, bounded request
-            P-->>W: Typed answer or bounded failure
+    participant W as RiskScoringConsumer
+    participant R as Redis
+    participant DB as PostgreSQL (dbs_worker)
+    participant S as ScoringService (R1–R6 + ONNX)
+
+    Q->>W: TransferCompleted (eventId, transferId, snapshot, occurredAt)
+    W->>DB: SELECT 1 FROM processed_events WHERE consumer='risk' AND event_id=$1
+    alt Đã xử lý hoặc type = DEPOSIT
+        W->>Q: Xóa message
+    else Chưa xử lý (type = TRANSFER)
+        W->>R: Đọc cfg:risk:latest -> cfg:risk:v{n} (miss/lỗi -> SELECT risk_rule_sets)
+        W->>R: Pipeline R1 (risk:vel) & R5 (risk:fan) theo occurredAt
+        alt Redis lỗi hoặc timeout
+            W->>DB: Fallback SELECT đếm R1, R5 trên v_transfer_facts
         end
-        W->>DB: BEGIN, claim processed_events
-        W->>DB: INSERT risk_decisions ON CONFLICT transfer_id DO NOTHING RETURNING
-        opt Transfer claim winner
-            W->>DB: Optional flag plus rule hits and decision audit
+        W->>DB: SELECT đặc trưng R2 (median 30d), R4 (round-trip 1h), R5 (người nhận mới) trên v_transfer_facts
+        W->>S: evaluate(event, features, ruleSetConfig)
+        S-->>W: { score, riskLevel, hits[] }
+        W->>DB: BEGIN (TransactionService.run)
+        W->>DB: INSERT INTO processed_events('risk', eventId) ON CONFLICT DO NOTHING, nếu 0 dòng thì ROLLBACK và xóa message
+        opt riskLevel IN ('MEDIUM', 'HIGH')
+            W->>DB: INSERT INTO fraud_flags (transfer_id, score, risk_level, rule_set_version)
+            W->>DB: INSERT INTO fraud_rule_hits (transfer_id, rule_id, weight, explanation)
+            W->>DB: AuditService.record(tx, { action: 'fraud_flag.create', ... })
         end
         W->>DB: COMMIT
-        W->>Q: Ack
+        W->>Q: Xóa message
     end
 ```
 
-1. Validate trước; DEPOSIT xử lý dedup riêng. Early lookup `risk_decisions(transfer_id)` **trước lấy config/chấm lại/gọi AI** tránh tính phí cho transfer đã commit, kể cả rule-only LOW được giao lại bằng eventId khác sau đổi mode.
-2. Chọn một config version và feature snapshot; luật thuần. Mode AI đánh giá mỗi TRANSFER mới, không prefilter theo ruleScore; quota/concurrency/budget/deadline có thể bỏ AI và ghi trạng thái rõ.
-3. Gọi API ngoài SQL transaction, tối đa một lần trong mỗi lần consumer xử lý; không retry provider hoặc đổi provider. Kết quả/status đã có là input bất biến của callback SQL.
-4. `TransactionService.run`: claim `processed_events`, rồi `INSERT risk_decisions ... ON CONFLICT (transfer_id) DO NOTHING RETURNING transfer_id`. Claim event thua không ghi dữ liệu phụ; claim transfer thua chỉ commit dedup event mới và dùng decision cũ. Bên thắng ghi optional flag/hits và audit decision trong cùng tx, kể cả quyết định LOW.
-5. Không Redis/HTTP/SQS trong callback có retry. SQL/audit lỗi rollback, không ack. Ack chỉ sau commit. Race hai worker có thể gọi provider hai lần trước commit; không hứa exactly-once billing. PostgreSQL quyết định một winner dùng chung mọi eventId/mode; rollback winner cho phép bên còn lại claim theo semantics ON CONFLICT.
+### 4.2 Luồng nhân viên review cờ gian lận (UC-10)
 
-### 4.2 Review một lần
+Xem sơ đồ tuần tự tại [`docs/03` §6.5](../../03_HIGH_LEVEL_ARCHITECTURE.md#65-review-cờ-gian-lận-uc-10--nhân-viên-đi-qua-từng-thành-phần). Điểm bất biến: câu lệnh `UPDATE fraud_flags SET review_status = $1, reviewed_by = $2, reviewed_at = clock_timestamp(), review_note = $3 WHERE transfer_id = $4 AND review_status = 'OPEN'` và `AuditService.record(...)` nằm trong **cùng một transaction**. Nếu `rowCount === 0` (cờ tồn tại nhưng không còn `OPEN`), rollback và ném HTTP `409` kèm `errorCode: ErrorCode.FLAG_ALREADY_REVIEWED`.
 
-`UPDATE fraud_flags ... WHERE transfer_id = $1 AND review_status = 'OPEN'` và audit cùng transaction. Nếu cờ tồn tại nhưng không còn OPEN, HTTP 409 `FLAG_ALREADY_REVIEWED`; cờ không tồn tại trả 404. Giữ contract identity/audit hiện có, không tự tạo guard/adapter giả.
+---
 
-## 5. Hosted AI, cấu hình và failure
+## 5. Phụ thuộc
 
-Provider đầu tiên đề xuất: OpenAI Decisions `POST /v1/decisions`, model guide hiện công bố `gpt-6-luna`; [guide chính thức](https://developers.openai.com/api/docs/guides/decisions) ghi public beta, chưa có benchmark fraud. Requested identifier/rubric/hash/config phải bất biến theo version; response model chỉ ghi nếu có.
+| Chiều | Thành phần | Kiểu giao tiếp | Chi tiết |
+|---|---|---|---|
+| `risk` nhận từ | `outbox` / SQS (`risk-events`) | Bất đồng bộ (event) | Nhận message `TransferCompleted` theo [`_shared/event-contract.md`](../_shared/event-contract.md) |
+| `risk` gọi | `audit` (`@modules/audit`) | Đồng bộ (trong cùng DB tx) | `AuditService.record(manager, ...)` khi tạo cờ, xem chi tiết cờ, review cờ, đổi cấu hình |
+| `risk` gọi | `identity` (`@modules/identity`) | Đồng bộ (HTTP Guard) | `@Roles('operator')`, `@Roles('admin')`, `@CurrentUser()` |
+| `risk` gọi | `ledger` (`@modules/ledger`) | Đồng bộ (trong request `api`) | `LedgerQueryService.listTransactions` cho 10 giao dịch gần nhất ở màn chi tiết cờ |
+| `risk` gọi | `libs/redis` (`@libs/redis`) | Đồng bộ (có timeout + fallback) | Bộ đếm R1/R5 và cache cấu hình `cfg:risk:*` |
+| `risk` gọi | PostgreSQL | Đồng bộ | Đọc `v_transfer_facts`; đọc/ghi `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, `processed_events` |
+| Module khác gọi `risk` | *Không có* | — | Không module nào phụ thuộc vào `risk`; khách hàng xem giao dịch qua `accounts`/`ledger` không bao giờ chạm tới bảng của `risk` (AC-10.2) |
 
-Payload chỉ allowlist: amount/fromBalanceBefore canonical strings, tuổi nguồn từ snapshot, sameOwner, count 10m/1h, count/median lịch sử 30d chính xác, phút từ lệnh ngược (null nếu không có), new recipients 1h, distinct recipients 24h. Không gửi ID giao dịch/user/account/correlation, timestamp tuyệt đối, tên/email/free text/scenario/labels/raw history. Rubric cố định `needs_operator_review`, tách dữ liệu; không yêu cầu chain-of-thought. Feature nhạy cảm vẫn cần duyệt điều kiện provider/retention/quyền gửi, không tự nhận ZDR.
+---
 
-| Tình huống | Hành vi đích |
+## 6. Phân quyền
+
+| Vai trò | Quyền trên API của `risk` | Quyền dữ liệu |
+|---|---|---|
+| `customer` | **Bị từ chối 100 %** trên mọi `/v1/operator/*` và `/v1/admin/*` | Không thấy bất kỳ trường nào về điểm rủi ro hay cờ gian lận trên các API khách hàng (BR-13, AC-10.2) |
+| `operator` | Được gọi `GET /v1/operator/fraud-flags`, `GET /v1/operator/fraud-flags/:transferId`, `POST /v1/operator/fraud-flags/:transferId/review` | Xem chi tiết cờ phải ghi `audit_log`; chỉ kết luận được cờ đang `OPEN` |
+| `auditor` | Không được gọi API sửa đổi (`review`, `versions`) | Tra cứu lịch sử tạo/xem/review cờ qua `/v1/audit/entries` (UC-8) |
+| `admin` | Được gọi `GET /v1/admin/risk-config`, `POST /v1/admin/risk-config/versions` | Chỉ thêm phiên bản cấu hình mới, không sửa/xóa phiên bản cũ |
+
+---
+
+## 7. Lỗi và sự cố
+
+| Tình huống | Mã lỗi / Hành vi xử lý |
 |---|---|
-| Response hợp lệ | p hữu hạn [0,1], áp policy cố định; p thấp vẫn SUCCEEDED nhưng weight 0 |
-| Timeout/kết nối/HTTP 401/402/429/5xx hoặc quá admission | UNAVAILABLE, baseline |
-| Refusal / typed answer sai type, thiếu/nhân đôi predicate, p sai | REFUSED / INVALID_RESPONSE, baseline |
-| Hết ngân sách | BUDGET_EXHAUSTED, baseline |
-| API lỗi | Không đưa DLQ chỉ vì AI; commit baseline/status/audit |
-| SQL/audit lỗi | Rollback, không ack, retry theo ConsumerBase; lần xử lý sau có thể gọi API lại nếu chưa commit |
-| Schema event sai | Theo schema/DLQ contract, không bỏ sameOwner hoặc dùng số dư hiện tại để chấm |
-
-Không log payload, raw response, secret hoặc Authorization; metric chỉ status/latency/token khi provider trả và mã lỗi nội bộ rút gọn. Ops phải duyệt HTTPS egress/secret/quota/concurrency/cost và alarm trong task riêng trước enable.
-
-AI mode bắt buộc `ai.maxAdmissionDelayMs`, `ai.requestTimeoutMs` nguyên dương, đo/duyệt trước enable. Ghi monotonic time khi chọn config; ngay trước send quá admission thì không gửi, ghi UNAVAILABLE. Request gửi rồi có client deadline, không giữ DB/slot vô hạn.
-
-Chuyển baseline bằng version `rule_only` mới, không sửa version/decision cũ. **Không phải kill switch tức thì:** `cfg:risk:latest` TTL 60s; nếu config store/TTL đáp ứng contract, request mới theo version cũ bị chặn sau `60s + maxAdmissionDelayMs` từ khi tạo version baseline. Request đã gửi có thể còn tối đa thêm requestTimeoutMs phía client; abort không bảo đảm provider hủy hoặc ngừng tính phí. Store lỗi thì không tự nhận đạt bound. Dừng egress/secret tức thì là quy trình Ops riêng, không sửa cloud dùng chung.
-
-## 6. Gate kiểm chứng và giới hạn
-
-- B0 R1–R6; B1 API riêng chỉ chẩn đoán offline, không mode production bỏ rule; B2 tổng hợp. B1/B2 dùng cùng một capture API trên cùng feature, không gọi hai lần rồi coi cùng điều kiện.
-- Tune chia tiếp theo khách để chọn cấu hình và validation; freeze ứng viên trước validation. Muốn enable: baseline và B2 đều ≤20 cờ/1.000 TRANSFER; giữ mục tiêu recall ≥70% trên năm kịch bản mục tiêu; B2 tăng ≥5 điểm phần trăm trên grouped validation và paired customer-cluster 95% CI chênh recall loại trừ 0. Báo cả hard negatives/kịch bản ngoài tầm.
-- Freeze code/config/model identifier/rubric trước holdout; holdout một lần, không chọn default theo holdout. API không cần train nhưng không miễn đánh giá độc lập.
-- Đo p95 giao dịch→cờ <5 giây tại 120 RPS cả khỏe/fallback; queue age, features/provider/DB time, timeout/429/fallback/coverage, duplicate calls và cost/1.000 TRANSFER gồm rollback/race. Quota và deadline phải phù hợp visibility/pool.
-- Test thật cần có race cùng event, khác event cùng transfer/mode, LOW trước đổi AI, rollback SQL/audit, cache cũ/admission/request đang chạy và PostgreSQL claim semantics; mock không chứng minh các case này.
-- Chưa có runtime fraud, live API, benchmark, số đo chất lượng/latency/cost hoặc gate enable hoàn tất trong PR này. Replay chỉ kiểm policy trên capture, không bảo đảm live model tái lập. Dữ liệu tổng hợp không chứng minh hiệu quả ngân hàng thật hoặc thắng model tự train; cờ sau commit không thu hồi tiền và không là kết luận gian lận.
+| Nhân viên review cờ đã có kết luận (`CONFIRMED_FRAUD` / `FALSE_POSITIVE`) | HTTP `409 Conflict` · `errorCode = ErrorCode.FLAG_ALREADY_REVIEWED` (AC-10.1) |
+| Nhân viên mở/review `transferId` không có cờ | HTTP `404 Not Found` (`application/problem+json`) |
+| Sự kiện `TransferCompleted` bị SQS giao trùng (≥ 2 lần) | Member của Redis sorted set là `transferId` nên không đếm đôi R1; `processed_events('risk', event_id)` và khóa chính `fraud_flags(transfer_id)` chặn tạo cờ trùng (AC-9.2) |
+| Sự kiện đến trễ hoặc đảo thứ tự | Mọi cửa sổ thời gian (10 phút, 1 giờ, 24 giờ, 30 ngày) tính theo `event.occurredAt`, kết quả chấm điểm bất biến theo thời điểm xử lý |
+| Redis chết hoặc chậm vượt timeout | Circuit breaker mở → `OnlineFeatureProvider` tự động chạy truy vấn dự phòng trên `v_transfer_facts` và đọc `risk_rule_sets` từ PostgreSQL; ghi metric `risk_redis_fallback_total`; kết quả chấm điểm không đổi |
+| Một luật hoặc mô hình ONNX ném lỗi | Bắt lỗi tại chỗ, tăng `risk_rule_error_total{rule}`, các luật còn lại vẫn chạy bình thường để không chặn hàng đợi |
+| File mô hình sai `sha256` hoặc không nạp được | Sự kiện chấm bằng 6 luật, `risk_rule_error_total{rule="ML"}`; tắt hẳn bằng phiên bản cấu hình mới có `ml.enabled = false` |
+| Message sai schema JSON | Ghi log cảnh báo kèm `correlationId` và chuyển thẳng sang `risk-events-dlq` (không retry) |
+| PostgreSQL lỗi tạm thời khi worker ghi cờ | Transaction rollback, không xóa message khỏi SQS → SQS giao lại sau visibility timeout; quá 5 lần thất bại → chuyển sang `risk-events-dlq` và bật alarm |

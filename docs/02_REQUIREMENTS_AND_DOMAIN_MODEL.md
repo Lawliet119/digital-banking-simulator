@@ -2,7 +2,7 @@
 
 > **Status:** Accepted v1.1 (chốt 2026-10-11) · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-10-11
 
-> **Đề xuất chưa triển khai:** phần risk có nhãn **Proposed** tham chiếu [ADR-14](adr/0014-fraud-rules-external-ai.md), đề xuất thay riêng nghĩa vụ train/ONNX của ADR-08. ADR-08 vẫn Accepted cho tới khi nhóm chấp nhận ADR-14; việc bổ sung tài liệu không xác nhận fraud runtime hoặc API đã hoạt động.
+> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
 | Thuộc tính | Giá trị |
 |---|---|
@@ -140,7 +140,7 @@ Sơ đồ người dùng tương tác với từng thành phần cho các use ca
 |---|---|
 | Actor | Nhân viên vận hành |
 | Tiền điều kiện | Có cờ đang ở trạng thái `OPEN` |
-| Luồng chính | Xem danh sách cờ (lọc theo mức rủi ro, thời gian) → mở một cờ, thấy giao dịch, điểm tổng và các luật thật đã kích hoạt/giải thích; **Proposed:** thấy đánh giá AI riêng hoặc null baseline → nhân viên kết luận **Gian lận thật** hoặc **Báo nhầm**, kèm ghi chú → hệ thống lưu kết luận, người review, thời điểm và ghi nhật ký |
+| Luồng chính | Xem danh sách cờ (lọc theo mức rủi ro, thời gian) → mở một cờ, thấy giao dịch, các luật đã kích hoạt và giải thích → kết luận **Gian lận thật** hoặc **Báo nhầm**, kèm ghi chú → hệ thống lưu kết luận, người review, thời điểm và ghi nhật ký |
 | Ngoại lệ | Cờ đã được review → không cho review lại (HTTP 409, `FLAG_ALREADY_REVIEWED`); người gọi không phải nhân viên → từ chối |
 
 #### UC-11 — Khóa / mở khóa tài khoản
@@ -162,7 +162,7 @@ Sơ đồ người dùng tương tác với từng thành phần cho các use ca
 | UC-6 | Mã tài khoản, khoảng thời gian, trang | Danh sách giao dịch vào/ra, mới nhất trước | Chỉ chủ tài khoản |
 | UC-7 | Mã giao dịch | `COMPLETED` / `REJECTED` + lý do | Chỉ người gửi và người nhận |
 | UC-8 | Bộ lọc: người thực hiện, hành động, thời gian, mã liên kết | Danh sách bản ghi nhật ký | Chỉ đọc; chính việc tra cứu cũng được ghi |
-| UC-9 | Giao dịch TRANSFER vừa hoàn tất (không chấm DEPOSIT) | Cờ nếu đủ mức; **Proposed:** lưu quyết định mọi mode/LOW/fallback và tách đánh giá AI khỏi danh sách luật | Không chặn, không tự khóa; không tạo cờ/quyết định trùng theo transfer |
+| UC-9 | Giao dịch vừa hoàn tất | Cờ (nếu có) với mức rủi ro và danh sách luật | Không chặn, không khóa; không tạo cờ trùng |
 | UC-12 | Tham số luật, trọng số, hạn mức | Phiên bản cấu hình mới | Mỗi lần đổi tạo phiên bản mới, không sửa phiên bản cũ; có nhật ký |
 
 ---
@@ -194,12 +194,12 @@ Sơ đồ người dùng tương tác với từng thành phần cho các use ca
 | FR-LED-09 | Trả trạng thái và lý do của một giao dịch | UC-7 | BR-10 | Must |
 | FR-LED-10 | Đối soát định kỳ: tổng Nợ = tổng Có, số dư = tổng bút toán; cảnh báo khi lệch | — | BR-02 | Should |
 | **Rủi ro và gian lận** |||||
-| FR-RSK-01 | Chấm điểm mọi giao dịch hoàn tất loại **TRANSFER** sau khi giao dịch xong, không làm chậm khách; không chấm DEPOSIT | UC-9 | BR-11 | Must |
+| FR-RSK-01 | Chấm điểm mọi giao dịch hoàn tất **sau khi** giao dịch xong, không làm chậm khách | UC-9 | BR-11 | Must |
 | FR-RSK-02 | Áp dụng 6 luật R1–R6 (mục 2.1) với tham số cấu hình được | UC-9 | — | Must |
-| FR-RSK-03 | Tạo cờ khi điểm từ mức Trung bình trở lên, lưu danh sách luật thật đã kích hoạt làm giải thích; **Proposed:** AI bổ sung được tách riêng, không giả thành hit R1–R6 | UC-9 | BR-11 | Must |
+| FR-RSK-03 | Tạo cờ khi điểm từ mức Trung bình trở lên, lưu danh sách luật đã kích hoạt làm giải thích | UC-9 | BR-11 | Must |
 | FR-RSK-04 | Không tạo cờ trùng khi cùng giao dịch được chấm điểm nhiều lần | UC-9 | — | Must |
 | FR-RSK-05 | Cho nhân viên xem, lọc và kết luận cờ (Gian lận thật / Báo nhầm) | UC-10 | BR-11 | Must |
-| FR-RSK-06 | Không để khách hàng thấy cờ của mình hoặc bất kỳ assessment/provenance AI nào | — | BR-13 | Must |
+| FR-RSK-06 | Không để khách hàng thấy cờ của mình | — | BR-13 | Must |
 | FR-RSK-07 | Quản lý cấu hình luật và hạn mức theo phiên bản | UC-12 | — | Could |
 | **Kiểm toán** |||||
 | FR-AUD-01 | Ghi nhật ký cho mọi thao tác thay đổi dữ liệu; không ghi được thì hủy thao tác | Tất cả | BR-09 | Must |
@@ -220,11 +220,7 @@ Sơ đồ người dùng tương tác với từng thành phần cho các use ca
 | R5 | Phân tán (mule) | Một tài khoản chuyển cho nhiều người nhận **mới** | ≥ 5 người nhận mới / 1 giờ |
 | R6 | Rút cạn | Chuyển gần hết số dư trong một lần | ≥ 90% số dư trước giao dịch |
 
-Mỗi luật có **trọng số** (`v1`: R1 30, R2 25, R3 35, R4 20, R5 40, R6 30). Tổng điểm baseline quy ra mức `THẤP` (< 40) / `TRUNG BÌNH` (40–69) / `CAO` (≥ 70); từ Trung bình trở lên thì tạo cờ. R2 cần ít nhất 5 lệnh lịch sử; R5, R6 không áp dụng khi hai tài khoản cùng chủ (`sameOwner`); R6 chỉ xét khi số dư trước giao dịch ≥ 1.000.000đ. Cửa sổ lịch sử tính theo thời điểm giao dịch, không theo thời điểm consumer nhận; R3/R6 dùng ảnh chụp tuổi tài khoản/số dư tại giao dịch, không đọc trạng thái hiện tại.
-
-**Proposed — không phải nghĩa vụ train mới:** [ADR-14](adr/0014-fraud-rules-external-ai.md) đề xuất thay phần học tham số/ONNX của [ADR-08](adr/0008-fraud-detection-architecture.md) bằng hai mode `rule_only` (mặc định) và `rules_with_external_ai` (opt-in sau gate). Không bắt buộc train model trong phương án API; vẫn phải đánh giá dữ liệu tune/validation và holdout độc lập. Khi ADR-14 chưa được nhóm chấp nhận, ADR-08 vẫn giữ trạng thái Accepted, không được coi là đã bị thay.
-
-Trong đề xuất, `ruleScore = sum(weight của hit R1–R6)`; AI chỉ cộng một trọng số cấu hình cố định khi response thành công có p hữu hạn đạt threshold, còn lại cộng 0. `score = ruleScore + aiAppliedWeight`, không dùng `100*p`; AI không xóa hoặc hạ cờ baseline. Nhân viên nhận điểm tổng, danh sách luật và đánh giá AI tách riêng (baseline là null), không được suy tổng từ hits một mình. Mỗi TRANSFER có một quyết định đầu bất biến ở mọi mode, kể cả LOW/fallback; giao lại cùng transfer với event khác hoặc sau đổi mode vẫn dùng quyết định cũ. Đánh giá AI chỉ là gợi ý review, không tự khóa/giữ/thu hồi tiền, không là kết luận gian lận và không xuất hiện trong dữ liệu customer.
+Mỗi luật có **trọng số** (`v1`: R1 30, R2 25, R3 35, R4 20, R5 40, R6 30). Tổng điểm quy ra mức `THẤP` (< 40) / `TRUNG BÌNH` (40–69) / `CAO` (≥ 70); từ Trung bình trở lên thì tạo cờ. R2 cần ít nhất 5 lệnh lịch sử; R5, R6 không áp dụng khi hai tài khoản cùng chủ; R6 chỉ xét khi số dư trước giao dịch ≥ 1.000.000đ. Phiên bản `v2` giữ nguyên 6 luật, tham số học từ tập tune ([ADR-08](adr/0008-fraud-detection-architecture.md)).
 
 ---
 
@@ -261,7 +257,7 @@ Viết theo dạng **Given – When – Then** để chuyển thẳng thành tes
 |---|---|---|---|
 | AC-8.1 | Kiểm toán viên đăng nhập | Thử sửa hoặc xóa bất kỳ dữ liệu nào | Bị từ chối |
 | AC-8.2 | Một giao dịch đã hoàn tất | Kiểm toán viên tra theo mã liên kết | Thấy đủ chuỗi: yêu cầu → ghi sổ → thông báo → (cờ → review) |
-| AC-9.1 | Tài khoản nguồn mở 1 giờ, số dư trước 21 triệu, chuyển 20 triệu tới tài khoản khác chủ; fixture chỉ khớp R3 và R6, không khớp R1/R2/R4/R5; dùng baseline | Chấm điểm xong | `35 + 30 = 65`, có đúng 1 cờ `MEDIUM` nêu rõ R3 và R6; R6 một mình 30 điểm không đủ tạo cờ |
+| AC-9.1 | Giao dịch khớp luật R6 | Chấm điểm xong | Có cờ nêu rõ luật R6 |
 | AC-9.2 | Cùng một giao dịch được chấm điểm 2 lần | Chấm điểm xong | Chỉ có 1 cờ |
 | AC-10.1 | Cờ đã được kết luận | Nhân viên kết luận lại | Bị từ chối với HTTP 409, `errorCode` là `FLAG_ALREADY_REVIEWED` |
 | AC-10.2 | Khách có giao dịch bị gắn cờ | Khách xem lịch sử, trạng thái | Không thấy bất kỳ thông tin nào về cờ |
@@ -451,16 +447,6 @@ classDiagram
         +List~RiskRule~ rules
         +Limits limits
     }
-    %% RiskDecision là phần mở rộng Proposed theo ADR-14
-    class RiskDecision {
-        +TransferId transferId
-        +int ruleSetVersion
-        +String mode
-        +int ruleScore
-        +String aiStatus
-        +int aiAppliedWeight
-        +DateTime decidedAt
-    }
     class AuditEntry {
         +Actor actor
         +String action
@@ -481,14 +467,9 @@ classDiagram
     User "1" --> "*" IdempotencyRecord : gửi
     IdempotencyRecord "1" --> "1" Transfer : trỏ tới kết quả
     Transfer "1" --> "0..1" FraudFlag : có thể bị gắn
-    FraudFlag "1" *-- "0..*" RuleHit : luật thật, Proposed cho phép 0
+    FraudFlag "1" *-- "1..*" RuleHit : gồm
     FraudFlag "*" --> "1" RiskRuleSet : theo phiên bản
-    Transfer "1" --> "0..1" RiskDecision : Proposed quyết định đầu
-    RiskDecision "1" --> "0..1" FraudFlag : Proposed đủ ngưỡng
-    RiskDecision "*" --> "1" RiskRuleSet : Proposed cấu hình đã dùng
 ```
-
-`RiskDecision` và các quan hệ mang nhãn Proposed chỉ thuộc ADR-14; không phải domain runtime đã có. Baseline Accepted có ít nhất một `RuleHit` mỗi cờ; đề xuất có thể tạo cờ AI-only nên cho phép 0 hit. Mọi TRANSFER được xử lý phải có decision kể cả không có cờ; trước khi consumer xử lý, quan hệ với transfer là 0..1. Snapshot và metadata chi tiết đặt tại [database-design §4.8](components/_shared/database-design.md#48-nhóm-fraud).
 
 ### 7.1 Aggregate và bất biến
 
@@ -501,7 +482,6 @@ classDiagram
 | **IdempotencyRecord** | IdempotencyRecord | Duy nhất theo (người gửi, mã yêu cầu); đã có kết quả thì không đổi | BR-07 |
 | **Customer** | Customer | Tối đa 3 tài khoản | BR-14 |
 | **FraudFlag** | FraudFlag + RuleHit | Mỗi giao dịch tối đa 1 cờ; mỗi luật xuất hiện tối đa 1 lần trong cờ; chỉ review một lần | BR-11 |
-| **RiskDecision (Proposed)** | RiskDecision + cờ/hit tùy điểm | Một decision bất biến / TRANSFER ở mọi mode, LOW và fallback; claim quyết định đầu cùng dedup và audit; cờ cùng transfer/version, tổng điểm = ruleScore + aiAppliedWeight, tổng hit = ruleScore khi có cờ | FR-RSK-03, 04 |
 | **RiskRuleSet** | RiskRuleSet | Mỗi phiên bản bất biến; thay đổi = phiên bản mới | — |
 | **AuditEntry** | AuditEntry | Chỉ thêm, không sửa, không xóa | BR-09 |
 

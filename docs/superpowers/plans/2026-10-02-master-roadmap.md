@@ -1,12 +1,14 @@
 # Digital Banking Simulator — Master Roadmap (10 tuần)
 
+> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
 > **Đây là roadmap mức cao, không phải plan từng dòng code.** Mỗi "Task" bên dưới là một hệ thống con; trước khi bắt tay vào task nào, viết **plan chi tiết riêng** cho nó (skill `writing-plans`, lưu cạnh file này) với bước test → code → commit. Roadmap này chốt: thứ tự, phụ thuộc, giao diện giữa các task, mốc theo tuần và tiêu chí xong.
 
 **Goal:** Đưa Digital Banking Simulator từ khung NestJS trống tới một luồng chạy thật trên AWS (đăng ký → mở tài khoản → nạp tiền → chuyển tiền → lịch sử → phát hiện gian lận → nhân viên review → kiểm toán tra cứu), cùng 5 demo bắt buộc và 5 bản nộp P1–P5, trong 10 tuần (05/10 → 13/12/2026).
 
-**Architecture:** Modular monolith NestJS, một image chạy theo `APP_ROLE` (`api` / `worker` / `both`). PostgreSQL là nguồn sự thật duy nhất (sổ cái bút toán kép, idempotency và audit cùng transaction); Redis chỉ là cache có đường dự phòng; sự kiện đi qua transactional outbox → SQS (mỗi consumer một queue + DLQ). Fraud giữ R1–R6 bất đồng bộ, chỉ gắn cờ. [ADR-08](../../adr/0008-fraud-detection-architecture.md) vẫn Accepted; [ADR-14](../../adr/0014-fraud-rules-external-ai.md) đề xuất thay phần tự train/ONNX bằng API AI bổ sung có gate, chưa có implementation.
+**Architecture:** Modular monolith NestJS, một image chạy theo `APP_ROLE` (`api` / `worker` / `both`). PostgreSQL là nguồn sự thật duy nhất (sổ cái bút toán kép, idempotency và audit cùng transaction); Redis chỉ là cache có đường dự phòng; sự kiện đi qua transactional outbox → SQS (mỗi consumer một queue + DLQ). Fraud là 6 luật hàm thuần chạy bất đồng bộ ở worker, chỉ gắn cờ; cấu hình luật có phiên bản và có thể học tham số (`v2`); mô hình ONNX in-process (`v3`) chỉ là mở rộng có điều kiện (ADR-08).
 
 **Tech Stack:** Node.js ≥ 24, TypeScript strict, NestJS 11, TypeORM (+ SQL tường minh trong `QueryRunner`), PostgreSQL 17, Valkey (ioredis), SQS (ElasticMQ ở local), Cognito, Jest + Supertest + Testcontainers, k6, Terraform, GitHub Actions, AWS (ECS Fargate, RDS, ElastiCache, WAF, KMS, CloudWatch).
 
@@ -218,28 +220,25 @@ Các điểm spec từng còn mở. Tất cả đã có kết luận; lý do n�
 
 **Owner:** #4 · **Cặp đôi:** #1. **Use case:** UC-9, 10, 12 · **AC:** AC-9.1, 9.2, 10.1, 10.2 · **ADR:** 08, 12 (phần bộ đếm). **Chi tiết:** [`components/risk/FRAUD_DETECTION_GUIDE.md`](../../components/risk/FRAUD_DETECTION_GUIDE.md).
 
-**Phương án chuyển đổi Proposed:** Phần Task 6 dưới đây mô tả hướng đích của ADR-14; chưa đổi quyết định Accepted của nhóm hoặc DoD trên sheet. Ledger, event, outbox, consumer framework, quyền customer và các task khác giữ nguyên. Chi tiết chuyển task/bàn giao: [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md#74-handoff-và-lộ-trình-implementation-kế-tiếp).
-
 **Files:**
 - Create: `backend/src/modules/risk/{risk.module.ts,risk-flags.controller.ts,risk-config.controller.ts,risk-scoring.consumer.ts,scoring.service.ts,entities/,rules/{rule.ts,r1-velocity.rule.ts,…,r6-drain.rule.ts},features/{feature-provider.ts,online-feature-provider.ts,offline-feature-provider.ts},config/rule-set.repository.ts,index.ts}`, migrations `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, DB role riêng cho worker; script đánh giá offline `backend/src/scripts/evaluate-rules.ts`.
-- Theo ADR-14 Proposed, thêm thiết kế client Decisions API nội bộ risk và `risk_decisions` cho mọi TRANSFER/mode, kể cả LOW/fallback. Không có Python pipeline/model artifact; migration/client thật là task implementation sau khi dependency và gate sẵn sàng, không phải code đã tồn tại.
 
 **Interfaces:**
 - Consumes: event `TransferCompleted` từ `risk-events` (T4), `ConsumerBase` (T4), `RedisClient` (T1), `AuditService` (T4).
 - Produces: `interface RiskRule { id: 'R1'|…|'R6'; evaluate(event, features, params): RuleHit | null }` (hàm thuần); `FeatureProvider` (online: Redis + SQL; offline: dữ liệu trong bộ nhớ); `GET /v1/operator/fraud-flags`, `GET …/{transferId}`, `POST …/{transferId}/review` (`CONFIRMED_FRAUD`/`FALSE_POSITIVE`, chỉ một lần); `GET/POST /v1/admin/risk-config…` (phiên bản bất biến).
 
-**Mốc theo tuần của phương án API (Proposed):** T1–2 chốt luật, schema, interface · T3 review sync guard thuộc ledger · T4 6 luật + consumer + Redis/dự phòng SQL và claim decision theo transfer · T5 API review, tune đầu tiên và spike provider trên dữ liệu tổng hợp khi có credential/quyền gọi · T6 so B0 rules/B1 API diagnostic/B2 kết hợp, gate chất lượng/dữ liệu/latency/quota/cost, parity online/offline · T7 đóng băng cấu hình/rubric/model identifier, chạy holdout **một lần**, ablation và đường PR. Không train/fine-tune model trong phương án này.
+**Mốc theo tuần:** T1–2 chốt luật, schema, interface · T3 sync guard do #1 viết (thuộc Task 3), #4 review · T4 6 luật + consumer + Redis + dự phòng SQL → "chuyển tiền xong thì cờ tự xuất hiện" · T5 API review + đánh giá lần đầu trên tập tune + spike ONNX và cổng go/no-go cho `v3` (ADR-08) · T6 học tham số (`v2`), test so khớp online/offline, và `v3` chỉ nếu qua cổng · T7 đóng băng cấu hình, chạy holdout **một lần**, ablation, đường PR.
 
 - [ ] Mọi cửa sổ thời gian tính theo `occurredAt`; R3/R6 dùng snapshot trong event, không đọc số dư hiện tại; chấm điểm chỉ `TRANSFER`, bỏ qua `DEPOSIT`; `sameOwner` miễn R5/R6.
-- [ ] Baseline: tổng trọng số R1–R6 (30/25/35/20/40/30); LOW <40 không cờ, MEDIUM 40–69, HIGH ≥70. Phương án API dùng `score = risk_decisions.rule_score + risk_decisions.ai_applied_weight`; hits chỉ là rule, assessment hiển thị riêng. API không hủy cờ baseline; không nhân p với 100. Ví dụ guide thành test số học và policy.
+- [ ] Điểm = tổng trọng số luật kích hoạt (R1 30, R2 25, R3 35, R4 20, R5 40, R6 30, phiên bản `v1`); `0–39 LOW` (không cờ), `40–69 MEDIUM`, `≥ 70 HIGH`; ví dụ bảng §4.3 của guide thành unit test.
 - [ ] Khách không thấy cờ: không endpoint customer nào trả trường về cờ (AC-10.2).
 - [ ] Review lần hai trả 409 `FLAG_ALREADY_REVIEWED` (AC-10.1).
 - [ ] Cấu hình luật: `cfg:risk:latest` trỏ phiên bản hiện hành (TTL 60 giây, miss thì `max(version)` từ DB), `cfg:risk:v{n}` bất biến.
 - [ ] Redis lỗi → dự phòng SQL cho R1/R5, kết quả không đổi (test bật/tắt Redis).
 - [ ] Test so khớp: `OnlineFeatureProvider` và `OfflineFeatureProvider` cho cùng đặc trưng trên cùng dữ liệu.
-- [ ] **Review Focus test (risk):** sự kiện trễ/đảo thứ tự giữ feature và rule trong phạm vi parity đã chốt; trùng transfer không đếm đôi. Rule-only LOW đã commit rồi nhận eventId mới cùng transfer sau khi bật AI vẫn dùng quyết định cũ, không gọi provider lại. Test cache TTL 60 giây, admission và request đang chạy; không hứa p live bất biến hoặc tắt egress tức thì.
+- [ ] **Review Focus test (4):** sự kiện đến muộn (worker xử lý sau 30 phút) cho cùng kết quả như xử lý tức thì; hai sự kiện đảo thứ tự `occurredAt` vẫn đếm R1 đúng; cùng `transferId` hai lần → R1 không đếm đôi (member sorted set là `transferId`).
 
-**Exit:** AC-9.1, 9.2, 10.1, 10.2 xanh trên implementation thật; có dữ liệu tune và holdout đủ P5. Chỉ bật AI khi đạt gate ADR-14, nếu không thì no-go và baseline vẫn hoạt động. Báo B0/B1/B2, recall/precision/F1 theo kịch bản, cờ/1.000 TRANSFER, ablation/PR, fallback/coverage/latency/cost; không coi API đã chạy hoặc tốt hơn khi chưa đo. Việc nhóm chấp nhận ADR-14 và cập nhật sheet được theo dõi riêng, không tự đóng task ONNX bằng kết quả API.
+**Exit:** AC-9.1, 9.2, 10.1, 10.2 xanh; có bảng trước/sau tune; số liệu holdout đủ cho P5 (precision, recall, F1, recall theo kịch bản, ablation, đường PR).
 
 ---
 
