@@ -639,7 +639,7 @@ Ranh giới tài nguyên chưa được chứng minh bằng load: risk chia sẻ
 
 ### 8.7 Vòng sửa 2: kết quả
 
-**Phạm vi đã thực hiện.** Sáu commit trên nhánh, không có production code, migration, dependency, env hay tài nguyên cloud: C1 `f0a57d7` merge `origin/main` (hai xung đột tài liệu, giữ nguyên dòng upstream, đánh số lại backlog fraud); C2 `73dc4af` khôi phục tám file Accepted về bản main + khung ADR-14; C3 `e0dc4cf` sửa baseline R1–R6 và AC-9.1 (10 nhóm hunk H1–H10); C4 `1a4d66f` ADR-14, hồ sơ và phụ lục §3.8; C5 `13f6334` ghi chú Proposed ở tài liệu vai khác; C6 là commit chứa mục này (backlog, feature index, đánh số lại BL, bằng chứng). So với `origin/main`, PR đổi 27 file; `docs/03` chỉ thêm khung hai dòng. Chưa push; Draft PR #20 trên GitHub vẫn ở trạng thái vòng 1 cho tới khi push.
+**Phạm vi đã thực hiện.** Sáu commit trên nhánh, không có production code, migration, dependency, env hay tài nguyên cloud: C1 `f0a57d7` merge `origin/main` (hai xung đột tài liệu, giữ nguyên dòng upstream, đánh số lại backlog fraud); C2 `73dc4af` khôi phục tám file Accepted về bản main + khung ADR-14; C3 `e0dc4cf` sửa baseline R1–R6 và AC-9.1 (10 nhóm hunk H1–H10); C4 `1a4d66f` ADR-14, hồ sơ và phụ lục §3.8; C5 `13f6334` ghi chú Proposed ở tài liệu vai khác; C6 là commit chứa mục này (backlog, feature index, đánh số lại BL, bằng chứng). So với `origin/main`, PR đổi 28 file (27 file khi thu thập bằng chứng, cộng chính file `verification-round2.txt`); `docs/03` chỉ thêm khung hai dòng. Chưa push; Draft PR #20 trên GitHub vẫn ở trạng thái vòng 1 cho tới khi push.
 
 **Kiểm chứng đã chạy** (đầu ra thô: [verification-round2.txt](screenshots/FRAUD-API-01/verification-round2.txt)):
 
