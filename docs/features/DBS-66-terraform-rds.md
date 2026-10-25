@@ -41,7 +41,7 @@
 | `multi_az = true` hoặc `instance_class` khác | đặt qua biến | áp dụng (dành cho production, không dùng ở task này) |
 
 **Ca biên và rủi ro:**
-- `max_connections` của `db.t4g.micro` là giá trị tính theo RAM (≈ 80–110); `superuser_reserved_connections` (3) và `rds.rds_superuser_reserved_connections` (2) bị giữ lại: ghi con số thật vào §8 và kiểm `số task × 10 + 5 ≤ max_connections` trừ phần giữ.
+- `max_connections` của `db.t4g.micro` là giá trị tính theo RAM (≈ 80–110); `superuser_reserved_connections` (3) và `reserved_connections` (PG 16+; tham số `rds.rds_superuser_reserved_connections` chỉ có ở PG 15 trở xuống) bị giữ lại: ghi con số thật vào §8 và kiểm `số task × 10 + 5 ≤ max_connections − superuser_reserved_connections − reserved_connections`.
 - Trên RDS PostgreSQL 15+ `rds.force_ssl` mặc định đã là 1 và `timezone` mặc định UTC; parameter group tùy chỉnh đặt tường minh để giá trị không phụ thuộc mặc định của AWS (kiểm bằng `describe-db-parameters --source user`).
 - Secret master có tên `rds!db-<uuid>` duy nhất theo từng instance, nên tạo lại instance cùng `identifier` không đụng bẫy trùng tên secret (khác platform.md).
 - Tên database `dbs` khác `banking` ở local/CI: app chỉ nhận `DATABASE_URL` nên vô hại; ghi trong bàn giao cho DBS-67/68.
@@ -73,7 +73,7 @@ flowchart LR
 
 ## 4. Test cases tự động
 
-`terraform test` với `mock_provider "aws"`. Cần cập nhật các test cũ: `override_resource` cho `aws_db_instance.main` với `master_user_secret = [{ secret_arn = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf", kms_key_id = <ARN KMS giả>, secret_status = "active" }]` và `override_resource` cho `aws_kms_key.main` (ARN hợp lệ); thêm `kms_key_arn`, `db_subnet_group_name`, `db_security_group_id` vào override `terraform_remote_state` của `session` (nếu không 4 run apply cũ của `session` đỏ vì `[0]` trên list rỗng).
+`terraform test` với `mock_provider "aws"`. Cần cập nhật `session/tests/session.tftest.hcl` (nếu không **mọi** run của `session` đều lỗi: Unsupported attribute khi instance tham chiếu output mới, và `[0]` trên list rỗng ở các run apply): thêm vào override `terraform_remote_state` `kms_key_arn = "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"` (phải là ARN hợp lệ vì provider kiểm định dạng `kms_key_id`), `db_subnet_group_name`, `db_security_group_id`; và `override_resource` mức tệp cho `aws_db_instance.main` với `master_user_secret = [{ secret_arn = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf", kms_key_id = <ARN KMS giả>, secret_status = "active" }]`. `aws_kms_key.main` ở `base` nên không có trong override của `session`.
 
 | ID | Truy vết | Lớp | Given · When · Then | Mong đợi |
 |---|---|---|---|---|
@@ -103,24 +103,66 @@ DoD 3 (ghi chi phí) kiểm bằng §8 và README, không có test tự động.
 | M-66-01 | `apply` base; `describe-security-groups` (SG `db`, SG `api`), `kms describe-key`, `get-key-rotation-status` | SG `db`: ingress 5432 chỉ từ SG `api`, `IpPermissionsEgress == []`; SG `api` có egress 5432 tới SG `db`; xoay khóa `true` |
 | M-66-02 | `terraform plan` session với biến trên | `Plan: … to add`, `0 to destroy`; tag đủ |
 | M-66-03 | `apply` session (ghi giờ bắt đầu); `aws rds describe-db-instances --db-instance-identifier dbs-dev`; `describe-db-parameters --db-parameter-group-name dbs-dev-postgres17 --source user` | `available`, `postgres 17.x`, `db.t4g.micro`, `MultiAZ false`, `StorageEncrypted true` với CMK, `PubliclyAccessible false`, parameter group `in-sync`, `BackupRetentionPeriod 1`, `CACertificateIdentifier rds-ca-rsa2048-g1`; tham số `rds.force_ssl=1`, `timezone=UTC` |
-| M-66-04 | Chuẩn bị probe: IAM role tạm `dbs-probe-exec` (trust `ecs-tasks.amazonaws.com`; inline policy `secretsmanager:GetSecretValue` trên secret master, `kms:Decrypt` trên CMK, `logs:CreateLogStream`/`PutLogEvents` trên `/dbs/dev/api:*`); task definition `dbs-probe-db` (image `public.ecr.aws/docker/library/postgres:17-alpine`; `PGPASSWORD` và `PGUSER` từ `secrets` `<secret ARN>:password::`, `:username::`; `PGHOST`, `PGDATABASE=dbs`, `PGCONNECT_TIMEOUT=5` là biến thường; log `awslogs` về `/dbs/dev/api` prefix `probe`); `run-task` ở public subnet, SG `api`, `assignPublicIp=ENABLED`, lệnh container qua `--overrides`: `sh -c 'out=$(psql "sslmode=disable" -c "select 1" 2>&1); echo "$out"; echo "$out" \| grep -q "no encryption" \|\| exit 1; psql "sslmode=require" -Atc "select ssl, version from pg_stat_ssl where pid = pg_backend_pid(); show timezone; show max_connections; show superuser_reserved_connections; show rds.rds_superuser_reserved_connections; select version()"'` | task `STOPPED` exit code 0 |
+| M-66-04 | Chuẩn bị probe: IAM role tạm `dbs-probe-exec` (trust `ecs-tasks.amazonaws.com`; inline policy `secretsmanager:GetSecretValue` trên secret master, `kms:Decrypt` trên CMK, `logs:CreateLogStream`/`PutLogEvents` trên `/dbs/dev/api:*`); task definition `dbs-probe-db` (image `public.ecr.aws/docker/library/postgres:17-alpine`; `PGPASSWORD` và `PGUSER` từ `secrets` `<secret ARN>:password::`, `:username::`; `PGHOST`, `PGDATABASE=dbs`, `PGCONNECT_TIMEOUT=5` là biến thường; log `awslogs` về `/dbs/dev/api` prefix `probe`); ``run-task` ở public subnet, SG `api`, `assignPublicIp=ENABLED`, lệnh container qua `--overrides file://probe-overrides.json` (nội dung ở khối code dưới bảng) | task `STOPPED` exit code 0 |
 | M-66-05 | Đọc log của task (CloudWatch Logs, prefix `probe`) | `FATAL: no pg_hba.conf entry for host "…", user "dbs_master", database "dbs", no encryption` cho phiên không TLS |
-| M-66-06 | Đọc phần còn lại của log | `t` và `TLSv1.2` hoặc `TLSv1.3`; `UTC`; `max_connections` (ghi lại); `3`; `2`; `PostgreSQL 17.x` |
+| M-66-06 | Đọc phần còn lại của log | `t` và `TLSv1.2` hoặc `TLSv1.3`; `UTC`; `max_connections` (ghi lại); `3` (`superuser_reserved_connections`); `reserved_connections` (ghi lại); `PostgreSQL 17.x` |
 | M-66-07 | **Đối chứng âm:** SG tạm `dbs-probe-deny` (egress 443 tới `0.0.0.0/0` và 5432 tới CIDR VPC; không có trong ingress của SG `db`); chạy cùng task với SG này, lệnh `psql "sslmode=require connect_timeout=5" -c "select 1"` | log báo timeout kết nối (`timeout expired`/`Connection timed out`): SG `db` chỉ nhận từ SG `api` |
 | M-66-08 | Dọn theo thứ tự: `wait tasks-stopped` → `iam delete-role-policy` → `iam delete-role` → `ecs deregister-task-definition` → `ecs delete-task-definitions` → xóa SG `dbs-probe-deny` (sau khi ENI nhả); kiểm `iam get-role` (NoSuchEntity), `ecs list-task-definitions --family-prefix dbs-probe-db --status ACTIVE` | không còn role, task definition hay SG tạm |
 | M-66-09 | `terraform destroy` session (ghi giờ kết thúc); đợi instance biến mất | `Destroy complete` |
 | M-66-10 | Kiểm sạch: `aws rds describe-db-instances`, `aws rds describe-db-instance-automated-backups --db-instance-identifier dbs-dev`, `describe-db-snapshots` (manual, rỗng), `secretsmanager list-secrets --include-planned-deletion --filters Key=owning-service,Values=rds` (ghi lại trạng thái xóa), `describe-network-interfaces` theo VPC | không còn instance, backup tự động, ENI; secret master bị xóa (hoặc đang chờ xóa theo cách RDS quản lý: ghi lại) |
 | M-66-11 | Chi phí: ghi giờ bật/tắt; ước tính RDS 0,025 + gp3 0,004 USD/giờ; đối chiếu Cost Explorer ngày hôm sau | **chưa chạy ở bước này** (billing trễ): BACKLOG |
 
+Script của container (M-66-04), `probe-overrides.json` (tệp thường, không chứa bí mật; mật khẩu vào qua `secrets` của task definition):
+
+```json
+{"containerOverrides": [{"name": "probe", "command": ["sh", "-c",
+ "out=$(psql 'sslmode=disable' -c 'select 1' 2>&1); echo \"$out\"; echo \"$out\" | grep -q 'no encryption' || exit 1; psql 'sslmode=require' -At -v ON_ERROR_STOP=1 -c 'select ssl, version from pg_stat_ssl where pid = pg_backend_pid()' -c 'show timezone' -c 'show max_connections' -c 'show superuser_reserved_connections' -c 'show reserved_connections' -c 'select version()'"]}]}
+```
+
 Thời gian: tạo ≈ 10–15 phút, xóa ≈ 5–8 phút; chi phí ≈ 0,02 USD.
 
 ## 6. Domain review (AI)
 
-(Chạy ở Phase 2.)
+**Reviewer:** subagent, model opus, 2026-10-26 · [trả lời nguyên văn](screenshots/DBS-66/domain-review.md)
+
+| Vòng | Phát hiện | Verdict |
+|---|---|---|
+| 1 | 15 (blocking 1, should-fix 6, minor 8) | REVISE |
+| 2 | 3 mới (blocking 1, should-fix 1, minor 1) | REVISE, đã sửa; không chạy vòng 3 (xem dưới) |
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| V1-1 | blocking | đối chứng âm với SG `alb` vô hiệu (không có egress 443) | đã sửa: SG tạm `dbs-probe-deny` (M-66-07) |
+| V1-2 | should-fix | `SHOW ssl` không chứng minh TLS của phiên | đã sửa: `pg_stat_ssl` |
+| V1-3 | should-fix | mock `master_user_secret[0]` và ARN KMS | đã sửa §4 (vòng 2 làm chặt thêm) |
+| V1-4 | should-fix | M-66-04..06 mâu thuẫn, thiếu lệnh | đã sửa: một lệnh container trong khối code |
+| V1-5 | should-fix | thiếu `identifier` và tên parameter group | đã sửa: `dbs-dev`, `dbs-dev-postgres17` |
+| V1-6, 7 | should-fix | dọn dẹp thiếu bước; API kiểm backup/secret sai | đã sửa M-66-08, M-66-10 |
+| V1-8..15 | minor | mặc định `force_ssl` PG 15+, tính set block, `reserved_connections`, chi phí/thời gian, key chung, `ca_cert_identifier`, cờ chi phí, tên DB | đã sửa |
+| V2-1 | blocking | `rds.rds_superuser_reserved_connections` không có ở PG 17 | đã sửa: `reserved_connections`, `ON_ERROR_STOP` |
+| V2-2 | should-fix | chỗ đặt mock override sai (`aws_kms_key` ở base) | đã sửa §4 |
+| V2-3 | minor | `\|` và JSON `--overrides` | đã sửa: khối code, `file://probe-overrides.json` |
+
+Vòng 3 không chạy: ba phát hiện vòng 2 là lỗi chi tiết lệnh và mock, đã tái hiện/kiểm bằng nguồn (AWS docs, Terraform 1.16.6 + aws 6.70.0), không đổi thiết kế; việc chứng minh thật nằm ở test Terraform và M-66-04..07 sẽ chạy trên AWS.
+
+**Quyết định ở G2** (tự duyệt theo `CLAUDE_local.md`, 2026-10-26): chấp nhận mọi xử lý; không còn câu hỏi blocking.
 
 ## 7. Kế hoạch triển khai
 
-(Điền ở Phase 3.)
+Gate: G2 tự duyệt (hai vòng review, không còn phát hiện chưa xử lý). Rà soát kế hoạch: mọi file ở §3, mọi DoD và mọi giới hạn ở §1/§2 có hàng bên dưới hoặc nằm ngoài phạm vi.
+
+**Tóm tắt `plan` dự kiến:** `base`: `+` KMS key, alias, subnet group, SG `db`, 2 luật (`7 to add`, `0 to change`, `0 to destroy`). `session`: `+` parameter group, instance (`2 to add`, thêm vào các tài nguyên hiện có), `0 to destroy`.
+
+| Bước | File | Test viết trước | Kết quả đỏ | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `base/{kms,rds_network}.tf`, `outputs.tf` | `base/tests/rds_network.tftest.hcl` (TC-66-06, 07, 09) | điền khi chạy | `cd infra/terraform/envs/dev/base && terraform test` | `feat(infra): kms key, db subnet group and rds security group` |
+| 2 | `session/{rds,variables,outputs}.tf`, `tests/session.tftest.hcl` | TC-66-01..05, 08, 10 và override mới | điền khi chạy | `cd ../session && terraform test` | `feat(infra): rds postgresql 17 for the dev session` |
+| 3 | `infra/terraform/README.md`, `docs/BACKLOG.md` | `check-doc-links.mjs` | n/a | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(infra): rds build order, cost and handoffs` |
+| 4 | (không file) | M-66-00..11 trên AWS thật, rồi `destroy` session | n/a | theo §5, output vào `screenshots/DBS-66/manual-test.txt` | `docs(features): DBS-66 results` |
+
+Rủi ro và cách lùi: RDS tính tiền theo giờ; `destroy` ngay sau khi kiểm. Nếu `destroy` kẹt: kiểm ENI và chạy lại. KMS key (≈ 1 USD/tháng) và SG ở `base` giữ lại; xóa key phải chờ 7 ngày (DBS-208). Mật khẩu master do RDS quản lý nên không có gì để rò rỉ. Không để RDS chạy qua đêm.
+
+**Quyết định ở G3** (tự duyệt theo `CLAUDE_local.md`): kế hoạch như trên; người dùng đã đồng ý `apply` và `destroy` ngày 2026-10-26 cho tuần 1–2.
 
 ## 8. Kết quả
 
