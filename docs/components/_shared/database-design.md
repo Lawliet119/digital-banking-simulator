@@ -1,6 +1,6 @@
 # Database Design
 
-> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) ; §4.6 và hai partial indexes outbox (DBS-25) · **Cập nhật:** 2026-10-22
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) ; §4.6 và hai partial indexes outbox (DBS-25); §4.7 và ba index audit (DBS-26); §8.3 trigger ba bảng `transfers`, `ledger_entries`, `audit_log` bằng owner local (DBS-27); production roles và các phần còn lại là thiết kế · **Cập nhật:** 2026-10-24
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
@@ -279,7 +279,7 @@ CREATE TABLE processed_events (
 CREATE TABLE audit_log (
   id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   occurred_at    timestamptz NOT NULL DEFAULT clock_timestamp(),
-  actor_user_id  uuid REFERENCES users(id),               -- NULL = hệ thống (worker)
+  actor_user_id  uuid REFERENCES users(id) ON DELETE RESTRICT, -- NULL = hệ thống (worker)
   actor_role     text NOT NULL,
   action         text NOT NULL,                           -- 'transfer.create', 'account.lock', 'audit.search', 'access.denied'...
   outcome        text NOT NULL CHECK (outcome IN ('SUCCESS','REJECTED','DENIED')),
@@ -291,6 +291,10 @@ CREATE TABLE audit_log (
 ```
 
 `outcome = 'DENIED'` là lần bị từ chối quyền (A mở tài khoản của B): vẫn phải ghi (FR-AUD-02). Không dùng chuỗi hash nối các dòng (kiểu blockchain) vì mọi lệnh ghi sẽ tranh nhau cập nhật "dòng cuối", tạo nút thắt đúng ở đường chuyển tiền. Bảo vệ chống sửa bằng quyền, trigger và (tùy chọn) export sang S3 Object Lock.
+
+Schema audit đã triển khai trong migration `CreateAuditLog1792627200001`, độc lập với outbox; [DBS-26](../../features/DBS-26-migration-audit-log.md) đối chiếu từng cột, constraint và index bằng PostgreSQL thật. Các constraint được đặt tên `audit_log_pkey`, `audit_log_actor_user_id_fkey`, `audit_log_outcome_check`. Role/action/target_type vẫn là text mở; metadata là JSONB và schema không tự lọc PII. Runtime AuditService và quyền production có task riêng; trigger trình bày ở §8.3.
+
+Ba index ngoài PK là `audit_log_correlation_idx (correlation_id)`, `audit_log_actor_occurred_idx (actor_user_id, occurred_at DESC)` và `audit_log_action_occurred_idx (action, occurred_at DESC)`, đều B-tree không unique. Migration `down` yêu cầu transaction READ COMMITTED, lấy ACCESS EXCLUSIVE rồi dùng statement mới kiểm dữ liệu; có dòng thì lỗi `55000` và giữ nguyên bảng/history. Không xóa audit để hoàn tác schema.
 
 ### 4.8 Nhóm fraud
 
@@ -489,13 +493,13 @@ FROM transfers;
 Quyền DB chặn ứng dụng, nhưng chủ bảng (`dbs_migrator`) hay một lần cấp quyền nhầm vẫn có thể sửa. Trigger là lớp thứ hai:
 
 ```sql
-CREATE FUNCTION forbid_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION public.forbid_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION '% on % is not allowed (append-only)', TG_OP, TG_TABLE_NAME
     USING ERRCODE = '42501';
 END $$;
 
--- Áp cho: ledger_entries, transfers, audit_log, risk_rule_sets
+-- Hiện có: ledger_entries, transfers, audit_log. risk_rule_sets do task fraud thêm sau.
 CREATE TRIGGER ledger_entries_append_only
   BEFORE UPDATE OR DELETE ON ledger_entries
   FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
@@ -507,6 +511,23 @@ CREATE TRIGGER ledger_entries_no_truncate
 **Test bắt buộc (cho AC-8.1):** kết nối bằng `dbs_api` thử `UPDATE`/`DELETE` các bảng trên, nhận `permission denied`; kết nối bằng `dbs_migrator` thử cũng bị trigger chặn. Test này phải chạy trên Postgres thật (Testcontainers) với các role được tạo đúng như production, nếu không sẽ không chứng minh được gì.
 
 **Hệ quả cho test khác:** `TRUNCATE` giữa các test sẽ bị trigger chặn. Cách làm: tạo một database mới cho mỗi suite (từ template đã chạy migration) rồi bỏ cả database khi xong, thay vì dọn bảng.
+
+Migration `AddAppendOnlyTriggers1792627200002` triển khai một hàm PL/pgSQL security invoker và sáu trigger enabled trên ba bảng hiện có. Mỗi bảng có `<table>_append_only` BEFORE UPDATE OR DELETE FOR EACH ROW và `<table>_no_truncate` BEFORE TRUNCATE FOR EACH STATEMENT. INSERT hợp lệ vẫn thành công; UPDATE/DELETE không khớp hàng tác động 0 hàng, còn TRUNCATE bảng rỗng vẫn bị RAISE chặn. `down` gỡ sáu trigger trước rồi DROP FUNCTION, không CASCADE, không sửa bảng/dữ liệu/sequence.
+
+[DBS-27](../../features/DBS-27-append-only-triggers.md) kiểm lớp trigger bằng owner NOSUPERUSER trên PostgreSQL thật: trước từng thao tác kiểm owner/quyền, sau lỗi kiểm cả `42501` và context `PL/pgSQL function forbid_mutation() ... at RAISE`; không nhận nhầm permission denied của ACL. Fixture chỉ cấp SELECT accounts/idempotency_keys và TRUNCATE idempotency_keys trong DB tạm; có key tham chiếu transfer thật và đối chứng TRUNCATE CASCADE thành công sau down rồi rollback. Production dbs_api/dbs_worker/dbs_migrator và chủ view còn chờ task roles (BL-005); chưa nhận đủ AC-8.1. Chủ bảng cố ý đổi DDL hoặc tắt trigger nằm ngoài lớp bảo vệ này.
+
+**Bàn giao risk_rule_sets:** khi task fraud tạo bảng thật, migration của task đó phụ thuộc migration27 và thêm đúng hai trigger dưới đây; không tạo bảng placeholder hoặc áp trigger trước khi bảng tồn tại:
+
+```sql
+CREATE TRIGGER risk_rule_sets_append_only
+  BEFORE UPDATE OR DELETE ON public.risk_rule_sets
+  FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation();
+CREATE TRIGGER risk_rule_sets_no_truncate
+  BEFORE TRUNCATE ON public.risk_rule_sets
+  FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation();
+```
+
+Down của migration fraud phải DROP hai trigger của mình trước khi DROP bảng; không DROP hàm dùng chung. Hoàn tác task fraud trước khi hoàn tác27; DROP FUNCTION ở27 không dùng CASCADE để tránh âm thầm gỡ trigger ngoài scope. Task fraud phải có test owner INSERT/UPDATE/DELETE/TRUNCATE (cả bảng rỗng), SQLSTATE + context và rollback/rerun như ba bảng hiện có; phần này theo BL-021.
 
 ---
 
@@ -562,10 +583,10 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 
 1. `users`, `customers`, `accounts` (+ index, + tạo tài khoản SYSTEM `funding` với id cố định)
 2. `transfers`, `ledger_entries`, `idempotency_keys`, view `v_transfer_facts` (migration `1791849600000-CreateTransfersLedgerIdempotency`, DBS-21)
-3. `outbox_events`, `processed_events` (migration `1792627200000-CreateOutboxEventsProcessedEvents`, DBS-25); `audit_log` tạo bằng migration riêng của DBS-26.
+3. `outbox_events`, `processed_events` (migration `1792627200000-CreateOutboxEventsProcessedEvents`, DBS-25); `audit_log` (migration `1792627200001-CreateAuditLog`, DBS-26). Hai nhóm độc lập, không gộp migration hoặc PR.
 4. `risk_rule_sets` (+ **seed phiên bản 1**), `fraud_flags`, `fraud_rule_hits`
 5. `notification_log`, `reconciliation_runs`
-6. Hàm `forbid_mutation()` và các trigger
+6. Hàm `public.forbid_mutation()` và sáu trigger trên ledger_entries/transfers/audit_log (`1792627200002-AddAppendOnlyTriggers`, DBS-27); task fraud thêm cặp trigger risk_rule_sets khi bảng tồn tại
 7. Role và `GRANT` (có thể idempotent; chạy bằng tài khoản đủ quyền)
 
 ### Dữ liệu khởi tạo (seed trong migration, không phải script rời)

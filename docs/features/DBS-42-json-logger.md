@@ -74,7 +74,7 @@ Node 24.19.0, npm 11.17.0. Ban đầu chưa có node_modules, env local hoặc D
 
 ### Rà soát lần 2 (2026-10-25): phạm vi sửa đã duyệt ở G1
 
-PR #16 do minhduc47 mở từ nhánh này; `442e99b` là bản được rà soát. Tech lead yêu cầu review và **sửa trực tiếp trên nhánh bằng commit mới**, không ghi đè lịch sử, không `--force`, và cho phép push (chỉ sau G4). Các mục ở trên mô tả đúng bản gốc; những chỗ đã lỗi thời («PR: chưa có», «chưa có nhánh DBS-43», BL-019/020/021 trùng số với DBS-26/27 trên `main`) được sửa ở §8/§9. Các gate G1 đến G4 của bản gốc đã bị bỏ theo chỉ dẫn lúc đó; lần rà soát này chạy đủ gate.
+PR #16 do minhduc47 mở từ nhánh này; `442e99b` là bản được rà soát. Tech lead yêu cầu review và **sửa trực tiếp trên nhánh bằng commit mới**, không ghi đè lịch sử, không `--force`, và cho phép push (chỉ sau G4). Các mục ở trên mô tả đúng bản gốc; những chỗ đã lỗi thời («PR: chưa có», «chưa có nhánh DBS-43», BL-019/020/021 của bản đầu trùng số với DBS-26/27 trên `main`, nay đánh lại thành BL-023/024/025) được sửa ở §8/§9. Các gate G1 đến G4 của bản gốc đã bị bỏ theo chỉ dẫn lúc đó; lần rà soát này chạy đủ gate.
 
 **Baseline trên `442e99b`** (2026-10-25, Node 24.19.0): lint, typecheck, build exit 0; unit 26 suite / 385 test; e2e 6 / 36; `test:db` 5 / 91 (Docker Desktop bật lại); 0 bỏ qua. Khớp §8 gốc.
 
@@ -287,9 +287,9 @@ Red/green: spec logger đầu tiên lỗi vì thiếu dependency/module; test fi
 | TC-42-05/06 | logging.e2e-spec.ts: handler/completion IDs, client header không chọn ID, headers/query/body không có trong log | Đạt; HTTP thật trong harness không DB |
 | TC-42-07 | logging.e2e-spec.ts + error-handling.e2e-spec.ts: 500/503 contract và không log dữ liệu lỗi thô | Đạt |
 | TC-42-08 | transaction.service.spec.ts: retry 2 lần gọi, code 40P01, không có raw error text | Đạt; fake DB chỉ kiểm hành vi retry/log, không chứng minh khóa DB |
-| TC-42-10 | logging.e2e-spec.ts: preflight, malformed JSON, oversized JSON đúng một completion record | Đạt; oversized giữ hành vi cũ 500, xem BL-019 |
+| TC-42-10 | logging.e2e-spec.ts: preflight, malformed JSON, oversized JSON đúng một completion record | Đạt; oversized giữ hành vi cũ 500, xem BL-023 |
 | TC-42-11 | logging-bootstrap.e2e-spec.ts: subprocess API/worker cấu hình sai, role sai, DB không kết nối | Đạt; exit khác 0, JSON-only, không có synthetic secret |
-| TC-42-09 | Dev review, CI, PR merge | **Chưa đạt**, xem BL-021 |
+| TC-42-09 | Dev review, CI, PR merge | **Chưa đạt**, xem BL-025 |
 
 ### Chạy runtime thực tế
 
@@ -316,9 +316,9 @@ node -r ts-node/register -r tsconfig-paths/register test/support/logging-driver.
 ### Giới hạn, quyết định và bàn giao
 
 - Người dùng yêu cầu bỏ điểm chờ duyệt G1–G4 và tự triển khai; đã giữ thiết kế, independent AI review, TDD, test tự động và runtime. Đây không phải Dev review PR. Không tự push, mở PR, merge hay sửa board vì yêu cầu hiện tại là code local.
-- **BL-019:** phát hiện filter hiện có trả 500 cho body vượt giới hạn, trong khi malformed JSON được Nest đổi thành 400. DBS-42 bảo toàn HTTP contract và chứng minh không lộ body trong log; việc chuẩn hóa 413 được tách riêng.
-- **BL-020:** DBS-43 triển khai provider context chung, worker/message và role worker trong tiến trình both. HTTP logger dùng API công khai `PinoLogger.runInContext`; không import storage nội bộ thư viện. Gợi ý dùng cùng API làm adapter, nhưng thiết kế DBS-43 sẽ tự chốt.
-- **BL-021:** cần PR, CI trên GitHub, review Dev khác và merge; chưa có URL/bằng chứng cho các bước này. Không kéo Done.
+- **BL-023:** phát hiện filter hiện có trả 500 cho body vượt giới hạn, trong khi malformed JSON được Nest đổi thành 400. DBS-42 bảo toàn HTTP contract và chứng minh không lộ body trong log; việc chuẩn hóa 413 được tách riêng.
+- **BL-024:** DBS-43 triển khai provider context chung, worker/message và role worker trong tiến trình both. HTTP logger dùng API công khai `PinoLogger.runInContext`; không import storage nội bộ thư viện. Gợi ý dùng cùng API làm adapter, nhưng thiết kế DBS-43 sẽ tự chốt.
+- **BL-025:** cần PR, CI trên GitHub, review Dev khác và merge; chưa có URL/bằng chứng cho các bước này. Không kéo Done.
 - `npm audit` báo 13 advisory trong dependency tree (7 moderate, 5 high, 1 critical); danh sách package advisory không có pino/nestjs-pino/pino-http. Không chạy audit fix làm đổi các dependency ngoài task.
 
 ## 9. Tài liệu đã cập nhật
@@ -327,7 +327,7 @@ node -r ts-node/register -r tsconfig-paths/register test/support/logging-driver.
 - [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §7/14/19: logger hiện có, trường dữ liệu và safe error diagnostics.
 - [threat model](../security/threat-model.md) T15: bằng chứng logger/HTTP/bootstrap, không tuyên bố phần Redis đã kiểm.
 - [feature index](README.md), feature doc này và các evidence liên kết ở §1/§6/§8.
-- [BACKLOG](../BACKLOG.md): thêm BL-019/020/021; không xóa backlog của task khác.
+- [BACKLOG](../BACKLOG.md): thêm BL-023/024/025; không xóa backlog của task khác.
 - Kiểm cuối: `check-doc-links.mjs` kiểm **91 file, 0 link hỏng**; `git diff --check` không lỗi khoảng trắng.
 
 ## Checklist G4
@@ -338,5 +338,5 @@ node -r ts-node/register -r tsconfig-paths/register test/support/logging-driver.
 - [x] Diff khớp plan đã cập nhật; bootstrap/middleware, error sanitizer và wiring test được ghi trong §3/§7/§8 theo chỉ dẫn tự triển khai.
 - [x] Baseline và test task đã chạy, có số đếm thật.
 - [x] Docs có fact thay đổi đã cập nhật; trạng thái Implemented chỉ cho local, điểm chờ G4 được người dùng bỏ.
-- [x] Bàn giao/DoD chưa đạt có BL-019/020/021; không xóa dòng chưa xử lý.
+- [x] Bàn giao/DoD chưa đạt có BL-023/024/025; không xóa dòng chưa xử lý.
 - [ ] Dev review, CI và merge main; chưa đủ điều kiện Done.
