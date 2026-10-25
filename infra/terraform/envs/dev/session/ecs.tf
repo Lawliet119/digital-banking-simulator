@@ -62,6 +62,11 @@ resource "aws_ecs_service" "api" {
   launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 60
 
+  # deploy.sh (DBS-38) đăng ký revision mới và đổi task_definition của service; Terraform không kéo về.
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
   deployment_circuit_breaker {
     enable   = true
     rollback = true
