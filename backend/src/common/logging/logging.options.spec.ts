@@ -312,6 +312,146 @@ describe('DBS-42 JSON logging options', () => {
     });
   });
 
+  describe('TC-42-14 envelope, message and hostile values', () => {
+    const ID = '34b4c724-48ad-4e8c-98ce-e16a5c03b007';
+    const occurrences = (text: string, key: string) => text.split(`"${key}":`).length - 1;
+
+    it('writes each envelope key once even when the caller sends them, valid UUID included', () => {
+      const log = capture('api');
+      log.logger.info(
+        { role: 'worker', correlationId: ID, level: 99, time: 'x', appRole: 'z', msg: 'y' },
+        'Fixed message',
+      );
+      for (const key of ['level', 'time', 'message', 'appRole', 'role', 'correlationId'])
+        expect(occurrences(log.text(), key)).toBe(1);
+      expect(log.rows()[0]).toMatchObject({
+        level: 30,
+        appRole: 'api',
+        role: 'api',
+        correlationId: null,
+        message: 'Fixed message',
+      });
+    });
+
+    it('lets a bound role and correlationId win and drops the caller copy', () => {
+      const log = capture('both');
+      log.logger
+        .child({ role: 'api', correlationId: ID })
+        .info({ role: 'worker', correlationId: 'forged' }, 'Fixed message');
+      expect(occurrences(log.text(), 'role')).toBe(1);
+      expect(occurrences(log.text(), 'correlationId')).toBe(1);
+      expect(log.rows()[0]).toMatchObject({ role: 'api', correlationId: ID });
+    });
+
+    it('does not mutate the caller object', () => {
+      const log = capture();
+      const domain = { role: 'teller', message: 'domain text', attempt: 1 };
+      log.logger.info(domain, 'Fixed message');
+      expect(domain).toEqual({ role: 'teller', message: 'domain text', attempt: 1 });
+      expect(log.rows()[0].attempt).toBe(1);
+    });
+
+    it('always writes message as a string', () => {
+      const log = capture();
+      log.logger.info(42 as never);
+      log.logger.info(true as never);
+      log.logger.info({ message: { nested: 'sensitive-message-fixture' } }, 'Fixed message');
+      expect(log.text()).not.toContain('sensitive-');
+      for (const row of log.rows()) expect(typeof row.message).toBe('string');
+      expect(log.rows()[2].message).toBe('Fixed message');
+      expect(occurrences(log.text().split('\n')[2], 'message')).toBe(1);
+    });
+
+    it('drops arguments that fill no placeholder instead of appending them', () => {
+      const log = capture();
+      const loose = log.logger as unknown as { info: (...args: unknown[]) => void };
+      loose.info('Paid %s', 'invoice', 'sensitive-extra-fixture');
+      expect(log.rows()[0].message).toBe('Paid invoice');
+      expect(log.text()).not.toContain('sensitive-');
+    });
+
+    it('survives a throwing getter or revoked Proxy nested in a value', () => {
+      const log = capture();
+      const revoked = Proxy.revocable({}, {});
+      revoked.revoke();
+      const nasty = {
+        fine: 1,
+        get bad(): never {
+          throw new Error('sensitive-getter-fixture');
+        },
+      };
+      expect(() =>
+        log.logger.info({ attempt: 1, meta: nasty, list: [nasty, revoked.proxy, 2] }, 'Fixed'),
+      ).not.toThrow();
+      const row = log.rows()[0];
+      expect(row).toMatchObject({ attempt: 1, role: 'api', correlationId: null, message: 'Fixed' });
+      expect(row.meta).toMatchObject({ fine: 1, bad: '[Omitted]' });
+      expect((row.list as unknown[])[2]).toBe(2);
+      expect(log.text()).not.toContain('sensitive-');
+    });
+
+    it('keeps the healthy fields next to a top-level throwing getter', () => {
+      const log = capture();
+      const topLevel = {
+        ok: 1,
+        get bad(): never {
+          throw new Error('sensitive-top-level-fixture');
+        },
+      };
+      expect(() => log.logger.info(topLevel, 'Fixed message')).not.toThrow();
+      expect(log.rows()[0]).toMatchObject({ ok: 1, bad: '[Omitted]', role: 'api' });
+      expect(log.text()).not.toContain('sensitive-');
+    });
+
+    it('falls back to a fixed line when the hook itself fails, and never throws', () => {
+      const log = capture();
+      const revoked = Proxy.revocable({}, {});
+      revoked.revoke();
+      expect(() => log.logger.info(revoked.proxy, 'Fixed message')).not.toThrow();
+      expect(log.rows()[0]).toMatchObject({
+        level: 30,
+        role: 'api',
+        correlationId: null,
+        message: 'Log call failed',
+      });
+    });
+
+    it('does not throw when even the fallback write fails', () => {
+      const failing = {
+        write(): never {
+          throw new Error('sensitive-stream-fixture');
+        },
+      };
+      const logger = pino(createLoggingOptions({ role: 'api', logLevel: 'verbose' }), failing);
+      const revoked = Proxy.revocable({}, {});
+      revoked.revoke();
+      expect(() => logger.info('Fixed message')).not.toThrow();
+      expect(() => logger.info(revoked.proxy, 'Fixed message')).not.toThrow();
+    });
+
+    it('keeps the date, buffer and shared-object cases readable', () => {
+      const log = capture();
+      const shared = { x: 1 };
+      log.logger.info(
+        { d: new Date('2026-10-25T10:00:00.000Z'), buf: Buffer.from('ab'), s1: shared, s2: shared },
+        'Fixed message',
+      );
+      const row = log.rows()[0];
+      expect(row.d).toBe('2026-10-25T10:00:00.000Z');
+      expect(row.buf).toBeUndefined();
+      expect(row.s2).toEqual({ x: 1 });
+    });
+
+    it('regression: a serialized error shape is still reduced to safe fields', () => {
+      const log = capture();
+      log.logger.error({ name: 'Err', message: 'sensitive-shape-fixture' }, 'Operation failed');
+      log.logger.error({ err: 'postgres://u:sensitive-uri-fixture@h/db' }, 'Operation failed');
+      log.logger.info('Number %s', '9876543210987654');
+      expect(log.text()).not.toContain('sensitive-');
+      expect(log.text()).not.toContain('9876543210987654');
+    });
+  });
+
   it('TC-42-01 preserves request bindings without replacing them by null', () => {
     const log = capture('both');
     log.logger

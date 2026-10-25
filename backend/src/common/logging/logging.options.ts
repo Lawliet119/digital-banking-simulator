@@ -150,27 +150,104 @@ function isErrorRecord(value: unknown): value is Record<string, unknown> {
   );
 }
 
-function sanitize(value: unknown, seen = new WeakSet<object>(), depth = 0): unknown {
-  if (value instanceof Error) return safeErrorMetadata(value);
-  if (typeof value === 'function' || typeof value === 'symbol') return undefined;
+const OMITTED = '[Omitted]';
+const FALLBACK_MESSAGE = 'Log call failed';
+/** Keys the logger owns. A caller never sets them: they come from the logger itself. */
+const ENVELOPE_KEYS = new Set([
+  'level',
+  'time',
+  'message',
+  'msg',
+  'appRole',
+  'role',
+  'correlationId',
+]);
+
+/** Reads something a hostile value can make throw (getter, Proxy trap); a failure is not fatal. */
+function guarded<T>(read: () => T, fallback: T): T {
+  try {
+    return read();
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Copies a value into a plain, safe structure. A nested value that cannot be read becomes
+ * `[Omitted]` on its own, so one bad entry never costs the healthy fields next to it. Only a true
+ * cycle (an object inside itself) is cut, a shared object that is not a cycle is kept.
+ */
+function sanitize(value: unknown, path = new Set<object>(), depth = 0): unknown {
   if (typeof value === 'string') return scrubSecrets(value);
+  if (typeof value === 'function' || typeof value === 'symbol') return undefined;
   if (value === null || typeof value !== 'object') return value;
+  if (value instanceof Error) return safeErrorMetadata(value);
+  if (value instanceof Date)
+    return Number.isNaN(value.getTime()) ? 'Invalid Date' : value.toISOString();
+  if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) return undefined;
   if (isErrorRecord(value)) return safeErrorMetadata(value);
-  if (seen.has(value) || depth > 12) return '[Omitted]';
-  seen.add(value);
-  if (Array.isArray(value)) return value.map(item => sanitize(item, seen, depth + 1));
+  if (path.has(value) || depth > 12) return OMITTED;
+  path.add(value);
+  try {
+    const child = (read: () => unknown) =>
+      guarded(() => sanitize(read(), path, depth + 1), OMITTED);
+    if (Array.isArray(value)) {
+      const items = value as unknown[];
+      return Array.from({ length: items.length }, (_, index) => child(() => items[index]));
+    }
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record).map(key => {
+        const normalized = key.toLowerCase().replace(/[_-]/g, '');
+        if (isPrivateKey(normalized) || OMITTED_KEYS.has(normalized)) return [key, REDACTED];
+        const item = guarded(() => record[key], OMITTED);
+        if (key === 'req') return [key, guarded(() => requestFields(item), {})];
+        if (key === 'res') return [key, guarded(() => responseFields(item), {})];
+        if (key === 'err' || key === 'error') return [key, safeErrorMetadata(item)];
+        if ((key === 'message' || key === 'msg') && typeof item === 'string')
+          return [key, safeMessage(item)];
+        return [key, child(() => item)];
+      }),
+    );
+  } finally {
+    path.delete(value);
+  }
+}
+
+/** New object with the caller's fields minus the envelope keys; the caller's object is untouched. */
+function callerFields(value: object): Record<string, unknown> {
+  const record = value as Record<string, unknown>;
   return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => {
-      const normalized = key.toLowerCase().replace(/[_-]/g, '');
-      if (isPrivateKey(normalized) || OMITTED_KEYS.has(normalized)) return [key, REDACTED];
-      if (key === 'req') return [key, requestFields(item)];
-      if (key === 'res') return [key, responseFields(item)];
-      if (key === 'err' || key === 'error') return [key, safeErrorMetadata(item)];
-      if ((key === 'message' || key === 'msg') && typeof item === 'string')
-        return [key, safeMessage(item)];
-      return [key, sanitize(item, seen, depth + 1)];
-    }),
+    Object.keys(record)
+      .filter(key => !ENVELOPE_KEYS.has(key))
+      .map(key => [key, guarded(() => record[key], OMITTED)]),
   );
+}
+
+function placeholderCount(template: string): number {
+  return (template.replace(/%%/g, '').match(/%[sdifjoOc]/g) ?? []).length;
+}
+
+/** Renders a format string, dropping arguments that fill no placeholder instead of appending them. */
+function render(template: string, extras: unknown[]): string {
+  const used = extras
+    .slice(0, placeholderCount(template))
+    .map(arg => guarded(() => sanitize(arg), OMITTED));
+  return safeMessage(format(template, ...used));
+}
+
+/** The one place a log call's arguments are rebuilt: always `[message]` or `[fields, message]`. */
+function prepareArgs(args: unknown[]): [string] | [object, string] {
+  const [first, second] = args;
+  if (typeof first === 'string') return [render(first, args.slice(1))];
+  if (typeof first === 'number' || typeof first === 'boolean' || typeof first === 'bigint')
+    return [safeMessage(String(first))];
+  if (first === null || typeof first !== 'object') return ['Diagnostic event'];
+  const fields =
+    first instanceof Error || isErrorRecord(first)
+      ? { err: safeErrorMetadata(first) }
+      : callerFields(first);
+  return [fields, typeof second === 'string' ? render(second, args.slice(2)) : 'Diagnostic event'];
 }
 
 /**
@@ -220,28 +297,29 @@ export function createLoggingOptions(settings: LoggingSettings): Options {
         ...(!('correlationId' in bindings) ? { correlationId: null } : {}),
       };
     },
+    // Pino runs a `bindings` formatter only on `base` and resets it for every child logger, so
+    // bindings added by `child()`, `assign()` or `runInContext` are not filtered here. That is the
+    // boundary with DBS-43: it must bind each context once and keep sensitive data out of it.
     formatters: {
-      log: object => sanitize(object) as Record<string, unknown>,
-      bindings: bindings => sanitize(bindings) as Record<string, unknown>,
+      log: object =>
+        guarded(() => sanitize(object) as Record<string, unknown>, {
+          role: guarded(() => object.role, 'api'),
+          correlationId: guarded(() => object.correlationId, null),
+        }),
     },
     hooks: {
+      // Rebuild the arguments before Pino merges the envelope; a failure must never reach the
+      // caller (a log call sits on error and retry paths), so fall back to a fixed line, and if
+      // even that cannot be written, drop the line.
       logMethod(args, method) {
-        // Wrap before Pino adds envelope fields; projecting the merged record would erase them.
-        if (args[0] instanceof Error || isErrorRecord(args[0])) {
-          args[0] = { err: safeErrorMetadata(args[0]) };
-        }
-        // Pino interpolates after this hook: sanitize arguments first and the rendered text last.
-        if (typeof args[0] === 'string') {
-          method.call(
-            this,
-            safeMessage(format(args[0], ...args.slice(1).map(arg => sanitize(arg)))),
-          );
-        } else {
-          const message =
-            typeof args[1] === 'string'
-              ? safeMessage(format(args[1], ...args.slice(2).map(arg => sanitize(arg))))
-              : 'Diagnostic event';
-          method.call(this, args[0], message);
+        try {
+          method.apply(this, prepareArgs(args));
+        } catch {
+          try {
+            method.call(this, FALLBACK_MESSAGE);
+          } catch {
+            /* the line is lost, the caller is not */
+          }
         }
       },
     },
