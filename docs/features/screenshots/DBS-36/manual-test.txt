@@ -1,0 +1,47 @@
+7abb882bb2d168e56cea2c83d26c5ba1acd3bc2c
+## M-36-00 sub prefix API vs variable
+repo:Lawliet119@168917377/digital-banking-simulator@1398975427
+  default     = "repo:Lawliet119@168917377/digital-banking-simulator@1398975427"
+## M-36-01 plan
+  # aws_iam_openid_connect_provider.github will be created
+  # aws_iam_role.github_ecr_push will be created
+  # aws_iam_role_policy.ecr_push will be created
+Plan: 3 to add, 0 to change, 0 to destroy.
+## M-36-02 apply
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
+github_ecr_push_role_arn = "arn:aws:iam::<account-id>:role/dbs-github-ecr-push"
+## M-36-02 trust policy
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringEquals": {
+                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                    "token.actions.githubusercontent.com:sub": "repo:Lawliet119@168917377/digital-banking-simulator@1398975427:ref:refs/heads/main"
+                }
+            }
+        }
+    ]
+}
+## M-36-03 simulate allowed
+ecr:PutImage	allowed
+ecr:BatchGetImage	allowed
+ecr:UploadLayerPart	allowed
+ecr:GetAuthorizationToken	allowed
+## M-36-04 simulate denied
+ecr:BatchDeleteImage	implicitDeny
+ecr:PutImage	implicitDeny
+s3:ListBucket	implicitDeny
+## M-36-05 secrets
+0
+## M-36-06 script
+OK
+exit=0
+## M-36-07 idempotent
+No changes. Your infrastructure matches the configuration.
