@@ -44,3 +44,19 @@ Reviewer: subagent general-purpose, model opus, 2026-10-25. Verdict: REVISE (1 b
 | 10 | minor | M-33-01 | `tfplan` chưa trong `.gitignore`. | Thêm `*.tfplan`, đặt tên `base.tfplan`. |
 | 11 | minor | §3, TC-33-12 | README chưa ghi security group/subnet group ở `base` và ngoại lệ tên `dbs-api`. | Thêm vào phạm vi README và TC-33-12. |
 | 12 | minor | TC-33-10 | `grep -c` nhiều file in từng dòng và thoát mã 1. | `! grep -q '^resource ' envs/dev/session/*.tf` |
+
+---
+
+# Vòng 3 (nguyên văn, tóm theo bảng của reviewer)
+
+Reviewer: subagent general-purpose, model opus, 2026-10-25. Verdict: REVISE (0 blocking, 1 should-fix, 6 minor).
+
+1. should-fix · M-33-04/05: `delete-repository` không `--force` sẽ **xóa thật** repo nếu repo đang rỗng (khi đẩy `t1` thất bại); thêm điều kiện `ecr list-images` có ít nhất 1 image, đánh dấu cần go-ahead.
+2. minor · M-33-07: thiếu "(cần go-ahead)"; Bash không phải TTY nên apply dừng ở prompt tự hủy, cần chạy trong tab terminal riêng hoặc FIFO; thêm `git diff --exit-code` sau khi hoàn tác thay đổi tạm.
+3. minor · TC-33-04b: dấu `|` trong ô bảng chưa escape; `grep` không kết quả thoát mã 1 nên phải viết `! grep -nE …`.
+4. minor · TC-33-04b, M-33-01/02: danh sách loại tài nguyên không phân biệt endpoint Gateway/Interface; M-33-02 chưa kiểm `RouteTableIds` của endpoint (cả hai route table) và route của route table private (chỉ `local` + `pl-…`).
+5. minor · M-33-06: `base` xuất 8 output, `session` xuất lại 3; chỉ so 3 khóa.
+6. minor · TC-33-14 còn placeholder "M-33-xx"; §6 dòng 1 còn ghi `jq`.
+7. minor · câu xin phép tắt cuối phiên sai thời điểm (phải xin cùng lúc go-ahead apply); G1 ghi tag bất biến kiểm bằng cấu hình, nay M-33-04 đẩy image thật, thay đổi sau G1 cần ghi và duyệt lại ở G2.
+
+Các sửa vòng 2 được xác nhận đủ và đúng (B11, B12, `session` không mock, `python3`, budgets, TC-33-03/04/12, `fileb://`, `.gitignore`).
