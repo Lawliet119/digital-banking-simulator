@@ -106,6 +106,30 @@ terraform destroy -var account_id=<account-id> -var state_bucket=dbs-tfstate-<ac
 
 Sau khi `apply`, **chủ repo** (cần quyền admin) tạo biến Actions (Settings → Secrets and variables → Actions → Variables, không phải Secrets): `AWS_ROLE_ARN` = output ở trên, và tùy chọn `AWS_REGION`. Tạo trước khi merge `image.yml`; thiếu biến thì job `image-push` bị bỏ qua, chạy lại bằng `gh workflow run image.yml --ref main`. Chỉ `image.yml` được xin `id-token: write`.
 
+### Deploy tự động lên ECS (DBS-38)
+
+`envs/dev/base` thêm role `dbs-github-deploy` (output `github_deploy_role_arn`), tin đúng `sub` của repo và nhánh `main` như role đẩy image; quyền chỉ gồm cập nhật service `dbs-dev/api`, đăng ký task definition `dbs-api`, đọc image trên ECR và `iam:PassRole` cho hai role của task. Sau khi `apply`, **chủ repo** tạo biến Actions `AWS_DEPLOY_ROLE_ARN` (thiếu biến thì job `deploy` bị bỏ qua). Chỉ `image.yml` và `deploy.yml` được xin `id-token: write`.
+
+Luồng: push `main` → `Image` đẩy `dbs-api:<SHA>` → `Deploy` (`.github/workflows/deploy.yml`, `workflow_run`) chạy `.github/scripts/deploy.sh`: lấy revision ACTIVE mới nhất của family `dbs-api`, đổi image container `api`, đăng ký revision mới, `update-service`, chờ deployment PRIMARY `COMPLETED` (tối đa 20 phút; circuit breaker đã rollback hoặc `FAILED` thì đỏ), rồi kiểm `/health/live` và `/health/ready`. Bỏ qua (thoát 0) khi stack `session` chưa dựng, service `desired_count = 0`, hoặc commit không còn là đầu `main`. Service có `ignore_changes = [task_definition]`: `terraform apply` không kéo về revision của Terraform; thay đổi task definition trong Terraform có hiệu lực ở lần deploy kế tiếp. `image_tag` lúc `apply` session phải là tag đã có trên ECR.
+
+Chạy tay (không cần `gh`): `IMAGE_TAG=<sha-40-ky-tu> AWS_PROFILE=dbs-admin bash .github/scripts/deploy.sh`.
+
+**Kiểm sống** (chứng chỉ self-signed nên cần `-k`):
+
+```bash
+ALB=$(aws elbv2 describe-load-balancers --names dbs-dev --query 'LoadBalancers[0].DNSName' --output text)
+curl -sk -o /dev/null -w '%{http_code}\n' https://$ALB/health/live
+curl -sk -o /dev/null -w '%{http_code}\n' https://$ALB/health/ready
+```
+
+**Rollback thủ công** (diễn tập chính thức ở tuần 6, DBS-156). Chỉ quay lại được image còn trong ECR (giữ 20 image mới nhất, nghĩa là 20 commit gần nhất):
+
+```bash
+aws ecs list-task-definitions --family-prefix dbs-api --sort DESC --max-items 5
+aws ecs update-service --cluster dbs-dev --service api --task-definition dbs-api:<revision>
+aws ecs describe-services --cluster dbs-dev --services api --query 'services[0].deployments'   # PRIMARY phải COMPLETED
+```
+
 ### Cognito và tài khoản nhân viên demo (DBS-54)
 
 `envs/dev/base` tạo user pool `dbs` (đăng nhập bằng email không phân biệt hoa thường, tự đăng ký bật, mật khẩu tối thiểu 12 ký tự đủ 4 loại), 4 nhóm `customer`, `operator`, `auditor`, `admin` và app client `dbs-app` không secret (`USER_SRP_AUTH`, `REFRESH_TOKEN_AUTH`, `USER_PASSWORD_AUTH`; access và ID token 15 phút, refresh 1 ngày). Output: `cognito_user_pool_id`, `cognito_client_id`, `cognito_issuer` (ba biến `COGNITO_*` của task ECS lấy từ đây, không bí mật). `cognito_deletion_protection` mặc định `INACTIVE` cho dev (teardown cần); đặt `ACTIVE` khi pool đã có người dùng thật, và đặt lại `INACTIVE` trước khi `destroy base`.
