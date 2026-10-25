@@ -432,3 +432,62 @@ run "rds_variables" {
     error_message = "multi_az and instance class must follow the variables"
   }
 }
+
+# TC-67-08: kết nối RDS qua TLS, mật khẩu chỉ đi bằng `secrets` từ secret master của RDS
+run "db_connection" {
+  command = apply
+
+  assert {
+    condition = (
+      { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["DATABASE_SSL"] == "true"
+      && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["DATABASE_SSL_CA_PATH"] == "/etc/ssl/rds/global-bundle.pem"
+      && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["DB_HOST"] == aws_db_instance.main.address
+      && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["DB_PORT"] == "5432"
+      && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["DB_NAME"] == "dbs"
+    )
+    error_message = "env must carry DATABASE_SSL=true, the CA path, and DB_HOST/DB_PORT/DB_NAME"
+  }
+
+  assert {
+    condition = (
+      { for s in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets : s.name => s.valueFrom } == {
+        DB_USER     = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::"
+        DB_PASSWORD = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::"
+      }
+    )
+    error_message = "DB_USER and DB_PASSWORD must come from the RDS master secret (json keys username and password)"
+  }
+
+  assert {
+    condition = length([
+      for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name
+      if contains(["DB_USER", "DB_PASSWORD", "DATABASE_URL", "NODE_OPTIONS", "NODE_TLS_REJECT_UNAUTHORIZED"], e.name)
+    ]) == 0
+    error_message = "credentials, DATABASE_URL, NODE_OPTIONS and NODE_TLS_REJECT_UNAUTHORIZED must not be in environment"
+  }
+}
+
+# TC-67-09: execution role đọc đúng một secret và giải mã bằng đúng CMK qua Secrets Manager
+run "db_secret_policy" {
+  command = apply
+
+  assert {
+    condition     = aws_iam_role_policy.read_db_master_secret.role == aws_iam_role.execution.id && aws_iam_role_policy.read_db_master_secret.name == "read-db-master-secret"
+    error_message = "the secret policy must be a separate policy on the execution role"
+  }
+
+  assert {
+    condition = (
+      length(jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement) == 2
+      && [for s in jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement : s.Resource if s.Action == "secretsmanager:GetSecretValue"] == ["arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf"]
+      && [for s in jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement : s.Resource if s.Action == "kms:Decrypt"] == ["arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"]
+      && [for s in jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement : s.Condition.StringEquals["kms:ViaService"] if s.Action == "kms:Decrypt"] == ["secretsmanager.ap-southeast-1.amazonaws.com"]
+    )
+    error_message = "GetSecretValue on the master secret ARN only; Decrypt on the CMK only, via Secrets Manager in this region"
+  }
+
+  assert {
+    condition     = length([for s in jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement : s if s.Resource == "*"]) == 0
+    error_message = "no statement on * in the secret policy"
+  }
+}
