@@ -183,7 +183,7 @@ HTTP completion chỉ ghi method, status và thời gian xử lý; không ghi UR
 
 Các key chứa Authorization, token, password/secret, cookie, số tài khoản/thẻ được che đệ quy, kể cả trong mảng và tham số định dạng. Serialization hook không được thực thi trong metadata đã lọc. Đây là bảo vệ bổ sung: không truyền payload khách hàng hoặc chuỗi lỗi thô vào logger. Log vận hành không thay cho audit log trong transaction.
 
-Context xuyên worker/message và provider AsyncLocalStorage chung thuộc DBS-43; khi chạy `both`, tác vụ nền phải gắn context `role=worker` qua tích hợp đó. Chi tiết và bằng chứng: [DBS-42](../docs/features/DBS-42-json-logger.md).
+DBS-43 cung cấp `CorrelationContext` qua global module: service inject provider rồi gọi `getCorrelationId()`. HTTP middleware tạo context bằng ID do server sinh. Consumer khi được triển khai phải gọi `runForMessage(decodedMessage, () => validateEvent(decodedMessage) rồi xử lý)`, để log lỗi của cả message sai có trace; fallback ID chỉ dùng cho log, không sửa event sai schema. Trong `APP_ROLE=both`, callback này ghi `role=worker`. Consumer runtime chưa có; xem [DBS-43](../docs/features/DBS-43-correlation-context.md).
 
 ## Docker
 

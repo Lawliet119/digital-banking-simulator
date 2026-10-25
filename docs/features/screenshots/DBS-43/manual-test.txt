@@ -1,0 +1,15 @@
+01ede581f0690754fdca752db6b69cc54d6090db
+M-43-01: APP_ROLE=both PORT=33043 node dist/main.js; GET /health/live twice
+HTTP 200 id=4eec6051-8996-410e-92b0-a52741e179e4 body={"status":"ok"}
+HTTP 200 id=4c9cb3a2-b3ca-4eae-84f9-c77ee5a3fd6a body={"status":"ok"}
+JSON log role=api id=4eec6051-8996-410e-92b0-a52741e179e4 status=200 message="Request completed"
+JSON log role=api id=4c9cb3a2-b3ca-4eae-84f9-c77ee5a3fd6a status=200 message="Request completed"
+PASS: two distinct server IDs, each matching its completion log.
+
+M-43-02: node -e driver of dist/common/correlation/correlation-context
+{"correlationId":"6e8b7df0-7abf-40a5-8f57-2bb1a239bb7e","role":"worker"}
+{"correlationId":"14f95c66-2129-41bf-a6b6-6d1d0a6bc8a6","role":"worker"}
+{"correlationId":"202d06c7-ff01-4e61-83e6-855ccc1bc640","role":"worker"}
+PASS: valid ID retained; missing and malformed IDs replaced for context. This driver is not an actual consumer.
+
+M-43-03: NOT RUN: consumer runtime has not been implemented in this repo; no message-processing entry point to connect to queue. See BL-026.
