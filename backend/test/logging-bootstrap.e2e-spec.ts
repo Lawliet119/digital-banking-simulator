@@ -122,6 +122,8 @@ describe('DBS-42 bootstrap failure logging (real subprocess)', () => {
       expect(result.stderr).toBe('');
       expect(output).not.toContain('sensitive-');
       expect(output).not.toContain('    at ');
+      // Every line is a JSON record: no empty line before the fatal one.
+      expect(result.stdout.split(String.fromCharCode(10)).slice(0, -1).every(Boolean)).toBe(true);
       const fatal = rows.filter(row => row.level === 60);
       expect(fatal).toHaveLength(1);
       expect(fatal[0]).toMatchObject({

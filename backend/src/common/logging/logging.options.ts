@@ -63,6 +63,12 @@ const OMITTED_KEYS = new Set([
 ]);
 /** A longer string is replaced, not scanned: the scan must stay linear and cheap per log call. */
 const MAX_SCANNED_LENGTH = 4096;
+/** Total characters scanned in one log call, so many long strings cannot add up to a stall. */
+const SCAN_BUDGET = 65_536;
+
+interface ScanBudget {
+  left: number;
+}
 
 function isPrivateKey(normalized: string): boolean {
   return (
@@ -94,15 +100,24 @@ const NETWORK_CODE = /^(?:ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|ENOTFOUND|EAI_
 /** First `code` on the error or what it wraps, in the order pg-error.util walks it. */
 function findCode(error: unknown): { code: string; fromDriver: boolean } | undefined {
   let current: unknown = error;
+  let viaDriver = false;
   for (let depth = 0; depth < MAX_CAUSE_DEPTH && current && typeof current === 'object'; depth++) {
     const record = current as { code?: unknown; driverError?: unknown; cause?: unknown };
     const driver = record.driverError;
-    if (driver && typeof driver === 'object') {
-      const driverCode = (driver as { code?: unknown }).code;
-      if (typeof driverCode === 'string') return { code: driverCode, fromDriver: true };
+    if (typeof record.code === 'string') {
+      // TypeORM's QueryFailedError copies the driver's properties onto itself.
+      const copied =
+        driver !== null &&
+        typeof driver === 'object' &&
+        (driver as { code?: unknown }).code === record.code;
+      return { code: record.code, fromDriver: viaDriver || copied };
     }
-    if (typeof record.code === 'string') return { code: record.code, fromDriver: false };
-    current = driver ?? record.cause;
+    if (driver != null) {
+      current = driver;
+      viaDriver = true;
+    } else {
+      current = record.cause;
+    }
   }
   return undefined;
 }
@@ -177,8 +192,13 @@ function guarded<T>(read: () => T, fallback: T): T {
  * `[Omitted]` on its own, so one bad entry never costs the healthy fields next to it. Only a true
  * cycle (an object inside itself) is cut, a shared object that is not a cycle is kept.
  */
-function sanitize(value: unknown, path = new Set<object>(), depth = 0): unknown {
-  if (typeof value === 'string') return scrubSecrets(value);
+function sanitize(
+  value: unknown,
+  path = new Set<object>(),
+  depth = 0,
+  budget: ScanBudget = { left: SCAN_BUDGET },
+): unknown {
+  if (typeof value === 'string') return scrubSecrets(value, budget);
   if (typeof value === 'function' || typeof value === 'symbol') return undefined;
   if (value === null || typeof value !== 'object') return value;
   if (value instanceof Error) return safeErrorMetadata(value);
@@ -190,7 +210,7 @@ function sanitize(value: unknown, path = new Set<object>(), depth = 0): unknown 
   path.add(value);
   try {
     const child = (read: () => unknown) =>
-      guarded(() => sanitize(read(), path, depth + 1), OMITTED);
+      guarded(() => sanitize(read(), path, depth + 1, budget), OMITTED);
     if (Array.isArray(value)) {
       const items = value as unknown[];
       return Array.from({ length: items.length }, (_, index) => child(() => items[index]));
@@ -205,7 +225,7 @@ function sanitize(value: unknown, path = new Set<object>(), depth = 0): unknown 
         if (key === 'res') return [key, guarded(() => responseFields(item), {})];
         if (key === 'err' || key === 'error') return [key, safeErrorMetadata(item)];
         if ((key === 'message' || key === 'msg') && typeof item === 'string')
-          return [key, safeMessage(item)];
+          return [key, safeMessage(item, budget)];
         return [key, child(() => item)];
       }),
     );
@@ -244,9 +264,7 @@ function prepareArgs(args: unknown[]): [string] | [object, string] {
     return [safeMessage(String(first))];
   if (first === null || typeof first !== 'object') return ['Diagnostic event'];
   const fields =
-    first instanceof Error || isErrorRecord(first)
-      ? { err: safeErrorMetadata(first) }
-      : callerFields(first);
+    first instanceof Error || isErrorRecord(first) ? { err: first } : callerFields(first);
   return [fields, typeof second === 'string' ? render(second, args.slice(2)) : 'Diagnostic event'];
 }
 
@@ -255,22 +273,36 @@ function prepareArgs(args: unknown[]): [string] | [object, string] {
  * "password":"…" pairs, and raw JWTs. Callers must still keep secrets out of logs. Every pattern
  * is anchored or bounded so the scan stays linear; a string over MAX_SCANNED_LENGTH is not scanned.
  */
-function scrubSecrets(text: string): string {
-  if (text.length > MAX_SCANNED_LENGTH) return '[Omitted]';
-  return text
-    .replace(/\b(?:https?|postgres(?:ql)?|rediss?):\/\/[^\s]+/gi, '[Redacted URI]')
-    .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [Redacted]')
-    .replace(/\bBasic\s+[A-Za-z0-9+/=]{8,}/gi, 'Basic [Redacted]')
-    .replace(
-      /\b(password|passwd|token|secret|authorization)"?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,
-      '$1=[Redacted]',
-    )
-    .replace(/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]+/g, '[Redacted JWT]');
+function scrubSecrets(text: string, budget?: ScanBudget): string {
+  if (text.length > MAX_SCANNED_LENGTH) return OMITTED;
+  if (budget) {
+    if (text.length > budget.left) return OMITTED;
+    budget.left -= text.length;
+  }
+  return (
+    text
+      .replace(/\b(?:https?|postgres(?:ql)?|rediss?):\/\/[^\s]+/gi, '[Redacted URI]')
+      .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [Redacted]')
+      .replace(/\bBasic\s+[A-Za-z0-9+/=]{8,}/gi, 'Basic [Redacted]')
+      // No leading \b below: the secret word often sits inside a longer name (PGPASSWORD,
+      // db_password, client_secret, access_token). A scheme such as "Token x" follows the header.
+      .replace(/authorization"?\s*[:=]\s*[^,;\n]+/gi, 'authorization=[Redacted]')
+      .replace(
+        /(password|passwd|pwd|secret|token|credential|api[_-]?key)"?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,
+        '$1=[Redacted]',
+      )
+      // The look-behind lets a run of token characters start a match only once, so a hostile
+      // "eyJ-eyJ-…" cannot make the scan quadratic.
+      .replace(
+        /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]+/g,
+        '[Redacted JWT]',
+      )
+  );
 }
 
 /** Defence in depth for diagnostic text; callers must still use fixed, non-sensitive messages. */
-function safeMessage(message: string): string {
-  return scrubSecrets(message).replace(/\b\d{8,}\b/g, '[Redacted number]');
+function safeMessage(message: string, budget?: ScanBudget): string {
+  return scrubSecrets(message, budget).replace(/\b\d{8,}\b/g, '[Redacted number]');
 }
 
 export function requestId(req: IncomingMessage, res: ServerResponse): string {

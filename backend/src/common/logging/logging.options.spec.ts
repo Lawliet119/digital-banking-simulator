@@ -171,6 +171,13 @@ describe('DBS-42 JSON logging options', () => {
           d: '{"password":"sensitive-json"}',
           e: 'eyJhbGciOiJIUzI1.eyJzdWIiOiJzZW5zaXRpdmU.sensitive_signature',
           nested: [{ f: 'password=sensitive-kv' }],
+          g: 'PGPASSWORD=sensitive-pg',
+          h: 'db_password=sensitive-db',
+          i: 'client_secret=sensitive-cs',
+          j: '{"access_token":"sensitive-at"}',
+          k: 'refreshToken: sensitive-rt',
+          l: 'apiKey=sensitive-ak',
+          m: 'Authorization: Token sensitive-tk',
         },
         'Fixed message',
       );
@@ -192,11 +199,20 @@ describe('DBS-42 JSON logging options', () => {
 
     it('does not scan a very long string, so it cannot stall the event loop', () => {
       const log = capture();
-      const started = Date.now();
       log.logger.info({ big: 'eyJ'.repeat(20_000), edge: 'a'.repeat(4096) }, 'Fixed message');
-      expect(Date.now() - started).toBeLessThan(50);
       expect(log.rows()[0].big).toBe('[Omitted]');
       expect(log.rows()[0].edge).toBe('a'.repeat(4096));
+    });
+
+    it('bounds the total scan work of one call, not only each string', () => {
+      const log = capture();
+      const hostile = 'eyJ-'.repeat(1024); // 4096 characters, worst case for a JWT pattern
+      const started = Date.now();
+      log.logger.info({ list: Array.from({ length: 200 }, () => hostile) }, 'Fixed message');
+      const list = log.rows()[0].list as string[];
+      expect(list).toHaveLength(200);
+      expect(list.filter(value => value === '[Omitted]').length).toBeGreaterThan(150);
+      expect(Date.now() - started).toBeLessThan(250);
     });
   });
 
@@ -303,6 +319,22 @@ describe('DBS-42 JSON logging options', () => {
         expect(safeErrorMetadata({ code }).code).toBe(code);
       for (const code of ['22P02', 'AB12C', 'untrusted-arbitrary-code'])
         expect(safeErrorMetadata({ code })).toEqual({ errorType: 'NonError' });
+    });
+
+    it('prefers the error own code like pg-error.util, and trusts a copied driver code', () => {
+      expect(safeErrorMetadata({ code: 'ERR_WRAPPED', driverError: { code: '40P01' } })).toEqual({
+        errorType: 'NonError',
+      });
+      expect(safeErrorMetadata({ code: '22P02', driverError: { code: '22P02' } }).code).toBe(
+        '22P02',
+      );
+    });
+
+    it('keeps a driver SQLSTATE when pino logs the error itself, not only through Nest', () => {
+      const log = capture();
+      log.logger.error(Object.assign(new Error('sensitive-x'), { driverError: { code: '22P02' } }));
+      expect(log.rows()[0].err).toEqual({ errorType: 'Error', code: '22P02' });
+      expect(log.text()).not.toContain('sensitive-');
     });
 
     it('finds the code on error, driverError or cause in the order pg-error.util uses', () => {
@@ -440,6 +472,25 @@ describe('DBS-42 JSON logging options', () => {
       expect(row.d).toBe('2026-10-25T10:00:00.000Z');
       expect(row.buf).toBeUndefined();
       expect(row.s2).toEqual({ x: 1 });
+    });
+
+    it('does not hang on a cyclic object and keeps a short number in the message', () => {
+      const log = capture();
+      const cyclic: Record<string, unknown> = { id: 1 };
+      cyclic.self = cyclic;
+      log.logger.info(cyclic, 'Fixed message');
+      const loose = log.logger as unknown as { info: (...args: unknown[]) => void };
+      loose.info('Count %s', '1234567');
+      expect(log.rows()[0]).toMatchObject({ id: 1, self: { id: 1, self: '[Omitted]' } });
+      expect(log.rows()[1].message).toBe('Count 1234567');
+    });
+
+    it('records, as the DBS-43 baseline, that bindings made by other code are not cleaned', () => {
+      const log = capture();
+      const child = log.logger.child({ correlationId: ID });
+      child.child({ correlationId: 'second' }).info('Fixed message');
+      // Pino resets its bindings formatter for every child, so DBS-42 cannot filter these.
+      expect(occurrences(log.text(), 'correlationId')).toBe(2);
     });
 
     it('regression: a serialized error shape is still reduced to safe fields', () => {

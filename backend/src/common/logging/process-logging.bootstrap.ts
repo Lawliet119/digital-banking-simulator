@@ -33,16 +33,19 @@ export const bootstrapLogger = new PinoLogger({
 const crashLogger = pino(createLoggingOptions(settings), pino.destination({ dest: 1, sync: true }));
 
 function logFatalAndExit(error: unknown, message: string): never {
+  let flushed = true;
   try {
     rootDestination.flushSync();
   } catch {
-    /* a write still in flight cannot be flushed; the fatal line matters more */
+    flushed = false; // a write still in flight cannot be flushed; the fatal line matters more
   }
-  try {
-    // If the in-flight write was cut short, start the fatal record on a line of its own.
-    writeSync(1, '\n');
-  } catch {
-    /* stdout closed or full */
+  if (!flushed) {
+    try {
+      // The in-flight write may be cut short: start the fatal record on a line of its own.
+      writeSync(1, '\n');
+    } catch {
+      /* stdout closed or full */
+    }
   }
   try {
     crashLogger.fatal(safeErrorMetadata(error), message);
