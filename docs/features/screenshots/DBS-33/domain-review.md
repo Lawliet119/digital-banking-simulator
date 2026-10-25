@@ -23,3 +23,24 @@ The core design matches ADR-10, ADR-11 and docs/03: 2 AZ, public + private subne
 I checked findings 1, 2, 3 and 8 against how Terraform behaves, not by running anything. On IAM and secrets there was nothing beyond what §3 already says (the user `faker` is AdministratorAccess, flagged and not changed here).
 
 Verdict: REVISE
+
+---
+
+# Vòng 2 (review lại bản đã sửa, nguyên văn)
+
+Reviewer: subagent general-purpose, model opus, 2026-10-25. Verdict: REVISE (1 blocking, 5 should-fix, 6 minor).
+
+| # | Severity | Section | Finding | Suggested fix |
+|---|---|---|---|---|
+| 1 | blocking | §5 M-33-04, M-33-05 | `terraform destroy` trong M-33-04 sẽ xóa gần hết `base` (tài nguyên độc lập bị xóa song song, chỉ lifecycle policy phụ thuộc repo); M-33-05 "plan No changes" sai; thiếu "cần go-ahead". | Chứng minh B11 bằng `aws ecr delete-repository --repository-name dbs-api` (không `--force`) phải trả `RepositoryNotEmptyException`; hoặc nếu giữ destroy thì đánh dấu go-ahead, mong đợi xóa một phần, M-33-05 đổi thành `apply` rồi plan "No changes". |
+| 2 | should-fix | §2 B12, M-33-04 | Đẩy lại cùng manifest cho `ImageAlreadyExistsException`, không phải `ImageTagAlreadyExistsException`. | Lần đẩy thứ hai phải là image khác dưới tag `t1` (blob cấu hình khác). |
+| 3 | should-fix | §4 TC-33-10, §3 | `session` không có provider `aws` nên `mock_provider "aws"` lỗi `unknown provider`; `init` không tạo `.terraform.lock.hcl`. Bỏ `mock_provider`, giữ `override_data`; bỏ lock file khỏi danh sách `session`. | |
+| 4 | should-fix | TC-33-04b | grep đệ quy trúng binary provider trong `.terraform/`. | `grep -nE '…' envs/dev/base/*.tf` |
+| 5 | should-fix | TC-33-04b, M-33-01 | Máy không có `jq`. | Dùng `python3 -c` đọc plan JSON. |
+| 6 | should-fix | M-33-00 | `describe-budgets` không trả ngưỡng cảnh báo. | Thêm `aws budgets describe-notifications-for-budget` cho từng budget. |
+| 7 | minor | M-33-04 | `start-lifecycle-policy-preview` bất đồng bộ (cần `get-lifecycle-policy-preview`); `upload-layer-part` phải dùng `fileb://`; manifest không layer có thể bị từ chối, cần phương án dự phòng một layer gzip nhỏ; scan zero-layer = unsupported/failed. | |
+| 8 | minor | TC-33-03 | Khẳng định "private không có route 0.0.0.0/0" luôn đúng dưới mock. | Assert không có `aws_route` nào gắn vào `aws_route_table.private` và route table private không có `route` inline; ghi "chỉ cấu hình". |
+| 9 | minor | §3, M-33-06 | `session` chỉ khai báo `state_bucket`, nếu không `plan` sẽ hỏi `account_id`. | Ghi rõ. |
+| 10 | minor | M-33-01 | `tfplan` chưa trong `.gitignore`. | Thêm `*.tfplan`, đặt tên `base.tfplan`. |
+| 11 | minor | §3, TC-33-12 | README chưa ghi security group/subnet group ở `base` và ngoại lệ tên `dbs-api`. | Thêm vào phạm vi README và TC-33-12. |
+| 12 | minor | TC-33-10 | `grep -c` nhiều file in từng dòng và thoát mã 1. | `! grep -q '^resource ' envs/dev/session/*.tf` |
