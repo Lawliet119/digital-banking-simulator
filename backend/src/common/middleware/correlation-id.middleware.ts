@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
+import { CorrelationContext } from '../correlation/correlation-context';
 
 export const CORRELATION_ID_HEADER = 'X-Correlation-Id';
 export const REQUEST_ID_HEADER = 'X-Request-Id';
@@ -37,5 +38,5 @@ export function correlationIdMiddleware(
     req.clientRequestId = incoming.toLowerCase();
     res.setHeader(REQUEST_ID_HEADER, req.clientRequestId);
   }
-  next();
+  new CorrelationContext().run(correlationId, 'api', next);
 }

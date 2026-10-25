@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Logger, Post } from '@nestjs/common';
+import { Body, Controller, Get, Injectable, Logger, Param, Post } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { Writable } from 'node:stream';
@@ -7,10 +7,38 @@ import request from 'supertest';
 import { configureHttpApp } from '../src/app.setup';
 import { createLoggingOptions } from '../src/common/logging/logging.options';
 import { createHttpLogging } from '../src/common/logging/http-logging';
+import { CorrelationModule } from '../src/common/correlation/correlation.module';
+import { CorrelationContext } from '../src/common/correlation/correlation-context';
+
+@Injectable()
+class NestedTraceService {
+  private readonly logger = new Logger(NestedTraceService.name);
+  private arrivals = 0;
+  private release?: () => void;
+  private readonly barrier = new Promise<void>(resolve => (this.release = resolve));
+
+  constructor(private readonly context: CorrelationContext) {}
+
+  async observe(slot: string): Promise<{ correlationId: string | undefined }> {
+    this.arrivals++;
+    if (this.arrivals === 2) this.release?.();
+    await this.barrier;
+    const correlationId = this.context.getCorrelationId();
+    this.logger.log({ slot, observedId: correlationId }, 'Nested service completed');
+    return { correlationId };
+  }
+}
 
 @Controller('logging-probe')
 class LoggingProbeController {
   private readonly logger = new Logger(LoggingProbeController.name);
+
+  constructor(private readonly nested: NestedTraceService) {}
+
+  @Get('nested/:slot')
+  nestedTrace(@Param('slot') slot: string) {
+    return this.nested.observe(slot);
+  }
 
   @Get('ok')
   ok() {
@@ -53,12 +81,14 @@ describe('DBS-42 logger HTTP integration (no database)', () => {
     });
     const moduleRef = await Test.createTestingModule({
       imports: [
+        CorrelationModule,
         LoggerModule.forRoot({
           forRoutes: [],
           pinoHttp: [createLoggingOptions({ role: 'both', logLevel: 'debug' }), stream],
         }),
       ],
       controllers: [LoggingProbeController],
+      providers: [NestedTraceService],
     }).compile();
     app = moduleRef.createNestApplication<NestExpressApplication>({ bufferLogs: true });
     app.useLogger(app.get(PinoNestLogger));
@@ -107,6 +137,24 @@ describe('DBS-42 logger HTTP integration (no database)', () => {
         }),
       );
     }
+  });
+
+  it('TC-43-04 isolates two overlapping HTTP requests through a nested service and logs both ids', async () => {
+    const [first, second] = await Promise.all([
+      request(app.getHttpServer()).get('/v1/logging-probe/nested/first').expect(200),
+      request(app.getHttpServer()).get('/v1/logging-probe/nested/second').expect(200),
+    ]);
+    const firstId = first.headers['x-correlation-id'];
+    const secondId = second.headers['x-correlation-id'];
+    expect(firstId).not.toBe(secondId);
+    expect(first.body.correlationId).toBe(firstId);
+    expect(second.body.correlationId).toBe(secondId);
+    expect(rows().filter(row => row.message === 'Nested service completed')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ slot: 'first', observedId: firstId, correlationId: firstId }),
+        expect.objectContaining({ slot: 'second', observedId: secondId, correlationId: secondId }),
+      ]),
+    );
   });
 
   it('TC-42-06 never logs URL/query, headers, bodies or client-controlled IDs', async () => {

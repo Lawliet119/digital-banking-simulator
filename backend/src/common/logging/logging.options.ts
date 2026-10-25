@@ -6,6 +6,7 @@ import type { Options } from 'pino-http';
 import type { RequestWithCorrelationId } from '../middleware/correlation-id.middleware';
 import { CORRELATION_ID_HEADER } from '../middleware/correlation-id.middleware';
 import { logLevels } from '../utils/log-levels';
+import { currentTraceContext } from '../correlation/correlation-context';
 
 export interface LoggingSettings {
   role: 'api' | 'worker' | 'both';
@@ -134,9 +135,12 @@ export function createLoggingOptions(settings: LoggingSettings): Options {
     base: { appRole: settings.role },
     mixin(_context, _level, logger) {
       const bindings = logger.bindings();
+      const trace = currentTraceContext();
       return {
-        ...(!('role' in bindings) ? { role: settings.role === 'worker' ? 'worker' : 'api' } : {}),
-        ...(!('correlationId' in bindings) ? { correlationId: null } : {}),
+        ...(!('role' in bindings)
+          ? { role: trace?.role ?? (settings.role === 'worker' ? 'worker' : 'api') }
+          : {}),
+        ...(!('correlationId' in bindings) ? { correlationId: trace?.correlationId ?? null } : {}),
       };
     },
     formatters: {
