@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse } from 'dotenv';
-import { validateEnv } from './validation.schema';
+import { ConfigValidationError, validateEnv } from './validation.schema';
 
 /** The smallest environment that is valid for the default role (`both`) in development. */
 const base = {
@@ -29,6 +29,49 @@ describe('validateEnv', () => {
     it('env/.env.example always passes the schema, so a new developer can copy it as-is', () => {
       const example = parse(readFileSync(resolve(__dirname, '../../env/.env.example')));
       expect(() => validateEnv(example)).not.toThrow();
+    });
+  });
+
+  describe('TC-42-11 invalidKeys', () => {
+    function failure(env: Record<string, unknown>): ConfigValidationError {
+      try {
+        validateEnv(env);
+      } catch (error) {
+        return error as ConfigValidationError;
+      }
+      throw new Error('expected validateEnv to throw');
+    }
+
+    it('names every failing key, in schema order, and keeps the combined message', () => {
+      const error = failure({ ...base, PORT: 'not-a-number', LOG_LEVEL: 'INFO' });
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toBeInstanceOf(ConfigValidationError);
+      expect(error.invalidKeys).toEqual(['PORT', 'LOG_LEVEL']);
+      expect(error.message).toMatch(/Invalid environment configuration/);
+    });
+
+    it('names a missing required key', () => {
+      const { DATABASE_URL: _omitted, ...withoutDatabase } = base;
+      expect(failure(withoutDatabase).invalidKeys).toEqual(['DATABASE_URL']);
+    });
+
+    it('labels the transfer-limit rule that spans two keys as <cross-field>', () => {
+      const error = failure({
+        ...base,
+        TRANSFER_LIMIT_PER_TX: '987654321098',
+        TRANSFER_LIMIT_PER_DAY: '123456789012',
+      });
+      expect(error.invalidKeys).toEqual(['<cross-field>']);
+    });
+
+    it('never puts a value in invalidKeys, even when the message quotes it', () => {
+      const error = failure({ ...base, TRANSFER_LIMIT_PER_TX: 'sensitive-limit-fixture' });
+      expect(error.invalidKeys).toEqual(['TRANSFER_LIMIT_PER_TX']);
+      expect(JSON.stringify(error.invalidKeys)).not.toContain('sensitive-');
+    });
+
+    it('ignores keys outside the schema', () => {
+      expect(failure({ ...base, PORT: 'x', NOT_IN_SCHEMA: 'y' }).invalidKeys).toEqual(['PORT']);
     });
   });
 
