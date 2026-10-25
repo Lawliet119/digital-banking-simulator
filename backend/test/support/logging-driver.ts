@@ -1,4 +1,10 @@
-/** Manual runtime check: node -r ts-node/register -r tsconfig-paths/register test/support/logging-driver.ts */
+/**
+ * Manual runtime check: node -r ts-node/register -r tsconfig-paths/register test/support/logging-driver.ts
+ *
+ * DBS42_DATABASE_URL (optional, this driver only, not an application setting) points the app at a
+ * PostgreSQL other than the one in env/.env.example, for a machine where another PostgreSQL
+ * already owns port 5432. Only its host is ever printed.
+ */
 import { spawn, execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -8,6 +14,17 @@ import { parse } from 'dotenv';
 const backend = resolve(__dirname, '../..');
 const example = parse(readFileSync(resolve(backend, 'env/.env.example')));
 const delay = (ms: number) => new Promise<void>(done => setTimeout(done, ms));
+const databaseUrl = process.env.DBS42_DATABASE_URL;
+
+function baseEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...example,
+    ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+    NODE_ENV: 'test',
+    TS_NODE_TRANSPILE_ONLY: 'true',
+  };
+}
 
 async function unusedPort(): Promise<number> {
   const server = createServer();
@@ -33,15 +50,7 @@ async function run(role: 'api' | 'worker' | 'both', logLevel: 'debug' | 'error' 
     ['-r', 'ts-node/register', '-r', 'tsconfig-paths/register', 'src/main.ts'],
     {
       cwd: backend,
-      env: {
-        ...process.env,
-        ...example,
-        NODE_ENV: 'test',
-        APP_ROLE: role,
-        LOG_LEVEL: logLevel,
-        PORT: String(port),
-        TS_NODE_TRANSPILE_ONLY: 'true',
-      },
+      env: { ...baseEnv(), APP_ROLE: role, LOG_LEVEL: logLevel, PORT: String(port) },
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   );
@@ -157,6 +166,104 @@ async function run(role: 'api' | 'worker' | 'both', logLevel: 'debug' | 'error' 
     check(rows.length === 0, 'M-42-04 error level suppresses successful startup, 200 and 404 logs');
 }
 
+/** One run that must end by itself with a failure: every line is JSON, nothing on stderr. */
+async function failure(
+  label: string,
+  overrides: Record<string, string>,
+  options: { preload?: boolean; secrets?: string[] } = {},
+) {
+  const shown = Object.keys(overrides)
+    .map(key => `${key}=<set>`)
+    .join(' ');
+  console.log(`\n$ ${shown} node -r ts-node/register -r tsconfig-paths/register src/main.ts`);
+  console.log(`(M-42-06 ${label})`);
+  const child = spawn(
+    process.execPath,
+    [
+      '-r',
+      'ts-node/register',
+      '-r',
+      'tsconfig-paths/register',
+      ...(options.preload ? ['-r', './test/support/crash-preload.ts'] : []),
+      'src/main.ts',
+    ],
+    {
+      cwd: backend,
+      env: { ...baseEnv(), LOG_LEVEL: 'debug', ...overrides },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
+  child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+  const exitCode = await new Promise<number | null>((done, fail) => {
+    const timer = setTimeout(() => {
+      child.kill();
+      fail(new Error(`${label}: did not exit in time`));
+    }, 90_000);
+    child.once('error', fail);
+    child.once('close', code => {
+      clearTimeout(timer);
+      done(code);
+    });
+  });
+  const lines = stdout.split('\n').filter(Boolean);
+  console.log(lines.length > 12 ? `${lines.slice(-12).join('\n')}` : lines.join('\n'));
+  check(exitCode !== 0, `M-42-06 ${label}: exits with a non-zero code (${exitCode})`);
+  check(stderr.length === 0, `M-42-06 ${label}: nothing on stderr`);
+  const rows = lines.map(line => JSON.parse(line) as Record<string, unknown>);
+  check(rows.length > 0, `M-42-06 ${label}: every line is JSON`);
+  const leaked = (options.secrets ?? [])
+    .concat(['sensitive-'])
+    .filter(text => stdout.includes(text));
+  check(leaked.length === 0, `M-42-06 ${label}: no fixture value in the output`);
+  check(!stdout.includes('    at '), `M-42-06 ${label}: no stack trace text`);
+  return rows;
+}
+
+async function failureAndRecovery() {
+  const startup = (rows: Record<string, unknown>[]) =>
+    rows.find(row => row.message === 'Application startup failed');
+  const bad = await failure('LOG_LEVEL=INFO', { APP_ROLE: 'api', LOG_LEVEL: 'INFO' });
+  check(
+    JSON.stringify(startup(bad)?.invalidKeys) === JSON.stringify(['LOG_LEVEL']),
+    'M-42-06 LOG_LEVEL=INFO names LOG_LEVEL and not its value',
+  );
+  const port = await failure('PORT=not-a-number', { APP_ROLE: 'api', PORT: 'not-a-number' });
+  check(
+    JSON.stringify(startup(port)?.invalidKeys) === JSON.stringify(['PORT']),
+    'M-42-06 PORT names PORT and not its value',
+  );
+  const quoted = await failure('a value the validation text quotes', {
+    APP_ROLE: 'api',
+    TRANSFER_LIMIT_PER_TX: 'sensitive-limit-fixture',
+  });
+  check(
+    JSON.stringify(startup(quoted)?.invalidKeys) === JSON.stringify(['TRANSFER_LIMIT_PER_TX']),
+    'M-42-06 TRANSFER_LIMIT_PER_TX names the key, the quoted value stays out of the log',
+  );
+  await failure(
+    'PostgreSQL unreachable, fake password',
+    {
+      APP_ROLE: 'api',
+      DATABASE_URL: 'postgres://banking:sensitive-db-fixture@127.0.0.1:1/banking',
+    },
+    { secrets: ['sensitive-db-fixture'] },
+  );
+  const crash = await failure(
+    'worker uncaught exception',
+    { APP_ROLE: 'worker', DBS42_CRASH: 'uncaught' },
+    { preload: true },
+  );
+  check(
+    crash.filter(row => row.level === 60).length === 1,
+    'M-42-06 the crash ends as exactly one fatal JSON record',
+  );
+  console.log('\nRecovery: the same app starts normally right after the failures.');
+  await run('api');
+}
+
 async function main() {
   console.log(
     execFileSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' }).trim(),
@@ -164,10 +271,13 @@ async function main() {
   console.log(
     'Manual runtime logging check; source app, PostgreSQL Compose, synthetic secrets only.',
   );
+  const host = new URL(baseEnv().DATABASE_URL ?? 'postgres://unset').host;
+  console.log(`Database host: ${host}`);
   await run('api');
   await run('worker');
   await run('both');
   await run('api', 'error');
+  await failureAndRecovery();
   console.log(
     '\nAll manual runtime checks passed. Error paths are additionally executed by logging-bootstrap/logging HTTP e2e suites.',
   );
