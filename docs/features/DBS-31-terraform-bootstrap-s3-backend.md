@@ -1,6 +1,6 @@
 # DBS-31 · Terraform bootstrap: S3 backend có versioning, mã hóa và khóa state
 
-> **Status:** Plan approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-31-terraform-bootstrap` · **PR:** — · **Cập nhật:** 2026-10-19
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-31-terraform-bootstrap` · **PR:** (điền sau khi mở) · **Cập nhật:** 2026-10-25
 
 ## 1. Bối cảnh
 
@@ -172,12 +172,12 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
 | M-31-08 | đạt: 3 phiên bản `bootstrap.tfstate`, tag trả về `platform` |
 
 - **Phạm vi so với §7:** `git diff --stat ad940da^..HEAD` gồm 11 file: `.gitignore`, feature doc, README, `bootstrap/*` (lock, backend, main, outputs, test, variables, versions) đúng danh sách §7. (`git diff main...HEAD` hiện dài hơn vì `main` cục bộ cũ so với `origin/main`.)
-- **Ảnh chụp:** **thiếu** ảnh console S3 (Properties, Permissions) và ảnh lỗi khóa M-31-06; thay bằng output thô ở `manual-test.txt`. Cần người duyệt chấp nhận từng ảnh hoặc bạn chụp bổ sung.
+- **Ảnh chụp:** **thiếu** ảnh console S3 (Properties, Permissions) và ảnh lỗi khóa M-31-06; thay bằng output thô ở `manual-test.txt`. Người duyệt đã chấp nhận thiếu hai ảnh này ở G4 (2026-10-25).
 - **Lệch so với kế hoạch:**
   1. M-31-03: `--body /dev/null` bị AWS CLI 2.38 từ chối, dùng tệp rỗng.
   2. M-31-06: `terraform console` không giữ khóa nên dùng hai `plan` chồng nhau; không cần `apply` dừng ở prompt vì không có thay đổi.
   3. M-31-08: đổi tạm tag trong working tree rồi `git checkout`, không commit.
-  4. Quyền S3 của `faker`: user thuộc group `dbs-admin` (AdministratorAccess); policy `dbs-require-mfa` đã bị chủ tài khoản gỡ khỏi group (2026-10-25) vì không cần cho dự án cá nhân, nên README mục credential (IAM user có MFA, `get-session-token`) không còn khớp thực tế. Chưa sửa README; chờ bạn quyết định (xem G4).
+  4. Quyền S3 của `faker`: user thuộc group `dbs-admin` (AdministratorAccess); policy `dbs-require-mfa` đã bị chủ tài khoản gỡ khỏi group (2026-10-25) vì không cần cho dự án cá nhân, nên README mục credential (IAM user có MFA, `get-session-token`) không còn khớp thực tế. README mục credential đã sửa theo thực tế (G4, 2026-10-25).
 - **Bàn giao cho vai khác:** BL-010 (M-31-05 và IAM tối thiểu), BL-011 (DBS-37: kiểm tra Terraform trong CI), BL-012 (DBS-208: teardown bucket state).
 
 ## 9. Tài liệu đã cập nhật
