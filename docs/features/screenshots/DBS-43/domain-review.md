@@ -8,3 +8,7 @@
 | Should-fix | Test cần chứng minh context của service con và hai request thực sự chồng lấp. | Dùng HTTP e2e với barrier bất đồng bộ, kiểm header và log JSON của từng request. |
 
 **Verdict: REVISE** cho phương án tuyên bố hoàn tất toàn bộ DoD khi chưa có consumer thật.
+
+## Review lại sau triển khai
+
+Reviewer xác nhận code đã xử lý bốn finding should-fix; không thấy lỗi mới. **Verdict: APPROVE cho phạm vi code hiện có.** DBS-43 đầy đủ vẫn cần consumer runtime và test queue thực tế. Reviewer cũng yêu cầu ảnh bằng chứng; đã thêm `01-manual-output.png` dựng từ transcript thật.

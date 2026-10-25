@@ -48,7 +48,7 @@ flowchart LR
 
 ## 6. Domain review
 
-[Review độc lập](screenshots/DBS-43/domain-review.md) tìm 1 blocking và 4 should-fix. Đã xử lý: context trước validation; không sửa event; role worker trong both; một storage dùng chung; HTTP e2e song song. Blocking về consumer thật được ghi rõ là chưa đạt và bàn giao.
+[Review độc lập](screenshots/DBS-43/domain-review.md) tìm 1 blocking và 4 should-fix. Đã xử lý: context trước validation; không sửa event; role worker trong both; một storage dùng chung; HTTP e2e song song. Blocking về consumer thật được ghi rõ là chưa đạt và bàn giao. Review lại: **APPROVE cho phạm vi code hiện có**, DoD đầy đủ vẫn chờ consumer thật.
 
 ## 7. Kế hoạch triển khai
 
@@ -64,7 +64,9 @@ Lùi thay đổi bằng revert commit của nhánh; không có migration hoặc 
 
 `lint:check`, `typecheck` và `build` đạt; unit 27 suite/389 test, e2e 6 suite/37 test, DB 5 suite/91 test đạt, không skip. Test đỏ ban đầu của TC-43-01..03: thiếu `correlation-context.ts` (`TS2307`); sau implementation toàn bộ xanh.
 
-[Manual transcript](screenshots/DBS-43/manual-test.txt) trên code SHA `01ede58`: M-43-01 đạt với API thật, hai HTTP 200 có ID khác nhau và log cùng ID; M-43-02 đạt với callback chạy từ mã build, ID hợp lệ được giữ, thiếu/sai sinh mới; M-43-03 **chưa chạy** vì chưa có consumer runtime. TC-43-01..05 đạt trong phạm vi code hiện hữu. Không có screenshot ảnh, transcript giữ kết quả thực tế để review lại. Consumer runtime, Dev review và merge còn chờ; xem BL-026 và BL-027. PR phải nhắm nhánh DBS-42 trước, rồi đổi base sang `main` sau khi DBS-42 merge.
+[Manual transcript](screenshots/DBS-43/manual-test.txt) trên code SHA `01ede58`: M-43-01 đạt với API thật, hai HTTP 200 có ID khác nhau và log cùng ID; M-43-02 đạt với callback chạy từ mã build, ID hợp lệ được giữ, thiếu/sai sinh mới; M-43-03 **chưa chạy** vì chưa có consumer runtime. TC-43-01..05 đạt trong phạm vi code hiện hữu. Ảnh dưới đây dựng từ chính transcript để dễ đọc; transcript là nguồn gốc kết quả. Consumer runtime, Dev review và merge còn chờ; xem BL-026 và BL-027. PR phải nhắm nhánh DBS-42 trước, rồi đổi base sang `main` sau khi DBS-42 merge.
+
+![HTTP response và callback worker thực tế](screenshots/DBS-43/01-manual-output.png)
 
 ## 9. Tài liệu đã cập nhật
 
