@@ -31,3 +31,8 @@ output "ecr_repository_url" {
 output "ecr_repository_arn" {
   value = aws_ecr_repository.api.arn
 }
+
+output "github_ecr_push_role_arn" {
+  description = "Đặt vào biến repo GitHub AWS_ROLE_ARN (do chủ repo tạo)."
+  value       = aws_iam_role.github_ecr_push.arn
+}
