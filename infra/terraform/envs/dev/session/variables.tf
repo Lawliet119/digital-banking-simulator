@@ -50,3 +50,15 @@ variable "node_env" {
     error_message = "node_env must be staging or production on AWS."
   }
 }
+
+variable "db_instance_class" {
+  description = "Cỡ instance RDS. Dev dùng db.t4g.micro; production đổi qua biến (db.t4g.small, docs/03 mục 13.1)."
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "db_multi_az" {
+  description = "Multi-AZ cho RDS. Dev Single-AZ (false); production true."
+  type        = bool
+  default     = false
+}

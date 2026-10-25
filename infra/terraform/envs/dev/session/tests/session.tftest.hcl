@@ -43,6 +43,18 @@ override_resource {
   }
 }
 
+# master_user_secret là list computed: mock để rỗng làm output `[0]` lỗi; cấp giá trị giả hợp lệ.
+override_resource {
+  target = aws_db_instance.main
+  values = {
+    master_user_secret = [{
+      secret_arn    = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf"
+      kms_key_id    = "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"
+      secret_status = "active"
+    }]
+  }
+}
+
 override_data {
   target = data.terraform_remote_state.base
   values = {
@@ -59,6 +71,9 @@ override_data {
       cognito_user_pool_id  = "ap-southeast-1_ABCDEFGHI"
       cognito_client_id     = "abcdefghij1234567890"
       cognito_issuer        = "https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_ABCDEFGHI"
+      kms_key_arn           = "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"
+      db_subnet_group_name  = "dbs-dev"
+      db_security_group_id  = "sg-db"
     }
   }
 }
@@ -321,4 +336,99 @@ run "rejects_short_tag" {
   }
 
   expect_failures = [var.image_tag]
+}
+
+# TC-66-01, TC-66-04: instance dev
+run "rds_instance" {
+  command = apply
+
+  assert {
+    condition     = aws_db_instance.main.identifier == "dbs-dev" && aws_db_instance.main.engine == "postgres" && startswith(aws_db_instance.main.engine_version, "17")
+    error_message = "instance must be dbs-dev on PostgreSQL 17"
+  }
+
+  assert {
+    condition     = aws_db_instance.main.instance_class == "db.t4g.micro" && aws_db_instance.main.multi_az == false && aws_db_instance.main.allocated_storage == 20 && aws_db_instance.main.storage_type == "gp3"
+    error_message = "dev: db.t4g.micro, Single-AZ, 20 GB gp3 (ADR-11)"
+  }
+
+  assert {
+    condition     = aws_db_instance.main.db_name == "dbs" && aws_db_instance.main.username == "dbs_master" && aws_db_instance.main.port == 5432
+    error_message = "database dbs, master user dbs_master, port 5432"
+  }
+
+  assert {
+    condition     = aws_db_instance.main.ca_cert_identifier == "rds-ca-rsa2048-g1" && aws_db_instance.main.auto_minor_version_upgrade == true
+    error_message = "pin the CA and allow minor upgrades"
+  }
+
+  assert {
+    condition     = aws_db_instance.main.performance_insights_enabled == false && aws_db_instance.main.monitoring_interval == 0 && length(coalesce(aws_db_instance.main.enabled_cloudwatch_logs_exports, [])) == 0
+    error_message = "no performance insights, no enhanced monitoring, no log exports (cost)"
+  }
+
+  assert {
+    condition     = aws_db_instance.main.backup_retention_period == 1 && aws_db_instance.main.skip_final_snapshot == true && aws_db_instance.main.delete_automated_backups == true && aws_db_instance.main.deletion_protection == false && aws_db_instance.main.apply_immediately == true
+    error_message = "daily destroy must leave nothing: no final snapshot, automated backups deleted, no deletion protection"
+  }
+}
+
+# TC-66-02, TC-66-05, TC-66-08: mã hóa, mật khẩu do RDS quản lý, mạng
+run "rds_security" {
+  command = apply
+
+  assert {
+    condition     = aws_db_instance.main.storage_encrypted == true && aws_db_instance.main.kms_key_id == "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000" && aws_db_instance.main.publicly_accessible == false
+    error_message = "storage must be encrypted with the shared CMK and the instance must not be public"
+  }
+
+  assert {
+    condition     = aws_db_instance.main.manage_master_user_password == true && aws_db_instance.main.master_user_secret_kms_key_id == "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000" && aws_db_instance.main.password == null
+    error_message = "master password must be managed by RDS (never in state or variables)"
+  }
+
+  assert {
+    condition     = aws_db_instance.main.db_subnet_group_name == "dbs-dev" && aws_db_instance.main.vpc_security_group_ids == toset(["sg-db"])
+    error_message = "instance must use the base subnet group and the db security group"
+  }
+
+  assert {
+    condition     = output.db_master_secret_arn == "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf"
+    error_message = "master secret arn must be exported"
+  }
+}
+
+# TC-66-03: parameter group ép TLS và UTC
+run "rds_parameter_group" {
+  command = apply
+
+  assert {
+    condition     = aws_db_parameter_group.postgres17.name == "dbs-dev-postgres17" && aws_db_parameter_group.postgres17.family == "postgres17" && aws_db_instance.main.parameter_group_name == "dbs-dev-postgres17"
+    error_message = "instance must use the dbs-dev-postgres17 parameter group"
+  }
+
+  assert {
+    condition     = anytrue([for p in aws_db_parameter_group.postgres17.parameter : p.name == "rds.force_ssl" && p.value == "1"])
+    error_message = "rds.force_ssl must be 1"
+  }
+
+  assert {
+    condition     = anytrue([for p in aws_db_parameter_group.postgres17.parameter : p.name == "timezone" && p.value == "UTC"])
+    error_message = "timezone must be UTC"
+  }
+}
+
+# TC-66-10: production đổi qua biến
+run "rds_variables" {
+  command = apply
+
+  variables {
+    db_multi_az       = true
+    db_instance_class = "db.t4g.small"
+  }
+
+  assert {
+    condition     = aws_db_instance.main.multi_az == true && aws_db_instance.main.instance_class == "db.t4g.small"
+    error_message = "multi_az and instance class must follow the variables"
+  }
 }
