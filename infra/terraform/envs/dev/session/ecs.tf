@@ -7,9 +7,9 @@ resource "aws_ecs_cluster" "main" {
   }
 }
 
-# Chỉ biến môi trường không bí mật. DATABASE_URL, REDIS_URL, COGNITO_* … do DBS-66, 67, 54 thêm
-# (bí mật qua `secrets`, không viết thẳng). Thiếu chúng thì app staging từ chối khởi động,
-# nên desired_count mặc định 0.
+# Chỉ biến môi trường không bí mật (COGNITO_* là định danh công khai, không phải bí mật).
+# DATABASE_URL, REDIS_URL … do DBS-66, 67 và task ElastiCache thêm (bí mật qua `secrets`, không viết
+# thẳng). Thiếu chúng thì app staging từ chối khởi động, nên desired_count mặc định 0.
 resource "aws_ecs_task_definition" "api" {
   family                   = "dbs-api"
   requires_compatibilities = ["FARGATE"]
@@ -38,6 +38,9 @@ resource "aws_ecs_task_definition" "api" {
       { name = "PORT", value = "3000" },
       { name = "AWS_REGION", value = var.region },
       { name = "LOG_LEVEL", value = "log" },
+      { name = "COGNITO_USER_POOL_ID", value = local.base.cognito_user_pool_id },
+      { name = "COGNITO_CLIENT_ID", value = local.base.cognito_client_id },
+      { name = "COGNITO_ISSUER", value = local.base.cognito_issuer },
     ]
 
     logConfiguration = {
