@@ -1,6 +1,6 @@
 # DBS-43 · AsyncLocalStorage cho correlationId
 
-> **Status:** Implemented trên nhánh, chờ Dev review và merge · **Vai:** Dev · **Nhánh:** `feat/DBS-43-correlation-context` · **Base:** `feat/DBS-42-json-logger` · **Ngày:** 2026-10-25
+> **Status:** Implemented trên nhánh, chờ Dev review và merge · **Vai:** Dev · **Nhánh:** `feat/DBS-43-correlation-context` · **PR:** [#21 Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/21) · **Base:** `feat/DBS-42-json-logger` · **Ngày:** 2026-10-25
 
 ## 1. Bối cảnh
 
