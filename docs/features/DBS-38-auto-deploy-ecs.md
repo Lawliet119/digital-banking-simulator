@@ -1,6 +1,6 @@
 # DBS-38 · Deploy tự động: push main → image mới → ECS → /health/ready trên cloud
 
-> **Status:** Draft (đang làm, đến G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-38-auto-deploy` (xếp chồng trên `chore/DBS-66-terraform-rds`) · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented (G4 tự duyệt; bước chạy thật trên AWS chưa chạy, BL-104) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-38-auto-deploy` (xếp chồng trên `chore/DBS-66-terraform-rds`) · **PR:** — · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
@@ -181,8 +181,37 @@ Rủi ro và cách lùi: role deploy ghi vào ECS: `deploy.yml` chỉ chạy tr�
 
 ## 8. Kết quả
 
-(Điền ở Phase 4–5.)
+- **Lệnh kiểm tra** (SHA code cuối `46c5943`): `terraform test`: `base` **29/29** (27 cũ + 2 mới), `session` **13/13**, `fmt -check` sạch; `test_render_task_definition.py` 6 OK; `test_deploy.py` 17 OK; `check-image-workflow.py` OK (kèm 4 fixture âm của `deploy.yml`); `check-doc-links.mjs` 0 link hỏng. Không có `.skip`, `.only`, `.todo` (0 skipped).
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-38-01..03 | `test_render_task_definition.py` | đạt |
+| TC-38-04..13 | `test_deploy.py` (aws, curl, gh giả) | đạt |
+| TC-38-14, 15 | `base/tests/deploy_role.tftest.hcl` | đạt |
+| TC-38-16, 17 | `check-image-workflow.py` (fixture âm: thiếu `head_branch`, thiếu cùng repo, thêm `secrets.`, action không ghim SHA) | đạt |
+| TC-38-18 | test cũ của `base`, `session`, `image.yml` | đạt |
+| TC-38-19 | M-38-02…08 | **chưa làm**: toàn bộ cần AWS thật; người dùng yêu cầu ghi "chưa chạy" kèm BACKLOG |
+| TC-38-20 | quy trình | chưa làm (chờ review và merge) |
+
+20 test case: 18 đạt, 2 chưa làm (TC-38-19 thủ công trên AWS, TC-38-20 quy trình).
+
+- **Test thủ công** ([manual-test.txt](screenshots/DBS-38/manual-test.txt), SHA code cuối `46c5943`): chỉ chạy phần không cần AWS: `deploy.sh` thật với `IMAGE_TAG=latest` và `IMAGE_TAG=abc` bị từ chối trước mọi lời gọi `aws` (đạt, mã 1); các bộ test ở trên chạy lại.
+
+| Bước | Kết quả |
+|---|---|
+| M-38-00..M-38-07 | **chưa chạy** (cần `apply`/`destroy` AWS thật; người dùng bảo ghi chưa chạy): BL-104 |
+| M-38-08, M-38-09 | **chưa chạy** (chờ merge và biến repo): BL-104 |
+
+Chưa có ảnh chụp màn hình (không có bước thật nào chạy); G4 nêu rõ thiếu này.
+- **Chưa chứng minh bằng chạy thật:** quyền IAM của role deploy (chưa `simulate-principal-policy`), đường `register-task-definition` và `update-service` trên ECS thật, OIDC từ GitHub. Test đơn vị dùng `aws` giả nên chỉ chứng minh logic script.
+- **Phạm vi so với §7:** khớp; thêm vào `check-image-workflow.py` việc kiểm `ignore_changes` của `ecs.tf`.
+- **Handoff / BACKLOG:** BL-104 (chạy thật và biến repo), BL-105 (OIDC thật, `environment:`); đã xóa BL-036 (giới hạn rollback ghi ở README) và rút phần DBS-38 khỏi BL-039.
+
 
 ## 9. Tài liệu đã cập nhật
 
-(Điền ở Phase 4–5.)
+- `infra/terraform/README.md`: mục "Deploy tự động lên ECS (DBS-38)" (biến repo, kiểm sống, rollback).
+- `docs/BACKLOG.md`: thêm BL-104, BL-105; xóa BL-036; sửa BL-039.
+- `docs/features/README.md`: thêm dòng DBS-38.
+
