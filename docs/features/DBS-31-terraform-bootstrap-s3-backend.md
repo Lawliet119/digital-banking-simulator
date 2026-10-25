@@ -152,3 +152,34 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
 **Ghi nhớ:** `apply` chỉ chạy khi bạn nói đồng ý trong hội thoại và có credential của bạn trên máy; mình hướng dẫn từng lệnh ở bước 7 thay vì tự chạy.
 
 **Quyết định ở G3:** duyệt G3 (2026-10-19), không có thay đổi.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (2026-10-25): `terraform fmt -check -recursive` sạch; `terraform validate` "configuration is valid"; `terraform test`: 9 passed, 0 failed, 0 skipped.
+- **Đối chiếu test case:** TC-31-01…08 đạt (9 run trong `tests/bootstrap.tftest.hcl`, mock provider); TC-31-09…12 đạt (grep tĩnh theo §4); TC-31-11 đạt cả phần `expect_failures`; TC-31-13 đạt (lệnh trên); TC-31-14 **một phần**: D2 chưa kiểm trên máy thứ hai (M-31-05), D5 chờ PR, CI và Dev review.
+- **Test thủ công** (output thô: [manual-test.txt](screenshots/DBS-31/manual-test.txt)):
+
+| Bước | Kết quả |
+|---|---|
+| M-31-00 | đạt |
+| M-31-01 | đạt: 7 tài nguyên; account sai bị từ chối (B9) |
+| M-31-02 | đạt: Enabled, AES256, 4 cờ true, BucketOwnerEnforced, 3 tag |
+| M-31-03 | đạt: HTTP `AccessDenied` (explicit deny), HTTPS thành công |
+| M-31-04 | đạt: `bootstrap.tfstate` trong bucket, plan "No changes" |
+| M-31-05 | **chưa chạy**: cần người thứ hai và IAM tối thiểu (xem BL-010) |
+| M-31-06 | đạt (cách khác §5): hai `plan` chồng nhau, tiến trình sau báo `Error acquiring the state lock` |
+| M-31-07 | đạt: `prevent_destroy` chặn, bucket còn |
+| M-31-08 | đạt: 3 phiên bản `bootstrap.tfstate`, tag trả về `platform` |
+
+- **Phạm vi so với §7:** `git diff --stat ad940da^..HEAD` gồm 11 file: `.gitignore`, feature doc, README, `bootstrap/*` (lock, backend, main, outputs, test, variables, versions) đúng danh sách §7. (`git diff main...HEAD` hiện dài hơn vì `main` cục bộ cũ so với `origin/main`.)
+- **Ảnh chụp:** **thiếu** ảnh console S3 (Properties, Permissions) và ảnh lỗi khóa M-31-06; thay bằng output thô ở `manual-test.txt`. Cần người duyệt chấp nhận từng ảnh hoặc bạn chụp bổ sung.
+- **Lệch so với kế hoạch:**
+  1. M-31-03: `--body /dev/null` bị AWS CLI 2.38 từ chối, dùng tệp rỗng.
+  2. M-31-06: `terraform console` không giữ khóa nên dùng hai `plan` chồng nhau; không cần `apply` dừng ở prompt vì không có thay đổi.
+  3. M-31-08: đổi tạm tag trong working tree rồi `git checkout`, không commit.
+  4. Quyền S3 của `faker`: user thuộc group `dbs-admin` (AdministratorAccess); policy `dbs-require-mfa` đã bị chủ tài khoản gỡ khỏi group (2026-10-25) vì không cần cho dự án cá nhân, nên README mục credential (IAM user có MFA, `get-session-token`) không còn khớp thực tế. Chưa sửa README; chờ bạn quyết định (xem G4).
+- **Bàn giao cho vai khác:** BL-010 (M-31-05 và IAM tối thiểu), BL-011 (DBS-37: kiểm tra Terraform trong CI), BL-012 (DBS-208: teardown bucket state).
+
+## 9. Tài liệu đã cập nhật
+
+`docs/features/README.md` (thêm dòng DBS-31), `docs/BACKLOG.md` (thêm BL-010, BL-011, BL-012; không xóa dòng nào).
