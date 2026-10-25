@@ -1,6 +1,6 @@
 # DBS-33 · Terraform: VPC (≥ 2 AZ) và ECR
 
-> **Status:** Plan approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-33-terraform-vpc-ecr` · **PR:** — · **Cập nhật:** 2026-10-25
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-33-terraform-vpc-ecr` · **PR:** — · **Cập nhật:** 2026-10-25
 
 ## 1. Bối cảnh
 
