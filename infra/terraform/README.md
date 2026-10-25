@@ -122,6 +122,12 @@ python3 infra/scripts/tests/test_seed_cognito.py   # test của script (aws gi�
 
 Mật khẩu nằm ở Secrets Manager `dbs/dev/demo-accounts` (secret là nguồn sự thật; ≈ 0,40 USD/tháng; tag `project/env/owner`). Không bao giờ để mật khẩu trên dòng lệnh hay in ra màn hình. Quyền tối thiểu cho người chạy: `cognito-idp:AdminGetUser`, `AdminCreateUser`, `AdminSetUserPassword`, `AdminAddUserToGroup`, `AdminRemoveUserFromGroup`, `AdminUpdateUserAttributes`, `AdminListGroupsForUser`, `AdminUserGlobalSignOut` trên ARN pool; `secretsmanager:DescribeSecret`, `GetSecretValue`, `CreateSecret`, `PutSecretValue`, `TagResource` trên `dbs/dev/demo-accounts-*`. Teardown: `aws secretsmanager delete-secret --secret-id dbs/dev/demo-accounts --force-delete-without-recovery`.
 
+### RDS PostgreSQL 17 (DBS-66)
+
+`base` giữ KMS CMK dùng chung `alias/dbs-dev` (≈ 1 USD/tháng; xóa phải chờ 7 ngày), DB subnet group `dbs-dev` (2 private subnet) và SG `dbs-dev-db` (5432 chỉ từ SG `dbs-dev-api`; task `api` chỉ được đi ra 5432 tới SG này). `session` dựng instance `dbs-dev` (`db.t4g.micro`, Single-AZ, 20 GB gp3, mã hóa bằng CMK, `rds.force_ssl = 1`, `timezone = UTC`, backup 1 ngày) và parameter group `dbs-dev-postgres17`. Mật khẩu master do RDS quản lý trong Secrets Manager (output `db_master_secret_arn`); không có mật khẩu nào trong state. `db_instance_class` và `db_multi_az` là biến (production đổi).
+
+**Chi phí khi bật** (ADR-11): RDS ≈ 0,025 USD/giờ + gp3 20 GB ≈ 0,004 USD/giờ + secret master 0,40 USD/tháng theo tỉ lệ. Dev mất dữ liệu mỗi lần `destroy` (không snapshot cuối, xóa cả backup tự động); seed lại bằng migration và script (DBS-68). Tạo mất 10–15 phút, xóa 5–8 phút: `destroy` ngay khi kiểm xong, không để qua đêm. Tên database `dbs` (local và CI dùng `banking`; app chỉ nhận `DATABASE_URL`). CA của RDS ghim `rds-ca-rsa2048-g1`.
+
 Xóa (thứ tự ngược): `session` trước, `base` sau. `base` chỉ xóa được khi ECR `dbs-api` rỗng (`force_delete = false`); xóa image bằng `aws ecr batch-delete-image` trước. `base` gần như miễn phí nên thường giữ lại; chỉ xóa `session` cuối mỗi phiên làm việc. Ai bật phần tính tiền thì tắt khi xong.
 
 Kiểm tra tĩnh cho `envs/dev/base` và `envs/dev/session`: `terraform init -backend=false && terraform test` (dùng `mock_provider` và `override_data`, không cần credential). ALB của dev nghe HTTPS bằng chứng chỉ self-signed (chưa có tên miền): gọi bằng `curl -k`.
