@@ -47,3 +47,14 @@ variable "github_branch" {
   type        = string
   default     = "main"
 }
+
+variable "cognito_deletion_protection" {
+  description = "ACTIVE chặn xóa user pool. Dev để INACTIVE vì teardown (DBS-208) cần xóa pool; đặt ACTIVE khi pool đã có người dùng thật."
+  type        = string
+  default     = "INACTIVE"
+
+  validation {
+    condition     = contains(["ACTIVE", "INACTIVE"], var.cognito_deletion_protection)
+    error_message = "cognito_deletion_protection must be ACTIVE or INACTIVE."
+  }
+}
