@@ -66,6 +66,8 @@ flowchart LR
 
 Trạng thái: **Thiết kế** = biện pháp đã nằm trong thiết kế, chờ code; **Đã kiểm** = có test hoặc ảnh làm bằng chứng. Cột bằng chứng ghi task sẽ tạo ra bằng chứng đó.
 
+Ngoài ra, **Đề xuất** = biện pháp thuộc một ADR còn ở trạng thái Proposed, nhóm chưa chấp nhận.
+
 | # | STRIDE | Mối đe dọa | Biện pháp | Bằng chứng | Trạng thái |
 |---|---|---|---|---|---|
 | T1 | **S**poofing | Token giả, token ký bằng khóa khác, token hết hạn | Xác minh chữ ký qua JWKS, kiểm `iss`, `client_id`, `token_use`, `exp`; không tin claim trước khi verify | DBS-50, DBS-159 | Thiết kế |
@@ -92,6 +94,7 @@ Trạng thái: **Thiết kế** = biện pháp đã nằm trong thiết kế, ch
 | T22 | **E**levation of privilege | Kiểm toán viên sửa dữ liệu | Role `auditor` chỉ có endpoint đọc; DB không cấp quyền ghi cho đường đó | AC-8.1, DBS-103 | Thiết kế |
 | T23 | **E**levation of privilege | Một task bị chiếm dùng quyền AWS của task khác | Task role riêng: `api` không có quyền SQS; `worker` chỉ 2 queue + DLQ; execution role tách khỏi task role | DBS-120 | Thiết kế |
 | T24 | **E**levation of privilege | Admin tắt luật gian lận âm thầm | Cấu hình luật chỉ thêm phiên bản mới (trigger chặn sửa), mỗi phiên bản ghi audit người tạo; alarm khi cảnh báo/1.000 bất thường | DBS-160, DBS-188 | Thiết kế |
+| T25 | **I**nformation disclosure | Đề xuất ADR-14: đặc trưng giao dịch (số tiền, số dư trước giao dịch, tuổi tài khoản, thống kê cửa sổ) gửi tới dịch vụ AI bên ngoài bị lộ, bị giữ lại ngoài ý muốn hoặc lộ qua log/lỗi; khóa API bị lộ; dịch vụ ngoài lỗi hoặc chậm làm dừng phần phát hiện bổ sung | Chỉ gửi allowlist (không ID, tên, email, free text, nhãn); HTTPS; khóa trong Secrets Manager, không nằm trong repo hay image; không log body, raw response, `Authorization` (logger của DBS-42); timeout, hạn mức, không retry trong một lần xử lý; lỗi provider thì fallback về R1–R6, không chặn chuyển tiền; ZDR chỉ khi tài khoản đủ điều kiện và được xác nhận; AI tắt mặc định | [ADR-14](../adr/0014-fraud-rules-external-ai.md) (Proposed), BL-030, BL-037 | Đề xuất |
 
 ## 4. Rủi ro chấp nhận
 
