@@ -42,6 +42,20 @@ def deployment(td, state):
     return [{"status": "PRIMARY", "taskDefinition": td, "rolloutState": state}]
 
 
+def migrate_defaults():
+    arn = "arn:aws:ecs:ap-southeast-1:123456789012:task/dbs-dev/0123456789abcdef0123456789abcdef"
+    td = {"taskDefinition": {"taskDefinitionArn": "arn:aws:ecs:ap-southeast-1:123456789012:task-definition/dbs-migrate:3",
+                             "family": "dbs-migrate", "networkMode": "awsvpc", "containerDefinitions": [{
+                                 "name": "migrate", "image": f"{REPO}:{OLD}", "essential": True,
+                                 "logConfiguration": {"logDriver": "awslogs", "options": {
+                                     "awslogs-group": "/dbs/dev/api", "awslogs-stream-prefix": "migrate"}}}]}}
+    return {"migrate_task_definition_response": td,
+            "register_arn_migrate": "arn:aws:ecs:ap-southeast-1:123456789012:task-definition/dbs-migrate:4",
+            "run_task": {"tasks": [{"taskArn": arn}], "failures": []},
+            "describe_tasks": [{"tasks": [{"taskArn": arn, "lastStatus": "STOPPED",
+                                           "containers": [{"name": "migrate", "exitCode": 0}]}], "failures": []}]}
+
+
 class Env:
     def __init__(self, **scenario):
         self.tmp = tempfile.TemporaryDirectory()
@@ -51,6 +65,7 @@ class Env:
         self.bin.mkdir()
         base = {"describe_services": [service()], "ecr_images": 1, "task_definition_response": td_response(f"{REPO}:{OLD}"),
                 "register_arn": ARN_NEW}
+        base.update(migrate_defaults())  # DBS-68: deploy.sh luôn chạy migrate.sh; mặc định task migration thành công
         base.update(scenario)
         (self.state / "scenario.json").write_text(json.dumps(base))
         self.write("aws", f'#!/bin/sh\nexec "{sys.executable}" "{FAKE_AWS}" "$@"\n')
@@ -119,6 +134,49 @@ class Deploy(unittest.TestCase):
         upd = next(c for c in e.calls() if c["argv"][1] == "update-service")
         self.assertIn(ARN_NEW, upd["argv"])
 
+    # TC-68-08: migration chạy sau khi đăng ký revision api và trước update-service
+    def migrate_scenario(self, **extra):
+        from test_migrate import M_NEW, migrate_td, stopped, TASK_ARN
+        base = {"migrate_task_definition_response": migrate_td(f"{REPO}:{OLD}"), "register_arn_migrate": M_NEW,
+                "run_task": {"tasks": [{"taskArn": TASK_ARN}], "failures": []}, "describe_tasks": [stopped(0)],
+                "describe_services": [service(), service(ARN_NEW, deployments=deployment(ARN_NEW, "COMPLETED"))]}
+        base.update(extra)
+        return base
+
+    def test_migration_runs_between_register_and_update_service(self):
+        e = self.make(**self.migrate_scenario())
+        p = e.run()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        ops = e.ops()
+        regs = [i for i, o in enumerate(ops) if o == "ecs register-task-definition"]
+        self.assertEqual(len(regs), 2)  # api, rồi migrate
+        self.assertLess(regs[0], ops.index("ecs run-task"))
+        self.assertLess(ops.index("ecs run-task"), ops.index("ecs update-service"))
+        self.assertEqual(ops.count("ecs describe-services"), 2)  # migrate.sh dùng lại JSON service, không gọi thêm
+
+    # TC-68-02 qua deploy: migration lỗi thì không update-service
+    def test_failed_migration_stops_the_deploy(self):
+        from test_migrate import stopped
+        e = self.make(**self.migrate_scenario(describe_tasks=[stopped(1)], log_events=["boom"]))
+        p = e.run()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertNotIn("ecs update-service", e.ops())
+        self.assertEqual(e.curls(), [])
+        self.assertIn("boom", p.stdout)
+
+    def test_skip_paths_never_run_a_migration(self):
+        for scenario in (
+            {"error": {"op": "ecs describe-services", "code": "ClusterNotFoundException"}},
+            {"describe_services": [service(desired=0)]},
+            {"ecr_images": 0},
+        ):
+            e = self.make(**scenario)
+            self.assertEqual(e.run().returncode, 0)
+            self.assertNotIn("ecs run-task", e.ops())
+        e = self.make()
+        e.run(CHECK_MAIN_HEAD="1", GITHUB_REPOSITORY="o/r", FAKE_MAIN_HEAD="3" * 40)
+        self.assertNotIn("ecs run-task", e.ops())
+
     # TC-38-05: không có runtime
     def test_missing_runtime_is_skipped(self):
         for scenario in (
@@ -168,7 +226,9 @@ class Deploy(unittest.TestCase):
         # revision ACTIVE mới nhất (ARN_OLD trong fixture) đã dùng NEW: không đăng ký lại
         p = e.run()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertNotIn("ecs register-task-definition", e.ops())
+        # không đăng ký lại dbs-api (DBS-68: dbs-migrate vẫn có thể đăng ký revision mới)
+        regs = [c["input_json"]["family"] for c in e.calls() if c["argv"][1] == "register-task-definition"]
+        self.assertNotIn("dbs-api", regs)
         self.assertEqual(len(e.curls()), 2)
 
     # TC-38-09: circuit breaker, FAILED, hết hạn

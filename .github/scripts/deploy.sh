@@ -6,7 +6,8 @@
 #
 # Thứ tự: (kiểm đầu main) → service có tồn tại và có task? → tag có trên ECR? → render task definition từ
 # revision ACTIVE mới nhất của family (chỉ đổi image) → đăng ký → update-service → poll deployment PRIMARY
-# → curl /health/live và /health/ready qua ALB. Không dùng `aws ecs wait services-stable`: nó chỉ chờ 10 phút
+# → curl /health/live và /health/ready qua ALB. Migration (DBS-68) chạy giữa "đăng ký" và "update-service":
+# migrate.sh lỗi thì dừng, service vẫn ở bản cũ. Không dùng `aws ecs wait services-stable`: nó chỉ chờ 10 phút
 # và vẫn "đạt" sau khi circuit breaker đã rollback về bản cũ.
 set -euo pipefail
 
@@ -90,6 +91,9 @@ else
   new_arn="$(aws ecs register-task-definition --cli-input-json "file://$TMP/new-td.json" --output json | jget 'd["taskDefinition"]["taskDefinitionArn"]')"
   echo "Đã đăng ký $new_arn"
 fi
+
+# --- 4b. Migration (DBS-68): task ECS chạy một lần với cùng image; lỗi thì dừng trước update-service ---
+SERVICE_JSON="$TMP/svc.json" IMAGE_TAG="$TAG" bash "$HERE/migrate.sh"
 
 # --- 5. Cập nhật service (nếu chưa dùng revision đó) ---
 current_arn="$(jget 'd["services"][0]["taskDefinition"]' <"$TMP/svc.json")"
