@@ -2,7 +2,7 @@
 
 <!-- Bug fix, không có board key. Tài liệu ngắn: nguyên nhân, test tái hiện, cách sửa, test thủ công trước/sau. -->
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev · **Nhánh:** `fix/BUG-20261026-ci-lockfile-sync` · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented (sau G4) · **Vai:** Dev · **Nhánh:** `fix/BUG-20261026-ci-lockfile-sync` · **PR:** [#31](https://github.com/Lawliet119/digital-banking-simulator/pull/31) · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
