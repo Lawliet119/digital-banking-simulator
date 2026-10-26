@@ -1,4 +1,5 @@
 import { ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { ErrorCode } from '@common/errors/error-code.enum';
 import { TokenExpiredError, TokenVerificationError } from './identity.errors';
 import { CognitoAccessTokenClaims } from './jwt-claims';
@@ -9,6 +10,8 @@ function contextWith(header?: string): { context: ExecutionContext; request: Req
   const request = { headers: { authorization: header } } as RequestWithUser;
   const context = {
     switchToHttp: () => ({ getRequest: () => request }),
+    getHandler: () => function handler() {},
+    getClass: () => class Controller {},
   } as unknown as ExecutionContext;
   return { context, request };
 }
@@ -27,11 +30,13 @@ function claims(overrides: Partial<CognitoAccessTokenClaims> = {}): CognitoAcces
 
 describe('JwtAuthGuard', () => {
   let verifier: { verifyAccessToken: jest.Mock };
+  let reflector: Reflector;
   let guard: JwtAuthGuard;
 
   beforeEach(() => {
     verifier = { verifyAccessToken: jest.fn() };
-    guard = new JwtAuthGuard(verifier as unknown as JwksVerifierService);
+    reflector = new Reflector();
+    guard = new JwtAuthGuard(verifier as unknown as JwksVerifierService, reflector);
   });
 
   async function expectUnauthenticated(
@@ -116,5 +121,22 @@ describe('JwtAuthGuard', () => {
     const { context } = contextWith('Bearer whatever');
 
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(HttpException);
+  });
+
+  it('allows the request without calling the verifier when the handler is @Public()', async () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(true);
+    const { context } = contextWith(undefined);
+
+    const allowed = await guard.canActivate(context);
+
+    expect(allowed).toBe(true);
+    expect(verifier.verifyAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('still requires a token when the handler is not @Public()', async () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+    const { context } = contextWith(undefined);
+
+    await expectUnauthenticated(guard.canActivate(context), ErrorCode.UNAUTHENTICATED);
   });
 });
