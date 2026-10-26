@@ -36,3 +36,20 @@ output "github_ecr_push_role_arn" {
   description = "Đặt vào biến repo GitHub AWS_ROLE_ARN (do chủ repo tạo)."
   value       = aws_iam_role.github_ecr_push.arn
 }
+
+output "alb_security_group_id" {
+  value = aws_security_group.alb.id
+}
+
+output "api_security_group_id" {
+  value = aws_security_group.api.id
+}
+
+output "api_log_group_name" {
+  value = aws_cloudwatch_log_group.api.name
+}
+
+output "api_log_group_arn" {
+  description = "Không có hậu tố `:*`; policy của task phải thêm `:*` cho các action trên log stream."
+  value       = aws_cloudwatch_log_group.api.arn
+}
