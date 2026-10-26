@@ -1,5 +1,6 @@
 import type { DynamicModule, Type } from '@nestjs/common';
 import { AppRole, runsHttp, runsWorkers } from '@common/app-role/app-role';
+import { AuditModule } from './audit';
 import { HealthModule } from './health';
 import { IdentityModule } from './identity';
 import { OutboxModule } from './outbox';
@@ -17,7 +18,8 @@ type ModuleRef = Type<unknown> | DynamicModule;
  */
 const sharedModules: ModuleRef[] = [
   OutboxModule,
-  // LedgerModule, AuditModule, RiskModule — added by their owners.
+  AuditModule,
+  // LedgerModule, RiskModule — added by their owners.
   // A module that other modules only import (AccountsModule is imported by LedgerModule) does not
   // need to be listed for each role: Nest resolves it through the importer. AccountsModule sits in
   // apiModules so an `api` instance fails at boot if its providers ever stop resolving.
