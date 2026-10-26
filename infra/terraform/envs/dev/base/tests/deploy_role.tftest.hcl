@@ -139,11 +139,9 @@ run "deploy_policy_migration" {
   assert {
     condition = anytrue([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement :
       flatten([s.Action]) == ["logs:GetLogEvents"]
-      && startswith(s.Resource, aws_cloudwatch_log_group.api.arn)
-      && endswith(s.Resource, ":log-stream:migrate/*")
-      && !strcontains(s.Resource, "api/")
+      && toset(s.Resource) == toset(["${aws_cloudwatch_log_group.api.arn}:log-stream:migrate/*", "${aws_cloudwatch_log_group.api.arn}:log-stream:migrate/*:*"])
     ])
-    error_message = "GetLogEvents only on the migrate/* streams of the api log group, never api/*"
+    error_message = "GetLogEvents only on the migrate/* streams of the api log group (with and without the trailing :*, the IAM simulator only matches the form ending in :*), never api/*"
   }
 
   assert {
