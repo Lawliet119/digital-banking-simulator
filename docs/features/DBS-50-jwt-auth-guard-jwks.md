@@ -101,7 +101,7 @@
 | TC-50-24 | — (vòng 2) | e2e | `GET /health/ready` không header → không 401 (200 hoặc 503 theo DB, `@Public()`) | — |
 | TC-50-25 | — (vòng 2, `public.decorator.spec.ts`) | unit | `@Public()` gắn `IS_PUBLIC_KEY=true` đọc được qua `Reflector`, trên cả method và class | — |
 | TC-50-26 | — (vòng 2, §6 #4) | unit (`jwks-verifier.service.spec.ts`) | JWKS endpoint đóng hẳn (connection refused, không phải 4xx/5xx) khi verify token có `kid` chưa cache → reject, không crash, không treo | `UNAUTHENTICATED` (qua guard) |
-| — | DoD #5 | quy trình | Merge PR sau Dev review + CI xanh + bảng đối chiếu — chưa làm (xem §8, `BL-018`) | — |
+| — | DoD #5 | quy trình | Merge PR sau Dev review + CI xanh + bảng đối chiếu — chưa làm (xem §8, `BL-030`) | — |
 
 Mọi gạch đầu dòng DoD #1–#4 có ít nhất một case (unit lẫn e2e). DoD #5 là quy trình, chưa qua (chưa mở PR).
 
@@ -180,6 +180,8 @@ Tiếp nối §7, trên commit `0114a34`. Mỗi bước viết test trước, ch
 
 **Quét theo DoD/giới hạn đã nêu:** không có dòng `docs/BACKLOG.md` nào khác liên quan `identity`/`JWT`/`Cognito` ngoài việc tự mở `BL-018` ở bước 15 (đã kiểm bằng grep ở Phase 1).
 
+**Rebase lên `main` sau G4 (2026-10-26):** `main` đã tiến thêm từ lúc task bắt đầu (`LoggingModule` ở DBS-42, Terraform bootstrap DBS-31) và đã dùng hết `BL-018`…`BL-029`. Rebase conflict ở `backend/package.json`/`package-lock.json` (giữ cả `jose` và `nestjs-pino`, lockfile regenerate qua `npm install --package-lock-only`), `backend/src/app.module.ts` (giữ cả `LoggingModule` trong `imports` và `providers: httpGuardProviders`, không có xung đột logic thật), `docs/BACKLOG.md` và `docs/features/README.md` (giữ cả hai phía, mỗi bên thêm dòng riêng). Dòng backlog của task này đổi số từ `BL-018` dự kiến sang **`BL-030`** (số tự do mới nhất sau rebase). Baseline chạy lại đầy đủ sau rebase, xem §8.
+
 ## 8. Kết quả
 
 ### Vòng 1 (2026-10-24)
@@ -195,6 +197,10 @@ Tiếp nối §7, trên commit `0114a34`. Mỗi bước viết test trước, ch
   - `npm test` (unit, toàn repo) → **28 suite / 393 test đạt** (393 = 388 vòng 1 + 2 `public.decorator.spec.ts` + 2 case mới trong `jwt-auth.guard.spec.ts` + 1 case mới trong `jwks-verifier.service.spec.ts`).
   - `npm run test:e2e` (toàn repo) → **6 suite / 35 test đạt** (35 = 32 vòng 1 + 3 case mới trong `test/app-guard.e2e-spec.ts`).
   - 0 test `.skip`/`.only`/`.todo` trong toàn bộ `src`/`test` (đã grep).
+- **Lệnh kiểm tra sau khi rebase lên `origin/main`** (commit cuối sau rebase, Docker + Postgres thật, chạy `npm run migration:run` lấy migration mới của DBS-26/27 trước khi test):
+  - `npm run lint:check` → sạch. `npm run typecheck` → sạch.
+  - `npm test` (toàn repo) → **30 suite / 495 test đạt** (tăng so với trước rebase vì `main` đã thêm DBS-26, DBS-27, DBS-31, DBS-42 — các test của DBS-50 không đổi số lượng).
+  - `npm run test:e2e` (toàn repo) → **8 suite / 57 test đạt**.
 - **Đối chiếu test case:**
 
 | ID | Test | Đạt? |
@@ -204,7 +210,7 @@ Tiếp nối §7, trên commit `0114a34`. Mỗi bước viết test trước, ch
 | TC-50-15…21 | `test/identity.e2e-spec.ts` | đạt |
 | TC-50-22…24 | `test/app-guard.e2e-spec.ts` | đạt |
 | TC-50-25 | `src/common/auth/public.decorator.spec.ts` | đạt |
-| DoD #5 | merge PR, Dev review, bảng đối chiếu | **chưa làm** — PR chưa mở, xem `BL-018` |
+| DoD #5 | merge PR, Dev review, bảng đối chiếu | **chưa làm** — PR chưa mở, xem `BL-030` |
 
 - **Test thủ công:** M-50-01…06 — tất cả **đạt**, chi tiết ở §5 và `docs/features/screenshots/DBS-50/manual-test.txt` (SHA `ecc4948` ở đầu file). Không chụp ảnh (task không có UI — API thuần, không có giao diện để chụp).
 - **Phạm vi so với §7+§7b:** `git diff --stat main...HEAD` (xem danh sách dưới, cả hai vòng) khớp danh sách file đã lập kế hoạch; không có file lạ ngoài kế hoạch.
@@ -234,7 +240,7 @@ backend/src/scripts/manual-smoke.dbs50.ts                      (mới, vòng 2 �
 backend/test/identity.e2e-spec.ts                              (mới)
 backend/test/support/jwks-fixture.ts                           (mới)
 backend/test/app-guard.e2e-spec.ts                             (mới, vòng 2)
-docs/BACKLOG.md                                                (sửa, vòng 2 — +BL-018)
+docs/BACKLOG.md                                                (sửa, vòng 2 — +BL-030)
 docs/features/README.md                                       (sửa, vòng 2 — +dòng DBS-50)
 ```
 
@@ -244,11 +250,11 @@ docs/features/README.md                                       (sửa, vòng 2 �
   - Kế hoạch gốc dùng `test/support/jwks-fixture.ts` chung cho cả unit lẫn e2e; ESLint boundary rule (`no-restricted-imports`) cấm `*.spec.ts` trong `src/modules/identity` import tương đối ra `test/support/`. Xử lý: viết lại fixture JWKS trực tiếp trong `jwks-verifier.service.spec.ts`, giữ bản ở `test/support/jwks-fixture.ts` chỉ cho e2e dùng — trùng lặp code (~45 dòng) nhưng đúng convention của repo.
   - Thời gian chờ cooldown JWKS trong test dùng `setTimeout` thật (200ms) thay vì fake timers của Jest (`jose`'s `createRemoteJWKSet` dùng `Date.now()` nội bộ, khó mock cùng `async`/`await` HTTP thật).
 - **Lệch so với kế hoạch (vòng 2, §7b):** script `manual-smoke.dbs50.ts` đặt ở `backend/src/scripts/` (đúng convention sẵn có của repo, xem `src/scripts/README.md`), không phải `backend/scripts/` như §7b ghi ban đầu khi lập kế hoạch — `backend/scripts/` không tồn tại trong repo.
-- **Bàn giao cho vai khác:** `BL-018` (DoD #5 — PR merge + Dev review + bảng đối chiếu, chưa đạt tới lúc bàn giao lại). Không có BL-NNN khác — role guard (`@Roles()`), `@CurrentUser()`, revocation check vẫn là các task riêng theo ADR-06.
+- **Bàn giao cho vai khác:** `BL-030` (DoD #5 — PR merge + Dev review + bảng đối chiếu, chưa đạt tới lúc bàn giao lại). Không có BL-NNN khác — role guard (`@Roles()`), `@CurrentUser()`, revocation check vẫn là các task riêng theo ADR-06.
 
 ## 9. Tài liệu đã cập nhật
 
-- `docs/BACKLOG.md` — thêm `BL-018`.
+- `docs/BACKLOG.md` — thêm `BL-030`.
 - `docs/features/README.md` — thêm dòng DBS-50 (trạng thái Implemented).
 
 ## Checklist G4
@@ -257,7 +263,7 @@ docs/features/README.md                                       (sửa, vòng 2 �
 - [x] Test thủ công chạy trên commit cuối đổi code (`ecc4948`): M-50-01…06 đều đạt; đường thành công (M-50-03, M-50-06) đã chạy
 - [ ] Ảnh chụp — không áp dụng (không có UI)
 - [x] `git diff --stat main...HEAD` khớp danh sách file ở §7+§7b
-- [x] Hai lệnh kiểm tra chính (`lint:check`, `typecheck`) sạch; `test` 393/393 (toàn repo); `test:e2e` 35/35 (toàn repo) — có số đếm ở §8
+- [x] Hai lệnh kiểm tra chính (`lint:check`, `typecheck`) sạch; sau rebase lên `main`: `test` 495/495 (toàn repo); `test:e2e` 57/57 (toàn repo) — có số đếm ở §8
 - [x] Không có doc khác bị đổi fact ngoài `BACKLOG.md` và `features/README.md` (liệt ở §9)
-- [x] `BL-018` đã mở cho DoD #5 chưa đạt; không có BL-NNN khác cần thêm
+- [x] `BL-030` đã mở cho DoD #5 chưa đạt; không có BL-NNN khác cần thêm
 - [x] Domain-review vòng 2 chạy thật (subagent, không phải tự review), verdict REVISE, mọi finding blocking/should-fix đã xử lý, finding minor ghi lý do không sửa — §6
