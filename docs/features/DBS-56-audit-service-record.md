@@ -1,6 +1,6 @@
 # DBS-56 · AuditService.record: ghi nhật ký fail-closed trong transaction của người gọi
 
-> **Status:** Plan approved (sau G3) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định (không có pair cố định, xem `references/team.md`) · **Nhánh:** `feat/DBS-56-audit-service-record` · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented (sau G4) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định (không có pair cố định, xem `references/team.md`) · **Nhánh:** `feat/DBS-56-audit-service-record` · **PR:** — · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
@@ -309,3 +309,5 @@ Không còn phát hiện `blocking` sau vòng 2. Các điểm còn lại thuộc
 - `docs/BACKLOG.md` — **BL-019** sửa nội dung (thu hẹp theo phần DBS-56 đã giải quyết), không xóa dòng.
 - `docs/features/README.md` — thêm dòng DBS-56.
 - `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` — sạch, 106 file, 0 link hỏng.
+
+**Quyết định ở G4 (duyệt 2026-10-26):** Người dùng trả lời "duyệt", chấp nhận không có ảnh chụp PNG (thư viện nội bộ, không có UI) — `manual-test.txt` là bằng chứng thay thế. Chuyển Status thành Implemented, push branch, mở PR.
