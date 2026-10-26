@@ -101,9 +101,12 @@ resource "aws_iam_role_policy" "deploy" {
       },
       {
         # In log khi migration lỗi: chỉ stream migrate/*, không đọc được stream api/* (ARN log group không có `:*`).
-        Effect   = "Allow"
-        Action   = ["logs:GetLogEvents"]
-        Resource = "${aws_cloudwatch_log_group.api.arn}:log-stream:migrate/*"
+        Effect = "Allow"
+        Action = ["logs:GetLogEvents"]
+        Resource = [
+          "${aws_cloudwatch_log_group.api.arn}:log-stream:migrate/*",
+          "${aws_cloudwatch_log_group.api.arn}:log-stream:migrate/*:*", # simulate-custom-policy chỉ khớp dạng có `:*` ở cuối
+        ]
       },
       {
         Effect   = "Allow"
