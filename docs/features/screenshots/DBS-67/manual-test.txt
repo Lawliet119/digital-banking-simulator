@@ -1,0 +1,28 @@
+SHA code: 200e041
+Mon Oct 26 03:07:29 AM UTC 2026
+== M-67-01
+h:5432
+== M-67-02 a: DATABASE_URL có sẵn
+postgresql://keep@x:1/y
+== M-67-02 b: thiếu DB_PASSWORD
+DB_* variables are incomplete or malformed, DATABASE_URL not composed: DB_PASSWORD
+DATABASE_URL= undefined
+== M-67-02 c: DB_PORT=abc
+DB_* variables are incomplete or malformed, DATABASE_URL not composed: DB_PORT
+DATABASE_URL= undefined
+== M-67-03 (jest pg-ssl.tls.spec)
+Tests:       5 passed, 5 total
+== terraform test session
+tests/session.tftest.hcl... [37mtearing down[0m
+[0mtests/session.tftest.hcl... [32mpass[0m[0m
+
+[32mSuccess![0m[0m 15 passed, 0 failed.
+fmt ok
+== M-67-05b
+90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b  /tmp/claude-1000/-home-ender-Work-Projects-digital-banking-simulator/88b4de56-3a6f-406b-af46-fb028c4e940a/scratchpad/gb.pem
+sha256:90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b
+== M-67-04 terraform plan (profile dbs-admin, -lock=false, không apply)
+608:Plan: 16 to add, 0 to change, 0 to destroy.
+dòng chứa 'password' trong plan (chỉ cờ, không có giá trị):
+77:      + manage_master_user_password           = true
+87:      + password_wo                           = (write-only attribute)

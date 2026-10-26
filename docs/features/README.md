@@ -49,3 +49,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-66](DBS-66-terraform-rds.md) | Terraform: RDS PostgreSQL 17 (dev), mã hóa bằng KMS, ép TLS, SG chỉ từ task api | #5 Platform & Ops | Implemented |
 | [DBS-36](DBS-36-ci-build-push-ecr-oidc.md) | CI: build image và đẩy ECR tag SHA bằng OIDC (role chỉ tin repo và nhánh main) | #5 Platform & Ops | Implemented |
 | [FRAUD-API-01](FRAUD-API-01-external-ai-decision.md) | Hồ sơ ADR-14 (Proposed): giữ R1–R6, thêm API AI bổ sung, không tự train; phương án Proposed tách khỏi tài liệu Accepted; chưa triển khai backend fraud | Fraud | Implemented (docs-only, Draft PR #20 chờ Dev review và CI) |
+| [DBS-67](DBS-67-rds-tls-secrets.md) | RDS: task api đọc secret master, ghép `DATABASE_URL`, kết nối TLS xác minh CA (bundle ghim hash trong image) | #5 Platform & Ops | Implemented |

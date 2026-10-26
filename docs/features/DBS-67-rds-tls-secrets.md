@@ -1,6 +1,6 @@
 # DBS-67 · Secrets Manager cho kết nối DB, CA bundle RDS trong image, app nối RDS qua TLS
 
-> **Status:** Draft (đang làm, đến G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-67-rds-tls-secrets` (xếp chồng trên `chore/DBS-38-auto-deploy`) · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented (chờ G4, chưa có PR) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-67-rds-tls-secrets` (xếp chồng trên `chore/DBS-38-auto-deploy`) · **PR:** — · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
@@ -144,8 +144,43 @@ Rủi ro và cách lùi: lùi bằng revert commit (không đổi schema, không
 
 ## 8. Kết quả
 
-(Điền ở Phase 4–5.)
+- **Lệnh kiểm tra** (SHA code cuối `200e041`): `npm test` **490/490** (31 suite, 0 skipped), `npm run lint:check` sạch, `npm run typecheck` sạch, `npm run build` xanh; `terraform test` ở `session` **15/15**, `terraform fmt -check` sạch; `check-doc-links.mjs` 0 link hỏng.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-67-01..05 | `compose-database-url.spec.ts` | đạt |
+| TC-67-06 | `env.bootstrap.spec.ts` | đạt |
+| TC-67-07 | `pg-ssl.tls.spec.ts` (máy chủ TLS giả: CA đúng nhận; CA sai và không CA bị từ chối; kiểm đột biến đã làm) | đạt |
+| TC-67-08, 09 | `session.tftest.hcl` (`db_connection`, `db_secret_policy`) | đạt |
+| TC-67-10 | `test/support/dockerfile.spec.ts` (kiểm tĩnh, không build) | đạt |
+| TC-67-11 | toàn bộ bộ test, lint, typecheck | đạt |
+| TC-67-12 | thủ công: một phần, xem dưới; README đã cập nhật | đạt một phần |
+| TC-67-13 | quy trình | chưa làm (chờ review và merge) |
+
+13 test case: 11 đạt, 1 đạt một phần (TC-67-12), 1 chưa làm (TC-67-13).
+
+- **Test thủ công** ([manual-test.txt](screenshots/DBS-67/manual-test.txt), SHA `200e041`):
+
+| Bước | Kết quả |
+|---|---|
+| M-67-01 | đạt: in `h:5432`, không in mật khẩu |
+| M-67-02 | đạt: `DATABASE_URL` có sẵn được giữ; thiếu `DB_PASSWORD` hoặc `DB_PORT=abc` thì không ghép, stderr chỉ nêu tên biến (giá trị `SECRETVALUE` không xuất hiện) |
+| M-67-03 | đạt (5/5 test TLS) |
+| M-67-04 | đạt: `terraform plan` (profile `dbs-admin`, `-lock=false`, không `apply`) báo `16 to add, 0 to change, 0 to destroy`; chỉ thấy cờ `manage_master_user_password` và `password_wo` (write-only), không có giá trị mật khẩu. `container_definitions` là `known after apply` nên không đọc được `DB_*` từ plan; phần đó do `session.tftest.hcl` kiểm |
+| M-67-05 | **chưa chạy** (không có Docker): BL-106 |
+| M-67-05b | đạt: sha256 bundle tải về trùng hash trong Dockerfile |
+| M-67-06, M-67-07 | **chưa chạy** (cần `apply` AWS thật, người dùng dặn ghi chưa chạy): BL-106 |
+
+Chưa có ảnh chụp màn hình (không có bước giao diện); bằng chứng là `manual-test.txt`.
+- **Chưa chứng minh bằng chạy thật:** `docker build` với `ADD --checksum`, task đọc secret và nối RDS qua TLS trên AWS, quyền `kms:Decrypt` với `kms:ViaService` trên AWS thật.
+- **Phạm vi so với §7:** khớp.
+- **Handoff / BACKLOG:** BL-106 (chạy thật), BL-107 (xoay mật khẩu 7 ngày, revision cũ sau destroy), BL-108 (làm mới hash CA); đã rút phần DBS-67 khỏi BL-039 và BL-103.
+- **Biến môi trường mới:** `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (tùy chọn, đã khai Joi và `.env.example`).
 
 ## 9. Tài liệu đã cập nhật
 
-(Điền ở Phase 4–5.)
+- `backend/README.md`: mục "Kết nối RDS qua TLS" (ghép `DATABASE_URL`, làm mới hash CA).
+- `infra/terraform/README.md`: mục "Secret DB và TLS trong task api (DBS-67)".
+- `docs/BACKLOG.md`: thêm BL-106, 046, 047; sửa BL-039, BL-103.
+- `docs/features/README.md`: thêm dòng DBS-67.

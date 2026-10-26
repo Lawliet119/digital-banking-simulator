@@ -156,6 +156,12 @@ Xóa (thứ tự ngược): `session` trước, `base` sau. `base` chỉ xóa đ
 
 Kiểm tra tĩnh cho `envs/dev/base` và `envs/dev/session`: `terraform init -backend=false && terraform test` (dùng `mock_provider` và `override_data`, không cần credential). ALB của dev nghe HTTPS bằng chứng chỉ self-signed (chưa có tên miền): gọi bằng `curl -k`.
 
+### Secret DB và TLS trong task api (DBS-67)
+Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_NAME`, `DATABASE_SSL=true`, `DATABASE_SSL_CA_PATH` làm biến thường, và `DB_USER`, `DB_PASSWORD` từ secret master (`<arn>:username::`, `<arn>:password::`). Execution role `dbs-dev-api-execution` có `secretsmanager:GetSecretValue` trên đúng secret đó và `kms:Decrypt` trên CMK `alias/dbs-dev` với `kms:ViaService = secretsmanager.<region>.amazonaws.com`.
+
+- Ghi chú: ARN secret đổi mỗi lần dựng lại RDS, nên revision task cũ không dùng lại được sau `destroy`; `terraform apply` tạo revision mới. RDS xoay mật khẩu master mỗi 7 ngày, task đang chạy giữ mật khẩu cũ tới khi khởi động lại (BL-107).
+- Kiểm tĩnh: `terraform test` ở `envs/dev/session` (run `db_connection`, `db_secret_policy`). Chạy thật trên AWS **chưa chạy** (BL-106).
+
 ## Kiểm tra trước khi push
 
 ```bash

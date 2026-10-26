@@ -218,7 +218,13 @@ docker run --rm -e APP_ROLE=worker --env-file backend/env/.env.development dbs-b
 ```
 
 ### Kết nối RDS qua TLS
-Staging và production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác minh chứng chỉ của server. Node không tin CA của Amazon RDS mặc định, nên cần tải bundle CA của AWS (`https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem`) vào image trong pipeline và đặt `DATABASE_SSL_CA_PATH` trỏ tới file đó. **Không** tắt xác minh chứng chỉ để "cho kết nối được": như vậy vẫn mã hóa nhưng chấp nhận mọi chứng chỉ, kể cả của kẻ tấn công. Bước tải bundle chưa được thử trên RDS thật — #5 kiểm khi dựng RDS ở tuần 2.
+Staging và production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác minh chứng chỉ của server (`rejectUnauthorized: true`). Node không tin CA của Amazon RDS mặc định, nên Dockerfile tải `global-bundle.pem` vào `/etc/ssl/rds/global-bundle.pem` (`ADD --checksum=sha256:…`, cần BuildKit) và task đặt `DATABASE_SSL_CA_PATH` trỏ tới file đó. **Không** tắt xác minh chứng chỉ để "cho kết nối được".
+
+**Ghép `DATABASE_URL` từ secret (DBS-67).** ECS `secrets` không nối chuỗi được, nên task truyền `DB_HOST`, `DB_PORT`, `DB_NAME` (biến thường) và `DB_USER`, `DB_PASSWORD` (từ secret master do RDS quản lý). `env.bootstrap` ghép thành `DATABASE_URL` (user và mật khẩu được mã hóa URL). `DATABASE_URL` đã có giá trị thì được giữ nguyên. Giá trị `DB_*` sai chỉ làm log nêu **tên** biến, không in giá trị. CLI typeorm cũng đi qua `env.bootstrap` nên dùng được cách này.
+
+**Làm mới hash khi AWS đổi bundle.** Build đỏ ở dòng `ADD --checksum` nghĩa là AWS đã cập nhật bundle. Tải bản mới, kiểm nguồn, tính `sha256sum global-bundle.pem`, thay hash trong `backend/Dockerfile` và chạy `jest test/support/dockerfile.spec.ts`.
+
+Bước `docker build` và kết nối RDS thật **chưa chạy** (BL-106).
 
 ### Hạ tầng phía trước app
 Staging và production bắt buộc `TRUST_PROXY_HOPS` (≥ 1; ALB = 1). Để 0 thì mọi khách chung địa chỉ IP của ALB và rate limit theo IP sẽ chặn nhầm tất cả.
