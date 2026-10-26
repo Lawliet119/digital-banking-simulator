@@ -1,0 +1,26 @@
+d4aeb40
+
+                  id                  
+--------------------------------------
+ 330462a0-fcc7-4f94-b8c1-0fad4feec68f
+(1 row)
+
+INSERT 0 1
+CREATE TABLE
+M-56-01 correlationId (expect 1 row, outcome SUCCESS) "ffe9cf1f-4dfa-4c8c-9b4a-22e0beccdc68"
+M-56-02 record() rejected as expected (fail-closed) "insert or update on table \"audit_log\" violates foreign key constraint \"audit_log_actor_user_id_fkey\""
+M-56-02 scratchId (expect 0 rows in fc_scratch) "2f32ea54-d940-4173-b7a1-aab245a55b74"
+M-56-02 correlationId (expect 0 rows in audit_log) "8c9ec123-4602-4146-87d9-12802f8a8b6b"
+M-56-03 caller "failed" after recordDenied() had already committed "simulated 404: account does not belong to this customer"
+M-56-03 correlationId (expect 1 row, outcome DENIED) "80e69f0e-51bf-43b2-90a3-4ab9da6e2cef"
+            correlation_id            | outcome | actor_role |     action      
+--------------------------------------+---------+------------+-----------------
+ ffe9cf1f-4dfa-4c8c-9b4a-22e0beccdc68 | SUCCESS | operator   | ledger.transfer
+ 80e69f0e-51bf-43b2-90a3-4ab9da6e2cef | DENIED  | customer   | access.denied
+(2 rows)
+
+ count 
+-------
+     0
+(1 row)
+
