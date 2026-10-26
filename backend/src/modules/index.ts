@@ -1,5 +1,6 @@
 import type { DynamicModule, Type } from '@nestjs/common';
 import { AppRole, runsHttp, runsWorkers } from '@common/app-role/app-role';
+import { AuditModule } from './audit';
 import { HealthModule } from './health';
 import { IdentityModule } from './identity';
 
@@ -14,7 +15,8 @@ type ModuleRef = Type<unknown> | DynamicModule;
  * starts a consumer must guard it with `runsWorkers()` so an `api` instance never polls a queue.
  */
 const sharedModules: ModuleRef[] = [
-  // AccountsModule, LedgerModule, AuditModule, RiskModule — added by their owners.
+  AuditModule,
+  // AccountsModule, LedgerModule, RiskModule — added by their owners.
 ];
 
 const apiModules: ModuleRef[] = [HealthModule, IdentityModule];
