@@ -1,6 +1,6 @@
 # DBS-56 · AuditService.record: ghi nhật ký fail-closed trong transaction của người gọi
 
-> **Status:** Design approved (sau G2) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định (không có pair cố định, xem `references/team.md`) · **Nhánh:** `feat/DBS-56-audit-service-record` · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Plan approved (sau G3) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định (không có pair cố định, xem `references/team.md`) · **Nhánh:** `feat/DBS-56-audit-service-record` · **PR:** — · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
@@ -243,3 +243,69 @@ Không còn phát hiện `blocking` sau vòng 2. Các điểm còn lại thuộc
 - `recordDenied()` dùng connection pool riêng khi gọi — rủi ro cạn pool dưới tải đã ghi nhận ở §3/§1, không giải quyết trong task này (chưa có đường gọi thật để đo); không cần cách lùi vì chưa triển khai tải thật.
 
 **Quyết định ở G3 (duyệt 2026-10-26):** Người dùng trả lời "duyệt" (gõ "dduyet"), không góp ý, không câu hỏi nào cần quyết định. Chuyển sang Phase 4 (Implement and test) — bắt đầu từ bước 1 của §7.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (chạy lúc bàn giao, branch `feat/DBS-56-audit-service-record`):
+  ```
+  npm run lint:check  → sạch, 0 lỗi
+  npm run typecheck   → sạch, 0 lỗi
+  npm test            → 34 suites / 522 tests pass (521 trước + 1 lần flake không liên quan, tự qua khi chạy lại — xem dưới)
+  npm run test:e2e    → 8 suites / 57 tests pass
+  npm run test:db     → 9 suites / 167 tests pass
+  ```
+  Một lần chạy `npm test` fail ở `jwks-verifier.service.spec.ts` (module `identity`, không đụng tới trong PR này) vì một bộ đếm thời gian sát ngưỡng dưới tải máy; chạy riêng file đó và chạy lại cả bộ đều xanh ngay sau — flake môi trường có sẵn trên `origin/main`, không phải regression của DBS-56.
+
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-56-01 | `audit.service.spec.ts` › TC-56-01 inserts the exact columns, in order, with no RETURNING | đạt |
+| TC-56-02 | `audit.service.spec.ts` › TC-56-02 rejects with the exact error manager.query threw, unwrapped | đạt |
+| TC-56-03 | `audit.service.spec.ts` › TC-56-03 a failing record() rolls back the whole transaction, uncaught | đạt |
+| TC-56-04 | `audit.service.db-spec.ts` › TC-56-04 SUCCESS round-trips all 8 columns | đạt |
+| TC-56-04b | `audit.service.db-spec.ts` › TC-56-04b inserts under a role granted INSERT only | đạt |
+| TC-56-04c | `audit.service.db-spec.ts` › TC-56-04c metadata omitted stores {} rather than NULL | đạt |
+| TC-56-05 | `audit.service.db-spec.ts` › TC-56-05 a failing record() rolls back a real other-table write too | đạt |
+| TC-56-05b | `audit.service.db-spec.ts` › TC-56-05b positive control | đạt |
+| TC-56-06 | `audit.service.db-spec.ts` › TC-56-06 recordDenied() commits a DENIED row standalone | đạt |
+| TC-56-06b | `audit.service.db-spec.ts` › TC-56-06b negative control | đạt |
+| TC-56-06c | `audit.service.db-spec.ts` › TC-56-06c DENIED survives an unrelated outer business rollback | đạt |
+| TC-56-06d | `audit.service.db-spec.ts` › TC-56-06d recordDenied() itself rejects on an invalid correlationId | đạt |
+| TC-56-07 | `audit.types.spec.ts` › TC-56-07/08 the compiler enforces AuditMetadata and AuditOutcome | đạt |
+| TC-56-07b | `audit.service.spec.ts` › TC-56-07b rejects invalid metadata before ever calling manager.query (+ `audit-metadata.guard.spec.ts`) | đạt |
+| TC-56-07c | `audit-metadata.guard.spec.ts` › TC-56-07b/07c rejects (table-driven) | đạt |
+| TC-56-07d | `audit-metadata.guard.spec.ts` › TC-56-07d accepts (table-driven) | đạt |
+| TC-56-08 | `audit.types.spec.ts` › cùng test TC-56-07 (compile-time, outcome) | đạt |
+| TC-56-09 | `audit.service.db-spec.ts` › TC-56-09 actor null, role free text, for a system action | đạt |
+| TC-56-10 | `audit.service.db-spec.ts` › TC-56-10 an outcome CHECK violation fails closed | đạt |
+| TC-56-10b | `audit.service.db-spec.ts` › TC-56-10b hazard: catching the record() rejection | đạt |
+| TC-56-11 | `audit.service.db-spec.ts` › TC-56-11 an invalid correlationId fails closed | đạt |
+| TC-56-12 | `audit.module.spec.ts` › TC-56-12 resolves AuditService through real Nest DI | đạt |
+| TC-56-13 | `modules.spec.ts` › TC-56-13 audit is a library both api and worker load | đạt |
+| DoD #5 | quy trình | chưa làm (chờ mở PR, Dev review, CI — sau G4) |
+
+- **Test thủ công:** chạy thật trên `docker compose` (Postgres remap cổng 5433, xem §1), migration đã `run`, một `users` thật seed qua `psql`, bảng `fc_scratch` tạo qua `psql`. Script: `backend/test/manual/audit-record.manual.ts`. Output thô ở [manual-test.txt](screenshots/DBS-56/manual-test.txt) (dòng đầu là SHA `d4aeb40` — commit cuối đổi code).
+
+  | Bước | Lệnh | Phản hồi (rút gọn) | Kết quả |
+  |---|---|---|---|
+  | M-56-01 | script ghi SUCCESS qua `transactionService.run` | `psql`: 1 dòng `correlation_id=ffe9cf1f…`, `outcome=SUCCESS` | đạt |
+  | M-56-02 | script ghi `fc_scratch` + `record()` với `actor` không tồn tại, cùng transaction | script in lỗi FK ngay (không bị nuốt); `psql`: 0 dòng `fc_scratch`, 0 dòng `audit_log` cho correlation đó | đạt |
+  | M-56-03 | script `recordDenied()` rồi tự `throw` mô phỏng 404 | script bắt lỗi, thoát bình thường; `psql`: 1 dòng `correlation_id=80e69f0e…`, `outcome=DENIED` | đạt |
+
+  Điều kiện chạy: `docker compose up -d`, `npm run migration:run`, không cần token (không có HTTP).
+
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` → đúng 17 file, khớp hoàn toàn danh sách ở §7 (8 bước) cộng feature doc và 2 file domain review (tài liệu của chính task này, không phải "file lạ"). Không có file ngoài kế hoạch.
+
+- **Ảnh chụp:** **không có PNG** — DBS-56 là thư viện nội bộ (`AuditService`), không có UI/Swagger để chụp; bằng chứng duy nhất khả thi là output terminal/`psql` thô, đã lưu đủ ở `manual-test.txt`. Đề nghị người duyệt G4 chấp nhận việc này thay cho ảnh chụp (không áp dụng theo đúng tinh thần `manual-testing.md`: "Docs-only tasks have no manual test... take none" — ở đây ngược lại là có manual test nhưng không có gì để chụp màn hình vì không có giao diện).
+
+- **Lệch so với kế hoạch:** một dòng ngoài §7 — thêm `TC-56-07b` ở cấp `audit.service.spec.ts` (ngoài bản đã có trong `audit-metadata.guard.spec.ts`) để khẳng định trực tiếp "`record()` không gọi `manager.query` khi metadata sai", không chỉ qua guard độc lập. Không đổi file nào ngoài `audit.service.spec.ts` đã có trong §7 bước 3 — không phải lệch phạm vi, chỉ sâu hơn kế hoạch.
+
+- **Bàn giao cho vai khác:** đã cập nhật **BL-019** trong `docs/BACKLOG.md` (thu hẹp, không xóa) — còn lại: API tra cứu UC-8/FR-AUD-03 (task UC-8), production role grants + kiểm AC-8.1/8.2 với role thật (Ops), registry đóng cho `action`/`role`/`target.id` (nền tảng backend), đo tải pool cho `recordDenied()` (task đầu tiên wire vào đường nóng thật), audit cho đọc dữ liệu nhạy cảm FR-AUD-02 (risk #4 khi họ wire UC-10).
+
+## 9. Tài liệu đã cập nhật
+
+- `backend/src/modules/audit/README.md` — đồng bộ chữ ký thật, `recordDenied`, quy tắc không catch / gọi ngoài `run()`.
+- `docs/BACKLOG.md` — **BL-019** sửa nội dung (thu hẹp theo phần DBS-56 đã giải quyết), không xóa dòng.
+- `docs/features/README.md` — thêm dòng DBS-56.
+- `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` — sạch, 106 file, 0 link hỏng.
