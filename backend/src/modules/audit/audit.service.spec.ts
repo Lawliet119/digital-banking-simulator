@@ -1,8 +1,7 @@
-import type { EntityManager } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 import type { ConfigType } from '@nestjs/config';
-import { fakeDataSource } from '../../../test/support/fake-data-source';
-import type { databaseConfig } from '../../config/database.config';
-import { TransactionService } from '../../database/transaction.service';
+import type { databaseConfig } from '@config/database.config';
+import { TransactionService } from '@database/transaction.service';
 import { AuditService } from './audit.service';
 import type { AuditRecordInput } from './audit.types';
 
@@ -60,19 +59,41 @@ describe('AuditService (DBS-56)', () => {
     });
 
     it('TC-56-03 a failing record() rolls back the whole transaction, uncaught', async () => {
+      // A minimal stand-in for TypeORM's QueryRunner, local to this file: audit.service.spec.ts
+      // lives inside the audit module, so it cannot reach test/support/fake-data-source.ts (the
+      // module-boundary lint rule forbids a relative import leaving src/modules/audit/).
+      const commitTransaction = jest.fn().mockResolvedValue(undefined);
+      const rollbackTransaction = jest.fn().mockResolvedValue(undefined);
       const original = new Error('fk violation');
-      const { dataSource, runners } = fakeDataSource({
+      const runner = {
         manager: { query: jest.fn().mockRejectedValue(original) } as unknown as EntityManager,
-      });
+        isTransactionActive: false,
+        connect: jest.fn().mockResolvedValue(undefined),
+        startTransaction: jest.fn().mockImplementation(() => {
+          runner.isTransactionActive = true;
+          return Promise.resolve();
+        }),
+        commitTransaction: commitTransaction.mockImplementation(() => {
+          runner.isTransactionActive = false;
+          return Promise.resolve();
+        }),
+        rollbackTransaction: rollbackTransaction.mockImplementation(() => {
+          runner.isTransactionActive = false;
+          return Promise.resolve();
+        }),
+        query: jest.fn().mockResolvedValue(undefined),
+        release: jest.fn().mockResolvedValue(undefined),
+      };
+      const dataSource = { createQueryRunner: () => runner } as unknown as DataSource;
       const transactionService = new TransactionService(dataSource, CONFIG);
       const service = new AuditService(transactionService);
 
-      await expect(
-        transactionService.run(manager => service.record(manager, INPUT)),
-      ).rejects.toBe(original);
+      await expect(transactionService.run(manager => service.record(manager, INPUT))).rejects.toBe(
+        original,
+      );
 
-      expect(runners[0].rollbackTransaction).toHaveBeenCalledTimes(1);
-      expect(runners[0].commitTransaction).not.toHaveBeenCalled();
+      expect(rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(commitTransaction).not.toHaveBeenCalled();
     });
   });
 });

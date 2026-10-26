@@ -11,10 +11,7 @@ describe('assertValidMetadata (DBS-56)', () => {
       ['reason from ErrorCode', { reason: ErrorCode.ACCOUNT_NOT_ACTIVE }],
       ['reason from AuditReason', { reason: AuditReason.NOT_OWNER }],
       ['count zero', { count: 0 }],
-      [
-        'all three valid fields',
-        { id: 'abc123', reason: AuditReason.NO_PERMISSION, count: 3 },
-      ],
+      ['all three valid fields', { id: 'abc123', reason: AuditReason.NO_PERMISSION, count: 3 }],
     ])('%s', (_label, metadata) => {
       expect(() => assertValidMetadata(metadata)).not.toThrow();
     });
@@ -25,7 +22,10 @@ describe('assertValidMetadata (DBS-56)', () => {
       ['array instead of object', ['a', 'b']],
       ['null', null],
       ['string', 'not an object'],
-      ['extra key built via spread (bypasses compile-time check)', { ...{ id: 'a' }, email: 'a@b.com' }],
+      [
+        'extra key built via spread (bypasses compile-time check)',
+        { ...{ id: 'a' }, email: 'a@b.com' },
+      ],
       ['id with a space', { id: 'has space' }],
       ['id longer than 36 chars', { id: 'a'.repeat(37) }],
       ['reason as a free sentence', { reason: 'khach khong phai chu tai khoan' }],

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
-import { TransactionService } from '../../database/transaction.service';
+import { TransactionService } from '@database/transaction.service';
 import { assertValidMetadata } from './audit-metadata.guard';
 import type { AuditRecordInput } from './audit.types';
 

@@ -28,7 +28,10 @@ export function assertValidMetadata(metadata: AuditMetadata | undefined): void {
   if (metadata.reason !== undefined && !VALID_REASONS.has(metadata.reason)) {
     throw new AuditMetadataError();
   }
-  if (metadata.count !== undefined && !(Number.isSafeInteger(metadata.count) && metadata.count >= 0)) {
+  if (
+    metadata.count !== undefined &&
+    !(Number.isSafeInteger(metadata.count) && metadata.count >= 0)
+  ) {
     throw new AuditMetadataError();
   }
 }
