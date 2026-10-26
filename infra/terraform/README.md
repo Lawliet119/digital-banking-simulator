@@ -130,6 +130,22 @@ aws ecs update-service --cluster dbs-dev --service api --task-definition dbs-api
 aws ecs describe-services --cluster dbs-dev --services api --query 'services[0].deployments'   # PRIMARY phải COMPLETED
 ```
 
+### Migration trước deploy (DBS-68)
+
+Migration chạy như một task ECS Fargate chạy một lần (family `dbs-migrate`, container `migrate`, lệnh `migration:run`), vì runner GitHub không với tới RDS. `deploy.sh` gọi `.github/scripts/migrate.sh` giữa "đăng ký revision api mới" và `update-service`: script đăng ký revision `dbs-migrate` với image của commit, `run-task` trong subnet và SG của service `api`, chờ `STOPPED`, đọc `exitCode`. Lỗi (exit khác 0, quá 600 s, không tạo được task) thì `deploy.sh` dừng trước `update-service` và service vẫn chạy bản cũ; log 50 dòng cuối của task được in trong nhóm `Log task migration`. Chạy lần hai khi không còn migration chờ là vô hại (TypeORM ghi vào bảng `migrations`).
+
+**Chạy tay:**
+
+```bash
+IMAGE_TAG=<sha-40-ky-tu> AWS_PROFILE=dbs-admin bash .github/scripts/migrate.sh
+```
+
+Script từ chối chạy khi còn task `dbs-migrate` đang `RUNNING` (TypeORM không có khóa nên hai lần chạy chồng nhau sẽ va nhau). Đọc log của một lần chạy: `aws logs get-log-events --log-group-name /dbs/dev/api --log-stream-name migrate/migrate/<task-id>`.
+
+**Trình tự "Up" lần đầu** (`desired_count = 0` nên `deploy.sh` bỏ qua): `apply session` → `Image` đã đẩy tag SHA lên ECR → `migrate.sh` bằng tay → nâng `desired_count` lên 1.
+
+**Quy tắc:** migration chạy khi bản app cũ vẫn phục vụ, nên viết theo kiểu expand → migrate → contract (backend README); deploy lỗi sau migration không hoàn tác schema. Task migration tạm dùng secret master như api (BL-103); DBS-119 tách role `dbs_migrator`, execution role riêng và sửa `iam:PassRole` ở `base/deploy_role.tf`. Mặc định TypeORM chạy mọi migration chờ trong **một** transaction nên không dùng được `CREATE INDEX CONCURRENTLY` (BL-110). Role `dbs-github-deploy` cần `apply base` để có quyền `ecs:RunTask` (BL-109). Chi phí một lần chạy ≈ 0,012 USD/giờ × thời gian chạy; `destroy session` bỏ task definition, chỉ còn log event ở `base` (7 ngày).
+
 ### Cognito và tài khoản nhân viên demo (DBS-54)
 
 `envs/dev/base` tạo user pool `dbs` (đăng nhập bằng email không phân biệt hoa thường, tự đăng ký bật, mật khẩu tối thiểu 12 ký tự đủ 4 loại), 4 nhóm `customer`, `operator`, `auditor`, `admin` và app client `dbs-app` không secret (`USER_SRP_AUTH`, `REFRESH_TOKEN_AUTH`, `USER_PASSWORD_AUTH`; access và ID token 15 phút, refresh 1 ngày). Output: `cognito_user_pool_id`, `cognito_client_id`, `cognito_issuer` (ba biến `COGNITO_*` của task ECS lấy từ đây, không bí mật). `cognito_deletion_protection` mặc định `INACTIVE` cho dev (teardown cần); đặt `ACTIVE` khi pool đã có người dùng thật, và đặt lại `INACTIVE` trước khi `destroy base`.
