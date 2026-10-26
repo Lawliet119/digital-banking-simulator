@@ -45,8 +45,8 @@ run "deploy_policy" {
   command = apply
 
   assert {
-    condition     = toset(flatten([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement : s.Action if s.Resource == "*"])) == toset(["ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition", "elasticloadbalancing:DescribeLoadBalancers"])
-    error_message = "only RegisterTaskDefinition, DescribeTaskDefinition and DescribeLoadBalancers may use * (AWS has no resource-level support)"
+    condition     = toset(flatten([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement : s.Action if s.Resource == "*"])) == toset(["ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition", "elasticloadbalancing:DescribeLoadBalancers", "ecs:ListTasks"])
+    error_message = "only RegisterTaskDefinition, DescribeTaskDefinition, DescribeLoadBalancers and ListTasks may use * (AWS has no resource-level support)"
   }
 
   assert {
@@ -57,10 +57,10 @@ run "deploy_policy" {
   assert {
     condition = anytrue([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement :
       flatten([s.Action]) == ["ecs:TagResource"]
-      && s.Resource == "arn:aws:ecs:ap-southeast-1:123456789012:task-definition/dbs-api:*"
+      && toset(flatten([s.Resource])) == toset(["arn:aws:ecs:ap-southeast-1:123456789012:task-definition/dbs-api:*", "arn:aws:ecs:ap-southeast-1:123456789012:task-definition/dbs-migrate:*"])
       && s.Condition.StringEquals["ecs:CreateAction"] == "RegisterTaskDefinition"
     ])
-    error_message = "TagResource only on dbs-api task definitions and only at RegisterTaskDefinition"
+    error_message = "TagResource on dbs-api and dbs-migrate task definitions, only at RegisterTaskDefinition"
   }
 
   assert {
@@ -85,5 +85,69 @@ run "deploy_policy" {
   assert {
     condition     = output.github_deploy_role_arn == aws_iam_role.github_deploy.arn
     error_message = "deploy role arn must be exported"
+  }
+}
+
+# TC-68-12: quyền của bước migration (DBS-68)
+run "deploy_policy_migration" {
+  command = apply
+
+  assert {
+    condition = anytrue([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement :
+      flatten([s.Action]) == ["ecs:RunTask"]
+      && s.Resource == "arn:aws:ecs:ap-southeast-1:123456789012:task-definition/dbs-migrate:*"
+      && s.Condition == { ArnEquals = { "ecs:cluster" = "arn:aws:ecs:ap-southeast-1:123456789012:cluster/dbs-dev" } }
+    ])
+    error_message = "RunTask only on dbs-migrate revisions, with ArnEquals ecs:cluster = the dbs-dev cluster ARN"
+  }
+
+  assert {
+    condition = anytrue([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement :
+      flatten([s.Action]) == ["ecs:StopTask"]
+      && s.Resource == "arn:aws:ecs:ap-southeast-1:123456789012:task/dbs-dev/*"
+      && s.Condition == { ArnEquals = { "ecs:cluster" = "arn:aws:ecs:ap-southeast-1:123456789012:cluster/dbs-dev" } }
+    ])
+    error_message = "StopTask only on tasks of dbs-dev, with the cluster ARN condition"
+  }
+
+  assert {
+    condition = anytrue([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement :
+      flatten([s.Action]) == ["ecs:DescribeTasks"]
+      && s.Resource == "arn:aws:ecs:ap-southeast-1:123456789012:task/dbs-dev/*"
+    ])
+    error_message = "DescribeTasks only on tasks of dbs-dev"
+  }
+
+  assert {
+    condition = anytrue([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement :
+      flatten([s.Action]) == ["ecs:ListTasks"]
+      && s.Resource == "*"
+      && s.Condition == { ArnEquals = { "ecs:cluster" = "arn:aws:ecs:ap-southeast-1:123456789012:cluster/dbs-dev" } }
+    ])
+    error_message = "ListTasks (no resource-level support) restricted by the cluster ARN condition"
+  }
+
+  assert {
+    condition = anytrue([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement :
+      flatten([s.Action]) == ["ecs:TagResource"]
+      && s.Resource == "arn:aws:ecs:ap-southeast-1:123456789012:task/dbs-dev/*"
+      && s.Condition.StringEquals["ecs:CreateAction"] == "RunTask"
+    ])
+    error_message = "TagResource on tasks only at RunTask (--propagate-tags keeps the cost tags)"
+  }
+
+  assert {
+    condition = anytrue([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement :
+      flatten([s.Action]) == ["logs:GetLogEvents"]
+      && startswith(s.Resource, aws_cloudwatch_log_group.api.arn)
+      && endswith(s.Resource, ":log-stream:migrate/*")
+      && !strcontains(s.Resource, "api/")
+    ])
+    error_message = "GetLogEvents only on the migrate/* streams of the api log group, never api/*"
+  }
+
+  assert {
+    condition     = !strcontains(aws_iam_role_policy.deploy.policy, "ecs:*") && !strcontains(aws_iam_role_policy.deploy.policy, "secretsmanager") && !strcontains(aws_iam_role_policy.deploy.policy, "kms:")
+    error_message = "no ecs wildcard, and the deploy role can read neither secrets nor KMS"
   }
 }
