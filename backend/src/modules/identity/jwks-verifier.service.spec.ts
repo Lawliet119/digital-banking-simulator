@@ -110,7 +110,10 @@ describe('JwksVerifierService', () => {
   });
 
   afterEach(async () => {
-    await fixture.close();
+    // One test (below) closes the fixture itself, mid-test, to simulate the JWKS endpoint being
+    // unreachable; closing an already-closed server throws, which this would otherwise surface
+    // as a spurious failure on an unrelated, already-passing test.
+    await fixture.close().catch(() => undefined);
     jest.restoreAllMocks();
   });
 
@@ -291,5 +294,16 @@ describe('JwksVerifierService', () => {
     for (const call of warnSpy.mock.calls) {
       expect(call.join(' ')).not.toContain(token);
     }
+  });
+
+  // domain-review vòng 2 #4: a network/parse failure fetching the JWKS is NOT the same case as a
+  // known-but-unpublished kid (fetches fine, key just isn't in the set) — both must fail closed.
+  it('fails closed, without crashing or hanging, when the JWKS endpoint is unreachable', async () => {
+    const token = await fixture.signWith(kid1, key1.privateKey, baseClaims());
+    await fixture.close(); // the fetch below cannot succeed: connection refused, not a 4xx/5xx.
+
+    const verifier = new JwksVerifierService(configFor(fixture));
+
+    await expect(verifier.verifyAccessToken(token)).rejects.toBeInstanceOf(TokenVerificationError);
   });
 });
