@@ -32,6 +32,8 @@ def td_response(image, with_secrets=True):
 
 def service(td=ARN_OLD, desired=1, status="ACTIVE", deployments=None, events=None):
     return {"services": [{"serviceName": "api", "status": status, "desiredCount": desired, "taskDefinition": td,
+                          "networkConfiguration": {"awsvpcConfiguration": {
+                              "subnets": ["subnet-a", "subnet-b"], "securityGroups": ["sg-api"], "assignPublicIp": "ENABLED"}},
                           "deployments": deployments or [{"status": "PRIMARY", "taskDefinition": td, "rolloutState": "COMPLETED"}],
                           "events": [{"message": m} for m in (events or [])]}], "failures": []}
 
@@ -70,12 +72,12 @@ echo "${{FAKE_MAIN_HEAD:-}}"
         p.write_text(text)
         p.chmod(0o755)
 
-    def run(self, tag=NEW, **extra):
+    def run(self, tag=NEW, script=SCRIPT, **extra):
         env = {"PATH": f"{self.bin}:/usr/bin:/bin", "FAKE_STATE": str(self.state), "HOME": self.tmp.name,
                "IMAGE_TAG": tag, "POLL_SECONDS": "0", "HEALTH_WAIT": "0", "HEALTH_RETRIES": "3",
                "DEADLINE_SECONDS": "5", "GITHUB_EVENT_NAME": "workflow_run"}
         env.update(extra)
-        return subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True)
+        return subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True)
 
     def calls(self):
         p = self.state / "calls.jsonl"
