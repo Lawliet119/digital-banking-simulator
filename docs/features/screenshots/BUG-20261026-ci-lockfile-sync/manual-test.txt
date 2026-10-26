@@ -1,0 +1,36 @@
+cac890e426e872f147510859a5fd59d94a86ac83
+
+=== M-BUG-01: npm ci voi lockfile CU (HEAD truoc commit cac890e), container node:24-bookworm sach ===
+$ docker run --rm -v ".../old:/app" -w /app node:24-bookworm sh -c "npm ci"
+npm error code EUSAGE
+npm error
+npm error `npm ci` can only install packages when your package.json and package-lock.json or npm-shrinkwrap.json are in sync. Please update your lock file with `npm install` before continuing.
+npm error
+npm error Missing: @emnapi/core@1.11.3 from lock file
+npm error Missing: @emnapi/runtime@1.11.3 from lock file
+npm error
+npm error Clean install a project
+...
+Ket qua: FAIL dung nhu mong doi (EUSAGE, thieu @emnapi/core, @emnapi/runtime) -- khop chinh xac loi tren CI run 40267168552.
+
+=== M-BUG-02: npm install --package-lock-only tu package.json+lockfile CU, container sach ===
+$ docker run --rm -v ".../regen:/app" -w /app node:24-bookworm sh -c "npm install --package-lock-only"
+npm warn deprecated glob@10.5.0: ...
+npm warn deprecated uuid@10.0.0: ...
+npm warn deprecated eslint@9.39.5: ...
+added 914 packages, and audited 915 packages
+13 vulnerabilities (7 moderate, 5 high, 1 critical)   <- co san truoc PR #29, ngoai pham vi bug nay
+Ket qua: package-lock.json sinh ra giong byte-for-byte voi backend/package-lock.json dang co trong commit cac890e (diff -q => files identical). Xac nhan thay doi hien tai dung la lockfile sinh dung cach.
+
+=== M-BUG-03: npm ci voi lockfile MOI (sau fix, commit cac890e), container sach moi ===
+$ docker run --rm -v ".../new:/app" -w /app node:24-bookworm sh -c "npm ci && echo CI_OK"
+npm warn deprecated glob@10.5.0: ...
+npm warn deprecated uuid@10.0.0: ...
+npm warn deprecated eslint@9.39.5: ...
+npm warn install-scripts 6 packages have install scripts not yet covered by allowScripts: ...
+13 vulnerabilities (7 moderate, 5 high, 1 critical)   <- co san truoc PR #29, ngoai pham vi bug nay
+CI_OK
+Ket qua: exit code 0, in CI_OK nhu mong doi.
+
+Moi truong: Docker Desktop 27.3.1, image node:24-bookworm (node v24.22.1, npm 11.19.1) -- khop NODE_VERSION: "24" trong .github/workflows/ci.yml va runner ubuntu-24.04.
+Khong co secret/token trong cac log tren, khong can redact.

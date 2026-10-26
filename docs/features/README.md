@@ -38,3 +38,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-42](DBS-42-json-logger.md) | Logger JSON, redaction, log level và HTTP correlation | Dev | Implemented (PR #16, chờ Dev review và CI) |
 | [DBS-31](DBS-31-terraform-bootstrap-s3-backend.md) | Terraform bootstrap: S3 state có versioning, mã hóa và khóa state | #5 Platform & Ops | Implemented |
 | [DBS-50](DBS-50-jwt-auth-guard-jwks.md) | Identity: JwtAuthGuard xác minh JWT bằng JWKS có cache, guard toàn cục mặc định | Dev | Implemented |
+| [BUG-20261026-ci-lockfile-sync](BUG-20261026-ci-lockfile-sync.md) | `backend/package-lock.json` không đồng bộ (thiếu `@emnapi/*`) làm `npm ci` đỏ trên CI sau PR #29 | Dev | Implemented |
