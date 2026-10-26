@@ -1,6 +1,6 @@
 # DBS-68 · Bước migration riêng trong pipeline (task ECS một lần, trước khi deploy)
 
-> **Status:** Plan approved (G1–G3 tự duyệt) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-68-migration-step` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`) · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented (chờ G4, chưa có PR) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-68-migration-step` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`) · **PR:** — · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
@@ -167,8 +167,51 @@ Rủi ro và cách lùi: lùi bằng revert; không đổi schema, không đổi
 
 ## 8. Kết quả
 
-(Điền ở Phase 4–5.)
+- **Lệnh kiểm tra** (SHA code cuối `ebeb1ca`): `test_migrate.py` **19 OK** (mới), `test_deploy.py` **20 OK** (17 cũ + 3 mới), `test_render_task_definition.py` **9 OK** (6 + 3), `check-image-workflow.py` OK; `terraform test`: `base` **30/30** (29 cũ + 1 mới, 2 assert cũ sửa), `session` **16/16** (15 + 1); `terraform fmt -check -recursive` sạch ở cả hai; `check-doc-links.mjs` 0 link hỏng. Không `.skip`, `.only`, `.todo` (0 skipped). Backend không đổi mã.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-68-01 | `test_migrate.py` › `test_success_registers_new_image_and_runs_task_with_service_network`, `test_network_configuration_comes_from_the_service` | đạt |
+| TC-68-02 | `test_nonzero_exit_is_red_and_prints_logs`; `test_deploy.py` › `test_failed_migration_stops_the_deploy` | đạt |
+| TC-68-03 | `test_missing_exit_code_is_red_...`, `test_exit_code_is_read_from_the_container_named_migrate` | đạt |
+| TC-68-04 | `test_run_task_failures_...`, `test_describe_tasks_failures_stop_after_three_times`, `test_transient_describe_error_recovers`, `test_three_describe_errors_in_a_row_are_red` | đạt |
+| TC-68-05 | `test_deadline_stops_the_task_...`, `test_stop_task_error_does_not_hide_a_successful_exit`, `test_task_that_never_stops_...` (ca PENDING nằm trong chuỗi PENDING → RUNNING của ca đầu) | đạt |
+| TC-68-06 | `test_family_missing_...`, `test_access_denied_is_passed_through_...`, `test_running_migration_blocks_a_second_run` | đạt |
+| TC-68-07 | `test_run_twice_second_time_does_not_register_again` (chỉ chứng minh script chạy lại được; hành vi TypeORM thật xem TC-68-17) | đơn giản hóa (aws giả, không có Postgres) |
+| TC-68-08 | `test_migration_runs_between_register_and_update_service`, `test_skip_paths_never_run_a_migration` | đạt |
+| TC-68-09 | `test_bad_tags_rejected_before_aws` | đạt |
+| TC-68-10 | `test_render_task_definition.py` › ba test `--container` | đạt |
+| TC-68-11 | `session.tftest.hcl` › `migrate_task_definition` | đạt |
+| TC-68-12 | `deploy_role.tftest.hcl` › `deploy_policy_migration` (+ `deploy_policy` sửa) | đạt |
+| TC-68-13 | toàn bộ lệnh ở trên | đạt |
+| TC-68-14 | README Terraform và backend | đạt |
+| TC-68-15 | quy trình | chưa làm (chờ review và merge) |
+| TC-68-16 | `test_hostile_log_lines_...`, `test_db_host_is_masked_...`, `test_missing_log_stream_...` | đạt |
+| TC-68-17 | test Postgres thật chạy hai lần | **chưa làm** (không có Docker): BL-110 |
+
+17 test case: 14 đạt, 1 đơn giản hóa (TC-68-07), 2 chưa làm (TC-68-15 quy trình, TC-68-17).
+
+- **Test thủ công** ([manual-test.txt](screenshots/DBS-68/manual-test.txt), SHA `ebeb1ca`, id tài khoản AWS đã thay bằng `<account>`):
+
+| Bước | Kết quả |
+|---|---|
+| M-68-01 | đạt: `bash -n` đúng; `IMAGE_TAG=latest` bị từ chối, thoát 1, không gọi `aws` |
+| M-68-02 | đạt: `plan` ở `session` báo `17 to add` (16 cũ + `aws_ecs_task_definition.migrate`); chỉ thấy cờ `manage_master_user_password` và `password_wo` |
+| M-68-03 | đạt, **khác kỳ vọng ban đầu**: `plan` ở `base` báo `2 to add` (role `dbs-github-deploy` và policy của nó); role của DBS-38 chưa từng được `apply` (BL-104), nên không phải "đổi tại chỗ". Không có thay đổi nào khác |
+| M-68-04, 05, 06 | **chưa chạy** (cần AWS thật, `apply`; người dùng dặn ghi chưa chạy): BL-109 |
+| M-68-07 | đạt một phần: simulator cho phép `RunTask dbs-migrate:1` với cluster ARN đúng, từ chối cluster sai, từ chối `dbs-api`, từ chối tên cluster không ARN, cho phép `StopTask`; `GetLogEvents` chỉ khớp ARN có `:*` ở cuối (dạng không `:*` bị từ chối, nên policy liệt kê cả hai dạng) và từ chối `api/*` ở cả hai dạng. Hành vi thật của IAM với log stream chưa kiểm: BL-109 |
+| M-68-08 | đạt một phần: `data-source` nạp với env rút gọn của task (không `COGNITO_*`, `REDIS_URL`, `APP_ROLE`); repo chưa có file `*.entity.js` (0 file) nên phần nạp entity chưa chứng minh được: BL-110 |
+
+Chưa có ảnh chụp màn hình (không có bước giao diện; bằng chứng là `manual-test.txt`).
+- **Chưa chứng minh bằng chạy thật:** `run-task` Fargate thật vào RDS, quyền IAM của role thật, lần chạy hai lần liên tiếp với TypeORM thật, hành vi `deploy.sh` khi migration lỗi trên AWS. Mọi test của script dùng `aws` giả nên chỉ chứng minh logic.
+- **Phạm vi so với §7:** khớp; thêm `fake_aws_deploy.py` và sửa `test_deploy.py` (mặc định migration thành công, đổi một assert vì `dbs-migrate` có thể đăng ký revision), như §7 bước 2–3 đã gồm. Không có file ngoài kế hoạch.
+- **Lệch so với kế hoạch (tự ghi, người duyệt xem ở G4):** (1) `migrate.sh` được viết trước test của nó; test sau đó viết với script đặt tạm ra ngoài, xác nhận đỏ (19/19 lỗi vì thiếu script), rồi đặt lại script và xanh; thêm 4 phép thử đột biến (bỏ `::add-mask::`, bỏ kiểm đang chạy, luôn coi `exitCode` là 0, ngưỡng 3 lần lỗi) đều làm test đỏ. Cột "Kết quả đỏ" của §7 vì vậy không điền từng dòng. (2) Resource `GetLogEvents` sửa thêm dạng `:*` sau khi M-68-07 cho thấy simulator chỉ khớp dạng đó; test và code đổi cùng lúc, không chạy riêng test đỏ.
+- **Bàn giao / BACKLOG:** BL-109 (chạy thật M-68-04..06, `apply base`, kiểm quyền log thật), BL-110 (giới hạn đã chấp nhận: test Postgres thật, transaction `all`, log khi repo public, nạp entity). Đã sửa BL-103 (tạo role chuyển sang DBS-119, kèm execution role riêng và PassRole) và BL-107 (task migration không bị ảnh hưởng bởi xoay mật khẩu).
 
 ## 9. Tài liệu đã cập nhật
 
-(Điền ở Phase 4–5.)
+- `infra/terraform/README.md`: mục "Migration trước deploy (DBS-68)" (luồng, chạy tay, trình tự "Up" lần đầu, quy tắc).
+- `backend/README.md`: mục migration trỏ tới bước pipeline và lệnh chạy tay.
+- `docs/BACKLOG.md`: thêm BL-109, BL-110; sửa BL-103, BL-107.
+- `docs/features/README.md`: thêm dòng DBS-68.
