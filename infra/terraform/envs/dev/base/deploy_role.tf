@@ -24,6 +24,11 @@ resource "aws_iam_role" "github_deploy" {
 locals {
   ecs_service_arn  = "arn:aws:ecs:${var.region}:${var.account_id}:service/dbs-dev/api"
   ecs_task_def_arn = "arn:aws:ecs:${var.region}:${var.account_id}:task-definition/dbs-api:*"
+  # DBS-68: bước migration chạy task dbs-migrate một lần trong cluster dbs-dev. `ecs:cluster` nhận ARN, không phải tên.
+  ecs_migrate_def_arn = "arn:aws:ecs:${var.region}:${var.account_id}:task-definition/dbs-migrate:*"
+  ecs_cluster_arn     = "arn:aws:ecs:${var.region}:${var.account_id}:cluster/dbs-dev"
+  ecs_tasks_arn       = "arn:aws:ecs:${var.region}:${var.account_id}:task/dbs-dev/*"
+  ecs_cluster_only    = { ArnEquals = { "ecs:cluster" = local.ecs_cluster_arn } }
   task_role_arns = [
     "arn:aws:iam::${var.account_id}:role/dbs-dev-api-execution",
     "arn:aws:iam::${var.account_id}:role/dbs-dev-api-task",
@@ -53,13 +58,52 @@ resource "aws_iam_role_policy" "deploy" {
         Resource = local.ecs_service_arn
       },
       {
-        # Giữ tag chi phí (project/env/owner) của task definition mới.
+        # Giữ tag chi phí (project/env/owner) của task definition mới (api và migrate).
         Effect   = "Allow"
         Action   = ["ecs:TagResource"]
-        Resource = local.ecs_task_def_arn
+        Resource = [local.ecs_task_def_arn, local.ecs_migrate_def_arn]
         Condition = {
           StringEquals = { "ecs:CreateAction" = "RegisterTaskDefinition" }
         }
+      },
+      {
+        # DBS-68: --propagate-tags TASK_DEFINITION của run-task gắn tag chi phí cho task migration.
+        Effect   = "Allow"
+        Action   = ["ecs:TagResource"]
+        Resource = local.ecs_tasks_arn
+        Condition = {
+          StringEquals = { "ecs:CreateAction" = "RunTask" }
+        }
+      },
+      {
+        Effect    = "Allow"
+        Action    = ["ecs:RunTask"]
+        Resource  = local.ecs_migrate_def_arn
+        Condition = local.ecs_cluster_only
+      },
+      {
+        Effect    = "Allow"
+        Action    = ["ecs:StopTask"]
+        Resource  = local.ecs_tasks_arn
+        Condition = local.ecs_cluster_only
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ecs:DescribeTasks"]
+        Resource = local.ecs_tasks_arn
+      },
+      {
+        # ListTasks không hỗ trợ giới hạn theo tài nguyên: giới hạn bằng điều kiện cluster.
+        Effect    = "Allow"
+        Action    = ["ecs:ListTasks"]
+        Resource  = "*"
+        Condition = local.ecs_cluster_only
+      },
+      {
+        # In log khi migration lỗi: chỉ stream migrate/*, không đọc được stream api/* (ARN log group không có `:*`).
+        Effect   = "Allow"
+        Action   = ["logs:GetLogEvents"]
+        Resource = "${aws_cloudwatch_log_group.api.arn}:log-stream:migrate/*"
       },
       {
         Effect   = "Allow"
