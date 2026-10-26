@@ -1,6 +1,6 @@
 # FRAUD-API-01 · Fraud không tự train model: quyết định kiến trúc API AI
 
-> **Status:** Plan approved vòng 2 (G2, G3 duyệt 2026-10-25; vòng 1 đã Implemented) · **Loại:** docs-only, chưa triển khai backend fraud · **Vai:** #4 Fraud · **Review:** domain/plan đã APPROVE; review bổ sung còn ba điểm mở (§8.6), chưa ready · **Nhánh:** `docs/FRAUD-API-01-rules-external-ai` · **PR:** [#20 — Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/20) · **Cập nhật:** 2026-10-24
+> **Status:** Implemented vòng 2 (G2, G3 duyệt 2026-10-25, G4 duyệt 2026-10-26; ADR-14 vẫn Proposed) · **Loại:** docs-only, chưa triển khai backend fraud · **Vai:** #4 Fraud · **Review:** domain review AI vòng 5–7 APPROVE; chưa có Dev review (BL-035), chưa ready · **Nhánh:** `docs/FRAUD-API-01-rules-external-ai` · **PR:** [#20 — Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/20) · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
@@ -603,11 +603,11 @@ Hai lượt review ở thời điểm tích hợp ban đầu trả `Verdict: APP
 
 | BL | Bên nhận theo vai/task | Trạng thái/điều kiện còn thiếu |
 |---|---|---|
-| BL-027 | Fraud, một Dev review, nhóm và người quản lý board | Đã chuẩn bị hồ sơ; chưa có bằng chứng nhóm Accepted ADR-14 hoặc đổi DoD sheet |
-| BL-028 | Fraud và Dev nhận risk core/data/shared dependency | Chưa triển khai; task riêng phải chứng minh migration/consumer/rules/audit/auth thật, không dựng stub; phụ thuộc trigger bàn giao ở BL-021 |
-| BL-029 | Dev nhận API UC-10/giao diện operator, phối hợp Fraud | Đã ghi contract trong tài liệu; **chưa thông báo/xác nhận với người nhận bên ngoài phiên làm việc**; UI phải dùng score tổng và assessment riêng |
-| BL-030 | Fraud và Platform & Ops | Chưa cấp/kiểm chứng điều kiện provider, giới hạn vận hành và smoke thật; không tự sửa cloud hoặc gửi dữ liệu |
-| BL-031 | Fraud, Dev dataset/quality, Platform & Ops | Chưa chạy tune/validation/holdout/load/metric/alarm; chỉ có giao thức và gate |
+| BL-030 | Fraud, một Dev review, nhóm và người quản lý board | Đã chuẩn bị hồ sơ; chưa có bằng chứng nhóm Accepted ADR-14 hoặc đổi DoD sheet |
+| BL-031 | Fraud và Dev nhận risk core/data/shared dependency | Chưa triển khai; task riêng phải chứng minh migration/consumer/rules/audit/auth thật, không dựng stub; phụ thuộc trigger bàn giao ở BL-021 |
+| BL-032 | Dev nhận API UC-10/giao diện operator, phối hợp Fraud | Đã ghi contract trong tài liệu; **chưa thông báo/xác nhận với người nhận bên ngoài phiên làm việc**; UI phải dùng score tổng và assessment riêng |
+| BL-033 | Fraud và Platform & Ops | Chưa cấp/kiểm chứng điều kiện provider, giới hạn vận hành và smoke thật; không tự sửa cloud hoặc gửi dữ liệu |
+| BL-034 | Fraud, Dev dataset/quality, Platform & Ops | Chưa chạy tune/validation/holdout/load/metric/alarm; chỉ có giao thức và gate |
 | BL-035 | Người thực hiện và một Dev độc lập | Người dùng đã cho phép commit/PR; CI remote/review Dev chưa hoàn tất; giữ Draft khi còn điểm thiết kế mở |
 | BL-036 | Fraud và Dev consumer | Rule fault có thể dẫn tới decision LOW thiếu nhưng bất biến; cần chốt policy trước implementation/ready |
 | BL-037 | Dev migration risk và API review | CHECK review baseline cho phép thiếu reviewer hoặc thời gian; sửa ở task riêng, không nhận là đã sửa trong PR này |
@@ -639,7 +639,7 @@ Ranh giới tài nguyên chưa được chứng minh bằng load: risk chia sẻ
 
 ### 8.7 Vòng sửa 2: kết quả
 
-**Phạm vi đã thực hiện.** Sáu commit trên nhánh, không có production code, migration, dependency, env hay tài nguyên cloud: C1 `f0a57d7` merge `origin/main` (hai xung đột tài liệu, giữ nguyên dòng upstream, đánh số lại backlog fraud); C2 `73dc4af` khôi phục tám file Accepted về bản main + khung ADR-14; C3 `e0dc4cf` sửa baseline R1–R6 và AC-9.1 (10 nhóm hunk H1–H10); C4 `1a4d66f` ADR-14, hồ sơ và phụ lục §3.8; C5 `13f6334` ghi chú Proposed ở tài liệu vai khác; C6 là commit chứa mục này (backlog, feature index, đánh số lại BL, bằng chứng). So với `origin/main`, PR đổi 28 file (27 file khi thu thập bằng chứng, cộng chính file `verification-round2.txt`); `docs/03` chỉ thêm khung hai dòng. Chưa push; Draft PR #20 trên GitHub vẫn ở trạng thái vòng 1 cho tới khi push.
+**Phạm vi đã thực hiện.** Sáu commit trên nhánh cộng một commit merge lần hai (`64eca39`), không có production code, migration, dependency, env hay tài nguyên cloud: C1 `f0a57d7` merge `origin/main` (hai xung đột tài liệu, giữ nguyên dòng upstream, đánh số lại backlog fraud); C2 `73dc4af` khôi phục tám file Accepted về bản main + khung ADR-14; C3 `e0dc4cf` sửa baseline R1–R6 và AC-9.1 (10 nhóm hunk H1–H10); C4 `1a4d66f` ADR-14, hồ sơ và phụ lục §3.8; C5 `13f6334` ghi chú Proposed ở tài liệu vai khác; C6 (`28713ca`, `45cb1c2`) chứa backlog, feature index, đánh số lại BL và bằng chứng. Trước khi push, `origin/main` tiến thêm commit `b478a02` (DBS-31, BL-027–029 và hàng DBS-31 trong feature index) nên `64eca39` merge lại: giữ nguyên dòng upstream, đánh số lại BL-027–038 của nhóm fraud thành BL-030–041 trong BACKLOG, ADR-14, feature doc và threat model; ba phản hồi review ở `screenshots/` giữ nguyên văn với số của thời điểm review. So với `origin/main`, PR đổi 28 file (27 file khi thu thập bằng chứng, cộng chính file `verification-round2.txt`); `docs/03` chỉ thêm khung hai dòng. Push và cập nhật Draft PR #20 được người dùng cho phép khi duyệt G4 (kết quả ghi ở cuối mục này).
 
 **Kiểm chứng đã chạy** (đầu ra thô: [verification-round2.txt](screenshots/FRAUD-API-01/verification-round2.txt)):
 
@@ -651,12 +651,12 @@ Ranh giới tài nguyên chưa được chứng minh bằng load: risk chia sẻ
 | TC-14 | Đối chiếu ADR-14, §3.8, TC-06 và `fraud.md` về AI-only, audit chỉ khi có cờ và ba trường hợp lỗi: nhất quán | Đạt phạm vi tài liệu; chưa có test runtime (BL-031, BL-036, BL-041) |
 | TC-15 | Driver số học: 8 ca R6 (biên 90% bằng bigint, số dư ngay dưới 1.000.000, sameOwner, trên 2^53) cùng ca biên 9k/10k, fixture AC-9.1 = 35 + 30 = 65 MEDIUM, R6 một mình 30 LOW; biểu thức dấu phẩy động cũ lệch bigint ở 19.767 trên 200.000 ca biên trên 2^53. SQL median trên PostgreSQL 17.11 cô lập: n=5 → 30, n=4 → 25,5, 5 giá trị trên 2^53 → 9007199254740997 chính xác, biên `amount = 5 × median` đúng; `percentile_cont` cũ trả 9007199254741000 (sai) | Helper tiền được chạy bằng bản sao nguyên văn `backend/src/common/money` (chỉ thêm đuôi `.ts` vào import) với `--experimental-transform-types`, vì worktree chưa cài `node_modules`; không phải unit test fraud |
 | TC-16 | SQL §3.8 trích tự động từ doc, chạy trên PostgreSQL 17.11 trong container cô lập, không mở cổng host, đã dọn: DDL biên dịch cùng DDL baseline; 42 probe CHECK/PK/FK (14 chấp nhận đúng, 28 từ chối đúng), gồm `CONFIG_INVALID` và p=NaN; câu claim trả 0 dòng cho event trùng và cho transfer đã có decision. Ba kịch bản đua hai phiên: bên thắng commit → bên thua chờ 2,0 giây rồi nhận 0 dòng, còn 1 decision của bên thắng; bên thắng rollback → bên thua chờ rồi thắng; cùng event hai lần → bên sau nhận 0 dòng | Bảng `transfers`, `users` chỉ là stub có PK; không có consumer, audit hay role thật; không thay test consumer (BL-031); FK từ `fraud_flags` vẫn không tương thích writer baseline (BL-038) |
-| TC-17 | Không trùng ID; 4/4 dòng DBS-42 giữ nguyên byte; BL-030–041 tồn tại, chủ đề khớp; ADR-14 4 trích dẫn, feature doc 164, 0 vi phạm; BL-023–026 chỉ còn ở ngữ cảnh DBS-42/lịch sử | Kiểm chủ đề bằng từ khóa |
+| TC-17 | Không trùng ID; 4/4 dòng DBS-42 và 3/3 dòng DBS-31 giữ nguyên byte; BL-030–041 tồn tại, chủ đề khớp; ADR-14 4 trích dẫn, feature doc 172, 0 vi phạm; BL-023–029 chỉ còn ở ngữ cảnh DBS-42/DBS-31/lịch sử «cũ» | Kiểm chủ đề bằng từ khóa |
 | TC-18 | Threat model, P2, docs/01, dataset brief: chỉ dòng thêm; `fraud.md`: +10 −1 (đúng câu §5.4); T15 của DBS-42 giống main; câu tiếng Anh «One rule throwing…» còn nguyên | — |
 | TC-19 | Link checker 0 lỗi; sơ đồ Mermaid duy nhất của feature doc render thành công (Mermaid CLI 11.4.2 + Chrome, exit 0); ADR-14 không có sơ đồ; quét credential trên dòng thêm: 0 kết quả; conflict marker: 0 | Quét mẫu, không phải chứng nhận an toàn |
 | M-05 | ADR-08 dòng 9 và 49 trỏ guide §4.3.b; guide đã khôi phục có mục đó; mỗi file Accepted chỉ thêm khung | — |
-| M-06 | Trước C1: đúng hai xung đột (`BACKLOG.md`, `features/README.md`). Sau C1 và ở cuối: 0 xung đột; `git diff origin/main` ở ba file chỉ có dòng thêm (trừ dòng ngày của `BACKLOG.md`/`features/README.md`) | Kết quả đúng tại thời điểm chạy; `main` có thể tiến thêm |
-| M-07 | **Chưa chạy**: chờ người dùng mở guide OpenAI Decisions và đối chiếu GA, ZDR cho khách đủ điều kiện, giá input $0,10/1M token, output không tính phí | Cần người dùng nêu tên khi chấp nhận ở G4 |
+| M-06 | Trước C1: đúng hai xung đột (`BACKLOG.md`, `features/README.md`). Sau C1 và sau merge lần hai `64eca39`: 0 xung đột (merge lần hai cũng có đúng hai xung đột cùng file, đã giải); `git diff origin/main` ở ba file chỉ có dòng thêm (trừ dòng ngày của `BACKLOG.md`/`features/README.md`) | Kết quả đúng tại thời điểm chạy; `main` có thể tiến thêm |
+| M-07 | **Chưa chạy**: chờ người dùng mở guide OpenAI Decisions và đối chiếu GA, ZDR cho khách đủ điều kiện, giá input $0,10/1M token, output không tính phí | Người dùng duyệt G4 bằng «ok duyệt» mà không nêu riêng M-07, nên M-07 vẫn **chưa chạy** và chuyển vào BL-030 |
 | API thật, consumer fraud end-to-end, load, holdout | **Chưa chạy** | Ngoài task tài liệu: BL-031, BL-033, BL-034, BL-041 |
 
 Không chạy build/lint/unit/e2e của backend: task docs-only không đổi code chạy được ngoài merge main (CI trên PR chạy chúng). Không có `.skip`, `.only`, `.todo` hay test nào được thêm. Không có screenshot (không có giao diện hay đường runtime); bằng chứng là văn bản thô ở `verification-round2.txt`.
@@ -669,11 +669,11 @@ Không chạy build/lint/unit/e2e của backend: task docs-only không đổi co
 
 | BL | Bên nhận | Trạng thái |
 |---|---|---|
-| BL-027 | Fraud, Dev review, người quản lý board | ADR-14 vẫn Proposed; board chưa đổi |
-| BL-028 | Fraud và Dev các task phụ thuộc | Chưa có implementation risk; không stub |
-| BL-029 | Dev API/giao diện operator | Contract ghi trong tài liệu; chưa có xác nhận từ người nhận |
-| BL-030 | Fraud, Platform & Ops | Chưa có credential, quota, egress, smoke thật |
-| BL-031 | Fraud, Dev dataset, Platform & Ops | Chưa có số đo B0/B1/B2 |
+| BL-030 | Fraud, Dev review, người quản lý board | ADR-14 vẫn Proposed; board chưa đổi |
+| BL-031 | Fraud và Dev các task phụ thuộc | Chưa có implementation risk; không stub |
+| BL-032 | Dev API/giao diện operator | Contract ghi trong tài liệu; chưa có xác nhận từ người nhận |
+| BL-033 | Fraud, Platform & Ops | Chưa có credential, quota, egress, smoke thật |
+| BL-034 | Fraud, Dev dataset, Platform & Ops | Chưa có số đo B0/B1/B2 |
 | BL-035 | Người thực hiện, một Dev độc lập | PR Draft, chờ CI và Dev review |
 | BL-036 | Fraud, Dev consumer | Policy lỗi được đề xuất ở ADR-14; chờ nhóm quyết |
 | BL-037 | Dev migration risk, API review | Lỗi CHECK review baseline, sửa ở task riêng |
@@ -707,4 +707,4 @@ Chưa push và chưa mở thêm PR: Draft PR #20 sẽ được cập nhật bằ
 - Feature doc này: §1.6, §2.7, §3.7, §3.8, TC-11..19, M-05..07, §6.1, §7.7, §8.7, §9.1; ba phản hồi nguyên văn domain review vòng 5, 6, 7 và `verification-round2.txt` ở `screenshots/FRAUD-API-01/`.
 - Dòng backlog đã xử lý: không có dòng nào được xóa trong vòng này.
 
-**Quyết định G4 vòng 2:** chờ người dùng.
+**Quyết định G4 vòng 2 (2026-10-26):** người dùng trả lời «ok duyệt» cho thông điệp G4 vòng 2. Hiểu là: duyệt bàn giao task tài liệu; cho phép push nhánh fast-forward (không force) để cập nhật Draft PR #20 và chạy CI, theo đề xuất của thông điệp G4; giữ PR ở Draft cho tới khi một Dev review xong (BL-035). Không có phản hồi riêng cho M-07: M-07 vẫn **chưa chạy**, chuyển vào BL-030, nên không được đọc dữ kiện provider của ADR-14 là đã xác nhận. Không merge PR, không sửa board; ADR-14 vẫn Proposed.
