@@ -95,5 +95,15 @@ describe('AuditService (DBS-56)', () => {
       expect(rollbackTransaction).toHaveBeenCalledTimes(1);
       expect(commitTransaction).not.toHaveBeenCalled();
     });
+
+    it('TC-56-07b rejects invalid metadata before ever calling manager.query', async () => {
+      const query = jest.fn().mockResolvedValue(undefined);
+      const manager = { query } as unknown as EntityManager;
+      const service = new AuditService({} as TransactionService);
+      const bad = { ...INPUT, metadata: { ...{ id: 'a' }, email: 'a@b.com' } as never };
+
+      await expect(service.record(manager, bad)).rejects.toThrow();
+      expect(query).not.toHaveBeenCalled();
+    });
   });
 });
