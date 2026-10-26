@@ -1,10 +1,10 @@
 FRAUD-API-01 vong sua 2: raw verification output (documentation task, no runtime fraud code)
-Branch: docs/FRAUD-API-01-rules-external-ai   HEAD when collected: 13f6334 (+ uncommitted C6 working tree)
-origin/main: e52fbec   collected: 2026-10-25T15:24:59Z
-Commits: 13f6334 1a4d66f e0dc4cf 73dc4af f0a57d7 e52fbec 
+Branch: docs/FRAUD-API-01-rules-external-ai   HEAD when collected: 123e769
+origin/main: b478a02   collected: 2026-10-26T03:03:19Z
+Commits: 123e769 64eca39 b478a02 45cb1c2 28713ca 13f6334 1a4d66f e0dc4cf 73dc4af f0a57d7 e52fbec 
 
 
-===== M-06 before C1: git merge-tree --write-tree --name-only 8fa39dd origin/main  (expect exactly 2 conflicts) =====
+===== M-06 before C1 and before the second merge: git merge-tree --write-tree --name-only 8fa39dd origin/main  (expect exactly 2 conflicts; origin/main now includes DBS-31) =====
 CONFLICT (content): Merge conflict in docs/BACKLOG.md
 CONFLICT (content): Merge conflict in docs/features/README.md
 
@@ -13,7 +13,7 @@ CONFLICT (content): Merge conflict in docs/features/README.md
 conflicts: 0
 
 
-===== M-06 DBS-42 rows byte-identical to origin/main (BL-023..026) =====
+===== M-06 DBS-42 (BL-023..026) and DBS-31 (BL-027..029) rows byte-identical to origin/main =====
 identical
 duplicate BL ids: 0
 
@@ -66,7 +66,7 @@ duplicate BL ids: 0
 
 
 ===== TC-12 link checker (final) =====
-111 files checked, 0 broken link(s)
+112 files checked, 0 broken link(s)
 
 
 ===== TC-12 ADR-08 unchanged vs origin/main (lines of diff stat: 0 = unchanged) =====
@@ -228,32 +228,43 @@ container removed; leftover fraud-tc16 containers: 0
 
 
 ===== TC-17 backlog reference check =====
-BACKLOG rows: 37, ids: BL-023 BL-024 BL-025 BL-026 BL-027 BL-028 BL-029 BL-030 BL-031 BL-032 BL-033 BL-034 BL-035 BL-036 BL-037 BL-038
+BACKLOG rows: 40, ids: BL-023 BL-024 BL-025 BL-026 BL-027 BL-028 BL-029 BL-030 BL-031 BL-032 BL-033 BL-034 BL-035 BL-036 BL-037 BL-038 BL-039 BL-040 BL-041
 duplicate ids: 0
 DBS-42 rows present: 4/4
-topic ok  BL-027: keywords [ADR-14, DBS-161]
-topic ok  BL-028: keywords [implementation risk, risk_decisions]
-topic ok  BL-029: keywords [Contract API, operator]
-topic ok  BL-030: keywords [provider, credential]
-topic ok  BL-031: keywords [B0/B1/B2]
-topic ok  BL-032: keywords [Xuất bản, FRAUD-API-01]
-topic ok  BL-033: keywords [lỗi luật, DLQ]
-topic ok  BL-034: keywords [fraud_flags_review_consistent]
-topic ok  BL-035: keywords [fraud_flags_decision_fk]
-topic ok  BL-036: keywords [risk_decisions, retention]
-topic ok  BL-037: keywords [threat model, platform-infra]
-topic ok  BL-038: keywords [DLQ, CONFIG_INVALID]
+DBS-31 rows present: 3/3
+topic ok  BL-030: keywords [ADR-14, DBS-161]
+topic ok  BL-031: keywords [implementation risk, risk_decisions]
+topic ok  BL-032: keywords [Contract API, operator]
+topic ok  BL-033: keywords [provider, credential]
+topic ok  BL-034: keywords [B0/B1/B2]
+topic ok  BL-035: keywords [Xuất bản, FRAUD-API-01]
+topic ok  BL-036: keywords [lỗi luật, DLQ]
+topic ok  BL-037: keywords [fraud_flags_review_consistent]
+topic ok  BL-038: keywords [fraud_flags_decision_fk]
+topic ok  BL-039: keywords [risk_decisions, retention]
+topic ok  BL-040: keywords [threat model, platform-infra]
+topic ok  BL-041: keywords [DLQ, CONFIG_INVALID]
 docs/adr/0014-fraud-rules-external-ai.md: 4 BL citations; BL-023..026 occurrences: 0; violations: 0
-docs/features/FRAUD-API-01-external-ai-decision.md: 164 BL citations; BL-023..026 occurrences: 20; violations: 0
+docs/features/FRAUD-API-01-external-ai-decision.md: 182 BL citations; BL-023..026 occurrences: 33; violations: 0
    docs/features/FRAUD-API-01-external-ai-decision.md:63 BL-023 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:63 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:63 BL-027 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:63 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:65 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:117 BL-029 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:118 BL-023 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-023 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-027 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-027 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:237 BL-023 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:238 BL-024 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:239 BL-025 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:240 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:241 BL-027 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:242 BL-028 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:243 BL-029 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:337 BL-023 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:337 BL-026 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:337 BL-023 (allowed: DBS-42/history context)
@@ -262,8 +273,11 @@ docs/features/FRAUD-API-01-external-ai-decision.md: 164 BL citations; BL-023..02
    docs/features/FRAUD-API-01-external-ai-decision.md:355 BL-026 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:494 BL-023 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:494 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:642 BL-027 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:642 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:642 BL-027 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:654 BL-023 (allowed: DBS-42/history context)
-   docs/features/FRAUD-API-01-external-ai-decision.md:654 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:654 BL-029 (allowed: DBS-42/history context)
    docs/features/FRAUD-API-01-external-ai-decision.md:706 BL-023 (allowed: DBS-42/history context)
 backend/src/modules/risk/README.md: 0 BL citations; BL-023..026 occurrences: 0; violations: 0
 
@@ -284,6 +298,6 @@ d1.svg bytes: 28114  (exit 0 at render time)
 
 
 ===== TC-19 credential and conflict-marker scan over added lines vs origin/main =====
-files changed vs origin/main: 27
+files changed vs origin/main: 28
 credential-pattern matches: 0
 files with conflict markers: 0
