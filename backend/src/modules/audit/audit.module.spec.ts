@@ -2,9 +2,9 @@ import { Global, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import type { ConfigType } from '@nestjs/config';
-import type { databaseConfig } from '../../config/database.config';
-import { databaseConfig as databaseConfigToken } from '../../config/database.config';
-import { TransactionService } from '../../database/transaction.service';
+import type { databaseConfig } from '@config/database.config';
+import { databaseConfig as databaseConfigToken } from '@config/database.config';
+import { TransactionService } from '@database/transaction.service';
 import { AuditModule } from './audit.module';
 import { AuditService } from './audit.service';
 

@@ -1,5 +1,10 @@
 import { ErrorCode } from '@common/errors/error-code.enum';
-import { AuditReason, type AuditMetadata, type AuditOutcome, type AuditRecordInput } from './audit.types';
+import {
+  AuditReason,
+  type AuditMetadata,
+  type AuditOutcome,
+  type AuditRecordInput,
+} from './audit.types';
 
 const VALID_INPUT: AuditRecordInput = {
   actor: '11111111-1111-1111-1111-111111111111',

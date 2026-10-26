@@ -61,7 +61,10 @@ describe('AuditService against real PostgreSQL (DBS-56)', () => {
   }
 
   async function auditRows(correlationId: string): Promise<Record<string, unknown>[]> {
-    return db.runner.query('SELECT * FROM audit_log WHERE correlation_id = $1', [correlationId]);
+    const rows = await db.runner.query('SELECT * FROM audit_log WHERE correlation_id = $1', [
+      correlationId,
+    ]);
+    return rows as Record<string, unknown>[];
   }
 
   async function scratchHas(id: string): Promise<boolean> {
