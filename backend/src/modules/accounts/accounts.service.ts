@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
-import type { LockedAccount } from './account.types';
+import type { Account, LockedAccount } from './account.types';
 
 const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const SNAPSHOT_COLUMNS = `a.id, a.customer_id AS "customerId", c.user_id AS "userId",
@@ -41,6 +41,26 @@ export class AccountsService {
       [id, delta.toString()],
     );
     if (affected === 0) throw new NotFoundException('Account not found');
+  }
+
+  async getOwnedAccount(accountId: string, userId: string): Promise<Account> {
+    // Invalid, absent and foreign identifiers all hide account existence behind the same 404.
+    if (
+      typeof accountId !== 'string' ||
+      !UUID_PATTERN.test(accountId) ||
+      typeof userId !== 'string' ||
+      !UUID_PATTERN.test(userId)
+    ) {
+      throw new NotFoundException('Account not found');
+    }
+    const [account] = await this.source.query<Account[]>(
+      `SELECT ${SNAPSHOT_COLUMNS} FROM accounts a
+       JOIN customers c ON c.id=a.customer_id
+       WHERE a.id=$1::uuid AND c.user_id=$2::uuid`,
+      [accountId.toLowerCase(), userId.toLowerCase()],
+    );
+    if (!account) throw new NotFoundException('Account not found');
+    return account;
   }
 
   private requireTransaction(manager: EntityManager): void {

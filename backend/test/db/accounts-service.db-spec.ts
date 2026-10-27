@@ -1,4 +1,5 @@
 import { AccountsService } from '@modules/accounts';
+import { NotFoundException } from '@nestjs/common';
 import {
   ACCOUNT_FIXTURE as f,
   assertAccountsInvariants,
@@ -284,4 +285,95 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
       expect(fixture.trace).toHaveLength(count);
     });
   });
+
+  it('TC-55-11 returns only the account snapshot belonging to the internal user', async () => {
+    const row = await service.getOwnedAccount(f.accountA.toUpperCase(), f.userA);
+    expect(row).toMatchObject({
+      id: f.accountA,
+      customerId: f.customerA,
+      userId: f.userA,
+      type: 'CHECKING',
+      status: 'ACTIVE',
+      balance: '0',
+    });
+    expect(row.createdAt).toBeInstanceOf(Date);
+    expect(row.updatedAt).toBeInstanceOf(Date);
+    expect(Object.keys(row).sort()).toEqual([
+      'balance',
+      'createdAt',
+      'customerId',
+      'id',
+      'status',
+      'type',
+      'updatedAt',
+      'userId',
+    ]);
+    expect(await service.getOwnedAccount(f.accountB, f.userB)).toMatchObject({ status: 'LOCKED' });
+  });
+
+  it('TC-55-11 returns the same safe 404 for foreign, missing and SYSTEM accounts', async () => {
+    const inputs = [
+      [f.accountA, f.userB],
+      [f.missing, f.userA],
+      [f.accountA, f.missing],
+      [f.funding, f.userA],
+    ];
+    const responses: unknown[] = [];
+    for (const [account, user] of inputs) {
+      const error = await ownershipError(account, user);
+      expect(error.getStatus()).toBe(404);
+      responses.push(error.getResponse());
+    }
+    expect(
+      responses.every(response => JSON.stringify(response) === JSON.stringify(responses[0])),
+    ).toBe(true);
+    expect(JSON.stringify(responses)).not.toMatch(/SELECT|customer_id|30000000|3a000000|10000000/);
+  });
+
+  it('TC-55-11 ownership reads committed state rather than a mutation manager snapshot', async () => {
+    await withMoneyProbe(fixture.source, async manager => {
+      await service.lockForUpdate([f.funding, f.accountA], manager);
+      await service.applyBalanceChange(f.funding, -300000n, manager);
+      await service.applyBalanceChange(f.accountA, 300000n, manager);
+      expect((await service.getOwnedAccount(f.accountA, f.userA)).balance).toBe('0');
+      expect((await service.lockForUpdate([f.accountA], manager))[0].balance).toBe('300000');
+    });
+  });
+
+  it.each([
+    [null, f.userA],
+    [undefined, f.userA],
+    ['', f.userA],
+    ["' OR 1=1 --", f.userA],
+    [f.accountA, null],
+    [f.accountA, undefined],
+    [f.accountA, ''],
+    [f.accountA, "' OR 1=1 --"],
+  ])(
+    'TC-55-12 rejects malformed account/user identifiers uniformly (%s, %s)',
+    async (account, user) => {
+      const count = fixture.trace.length;
+      const error = await ownershipError(account as string, user as string);
+      expect(error.getStatus()).toBe(404);
+      expect(fixture.trace).toHaveLength(count);
+    },
+  );
+
+  it('TC-55-12 a valid Cognito sub UUID is not the internal users.id', async () => {
+    expect(f.cognitoSubA).not.toBe(f.userA);
+    await expect(service.getOwnedAccount(f.accountA, f.cognitoSubA)).rejects.toMatchObject({
+      status: 404,
+    });
+    expect((await service.getOwnedAccount(f.accountA, f.userA)).id).toBe(f.accountA);
+  });
+
+  async function ownershipError(account: string, user: string): Promise<NotFoundException> {
+    try {
+      await service.getOwnedAccount(account, user);
+    } catch (error) {
+      if (error instanceof NotFoundException) return error;
+      throw error;
+    }
+    throw new Error('Expected ownership rejection');
+  }
 });

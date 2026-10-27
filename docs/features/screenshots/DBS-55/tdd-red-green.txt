@@ -240,3 +240,51 @@ Tests:       19 passed, 19 total
 Snapshots:   0 total
 Time:        2.047 s, estimated 3 s
 Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
+P3 RED: ownership cases before getOwnedAccount exists
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/accounts-service.db-spec.ts
+
+FAIL test/db/accounts-service.db-spec.ts
+  ● Test suite failed to run
+
+    test/db/accounts-service.db-spec.ts:290:31 - error TS2339: Property 'getOwnedAccount' does not exist on type 'AccountsService'.
+
+    290     const row = await service.getOwnedAccount(f.accountA.toUpperCase(), f.userA);
+                                      ~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:311:26 - error TS2339: Property 'getOwnedAccount' does not exist on type 'AccountsService'.
+
+    311     expect(await service.getOwnedAccount(f.accountB, f.userB)).toMatchObject({ status: 'LOCKED' });
+                                 ~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:338:29 - error TS2339: Property 'getOwnedAccount' does not exist on type 'AccountsService'.
+
+    338       expect((await service.getOwnedAccount(f.accountA, f.userA)).balance).toBe('0');
+                                    ~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:364:26 - error TS2339: Property 'getOwnedAccount' does not exist on type 'AccountsService'.
+
+    364     await expect(service.getOwnedAccount(f.accountA, f.cognitoSubA)).rejects.toMatchObject({
+                                 ~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:367:27 - error TS2339: Property 'getOwnedAccount' does not exist on type 'AccountsService'.
+
+    367     expect((await service.getOwnedAccount(f.accountA, f.userA)).id).toBe(f.accountA);
+                                  ~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:372:21 - error TS2339: Property 'getOwnedAccount' does not exist on type 'AccountsService'.
+
+    372       await service.getOwnedAccount(account, user);
+                            ~~~~~~~~~~~~~~~
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        0.73 s, estimated 2 s
+Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
+P3 GREEN: internal-user ownership and uniform safe 404
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/accounts-service.db-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       31 passed, 31 total
+Snapshots:   0 total
+Time:        2.021 s
+Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
