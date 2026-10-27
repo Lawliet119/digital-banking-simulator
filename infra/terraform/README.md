@@ -22,10 +22,12 @@ Mỗi thư mục stack có `backend.tf` và `backend.hcl.example` riêng. `terra
 |---|---|
 | S3 state, ECR, VPC, KMS, Cognito, logs, SNS, OIDC | RDS, ElastiCache, ALB, ECS service, SQS, WAF |
 
+Security group và subnet group (ECS, RDS, ElastiCache, ALB) nằm ở `base` (miễn phí, ADR-11); tài nguyên ở `session` tham chiếu chúng qua `terraform_remote_state`.
+
 ## Quy ước
 
 - Terraform `>= 1.11` (khóa state bằng file khóa S3, không cần DynamoDB), provider `hashicorp/aws ~> 6.0`. Commit `.terraform.lock.hcl`.
-- Region `ap-southeast-1`. Tên tài nguyên có tiền tố `dbs-<env>-`.
+- Region `ap-southeast-1`. Tên tài nguyên có tiền tố `dbs-<env>-`. Ngoại lệ: repo ECR `dbs-api`, vì một repo dùng chung cho dev và prod (`prod/session` dùng lại `base` của dev).
 - Tag bắt buộc trên mọi tài nguyên hỗ trợ tag, đặt bằng `default_tags` của provider: `project=dbs`, `env=dev|prod`, `owner=platform` ([ADR-11](../../docs/adr/0011-aws-managed-session-based.md)). Bucket state dùng chung cho dev và prod nên mang `env=dev`.
 - **Không commit** `*.tfvars`, `terraform.tfstate`, `backend.hcl` (đã có trong `.gitignore`). Dùng `*.example` làm mẫu.
 - **Không tạo NAT Gateway** và không tạo VPC interface endpoint ([ADR-10](../../docs/adr/0010-fargate-egress-public-subnet.md)). Task ECS ở public subnet, security group chỉ nhận từ ALB.
@@ -70,11 +72,39 @@ rm -f terraform.tfstate terraform.tfstate.backup
 
 Kiểm tra: `aws s3 ls s3://dbs-tfstate-<account-id>-ap-southeast-1/` thấy `bootstrap.tfstate`.
 
+## Thứ tự dựng và xóa (dev)
+
+Biến cần có:
+
+| Stack | Biến | Ghi chú |
+|---|---|---|
+| `bootstrap`, `envs/dev/base` | `account_id` | 12 chữ số; provider từ chối nếu profile thuộc account khác |
+| `envs/dev/session` | `state_bucket` | tên bucket state (output `state_bucket_name` của `bootstrap`); stack này không có provider nên không cần `account_id` |
+
+Dựng: `bootstrap` (một lần) → `envs/dev/base` → `envs/dev/session`.
+
+```bash
+cd infra/terraform/envs/dev/base
+cp backend.hcl.example backend.hcl   # thay <account-id>
+terraform init -backend-config=backend.hcl
+terraform plan -out=base.tfplan -var account_id=<account-id>
+terraform apply base.tfplan
+
+cd ../session
+cp backend.hcl.example backend.hcl
+terraform init -backend-config=backend.hcl
+terraform plan -var state_bucket=dbs-tfstate-<account-id>-ap-southeast-1
+```
+
+Xóa (thứ tự ngược): `session` trước, `base` sau. `base` chỉ xóa được khi ECR `dbs-api` rỗng (`force_delete = false`); xóa image bằng `aws ecr batch-delete-image` trước. `base` gần như miễn phí nên thường giữ lại; chỉ xóa `session` cuối mỗi phiên làm việc. Ai bật phần tính tiền thì tắt khi xong.
+
+Kiểm tra tĩnh cho `envs/dev/base` và `envs/dev/session`: `terraform init -backend=false && terraform test` (`session` dùng `override_data`, không cần credential).
+
 ## Kiểm tra trước khi push
 
 ```bash
 terraform fmt -check -recursive
-cd bootstrap && terraform init -backend=false && terraform validate && terraform test
+for d in bootstrap envs/dev/base envs/dev/session; do (cd $d && terraform init -backend=false && terraform validate && terraform test); done
 ```
 
 Chi tiết cấu hình: [docs/03 mục 13](../../docs/03_HIGH_LEVEL_ARCHITECTURE.md).
