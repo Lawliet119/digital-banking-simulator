@@ -73,7 +73,8 @@ async function main(): Promise<void> {
           AccountsModule,
         ],
       },
-      { logger: false },
+      // Reject initialization failures so our fixture cleanup runs instead of Nest exiting early.
+      { logger: false, abortOnError: false },
     );
     const accounts = context.get(AccountsService);
 
