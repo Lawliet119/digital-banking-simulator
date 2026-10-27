@@ -355,6 +355,7 @@ flowchart LR
 | **Hạn mức** | Giới hạn số tiền mỗi lần và mỗi ngày của một tài khoản |
 | **Đối soát** (reconciliation) | Kiểm tra tổng Nợ = tổng Có và số dư mỗi tài khoản khớp với sổ cái |
 | **Cờ gian lận** (fraud flag) | Đánh dấu một giao dịch đáng ngờ kèm danh sách luật đã kích hoạt |
+| **Cờ do tín hiệu AI bổ sung** (đề xuất [ADR-14](adr/0014-fraud-rules-external-ai.md), Proposed) | Cờ có tổng điểm đạt ngưỡng nhờ tín hiệu AI bổ sung; có thể không có luật nào kích hoạt. Nhóm chưa chấp nhận; định nghĩa «cờ gian lận» ở trên vẫn là định nghĩa Accepted |
 | **Báo nhầm** (false positive) | Giao dịch hợp lệ nhưng bị gắn cờ |
 | **Nhật ký kiểm toán** (audit trail) | Bản ghi bất biến về ai làm gì, khi nào, trên đối tượng nào |
 | **Giao dịch bị từ chối** (rejected) | Lệnh không được thực hiện vì vi phạm quy tắc nghiệp vụ; vẫn được lưu lại |

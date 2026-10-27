@@ -2,6 +2,8 @@
 
 > **Status:** Accepted (chốt 2026-10-11) · **Owner:** #4 · **Cặp đôi:** #1, #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-11
 
+> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
+
 > Tài liệu làm việc nội bộ cho mảng **Fraud** (#4) và người làm bộ dữ liệu (#6).
 > Dựa trên: `docs/01` (BR-06, BR-11, BR-13), `docs/02` (UC-9, UC-10, UC-12, FR-RSK-*, NFR-FRD-*), `docs/03` (mục 9, 10, 15).
 > Tham số ở bảng 4.2 là phiên bản `v1` đã chốt (seed trong migration). `v2` học lại tham số trên tập tune và lưu thành phiên bản cấu hình mới; không sửa `v1`.
@@ -113,7 +115,7 @@ WHERE account_id = $1
 | **R5** | Fan-out (mule) | ≥ 5 người nhận **mới** trong 1 giờ (mới = chưa nhận tiền từ tài khoản này trong 30 ngày trước) | Redis sorted set + SQL kiểm tra "mới" | 40 |
 | **R6** | Rút cạn | `amount ≥ 90% × fromBalanceBefore` **và** `fromBalanceBefore ≥ 1.000.000` | Snapshot `fromBalanceBefore` | 30 |
 
-**Ngoại lệ chung:** chuyển giữa **hai tài khoản của cùng một khách hàng** không kích hoạt R5, R6 (chuyển tiền tiết kiệm sang tài khoản khác của mình là bình thường). Để làm được điều này, event cần thêm trường `sameOwner` (xem mục 5.2).
+**Ngoại lệ chung:** chuyển giữa **hai tài khoản của cùng một khách hàng** không kích hoạt R5, R6 (chuyển tiền tiết kiệm sang tài khoản khác của mình là bình thường). `sameOwner` **đã có** trong [event contract](../_shared/event-contract.md) và type [`TransferCompleted`](../../../backend/src/common/events/event-types.ts); thiếu hoặc sai kiểu là event malformed, xử lý theo schema/DLQ của consumer contract, không bỏ miễn trừ hay tự gán `false`.
 
 #### Logic từng luật (giả mã)
 
@@ -146,23 +148,32 @@ hit if !sameOwner && newRecipients >= 5
 explain: `${n} người nhận mới trong 1 giờ (ngưỡng 5)`
 
 // R6 — rút cạn
-hit if !sameOwner && fromBalanceBefore >= 1_000_000 && amount >= 0.9 * fromBalanceBefore
+hit if !sameOwner && fromBalanceBefore >= 1_000_000n && amount * 10n >= fromBalanceBefore * 9n
 explain: `Chuyển ${pct}% số dư (${amount}/${fromBalanceBefore})`
 ```
+
+**Tiền và thời gian chính xác:** `amount`/`fromBalanceBefore` trên wire là chuỗi đồng canonical, parse qua `@common/money`; nội bộ bigint/numeric, không `Number`, `parseInt`, `percentile_cont` trả floating-point hay `0.9 * number` để so luật. R2 với số lịch sử chẵn phải giữ trung vị nửa đồng chính xác (numeric hoặc tử số/2), không làm tròn. Lịch sử dùng bound theo `occurredAt = transfers.created_at`, không giờ worker; R1 đếm cả lệnh hiện tại đúng một lần, R2/R4 chỉ lịch sử trước event. R3/R6 tuyệt đối không thay snapshot bằng tuổi/số dư hiện tại. Các đoạn TypeScript ở đây là giả mã.
 
 **Ví dụ SQL cho R2 và R4:**
 
 ```sql
--- R2: trung vị số tiền chuyển đi trong 30 ngày trước giao dịch
-SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY amount) AS median, COUNT(*) AS n
-FROM v_transfer_facts
-WHERE from_account_id = $1 AND status = 'COMPLETED' AND type = 'TRANSFER'
-  AND created_at >= $2 - interval '30 days' AND created_at < $2;
+-- R2: trung vị chính xác, không ép bigint sang double precision
+WITH history AS (
+  SELECT amount,
+         row_number() OVER (ORDER BY amount) AS rn,
+         count(*) OVER () AS n
+  FROM v_transfer_facts
+  WHERE from_account_id = $1 AND status = 'COMPLETED' AND type = 'TRANSFER'
+    AND created_at >= $2 - interval '30 days' AND created_at < $2
+)
+SELECT avg(amount::numeric) AS median, max(n) AS n
+FROM history
+WHERE rn IN ((n + 1) / 2, (n + 2) / 2);
 
 -- R4: có lệnh chuyển ngược trong 1 giờ trước
 SELECT EXISTS (
   SELECT 1 FROM v_transfer_facts
-  WHERE from_account_id = $1 AND to_account_id = $2 AND status = 'COMPLETED'
+  WHERE from_account_id = $1 AND to_account_id = $2 AND status = 'COMPLETED' AND type = 'TRANSFER'
     AND created_at >= $3 - interval '1 hour' AND created_at < $3
 );
 ```
@@ -303,7 +314,7 @@ sequenceDiagram
 
 ### 5.2 Đầu vào: event contract
 
-Thống nhất với #3. Bản hiện tại ở `docs/03` mục 10, **đề xuất thêm `sameOwner`**:
+Shape nằm ở [event contract](../_shared/event-contract.md) và type [`TransferCompleted`](../../../backend/src/common/events/event-types.ts); `sameOwner` đã có:
 
 | Trường | Dùng cho |
 |---|---|
@@ -314,8 +325,10 @@ Thống nhất với #3. Bản hiện tại ở `docs/03` mục 10, **đề xu�
 | `fromBalanceBefore` (string) | R6 — **phải** lấy từ snapshot, không đọc số dư hiện tại |
 | `fromAccountCreatedAt` | R3 — **phải** lấy từ snapshot |
 | `occurredAt` | Mốc thời gian cho mọi cửa sổ (không dùng giờ worker) |
-| `sameOwner` *(đề xuất mới)* | Ngoại lệ cho R5, R6 |
+| `sameOwner` | Ngoại lệ cho R5, R6 (boolean bắt buộc; `false` khi `DEPOSIT`) |
 | `correlationId` | Ghi nhật ký, truy vết |
+
+Event sai hoặc mất field phải xử lý theo schema/DLQ của consumer contract. Không suy từ trạng thái tài khoản hiện tại hoặc bỏ miễn trừ để tiếp tục; chính sách khi gặp loại event lạ theo [BL-010](../../BACKLOG.md), không tự ack.
 
 **Vì sao dùng `occurredAt` chứ không dùng giờ hiện tại của worker:** sự kiện có thể tới trễ (worker restart, message được giao lại). Nếu tính cửa sổ theo giờ worker, cùng một giao dịch có thể cho kết quả khác nhau tùy lúc nào được xử lý.
 
@@ -332,11 +345,14 @@ Schema chính thức của `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, `
 
 | Luật | Key | Lệnh |
 |---|---|---|
-| R1 | `risk:vel:{accountId}` (sorted set, member = `transferId`, score = `occurredAt`) | `ZADD` → `ZREMRANGEBYSCORE key -inf (occurredAt−10m)` → `ZCOUNT key (occurredAt−10m) occurredAt` → `EXPIRE key 7200` |
-| R5 | `risk:fan:{accountId}` (sorted set, member = `toAccountId`, score = `occurredAt`) | Chỉ `ZADD` khi người nhận là **mới** (kiểm tra bằng SQL) → `ZREMRANGEBYSCORE` cửa sổ 1 giờ → `ZCOUNT` → `EXPIRE` |
+| R1 | `risk:vel:{accountId}` (sorted set, member = `transferId`, score = `occurredAt`) | `ZADD` → `ZCOUNT key (occurredAt−10m) occurredAt` → `EXPIRE key 7200` (dọn phần cũ theo giờ tường, xem bên dưới) |
+| R5 | `risk:fan:{accountId}` (sorted set, member = `toAccountId`, score = `occurredAt`) | Chỉ `ZADD` khi người nhận là **mới** (kiểm tra bằng SQL) → `ZCOUNT` cửa sổ 1 giờ theo `occurredAt` → `EXPIRE` (dọn phần cũ theo giờ tường, xem bên dưới) |
 
 - Dùng `transferId` làm member nên nhận trùng sự kiện không đếm trùng.
-- Gom các lệnh của một key vào **một `MULTI`/pipeline** để giảm round-trip.
+- SQL là nguồn sự thật. Miss, cold/empty chưa biết coverage, timeout/lỗi hoặc cửa sổ của event nằm ngoài lịch sử cache đã giữ → SQL; **không coi cache lạnh là 0**.
+- Cửa sổ đếm theo `occurredAt`, nhưng việc dọn cache theo giờ tường và retention (TTL 7200 giây), **không `ZREMRANGEBYSCORE` dựa trên `occurredAt` của event đang xử lý**: event mới tới trước sẽ xóa phần mà event cũ tới sau còn cần. Phần đã dọn hoặc không chứng minh đủ coverage thì event trễ phải đọc SQL.
+- Gom các lệnh của một key vào một `MULTI`/pipeline chỉ giảm round-trip, không chứng minh coverage hay làm parity tự đúng. Redis I/O thực hiện **trước** `BEGIN` của consumer.
+- Parity online/offline chỉ được tuyên bố trên input theo thứ tự, cache ấm; cache lạnh, event trễ/đảo thứ tự và đường dự phòng SQL có test riêng đối chiếu SQL.
 - **Redis lỗi → dự phòng SQL:** đếm trực tiếp trên view `v_transfer_facts` (role `dbs_worker` không có quyền SELECT bảng `transfers`), cùng cửa sổ. Kết quả như nhau, chỉ tốn tải DB hơn. Ghi metric `risk_redis_fallback_total`.
 
 ### 5.5 Cấu trúc code
@@ -374,7 +390,7 @@ backend/src/modules/risk/
 ```ts
 interface RiskRule {
   id: 'R1' | 'R2' | 'R3' | 'R4' | 'R5' | 'R6';
-  evaluate(event: TransferCompletedEvent, features: Features, params: RuleParams): RuleHit | null;
+  evaluate(event: TransferCompleted, features: Features, params: RuleParams): RuleHit | null;
 }
 ```
 

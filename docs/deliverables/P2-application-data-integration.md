@@ -24,6 +24,7 @@ Module bên trong ứng dụng và quy tắc phụ thuộc (eslint ép ranh gi�
 | `audit` | api và worker | `audit_log` |
 | `outbox` | ghi ở mọi role; relay ở worker | `outbox_events`, `processed_events` |
 | `risk` | api (review, cấu hình) và worker (chấm điểm) | `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits` |
+| `risk` (đề xuất ADR-14, Proposed) | như trên | thêm `risk_decisions`, chưa có migration |
 | `notification` | worker | `notification_log` |
 | `health` | api | — |
 
@@ -39,6 +40,7 @@ Module bên trong ứng dụng và quy tắc phụ thuộc (eslint ép ranh gi�
 - Bất biến do DB bảo vệ: số dư khách không âm; mỗi giao dịch tối đa một dòng Nợ và một dòng Có, mỗi dòng đúng số tiền và đúng tài khoản của giao dịch (đủ cặp do code và đối soát giữ); `PRIMARY KEY (user_id, idem_key)`; bảng chỉ-thêm (`ledger_entries`, `transfers`, `audit_log`, `risk_rule_sets`) bị chặn sửa/xóa bằng quyền **và** trigger.
 - Tiền là `bigint` (đồng); thời gian `timestamptz`, DB chạy UTC; ranh giới ngày theo `Asia/Ho_Chi_Minh`.
 - Hai DB role cho ứng dụng (`dbs_api`, `dbs_worker`) và một role migration (`dbs_migrator`), quyền theo ma trận ở database-design §8.
+- Đề xuất ADR-14 (Proposed, chưa triển khai): thêm bảng `risk_decisions` (15 bảng nếu nhóm chấp nhận); schema ở [FRAUD-API-01 §3.8](../features/FRAUD-API-01-external-ai-decision.md#38-phụ-lục-schema-đề-xuất-bảng-quyết-định-risk-proposed-chưa-có-migration).
 
 ## 4. Luồng đồng bộ và bất đồng bộ
 
@@ -49,6 +51,7 @@ Module bên trong ứng dụng và quy tắc phụ thuộc (eslint ép ranh gi�
 | Khóa tài khoản, thu hồi phiên (UC-11) | Đồng bộ | [§6.2](../03_HIGH_LEVEL_ARCHITECTURE.md) |
 | Outbox → SQS → risk consumer (cờ) và notification consumer | Bất đồng bộ, at-least-once, consumer idempotent | [§10](../03_HIGH_LEVEL_ARCHITECTURE.md) |
 | Review cờ (UC-10), tra cứu nhật ký (UC-8) | Đồng bộ | [§6.5, §6.6](../03_HIGH_LEVEL_ARCHITECTURE.md) |
+| Risk worker → dịch vụ AI bên ngoài (đề xuất ADR-14, Proposed) | Gọi ngoài SQL transaction, timeout hữu hạn, lỗi thì fallback về R1–R6; chưa tích hợp | [ADR-14](../adr/0014-fraud-rules-external-ai.md) |
 
 **Integration:** sự kiện `TransferCompleted` (mang ảnh chụp số dư và tuổi tài khoản tại thời điểm giao dịch) và `AccountStatusChanged`; bảng định tuyến tới từng queue; `TransferRejected` không phát ở v1. Hình dạng sự kiện: [event-contract](../components/_shared/event-contract.md). Xử lý sự cố (relay chết, consumer lỗi, message hỏng, Redis chết): [docs/03 §11](../03_HIGH_LEVEL_ARCHITECTURE.md).
 

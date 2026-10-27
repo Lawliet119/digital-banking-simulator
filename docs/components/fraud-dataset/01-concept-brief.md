@@ -23,6 +23,7 @@ Không có dữ liệu thật; cần dữ liệu có nhãn để đo precision, 
 - Chia tập theo khách hàng: ~70% tune, ~30% holdout; nhãn holdout giữ tới tuần 7.
 - Mã generator và nhãn holdout nằm trong `load-tests/fraud-dataset/` (chỉ #6 đọc). CSV tune giao cho #4 ở `backend/data/fraud/` (gitignore, chia sẻ qua link).
 - Có hard negatives (giao dịch hợp lệ trông đáng ngờ) và kịch bản ngoài tầm luật để đo recall trung thực.
+- **Đề xuất ADR-14 (Proposed):** nếu nhóm chấp nhận phương án gọi API AI, tập tune cần một cột khóa khách hàng để #4 chia nhóm chọn cấu hình và validation, và mỗi giao dịch tune sẽ tạo một lời gọi API trả phí cho B1/B2. Cần #6 xác nhận cột khóa khách có trong CSV tune. Xem [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md).
 
 ## Ngoài phạm vi (v1)
 
