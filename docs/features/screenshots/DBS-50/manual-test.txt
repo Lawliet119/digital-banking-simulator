@@ -1,0 +1,84 @@
+ecc4948 (test(identity): keep the manual smoke script used for M-50 — last commit changing code)
+
+=== M-50-01..05: npx ts-node -r tsconfig-paths/register src/scripts/manual-smoke.dbs50.ts ===
+
+--- M-50-01: GET /v1/identity/me, no Authorization header ---
+{
+  errorCode: 'UNAUTHENTICATED',
+  type: 'about:blank',
+  title: 'Unauthorized',
+  status: 401,
+  detail: 'Missing or malformed Authorization header',
+  correlationId: '56c57a56-82bb-4f0f-b2fd-75591e7310db'
+}
+
+--- M-50-02: Authorization: Bearer not-a-jwt ---
+[Nest] 19756  - 10/26/2026, 10:37:41 AM    WARN [JwksVerifierService] access token failed verification: JWSInvalid
+{
+  errorCode: 'UNAUTHENTICATED',
+  type: 'about:blank',
+  title: 'Unauthorized',
+  status: 401,
+  detail: 'Access token failed verification',
+  correlationId: 'e8e8058a-54dd-4f03-856e-28f2e0706569'
+}
+
+--- M-50-03: valid token ---
+{
+  sub: 'user-123',
+  groups: [ 'operator' ],
+  tokenUse: 'access',
+  claims: {
+    sub: 'user-123',
+    iss: 'https://issuer.manual-smoke.test',
+    client_id: 'manual-smoke-client',
+    token_use: 'access',
+    'cognito:groups': [ 'operator' ],
+    iat: 1792985861,
+    exp: 1792986761
+  }
+}
+
+--- M-50-04: expired token (exp in the past) ---
+[Nest] 19756  - 10/26/2026, 10:37:41 AM    WARN [JwksVerifierService] access token expired
+{
+  errorCode: 'TOKEN_EXPIRED',
+  type: 'about:blank',
+  title: 'Unauthorized',
+  status: 401,
+  detail: 'Access token expired',
+  correlationId: '0e95356a-bc26-41c0-822c-5d3ad59727b2'
+}
+
+--- M-50-05: Swagger bearerAuth scheme (GET /docs-json) ---
+components.securitySchemes: {
+  'access-token': { scheme: 'bearer', bearerFormat: 'JWT', type: 'http' }
+}
+/v1/identity/me security: [ { 'access-token': [] } ]
+
+=== M-50-06: npm run start:dev (APP_ROLE=both, Docker + Postgres thật trên docker compose) ===
+(máy này có PostgreSQL native khác chiếm cổng 5432 → docker compose remapped sang 5433 qua
+docker-compose.override.local.yml cục bộ, không commit; env/.env.development trỏ DATABASE_URL
+vào cổng đó cho phiên chạy tay này — xem manual-testing.md, "Port 5432 already used by another
+PostgreSQL on this machine")
+
+=== M-50-06a: GET /v1/identity/me, no header ===
+HTTP/1.1 401 Unauthorized
+X-Correlation-Id: ea41df7f-d868-4ec5-8af7-cc3287fd31f3
+Content-Type: application/problem+json; charset=utf-8
+
+{"errorCode":"UNAUTHENTICATED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Missing or malformed Authorization header","correlationId":"ea41df7f-d868-4ec5-8af7-cc3287fd31f3"}
+
+=== M-50-06b: GET /health/live, no header ===
+HTTP/1.1 200 OK
+X-Correlation-Id: 598785d5-f565-49d5-9ae7-cb2943a1c722
+Content-Type: application/json; charset=utf-8
+
+{"status":"ok"}
+
+=== M-50-06c: GET /health/ready, no header ===
+HTTP/1.1 200 OK
+X-Correlation-Id: 7d76cdd4-d194-499f-96ba-3417920e84f2
+Content-Type: application/json; charset=utf-8
+
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}

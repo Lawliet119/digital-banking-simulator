@@ -1,0 +1,59 @@
+0f6d997426263c6c9ab7035a30cd6b30cfac63eb (SHA commit cuối đổi code: "commit provider lock file for dev base"; chạy 2026-10-25; account id, ARN, id VPC/subnet đã rút gọn hoặc thay bằng <...>)
+
+M-33-00  sts/vpcs/budgets
+  Arn = <user-arn>; VPC project=dbs: 0.
+  Budget "Free-tier Budget" (0,01 USD): ACTUAL > 0,01.
+  Budget "My Monthly Cost Budget" (150 USD/tháng): ACTUAL > 50, ACTUAL > 100, FORECASTED > 100.
+  => THIẾU cảnh báo ACTUAL > 150 (DBS-4/ADR-11 yêu cầu 50/100/150). Người dùng tự xử lý trên console (ghi nhận 2026-10-25).
+
+M-33-01  init + plan -out=base.tfplan -var account_id=<id>
+  Plan: 17 to add, 0 to change, 0 to destroy.
+  Loại tài nguyên: aws_default_security_group, aws_ecr_lifecycle_policy, aws_ecr_repository, aws_internet_gateway,
+    aws_route, aws_route_table, aws_route_table_association, aws_subnet, aws_vpc, aws_vpc_endpoint
+  vpc_endpoint_type: ['Gateway']; không aws_nat_gateway, không aws_eip.
+  plan -var account_id=123456789012 -> "Error: AWS account ID not allowed"
+
+M-33-02  apply base.tfplan (17 added)
+  VPC 10.20.0.0/16, tags project=dbs env=dev owner=platform
+  dbs-dev-private-a 10.20.10.0/24 ap-southeast-1a MapPublicIpOnLaunch False
+  dbs-dev-private-b 10.20.11.0/24 ap-southeast-1b False
+  dbs-dev-public-a  10.20.0.0/24  ap-southeast-1a False
+  dbs-dev-public-b  10.20.1.0/24  ap-southeast-1b False
+  Route table public : local, 0.0.0.0/0 -> igw-..., pl-6fa54006 -> vpce-...
+  Route table private: local, pl-6fa54006 -> vpce-...   (không có 0.0.0.0/0)
+  Endpoint: Gateway com.amazonaws.ap-southeast-1.s3, 2 route table
+  NAT = 0, EIP = 0; default SG: IpPermissions 0, IpPermissionsEgress 0
+  Tag trên subnet: env=dev, owner=platform, project=dbs
+
+M-33-03  ecr
+  dbs-api IMMUTABLE scanOnPush=True AES256
+  Lifecycle: 1 {untagged, sinceImagePushed, days, 7}; 2 {any, imageCountMoreThan, 20}
+  Tags ECR: owner=platform, project=dbs, env=dev, Name=dbs-api
+
+M-33-04  đẩy image bằng AWS CLI (không docker): blob cấu hình + 1 layer gzip nhỏ, put-image --image-tag t1
+  Image A, tag t1: thành công (digest sha256:83ffd073...)
+  Đẩy lại cùng manifest: ImageAlreadyExistsException (đúng dự đoán của reviewer)
+  Image B khác digest, tag t1: ImageTagAlreadyExistsException ... "tag is immutable"   (B12)
+  (LayerAlreadyExistsException khi upload layer dùng chung: lành tính)
+  start/get-lifecycle-policy-preview: COMPLETE, previewResults = 0
+  aws ecr delete-repository --repository-name dbs-api (repo có t1, không --force):
+    RepositoryNotEmptyException ... still contains images   (B11)
+
+M-33-05  batch-delete-image t1; terraform plan base -> "No changes."
+
+M-33-06  session: init -backend-config; plan -var state_bucket=... -> "Changes to Outputs" (không thay đổi tài nguyên)
+  apply -> "Apply complete! Resources: 0 added"; so vpc_id, public_subnet_ids, private_subnet_ids với base:
+  {'vpc_id': True, 'public_subnet_ids': True, 'private_subnet_ids': True}; plan lại -> "No changes."
+
+M-33-07  khóa state: terraform apply (đổi tạm tag owner=platform-probe) dừng ở prompt; plan -lock-timeout=0s ở terminal khác
+  Error: Error acquiring the state lock ... Path dbs-tfstate-<account-id>-ap-southeast-1/dev/base.tfstate, Operation: OperationTypeApply
+  Apply bên kia: "Error asking for approval: EOF" (không thay đổi gì); git checkout locals.tf; git diff --exit-code sạch;
+  plan -> "No changes."
+  (apply KHÔNG chạy; chỉ phần plan khóa bị chặn)
+
+M-33-08  VPC cũ vpc-<cũ>; destroy session (0 destroyed), destroy base (17 destroyed)
+  Sau đó: VPC project=dbs = 0, describe-vpcs vpc cũ = InvalidVpcID.NotFound
+  NAT = 0, ENI (vpc cũ) = 0, EIP = 0, endpoint = 0; ecr describe-repositories = RepositoryNotFoundException
+  Dựng lại để giữ: base "Apply complete! Resources: 17 added", plan "No changes", VPC mới vpc-<mới>;
+  session apply 0 tài nguyên, plan "No changes."
+  Trạng thái cuối: VPC, 4 subnet, IGW, endpoint S3 và ECR dbs-api (rỗng) đang tồn tại; chi phí 0 USD/giờ.

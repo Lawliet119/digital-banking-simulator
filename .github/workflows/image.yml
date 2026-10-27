@@ -1,0 +1,82 @@
+# Build image từ backend/Dockerfile và đẩy lên ECR với tag = SHA của commit trên main (DBS-36).
+# Xác thực bằng OIDC, không có access key trong GitHub Secrets. Role chỉ tin đúng repo và nhánh main
+# (infra/terraform/envs/dev/base/oidc.tf).
+#
+# Quy tắc: chỉ workflow này được xin `id-token: write`; workflow khác trên main mà xin quyền đó cũng
+# assume được role. Script .github/scripts/check-image-workflow.py kiểm điều này.
+# Tên job `image-push` không được trùng sáu tên hợp đồng của ci.yml. Cần biến repo AWS_ROLE_ARN
+# (chủ repo tạo sau khi apply); thiếu biến thì job bị bỏ qua, chạy lại bằng
+# `gh workflow run image.yml --ref main`.
+name: Image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  image-push:
+    name: image-push
+    if: vars.AWS_ROLE_ARN != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+      REPOSITORY: dbs-api
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Kiểm tĩnh workflow này
+        run: |
+          pip install pyyaml==6.0.2
+          python3 .github/scripts/check-image-workflow.py
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+
+      # batch-get-image luôn thoát mã 0 và chỉ báo ImageNotFound trong `failures`, nên đếm `images`.
+      - id: exists
+        name: Tag đã có trên ECR?
+        run: |
+          found=$(aws ecr batch-get-image --repository-name "$REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG" --query 'length(images)' --output text)
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+          if [ "$found" != "0" ]; then echo "Tag $IMAGE_TAG đã tồn tại (repo bất biến), bỏ qua build và push."; fi
+
+      # Cờ tắt provenance và sbom: image index làm scan cơ bản của ECR không đọc được.
+      - name: Build và push
+        if: steps.exists.outputs.found == '0'
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          docker build --provenance=false --sbom=false \
+            -t "$REGISTRY/$REPOSITORY:$IMAGE_TAG" backend
+          docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
+
+      # Scan on push chạy ở phía ECR. Lỗi ở đây chỉ cảnh báo; chặn theo mức nghiêm trọng là việc sau (BACKLOG).
+      - name: Kết quả scan
+        if: steps.exists.outputs.found == '0'
+        run: |
+          aws ecr wait image-scan-complete --repository-name "$REPOSITORY" --image-id imageTag="$IMAGE_TAG" \
+            || echo "::warning::scan chưa hoàn tất hoặc lỗi"
+          aws ecr describe-image-scan-findings --repository-name "$REPOSITORY" --image-id imageTag="$IMAGE_TAG" \
+            --query 'imageScanFindings.findingSeverityCounts' --output json \
+            || echo "::warning::không đọc được kết quả scan"

@@ -81,6 +81,25 @@ jobs:
     name: e2e
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # app-guard.e2e-spec.ts (DBS-50) boots the real AppModule, và DatabaseModule luôn mở kết nối
+    # Postgres thật lúc app.init() bất kể route nào được gọi — nên job này cần service Postgres như
+    # job `db`, dù phần lớn test:e2e khác fake DataSource.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: banking
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d banking"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/banking
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

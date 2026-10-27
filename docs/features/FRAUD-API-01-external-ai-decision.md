@@ -1,6 +1,6 @@
 # FRAUD-API-01 · Fraud không tự train model: quyết định kiến trúc API AI
 
-> **Status:** Implemented vòng 2 (G2, G3 duyệt 2026-10-25, G4 duyệt 2026-10-26; ADR-14 vẫn Proposed) · **Loại:** docs-only, chưa triển khai backend fraud · **Vai:** #4 Fraud · **Review:** domain review AI vòng 5–7 APPROVE; chưa có Dev review (BL-035), chưa ready · **Nhánh:** `docs/FRAUD-API-01-rules-external-ai` · **PR:** [#20 — Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/20) · **Cập nhật:** 2026-10-26
+> **Status:** Implemented vòng 2 (G2, G3 duyệt 2026-10-25, G4 duyệt 2026-10-26; ADR-14 vẫn Proposed) · **Loại:** docs-only, chưa triển khai backend fraud · **Vai:** #4 Fraud · **Review:** domain review AI vòng 5–7 APPROVE; chưa có Dev review (BL-045), chưa ready · **Nhánh:** `docs/FRAUD-API-01-rules-external-ai` · **PR:** [#20 — Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/20) · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
@@ -60,7 +60,7 @@ G1 đã được người dùng duyệt trong phiên làm việc: tiếp tục t
 2. **Sửa baseline độc lập với AI** (AC-9.1, SQL median R2, so sánh bigint R6, ghi chú `sameOwner`) giữ ở commit riêng, không gắn nhãn Proposed.
 3. **Cập nhật tiền đề nhà cung cấp** theo guide OpenAI hiện tại (GA, ZDR cho khách đủ điều kiện, giá input $0,10/1M token, output không tính phí, 1–400 câu hỏi/request; kết quả đọc qua công cụ tóm tắt, cần người xác nhận bằng mắt).
 4. **Ghi rõ tác động ghi dữ liệu** của `risk_decisions`/audit cho mọi TRANSFER và quyết định audit/retention.
-5. **Đồng bộ với main:** merge `origin/main` vào nhánh; BL-023–026 trên main thuộc DBS-42 (và BL-027–029 thuộc DBS-31, vào main sau lần merge đầu) nên các dòng BL fraud đổi sang số trống tiếp theo; xử lý xung đột `BACKLOG.md` và `features/README.md`.
+5. **Đồng bộ với main:** merge `origin/main` vào nhánh; BL-023–026 trên main thuộc DBS-42 (BL-027–029 thuộc DBS-31 và BL-030–039 thuộc các task DBS-33/34/36/50, vào main sau lần merge đầu) nên các dòng BL fraud đổi sang số trống tiếp theo; xử lý xung đột `BACKLOG.md` và `features/README.md`.
 6. **Bổ sung tài liệu còn thiếu:** threat model, bảng P2, `references/fraud.md` của skill, dataset brief; platform-infra/observability/load-tests đi qua một dòng backlog bàn giao.
 7. **Chốt policy lỗi luật (BL-029 cũ)** và quyết định cờ AI-only; BL-030/031 cũ giữ là bàn giao (số mới ở bảng §3.7).
 
@@ -114,8 +114,8 @@ Các quyết định G1 được cụ thể hóa như sau; phần §2.1–§2.6 
 4. **Cờ chỉ do AI tạo (0 luật):** giữ cho phép, ghi tại ADR-14 mục «Thay đổi yêu cầu cần nhóm duyệt», liệt kê đủ: FR-RSK-03 (giải thích bằng luật); ràng buộc 2 của ADR-08 («mỗi cảnh báo phải giải thích được», nên cờ AI-only bắt buộc hiển thị `aiAssessment` cho operator làm phần giải thích); ERD `fraud_flags–fraud_rule_hits` từ `1..*` thành `0..*`; dòng aggregate FraudFlag + RuleHit và class diagram ở docs/02 §7; docs/03 §15 và payload GET chi tiết (`hits` có thể rỗng, UI phải xử lý); định nghĩa «cờ gian lận» ở docs/01 §10. Các file Accepted chỉ nhận ghi chú Proposed, không đổi định nghĩa.
 5. **Audit:** `audit_log` chỉ ghi khi tạo cờ (như baseline) và khi review; quyết định LOW hoặc fallback không ghi audit. Lý do đề xuất, cần nhóm duyệt: `risk_decisions` là bảng kỹ thuật append-only cùng nhóm với `processed_events` (baseline không audit từng dòng), nên nằm ngoài FR-AUD-01 «thay đổi dữ liệu nghiệp vụ»; AC-8.2 chỉ cần chuỗi cờ → review. Không thêm quyền đọc cho vai auditor và không thêm cột `correlation_id` vào decision; tra cứu quyết định LOW ngoài phạm vi, thuộc task API sau. Bên thua claim không ghi gì thêm. Cập nhật TC-05/TC-06 và mọi chỗ ghi «audit decision cho mọi TRANSFER».
 6. **Dung lượng:** ADR-14 và phụ lục §3.8 ghi số dòng tối đa = RPS × 86.400 (120 RPS liên tục ≈ 10,4 triệu dòng/ngày cho `risk_decisions`); kích thước dòng chưa đo, nên task migration/load test phải đo trước khi chốt retention. Bảng append-only không DELETE được. Phân vùng theo thời gian **không dùng được** với khóa hiện tại: PostgreSQL buộc PK/UNIQUE của bảng phân vùng chứa cột khóa phân vùng, nên PK `transfer_id` + `ON CONFLICT (transfer_id)` + FK từ `fraud_flags` không giữ được với range theo `decided_at`. Hướng phải chọn trước khi đặt retention (ghi thành dòng backlog): (a) hash partition theo `transfer_id`: tương thích PK/FK nhưng chỉ dàn tải, không cho phép bỏ dữ liệu theo tuổi; (b) bảng claim hẹp `(transfer_id, event_id)` tách khỏi bảng snapshot/provenance phân vùng theo thời gian: bảng hẹp vẫn tăng không giới hạn nên cần ước lượng kích thước riêng; (c) quy trình lưu trữ có ngoại lệ trigger được duyệt. Không tự đặt retention ngắn.
-7. **Lỗi, tách ba trường hợp (BL-036, cũ BL-029):** (a) *lỗi mã luật hoặc truy vấn feature* (luật ném lỗi, SQL feature lỗi): rollback, không commit decision, không ack; SQS retry, chuyển DLQ sau `maxReceiveCount` (local: 5 lần, visibility 30 giây); metric `risk_rule_error_total{rule}`. (b) *khối `ai.*` của version không hợp lệ* (weight, threshold, rubric, model, `ai.maxAdmissionDelayMs`, `ai.requestTimeoutMs` thiếu hoặc sai): bị từ chối ngay lúc tạo version (UC-12) bằng bộ kiểm tra ở §2.2 và §2.4. Nếu vẫn đọc ra giá trị hỏng (version tạo trước khi có kiểm tra, hoặc DBA vượt qua trigger append-only) thì không đẩy DLQ: chấm R1–R6, lưu `ai_status = CONFIG_INVALID`, contribution 0, commit, kèm metric và alarm riêng (BL-041); vẫn tuân thủ «AI chỉ cộng». `CONFIG_INVALID` chỉ là lưới an toàn, không phải đường vận hành bình thường. (c) *cấu hình nền (ngưỡng, trọng số R1–R6) không hợp lệ*: bị từ chối lúc tạo version bằng cùng bộ kiểm tra; nếu vẫn đọc ra giá trị hỏng thì xử lý như (a). Lỗi provider vẫn fallback baseline. Hệ quả: lỗi mã luật tất định đưa mọi event vào DLQ sau khoảng 2,5 phút; alarm DLQ là điều kiện bật, kèm runbook redrive do Ops giữ trong thời hạn retention của message/DLQ (queue giữ 4 ngày theo ADR-03; retention DLQ do Ops xác nhận). `references/fraud.md` cần đổi câu «One rule throwing must not stop the others» thành thiết kế Proposed tương ứng (giữ nguyên bản Accepted, thêm mục ADR-14).
-8. **Backlog:** sáu dòng fraud đổi số theo bảng ánh xạ ở §3.7 (BL-023–031 cũ thành BL-030–038; xác nhận lại khi C1 nếu main thêm dòng); thêm BL-039 phân vùng/retention `risk_decisions`, BL-040 bàn giao tài liệu vai khác (platform-infra, observability, load-tests, dataset brief, owner threat model/docs/01/P2), BL-041 alarm DLQ, metric/alarm `CONFIG_INVALID` và runbook redrive. Văn bản thêm ở vòng 2 chỉ dùng số mới; số cũ luôn kèm hậu tố «cũ» hoặc nằm trong cột «Cũ» của bảng §3.7. Mọi tham chiếu `BL-0xx` của vòng 1 trong ADR, feature doc, README đổi cùng commit C6.
+7. **Lỗi, tách ba trường hợp (BL-046, cũ BL-029):** (a) *lỗi mã luật hoặc truy vấn feature* (luật ném lỗi, SQL feature lỗi): rollback, không commit decision, không ack; SQS retry, chuyển DLQ sau `maxReceiveCount` (local: 5 lần, visibility 30 giây); metric `risk_rule_error_total{rule}`. (b) *khối `ai.*` của version không hợp lệ* (weight, threshold, rubric, model, `ai.maxAdmissionDelayMs`, `ai.requestTimeoutMs` thiếu hoặc sai): bị từ chối ngay lúc tạo version (UC-12) bằng bộ kiểm tra ở §2.2 và §2.4. Nếu vẫn đọc ra giá trị hỏng (version tạo trước khi có kiểm tra, hoặc DBA vượt qua trigger append-only) thì không đẩy DLQ: chấm R1–R6, lưu `ai_status = CONFIG_INVALID`, contribution 0, commit, kèm metric và alarm riêng (BL-051); vẫn tuân thủ «AI chỉ cộng». `CONFIG_INVALID` chỉ là lưới an toàn, không phải đường vận hành bình thường. (c) *cấu hình nền (ngưỡng, trọng số R1–R6) không hợp lệ*: bị từ chối lúc tạo version bằng cùng bộ kiểm tra; nếu vẫn đọc ra giá trị hỏng thì xử lý như (a). Lỗi provider vẫn fallback baseline. Hệ quả: lỗi mã luật tất định đưa mọi event vào DLQ sau khoảng 2,5 phút; alarm DLQ là điều kiện bật, kèm runbook redrive do Ops giữ trong thời hạn retention của message/DLQ (queue giữ 4 ngày theo ADR-03; retention DLQ do Ops xác nhận). `references/fraud.md` cần đổi câu «One rule throwing must not stop the others» thành thiết kế Proposed tương ứng (giữ nguyên bản Accepted, thêm mục ADR-14).
+8. **Backlog:** sáu dòng fraud đổi số theo bảng ánh xạ ở §3.7 (BL-023–031 cũ thành BL-040–048; xác nhận lại khi C1 nếu main thêm dòng); thêm BL-049 phân vùng/retention `risk_decisions`, BL-050 bàn giao tài liệu vai khác (platform-infra, observability, load-tests, dataset brief, owner threat model/docs/01/P2), BL-051 alarm DLQ, metric/alarm `CONFIG_INVALID` và runbook redrive. Văn bản thêm ở vòng 2 chỉ dùng số mới; số cũ luôn kèm hậu tố «cũ» hoặc nằm trong cột «Cũ» của bảng §3.7. Mọi tham chiếu `BL-0xx` của vòng 1 trong ADR, feature doc, README đổi cùng commit C6.
 9. **Tài liệu bổ sung (nhãn Proposed):** threat model thêm T25 (dữ liệu giao dịch gửi tới dịch vụ ngoài, secret, outage) và không đụng T15 mới của DBS-42; P2 thêm ghi chú tích hợp ngoài và bảng risk; `references/fraud.md` thêm mục ADR-14; dataset brief ghi cột khóa khách cho chia nhóm và số lời gọi trả phí trên tập tune.
 
 ## 3. Kiến trúc và tác động
@@ -230,22 +230,22 @@ Không có thay đổi code, schema, event hay cấu hình. Thành phần chạm
 
 Thứ tự commit: C1 merge `origin/main`; C2 khôi phục bản main và thêm khung ADR-14; C3 sửa baseline (guide, docs/02) áp trên C2; C4 ADR-14 và feature doc (gồm phụ lục §3.8, sửa các dòng cũ mâu thuẫn trong §1–§5 và §8–§9, và viết lại kế hoạch §7 cho vòng 2 ở Phase 3); C5 tài liệu bổ sung (§2.7 mục 9); C6 backlog, feature index, đánh số lại BL, bằng chứng. Mỗi commit chỉ chứa file thuộc nhóm của nó. Không push trước G3; không merge PR. §7.2 và §9 của vòng 1 là lịch sử; kế hoạch vòng 2 là §7.7 (viết ở Phase 3).
 
-Ánh xạ BL (số cũ trong PR → số mới sau C1, vì main đã dùng BL-023–026 cho DBS-42 và BL-027–029 cho DBS-31; các phản hồi review vòng 5–7 ở `screenshots/` giữ nguyên văn và dùng số BL-027–038 của thời điểm review, tương ứng BL-030–041 hiện hành):
+Ánh xạ BL (số cũ trong PR → số mới sau C1, vì main đã dùng BL-023–026 cho DBS-42, BL-027–029 cho DBS-31 và BL-030–039 cho DBS-33/34/36/50; các phản hồi review vòng 5–7 ở `screenshots/` giữ nguyên văn và dùng số BL-027–038 của thời điểm review, tương ứng BL-040–051 hiện hành):
 
 | Cũ | Mới | Chủ đề |
 |---|---|---|
-| BL-023 | BL-030 | ADR-14 Proposed, board DBS-161/211–215 |
-| BL-024 | BL-031 | Risk core/data, `risk_decisions`, consumer |
-| BL-025 | BL-032 | Contract API/giao diện operator |
-| BL-026 | BL-033 | Provider, Ops, egress |
-| BL-027 | BL-034 | Đánh giá B0/B1/B2, vận hành |
-| BL-028 | BL-035 | Xuất bản, CI, Dev review |
-| BL-029 | BL-036 | Chính sách lỗi luật |
-| BL-030 | BL-037 | CHECK review baseline |
-| BL-031 | BL-038 | FK decision và rollout |
-| — | BL-039 | Phân vùng/retention `risk_decisions` |
-| — | BL-040 | Bàn giao tài liệu vai khác |
-| — | BL-041 | Alarm DLQ, runbook redrive |
+| BL-023 | BL-040 | ADR-14 Proposed, board DBS-161/211–215 |
+| BL-024 | BL-041 | Risk core/data, `risk_decisions`, consumer |
+| BL-025 | BL-042 | Contract API/giao diện operator |
+| BL-026 | BL-043 | Provider, Ops, egress |
+| BL-027 | BL-044 | Đánh giá B0/B1/B2, vận hành |
+| BL-028 | BL-045 | Xuất bản, CI, Dev review |
+| BL-029 | BL-046 | Chính sách lỗi luật |
+| BL-030 | BL-047 | CHECK review baseline |
+| BL-031 | BL-048 | FK decision và rollout |
+| — | BL-049 | Phân vùng/retention `risk_decisions` |
+| — | BL-050 | Bàn giao tài liệu vai khác |
+| — | BL-051 | Alarm DLQ, runbook redrive |
 
 ### 3.8 Phụ lục: schema đề xuất bảng quyết định risk (Proposed, chưa có migration)
 
@@ -308,9 +308,9 @@ CREATE TABLE risk_decisions (
 - **Claim:** trong một `TransactionService.run`: claim `processed_events`, rồi `INSERT risk_decisions ... ON CONFLICT (transfer_id) DO NOTHING RETURNING transfer_id`. Bên thắng ghi cờ/hits (nếu đủ điểm) và audit tạo cờ; thua event không ghi phụ; thua transfer chỉ commit dedup của event mới. Hai worker đua không bị deadlock vì khóa đầu của họ (`processed_events`) khác nhau khi khác event, và cùng event thì bên sau chờ khóa đầu.
 - **Quyền:** `dbs_worker` S I; `dbs_api` S (chỉ projection operator qua API có guard); không role nào có U/D/TRUNCATE; áp `forbid_mutation` cho UPDATE/DELETE và TRUNCATE như bảng append-only khác (BL-021); không thêm quyền auditor (§2.7 mục 5). Customer không đọc được decision, `aiAssessment` hay provenance.
 - **Audit:** `risk_decisions` là bảng kỹ thuật append-only cùng nhóm với `processed_events`; audit chỉ ở tạo cờ và review (§2.7 mục 5).
-- **Dung lượng và retention:** tối đa RPS × 86.400 dòng/ngày; giữ vĩnh viễn trong đề xuất này vì claim phải sống hơn `processed_events` (7 ngày) và bảng không DELETE được. Phân vùng range theo thời gian không tương thích PK/FK hiện tại; phải chọn một trong ba hướng ở §2.7 mục 6 trước khi đặt retention (BL-039).
+- **Dung lượng và retention:** tối đa RPS × 86.400 dòng/ngày; giữ vĩnh viễn trong đề xuất này vì claim phải sống hơn `processed_events` (7 ngày) và bảng không DELETE được. Phân vùng range theo thời gian không tương thích PK/FK hiện tại; phải chọn một trong ba hướng ở §2.7 mục 6 trước khi đặt retention (BL-049).
 - **Thứ tự migration (nếu chấp nhận):** `risk_rule_sets` → `risk_decisions` → `fraud_flags` (FK tổng hợp) → `fraud_rule_hits` → constraint trigger và trigger append-only → quyền S/I. Nếu baseline risk đã có dữ liệu lúc cutover, task migration phải thiết kế chuyển đổi, không bịa event đầu/snapshot/provenance.
-- **Điểm mở mang theo:** FK tổng hợp từ `fraud_flags` không tương thích writer baseline khi rolling deploy/rollback (lỗi `23503`, BL-038); CHECK review baseline cho phép thiếu `reviewed_by`/`reviewed_at` riêng lẻ (BL-037, lỗi có sẵn trong baseline, sửa ở task riêng).
+- **Điểm mở mang theo:** FK tổng hợp từ `fraud_flags` không tương thích writer baseline khi rolling deploy/rollback (lỗi `23503`, BL-048); CHECK review baseline cho phép thiếu `reviewed_by`/`reviewed_at` riêng lẻ (BL-047, lỗi có sẵn trong baseline, sửa ở task riêng).
 
 ## 4. Kiểm chứng và test cases
 
@@ -334,7 +334,7 @@ PR này docs-only: không tạo test đọc source để ghim wording, không vi
 | TC-FRAUD-API-14 | Vòng 2 mục 4, 5, 7 | Đối chiếu ADR-14, §3.8, TC-06 và `fraud.md` về AI-only, audit chỉ khi có cờ và ba trường hợp lỗi §2.7 mục 7; tính tay lại ví dụ §2.2 | Boundary p=0.89/0.9. Luật hoặc SQL feature ném lỗi → rollback, không ack, không có dòng decision, DLQ sau lần nhận thứ 5, tăng `risk_rule_error_total{rule}`. `ai.*` sai → decision `CONFIG_INVALID` có kết quả R1–R6, contribution 0, không DLQ. Quyết định LOW không ghi audit |
 | TC-FRAUD-API-15 | Vòng 2 mục 2 | Chạy driver với biểu thức mới `amount*10n >= balance*9n` (đúng biên, thấp hơn 1 đồng, số dư ngay dưới 1.000.000, tiền trên 2^53) và fixture AC-9.1 (R3 35 + R6 30 = 65 MEDIUM; R6 một mình 30 LOW). SQL median R2 mới chạy trên PostgreSQL cô lập với n = 4, 5, giá trị trên 2^53 và biên `amount = 5 × median` (không hit) / `+1` (hit); phép thử phải thất bại với `percentile_cont` cũ ở giá trị trên 2^53 | Ca biên 5/6 lệnh, median n=4 (trung vị có .5 đồng) và n=5, `amount = 5×median`, 24h, 10 triệu, 90%, số dư 1.000.000, sameOwner ở task rules |
 | TC-FRAUD-API-16 | Vòng 2 mục 6 | SQL §3.8 chạy trên PostgreSQL 17 trong container cô lập (Docker 27.3.1 sẵn có) cùng DDL baseline `transfers`/`risk_rule_sets`/`fraud_flags`/`fraud_rule_hits`: DDL biên dịch; probe CHECK mode/status/xác suất/metadata gồm `CONFIG_INVALID`; probe PK/FK/UNIQUE; hai race claim. Không chạy được thì không chuyển Ready: G4 phải nêu tên và người dùng chấp nhận | Migration và test PostgreSQL thật ở task risk |
-| TC-FRAUD-API-17 | Vòng 2 mục 8 | Sau C6, với từng lần xuất hiện của `BL-0xx` trong các file fraud (`grep -rn -o -E 'BL-0[0-9]{2}( cũ)?'` trên ADR-14, feature doc, risk README): (i) ID thuộc tập mới BL-030–041, hoặc BL-010/011/021 của nhóm, hoặc có hậu tố «cũ» và nằm ở nơi mô tả lịch sử (§1.6, §2.7, §3.7, §6.1); (ii) từ khóa chủ đề của dòng đó trong `BACKLOG.md` khớp cột «Chủ đề» của bảng §3.7; (iii) không còn BL-023–026 ngoài dòng DBS-42, §1.6 mục 5 (nhắc BL-023–026 của main) và cột «Cũ» của bảng §3.7; không trùng ID; dòng DBS-42 giữ nguyên byte | Không áp dụng |
+| TC-FRAUD-API-17 | Vòng 2 mục 8 | Sau C6, với từng lần xuất hiện của `BL-0xx` trong các file fraud (`grep -rn -o -E 'BL-0[0-9]{2}( cũ)?'` trên ADR-14, feature doc, risk README): (i) ID thuộc tập mới BL-040–051, hoặc BL-010/011/021 của nhóm, hoặc có hậu tố «cũ» và nằm ở nơi mô tả lịch sử (§1.6, §2.7, §3.7, §6.1); (ii) từ khóa chủ đề của dòng đó trong `BACKLOG.md` khớp cột «Chủ đề» của bảng §3.7; (iii) không còn BL-023–026 ngoài dòng DBS-42, §1.6 mục 5 (nhắc BL-023–026 của main) và cột «Cũ» của bảng §3.7; không trùng ID; dòng DBS-42 giữ nguyên byte | Không áp dụng |
 | TC-FRAUD-API-18 | Vòng 2 mục 9 | Threat model: T15 của DBS-42 nguyên vẹn, T25 có nhãn Proposed. P2, dataset brief, docs/01: `git diff --numstat` chỉ có dòng thêm. `references/fraud.md`: câu tiếng Anh «One rule throwing must not stop the others» còn nguyên ở phần Accepted, mục ADR-14 mới nêu thiết kế Proposed | Không áp dụng |
 | TC-FRAUD-API-19 | DoD 7 | Link checker; render mmdc các sơ đồ trong feature doc và ADR; quét credential trên toàn bộ file đổi | Không áp dụng |
 | Quy trình | DoD 7 | G2/G3/G4, Dev review, CI/PR | Agent không merge hoặc sửa board |
@@ -381,8 +381,8 @@ Kiểm link cho snapshot sạch gồm commit nền và năm file task hiện t�
 | # | Mức | Phát hiện | Xử lý |
 |---|---|---|---|
 | 1 | blocking | Thứ tự commit C2/C3 làm mất sửa baseline | Đã sửa §3.7: khôi phục + khung ở C2, sửa baseline áp trên C2 ở C3; TC-11 kiểm sau cả hai |
-| 2 | blocking | Lỗi `ai.*` bị gộp với lỗi luật, đẩy mọi event vào DLQ | Đã sửa §2.7 mục 7 thành ba trường hợp, thêm `CONFIG_INVALID` (§3.2, §3.8), runbook redrive/alarm DLQ thành BL-041; TC-05/TC-14 cập nhật |
-| 3 | should-fix | Phân vùng theo thời gian phá PK/FK | Đã sửa §2.7 mục 6, §3.8: ba hướng thay thế, chọn trước khi đặt retention; BL-039 |
+| 2 | blocking | Lỗi `ai.*` bị gộp với lỗi luật, đẩy mọi event vào DLQ | Đã sửa §2.7 mục 7 thành ba trường hợp, thêm `CONFIG_INVALID` (§3.2, §3.8), runbook redrive/alarm DLQ thành BL-051; TC-05/TC-14 cập nhật |
+| 3 | should-fix | Phân vùng theo thời gian phá PK/FK | Đã sửa §2.7 mục 6, §3.8: ba hướng thay thế, chọn trước khi đặt retention; BL-049 |
 | 4 | should-fix | Dòng cũ mâu thuẫn (audit, database-design, M-01) | Đã sửa §3.1, mermaid, §3.2, §3.3 (đoạn cuối), TC-05, M-01; §7.2, §8, §9 viết lại ở Phase 3/5 (ghi ở §3.7) |
 | 5 | should-fix | Hai hệ số BL cùng tồn tại | Đã thêm bảng ánh xạ §3.7; đổi số cùng C6; TC-17 kiểm bằng grep |
 | 6 | should-fix | Thiếu lý do không audit `risk_decisions` | Đã ghi §2.7 mục 5 và §3.8: bảng kỹ thuật cùng nhóm `processed_events`; không thêm quyền auditor (đề xuất, nhóm duyệt) |
@@ -393,7 +393,7 @@ Kiểm link cho snapshot sạch gồm commit nền và năm file task hiện t�
 | 11 | minor | TC-11/TC-18 đánh giá bằng mắt, câu `fraud.md` là tiếng Anh | Đã dùng `--numstat` và trích câu tiếng Anh |
 | 12 | minor | M-06 không nói trước/sau C1 | Đã sửa M-06 |
 
-Bàn giao (không thuộc task này): Dev dataset xác nhận ghi chú cột khóa khách; owner threat model, docs/01, P2 xác nhận ghi chú Proposed; Dev ConsumerBase/risk consumer triển khai ném lỗi/không ack, metric và đường `CONFIG_INVALID`; Platform & Ops: alarm DLQ, runbook redrive, egress, secret; Dev migration: trigger `forbid_mutation` (BL-021) và thứ tự writer/FK (BL-038); Dev API/giao diện operator: `score` là tổng, `hits` có thể rỗng, `aiAssessment` riêng. Các mục này vào BL-040/041 và các dòng BL hiện có.
+Bàn giao (không thuộc task này): Dev dataset xác nhận ghi chú cột khóa khách; owner threat model, docs/01, P2 xác nhận ghi chú Proposed; Dev ConsumerBase/risk consumer triển khai ném lỗi/không ack, metric và đường `CONFIG_INVALID`; Platform & Ops: alarm DLQ, runbook redrive, egress, secret; Dev migration: trigger `forbid_mutation` (BL-021) và thứ tự writer/FK (BL-048); Dev API/giao diện operator: `score` là tổng, `hits` có thể rỗng, `aiAssessment` riêng. Các mục này vào BL-050/051 và các dòng BL hiện có.
 
 **Vòng 6** (cùng reviewer kiểm tra lại các phần đã sửa): 7 phát hiện, 0 blocking, 3 should-fix, 4 minor, verdict REVISE; [phản hồi nguyên văn](screenshots/FRAUD-API-01/domain-review-round-6.md). Xử lý:
 
@@ -401,13 +401,13 @@ Bàn giao (không thuộc task này): Dev dataset xác nhận ghi chú cột kh�
 |---|---|---|---|
 | 1 | should-fix | §3.3 đoạn cuối còn mô tả cutover database-design/guide | Đã viết lại theo bản đồ §3.7; bổ sung §3.3 vào hàng 4 ở trên |
 | 2 | should-fix | Lẫn số BL cũ/mới | Đã gắn hậu tố «cũ» ở §1.6, §2.7; ghi chú «số mới» ở §3.8, §6.1; TC-17 kiểm ID, chủ đề và ánh xạ |
-| 3 | should-fix | `CONFIG_INVALID` im lặng, `ai.*` hỏng không bị chặn lúc tạo version | Đã sửa §2.7 mục 7(b): từ chối lúc tạo version bằng bộ kiểm tra §2.2/§2.4 (gồm hai trường timeout), `CONFIG_INVALID` chỉ là lưới an toàn; metric/alarm vào BL-041 |
+| 3 | should-fix | `CONFIG_INVALID` im lặng, `ai.*` hỏng không bị chặn lúc tạo version | Đã sửa §2.7 mục 7(b): từ chối lúc tạo version bằng bộ kiểm tra §2.2/§2.4 (gồm hai trường timeout), `CONFIG_INVALID` chỉ là lưới an toàn; metric/alarm vào BL-051 |
 | 4 | minor | Hash partition không giúp retention; bảng claim hẹp vẫn tăng | Đã sửa §2.7 mục 6 |
 | 5 | minor | §3.2 nói quyền đọc «review/audit» | Đã sửa thành projection operator |
 | 6 | minor | Câu ZDR ở §2.3 nằm ngoài phạm vi grep | Đã viết lại câu theo điều kiện đủ điều kiện, thêm §2.3 vào phạm vi TC-13 |
 | 7 | minor | Chưa nêu dạng SQL median chính xác | Đã nêu ở §2.7 mục 2 (trung bình `numeric` hai hàng giữa); TC-15 kiểm trên PostgreSQL |
 
-Bàn giao thêm: Ops/observability cho metric và alarm `CONFIG_INVALID` (BL-041).
+Bàn giao thêm: Ops/observability cho metric và alarm `CONFIG_INVALID` (BL-051).
 
 **Vòng 7** (kiểm tra lại các phần sửa sau vòng 6): 3 phát hiện minor, 0 blocking, 0 should-fix, **verdict APPROVE**; [phản hồi nguyên văn](screenshots/FRAUD-API-01/domain-review-round-7.md). Cả ba đã sửa: quy tắc hậu tố «cũ» và ngoại lệ của TC-17 (iii) theo vị trí; bỏ cụm «dữ liệu bị sửa ngoài luồng» ở §2.7 mục 7(b), thay bằng DBA vượt trigger; TC-13 ghi trạng thái hiện tại (3 kết quả) và tiêu chí thoát C4 là 0 kết quả. Reviewer xác nhận toàn bộ «Đã sửa» của vòng 5 và 6 đúng với nội dung doc. Phê duyệt domain review không thay G2 của người dùng.
 
@@ -491,12 +491,12 @@ Task docs-only: «test viết trước» là lệnh kiểm tra chạy trước k
 
 | Bước | File | Kiểm chứng trước sửa (đỏ) | Việc thực hiện | Lệnh/bằng chứng sau sửa | Commit |
 |---|---|---|---|---|---|
-| C1 | `docs/BACKLOG.md`, `docs/features/README.md` (xung đột) và các file tự merge | `git merge-tree --write-tree HEAD origin/main` báo đúng hai xung đột (M-06 trước C1) | `git merge origin/main`. Giải xung đột bằng cách giữ nguyên mọi dòng upstream (BL-023–026 của DBS-42, hàng DBS-42 ở feature index); riêng `BACKLOG.md` đánh số lại ngay sáu→chín dòng fraud thành BL-030–038 (số các dòng văn bản ở file khác đổi ở C6) | `git merge-tree` lần hai sạch; `git diff origin/main -- docs/BACKLOG.md docs/features/README.md` chỉ có dòng thêm; không ID trùng | `merge: origin/main vào docs/FRAUD-API-01` |
+| C1 | `docs/BACKLOG.md`, `docs/features/README.md` (xung đột) và các file tự merge | `git merge-tree --write-tree HEAD origin/main` báo đúng hai xung đột (M-06 trước C1) | `git merge origin/main`. Giải xung đột bằng cách giữ nguyên mọi dòng upstream (BL-023–026 của DBS-42, hàng DBS-42 ở feature index); riêng `BACKLOG.md` đánh số lại ngay sáu→chín dòng fraud thành BL-040–048 (số các dòng văn bản ở file khác đổi ở C6) | `git merge-tree` lần hai sạch; `git diff origin/main -- docs/BACKLOG.md docs/features/README.md` chỉ có dòng thêm; không ID trùng | `merge: origin/main vào docs/FRAUD-API-01` |
 | C2 | `docs/components/risk/{FRAUD_DETECTION_GUIDE,02-architecture,01-concept-brief}.md`, `backend/src/modules/risk/README.md`, `docs/02_REQUIREMENTS_AND_DOMAIN_MODEL.md`, `docs/03_HIGH_LEVEL_ARCHITECTURE.md`, `docs/components/_shared/database-design.md`, `docs/superpowers/plans/2026-10-02-master-roadmap.md` | TC-11: `git diff --numstat origin/main -- <file>` hiện hàng trăm dòng đổi (đỏ) | `git checkout origin/main -- <file>` cho từng file, rồi thêm đúng một khung ADR-14 (§2.7 mục 1) ngay sau khối `> **Status:**` đầu tiên hoặc sau tiêu đề nếu không có, liên kết tương đối đúng từng thư mục | `git diff --numstat origin/main -- <file>` = `N 0` cho cả tám file; link checker; ADR-08 vẫn trỏ được tới guide §4.3.b (TC-12, M-05) | `docs(risk): khôi phục tài liệu Accepted, thêm khung ADR-14` |
 | C3 | guide, `docs/02…` | TC-15 chạy trước: biểu thức `amount*10n >= balance*9n`, fixture AC-9.1 và SQL median mới trên PostgreSQL cô lập; phép thử SQL cũ phải thất bại ở giá trị trên 2^53 | Áp đúng các hunk sau trên bản main, không thêm gì khác. **Guide:** H1 §4.2 SQL R2 median chính xác; H2 §4.2 SQL R4 thêm `type = 'TRANSFER'`; H3 §4.2 giả mã R6 bằng bigint và đoạn «Tiền và thời gian chính xác» (không còn câu về AI); H4 §4.2 `sameOwner` đã có trong event contract/type; H5 §5.2 dòng `sameOwner` và câu event malformed; H6 §5.4 Redis lạnh/miss không được coi là 0, dọn cache theo giờ tường chứ không theo `occurredAt` của event, Redis ngoài `BEGIN`, phạm vi parity (bỏ câu về AI); H7 §5.5 tên kiểu `TransferCompleted`. **docs/02:** H8 AC-9.1; H9 FR-RSK-01 và UC-9 chỉ chấm TRANSFER; H10 §2.1 câu cửa sổ lịch sử theo thời điểm giao dịch và snapshot R3/R6. Mục §5.6 «Một luật ném lỗi» giữ nguyên bản main (đổi là Proposed ở ADR-14). **docs/03 không nhận hunk nào.** Hunk ngoài danh sách này phải xin gate phụ | TC-15 xanh; `git diff -U0 origin/main -- guide docs/02` có đúng 10 nhóm hunk H1–H10 (TC-11 sau C3); link checker | `docs(risk): sửa baseline R1–R6 và AC-9.1 độc lập với AI` |
 | C4 | `docs/adr/0014-fraud-rules-external-ai.md`, feature doc | TC-13: `grep` hiện 3 kết quả «public beta» (đỏ); TC-14 và TC-16 chưa có phụ lục để kiểm | **ADR-14:** provider GA, ZDR theo điều kiện đủ điều kiện, giá, giới hạn 400 câu/request; bỏ «beta» khỏi lý do giữ AI tắt; mục «Thay đổi yêu cầu cần nhóm duyệt» (§2.7 mục 4 đủ bảy nơi); audit và bảng kỹ thuật (mục 5); lỗi ba trường hợp và `CONFIG_INVALID` (mục 7); dung lượng và ba hướng retention (mục 6); liên kết schema trỏ tới feature doc §3.8; nhắc tuân thủ `SafeLogger` của DBS-42 cho adapter. **Feature doc:** §2.1, §3.4 bỏ «beta»; §8, §9 viết lại cho vòng 2; trạng thái | TC-13 = 0 kết quả; TC-14 đối chiếu thủ công; TC-16 chạy SQL §3.8 trên PostgreSQL 17 (container cô lập, không mở cổng host, dọn sau khi chạy); mmdc các sơ đồ trong feature doc và ADR; link checker | `docs(adr): cập nhật ADR-14 và hồ sơ FRAUD-API-01 vòng 2` |
 | C5 | `docs/security/threat-model.md`, `docs/deliverables/P2-application-data-integration.md`, `.claude/skills/dbs-delivering-task/references/fraud.md`, `docs/components/fraud-dataset/01-concept-brief.md`, `docs/01_BUSINESS_ANALYSIS.md` | TC-18: threat model không có T25; `fraud.md` còn câu «The recipe in guide §5.4 trims by occurredAt» (đã sai sau C3) | Threat model thêm T25 sau T24 (dữ liệu giao dịch tới dịch vụ ngoài, secret, outage; biện pháp: allowlist, Secrets Manager, không log body qua SafeLogger, hạn mức, fallback; trạng thái Đề xuất ADR-14), không đụng T15 của DBS-42. P2 thêm ghi chú tích hợp ngoài Proposed và hàng `risk_decisions (Proposed)`. `fraud.md`: sửa câu §5.4 cho khớp guide đã sửa; thêm mục ADR-14 Proposed (nguồn, quy tắc lỗi ba trường hợp, câu tiếng Anh cũ giữ ở phần Accepted). Dataset brief: ghi cột khóa khách cho chia nhóm trong tune và số lời gọi trả phí trên tập tune. docs/01 §10: ghi chú Proposed về cờ không có luật | `git diff --numstat` chỉ có dòng thêm trừ câu §5.4 của `fraud.md`; T15 nguyên vẹn; link checker | `docs(risk): ghi chú Proposed ADR-14 ở threat model, P2, skill, dataset, docs/01` |
-| C6 | `docs/BACKLOG.md`, `docs/features/README.md`, ADR-14, feature doc, risk README nếu có BL, thư mục `docs/features/screenshots/FRAUD-API-01/` | TC-17 chạy trước: các tham chiếu BL cũ còn trong ADR-14 và feature doc (đỏ) | Đổi mọi `BL-0xx` của vòng 1 sang số mới theo bảng §3.7; thêm BL-039, BL-040, BL-041; cập nhật nội dung các dòng đã đổi số theo quyết định G1/G2; hàng FRAUD-API-01 ở feature index; điền §8 (kết quả thật, bảng TC, bảng M, bàn giao) và §9; lưu `verification-round2.txt` (đầu ra thô, không credential) | TC-17, TC-19: link checker, quét credential, mmdc; `git diff origin/main --stat` khớp bản đồ §3.7 | `docs(risk): backlog, feature index và bằng chứng vòng 2` |
+| C6 | `docs/BACKLOG.md`, `docs/features/README.md`, ADR-14, feature doc, risk README nếu có BL, thư mục `docs/features/screenshots/FRAUD-API-01/` | TC-17 chạy trước: các tham chiếu BL cũ còn trong ADR-14 và feature doc (đỏ) | Đổi mọi `BL-0xx` của vòng 1 sang số mới theo bảng §3.7; thêm BL-049, BL-050, BL-051; cập nhật nội dung các dòng đã đổi số theo quyết định G1/G2; hàng FRAUD-API-01 ở feature index; điền §8 (kết quả thật, bảng TC, bảng M, bàn giao) và §9; lưu `verification-round2.txt` (đầu ra thô, không credential) | TC-17, TC-19: link checker, quét credential, mmdc; `git diff origin/main --stat` khớp bản đồ §3.7 | `docs(risk): backlog, feature index và bằng chứng vòng 2` |
 
 **Bảng sweep** (mỗi mục có bước hoặc lý do ngoài phạm vi):
 
@@ -505,11 +505,11 @@ Task docs-only: «test viết trước» là lệnh kiểm tra chạy trước k
 | P1 tài liệu Accepted bị ghi đè | C2, C3 |
 | P2 tiền đề provider | C4 (M-07 do người dùng xác nhận ở G4) |
 | P3 yêu cầu nghiệp vụ và cờ AI-only | C4 (ADR-14), C5 (docs/01) |
-| P4 dung lượng ghi, retention | C4, BL-039 |
+| P4 dung lượng ghi, retention | C4, BL-049 |
 | P5 xung đột main, đánh số BL | C1, C6 |
-| P6 lỗi luật; BL-037/038 | C4 (BL-036 chính sách); BL-037/038 giữ là bàn giao, không sửa schema baseline |
-| Tài liệu thiếu (threat model, P2, skill, dataset) | C5; platform-infra, observability, load-tests qua BL-040 |
-| Alarm DLQ, `CONFIG_INVALID`, runbook redrive | BL-041 |
+| P6 lỗi luật; BL-047/048 | C4 (BL-046 chính sách); BL-047/048 giữ là bàn giao, không sửa schema baseline |
+| Tài liệu thiếu (threat model, P2, skill, dataset) | C5; platform-infra, observability, load-tests qua BL-050 |
+| Alarm DLQ, `CONFIG_INVALID`, runbook redrive | BL-051 |
 | Production code, migration, env, Terraform, board, merge PR | Ngoài phạm vi, không chạm |
 | Hunk baseline mới phát sinh | Gate phụ, không tự thêm |
 
@@ -534,7 +534,7 @@ Snapshot bàn giao G4 trên nền `d158296`: chưa có commit mới, 11 file tra
 | Rà soát credential trong toàn bộ 19 file thuộc task | 0 mẫu credential | Không phải chứng nhận an toàn toàn repo hoặc nhà cung cấp |
 | Driver số học và helper money hiện tại | 7 ca policy; đúng biên 90% bằng bigint và số tiền trên 2^53 | Không phải unit/integration test của fraud chưa được viết |
 | Review độc lập bộ tài liệu sau tích hợp, trước review bổ sung | 0 phát hiện, `Verdict: APPROVE` tại thời điểm đó | Không thay review Dev; review bổ sung ở §8.6 đã tìm thấy các điểm còn mở |
-| API thật, consumer fraud end-to-end, load, holdout | **Chưa chạy** | Ngoài task tài liệu, theo BL-031/033/034; SQL probe cô lập ở §8.6 không thay runtime consumer |
+| API thật, consumer fraud end-to-end, load, holdout | **Chưa chạy** | Ngoài task tài liệu, theo BL-041/043/044; SQL probe cô lập ở §8.6 không thay runtime consumer |
 
 Link checker chạy bằng `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` trong snapshot sạch của commit nền và nội dung local, không commit để tạo snapshot. Các checkout/render artifact tạm đã được dọn.
 
@@ -567,22 +567,22 @@ Không chạy build/lint/unit/e2e/DB suite: loại task docs-only có baseline l
 | TC | Kiểm chứng trong task tài liệu | Trạng thái runtime |
 |---|---|---|
 | TC-01 | Đạt: ADR mới Proposed, ADR-08 vẫn Accepted, bảng chuyển task và giới hạn được ghi | Không áp dụng |
-| TC-02 | Đạt phạm vi tài liệu: luật/snapshot/tiền giữ nguyên, fixture AC-9.1 là R3+R6=65 MEDIUM | Chưa chạy test fraud boundaries; BL-031/036 |
-| TC-03 | Đạt số học và đối chiếu schema/provenance: contribution riêng, không fake hit | Chưa có scoring/DB implementation; BL-031 |
-| TC-04 | Đạt review thiết kế allowlist/quyền và không lộ risk cho customer | Chưa có security test runtime; BL-031/033 |
-| TC-05 | Đã đối chiếu lỗi provider/deadline/fallback; rule-engine failure còn mở ở §8.6 | Chưa có failure test provider thật; BL-033/036 |
-| TC-06 | SQL claim đã được probe cô lập (§8.6), không thay consumer test | Chưa có concurrency/rollback test của consumer fraud; BL-031/038 |
-| TC-07 | Đạt giao thức độc lập, capture/replay và gate chất lượng/vận hành | Chưa có dataset/API/load results; BL-034 |
-| TC-08 | Đạt index, raw review, link và phạm vi tài liệu tại G4 | Xuất bản đã được cho phép; CI/review Dev chưa hoàn tất; BL-035 |
-| TC-09 | Đã đối chiếu review một lần/role; CHECK baseline còn lỗi ở §8.6 | Chưa có API review concurrency/authorization test; BL-031/037 |
-| TC-10 | Đạt review TTL/admission/in-flight, không hứa kill tức thì | Chưa có clock/TTL/provider runtime test; BL-031/033 |
+| TC-02 | Đạt phạm vi tài liệu: luật/snapshot/tiền giữ nguyên, fixture AC-9.1 là R3+R6=65 MEDIUM | Chưa chạy test fraud boundaries; BL-041/046 |
+| TC-03 | Đạt số học và đối chiếu schema/provenance: contribution riêng, không fake hit | Chưa có scoring/DB implementation; BL-041 |
+| TC-04 | Đạt review thiết kế allowlist/quyền và không lộ risk cho customer | Chưa có security test runtime; BL-041/043 |
+| TC-05 | Đã đối chiếu lỗi provider/deadline/fallback; rule-engine failure còn mở ở §8.6 | Chưa có failure test provider thật; BL-043/046 |
+| TC-06 | SQL claim đã được probe cô lập (§8.6), không thay consumer test | Chưa có concurrency/rollback test của consumer fraud; BL-041/048 |
+| TC-07 | Đạt giao thức độc lập, capture/replay và gate chất lượng/vận hành | Chưa có dataset/API/load results; BL-044 |
+| TC-08 | Đạt index, raw review, link và phạm vi tài liệu tại G4 | Xuất bản đã được cho phép; CI/review Dev chưa hoàn tất; BL-045 |
+| TC-09 | Đã đối chiếu review một lần/role; CHECK baseline còn lỗi ở §8.6 | Chưa có API review concurrency/authorization test; BL-041/047 |
+| TC-10 | Đạt review TTL/admission/in-flight, không hứa kill tức thì | Chưa có clock/TTL/provider runtime test; BL-041/043 |
 
 | Manual | Kết quả | Bằng chứng |
 |---|---|---|
 | M-01 | Đạt phạm vi tài liệu | Review độc lập đã đối chiếu ADR/schema/risk/system; ledger/event/outbox không có thay đổi runtime |
 | M-02 | Đạt số học | Driver và output §8.2; không coi dữ liệu p giả định là response provider thật |
 | M-03 | Đạt | 91 file, 0 link lỗi trên snapshot sạch |
-| M-04 | Đạt phạm vi tài liệu | Feature/ADR index, trạng thái Proposed; handoff fraud đã đổi thành BL-030–038 sau khi cập nhật main, không nhận implementation hoặc benchmark đã hoàn tất |
+| M-04 | Đạt phạm vi tài liệu | Feature/ADR index, trạng thái Proposed; handoff fraud đã đổi thành BL-040–048 sau khi cập nhật main, không nhận implementation hoặc benchmark đã hoàn tất |
 
 Task docs-only: screenshot và SHA của commit đổi code không áp dụng; không có code mới hoặc manual-test.txt giả. Bằng chứng text nằm tại §8.2 và §8.6, không dùng ảnh mock của ứng dụng.
 
@@ -603,15 +603,15 @@ Hai lượt review ở thời điểm tích hợp ban đầu trả `Verdict: APP
 
 | BL | Bên nhận theo vai/task | Trạng thái/điều kiện còn thiếu |
 |---|---|---|
-| BL-030 | Fraud, một Dev review, nhóm và người quản lý board | Đã chuẩn bị hồ sơ; chưa có bằng chứng nhóm Accepted ADR-14 hoặc đổi DoD sheet |
-| BL-031 | Fraud và Dev nhận risk core/data/shared dependency | Chưa triển khai; task riêng phải chứng minh migration/consumer/rules/audit/auth thật, không dựng stub; phụ thuộc trigger bàn giao ở BL-021 |
-| BL-032 | Dev nhận API UC-10/giao diện operator, phối hợp Fraud | Đã ghi contract trong tài liệu; **chưa thông báo/xác nhận với người nhận bên ngoài phiên làm việc**; UI phải dùng score tổng và assessment riêng |
-| BL-033 | Fraud và Platform & Ops | Chưa cấp/kiểm chứng điều kiện provider, giới hạn vận hành và smoke thật; không tự sửa cloud hoặc gửi dữ liệu |
-| BL-034 | Fraud, Dev dataset/quality, Platform & Ops | Chưa chạy tune/validation/holdout/load/metric/alarm; chỉ có giao thức và gate |
-| BL-035 | Người thực hiện và một Dev độc lập | Người dùng đã cho phép commit/PR; CI remote/review Dev chưa hoàn tất; giữ Draft khi còn điểm thiết kế mở |
-| BL-036 | Fraud và Dev consumer | Rule fault có thể dẫn tới decision LOW thiếu nhưng bất biến; cần chốt policy trước implementation/ready |
-| BL-037 | Dev migration risk và API review | CHECK review baseline cho phép thiếu reviewer hoặc thời gian; sửa ở task riêng, không nhận là đã sửa trong PR này |
-| BL-038 | Fraud, Dev migration và Platform & Ops | Chưa chốt writer compatibility/rollback khi bật FK decision; không áp SQL mẫu như migration rollout hoàn chỉnh |
+| BL-040 | Fraud, một Dev review, nhóm và người quản lý board | Đã chuẩn bị hồ sơ; chưa có bằng chứng nhóm Accepted ADR-14 hoặc đổi DoD sheet |
+| BL-041 | Fraud và Dev nhận risk core/data/shared dependency | Chưa triển khai; task riêng phải chứng minh migration/consumer/rules/audit/auth thật, không dựng stub; phụ thuộc trigger bàn giao ở BL-021 |
+| BL-042 | Dev nhận API UC-10/giao diện operator, phối hợp Fraud | Đã ghi contract trong tài liệu; **chưa thông báo/xác nhận với người nhận bên ngoài phiên làm việc**; UI phải dùng score tổng và assessment riêng |
+| BL-043 | Fraud và Platform & Ops | Chưa cấp/kiểm chứng điều kiện provider, giới hạn vận hành và smoke thật; không tự sửa cloud hoặc gửi dữ liệu |
+| BL-044 | Fraud, Dev dataset/quality, Platform & Ops | Chưa chạy tune/validation/holdout/load/metric/alarm; chỉ có giao thức và gate |
+| BL-045 | Người thực hiện và một Dev độc lập | Người dùng đã cho phép commit/PR; CI remote/review Dev chưa hoàn tất; giữ Draft khi còn điểm thiết kế mở |
+| BL-046 | Fraud và Dev consumer | Rule fault có thể dẫn tới decision LOW thiếu nhưng bất biến; cần chốt policy trước implementation/ready |
+| BL-047 | Dev migration risk và API review | CHECK review baseline cho phép thiếu reviewer hoặc thời gian; sửa ở task riêng, không nhận là đã sửa trong PR này |
+| BL-048 | Fraud, Dev migration và Platform & Ops | Chưa chốt writer compatibility/rollback khi bật FK decision; không áp SQL mẫu như migration rollout hoàn chỉnh |
 
 Các dòng trên đã có trong [BACKLOG](../BACKLOG.md). BL-010/011 và BL-021 là dependency của nhóm, giữ nguyên. G4 đã duyệt phạm vi tài liệu ban đầu; review bổ sung không được tính là đã giải quyết các điểm mở. Implemented chỉ là trạng thái task tài liệu, không phải backend fraud, PR ready hoặc chấp thuận ADR của nhóm.
 
@@ -619,19 +619,19 @@ Các dòng trên đã có trong [BACKLOG](../BACKLOG.md). BL-010/011 và BL-021 
 
 **Quyền xuất bản:** sau G4, người dùng yêu cầu tạo nhánh khác, commit và mở PR. Quyền này thay giới hạn giữ local ở các mốc G1–G4 trước đó, không cho phép merge, sửa board, đổi ADR Accepted hoặc triển khai runtime. PR giữ Draft để thảo luận các điểm dưới đây.
 
-**Đồng bộ main:** đã fetch `origin/main` từ `d158296` lên `7ce5a23`, gồm DBS-25/26/27/39. Giữ nội dung upstream của database-design, feature index và BL-015–022; đánh số lại sáu handoff fraud để không trùng main (số hiện hành BL-030–035, bảng ánh xạ ở §3.7). Phản hồi review nguyên văn trước đó là bằng chứng lịch sử, không sửa lại theo ID mới. Migration/schema outbox, audit và trigger ba bảng đã có trên main; risk consumer, provider và migration risk vẫn chưa có trong phạm vi này.
+**Đồng bộ main:** đã fetch `origin/main` từ `d158296` lên `7ce5a23`, gồm DBS-25/26/27/39. Giữ nội dung upstream của database-design, feature index và BL-015–022; đánh số lại sáu handoff fraud để không trùng main (số hiện hành BL-040–045, bảng ánh xạ ở §3.7). Phản hồi review nguyên văn trước đó là bằng chứng lịch sử, không sửa lại theo ID mới. Migration/schema outbox, audit và trigger ba bảng đã có trên main; risk consumer, provider và migration risk vẫn chưa có trong phạm vi này.
 
 | Phát hiện còn mở | Bằng chứng quan sát | Xử lý và giới hạn |
 |---|---|---|
-| P2: rule lỗi nhưng tiếp tục phần còn lại có thể đóng băng LOW thiếu | Trace giả lập R3 lỗi, R6=30; PostgreSQL giữ decision 30 và claim khác eventId không tạo decision/cờ mới | BL-036; chưa có consumer để inject rule fault thật; cần sửa policy trước implementation/ready |
-| P2 baseline: CHECK review cho phép thiếu một trường | PostgreSQL cô lập chấp nhận non-OPEN với reviewed_by NULL hoặc reviewed_at NULL riêng lẻ | BL-037; lỗi có sẵn trong schema baseline, chưa sửa trong đề xuất này |
-| P2 rollout: FK mới không tương thích writer baseline | PostgreSQL 17.11: thêm FK trên dữ liệu cờ cũ hoặc writer cũ ghi cờ sau mở rộng đều lỗi `23503`, constraint `fraud_flags_decision_fk` | BL-038; dữ liệu cũ đã có handoff ở database-design, nhưng thứ tự writer/FK và rollback floor chưa chốt; không phải lỗi database production hiện tại |
+| P2: rule lỗi nhưng tiếp tục phần còn lại có thể đóng băng LOW thiếu | Trace giả lập R3 lỗi, R6=30; PostgreSQL giữ decision 30 và claim khác eventId không tạo decision/cờ mới | BL-046; chưa có consumer để inject rule fault thật; cần sửa policy trước implementation/ready |
+| P2 baseline: CHECK review cho phép thiếu một trường | PostgreSQL cô lập chấp nhận non-OPEN với reviewed_by NULL hoặc reviewed_at NULL riêng lẻ | BL-047; lỗi có sẵn trong schema baseline, chưa sửa trong đề xuất này |
+| P2 rollout: FK mới không tương thích writer baseline | PostgreSQL 17.11: thêm FK trên dữ liệu cờ cũ hoặc writer cũ ghi cờ sau mở rộng đều lỗi `23503`, constraint `fraud_flags_decision_fk` | BL-048; dữ liệu cũ đã có handoff ở database-design, nhưng thứ tự writer/FK và rollback floor chưa chốt; không phải lỗi database production hiện tại |
 
 Kiểm chứng SQL trên PostgreSQL cô lập, không host port, không volume dự án; fixture SQL chỉ phục vụ constraint/claim, không ghi số dư hoặc ledger entries và không chứng minh luồng chuyển tiền. DDL baseline/proposed compile; 20 probe CHECK và 4 probe FK/PK cho kết quả mong đợi; hai race claim quan sát bên còn lại chờ rồi thắng/thua theo commit/rollback. Hai probe rollout trả lỗi FK như trên. Container đã dừng/dọn. Đây không phải migration triển khai, consumer/audit/role test hoặc đánh giá provider.
 
 Smoke helper runtime hiện hữu: registry api/both chỉ HealthModule, worker rỗng; config API chấp nhận không có AI key hoặc queue URLs; mẫu event TRANSFER/DEPOSIT được validator chấp nhận. Không khởi động Nest app, gọi provider, chạy holdout hoặc load test.
 
-Ranh giới tài nguyên chưa được chứng minh bằng load: risk chia sẻ worker với relay/notification, PostgreSQL/Redis với hệ thống. Queue riêng không cách ly CPU/memory/pool; không tuyên bố consumer khác không thể bị chậm. Trước enable phải đối chiếu gate fraud với SLO chuyển tiền, đọc dữ liệu, tuổi outbox/queue và pool theo BL-033/034.
+Ranh giới tài nguyên chưa được chứng minh bằng load: risk chia sẻ worker với relay/notification, PostgreSQL/Redis với hệ thống. Queue riêng không cách ly CPU/memory/pool; không tuyên bố consumer khác không thể bị chậm. Trước enable phải đối chiếu gate fraud với SLO chuyển tiền, đọc dữ liệu, tuổi outbox/queue và pool theo BL-043/044.
 
 **Kiểm trước xuất bản trên nền main mới:** snapshot chỉ gồm `7ce5a23` và đúng 19 file Markdown trong index cho kết quả `99 files checked, 0 broken link(s)`, exit 0. Danh sách staged khớp allowlist 19 file; quét nội dung không thấy mẫu credential hoặc conflict marker. Backlog không trùng ID và giữ nguyên mọi dòng backlog/feature của upstream. Không chạy lại backend suite vì payload chỉ là tài liệu; CI remote chưa được nhận là xanh.
 
@@ -639,7 +639,7 @@ Ranh giới tài nguyên chưa được chứng minh bằng load: risk chia sẻ
 
 ### 8.7 Vòng sửa 2: kết quả
 
-**Phạm vi đã thực hiện.** Sáu commit trên nhánh cộng một commit merge lần hai (`64eca39`), không có production code, migration, dependency, env hay tài nguyên cloud: C1 `f0a57d7` merge `origin/main` (hai xung đột tài liệu, giữ nguyên dòng upstream, đánh số lại backlog fraud); C2 `73dc4af` khôi phục tám file Accepted về bản main + khung ADR-14; C3 `e0dc4cf` sửa baseline R1–R6 và AC-9.1 (10 nhóm hunk H1–H10); C4 `1a4d66f` ADR-14, hồ sơ và phụ lục §3.8; C5 `13f6334` ghi chú Proposed ở tài liệu vai khác; C6 (`28713ca`, `45cb1c2`) chứa backlog, feature index, đánh số lại BL và bằng chứng. Trước khi push, `origin/main` tiến thêm commit `b478a02` (DBS-31, BL-027–029 và hàng DBS-31 trong feature index) nên `64eca39` merge lại: giữ nguyên dòng upstream, đánh số lại BL-027–038 của nhóm fraud thành BL-030–041 trong BACKLOG, ADR-14, feature doc và threat model; ba phản hồi review ở `screenshots/` giữ nguyên văn với số của thời điểm review. So với `origin/main`, PR đổi 28 file (27 file khi thu thập bằng chứng, cộng chính file `verification-round2.txt`); `docs/03` chỉ thêm khung hai dòng. Push và cập nhật Draft PR #20 được người dùng cho phép khi duyệt G4 (kết quả ghi ở cuối mục này).
+**Phạm vi đã thực hiện.** Sáu commit trên nhánh cộng hai commit merge, lần hai (`64eca39`) và lần ba (xem `git log`), không có production code, migration, dependency, env hay tài nguyên cloud: C1 `f0a57d7` merge `origin/main` (hai xung đột tài liệu, giữ nguyên dòng upstream, đánh số lại backlog fraud); C2 `73dc4af` khôi phục tám file Accepted về bản main + khung ADR-14; C3 `e0dc4cf` sửa baseline R1–R6 và AC-9.1 (10 nhóm hunk H1–H10); C4 `1a4d66f` ADR-14, hồ sơ và phụ lục §3.8; C5 `13f6334` ghi chú Proposed ở tài liệu vai khác; C6 (`28713ca`, `45cb1c2`) chứa backlog, feature index, đánh số lại BL và bằng chứng. Trước khi push, `origin/main` tiến thêm commit `b478a02` (DBS-31, BL-027–029 và hàng DBS-31 trong feature index) nên `64eca39` merge lại: giữ nguyên dòng upstream, đánh số lại BL-027–038 của nhóm fraud thành BL-030–041 (sau lần merge thứ ba: BL-040–051) trong BACKLOG, ADR-14, feature doc và threat model; ba phản hồi review ở `screenshots/` giữ nguyên văn với số của thời điểm review. Lần merge thứ ba (`main` thêm DBS-33/34/36/50, BL-030–039) làm nhóm fraud đổi tiếp thành **BL-040–051** theo cách tương tự. So với `origin/main`, PR đổi 28 file (27 file khi thu thập bằng chứng, cộng chính file `verification-round2.txt`); `docs/03` chỉ thêm khung hai dòng. Push và cập nhật Draft PR #20 được người dùng cho phép khi duyệt G4 (kết quả ghi ở cuối mục này).
 
 **Kiểm chứng đã chạy** (đầu ra thô: [verification-round2.txt](screenshots/FRAUD-API-01/verification-round2.txt)):
 
@@ -648,20 +648,20 @@ Ranh giới tài nguyên chưa được chứng minh bằng load: risk chia sẻ
 | TC-11 | Sau C2, `git diff --numstat origin/main` cho đúng `2 0` ở cả tám file. Sau C3: guide 7 nhóm hunk (H1–H7) và docs/02 4 hunk (H8–H10, H9 gồm hai dòng) ngoài khung, khớp danh sách; không còn hunk nào khác | Đối chiếu từng hunk với H1–H10 bằng mắt, danh sách hunk lưu ở bằng chứng |
 | TC-12 | Link checker `111 files checked, 0 broken link(s)`; ADR-08 không đổi so với main; guide §4.3.b tồn tại lại | Không kiểm ngữ nghĩa các tham chiếu ngoài liên kết |
 | TC-13 | Trước C4: 3 kết quả «public beta»; sau C4: 0 kết quả ở phạm vi ADR-14 và §2.1, §2.3, §3.4 | Dữ kiện provider do người dùng xác nhận (M-07) |
-| TC-14 | Đối chiếu ADR-14, §3.8, TC-06 và `fraud.md` về AI-only, audit chỉ khi có cờ và ba trường hợp lỗi: nhất quán | Đạt phạm vi tài liệu; chưa có test runtime (BL-031, BL-036, BL-041) |
+| TC-14 | Đối chiếu ADR-14, §3.8, TC-06 và `fraud.md` về AI-only, audit chỉ khi có cờ và ba trường hợp lỗi: nhất quán | Đạt phạm vi tài liệu; chưa có test runtime (BL-041, BL-046, BL-051) |
 | TC-15 | Driver số học: 8 ca R6 (biên 90% bằng bigint, số dư ngay dưới 1.000.000, sameOwner, trên 2^53) cùng ca biên 9k/10k, fixture AC-9.1 = 35 + 30 = 65 MEDIUM, R6 một mình 30 LOW; biểu thức dấu phẩy động cũ lệch bigint ở 19.767 trên 200.000 ca biên trên 2^53. SQL median trên PostgreSQL 17.11 cô lập: n=5 → 30, n=4 → 25,5, 5 giá trị trên 2^53 → 9007199254740997 chính xác, biên `amount = 5 × median` đúng; `percentile_cont` cũ trả 9007199254741000 (sai) | Helper tiền được chạy bằng bản sao nguyên văn `backend/src/common/money` (chỉ thêm đuôi `.ts` vào import) với `--experimental-transform-types`, vì worktree chưa cài `node_modules`; không phải unit test fraud |
-| TC-16 | SQL §3.8 trích tự động từ doc, chạy trên PostgreSQL 17.11 trong container cô lập, không mở cổng host, đã dọn: DDL biên dịch cùng DDL baseline; 42 probe CHECK/PK/FK (14 chấp nhận đúng, 28 từ chối đúng), gồm `CONFIG_INVALID` và p=NaN; câu claim trả 0 dòng cho event trùng và cho transfer đã có decision. Ba kịch bản đua hai phiên: bên thắng commit → bên thua chờ 2,0 giây rồi nhận 0 dòng, còn 1 decision của bên thắng; bên thắng rollback → bên thua chờ rồi thắng; cùng event hai lần → bên sau nhận 0 dòng | Bảng `transfers`, `users` chỉ là stub có PK; không có consumer, audit hay role thật; không thay test consumer (BL-031); FK từ `fraud_flags` vẫn không tương thích writer baseline (BL-038) |
-| TC-17 | Không trùng ID; 4/4 dòng DBS-42 và 3/3 dòng DBS-31 giữ nguyên byte; BL-030–041 tồn tại, chủ đề khớp; ADR-14 4 trích dẫn, feature doc 182, 0 vi phạm; BL-023–029 chỉ còn ở ngữ cảnh DBS-42/DBS-31/lịch sử «cũ» | Kiểm chủ đề bằng từ khóa |
+| TC-16 | SQL §3.8 trích tự động từ doc, chạy trên PostgreSQL 17.11 trong container cô lập, không mở cổng host, đã dọn: DDL biên dịch cùng DDL baseline; 42 probe CHECK/PK/FK (14 chấp nhận đúng, 28 từ chối đúng), gồm `CONFIG_INVALID` và p=NaN; câu claim trả 0 dòng cho event trùng và cho transfer đã có decision. Ba kịch bản đua hai phiên: bên thắng commit → bên thua chờ 2,0 giây rồi nhận 0 dòng, còn 1 decision của bên thắng; bên thắng rollback → bên thua chờ rồi thắng; cùng event hai lần → bên sau nhận 0 dòng | Bảng `transfers`, `users` chỉ là stub có PK; không có consumer, audit hay role thật; không thay test consumer (BL-041); FK từ `fraud_flags` vẫn không tương thích writer baseline (BL-048) |
+| TC-17 | Không trùng ID; 4/4 dòng DBS-42 và 3/3 dòng DBS-31 giữ nguyên byte; BL-040–051 tồn tại, chủ đề khớp; ADR-14 4 trích dẫn, feature doc 182, 0 vi phạm; BL-023–029 chỉ còn ở ngữ cảnh DBS-42/DBS-31/lịch sử «cũ» | Kiểm chủ đề bằng từ khóa |
 | TC-18 | Threat model, P2, docs/01, dataset brief: chỉ dòng thêm; `fraud.md`: +10 −1 (đúng câu §5.4); T15 của DBS-42 giống main; câu tiếng Anh «One rule throwing…» còn nguyên | — |
 | TC-19 | Link checker 0 lỗi; sơ đồ Mermaid duy nhất của feature doc render thành công (Mermaid CLI 11.4.2 + Chrome, exit 0); ADR-14 không có sơ đồ; quét credential trên dòng thêm: 0 kết quả; conflict marker: 0 | Quét mẫu, không phải chứng nhận an toàn |
 | M-05 | ADR-08 dòng 9 và 49 trỏ guide §4.3.b; guide đã khôi phục có mục đó; mỗi file Accepted chỉ thêm khung | — |
 | M-06 | Trước C1: đúng hai xung đột (`BACKLOG.md`, `features/README.md`). Sau C1 và sau merge lần hai `64eca39`: 0 xung đột (merge lần hai cũng có đúng hai xung đột cùng file, đã giải); `git diff origin/main` ở ba file chỉ có dòng thêm (trừ dòng ngày của `BACKLOG.md`/`features/README.md`) | Kết quả đúng tại thời điểm chạy; `main` có thể tiến thêm |
-| M-07 | **Chưa chạy**: chờ người dùng mở guide OpenAI Decisions và đối chiếu GA, ZDR cho khách đủ điều kiện, giá input $0,10/1M token, output không tính phí | Người dùng duyệt G4 bằng «ok duyệt» mà không nêu riêng M-07, nên M-07 vẫn **chưa chạy** và chuyển vào BL-030 |
-| API thật, consumer fraud end-to-end, load, holdout | **Chưa chạy** | Ngoài task tài liệu: BL-031, BL-033, BL-034, BL-041 |
+| M-07 | **Chưa chạy**: chờ người dùng mở guide OpenAI Decisions và đối chiếu GA, ZDR cho khách đủ điều kiện, giá input $0,10/1M token, output không tính phí | Người dùng duyệt G4 bằng «ok duyệt» mà không nêu riêng M-07, nên M-07 vẫn **chưa chạy** và chuyển vào BL-040 |
+| API thật, consumer fraud end-to-end, load, holdout | **Chưa chạy** | Ngoài task tài liệu: BL-041, BL-043, BL-044, BL-051 |
 
 Không chạy build/lint/unit/e2e của backend: task docs-only không đổi code chạy được ngoài merge main (CI trên PR chạy chúng). Không có `.skip`, `.only`, `.todo` hay test nào được thêm. Không có screenshot (không có giao diện hay đường runtime); bằng chứng là văn bản thô ở `verification-round2.txt`.
 
-**Review độc lập.** Domain review vòng 5, 6, 7 ở §6.1: 12 + 7 + 3 phát hiện, tất cả đã xử lý, verdict cuối APPROVE. Đây là review của AI, không thay review của một Dev (BL-035).
+**Review độc lập.** Domain review vòng 5, 6, 7 ở §6.1: 12 + 7 + 3 phát hiện, tất cả đã xử lý, verdict cuối APPROVE. Đây là review của AI, không thay review của một Dev (BL-045).
 
 **Sai lệch so với kế hoạch §7.7** (không đổi phạm vi): (1) heading §3.8 đổi tên thành «Phụ lục: schema đề xuất bảng quyết định risk (...)» để anchor giống nhau giữa link checker (bỏ dấu `_`) và GitHub (giữ dấu `_`); (2) TC-15 và TC-16 chạy từ thư mục tạm ngoài repo, không thêm file chạy vào repo.
 
@@ -669,18 +669,18 @@ Không chạy build/lint/unit/e2e của backend: task docs-only không đổi co
 
 | BL | Bên nhận | Trạng thái |
 |---|---|---|
-| BL-030 | Fraud, Dev review, người quản lý board | ADR-14 vẫn Proposed; board chưa đổi |
-| BL-031 | Fraud và Dev các task phụ thuộc | Chưa có implementation risk; không stub |
-| BL-032 | Dev API/giao diện operator | Contract ghi trong tài liệu; chưa có xác nhận từ người nhận |
-| BL-033 | Fraud, Platform & Ops | Chưa có credential, quota, egress, smoke thật |
-| BL-034 | Fraud, Dev dataset, Platform & Ops | Chưa có số đo B0/B1/B2 |
-| BL-035 | Người thực hiện, một Dev độc lập | PR Draft, chờ CI và Dev review |
-| BL-036 | Fraud, Dev consumer | Policy lỗi được đề xuất ở ADR-14; chờ nhóm quyết |
-| BL-037 | Dev migration risk, API review | Lỗi CHECK review baseline, sửa ở task riêng |
-| BL-038 | Fraud, Dev migration, Platform & Ops | Thứ tự writer/FK và rollback floor chưa chốt |
-| BL-039 | Fraud, Dev migration | Retention và hướng phân vùng `risk_decisions` chưa chọn |
-| BL-040 | Owner threat model/docs/01/P2, Dev dataset, Platform & Ops | Ghi chú Proposed chưa được owner xác nhận |
-| BL-041 | Platform & Ops, Fraud | Chưa có alarm DLQ/`CONFIG_INVALID` và runbook redrive |
+| BL-040 | Fraud, Dev review, người quản lý board | ADR-14 vẫn Proposed; board chưa đổi |
+| BL-041 | Fraud và Dev các task phụ thuộc | Chưa có implementation risk; không stub |
+| BL-042 | Dev API/giao diện operator | Contract ghi trong tài liệu; chưa có xác nhận từ người nhận |
+| BL-043 | Fraud, Platform & Ops | Chưa có credential, quota, egress, smoke thật |
+| BL-044 | Fraud, Dev dataset, Platform & Ops | Chưa có số đo B0/B1/B2 |
+| BL-045 | Người thực hiện, một Dev độc lập | PR Draft, chờ CI và Dev review |
+| BL-046 | Fraud, Dev consumer | Policy lỗi được đề xuất ở ADR-14; chờ nhóm quyết |
+| BL-047 | Dev migration risk, API review | Lỗi CHECK review baseline, sửa ở task riêng |
+| BL-048 | Fraud, Dev migration, Platform & Ops | Thứ tự writer/FK và rollback floor chưa chốt |
+| BL-049 | Fraud, Dev migration | Retention và hướng phân vùng `risk_decisions` chưa chọn |
+| BL-050 | Owner threat model/docs/01/P2, Dev dataset, Platform & Ops | Ghi chú Proposed chưa được owner xác nhận |
+| BL-051 | Platform & Ops, Fraud | Chưa có alarm DLQ/`CONFIG_INVALID` và runbook redrive |
 
 Chưa push và chưa mở thêm PR: Draft PR #20 sẽ được cập nhật bằng push fast-forward (không force) sau khi người dùng cho phép.
 
@@ -693,18 +693,18 @@ Chưa push và chưa mở thêm PR: Draft PR #20 sẽ được cập nhật bằ
 - [Database design](../components/_shared/database-design.md): schema Proposed, claim/invariant/quyền/retention/migration; không có migration thực.
 - [Requirements](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md), [HLA](../03_HIGH_LEVEL_ARCHITECTURE.md): fixture AC-9.1, mô hình/sequence/API/provider boundary, chi phí và trạng thái đề xuất.
 - [Roadmap](../superpowers/plans/2026-10-02-master-roadmap.md): Task 6 chuyển đổi Proposed, không đổi sheet hoặc task nhóm khác.
-- [Backlog](../BACKLOG.md): sáu handoff fraud đổi thành BL-030–035 để không trùng main; thêm BL-036–038 cho review bổ sung, giữ nguyên các dòng của nhóm; [feature index](README.md): mã nội bộ và Implemented cho task docs-only, chưa ready.
+- [Backlog](../BACKLOG.md): sáu handoff fraud đổi thành BL-040–045 để không trùng main; thêm BL-046–048 cho review bổ sung, giữ nguyên các dòng của nhóm; [feature index](README.md): mã nội bộ và Implemented cho task docs-only, chưa ready.
 - Feature doc này và 6 phản hồi nguyên văn ở `screenshots/FRAUD-API-01/`: domain vòng 1/2/3/4, plan vòng 1/2. Không có screenshot runtime.
 
-**Quyết định G4:** người dùng đã duyệt bàn giao task tài liệu bằng phản hồi “duyệt” sau thông điệp G4. Quyền commit/PR được cấp sau đó tại §8.6; giữ ADR-14 Proposed, PR Draft và BL-030–038 mở, không thay review Dev hoặc sự chấp thuận ADR của nhóm.
+**Quyết định G4:** người dùng đã duyệt bàn giao task tài liệu bằng phản hồi “duyệt” sau thông điệp G4. Quyền commit/PR được cấp sau đó tại §8.6; giữ ADR-14 Proposed, PR Draft và BL-040–048 mở, không thay review Dev hoặc sự chấp thuận ADR của nhóm.
 
 ### 9.1 Vòng 2 (hiện hành)
 
 - [ADR-14](../adr/0014-fraud-rules-external-ai.md): dữ kiện provider, ba trường hợp lỗi, mục «Thay đổi yêu cầu và tác động cần nhóm duyệt»; [ADR index](../adr/README.md) giữ như vòng 1.
 - Khôi phục về bản `main` kèm khung ADR-14 (2 dòng thêm mỗi file): [risk concept](../components/risk/01-concept-brief.md), [risk architecture](../components/risk/02-architecture.md), [risk README](../../backend/src/modules/risk/README.md), [requirements](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md), [HLA](../03_HIGH_LEVEL_ARCHITECTURE.md), [database design](../components/_shared/database-design.md), [roadmap](../superpowers/plans/2026-10-02-master-roadmap.md); [guide](../components/risk/FRAUD_DETECTION_GUIDE.md) và requirements còn nhận sửa baseline độc lập với AI (H1–H10, xem §7.7).
 - Thêm ghi chú Proposed: [threat model](../security/threat-model.md) (T25), [P2](../deliverables/P2-application-data-integration.md), [docs/01](../01_BUSINESS_ANALYSIS.md), [dataset brief](../components/fraud-dataset/01-concept-brief.md), `references/fraud.md` của skill.
-- [Backlog](../BACKLOG.md): BL-030–038 là sáu dòng vòng 1 và ba dòng review bổ sung đã đánh số lại (BL-023–031 cũ); thêm BL-039, BL-040, BL-041; sửa nội dung BL-032 và BL-036; không xóa dòng nào của nhóm. [Feature index](README.md): cập nhật hàng FRAUD-API-01.
+- [Backlog](../BACKLOG.md): BL-040–048 là sáu dòng vòng 1 và ba dòng review bổ sung đã đánh số lại (BL-023–031 cũ); thêm BL-049, BL-050, BL-051; sửa nội dung BL-042 và BL-046; không xóa dòng nào của nhóm. [Feature index](README.md): cập nhật hàng FRAUD-API-01.
 - Feature doc này: §1.6, §2.7, §3.7, §3.8, TC-11..19, M-05..07, §6.1, §7.7, §8.7, §9.1; ba phản hồi nguyên văn domain review vòng 5, 6, 7 và `verification-round2.txt` ở `screenshots/FRAUD-API-01/`.
 - Dòng backlog đã xử lý: không có dòng nào được xóa trong vòng này.
 
-**Quyết định G4 vòng 2 (2026-10-26):** người dùng trả lời «ok duyệt» cho thông điệp G4 vòng 2. Hiểu là: duyệt bàn giao task tài liệu; cho phép push nhánh fast-forward (không force) để cập nhật Draft PR #20 và chạy CI, theo đề xuất của thông điệp G4; giữ PR ở Draft cho tới khi một Dev review xong (BL-035). Không có phản hồi riêng cho M-07: M-07 vẫn **chưa chạy**, chuyển vào BL-030, nên không được đọc dữ kiện provider của ADR-14 là đã xác nhận. Không merge PR, không sửa board; ADR-14 vẫn Proposed.
+**Quyết định G4 vòng 2 (2026-10-26):** người dùng trả lời «ok duyệt» cho thông điệp G4 vòng 2. Hiểu là: duyệt bàn giao task tài liệu; cho phép push nhánh fast-forward (không force) để cập nhật Draft PR #20 và chạy CI, theo đề xuất của thông điệp G4; giữ PR ở Draft cho tới khi một Dev review xong (BL-045). Không có phản hồi riêng cho M-07: M-07 vẫn **chưa chạy**, chuyển vào BL-040, nên không được đọc dữ kiện provider của ADR-14 là đã xác nhận. Không merge PR, không sửa board; ADR-14 vẫn Proposed.

@@ -33,6 +33,19 @@ export enum ErrorCode {
   /** The customer already has the maximum number of accounts (HTTP 409). BR-14. */
   ACCOUNT_LIMIT_REACHED = 'ACCOUNT_LIMIT_REACHED',
 
+  // ── Authentication (token verification, HTTP 401) ──
+  /**
+   * No bearer token, a malformed token, a bad signature, an unknown signing key, or a wrong
+   * `iss` / `client_id` / `token_use`. The client must sign in again — retrying the same
+   * request will never succeed. DBS-50.
+   */
+  UNAUTHENTICATED = 'UNAUTHENTICATED',
+  /**
+   * The access token's `exp` is in the past. Distinct from UNAUTHENTICATED: a client holding a
+   * refresh token may retry via silent refresh instead of forcing a full re-login. DBS-50.
+   */
+  TOKEN_EXPIRED = 'TOKEN_EXPIRED',
+
   // ── Session ──
   /**
    * The presented token was issued before the user's sessions were revoked, e.g. an operator
