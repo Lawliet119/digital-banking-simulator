@@ -9,6 +9,8 @@ export const ACCOUNT_FIXTURE = {
   funding: '00000000-0000-4000-8000-000000000001',
   userA: '10000000-0000-4000-8000-000000000001',
   userB: '10000000-0000-4000-8000-000000000002',
+  cognitoSubA: 'a1000000-0000-4000-8000-000000000001',
+  cognitoSubB: 'b1000000-0000-4000-8000-000000000002',
   customerA: '20000000-0000-4000-8000-000000000001',
   customerB: '20000000-0000-4000-8000-000000000002',
   accountA: '3a000000-0000-4000-8000-000000000001',
@@ -56,9 +58,9 @@ export async function createAccountsFixture(): Promise<AccountsFixture> {
     // These are input rows only. Money is never seeded: every account starts at its DB default 0.
     await source.query('INSERT INTO users (id, cognito_sub) VALUES ($1,$2),($3,$4)', [
       f.userA,
-      'nguyen-an-local',
+      f.cognitoSubA,
       f.userB,
-      'tran-binh-local',
+      f.cognitoSubB,
     ]);
     await source.query(
       'INSERT INTO customers (id,user_id,full_name) VALUES ($1,$2,$3),($4,$5,$6)',
@@ -75,34 +77,45 @@ export async function createAccountsFixture(): Promise<AccountsFixture> {
       source,
       trace,
       async close() {
-        await readySource.destroy();
-        await readyDatabase.drop();
+        const destroyed = await Promise.allSettled([readySource.destroy()]);
+        const dropped = await Promise.allSettled([readyDatabase.drop()]);
+        throwCleanupFailure([...destroyed, ...dropped]);
       },
     };
   } catch (error) {
-    if (source?.isInitialized) await source.destroy();
-    await database?.drop();
+    if (source?.isInitialized) await Promise.allSettled([source.destroy()]);
+    if (database) await Promise.allSettled([database.drop()]);
     throw error;
   }
 }
 
 export async function startProbeRunner(source: DataSource): Promise<QueryRunner> {
   const runner = source.createQueryRunner();
-  await runner.connect();
-  await runner.startTransaction('READ COMMITTED');
-  await runner.query("SET LOCAL lock_timeout = '5s'");
-  await runner.query("SET LOCAL statement_timeout = '8s'");
-  await runner.query("SET LOCAL idle_in_transaction_session_timeout = '15s'");
-  return runner;
+  try {
+    await runner.connect();
+    await runner.startTransaction('READ COMMITTED');
+    await runner.query("SET LOCAL lock_timeout = '5s'");
+    await runner.query("SET LOCAL statement_timeout = '8s'");
+    await runner.query("SET LOCAL idle_in_transaction_session_timeout = '15s'");
+    return runner;
+  } catch (error) {
+    await Promise.allSettled([closeProbeRunner(runner)]);
+    throw error;
+  }
 }
 
 export async function closeProbeRunner(runner: QueryRunner): Promise<void> {
   if (runner.isReleased) return;
-  try {
-    if (runner.isTransactionActive) await runner.rollbackTransaction();
-  } finally {
-    await runner.release();
-  }
+  const rolledBack = runner.isTransactionActive
+    ? await Promise.allSettled([runner.rollbackTransaction()])
+    : [];
+  const released = await Promise.allSettled([runner.release()]);
+  throwCleanupFailure([...rolledBack, ...released]);
+}
+
+function throwCleanupFailure(results: PromiseSettledResult<unknown>[]): void {
+  const failure = results.find(result => result.status === 'rejected');
+  if (failure?.status === 'rejected') throw failure.reason;
 }
 
 export async function withMoneyProbe<T>(
@@ -110,11 +123,16 @@ export async function withMoneyProbe<T>(
   work: (manager: EntityManager) => Promise<T>,
 ): Promise<T> {
   const runner = await startProbeRunner(source);
+  let failed = false;
   try {
     return await work(runner.manager);
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
-    await closeProbeRunner(runner);
-    await assertAccountsInvariants(source);
+    const closed = await Promise.allSettled([closeProbeRunner(runner)]);
+    const invariants = await Promise.allSettled([assertAccountsInvariants(source)]);
+    if (!failed) throwCleanupFailure([...closed, ...invariants]);
   }
 }
 
@@ -171,11 +189,16 @@ async function waitBlockedBy(source: DataSource, pid: number, blocker: number): 
 
 export async function proveAccountLockOrder(source: DataSource, service: AccountsService) {
   const f = ACCOUNT_FIXTURE;
-  const holder = await startProbeRunner(source);
-  const subject = await startProbeRunner(source);
-  const probe = await startProbeRunner(source);
+  const runners: QueryRunner[] = [];
+  let failed = false;
   let pending: ReturnType<AccountsService['lockForUpdate']> | undefined;
   try {
+    const holder = await startProbeRunner(source);
+    runners.push(holder);
+    const subject = await startProbeRunner(source);
+    runners.push(subject);
+    const probe = await startProbeRunner(source);
+    runners.push(probe);
     const holderPid = await backendPid(holder);
     const subjectPid = await backendPid(subject);
     await holder.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE', [f.accountA]);
@@ -194,21 +217,28 @@ export async function proveAccountLockOrder(source: DataSource, service: Account
       [f.accountA, f.accountB],
     );
     return { holderPid, subjectPid, highAvailable: true, ids: rows.map(row => row.id) };
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
-    await closeProbeRunner(holder);
-    await closeProbeRunner(probe);
-    if (pending) await Promise.allSettled([pending]);
-    await closeProbeRunner(subject);
+    const closed = await Promise.allSettled(runners.map(closeProbeRunner));
+    const finished = pending ? await Promise.allSettled([pending]) : [];
+    if (!failed) throwCleanupFailure([...closed, ...finished]);
   }
 }
 
 export async function proveCrossedAccountLocks(source: DataSource, service: AccountsService) {
   const f = ACCOUNT_FIXTURE;
-  const holder = await startProbeRunner(source);
-  const left = await startProbeRunner(source);
-  const right = await startProbeRunner(source);
+  const runners: QueryRunner[] = [];
+  let failed = false;
   const pending: Promise<unknown>[] = [];
   try {
+    const holder = await startProbeRunner(source);
+    runners.push(holder);
+    const left = await startProbeRunner(source);
+    runners.push(left);
+    const right = await startProbeRunner(source);
+    runners.push(right);
     const leftPid = await backendPid(left);
     const rightPid = await backendPid(right);
     await holder.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE', [f.accountA]);
@@ -248,10 +278,12 @@ export async function proveCrossedAccountLocks(source: DataSource, service: Acco
       );
     }
     return { winnerPid: winner.pid, waitingPid: loser.pid, completed: 2, retries: 0 };
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
-    await closeProbeRunner(holder);
-    // Releasing either held winner lets the other query finish even after an assertion failure.
-    await Promise.allSettled([closeProbeRunner(left), closeProbeRunner(right)]);
-    await Promise.allSettled(pending);
+    const closed = await Promise.allSettled(runners.map(closeProbeRunner));
+    const finished = await Promise.allSettled(pending);
+    if (!failed) throwCleanupFailure([...closed, ...finished]);
   }
 }

@@ -6,6 +6,7 @@ import {
   createAccountsFixture,
   proveAccountLockOrder,
   proveCrossedAccountLocks,
+  startProbeRunner,
   withMoneyProbe,
   type AccountsFixture,
 } from '../support/accounts-service-probe';
@@ -79,12 +80,208 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
       await expect(service.lockForUpdate(null as unknown as string[], manager)).rejects.toThrow(
         TypeError,
       );
+      await expect(service.lockForUpdate(Array(1) as string[], manager)).rejects.toThrow(TypeError);
+      const mixed = [f.accountA as string];
+      mixed.length = 3;
+      mixed[2] = f.accountB;
+      await expect(service.lockForUpdate(mixed, manager)).rejects.toThrow(TypeError);
       expect(fixture.trace).toHaveLength(count);
       await service.lockForUpdate([f.accountA], manager);
       const query = fixture.trace.at(-1)!;
       expect(query.query).toContain('$1');
       expect(query.query).not.toContain(f.accountA);
       expect(query.parameters).toEqual([[f.accountA]]);
+    });
+  });
+
+  it('TC-55-04 apply rejects inactive and released managers without querying', async () => {
+    const runner = fixture.source.createQueryRunner();
+    await runner.connect();
+    try {
+      await expect(
+        service.applyBalanceChange(f.accountA, 0n, fixture.source.manager),
+      ).rejects.toThrow(Error);
+      await expect(service.applyBalanceChange(f.accountA, 0n, runner.manager)).rejects.toThrow(
+        Error,
+      );
+      await runner.release();
+      await expect(service.applyBalanceChange(f.accountA, 0n, runner.manager)).rejects.toThrow(
+        Error,
+      );
+    } finally {
+      await closeProbeRunner(runner);
+    }
+  });
+
+  it('TC-55-04 probe setup releases its real runner when a SET fails', async () => {
+    const runner = fixture.source.createQueryRunner();
+    const failure = new Error('Injected probe setup failure');
+    const realQuery = runner.query.bind(runner);
+    const create = jest.spyOn(fixture.source, 'createQueryRunner').mockReturnValue(runner);
+    const query = jest
+      .spyOn(runner, 'query')
+      .mockImplementation((sql: string, parameters?: unknown[]) => {
+        if (sql.startsWith('SET LOCAL statement_timeout')) return Promise.reject(failure);
+        return realQuery(sql, parameters);
+      });
+    try {
+      await expect(startProbeRunner(fixture.source)).rejects.toBe(failure);
+      expect(runner.isReleased).toBe(true);
+      expect(runner.isTransactionActive).toBe(false);
+    } finally {
+      create.mockRestore();
+      query.mockRestore();
+      await closeProbeRunner(runner);
+    }
+  });
+
+  it.each([
+    ['ordered', proveAccountLockOrder],
+    ['crossed', proveCrossedAccountLocks],
+  ] as const)(
+    'TC-55-04 %s probe cleans earlier runners if later allocation fails',
+    async (_name, probe) => {
+      const runners: ReturnType<typeof fixture.source.createQueryRunner>[] = [];
+      const failure = new Error('Injected second-runner connection failure');
+      const realCreate = fixture.source.createQueryRunner.bind(fixture.source);
+      let connectSpy: jest.SpyInstance | undefined;
+      const create = jest.spyOn(fixture.source, 'createQueryRunner').mockImplementation(() => {
+        const runner = realCreate();
+        runners.push(runner);
+        if (runners.length === 2)
+          connectSpy = jest.spyOn(runner, 'connect').mockRejectedValue(failure);
+        return runner;
+      });
+      try {
+        await expect(probe(fixture.source, service)).rejects.toBe(failure);
+        expect(runners).toHaveLength(2);
+        expect(runners.every(runner => runner.isReleased)).toBe(true);
+      } finally {
+        create.mockRestore();
+        connectSpy?.mockRestore();
+        await Promise.allSettled(runners.map(closeProbeRunner));
+      }
+    },
+  );
+
+  it('TC-55-05 changes are visible only in the caller transaction and roll back together', async () => {
+    const before = await fixture.source.query<{ id: string; balance: string; updated_at: Date }[]>(
+      'SELECT id,balance,updated_at FROM accounts ORDER BY id',
+    );
+    await withMoneyProbe(fixture.source, async manager => {
+      await service.lockForUpdate([f.accountA, f.funding], manager);
+      await expect(
+        service.applyBalanceChange(f.funding, -300000n, manager),
+      ).resolves.toBeUndefined();
+      await expect(
+        service.applyBalanceChange(f.accountA, 300000n, manager),
+      ).resolves.toBeUndefined();
+      const rows = await service.lockForUpdate([f.funding, f.accountA], manager);
+      expect(rows.map(row => row.balance)).toEqual(['-300000', '300000']);
+      const outside = await fixture.source.query<{ balance: string }[]>(
+        'SELECT balance FROM accounts',
+      );
+      expect(outside.every(row => row.balance === '0')).toBe(true);
+    });
+    expect(
+      await fixture.source.query('SELECT id,balance,updated_at FROM accounts ORDER BY id'),
+    ).toEqual(before);
+  });
+
+  it('TC-55-06 preserves amounts above 2^53, serializes strings, and accepts zero delta', async () => {
+    await withMoneyProbe(fixture.source, async manager => {
+      await service.lockForUpdate([f.funding, f.accountA], manager);
+      await service.applyBalanceChange(f.funding, -9007199254740993n, manager);
+      await service.applyBalanceChange(f.accountA, 9007199254740993n, manager);
+      await service.applyBalanceChange(f.accountA, 0n, manager);
+      const [row] = await service.lockForUpdate([f.accountA], manager);
+      expect(row.balance).toBe('9007199254740993');
+      expect(JSON.parse(JSON.stringify(row))).toMatchObject({ balance: '9007199254740993' });
+      const update = fixture.trace
+        .filter(
+          trace =>
+            trace.query.startsWith('UPDATE accounts') && trace.parameters[1] === '9007199254740993',
+        )
+        .at(-1);
+      expect(update?.parameters).toEqual([f.accountA, '9007199254740993']);
+      expect(update?.query).toContain('$2::bigint');
+    });
+  });
+
+  it('TC-55-07 PostgreSQL refuses a negative customer balance', async () => {
+    await expect(
+      withMoneyProbe(fixture.source, async manager => {
+        await service.lockForUpdate([f.accountA], manager);
+        await service.applyBalanceChange(f.accountA, -1n, manager);
+      }),
+    ).rejects.toMatchObject({ code: '23514', constraint: 'accounts_balance_non_negative' });
+  });
+
+  it('TC-55-08 accepts signed bigint bounds for funding with balanced service probes', async () => {
+    const max = 9223372036854775807n;
+    await withMoneyProbe(fixture.source, async manager => {
+      await service.lockForUpdate([f.funding, f.accountA], manager);
+      await service.applyBalanceChange(f.funding, -max, manager);
+      await service.applyBalanceChange(f.accountA, max, manager);
+      expect(
+        (await service.lockForUpdate([f.funding, f.accountA], manager)).map(row => row.balance),
+      ).toEqual(['-9223372036854775807', '9223372036854775807']);
+    });
+    await withMoneyProbe(fixture.source, async manager => {
+      await service.lockForUpdate([f.funding, f.accountA, f.accountC], manager);
+      await service.applyBalanceChange(f.funding, -9223372036854775808n, manager);
+      await service.applyBalanceChange(f.accountA, max, manager);
+      await service.applyBalanceChange(f.accountC, 1n, manager);
+      const rows = await service.lockForUpdate([f.funding, f.accountA, f.accountC], manager);
+      expect(rows.map(row => row.balance)).toEqual([
+        '-9223372036854775808',
+        '9223372036854775807',
+        '1',
+      ]);
+      expect(rows.reduce((sum, row) => sum + BigInt(row.balance), 0n)).toBe(0n);
+    });
+  });
+
+  it.each(['customer overflow', 'funding underflow', 'large delta', 'small delta'])(
+    'TC-55-09 rejects %s without leaving tentative balances',
+    async scenario => {
+      await expect(
+        withMoneyProbe(fixture.source, async manager => {
+          await service.lockForUpdate([f.funding, f.accountA, f.accountC], manager);
+          if (scenario === 'customer overflow') {
+            await service.applyBalanceChange(f.funding, -9223372036854775807n, manager);
+            await service.applyBalanceChange(f.accountA, 9223372036854775807n, manager);
+            await service.applyBalanceChange(f.accountA, 1n, manager);
+          } else if (scenario === 'funding underflow') {
+            await service.applyBalanceChange(f.funding, -9223372036854775808n, manager);
+            await service.applyBalanceChange(f.accountA, 9223372036854775807n, manager);
+            await service.applyBalanceChange(f.accountC, 1n, manager);
+            await service.applyBalanceChange(f.funding, -1n, manager);
+          } else {
+            const delta = scenario === 'large delta' ? 9223372036854775808n : -9223372036854775809n;
+            await service.applyBalanceChange(f.accountA, delta, manager);
+          }
+        }),
+      ).rejects.toMatchObject({ code: '22003' });
+    },
+  );
+
+  it('TC-55-10 missing update is 404 rather than mistaking the raw tuple for rows', async () => {
+    await expect(
+      withMoneyProbe(fixture.source, manager => service.applyBalanceChange(f.missing, 0n, manager)),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('TC-55-13 apply rejects injection and non-bigint deltas before SQL', async () => {
+    await withMoneyProbe(fixture.source, async manager => {
+      const count = fixture.trace.length;
+      await expect(service.applyBalanceChange("' OR 1=1 --", 0n, manager)).rejects.toThrow(
+        TypeError,
+      );
+      await expect(
+        service.applyBalanceChange(f.accountA, 300000 as unknown as bigint, manager),
+      ).rejects.toThrow(TypeError);
+      expect(fixture.trace).toHaveLength(count);
     });
   });
 });

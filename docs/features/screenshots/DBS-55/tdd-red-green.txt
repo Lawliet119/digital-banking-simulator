@@ -34,3 +34,209 @@ Tests:       5 passed, 5 total
 Snapshots:   0 total
 Time:        13.359 s
 Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
+P2 RED: balance behavior tests before applyBalanceChange exists
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/accounts-service.db-spec.ts
+
+FAIL test/db/accounts-service.db-spec.ts
+  ● Test suite failed to run
+
+    test/db/accounts-service.db-spec.ts:96:17 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    96         service.applyBalanceChange(f.accountA, 0n, fixture.source.manager),
+                       ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:98:28 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    98       await expect(service.applyBalanceChange(f.accountA, 0n, runner.manager)).rejects.toThrow(
+                                  ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:102:28 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    102       await expect(service.applyBalanceChange(f.accountA, 0n, runner.manager)).rejects.toThrow(
+                                   ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:117:17 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    117         service.applyBalanceChange(f.funding, -300000n, manager),
+                        ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:120:17 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    120         service.applyBalanceChange(f.accountA, 300000n, manager),
+                        ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:137:21 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    137       await service.applyBalanceChange(f.funding, -9007199254740993n, manager);
+                            ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:138:21 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    138       await service.applyBalanceChange(f.accountA, 9007199254740993n, manager);
+                            ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:139:21 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    139       await service.applyBalanceChange(f.accountA, 0n, manager);
+                            ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:156:23 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    156         await service.applyBalanceChange(f.accountA, -1n, manager);
+                              ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:165:21 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    165       await service.applyBalanceChange(f.funding, -max, manager);
+                            ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:166:21 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    166       await service.applyBalanceChange(f.accountA, max, manager);
+                            ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:173:21 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    173       await service.applyBalanceChange(f.funding, -9223372036854775808n, manager);
+                            ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:174:21 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    174       await service.applyBalanceChange(f.accountA, max, manager);
+                            ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:175:21 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    175       await service.applyBalanceChange(f.accountC, 1n, manager);
+                            ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:193:27 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    193             await service.applyBalanceChange(f.funding, -9223372036854775807n, manager);
+                                  ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:194:27 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    194             await service.applyBalanceChange(f.accountA, 9223372036854775807n, manager);
+                                  ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:195:27 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    195             await service.applyBalanceChange(f.accountA, 1n, manager);
+                                  ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:197:27 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    197             await service.applyBalanceChange(f.funding, -9223372036854775808n, manager);
+                                  ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:198:27 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    198             await service.applyBalanceChange(f.accountA, 9223372036854775807n, manager);
+                                  ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:199:27 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    199             await service.applyBalanceChange(f.accountC, 1n, manager);
+                                  ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:200:27 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    200             await service.applyBalanceChange(f.funding, -1n, manager);
+                                  ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:203:27 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    203             await service.applyBalanceChange(f.accountA, delta, manager);
+                                  ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:212:57 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    212       withMoneyProbe(fixture.source, manager => service.applyBalanceChange(f.missing, 0n, manager)),
+                                                                ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:219:28 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    219       await expect(service.applyBalanceChange("' OR 1=1 --", 0n, manager)).rejects.toThrow(
+                                   ~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:223:17 - error TS2339: Property 'applyBalanceChange' does not exist on type 'AccountsService'.
+
+    223         service.applyBalanceChange(f.accountA, 300000 as unknown as bigint, manager),
+                        ~~~~~~~~~~~~~~~~~~
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        0.721 s, estimated 13 s
+Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
+P2 regression RED: sparse UUID arrays and probe setup cleanup (review findings)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/accounts-service.db-spec.ts
+
+FAIL test/db/accounts-service.db-spec.ts
+  ● DBS-55 AccountsService on PostgreSQL › TC-55-13 lock rejects hostile ids and invalid arrays without a query
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: []
+
+      81 |         TypeError,
+      82 |       );
+    > 83 |       await expect(service.lockForUpdate(Array(1) as string[], manager)).rejects.toThrow(TypeError);
+         |             ^
+      84 |       await expect(
+      85 |         service.lockForUpdate([f.accountA, , f.accountB] as string[], manager),
+      86 |       ).rejects.toThrow(TypeError);
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at test/db/accounts-service.db-spec.ts:83:13
+      at withMoneyProbe (test/support/accounts-service-probe.ts:114:12)
+      at Object.<anonymous> (test/db/accounts-service.db-spec.ts:77:5)
+
+  ● DBS-55 AccountsService on PostgreSQL › TC-55-04 probe setup releases its real runner when a SET fails
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      126 |     try {
+      127 |       await expect(startProbeRunner(fixture.source)).rejects.toBe(failure);
+    > 128 |       expect(runner.isReleased).toBe(true);
+          |                                 ^
+      129 |       expect(runner.isTransactionActive).toBe(false);
+      130 |     } finally {
+      131 |       create.mockRestore();
+
+      at Object.<anonymous> (test/db/accounts-service.db-spec.ts:128:33)
+
+  ● DBS-55 AccountsService on PostgreSQL › TC-55-04 ordered probe cleans earlier runners if later allocation fails
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      155 |         await expect(probe(fixture.source, service)).rejects.toBe(failure);
+      156 |         expect(runners).toHaveLength(2);
+    > 157 |         expect(runners.every(runner => runner.isReleased)).toBe(true);
+          |                                                            ^
+      158 |       } finally {
+      159 |         create.mockRestore();
+      160 |         connectSpy?.mockRestore();
+
+      at test/db/accounts-service.db-spec.ts:157:60
+
+  ● DBS-55 AccountsService on PostgreSQL › TC-55-04 crossed probe cleans earlier runners if later allocation fails
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      155 |         await expect(probe(fixture.source, service)).rejects.toBe(failure);
+      156 |         expect(runners).toHaveLength(2);
+    > 157 |         expect(runners.every(runner => runner.isReleased)).toBe(true);
+          |                                                            ^
+      158 |       } finally {
+      159 |         create.mockRestore();
+      160 |         connectSpy?.mockRestore();
+
+      at test/db/accounts-service.db-spec.ts:157:60
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 15 passed, 19 total
+Snapshots:   0 total
+Time:        2.455 s
+Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
+P2 GREEN: balance cases and reviewed sparse-array/setup-cleanup regressions
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/accounts-service.db-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       19 passed, 19 total
+Snapshots:   0 total
+Time:        2.047 s, estimated 3 s
+Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
