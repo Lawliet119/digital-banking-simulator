@@ -178,7 +178,7 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
 | TC-33-11 | `grep` hai `backend.tf` (key, `use_lockfile`, `encrypt`) | đạt |
 | TC-33-12 | `grep` README | đạt |
 | TC-33-13 | `fmt -check`, `validate` | đạt |
-| TC-33-14 | M-33-02, 06, 08 đạt; PR, CI, Dev review chờ sau G4; Cost Explorer ngày hôm sau chưa kiểm được | một phần (xem BL-030) |
+| TC-33-14 | M-33-02, 06, 08 đạt; PR, CI, Dev review chờ sau G4; Cost Explorer ngày hôm sau chưa kiểm được | một phần (xem BL-031) |
 
 - **Test thủ công** (output thô: [manual-test.txt](screenshots/DBS-33/manual-test.txt)):
 
@@ -201,8 +201,8 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
   2. M-33-01 `account_id=123456789012` chỉ kiểm B9, không thay đổi gì.
   3. Thêm `locals.tf` ngoài danh sách file ở §7 (chứa tag mặc định, `versions.tf` tham chiếu). Không đổi hành vi.
   4. Trạng thái cuối: sau M-33-08 đã dựng lại `base` (VPC mới) và `session` để giữ, theo phép của người dùng.
-- **Bàn giao cho vai khác:** không có việc nào cho Dev. Việc của #5 ghi vào BACKLOG: BL-030 (xác nhận Cost Explorer ngày hôm sau cho DoD 3), BL-031 (DBS-34/66: security group và subnet group đặt trong `base`; DBS-36: role OIDC chỉ push vào `ecr_repository_arn`, bỏ qua khi tag SHA đã tồn tại, không `latest`; DBS-54: Cognito đặt trong `envs/dev/base`), BL-032 (Budget thiếu cảnh báo ACTUAL > 150 USD, người dùng tự xử lý, cần xác nhận lại).
+- **Bàn giao cho vai khác:** không có việc nào cho Dev. Việc của #5 ghi vào BACKLOG: BL-031 (xác nhận Cost Explorer ngày hôm sau cho DoD 3), BL-032 (DBS-34/66: security group và subnet group đặt trong `base`; DBS-36: role OIDC chỉ push vào `ecr_repository_arn`, bỏ qua khi tag SHA đã tồn tại, không `latest`; DBS-54: Cognito đặt trong `envs/dev/base`), BL-033 (Budget thiếu cảnh báo ACTUAL > 150 USD, người dùng tự xử lý, cần xác nhận lại).
 
 ## 9. Tài liệu đã cập nhật
 
-`infra/terraform/README.md` (thứ tự dựng/xóa, bảng biến, security group ở `base`, ngoại lệ `dbs-api`, lệnh kiểm tra cho ba stack), `.gitignore` (`*.tfplan`), `docs/features/README.md` (dòng DBS-33), `docs/BACKLOG.md` (thêm BL-030, BL-031, BL-032; không xóa dòng nào).
+`infra/terraform/README.md` (thứ tự dựng/xóa, bảng biến, security group ở `base`, ngoại lệ `dbs-api`, lệnh kiểm tra cho ba stack), `.gitignore` (`*.tfplan`), `docs/features/README.md` (dòng DBS-33), `docs/BACKLOG.md` (thêm BL-031, BL-032, BL-033; không xóa dòng nào).
