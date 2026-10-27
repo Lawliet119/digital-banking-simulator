@@ -1,0 +1,36 @@
+P1 RED: lock contract before implementation
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/accounts-service.db-spec.ts
+
+FAIL test/db/accounts-service.db-spec.ts
+  ● Test suite failed to run
+
+    test/db/accounts-service.db-spec.ts:1:33 - error TS2307: Cannot find module '@modules/accounts' or its corresponding type declarations.
+
+    1 import { AccountsService } from '@modules/accounts';
+                                      ~~~~~~~~~~~~~~~~~~~
+    test/db/accounts-service.db-spec.ts:29:23 - error TS7006: Parameter 'row' implicitly has an 'any' type.
+
+    29       expect(rows.map(row => row.id)).toEqual([f.accountA, f.accountB]);
+                             ~~~
+    test/db/accounts-service.db-spec.ts:36:82 - error TS7006: Parameter 'row' implicitly has an 'any' type.
+
+    36       expect((await service.lockForUpdate([f.missing, f.accountA], manager)).map(row => row.id))
+                                                                                        ~~~
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        3.931 s
+Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
+P1 GREEN: ordered locking and transaction/input guards
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/accounts-service.db-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        13.359 s
+Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
