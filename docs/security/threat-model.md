@@ -66,6 +66,8 @@ flowchart LR
 
 Trạng thái: **Thiết kế** = biện pháp đã nằm trong thiết kế, chờ code; **Đã kiểm** = có test hoặc ảnh làm bằng chứng. Cột bằng chứng ghi task sẽ tạo ra bằng chứng đó.
 
+Ngoài ra, **Đề xuất** = biện pháp thuộc một ADR còn ở trạng thái Proposed, nhóm chưa chấp nhận.
+
 | # | STRIDE | Mối đe dọa | Biện pháp | Bằng chứng | Trạng thái |
 |---|---|---|---|---|---|
 | T1 | **S**poofing | Token giả, token ký bằng khóa khác, token hết hạn | Xác minh chữ ký qua JWKS, kiểm `iss`, `client_id`, `token_use`, `exp`; không tin claim trước khi verify | DBS-50, DBS-159 | Thiết kế |
@@ -82,7 +84,7 @@ Trạng thái: **Thiết kế** = biện pháp đã nằm trong thiết kế, ch
 | T12 | **I**nformation disclosure | Khách A đọc tài khoản hoặc giao dịch của khách B (IDOR) | Kiểm sở hữu trong service ở mọi endpoint có id; trả 404 giống hệt cho "không tồn tại" và "không phải của bạn" | AC-5.8, DBS-86, DBS-158 | Thiết kế |
 | T13 | **I**nformation disclosure | Dùng `Idempotency-Key` của người khác để đọc response của họ | Key theo user nên hai user không bao giờ đụng nhau | DBS-159 | Thiết kế |
 | T14 | **I**nformation disclosure | Khách biết giao dịch của mình bị gắn cờ, hoặc biết lý do khóa | API khách không có trường nào về cờ; event `AccountStatusChanged` và thông báo không mang lý do | AC-10.2, DBS-131, DBS-102 | Thiết kế |
-| T15 | **I**nformation disclosure | Log, Redis hoặc lỗi 500 lộ token, số tài khoản đầy đủ, stack trace, SQL | Logger redact `Authorization` và token; lỗi 500 trả nội dung chung, chi tiết chỉ trong log; Redis chỉ chứa id và số đếm | DBS-42, DBS-158 | Thiết kế |
+| T15 | **I**nformation disclosure | Log, Redis hoặc lỗi 500 lộ token, số tài khoản đầy đủ, stack trace, SQL | Logger che key nhạy cảm, quét bí mật trong mọi giá trị chuỗi, bỏ body/URL/header và raw error/SQL; lỗi 500 trả nội dung chung; lỗi khởi động chỉ ghi tên biến sai, lỗi cấp tiến trình ra một dòng JSON không stack; Redis chỉ chứa id và số đếm | [DBS-42](../features/DBS-42-json-logger.md), DBS-158 | Đã kiểm phần logger/HTTP, bootstrap và lỗi cấp tiến trình (còn giới hạn ghi ở backend/README §8); Redis và phần kiểm thử mở rộng chờ DBS-158 |
 | T16 | **I**nformation disclosure | Secret lộ trong repo, image hoặc biến môi trường viết thẳng | Secrets Manager; không có access key (OIDC); gitleaks và quét image trong CI | DBS-36, DBS-67, DBS-155 | Thiết kế |
 | T17 | **I**nformation disclosure | Nghe lén đường truyền tới DB hoặc Redis | TLS bắt buộc (validation từ chối khởi động nếu thiếu ở staging/production); `rds.force_ssl = 1`; Valkey `rediss://` | DBS-67, DBS-75 | Thiết kế |
 | T18 | **D**enial of service | Một user hoặc một IP spam lệnh chuyển | Rate limit 10 lệnh/phút/khách, 100 yêu cầu/phút/IP; WAF rate rule ở biên | NFR-SEC-05, DBS-89, DBS-153 | Thiết kế |
@@ -92,6 +94,7 @@ Trạng thái: **Thiết kế** = biện pháp đã nằm trong thiết kế, ch
 | T22 | **E**levation of privilege | Kiểm toán viên sửa dữ liệu | Role `auditor` chỉ có endpoint đọc; DB không cấp quyền ghi cho đường đó | AC-8.1, DBS-103 | Thiết kế |
 | T23 | **E**levation of privilege | Một task bị chiếm dùng quyền AWS của task khác | Task role riêng: `api` không có quyền SQS; `worker` chỉ 2 queue + DLQ; execution role tách khỏi task role | DBS-120 | Thiết kế |
 | T24 | **E**levation of privilege | Admin tắt luật gian lận âm thầm | Cấu hình luật chỉ thêm phiên bản mới (trigger chặn sửa), mỗi phiên bản ghi audit người tạo; alarm khi cảnh báo/1.000 bất thường | DBS-160, DBS-188 | Thiết kế |
+| T25 | **I**nformation disclosure | Đề xuất ADR-14: đặc trưng giao dịch (số tiền, số dư trước giao dịch, tuổi tài khoản, thống kê cửa sổ) gửi tới dịch vụ AI bên ngoài bị lộ, bị giữ lại ngoài ý muốn hoặc lộ qua log/lỗi; khóa API bị lộ; dịch vụ ngoài lỗi hoặc chậm làm dừng phần phát hiện bổ sung | Chỉ gửi allowlist (không ID, tên, email, free text, nhãn); HTTPS; khóa trong Secrets Manager, không nằm trong repo hay image; không log body, raw response, `Authorization` (logger của DBS-42); timeout, hạn mức, không retry trong một lần xử lý; lỗi provider thì fallback về R1–R6, không chặn chuyển tiền; ZDR chỉ khi tài khoản đủ điều kiện và được xác nhận; AI tắt mặc định | [ADR-14](../adr/0014-fraud-rules-external-ai.md) (Proposed), BL-043, BL-050 | Đề xuất |
 
 ## 4. Rủi ro chấp nhận
 

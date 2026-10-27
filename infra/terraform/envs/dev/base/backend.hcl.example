@@ -1,0 +1,2 @@
+# Copy thành backend.hcl (không commit) và thay <account-id> bằng 12 chữ số.
+bucket = "dbs-tfstate-<account-id>-ap-southeast-1"

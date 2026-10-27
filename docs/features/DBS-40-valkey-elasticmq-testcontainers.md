@@ -1,6 +1,6 @@
 # DBS-40 · Testcontainers cho Valkey và ElasticMQ
 
-> **Status:** Implemented (PR mở; CI xanh; chờ Dev review/merge) · **Vai:** Dev · **Nhánh:** `test/DBS-40-valkey-elasticmq` · **PR:** [#18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) · **Cập nhật:** 2026-10-24
+> **Status:** Implemented (PR mở; vừa rebase theo `main`, chờ CI chạy lại và Dev review/merge) · **Vai:** Dev · **Nhánh:** `test/DBS-40-valkey-elasticmq` · **PR:** [#18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) · **Cập nhật:** 2026-10-27
 
 ## 1. Bối cảnh
 
@@ -8,7 +8,8 @@
 - DoD: (1) `valkey.container.ts`, `elasticmq.container.ts` cùng khuôn helper Postgres, ElasticMQ dùng `infra/local/elasticmq.conf`; (2) sample SET/GET và send/receive; (3) mô phỏng down/slow; (4) PR merge, CI xanh, Dev khác review, đối chiếu test case.
 - Thực trạng: Compose có hai dịch vụ nhưng chưa có helper tự khởi tạo. Test DB dùng Jest global setup riêng; DBS-40 sẽ có cấu hình Jest riêng để mọi lần chạy sample đều khởi tạo container, không vô tình dùng Compose.
 - Nhánh tạo từ `origin/main` `7ce5a23` với working tree sạch. Baseline trước khi sửa chưa được lưu thành transcript riêng; các lệnh hiện hành đã chạy sau triển khai, số đếm ở §8.
-- BL-016 (CI không phủ nhánh Testcontainers DB) liên quan CI tổng thể, chưa giải quyết trong DBS-40. BL-017 (quyền Postgres) ngoài phạm vi vì helper này không sửa DB. DBS-41 sẽ tích hợp harness vào CI.
+- BL-016 (CI không phủ nhánh Testcontainers DB) liên quan CI tổng thể, chưa giải quyết trong DBS-40. BL-017 (quyền Postgres) ngoài phạm vi vì helper này không sửa DB. DBS-41 (đã merge main) chỉ tích hợp hai suite Postgres vào job `e2e`; suite Valkey/ElasticMQ của DBS-40 (`test:services`) vẫn chưa có trong CI, xem BL-053.
+- **Rebase 2026-10-27:** merge `origin/main` vào nhánh này sau khi DBS-41 và DBS-42 đã merge. Conflict ở `backend/package-lock.json` (giải quyết bằng `npm install` để sinh lại lockfile đúng, giữ cả dependency của DBS-40 và các PR khác), `docs/BACKLOG.md` (BL-023/024 của DBS-40 đổi thành BL-053/054 vì `main` đã dùng BL-023/024 cho DBS-42) và `docs/features/README.md` (giữ cả dòng DBS-40 và DBS-41). Không đổi helper, test hay logic nghiệp vụ.
 - Ngoài phạm vi: Redis/SQS adapter nghiệp vụ, AWS thật, logic giao dịch, thay đổi event contract.
 - Quyết định: người dùng đã yêu cầu triển khai thẳng, không dừng G1–G4; các quyết định thiết kế và bằng chứng vẫn lưu tại đây. Dùng dev dependencies `redis`, `@aws-sdk/client-sqs` để sample dùng protocol thật. Không thêm env var.
 
@@ -72,7 +73,7 @@ Commit code cuối: `83b9803341b26fbd69d7e32d5280b73ea8b65d28`. Test thủ công
 | TC-40-01/02 | `testcontainers.services-spec.ts` + M-40-01 | đạt |
 | TC-40-03/04 | Cùng suite + M-40-02, pause/resume/down/restart | đạt; pause mô phỏng không phản hồi, không có proxy độ trễ hữu hạn |
 | TC-40-05 | `service-container.spec.ts` + M-40-03 | đạt |
-| TC-40-06 | [PR #18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) đã mở; [CI 6/6 xanh](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40092690598); Dev review, merge | chưa đạt đủ, BL-024 |
+| TC-40-06 | [PR #18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) đã mở; [CI 6/6 xanh](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40092690598); Dev review, merge | chưa đạt đủ, BL-054 |
 
 ![Output thật của sample service](screenshots/DBS-40/01-services-success.png)
 
@@ -80,10 +81,10 @@ Commit code cuối: `83b9803341b26fbd69d7e32d5280b73ea8b65d28`. Test thủ công
 
 Hai ảnh là phần hiển thị được dựng từ **dòng output thật** trong `manual-test.txt`; transcript đầy đủ có container ID, cổng và exit code. Không có credential AWS thật. Không có `.skip` trong task test; lượt test chọn riêng Valkey khi debug có 1 test không được chọn, lượt cuối chạy đủ 2/2.
 
-CI hiện tại chưa gọi `test:services`; [BL-023](../BACKLOG.md) bàn giao việc này cho DBS-41. [PR #18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) đã mở và [CI 6/6 xanh](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40092690598); Dev review/merge [BL-024](../BACKLOG.md) còn chờ; không kéo Done.
+CI hiện tại chưa gọi `test:services`; [BL-053](../BACKLOG.md) bàn giao việc này cho DBS-41. [PR #18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) đã mở và [CI 6/6 xanh](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40092690598); Dev review/merge [BL-054](../BACKLOG.md) còn chờ; không kéo Done.
 
 Checklist bàn giao: test case kỹ thuật TC-40-01…05 đạt, TC-40-06 còn chờ Dev review/merge; M-40-01…03 đã chạy trên commit code cuối; ảnh và transcript không chứa token/secret thật; link check 93 file, 0 link hỏng. CI 6/6 xanh; chưa có Dev review.
 
 ## 9. Tài liệu đã cập nhật
 
-[`backend/README`](../../backend/README.md) có lệnh chạy và giới hạn pause; [feature index](README.md) thêm DBS-40; [`BACKLOG`](../BACKLOG.md) thêm BL-023/024. Không sửa ADR, docs/03, schema hoặc env var vì không thay kiến trúc runtime.
+[`backend/README`](../../backend/README.md) có lệnh chạy và giới hạn pause; [feature index](README.md) thêm DBS-40; [`BACKLOG`](../BACKLOG.md) thêm BL-053/054 (đổi từ BL-023/024 khi rebase: trùng số đã dùng cho DBS-42 trên main). Không sửa ADR, docs/03, schema hoặc env var vì không thay kiến trúc runtime.

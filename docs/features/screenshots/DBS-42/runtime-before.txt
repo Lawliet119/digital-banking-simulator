@@ -1,0 +1,37 @@
+Baseline source commit 3b81c55; Phase 1 observation, not final manual-test evidence.
+COMMAND APP_ROLE=api PORT=33042 node -r ts-node/register -r tsconfig-paths/register src/main.ts (other env from tracked example)
+GET /health/live with synthetic client IDs -> 200 {"status":"ok"}; X-Correlation-Id=cbfdbfa6-7e7b-4d3f-8fc2-b5aa52760989; X-Request-Id=3f2504e0-4f89-41d3-9a0c-0305e82c3301
+GET /health/live with synthetic client IDs -> 200 {"status":"ok"}; X-Correlation-Id=7f93174d-2255-46a2-935b-05270ee1b61a; X-Request-Id=3f2504e0-4f89-41d3-9a0c-0305e82c3301
+GET /health/ready -> 200 {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}
+OBSERVED api: 16 nonempty startup lines, 0 JSON object lines.
+RAW OUTPUT
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [InstanceLoader] AppModule dependencies initialized +39ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [InstanceLoader] ConfigModule dependencies initialized +0ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +0ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [InstanceLoader] ConfigHostModule dependencies initialized +1ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [InstanceLoader] ConfigModule dependencies initialized +117ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [InstanceLoader] TerminusModule dependencies initialized +0ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [InstanceLoader] HealthModule dependencies initialized +1ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [InstanceLoader] TypeOrmCoreModule dependencies initialized +34ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [InstanceLoader] DatabaseModule dependencies initialized +1ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [RoutesResolver] HealthController {/health} (version: Neutral): +84ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [RouterExplorer] Mapped {/health/live, GET} (version: Neutral) route +6ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [RouterExplorer] Mapped {/health/ready, GET} (version: Neutral) route +1ms
+[Nest] 7796  - 10/24/2026, 3:03:39 PM     LOG [NestApplication] Nest application successfully started +6ms
+Listening on http://localhost:33042 (role=api)
+Swagger UI: http://localhost:33042/docs
+
+COMMAND APP_ROLE=worker PORT=33042 node -r ts-node/register -r tsconfig-paths/register src/main.ts (other env from tracked example)
+OBSERVED worker: 9 nonempty startup lines, 0 JSON object lines.
+RAW OUTPUT
+[Nest] 21804  - 10/24/2026, 3:03:45 PM     LOG [NestFactory] Starting Nest application...
+[Nest] 21804  - 10/24/2026, 3:03:45 PM     LOG [InstanceLoader] AppModule dependencies initialized +39ms
+[Nest] 21804  - 10/24/2026, 3:03:45 PM     LOG [InstanceLoader] ConfigModule dependencies initialized +0ms
+[Nest] 21804  - 10/24/2026, 3:03:45 PM     LOG [InstanceLoader] TypeOrmModule dependencies initialized +0ms
+[Nest] 21804  - 10/24/2026, 3:03:45 PM     LOG [InstanceLoader] ConfigHostModule dependencies initialized +1ms
+[Nest] 21804  - 10/24/2026, 3:03:45 PM     LOG [InstanceLoader] ConfigModule dependencies initialized +106ms
+[Nest] 21804  - 10/24/2026, 3:03:45 PM     LOG [InstanceLoader] TypeOrmCoreModule dependencies initialized +34ms
+[Nest] 21804  - 10/24/2026, 3:03:45 PM     LOG [InstanceLoader] DatabaseModule dependencies initialized +0ms
+Worker started (role=worker) — no HTTP listener
+

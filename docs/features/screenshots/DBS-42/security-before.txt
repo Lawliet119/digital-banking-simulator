@@ -1,0 +1,2 @@
+Phase 1 synthetic driver: calls the real ProblemDetailsFilter with a fixture HTTP host; not a live application request. No real credential used.
+[Nest] 18644  - 10/24/2026, 3:05:05 PM    WARN [ProblemDetailsFilter] Transient database error on GET /health/ready?token=[REDACTED synthetic token] [9dfdfeb7-4cb6-4b8c-a1af-ed86da51efa5]: [REDACTED synthetic password]

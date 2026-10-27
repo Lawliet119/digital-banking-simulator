@@ -1,5 +1,7 @@
 # risk 🟠 Supporting (điểm khác biệt, phần AI) — #4
 
+> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../../../docs/adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../../../docs/features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
+
 Phát hiện giao dịch đáng ngờ; nhân viên review và quyết định.
 
 | | |

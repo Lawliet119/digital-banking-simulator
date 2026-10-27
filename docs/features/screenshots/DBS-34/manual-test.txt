@@ -1,0 +1,79 @@
+a4c645486c74b3ac097793cf2d6fb80e92436e5d
+## M-34-00 base plan
+  # aws_cloudwatch_log_group.api will be created
+  # aws_security_group.alb will be created
+  # aws_security_group.api will be created
+  # aws_vpc_security_group_egress_rule.alb_to_api will be created
+  # aws_vpc_security_group_egress_rule.api_https will be created
+  # aws_vpc_security_group_ingress_rule.alb_http will be created
+  # aws_vpc_security_group_ingress_rule.alb_https will be created
+  # aws_vpc_security_group_ingress_rule.api_from_alb will be created
+Plan: 8 to add, 0 to change, 0 to destroy.
+## M-34-01 base apply
+Apply complete! Resources: 8 added, 0 changed, 0 destroyed.
+[["dbs-dev-alb", [[80, 80, "tcp", ["0.0.0.0/0"], []], [443, 443, "tcp", ["0.0.0.0/0"], []]], [[3000, 3000, "tcp", [], ["sg-xxxx"]]]], ["dbs-dev-api", [[3000, 3000, "tcp", [], ["sg-xxxx"]]], [[443, 443, "tcp", ["0.0.0.0/0"], []]]]]
+/dbs/dev/api	7
+## M-34-02 session plan
+cp: warning: behavior of -n is non-portable and may change in future; use --update=none instead
+  # aws_acm_certificate.dev will be created
+  # aws_ecs_cluster.main will be created
+  # aws_ecs_service.api will be created
+  # aws_ecs_task_definition.api will be created
+  # aws_iam_role.execution will be created
+  # aws_iam_role.task will be created
+  # aws_iam_role_policy.execution will be created
+  # aws_lb.main will be created
+  # aws_lb_listener.http will be created
+  # aws_lb_listener.https will be created
+  # aws_lb_target_group.api will be created
+  # tls_private_key.dev will be created
+  # tls_self_signed_cert.dev will be created
+Plan: 13 to add, 0 to change, 0 to destroy.
+## M-34-02b task role has no policy
+none attached to task role
+## M-34-03 apply (start 17:24:31Z)
+  + alb_dns_name        = (known after apply)
+Apply complete! Resources: 13 added, 0 changed, 0 destroyed.
+alb_dns_name = "<alb>"
+## M-34-04 https without targets
+try 1: 503
+## M-34-04b http redirect
+301 https://<alb>:443/
+## M-34-05 target group
+/health/ready	15	5	2	3	200	3000	ip
+0
+## M-34-06 task definition and tags
+["dbs-api", "512", "1024", true, [{"name": "NODE_ENV", "value": "staging"}, {"name": "TRUST_PROXY_HOPS", "value": "1"}, {"name": "AWS_REGION", "value": "ap-southeast-1"}, {"name": "PORT", "value": "3000"}, {"name": "LOG_LEVEL", "value": "log"}, {"name": "APP_ROLE", "value": "api"}], "/dbs/dev/api"]
+owner	platform
+env	dev
+project	dbs
+owner	platform
+env	dev
+project	dbs
+## M-34-07 probe task
+task lastStatus: RUNNING
+public ip assigned: yes
+## M-34-07b positive control through ALB
+target: initial
+target: healthy
+ok
+ -> 200
+## M-34-07a direct to task public ip (expect timeout)
+000
+curl exit=28 (28 = timeout)
+## M-34-07c cleanup probe
+RUNNING
+INACTIVE
+DELETE_IN_PROGRESS
+## M-34-08 destroy (start 17:29:26Z)
+Destroy complete! Resources: 13 destroyed.
+end 17:30:32Z
+## M-34-09 leftovers
+0
+0
+INACTIVE
+0
+0
+0
+0
+## done

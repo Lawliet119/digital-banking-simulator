@@ -6,6 +6,7 @@ import {
   HealthCheckService,
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
+import { Public } from '@common/auth/public.decorator';
 
 /**
  * Probes for the load balancer. Mounted without a version prefix (`/health/live`,
@@ -14,9 +15,13 @@ import {
  * Redis is deliberately NOT part of readiness: the system is correct without it (docs/03 §9.3),
  * so a Redis outage must not take instances out of rotation. It will be reported as "degraded"
  * on a separate status endpoint, never as "down".
+ *
+ * Both routes are @Public(): the ALB and any uninstrumented client call them with no token
+ * (DBS-50 — JwtAuthGuard is the default global guard, so every other controller needs one).
  */
 @ApiTags('health')
 @Controller({ path: 'health', version: VERSION_NEUTRAL })
+@Public()
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
