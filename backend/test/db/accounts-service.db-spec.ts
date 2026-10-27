@@ -1,5 +1,7 @@
-import { AccountsService } from '@modules/accounts';
+import { AccountsModule, AccountsService } from '@modules/accounts';
 import { NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   ACCOUNT_FIXTURE as f,
   assertAccountsInvariants,
@@ -365,6 +367,30 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
       status: 404,
     });
     expect((await service.getOwnedAccount(f.accountA, f.userA)).id).toBe(f.accountA);
+  });
+
+  it('TC-55-15 resolves the exported provider through its real Nest module and PostgreSQL', async () => {
+    const context = await Test.createTestingModule({
+      imports: [
+        TypeOrmModule.forRoot({
+          ...fixture.source.options,
+          synchronize: false,
+          migrationsRun: false,
+        }),
+        AccountsModule,
+      ],
+    }).compile();
+    try {
+      const provider = context.get(AccountsService);
+      expect(provider).toBeInstanceOf(AccountsService);
+      expect((await provider.getOwnedAccount(f.accountA, f.userA)).balance).toBe('0');
+      await withMoneyProbe(fixture.source, async manager => {
+        await provider.lockForUpdate([f.accountA], manager);
+        await expect(provider.applyBalanceChange(f.accountA, 0n, manager)).resolves.toBeUndefined();
+      });
+    } finally {
+      await context.close();
+    }
   });
 
   async function ownershipError(account: string, user: string): Promise<NotFoundException> {

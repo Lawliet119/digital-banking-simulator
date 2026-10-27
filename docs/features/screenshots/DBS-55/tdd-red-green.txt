@@ -288,3 +288,42 @@ Tests:       31 passed, 31 total
 Snapshots:   0 total
 Time:        2.021 s
 Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
+P4 RED: public AccountsModule and role wiring before module/export exists
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand --runTestsByPath src/modules/accounts/accounts.exports.spec.ts src/modules/modules.spec.ts
+
+FAIL src/modules/modules.spec.ts
+  ● Test suite failed to run
+
+    src/modules/modules.spec.ts:3:10 - error TS2305: Module '"@modules/accounts"' has no exported member 'AccountsModule'.
+
+    3 import { AccountsModule } from '@modules/accounts';
+               ~~~~~~~~~~~~~~
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        4.32 s
+Ran all test suites within paths "src/modules/accounts/accounts.exports.spec.ts", "src/modules/modules.spec.ts".
+P4 UNIT GREEN: exported module and API role registry
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand --runTestsByPath src/modules/accounts/accounts.exports.spec.ts src/modules/modules.spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        8.282 s
+Ran all test suites within paths "src/modules/accounts/accounts.exports.spec.ts", "src/modules/modules.spec.ts".
+P4 DB GREEN: exported provider resolves through real Nest and PostgreSQL
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/accounts-service.db-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       32 passed, 32 total
+Snapshots:   0 total
+Time:        2.057 s
+Ran all test suites within paths "test/db/accounts-service.db-spec.ts".

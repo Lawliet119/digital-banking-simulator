@@ -2,6 +2,7 @@ import type { DynamicModule, Type } from '@nestjs/common';
 import { AppRole, runsHttp, runsWorkers } from '@common/app-role/app-role';
 import { HealthModule } from './health';
 import { IdentityModule } from './identity';
+import { AccountsModule } from './accounts';
 
 type ModuleRef = Type<unknown> | DynamicModule;
 
@@ -17,7 +18,7 @@ const sharedModules: ModuleRef[] = [
   // AccountsModule, LedgerModule, AuditModule, RiskModule — added by their owners.
 ];
 
-const apiModules: ModuleRef[] = [HealthModule, IdentityModule];
+const apiModules: ModuleRef[] = [HealthModule, IdentityModule, AccountsModule];
 
 const workerModules: ModuleRef[] = [
   // OutboxModule (relay), NotificationModule — added by #3.
