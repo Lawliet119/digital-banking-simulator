@@ -3,7 +3,7 @@ import { DataSource, type EntityManager } from 'typeorm';
 import { PinoLogger } from 'nestjs-pino';
 import { InvalidEventError, type DomainEvent } from '@common/events';
 import { TransactionService } from '@database/transaction.service';
-import { OutboxWriter } from '../../src/modules/outbox/outbox-writer';
+import { OutboxWriter } from '@modules/outbox';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { VALID_SAMPLES, TRANSFER_SAMPLE, DEPOSIT_SAMPLE } from '../support/event-samples';
 

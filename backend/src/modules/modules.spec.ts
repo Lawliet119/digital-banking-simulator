@@ -1,8 +1,13 @@
 import { AppRole } from '@common/app-role/app-role';
 import { HealthModule } from './health';
 import { modulesForRole } from './index';
+import { OutboxModule } from './outbox';
 
 describe('modulesForRole', () => {
+  it.each(Object.values(AppRole))('TC-57-12 loads the outbox writer once in the %s role', role => {
+    expect(modulesForRole(role).filter(module => module === OutboxModule)).toHaveLength(1);
+  });
+
   it('an api instance serves HTTP, so it loads the health probes', () => {
     expect(modulesForRole(AppRole.Api)).toContain(HealthModule);
   });
