@@ -80,13 +80,17 @@ describe('DBS-57 existing Pino ALS and real HTTP/PG propagation', () => {
   );
 
   it('TC-57-05 uses the server HTTP id for the envelope, column and header', async () => {
+    const forgedCorrelationId = randomUUID();
+    const clientRequestId = randomUUID();
     const response = await request(app.getHttpServer())
       .post('/v1/outbox-probe/events')
-      .set('X-Correlation-Id', randomUUID())
-      .set('X-Request-Id', randomUUID())
+      .set('X-Correlation-Id', forgedCorrelationId)
+      .set('X-Request-Id', clientRequestId)
       .send({})
       .expect(201);
     const id = response.headers['x-correlation-id'];
+    expect(id).not.toBe(forgedCorrelationId);
+    expect(id).not.toBe(clientRequestId);
     expect(response.body.correlationId).toBe(id);
     expect(await rows(response.body.eventId)).toEqual([
       expect.objectContaining({
@@ -94,6 +98,21 @@ describe('DBS-57 existing Pino ALS and real HTTP/PG propagation', () => {
         payload: expect.objectContaining({ correlationId: id }),
       }),
     ]);
+  });
+
+  it('TC-57-06 rejects a late arrival after the fixture barrier deadline', async () => {
+    jest.useFakeTimers();
+    const gate = new probe.ProbeGate();
+    try {
+      gate.arm(10);
+      const first = expect(gate.arrive()).rejects.toThrow('Probe barrier deadline exceeded');
+      jest.advanceTimersByTime(5000);
+      await first;
+      await expect(gate.arrive()).rejects.toThrow('Probe barrier deadline exceeded');
+    } finally {
+      gate.onModuleDestroy();
+      jest.useRealTimers();
+    }
   });
 
   it('TC-57-06 isolates ten parallel requests that cross a real producer barrier', async () => {

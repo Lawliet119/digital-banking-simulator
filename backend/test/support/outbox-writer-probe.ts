@@ -40,12 +40,13 @@ export class ProbeGate {
   }
 
   async arrive(): Promise<void> {
-    if (this.remaining <= 0) return;
     const ready = this.ready;
-    this.remaining--;
-    if (this.remaining === 0) {
-      clearTimeout(this.timer);
-      this.release();
+    if (this.remaining > 0) {
+      this.remaining--;
+      if (this.remaining === 0) {
+        clearTimeout(this.timer);
+        this.release();
+      }
     }
     await ready;
   }
