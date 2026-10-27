@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR theo [mẫu](0000-template.md): bối cảnh, các phương án, lựa chọn, lý do và đánh đổi. Đề bài yêu cầu tối thiểu 3 ADR; nhóm có 13.
+Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR theo [mẫu](0000-template.md): bối cảnh, các phương án, lựa chọn, lý do và đánh đổi. Đề bài yêu cầu tối thiểu 3 ADR; nhóm có 13 ADR Accepted và một đề xuất mới.
 
 **Trạng thái:** `Proposed` (đề xuất) → `Accepted` (đã chốt) → có thể `Superseded` (bị thay bởi ADR mới). Đổi một quyết định đã `Accepted` thì viết ADR mới thay thế, không sửa ADR cũ.
 
@@ -19,5 +19,8 @@ Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR th
 | [ADR-11](0011-aws-managed-session-based.md) | AWS managed services, `ap-southeast-1`, dựng/xóa theo phiên | VPS tự quản · Kết hợp VPS + cloud | #5 | Accepted |
 | [ADR-12](0012-redis-valkey-node.md) | Valkey node (cluster mode tắt) cho rate limit, mốc thu hồi, bộ đếm, cấu hình; không cache số dư | Không cache · Bộ nhớ từng task · Cache cả số dư; Serverless | #2, #4 | Accepted |
 | [ADR-13](0013-one-app-app-role.md) | Một ứng dụng, một image, chạy theo `APP_ROLE` | Hai app riêng · Hai repo | #1, #5 | Accepted |
+| [ADR-14](0014-fraud-rules-external-ai.md) | Đề xuất giữ R1–R6, dùng API AI bổ sung, không tự train; có gate chất lượng/dữ liệu/vận hành | Chỉ rules · Tự train/host · Rules + API hosted | Fraud | Proposed |
+
+ADR-14 đề xuất thay riêng phần học tham số và ONNX của ADR-08; chưa được nhóm chấp nhận nên ADR-08 vẫn Accepted. Đây là phương án thiết kế, không xác nhận đã có implementation hoặc benchmark provider.
 
 Tên file: `NNNN-tieu-de-ngan.md`, ví dụ `0001-modular-monolith-worker.md`.

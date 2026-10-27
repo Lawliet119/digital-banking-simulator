@@ -1,0 +1,318 @@
+FRAUD-API-01 vong sua 2: raw verification output (documentation task, no runtime fraud code)
+Branch: docs/FRAUD-API-01-rules-external-ai   HEAD when collected: f44051b
+origin/main: b2bb5bc   collected: 2026-10-27T08:13:26Z
+Commits: f44051b b2bb5bc 6138741 bc6528a 3de623e 82c8e23 8296f24 123e769 64eca39 b478a02 45cb1c2 28713ca 13f6334 1a4d66f e0dc4cf 73dc4af f0a57d7 e52fbec 
+
+
+===== M-06 before C1 and before the second merge: git merge-tree --write-tree --name-only 8fa39dd origin/main  (expect exactly 2 conflicts; origin/main now includes DBS-31) =====
+CONFLICT (content): Merge conflict in docs/BACKLOG.md
+CONFLICT (content): Merge conflict in docs/features/README.md
+
+
+===== M-06 after C1: git merge-tree --write-tree --name-only HEAD origin/main  (expect 0 conflicts) =====
+conflicts: 0
+
+
+===== M-06 upstream BL-023..039 rows (DBS-42, DBS-31, DBS-33/34/36/50) byte-identical to origin/main =====
+identical
+duplicate BL ids: 0
+
+
+===== M-06 git diff --numstat origin/main on BACKLOG, features/README, threat-model (added deleted path) =====
+13	1	docs/BACKLOG.md
+4	1	docs/features/README.md
+3	0	docs/security/threat-model.md
+
+
+===== TC-11 after C2 (commit 73dc4af vs origin/main): expect '2 0' for each of the 8 Accepted files =====
+2	0	backend/src/modules/risk/README.md
+2	0	docs/02_REQUIREMENTS_AND_DOMAIN_MODEL.md
+2	0	docs/03_HIGH_LEVEL_ARCHITECTURE.md
+2	0	docs/components/_shared/database-design.md
+2	0	docs/components/risk/01-concept-brief.md
+2	0	docs/components/risk/02-architecture.md
+2	0	docs/components/risk/FRAUD_DETECTION_GUIDE.md
+2	0	docs/superpowers/plans/2026-10-02-master-roadmap.md
+
+
+===== TC-11 after C3 (HEAD vs origin/main): numstat, then hunk headers of guide and docs/02 (banner hunk + H1..H10) =====
+2	0	backend/src/modules/risk/README.md
+6	4	docs/02_REQUIREMENTS_AND_DOMAIN_MODEL.md
+2	0	docs/03_HIGH_LEVEL_ARCHITECTURE.md
+2	0	docs/components/_shared/database-design.md
+2	0	docs/components/risk/01-concept-brief.md
+2	0	docs/components/risk/02-architecture.md
+30	14	docs/components/risk/FRAUD_DETECTION_GUIDE.md
+2	0	docs/superpowers/plans/2026-10-02-master-roadmap.md
+## docs/components/risk/FRAUD_DETECTION_GUIDE.md
+@@ -4,0 +5,2 @@
+@@ -116 +118 @@ WHERE account_id = $1
+@@ -149 +151 @@ explain: `${n} người nhận mới trong 1 giờ (ngưỡng 5)`
+@@ -152,0 +155,2 @@ explain: `Chuyển ${pct}% số dư (${amount}/${fromBalanceBefore})`
+@@ -156,5 +160,12 @@ explain: `Chuyển ${pct}% số dư (${amount}/${fromBalanceBefore})`
+@@ -165 +176 @@ SELECT EXISTS (
+@@ -306 +317 @@ sequenceDiagram
+@@ -317 +328 @@ Thống nhất với #3. Bản hiện tại ở `docs/03` mục 10, **đề xu
+@@ -319,0 +331,2 @@ Thống nhất với #3. Bản hiện tại ở `docs/03` mục 10, **đề xu
+@@ -335,2 +348,2 @@ Schema chính thức của `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, `
+@@ -339 +352,4 @@ Schema chính thức của `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, `
+@@ -377 +393 @@ interface RiskRule {
+## docs/02_REQUIREMENTS_AND_DOMAIN_MODEL.md
+@@ -4,0 +5,2 @@
+@@ -163 +165 @@ Sơ đồ người dùng tương tác với từng thành phần cho các use ca
+@@ -195 +197 @@ Sơ đồ người dùng tương tác với từng thành phần cho các use ca
+@@ -221 +223 @@ Sơ đồ người dùng tương tác với từng thành phần cho các use ca
+@@ -258 +260 @@ Viết theo dạng **Given – When – Then** để chuyển thẳng thành tes
+
+
+===== TC-12 link checker (final) =====
+131 files checked, 0 broken link(s)
+
+
+===== TC-12 ADR-08 unchanged vs origin/main (lines of diff stat: 0 = unchanged) =====
+0
+9:FRAUD guide §4.3.b
+49:FRAUD guide §4.3.b
+204:### 4.3.b Ba chế độ chấm điểm theo phiên bản cấu hình (`v1` → `v2` → `v3`)
+
+
+===== TC-13 grep 'public beta|khong khang dinh ZDR' on the stated scope (expect 0) =====
+ADR-14: 0
+feature doc section 2.1: 0
+feature doc section 2.3: 0
+feature doc section 3.4: 0
+
+
+===== TC-15 driver (arithmetic, copy of backend/src/common/money with .ts import suffix) =====
+R6 HIT   fixture AC-9.1: 20tr / 21tr
+R6 HIT   exact 90% at 1e16
+R6 miss  one dong below 90% at 1e16
+R6 HIT   exact 90% at 1,000,000
+R6 miss  one dong below 90% at 1,000,000
+R6 miss  balance just below guard (999,999), 100%
+R6 miss  sameOwner exempt
+R6 miss  above 2^53, exact 90%
+R6 exact boundary above 2^53 (9k / 10k, k=1e15+1): hit at 9k, miss at 9k-1
+AC-9.1 fixture: hits={"R3":true,"R6":true} score=65 level=MEDIUM
+R6 alone: score=30 level=LOW (no flag)
+money 9007199254740993 round-trips through parsePositiveMoney/formatMoney
+OLD floating-point R6 disagrees with exact bigint on 19767 of 200000 boundary cases above 2^53
+first disagreement: {"amount":"9584925055412070","balance":"10649916728235634","exact":false,"old":true}
+Documentation arithmetic only; no fraud implementation, provider or quality benchmark exercised.
+
+
+===== TC-15 SQL median on isolated PostgreSQL 17 (new vs old) =====
+=== NEW: numeric average of the two middle rows (guide 4.2, C3) ===
+=== OLD: percentile_cont (main) ===
+--- a1: n=5 amounts 10..50, expected median 30, n=5 ---
+       median        | n 
+---------------------+---
+ 30.0000000000000000 | 5
+ median | n 
+--------+---
+     30 | 5
+--- a2: n=4 amounts 10,21,30,41 -> median 25.5 (half dong), n=4 ---
+       median        | n 
+---------------------+---
+ 25.5000000000000000 | 4
+ median | n 
+--------+---
+   25.5 | 4
+--- a3: n=5 above 2^53, exact median 9007199254740997 ---
+        median         | n 
+-----------------------+---
+ 9007199254740997.0000 | 5
+        median         | n 
+-----------------------+---
+ 9.007199254740996e+15 | 5
+=== assertions (a failing assertion aborts with ON_ERROR_STOP) ===
+DO
+NOTICE:  old percentile_cont above 2^53 returned 9007199254741000 (exact is 9007199254740997): inexact, as expected
+NOTICE:  all TC-15 SQL assertions passed
+
+
+===== TC-16 SQL section 3.8 on isolated PostgreSQL 17 (probes + races), boilerplate rows removed =====
+# PostgreSQL: PostgreSQL 17.11 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2
+# published host ports: 0
+# setup.sql: 81 lines (baseline DDL + section 3.8 DDL + 2 ALTERs)
+setup: DDL compiled
+Pager usage is off.
+SET
+CREATE FUNCTION
+CREATE FUNCTION
+INSERT 0 60
+INSERT 0 2
+CREATE FUNCTION
+=== mode / status / metadata CHECKs ===
+NOTICE:  PASS  rule_only DISABLED, no AI metadata                              accepted
+NOTICE:  PASS  rule_only with status SUCCEEDED                                 rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_mode_metadata"
+NOTICE:  PASS  rule_only with provider set                                     rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_mode_metadata"
+NOTICE:  PASS  rule_only with non-zero AI weight                               rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_mode_metadata"
+NOTICE:  PASS  rule_only with CONFIG_INVALID                                   rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_mode_metadata"
+NOTICE:  PASS  AI SUCCEEDED p=0.95 weight 40                                   accepted
+NOTICE:  PASS  AI SUCCEEDED p=0 boundary                                       accepted
+NOTICE:  PASS  AI SUCCEEDED p=1 boundary                                       accepted
+NOTICE:  PASS  AI SUCCEEDED with p NULL                                        rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_status_probability"
+NOTICE:  PASS  AI SUCCEEDED with p=1.2                                         rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_status_probability"
+NOTICE:  PASS  AI SUCCEEDED with p=-0.1                                        rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_status_probability"
+NOTICE:  PASS  AI SUCCEEDED with p=NaN                                         rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_status_probability"
+NOTICE:  PASS  AI UNAVAILABLE p NULL weight 0                                  accepted
+NOTICE:  PASS  AI UNAVAILABLE with p set                                       rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_status_probability"
+NOTICE:  PASS  AI UNAVAILABLE with weight 40                                   rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_status_probability"
+NOTICE:  PASS  AI REFUSED / INVALID_RESPONSE / BUDGET_EXHAUSTED ok             accepted
+NOTICE:  PASS  AI INVALID_RESPONSE ok                                          accepted
+NOTICE:  PASS  AI BUDGET_EXHAUSTED ok                                          accepted
+NOTICE:  PASS  AI mode with DISABLED                                           rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_mode_metadata"
+NOTICE:  PASS  AI mode UNAVAILABLE missing provider                            rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_mode_metadata"
+NOTICE:  PASS  AI mode UNAVAILABLE missing input hash                          rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_mode_metadata"
+NOTICE:  PASS  CONFIG_INVALID, provider/model/hashes NULL                      accepted
+NOTICE:  PASS  CONFIG_INVALID with weight 40                                   rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_mode_metadata"
+NOTICE:  PASS  CONFIG_INVALID with p set                                       rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_mode_metadata"
+NOTICE:  PASS  unknown mode value                                              rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_mode_check"
+NOTICE:  PASS  unknown ai_status value                                         rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_ai_status_check"
+NOTICE:  PASS  rubric hash with wrong format                                   rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_rubric_sha256_check"
+NOTICE:  PASS  negative rule_score                                             rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_rule_score_check"
+NOTICE:  PASS  rule_score 2147483647 + weight 1 overflows int                  rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_total_fits_int"
+NOTICE:  PASS  rule_score 2147483646 + weight 1 fits int                       accepted
+NOTICE:  PASS  feature_snapshot not an object (array)                          rejected: 23514 new row for relation "risk_decisions" violates check constraint "risk_decisions_feature_snapshot_check"
+NOTICE:  PASS  feature_snapshot object                                         accepted
+=== PK / FK / UNIQUE ===
+NOTICE:  PASS  duplicate transfer_id rejected by PK                            rejected: 23505 duplicate key value violates unique constraint "risk_decisions_pkey"
+NOTICE:  PASS  transfer_id not in transfers (FK)                               rejected: 23503 insert or update on table "risk_decisions" violates foreign key constraint "risk_decisions_transfer_id_fkey"
+NOTICE:  PASS  rule_set_version not in risk_rule_sets (FK)                     rejected: 23503 insert or update on table "risk_decisions" violates foreign key constraint "risk_decisions_rule_set_version_fkey"
+=== flag must reference the decision of the same transfer and version ===
+NOTICE:  PASS  flag with matching decision (t1, version 1)                     accepted
+NOTICE:  PASS  flag with decision but other version (t3, version 2)            rejected: 23503 insert or update on table "fraud_flags" violates foreign key constraint "fraud_flags_decision_fk"
+NOTICE:  PASS  flag without any decision (t30) [BL-035 baseline writer]        rejected: 23503 insert or update on table "fraud_flags" violates foreign key constraint "fraud_flags_decision_fk"
+NOTICE:  PASS  AI-only flag: 0 rule hits, decision t5 p=1 weight 40            accepted
+NOTICE:  PASS  rule hit with weight 30 on flag t1                              accepted
+NOTICE:  PASS  rule hit with negative weight                                   rejected: 23514 new row for relation "fraud_rule_hits" violates check constraint "fraud_rule_hits_weight_nonnegative"
+=== claim statement semantics (single session) ===
+NOTICE:  PASS  rule hit with rule_id R7                                        rejected: 23514 new row for relation "fraud_rule_hits" violates check constraint "fraud_rule_hits_rule_id_check"
+CREATE TABLE
+NOTICE:  PASS  duplicate event => 0 rows; second claim on transfer t1 (event2, version 2) => 0 rows; first decision unchanged (version 1)
+DO
+ALL TC-16 CHECK/FK/PK PROBES PASSED
+probes exit=0
+=== RACE 1: winner COMMITS, loser (other event, same transfer) waits then gets 0 rows ===
+A | BEGIN
+A | INSERT 0 1
+A | A claimed processed_events
+A |  A rows claimed |     1
+A | COMMIT
+A | A COMMIT
+B | BEGIN
+B | INSERT 0 1
+B |  B rows claimed |     0
+B |  B waited seconds |   2.0
+B | COMMIT
+final: decisions for t50 = 1, event kept = aaa0050
+=== RACE 2: winner ROLLS BACK, loser (other event, same transfer) then wins ===
+A | BEGIN
+A | INSERT 0 1
+A | A claimed processed_events
+A |  A rows claimed |     1
+A | ROLLBACK
+A | A ROLLBACK
+B | BEGIN
+B | INSERT 0 1
+B |  B rows claimed |     1
+B |  B waited seconds |   2.0
+B | COMMIT
+final: decisions for t51 = 1, event kept = bbb0051
+=== RACE 3: same event delivered twice (event claim) ===
+A |  A event rows claimed |     1
+B |  B event rows claimed |     0
+B |  B waited seconds |   2.0
+container removed; leftover fraud-tc16 containers: 0
+
+
+===== TC-17 backlog reference check =====
+BACKLOG rows: 50, ids: BL-023 BL-024 BL-025 BL-026 BL-027 BL-028 BL-029 BL-030 BL-031 BL-032 BL-033 BL-034 BL-035 BL-036 BL-037 BL-038 BL-039 BL-040 BL-041 BL-042 BL-043 BL-044 BL-045 BL-046 BL-047 BL-048 BL-049 BL-050 BL-051
+duplicate ids: 0
+DBS-42 rows present: 4/4
+DBS-31 rows present: 3/3
+topic ok  BL-040: keywords [ADR-14, DBS-161]
+topic ok  BL-041: keywords [implementation risk, risk_decisions]
+topic ok  BL-042: keywords [Contract API, operator]
+topic ok  BL-043: keywords [provider, credential]
+topic ok  BL-044: keywords [B0/B1/B2]
+topic ok  BL-045: keywords [Xuất bản, FRAUD-API-01]
+topic ok  BL-046: keywords [lỗi luật, DLQ]
+topic ok  BL-047: keywords [fraud_flags_review_consistent]
+topic ok  BL-048: keywords [fraud_flags_decision_fk]
+topic ok  BL-049: keywords [risk_decisions, retention]
+topic ok  BL-050: keywords [threat model, platform-infra]
+topic ok  BL-051: keywords [DLQ, CONFIG_INVALID]
+docs/adr/0014-fraud-rules-external-ai.md: 4 BL citations; BL-023..026 occurrences: 0; violations: 0
+docs/features/FRAUD-API-01-external-ai-decision.md: 192 BL citations; BL-023..026 occurrences: 48; violations: 0
+   docs/features/FRAUD-API-01-external-ai-decision.md:63 BL-023 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:63 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:63 BL-027 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:63 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:63 BL-030 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:63 BL-039 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:65 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:65 BL-030 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:65 BL-031 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:117 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:118 BL-023 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:118 BL-031 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-023 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-027 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-030 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-039 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-027 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:233 BL-038 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:237 BL-023 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:238 BL-024 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:239 BL-025 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:240 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:241 BL-027 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:242 BL-028 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:243 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:244 BL-030 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:245 BL-031 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:337 BL-023 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:337 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:337 BL-023 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:337 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:355 BL-023 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:355 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:494 BL-023 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:494 BL-026 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:642 BL-027 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:642 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:642 BL-027 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:642 BL-038 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:642 BL-030 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:642 BL-030 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:642 BL-039 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:654 BL-023 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:654 BL-029 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:706 BL-023 (allowed: DBS-42/history context)
+   docs/features/FRAUD-API-01-external-ai-decision.md:706 BL-031 (allowed: DBS-42/history context)
+backend/src/modules/risk/README.md: 0 BL citations; BL-023..026 occurrences: 0; violations: 0
+
+
+===== TC-18 numstat (threat model, P2, docs/01, dataset brief, fraud.md) vs origin/main =====
+10	1	.claude/skills/dbs-delivering-task/references/fraud.md
+1	0	docs/01_BUSINESS_ANALYSIS.md
+1	0	docs/components/fraud-dataset/01-concept-brief.md
+3	0	docs/deliverables/P2-application-data-integration.md
+3	0	docs/security/threat-model.md
+T15 identical to origin/main:
+identical
+English sentence kept in fraud.md: 1
+
+
+===== TC-19 mermaid render of the feature doc diagram (Mermaid CLI 11.4.2 + Chrome, run from a temp dir) =====
+d1.svg bytes: 28114  (exit 0 at render time)
+
+
+===== TC-19 credential and conflict-marker scan over added lines vs origin/main =====
+files changed vs origin/main: 28
+credential-pattern matches: 0
+files with conflict markers: 0

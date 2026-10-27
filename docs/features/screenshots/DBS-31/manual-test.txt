@@ -1,0 +1,42 @@
+8d4f157177c8a9ee9532a8b8c435ecb0110e63aa (SHA commit cuối đổi code: 8d4f157 "commit provider lock file for all platforms"; ghi lại 2026-10-25, account id và ARN đã thay bằng <account-id>, <user-arn>)
+
+M-31-00  aws sts get-caller-identity / aws s3 ls
+  Arn = <user-arn>; group dbs-admin có AdministratorAccess; `aws s3 ls` không lỗi (bucket chưa có).
+
+M-31-01  mv backend.tf backend.tf.off; terraform init; terraform plan -var account_id=<account-id>
+  Plan tạo 7 tài nguyên: aws_s3_bucket.state, _lifecycle_configuration, _ownership_controls, _policy,
+  _public_access_block, _server_side_encryption_configuration, _versioning. Không có nat_gateway,
+  vpc_endpoint, dynamodb.
+  plan -var account_id=123456789012 -> "Error: AWS account ID not allowed" (B9).
+
+M-31-02  terraform apply -auto-approve -var account_id=<account-id>
+  Outputs: region = "ap-southeast-1"; state_bucket_name = "dbs-tfstate-<account-id>-ap-southeast-1"
+  get-bucket-versioning        {"Status":"Enabled"}
+  get-bucket-encryption        SSEAlgorithm AES256, BucketKeyEnabled true
+  get-public-access-block      BlockPublicAcls/IgnorePublicAcls/BlockPublicPolicy/RestrictPublicBuckets = true
+  get-bucket-ownership-controls ObjectOwnership BucketOwnerEnforced
+  get-bucket-tagging           owner=platform, env=dev, project=dbs
+
+M-31-03  put-object probe (tệp rỗng) qua HTTP rồi HTTPS
+  HTTP : AccessDenied ... "with an explicit deny in a resource-based policy"
+  HTTPS: thành công (ETag d41d8cd98f00b204e9800998ecf8427e); đã xóa probe.
+  (Lần đầu dùng --body /dev/null bị ParamValidation vì AWS CLI 2.38 đòi đường dẫn tệp thường: chạy lại bằng tệp rỗng.)
+
+M-31-04  mv backend.tf.off backend.tf; backend.hcl; init -migrate-state -force-copy -backend-config=backend.hcl
+  aws s3 ls s3://dbs-tfstate-<account-id>-ap-southeast-1/ -> bootstrap.tfstate (11548 byte)
+  rm terraform.tfstate*; terraform plan -> "No changes. Your infrastructure matches the configuration."
+
+M-31-05  CHƯA CHẠY (cần người thứ hai và policy IAM tối thiểu)
+
+M-31-06  hai terraform plan chồng nhau (terraform console không giữ khóa nên đổi cách)
+  Error: Error acquiring the state lock ... PreconditionFailed (412)
+  Lock Info: Path dbs-tfstate-<account-id>-ap-southeast-1/bootstrap.tfstate, Operation: OperationTypePlan
+  Sau khi tiến trình đầu xong, plan chạy lại được ("No changes").
+
+M-31-07  terraform destroy -var account_id=<account-id>
+  Error: Instance cannot be destroyed ... aws_s3_bucket.state has lifecycle.prevent_destroy set
+  aws s3api head-bucket -> bucket còn.
+
+M-31-08  đổi tạm tag owner=platform-probe, apply (1 changed); git checkout main.tf; apply (1 changed)
+  tag owner trở lại "platform"; bootstrap.tfstate có 3 phiên bản; có delete marker và các phiên bản của
+  bootstrap.tfstate.tflock.

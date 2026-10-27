@@ -157,13 +157,14 @@ describe('HTTP error handling (e2e, no database)', () => {
       expect(res.body.errorCode).toBeUndefined();
     });
 
-    it('logs the real error server-side with the correlation id, so it can still be diagnosed', async () => {
+    it('TC-42-07 logs safe diagnostics without credentials', async () => {
       const res = await request(server).get('/v1/probe/boom').expect(500);
 
-      expect(logError).toHaveBeenCalledWith(
-        expect.stringContaining(`[${res.body.correlationId as string}]`),
-        expect.stringContaining('hunter2'),
-      );
+      // The correlation id reaches the log line through the request logger binding (TC-42-13 in
+      // logging.e2e-spec.ts); repeating it in this object would write the key twice.
+      expect(res.body.correlationId).toBeDefined();
+      expect(logError).toHaveBeenCalledWith({ errorType: 'Error' }, 'Unhandled exception');
+      expect(JSON.stringify(logError.mock.calls)).not.toContain('hunter2');
     });
   });
 

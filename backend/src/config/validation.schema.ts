@@ -35,6 +35,7 @@ export interface Env {
   COGNITO_CLIENT_ID?: string;
   COGNITO_ISSUER?: string;
   ACCESS_TOKEN_TTL_SECONDS: number;
+  JWKS_REFETCH_COOLDOWN_MS: number;
 
   TRANSFER_LIMIT_PER_TX: string;
   TRANSFER_LIMIT_PER_DAY: string;
@@ -118,6 +119,8 @@ export const validationSchema = Joi.object<Env>({
   // Also the TTL of the "sessions revoked" marker in Redis (BR-12): after this long, every token
   // issued before the revocation has expired on its own.
   ACCESS_TOKEN_TTL_SECONDS: Joi.number().integer().min(60).max(86_400).default(900),
+  // Minimum time between JWKS refetches triggered by an unknown `kid` (DBS-50: at most 1/min).
+  JWKS_REFETCH_COOLDOWN_MS: Joi.number().integer().min(1_000).max(300_000).default(60_000),
 
   TRANSFER_LIMIT_PER_TX: Joi.string().pattern(MONEY_PATTERN).default('50000000'),
   TRANSFER_LIMIT_PER_DAY: Joi.string().pattern(MONEY_PATTERN).default('200000000'),
@@ -142,7 +145,40 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   const result = validationSchema.validate(raw, { abortEarly: false, allowUnknown: true });
   if (result.error) {
     const problems = result.error.details.map(detail => `  - ${detail.message}`).join('\n');
-    throw new Error(`Invalid environment configuration:\n${problems}`);
+    throw new ConfigValidationError(
+      `Invalid environment configuration:\n${problems}`,
+      invalidKeysOf(result.error.details),
+    );
   }
   return result.value;
+}
+
+/** Label for a rule that spans several keys (it reports an empty path). */
+export const CROSS_FIELD = '<cross-field>';
+
+/**
+ * A startup failure must say which keys are wrong without repeating their values (a value can be
+ * a credential or a URL). `message` keeps the full text for callers that already read it; the
+ * logger uses only this list. Only names that exist in the schema are accepted.
+ */
+export class ConfigValidationError extends Error {
+  constructor(
+    message: string,
+    readonly invalidKeys: string[],
+  ) {
+    super(message);
+    this.name = 'ConfigValidationError';
+  }
+}
+
+const SCHEMA_KEYS = new Set(
+  Object.keys((validationSchema.describe().keys ?? {}) as Record<string, unknown>),
+);
+
+function invalidKeysOf(details: Joi.ValidationErrorItem[]): string[] {
+  const keys = details.map(detail => {
+    const key = detail.path[0];
+    return typeof key === 'string' && SCHEMA_KEYS.has(key) ? key : CROSS_FIELD;
+  });
+  return [...new Set(keys)];
 }

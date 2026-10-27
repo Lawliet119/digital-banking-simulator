@@ -1,5 +1,7 @@
 # Digital Banking Simulator — Master Roadmap (10 tuần)
 
+> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
 > **Đây là roadmap mức cao, không phải plan từng dòng code.** Mỗi "Task" bên dưới là một hệ thống con; trước khi bắt tay vào task nào, viết **plan chi tiết riêng** cho nó (skill `writing-plans`, lưu cạnh file này) với bước test → code → commit. Roadmap này chốt: thứ tự, phụ thuộc, giao diện giữa các task, mốc theo tuần và tiêu chí xong.
