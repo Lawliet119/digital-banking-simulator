@@ -327,3 +327,29 @@ Tests:       32 passed, 32 total
 Snapshots:   0 total
 Time:        2.057 s
 Ran all test suites within paths "test/db/accounts-service.db-spec.ts".
+P5 RED (non-DB): manual driver must exist before authoring it
+node:internal/assert/utils:77
+    throw err;
+    ^
+
+AssertionError [ERR_ASSERTION]: Manual driver must exist
+    at [eval]:1:31
+    at runScriptInThisContext (node:internal/vm:219:10)
+    at node:internal/process/execution:451:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:449:60)
+    at evalFunction (node:internal/process/execution:283:30)
+    at evalTypeScript (node:internal/process/execution:295:3)
+    at node:internal/main/eval_string:71:3 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.15.0
+P5 GREEN (non-DB): driver artifact exists and unsupported mode must exit nonzero
+DBS-55 manual failed {"errorType":"Error"}
+Unsupported-mode assertion exit=1 (expected nonzero; no database work)
