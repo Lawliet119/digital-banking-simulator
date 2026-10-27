@@ -38,3 +38,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-42](DBS-42-json-logger.md) | Logger JSON, redaction, log level và HTTP correlation | Dev | Implemented (PR #16, chờ Dev review và CI) |
 | [DBS-31](DBS-31-terraform-bootstrap-s3-backend.md) | Terraform bootstrap: S3 state có versioning, mã hóa và khóa state | #5 Platform & Ops | Implemented |
 | [DBS-33](DBS-33-terraform-vpc-ecr.md) | Terraform: VPC 2 AZ, gateway endpoint S3 và ECR `dbs-api` (stack `envs/dev/base`) | #5 Platform & Ops | Implemented |
+| [DBS-50](DBS-50-jwt-auth-guard-jwks.md) | Identity: JwtAuthGuard xác minh JWT bằng JWKS có cache, guard toàn cục mặc định | Dev | Implemented |
