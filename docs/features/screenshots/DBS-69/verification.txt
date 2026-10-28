@@ -1,0 +1,80 @@
+DBS-69 G3 recheck and local handover verification
+DATE=2026-10-29
+CODE_SHA=1d921ffbe12007304cb3e06c061f93da5455219b
+BASE=b8742a3d137b0081120f87fa6e5959656a0665b6
+Six commands ran immediately before the code commit; source SHA256 matches plan-sweep.txt.
+Evidence is local, not GitHub CI.
+
+CHECK=lint EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+CHECK=typecheck EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+CHECK=unit EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+
+Test Suites: 30 passed, 30 total
+Tests:       495 passed, 495 total
+Snapshots:   0 total
+Time:        7.637 s, estimated 25 s
+Ran all test suites.
+
+CHECK=e2e EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 4944  - 00:23:35 29/10/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+
+Test Suites: 8 passed, 8 total
+Tests:       57 passed, 57 total
+Snapshots:   0 total
+Time:        37.575 s, estimated 44 s
+Ran all test suites.
+
+CHECK=db EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --verbose
+
+  console.log
+    Migration "CreateOutboxEventsProcessedEvents1792627200000" failed, error: relation "processed_events" already exists
+
+      at PlatformTools.log (src/platform/PlatformTools.ts:274:17)
+
+  console.log
+    Migration "CreateAuditLog1792627200001" failed, error: relation "audit_log_actor_occurred_idx" already exists
+
+      at PlatformTools.log (src/platform/PlatformTools.ts:274:17)
+
+Test Suites: 9 passed, 9 total
+Tests:       194 passed, 194 total
+Snapshots:   0 total
+Time:        173.497 s
+Ran all test suites.
+
+CHECK=build EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+
+DOCUMENTATION: 135 files checked, 0 broken links.
+MERMAID: prior verified @mermaid-js/mermaid-cli@12.0.0 render reused; diagram unchanged.
+MANUAL: Git Bash, 8/8 passed, exit 0, finalShaEvidence=true; full transcript in manual-test.txt.
+SCREENSHOTS: five Chrome captures of verbatim transcript excerpts, visually inspected; not live terminal screenshots.
+CLEANUP: only three shared compose containers remain, PostgreSQL/Valkey healthy, ElasticMQ running.
+TEXT: trailing whitespace normalized only; no output values changed. No secrets detected.
+The local run above does not prove GitHub CI, AWS/load runs or production roles.
+POST-G4: branch pushed; Draft PR https://github.com/Lawliet119/digital-banking-simulator/pull/35.
+Remote CI is verified independently in PR checks; the manual code SHA remains unchanged.

@@ -2,7 +2,7 @@
 
 Mọi đồng tiền vào, ra, di chuyển. Nơi duy nhất được phép thay đổi số dư.
 
-> **Status:** Schema và trigger implemented · **Owner:** #1 · **Verified against code:** migration và DB tests; luồng chuyển/nạp tiền chưa triển khai.
+> **Status:** Schema, trigger và công cụ kiểm bất biến implemented · **Owner:** #1 · **Verified against code:** migration và DB tests; luồng chuyển/nạp tiền, scheduler đối soát chưa triển khai.
 
 Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bảng `transfers`, `ledger_entries`: BEFORE UPDATE/DELETE theo hàng và BEFORE TRUNCATE theo statement, cùng hàm `public.forbid_mutation()` của [DBS-27](../../../../docs/features/DBS-27-append-only-triggers.md). INSERT vẫn được phép; mutation có hàng và TRUNCATE kể cả bảng rỗng trả SQLSTATE `42501` từ RAISE của hàm. UPDATE/DELETE không khớp hàng trả 0 hàng. Test dùng owner NOSUPERUSER và đối chứng quyền sau down; quyền production và chủ view `v_transfer_facts` còn chờ task roles (BL-005). Revert chỉ gỡ trigger/hàm, giữ dữ liệu và sequence nhưng làm mất lớp bảo vệ này; không dùng revert như cách sửa dữ liệu nghiệp vụ.
 
@@ -25,3 +25,9 @@ Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bản
 ## Export công khai (`index.ts`)
 
 `LedgerQueryService` cho `accounts`/`identity` đọc lịch sử và trạng thái.
+
+## Kiểm bất biến
+
+Chạy `npm run --silent check:invariants` từ `backend/` sau money test/load run. Năm phép kiểm dùng chung [invariants.sql](../../../test/support/invariants.sql); [hàm](../../../test/support/invariants.ts) nhận QueryRunner của caller. Exit 0 là sạch, 1 có vi phạm kèm IDs, 2 không kiểm được. Funding âm hợp lệ và vẫn tính vào SUM(balance). Chi tiết quyền/config/snapshot và cách dùng: [backend README](../../../README.md#9-kiểm-tra-bất-biến-sổ-cái).
+
+Công cụ chỉ đọc theo yêu cầu, chưa có lịch chạy worker hoặc `reconciliation_runs`; không kiểm chuỗi `balance_after` và không chữa dữ liệu. Giới hạn DB chưa ép đủ cặp/balance_after vẫn theo BL-006.

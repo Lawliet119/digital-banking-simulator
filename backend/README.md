@@ -43,6 +43,7 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm test` | unit test (`src/**/*.spec.ts`) |
 | `npm run test:e2e` | e2e (`test/*.e2e-spec.ts`) |
 | `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Tự động khởi tạo PostgreSQL 17 qua Testcontainers (hoặc dùng `DATABASE_URL` có sẵn nếu đã xuất ra môi trường). Cần Docker Desktop bật; nếu Docker tắt thì test báo lỗi ngay, không treo |
+| `npm run check:invariants` | kiểm năm bất biến sổ cái trên `DATABASE_URL`: exit 0 sạch, 1 có vi phạm, 2 không hoàn tất kiểm tra |
 | `npm run migration:run` · `migration:revert` · `migration:show` | migration trên DB local |
 | `npm run migration:generate -- src/database/migrations/<Tên>` | sinh migration từ thay đổi entity |
 | `npm run migration:create -- src/database/migrations/<Tên>` | tạo migration rỗng |
@@ -205,6 +206,50 @@ HTTP completion chỉ ghi method, status và thời gian xử lý; không ghi UR
 - Khi chạy `both`, tác vụ nền log `role=api` cho tới khi DBS-43 gắn context (`role=worker`); context xuyên worker/message và provider AsyncLocalStorage chung thuộc DBS-43.
 
 Chi tiết và bằng chứng: [DBS-42](../docs/features/DBS-42-json-logger.md).
+
+### 9. Kiểm tra bất biến sổ cái
+
+Chạy sau money test hoặc load run, từ checkout có devDependencies và quyền SELECT ba bảng `public.accounts`, `public.transfers`, `public.ledger_entries`:
+
+```bash
+# từ backend/; DATABASE_URL được cấp qua môi trường hoặc env/.env.<NODE_ENV>
+npm run --silent check:invariants
+npm run check:invariants -- --help
+```
+
+[Nguồn SQL](test/support/invariants.sql) và [hàm/CLI](test/support/invariants.ts) dùng chung một SELECT để năm phép kiểm nhìn cùng snapshot:
+
+1. Tổng DEBIT = tổng CREDIT.
+2. Mỗi `accounts.balance` = SUM(CREDIT) − SUM(DEBIT); không có entry thì kỳ vọng 0.
+3. SUM(balance) toàn hệ thống = 0, **gồm tài khoản SYSTEM funding**.
+4. Không tài khoản khách nào âm; funding được phép âm.
+5. Mỗi COMPLETED có đúng một DEBIT và một CREDIT, đúng amount và tài khoản nguồn/đích của transfer; bắt cả transfer chưa có entry.
+
+PASS/FAIL là JSON trên stdout, gồm `totals` và `violations` với `check`, `accountId`/`transferId`, `actual`, `expected`. Mọi số tiền, tổng và count là chuỗi chính xác, kể cả SUM vượt int64. Không parse aggregate bằng `Number`, `parseInt` hoặc parser `Money` giới hạn int64.
+
+| Exit | Ý nghĩa | Cách xử lý |
+|---|---|---|
+| 0 | PASS, đủ năm phép kiểm sạch | Có thể tiếp tục bước sau |
+| 1 | FAIL, có vi phạm | Giữ IDs/report, điều tra; công cụ không tự sửa dữ liệu |
+| 2 | ERROR trên stderr: cấu hình, kết nối, quyền, schema, I/O hoặc timeout | Kiểm tra chưa hoàn tất, không nhận dữ liệu sạch; sửa môi trường rồi chạy lại |
+
+Dùng `--silent` khi cần parse JSON; npm không silent có thể thêm banner. `psql -f test/support/invariants.sql` chỉ trả report, không tự đổi FAIL thành exit khác 0; CI/load gate dùng CLI và giữ nguyên mã thoát.
+
+Ví dụ từ file test trong `test/db/`, với QueryRunner đã kết nối:
+
+```ts
+import { checkLedgerInvariants } from '../support/invariants';
+
+const report = await checkLedgerInvariants(db.runner);
+expect(report.status).toBe('PASS');
+expect(report.violations).toEqual([]);
+```
+
+Hàm không tạo kết nối, log, đổi timeout hoặc mở/commit/rollback transaction. Dùng cùng runner để kiểm dữ liệu của transaction caller; kết nối khác chỉ nhìn dữ liệu đã commit. Test cố ý làm lệch assert FAIL rồi rollback/drop DB tạm, không ép thành PASS bằng sửa/xóa sổ.
+
+CLI chỉ đọc `NODE_ENV`, `DATABASE_URL`, `DATABASE_SSL`, `DATABASE_SSL_CA_PATH`, không cần Redis/SQS/Cognito. Luật TLS dùng validator hiện có: staging/production bắt buộc TLS và xác minh chứng chỉ; CA tùy chọn qua đường dẫn cấu hình. Query key `ssl*` và `uselibpqcompat` trong URL bị từ chối để không ghi đè CA/xác minh. ERROR chỉ có loại lỗi và SQLSTATE/network code được phép, không in URL, password, SQL hoặc stack.
+
+CLI mở transaction READ ONLY với connect timeout 5 giây, lock timeout 2 giây, statement timeout 60 giây, idle timeout 10 giây. Đây là full scan, không cắt IDs; bảng quá lớn hoặc DB không đáp ứng sẽ trả ERROR. Công cụ không kiểm lịch sử `balance_after`, không thay constraint lúc commit và không phải scheduler đối soát. Nó cần checkout cùng `test/`/devDependencies, không nằm trong image ứng dụng. Hướng dẫn và bằng chứng: [DBS-69](../docs/features/DBS-69-ledger-invariants.md).
 
 ## Docker
 

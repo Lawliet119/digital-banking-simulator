@@ -1,0 +1,69 @@
+DBS-69 Phase 3 plan sweep
+DATE=2026-10-28
+HEAD=b8742a3d137b0081120f87fa6e5959656a0665b6
+BRANCH=codex/DBS-69-ledger-invariants
+Automated case groups mapped to ordered steps: 19/19
+Manual steps mapped to ordered steps: 8/8
+Allowlisted source/doc files mapped to ordered steps: 19/19
+DoD trace rows: all five SQL checks and DoD 2/3/4/5 present
+Limits checked: funding, numeric precision, snapshot, readonly, TLS/pool errors, fixture rollback, production roles, packaging, Git/final-SHA
+Initial sweep required explicit poolErrorHandler in plan; step 4 clarified, final sweep PASS
+Proposed new implementation files present: 0/5
+Staged paths: none
+Red/green and checker/manual tests: NOT RUN (awaiting G3)
+Local code baseline: baseline-phase1.txt, not rerun because code unchanged
+
+ALLOWLIST
+F01 backend/test/db/invariants.db-spec.ts
+F02 backend/test/support/invariant-fixtures.ts
+F03 backend/test/support/invariants.sql
+F04 backend/test/support/invariants.ts
+F05 backend/package.json
+F06 backend/test/manual/invariants.manual.ts
+F07 backend/README.md
+F08 backend/src/scripts/README.md
+F09 backend/src/modules/ledger/README.md
+F10 load-tests/README.md
+F11 docs/features/README.md
+F12 docs/BACKLOG.md
+F13 docs/features/DBS-69-ledger-invariants.md
+F14 .claude/skills/dbs-delivering-task/references/testing.md
+F15 .claude/skills/dbs-delivering-task/references/module-notes.md
+F16 .claude/skills/dbs-delivering-task/references/platform.md
+F17 .agents/skills/dbs-delivering-task/references/testing.md
+F18 .agents/skills/dbs-delivering-task/references/module-notes.md
+F19 .agents/skills/dbs-delivering-task/references/platform.md
+
+CASE IDS
+TC-69-01, TC-69-02, TC-69-03, TC-69-04, TC-69-05, TC-69-06, TC-69-07, TC-69-08, TC-69-09, TC-69-10, TC-69-11, TC-69-12, TC-69-13, TC-69-14, TC-69-15, TC-69-16, TC-69-17, TC-69-18, TC-69-19
+MANUAL IDS
+M-69-01, M-69-02, M-69-03, M-69-04, M-69-05, M-69-06, M-69-07, M-69-08
+
+RESULT=PASS
+
+POST-IMPLEMENTATION WORKING-TREE AUDIT 2026-10-29
+HEAD=b8742a3d137b0081120f87fa6e5959656a0665b6
+Scope: 19/19 source-doc files; 8/8 evidence text files; 27/27 changed paths within allowlist.
+Protected workbook/env/state paths: none. Staged paths: none.
+Dependencies/devDependencies unchanged; no skip/only/todo in task tests.
+Artifact scan: no database URI, Authorization bearer value or AWS ARN detected.
+Final-SHA manual/screenshots and GitHub process still pending.
+SOURCE SHA256
+9ea9512c08d30293e46695307c484013558d4f6a4563a50aec1f202663d37b3d backend/test/db/invariants.db-spec.ts
+d7131265c507cfa9ba169612b49aaa2faa595c01a4f8458b5cbd18e9a1bfad76 backend/test/support/invariant-fixtures.ts
+a113fa98e3cc256dbfd68521b255e1bd38d4fcc5e6ce5da72fdc91bd9703af4b backend/test/support/invariants.sql
+5241b74827889fa8d101d164a66ca5430148b106d7424251e09561e2cee9e87b backend/test/support/invariants.ts
+ac8a764e8b5c99d5d091afc154fafa1ef906c688d8ee40b37eb0f30a0ceb12ad backend/package.json
+63cb1743bec5c64ab6e439ac19a75657d990a880438f19a9430133b0383af2cb backend/test/manual/invariants.manual.ts
+
+G3 RECHECK AND LOCAL COMMIT AUTHORIZATION 2026-10-29
+User: kiem tra lai tu G3 neu on thi commit cuc bo.
+Live ticket: unchanged requirements; In Progress; DBS-21 Done.
+Review: SQL/function/CLI, fixtures, all tests/manual and docs; no blocking defect or scope deviation found.
+Six source SHA256 hashes match the earlier working-tree audit.
+Repeated verification: lint/typecheck/build exit 0; unit 495/495; e2e 57/57; DB 194/194; no skipped tests.
+CODE_SHA=1d921ffbe12007304cb3e06c061f93da5455219b
+Final-SHA manual: 8/8; five transcript screenshots present and inspected.
+Final inventory: 19 source/docs + 8 text evidence + 5 PNG = 32 allowed paths.
+Permission: local commits only; G4 pending; no push or PR.
+RESULT=PASS
