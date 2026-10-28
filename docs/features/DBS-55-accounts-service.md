@@ -226,7 +226,7 @@ Không tách abstraction production mới ngoài service/types/module/index. Hel
 | `backend/src/modules/accounts/README.md` | Chữ ký/contract thật, transaction precondition, owner404, hạn chế caller ledger |
 | `docs/components/accounts/01-concept-brief.md` | Tình trạng primitive đã kiểm; không nhận hoàn thành endpoint/UC |
 | `docs/features/README.md` | Thêm hàng DBS-55, link hồ sơ |
-| `docs/BACKLOG.md` | Thêm nguồn DBS-55 vào các gap audit/producer/manual E2E đã có, không tạo duplicate; giữ BL-008/019 và handoff ngoài scope. Dành **BL-052** cho DoD6 DBS-55 (**BL-053** thuộc DBS-57), kiểm lại ID trống khi thực thi nếu base đổi; không xóa gap chưa giải quyết |
+| `docs/BACKLOG.md` | Thêm nguồn DBS-55 vào các gap audit/producer/manual E2E đã có, không tạo duplicate; giữ BL-008/019 và handoff ngoài scope. Dành **BL-057** cho DoD6 DBS-55 (**BL-053** thuộc DBS-57), kiểm lại ID trống khi thực thi nếu base đổi; không xóa gap chưa giải quyết |
 | `docs/features/DBS-55-accounts-service.md` | Điền đỏ/xanh thật §7, kết quả/TC/manual/handoff §8, docs §9; status chỉ đổi theo gate |
 | `docs/features/screenshots/DBS-55/domain-review-round-1.md`; `docs/features/screenshots/DBS-55/domain-review.md` | Giữ nguyên phản hồi reviewer đã có; không viết lại verdict |
 | `docs/features/screenshots/DBS-55/tdd-red-green.txt`; `docs/features/screenshots/DBS-55/verification.txt` | Output thật của red/green và final checks, đã redact; số suite/test/skipped/exit rõ |
@@ -271,7 +271,9 @@ Sau P1–P5, chạy lần lượt tại `backend/`: `npm run lint:check`; `npm r
 
 ## 8. Kết quả
 
-**Quyết định G4:** Người dùng trả lời «duyệt G4» ngày 2026-10-28 cho DBS-55 và DBS-57, sau thông điệp bàn giao nêu rõ giới hạn kiểm thử và đề xuất push hai nhánh, tạo hai Draft PR. Bàn giao DBS-55 được chấp nhận với **M-55-06 chưa chạy** (chờ DBS-60/61 và AuditService), E2E local còn một timeout logging (BL-056) và quan sát timing JWKS (BL-054). Đã được phép xuất bản Draft PR; CI remote, Dev review và merge vẫn chưa đạt DoD6, giữ BL-052. Agent không sửa board hoặc tự merge.
+**Quyết định G4:** Người dùng trả lời «duyệt G4» ngày 2026-10-28 cho DBS-55 và DBS-57, sau thông điệp bàn giao nêu rõ giới hạn kiểm thử và đề xuất push hai nhánh, tạo hai Draft PR. Bàn giao DBS-55 được chấp nhận với **M-55-06 chưa chạy** (chờ DBS-60/61 và AuditService), E2E local còn một timeout logging (BL-056) và quan sát timing JWKS (BL-054). Đã được phép xuất bản Draft PR; CI remote, Dev review và merge vẫn chưa đạt DoD6, giữ BL-057. Agent không sửa board hoặc tự merge.
+
+**Đồng bộ upstream trước xuất bản:** nhánh đã nhận `origin/main` `b8742a3` (DBS-41) bằng merge, giữ workflow và bằng chứng CI của task đó. BL-016 đã được [DBS-41](DBS-41-testcontainers-ci.md) giải quyết trên upstream; không còn là handoff pending. BL-052 trên upstream thuộc DBS-41, nên process-gap DBS-55 đổi sang **BL-057**, không đổi phạm vi hoặc yêu cầu review/CI/merge. Đồng bộ không sửa file TypeScript trong source/test; SHA cuối đổi code và manual vẫn là `f1d7a5f321d463231868c6ab2c8b450f675c8644`. Diff PR được đối chiếu với `origin/main`, không tính các file DBS-41 đã thuộc base.
 
 ### Implementation và mức bằng chứng
 
@@ -308,7 +310,7 @@ Review cuối còn xác minh Nest mặc định `abortOnError=true`; installed `
 | TC-55-13 | Cùng file › hostile/invalid/sparse/mixed-hole ids, non-bigint, trace parameters | Đạt |
 | TC-55-14 | `src/modules/accounts/accounts.exports.spec.ts` › effective ESLint boundary; typecheck public surface | Đạt |
 | TC-55-15 | DB spec › real AccountsModule/provider/PG; `src/modules/modules.spec.ts` › api/both/worker registry | Đạt |
-| DoD6 quy trình | Remote CI, Dev review, PR merge/bảng TC | Chưa làm; BL-052 |
+| DoD6 quy trình | Remote CI, Dev review, PR merge/bảng TC | Chưa làm; BL-057 |
 
 ### Kiểm tra cuối và lỗi ngoài phạm vi
 
@@ -323,7 +325,7 @@ Các lệnh dưới chạy tại `backend/`, trên code SHA `f1d7a5f321d46323186
 | `npm run test:e2e -- --runInBand` | **Chưa xanh:** 7/8 suites, 56/57 tests đạt, 0 skipped, exit 1; TC-42-11 worker DB failure trong `test/logging-bootstrap.e2e-spec.ts` bị `spawnSync ETIMEDOUT` ở deadline 25 giây |
 | `npm run build` | Exit 0 |
 | Mermaid §3 | Mermaid CLI 12 và Chrome render diagram nguyên bản ngoài repo, đã mở kiểm ảnh |
-| Link checker và diff whitespace | `check-doc-links.mjs`: 134 files checked, 0 broken link(s); `git diff --check`: exit 0 |
+| Link checker và diff whitespace | `check-doc-links.mjs`: 138 files checked, 0 broken link(s); `git diff --check`: exit 0 |
 
 Diagnostic riêng cho TC-42-11 giữ fixture gốc, chỉ tăng deadline của launcher ngoài repo lên 60 giây: child exit 1 sau 10409 ms; startup-failed tại 10372 ms với ECONNREFUSED, năm lần kết nối cách nhau khoảng 2 giây; không treo trong lượt này. Output đã phân loại an toàn và kiểm không lộ fixture nhạy cảm. Đây là bằng chứng chẩn đoán, **không** chứng minh đã khắc phục timeout của full E2E; BL-056 vẫn mở.
 
@@ -359,8 +361,8 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 | BL-002/003 | Dev DBS-60/61 nhận primitive; thêm ledger/deposit/transfer flow, event/guard và E2E M-55-06 |
 | BL-019 | Dev audit/security nhận DENIED/REJECTED audit và production permission proof |
 | BL-008 | Dev nền tảng bổ sung luật lint tiền chuyên biệt; task này giữ string/bigint và chỉ kiểm luật import hiện có |
-| BL-015/016/017 | Dev harness/Ops xử lý timing/CI Testcontainers-path/production-role evidence; local run không đóng các gap này |
-| BL-052 | Dev thực hiện/reviewer và người quản lý repo hoàn thành remote CI, review độc lập, PR merge/bảng TC |
+| BL-015/017 | Dev harness/Ops xử lý timing và production-role evidence; local run không đóng các gap này |
+| BL-057 | Dev thực hiện/reviewer và người quản lý repo hoàn thành remote CI, review độc lập, PR merge/bảng TC |
 | BL-054 | Dev identity/test harness xử lý hai test JWKS phụ thuộc cửa sổ cooldown/tải; lượt unit tuần tự xanh không đóng gap |
 | BL-056 | Dev logging/test harness điều tra TC-42-11 subprocess timeout trong full E2E; diagnostic standalone không thay bằng chứng suite |
 
@@ -371,15 +373,15 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 - `backend/src/modules/accounts/README.md`: chữ ký, transaction/ownership/bigint contract và phần API chưa có.
 - `docs/components/accounts/01-concept-brief.md`: phân biệt primitive đã kiểm với full use case còn chờ.
 - `docs/features/README.md`: thêm DBS-55, chuyển Implemented sau G4; giữ rõ trạng thái chờ Draft PR/CI/Dev review/merge và các hạn chế local.
-- `docs/BACKLOG.md`: thêm nguồn vào BL-002/003/008/015/016/017/019 và thêm BL-052/054/056; không xóa hàng nào.
+- `docs/BACKLOG.md`: giữ nguồn DBS-55 ở BL-002/003/008/015/017/019 và các gap BL-054/056; process-gap DBS-55 là BL-057. Đồng bộ upstream DBS-41 đã xóa BL-016; DBS-55 không tự nhận đã giải quyết gap này. Giữ nguyên BL-052 của DBS-41.
 - Feature doc, hai domain-review files giữ nguyên, TDD/verification/manual transcript và bốn ảnh output thật đã đủ trong inventory và đã commit local. Chưa push/PR/board/merge.
 
 ## Checklist G4 (người dùng đã duyệt ngày 2026-10-28)
 
-- [x] TC-55-01…15 đạt đủ độ sâu; 0 ca đơn giản hóa; DoD6 quy trình chưa đạt ghi BL-052
+- [x] TC-55-01…15 đạt đủ độ sâu; 0 ca đơn giản hóa; DoD6 quy trình chưa đạt ghi BL-057
 - [x] Manual trên SHA code cuối có ở dòng đầu transcript: M01–05 đạt, đường thành công đã chạy; **M-55-06 chưa chạy**, người dùng đã chấp nhận trong bàn giao G4
 - [x] Đủ bốn ảnh tên đã duyệt từ output thật; transcript không có token, Authorization, password, AWS account ID/ARN
-- [x] `git diff --stat main...HEAD` sau commit docs/evidence: 24 file khớp §7, không có lệch scope hoặc workbook được bảo vệ
+- [x] Diff PR so với `origin/main` sau đồng bộ upstream: 24 file khớp §7, không có thay đổi code/test do merge hoặc workbook được bảo vệ
 - [x] Sáu lệnh kiểm tra đã chạy và có số đếm; **E2E còn 1 lỗi/57 tests**, không nhận baseline xanh; unit từng có hai lỗi JWKS được giữ trong bằng chứng
-- [x] Mọi fact thay đổi đã cập nhật; link checker 134 files/0 broken links, diff whitespace sạch; status chuyển Implemented sau khi G4 được duyệt
-- [x] Bàn giao/DoD chưa đạt ghi §8 và BACKLOG, gồm BL-052/054/056; không có backlog đã giải quyết cần xóa
+- [x] Mọi fact thay đổi đã cập nhật; link checker 138 files/0 broken links, diff whitespace sạch; status chuyển Implemented sau khi G4 được duyệt
+- [x] Bàn giao/DoD chưa đạt ghi §8 và BACKLOG, gồm BL-057/054/056; không có backlog đã giải quyết cần xóa
