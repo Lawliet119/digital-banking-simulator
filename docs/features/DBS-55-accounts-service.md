@@ -362,7 +362,7 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 | BL-054 | Dev identity/test harness xử lý hai test JWKS phụ thuộc cửa sổ cooldown/tải; lượt unit tuần tự xanh không đóng gap |
 | BL-056 | Dev logging/test harness điều tra TC-42-11 subprocess timeout trong full E2E; diagnostic standalone không thay bằng chứng suite |
 
-Đã thêm nguồn DBS-55 vào các gap tồn tại, không tạo duplicate hoặc xóa backlog chưa giải quyết. Tổng 24 path từ `git diff --name-only main` cộng file untracked đã đối chiếu inventory §7, gồm toàn bộ source/test/docs/evidence đang giao; không sửa hai test inherited ngoài scope theo quyết định người dùng. Thống kê `git diff --stat main...HEAD` cuối cần đối chiếu sau commit local docs/evidence; không dùng diff của riêng các commit source để bỏ sót file chưa commit.
+Đã thêm nguồn DBS-55 vào các gap tồn tại, không tạo duplicate hoặc xóa backlog chưa giải quyết. Sau commit docs/evidence `d731a48`, `git diff --stat main...HEAD` có đúng 24 file source/test/docs/evidence, khớp inventory §7; working tree sạch. Không sửa hai test inherited ngoài scope theo quyết định người dùng. Staged paths, commit tree và lịch sử nhánh đã kiểm không có workbook `.xls`/`.xlsx` hoặc `.env`.
 
 ## 9. Tài liệu đã cập nhật
 
@@ -370,14 +370,14 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 - `docs/components/accounts/01-concept-brief.md`: phân biệt primitive đã kiểm với full use case còn chờ.
 - `docs/features/README.md`: thêm DBS-55, giữ Plan approved chờ G4.
 - `docs/BACKLOG.md`: thêm nguồn vào BL-002/003/008/015/016/017/019 và thêm BL-052/054/056; không xóa hàng nào.
-- Feature doc, hai domain-review files giữ nguyên, TDD/verification/manual transcript và bốn ảnh output thật đã đủ trong inventory. Chưa commit local docs/evidence cuối; không push/PR/board/merge.
+- Feature doc, hai domain-review files giữ nguyên, TDD/verification/manual transcript và bốn ảnh output thật đã đủ trong inventory và đã commit local. Chưa push/PR/board/merge.
 
 ## Checklist G4 (chờ người dùng duyệt)
 
 - [x] TC-55-01…15 đạt đủ độ sâu; 0 ca đơn giản hóa; DoD6 quy trình chưa đạt ghi BL-052
 - [x] Manual trên SHA code cuối có ở dòng đầu transcript: M01–05 đạt, đường thành công đã chạy; **M-55-06 chưa chạy**, chờ người dùng chấp nhận đích danh tại G4
 - [x] Đủ bốn ảnh tên đã duyệt từ output thật; transcript không có token, Authorization, password, AWS account ID/ARN
-- [ ] Đối chiếu lại `git diff --stat main...HEAD` sau commit docs/evidence; hiện các path source/test/docs/evidence khớp §7, không có lệch scope
+- [x] `git diff --stat main...HEAD` sau commit docs/evidence: 24 file khớp §7, không có lệch scope hoặc workbook được bảo vệ
 - [x] Sáu lệnh kiểm tra đã chạy và có số đếm; **E2E còn 1 lỗi/57 tests**, không nhận baseline xanh; unit từng có hai lỗi JWKS được giữ trong bằng chứng
 - [x] Mọi fact thay đổi đã cập nhật; link checker 134 files/0 broken links, diff whitespace sạch; status giữ Plan approved đến khi G4 được duyệt
 - [x] Bàn giao/DoD chưa đạt ghi §8 và BACKLOG, gồm BL-052/054/056; không có backlog đã giải quyết cần xóa
