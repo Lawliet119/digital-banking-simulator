@@ -1,11 +1,11 @@
-# accounts 🟡 Supporting — #2
+# accounts 🟡 Supporting
 
 Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 
 | | |
 |---|---|
 | Use case | UC-1 onboarding · UC-2 mở tài khoản · UC-4 xem số dư · UC-11 khóa / mở khóa |
-| Chạy ở | `api` |
+| Chạy ở | `api` và phần API của `both`; chưa nạp trong `worker` |
 | Sở hữu bảng | `customers`, `accounts` (gồm tài khoản SYSTEM `funding`) |
 | Thiết kế | `docs/03` §6.2 (khóa và thu hồi phiên), §8 · `docs/02` §3 (AC-11.x) |
 
@@ -20,4 +20,14 @@ Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 
 ## Export công khai (`index.ts`)
 
-`AccountsService` với `lockForUpdate`, `applyBalanceChange`, `getOwnedAccount`.
+Import qua `@modules/accounts`: `AccountsModule`, `AccountsService`, type `Account` và `LockedAccount`.
+
+| Hàm | Contract service hiện có |
+|---|---|
+| `lockForUpdate(ids: string[], manager: EntityManager): Promise<LockedAccount[]>` | Manager phải có QueryRunner còn hoạt động trong transaction. SQL lấy khóa account theo id tăng dần; duplicate được bỏ, empty trả `[]`, id thiếu chỉ bị loại khỏi snapshot. LOCKED/SYSTEM vẫn được trả để caller quyết định guard |
+| `applyBalanceChange(accountId: string, delta: bigint, manager: EntityManager): Promise<void>` | Cộng số dư bằng SQL trong transaction người gọi; nhận bigint, không tự mở/commit/retry. Không thấy account trả404; PostgreSQL CHECK từ chối khách âm, signed bigint từ chối overflow |
+| `getOwnedAccount(accountId: string, userId: string): Promise<Account>` | `userId` là internal `users.id`, không phải Cognito sub. Đọc committed state từ PostgreSQL. Missing/foreign/SYSTEM/UUID sai cùng trả404; không tạo audit DENIED thay caller |
+
+Snapshot dùng camelCase, `balance` là chuỗi chính xác, thời gian là Date. Không đổi tiền sang Number hoặc cache Redis. Các truy vấn mutation dùng manager đã truyền vào; `startTransaction()` phải chạy trước, raw SQL BEGIN không đáp ứng trạng thái QueryRunner. Invalid UUID/array (kể cả sparse array) hoặc delta không-bigint bị chặn trước SQL. Không bắt lỗi SQL để tiếp tục transaction đã bị abort.
+
+Đây là primitive cho ledger; module chưa thêm HTTP controller, onboarding, mở/khóa tài khoản, guard chuyển tiền hoặc bút toán. Test tiền gọi service thật trên DB tạm rồi rollback; không SQL seed tiền/bút toán. Chứng minh primitive và giới hạn E2E/audit nằm trong [DBS-55](../../../../docs/features/DBS-55-accounts-service.md); các API nghiệp vụ chờ task riêng.
