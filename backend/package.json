@@ -23,6 +23,7 @@
     "test": "jest --config ./test/jest-unit.js",
     "test:e2e": "jest --config ./test/jest-e2e.js",
     "test:db": "jest --config ./test/jest-db.js",
+    "check:invariants": "ts-node -r tsconfig-paths/register test/support/invariants.ts",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
