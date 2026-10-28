@@ -325,7 +325,7 @@ Các lệnh dưới chạy tại `backend/`, trên code SHA `f1d7a5f321d46323186
 | `npm run test:e2e -- --runInBand` | **Chưa xanh:** 7/8 suites, 56/57 tests đạt, 0 skipped, exit 1; TC-42-11 worker DB failure trong `test/logging-bootstrap.e2e-spec.ts` bị `spawnSync ETIMEDOUT` ở deadline 25 giây |
 | `npm run build` | Exit 0 |
 | Mermaid §3 | Mermaid CLI 12 và Chrome render diagram nguyên bản ngoài repo, đã mở kiểm ảnh |
-| Link checker và diff whitespace | `check-doc-links.mjs`: 138 files checked, 0 broken link(s); `git diff --check`: exit 0 |
+| Link checker và diff whitespace | `check-doc-links.mjs`: 136 files checked, 0 broken link(s); `git diff --check`: exit 0 |
 
 Diagnostic riêng cho TC-42-11 giữ fixture gốc, chỉ tăng deadline của launcher ngoài repo lên 60 giây: child exit 1 sau 10409 ms; startup-failed tại 10372 ms với ECONNREFUSED, năm lần kết nối cách nhau khoảng 2 giây; không treo trong lượt này. Output đã phân loại an toàn và kiểm không lộ fixture nhạy cảm. Đây là bằng chứng chẩn đoán, **không** chứng minh đã khắc phục timeout của full E2E; BL-056 vẫn mở.
 
@@ -383,5 +383,5 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 - [x] Đủ bốn ảnh tên đã duyệt từ output thật; transcript không có token, Authorization, password, AWS account ID/ARN
 - [x] Diff PR so với `origin/main` sau đồng bộ upstream: 24 file khớp §7, không có thay đổi code/test do merge hoặc workbook được bảo vệ
 - [x] Sáu lệnh kiểm tra đã chạy và có số đếm; **E2E còn 1 lỗi/57 tests**, không nhận baseline xanh; unit từng có hai lỗi JWKS được giữ trong bằng chứng
-- [x] Mọi fact thay đổi đã cập nhật; link checker 138 files/0 broken links, diff whitespace sạch; status chuyển Implemented sau khi G4 được duyệt
+- [x] Mọi fact thay đổi đã cập nhật; link checker 136 files/0 broken links, diff whitespace sạch; status chuyển Implemented sau khi G4 được duyệt
 - [x] Bàn giao/DoD chưa đạt ghi §8 và BACKLOG, gồm BL-057/054/056; không có backlog đã giải quyết cần xóa
