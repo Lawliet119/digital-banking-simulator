@@ -75,4 +75,6 @@ MANUAL: Git Bash, 8/8 passed, exit 0, finalShaEvidence=true; full transcript in 
 SCREENSHOTS: five Chrome captures of verbatim transcript excerpts, visually inspected; not live terminal screenshots.
 CLEANUP: only three shared compose containers remain, PostgreSQL/Valkey healthy, ElasticMQ running.
 TEXT: trailing whitespace normalized only; no output values changed. No secrets detected.
-No push, PR, GitHub CI, AWS/load run or production-role acceptance.
+The local run above does not prove GitHub CI, AWS/load runs or production roles.
+POST-G4: branch pushed; Draft PR https://github.com/Lawliet119/digital-banking-simulator/pull/35.
+Remote CI is verified independently in PR checks; the manual code SHA remains unchanged.

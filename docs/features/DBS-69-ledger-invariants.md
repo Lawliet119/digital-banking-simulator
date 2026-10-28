@@ -1,6 +1,6 @@
 # DBS-69 · Script kiểm tra bất biến sổ cái
 
-> **Status:** Implemented (G4 đã duyệt; đang bàn giao PR/CI) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định · **Nhánh:** `codex/DBS-69-ledger-invariants` · **PR:** — · **Cập nhật:** 2026-10-29
+> **Status:** Implemented (G4 đã duyệt; Draft PR #35 chờ Dev review) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định · **Nhánh:** `codex/DBS-69-ledger-invariants` · **PR:** [#35](https://github.com/Lawliet119/digital-banking-simulator/pull/35) · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
@@ -368,7 +368,7 @@ DB suite mới chạy trong `test:db` hiện hữu; CI đã thu toàn bộ `test
 
 ### 8.1 Triển khai và mức bằng chứng
 
-SQL/hàm/CLI đã commit cục bộ tại `1d921ffbe12007304cb3e06c061f93da5455219b` (`feat(ledger): add SQL invariant checks and CLI (DBS-69)`). Npm script hoạt động, một SELECT cho năm bất biến, toàn bộ tiền/tổng/count giữ text chính xác. Commit chứa đúng sáu file F01–F06; tài liệu/bằng chứng commit riêng. Nhánh vẫn dựa trên `b8742a3`; chưa push hoặc mở PR.
+SQL/hàm/CLI đã commit cục bộ tại `1d921ffbe12007304cb3e06c061f93da5455219b` (`feat(ledger): add SQL invariant checks and CLI (DBS-69)`). Npm script hoạt động, một SELECT cho năm bất biến, toàn bộ tiền/tổng/count giữ text chính xác. Commit chứa đúng sáu file F01–F06; tài liệu/bằng chứng commit riêng. Nhánh vẫn dựa trên `b8742a3`; đã push sau G4 và mở [Draft PR #35](https://github.com/Lawliet119/digital-banking-simulator/pull/35).
 
 Test trước đã thực hiện: thiếu module TS2307 → skeleton typed chạy được fixture → **20 test đỏ** vì checker chưa có/thiếu SQL → **20/20 xanh**. Thêm test CLI trước entrypoint/script: **18 đỏ, 22 xanh** → triển khai CLI → **40/40 xanh**, 0 skipped. Fixture UPDATE RETURNING và require dotenv từ cwd khác được sửa trong harness trước khi ghi nhận behavioral red; không nhận lỗi setup đó là bằng chứng checker sai. Output nguyên văn: [red-green.txt](screenshots/DBS-69/red-green.txt).
 
@@ -409,7 +409,7 @@ Tất cả tên dưới thuộc `backend/test/db/invariants.db-spec.ts`; lớp t
 | TC-69-18 | ACCESS EXCLUSIVE khóa thật, statement timeout 57014, rollback/release rồi sạch | Đạt |
 | TC-69-19 | raw SQL = hàm; shadow temp tables không che public; import cwd khác không load env/connect; CLI so hàm ở TC-69-15 | Đạt 2 test và đối chiếu subprocess |
 | Quy trình DoD #4 | README có lệnh/hàm/exit/TLS/giới hạn, links sạch | Đạt local |
-| Quy trình DoD #5 | PR/CI/Dev review/merge | Chưa thực hiện — BL-053 |
+| Quy trình DoD #5 | Draft PR #35 có bảng TC; CI chạy trên GitHub; Dev review/merge chưa thực hiện | Chưa hoàn tất — BL-053; trạng thái CI mới nhất tại checks của PR |
 
 ### 8.3 Manual trên SHA code cuối
 
@@ -443,7 +443,7 @@ Lệnh đã chạy trong **Git Bash**: `node -r ts-node/register -r tsconfig-pat
 Đối chiếu inventory và diff với base `main` tại `b8742a3`: **32 file = 19 source/docs F01–F19 + 8 text evidence + 5 PNG**; tất cả đúng §7.2. Đã kiểm staged paths trước mỗi commit và diff sau commit; không có workbook, env, state hoặc artifact ngoài scope. Chưa có lệch phạm vi; chưa thêm dependency/lockfile/env/schema/CI hoặc sửa producer/API.
 
 - **BL-006 giữ mở:** tool bắt cặp thiếu/balance tổng lệch; không kiểm lịch sử balance_after hoặc chặn commit bằng trigger.
-- **BL-053 mới:** còn PR/TC table, CI thật, Dev khác review và merge. Commit code và manual/ảnh final-SHA đã hoàn tất cục bộ.
+- **BL-053 mới:** đã có Draft PR #35 và bảng TC, CI chạy trên GitHub; còn Dev khác review và merge, cần CI xanh ở HEAD được merge. Commit code và manual/ảnh final-SHA đã hoàn tất.
 - **BL-054 mới:** Dev/Ops nhận cách gọi checker cho money/load/drill và scheduler tương lai; chưa nhận các luồng chưa có đã được tích hợp/chạy.
 - Tests TLS mới chứng minh config/parser giữ CA, không phải kết nối RDS/TLS server thật. Roles owner/SELECT-only là local fixture, không phải production grants (BL-005/017/019). Không chạy load/AWS E2E hoặc sửa board.
 
@@ -464,3 +464,7 @@ Bằng chứng: [baseline](screenshots/DBS-69/baseline-phase1.txt), [review vòn
 - [x] Mọi phần DoD/handoff còn thiếu ghi ở §8 và BL-006/053/054; chưa có dòng backlog nào được xử lý trọn để xóa.
 
 **Quyết định G4 (2026-10-29):** người dùng trả lời «duyệt G4», chấp thuận kết quả, tài liệu và bằng chứng đã trình. Theo quy trình bàn giao, thực hiện push nhánh và mở Draft PR để Dev khác review; không merge hoặc sửa board. SHA code cuối vẫn `1d921ffbe12007304cb3e06c061f93da5455219b`; sau manual chỉ đổi tài liệu/bằng chứng. Fetch lại `origin/main` xác nhận vẫn tại `b8742a3`, nhánh không thiếu commit nền. PR/CI/review/merge được cập nhật theo bằng chứng thực tế, chưa coi G4 là DoD #5 hoàn tất.
+
+### Bàn giao GitHub sau G4
+
+Đã push nhánh `codex/DBS-69-ledger-invariants` và mở [Draft PR #35](https://github.com/Lawliet119/digital-banking-simulator/pull/35). PR theo template, có bảng đối chiếu DoD/TC và bằng chứng local/manual. Đã đối chiếu 32 file của PR với allowlist, kiểm tree/outgoing history không có workbook hoặc env/state nhạy cảm. CI đầu tiên khởi chạy tại commit `dd63067`; kết quả CI trên HEAD cuối được xác minh tại checks của PR khi bàn giao, không dùng kết quả local thay CI. Agent không merge/sửa board; cần Dev khác review và người dùng cập nhật In Review.
