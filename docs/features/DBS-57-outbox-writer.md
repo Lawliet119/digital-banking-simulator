@@ -1,6 +1,6 @@
 # DBS-57 · OutboxWriter.add: ghi sự kiện trong transaction của người gọi
 
-> **Status:** Implemented (G4 đã duyệt; giữ hạn chế full DB local, chờ Dev review và merge) · **Vai:** Dev · **Dev review:** Chưa chỉ định · **Nhánh:** `feat/DBS-57-outbox-writer` · **PR:** — · **Cập nhật:** 2026-10-28
+> **Status:** Implemented (G4 đã duyệt; giữ hạn chế full DB local, chờ Dev review và merge) · **Vai:** Dev · **Dev review:** Chưa chỉ định · **Nhánh:** `feat/DBS-57-outbox-writer` · **PR:** [#34 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/34) · **Cập nhật:** 2026-10-28
 
 ## 1. Bối cảnh
 
@@ -235,9 +235,11 @@ Tại root chạy `node .claude/skills/dbs-delivering-task/scripts/check-doc-lin
 
 **Quyết định G4 (2026-10-28):** Người dùng trả lời «duyệt G4», chấp nhận kết quả và các giới hạn đã trình, cho phép push nhánh và tạo Draft PR. BL-055 về full DB local vẫn mở; agent không sửa board hoặc merge PR. Status chuyển Implemented cho phạm vi đã bàn giao; CI remote, Dev review và merge được theo dõi riêng ở BL-053.
 
+**Xuất bản:** Nhánh đã push lên origin và mở [Draft PR #34](https://github.com/Lawliet119/digital-banking-simulator/pull/34), base `main`. Kết quả CI gắn với HEAD hiện hành được ghi tại Checks và phần validation của PR; Dev review/merge còn mở ở BL-053. Workbook `.xls`/`.xlsx` không có trong staged paths, commit tree hoặc lịch sử nhánh trước push.
+
 **Đồng bộ trước xuất bản:** `origin/main` tiến tới `b8742a3` với DBS-41 (CI và tài liệu). Merge giữ workflow/ảnh/tài liệu upstream, giữ BL-052 của DBS-41 và BL-053/055 của task này; BL-016 đã được upstream đóng. Code và tests TypeScript không thay đổi so với SHA đã kiểm chứng, nên SHA manual vẫn là `9a399c5`. Phạm vi PR được đối chiếu với `origin/main`, gồm 26 file trong §7.
 
-**Đã triển khai và đóng băng code:** `9a399c5a5da48966b8ba1044cba5dedec69509a0`; chưa push/PR. Writer chỉ INSERT bằng caller manager, snapshot/contract và correlation đã có test PostgreSQL thật; module/API roles có test DI/lint. Manual M01–07 đạt trên SHA cuối. **Full DB trên SHA cuối chưa xanh:** process thoát native trước khi in số đếm. [Verification raw](screenshots/DBS-57/verification.txt) giữ từng lượt, phân biệt working tree chẩn đoán với commit cuối.
+**Đã triển khai và đóng băng code:** `9a399c5a5da48966b8ba1044cba5dedec69509a0`, đã xuất bản qua Draft PR #34. Writer chỉ INSERT bằng caller manager, snapshot/contract và correlation đã có test PostgreSQL thật; module/API roles có test DI/lint. Manual M01–07 đạt trên SHA cuối. **Full DB trên SHA cuối chưa xanh:** process thoát native trước khi in số đếm. [Verification raw](screenshots/DBS-57/verification.txt) giữ từng lượt, phân biệt working tree chẩn đoán với commit cuối.
 
 | Kiểm tra đã chạy | Kết quả thực |
 |---|---|
@@ -270,7 +272,7 @@ Tại root chạy `node .claude/skills/dbs-delivering-task/scripts/check-doc-lin
 | TC-57-11 | core: extension/snapshot mutation, cycle, toJSON sai | Đạt tại final targeted |
 | TC-57-12 | core SQL tham số/hostile text; module/registry/boundaries 14 unit; source review writer không external client | Đạt tại final targeted/full unit; không external client là rà soát tĩnh source |
 | TC-57-13 | bootstrap process: api/worker/both shell sạch, tự PostgreSQL, row 1 và cleanup | Đạt tại final targeted; manual ba role cuối đạt |
-| DoD #5 quy trình | PR/CI remote/review Dev/merge | Chưa làm, BL-053 |
+| DoD #5 quy trình | Draft PR #34; CI remote tại Checks/validation của PR; review Dev/merge | PR đã mở; review/merge còn chờ, BL-053 |
 
 ### Full DB failure và phạm vi giữ nguyên
 
