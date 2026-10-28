@@ -1,6 +1,6 @@
 # DBS-57 · OutboxWriter.add: ghi sự kiện trong transaction của người gọi
 
-> **Status:** Plan approved (task tests và manual đã có bằng chứng final SHA; full DB chưa xanh, chờ G4) · **Vai:** Dev · **Dev review:** Chưa chỉ định · **Nhánh:** `feat/DBS-57-outbox-writer` · **PR:** — · **Cập nhật:** 2026-10-28
+> **Status:** Implemented (G4 đã duyệt; giữ hạn chế full DB local, chờ Dev review và merge) · **Vai:** Dev · **Dev review:** Chưa chỉ định · **Nhánh:** `feat/DBS-57-outbox-writer` · **PR:** — · **Cập nhật:** 2026-10-28
 
 ## 1. Bối cảnh
 
@@ -204,7 +204,7 @@ Mỗi lệnh `… 2>&1 | tee -a ../docs/features/screenshots/DBS-57/manual-test.
 | 2. Public API, DI, role registry, import boundaries | outbox.module.ts; outbox/index.ts; modules/index.ts; outbox.module.spec.ts; modules.spec.ts; outbox-boundaries.spec.ts; đổi core spec dùng public API | Phần export/DI/ESLint TC12: api/worker/both; snippet deep import bị bắt qua ESLint API hiện hành, không ghi probe file | Đỏ TS2307 thiếu public API trước code; ESM loader của test lint sửa bằng subprocess Node, không đổi config; xanh 14 tests | `npm test -- --runInBand outbox.module.spec.ts modules.spec.ts outbox-boundaries.spec.ts`; `npm run lint:check` | `6d67084` feat(outbox): expose writer through shared module |
 | 3. Correlation và HTTP isolation | outbox-writer.ts; outbox-writer-context.db-spec.ts; outbox-writer-probe.ts | TC04–07: raw required trước ALS, context mismatch/sai, HTTP10parallel, client ID giả | Đỏ 5 fail/7 pass vì context mismatch/sai vẫn resolve; sau enforcement core/context xanh 30 tests | `npm run test:db -- --runInBand outbox-writer-context.db-spec.ts outbox-writer.db-spec.ts` | `34c1511` feat(outbox): enforce correlation context consistency |
 | 4. Manual bootstrap và clean shell | outbox-writer-bootstrap.db-spec.ts; outbox-writer.manual.ts; outbox-writer-probe.ts | TC13 process thật không env/.env/DB URL; từng role commit/cleanup; script có đầy đủ mode M01–07 | Đỏ 3 MODULE_NOT_FOUND trước driver; regression late-arrival đỏ 1 fail/12 pass trước fix; targeted trước final SHA xanh 34 tests. Thêm bounded exit metadata sau child worker output trống; đây là chẩn đoán, không nhận đã sửa nguyên nhân. Manual cuối M01–07 đạt qua 9 process | `npm run test:db -- --runInBand outbox-writer-bootstrap.db-spec.ts`; từng mode bằng lệnh §5 | `b3418b6`; `9a399c5` |
-| 5. Docs, full checks, SHA/manual/evidence | Tất cả docs/evidence đã kê; chỉ sửa code/test ở bước 1–4 khi test chứng minh lỗi | Đối chiếu TC01–13, M01–07, DoD1–5; kiểm link/diff và không skip/only/todo | Non-DB final đạt; full DB final process exit 3221226505 trước count, chưa xanh. Targeted final 3 suites/34 tests đạt, không thay full DB. Manual transcript và đủ ba ảnh đã có; docs/evidence chờ commit local | Full checks và lệnh G4 bên dưới | `docs(outbox): record writer verification and handoffs` (chờ commit local) |
+| 5. Docs, full checks, SHA/manual/evidence | Tất cả docs/evidence đã kê; chỉ sửa code/test ở bước 1–4 khi test chứng minh lỗi | Đối chiếu TC01–13, M01–07, DoD1–5; kiểm link/diff và không skip/only/todo | Non-DB final đạt; full DB final process exit 3221226505 trước count, chưa xanh. Targeted final 3 suites/34 tests đạt, không thay full DB. Manual transcript và đủ ba ảnh đã commit local | Full checks và lệnh G4 bên dưới | `9527a1f` và `3cd810c` |
 
 **Verification cuối, chạy riêng từng lệnh và đọc toàn output:** `npm run lint:check`, `npm run typecheck`, `npm test -- --runInBand`, `npm run test:e2e -- --runInBand`, `npm run test:db -- --runInBand`, `npm run build`. Compose PostgreSQL phải healthy trước e2e (app-guard dùng DB); test:db dùng PostgreSQL thật/Testcontainers. Chạy các suite DB nặng và hai nhánh tuần tự, không tranh môi trường. TC13 đặt ở `test/db/outbox-writer-bootstrap.db-spec.ts`, khớp regex jest-db hiện có; unit boundaries ở test/support khớp jest-unit, không sửa config test/harness.
 
@@ -232,6 +232,8 @@ Tại root chạy `node .claude/skills/dbs-delivering-task/scripts/check-doc-lin
 **Quyết định G3:** Người dùng trả lời «Duyệt G3» ngày 2026-10-27, chấp nhận §7 và local commits sau bước xanh. Chưa cho phép push/PR/board. TDD/manual đã thực hiện; kết quả và giới hạn full verification ghi trong verification.txt và §8, chờ G4.
 
 ## 8. Kết quả
+
+**Quyết định G4 (2026-10-28):** Người dùng trả lời «duyệt G4», chấp nhận kết quả và các giới hạn đã trình, cho phép push nhánh và tạo Draft PR. BL-055 về full DB local vẫn mở; agent không sửa board hoặc merge PR. Status chuyển Implemented cho phạm vi đã bàn giao; CI remote, Dev review và merge được theo dõi riêng ở BL-053.
 
 **Đã triển khai và đóng băng code:** `9a399c5a5da48966b8ba1044cba5dedec69509a0`; chưa push/PR. Writer chỉ INSERT bằng caller manager, snapshot/contract và correlation đã có test PostgreSQL thật; module/API roles có test DI/lint. Manual M01–07 đạt trên SHA cuối. **Full DB trên SHA cuối chưa xanh:** process thoát native trước khi in số đếm. [Verification raw](screenshots/DBS-57/verification.txt) giữ từng lượt, phân biệt working tree chẩn đoán với commit cuối.
 
@@ -310,14 +312,14 @@ Ba ảnh là CUA chụp trang local hiển thị raw transcript, wrap dòng cho 
 
 ## 9. Tài liệu đã cập nhật
 
-Đã cập nhật hồ sơ này, README backend/outbox/modules, concept brief outbox, feature index và BACKLOG; lưu nguyên văn hai domain review, verification/manual transcript và ảnh trong inventory §7. BACKLOG xóa BL-011, thêm BL-053/055, thêm nguồn vào BL-002/019/024; BL-041 không còn tham chiếu BL-011 đã đóng. Sau commit docs/evidence `9527a1f`, `git diff --stat main...HEAD` có đúng 26 file khớp inventory §7 và working tree sạch. Staged paths, commit tree và lịch sử nhánh đã kiểm không có workbook `.xls`/`.xlsx` hoặc `.env`. Chỉ commit local; chưa push/PR/board/merge.
+Đã cập nhật hồ sơ này, README backend/outbox/modules, concept brief outbox, feature index và BACKLOG; lưu nguyên văn hai domain review, verification/manual transcript và ảnh trong inventory §7. BACKLOG xóa BL-011, thêm BL-053/055, thêm nguồn vào BL-002/019/024; BL-041 không còn tham chiếu BL-011 đã đóng. Sau commit docs/evidence `9527a1f`, diff có đúng 26 file khớp inventory §7. Staged paths, commit tree và lịch sử nhánh đã kiểm không có workbook `.xls`/`.xlsx` hoặc `.env`. G4 đã cho phép xuất bản; thông tin Draft PR được ghi tại §8. Không sửa board hoặc merge.
 
-## Checklist G4 (chờ người dùng duyệt)
+## Checklist G4 (đã được người dùng duyệt)
 
 - [x] TC01–13 đạt đủ độ sâu trên final targeted/full unit, 0 ca đơn giản hóa; targeted không thay full DB failure
 - [x] Manual trên SHA code cuối, SHA đầu transcript; M01–07 đạt qua 9 invocation, đường thành công/rejection/recovery đã chạy
 - [x] Đủ ba ảnh đúng path, đã mở kiểm viewer thật; transcript không có token/Authorization/password/AWS account ID/ARN
 - [x] `git diff --stat main...HEAD` sau commit docs/evidence: 26 file khớp §7; không sửa file inherited ngoài phạm vi hoặc workbook được bảo vệ
 - [x] Sáu lệnh baseline đã chạy; unit 32 suites/505 tests và E2E 8 suites/57 tests đạt, full DB final process exit trước count: **chưa xanh**, BL-055
-- [x] Link checker 134 files/0 broken links sau ảnh/docs cuối, diff whitespace sạch; giữ Plan approved trước G4
+- [x] Link checker 134 files/0 broken links tại G4, diff whitespace sạch; chuyển Implemented sau khi G4 được duyệt
 - [x] Handoff/DoD chưa đạt có BL-002/019/024/053/055; BL-011 đã xử lý được xóa, không nhận downstream/process đạt
