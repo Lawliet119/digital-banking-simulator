@@ -310,14 +310,14 @@ Ba ảnh là CUA chụp trang local hiển thị raw transcript, wrap dòng cho 
 
 ## 9. Tài liệu đã cập nhật
 
-Đã cập nhật hồ sơ này, README backend/outbox/modules, concept brief outbox, feature index và BACKLOG; lưu nguyên văn hai domain review, verification/manual transcript và ảnh trong inventory §7. BACKLOG xóa BL-011, thêm BL-053/055, thêm nguồn vào BL-002/019/024; BL-041 không còn tham chiếu BL-011 đã đóng. Tổng 26 path từ `git diff --name-only main` cộng file untracked khớp inventory. Chưa commit local docs/evidence; không push/PR/board/merge. Chốt thống kê `git diff --stat main...HEAD` sau commit local, không bỏ qua docs/evidence untracked khi đối chiếu phạm vi.
+Đã cập nhật hồ sơ này, README backend/outbox/modules, concept brief outbox, feature index và BACKLOG; lưu nguyên văn hai domain review, verification/manual transcript và ảnh trong inventory §7. BACKLOG xóa BL-011, thêm BL-053/055, thêm nguồn vào BL-002/019/024; BL-041 không còn tham chiếu BL-011 đã đóng. Sau commit docs/evidence `9527a1f`, `git diff --stat main...HEAD` có đúng 26 file khớp inventory §7 và working tree sạch. Staged paths, commit tree và lịch sử nhánh đã kiểm không có workbook `.xls`/`.xlsx` hoặc `.env`. Chỉ commit local; chưa push/PR/board/merge.
 
 ## Checklist G4 (chờ người dùng duyệt)
 
 - [x] TC01–13 đạt đủ độ sâu trên final targeted/full unit, 0 ca đơn giản hóa; targeted không thay full DB failure
 - [x] Manual trên SHA code cuối, SHA đầu transcript; M01–07 đạt qua 9 invocation, đường thành công/rejection/recovery đã chạy
 - [x] Đủ ba ảnh đúng path, đã mở kiểm viewer thật; transcript không có token/Authorization/password/AWS account ID/ARN
-- [ ] Đối chiếu `git diff --stat main...HEAD` sau commit docs/evidence với §7; không sửa file inherited ngoài phạm vi
+- [x] `git diff --stat main...HEAD` sau commit docs/evidence: 26 file khớp §7; không sửa file inherited ngoài phạm vi hoặc workbook được bảo vệ
 - [x] Sáu lệnh baseline đã chạy; unit 32 suites/505 tests và E2E 8 suites/57 tests đạt, full DB final process exit trước count: **chưa xanh**, BL-055
 - [x] Link checker 134 files/0 broken links sau ảnh/docs cuối, diff whitespace sạch; giữ Plan approved trước G4
 - [x] Handoff/DoD chưa đạt có BL-002/019/024/053/055; BL-011 đã xử lý được xóa, không nhận downstream/process đạt
