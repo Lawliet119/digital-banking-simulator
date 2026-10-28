@@ -41,7 +41,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-31](DBS-31-terraform-bootstrap-s3-backend.md) | Terraform bootstrap: S3 state có versioning, mã hóa và khóa state | #5 Platform & Ops | Implemented |
 | [DBS-33](DBS-33-terraform-vpc-ecr.md) | Terraform: VPC 2 AZ, gateway endpoint S3 và ECR `dbs-api` (stack `envs/dev/base`) | #5 Platform & Ops | Implemented |
 | [DBS-50](DBS-50-jwt-auth-guard-jwks.md) | Identity: JwtAuthGuard xác minh JWT bằng JWKS có cache, guard toàn cục mặc định | Dev | Implemented |
-| [DBS-55](DBS-55-accounts-service.md) | AccountsService: khóa theo id, đổi số dư trong caller transaction và ownership404 | Dev | Plan approved; TC 15/15 và manual 5/6 đạt, M-55-06 chờ ledger/audit; E2E còn lỗi logging timeout, chờ G4 |
+| [DBS-55](DBS-55-accounts-service.md) | AccountsService: khóa theo id, đổi số dư trong caller transaction và ownership404 | Dev | Implemented; G4 đã duyệt, chờ Draft PR/CI/Dev review/merge; TC 15/15 và manual 5/6 đạt, M-55-06 chờ ledger/audit; E2E còn lỗi logging timeout |
 | [DBS-34](DBS-34-terraform-ecs-alb.md) | Terraform: ECS Fargate cluster, service api và ALB HTTPS (nhóm xóa hằng ngày) | #5 Platform & Ops | Implemented |
 | [DBS-36](DBS-36-ci-build-push-ecr-oidc.md) | CI: build image và đẩy ECR tag SHA bằng OIDC (role chỉ tin repo và nhánh main) | #5 Platform & Ops | Implemented |
 | [FRAUD-API-01](FRAUD-API-01-external-ai-decision.md) | Hồ sơ ADR-14 (Proposed): giữ R1–R6, thêm API AI bổ sung, không tự train; phương án Proposed tách khỏi tài liệu Accepted; chưa triển khai backend fraud | Fraud | Implemented (docs-only, Draft PR #20 chờ Dev review và CI) |

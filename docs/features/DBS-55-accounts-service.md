@@ -1,6 +1,6 @@
 # DBS-55 · AccountsService: khóa tài khoản, đổi số dư và kiểm tra sở hữu
 
-> **Status:** Plan approved (đã hoàn tất bằng chứng local; chờ G4, còn lỗi baseline ngoài phạm vi) · **Vai:** Dev · **Cặp đôi review:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-55-accounts-service` · **PR:** — · **Cập nhật:** 2026-10-28
+> **Status:** Implemented (G4 đã duyệt; chờ Draft PR, CI, Dev review và merge; còn lỗi baseline ngoài phạm vi) · **Vai:** Dev · **Cặp đôi review:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-55-accounts-service` · **PR:** — · **Cập nhật:** 2026-10-28
 
 ## 1. Bối cảnh
 
@@ -271,6 +271,8 @@ Sau P1–P5, chạy lần lượt tại `backend/`: `npm run lint:check`; `npm r
 
 ## 8. Kết quả
 
+**Quyết định G4:** Người dùng trả lời «duyệt G4» ngày 2026-10-28 cho DBS-55 và DBS-57, sau thông điệp bàn giao nêu rõ giới hạn kiểm thử và đề xuất push hai nhánh, tạo hai Draft PR. Bàn giao DBS-55 được chấp nhận với **M-55-06 chưa chạy** (chờ DBS-60/61 và AuditService), E2E local còn một timeout logging (BL-056) và quan sát timing JWKS (BL-054). Đã được phép xuất bản Draft PR; CI remote, Dev review và merge vẫn chưa đạt DoD6, giữ BL-052. Agent không sửa board hoặc tự merge.
+
 ### Implementation và mức bằng chứng
 
 Code/driver đã có tại `f1d7a5f321d463231868c6ab2c8b450f675c8644`, chưa push/PR/board/merge. Public service dùng DataSource/EntityManager thật; không dependency, migration, event hoặc ErrorCode mới. TC task và manual primitive đạt; full E2E còn một lỗi timeout trong test logging có sẵn, nên chưa nhận baseline cuối xanh. [Verification](screenshots/DBS-55/verification.txt) giữ cả các lượt lỗi và kết quả cuối.
@@ -338,7 +340,7 @@ Dòng đầu [manual-test.txt](screenshots/DBS-55/manual-test.txt) là SHA `f1d7
 | M-55-03 | Cùng lệnh › tentative ±300000 và ±9007199254740993 dạng chuỗi; COMMITTED_OBSERVER và AFTER_ROLLBACK mọi balance `"0"` | Đạt, không commit probe tiền |
 | M-55-04 | Cùng lệnh › khách âm: 23514 + accounts_balance_non_negative; overflow: 22003; inactive/hostile/sparse/number bị từ chối; RECOVERED balance `"0"` | Đạt, rejection và phục hồi |
 | M-55-05 | Cùng lệnh › entriesEqual/totalZero/customersNonnegative/balancesMatchEntries đều true sau rollback | Đạt trong fixture 0, không nhận double-entry trong lúc probe |
-| M-55-06 | Driver báo PENDING, dependencies DBS-60/DBS-61/AuditService; chưa có luồng HTTP/ledger/audit thật để chạy | **Chưa chạy**, cần chấp nhận theo tên tại G4 |
+| M-55-06 | Driver báo PENDING, dependencies DBS-60/DBS-61/AuditService; chưa có luồng HTTP/ledger/audit thật để chạy | **Chưa chạy**, đã được chấp nhận đích danh trong bàn giao G4 |
 
 Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên output transcript, chỉ wrap dòng để đọc; dữ liệu lấy từ manual thật. CUA trả JPEG và được serialize thành PNG, không thay đổi nội dung ngữ nghĩa. Đây là viewer của raw output, không phải ảnh terminal hoặc Swagger. Transcript không chứa URL DB, token, Authorization, password, AWS account ID hoặc ARN.
 
@@ -368,16 +370,16 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 
 - `backend/src/modules/accounts/README.md`: chữ ký, transaction/ownership/bigint contract và phần API chưa có.
 - `docs/components/accounts/01-concept-brief.md`: phân biệt primitive đã kiểm với full use case còn chờ.
-- `docs/features/README.md`: thêm DBS-55, giữ Plan approved chờ G4.
+- `docs/features/README.md`: thêm DBS-55, chuyển Implemented sau G4; giữ rõ trạng thái chờ Draft PR/CI/Dev review/merge và các hạn chế local.
 - `docs/BACKLOG.md`: thêm nguồn vào BL-002/003/008/015/016/017/019 và thêm BL-052/054/056; không xóa hàng nào.
 - Feature doc, hai domain-review files giữ nguyên, TDD/verification/manual transcript và bốn ảnh output thật đã đủ trong inventory và đã commit local. Chưa push/PR/board/merge.
 
-## Checklist G4 (chờ người dùng duyệt)
+## Checklist G4 (người dùng đã duyệt ngày 2026-10-28)
 
 - [x] TC-55-01…15 đạt đủ độ sâu; 0 ca đơn giản hóa; DoD6 quy trình chưa đạt ghi BL-052
-- [x] Manual trên SHA code cuối có ở dòng đầu transcript: M01–05 đạt, đường thành công đã chạy; **M-55-06 chưa chạy**, chờ người dùng chấp nhận đích danh tại G4
+- [x] Manual trên SHA code cuối có ở dòng đầu transcript: M01–05 đạt, đường thành công đã chạy; **M-55-06 chưa chạy**, người dùng đã chấp nhận trong bàn giao G4
 - [x] Đủ bốn ảnh tên đã duyệt từ output thật; transcript không có token, Authorization, password, AWS account ID/ARN
 - [x] `git diff --stat main...HEAD` sau commit docs/evidence: 24 file khớp §7, không có lệch scope hoặc workbook được bảo vệ
 - [x] Sáu lệnh kiểm tra đã chạy và có số đếm; **E2E còn 1 lỗi/57 tests**, không nhận baseline xanh; unit từng có hai lỗi JWKS được giữ trong bằng chứng
-- [x] Mọi fact thay đổi đã cập nhật; link checker 134 files/0 broken links, diff whitespace sạch; status giữ Plan approved đến khi G4 được duyệt
+- [x] Mọi fact thay đổi đã cập nhật; link checker 134 files/0 broken links, diff whitespace sạch; status chuyển Implemented sau khi G4 được duyệt
 - [x] Bàn giao/DoD chưa đạt ghi §8 và BACKLOG, gồm BL-052/054/056; không có backlog đã giải quyết cần xóa
