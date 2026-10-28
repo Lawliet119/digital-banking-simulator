@@ -1,6 +1,6 @@
 # DBS-55 · AccountsService: khóa tài khoản, đổi số dư và kiểm tra sở hữu
 
-> **Status:** Implemented (G4 đã duyệt; chờ Draft PR, CI, Dev review và merge; còn lỗi baseline ngoài phạm vi) · **Vai:** Dev · **Cặp đôi review:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-55-accounts-service` · **PR:** — · **Cập nhật:** 2026-10-28
+> **Status:** Implemented (G4 đã duyệt; Draft PR #33 đã mở, CI theo Checks; chờ Dev review và merge; còn lỗi baseline ngoài phạm vi) · **Vai:** Dev · **Cặp đôi review:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-55-accounts-service` · **PR:** [#33](https://github.com/Lawliet119/digital-banking-simulator/pull/33) · **Cập nhật:** 2026-10-28
 
 ## 1. Bối cảnh
 
@@ -271,13 +271,13 @@ Sau P1–P5, chạy lần lượt tại `backend/`: `npm run lint:check`; `npm r
 
 ## 8. Kết quả
 
-**Quyết định G4:** Người dùng trả lời «duyệt G4» ngày 2026-10-28 cho DBS-55 và DBS-57, sau thông điệp bàn giao nêu rõ giới hạn kiểm thử và đề xuất push hai nhánh, tạo hai Draft PR. Bàn giao DBS-55 được chấp nhận với **M-55-06 chưa chạy** (chờ DBS-60/61 và AuditService), E2E local còn một timeout logging (BL-056) và quan sát timing JWKS (BL-054). Đã được phép xuất bản Draft PR; CI remote, Dev review và merge vẫn chưa đạt DoD6, giữ BL-057. Agent không sửa board hoặc tự merge.
+**Quyết định G4 và xuất bản:** Người dùng trả lời «duyệt G4» ngày 2026-10-28 cho DBS-55 và DBS-57, sau thông điệp bàn giao nêu rõ giới hạn kiểm thử và đề xuất push hai nhánh, tạo hai Draft PR. Bàn giao DBS-55 được chấp nhận với **M-55-06 chưa chạy** (chờ DBS-60/61 và AuditService), E2E local còn một timeout logging (BL-056) và quan sát timing JWKS (BL-054). Nhánh đã push và [Draft PR #33](https://github.com/Lawliet119/digital-banking-simulator/pull/33) đã mở với bảng đối chiếu TC. Kết quả CI của HEAD hiện tại được theo dõi tại [Checks của PR](https://github.com/Lawliet119/digital-banking-simulator/pull/33/checks); Dev review và merge chưa hoàn tất, giữ BL-057. Agent không sửa board hoặc tự merge.
 
 **Đồng bộ upstream trước xuất bản:** nhánh đã nhận `origin/main` `b8742a3` (DBS-41) bằng merge, giữ workflow và bằng chứng CI của task đó. BL-016 đã được [DBS-41](DBS-41-testcontainers-ci.md) giải quyết trên upstream; không còn là handoff pending. BL-052 trên upstream thuộc DBS-41, nên process-gap DBS-55 đổi sang **BL-057**, không đổi phạm vi hoặc yêu cầu review/CI/merge. Đồng bộ không sửa file TypeScript trong source/test; SHA cuối đổi code và manual vẫn là `f1d7a5f321d463231868c6ab2c8b450f675c8644`. Diff PR được đối chiếu với `origin/main`, không tính các file DBS-41 đã thuộc base.
 
 ### Implementation và mức bằng chứng
 
-Code/driver đã có tại `f1d7a5f321d463231868c6ab2c8b450f675c8644`, chưa push/PR/board/merge. Public service dùng DataSource/EntityManager thật; không dependency, migration, event hoặc ErrorCode mới. TC task và manual primitive đạt; full E2E còn một lỗi timeout trong test logging có sẵn, nên chưa nhận baseline cuối xanh. [Verification](screenshots/DBS-55/verification.txt) giữ cả các lượt lỗi và kết quả cuối.
+Code/driver đã có tại `f1d7a5f321d463231868c6ab2c8b450f675c8644`, đã được push trên nhánh của Draft PR #33; chưa merge hoặc sửa board. Public service dùng DataSource/EntityManager thật; không dependency, migration, event hoặc ErrorCode mới. TC task và manual primitive đạt; full E2E local còn một lỗi timeout trong test logging có sẵn, nên chưa nhận baseline local cuối xanh. [Verification](screenshots/DBS-55/verification.txt) giữ cả các lượt lỗi và kết quả cuối.
 
 | Bước | Đỏ thật → xanh thật | Commit |
 |---|---|---|
@@ -310,7 +310,7 @@ Review cuối còn xác minh Nest mặc định `abortOnError=true`; installed `
 | TC-55-13 | Cùng file › hostile/invalid/sparse/mixed-hole ids, non-bigint, trace parameters | Đạt |
 | TC-55-14 | `src/modules/accounts/accounts.exports.spec.ts` › effective ESLint boundary; typecheck public surface | Đạt |
 | TC-55-15 | DB spec › real AccountsModule/provider/PG; `src/modules/modules.spec.ts` › api/both/worker registry | Đạt |
-| DoD6 quy trình | Remote CI, Dev review, PR merge/bảng TC | Chưa làm; BL-057 |
+| DoD6 quy trình | Draft PR #33 và bảng TC đã có; remote CI theo Checks, Dev review và PR merge | Dev review/merge chưa hoàn tất; CI xem HEAD hiện tại tại Checks; BL-057 |
 
 ### Kiểm tra cuối và lỗi ngoài phạm vi
 
@@ -362,7 +362,7 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 | BL-019 | Dev audit/security nhận DENIED/REJECTED audit và production permission proof |
 | BL-008 | Dev nền tảng bổ sung luật lint tiền chuyên biệt; task này giữ string/bigint và chỉ kiểm luật import hiện có |
 | BL-015/017 | Dev harness/Ops xử lý timing và production-role evidence; local run không đóng các gap này |
-| BL-057 | Dev thực hiện/reviewer và người quản lý repo hoàn thành remote CI, review độc lập, PR merge/bảng TC |
+| BL-057 | Theo dõi CI theo HEAD tại Checks của Draft PR #33; Dev reviewer và người quản lý repo hoàn thành review độc lập và merge; bảng TC đã có trong PR |
 | BL-054 | Dev identity/test harness xử lý hai test JWKS phụ thuộc cửa sổ cooldown/tải; lượt unit tuần tự xanh không đóng gap |
 | BL-056 | Dev logging/test harness điều tra TC-42-11 subprocess timeout trong full E2E; diagnostic standalone không thay bằng chứng suite |
 
@@ -372,9 +372,9 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 
 - `backend/src/modules/accounts/README.md`: chữ ký, transaction/ownership/bigint contract và phần API chưa có.
 - `docs/components/accounts/01-concept-brief.md`: phân biệt primitive đã kiểm với full use case còn chờ.
-- `docs/features/README.md`: thêm DBS-55, chuyển Implemented sau G4; giữ rõ trạng thái chờ Draft PR/CI/Dev review/merge và các hạn chế local.
+- `docs/features/README.md`: thêm DBS-55, chuyển Implemented sau G4; liên kết Draft PR #33, CI theo Checks, Dev review/merge chưa hoàn tất và các hạn chế local.
 - `docs/BACKLOG.md`: giữ nguồn DBS-55 ở BL-002/003/008/015/017/019 và các gap BL-054/056; process-gap DBS-55 là BL-057. Đồng bộ upstream DBS-41 đã xóa BL-016; DBS-55 không tự nhận đã giải quyết gap này. Giữ nguyên BL-052 của DBS-41.
-- Feature doc, hai domain-review files giữ nguyên, TDD/verification/manual transcript và bốn ảnh output thật đã đủ trong inventory và đã commit local. Chưa push/PR/board/merge.
+- Feature doc, hai domain-review files giữ nguyên, TDD/verification/manual transcript và bốn ảnh output thật đã đủ trong inventory, đã commit và push lên nhánh của Draft PR #33. CI theo Checks của PR; Dev review/merge chưa hoàn tất, không sửa board.
 
 ## Checklist G4 (người dùng đã duyệt ngày 2026-10-28)
 
