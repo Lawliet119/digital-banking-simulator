@@ -129,7 +129,9 @@ Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết t
 
 **Schema outbox.**
 
-Migration `1792627200000-CreateOutboxEventsProcessedEvents` tạo outbox/processed và hai partial index. Down cần transaction READ COMMITTED; khóa bảng trước kiểm dữ liệu, không cho DROP nếu còn dòng. Test schema legacy dùng `migrateThrough` phiên bản thật; CLI regression vẫn chạy production tới latest và revert từng bước. Runtime writer/relay chưa có.
+Migration `1792627200000-CreateOutboxEventsProcessedEvents` tạo outbox/processed và hai partial index. Down cần transaction READ COMMITTED; khóa bảng trước kiểm dữ liệu, không cho DROP nếu còn dòng. Test schema legacy dùng `migrateThrough` phiên bản thật; CLI regression vẫn chạy production tới latest và revert từng bước.
+
+`OutboxModule`/`OutboxWriter` export qua `@modules/outbox`, dùng được ở API và worker. Producer import module rồi gọi `writer.add(manager, event)` trong `TransactionService.run`: chỉ một INSERT, kiểm common/events và snapshot JSON, không gửi queue hoặc tự mở transaction. Event phải có correlationId hợp lệ; context ALS nếu có phải nhất quán. Lỗi schema/serialization/unique làm transaction caller rollback khi để lỗi lan ra; writer không upsert/nuốt lỗi. Payload lưu toàn envelope; thời gian TransferCompleted do producer lấy từ `transfers.created_at` của DB rồi ISO Z. Relay/consumer chưa có. Chi tiết [module outbox](src/modules/outbox/README.md) và [DBS-57](../docs/features/DBS-57-outbox-writer.md).
 
 **Schema audit.**
 

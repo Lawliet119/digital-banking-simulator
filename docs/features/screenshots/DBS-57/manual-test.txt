@@ -1,0 +1,29 @@
+9a399c5a5da48966b8ba1044cba5dedec69509a0
+Git Bash; first six modes use externally supplied local PostgreSQL; no credentials printed.
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts commit
+{"mode":"commit","role":"both","pass":true,"eventId":"0426d8b9-5f03-4735-8765-45ee4545f8e9","correlationId":"c0a8f3d2-5b61-4e0a-9f27-7d1b3a6c8e55","outboxRows":1,"amount":"9007199254740993","cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts rollback
+{"mode":"rollback","role":"both","pass":true,"eventId":"0d0fb1ed-da74-4264-890f-9ae2f0e29add","userRows":0,"outboxRows":0,"cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts invalid
+{"mode":"invalid","role":"both","pass":true,"refused":["missing-correlation","numeric-money","cycle"],"userRows":0,"outboxRows":0,"cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts duplicate
+{"mode":"duplicate","role":"both","pass":true,"eventId":"23d0266b-6a11-4d76-becd-59552a2916d7","duplicate":"23505","constraint":"outbox_events_event_id_key","originalRows":1,"recoveredRows":1,"cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts context
+{"mode":"context","role":"both","pass":true,"httpRows":10,"distinctCorrelationIds":["f849219d-489c-4ac2-b398-2682030f3dfb","dd20cd61-86cc-458e-85df-b0a3f5885a88","d22a5e41-e1d7-4cae-8c46-9d5c633eb7fc","4d43635c-4f98-42ec-bef9-0713ca47aea8","a46dbd01-f591-4ed8-a1d7-a9d37a325337","03300352-c8da-4127-a3f5-35dd6f8f7b74","6ef85d7a-10a3-4c79-86ce-4413db2ef086","d5a30ebb-c37c-4ea4-b82b-cbbdf2b95c89","0e559398-732c-40df-95bc-a4f79be2ee47","02235ea2-56e9-40cf-81a7-f00275cf40d4"],"mismatch":"NOT_ALLOWED","malformed":"INVALID_FORMAT","outsideContextRows":1,"cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts transaction
+{"mode":"transaction","role":"both","pass":true,"refusedManagers":4,"outboxRows":0,"cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: env -u DATABASE_URL node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts commit --role=api
+{"mode":"commit","role":"api","pass":true,"eventId":"2fb8eac8-3768-497d-b290-64cdf9642e35","correlationId":"c0a8f3d2-5b61-4e0a-9f27-7d1b3a6c8e55","outboxRows":1,"amount":"9007199254740993","cleanup":{"databaseDropped":true,"ownContainerStopped":true,"cwdRestored":true}}
+EXIT: 0
+COMMAND: env -u DATABASE_URL node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts commit --role=worker
+{"mode":"commit","role":"worker","pass":true,"eventId":"76e47909-dea9-4a0e-bbff-9cf81e50bd22","correlationId":"c0a8f3d2-5b61-4e0a-9f27-7d1b3a6c8e55","outboxRows":1,"amount":"9007199254740993","cleanup":{"databaseDropped":true,"ownContainerStopped":true,"cwdRestored":true}}
+EXIT: 0
+COMMAND: env -u DATABASE_URL node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts commit --role=both
+{"mode":"commit","role":"both","pass":true,"eventId":"01940e56-bdd7-4ae6-8d9d-fd6a09bbaa95","correlationId":"c0a8f3d2-5b61-4e0a-9f27-7d1b3a6c8e55","outboxRows":1,"amount":"9007199254740993","cleanup":{"databaseDropped":true,"ownContainerStopped":true,"cwdRestored":true}}
+EXIT: 0
