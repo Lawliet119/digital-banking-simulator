@@ -235,6 +235,8 @@ Tại root chạy `node .claude/skills/dbs-delivering-task/scripts/check-doc-lin
 
 **Quyết định G4 (2026-10-28):** Người dùng trả lời «duyệt G4», chấp nhận kết quả và các giới hạn đã trình, cho phép push nhánh và tạo Draft PR. BL-055 về full DB local vẫn mở; agent không sửa board hoặc merge PR. Status chuyển Implemented cho phạm vi đã bàn giao; CI remote, Dev review và merge được theo dõi riêng ở BL-053.
 
+**Đồng bộ trước xuất bản:** `origin/main` tiến tới `b8742a3` với DBS-41 (CI và tài liệu). Merge giữ workflow/ảnh/tài liệu upstream, giữ BL-052 của DBS-41 và BL-053/055 của task này; BL-016 đã được upstream đóng. Code và tests TypeScript không thay đổi so với SHA đã kiểm chứng, nên SHA manual vẫn là `9a399c5`. Phạm vi PR được đối chiếu với `origin/main`, gồm 26 file trong §7.
+
 **Đã triển khai và đóng băng code:** `9a399c5a5da48966b8ba1044cba5dedec69509a0`; chưa push/PR. Writer chỉ INSERT bằng caller manager, snapshot/contract và correlation đã có test PostgreSQL thật; module/API roles có test DI/lint. Manual M01–07 đạt trên SHA cuối. **Full DB trên SHA cuối chưa xanh:** process thoát native trước khi in số đếm. [Verification raw](screenshots/DBS-57/verification.txt) giữ từng lượt, phân biệt working tree chẩn đoán với commit cuối.
 
 | Kiểm tra đã chạy | Kết quả thực |
@@ -319,7 +321,7 @@ Ba ảnh là CUA chụp trang local hiển thị raw transcript, wrap dòng cho 
 - [x] TC01–13 đạt đủ độ sâu trên final targeted/full unit, 0 ca đơn giản hóa; targeted không thay full DB failure
 - [x] Manual trên SHA code cuối, SHA đầu transcript; M01–07 đạt qua 9 invocation, đường thành công/rejection/recovery đã chạy
 - [x] Đủ ba ảnh đúng path, đã mở kiểm viewer thật; transcript không có token/Authorization/password/AWS account ID/ARN
-- [x] `git diff --stat main...HEAD` sau commit docs/evidence: 26 file khớp §7; không sửa file inherited ngoài phạm vi hoặc workbook được bảo vệ
+- [x] Diff PR với `origin/main`: 26 file khớp §7 sau đồng bộ DBS-41; không sửa file inherited ngoài phạm vi hoặc workbook được bảo vệ
 - [x] Sáu lệnh baseline đã chạy; unit 32 suites/505 tests và E2E 8 suites/57 tests đạt, full DB final process exit trước count: **chưa xanh**, BL-055
 - [x] Link checker 134 files/0 broken links tại G4, diff whitespace sạch; chuyển Implemented sau khi G4 được duyệt
 - [x] Handoff/DoD chưa đạt có BL-002/019/024/053/055; BL-011 đã xử lý được xóa, không nhận downstream/process đạt

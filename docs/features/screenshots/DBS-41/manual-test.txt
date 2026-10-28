@@ -1,0 +1,39 @@
+adc1e6393c56624af3740f280f8cb14ae1f5124c
+M-41-01: stop Compose PostgreSQL; run selected Jest DB suites with DATABASE_URL absent.
+ Container dbs-postgres-1 Stopping
+ Container dbs-postgres-1 Stopped
+Running Compose services before selected suites:
+elasticmq
+valkey
+DATABASE_URL present=False
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/testcontainers-sample.db-spec.ts test/db/migration-revert.db-spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        25.176 s
+Ran all test suites within paths "test/db/testcontainers-sample.db-spec.ts", "test/db/migration-revert.db-spec.ts".
+M-41-01 exit=0
+Restoring Compose PostgreSQL:
+ Container dbs-postgres-1 Starting
+ Container dbs-postgres-1 Started
+M-41-02: DOCKER_HOST=tcp://127.0.0.1:1 (unreachable daemon simulation)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/testcontainers-sample.db-spec.ts test/db/migration-revert.db-spec.ts
+
+Error: Jest: Got error running globalSetup - C:\Users\fmgdu\Documents\digital-banking-simulator\backend\test\support\jest-global-setup.ts, reason: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Error details: Could not find a working container runtime strategy
+    at assertDockerAvailable (C:\Users\fmgdu\Documents\digital-banking-simulator\backend\test\support\postgres.container.ts:35:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startPostgresContainer (C:\Users\fmgdu\Documents\digital-banking-simulator\backend\test\support\postgres.container.ts:44:5)
+    at async globalSetup (C:\Users\fmgdu\Documents\digital-banking-simulator\backend\test\support\jest-global-setup.ts:9:33)
+    at async C:\Users\fmgdu\Documents\digital-banking-simulator\backend\node_modules\@jest\core\build\index.js:3190:11
+    at async waitForPromiseWithCleanup (C:\Users\fmgdu\Documents\digital-banking-simulator\backend\node_modules\@jest\transform\build\index.js:135:5)
+    at async ScriptTransformer.requireAndTranspileModule (C:\Users\fmgdu\Documents\digital-banking-simulator\backend\node_modules\@jest\transform\build\index.js:630:16)
+    at async runGlobalHook (C:\Users\fmgdu\Documents\digital-banking-simulator\backend\node_modules\@jest\core\build\index.js:3186:9)
+    at async runJest (C:\Users\fmgdu\Documents\digital-banking-simulator\backend\node_modules\@jest\core\build\index.js:3552:5)
+    at async _run10000 (C:\Users\fmgdu\Documents\digital-banking-simulator\backend\node_modules\@jest\core\build\index.js:1556:5)
+M-41-02 exit=1
