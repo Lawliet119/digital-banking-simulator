@@ -1,0 +1,663 @@
+DBS-69 red/green evidence (working tree; no task commit)
+CORE RED: npm run test:db -- --runInBand --runTestsByPath test/db/invariants.db-spec.ts
+Initial missing module: TS2307, exit 1. Typed skeleton was then added so assertions could run.
+Fixture setup initially exposed UPDATE RETURNING result shape; corrected using a SELECT from changed CTE before counting behavioral red.
+Verified behavioral red: 20 failed / 20, exit 1; checker not implemented and SQL file absent.
+
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/invariants.db-spec.ts
+
+FAIL test/db/invariants.db-spec.ts (6.146 s)
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-01 accepts fresh migrated funding and an empty ledger
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:62:39)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-02 includes funding, locked/savings/unused accounts and ignores rejected orders without entries
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:70:39)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-03 detects both account mismatches even when their errors cancel globally
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:80:47)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-04 detects a lone DEBIT and names its transfer
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at test/db/invariants.db-spec.ts:121:49
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-04 detects a lone CREDIT and names its transfer
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at test/db/invariants.db-spec.ts:121:49
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-05 detects a one-dong global balance error and the affected account
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:137:47)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-06 detects a negative legacy customer; rollback restores the CHECK
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:160:47)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-07 detects a completed transfer with zero entries even when all totals are zero
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:185:47)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-08 detects legacy pair with incorrect amount in isolation
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at test/db/invariants.db-spec.ts:213:49
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-08 detects legacy pair with incorrect source in isolation
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at test/db/invariants.db-spec.ts:213:49
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-08 detects legacy pair with incorrect target in isolation
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at test/db/invariants.db-spec.ts:213:49
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-09 detects opposite per-transfer errors that balance globally
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:254:47)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-10 preserves 9007199254740993 and aggregates above int64, then detects a one-dong error
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at test/db/invariants.db-spec.ts:272:41
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-10 preserves 9223372036854775807 and aggregates above int64, then detects a one-dong error
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at test/db/invariants.db-spec.ts:272:41
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-11 reads committed snapshots while a real concurrent writer holds uncommitted changes
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:300:42)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-12 uses one real query and leaves the caller transaction and rollback intact
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:320:42)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-13 proves NOSUPERUSER table-owner corruption, detection, restore and unchanged ledger
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:339:40)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-14 works SELECT-only and READ ONLY without changing rows or exposing identity
+
+    Ledger invariant checks are not implemented
+
+      21 |   _runner: Pick<QueryRunner, 'query'>,
+      22 | ): Promise<LedgerInvariantReport> {
+    > 23 |   return Promise.reject(new Error('Ledger invariant checks are not implemented'));
+         |                         ^
+      24 | }
+      25 |
+
+      at checkLedgerInvariants (test/support/invariants.ts:23:25)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:371:47)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-18 propagates a real statement timeout then succeeds after lock release
+
+    expect(received).rejects.toMatchObject(expected)
+
+    - Expected  - 5
+    + Received  + 1
+
+    - Object {
+    -   "driverError": Object {
+    -     "code": "57014",
+    -   },
+    - }
+    + [Error: Ledger invariant checks are not implemented]
+
+      392 |       await db.runner.startTransaction();
+      393 |       await db.runner.query("SET LOCAL statement_timeout='100ms'");
+    > 394 |       await expect(checkLedgerInvariants(db.runner)).rejects.toMatchObject({
+          |                                                              ^
+      395 |         driverError: { code: '57014' },
+      396 |       });
+      397 |     } finally {
+
+      at Object.toMatchObject (node_modules/expect/build/index.js:2155:20)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:394:62)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-19 raw SQL and function agree and ignore search_path shadow tables
+
+    ENOENT: no such file or directory, open 'D:\UET_PROJECT\digital-banking-simulator\backend\test\support\invariants.sql'
+
+      411 |       await db.runner.query(`CREATE TEMP TABLE ${table} (LIKE public.${table} INCLUDING ALL)`);
+      412 |     await db.runner.query('SET LOCAL search_path=pg_temp,public');
+    > 413 |     const sql = readFileSync(resolve(__dirname, '../support/invariants.sql'), 'utf8');
+          |                             ^
+      414 |     const [{ report }] = await db.runner.query(sql);
+      415 |     const fromFunction = await checkLedgerInvariants(db.runner);
+      416 |     expect(fromFunction).toEqual(report);
+
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:413:29)
+
+Test Suites: 1 failed, 1 total
+Tests:       20 failed, 20 total
+Snapshots:   0 total
+Time:        6.236 s, estimated 15 s
+Ran all test suites within paths "test/db/invariants.db-spec.ts".
+
+CORE GREEN: same command; exit 0
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/invariants.db-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       20 passed, 20 total
+Snapshots:   0 total
+Time:        6.484 s, estimated 7 s
+Ran all test suites within paths "test/db/invariants.db-spec.ts".
+
+CLI RED: npm run test:db -- --runInBand --runTestsByPath test/db/invariants.db-spec.ts; exit 1; 18 CLI cases failed, 22 core/import/parser cases passed. npm script/CLI entrypoint not yet implemented.
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/invariants.db-spec.ts
+
+FAIL test/db/invariants.db-spec.ts (18.491 s)
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-15 CLI reports committed clean, mismatch and recovery with exit 0/1/0
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      482 |       expect(result.error).toBeUndefined();
+      483 |       expect(result.stderr).toBe('');
+    > 484 |       expect(result.status).toBe(exit);
+          |                             ^
+      485 |       const report: unknown = JSON.parse(result.stdout);
+      486 |       expect(report).toEqual(await checkLedgerInvariants(db.runner));
+      487 |       expect(report).toMatchObject({ status });
+
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:484:29)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects URL TLS override ssl before connecting
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:502:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects URL TLS override sslmode before connecting
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:502:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects URL TLS override sslcert before connecting
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:502:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects URL TLS override sslkey before connecting
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:502:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects URL TLS override sslrootcert before connecting
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:502:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects URL TLS override sslnegotiation before connecting
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:502:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects URL TLS override SSLMODE before connecting
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:502:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects URL TLS override uselibpqcompat before connecting
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:502:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects missing URL without echoing configuration values
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:510:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects malformed URL without echoing configuration values
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:510:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects production without TLS without echoing configuration values
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:510:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 rejects unreadable CA without echoing configuration values
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at test/db/invariants.db-spec.ts:510:5
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-16 --help does not need a DB and unexpected arguments fail safely
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      512 |   it('TC-69-16 --help does not need a DB and unexpected arguments fail safely', () => {
+      513 |     const help = cli(['--help'], { DATABASE_URL: '' });
+    > 514 |     expect(help.status).toBe(0);
+          |                         ^
+      515 |     expect(help.stderr).toBe('');
+      516 |     expect(help.stdout).toContain('check:invariants');
+      517 |     expectSafeError(cli(['UNEXPECTED_SENTINEL']), 'INVALID_ARGUMENT');
+
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:514:25)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-17 missing schema is ERROR 42P01, never a clean empty database
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:542:7)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-17 missing SELECT is ERROR 42501
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:554:5)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-17 authentication failure does not expose credentials
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 1
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:561:5)
+
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-17 a real pool error event cannot log its raw message or emit PASS
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 0
+
+       98 |   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
+       99 |     expect(result.error).toBeUndefined();
+    > 100 |     expect(result.status).toBe(2);
+          |                           ^
+      101 |     expect(result.stdout.trim()).toBe('');
+      102 |     expect(result.stderr).not.toMatch(
+      103 |       /SENTINEL|postgres(?:ql)?:\/\/|QueryFailedError|Error:|\bat \w+\s*\(/,
+
+      at expectSafeError (test/db/invariants.db-spec.ts:100:27)
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:584:5)
+
+Test Suites: 1 failed, 1 total
+Tests:       18 failed, 22 passed, 40 total
+Snapshots:   0 total
+Time:        18.556 s
+Ran all test suites within paths "test/db/invariants.db-spec.ts".
+
+CLI GREEN: same command; exit 0; 40/40 tests
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/invariants.db-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       40 passed, 40 total
+Snapshots:   0 total
+Time:        73.028 s
+Ran all test suites within paths "test/db/invariants.db-spec.ts".

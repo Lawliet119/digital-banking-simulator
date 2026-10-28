@@ -1,0 +1,3 @@
+{"probe":"plain URL preserves configured SSL object","valid":true,"caPreserved":true,"rejectUnauthorized":true}
+{"probe":"driver override reproduced without connecting","sslnegotiation":"direct","sslBecameBoolean":true,"caPreserved":false}
+{"phase":"design probe of existing dependencies only","databaseConnectionsOpened":0}
