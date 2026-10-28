@@ -5,6 +5,7 @@ import { startValkeyContainer } from '../support/valkey.container';
 import { startElasticMqContainer } from '../support/elasticmq.container';
 import { localSqsClient } from '../support/elasticmq.container';
 import { withTimeout } from '../support/postgres.container';
+import { stillPendingAfter } from '../support/service-container';
 
 describe('DBS-40 isolated service containers', () => {
   it('TC-40-01/03: starts Valkey on a dynamic port, reads a key, pauses and recovers', async () => {
@@ -18,10 +19,10 @@ describe('DBS-40 isolated service containers', () => {
       console.log('DBS-40 Valkey SET/GET verified value=ready');
       await service.pause();
       const pending = client.ping();
-      const timedOut = await Promise.race([
-        pending.then(() => false),
-        new Promise<boolean>(resolve => setTimeout(() => resolve(true), 500)),
-      ]);
+      // stillPendingAfter trả false cho cả resolve và reject của `pending` (ví dụ
+      // connection-reset khi Docker pause/freeze khác nhau theo platform), nên fail đúng vào
+      // assertion dưới đây thay vì ném lỗi socket khó hiểu ra ngoài test (DBS-40 vòng 2, TC-40-10).
+      const timedOut = await stillPendingAfter(pending, 500);
       expect(timedOut).toBe(true);
       await service.resume();
       expect(await pending).toBe('PONG');
