@@ -1,6 +1,6 @@
 # DBS-69 · Script kiểm tra bất biến sổ cái
 
-> **Status:** Plan approved (code và bằng chứng local hoàn tất, chờ G4) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định · **Nhánh:** `codex/DBS-69-ledger-invariants` · **PR:** — · **Cập nhật:** 2026-10-29
+> **Status:** Implemented (G4 đã duyệt; đang bàn giao PR/CI) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định · **Nhánh:** `codex/DBS-69-ledger-invariants` · **PR:** — · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
@@ -460,7 +460,7 @@ Bằng chứng: [baseline](screenshots/DBS-69/baseline-phase1.txt), [review vòn
 - [x] Đủ năm ảnh chụp transcript thật; đã kiểm không có credential/token/Authorization/AWS ID/ARN.
 - [x] Phạm vi 32 file khớp §7; không có file lạ hoặc thay đổi scope.
 - [x] Sáu lệnh local xanh: lint, typecheck, 495 unit, 57 e2e, 194 DB, build.
-- [x] Docs cập nhật; link check 135 file, 0 hỏng; giữ status **Plan approved**, chuyển Implemented sau G4.
+- [x] Docs cập nhật; link check 135 file, 0 hỏng; status đã chuyển **Implemented** sau khi G4 được duyệt.
 - [x] Mọi phần DoD/handoff còn thiếu ghi ở §8 và BL-006/053/054; chưa có dòng backlog nào được xử lý trọn để xóa.
 
-**G4 đang chờ người dùng duyệt.** Chỉ có quyền commit cục bộ; chưa push, PR, CI remote, Dev review hoặc merge.
+**Quyết định G4 (2026-10-29):** người dùng trả lời «duyệt G4», chấp thuận kết quả, tài liệu và bằng chứng đã trình. Theo quy trình bàn giao, thực hiện push nhánh và mở Draft PR để Dev khác review; không merge hoặc sửa board. SHA code cuối vẫn `1d921ffbe12007304cb3e06c061f93da5455219b`; sau manual chỉ đổi tài liệu/bằng chứng. Fetch lại `origin/main` xác nhận vẫn tại `b8742a3`, nhánh không thiếu commit nền. PR/CI/review/merge được cập nhật theo bằng chứng thực tế, chưa coi G4 là DoD #5 hoàn tất.
