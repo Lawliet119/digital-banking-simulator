@@ -301,12 +301,12 @@ Không còn phát hiện `blocking` sau vòng 2. Các điểm còn lại thuộc
 
 - **Lệch so với kế hoạch:** một dòng ngoài §7 — thêm `TC-56-07b` ở cấp `audit.service.spec.ts` (ngoài bản đã có trong `audit-metadata.guard.spec.ts`) để khẳng định trực tiếp "`record()` không gọi `manager.query` khi metadata sai", không chỉ qua guard độc lập. Không đổi file nào ngoài `audit.service.spec.ts` đã có trong §7 bước 3 — không phải lệch phạm vi, chỉ sâu hơn kế hoạch.
 
-- **Bàn giao cho vai khác:** đã cập nhật **BL-019** trong `docs/BACKLOG.md` (thu hẹp, không xóa) — còn lại: API tra cứu UC-8/FR-AUD-03 (task UC-8), production role grants + kiểm AC-8.1/8.2 với role thật (Ops), registry đóng cho `action`/`role`/`target.id` (nền tảng backend), đo tải pool cho `recordDenied()` (task đầu tiên wire vào đường nóng thật), audit cho đọc dữ liệu nhạy cảm FR-AUD-02 (risk #4 khi họ wire UC-10).
+- **Bàn giao cho vai khác:** đã cập nhật **BL-019** trong `docs/BACKLOG.md` (thu hẹp, không xóa) — còn lại: API tra cứu UC-8/FR-AUD-03 (task UC-8), production role grants + kiểm AC-8.1/8.2 với role thật (Ops), registry đóng cho `action`/`role`/`target.id` (nền tảng backend), đo tải pool cho `recordDenied()` (task đầu tiên wire vào đường nóng thật), audit cho đọc dữ liệu nhạy cảm FR-AUD-02 (risk #4 khi họ wire UC-10); thêm **BL-031** theo dõi DoD #5 (PR merge, Dev review, CI).
 
 ## 9. Tài liệu đã cập nhật
 
 - `backend/src/modules/audit/README.md` — đồng bộ chữ ký thật, `recordDenied`, quy tắc không catch / gọi ngoài `run()`.
-- `docs/BACKLOG.md` — **BL-019** sửa nội dung (thu hẹp theo phần DBS-56 đã giải quyết), không xóa dòng.
+- `docs/BACKLOG.md` — **BL-019** sửa nội dung (thu hẹp theo phần DBS-56 đã giải quyết), không xóa dòng; thêm **BL-031** cho DoD #5.
 - `docs/features/README.md` — thêm dòng DBS-56.
 - `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` — sạch, 106 file, 0 link hỏng.
 

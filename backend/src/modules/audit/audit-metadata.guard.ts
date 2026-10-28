@@ -22,10 +22,16 @@ export function assertValidMetadata(metadata: AuditMetadata | undefined): void {
   for (const key of Object.keys(metadata)) {
     if (!ALLOWED_KEYS.has(key)) throw new AuditMetadataError();
   }
-  if (metadata.id !== undefined && !ID_PATTERN.test(metadata.id)) {
+  if (
+    metadata.id !== undefined &&
+    (typeof metadata.id !== 'string' || !ID_PATTERN.test(metadata.id))
+  ) {
     throw new AuditMetadataError();
   }
-  if (metadata.reason !== undefined && !VALID_REASONS.has(metadata.reason)) {
+  if (
+    metadata.reason !== undefined &&
+    (typeof metadata.reason !== 'string' || !VALID_REASONS.has(metadata.reason))
+  ) {
     throw new AuditMetadataError();
   }
   if (
