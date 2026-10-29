@@ -52,3 +52,12 @@ output "db_master_secret_arn" {
   description = "Secret mật khẩu master do RDS quản lý (DBS-67, DBS-68 đọc để tạo DB role và DATABASE_URL)."
   value       = aws_db_instance.main.master_user_secret[0].secret_arn
 }
+
+output "redis_primary_endpoint" {
+  value = aws_elasticache_replication_group.main.primary_endpoint_address
+}
+
+output "redis_replication_group_id" {
+  description = "Cho alarm Redis không truy cập được (docs/03 §14)."
+  value       = aws_elasticache_replication_group.main.id
+}
