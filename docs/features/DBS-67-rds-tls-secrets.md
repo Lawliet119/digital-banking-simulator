@@ -1,6 +1,6 @@
 # DBS-67 · Secrets Manager cho kết nối DB, CA bundle RDS trong image, app nối RDS qua TLS
 
-> **Status:** Implemented (chờ G4, chưa có PR) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-67-rds-tls-secrets` (xếp chồng trên `chore/DBS-38-auto-deploy`) · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented (G4 duyệt 2026-10-29: chấp nhận M-67-05, 06, 07 chưa chạy, BL-106, và không có ảnh chụp) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-67-rds-tls-secrets` (xếp chồng trên `chore/DBS-38-auto-deploy`) · **PR:** — · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
@@ -144,7 +144,7 @@ Rủi ro và cách lùi: lùi bằng revert commit (không đổi schema, không
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (SHA code cuối `200e041`): `npm test` **490/490** (31 suite, 0 skipped), `npm run lint:check` sạch, `npm run typecheck` sạch, `npm run build` xanh; `terraform test` ở `session` **15/15**, `terraform fmt -check` sạch; `check-doc-links.mjs` 0 link hỏng.
+- **Lệnh kiểm tra** (SHA code cuối `200e041`, sau rebase là `f221a21`, cùng nội dung): `npm test` **490/490** (31 suite, 0 skipped), `npm run lint:check` sạch, `npm run typecheck` sạch, `npm run build` xanh; `terraform test` ở `session` **15/15**, `terraform fmt -check` sạch; `check-doc-links.mjs` 0 link hỏng. Lúc G4 (2026-10-29) chạy lại `npm test` 490/490, lint, typecheck và `check-doc-links.mjs`: xanh; không chạy lại `terraform test` (máy không có terraform).
 - **Đối chiếu test case:**
 
 | ID | Test | Đạt? |
@@ -160,7 +160,7 @@ Rủi ro và cách lùi: lùi bằng revert commit (không đổi schema, không
 
 13 test case: 11 đạt, 1 đạt một phần (TC-67-12), 1 chưa làm (TC-67-13).
 
-- **Test thủ công** ([manual-test.txt](screenshots/DBS-67/manual-test.txt), SHA `200e041`):
+- **Test thủ công** ([manual-test.txt](screenshots/DBS-67/manual-test.txt), SHA `200e041`, sau rebase là `f221a21`):
 
 | Bước | Kết quả |
 |---|---|
