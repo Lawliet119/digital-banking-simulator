@@ -1,6 +1,6 @@
 # DBS-67 · Secrets Manager cho kết nối DB, CA bundle RDS trong image, app nối RDS qua TLS
 
-> **Status:** Implemented (G4 duyệt 2026-10-29: chấp nhận M-67-05, 06, 07 chưa chạy, BL-106, và không có ảnh chụp) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-67-rds-tls-secrets` (xếp chồng trên `chore/DBS-38-auto-deploy`) · **PR:** — · **Cập nhật:** 2026-10-29
+> **Status:** Implemented (G4 duyệt 2026-10-29: chấp nhận M-67-05, 06, 07 chưa chạy, BL-106, và không có ảnh chụp) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-67-rds-tls-secrets` (xếp chồng trên `chore/DBS-38-auto-deploy`) · **PR:** [#37](https://github.com/Lawliet119/digital-banking-simulator/pull/37) · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
