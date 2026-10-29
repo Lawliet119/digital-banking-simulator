@@ -1,6 +1,6 @@
 # DBS-68 · Bước migration riêng trong pipeline (task ECS một lần, trước khi deploy)
 
-> **Status:** Implemented (chờ G4, chưa có PR) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-68-migration-step` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`) · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented (G4 duyệt 2026-10-29: chấp nhận hai chỗ lệch, M-68-04..06 chưa chạy, BL-109, TC-68-17 chưa làm, BL-110, và không có ảnh chụp) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-68-migration-step` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`) · **PR:** — · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
@@ -167,7 +167,7 @@ Rủi ro và cách lùi: lùi bằng revert; không đổi schema, không đổi
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (SHA code cuối `ebeb1ca`): `test_migrate.py` **19 OK** (mới), `test_deploy.py` **20 OK** (17 cũ + 3 mới), `test_render_task_definition.py` **9 OK** (6 + 3), `check-image-workflow.py` OK; `terraform test`: `base` **30/30** (29 cũ + 1 mới, 2 assert cũ sửa), `session` **16/16** (15 + 1); `terraform fmt -check -recursive` sạch ở cả hai; `check-doc-links.mjs` 0 link hỏng. Không `.skip`, `.only`, `.todo` (0 skipped). Backend không đổi mã.
+- **Lệnh kiểm tra** (SHA code cuối `ebeb1ca`, sau rebase là `76317b9`, cùng nội dung): `test_migrate.py` **19 OK** (mới), `test_deploy.py` **20 OK** (17 cũ + 3 mới), `test_render_task_definition.py` **9 OK** (6 + 3), `check-image-workflow.py` OK; `terraform test`: `base` **30/30** (29 cũ + 1 mới, 2 assert cũ sửa), `session` **16/16** (15 + 1); `terraform fmt -check -recursive` sạch ở cả hai; `check-doc-links.mjs` 0 link hỏng. Không `.skip`, `.only`, `.todo` (0 skipped). Backend không đổi mã. Lúc G4 (2026-10-29) chạy lại ba bộ test Python, `npm test` 490/490 và `check-doc-links.mjs`: xanh; không chạy lại `terraform test` (máy không có terraform).
 - **Đối chiếu test case:**
 
 | ID | Test | Đạt? |
@@ -192,7 +192,7 @@ Rủi ro và cách lùi: lùi bằng revert; không đổi schema, không đổi
 
 17 test case: 14 đạt, 1 đơn giản hóa (TC-68-07), 2 chưa làm (TC-68-15 quy trình, TC-68-17).
 
-- **Test thủ công** ([manual-test.txt](screenshots/DBS-68/manual-test.txt), SHA `ebeb1ca`, id tài khoản AWS đã thay bằng `<account>`):
+- **Test thủ công** ([manual-test.txt](screenshots/DBS-68/manual-test.txt), SHA `ebeb1ca`, sau rebase là `76317b9`, id tài khoản AWS đã thay bằng `<account>`):
 
 | Bước | Kết quả |
 |---|---|
@@ -206,7 +206,7 @@ Rủi ro và cách lùi: lùi bằng revert; không đổi schema, không đổi
 Chưa có ảnh chụp màn hình (không có bước giao diện; bằng chứng là `manual-test.txt`).
 - **Chưa chứng minh bằng chạy thật:** `run-task` Fargate thật vào RDS, quyền IAM của role thật, lần chạy hai lần liên tiếp với TypeORM thật, hành vi `deploy.sh` khi migration lỗi trên AWS. Mọi test của script dùng `aws` giả nên chỉ chứng minh logic.
 - **Phạm vi so với §7:** khớp; thêm `fake_aws_deploy.py` và sửa `test_deploy.py` (mặc định migration thành công, đổi một assert vì `dbs-migrate` có thể đăng ký revision), như §7 bước 2–3 đã gồm. Không có file ngoài kế hoạch.
-- **Lệch so với kế hoạch (tự ghi, người duyệt xem ở G4):** (1) `migrate.sh` được viết trước test của nó; test sau đó viết với script đặt tạm ra ngoài, xác nhận đỏ (19/19 lỗi vì thiếu script), rồi đặt lại script và xanh; thêm 4 phép thử đột biến (bỏ `::add-mask::`, bỏ kiểm đang chạy, luôn coi `exitCode` là 0, ngưỡng 3 lần lỗi) đều làm test đỏ. Cột "Kết quả đỏ" của §7 vì vậy không điền từng dòng. (2) Resource `GetLogEvents` sửa thêm dạng `:*` sau khi M-68-07 cho thấy simulator chỉ khớp dạng đó; test và code đổi cùng lúc, không chạy riêng test đỏ.
+- **Lệch so với kế hoạch (người duyệt chấp nhận cả hai ở G4 ngày 2026-10-29):** (1) `migrate.sh` được viết trước test của nó; test sau đó viết với script đặt tạm ra ngoài, xác nhận đỏ (19/19 lỗi vì thiếu script), rồi đặt lại script và xanh; thêm 4 phép thử đột biến (bỏ `::add-mask::`, bỏ kiểm đang chạy, luôn coi `exitCode` là 0, ngưỡng 3 lần lỗi) đều làm test đỏ. Cột "Kết quả đỏ" của §7 vì vậy không điền từng dòng. (2) Resource `GetLogEvents` sửa thêm dạng `:*` sau khi M-68-07 cho thấy simulator chỉ khớp dạng đó; test và code đổi cùng lúc, không chạy riêng test đỏ.
 - **Bàn giao / BACKLOG:** BL-109 (chạy thật M-68-04..06, `apply base`, kiểm quyền log thật), BL-110 (giới hạn đã chấp nhận: test Postgres thật, transaction `all`, log khi repo public, nạp entity). Đã sửa BL-103 (tạo role chuyển sang DBS-119, kèm execution role riêng và PassRole) và BL-107 (task migration không bị ảnh hưởng bởi xoay mật khẩu).
 
 ## 9. Tài liệu đã cập nhật
