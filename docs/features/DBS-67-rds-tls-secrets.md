@@ -184,3 +184,96 @@ Chưa có ảnh chụp màn hình (không có bước giao diện); bằng chứ
 - `infra/terraform/README.md`: mục "Secret DB và TLS trong task api (DBS-67)".
 - `docs/BACKLOG.md`: thêm BL-106, 046, 047; sửa BL-039, BL-103.
 - `docs/features/README.md`: thêm dòng DBS-67.
+
+## 10. Sửa sau G4: CI đỏ vì thiếu fixture TLS
+
+> **Status:** G1 duyệt 2026-10-29 (theo đề xuất cả 3 câu), G2 duyệt 2026-10-29 (theo đề xuất cả 2 câu), G3 duyệt 2026-10-29, đang implement · **Cập nhật:** 2026-10-29
+
+### 10.1 Bối cảnh
+
+- **Triệu chứng:** job `unit` của CI đỏ trên PR #37 (run 40802029300) và PR #38 DBS-68 xếp chồng lên (run 40802029798, 40794425112): `src/database/pg-ssl.tls.spec.ts` báo `DATABASE_SSL_CA_PATH points to an unreadable file (.../tls-fixtures/ca.pem): ENOENT`, kèm `other-ca.pem`; suite không chạy được (TC-67-07). DoD 5 ("CI xanh") chưa đạt, dù §8 ghi TC-67-07 đạt.
+- **Tái hiện:** `git worktree add` sạch của `chore/DBS-67-rds-tls-secrets`, `npx jest src/database/pg-ssl.tls.spec.ts` → `FAIL`, `Tests: 0 total`; thư mục `backend/test/support/tls-fixtures/` chỉ có `README.md`.
+- **Nguyên nhân:** `.gitignore` dòng 5–6 (`*.pem`, `*.key`) chặn `ca.pem`, `other-ca.pem`, `server.pem`, `server.key`; commit `6de4370` chỉ đưa `README.md` lên. Ở máy local các file vẫn còn nên test đạt.
+- **Fixture:** `CN=dbs-test-ca` (tự ký), `CN=dbs-other-ca` (tự ký), `CN=localhost` ký bởi `dbs-test-ca`, khóa RSA 2048 của server; hạn 2126; khóa CA đã xóa (README). Không dùng ở đâu ngoài test.
+- **Baseline:** `npm run lint:check`, `npm run typecheck` sạch; `npm test` 516/516 (một lần chạy đầu có 1 test fail, không lặp lại; `pg-ssl.tls.spec.ts` chạy riêng 5/5 lần đạt). Không có Docker nên không chạy `test:e2e`, không ảnh hưởng vì sửa này chỉ đụng job `unit`.
+- **Phạm vi:** đưa fixture vào repo để job `unit` có file; rebase PR #38 (DBS-68) lên nhánh đã sửa. **Ngoài phạm vi:** đổi logic `pg-ssl`, đổi workflow CI.
+- **Quyết định ở G1** (người dùng duyệt 2026-10-29): (1) thêm ngoại lệ hẹp trong `.gitignore` và commit đúng 4 file fixture hiện có; (2) ghi tiếp trong §10 của doc này, sửa §8 khi xong, G4 rút gọn; (3) sau G4 rebase DBS-68 lên nhánh đã sửa, `push --force-with-lease` cả hai.
+
+### 10.2 Hành vi
+
+| Điều kiện | Kết quả |
+|---|---|
+| Clone sạch nhánh (như CI `actions/checkout`) | `backend/test/support/tls-fixtures/` có `ca.pem`, `other-ca.pem`, `server.pem`, `server.key`, `README.md`; `pg-ssl.tls.spec.ts` chạy 5/5 |
+| `git check-ignore --no-index` trên 4 file fixture | không bị bỏ qua (khớp dòng ngoại lệ `!backend/test/support/tls-fixtures/…`) |
+| `git check-ignore --no-index` trên file `.pem`/`.key` khác: `backend/test/support/tls-fixtures/ca.key`, `backend/test/support/other.pem`, `backend/server.key`, `infra/x.pem`; và `.env`, `backend/.env` | **vẫn** bị bỏ qua (ngoại lệ chỉ mở đúng tên file) |
+| Fixture | không đổi nội dung so với bộ đã đạt ở local (cùng sha256); không có khóa CA |
+
+### 10.3 Kiến trúc
+
+- **Nguyên nhân gốc** (đã tái hiện, §10.1): `.gitignore` chặn `*.pem`, `*.key` ở mọi thư mục; commit `6de4370` không có ngoại lệ nên 4 file không vào git.
+- **Sửa:** thêm vào cuối nhóm "Secrets" của `.gitignore`, liệt kê **từng tên file**, không dùng `*`:
+  ```
+  # Chứng chỉ thử của pg-ssl.tls.spec.ts (DBS-67), không phải secret: xem README trong thư mục
+  !backend/test/support/tls-fixtures/ca.pem
+  !backend/test/support/tls-fixtures/other-ca.pem
+  !backend/test/support/tls-fixtures/server.pem
+  !backend/test/support/tls-fixtures/server.key
+  ```
+  Commit 4 file.
+- **`backend/test/support/tls-fixtures/README.md`:** sửa tên test sai (`pg-ssl.spec.ts` → `pg-ssl.tls.spec.ts`; `pg-ssl.spec.ts` dùng `readFile` giả, không đọc fixture); thêm: các file được commit có chủ đích nhờ ngoại lệ trong `.gitignore` và CONTRIBUTING §6; `server.key` chỉ thuộc chứng chỉ `CN=localhost` (SAN `localhost`, `127.0.0.1`) ký bởi CA đã hủy khóa; không tin cậy ở đâu ngoài test.
+- **`CONTRIBUTING.md` §6:** dòng "Không commit … `.pem`/`.key`" thêm ngoại lệ duy nhất: 4 fixture trên, chỉ dùng cho test, khóa CA đã hủy (review #2).
+- **Bàn giao DBS-155** (Gitleaks): luật `private-key` mặc định sẽ báo `server.key` (cả khi quét lịch sử); DBS-155 cần allowlist đúng đường dẫn này kèm lý do. Ghi thành một dòng BACKLOG ở G4 (review #6).
+- **Không đổi:** `pg-ssl.ts`, `pg-ssl.tls.spec.ts`, workflow CI, Dockerfile. Build context của image là `backend/`, `.dockerignore` loại `test`, Dockerfile chỉ `COPY src` và file cấu hình: fixture không vào image.
+- **DBS-68:** rebase `chore/DBS-68-migration-step` lên `chore/DBS-67-rds-tls-secrets` đã sửa; không đổi nội dung DBS-68.
+
+### 10.4 Test cases tự động
+
+| ID | Truy vết | Lớp | Given · When · Then | Mong đợi |
+|---|---|---|---|---|
+| TC-67-14 | DoD 5 (hồi quy lỗi này) | unit (`test/support/tls-fixtures.spec.ts`, job `unit`) | Với mỗi file trong 4 fixture: `git check-ignore -q --no-index <file>` thoát mã 1 (luật `.gitignore` không bỏ qua, kể cả khi file đã track) và `git ls-files --error-unmatch <file>` thoát 0 (đã vào git) | đỏ trước sửa, xanh sau sửa |
+| TC-67-15 | an toàn | unit (cùng file) | `git check-ignore -q --no-index` trên `backend/test/support/tls-fixtures/ca.key`, `backend/test/support/other.pem`, `backend/server.key`, `infra/x.pem`, `.env`, `backend/.env` thoát 0 (vẫn bị bỏ qua) | đúng; đột biến nới ngoại lệ thành `tls-fixtures/*` làm test đỏ ở `ca.key` (M-67-10) |
+| TC-67-07 | DoD 2 | unit (TLS thật) | như §4, chạy trên clone sạch | 5/5 |
+| TC-67-11 | hồi quy | unit | `npm test`, `lint:check`, `typecheck` | đạt |
+
+Test TC-67-14/15 gọi `git` bằng `execFileSync` (không qua shell). `cwd` là gốc repo tính từ `__dirname` (`resolve(__dirname, '../../..')`, như `test/support/dockerfile.spec.ts`), không dùng `process.cwd()` vì jest chạy trong `backend/`; đường dẫn truyền cho git là đường dẫn từ gốc repo. Không bỏ qua test khi thiếu `.git` hay `git`: CI có cả hai (`actions/checkout`, runner ubuntu); thiếu thì test đỏ.
+
+### 10.5 Test thủ công
+
+| Bước | Việc làm | Kết quả mong đợi | Chạy? |
+|---|---|---|---|
+| M-67-08 | **Trước sửa:** `git worktree add` sạch ở `6ed6007`, nối `node_modules`, `npx jest --config ./test/jest-unit.js src/database/pg-ssl.tls.spec.ts` | `FAIL`, `ENOENT ... ca.pem`, `Tests: 0 total` | chạy |
+| M-67-09 | **Sau sửa:** cùng lệnh trên worktree sạch ở commit sửa; `ls tls-fixtures`; `sha256sum` so với bản local | 5/5 đạt; 5 file; hash trùng | chạy |
+| M-67-10 | `git check-ignore -v -n --no-index` trên các đường dẫn ở §10.2; rồi đột biến: tạm đổi 4 dòng ngoại lệ thành `!backend/test/support/tls-fixtures/*`, chạy `tls-fixtures.spec.ts`, hoàn lại (`git diff .gitignore` rỗng) | 4 fixture khớp dòng `.gitignore:N:!backend/test/support/tls-fixtures/...`; các đường dẫn khác khớp `*.pem`/`*.key`/`.env`; khi đột biến TC-67-15 đỏ ở `ca.key` | chạy |
+| M-67-11 | Push nhánh, xem run CI của PR #37 rồi PR #38 (sau rebase) | job `unit` xanh; URL run là bằng chứng | chạy sau khi người dùng cho push (G3 hoặc G4) |
+
+### 10.6 Domain review (AI)
+
+**Reviewer:** subagent, model opus, 2026-10-29 · vòng 1: 6 phát hiện (blocking 0, should-fix 3, minor 3), verdict REVISE; vòng 2 (subagent mới, opus) trên §10.2–10.5 đã sửa: 0 phát hiện, verdict APPROVE · [trả lời nguyên văn](screenshots/DBS-67/domain-review-10.md)
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | should-fix | `git check-ignore` bỏ qua file đã track nên TC-67-14 và M-67-10 không kiểm gì sau khi commit | đã sửa: `--no-index` ở TC-67-14/15, `-v -n --no-index` ở M-67-10 |
+| 2 | should-fix | CONTRIBUTING §6 cấm commit `.pem`/`.key`, thiết kế không cập nhật luật | đã sửa: thêm ngoại lệ duy nhất vào CONTRIBUTING §6 (câu hỏi G2) |
+| 3 | should-fix | README fixture ghi sai tên test (`pg-ssl.spec.ts`) | đã sửa §10.3: sửa tên, ghi phạm vi của `server.key` |
+| 4 | minor | `cwd` của jest là `backend/`, test có thể kiểm sai đường dẫn | đã sửa: gốc repo từ `__dirname` |
+| 5 | minor | TC-67-15 chưa chứng minh đỏ khi ngoại lệ bị nới | đã sửa: đột biến ở M-67-10 |
+| 6 | minor (bàn giao DBS-155) | Gitleaks sẽ báo `server.key` khi DBS-155 vào CI | đã ghi §10.3; dòng BACKLOG ở G4 |
+
+**Quyết định ở G2** (người dùng duyệt 2026-10-29): (1) thêm đúng một ngoại lệ vào CONTRIBUTING §6; (2) sau G3 được push `chore/DBS-67-rds-tls-secrets` để lấy run CI làm bằng chứng trước G4; rebase và force-push DBS-68 vẫn sau G4.
+
+### 10.7 Kế hoạch
+
+Rà soát kế hoạch: mọi file ở §10.3 (`.gitignore`, 4 fixture, README fixture, CONTRIBUTING §6), bàn giao DBS-155 (review #6), dòng TC-67-07 và DoD 5 ở §8, và rebase DBS-68 đều có hàng bên dưới. Ngoài phạm vi: logic `pg-ssl`, workflow CI.
+
+| Bước | File | Test viết trước | Kết quả đỏ | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 0 | `docs/features/DBS-67-rds-tls-secrets.md` §10, `screenshots/DBS-67/domain-review-10.md` | n/a | n/a | n/a | `docs(features): DBS-67 ci fixture fix design` |
+| 1 | `backend/test/support/tls-fixtures.spec.ts` | TC-67-14, TC-67-15 | điền khi chạy (kỳ vọng: TC-67-14 đỏ vì `check-ignore --no-index` thoát 0 và `ls-files --error-unmatch` lỗi) | `cd backend && npx jest --config ./test/jest-unit.js test/support/tls-fixtures.spec.ts` | gộp với bước 2 |
+| 2 | `.gitignore` (4 dòng ngoại lệ), `git add` 4 fixture | (bước 1) | n/a | lệnh bước 1 xanh; `npm test`, `lint:check`, `typecheck` | `fix(database): commit the tls test fixtures` |
+| 3 | `backend/test/support/tls-fixtures/README.md`, `CONTRIBUTING.md` §6 | n/a | n/a | `check-doc-links.mjs` | `docs: tls test fixtures are the only committed key` |
+| 4 | `screenshots/DBS-67/manual-test.txt` (nối thêm) | M-67-08..10 | n/a | theo §10.5, SHA commit bước 2 ở đầu phần mới | gộp với bước 6 |
+| 5 | (không file) push `chore/DBS-67-rds-tls-secrets` | M-67-11 (PR #37) | n/a | `gh run list --branch chore/DBS-67-rds-tls-secrets` → job `unit` xanh | n/a |
+| 6 | `docs/features/DBS-67-rds-tls-secrets.md` §8 (TC-67-07, TC-67-14/15, M-67-08..11), §9; `docs/BACKLOG.md` (dòng mới: allowlist Gitleaks cho `server.key`, nguồn DBS-67, vai #5, đóng khi DBS-155 có allowlist) | n/a | n/a | `check-doc-links.mjs` | `docs(features): DBS-67 ci fixture fix results` |
+| 7 (sau G4) | rebase `chore/DBS-68-migration-step` lên DBS-67; `push --force-with-lease` cả hai | M-67-11 (PR #38) | n/a | run CI PR #38 xanh | không commit mới |
+
+Rủi ro và cách lùi: revert commit bước 2 trả lại trạng thái cũ (CI đỏ như trước); fixture không vào image (`.dockerignore`). Rebase DBS-68 có thể xung đột ở `docs/BACKLOG.md`: giải quyết bằng tay, giữ cả hai dòng.
