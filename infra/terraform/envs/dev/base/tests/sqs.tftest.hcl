@@ -1,4 +1,12 @@
-mock_provider "aws" {}
+mock_provider "aws" {
+  # Giá trị giả đúng định dạng id của Cognito: khi nhánh này nằm cùng stack có Cognito (DBS-54),
+  # provider kiểm định dạng khi apply. Không ảnh hưởng gì khi stack chưa có Cognito.
+  mock_resource "aws_cognito_user_pool" {
+    defaults = {
+      id = "ap-southeast-1_ABCDEFGHI"
+    }
+  }
+}
 
 variables {
   account_id = "123456789012"
