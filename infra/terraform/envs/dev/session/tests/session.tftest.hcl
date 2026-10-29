@@ -533,11 +533,11 @@ run "valkey_replication_group" {
   assert {
     condition = (
       aws_elasticache_replication_group.main.auth_token == null &&
-      aws_elasticache_replication_group.main.auth_token_update_strategy == "SET" &&
+      aws_elasticache_replication_group.main.auth_token_update_strategy == "ROTATE" &&
       aws_elasticache_replication_group.main.snapshot_retention_limit == 0 &&
       aws_elasticache_replication_group.main.final_snapshot_identifier == null
     )
-    error_message = "token must be write-only (SET strategy) and no snapshot kept"
+    error_message = "token must be write-only (ROTATE on change) and no snapshot kept"
   }
 
   assert {
@@ -574,6 +574,12 @@ run "redis_auth_version_bump" {
   assert {
     condition     = aws_secretsmanager_secret_version.redis_auth.secret_string_wo_version == 2 && aws_elasticache_replication_group.main.auth_token_wo_version == 2
     error_message = "both write-only versions must follow redis_auth_version"
+  }
+
+  # ElastiCache từ chối SET khi group đã có token (M-75-11); ROTATE giữ token cũ hợp lệ tới lần xoay sau
+  assert {
+    condition     = aws_elasticache_replication_group.main.auth_token_update_strategy == "ROTATE"
+    error_message = "changing an existing auth token must use ROTATE, SET is only for the first token"
   }
 }
 

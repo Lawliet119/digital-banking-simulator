@@ -33,7 +33,7 @@ resource "aws_elasticache_replication_group" "main" {
 
   auth_token_wo              = ephemeral.random_password.redis_auth.result
   auth_token_wo_version      = var.redis_auth_version
-  auth_token_update_strategy = "SET"
+  auth_token_update_strategy = "ROTATE"
 
   snapshot_retention_limit = 0
   apply_immediately        = true
