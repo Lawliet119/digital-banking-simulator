@@ -209,12 +209,12 @@ Vòng 3 chưa chạy: các xử lý vòng 2 là chi tiết lệnh và một ràn
 
 | Bước | File | Test viết trước | Kết quả đỏ (1 dòng, điền khi chạy) | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
-| 1 | `base/redis_network.tf`, `base/outputs.tf`, `base/tests/redis.tftest.hcl` | TC-75-01, 02 | | `terraform test -filter=tests/redis.tftest.hcl` (ở `base`) | `feat(infra): valkey subnet group and security group` |
-| 2 | `base/redis_auth.tf`, `base/outputs.tf`, `base/versions.tf` (`aws >= 6.70, < 7.0`) | TC-75-03 (phần base) | | như trên | `feat(infra): redis auth secret shell in base` |
-| 3 | `session/versions.tf` (+ `hashicorp/random ~> 3.7`, `aws >= 6.70, < 7.0`), `.terraform.lock.hcl`, `session/variables.tf`, `session/redis.tf`, `session/outputs.tf`, `session/tests/session.tftest.hcl` (override remote state thêm `redis_*`) | TC-75-03 (phần session), 04, 05, 12 | | `terraform test` (ở `session`, cả 15 run cũ phải còn đạt) | `feat(infra): valkey replication group with tls and a write-only token` |
-| 4 | `session/ecs.tf`, `session/iam.tf` | TC-75-06, 07 | | như trên | `feat(infra): redis host, port and token secret in the api task` |
-| 5 | `backend/src/config/compose-redis-url.ts`, `compose-redis-url.spec.ts` | TC-75-08 | | `npx jest src/config/compose-redis-url.spec.ts` | `feat(config): compose redis url from parts` |
-| 6 | `backend/src/config/env.bootstrap.ts`, `env.bootstrap.spec.ts`, `validation.schema.ts`, `validation.schema.spec.ts`, `backend/env/.env.example` | TC-75-09, 10 | | `npx jest src/config` | `feat(config): bootstrap redis url on ecs` |
+| 1 | `base/redis_network.tf`, `base/outputs.tf`, `base/tests/redis.tftest.hcl` | TC-75-01, 02 | `Error: Reference to undeclared resource` | `terraform test -filter=tests/redis.tftest.hcl` (ở `base`) | `feat(infra): valkey subnet group and security group` |
+| 2 | `base/redis_auth.tf`, `base/outputs.tf`, `base/versions.tf` (`aws >= 6.70, < 7.0`) | TC-75-03 (phần base) | `Reference to undeclared resource` (`aws_secretsmanager_secret.redis_auth`) | như trên | `feat(infra): redis auth secret shell in base` |
+| 3 | `session/versions.tf` (+ `hashicorp/random ~> 3.7`, `aws >= 6.70, < 7.0`), `.terraform.lock.hcl`, `session/variables.tf`, `session/redis.tf`, `session/outputs.tf`, `session/tests/session.tftest.hcl` (override remote state thêm `redis_*`) | TC-75-03 (phần session), 04, 05, 12 | `Reference to undeclared resource` (`aws_elasticache_replication_group.main`) | `terraform test` (ở `session`, cả 15 run cũ phải còn đạt) | `feat(infra): valkey replication group with tls and a write-only token` |
+| 4 | `session/ecs.tf`, `session/iam.tf` | TC-75-06, 07 | `Error: Invalid index` (`REDIS_HOST` chưa có trong environment) | như trên | `feat(infra): redis host, port and token secret in the api task` |
+| 5 | `backend/src/config/compose-redis-url.ts`, `compose-redis-url.spec.ts` | TC-75-08 | `TS2307: Cannot find module './compose-redis-url'` | `npx jest src/config/compose-redis-url.spec.ts` | `feat(config): compose redis url from parts` |
+| 6 | `backend/src/config/env.bootstrap.ts`, `env.bootstrap.spec.ts`, `validation.schema.ts`, `validation.schema.spec.ts`, `backend/env/.env.example` | TC-75-09, 10 | 3 test TC-75-09 đỏ (`REDIS_URL` không được đặt); TC-75-10 xanh ngay (schema không chặn khóa lạ) | `npx jest src/config` | `feat(config): bootstrap redis url on ecs` |
 | 7 | — | TC-75-11 (`git grep -nE '^\s*(auth_token\|secret_string\|password)\s*=' -- infra/terraform/envs/dev` rỗng) | không có đỏ (kiểm tĩnh) | `git grep` | (không commit) |
 | 8 | Toàn bộ | baseline | | `terraform fmt -check -recursive`; `validate` + `test` ba stack; từ `backend/`: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e` (cần `docker compose up -d`) | (không commit riêng) |
 | 9 | AWS thật (sau khi người dùng xem plan và đồng ý, kèm đồng ý trước cho `destroy session`) | §5 M-75-01…11 | | `npm run build`, `terraform plan/apply/destroy`, `aws …` | `docs(features): DBS-75 manual test` |
@@ -238,3 +238,31 @@ Vòng 3 chưa chạy: các xử lý vòng 2 là chi tiết lệnh và một ràn
 **Rủi ro và cách lùi:** `replace_triggered_by` trỏ tới thuộc tính `id` của replication group có thể báo lỗi nếu Terraform không cho tham chiếu thuộc tính đã biết khi tạo; khi đó dùng tham chiếu cả resource (`[aws_elasticache_replication_group.main]`). Nếu thay đổi này làm lệch kế hoạch §3 thì là gate phụ. Lùi: `git revert`; `destroy session` xóa Valkey; vỏ secret ở `base` xóa bằng `apply` sau khi revert (recovery 0).
 
 **Quyết định ở G3** (người dùng trả lời «Duyệt cả hai G3», 2026-10-29): chấp nhận kế hoạch; `apply`/`destroy` theo quy trình Platform (cho xem plan, xin đồng ý cả `destroy` cuối phiên); không mở Draft PR, mở PR sau G4 (xếp chồng #37).
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (nhánh `chore/DBS-75-terraform-valkey`, xếp chồng trên DBS-67; Terraform 1.16.6, aws 6.70.0, random 3.9.1, tls 4.4.2):
+  - `terraform fmt -check -recursive`: sạch. `validate`: đạt ba stack. `init -lockfile=readonly`: đạt sau khi ghi ràng buộc chuẩn hóa `>= 6.70.0, < 7.0.0` vào lock file.
+  - `terraform test`: bootstrap 9/9, `base` 33/33 (29 cũ + 4 mới trong `tests/redis.tftest.hcl`), `session` 23/23 (15 cũ + 8 mới). Không có run bị bỏ qua. Assert `secrets` của TC-67 đổi thành lọc theo tiền tố `DB_` để chấp nhận thêm `REDIS_AUTH_TOKEN` (cùng file trong §7).
+  - TC-75-11: `git grep -nE '^\s*(auth_token|secret_string|password)\s*=' -- infra/terraform/envs/dev` không có dòng nào (exit 1).
+  - Backend: `npm run lint:check` sạch; `npm run typecheck` sạch; `npm test` 36/36 suite, 543/543 test; `npm run test:e2e` 7/8 suite, 54/54 test chạy được: suite còn lại cần PostgreSQL ở `127.0.0.1:5432` (`ECONNREFUSED`) mà máy này không có Docker (`docker: command not found`), không liên quan thay đổi; CI chạy đủ. Không có `.skip`, `.only`, `.todo` trong test của task.
+  - Chạy chung với DBS-68 và DBS-73 (worktree tạm): `session` 23/23, `base` 42/42.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-75-01 | `base/tests/redis.tftest.hcl` › `redis_security_group` | đạt (egress rỗng kiểm trên giá trị mock; AWS thật kiểm ở M-75-05) |
+| TC-75-02 | › `redis_subnet_group` | đạt |
+| TC-75-03 | › `redis_auth_secret`; `session/tests/session.tftest.hcl` › `redis_auth_secret_version`, `redis_auth_version_bump` | đạt |
+| TC-75-04 | › `valkey_replication_group` | đạt |
+| TC-75-05 | › `redis_replicas`, `rejects_too_many_replicas` | đạt |
+| TC-75-06 | › `redis_connection` | đạt |
+| TC-75-07 | › `redis_secret_policy` | đạt |
+| TC-75-08 | `src/config/compose-redis-url.spec.ts` (5 test) | đạt |
+| TC-75-09 | `src/config/env.bootstrap.spec.ts` › `REDIS_URL from the REDIS_* parts` (5 test) | đạt |
+| TC-75-10 | `src/config/validation.schema.spec.ts` › `TC-75-10 REDIS_* parts` (3 test) | đạt (xanh ngay từ đầu: schema vốn cho khóa lạ; khai báo vẫn thêm để có kiểu `Env`) |
+| TC-75-11 | `git grep -nE …` | đạt |
+| TC-75-12 | › `redis_outputs`, `base` › `exports_for_session` | đạt |
+
+- **Test thủ công:** chờ người dùng đồng ý `apply`. `terraform plan` thật của `session` chưa chạy được trước khi `apply base` (output `redis_*` chưa có trong state của `base`); ECR `dbs-api` không có image có tag.
+- **Lệch so với kế hoạch (chờ duyệt):** như DBS-73, `apply` từ worktree tích hợp bằng `-target`; `image_tag` dùng SHA đỉnh nhánh này (không task nào chạy vì `desired_count = 0`).
