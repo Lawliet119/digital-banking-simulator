@@ -1,6 +1,6 @@
 # DBS-73 · Terraform: hai queue SQS (risk-events, notification-events) mỗi queue một DLQ
 
-> **Status:** Plan approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-73-terraform-sqs` (từ `main`, không xếp chồng) · **PR:** — · **Cập nhật:** 2026-10-29
+> **Status:** Implemented (G4 duyệt 2026-10-29: chấp nhận không có ảnh chụp, DoD 2 và 3 đạt một phần qua BL-113…115) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-73-terraform-sqs` (từ `main`, không xếp chồng) · **PR:** (mở sau G4) · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
