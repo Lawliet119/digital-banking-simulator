@@ -1,6 +1,6 @@
 # DBS-73 · Terraform: hai queue SQS (risk-events, notification-events) mỗi queue một DLQ
 
-> **Status:** Draft (G1 đã duyệt, chờ G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-73-terraform-sqs` (từ `main`, không xếp chồng) · **PR:** — · **Cập nhật:** 2026-10-29
+> **Status:** Design approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-73-terraform-sqs` (từ `main`, không xếp chồng) · **PR:** — · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
@@ -191,4 +191,39 @@ Role api thật có trust chỉ `ecs-tasks.amazonaws.com` nên không assume đ�
 
 Vòng 5 chưa chạy: hai xử lý cuối chỉ là chi tiết lệnh chạy tay và thời điểm đo trong runbook, không đổi thiết kế Terraform; nêu ở G2 để người dùng quyết định có cần vòng 5 không.
 
-**Quyết định ở G2:** (chờ)
+**Quyết định ở G2** (người dùng trả lời «Duyệt cả hai G2», 2026-10-29): chấp nhận đề xuất 1–4: DoD 2 và 3 đạt một phần, bàn giao DBS-120/DBS-121 bằng BL; biến `SQS_*_DLQ_URL` bàn giao DBS-77/DBS-90; không chạy vòng review 5; `apply envs/dev/base` cho test thủ công (vẫn cho xem `terraform plan` trước khi chạy).
+
+## 7. Kế hoạch triển khai
+
+Mọi lệnh chạy từ `infra/terraform/envs/dev/base` trừ khi ghi khác; `terraform test` dùng `mock_provider "aws"` với `override_resource` cho `aws_sqs_queue.main`/`dlq` (ARN `arn:aws:sqs:ap-southeast-1:123456789012:dbs-dev-…`, URL `https://sqs.ap-southeast-1.amazonaws.com/123456789012/dbs-dev-…`) và `aws_iam_policy.worker_sqs`.
+
+| Bước | File | Test viết trước | Kết quả đỏ (1 dòng, điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `sqs.tf` (queue chính, DLQ, redrive, redrive allow), `tests/sqs.tftest.hcl` | TC-73-01, 02, 03, 04, 09 | | `terraform test -filter=tests/sqs.tftest.hcl` | `feat(infra): sqs queues with a dlq each and redrive after 5 receives` |
+| 2 | `sqs.tf` (`aws_iam_policy.worker_sqs`) | TC-73-05 | | như trên | `feat(infra): least-privilege sqs policy for the worker` |
+| 3 | `sqs.tf` (`aws_sqs_queue_policy.deny_api`) | TC-73-06 | | như trên | `feat(infra): deny the api task role on every queue` |
+| 4 | `outputs.tf` | TC-73-08 | | như trên | `feat(infra): export queue urls, arns and the worker policy` |
+| 5 | `envs/dev/session/iam.tf` (chỉ comment) | TC-73-07 (`git grep -n 'sqs:' -- infra/terraform/envs/dev/session` rỗng; chạy trước để thấy đã rỗng, sau khi sửa vẫn rỗng) | không có đỏ (kiểm tĩnh, giữ nguyên) | `git grep` | `docs(infra): the api task role never gets sqs` |
+| 6 | Toàn bộ | baseline | | `terraform fmt -check -recursive` ở `infra/terraform`; `validate` + `test` ở ba stack | (không commit riêng) |
+| 7 | AWS thật (sau khi người dùng xem plan và đồng ý) | §5 M-73-01…11 | | `terraform plan/apply`, `aws sqs …`, `aws iam …` | `docs(features): DBS-73 manual test` (output thô) |
+| 8 | `infra/terraform/README.md`, `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §10 (DLQ giữ 6 ngày), `docs/BACKLOG.md`, `docs/features/README.md`, feature doc §8–§9 | — | — | `check-doc-links.mjs` | `docs(infra): sqs queues` |
+
+**Plan dự kiến** (bước 7, M-73-01): `base` thêm 11 tài nguyên (4 `aws_sqs_queue`, 2 `aws_sqs_queue_redrive_allow_policy`, 4 `aws_sqs_queue_policy`, 1 `aws_iam_policy`), 0 thay đổi, 0 xóa.
+
+**Rà soát giới hạn và DoD:**
+
+| Mục | Xử lý |
+|---|---|
+| DoD 1 | bước 1 (TC-73-01…04, 09), M-73-02…07 |
+| DoD 2 (phần task này) | bước 2, 3, 5; M-73-08, 09, 11. Gắn policy vào role worker: ngoài phạm vi, BL cho DBS-120 |
+| DoD 3 (phần task này) | bước 4; M-73-10. Đưa vào task worker: ngoài phạm vi, BL cho DBS-121 |
+| DoD 4 | quy trình, sau G4 |
+| BL-051 (retention DLQ, runbook redrive) | bước 8: thêm DBS-73 làm nguồn, ghi retention 6 ngày đã chốt và quy tắc redrive §2; alarm và runbook chạy thật vẫn mở |
+| Biến `SQS_*_DLQ_URL` | ngoài phạm vi, BL cho DBS-77/DBS-90 ở bước 8 |
+| `ApproximateAgeOfOldestMessage` bỏ qua message nhận ≥ 3 lần | ghi chú cho DBS-163 trong README (bước 8) |
+| Queue policy theo tên role `dbs-dev-api-task` | ghi bàn giao DBS-120 (đổi tên role thì sửa queue policy) trong cùng dòng BL |
+| Đối chiếu chi phí | SQS ≈ 0 USD khi rảnh; ghi README, không cần dòng BL Cost Explorer |
+
+**Rủi ro và cách lùi:** mock provider sinh ARN ngẫu nhiên làm `jsonencode` policy sai định dạng → dùng `override_resource` (như DBS-66). Queue SQS bị xóa thì phải chờ 60 giây mới tạo lại cùng tên: không xóa trong lúc kiểm. Lùi: `git revert` các commit, rồi `terraform apply` ở `base` để xóa 11 tài nguyên (queue rỗng, không mất dữ liệu nào vì chưa có producer).
+
+**Quyết định ở G3:** (chờ)
