@@ -253,7 +253,7 @@ Vòng 3 chưa chạy: các xử lý vòng 2 là chi tiết lệnh và một ràn
 |---|---|---|
 | TC-75-01 | `base/tests/redis.tftest.hcl` › `redis_security_group` | đạt (egress rỗng kiểm trên giá trị mock; AWS thật kiểm ở M-75-05) |
 | TC-75-02 | › `redis_subnet_group` | đạt |
-| TC-75-03 | › `redis_auth_secret`; `session/tests/session.tftest.hcl` › `redis_auth_secret_version`, `redis_auth_version_bump` | đạt |
+| TC-75-03 | › `redis_auth_secret`; `session/tests/session.tftest.hcl` › `redis_auth_secret_version`, `redis_auth_version_bump` | đơn giản hóa: mock chỉ kiểm version tăng trên cả hai resource, không bắt được ràng buộc của API ElastiCache (`SET` bị từ chối khi đã có token); M-75-11 trên AWS thật **không đạt** |
 | TC-75-04 | › `valkey_replication_group` | đạt |
 | TC-75-05 | › `redis_replicas`, `rejects_too_many_replicas` | đạt |
 | TC-75-06 | › `redis_connection` | đạt |
@@ -264,5 +264,23 @@ Vòng 3 chưa chạy: các xử lý vòng 2 là chi tiết lệnh và một ràn
 | TC-75-11 | `git grep -nE …` | đạt |
 | TC-75-12 | › `redis_outputs`, `base` › `exports_for_session` | đạt |
 
-- **Test thủ công:** chờ người dùng đồng ý `apply`. `terraform plan` thật của `session` chưa chạy được trước khi `apply base` (output `redis_*` chưa có trong state của `base`); ECR `dbs-api` không có image có tag.
-- **Lệch so với kế hoạch (chờ duyệt):** như DBS-73, `apply` từ worktree tích hợp bằng `-target`; `image_tag` dùng SHA đỉnh nhánh này (không task nào chạy vì `desired_count = 0`).
+- **Test thủ công** (2026-10-29, `AWS_PROFILE=dbs-admin`; output thô ở [manual-test.txt](screenshots/DBS-75/manual-test.txt)). Code là `0b38a4d` (commit cuối đổi code), chạy từ worktree tích hợp DBS-68 + nhánh này + DBS-73; `image_tag` = `80f8a54…` (đỉnh nhánh), `desired_count = 0` nên không task api nào chạy. Không có `backend/env/.env.staging` trên máy.
+
+| Bước | Lệnh | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|---|
+| M-75-01 | `node -e "require('./dist/config/env.bootstrap')…"` với `REDIS_HOST/PORT/AUTH_TOKEN` | `rediss: valkey.example.internal 6379 64`; token không xuất hiện trong output | đạt |
+| M-75-02 | như trên, `REDIS_PORT=abc` | stderr `REDIS_* variables are incomplete or malformed, REDIS_URL not composed: REDIS_PORT`; `REDIS_URL= undefined`; `new URL` → `TypeError: Invalid URL` | đạt |
+| M-75-03 | `terraform plan -target=…` ở `base` (cùng plan với M-73-01) | 5 tài nguyên Redis (subnet group, SG, 2 rule, vỏ secret) trong `16 to add, 0 to change, 0 to destroy` | đạt |
+| M-75-04 | `apply base`; `describe-secret`; `list-secret-version-ids --include-deprecated` | `KmsKeyId` = ARN của `alias/dbs-dev`; chưa có version (`[]`) | đạt |
+| M-75-05 | `apply session` (15:48:07 → 15:57:21, `20 added`); `describe-replication-groups`; grep token trong state | `Engine valkey` 8.0.1, 1 node `cache.t4g.micro`, cluster mode tắt, `TransitEncryptionMode required`, `AtRestEncryptionEnabled true`, `KmsKeyId` = CMK, `AuthTokenEnabled true`, `SnapshotRetentionLimit 0`, SG = `dbs-dev-redis`; token 64 ký tự; grep: `base: 0`, `session: 0` | đạt |
+| M-75-06 | `describe-task-definition dbs-api` (revision 3) | `REDIS_HOST` = `master.dbs-dev.….cache.amazonaws.com` (đúng endpoint), `REDIS_PORT 6379`, `secrets` có `REDIS_AUTH_TOKEN` → ARN `dbs/dev/redis-auth`; grep token trong task definition: 0 | đạt |
+| M-75-07 | probe `valkey-cli` với SG `api` | lần 1 hỏng do script: image `public.ecr.aws/docker/library/valkey:8-alpine` không có (`CannotPullContainerError … not found`); đổi sang `public.ecr.aws/valkey/valkey:8-alpine` (bản chính thức trên ECR Public). Lần 2: `start`, `ok-tls: PONG`, `notls:` rỗng (bị `timeout` cắt), `badpass: AUTH failed: WRONGPASS …`, `nopass: NOAUTH Authentication required.` Kho CA của image đủ, không cần `--cacert` | đạt |
+| M-75-08 | probe với SG `dbs-probe-deny` | `start` (đã đọc được secret), không `PONG`, `exit=143` | đạt |
+| M-75-11 | `apply -var redis_auth_version=2` | plan đầy đủ có thêm drift ngoài phạm vi (`aws_db_parameter_group.postgres17`: `apply_method` `pending-reboot` → `immediate`, giá trị không đổi), nên plan lại với `-target` 2 tài nguyên Redis: replication group đổi tại chỗ (`auth_token_wo_version 1 -> 2`), secret version thay mới. `apply` lỗi: `InvalidParameterValue: The AUTH token provided does not match the AUTH token provided for rotation. To SET, please use an AUTH token that is the same as the AUTH token provided for rotation.` Sau lỗi: Valkey giữ token cũ; secret version cũ vẫn `AWSCURRENT` (Terraform đã bỏ khỏi state); probe lại vẫn `ok-tls: PONG`. State ghi `auth_token_wo_version = 2` dù lỗi, nên `apply` tiếp theo sẽ ghi token mới vào secret mà **không** gửi cho Valkey (lệch, `WRONGPASS`). Không `apply` lại; `destroy` ngay | **không đạt** |
+| M-75-09 | dọn probe | role `dbs-probe-exec` `NoSuchEntity`; task definition ACTIVE 0 (2 revision đã `deregister` và `delete`); SG `dbs-probe-deny` đã xóa | đạt |
+| M-75-10 | `destroy session` (16:10:28 → 16:15:41, `19 destroyed`); kiểm từng dịch vụ | replication group 0, snapshot ElastiCache 0, RDS 0, ALB 0, cluster ECS 0, EIP 0, ENI trong VPC 0, secret `rds!db` không còn, role `dbs-dev-api-task` `NoSuchEntity`, state `session` 0 tài nguyên; `dbs/dev/redis-auth` còn 1 version `AWSCURRENT` (đúng §2). Còn 1 snapshot RDS `automated` `rds:dbs-dev-2026-10-29-15-54` (của phiên này; `delete_automated_backups = true`, AWS xóa không đồng bộ; kiểm lại lúc ≈ 16:25: 0 snapshot) | đạt |
+
+- **Nguyên nhân M-75-11:** tài liệu provider aws 6.70.0: `SET` chỉ dùng khi thêm token đầu tiên cho replication group chưa có mật khẩu; đổi token đã có thì phải `ROTATE` (mặc định của AWS khi bỏ trống). §2 và §3 chọn `SET` là sai. Thời gian bật: ≈ 28 phút (15:48 → 16:16), chi phí ước tính ≈ 0,04 USD.
+- **Đề xuất sửa (chờ duyệt, gate phụ vì đổi §2, §3):** `auth_token_update_strategy = "ROTATE"`. Khi xoay, Valkey nhận cả token mới và cũ, nên task đang chạy không mất kết nối; token cũ còn hợp lệ tới lần xoay sau (ElastiCache giữ tối đa 2 token). Lần tạo đầu không dùng strategy nên không đổi. Thêm assert trong `redis_auth_version_bump`, sửa README, rồi chạy lại M-75-05…11 trên AWS (cần `apply`/`destroy session` lần nữa, ≈ 30 phút, ≈ 0,04 USD).
+- **Phát hiện ngoài phạm vi:** drift của `aws_db_parameter_group.postgres17` (DBS-66, PR #27): mỗi `plan` sau `apply` báo đổi `apply_method` của `rds.force_ssl` và `timezone` từ `pending-reboot` sang `immediate`. Hai tham số này là static nên AWS trả `pending-reboot`; sửa bằng `apply_method = "pending-reboot"` trong `rds.tf`. Bàn giao chủ DBS-66 (BL-120).
+- **Lệch so với kế hoạch:** như DBS-73, `apply base` từ worktree tích hợp bằng `-target`, và `image_tag` là SHA đỉnh nhánh. Người dùng đồng ý ngày 2026-10-29 («đồng ý và tiếp tục»). M-75-11 plan bằng `-target` hai tài nguyên Redis để không đụng drift RDS (hẹp hơn §5). Image probe đổi tên như trên.
