@@ -84,3 +84,11 @@ output "github_deploy_role_arn" {
   description = "Đặt vào biến repo GitHub AWS_DEPLOY_ROLE_ARN (do chủ repo tạo)."
   value       = aws_iam_role.github_deploy.arn
 }
+
+output "redis_subnet_group_name" {
+  value = aws_elasticache_subnet_group.main.name
+}
+
+output "redis_security_group_id" {
+  value = aws_security_group.redis.id
+}
