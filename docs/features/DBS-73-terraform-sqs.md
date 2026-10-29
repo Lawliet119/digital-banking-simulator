@@ -199,10 +199,10 @@ Mọi lệnh chạy từ `infra/terraform/envs/dev/base` trừ khi ghi khác; `t
 
 | Bước | File | Test viết trước | Kết quả đỏ (1 dòng, điền khi chạy) | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
-| 1 | `sqs.tf` (queue chính, DLQ, redrive, redrive allow), `tests/sqs.tftest.hcl` | TC-73-01, 02, 03, 04, 09 | | `terraform test -filter=tests/sqs.tftest.hcl` | `feat(infra): sqs queues with a dlq each and redrive after 5 receives` |
-| 2 | `sqs.tf` (`aws_iam_policy.worker_sqs`) | TC-73-05 | | như trên | `feat(infra): least-privilege sqs policy for the worker` |
-| 3 | `sqs.tf` (`aws_sqs_queue_policy.deny_api`) | TC-73-06 | | như trên | `feat(infra): deny the api task role on every queue` |
-| 4 | `outputs.tf` | TC-73-08 | | như trên | `feat(infra): export queue urls, arns and the worker policy` |
+| 1 | `sqs.tf` (queue chính, DLQ, redrive, redrive allow), `tests/sqs.tftest.hcl` | TC-73-01, 02, 03, 04, 09 | `Error: Reference to undeclared resource` (`aws_sqs_queue.main`) | `terraform test -filter=tests/sqs.tftest.hcl` | `feat(infra): sqs queues with a dlq each and redrive after 5 receives` |
+| 2 | `sqs.tf` (`aws_iam_policy.worker_sqs`) | TC-73-05 | `Reference to undeclared resource` (`aws_iam_policy.worker_sqs`) | như trên | `feat(infra): least-privilege sqs policy for the worker` |
+| 3 | `sqs.tf` (`aws_sqs_queue_policy.deny_api`) | TC-73-06 | `run "queue_policy_denies_api"... fail` (resource chưa có) | như trên | `feat(infra): deny the api task role on every queue` |
+| 4 | `outputs.tf` | TC-73-08 | `Error: Reference to undeclared output value` | như trên | `feat(infra): export queue urls, arns and the worker policy` |
 | 5 | `envs/dev/session/iam.tf` (chỉ comment) | TC-73-07 (`git grep -n 'sqs:' -- infra/terraform/envs/dev/session` rỗng; chạy trước để thấy đã rỗng, sau khi sửa vẫn rỗng) | không có đỏ (kiểm tĩnh, giữ nguyên) | `git grep` | `docs(infra): the api task role never gets sqs` |
 | 6 | Toàn bộ | baseline | | `terraform fmt -check -recursive` ở `infra/terraform`; `validate` + `test` ở ba stack | (không commit riêng) |
 | 7 | AWS thật (sau khi người dùng xem plan và đồng ý) | §5 M-73-01…11 | | `terraform plan/apply`, `aws sqs …`, `aws iam …` | `docs(features): DBS-73 manual test` (output thô) |
@@ -227,3 +227,27 @@ Mọi lệnh chạy từ `infra/terraform/envs/dev/base` trừ khi ghi khác; `t
 **Rủi ro và cách lùi:** mock provider sinh ARN ngẫu nhiên làm `jsonencode` policy sai định dạng → dùng `override_resource` (như DBS-66). Queue SQS bị xóa thì phải chờ 60 giây mới tạo lại cùng tên: không xóa trong lúc kiểm. Lùi: `git revert` các commit, rồi `terraform apply` ở `base` để xóa 11 tài nguyên (queue rỗng, không mất dữ liệu nào vì chưa có producer).
 
 **Quyết định ở G3** (người dùng trả lời «Duyệt cả hai G3», 2026-10-29): chấp nhận kế hoạch; sửa docs/03 §10 trong PR này; không mở Draft PR, push và mở PR sau G4.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (nhánh `chore/DBS-73-terraform-sqs`, Terraform 1.16.6, aws 6.70.0):
+  - `terraform fmt -check -recursive`: sạch. `validate`: đạt ở `bootstrap`, `base`, `session`.
+  - `terraform test`: bootstrap 9/9, `base` 25/25 (17 cũ + 8 run mới trong `tests/sqs.tftest.hcl`), `session` 9/9. Không có run bị bỏ qua.
+  - TC-73-07: `git grep -n 'sqs:' -- infra/terraform/envs/dev/session` không có dòng nào (exit 1), trước và sau khi sửa comment.
+  - Chạy chung với chuỗi PR Ops (worktree tạm gộp DBS-68 + DBS-75 + nhánh này, không commit): `base` 42/42. Lần đầu chạy chung, `tests/sqs.tftest.hcl` hỏng (`"user_pool_id" must be the region name…` của Cognito mock); đã sửa bằng `mock_resource "aws_cognito_user_pool"` như các file test khác (commit `test(infra): mock a valid cognito pool id in the sqs tests`).
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-73-01 | `base/tests/sqs.tftest.hcl` › `main_queues` | đạt |
+| TC-73-02 | › `dead_letter_queues` | đạt |
+| TC-73-03 | › `redrive_policy` | đạt |
+| TC-73-04 | › `redrive_allow_policy` | đạt |
+| TC-73-05 | › `worker_policy` | đạt (DoD 2 một phần: policy chưa gắn, DBS-120) |
+| TC-73-06 | › `queue_policy_denies_api` | đạt |
+| TC-73-07 | `git grep -n 'sqs:'` trên `session` | đạt |
+| TC-73-08 | › `exports_for_worker` | đạt (DoD 3 một phần: chưa vào task worker, DBS-121) |
+| TC-73-09 | › `standard_queues_sse_sqs` | đạt (mock để `fifo_queue` null, nên assert `!= true`) |
+
+- **Test thủ công:** chờ người dùng đồng ý `apply` (xem bên dưới).
+- **Lệch so với kế hoạch (chờ duyệt):** §7 bước 7 ghi `apply` từ nhánh này, nhưng nhánh cắt từ `main` thiếu KMS, Cognito và RDS network đã có trên AWS, nên `apply` thẳng sẽ xóa chúng. Đề xuất `apply` từ worktree tích hợp bằng `-target` chỉ các tài nguyên của tuần 3. `terraform plan` thật của `base` (chỉ đọc, 2026-10-29): 18 thêm, 0 đổi, 0 xóa; 2 trong 18 (`aws_iam_role.github_deploy`, `aws_iam_role_policy.deploy`) thuộc DBS-38/DBS-68.
