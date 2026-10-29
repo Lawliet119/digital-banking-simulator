@@ -1,6 +1,6 @@
 # DBS-68 · Bước migration riêng trong pipeline (task ECS một lần, trước khi deploy)
 
-> **Status:** Implemented (G4 duyệt 2026-10-29: chấp nhận hai chỗ lệch, M-68-04..06 chưa chạy, BL-109, TC-68-17 chưa làm, BL-110, và không có ảnh chụp) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-68-migration-step` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`) · **PR:** — · **Cập nhật:** 2026-10-29
+> **Status:** Implemented (G4 duyệt 2026-10-29: chấp nhận hai chỗ lệch, M-68-04..06 chưa chạy, BL-109, TC-68-17 chưa làm, BL-110, và không có ảnh chụp) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-68-migration-step` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`) · **PR:** [#38](https://github.com/Lawliet119/digital-banking-simulator/pull/38) · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
