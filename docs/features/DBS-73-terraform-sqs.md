@@ -62,7 +62,7 @@
 - Message chỉ còn có thể giao lại cho consumer khi còn trong queue chính (≤ 4 ngày từ lúc gửi) hoặc sau redrive. 4 ngày < 7 ngày: giao lại muộn vẫn gặp dòng dedup.
 - Hạn trong DLQ tính từ lúc gửi gốc (queue standard), nên DLQ 6 ngày nghĩa là message bị xóa khỏi DLQ chậm nhất 6 ngày sau khi gửi. AWS khuyên DLQ giữ lâu hơn queue chính (6 > 4 đạt).
 - **Redrive reset hạn** (message thành message mới, giữ thêm 4 ngày), nên DLQ 6 ngày không tự ép được an toàn. Giới hạn thật: message được redrive phải được **tiêu thụ và xóa** trước `processed_at + 7 ngày` (`processed_at` ≥ lúc gửi gốc T0, nên đủ điều kiện nếu xong trước T0 + 7 ngày). Rủi ro chỉ có ở message đã commit `processed_events` nhưng xóa thất bại 5 lần; message lỗi thật (chưa commit) không có dòng dedup nên redrive lúc nào cũng an toàn.
-- Tiêu chí đo được cho runbook (ghi vào BL-051): sau redrive, `ApproximateNumberOfMessages` + `ApproximateNumberOfMessagesNotVisible` của queue chính về 0 trước T0 + 7 ngày (`aws sqs get-queue-attributes --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible`); T0 là `SentTimestamp` cũ nhất trong DLQ (đọc bằng `receive-message --message-system-attribute-names SentTimestamp`, không xóa). Không đạt được thì không redrive, xử lý tay. Nếu nhóm muốn cửa sổ rộng hơn: chủ `processed_events` nâng retention (≥ 6 + 4 ngày + dư), bàn giao ở §8.
+- Tiêu chí đo được cho runbook (ghi vào BL-051), không cần lấy mẫu message: DLQ giữ 6 ngày nên mọi message còn trong DLQ có T0 ≥ lúc redrive − 6 ngày. Quy tắc: `ApproximateNumberOfMessages` + `ApproximateNumberOfMessagesNotVisible` của queue chính phải về 0 **trong vòng 24 giờ** kể từ lúc bắt đầu redrive (`aws sqs get-queue-attributes --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible`), tức trước T0 + 7 ngày. Không đạt thì dừng (`cancel-message-move-task`) và xử lý tay. Nếu nhóm muốn cửa sổ rộng hơn: chủ `processed_events` nâng retention (≥ 6 + 4 ngày + dư), bàn giao ở §8.
 
 **Ca biên:**
 - `maxReceiveCount > 3` trên queue standard: SQS đẩy message nhận ≥ 3 lần về cuối queue, `ApproximateAgeOfOldestMessage` bỏ qua nó (tài liệu AWS). Ghi cho DBS-163 (alarm tuổi message).
@@ -77,7 +77,7 @@
   - `outputs.tf`: thêm `sqs_risk_queue_url`, `sqs_notification_queue_url`, `sqs_risk_dlq_url`, `sqs_notification_dlq_url`, `sqs_queue_arns` (map), `sqs_dlq_arns` (map), `sqs_dlq_names` (map, cho alarm DBS-163), `worker_sqs_policy_arn`.
   - `tests/sqs.tftest.hcl` (mới).
   - `infra/terraform/README.md`: SQS chuyển sang cột "giữ lại", mục "Hàng đợi SQS (DBS-73)" (bảng output → biến môi trường, retention, redrive, chi phí).
-- **Interface cung cấp:** output → biến môi trường của `sqs.config.ts`: `sqs_risk_queue_url` → `SQS_RISK_QUEUE_URL`, `sqs_notification_queue_url` → `SQS_NOTIFICATION_QUEUE_URL`; `AWS_REGION` = `ap-southeast-1` (task đã có); `SQS_ENDPOINT` không đặt trên AWS. DBS-121 đưa vào task definition worker qua `terraform_remote_state` của `base`; DBS-120 gắn `worker_sqs_policy_arn` vào role task worker. **Khoảng trống:** app chưa có biến cho URL DLQ (`sqs.config.ts` chỉ có hai URL queue chính), nên consumer chưa có cách cấu hình để gửi message sai schema vào DLQ. Task này chỉ xuất output `sqs_*_dlq_url`; thêm `SQS_RISK_DLQ_URL`, `SQS_NOTIFICATION_DLQ_URL` (hoặc đọc `RedrivePolicy` qua `GetQueueAttributes`) là việc của DBS-77/DBS-90, bàn giao ở §8 (không đổi biến môi trường dùng chung trong task Ops).
+- **Interface cung cấp:** output → biến môi trường của `sqs.config.ts`: `sqs_risk_queue_url` → `SQS_RISK_QUEUE_URL`, `sqs_notification_queue_url` → `SQS_NOTIFICATION_QUEUE_URL`; `AWS_REGION` = `ap-southeast-1` (task đã có); `SQS_ENDPOINT` không đặt trên AWS. DBS-121 đưa vào task definition worker qua `terraform_remote_state` của `base`; DBS-120 gắn `worker_sqs_policy_arn` vào role task worker. **Khoảng trống:** app chưa có biến cho URL DLQ (`sqs.config.ts` chỉ có hai URL queue chính), nên consumer chưa có cách cấu hình để gửi message sai schema vào DLQ. Task này chỉ xuất output `sqs_*_dlq_url`; thêm `SQS_RISK_DLQ_URL`, `SQS_NOTIFICATION_DLQ_URL` là việc của DBS-77/DBS-90 (không dùng đường đọc `RedrivePolicy`: nó trả ARN, đổi ra URL cần `sqs:GetQueueUrl` trên DLQ mà policy không cấp), bàn giao ở §8 (không đổi biến môi trường dùng chung trong task Ops).
 - **Policy worker** (`dbs-dev-worker-sqs`):
 
 ```json
@@ -123,7 +123,7 @@ flowchart LR
 | TC-73-05 | DoD 2 (một phần: policy chưa gắn, DBS-120) | tf test | Policy worker có đúng hai statement: 5 action ở §3 trên đúng 2 ARN queue chính; chỉ `sqs:SendMessage` trên đúng 2 ARN DLQ; không `*`, không action quản trị (`Purge`, `Delete*Queue`, `Set*`) | đúng |
 | TC-73-06 | DoD 2 (api không có quyền) | tf test | Queue policy cả 4 queue: một statement `Deny`, `sqs:*`, `aws:PrincipalArn` = role `dbs-dev-api-task` của `account_id` | đúng |
 | TC-73-07 | DoD 2 (api không có quyền) | tĩnh (grep) | Không file nào ở `envs/dev` gắn policy SQS vào role `task` của api; `session` không có `sqs:` | không có dòng nào |
-| TC-73-08 | DoD 3 (một phần: chưa vào task definition worker, DBS-121) | tf test | Output `sqs_risk_queue_url`, `sqs_notification_queue_url` bằng URL queue chính; `sqs_*_dlq_url` bằng URL DLQ; `worker_sqs_policy_arn`, map ARN/tên DLQ có đủ 2 khóa | đúng |
+| TC-73-08 | DoD 3 (một phần: chưa vào task definition worker, DBS-121) | tf test | Output `sqs_risk_queue_url`, `sqs_notification_queue_url` bằng URL queue chính; `sqs_*_dlq_url` bằng URL DLQ; `sqs_queue_arns`, `sqs_dlq_arns`, `sqs_dlq_names` đúng hai khóa `risk`, `notification` với giá trị bằng ARN/tên của queue tương ứng; `worker_sqs_policy_arn` bằng ARN policy | đúng |
 | TC-73-09 | DoD 1 | tf test | Không queue nào là FIFO; `kms_master_key_id` null (đúng SSE-SQS, không lẫn hai kiểu) | đúng |
 | — | DoD 2, 3 | ghi chú | DoD 2 và 3 chỉ đạt **một phần** ở task này: gắn policy (DBS-120) và đưa URL vào task worker (DBS-121) có dòng BL ở §8; người dùng chấp nhận ở G4 | — |
 | — | DoD 4 | quy trình | PR merge, CI xanh, Dev review, bảng đối chiếu | kiểm lúc review |
@@ -142,11 +142,11 @@ flowchart LR
 | M-73-06 | Redrive: `aws sqs start-message-move-task --source-arn <dlq>`; `list-message-move-tasks` tới `COMPLETED`; nhận ở queue chính rồi `delete-message` | message trở lại queue chính với `MessageId` mới; xóa xong cả hai queue rỗng |
 | M-73-07 | Tạo queue tạm `dbs-dev-probe` với `RedrivePolicy` trỏ `dbs-dev-risk-events-dlq`; xóa queue tạm | bị từ chối (redrive allow `byQueue`); queue tạm đã xóa |
 | M-73-08 | `aws iam simulate-custom-policy` với policy `dbs-dev-worker-sqs` (lấy bằng `get-policy-version`): `sqs:SendMessage`/`ReceiveMessage`/`DeleteMessage` trên 2 queue chính; `sqs:SendMessage` trên 2 DLQ; `sqs:ReceiveMessage`, `sqs:PurgeQueue` trên DLQ; `sqs:PurgeQueue` trên queue chính | gửi/nhận/xóa ở queue chính và gửi vào DLQ `allowed`; nhận và purge DLQ, purge queue chính `implicitDeny` |
-| M-73-09 | `aws sqs get-queue-attributes --attribute-names Policy` của 4 queue; `grep -rn sqs infra/terraform/envs/dev/session` | mỗi queue có statement `Deny` cho role `dbs-dev-api-task`; `session` không có dòng `sqs` |
+| M-73-09 | `aws sqs get-queue-attributes --attribute-names Policy` của 4 queue; `git grep -n 'sqs:' -- infra/terraform/envs/dev/session` | mỗi queue có statement `Deny` cho role `dbs-dev-api-task`; `session` không có dòng `sqs` |
 | M-73-10 | `terraform output` ở `base` | có `sqs_risk_queue_url`, `sqs_notification_queue_url` dạng `https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-…-events`, và hai `sqs_*_dlq_url` |
-| M-73-11 | Dựng tạm chỉ role api: ở `session`, `terraform apply -target=aws_iam_role.task` (IAM miễn phí); `aws iam simulate-principal-policy --policy-source-arn <role dbs-dev-api-task> --action-names sqs:SendMessage sqs:ReceiveMessage --resource-arns <queue> --resource-policy file://<queue policy>` cho từng queue trong 4 queue; rồi `terraform destroy -target=aws_iam_role.task` và `aws iam get-role` | mỗi queue `explicitDeny` (queue policy); role đã xóa (`NoSuchEntity`) |
+| M-73-11 | Điều kiện: `session` chưa dựng (`aws iam get-role --role-name dbs-dev-api-task` → `NoSuchEntity`, nên tên role còn trống). Tạo role tạm **cùng tên** `dbs-dev-api-task`, trust chỉ IAM user đang chạy (`aws sts get-caller-identity`), inline policy cho phép `sqs:*` trên 4 queue; `aws sts assume-role` vào role đó; với credential tạm: `aws sqs send-message` và `receive-message` trên `dbs-dev-risk-events` và `dbs-dev-notification-events-dlq`; xóa inline policy và role, `get-role` | mỗi lệnh `AccessDenied … with an explicit deny in a resource-based policy` (queue policy thắng cả `sqs:*` gắn trên role); role tạm đã xóa (`NoSuchEntity`) |
 
-Role api có trust chỉ `ecs-tasks.amazonaws.com` nên không assume được từ CLI; `simulate-principal-policy` (M-73-11) là cách thực thi gần nhất mà không cần dựng ECS. `-target` chỉ dùng cho bước thử này, có `destroy -target` ngay sau.
+Role api thật có trust chỉ `ecs-tasks.amazonaws.com` nên không assume được từ CLI, và `simulate-principal-policy` không hỗ trợ resource policy với role. M-73-11 vì vậy dùng role tạm cùng tên (queue policy so `aws:PrincipalArn` theo tên role), gọi thật, chi phí 0, xóa ngay; đó cũng là trường hợp xấu nhất (role api lỡ có `sqs:*`).
 
 ## 6. Domain review (AI)
 
@@ -164,6 +164,17 @@ Role api có trust chỉ `ecs-tasks.amazonaws.com` nên không assume được t
 | 8 | minor | Message mẫu dùng tên người | đã đổi sang body đúng hợp đồng event |
 | 9 | minor | Comment `session/iam.tf` hứa SQS cho role api | đã đưa vào phạm vi (§3, chỉ sửa comment) |
 
-**Vòng 2:** (chạy lại trên các mục đã sửa)
+**Vòng 2** (cùng reviewer, model Opus 5.5, trên commit `2b2a3b0`): 6 phát hiện (blocking 1, should-fix 2, minor 3), verdict REVISE · [nguyên văn](screenshots/DBS-73/domain-review.md#vòng-2)
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| V2-1 | blocking | M-73-11 dùng `simulate-principal-policy` với resource policy, không hỗ trợ với role và không điền `aws:PrincipalArn` | đã thay bằng role tạm cùng tên, assume, gọi `send-message`/`receive-message` thật, mong đợi explicit deny |
+| V2-2 | should-fix | Đường dự phòng đọc `RedrivePolicy` cần `GetQueueUrl` | đã bỏ đường dự phòng, chỉ giữ bàn giao biến `SQS_*_DLQ_URL` |
+| V2-3 | should-fix | T0 lấy bằng mẫu `receive-message` không tin được | đã đổi quy tắc: queue chính về 0 trong 24 giờ kể từ lúc redrive (dựa trên DLQ 6 ngày) |
+| V2-4 | minor | `grep -rn` quét `.terraform/` | đã đổi sang `git grep -n 'sqs:'` |
+| V2-5 | minor | Thiếu biến và điều kiện cho `-target` | không còn áp dụng (M-73-11 không dùng `-target`); điều kiện `session` chưa dựng đã ghi |
+| V2-6 | minor | `sqs_queue_arns` chưa được test | đã thêm vào TC-73-08 |
+
+**Vòng 3:** (chạy lại trên M-73-11, §2 tiêu chí redrive, §3 khoảng trống, TC-73-08)
 
 **Quyết định ở G2:** (chờ)
