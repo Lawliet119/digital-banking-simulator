@@ -1,6 +1,6 @@
 # DBS-38 · Deploy tự động: push main → image mới → ECS → /health/ready trên cloud
 
-> **Status:** Implemented (G4 tự duyệt; bước chạy thật trên AWS chưa chạy, BL-104) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-38-auto-deploy` (xếp chồng trên `chore/DBS-66-terraform-rds`) · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented (G4 duyệt 2026-10-29: chấp nhận M-38-00..09 chưa chạy, BL-104, và không có ảnh chụp) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-38-auto-deploy` (xếp chồng trên `chore/DBS-66-terraform-rds`) · **PR:** — · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
