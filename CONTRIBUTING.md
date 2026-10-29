@@ -123,7 +123,7 @@ Chi tiết: [docs/03_HIGH_LEVEL_ARCHITECTURE.md](docs/03_HIGH_LEVEL_ARCHITECTURE
 
 ## 6. Bảo mật repo
 
-- **Không commit**: `.env`, key AWS, `*.tfvars`, `terraform.tfstate`, file `.pem`/`.key`. Các mẫu này đã có trong `.gitignore`.
+- **Không commit**: `.env`, key AWS, `*.tfvars`, `terraform.tfstate`, file `.pem`/`.key`. Các mẫu này đã có trong `.gitignore`. Ngoại lệ duy nhất: `ca.pem`, `other-ca.pem`, `server.pem`, `server.key` trong `backend/test/support/tls-fixtures/`, chỉ dùng cho test TLS, khóa CA đã hủy (xem README trong thư mục). Thêm ngoại lệ khác phải hỏi #5.
 - Lỡ commit secret: **báo ngay cho #5**, thu hồi (rotate) key trước rồi mới xóa khỏi lịch sử git. Xóa commit thôi là chưa đủ vì key đã bị lộ.
 - GitHub Actions kết nối AWS qua **OIDC**, không lưu access key trong GitHub Secrets.
 - Không dùng trigger `pull_request_target` cho workflow chạy code từ fork.
