@@ -75,6 +75,22 @@ resource "aws_iam_role_policy" "read_db_master_secret" {
   })
 }
 
+# DBS-75: execution role đọc AUTH token của Valkey. Secret mã hóa bằng cùng CMK, nên kms:Decrypt qua
+# Secrets Manager ở read-db-master-secret đã đủ.
+resource "aws_iam_role_policy" "read_redis_auth_secret" {
+  name = "read-redis-auth-secret"
+  role = aws_iam_role.execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "secretsmanager:GetSecretValue"
+      Resource = local.base.redis_auth_secret_arn
+    }]
+  })
+}
+
 # Task role: quyền của mã ứng dụng. Chưa có quyền nào; SQS, Cognito do task khác thêm.
 # Không gắn policy hay attachment nào ở task này (kiểm bằng grep ở M-34-02).
 resource "aws_iam_role" "task" {

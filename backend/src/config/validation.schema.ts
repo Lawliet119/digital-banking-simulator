@@ -21,6 +21,9 @@ export interface Env {
   DB_NAME?: string;
   DB_USER?: string;
   DB_PASSWORD?: string;
+  REDIS_HOST?: string;
+  REDIS_PORT?: string;
+  REDIS_AUTH_TOKEN?: string;
   DATABASE_POOL_MAX: number;
   DATABASE_SSL: boolean;
   DATABASE_SSL_CA_PATH?: string;
@@ -114,6 +117,11 @@ export const validationSchema = Joi.object<Env>({
     }),
   // Redis is an accelerator, never the source of truth: a slow Redis must not slow a transfer.
   REDIS_COMMAND_TIMEOUT_MS: Joi.number().integer().min(10).max(1000).default(50),
+  // Parts of REDIS_URL for ECS (DBS-75, env.bootstrap joins them when REDIS_URL is not set). Not read
+  // anywhere else; REDIS_URL stays required, so an incomplete set fails here with a clear error.
+  REDIS_HOST: Joi.string(),
+  REDIS_PORT: Joi.string(),
+  REDIS_AUTH_TOKEN: Joi.string(),
 
   AWS_REGION: Joi.string().default('ap-southeast-1'),
   SQS_ENDPOINT: Joi.string().uri().optional(),

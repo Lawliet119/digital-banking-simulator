@@ -187,7 +187,7 @@ Chưa có ảnh chụp màn hình (không có bước giao diện); bằng chứ
 
 ## 10. Sửa sau G4: CI đỏ vì thiếu fixture TLS
 
-> **Status:** Implemented (G1–G4 duyệt 2026-10-29; G4 chấp nhận M-67-11 PR #38 chưa chạy lúc duyệt và không có ảnh chụp) · **Cập nhật:** 2026-10-29
+> **Status:** Implemented (G1–G4 duyệt 2026-10-29; G4 chấp nhận không có ảnh chụp; M-67-11 PR #38 chạy sau G4, đạt) · **Cập nhật:** 2026-10-29
 
 ### 10.1 Bối cảnh
 
@@ -299,7 +299,7 @@ Rủi ro và cách lùi: revert commit bước 2 trả lại trạng thái cũ (
 | M-67-08 | đạt: worktree sạch ở `6ed6007` chỉ có `README.md`; `pg-ssl.tls.spec.ts` `FAIL`, `ENOENT ... ca.pem`, `other-ca.pem` (tái hiện đúng lỗi CI) |
 | M-67-09 | đạt: worktree sạch ở `9220aa1` có đủ 5 file; `pg-ssl.tls.spec.ts` và `tls-fixtures.spec.ts` 19/19; sha256 trùng bản local |
 | M-67-10 | đạt: 4 fixture khớp `.gitignore:13–16` (dòng `!`); 6 đường dẫn khác khớp `*.pem`, `*.key`, `.env`; đột biến làm đỏ đúng `ca.key is still ignored`; hoàn lại, `git diff .gitignore` rỗng |
-| M-67-11 | PR #37 đạt (run 40804747779); PR #38 **chưa chạy**: chờ rebase sau G4 (§10.7 bước 7) |
+| M-67-11 | đạt: PR #37 run 40804747779; PR #38 sau rebase run [40805584484](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40805584484), cả 6 job xanh |
 
 Không có ảnh chụp (không có bước giao diện); bằng chứng là `manual-test.txt` và URL run CI.
 - **Phạm vi so với §10.7:** khớp. Sai khác nhỏ: test dùng `spawnSync` thay vì `execFileSync` như §10.4 ghi (cùng không qua shell; `spawnSync` trả mã thoát mà không ném, gọn hơn cho kiểm mã 0/1).
@@ -312,3 +312,4 @@ Không có ảnh chụp (không có bước giao diện); bằng chứng là `ma
 - `backend/test/support/tls-fixtures/README.md`: sửa tên test, phạm vi của `server.key`, lý do commit.
 - `docs/BACKLOG.md`: thêm BL-111, BL-112.
 - `docs/features/DBS-67-rds-tls-secrets.md`: §8 dòng TC-67-07, §10.
+- **Sau G4:** BL-109/110 trùng ID DBS-68 đã dùng, đổi thành BL-111/112. Rebase DBS-68 lên nhánh này, xung đột ở `docs/BACKLOG.md` giữ cả bốn dòng; PR #38 xanh (M-67-11).

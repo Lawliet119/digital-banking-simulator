@@ -8,8 +8,9 @@ resource "aws_ecs_cluster" "main" {
 }
 
 # Chỉ biến môi trường không bí mật (COGNITO_* là định danh công khai, không phải bí mật).
-# DB_USER và DB_PASSWORD đi qua `secrets` (DBS-67); REDIS_URL do task ElastiCache thêm (cũng qua
-# `secrets`, không viết thẳng). Thiếu chúng thì app staging từ chối khởi động, nên desired_count mặc định 0.
+# DB_USER, DB_PASSWORD (DBS-67) và REDIS_AUTH_TOKEN (DBS-75) đi qua `secrets`, không viết thẳng; app ghép
+# DATABASE_URL và REDIS_URL từ các phần (env.bootstrap). Thiếu chúng thì app staging từ chối khởi động,
+# nên desired_count mặc định 0.
 resource "aws_ecs_task_definition" "api" {
   family                   = "dbs-api"
   requires_compatibilities = ["FARGATE"]
@@ -47,6 +48,9 @@ resource "aws_ecs_task_definition" "api" {
       { name = "DB_NAME", value = "dbs" },
       { name = "DATABASE_SSL", value = "true" },
       { name = "DATABASE_SSL_CA_PATH", value = "/etc/ssl/rds/global-bundle.pem" },
+      # DBS-75: app ghép REDIS_URL = rediss://:<token>@REDIS_HOST:REDIS_PORT (env.bootstrap).
+      { name = "REDIS_HOST", value = aws_elasticache_replication_group.main.primary_endpoint_address },
+      { name = "REDIS_PORT", value = "6379" },
     ]
 
     # Mật khẩu master do RDS sinh và xoay; ECS đọc khi task khởi động (execution role, iam.tf).
@@ -54,6 +58,8 @@ resource "aws_ecs_task_definition" "api" {
     secrets = [
       { name = "DB_USER", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::" },
       { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
+      # Token mới mỗi phiên, ghi bởi redis.tf; ECS đọc lúc task khởi động.
+      { name = "REDIS_AUTH_TOKEN", valueFrom = local.base.redis_auth_secret_arn },
     ]
 
     logConfiguration = {
