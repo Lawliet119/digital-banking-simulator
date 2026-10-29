@@ -59,21 +59,24 @@ override_data {
   target = data.terraform_remote_state.base
   values = {
     outputs = {
-      vpc_id                = "vpc-0abc"
-      public_subnet_ids     = ["subnet-pub-a", "subnet-pub-b"]
-      private_subnet_ids    = ["subnet-prv-a", "subnet-prv-b"]
-      ecr_repository_url    = "123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/dbs-api"
-      ecr_repository_arn    = "arn:aws:ecr:ap-southeast-1:123456789012:repository/dbs-api"
-      alb_security_group_id = "sg-alb"
-      api_security_group_id = "sg-api"
-      api_log_group_name    = "/dbs/dev/api"
-      api_log_group_arn     = "arn:aws:logs:ap-southeast-1:123456789012:log-group:/dbs/dev/api"
-      cognito_user_pool_id  = "ap-southeast-1_ABCDEFGHI"
-      cognito_client_id     = "abcdefghij1234567890"
-      cognito_issuer        = "https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_ABCDEFGHI"
-      kms_key_arn           = "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"
-      db_subnet_group_name  = "dbs-dev"
-      db_security_group_id  = "sg-db"
+      vpc_id                  = "vpc-0abc"
+      public_subnet_ids       = ["subnet-pub-a", "subnet-pub-b"]
+      private_subnet_ids      = ["subnet-prv-a", "subnet-prv-b"]
+      ecr_repository_url      = "123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/dbs-api"
+      ecr_repository_arn      = "arn:aws:ecr:ap-southeast-1:123456789012:repository/dbs-api"
+      alb_security_group_id   = "sg-alb"
+      api_security_group_id   = "sg-api"
+      api_log_group_name      = "/dbs/dev/api"
+      api_log_group_arn       = "arn:aws:logs:ap-southeast-1:123456789012:log-group:/dbs/dev/api"
+      cognito_user_pool_id    = "ap-southeast-1_ABCDEFGHI"
+      cognito_client_id       = "abcdefghij1234567890"
+      cognito_issuer          = "https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_ABCDEFGHI"
+      kms_key_arn             = "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"
+      db_subnet_group_name    = "dbs-dev"
+      db_security_group_id    = "sg-db"
+      redis_subnet_group_name = "dbs-dev"
+      redis_security_group_id = "sg-redis"
+      redis_auth_secret_arn   = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf"
     }
   }
 }
@@ -489,5 +492,128 @@ run "db_secret_policy" {
   assert {
     condition     = length([for s in jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement : s if s.Resource == "*"]) == 0
     error_message = "no statement on * in the secret policy"
+  }
+}
+
+# TC-75-04: Valkey theo ADR-12: 1 node t4g.micro, cluster mode tắt, TLS bắt buộc, at-rest bằng CMK,
+# token chỉ qua thuộc tính write-only, không snapshot
+run "valkey_replication_group" {
+  command = apply
+
+  assert {
+    condition = (
+      aws_elasticache_replication_group.main.replication_group_id == "dbs-dev" &&
+      aws_elasticache_replication_group.main.engine == "valkey" &&
+      startswith(aws_elasticache_replication_group.main.engine_version, "8") &&
+      aws_elasticache_replication_group.main.node_type == "cache.t4g.micro" &&
+      aws_elasticache_replication_group.main.num_cache_clusters == 1 &&
+      aws_elasticache_replication_group.main.port == 6379
+    )
+    error_message = "replication group must be dbs-dev, valkey 8, one cache.t4g.micro node on 6379"
+  }
+
+  assert {
+    condition = (
+      aws_elasticache_replication_group.main.automatic_failover_enabled == false &&
+      aws_elasticache_replication_group.main.multi_az_enabled == false
+    )
+    error_message = "dev must run without failover and Multi-AZ"
+  }
+
+  assert {
+    condition = (
+      aws_elasticache_replication_group.main.transit_encryption_enabled == true &&
+      aws_elasticache_replication_group.main.transit_encryption_mode == "required" &&
+      aws_elasticache_replication_group.main.at_rest_encryption_enabled == "true" &&
+      aws_elasticache_replication_group.main.kms_key_id == "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"
+    )
+    error_message = "TLS must be required and storage encrypted with the shared CMK"
+  }
+
+  assert {
+    condition = (
+      aws_elasticache_replication_group.main.auth_token == null &&
+      aws_elasticache_replication_group.main.auth_token_update_strategy == "SET" &&
+      aws_elasticache_replication_group.main.snapshot_retention_limit == 0 &&
+      aws_elasticache_replication_group.main.final_snapshot_identifier == null
+    )
+    error_message = "token must be write-only (SET strategy) and no snapshot kept"
+  }
+
+  assert {
+    condition = (
+      aws_elasticache_replication_group.main.subnet_group_name == "dbs-dev" &&
+      aws_elasticache_replication_group.main.security_group_ids == toset(["sg-redis"])
+    )
+    error_message = "replication group must use the redis subnet group and security group from base"
+  }
+}
+
+# TC-75-03 (phần session): token ghi vào secret của base bằng write-only, cùng phiên bản với Valkey
+run "redis_auth_secret_version" {
+  command = apply
+
+  assert {
+    condition = (
+      aws_secretsmanager_secret_version.redis_auth.secret_id == "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf" &&
+      aws_secretsmanager_secret_version.redis_auth.secret_string == null &&
+      aws_secretsmanager_secret_version.redis_auth.secret_string_wo_version == 1 &&
+      aws_elasticache_replication_group.main.auth_token_wo_version == 1
+    )
+    error_message = "secret version must be write-only and share version 1 with the replication group"
+  }
+}
+
+run "redis_auth_version_bump" {
+  command = plan
+
+  variables {
+    redis_auth_version = 2
+  }
+
+  assert {
+    condition     = aws_secretsmanager_secret_version.redis_auth.secret_string_wo_version == 2 && aws_elasticache_replication_group.main.auth_token_wo_version == 2
+    error_message = "both write-only versions must follow redis_auth_version"
+  }
+}
+
+# TC-75-05: production thêm replica: failover và Multi-AZ bật theo số replica; quá 2 bị từ chối
+run "redis_replicas" {
+  command = plan
+
+  variables {
+    redis_replicas = 1
+  }
+
+  assert {
+    condition = (
+      aws_elasticache_replication_group.main.num_cache_clusters == 2 &&
+      aws_elasticache_replication_group.main.automatic_failover_enabled == true &&
+      aws_elasticache_replication_group.main.multi_az_enabled == true
+    )
+    error_message = "one replica must turn on failover and Multi-AZ"
+  }
+}
+
+run "rejects_too_many_replicas" {
+  command = plan
+
+  variables {
+    redis_replicas = 3
+  }
+
+  expect_failures = [var.redis_replicas]
+}
+
+# TC-75-12: output cho task, probe và alarm; Valkey nằm trong stack session (cùng apply/destroy)
+run "redis_outputs" {
+  command = apply
+
+  assert {
+    condition = (
+      output.redis_primary_endpoint == aws_elasticache_replication_group.main.primary_endpoint_address &&
+      output.redis_replication_group_id == aws_elasticache_replication_group.main.id
+    )
+    error_message = "redis endpoint and replication group id must be exported"
   }
 }
