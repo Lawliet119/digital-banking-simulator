@@ -84,4 +84,5 @@ run 40804747779: success https://github.com/Lawliet119/digital-banking-simulator
   PASS src/database/pg-ssl.tls.spec.ts
   PASS test/support/tls-fixtures.spec.ts
   Tests: 530 passed, 530 total
-PR #38 (DBS-68): chưa chạy, chờ rebase sau G4
+PR #38 (DBS-68) sau rebase (25caee1): run 40805584484 success https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40805584484
+  lint, db, build, e2e, typecheck, unit: success
