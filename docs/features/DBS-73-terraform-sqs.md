@@ -1,6 +1,6 @@
 # DBS-73 · Terraform: hai queue SQS (risk-events, notification-events) mỗi queue một DLQ
 
-> **Status:** Design approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-73-terraform-sqs` (từ `main`, không xếp chồng) · **PR:** — · **Cập nhật:** 2026-10-29
+> **Status:** Plan approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-73-terraform-sqs` (từ `main`, không xếp chồng) · **PR:** — · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
@@ -226,4 +226,4 @@ Mọi lệnh chạy từ `infra/terraform/envs/dev/base` trừ khi ghi khác; `t
 
 **Rủi ro và cách lùi:** mock provider sinh ARN ngẫu nhiên làm `jsonencode` policy sai định dạng → dùng `override_resource` (như DBS-66). Queue SQS bị xóa thì phải chờ 60 giây mới tạo lại cùng tên: không xóa trong lúc kiểm. Lùi: `git revert` các commit, rồi `terraform apply` ở `base` để xóa 11 tài nguyên (queue rỗng, không mất dữ liệu nào vì chưa có producer).
 
-**Quyết định ở G3:** (chờ)
+**Quyết định ở G3** (người dùng trả lời «Duyệt cả hai G3», 2026-10-29): chấp nhận kế hoạch; sửa docs/03 §10 trong PR này; không mở Draft PR, push và mở PR sau G4.
