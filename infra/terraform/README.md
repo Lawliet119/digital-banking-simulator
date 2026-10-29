@@ -162,6 +162,18 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 - Ghi chú: ARN secret đổi mỗi lần dựng lại RDS, nên revision task cũ không dùng lại được sau `destroy`; `terraform apply` tạo revision mới. RDS xoay mật khẩu master mỗi 7 ngày, task đang chạy giữ mật khẩu cũ tới khi khởi động lại (BL-107).
 - Kiểm tĩnh: `terraform test` ở `envs/dev/session` (run `db_connection`, `db_secret_policy`). Chạy thật trên AWS **chưa chạy** (BL-106).
 
+### ElastiCache Valkey (DBS-75)
+
+`base` giữ subnet group ElastiCache `dbs-dev` (2 private subnet), SG `dbs-dev-redis` (6379 chỉ từ SG `dbs-dev-api`; task `api` chỉ được đi ra 6379 tới SG này) và **vỏ** secret `dbs/dev/redis-auth` (CMK `alias/dbs-dev`, `recovery_window_in_days = 0`, chưa có giá trị). `session` dựng replication group `dbs-dev`: Valkey 8, `cache.t4g.micro`, 1 node, cluster mode tắt, TLS bắt buộc (`transit_encryption_mode = required`), mã hóa at-rest bằng CMK, không snapshot. Biến `redis_node_type`, `redis_replicas` (0–2; > 0 bật failover và Multi-AZ) dành cho production.
+
+- **AUTH token không nằm trong state nào.** Mỗi `apply` của `session` sinh token 64 ký tự bằng ephemeral `random_password` (provider `hashicorp/random`) và ghi cùng lúc vào Valkey (`auth_token_wo`) và secret (`secret_string_wo`). Mỗi phiên (`apply` sau `destroy`) có token mới.
+- **Task api** nhận `REDIS_HOST` (primary endpoint), `REDIS_PORT=6379` làm biến thường và `REDIS_AUTH_TOKEN` từ secret; execution role có `GetSecretValue` trên đúng secret này. App ghép `REDIS_URL` (`rediss://`), xem [backend/README.md](../../backend/README.md).
+- **Xoay token giữa phiên:** tăng `redis_auth_version` (mặc định 1) rồi `apply`. Strategy `ROTATE`: Valkey nhận cả token mới và token cũ, task đang chạy giữ kết nối, task khởi động sau đó đọc token mới (`aws ecs update-service --force-new-deployment` để thay hết). Token cũ còn hợp lệ tới lần xoay sau; xoay thêm một lần nếu cần loại hẳn nó. Không dùng `SET`: ElastiCache chỉ nhận `SET` cho token đầu tiên. Cùng cách đó dùng để khôi phục khi token của secret và Valkey lệch nhau (`WRONGPASS`), ví dụ ghi secret thất bại giữa chừng.
+- Sau `destroy session`, secret vẫn còn một version `AWSCURRENT` chứa token của phiên đã xóa; không hại gì vì Valkey dùng token đó đã bị xóa.
+- **Chi phí khi bật** (ADR-11, ADR-12): node ≈ 0,016 USD/giờ (quên `destroy` ≈ 12 USD/tháng), secret 0,40 USD/tháng. Tạo mất 5–10 phút, xóa khoảng 5 phút; chạy song song với RDS.
+- Provider: `aws >= 6.70, < 7.0` ở `base` và `session` (cần thuộc tính write-only), `random ~> 3.7` ở `session`.
+- Kiểm tĩnh: `terraform test` ở `envs/dev/base` (`tests/redis.tftest.hcl`) và `envs/dev/session` (run `valkey_replication_group`, `redis_connection`, `redis_secret_policy`…). Probe chạy thật trên AWS: [DBS-75 §8](../../docs/features/DBS-75-terraform-valkey.md).
+
 ## Kiểm tra trước khi push
 
 ```bash
