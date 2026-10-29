@@ -187,7 +187,7 @@ Chưa có ảnh chụp màn hình (không có bước giao diện); bằng chứ
 
 ## 10. Sửa sau G4: CI đỏ vì thiếu fixture TLS
 
-> **Status:** G1 duyệt 2026-10-29 (theo đề xuất cả 3 câu), G2 duyệt 2026-10-29 (theo đề xuất cả 2 câu), G3 duyệt 2026-10-29, G4 chờ duyệt · **Cập nhật:** 2026-10-29
+> **Status:** Implemented (G1–G4 duyệt 2026-10-29; G4 chấp nhận M-67-11 PR #38 chưa chạy lúc duyệt và không có ảnh chụp) · **Cập nhật:** 2026-10-29
 
 ### 10.1 Bối cảnh
 
