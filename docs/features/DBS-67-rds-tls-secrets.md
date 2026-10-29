@@ -151,7 +151,7 @@ Rủi ro và cách lùi: lùi bằng revert commit (không đổi schema, không
 |---|---|---|
 | TC-67-01..05 | `compose-database-url.spec.ts` | đạt |
 | TC-67-06 | `env.bootstrap.spec.ts` | đạt |
-| TC-67-07 | `pg-ssl.tls.spec.ts` (máy chủ TLS giả: CA đúng nhận; CA sai và không CA bị từ chối; kiểm đột biến đã làm) | đạt |
+| TC-67-07 | `pg-ssl.tls.spec.ts` (máy chủ TLS giả: CA đúng nhận; CA sai và không CA bị từ chối; kiểm đột biến đã làm) | đạt ở local; trên CI đỏ vì thiếu fixture cho đến khi sửa ở §10, nay xanh trên CI (run 40804747779) |
 | TC-67-08, 09 | `session.tftest.hcl` (`db_connection`, `db_secret_policy`) | đạt |
 | TC-67-10 | `test/support/dockerfile.spec.ts` (kiểm tĩnh, không build) | đạt |
 | TC-67-11 | toàn bộ bộ test, lint, typecheck | đạt |
@@ -187,7 +187,7 @@ Chưa có ảnh chụp màn hình (không có bước giao diện); bằng chứ
 
 ## 10. Sửa sau G4: CI đỏ vì thiếu fixture TLS
 
-> **Status:** G1 duyệt 2026-10-29 (theo đề xuất cả 3 câu), G2 duyệt 2026-10-29 (theo đề xuất cả 2 câu), G3 duyệt 2026-10-29, đang implement · **Cập nhật:** 2026-10-29
+> **Status:** G1 duyệt 2026-10-29 (theo đề xuất cả 3 câu), G2 duyệt 2026-10-29 (theo đề xuất cả 2 câu), G3 duyệt 2026-10-29, G4 chờ duyệt · **Cập nhật:** 2026-10-29
 
 ### 10.1 Bối cảnh
 
@@ -277,3 +277,38 @@ Rà soát kế hoạch: mọi file ở §10.3 (`.gitignore`, 4 fixture, README f
 | 7 (sau G4) | rebase `chore/DBS-68-migration-step` lên DBS-67; `push --force-with-lease` cả hai | M-67-11 (PR #38) | n/a | run CI PR #38 xanh | không commit mới |
 
 Rủi ro và cách lùi: revert commit bước 2 trả lại trạng thái cũ (CI đỏ như trước); fixture không vào image (`.dockerignore`). Rebase DBS-68 có thể xung đột ở `docs/BACKLOG.md`: giải quyết bằng tay, giữ cả hai dòng.
+
+### 10.8 Kết quả
+
+- **Commit:** `e6c07dd` (thiết kế), `2dc8402` (sửa: `.gitignore`, 4 fixture, `tls-fixtures.spec.ts`; SHA code cuối), `9220aa1` (README fixture, CONTRIBUTING §6).
+- **Lệnh kiểm tra:** `tls-fixtures.spec.ts` trước sửa **đỏ** 8/14 (4 fixture bị luật bỏ qua, 4 chưa track; 6 test TC-67-15 xanh), sau sửa **14/14**; `npm run lint:check`, `npm run typecheck` sạch; `npm test` **530/530**, 35 suite, 0 skipped (lần chạy đạt); `check-doc-links.mjs` 0 link hỏng. `npm test` ở local đỏ 3 trên 7 lần ở test không liên quan `jwks-verifier.service.spec.ts` (bàn giao BL-110). Không chạy `test:e2e` ở local (không có Docker); CI chạy `e2e` xanh.
+- **CI:** PR #37 run [40804747779](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40804747779) xanh cả 6 job (`unit` 530/530). DoD 5 phần "CI xanh" đạt cho PR #37; review và merge vẫn chờ (TC-67-13).
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-67-14 | `test/support/tls-fixtures.spec.ts` (`check-ignore --no-index`, `ls-files --error-unmatch`) | đạt (đỏ trước sửa, xanh sau) |
+| TC-67-15 | cùng file, 6 đường dẫn vẫn bị bỏ qua | đạt (đột biến `tls-fixtures/*` làm đỏ đúng `ca.key`) |
+| TC-67-07 | `pg-ssl.tls.spec.ts` trên worktree sạch và trên CI | đạt |
+| TC-67-11 | `npm test`, lint, typecheck | đạt |
+
+- **Test thủ công** ([manual-test.txt](screenshots/DBS-67/manual-test.txt), phần "§10", SHA code `2dc8402`):
+
+| Bước | Kết quả |
+|---|---|
+| M-67-08 | đạt: worktree sạch ở `6ed6007` chỉ có `README.md`; `pg-ssl.tls.spec.ts` `FAIL`, `ENOENT ... ca.pem`, `other-ca.pem` (tái hiện đúng lỗi CI) |
+| M-67-09 | đạt: worktree sạch ở `9220aa1` có đủ 5 file; `pg-ssl.tls.spec.ts` và `tls-fixtures.spec.ts` 19/19; sha256 trùng bản local |
+| M-67-10 | đạt: 4 fixture khớp `.gitignore:13–16` (dòng `!`); 6 đường dẫn khác khớp `*.pem`, `*.key`, `.env`; đột biến làm đỏ đúng `ca.key is still ignored`; hoàn lại, `git diff .gitignore` rỗng |
+| M-67-11 | PR #37 đạt (run 40804747779); PR #38 **chưa chạy**: chờ rebase sau G4 (§10.7 bước 7) |
+
+Không có ảnh chụp (không có bước giao diện); bằng chứng là `manual-test.txt` và URL run CI.
+- **Phạm vi so với §10.7:** khớp. Sai khác nhỏ: test dùng `spawnSync` thay vì `execFileSync` như §10.4 ghi (cùng không qua shell; `spawnSync` trả mã thoát mà không ném, gọn hơn cho kiểm mã 0/1).
+- **Bàn giao / BACKLOG:** BL-109 (allowlist Gitleaks cho `server.key`, DBS-155), BL-110 (test `jwks-verifier` phụ thuộc thời gian, module identity).
+
+### 10.9 Tài liệu đã cập nhật
+
+- `.gitignore`: 4 dòng ngoại lệ.
+- `CONTRIBUTING.md` §6: ngoại lệ duy nhất cho fixture TLS.
+- `backend/test/support/tls-fixtures/README.md`: sửa tên test, phạm vi của `server.key`, lý do commit.
+- `docs/BACKLOG.md`: thêm BL-109, BL-110.
+- `docs/features/DBS-67-rds-tls-secrets.md`: §8 dòng TC-67-07, §10.

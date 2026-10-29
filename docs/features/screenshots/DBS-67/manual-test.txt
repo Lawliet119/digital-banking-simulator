@@ -26,3 +26,62 @@ sha256:90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b
 dòng chứa 'password' trong plan (chỉ cờ, không có giá trị):
 77:      + manage_master_user_password           = true
 87:      + password_wo                           = (write-only attribute)
+
+===== §10 Sửa sau G4: fixture TLS (SHA code 2dc8402) — 2026-10-29T02:09:20Z
+
+## M-67-08 Trước sửa: worktree sạch ở 6ed6007
+$ ls backend/test/support/tls-fixtures
+README.md
+$ npx jest --config ./test/jest-unit.js src/database/pg-ssl.tls.spec.ts
+FAIL src/database/pg-ssl.tls.spec.ts (7.908 s)
+    DATABASE_SSL_CA_PATH points to an unreadable file (<worktree>/backend/test/support/tls-fixtures/ca.pem): Error: ENOENT: no such file or directory, open '<worktree>/backend/test/support/tls-fixtures/ca.pem'
+    DATABASE_SSL_CA_PATH points to an unreadable file (<worktree>/backend/test/support/tls-fixtures/ca.pem): Error: ENOENT: no such file or directory, open '<worktree>/backend/test/support/tls-fixtures/ca.pem'
+    DATABASE_SSL_CA_PATH points to an unreadable file (<worktree>/backend/test/support/tls-fixtures/other-ca.pem): Error: ENOENT: no such file or directory, open '<worktree>/backend/test/support/tls-fixtures/other-ca.pem'
+
+## M-67-09 Sau sửa: worktree sạch ở 9220aa1
+$ ls backend/test/support/tls-fixtures
+ca.pem
+other-ca.pem
+README.md
+server.key
+server.pem
+$ npx jest ... src/database/pg-ssl.tls.spec.ts test/support/tls-fixtures.spec.ts
+Tests:       19 passed, 19 total
+$ sha256sum (worktree sạch | bản local đã đạt trước đây)
+d24dbfebd1bef9f7…  ca.pem
+ba32b9ca9fecefee…  other-ca.pem
+04213938717e4f4c…  server.pem
+8542fa99d0124707…  server.key
+d24dbfebd1bef9f7…  ca.pem
+ba32b9ca9fecefee…  other-ca.pem
+04213938717e4f4c…  server.pem
+8542fa99d0124707…  server.key
+hash trùng
+
+## M-67-10 git check-ignore -v -n --no-index
+.gitignore:13:!backend/test/support/tls-fixtures/ca.pem	backend/test/support/tls-fixtures/ca.pem
+.gitignore:14:!backend/test/support/tls-fixtures/other-ca.pem	backend/test/support/tls-fixtures/other-ca.pem
+.gitignore:15:!backend/test/support/tls-fixtures/server.pem	backend/test/support/tls-fixtures/server.pem
+.gitignore:16:!backend/test/support/tls-fixtures/server.key	backend/test/support/tls-fixtures/server.key
+.gitignore:6:*.key	backend/test/support/tls-fixtures/ca.key
+.gitignore:5:*.pem	backend/test/support/other.pem
+.gitignore:6:*.key	backend/server.key
+.gitignore:5:*.pem	infra/x.pem
+.gitignore:2:.env	.env
+.gitignore:2:.env	backend/.env
+
+## M-67-10 đột biến: thay 4 dòng ngoại lệ bằng !backend/test/support/tls-fixtures/*
+Tests:       1 failed, 13 passed, 14 total
+$ git diff --stat .gitignore (sau hoàn lại)
+(rỗng)
+Tests:       14 passed, 14 total
+$ (đột biến, lần 2) test fail:
+  ● TC-67-15 the exception opens only those four files › backend/test/support/tls-fixtures/ca.key is still ignored
+
+## M-67-11 CI PR #37 sau push (9220aa1)
+run 40804747779: success https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40804747779
+  unit, e2e, db, typecheck, lint, build: success
+  PASS src/database/pg-ssl.tls.spec.ts
+  PASS test/support/tls-fixtures.spec.ts
+  Tests: 530 passed, 530 total
+PR #38 (DBS-68): chưa chạy, chờ rebase sau G4
