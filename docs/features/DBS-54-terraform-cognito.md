@@ -1,6 +1,6 @@
 # DBS-54 · Terraform: Cognito user pool, 4 nhóm, app client và script seed tài khoản nhân viên demo
 
-> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-54-terraform-cognito` (xếp chồng trên `chore/DBS-34-ecs-alb`) · **PR:** [#26](https://github.com/Lawliet119/digital-banking-simulator/pull/26) · **Cập nhật:** 2026-10-26
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-54-terraform-cognito` (xếp chồng trên `chore/DBS-34-ecs-alb`) · **PR:** [#39](https://github.com/Lawliet119/digital-banking-simulator/pull/39) (thay [#26](https://github.com/Lawliet119/digital-banking-simulator/pull/26), bị đóng khi nhánh base bị xóa) · **Cập nhật:** 2026-10-26
 
 ## 1. Bối cảnh
 
