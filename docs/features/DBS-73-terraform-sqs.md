@@ -249,5 +249,31 @@ Mọi lệnh chạy từ `infra/terraform/envs/dev/base` trừ khi ghi khác; `t
 | TC-73-08 | › `exports_for_worker` | đạt (DoD 3 một phần: chưa vào task worker, DBS-121) |
 | TC-73-09 | › `standard_queues_sse_sqs` | đạt (mock để `fifo_queue` null, nên assert `!= true`) |
 
-- **Test thủ công:** chờ người dùng đồng ý `apply` (xem bên dưới).
-- **Lệch so với kế hoạch (chờ duyệt):** §7 bước 7 ghi `apply` từ nhánh này, nhưng nhánh cắt từ `main` thiếu KMS, Cognito và RDS network đã có trên AWS, nên `apply` thẳng sẽ xóa chúng. Đề xuất `apply` từ worktree tích hợp bằng `-target` chỉ các tài nguyên của tuần 3. `terraform plan` thật của `base` (chỉ đọc, 2026-10-29): 18 thêm, 0 đổi, 0 xóa; 2 trong 18 (`aws_iam_role.github_deploy`, `aws_iam_role_policy.deploy`) thuộc DBS-38/DBS-68.
+- **Test thủ công** (2026-10-29, `AWS_PROFILE=dbs-admin`, `ap-southeast-1`; output thô ở [manual-test.txt](screenshots/DBS-73/manual-test.txt), message mẫu ở [transfer-completed-sample.json](screenshots/DBS-73/transfer-completed-sample.json)). Code chạy là `142ae3a` (commit cuối đổi code), từ worktree tích hợp DBS-68 + DBS-75 + nhánh này (xem "Lệch so với kế hoạch").
+
+| Bước | Lệnh | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|---|
+| M-73-01 | `terraform plan -target=…` ở `base` | 11 tài nguyên SQS và IAM như dự kiến, cộng 5 tài nguyên Redis của DBS-75 (cùng một lần `apply`); `Plan: 16 to add, 0 to change, 0 to destroy` | đạt |
+| M-73-02 | `apply`; `get-queue-attributes` `dbs-dev-risk-events` (và `notification`) | `VisibilityTimeout 30`, `ReceiveMessageWaitTimeSeconds 20`, `MessageRetentionPeriod 345600`, `SqsManagedSseEnabled true`, `RedrivePolicy` `maxReceiveCount 5` → `dbs-dev-risk-events-dlq` | đạt |
+| M-73-03 | `get-queue-attributes` DLQ | `MessageRetentionPeriod 518400`, `RedriveAllowPolicy {"redrivePermission":"byQueue","sourceQueueArns":[…dbs-dev-risk-events]}` | đạt |
+| M-73-04 | gửi mẫu, nhận 6 lần (`--visibility-timeout 1`, không xóa) | lần 1–5 cùng `MessageId c826a39a…`, `ApproximateReceiveCount` 1→5; lần 6 rỗng | đạt |
+| M-73-05 | `receive-message` DLQ | cùng `MessageId`, cùng MD5 `882b1073…`, `eventId 6f1c2a3b…`, `amount "1500000"` | đạt |
+| M-73-06 | `start-message-move-task`, nhận ở queue chính, `delete-message` | lần 1 hỏng do script (task chạy khi message còn in-flight sau M-73-05, chuyển 0). Lần 2: message về queue chính với `MessageId 2715fbd9…` mới, cùng MD5 và `eventId`, `ApproximateReceiveCount 1`; đã xóa; 2 phút sau cả 4 queue `0 0 0`, nhận thử DLQ rỗng | đạt |
+| M-73-07 | `create-queue dbs-dev-probe` trỏ redrive vào DLQ risk | `InvalidParameterValue … The value for the dead-letter queue's RedriveAllowPolicy attribute prevents you from completing this request`; queue không được tạo | đạt |
+| M-73-08 | `simulate-custom-policy` với bản policy lấy bằng `get-policy-version` | queue chính: Send, Receive, Delete, ChangeMessageVisibility, GetQueueAttributes `allowed`; Purge, DeleteQueue `implicitDeny`. DLQ: Send `allowed`; Receive, Delete, Purge `implicitDeny`. Policy chưa gắn entity nào. (Lần 1 lỗi `InvalidInput` do truyền `file://` cho tham số danh sách; chạy lại bằng nội dung chuỗi.) | đạt |
+| M-73-09 | `get-queue-attributes Policy` 4 queue; `git grep -n 'sqs:'` trên `session` | mỗi queue một statement `DenyApiTaskRole` (`Deny`, `sqs:*`, `ArnLike aws:PrincipalArn …:role/dbs-dev-api-task`); `git grep` exit 1 | đạt |
+| M-73-10 | `terraform output` | `sqs_risk_queue_url = "https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-risk-events"`, tương tự `notification` và hai `sqs_*_dlq_url` | đạt |
+| M-73-11 | role tạm `dbs-dev-api-task` (role thật chưa có: `NoSuchEntity`), assume, gọi SQS, dọn | `assume-role` thành công lần 2; `list-queues` liệt kê 4 queue (đối chứng dương); `send-message`/`receive-message` trên `dbs-dev-risk-events` và `dbs-dev-notification-events-dlq`: cả 4 `AccessDenied … with an explicit deny in a resource-based policy`; dọn xong, `get-role` → `NoSuchEntity` | đạt |
+
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD`: `base/sqs.tf`, `base/outputs.tf`, `base/tests/sqs.tftest.hcl`, `session/iam.tf` (comment), feature doc và `screenshots/DBS-73/` (domain review, `manual-test.txt`, `transfer-completed-sample.json`), `infra/terraform/README.md`, `docs/03_HIGH_LEVEL_ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/README.md`. Khớp §7; `transfer-completed-sample.json` là body message mà §5 đã nêu.
+- **Ảnh chụp:** không có (không có bước giao diện, như DBS-66, DBS-67); bằng chứng là `manual-test.txt`. Chờ người dùng chấp nhận ở G4.
+- **Tài nguyên trên AWS sau test:** 4 queue và policy `dbs-dev-worker-sqs` **giữ lại** ở `base` (SQS không tính tiền khi rảnh, đúng §3); queue tạm và role tạm đã xóa.
+- **Lệch so với kế hoạch:** §7 bước 7 ghi `apply` từ nhánh này, nhưng nhánh cắt từ `main` thiếu KMS, Cognito và RDS network đã có trên AWS, nên `apply` thẳng sẽ xóa chúng. Đã `apply` từ worktree tích hợp tạm (DBS-68 + DBS-75 + nhánh này, không commit, không push) bằng `-target` chỉ 16 tài nguyên của tuần 3; không `apply` role deploy của DBS-38/DBS-68 có trong plan đầy đủ (18 thêm). Người dùng đồng ý ngày 2026-10-29 («đồng ý và tiếp tục», trả lời câu hỏi "Apply base bằng -target chỉ 16 tài nguyên của tuần 3, rồi làm tiếp như đề xuất?").
+- **Bàn giao cho vai khác:** BL-113 (DBS-120: gắn `dbs-dev-worker-sqs` vào role worker; giữ tên role api khớp queue policy), BL-114 (DBS-121: đưa URL queue vào task definition worker), BL-115 (DBS-77, DBS-90: biến URL DLQ cho consumer). BL-051 thêm DBS-73 làm nguồn (retention DLQ đã chốt, quy tắc redrive). DoD 4 (PR merge, Dev review) là quy trình, sau G4.
+
+## 9. Tài liệu đã cập nhật
+
+- `infra/terraform/README.md`: SQS chuyển sang nhóm giữ lại; mục "Hàng đợi SQS (DBS-73)" (tham số, IAM, output → biến môi trường, redrive, ghi chú cho DBS-163).
+- `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §10: DLQ giữ 6 ngày.
+- `docs/BACKLOG.md`: thêm BL-113, BL-114, BL-115; BL-051 thêm nguồn DBS-73, bỏ điều kiện "retention DLQ được xác nhận".
+- `docs/features/README.md`: thêm dòng DBS-73.
