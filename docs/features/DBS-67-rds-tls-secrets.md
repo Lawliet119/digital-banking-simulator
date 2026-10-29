@@ -281,7 +281,7 @@ Rủi ro và cách lùi: revert commit bước 2 trả lại trạng thái cũ (
 ### 10.8 Kết quả
 
 - **Commit:** `e6c07dd` (thiết kế), `2dc8402` (sửa: `.gitignore`, 4 fixture, `tls-fixtures.spec.ts`; SHA code cuối), `9220aa1` (README fixture, CONTRIBUTING §6).
-- **Lệnh kiểm tra:** `tls-fixtures.spec.ts` trước sửa **đỏ** 8/14 (4 fixture bị luật bỏ qua, 4 chưa track; 6 test TC-67-15 xanh), sau sửa **14/14**; `npm run lint:check`, `npm run typecheck` sạch; `npm test` **530/530**, 35 suite, 0 skipped (lần chạy đạt); `check-doc-links.mjs` 0 link hỏng. `npm test` ở local đỏ 3 trên 7 lần ở test không liên quan `jwks-verifier.service.spec.ts` (bàn giao BL-110). Không chạy `test:e2e` ở local (không có Docker); CI chạy `e2e` xanh.
+- **Lệnh kiểm tra:** `tls-fixtures.spec.ts` trước sửa **đỏ** 8/14 (4 fixture bị luật bỏ qua, 4 chưa track; 6 test TC-67-15 xanh), sau sửa **14/14**; `npm run lint:check`, `npm run typecheck` sạch; `npm test` **530/530**, 35 suite, 0 skipped (lần chạy đạt); `check-doc-links.mjs` 0 link hỏng. `npm test` ở local đỏ 3 trên 7 lần ở test không liên quan `jwks-verifier.service.spec.ts` (bàn giao BL-112). Không chạy `test:e2e` ở local (không có Docker); CI chạy `e2e` xanh.
 - **CI:** PR #37 run [40804747779](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/40804747779) xanh cả 6 job (`unit` 530/530). DoD 5 phần "CI xanh" đạt cho PR #37; review và merge vẫn chờ (TC-67-13).
 - **Đối chiếu test case:**
 
@@ -303,12 +303,12 @@ Rủi ro và cách lùi: revert commit bước 2 trả lại trạng thái cũ (
 
 Không có ảnh chụp (không có bước giao diện); bằng chứng là `manual-test.txt` và URL run CI.
 - **Phạm vi so với §10.7:** khớp. Sai khác nhỏ: test dùng `spawnSync` thay vì `execFileSync` như §10.4 ghi (cùng không qua shell; `spawnSync` trả mã thoát mà không ném, gọn hơn cho kiểm mã 0/1).
-- **Bàn giao / BACKLOG:** BL-109 (allowlist Gitleaks cho `server.key`, DBS-155), BL-110 (test `jwks-verifier` phụ thuộc thời gian, module identity).
+- **Bàn giao / BACKLOG:** BL-111 (allowlist Gitleaks cho `server.key`, DBS-155), BL-112 (test `jwks-verifier` phụ thuộc thời gian, module identity).
 
 ### 10.9 Tài liệu đã cập nhật
 
 - `.gitignore`: 4 dòng ngoại lệ.
 - `CONTRIBUTING.md` §6: ngoại lệ duy nhất cho fixture TLS.
 - `backend/test/support/tls-fixtures/README.md`: sửa tên test, phạm vi của `server.key`, lý do commit.
-- `docs/BACKLOG.md`: thêm BL-109, BL-110.
+- `docs/BACKLOG.md`: thêm BL-111, BL-112.
 - `docs/features/DBS-67-rds-tls-secrets.md`: §8 dòng TC-67-07, §10.
