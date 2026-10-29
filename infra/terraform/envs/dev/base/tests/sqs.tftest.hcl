@@ -149,3 +149,32 @@ run "queue_policy_denies_api" {
     error_message = "each queue policy must deny sqs:* to the dbs-dev-api-task role of this account"
   }
 }
+
+# TC-73-08: output cho DBS-121 (biến môi trường của sqs.config.ts), DBS-120 (policy) và DBS-163 (alarm)
+run "exports_for_worker" {
+  command = apply
+
+  assert {
+    condition = (
+      output.sqs_risk_queue_url == aws_sqs_queue.main["risk"].url &&
+      output.sqs_notification_queue_url == aws_sqs_queue.main["notification"].url &&
+      output.sqs_risk_dlq_url == aws_sqs_queue.dlq["risk"].url &&
+      output.sqs_notification_dlq_url == aws_sqs_queue.dlq["notification"].url
+    )
+    error_message = "queue and DLQ urls must be exported"
+  }
+
+  assert {
+    condition = (
+      output.sqs_queue_arns == { risk = aws_sqs_queue.main["risk"].arn, notification = aws_sqs_queue.main["notification"].arn } &&
+      output.sqs_dlq_arns == { risk = aws_sqs_queue.dlq["risk"].arn, notification = aws_sqs_queue.dlq["notification"].arn } &&
+      output.sqs_dlq_names == { risk = "dbs-dev-risk-events-dlq", notification = "dbs-dev-notification-events-dlq" }
+    )
+    error_message = "queue and DLQ arn/name maps must have exactly the keys risk and notification"
+  }
+
+  assert {
+    condition     = output.worker_sqs_policy_arn == aws_iam_policy.worker_sqs.arn
+    error_message = "worker policy arn must be exported"
+  }
+}
