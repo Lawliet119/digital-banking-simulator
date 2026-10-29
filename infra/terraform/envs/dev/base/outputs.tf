@@ -92,3 +92,7 @@ output "redis_subnet_group_name" {
 output "redis_security_group_id" {
   value = aws_security_group.redis.id
 }
+
+output "redis_auth_secret_arn" {
+  value = aws_secretsmanager_secret.redis_auth.arn
+}

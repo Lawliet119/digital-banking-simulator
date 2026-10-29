@@ -64,3 +64,18 @@ run "exports_for_session" {
     error_message = "redis subnet group and security group must be exported"
   }
 }
+
+# TC-75-03 (phần base): vỏ secret AUTH token, mã hóa bằng CMK, xóa ngay khi destroy (không vướng tên trùng)
+run "redis_auth_secret" {
+  command = apply
+
+  assert {
+    condition     = aws_secretsmanager_secret.redis_auth.name == "dbs/dev/redis-auth" && aws_secretsmanager_secret.redis_auth.kms_key_id == aws_kms_key.main.arn && aws_secretsmanager_secret.redis_auth.recovery_window_in_days == 0
+    error_message = "redis auth secret must be dbs/dev/redis-auth, encrypted with the shared CMK, recovery window 0"
+  }
+
+  assert {
+    condition     = output.redis_auth_secret_arn == aws_secretsmanager_secret.redis_auth.arn
+    error_message = "redis auth secret arn must be exported"
+  }
+}
