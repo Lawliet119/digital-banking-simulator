@@ -453,7 +453,7 @@ run "db_connection" {
 
   assert {
     condition = (
-      { for s in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets : s.name => s.valueFrom } == {
+      { for s in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets : s.name => s.valueFrom if startswith(s.name, "DB_") } == {
         DB_USER     = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::"
         DB_PASSWORD = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::"
       }
@@ -615,5 +615,53 @@ run "redis_outputs" {
       output.redis_replication_group_id == aws_elasticache_replication_group.main.id
     )
     error_message = "redis endpoint and replication group id must be exported"
+  }
+}
+
+# TC-75-06: task api nhận REDIS_HOST, REDIS_PORT thường và REDIS_AUTH_TOKEN qua secrets; không REDIS_URL
+run "redis_connection" {
+  command = apply
+
+  assert {
+    condition = (
+      { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["REDIS_HOST"] == aws_elasticache_replication_group.main.primary_endpoint_address
+      && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["REDIS_PORT"] == "6379"
+    )
+    error_message = "env must carry REDIS_HOST (primary endpoint) and REDIS_PORT=6379"
+  }
+
+  assert {
+    condition = (
+      { for s in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets : s.name => s.valueFrom }["REDIS_AUTH_TOKEN"] == "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf"
+      && length(jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets) == 3
+    )
+    error_message = "REDIS_AUTH_TOKEN must come from the redis auth secret (whole value), next to the two DB secrets"
+  }
+
+  assert {
+    condition = length([
+      for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name
+      if contains(["REDIS_URL", "REDIS_AUTH_TOKEN"], e.name)
+    ]) == 0
+    error_message = "REDIS_URL and the token must not be in environment"
+  }
+}
+
+# TC-75-07: execution role đọc đúng secret Redis (kms:Decrypt qua Secrets Manager đã có từ DBS-67)
+run "redis_secret_policy" {
+  command = apply
+
+  assert {
+    condition     = aws_iam_role_policy.read_redis_auth_secret.role == aws_iam_role.execution.id && aws_iam_role_policy.read_redis_auth_secret.name == "read-redis-auth-secret"
+    error_message = "the redis secret policy must be a separate policy on the execution role"
+  }
+
+  assert {
+    condition = (
+      length(jsondecode(aws_iam_role_policy.read_redis_auth_secret.policy).Statement) == 1
+      && jsondecode(aws_iam_role_policy.read_redis_auth_secret.policy).Statement[0].Action == "secretsmanager:GetSecretValue"
+      && jsondecode(aws_iam_role_policy.read_redis_auth_secret.policy).Statement[0].Resource == "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf"
+    )
+    error_message = "GetSecretValue on the redis auth secret ARN only"
   }
 }
