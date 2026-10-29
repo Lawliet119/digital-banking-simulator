@@ -10,8 +10,8 @@ infra/terraform/
 ├── modules/          # network, ecr, kms, ecs, rds, redis, sqs, cognito, monitoring…
 └── envs/
     ├── dev/
-    │   ├── base/     # phần giữ lại: VPC, ECR, KMS, Cognito, logs, OIDC (hiếm khi đổi)
-    │   └── session/  # phần dựng/xóa hằng ngày: RDS, ElastiCache, ALB, ECS, SQS, WAF
+    │   ├── base/     # phần giữ lại: VPC, ECR, KMS, Cognito, logs, OIDC, SQS (hiếm khi đổi)
+    │   └── session/  # phần dựng/xóa hằng ngày: RDS, ElastiCache, ALB, ECS, WAF
     └── prod/
         └── session/  # Multi-AZ, ≥ 2 task; dùng lại base của dev qua remote state
 ```
@@ -20,7 +20,7 @@ Mỗi thư mục stack có `backend.tf` và `backend.hcl.example` riêng. `terra
 
 | Giữ lại (gần như miễn phí) | Dựng / xóa hằng ngày |
 |---|---|
-| S3 state, ECR, VPC, KMS, Cognito, logs, SNS, OIDC | RDS, ElastiCache, ALB, ECS service, SQS, WAF |
+| S3 state, ECR, VPC, KMS, Cognito, logs, SNS, OIDC, SQS | RDS, ElastiCache, ALB, ECS service, WAF |
 
 Security group và subnet group (ECS, RDS, ElastiCache, ALB) nằm ở `base` (miễn phí, ADR-11); tài nguyên ở `session` tham chiếu chúng qua `terraform_remote_state`.
 
@@ -109,6 +109,27 @@ Sau khi `apply`, **chủ repo** (cần quyền admin) tạo biến Actions (Sett
 Xóa (thứ tự ngược): `session` trước, `base` sau. `base` chỉ xóa được khi ECR `dbs-api` rỗng (`force_delete = false`); xóa image bằng `aws ecr batch-delete-image` trước. `base` gần như miễn phí nên thường giữ lại; chỉ xóa `session` cuối mỗi phiên làm việc. Ai bật phần tính tiền thì tắt khi xong.
 
 Kiểm tra tĩnh cho `envs/dev/base` và `envs/dev/session`: `terraform init -backend=false && terraform test` (dùng `mock_provider` và `override_data`, không cần credential). ALB của dev nghe HTTPS bằng chứng chỉ self-signed (chưa có tên miền): gọi bằng `curl -k`.
+
+### Hàng đợi SQS (DBS-73)
+
+`envs/dev/base` tạo hai queue standard và hai DLQ: `dbs-dev-risk-events`, `dbs-dev-notification-events`, mỗi queue có `…-dlq` riêng. Queue nằm ở `base` vì SQS không tính tiền khi rảnh (trả theo request, 1 triệu request/tháng đầu miễn phí), URL không đổi giữa các phiên, và message trong DLQ còn nguyên sau `destroy session`.
+
+| Tham số | Giá trị |
+|---|---|
+| Queue chính | visibility 30 giây, long polling 20 giây, giữ 4 ngày, sang DLQ sau 5 lần nhận (ADR-03), mã hóa SSE-SQS |
+| DLQ | giữ 6 ngày, ngắn hơn 7 ngày của `processed_events`; redrive allow `byQueue`: chỉ queue chính tương ứng được trỏ vào |
+| IAM | managed policy `dbs-dev-worker-sqs` (gửi, nhận, xóa, đổi visibility trên queue chính; chỉ `SendMessage` trên DLQ cho message sai schema). Chưa gắn role nào: DBS-120 gắn vào role task worker |
+| Chặn api | queue policy của cả 4 queue `Deny` mọi `sqs:*` cho role `dbs-dev-api-task` (so `aws:PrincipalArn` theo tên; đổi tên role thì sửa `sqs.tf`) |
+
+| Output của `base` | Biến môi trường (`sqs.config.ts`) |
+|---|---|
+| `sqs_risk_queue_url` | `SQS_RISK_QUEUE_URL` |
+| `sqs_notification_queue_url` | `SQS_NOTIFICATION_QUEUE_URL` |
+| `sqs_risk_dlq_url`, `sqs_notification_dlq_url` | chưa có biến (DBS-77, DBS-90 thêm khi consumer đẩy message sai schema vào DLQ) |
+
+`SQS_ENDPOINT` không đặt trên AWS. Đưa các biến vào task definition worker là việc của DBS-121.
+
+Redrive DLQ về queue chính: `aws sqs start-message-move-task --source-arn <arn-dlq>`, theo dõi bằng `list-message-move-tasks`. Redrive cấp `MessageId` mới và tính lại hạn giữ từ lúc chuyển, nên message được redrive phải được xử lý xong trong vòng 24 giờ, mỗi message chỉ redrive một lần (quy tắc đầy đủ: [DBS-73 §2](../../docs/features/DBS-73-terraform-sqs.md), runbook ở BL-051). Với queue standard và `maxReceiveCount > 3`, `ApproximateAgeOfOldestMessage` bỏ qua message đã nhận từ 3 lần trở lên (ghi chú cho alarm DBS-163).
 
 ## Kiểm tra trước khi push
 

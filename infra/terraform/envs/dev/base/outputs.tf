@@ -53,3 +53,42 @@ output "api_log_group_arn" {
   description = "Không có hậu tố `:*`; policy của task phải thêm `:*` cho các action trên log stream."
   value       = aws_cloudwatch_log_group.api.arn
 }
+
+# DBS-73: URL queue → biến môi trường của task worker (sqs.config.ts), đưa vào ở DBS-121:
+# sqs_risk_queue_url → SQS_RISK_QUEUE_URL, sqs_notification_queue_url → SQS_NOTIFICATION_QUEUE_URL.
+output "sqs_risk_queue_url" {
+  value = aws_sqs_queue.main["risk"].url
+}
+
+output "sqs_notification_queue_url" {
+  value = aws_sqs_queue.main["notification"].url
+}
+
+# Chưa có biến app tương ứng (bàn giao DBS-77/DBS-90: consumer gửi message sai schema vào DLQ).
+output "sqs_risk_dlq_url" {
+  value = aws_sqs_queue.dlq["risk"].url
+}
+
+output "sqs_notification_dlq_url" {
+  value = aws_sqs_queue.dlq["notification"].url
+}
+
+output "sqs_queue_arns" {
+  description = "Queue chính theo consumer (risk, notification)."
+  value       = { for k, q in aws_sqs_queue.main : k => q.arn }
+}
+
+output "sqs_dlq_arns" {
+  description = "DLQ theo consumer (risk, notification)."
+  value       = { for k, q in aws_sqs_queue.dlq : k => q.arn }
+}
+
+output "sqs_dlq_names" {
+  description = "Tên DLQ theo consumer, cho alarm DLQ > 0 (DBS-163)."
+  value       = { for k, q in aws_sqs_queue.dlq : k => q.name }
+}
+
+output "worker_sqs_policy_arn" {
+  description = "DBS-120 gắn vào role task worker."
+  value       = aws_iam_policy.worker_sqs.arn
+}
