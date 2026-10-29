@@ -127,3 +127,25 @@ run "worker_policy" {
   }
 }
 
+# TC-73-06: queue policy của cả 4 queue chặn role task api (kể cả khi role đó lỡ có sqs:*)
+run "queue_policy_denies_api" {
+  command = apply
+
+  assert {
+    condition     = length(aws_sqs_queue_policy.deny_api) == 4
+    error_message = "every queue, main and DLQ, must carry the deny policy"
+  }
+
+  assert {
+    condition = alltrue([for k, p in aws_sqs_queue_policy.deny_api : (
+      length(jsondecode(p.policy).Statement) == 1 &&
+      jsondecode(p.policy).Statement[0].Effect == "Deny" &&
+      jsondecode(p.policy).Statement[0].Principal == "*" &&
+      jsondecode(p.policy).Statement[0].Action == "sqs:*" &&
+      jsondecode(p.policy).Statement[0].Resource == local.sqs_all_queues[k].arn &&
+      jsondecode(p.policy).Statement[0].Condition.ArnLike["aws:PrincipalArn"] == "arn:aws:iam::123456789012:role/dbs-dev-api-task" &&
+      p.queue_url == local.sqs_all_queues[k].id
+    )])
+    error_message = "each queue policy must deny sqs:* to the dbs-dev-api-task role of this account"
+  }
+}

@@ -76,3 +76,34 @@ resource "aws_iam_policy" "worker_sqs" {
     ]
   })
 }
+
+# Role task api không bao giờ được dùng SQS (ADR-13: chỉ worker publish và consume). Chặn ở queue:
+# Deny thắng mọi Allow của identity policy, kể cả khi role api lỡ được gắn sqs:*. So theo tên role
+# (aws:PrincipalArn của phiên assume-role là ARN role), nên role tạo lại mỗi phiên vẫn bị chặn;
+# đổi tên role api (DBS-120) thì phải sửa ở đây.
+locals {
+  sqs_all_queues = merge(
+    { for k, q in aws_sqs_queue.main : k => q },
+    { for k, q in aws_sqs_queue.dlq : "${k}-dlq" => q },
+  )
+}
+
+resource "aws_sqs_queue_policy" "deny_api" {
+  for_each = local.sqs_all_queues
+
+  queue_url = each.value.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "DenyApiTaskRole"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "sqs:*"
+      Resource  = each.value.arn
+      Condition = {
+        ArnLike = { "aws:PrincipalArn" = "arn:aws:iam::${var.account_id}:role/dbs-dev-api-task" }
+      }
+    }]
+  })
+}
