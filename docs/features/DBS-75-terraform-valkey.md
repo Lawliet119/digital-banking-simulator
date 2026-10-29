@@ -1,6 +1,6 @@
 # DBS-75 · Terraform: ElastiCache Valkey (TLS) theo ADR-12
 
-> **Status:** Draft (G1 đã duyệt, chờ G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-75-terraform-valkey` (từ `main`) · **PR:** — · **Cập nhật:** 2026-10-29
+> **Status:** Draft (G1 đã duyệt, chờ G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-75-terraform-valkey` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`, PR #37) · **PR:** — · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
@@ -18,7 +18,7 @@
   - `envs/dev/base/security_groups.tf`: SG `alb`, `api`; ghi chú dòng 53 hẹn egress 6379 "do task ElastiCache thêm theo SG-to-SG". `envs/dev/session/ecs.tf`: task api chưa có `REDIS_URL`, `desired_count` mặc định 0.
   - Mẫu cùng loại trên PR chưa merge: DBS-66 (#27, SG `db` ở `base`, CMK `alias/dbs-dev`), DBS-67 (#37, app ghép `DATABASE_URL` từ `DB_*` vì ECS `secrets` không ghép được URL).
   - Backlog cùng module: không có dòng Redis/ElastiCache.
-- **Baseline** (`main` b8742a3): như DBS-73: `fmt` sạch, `validate` đạt, `terraform test` bootstrap 9/9, `base` 17/17, `session` 9/9.
+- **Baseline** (`main` b8742a3, lúc G1): `fmt` sạch, `validate` đạt, `terraform test` bootstrap 9/9, `base` 17/17, `session` 9/9. **Đo lại trên đỉnh nhánh DBS-67** `a09faa5` (gốc thật của nhánh này, Phase 2): `fmt` sạch, `validate` đạt, bootstrap 9/9, `base` 29/29, `session` 15/15. Baseline backend đo ở Phase 4.
 - **Ngoài phạm vi:** `libs/redis`, timeout và circuit breaker (DBS-76); `/health/ready` degraded (DBS-78); replica Multi-AZ production (DBS-152, chỉ để biến); task worker (DBS-121); diễn tập tắt Redis (DBS-186).
 - **Câu hỏi mở** (kèm đề xuất):
   1. **Vị trí:** subnet group ElastiCache (2 private subnet), SG `dbs-dev-redis` (6379 chỉ từ SG `api`) và egress 6379 của SG `api` tới SG `redis` ở `base` (miễn phí, giống DBS-66); `aws_elasticache_replication_group` `dbs-dev` ở `session` (xóa hằng ngày, nên DoD 3 tự đạt: cùng một `apply`/`destroy` của `session`).
@@ -52,11 +52,15 @@
 - **Đã đổi sau domain review vòng 1 (#2):** làm thử cho thấy `mock_provider` của Terraform 1.16.6 không hỗ trợ ephemeral resource (`Error: No ephemeral resource types in mock providers`), và `override_resource` không nhắm được ephemeral (`Invalid override target`). Thiết kế cũ (ephemeral `aws_secretsmanager_*` ở cả hai stack) sẽ làm hỏng mọi `terraform test` hiện có.
 - Thiết kế mới: `base` chỉ giữ **vỏ** secret `dbs/dev/redis-auth` (CMK, recovery 0, không có giá trị). Ở `session`, ephemeral `random_password` của provider **`hashicorp/random`** (64 ký tự, `special = false`, hợp quy tắc AUTH của ElastiCache: 16–128 ký tự, không `@`, `"`, `/`, khoảng trắng) được ghi **trong cùng một lần `apply`** vào `aws_secretsmanager_secret_version.redis_auth` (`secret_string_wo`, phiên bản 1) và vào `auth_token_wo` của replication group (phiên bản 1). Cả hai thuộc tính đọc cùng một instance ephemeral nên cùng giá trị.
 - Provider `random` chạy thật trong `terraform test` (không cần mock, không cần mạng sau `init`); đã làm thử với aws 6.70.0 + random 3.9.1: test đạt, `auth_token` và `secret_string` null trong state. **Token không nằm trong state nào** và không có trong biến Terraform.
-- Hệ quả: mỗi phiên (`apply` sau `destroy`) có token mới, tức xoay tự động theo phiên. `apply` lại trong cùng phiên không đổi token (phiên bản write-only không đổi).
+- Hệ quả: mỗi phiên (`apply` sau `destroy`) có token mới, tức xoay tự động theo phiên.
+- **Giữ hai nơi khớp nhau** (domain review vòng 2 #1): write-only chỉ được gửi khi resource được tạo hoặc `*_wo_version` đổi, còn ephemeral sinh giá trị mới mỗi lần chạy. Nếu chỉ một trong hai resource được tạo lại thì hai bên lệch nhau (`WRONGPASS`) mà plan không báo gì. Cách giữ:
+  - Một biến `redis_auth_version` (mặc định 1) cấp cho cả `secret_string_wo_version` và `auth_token_wo_version`; `auth_token_update_strategy = "SET"`.
+  - `aws_secretsmanager_secret_version.redis_auth` có `lifecycle { replace_triggered_by = [aws_elasticache_replication_group.main.id] }`. Replication group được tạo trước (không phụ thuộc secret version), nên khi nó tạo mới, bị taint, hay thay do đổi thuộc tính force-new, secret version được thay trong **cùng** lần `apply` và cả hai nhận cùng một giá trị ephemeral.
+  - Còn một trường hợp: ghi secret thất bại sau khi replication group đã có. Khi đó `apply` lại ghi token mới vào secret còn Valkey giữ token cũ. Cách khôi phục (ghi README): tăng `redis_auth_version` một đơn vị rồi `apply`, cả hai nhận token mới trong cùng lần chạy; khởi động lại task.
 - `hashicorp/random ~> 3.7` là **phụ thuộc mới** của stack `session` (gate phụ, câu hỏi ở G2).
 - Task api nhận token qua ECS `secrets` (cả giá trị secret), execution role được `GetSecretValue` đúng secret này; `kms:Decrypt` qua Secrets Manager đã có từ DBS-67 (cùng CMK).
-- Xoay token giữa phiên: tăng cả hai `*_wo_version` (`auth_token_update_strategy = ROTATE` rồi `SET`) và khởi động lại task. Chưa làm ở task này, ghi README.
-- `destroy session` xóa resource secret version; giá trị cũ có thể còn trong lịch sử version của secret (ghi lại thực tế ở M-75-10). Phiên sau ghi version mới thành `AWSCURRENT`.
+- Xoay token giữa phiên: tăng `redis_auth_version` rồi `apply` (`SET` thay token ngay, nên task đang chạy mất kết nối tới khi khởi động lại; ADR-12 cho phép vì Redis không phải nguồn sự thật). Kiểm thật ở M-75-11.
+- `destroy session`: provider không gỡ nhãn `AWSCURRENT` khi xóa secret version, nên sau khi xóa vẫn còn một version `AWSCURRENT` chứa token cũ. Không hại gì vì Valkey mà token đó dùng đã bị xóa. Lần `apply` sau, version mới thành `AWSCURRENT`, version cũ thành `AWSPREVIOUS`.
 
 **Ca biên:**
 - Token chỉ có chữ và số nên `encodeURIComponent` không đổi gì; vẫn encode để không phụ thuộc giả định.
@@ -114,7 +118,7 @@ flowchart LR
 |---|---|---|---|---|
 | TC-75-01 | DoD 1 | tf test (base) | SG `redis` chỉ có ingress 6379 từ SG `api` (không CIDR) và không có luật egress (`egress` rỗng, không `aws_vpc_security_group_egress_rule` nào trỏ SG `redis` làm nguồn); SG `api` có egress 6379 chỉ tới SG `redis`; cả hai trong VPC dev | đúng |
 | TC-75-02 | DoD 1 | tf test (base) | Subnet group `dbs-dev` gồm đúng 2 private subnet | đúng |
-| TC-75-03 | DoD 1, NFR-SEC-03 | tf test (base + session) | `base`: secret `dbs/dev/redis-auth`, `kms_key_id` = CMK, recovery 0. `session`: secret version trỏ ARN secret từ remote state, `secret_string` null, `secret_string_wo_version = 1` | đúng |
+| TC-75-03 | DoD 1, NFR-SEC-03 | tf test (base + session) | `base`: secret `dbs/dev/redis-auth`, `kms_key_id` = CMK, recovery 0. `session`: secret version trỏ ARN secret từ remote state, `secret_string` null; `secret_string_wo_version` và `auth_token_wo_version` cùng bằng `var.redis_auth_version` (chạy với 1 và 2); `auth_token_update_strategy = SET` | đúng |
 | TC-75-04 | DoD 1 | tf test (session) | Replication group: `engine = valkey`, `engine_version` bắt đầu `8`, `cache.t4g.micro`, `num_cache_clusters = 1`, failover và Multi-AZ tắt, port 6379, `transit_encryption_enabled`, mode `required`, at-rest bật với CMK, `auth_token` null và `auth_token_wo_version = 1`, `snapshot_retention_limit = 0`, `final_snapshot_identifier` null, SG và subnet group từ `base` | đúng |
 | TC-75-05 | ADR-12 (production) | tf test (session) | `redis_replicas = 1` → `num_cache_clusters = 2`, failover và Multi-AZ bật; `redis_replicas = 3` bị từ chối | đúng / lỗi validation |
 | TC-75-06 | DoD 2 | tf test (session) | Container api: `REDIS_HOST` = `primary_endpoint_address`, `REDIS_PORT = 6379`; `secrets` có `REDIS_AUTH_TOKEN` trỏ ARN secret; không có `REDIS_URL` hay token trong `environment` | đúng |
@@ -141,13 +145,14 @@ Baseline backend chạy đủ: `npm run lint:check && npm run typecheck && npm t
 | M-75-01 | Local: từ `backend/`, `npm run build`; `env -u REDIS_URL NODE_ENV=staging REDIS_HOST=valkey.example.internal REDIS_PORT=6379 REDIS_AUTH_TOKEN=<token thử 64 ký tự> node -e "require('./dist/config/env.bootstrap'); const u=new URL(process.env.REDIS_URL); console.log(u.protocol,u.hostname,u.port,u.password.length)"` | `rediss: valkey.example.internal 6379 64` |
 | M-75-02 | Như trên nhưng `REDIS_PORT=abc` | stderr có `REDIS_PORT`, không có token; `REDIS_URL` không được đặt (`new URL` lỗi `Invalid URL`) |
 | M-75-03 | `terraform plan` ở `base` | chỉ thêm SG `redis`, 2 rule, subnet group, vỏ secret; 0 destroy |
-| M-75-04 | `apply base`; `aws secretsmanager describe-secret --secret-id dbs/dev/redis-auth` | secret dùng CMK `alias/dbs-dev`, chưa có version nào |
+| M-75-04 | `apply base`; `aws secretsmanager describe-secret --secret-id dbs/dev/redis-auth`; `list-secret-version-ids --include-deprecated` | secret dùng CMK `alias/dbs-dev`; lần `apply base` đầu tiên thì chưa có version nào |
 | M-75-05 | `terraform apply session` (ghi giờ bắt đầu); `aws elasticache describe-replication-groups --replication-group-id dbs-dev`; đọc token vào biến shell bằng `get-secret-value` (không in), rồi `terraform state pull \| grep -c "${TOKEN:0:12}"` ở cả `base` và `session` | `Engine valkey`, 1 node `cache.t4g.micro`, `TransitEncryptionEnabled true`, mode `required`, `AtRestEncryptionEnabled true`, `KmsKeyId` = CMK, `AuthTokenEnabled true`, `SnapshotRetentionLimit 0`; grep trả `0` ở cả hai state |
 | M-75-06 | `aws ecs describe-task-definition --task-definition dbs-api` (revision mới nhất) | `REDIS_HOST` = endpoint, `REDIS_PORT 6379`, `secrets` có `REDIS_AUTH_TOKEN`; không có token dạng chữ |
-| M-75-07 | Tạo role tạm, đăng ký `dbs-probe-redis`, `run-task` với **SG `api`** và overrides bên dưới; `aws ecs wait tasks-stopped`; đọc log prefix `probe` | task `STOPPED` exit code 0; log: `ok-tls: PONG`, `notls: …` (lỗi kết nối, không `PONG`), `badpass: WRONGPASS …`, `nopass: NOAUTH …` |
-| M-75-08 | Đối chứng âm: SG tạm `dbs-probe-deny` (egress 443 tới `0.0.0.0/0` để kéo image và đọc secret, egress 6379 tới CIDR VPC `10.20.0.0/16`; không có trong ingress SG `redis`); `run-task` cùng task definition, override chỉ chạy lệnh `ok-tls` với `timeout 5` | task chạy được (log có dòng `start`), lệnh `valkey-cli` hết giờ, không `PONG`; exit ≠ 0 |
+| M-75-07 | Tạo role tạm, đăng ký `dbs-probe-redis`, `run-task` với **SG `api`** và `probe-overrides.json`; `aws ecs wait tasks-stopped`; đọc log prefix `probe` (mã thoát của task không dùng làm bằng chứng vì lệnh cuối là `echo`) | log có `start`; `ok-tls: PONG`; dòng `notls:` không có `PONG` (lỗi hoặc rỗng); dòng `badpass:` có `WRONGPASS` (`AUTH failed: WRONGPASS …`), không `PONG`; dòng `nopass:` có `NOAUTH`, không `PONG` |
+| M-75-08 | Đối chứng âm: SG tạm `dbs-probe-deny` (egress 443 tới `0.0.0.0/0` để kéo image và đọc secret, egress 6379 tới CIDR VPC `10.20.0.0/16`; không có trong ingress SG `redis`); `run-task` cùng task definition với `probe-overrides-deny.json` | log có `start` (task đã chạy và đọc được secret), không `PONG`, dòng `exit=` khác 0 (`timeout` trả 124 hoặc 143) |
 | M-75-09 | Dọn probe theo thứ tự: `wait tasks-stopped` → `iam delete-role-policy` → `iam delete-role` → `ecs deregister-task-definition` → `ecs delete-task-definitions` → xóa SG `dbs-probe-deny` sau khi ENI nhả; kiểm `iam get-role` (`NoSuchEntity`), `ecs list-task-definitions --family-prefix dbs-probe-redis --status ACTIVE` | không còn role, task definition hay SG tạm |
-| M-75-10 | `terraform destroy session` (ghi giờ kết thúc); kiểm từng dịch vụ: `elasticache describe-replication-groups`, `elasticache describe-snapshots --replication-group-id dbs-dev`, `rds describe-db-instances`, `rds describe-db-snapshots --db-instance-identifier dbs-dev`, `elbv2 describe-load-balancers`, `ecs list-tasks --cluster dbs-dev` (nếu cluster còn), `ec2 describe-addresses`, `ec2 describe-network-interfaces --filters Name=vpc-id,Values=<vpc> Name=status,Values=available`, `secretsmanager list-secrets --include-planned-deletion --filters Key=name,Values=rds!db`, `secretsmanager list-secret-version-ids --secret-id dbs/dev/redis-auth` | không còn replication group, snapshot, instance RDS, ALB, task, EIP, ENI thừa; secret master RDS đã xóa hoặc chờ xóa (ghi lại); lịch sử version của `dbs/dev/redis-auth` ghi lại; thời gian bật/tắt và chi phí ước tính ghi vào §8 |
+| M-75-11 | Xoay token trong phiên: `terraform apply -var redis_auth_version=2 …`; chạy lại probe M-75-07 (task definition mới đọc secret lúc khởi động) | plan chỉ đổi tại chỗ (không thay replication group); probe `ok-tls: PONG` với token mới; `list-secret-version-ids --include-deprecated` có 2 version |
+| M-75-10 | `terraform destroy session` (ghi giờ kết thúc); kiểm từng dịch vụ: `elasticache describe-replication-groups`, `elasticache describe-snapshots --replication-group-id dbs-dev`, `rds describe-db-instances`, `rds describe-db-snapshots --db-instance-identifier dbs-dev`, `elbv2 describe-load-balancers`, `ecs list-tasks --cluster dbs-dev` (nếu cluster còn), `ec2 describe-addresses`, `ec2 describe-network-interfaces --filters Name=vpc-id,Values=<vpc> Name=status,Values=available`, `secretsmanager list-secrets --include-planned-deletion --filters Key=name,Values=rds!db`, `secretsmanager list-secret-version-ids --secret-id dbs/dev/redis-auth --include-deprecated` | không còn replication group, snapshot, instance RDS, ALB, task, EIP, ENI thừa; secret master RDS đã xóa hoặc chờ xóa (ghi lại); `dbs/dev/redis-auth` còn version `AWSCURRENT` của phiên vừa xóa (đúng như §2); thời gian bật/tắt và chi phí ước tính ghi vào §8 |
 
 `probe-overrides.json` (tệp thường, không chứa bí mật; token vào qua `secrets`):
 
@@ -155,6 +160,15 @@ Baseline backend chạy đủ: `npm run lint:check && npm run typecheck && npm t
 {"containerOverrides": [{"name": "probe", "command": ["sh", "-c",
  "echo start; c='valkey-cli -h '$REDIS_HOST' -p 6379 --no-auth-warning'; echo ok-tls: $($c --tls -a \"$REDIS_AUTH_TOKEN\" PING 2>&1); echo notls: $(timeout 5 $c -a \"$REDIS_AUTH_TOKEN\" PING 2>&1); echo badpass: $($c --tls -a wrong-token-0000000000000000 PING 2>&1); echo nopass: $($c --tls PING 2>&1)"]}]}
 ```
+
+`probe-overrides-deny.json` (M-75-08):
+
+```json
+{"containerOverrides": [{"name": "probe", "command": ["sh", "-c",
+ "echo start; timeout 5 valkey-cli -h $REDIS_HOST -p 6379 --tls --no-auth-warning -a \"$REDIS_AUTH_TOKEN\" PING; echo exit=$?"]}]}
+```
+
+Thứ tự chạy: M-75-01…07, M-75-08, M-75-11, M-75-09 (dọn probe), M-75-10.
 
 `valkey-cli --tls` dùng kho CA hệ thống của image (`ca-certificates` của Alpine); endpoint ElastiCache dùng chứng chỉ Amazon công khai. Nếu image thiếu kho CA, thêm `--cacert /etc/ssl/certs/ca-certificates.crt` và ghi lại; không dùng `--insecure`.
 
@@ -177,6 +191,16 @@ App chưa có client Redis (DBS-76), nên kết nối bằng app thật trên cl
 | 9 | minor | Thiếu bàn giao alarm Redis | đã thêm ở §2 ca biên, output `redis_replication_group_id`; BL ở Phase 5 |
 | 10 | minor | Ràng buộc provider `~> 6.0` | đã đưa `aws >= 6.70, < 7.0` vào §3 (cả hai stack) và README |
 
-**Vòng 2:** (chạy lại trên các mục đã sửa)
+**Vòng 2** (cùng reviewer, Opus 5.5, trên commit `a6f4cd4`): 5 phát hiện (blocking 0, should-fix 2, minor 3), verdict REVISE; xác nhận 10 phát hiện vòng 1 đã xử lý, quoting của `probe-overrides.json` đúng · [nguyên văn](screenshots/DBS-75/domain-review.md#vòng-2)
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| V2-1 | should-fix | Token ở secret và Valkey có thể lệch khi chỉ một resource được tạo lại | đã sửa §2: một biến `redis_auth_version` cho cả hai, `replace_triggered_by` trên secret version, `SET`; cách khôi phục; TC-75-03; thêm M-75-11 |
+| V2-2 | should-fix | M-75-08 không có lệnh cụ thể, mã thoát luôn 0 | đã thêm `probe-overrides-deny.json` có `exit=$?`; M-75-07 không dùng mã thoát task |
+| V2-3 | minor | Vòng đời secret version khi destroy | đã ghi kết quả mong đợi cụ thể (§2, M-75-04, M-75-10), thêm `--include-deprecated` |
+| V2-4 | minor | Chữ lỗi `AUTH failed: WRONGPASS` | đã đổi kỳ vọng thành "có `WRONGPASS`, không `PONG`" |
+| V2-5 | minor | Header và baseline cũ | đã sửa header; đo lại baseline trên DBS-67 (9/29/15) |
+
+Vòng 3 chưa chạy: các xử lý vòng 2 là chi tiết lệnh và một ràng buộc lifecycle; `replace_triggered_by` và phiên bản dùng chung sẽ được chứng minh bằng `terraform test` (plan có thay secret version khi replication group thay) ở Phase 4 và M-75-11. Nêu ở G2 để người dùng quyết định có cần vòng 3 không.
 
 **Quyết định ở G2:** (chờ)
