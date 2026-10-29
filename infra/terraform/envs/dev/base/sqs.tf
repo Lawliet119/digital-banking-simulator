@@ -44,3 +44,35 @@ resource "aws_sqs_queue_redrive_allow_policy" "dlq" {
     sourceQueueArns   = [aws_sqs_queue.main[each.key].arn]
   })
 }
+
+# Quyền của task worker (relay outbox gửi, consumer risk/notification nhận). Chưa gắn vào role nào:
+# DBS-120 gắn vào role task worker. Consumer gửi message sai schema thẳng vào DLQ (event-contract),
+# nên có SendMessage trên DLQ; đọc và redrive DLQ là việc của Ops, không phải worker.
+resource "aws_iam_policy" "worker_sqs" {
+  name        = "dbs-dev-worker-sqs"
+  description = "dbs dev worker: publish to and consume from its SQS queues"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "PublishAndConsume"
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:ChangeMessageVisibility",
+          "sqs:GetQueueAttributes",
+        ]
+        Resource = [for q in aws_sqs_queue.main : q.arn]
+      },
+      {
+        Sid      = "DeadLetterMalformed"
+        Effect   = "Allow"
+        Action   = "sqs:SendMessage"
+        Resource = [for q in aws_sqs_queue.dlq : q.arn]
+      },
+    ]
+  })
+}

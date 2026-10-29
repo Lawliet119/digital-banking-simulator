@@ -88,3 +88,42 @@ run "standard_queues_sse_sqs" {
     error_message = "queues must be standard with SSE-SQS only"
   }
 }
+
+# TC-73-05: policy worker: gửi/nhận/xóa ở queue chính, chỉ gửi vào DLQ (message sai schema), không quản trị
+run "worker_policy" {
+  command = apply
+
+  assert {
+    condition     = aws_iam_policy.worker_sqs.name == "dbs-dev-worker-sqs"
+    error_message = "worker policy must be dbs-dev-worker-sqs"
+  }
+
+  assert {
+    condition = length(jsondecode(aws_iam_policy.worker_sqs.policy).Statement) == 2 && alltrue([
+      for st in jsondecode(aws_iam_policy.worker_sqs.policy).Statement : st.Effect == "Allow"
+    ])
+    error_message = "worker policy must have exactly two Allow statements"
+  }
+
+  assert {
+    condition = (
+      toset(one([for st in jsondecode(aws_iam_policy.worker_sqs.policy).Statement : st.Action if st.Sid == "PublishAndConsume"])) == toset(["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueAttributes"]) &&
+      toset(one([for st in jsondecode(aws_iam_policy.worker_sqs.policy).Statement : st.Resource if st.Sid == "PublishAndConsume"])) == toset([for q in aws_sqs_queue.main : q.arn])
+    )
+    error_message = "PublishAndConsume must grant the five consumer actions on the two main queues only"
+  }
+
+  assert {
+    condition = (
+      one([for st in jsondecode(aws_iam_policy.worker_sqs.policy).Statement : st.Action if st.Sid == "DeadLetterMalformed"]) == "sqs:SendMessage" &&
+      toset(one([for st in jsondecode(aws_iam_policy.worker_sqs.policy).Statement : st.Resource if st.Sid == "DeadLetterMalformed"])) == toset([for q in aws_sqs_queue.dlq : q.arn])
+    )
+    error_message = "DeadLetterMalformed must grant only sqs:SendMessage on the two DLQs"
+  }
+
+  assert {
+    condition     = !strcontains(aws_iam_policy.worker_sqs.policy, "\"*\"") && !strcontains(aws_iam_policy.worker_sqs.policy, "sqs:*") && !strcontains(aws_iam_policy.worker_sqs.policy, "Purge") && !strcontains(aws_iam_policy.worker_sqs.policy, "sqs:DeleteQueue") && !strcontains(aws_iam_policy.worker_sqs.policy, "sqs:Set")
+    error_message = "worker policy must not use wildcards or admin actions"
+  }
+}
+
