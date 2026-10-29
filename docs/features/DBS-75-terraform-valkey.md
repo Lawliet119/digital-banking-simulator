@@ -1,6 +1,6 @@
 # DBS-75 · Terraform: ElastiCache Valkey (TLS) theo ADR-12
 
-> **Status:** Plan approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-75-terraform-valkey` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`, PR #37) · **PR:** — · **Cập nhật:** 2026-10-29
+> **Status:** Implemented (G4 duyệt 2026-10-30: chấp nhận không có ảnh chụp và 5 chỗ lệch ở §8, bàn giao BL-116…120) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-75-terraform-valkey` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`, PR #37) · **PR:** — · **Cập nhật:** 2026-10-30
 
 ## 1. Bối cảnh
 
