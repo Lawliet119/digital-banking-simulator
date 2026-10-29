@@ -1,6 +1,6 @@
 # DBS-75 · Terraform: ElastiCache Valkey (TLS) theo ADR-12
 
-> **Status:** Draft (G1 đã duyệt, chờ G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-75-terraform-valkey` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`, PR #37) · **PR:** — · **Cập nhật:** 2026-10-29
+> **Status:** Design approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-75-terraform-valkey` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`, PR #37) · **PR:** — · **Cập nhật:** 2026-10-29
 
 ## 1. Bối cảnh
 
@@ -203,4 +203,38 @@ App chưa có client Redis (DBS-76), nên kết nối bằng app thật trên cl
 
 Vòng 3 chưa chạy: các xử lý vòng 2 là chi tiết lệnh và một ràng buộc lifecycle; `replace_triggered_by` và phiên bản dùng chung sẽ được chứng minh bằng `terraform test` (plan có thay secret version khi replication group thay) ở Phase 4 và M-75-11. Nêu ở G2 để người dùng quyết định có cần vòng 3 không.
 
-**Quyết định ở G2:** (chờ)
+**Quyết định ở G2** (người dùng trả lời «Duyệt cả hai G2», 2026-10-29): chấp nhận đề xuất 1–5: at-rest bằng CMK `alias/dbs-dev`; thêm phụ thuộc `hashicorp/random ~> 3.7` ở `session`; không chạy vòng review 3; các bàn giao ghi BL; `apply`/`destroy` `base` và `session` cho test thủ công (vẫn cho xem `terraform plan` và hỏi trước khi chạy).
+
+## 7. Kế hoạch triển khai
+
+| Bước | File | Test viết trước | Kết quả đỏ (1 dòng, điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `base/redis_network.tf`, `base/outputs.tf`, `base/tests/redis.tftest.hcl` | TC-75-01, 02 | | `terraform test -filter=tests/redis.tftest.hcl` (ở `base`) | `feat(infra): valkey subnet group and security group` |
+| 2 | `base/redis_auth.tf`, `base/outputs.tf`, `base/versions.tf` (`aws >= 6.70, < 7.0`) | TC-75-03 (phần base) | | như trên | `feat(infra): redis auth secret shell in base` |
+| 3 | `session/versions.tf` (+ `hashicorp/random ~> 3.7`, `aws >= 6.70, < 7.0`), `.terraform.lock.hcl`, `session/variables.tf`, `session/redis.tf`, `session/outputs.tf`, `session/tests/session.tftest.hcl` (override remote state thêm `redis_*`) | TC-75-03 (phần session), 04, 05, 12 | | `terraform test` (ở `session`, cả 15 run cũ phải còn đạt) | `feat(infra): valkey replication group with tls and a write-only token` |
+| 4 | `session/ecs.tf`, `session/iam.tf` | TC-75-06, 07 | | như trên | `feat(infra): redis host, port and token secret in the api task` |
+| 5 | `backend/src/config/compose-redis-url.ts`, `compose-redis-url.spec.ts` | TC-75-08 | | `npx jest src/config/compose-redis-url.spec.ts` | `feat(config): compose redis url from parts` |
+| 6 | `backend/src/config/env.bootstrap.ts`, `env.bootstrap.spec.ts`, `validation.schema.ts`, `validation.schema.spec.ts`, `backend/env/.env.example` | TC-75-09, 10 | | `npx jest src/config` | `feat(config): bootstrap redis url on ecs` |
+| 7 | — | TC-75-11 (`git grep -nE '^\s*(auth_token\|secret_string\|password)\s*=' -- infra/terraform/envs/dev` rỗng) | không có đỏ (kiểm tĩnh) | `git grep` | (không commit) |
+| 8 | Toàn bộ | baseline | | `terraform fmt -check -recursive`; `validate` + `test` ba stack; từ `backend/`: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e` (cần `docker compose up -d`) | (không commit riêng) |
+| 9 | AWS thật (sau khi người dùng xem plan và đồng ý, kèm đồng ý trước cho `destroy session`) | §5 M-75-01…11 | | `npm run build`, `terraform plan/apply/destroy`, `aws …` | `docs(features): DBS-75 manual test` |
+| 10 | `infra/terraform/README.md`, `backend/README.md`, `docs/BACKLOG.md` (xóa BL-039, sửa BL-038, thêm BL mới), `docs/features/README.md`, feature doc §8–§9 | — | — | `check-doc-links.mjs` | `docs(infra): elasticache valkey` |
+
+**Plan dự kiến** (bước 9): `base` thêm 5 (SG `redis`, ingress, egress của SG `api`, subnet group, secret), 0 thay đổi, 0 xóa. `session` khi dựng từ trống: như DBS-67 cộng 2 (replication group, secret version); task definition và policy execution role có thêm phần Redis.
+
+**Rà soát giới hạn và DoD:**
+
+| Mục | Xử lý |
+|---|---|
+| DoD 1 | bước 1, 3; M-75-05, 07, 08 |
+| DoD 2 | bước 4, 5, 6; M-75-01, 02, 06 |
+| DoD 3 | bước 3 (cùng stack `session`), bước 10 (chi phí ở README); M-75-10; đối chiếu Cost Explorer ngày hôm sau → BL |
+| DoD 4 | quy trình, sau G4 |
+| BL-039 (egress 6379 của SG `api`) | bước 1; xóa dòng ở bước 10 |
+| BL-038 (thiếu `REDIS_URL` cho task api) | bước 4; sửa dòng ở bước 10 (Redis đã có, các phần khác giữ nguyên) |
+| Comment `ecs.tf` về `REDIS_URL` | bước 4 |
+| Kết nối bằng app thật (DBS-76), alarm Redis (§14), SG worker (DBS-121), replica production (DBS-152) | ngoài phạm vi; BL ở bước 10 |
+
+**Rủi ro và cách lùi:** `replace_triggered_by` trỏ tới thuộc tính `id` của replication group có thể báo lỗi nếu Terraform không cho tham chiếu thuộc tính đã biết khi tạo; khi đó dùng tham chiếu cả resource (`[aws_elasticache_replication_group.main]`). Nếu thay đổi này làm lệch kế hoạch §3 thì là gate phụ. Lùi: `git revert`; `destroy session` xóa Valkey; vỏ secret ở `base` xóa bằng `apply` sau khi revert (recovery 0).
+
+**Quyết định ở G3:** (chờ)
