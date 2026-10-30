@@ -119,7 +119,7 @@ CI chưa chạy `terraform test` và test shell (BL-028), nên "CI xanh" không 
 | M-54-09 | `--rotate` cho cả ba; thử đăng nhập bằng mật khẩu cũ (lấy bằng `get-secret-value --version-stage AWSPREVIOUS`, qua pipe) và refresh token cũ (đăng nhập, rotate và thử refresh trong **cùng một tiến trình python**: refresh token chỉ nằm trong bộ nhớ, đẩy qua stdin cho `initiate-auth --auth-flow REFRESH_TOKEN_AUTH --auth-parameters file:///dev/stdin`, không in token); rồi đăng nhập bằng mật khẩu mới | mật khẩu cũ `NotAuthorizedException`; refresh token cũ bị từ chối; mật khẩu mới vào được |
 | M-54-10 | `sign-up` với mật khẩu yếu | `InvalidPasswordException` (đăng ký thành công cần email thật: **chưa chạy**) |
 | M-54-11 | `terraform plan -destroy -var cognito_deletion_protection=ACTIVE` (chỉ plan, kiểm tài nguyên) | pool có `deletion_protection = ACTIVE` trong kế hoạch; **chưa kiểm thật việc chặn xóa** (phải `apply` ACTIVE rồi `destroy`, bỏ qua để không rủi ro mất pool) |
-| M-54-12 | Gọi endpoint bảo vệ qua ALB bằng access token operator (200) và không token (401) | **chưa chạy**: backend chưa có guard JWT (DBS-50/51) và task api chưa chạy (BL-038): BACKLOG |
+| M-54-12 | Gọi endpoint bảo vệ qua ALB bằng access token operator (200) và không token (401) | **chưa chạy**: task api chưa chạy (BL-038); guard JWT đã có trên `main` (DBS-50): BACKLOG |
 
 Thời gian vài phút; chi phí gần 0 (secret ≈ 0,40 USD/tháng).
 
@@ -212,13 +212,13 @@ Rủi ro và cách lùi: pool có tài khoản thật sau khi khách đăng ký;
 | M-54-09 | đạt: rotate xong secret đổi, cờ `pending_signout` được xóa, `AWSPREVIOUS` giữ mật khẩu cũ; mật khẩu cũ và refresh token cũ bị `NotAuthorizedException`; mật khẩu mới đăng nhập được |
 | M-54-10 | đạt phần mật khẩu yếu (`InvalidPasswordException`); **đăng ký thành công cần email thật: chưa chạy** |
 | M-54-11 | đạt phần plan: `INACTIVE -> ACTIVE` là `1 to change`; **việc chặn xóa thật chưa kiểm** (cần `apply` ACTIVE rồi `destroy`, bỏ qua để không rủi ro mất pool) |
-| M-54-12 | **chưa chạy**: backend chưa có guard JWT (DBS-50/51) và task api chưa chạy (BL-038): BL-100 |
+| M-54-12 | **chưa chạy**: task api chưa chạy (BL-038); guard JWT đã có trên `main` (DBS-50): BL-100 |
 
 - **DoD 4 chỉ đạt một phần:** đăng nhập thật bằng tài khoản demo và token hợp lệ đã chứng minh; "gọi endpoint bảo vệ trên cloud" chưa làm được. Người duyệt cần chấp nhận từng ý này ở G4 (và Dev biết trên board).
 - **Phạm vi so với §7:** `git diff --stat` khớp: `base/{cognito.tf,variables.tf,outputs.tf}` + `tests/cognito.tftest.hcl` + mock id pool trong các test cũ của `base`; `session/ecs.tf` + test; `infra/scripts/{seed-cognito.sh,tests/test_seed_cognito.py,tests/fake_aws.py}`; README, BACKLOG, doc. `fake_aws.py` là một file test thuộc kế hoạch bước 3 nhưng không ghi tên riêng ở §7. Không có file lạ.
 - **Ảnh chụp:** không áp dụng (người dùng bỏ qua ảnh console).
 - **Lệch so với kế hoạch:** (1) `fake_aws.py` là file riêng; (2) TC-54-14 dùng regex Python thay `rg -P`; (3) các test cũ của `base` cần mock id pool Cognito hợp lệ (provider kiểm định dạng khi `apply`). Không lệch nào cần gate phụ.
-- **Bàn giao:** BL-100 (DoD 4: gọi endpoint bảo vệ, cần guard JWT của Dev và BL-038), BL-101 (role IAM tối thiểu cho script seed, CI chạy test script). BL-028 nhận thêm nguồn: `terraform test` và test script cần chạy trong CI.
+- **Bàn giao:** BL-100 (DoD 4: gọi endpoint bảo vệ, cần BL-038; guard JWT đã có trên `main` từ DBS-50), BL-101 (role IAM tối thiểu cho script seed, CI chạy test script). BL-028 nhận thêm nguồn: `terraform test` và test script cần chạy trong CI.
 - **Chi phí:** Cognito (ESSENTIALS, dưới 10.000 MAU miễn phí) và secret ≈ 0,40 USD/tháng; không có gì tính tiền theo giờ nên giữ lại, không `destroy`.
 
 ## 9. Tài liệu đã cập nhật
