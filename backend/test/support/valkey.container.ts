@@ -1,3 +1,4 @@
+import { setTimeout } from 'node:timers/promises';
 import { createClient } from 'redis';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { assertDockerAvailable, STARTUP_TIMEOUT_MS, withTimeout } from './postgres.container';
@@ -9,21 +10,49 @@ export interface StartedValkey extends ControlledService {
   url: string;
 }
 
-/** Generous so với connect timeout 5s + PING; không cần ngân sách retry dài như ElasticMQ. */
-export const VALKEY_PROBE_TIMEOUT_MS = 10_000;
+/**
+ * Ngân sách retry thật của probe = 10×3000ms (connect + PING tối đa mỗi lần) + 9×250ms (nghỉ giữa
+ * các lần, lần cuối không nghỉ) = 32.250ms. Đặt 45s để còn biên ~39% chịu jitter, cùng cách tính
+ * với ELASTICMQ_PROBE_TIMEOUT_MS.
+ */
+export const VALKEY_PROBE_TIMEOUT_MS = 45_000;
 
-async function probePing(started: StartedTestContainer, signal: AbortSignal): Promise<void> {
+const PROBE_ATTEMPTS = 10;
+
+/**
+ * Chờ Valkey nhận kết nối và trả PONG. Ngay sau khi Testcontainers báo container sẵn sàng, Docker
+ * Desktop (Windows) có thể chưa nối xong cổng đã map nên lần connect đầu bị ECONNREFUSED; thử lại có
+ * giới hạn, giống probe của ElasticMQ.
+ *
+ * `signal` được kiểm ở đầu mỗi lần thử để dừng ngay khi `startServiceContainer` abort. Client chỉ
+ * bị `destroy()` khi còn mở: với `reconnectStrategy: false`, connect lỗi đã tự đóng client, và
+ * `destroy()` trên client đã đóng ném ClientClosedError, che mất lỗi kết nối thật.
+ */
+export async function probeValkey(
+  started: StartedTestContainer,
+  signal: AbortSignal,
+  attempts = PROBE_ATTEMPTS,
+): Promise<void> {
   const url = `redis://${started.getHost()}:${started.getMappedPort(6379)}`;
-  const client = createClient({
-    url,
-    socket: { connectTimeout: 3000, reconnectStrategy: false },
-  });
-  try {
-    await withTimeout(client.connect(), 5000, 'Valkey connection timed out');
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     if (signal.aborted) throw new Error('Valkey probe aborted');
-    if ((await client.ping()) !== 'PONG') throw new Error('Valkey PING failed');
-  } finally {
-    client.destroy();
+    const client = createClient({
+      url,
+      socket: { connectTimeout: 3000, reconnectStrategy: false },
+    });
+    // Lỗi socket được báo qua promise của connect()/ping(); không có listener thì node-redis ném
+    // 'error' như lỗi chưa xử lý.
+    client.on('error', () => undefined);
+    try {
+      await withTimeout(client.connect(), 3000, 'Valkey connection timed out');
+      if ((await client.ping()) !== 'PONG') throw new Error('Valkey PING failed');
+      return;
+    } catch (error) {
+      if (attempt === attempts || signal.aborted) throw error;
+      await setTimeout(250);
+    } finally {
+      if (client.isOpen) client.destroy();
+    }
   }
 }
 
@@ -36,7 +65,7 @@ export async function startValkeyContainer(): Promise<StartedValkey> {
       .withWaitStrategy(Wait.forSuccessfulCommand('valkey-cli ping'))
       .withStartupTimeout(STARTUP_TIMEOUT_MS)
       .start(),
-    probePing,
+    probeValkey,
     VALKEY_PROBE_TIMEOUT_MS,
   );
   const host = container.getHost();
