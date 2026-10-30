@@ -1,0 +1,17 @@
+f55b9a17a40dabbafeb447f22dee5ad3ffc1d85a
+M-59-01: node -e driver of compiled risk contracts with a fake R1 rule.
+{"hit":{"id":"R1","weight":30,"explanation":"6 lenh chuyen trong 10 phut"},"disabled":null}
+PASS: hit when enabled; null when disabled. The rule is a fake; R1 implementation is a later task.
+
+M-59-02: instantiate OnlineFeatureProvider and OfflineFeatureProvider from dist; call extract.
+online: Online feature provider is not configured
+offline: Offline feature provider is not configured
+PASS: neither placeholder returns invented features.
+
+M-59-03a: NestFactory.createApplicationContext(RiskModule) and modulesForRole for api, worker, both.
+api: riskModules=1, consumerProviders=0, boot=ok
+worker: riskModules=1, consumerProviders=0, boot=ok
+both: riskModules=1, consumerProviders=0, boot=ok
+PASS: module bootstrap/registration only. No real consumer exists, so this does not prove worker-only polling.
+
+M-59-03b: full APP_ROLE=api/worker app bootstrap with PostgreSQL: NOT RUN. Docker Desktop executable/daemon is unavailable on this machine; docker compose up -d could not connect to //./pipe/dockerDesktopLinuxEngine. Re-run after Docker is available.

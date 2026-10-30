@@ -59,3 +59,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-53](DBS-53-local-test-auth-keys-tokens.md) | Identity: `AUTH_MODE=local` và `AUTH_LOCAL_JWKS_PATH` (app từ chối khởi động ở staging/production), `npm run auth:dev-keys` và `auth:dev-token` cấp token mẫu bốn vai, helper token cho e2e | Dev | Implemented |
 | [DBS-52](DBS-52-users-upsert-first-token.md) | Identity: tạo dòng `users` bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên (`IdentityService.resolveUserId`, cache tiến trình) | Dev | Implemented |
 | [DBS-51](DBS-51-roles-guard-current-user.md) | Identity: `@Roles`, `RolesGuard` (`APP_GUARD` thứ hai) và `@CurrentUser`; vai trò chỉ từ `cognito:groups`, không nhóm là `customer`, sai vai trò 403 `FORBIDDEN` | Dev | Implemented |
+| [DBS-59](DBS-59-risk-module-skeleton.md) | Khung RiskModule, RiskRule và FeatureProvider | #4 Fraud | Implemented, chờ CI/review và các handoff |
