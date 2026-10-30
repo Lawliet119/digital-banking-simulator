@@ -1,6 +1,6 @@
 # DBS-58 · Migration lưu cấu hình và cờ fraud
 
-> **Status:** Implemented; CI verification pending · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-58-fraud-migration` · **Ngày:** 2026-10-30
+> **Status:** Implemented; Draft PR #44, chờ manual/Dev review/merge · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-58-fraud-migration` · **Ngày:** 2026-10-30
 
 ## 1. Bối cảnh
 
@@ -80,17 +80,19 @@ Rủi ro: seed config chưa có interface runtime nên key shape cần đồng b
 
 ## 8. Kết quả
 
-Code commit `1d1f06d74a098e0859578e239a8d892aba4dd0ef`. Test-first red: `npm run typecheck` báo TS2307 thiếu module migration; sau implementation typecheck, lint, format, build đều xanh. `npm run test:db -- --runInBand --runTestsByPath test/db/fraud-schema.db-spec.ts` dừng ở globalSetup vì Docker daemon không có; không chạy được PostgreSQL local. Backend unit baseline trên main: 493/495 pass, 2 test cooldown JWKS lỗi theo thời gian, không có code identity thay đổi trong PR. Chờ CI PostgreSQL thật để xác nhận test DB.
+Code migration commit `1d1f06d74a098e0859578e239a8d892aba4dd0ef`, test cuối `a0596c092f3362b0c84adea94a6d5cfecddb67da`. Test-first red: `npm run typecheck` báo TS2307 thiếu module migration; sau implementation typecheck, lint, format, build đều xanh. `npm run test:db -- --runInBand --runTestsByPath test/db/fraud-schema.db-spec.ts` dừng ở globalSetup vì Docker daemon không có; không chạy được PostgreSQL local. Backend unit baseline trên main: 493/495 pass, 2 test cooldown JWKS lỗi theo thời gian, không có code identity thay đổi trong PR.
+
+[CI run 41040395347](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41040395347) trên `b37b359`: 6/6 job success; DB 9/9 suites, 162/162 tests trên PostgreSQL 17. Hai CI đỏ trước đó là lỗi test (trigger FK nội bộ, scope DBS-27 cũ, dạng kết quả TypeORM), đã sửa. Commit cuối chỉ thêm hai FK assertions và kiểm trực tiếp `tgfoid` của shared function; theo dõi [checks mới nhất PR #44](https://github.com/Lawliet119/digital-banking-simulator/pull/44/checks) trước khi merge.
 
 | Case / DoD | Bằng chứng | Trạng thái |
 |---|---|---|
-| TC-58-01 / schema + seed | `fraud-schema.db-spec.ts`, so từng cột/constraint/JSON/trigger | Chờ CI PostgreSQL |
-| TC-58-02 / PK, FK, rule ID | Test lỗi 23505, 23503, 23514 trên DB thật | Chờ CI PostgreSQL |
-| TC-58-03 / review | Test partial NULL bị 23514, bản hợp lệ được nhận | Chờ CI PostgreSQL |
-| TC-58-04 / BL-021 | Test owner NOSUPERUSER, matched/no-match, empty TRUNCATE | Chờ CI PostgreSQL |
-| TC-58-05 / revert | CLI run→revert→run; thử dữ liệu user, version mới, seed sửa/xóa | Chờ CI PostgreSQL |
+| TC-58-01 / schema + seed | `fraud-schema.db-spec.ts`, so từng cột/constraint/JSON/trigger | Đạt trên CI PostgreSQL |
+| TC-58-02 / PK, FK, rule ID | Test lỗi 23505, 23503, 23514 trên DB thật; thêm FK users ở commit cuối | Đạt trên CI; thêm assertions chờ checks mới nhất |
+| TC-58-03 / review | Test partial NULL bị 23514, bản hợp lệ được nhận | Đạt trên CI PostgreSQL |
+| TC-58-04 / BL-021 | Test owner NOSUPERUSER, matched/no-match, empty TRUNCATE | Đạt trên CI PostgreSQL |
+| TC-58-05 / revert | CLI run→revert→run; thử dữ liệu user, version mới, seed sửa/xóa | Đạt trên CI PostgreSQL |
 | Manual M-58 | [Transcript](screenshots/DBS-58/manual-test.txt) | Chưa chạy do không có Docker/PG local; BL-056 |
-| CI, Dev review, merge | Draft PR | Chờ CI/review/merge; BL-057 |
+| CI, Dev review, merge | [Draft PR #44](https://github.com/Lawliet119/digital-banking-simulator/pull/44), [CI 6/6 xanh](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41040395347) | CI đạt trên `b37b359`; chờ final checks, Dev review/merge; BL-057 |
 
 Các test DBS-27 đã được giới hạn về migration prefix của chính nó để migration DBS-58 về sau không thay đổi lịch sử mà suite cũ đang kiểm. Không tạo `risk_decisions` hay áp ADR-14 Proposed. Contract JSON v1 bàn giao cho Dev task scoring và API UC-12; không sửa sheet. Ảnh `\d` và SQL manual chưa có do chưa chạy được, được theo dõi trong BL-056.
 
@@ -98,4 +100,4 @@ Các test DBS-27 đã được giới hạn về migration prefix của chính n
 
 - [database-design §4.8 và §8.3](../components/_shared/database-design.md): CHECK review không hở NULL, migration trigger risk đã triển khai.
 - [Risk README](../../backend/src/modules/risk/README.md), [feature index](README.md), [BACKLOG](../BACKLOG.md), [domain review](screenshots/DBS-58/domain-review.md), [manual transcript](screenshots/DBS-58/manual-test.txt).
-- Xóa BL-021 và BL-047 sau khi CI PostgreSQL xác nhận hai test tương ứng; hiện chưa nhận đạt khi test chưa chạy.
+- Xóa BL-021 và BL-047: CI PostgreSQL đã chứng minh trigger và CHECK review trên bảng thật.

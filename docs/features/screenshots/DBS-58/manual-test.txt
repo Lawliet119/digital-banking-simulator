@@ -1,4 +1,4 @@
-1d1f06d74a098e0859578e239a8d892aba4dd0ef
+a0596c092f3362b0c84adea94a6d5cfecddb67da
 DBS-58 manual test, 2026-10-30, PowerShell, Node 24
 
 Preflight: docker info --format '{{.ServerVersion}}'
@@ -15,3 +15,5 @@ Screenshots of psql output: CHUA CO (manual steps not run).
 
 Static checks: npm run typecheck PASS; npm run lint:check PASS; npm run format:check PASS; npm run build PASS.
 Baseline npm test -- --runInBand: 493 passed, 2 failed (JWKS cooldown timing, unchanged identity files).
+
+CI (separate from manual): https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41040395347 ; 6/6 jobs success, DB 9 suites and 162 tests passed on PostgreSQL 17. Manual steps remain CHUA CHAY.
