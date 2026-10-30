@@ -1,6 +1,7 @@
 import { AppRole } from '@common/app-role/app-role';
 import { HealthModule } from './health';
 import { modulesForRole } from './index';
+import { RiskModule } from './risk';
 
 describe('modulesForRole', () => {
   it('an api instance serves HTTP, so it loads the health probes', () => {
@@ -21,4 +22,11 @@ describe('modulesForRole', () => {
     const both = modulesForRole(AppRole.Both);
     expect(new Set(both).size).toBe(both.length);
   });
+
+  it.each([AppRole.Api, AppRole.Worker, AppRole.Both])(
+    'TC-59-03 registers the risk module once for role %s',
+    role => {
+      expect(modulesForRole(role).filter(module => module === RiskModule)).toHaveLength(1);
+    },
+  );
 });
