@@ -97,7 +97,7 @@ describe('append-only migration with a real non-superuser table owner', () => {
   beforeEach(async () => {
     roleCreated = false;
     db = await createTempDatabase();
-    await migrate(db.url);
+    await migrateThrough(db.url, 'AddAppendOnlyTriggers1792627200002');
     server = await new DataSource({ type: 'postgres', url: requireDatabaseUrl() }).initialize();
     role = `dbs_test_owner_${randomBytes(6).toString('hex')}`;
     if (!/^dbs_test_owner_[0-9a-f]{12}$/.test(role)) throw new Error('Unsafe fixture role');
@@ -267,7 +267,7 @@ describe('append-only migration with a real non-superuser table owner', () => {
     // A separate migrated database proves statement triggers also fire with zero rows.
     const empty = await createTempDatabase();
     try {
-      await migrate(empty.url);
+      await migrateThrough(empty.url, 'AddAppendOnlyTriggers1792627200002');
       for (const name of TABLES) await empty.runner.query(`ALTER TABLE ${name} OWNER TO "${role}"`);
       await empty.runner.query(`GRANT SELECT ON accounts,idempotency_keys TO "${role}"`);
       await empty.runner.query(`GRANT TRUNCATE ON idempotency_keys TO "${role}"`);
@@ -344,7 +344,7 @@ describe('append-only migration with a real non-superuser table owner', () => {
     const sequences = await db.runner.query(
       "SELECT sequencename,last_value FROM pg_sequences WHERE schemaname='public' AND sequencename IN ('ledger_entries_id_seq','audit_log_id_seq') ORDER BY sequencename",
     );
-    await migrate(db.url);
+    await migrateThrough(db.url, 'AddAppendOnlyTriggers1792627200002');
     expect(await snapshot()).toEqual(before);
     expect(
       await db.runner.query(
