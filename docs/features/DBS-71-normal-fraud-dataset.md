@@ -1,6 +1,6 @@
 # DBS-71 · Generator giao dịch bình thường
 
-> **Status:** Implemented; Draft PR/CI/review pending · **Vai:** Dev (#6 Quality/data) · **Nhánh:** `feat/DBS-71-normal-fraud-dataset` · **Ngày:** 2026-10-30
+> **Status:** Implemented; Draft PR #43, Dev review/merge pending · **Vai:** Dev (#6 Quality/data) · **Nhánh:** `feat/DBS-71-normal-fraud-dataset` · **Ngày:** 2026-10-30
 
 ## 1. Bối cảnh
 
@@ -71,7 +71,7 @@ Rủi ro: dữ liệu trông đều, thiếu lương hoặc tạo số dư âm; 
 
 ## 8. Kết quả
 
-Code commit `263d08baae91b0d3537b2a261cb9065579a96628`. `node --test load-tests/fraud-dataset/generate.test.mjs`: 4 pass, 0 fail, 0 skip. Backend `lint:check`, `typecheck`, `build` pass. Backend unit test: 494 pass, 1 fail trên JWKS cooldown (DBS-50, không có thay đổi backend trong PR), ba lần chạy gồm lệnh CI `npm test`; assertion timeout thay đổi giữa các lần. Cần xác nhận lại trên CI; không ghi CI xanh khi chưa có kết quả.
+Code commit `263d08baae91b0d3537b2a261cb9065579a96628`. `node --test load-tests/fraud-dataset/generate.test.mjs`: 4 pass, 0 fail, 0 skip. Backend `lint:check`, `typecheck`, `build` pass. Backend unit test local: 494 pass, 1 fail trên JWKS cooldown (DBS-50, không có thay đổi backend trong PR), ba lần chạy gồm lệnh CI `npm test`; assertion timeout thay đổi giữa các lần. [CI run 41037306313](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41037306313) trên commit `aade4fb`: cả sáu required jobs `lint`, `typecheck`, `unit`, `e2e`, `db`, `build` đều success; unit chạy cả test DBS-71. Kết quả runner Linux này là bằng chứng CI thật, không suy ra từ local.
 
 | Case / DoD | Test / bằng chứng | Kết quả |
 |---|---|---|
@@ -81,11 +81,11 @@ Code commit `263d08baae91b0d3537b2a261cb9065579a96628`. `node --test load-tests/
 | TC-71-04 / bất biến | Node test toàn bộ rows; min balance 0, debit=credit 96.043.641.000, ending+funding=0 | Đạt |
 | TC-71-05 / CLI | Node test và M-71-04 | Đạt; exit 1, không tạo CSV |
 | DoD 5 / README, wall | [README generator](../../load-tests/fraud-dataset/README.md) | Đạt; chỉ giao CSV cho #4 |
-| DoD 6 / CI, review, merge | Draft PR và CI được kiểm sau push; Dev khác review và merge | Chưa đạt; [BL-055](../BACKLOG.md) |
+| DoD 6 / CI, review, merge | [Draft PR #43](https://github.com/Lawliet119/digital-banking-simulator/pull/43); [CI 6/6 xanh](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41037306313); Dev khác review và merge | CI đạt; review/merge chưa đạt; [BL-055](../BACKLOG.md) |
 
 Manual test [transcript](screenshots/DBS-71/manual-test.txt), [ảnh kết quả CLI được dựng từ output đã đo](screenshots/DBS-71/01-cli-evidence.png): M-71-01 đến M-71-04 đều đạt. Ba CSV nằm trong `load-tests/results/`, không commit. Không gửi source generator hoặc nhãn holdout cho #4.
 
-Không đổi dependency, biến môi trường, DB, hợp đồng sự kiện hay ADR. Giới hạn: bộ này chỉ sinh dữ liệu bình thường; fraud injection, tune và holdout thuộc task khác. Bàn giao: Dev khác review PR; người quản lý repo merge khi CI xanh. Theo BL-055, không tự nhận hoàn tất DoD 6.
+Không đổi dependency, biến môi trường, DB, hợp đồng sự kiện hay ADR. Giới hạn: bộ này chỉ sinh dữ liệu bình thường; fraud injection, tune và holdout thuộc task khác. Bàn giao: Dev khác review [PR #43](https://github.com/Lawliet119/digital-banking-simulator/pull/43); người quản lý repo merge. Theo BL-055, không tự nhận hoàn tất DoD 6.
 
 ## 9. Tài liệu cập nhật
 
