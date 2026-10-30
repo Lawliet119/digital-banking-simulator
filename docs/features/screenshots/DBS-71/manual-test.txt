@@ -1,0 +1,34 @@
+263d08baae91b0d3537b2a261cb9065579a96628
+DBS-71 manual test · 2026-10-30 · PowerShell, Node v24.19.0
+
+M-71-01
+node load-tests/fraud-dataset/generate.mjs --output load-tests/results/dbs71-a.csv
+sha256=60e10c49abe8a6f9377dab29b729eaaf4a0f1d1a11dadfa759d8813aa7a7476f
+transactions=96200; salaryCredits=4000
+node load-tests/fraud-dataset/generate.mjs --output load-tests/results/dbs71-b.csv
+sha256=60e10c49abe8a6f9377dab29b729eaaf4a0f1d1a11dadfa759d8813aa7a7476f
+Get-FileHash dbs71-a.csv and dbs71-b.csv -Algorithm SHA256: both 60E10C49ABE8A6F9377DAB29B729EAAF4A0F1D1A11DADFA759D8813AA7A7476F
+(Get-Content dbs71-a.csv | Measure-Object -Line).Lines: 96201 (header + 96200)
+Result: PASS
+
+M-71-02
+node load-tests/fraud-dataset/generate.mjs --seed dbs-normal-v2 --output load-tests/results/dbs71-c.csv
+sha256=ca224bc72f8973908d6e2162f654b76c85eaaf9c6626c7ce911236934b566fb8
+Get-FileHash dbs71-c.csv -Algorithm SHA256: CA224BC72F8973908D6E2162F654B76C85EAAF9C6626C7CE911236934B566FB8
+Result: PASS (different seed differs)
+
+M-71-03
+Get-Content load-tests/results/dbs71-a.csv -TotalCount 3; -Tail 2
+Header: tx_id,occurred_at,from_account,to_account,from_customer,to_customer,amount,from_balance_before,from_account_created_at,to_account_created_at,is_fraud,scenario
+First timestamp: 2025-12-31T17:02:00.000Z; last timestamp: 2026-03-01T16:58:42.000Z
+CLI summary: familiarShare=0.8005509355509356; activeHourShare=0.9379106029106029; paydayRateRatio=1.6902730639487502; p50Amount=478000; p90Amount=2411000; minBalance=0; totalDebits=96043641000; totalCredits=96043641000; endingCustomerBalances=253305091000; fundingBalance=-253305091000
+Automated test checked all 96200 rows for exact columns, order, IDs and balances.
+Result: PASS
+
+M-71-04
+node load-tests/fraud-dataset/generate.mjs --customers 0 --output load-tests/results/dbs71-invalid.csv
+stderr: customers must be an integer from 9 to 100000
+EXIT_CODE=1; INVALID_FILE_ABSENT
+Result: PASS
+
+Repo checks: node --test load-tests/fraud-dataset/generate.test.mjs: 4 pass, 0 fail, 0 skipped. npm run lint:check: PASS. npm run typecheck: PASS. npm run build: PASS. npm test -- --runInBand: 494 pass, 1 fail (JWKS cooldown time-sensitive test, unrelated backend file), twice with different failing assertions. npm test (same as CI): 494 pass, 1 fail on same JWKS cooldown suite.
