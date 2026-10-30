@@ -1,0 +1,19 @@
+a0596c092f3362b0c84adea94a6d5cfecddb67da
+DBS-58 manual test, 2026-10-30, PowerShell, Node 24
+
+Preflight: docker info --format '{{.ServerVersion}}'
+Result: failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; Docker daemon unavailable.
+Preflight: HAS_DATABASE_URL=False; no local PostgreSQL service or psql executable found.
+
+Attempted: npm run test:db -- --runInBand --runTestsByPath test/db/fraud-schema.db-spec.ts
+Result: Jest globalSetup failed: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Could not find a working container runtime strategy.
+
+M-58-01 migration:run and inspect three tables/seed: CHUA CHAY (no local PostgreSQL).
+M-58-02 insert duplicate flag/hit and partial review rows: CHUA CHAY (no local PostgreSQL).
+M-58-03 migration:revert then migration:run on isolated DB: CHUA CHAY (no local PostgreSQL).
+Screenshots of psql output: CHUA CO (manual steps not run).
+
+Static checks: npm run typecheck PASS; npm run lint:check PASS; npm run format:check PASS; npm run build PASS.
+Baseline npm test -- --runInBand: 493 passed, 2 failed (JWKS cooldown timing, unchanged identity files).
+
+CI (separate from manual): https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41040395347 ; 6/6 jobs success, DB 9 suites and 162 tests passed on PostgreSQL 17. Manual steps remain CHUA CHAY.

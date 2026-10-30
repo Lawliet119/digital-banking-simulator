@@ -1,0 +1,11 @@
+# DBS-58 · Independent domain review
+
+## First review — REVISE (raw findings)
+
+Major contradiction: design §2 says UPDATE/DELETE including no-match are rejected, and TC-58-04 expects 42501 for no-match. Existing public.forbid_mutation() is a BEFORE ROW trigger; it cannot fire when WHERE matches zero rows. Accepted database-design §8.3 and append-only.db-spec TC-27-09 explicitly specify no-match UPDATE/DELETE succeeds with affected=0, while empty-table TRUNCATE (statement trigger) raises 42501. Fix §2 and TC-58-04 to say matched UPDATE/DELETE rejected (42501 + PL/pgSQL context), unmatched operations succeed with zero affected rows, empty TRUNCATE rejected. Also design should specify exact seed JSON shape/values in the doc or a linked contract before tests, since it currently promises a 'clear structure in migration/test' but leaves scoring consumer key compatibility to handoff; ensure tests assert every R1-R6 threshold/weight/enabled and mode/40/70. Review CHECK intent is correct, but implementation must use explicit two-branch predicate (or equivalent) because Accepted §4.8's boolean equivalence permits partial NULL review fields (BL-047). Rollback guard plan is sound if it verifies seed v1 identity/config, flags/versions under ACCESS EXCLUSIVE + READ COMMITTED, refuses 55000, and retains DBS-27 function. No files edited.
+
+## Re-review — APPROVE (raw verdict)
+
+Re-review: three domain findings are fixed in revised §2/§4. Seed JSON now explicit and matches guide §4.2; append-only no-match behavior now agrees with DBS-27; two-branch review CHECK intent closes BL-047. Verdict on domain design: APPROVE. One process conflict remains: §7 step 4 says 'commit/push Draft PR' while user AGENTS.md explicitly says do not automatically commit, push, create PR, or change sheet status without authorization. Remove/qualify that step unless separately authorized. Minor test precision: TC-58-05 should explicitly assert down refuses altered/missing seed v1 (it currently only names flags/hits/new version), matching §2's 'seed unchanged' rollback guard.
+
+Process authorization and seed rollback test were then clarified in the feature doc. Reviewer did not read the dataset generator/holdout folder.
