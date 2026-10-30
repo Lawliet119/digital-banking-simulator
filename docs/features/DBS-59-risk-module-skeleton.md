@@ -1,6 +1,6 @@
 # DBS-59 · Khung module risk
 
-> **Status:** Implemented (chờ CI, review và merge) · **Vai board:** #4 Fraud · **Nhánh:** `feat/DBS-59-risk-module-skeleton` · **Ngày:** 2026-10-30
+> **Status:** Implemented (Draft PR, chờ CI, review và merge) · **Vai board:** #4 Fraud · **Nhánh:** `feat/DBS-59-risk-module-skeleton` · **PR:** [#42](https://github.com/Lawliet119/digital-banking-simulator/pull/42) · **Ngày:** 2026-10-30
 
 ## 1. Bối cảnh
 
@@ -107,7 +107,7 @@ Rủi ro: placeholder bị dùng như provider thật; giảm bằng lỗi rõ r
 
 ![Kết quả driver và bootstrap dựng từ transcript thật](screenshots/DBS-59/01-manual-output.png)
 
-Đối chiếu: TC-59-01/02/04 đạt ở lớp unit. TC-59-03 chỉ đạt phần module registration; worker-only consumer chưa kiểm được (BL-041). DoD #2 chưa có xác nhận chữ ký từ #1/#6 (BL-053). DoD #5 chưa đạt: CI/Dev review/merge còn chờ (BL-054). Người dùng đã cho phép commit, push và Draft PR; manual test được chạy lại trên commit code cuối `f55b9a1`.
+Đối chiếu: TC-59-01/02/04 đạt ở lớp unit. TC-59-03 chỉ đạt phần module registration; worker-only consumer chưa kiểm được (BL-041). DoD #2 chưa có xác nhận chữ ký từ #1/#6 (BL-053). DoD #5 chưa đạt: [Draft PR #42](https://github.com/Lawliet119/digital-banking-simulator/pull/42) đã mở, CI/Dev review/merge còn chờ (BL-054). Người dùng đã cho phép commit, push và Draft PR; manual test được chạy lại trên commit code cuối `f55b9a1`.
 
 ## 9. Tài liệu cập nhật
 
