@@ -8,8 +8,8 @@ resource "aws_ecs_cluster" "main" {
 }
 
 # Chỉ biến môi trường không bí mật (COGNITO_* là định danh công khai, không phải bí mật).
-# DATABASE_URL, REDIS_URL … do DBS-66, 67 và task ElastiCache thêm (bí mật qua `secrets`, không viết
-# thẳng). Thiếu chúng thì app staging từ chối khởi động, nên desired_count mặc định 0.
+# DB_USER và DB_PASSWORD đi qua `secrets` (DBS-67); REDIS_URL do task ElastiCache thêm (cũng qua
+# `secrets`, không viết thẳng). Thiếu chúng thì app staging từ chối khởi động, nên desired_count mặc định 0.
 resource "aws_ecs_task_definition" "api" {
   family                   = "dbs-api"
   requires_compatibilities = ["FARGATE"]
@@ -41,6 +41,19 @@ resource "aws_ecs_task_definition" "api" {
       { name = "COGNITO_USER_POOL_ID", value = local.base.cognito_user_pool_id },
       { name = "COGNITO_CLIENT_ID", value = local.base.cognito_client_id },
       { name = "COGNITO_ISSUER", value = local.base.cognito_issuer },
+      # DBS-67: app ghép DATABASE_URL từ DB_* (env.bootstrap). CA bundle nằm trong image (Dockerfile).
+      { name = "DB_HOST", value = aws_db_instance.main.address },
+      { name = "DB_PORT", value = "5432" },
+      { name = "DB_NAME", value = "dbs" },
+      { name = "DATABASE_SSL", value = "true" },
+      { name = "DATABASE_SSL_CA_PATH", value = "/etc/ssl/rds/global-bundle.pem" },
+    ]
+
+    # Mật khẩu master do RDS sinh và xoay; ECS đọc khi task khởi động (execution role, iam.tf).
+    # Task đang chạy giữ mật khẩu cũ sau khi xoay: khởi động lại task (xem README Terraform).
+    secrets = [
+      { name = "DB_USER", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::" },
+      { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
     ]
 
     logConfiguration = {
