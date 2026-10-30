@@ -13,3 +13,5 @@ Kịch bản [k6](https://k6.io/). Phụ trách: #6.
 Sau mỗi lần chạy phải kiểm tra bất biến: tổng Nợ = tổng Có, tổng số dư = 0, không tài khoản khách nào âm.
 
 Kết quả chạy lưu ở `load-tests/results/` (không commit); số liệu tổng hợp đưa vào báo cáo P4.
+
+Bộ tạo giao dịch bình thường DBS-71: [fraud-dataset/README.md](fraud-dataset/README.md).
