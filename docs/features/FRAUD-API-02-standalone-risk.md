@@ -200,7 +200,7 @@ Sweep nội bộ: cả 6 DoD, 10 TC và 4 manual case đều có bước hoặc 
 |---|---|
 | TC-AI-01/02/03/04/05/06/10 | Đạt trong test adapter/CLI cục bộ; test HTTP dùng server loopback, không phải OpenAI |
 | TC-AI-07 / M-AI-03 | Đạt: OpenAI thật trả `SUCCEEDED`, p=0,76 trong [0,1], exit 0; raw output trong manual-test.txt. BL-043 vẫn mở cho quyết định quota/budget vận hành |
-| TC-AI-08 | Contract có trong code/docs; Dev chưa xác nhận, còn BL-042/050; chưa tích hợp |
+| TC-AI-08 | Contract có trong code/docs; Dev chưa xác nhận, còn BL-042/050/053; chưa tích hợp |
 | TC-AI-09 | Review AI đã thực hiện; Dev review và CI remote còn chờ |
 | M-AI-01 | Đạt: CLI synthetic mặc định DISABLED |
 | M-AI-02 | Đạt khi chạy lệnh stdin input sai: `CONFIG_INVALID`, exit 2, không echo input |
@@ -213,4 +213,4 @@ Manual M-AI-01–04 chạy trên commit code `c5473a9`: [raw output](screenshots
 - `backend/src/modules/risk/README.md`: ranh giới adapter AI độc lập, không nhận đã tích hợp.
 - `backend/src/scripts/README.md`: CLI, opt-in live và xử lý credential.
 - `docs/features/README.md`: index task AI-only.
-- Feature doc này, ba review thiết kế, raw output và ảnh manual; thêm BL-052 cho việc tích hợp, các BL-042/043/044/050 vẫn mở.
+- Feature doc này, ba review thiết kế, raw output và ảnh manual; thêm BL-053 cho việc tích hợp, các BL-042/043/044/050 vẫn mở.
