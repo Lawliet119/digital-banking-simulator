@@ -45,3 +45,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-34](DBS-34-terraform-ecs-alb.md) | Terraform: ECS Fargate cluster, service api và ALB HTTPS (nhóm xóa hằng ngày) | #5 Platform & Ops | Implemented |
 | [DBS-36](DBS-36-ci-build-push-ecr-oidc.md) | CI: build image và đẩy ECR tag SHA bằng OIDC (role chỉ tin repo và nhánh main) | #5 Platform & Ops | Implemented |
 | [FRAUD-API-01](FRAUD-API-01-external-ai-decision.md) | Hồ sơ ADR-14 (Proposed): giữ R1–R6, thêm API AI bổ sung, không tự train; phương án Proposed tách khỏi tài liệu Accepted; chưa triển khai backend fraud | Fraud | Implemented (docs-only, Draft PR #20 chờ Dev review và CI) |
+| [DBS-58](DBS-58-fraud-migration.md) | Migration risk_rule_sets v1, fraud_flags, fraud_rule_hits và trigger append-only | Fraud | Implemented (Draft PR/CI/review chờ xác nhận) |

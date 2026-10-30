@@ -9,6 +9,8 @@ Phát hiện giao dịch đáng ngờ; nhân viên review và quyết định.
 | Use case | UC-9 chấm điểm · UC-10 review cờ · UC-12 cấu hình luật |
 | Chạy ở | **api** (controller review, cấu hình) **+ worker** (consumer chấm điểm) — module dùng chung |
 | Sở hữu bảng | `fraud_flags`, `fraud_rule_hits`, `risk_rule_sets` |
+
+Migration DBS-58 tạo ba bảng trên, seed rule set v1 (`mode=rule_only`) và cặp trigger append-only cho `risk_rule_sets`. Contract JSON seed và bảng test nằm tại [feature doc](../../../../docs/features/DBS-58-fraud-migration.md). Tính năng scoring/consumer và API review là task tiếp theo; migration không khởi động worker.
 | Thiết kế | `docs/03` §15 |
 
 ## Phải giữ

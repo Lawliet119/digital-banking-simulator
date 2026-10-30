@@ -320,7 +320,8 @@ CREATE TABLE fraud_flags (
   review_note      text,
   created_at       timestamptz NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT fraud_flags_review_consistent CHECK
-    ((review_status = 'OPEN') = (reviewed_by IS NULL AND reviewed_at IS NULL))
+    ((review_status = 'OPEN' AND reviewed_by IS NULL AND reviewed_at IS NULL)
+     OR (review_status <> 'OPEN' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL))
 );
 
 CREATE TABLE fraud_rule_hits (
@@ -333,6 +334,7 @@ CREATE TABLE fraud_rule_hits (
 ```
 
 - **Review một lần** (AC-10.1): `UPDATE fraud_flags SET review_status = $1, … WHERE transfer_id = $2 AND review_status = 'OPEN'`; 0 dòng bị ảnh hưởng nghĩa là đã được review, từ chối. Không cần khóa riêng.
+- `fraud_flags_review_consistent` dùng hai nhánh tường minh để PostgreSQL không nhận `UNKNOWN` khi thiếu riêng `reviewed_by` hoặc `reviewed_at` ở trạng thái đã review (DBS-58, BL-047).
 - `risk_rule_sets` phải có **phiên bản 1 từ migration**, nếu không worker khởi động mà chưa có luật nào để chấm.
 - Bỏ `rule_version` ở `fraud_rule_hits` (docs/03 ERD có) vì thừa so với `fraud_flags.rule_set_version`.
 - Mỗi nhóm luật một dòng (khóa chính `(transfer_id, rule_id)`). Nếu sau này bật chế độ `v3` (ADR-08), điểm của mô hình được cộng vào dòng của nhóm được quy kết hoặc tạo dòng mới có `explanation` bắt đầu bằng `[AI-Rn]`; tổng `weight` luôn bằng `score` của cờ. Không đổi cột.
@@ -501,7 +503,7 @@ BEGIN
     USING ERRCODE = '42501';
 END $$;
 
--- Hiện có: ledger_entries, transfers, audit_log. risk_rule_sets do task fraud thêm sau.
+-- DBS-27: ledger_entries, transfers, audit_log; DBS-58 thêm hai trigger risk_rule_sets.
 CREATE TRIGGER ledger_entries_append_only
   BEFORE UPDATE OR DELETE ON ledger_entries
   FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
@@ -518,7 +520,7 @@ Migration `AddAppendOnlyTriggers1792627200002` triển khai một hàm PL/pgSQL 
 
 [DBS-27](../../features/DBS-27-append-only-triggers.md) kiểm lớp trigger bằng owner NOSUPERUSER trên PostgreSQL thật: trước từng thao tác kiểm owner/quyền, sau lỗi kiểm cả `42501` và context `PL/pgSQL function forbid_mutation() ... at RAISE`; không nhận nhầm permission denied của ACL. Fixture chỉ cấp SELECT accounts/idempotency_keys và TRUNCATE idempotency_keys trong DB tạm; có key tham chiếu transfer thật và đối chứng TRUNCATE CASCADE thành công sau down rồi rollback. Production dbs_api/dbs_worker/dbs_migrator và chủ view còn chờ task roles (BL-005); chưa nhận đủ AC-8.1. Chủ bảng cố ý đổi DDL hoặc tắt trigger nằm ngoài lớp bảo vệ này.
 
-**Bàn giao risk_rule_sets:** khi task fraud tạo bảng thật, migration của task đó phụ thuộc migration27 và thêm đúng hai trigger dưới đây; không tạo bảng placeholder hoặc áp trigger trước khi bảng tồn tại:
+**DBS-58 risk_rule_sets:** migration fraud chạy sau migration27 và thêm đúng hai trigger dưới đây; không tạo bảng placeholder hoặc áp trigger trước khi bảng tồn tại:
 
 ```sql
 CREATE TRIGGER risk_rule_sets_append_only
@@ -586,7 +588,7 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 1. `users`, `customers`, `accounts` (+ index, + tạo tài khoản SYSTEM `funding` với id cố định)
 2. `transfers`, `ledger_entries`, `idempotency_keys`, view `v_transfer_facts` (migration `1791849600000-CreateTransfersLedgerIdempotency`, DBS-21)
 3. `outbox_events`, `processed_events` (migration `1792627200000-CreateOutboxEventsProcessedEvents`, DBS-25); `audit_log` (migration `1792627200001-CreateAuditLog`, DBS-26). Hai nhóm độc lập, không gộp migration hoặc PR.
-4. `risk_rule_sets` (+ **seed phiên bản 1**), `fraud_flags`, `fraud_rule_hits`
+4. `risk_rule_sets` (+ **seed phiên bản 1**), `fraud_flags`, `fraud_rule_hits` (migration DBS-58 chạy sau bước 6 để dùng hàm trigger)
 5. `notification_log`, `reconciliation_runs`
 6. Hàm `public.forbid_mutation()` và sáu trigger trên ledger_entries/transfers/audit_log (`1792627200002-AddAppendOnlyTriggers`, DBS-27); task fraud thêm cặp trigger risk_rule_sets khi bảng tồn tại
 7. Role và `GRANT` (có thể idempotent; chạy bằng tài khoản đủ quyền)
