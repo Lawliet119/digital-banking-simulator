@@ -54,6 +54,26 @@ describe('postgres.container and test harness helpers', () => {
       const mockGetRuntimeClient = jest.fn().mockResolvedValue({});
       await expect(assertDockerAvailable(mockGetRuntimeClient)).resolves.toBeUndefined();
     });
+
+    it('DBS-40 vòng 2: dùng contextLabel tùy chọn thay cho "database tests" khi được truyền', async () => {
+      const mockGetRuntimeClient = jest
+        .fn()
+        .mockRejectedValue(new Error('Cannot connect to Docker'));
+      await expect(
+        assertDockerAvailable(mockGetRuntimeClient, 'service container tests (Valkey/ElasticMQ)'),
+      ).rejects.toThrow(
+        /\[Testcontainers\] Docker is not running or unreachable\. Please start Docker Desktop to run service container tests \(Valkey\/ElasticMQ\)\./i,
+      );
+    });
+
+    it('DBS-40 vòng 2: giữ "database tests" khi không truyền contextLabel (hành vi cũ)', async () => {
+      const mockGetRuntimeClient = jest
+        .fn()
+        .mockRejectedValue(new Error('Cannot connect to Docker'));
+      await expect(assertDockerAvailable(mockGetRuntimeClient)).rejects.toThrow(
+        /Please start Docker Desktop to run database tests\./i,
+      );
+    });
   });
 
   describe('assertDockerAvailable timeout (TC-39-08)', () => {
