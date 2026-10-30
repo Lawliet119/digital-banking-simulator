@@ -226,11 +226,19 @@ describe('DBS-58 fraud migration on PostgreSQL', () => {
           });
         }
         expect(
-          await q('UPDATE risk_rule_sets SET config=config WHERE version=99 RETURNING version'),
-        ).toEqual([]);
-        expect(await q('DELETE FROM risk_rule_sets WHERE version=99 RETURNING version')).toEqual(
-          [],
-        );
+          await db.runner.query(
+            'UPDATE risk_rule_sets SET config=config WHERE version=99 RETURNING version',
+            undefined,
+            true,
+          ),
+        ).toMatchObject({ records: [], affected: 0 });
+        expect(
+          await db.runner.query(
+            'DELETE FROM risk_rule_sets WHERE version=99 RETURNING version',
+            undefined,
+            true,
+          ),
+        ).toMatchObject({ records: [], affected: 0 });
         await q('INSERT INTO risk_rule_sets(version,config) VALUES(2,$1)', [SEED]);
       } finally {
         await db.runner.rollbackTransaction();
