@@ -148,7 +148,7 @@ describe('DBS-58 fraud migration on PostgreSQL', () => {
     ).toEqual([{ indexname: 'fraud_flags_open_queue_idx' }]);
     expect(
       await q(
-        "SELECT tgname,tgtype,tgenabled FROM pg_trigger WHERE tgrelid='risk_rule_sets'::regclass AND NOT tgisinternal ORDER BY tgname",
+        "SELECT tgname,tgtype,tgenabled FROM pg_trigger WHERE tgrelid='risk_rule_sets'::regclass AND NOT tgisinternal AND tgfoid='public.forbid_mutation()'::regprocedure ORDER BY tgname",
       ),
     ).toEqual([
       { tgname: 'risk_rule_sets_append_only', tgtype: 27, tgenabled: 'O' },
@@ -169,6 +169,18 @@ describe('DBS-58 fraud migration on PostgreSQL', () => {
       [second.transfer],
       '23503',
       'fraud_flags_rule_set_version_fkey',
+    );
+    await rejected(
+      'INSERT INTO risk_rule_sets(version,config,created_by) VALUES(2,$1,$2)',
+      [SEED, randomUUID()],
+      '23503',
+      'risk_rule_sets_created_by_fkey',
+    );
+    await rejected(
+      "INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version,review_status,reviewed_by,reviewed_at) VALUES($1,40,'MEDIUM',1,'CONFIRMED_FRAUD',$2,now())",
+      [second.transfer, randomUUID()],
+      '23503',
+      'fraud_flags_reviewed_by_fkey',
     );
     const hit =
       "INSERT INTO fraud_rule_hits(transfer_id,rule_id,weight,explanation) VALUES($1,$2,30,'velocity')";
