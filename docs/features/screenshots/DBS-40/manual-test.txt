@@ -1,137 +1,134 @@
-83b9803341b26fbd69d7e32d5280b73ea8b65d28
-M-40-01/02: Compose Valkey and ElasticMQ stopped; Testcontainers must create own services.
- Container dbs-valkey-1 Stopping
- Container dbs-elasticmq-1 Stopping
- Container dbs-elasticmq-1 Stopped
- Container dbs-valkey-1 Stopped
-Running services before sample:
-postgres
+bb0ac029bcc6552f21428bd1a7e8e9ce31f9169a
+M-40-01/02 (vòng 2): Compose Valkey và ElasticMQ đã dừng; Testcontainers phải tự tạo dịch vụ riêng.
+ Container dbs-valkey-1  Stopping
+ Container dbs-elasticmq-1  Stopping
+ Container dbs-elasticmq-1  Stopped
+ Container dbs-valkey-1  Stopped
+Dịch vụ Compose đang chạy trước khi chạy mẫu:
+
+
 
 > digital-banking-simulator-backend@0.1.0 test:services
 > jest --config ./test/jest-services.js --runInBand
 
   console.log
-    DBS-40 Valkey created id=033fdbaca89f001f12abd1d22be583aa875eb9daef4e7431b3d87ee5ac069344 port=32813
+    DBS-40 Valkey created id=de9c2110860e5c9a49ec7a704a5892b817eac874309fc9197a6aa017a03e9437 port=32782
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:12:13)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:13:13)
 
   console.log
     DBS-40 Valkey SET/GET verified value=ready
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:18:15)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:19:15)
 
   console.log
     DBS-40 Valkey pause timeout and resume PONG verified
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:28:15)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:29:15)
 
   console.log
-    DBS-40 Valkey removed id=033fdbaca89f001f12abd1d22be583aa875eb9daef4e7431b3d87ee5ac069344
+    DBS-40 Valkey removed id=de9c2110860e5c9a49ec7a704a5892b817eac874309fc9197a6aa017a03e9437
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:36:13)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:37:13)
 
   console.log
     DBS-40 Valkey stopped connection rejected
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:46:15)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:47:15)
 
   console.log
     DBS-40 Valkey fresh container recovery PONG verified
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:55:15)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:56:15)
 
   console.log
-    DBS-40 Valkey recovery removed id=620a374b015b2ec8fdbddecc3e3781110548b953b1b70ad915f072543516b0e3
+    DBS-40 Valkey recovery removed id=9e19446b3d86415ae3683e2ffe92c3fd08d22546bd058e527c379be094439bbc
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:61:13)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:62:13)
 
   console.log
-    DBS-40 ElasticMQ created id=e7246d80856f80eff6a0c597f31053bd94c7b94c75d676b61b8ac77ad5eb91f8 port=32815
+    DBS-40 ElasticMQ created id=d00da2ee5008ede243912460d4d152c7a74632c5e6806eab1a212e153120431c port=32784
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:66:13)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:67:13)
 
   console.log
     DBS-40 ElasticMQ send/receive verified queue=risk-events
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:87:15)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:88:15)
 
   console.log
     DBS-40 ElasticMQ pause timeout and resume verified
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:94:15)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:95:15)
 
   console.log
-    DBS-40 ElasticMQ removed id=e7246d80856f80eff6a0c597f31053bd94c7b94c75d676b61b8ac77ad5eb91f8
+    DBS-40 ElasticMQ removed id=d00da2ee5008ede243912460d4d152c7a74632c5e6806eab1a212e153120431c
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:102:13)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:103:13)
 
   console.log
     DBS-40 ElasticMQ stopped request rejected
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:108:15)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:109:15)
 
   console.log
     DBS-40 ElasticMQ fresh container recovery verified
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:116:15)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:117:15)
 
   console.log
-    DBS-40 ElasticMQ recovery removed id=ace23dd46e7e99211a20f5bac015627569b75a9416491fcf7fee75f4aef2bf3f
+    DBS-40 ElasticMQ recovery removed id=f4b14e127e905ed00da734e614ed9f45e81290c44bc3f11a7bc2720350aadd7f
 
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:122:13)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:123:13)
 
 Test Suites: 1 passed, 1 total
 Tests:       2 passed, 2 total
 Snapshots:   0 total
-Time:        15.456 s, estimated 19 s
+Time:        8.852 s, estimated 10 s
 Ran all test suites.
 M-40-01/02 exit=0
-Restoring Compose services:
- Container dbs-valkey-1 Starting
- Container dbs-elasticmq-1 Starting
- Container dbs-valkey-1 Started
- Container dbs-elasticmq-1 Started
-M-40-03: simulate unreachable Docker daemon via DOCKER_HOST=tcp://127.0.0.1:1
+
+M-40-03 (vòng 2): Docker không truy cập được (DOCKER_HOST=tcp://127.0.0.1:1); suite phải exit khác 0, không skip.
 
 > digital-banking-simulator-backend@0.1.0 test:services
 > jest --config ./test/jest-services.js --runInBand
 
-FAIL test/services/testcontainers.services-spec.ts (10.482 s)
+FAIL test/services/testcontainers.services-spec.ts
   ● DBS-40 isolated service containers › TC-40-01/03: starts Valkey on a dynamic port, reads a key, pauses and recovers
 
-    [Testcontainers] Docker is not running or unreachable: Could not find a working container runtime strategy
+    [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run service container tests (Valkey/ElasticMQ). Error details: Could not find a working container runtime strategy
 
-      21 |     );
-      22 |   } catch (error) {
-    > 23 |     throw new Error(
-         |           ^
-      24 |       `[Testcontainers] Docker is not running or unreachable: ${(error as Error).message}`,
-      25 |     );
-      26 |   }
+    [0m [90m 39 |[39m     )[33m;[39m
+     [90m 40 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 41 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m           [31m[1m^[22m[39m
+     [90m 42 |[39m       [32m`[Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run ${contextLabel}. `[39m [33m+[39m
+     [90m 43 |[39m         [32m`Error details: ${(error as Error).message}`[39m[33m,[39m
+     [90m 44 |[39m     )[33m;[39m[0m
 
-      at assertServiceDockerAvailable (test/support/service-container.ts:23:11)
-      at startValkeyContainer (test/support/valkey.container.ts:18:3)
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:11:21)
+      at assertDockerAvailable (test/support/postgres.container.ts:41:11)
+      at startValkeyContainer (test/support/valkey.container.ts:60:3)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:12:21)
 
   ● DBS-40 isolated service containers › TC-40-02/04: starts ElasticMQ with local config, sends and receives a message
 
-    [Testcontainers] Docker is not running or unreachable: Could not find a working container runtime strategy
+    [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run service container tests (Valkey/ElasticMQ). Error details: Could not find a working container runtime strategy
 
-      21 |     );
-      22 |   } catch (error) {
-    > 23 |     throw new Error(
-         |           ^
-      24 |       `[Testcontainers] Docker is not running or unreachable: ${(error as Error).message}`,
-      25 |     );
-      26 |   }
+    [0m [90m 39 |[39m     )[33m;[39m
+     [90m 40 |[39m   } [36mcatch[39m (error) {
+    [31m[1m>[22m[39m[90m 41 |[39m     [36mthrow[39m [36mnew[39m [33mError[39m(
+     [90m    |[39m           [31m[1m^[22m[39m
+     [90m 42 |[39m       [32m`[Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run ${contextLabel}. `[39m [33m+[39m
+     [90m 43 |[39m         [32m`Error details: ${(error as Error).message}`[39m[33m,[39m
+     [90m 44 |[39m     )[33m;[39m[0m
 
-      at assertServiceDockerAvailable (test/support/service-container.ts:23:11)
-      at startElasticMqContainer (test/support/elasticmq.container.ts:30:3)
-      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:65:21)
+      at assertDockerAvailable (test/support/postgres.container.ts:41:11)
+      at startElasticMqContainer (test/support/elasticmq.container.ts:69:3)
+      at Object.<anonymous> (test/services/testcontainers.services-spec.ts:66:21)
 
 Test Suites: 1 failed, 1 total
 Tests:       2 failed, 2 total
 Snapshots:   0 total
-Time:        10.547 s, estimated 16 s
+Time:        4.364 s, estimated 9 s
 Ran all test suites.
 M-40-03 exit=1
