@@ -76,6 +76,7 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npm test
+      - run: node --test ../load-tests/fraud-dataset/generate.test.mjs
 
   e2e:
     name: e2e
