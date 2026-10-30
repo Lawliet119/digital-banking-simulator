@@ -56,6 +56,9 @@ override_data {
       api_security_group_id = "sg-api"
       api_log_group_name    = "/dbs/dev/api"
       api_log_group_arn     = "arn:aws:logs:ap-southeast-1:123456789012:log-group:/dbs/dev/api"
+      cognito_user_pool_id  = "ap-southeast-1_ABCDEFGHI"
+      cognito_client_id     = "abcdefghij1234567890"
+      cognito_issuer        = "https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_ABCDEFGHI"
     }
   }
 }
@@ -220,6 +223,16 @@ run "task_definition" {
       && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["NODE_ENV"] == "staging"
     )
     error_message = "env must carry APP_ROLE=api, TRUST_PROXY_HOPS=1, PORT=3000, NODE_ENV=staging"
+  }
+
+  # TC-54-07: ba biến Cognito lấy nguyên từ base, không bí mật
+  assert {
+    condition = (
+      { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["COGNITO_USER_POOL_ID"] == "ap-southeast-1_ABCDEFGHI"
+      && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["COGNITO_CLIENT_ID"] == "abcdefghij1234567890"
+      && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["COGNITO_ISSUER"] == "https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_ABCDEFGHI"
+    )
+    error_message = "env must carry COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID and COGNITO_ISSUER from base"
   }
 
   # TC-34-07: không có biến bí mật viết thẳng
