@@ -1,6 +1,8 @@
 # risk 🟠 Supporting (điểm khác biệt, phần AI) — #4
 
-> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../../../docs/adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../../../docs/features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
+> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../../../docs/adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../../../docs/features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa tích hợp vào fraud runtime. Nội dung dưới đây vẫn là thiết kế Accepted.
+
+**Adapter AI độc lập:** `ai/openai-decisions.ts` cung cấp `assess(features, options)` cho thử nghiệm ADR-14; chưa nối RiskModule, consumer, DB hay API operator và chưa có Dev xác nhận contract. Feature/giới hạn/trạng thái mô tả ở [FRAUD-API-02](../../../../docs/features/FRAUD-API-02-standalone-risk.md); gọi provider thật chỉ với key mới, dữ liệu tổng hợp và quyền/giới hạn phù hợp. Không coi adapter là fraud end-to-end hoặc ADR-14 đã Accepted.
 
 Phát hiện giao dịch đáng ngờ; nhân viên review và quyết định.
 
