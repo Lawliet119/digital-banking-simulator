@@ -413,7 +413,7 @@ describe('append-only migration with a real non-superuser table owner', () => {
   it('TC-27-12 re-run restores protection on every target while INSERT stays allowed', async () => {
     const before = await snapshot();
     cli('migration:revert');
-    cli('migration:run');
+    await migrateThrough(db.url, 'AddAppendOnlyTriggers1792627200002');
     expect(await snapshot()).toEqual(before);
     for (const table of TABLES) {
       const column =
