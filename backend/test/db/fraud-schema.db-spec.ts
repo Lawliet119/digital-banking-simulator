@@ -148,7 +148,7 @@ describe('DBS-58 fraud migration on PostgreSQL', () => {
     ).toEqual([{ indexname: 'fraud_flags_open_queue_idx' }]);
     expect(
       await q(
-        "SELECT tgname,tgtype,tgenabled FROM pg_trigger WHERE tgrelid='risk_rule_sets'::regclass ORDER BY tgname",
+        "SELECT tgname,tgtype,tgenabled FROM pg_trigger WHERE tgrelid='risk_rule_sets'::regclass AND NOT tgisinternal ORDER BY tgname",
       ),
     ).toEqual([
       { tgname: 'risk_rule_sets_append_only', tgtype: 27, tgenabled: 'O' },
@@ -208,6 +208,8 @@ describe('DBS-58 fraud migration on PostgreSQL', () => {
     try {
       await admin.query(`CREATE ROLE "${role}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE`);
       await q(`ALTER TABLE risk_rule_sets OWNER TO "${role}"`);
+      await q(`ALTER TABLE fraud_flags OWNER TO "${role}"`);
+      await q(`ALTER TABLE fraud_rule_hits OWNER TO "${role}"`);
       expect(await q('SELECT rolsuper FROM pg_roles WHERE rolname=$1', [role])).toEqual([
         { rolsuper: false },
       ]);
@@ -217,7 +219,7 @@ describe('DBS-58 fraud migration on PostgreSQL', () => {
         for (const sql of [
           'UPDATE risk_rule_sets SET config=config WHERE version=1',
           'DELETE FROM risk_rule_sets WHERE version=1',
-          'TRUNCATE risk_rule_sets',
+          'TRUNCATE risk_rule_sets CASCADE',
         ]) {
           await expect(attempt(db.runner, sql)).rejects.toMatchObject({
             driverError: { code: '42501' },
@@ -240,7 +242,7 @@ describe('DBS-58 fraud migration on PostgreSQL', () => {
       await db.runner.startTransaction();
       try {
         await q(`SET LOCAL ROLE "${role}"`);
-        await expect(attempt(db.runner, 'TRUNCATE risk_rule_sets')).rejects.toMatchObject({
+        await expect(attempt(db.runner, 'TRUNCATE risk_rule_sets CASCADE')).rejects.toMatchObject({
           driverError: { code: '42501' },
         });
       } finally {
