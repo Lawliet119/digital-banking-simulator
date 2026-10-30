@@ -61,3 +61,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-51](DBS-51-roles-guard-current-user.md) | Identity: `@Roles`, `RolesGuard` (`APP_GUARD` thứ hai) và `@CurrentUser`; vai trò chỉ từ `cognito:groups`, không nhóm là `customer`, sai vai trò 403 `FORBIDDEN` | Dev | Implemented |
 | [DBS-59](DBS-59-risk-module-skeleton.md) | Khung RiskModule, RiskRule và FeatureProvider | #4 Fraud | Draft PR #42, chờ CI/review và các handoff |
 | [DBS-58](DBS-58-fraud-migration.md) | Migration risk_rule_sets v1, fraud_flags, fraud_rule_hits và trigger append-only | Fraud | Implemented (Draft PR #44; CI xanh; chờ manual/Dev review/merge) |
+| [DBS-71](DBS-71-normal-fraud-dataset.md) | Generator CSV giao dịch bình thường có seed cố định, thói quen khách và đối soát số dư | Dev | Implemented (Draft PR/CI/review chờ xác nhận) |
