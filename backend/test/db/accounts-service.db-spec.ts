@@ -63,7 +63,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     });
   });
 
-  it('TC-55-04 lock requires an active unreleased caller transaction even for empty input', async () => {
+  it('TC-55-04a lock requires an active unreleased caller transaction even for empty input', async () => {
     await expect(service.lockForUpdate([], fixture.source.manager)).rejects.toThrow(Error);
     const runner = fixture.source.createQueryRunner();
     await runner.connect();
@@ -76,7 +76,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     }
   });
 
-  it('TC-55-13 lock rejects hostile ids and invalid arrays without a query', async () => {
+  it('TC-55-13a lock rejects hostile ids and invalid arrays without a query', async () => {
     await withMoneyProbe(fixture.source, async manager => {
       const count = fixture.trace.length;
       await expect(service.lockForUpdate(["' OR 1=1 --"], manager)).rejects.toThrow(TypeError);
@@ -97,7 +97,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     });
   });
 
-  it('TC-55-04 apply rejects inactive and released managers without querying', async () => {
+  it('TC-55-04b apply rejects inactive and released managers without querying', async () => {
     const runner = fixture.source.createQueryRunner();
     await runner.connect();
     try {
@@ -116,7 +116,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     }
   });
 
-  it('TC-55-04 probe setup releases its real runner when a SET fails', async () => {
+  it('TC-55-04c probe setup releases its real runner when a SET fails', async () => {
     const runner = fixture.source.createQueryRunner();
     const failure = new Error('Injected probe setup failure');
     const realQuery = runner.query.bind(runner);
@@ -142,7 +142,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     ['ordered', proveAccountLockOrder],
     ['crossed', proveCrossedAccountLocks],
   ] as const)(
-    'TC-55-04 %s probe cleans earlier runners if later allocation fails',
+    'TC-55-04d %s probe cleans earlier runners if later allocation fails',
     async (_name, probe) => {
       const runners: ReturnType<typeof fixture.source.createQueryRunner>[] = [];
       const failure = new Error('Injected second-runner connection failure');
@@ -275,7 +275,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     ).rejects.toMatchObject({ status: 404 });
   });
 
-  it('TC-55-13 apply rejects injection and non-bigint deltas before SQL', async () => {
+  it('TC-55-13b apply rejects injection and non-bigint deltas before SQL', async () => {
     await withMoneyProbe(fixture.source, async manager => {
       const count = fixture.trace.length;
       await expect(service.applyBalanceChange("' OR 1=1 --", 0n, manager)).rejects.toThrow(
@@ -288,7 +288,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     });
   });
 
-  it('TC-55-11 returns only the account snapshot belonging to the internal user', async () => {
+  it('TC-55-11a returns only the account snapshot belonging to the internal user', async () => {
     const row = await service.getOwnedAccount(f.accountA.toUpperCase(), f.userA);
     expect(row).toMatchObject({
       id: f.accountA,
@@ -313,7 +313,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     expect(await service.getOwnedAccount(f.accountB, f.userB)).toMatchObject({ status: 'LOCKED' });
   });
 
-  it('TC-55-11 returns the same safe 404 for foreign, missing and SYSTEM accounts', async () => {
+  it('TC-55-11b returns the same safe 404 for foreign, missing and SYSTEM accounts', async () => {
     const inputs = [
       [f.accountA, f.userB],
       [f.missing, f.userA],
@@ -332,7 +332,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     expect(JSON.stringify(responses)).not.toMatch(/SELECT|customer_id|30000000|3a000000|10000000/);
   });
 
-  it('TC-55-11 ownership reads committed state rather than a mutation manager snapshot', async () => {
+  it('TC-55-11c ownership reads committed state rather than a mutation manager snapshot', async () => {
     await withMoneyProbe(fixture.source, async manager => {
       await service.lockForUpdate([f.funding, f.accountA], manager);
       await service.applyBalanceChange(f.funding, -300000n, manager);
@@ -352,7 +352,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     [f.accountA, ''],
     [f.accountA, "' OR 1=1 --"],
   ])(
-    'TC-55-12 rejects malformed account/user identifiers uniformly (%s, %s)',
+    'TC-55-12a rejects malformed account/user identifiers uniformly (%s, %s)',
     async (account, user) => {
       const count = fixture.trace.length;
       const error = await ownershipError(account as string, user as string);
@@ -361,7 +361,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     },
   );
 
-  it('TC-55-12 a valid Cognito sub UUID is not the internal users.id', async () => {
+  it('TC-55-12b a valid Cognito sub UUID is not the internal users.id', async () => {
     expect(f.cognitoSubA).not.toBe(f.userA);
     await expect(service.getOwnedAccount(f.accountA, f.cognitoSubA)).rejects.toMatchObject({
       status: 404,
