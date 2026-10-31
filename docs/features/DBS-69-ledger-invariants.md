@@ -781,3 +781,5 @@ Không có `.skip`, `.only` hay `.todo` trong test của task. **Một test ngo�
 - Feature doc §2.2: bảng CLI và quy tắc mã thoát; R1–R8; `screenshots/DBS-69/`: 6 ảnh, `manual-test.txt`, `verification.txt`, `red-green.txt`, 7 file domain review vòng 2.
 - `docs/BACKLOG.md`: BL-053 thành BL-126, BL-054 thành BL-127 (đổi ID khi merge `main`), thêm BL-128.
 - `docs/features/README.md`: cập nhật dòng DBS-69.
+
+**Quyết định ở G4 (vòng 2):** người dùng trả lời «duyệt» ngày 2026-11-01. Chấp nhận BL-126/127/128, ảnh render bằng Chrome headless, hai sự cố công cụ lúc ghi file đã được phát hiện và sửa, SHA manual `154c76c` (sau đó chỉ thêm script đo tùy chọn và tài liệu), test JWKS flaky giữ ở BL-112. Push thường lên nhánh PR #35, cập nhật body PR, giữ Draft.
