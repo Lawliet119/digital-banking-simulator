@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { Module, HttpException, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AccountsModule, AccountsService } from '@modules/accounts';
+import {
+  AccountBalanceNegativeError,
+  AccountBalanceOverflowError,
+  AccountNotLockedError,
+  AccountsModule,
+  AccountsService,
+} from '@modules/accounts';
 import { safeErrorMetadata } from '@common/logging/logging.options';
 import {
   ACCOUNT_FIXTURE as f,
@@ -11,6 +17,7 @@ import {
   createAccountsFixture,
   proveAccountLockOrder,
   proveCrossedAccountLocks,
+  proveUpdatedAtFollowsCommitOrder,
   withMoneyProbe,
   type AccountsFixture,
 } from '../support/accounts-service-probe';
@@ -30,7 +37,13 @@ function assertCleanupSucceeded(results: PromiseSettledResult<unknown>[]): void 
 async function expectRejection(
   step: string,
   work: () => Promise<unknown>,
-  expected: { status?: number; code?: string; constraint?: string; type?: ErrorConstructor },
+  expected: {
+    status?: number;
+    code?: string;
+    constraint?: string;
+    type?: new (...args: never[]) => Error;
+    message?: RegExp;
+  },
 ): Promise<void> {
   let rejected = false;
   let caught: unknown;
@@ -42,14 +55,18 @@ async function expectRejection(
   }
   assert(rejected, 'The rejection probe unexpectedly succeeded');
   if (expected.type) assert(caught instanceof expected.type);
+  if (expected.message) assert.match((caught as Error).message, expected.message);
   if (expected.status !== undefined) {
     assert(caught instanceof HttpException);
     assert.equal(caught.getStatus(), expected.status);
   }
-  const record = caught as Record<string, unknown>;
+  // Typed account errors keep the driver failure as `cause`; raw driver errors carry it directly.
+  const outer = caught as Record<string, unknown>;
+  const record = (outer.cause ?? outer) as Record<string, unknown>;
   if (expected.code !== undefined) assert.equal(record.code, expected.code);
   if (expected.constraint !== undefined) assert.equal(record.constraint, expected.constraint);
   report(step, {
+    name: caught instanceof Error ? caught.name : typeof caught,
     ...safeErrorMetadata(caught),
     ...(caught instanceof HttpException ? { status: caught.getStatus() } : {}),
     ...(expected.constraint !== undefined ? { constraint: record.constraint } : {}),
@@ -131,7 +148,11 @@ async function main(): Promise<void> {
           await accounts.lockForUpdate([f.accountA], manager);
           await accounts.applyBalanceChange(f.accountA, -1n, manager);
         }),
-      { code: '23514', constraint: 'accounts_balance_non_negative' },
+      {
+        type: AccountBalanceNegativeError,
+        code: '23514',
+        constraint: 'accounts_balance_non_negative',
+      },
     );
     await expectRejection(
       'M-55-04 OVERFLOW',
@@ -142,7 +163,7 @@ async function main(): Promise<void> {
           await accounts.applyBalanceChange(f.accountA, 9223372036854775807n, manager);
           await accounts.applyBalanceChange(f.accountA, 1n, manager);
         }),
-      { code: '22003' },
+      { type: AccountBalanceOverflowError, code: '22003' },
     );
     await expectRejection(
       'M-55-04 INACTIVE_MANAGER',
@@ -168,6 +189,53 @@ async function main(): Promise<void> {
         ),
       { type: TypeError },
     );
+    await expectRejection(
+      'M-55-07 APPLY_WITHOUT_LOCK',
+      () => withMoneyProbe(source, manager => accounts.applyBalanceChange(f.accountA, 0n, manager)),
+      { type: AccountNotLockedError },
+    );
+    await expectRejection(
+      'M-55-07 LOCK_ON_OTHER_RUNNER',
+      () =>
+        withMoneyProbe(source, async manager => {
+          await withMoneyProbe(source, other => accounts.lockForUpdate([f.accountA], other));
+          await accounts.applyBalanceChange(f.accountA, 0n, manager);
+        }),
+      { type: AccountNotLockedError },
+    );
+    await expectRejection(
+      'M-55-07 NESTED_TRANSACTION',
+      () =>
+        withMoneyProbe(source, manager =>
+          manager.transaction(nested => accounts.lockForUpdate([f.accountA], nested)),
+        ),
+      { type: Error, message: /outermost transaction/ },
+    );
+    await expectRejection(
+      'M-55-07 SEVENTEEN_IDS',
+      () =>
+        withMoneyProbe(source, manager =>
+          accounts.lockForUpdate(
+            Array.from(
+              { length: 17 },
+              (_, n) => `ffffffff-ffff-4fff-8fff-${n.toString(16).padStart(12, '0')}`,
+            ),
+            manager,
+          ),
+        ),
+      { type: TypeError, message: /At most 16 account ids/ },
+    );
+
+    const order = await proveUpdatedAtFollowsCommitOrder(source, accounts);
+    assert(order.earlyStamp.getTime() > order.lateStamp.getTime());
+    report('M-55-08 UPDATED_AT_ORDER', {
+      earlyTxPid: order.earlyPid,
+      waitedBehindPid: order.latePid,
+      lateCommitStamp: order.lateStamp.toISOString(),
+      earlyCommitStamp: order.earlyStamp.toISOString(),
+      earlyAfterLate: true,
+    });
+
     const recovered = await accounts.getOwnedAccount(f.accountA, f.userA);
     assert.equal(recovered.balance, '0');
     report('M-55-04 RECOVERED', { accountId: recovered.id, balance: recovered.balance });
