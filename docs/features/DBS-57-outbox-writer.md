@@ -359,10 +359,12 @@ Không có API HTTP. Phần không ghi ở đây giữ nguyên như §2.
 | Hành vi | Trước | Sau |
 |---|---|---|
 | R-2 · chuỗi chứa NUL (`U+0000`) hoặc surrogate lẻ, ở **giá trị hoặc khóa** của mọi tầng, kể cả trong mảng và object lồng | qua `assertEvent` (vì `allowUnknown: true`), rồi `::jsonb` ném 22P05 hoặc 22P02, caller nhận 500 chung | `InvalidEventError` với đúng một issue `{ path: '', code: 'INVALID_FORMAT', message: 'has an invalid format' }`, **trước** INSERT. Thông điệp và issue không chứa giá trị. Cặp surrogate hợp lệ (emoji) vẫn được ghi. Caller rollback như mọi `InvalidEventError` khác |
-| R-1 · producer chạy nền thừa kế context của request | event bị `NOT_ALLOWED` nếu id của event khác id của context | **Không đổi.** Hợp đồng được viết ra: producer chạy nền phải chạy ngoài context của request (hoặc mang đúng id của context). Khóa bằng TC-57-15 |
-| R-3 · test bootstrap ba role | mỗi role tự dựng một container PostgreSQL | dùng lại server của `globalSetup` qua biến `DBS57_BASE_DATABASE_URL`; driver vẫn tạo và xóa DB tạm riêng. Môi trường của child vẫn không có biến cấu hình dự án |
+| R-1 · producer chạy nền thừa kế context của request | event bị `NOT_ALLOWED` nếu id của event khác id của context | **Không đổi.** Hợp đồng được viết ra: producer chạy nền phải tách khỏi context của request bằng **`logger.runInContext(callback)` không truyền `bindings`** (mặc định `inherit: false` tạo store mới từ logger gốc, nên không còn `correlationId`), hoặc mang đúng id của context. Khởi động "ngoài request" không phải là cách một producer đang chạy trong request có thể làm được. Khóa bằng TC-57-15, kể cả cơ chế tách này (review v2-1 #2) |
+| R-3 · test bootstrap ba role | mỗi role tự dựng một container PostgreSQL | dùng lại server của `globalSetup` qua biến `DBS57_BASE_DATABASE_URL`; driver vẫn tạo và xóa DB tạm riêng. Môi trường của child vẫn không có biến cấu hình dự án. **Quy tắc chọn URL của driver:** `baseUrl = DBS57_BASE_DATABASE_URL ?? DATABASE_URL`, đọc từ env gốc **trước** bộ lọc `runtimeKeys` (hai biến này không thuộc `runtimeKeys`, nên child không thừa kế chúng sau lọc). Spec dựng env của child là `{ ...envĐãLọc, DBS57_BASE_DATABASE_URL: requireDatabaseUrl() }`, nên thiếu URL thì fail rõ ràng (review v2-1 #1). Các mode M-57-01…06 vẫn dùng `DATABASE_URL` đặt ngoài transcript như vòng 1 |
 
-**R-2: phạm vi kiểm.** PostgreSQL 17 từ chối `\u0000` (`unsupported Unicode escape sequence`) **và** surrogate lẻ như `\ud800` (`invalid input syntax for type json`). Mình đã chạy cả hai trên server thật. Review chỉ nêu NUL; vì lỗi cùng hậu quả (rollback cả giao dịch tiền, 500) nên cùng được chặn. `JSON.stringify` ghi surrogate lẻ ở dạng escape `\udXXX`, và `JSON.parse` trả lại đúng ký tự đó, nên kiểm trên snapshot đã parse là đúng chỗ.
+**R-2: phạm vi kiểm.** PostgreSQL 17 từ chối `\u0000` (22P05, `unsupported Unicode escape sequence`) **và** surrogate lẻ như `\ud800` (22P02, `invalid input syntax for type json`), cả ở giá trị lẫn khóa. Đã chạy trên server thật, và reviewer kiểm thêm: cặp surrogate hợp lệ, U+FFFF, ký tự điều khiển, `__proto__`, khóa trùng, `1e999`, `-0` đều được chấp nhận (và `JSON.stringify` không bao giờ sinh khóa trùng, Infinity hay -0). Vậy "NUL và surrogate lẻ" là toàn bộ tập từ chối ở mức ký tự. Review gốc chỉ nêu NUL; vì lỗi cùng hậu quả (rollback cả giao dịch tiền, 500) nên cùng được chặn. `JSON.stringify` ghi surrogate lẻ ở dạng escape `\udXXX`, và `JSON.parse` trả lại đúng ký tự đó, nên kiểm trên snapshot đã parse là đúng chỗ. Cách kiểm mỗi chuỗi: `!s.includes('\0') && s.isWellFormed()` (Node 24 có `isWellFormed`), áp lên mọi giá trị chuỗi và mọi khóa.
+
+**R-2: ngoài phạm vi.** PostgreSQL còn từ chối một chuỗi jsonb dài hơn 268 435 455 byte (54000, `string too long to represent as jsonb string`) mà `JSON.parse` chấp nhận; lỗi này vẫn rollback và ra 500 chung. Giới hạn kích thước payload là một quyết định riêng (cần số liệu từ SQS: tin nhắn tối đa 256 KiB), nên mình giữ ngoài task này và ghi vào cùng dòng BACKLOG bàn giao cho #3. Độ sâu lồng không cần xử lý riêng: `JSON.stringify` và `JSON.parse` của Node đã ném `RangeError` ở độ sâu khoảng 6000, trước khi bước kiểm chạy, và `RangeError` đó đã được TC-57-11 (`cycle`) bao phủ về mặt rollback.
 
 **R-3: giới hạn được chấp nhận.** TC-57-13 tự động trước đây còn chứng minh "tự dựng PostgreSQL khi không có `DATABASE_URL`". Sau khi dùng lại server chung, phần đó chỉ còn được chứng minh bằng **M-57-07 chạy tay** (shell sạch, không có `DBS57_BASE_DATABASE_URL`, tự dựng container cho cả ba role). Điều này được ghi rõ ở §R9.
 
@@ -370,7 +372,7 @@ Không có API HTTP. Phần không ghi ở đây giữ nguyên như §2.
 
 - **Vị trí:** `backend/src/modules/outbox/outbox-writer.ts` (R-2); `outbox/README.md` (R-1, R-2). Test và harness: `test/db/outbox-writer.db-spec.ts`, `outbox-writer-context.db-spec.ts`, `outbox-writer-bootstrap.db-spec.ts`, `test/manual/outbox-writer.manual.ts`. Tài liệu: `docs/BACKLOG.md` (một dòng bàn giao cho #3), feature doc, `docs/features/README.md`.
 - **Interface:** `OutboxWriter.add(manager, event): Promise<void>` giữ nguyên. Không export mới, không `ErrorCode` mới, không env của ứng dụng mới (`DBS57_BASE_DATABASE_URL` chỉ test đọc).
-- **Thứ tự trong `add`:** transaction đang chạy → `assertEvent(event)` → stringify → parse → `assertEvent(snapshot)` → **kiểm chuỗi không hợp lệ cho JSONB (mới)** → kiểm context → INSERT. Việc kiểm mới chạy trên snapshot đã parse, bằng một vòng lặp có ngăn xếp tường minh (không đệ quy), nên không phụ thuộc độ sâu của object.
+- **Thứ tự trong `add`:** transaction đang chạy → `assertEvent(event)` → stringify → parse → `assertEvent(snapshot)` → **kiểm chuỗi không hợp lệ cho JSONB (mới)** → kiểm context → INSERT. Việc kiểm mới chạy trên snapshot đã parse, bằng một vòng lặp có ngăn xếp tường minh (chỉ để code đơn giản, không phải để chịu độ sâu: Node đã ném `RangeError` ở độ sâu khoảng 6000 trước bước này).
 - **Dữ liệu:** `outbox_events` không đổi. Không migration.
 - **Ranh giới transaction:** của caller, như cũ. Không Redis/HTTP/SQS.
 - **Thay đổi cấp hệ thống:** không có. `docs/components/_shared/event-contract.md` không đổi: đây là hành vi của writer với trường mở rộng, không phải trường của contract.
@@ -395,11 +397,11 @@ PostgreSQL 17 thật, `test/db/`.
 | ID | Truy vết | Given · When · Then | Lỗi mong đợi |
 |---|---|---|---|
 | TC-57-14 | DoD1, R-2 | (a) NUL trong giá trị extension; (b) trong khóa extension; (c) trong phần tử của mảng lồng 3 tầng; (d) surrogate cao lẻ; (e) surrogate thấp lẻ. Mỗi ca: INSERT user rồi add → rollback user và outbox, không có truy vấn INSERT outbox nào, `issues` đúng một phần tử `path ''` + `INVALID_FORMAT`, `message` và `JSON.stringify(issues)` không chứa giá trị. (f) cặp surrogate hợp lệ (😀) và chuỗi tiếng Việt có dấu được ghi, payload đọc lại bằng nhau | `InvalidEventError` |
-| TC-57-15 | DoD2, R-1 | producer khởi động trong `logger.runInContext` với id X, một callback chạy sau (sau một `await` và một `setImmediate`) ghi event có id Y hợp lệ → `NOT_ALLOWED`, không row. Cùng callback khởi động **ngoài** `runInContext` → ghi thành công với id Y. Chứng minh hợp đồng: producer nền phải tách khỏi context của request | `InvalidEventError` / — |
-| TC-57-13 (đổi) | DoD1/3/4, R-3 | child nhận `DBS57_BASE_DATABASE_URL`, không nhận `DATABASE_URL` hay biến dự án; ba role mỗi role đúng 1 row, cleanup; JSON của driver có `ownContainer: false` | — |
+| TC-57-15 | DoD2, R-1 | (a) callback khởi động trong `logger.runInContext` với id X, chạy sau một `await` và một `setImmediate`, ghi event có id Y hợp lệ → `NOT_ALLOWED`, không row. (b) cùng callback nhưng được bọc `logger.runInContext(callback)` **không truyền `bindings`** → ghi thành công với id Y, đúng 1 row. (c) khởi động hẳn ngoài mọi context → ghi thành công. Chứng minh hợp đồng và cơ chế tách mà README sẽ nêu | `InvalidEventError` / — |
+| TC-57-13 (đổi) | DoD1/3/4, R-3 | child nhận `DBS57_BASE_DATABASE_URL` (từ `requireDatabaseUrl()`), không nhận `DATABASE_URL` hay biến dự án; ba role mỗi role đúng 1 row, cleanup; JSON của driver có `cleanup.ownContainerStopped: false` (driver không tự dựng container). Assertion cũ `ownContainerStopped: true` phải đảo lại | — |
 | TC-57-11 (giữ) | | `cycle`, `toJSON`, mutation sau add vẫn đạt | như cũ |
 
-Đỏ trước khi sửa: TC-57-14 (a…e) ném 22P05/22P02 thay vì `InvalidEventError`; TC-57-13 có `ownContainer: true`. TC-57-15 chạy xanh ngay vì khóa hành vi sẵn có (ghi rõ ở bằng chứng).
+Đỏ trước khi sửa: TC-57-14 (a…e) ném 22P05/22P02 thay vì `InvalidEventError`; TC-57-13 mới đỏ vì child hiện in `ownContainerStopped: true` (đang tự dựng container). TC-57-15 chạy xanh ngay vì khóa hành vi sẵn có (ghi rõ ở bằng chứng).
 
 ### R5. Test thủ công
 
@@ -409,6 +411,28 @@ Chạy lại toàn bộ M-57-01…07 trên commit cuối đổi code, cách ch�
 |---|---|---|
 | M-57-03 (mở rộng) | thêm ca extension chứa NUL và ca surrogate lẻ | `InvalidEventError`, user/outbox 0, không in giá trị |
 | M-57-05 (mở rộng) | thêm producer nền khởi động trong request và producer khởi động ngoài request | trong request: `NOT_ALLOWED`; ngoài request: 1 row |
-| M-57-07 | ba role trong shell sạch, **không** có `DBS57_BASE_DATABASE_URL` và `DATABASE_URL` | tự dựng container, mỗi role đúng 1 row, tự dọn; in role/count, không in URL. Đây là chỗ duy nhất còn chứng minh "tự dựng PostgreSQL" |
+| M-57-07 | ba role trong shell sạch, **không** có `DBS57_BASE_DATABASE_URL` và `DATABASE_URL` (lệnh bên dưới) | tự dựng container, mỗi role `pass: true`, đúng 1 row, `cleanup.ownContainerStopped: true`; không in URL. Đây là chỗ duy nhất còn chứng minh "tự dựng PostgreSQL" |
 
-Máy này có PostgreSQL 18 native chiếm cổng 5432: M-57-07 dùng Testcontainers (cổng ngẫu nhiên), nên không đụng cổng đó. Các mode khác dùng server dựng sẵn ở 55432: `export DBS57_BASE_DATABASE_URL=…` đặt ngoài transcript. Ảnh: chụp lại ba ảnh cũ từ output mới và thêm `04-surrogate-nul.png`, `05-ambient-context.png`.
+Máy này có PostgreSQL 18 native chiếm cổng 5432: M-57-07 dùng Testcontainers (cổng ngẫu nhiên), nên không đụng cổng đó. Các mode M-57-01…06 dùng server dựng sẵn ở 55432 qua `DATABASE_URL` đặt ngoài transcript. **M-57-07 phải gỡ cả hai biến**, vì nếu còn một biến thì driver dùng lại server và không còn chứng minh được gì về việc tự dựng:
+
+```bash
+for role in api worker both; do
+  env -u DBS57_BASE_DATABASE_URL -u DATABASE_URL \
+    node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts commit --role=$role 2>&1 \
+    | tee -a ../docs/features/screenshots/DBS-57/manual-test.txt
+done
+```
+
+(`set -euo pipefail` ở đầu script để một role lỗi dừng ngay.) Ảnh: chụp lại ba ảnh cũ từ output mới và thêm `04-surrogate-nul.png`, `05-ambient-context.png`.
+
+### R6. Domain review (AI)
+
+**Reviewer:** subagent mới, model Opus 5.5 (`claude-opus-5-5`), ngày 2026-10-31 · **Lượt 1:** 5 phát hiện (blocking 0, should-fix 3, minor 2), verdict REVISE · [nguyên văn lượt 1](screenshots/DBS-57/domain-review-v2-round-1.md)
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | should-fix | Chưa nói driver chọn URL thế nào, ảnh hưởng M-57-01…06 và M-57-07 | đã sửa R2 (R-3): `baseUrl = DBS57_BASE_DATABASE_URL ?? DATABASE_URL` đọc trước bộ lọc; spec dùng `requireDatabaseUrl()` |
+| 2 | should-fix | "Khởi động ngoài request" không phải cách một producer trong request làm được; chưa nêu cơ chế tách | đã sửa R2 (R-1), TC-57-15: tách bằng `logger.runInContext(cb)` không `bindings`, có TC chứng minh |
+| 3 | should-fix | M-57-07 thiếu lệnh; nếu còn `DBS57_BASE_DATABASE_URL` thì không còn chứng minh tự dựng | đã sửa R5: lệnh `env -u` cả hai biến, kỳ vọng `ownContainerStopped: true` |
+| 4 | minor | Trường `ownContainer` không tồn tại; assertion cũ phải đảo | đã sửa TC-57-13: dùng `cleanup.ownContainerStopped: false`, ghi đảo assertion |
+| 5 | minor | Giới hạn 54000 của jsonb chưa nêu; "ngăn xếp tường minh để chịu độ sâu" sai; nên dùng `isWellFormed` | đã sửa R2/R3: ghi 54000 ngoài phạm vi (kèm BACKLOG cho #3), bỏ claim độ sâu, dùng `isWellFormed` |
