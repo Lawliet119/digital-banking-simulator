@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { DataSource } from 'typeorm';
 import { getErrorCode } from '@common/utils/pg-error.util';
 import { checkLedgerInvariants } from '../support/invariants';
@@ -18,8 +18,7 @@ import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-
 
 const backend = resolve(__dirname, '../..');
 const root = resolve(backend, '..');
-const npm =
-  process.env.npm_execpath ?? resolve(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
+const cliFile = resolve(backend, 'test/support/invariants.ts');
 const codePaths = [
   'backend/package.json',
   'backend/test/db/invariants.db-spec.ts',
@@ -73,21 +72,34 @@ async function main() {
       throw error;
     }
   }
-  function cli(db: TempDatabase, expectedExit: number) {
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      NODE_ENV: 'test',
-      DATABASE_URL: db.url,
-      DATABASE_SSL: 'false',
-    };
+  function cliEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
+    const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: 'test', DATABASE_SSL: 'false' };
     delete env.DATABASE_SSL_CA_PATH;
-    log('$ npm run --silent check:invariants', { database: db.name });
-    const result = spawnSync(process.execPath, [npm, 'run', '--silent', 'check:invariants'], {
-      cwd: backend,
-      env,
-      encoding: 'utf8',
-      timeout: 45_000,
+    for (const key of ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']) delete env[key];
+    return { ...env, ...overrides };
+  }
+  // Runs the same CLI as `npm run --silent check:invariants`, through ts-node, so the driver does
+  // not depend on npm_execpath (it is started with node -r ts-node/register, where it is not set).
+  function cli(db: TempDatabase, expectedExit: number, overrides: Record<string, string> = {}) {
+    log('$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants)', {
+      database: db.name,
     });
+    const result = spawnSync(
+      process.execPath,
+      [
+        '-r',
+        require.resolve('ts-node/register'),
+        '-r',
+        require.resolve('tsconfig-paths/register'),
+        cliFile,
+      ],
+      {
+        cwd: backend,
+        env: cliEnv({ DATABASE_URL: db.url, ...overrides }),
+        encoding: 'utf8',
+        timeout: 45_000,
+      },
+    );
     assert.ifError(result.error);
     if (result.stdout) console.log(result.stdout.trim());
     if (result.stderr) console.log(result.stderr.trim());
@@ -144,7 +156,18 @@ async function main() {
       await db.runner.query('SELECT name FROM migrations ORDER BY timestamp'),
     );
     assert.equal(cli(db, 0).status, 'PASS');
-    log('M-69-01 PASS');
+    log('$ npm run --silent check:invariants (fixed command string, shell)');
+    const viaNpm = spawnSync('npm run --silent check:invariants', {
+      cwd: backend,
+      env: cliEnv({ DATABASE_URL: db.url }),
+      encoding: 'utf8',
+      shell: true,
+      timeout: 60_000,
+    });
+    assert.ifError(viaNpm.error);
+    assert.equal(viaNpm.status, 0);
+    assert.equal((JSON.parse(viaNpm.stdout) as { status: string }).status, 'PASS');
+    log('M-69-01 PASS (ts-node and npm script agree)');
 
     log(
       'M-69-02 seed SQL via invariant-fixtures.ts: deposit 1000000, transfer 250000, unused account, rejected order',
@@ -245,6 +268,36 @@ async function main() {
     assert.equal(cli(db, 0).status, 'PASS');
     log('M-69-07 PASS');
 
+    log('M-69-09 the ECS DB_* parts (no DATABASE_URL), then a malformed DB_PORT');
+    {
+      const u = new URL(db.url);
+      const parts = {
+        DATABASE_URL: '',
+        DB_HOST: u.hostname,
+        DB_PORT: u.port,
+        DB_NAME: decodeURIComponent(u.pathname.slice(1)),
+        DB_USER: decodeURIComponent(u.username),
+        DB_PASSWORD: decodeURIComponent(u.password),
+      };
+      const composed = cli(db, 0, parts);
+      assert.equal(composed.status, 'PASS');
+      log('DB_* composed into a connection: PASS, exit 0');
+      const bad = cli(db, 2, { ...parts, DB_PORT: 'abc' }) as { kind?: string; invalid?: string[] };
+      assert.equal(bad.kind, 'INVALID_CONFIG');
+      assert.deepEqual(bad.invalid, ['DB_PORT']);
+      assert(!JSON.stringify(bad).includes('abc'));
+      log('M-69-09 PASS: INVALID_CONFIG names only DB_PORT, no value printed');
+    }
+
+    log('M-69-10 a mismatch stays FAIL (exit 1), never turned into ERROR, then restores');
+    await ownerDelta('1');
+    const stillFail = cli(db, 1);
+    assert.equal(stillFail.status, 'FAIL');
+    assert(JSON.stringify(stillFail.violations).includes(refs.senderId));
+    await ownerDelta('-1');
+    assert.equal(cli(db, 0).status, 'PASS');
+    log('M-69-10 PASS');
+
     log(
       'M-69-08 cleanup owned databases/roles, stop ONLY this container, then verify a failed connection',
     );
@@ -254,7 +307,7 @@ async function main() {
     assert.equal(databases.size, 0);
     assert.equal(roles.length, 0);
     log('M-69-08 PASS');
-    log('MANUAL RESULT', { passed: 8, total: 8, finalShaEvidence: !dirty });
+    log('MANUAL RESULT', { passed: 10, total: 10, finalShaEvidence: !dirty });
   } finally {
     try {
       await cleanup();
