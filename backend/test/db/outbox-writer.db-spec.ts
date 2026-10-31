@@ -152,6 +152,70 @@ describe('DBS-57 outbox writer in the caller transaction (real PostgreSQL)', () 
     },
   );
 
+  const HI = '\uD83D';
+  const LO = '\uDE00';
+  const unstorable: { label: string; build: (input: DomainEvent) => unknown }[] = [
+    { label: 'NUL in an extension value', build: e => ({ ...e, extension: { note: 'a\u0000b' } }) },
+    { label: 'NUL in an extension key', build: e => ({ ...e, extension: { ['a\u0000b']: 1 } }) },
+    {
+      label: 'NUL inside a nested array element',
+      build: e => ({ ...e, extension: { a: [[{ b: ['ok', 'x\u0000'] }]] } }),
+    },
+    { label: 'lone high surrogate in a value', build: e => ({ ...e, extension: { n: `a${HI}` } }) },
+    { label: 'lone low surrogate in a value', build: e => ({ ...e, extension: { n: `${LO}a` } }) },
+    {
+      label: 'lone surrogate in a nested key',
+      build: e => ({ ...e, extension: { meta: { [`k${HI}`]: 1 } } }),
+    },
+    { label: 'high surrogate before ASCII', build: e => ({ ...e, extension: { n: `${HI}a` } }) },
+    { label: 'low then high surrogate', build: e => ({ ...e, extension: { n: `${LO}${HI}` } }) },
+    { label: 'high + valid pair', build: e => ({ ...e, extension: { n: `${HI}${HI}${LO}` } }) },
+    { label: 'valid pair + low', build: e => ({ ...e, extension: { n: `${HI}${LO}${LO}` } }) },
+    { label: 'low + valid pair', build: e => ({ ...e, extension: { n: `${LO}${HI}${LO}` } }) },
+  ];
+
+  it.each(unstorable)(
+    'TC-57-14 refuses $label before the insert and rolls back the caller',
+    async ({ build }) => {
+      const input = event();
+      const sub = randomUUID();
+      let outboxInserts = 0;
+      const error = await tx
+        .run(async manager => {
+          await seedUser(manager, sub);
+          const query = jest.spyOn(manager, 'query');
+          try {
+            await writer.add(manager, build(input) as DomainEvent);
+          } finally {
+            outboxInserts = query.mock.calls.filter(([sql]) =>
+              /INSERT INTO outbox_events/i.test(String(sql)),
+            ).length;
+            query.mockRestore();
+          }
+        })
+        .then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+      // Asserted outside the transaction so a database error is not hidden by this check.
+      expect(outboxInserts).toBe(0);
+      expect(error).toBeInstanceOf(InvalidEventError);
+      expect((error as InvalidEventError).issues).toEqual([
+        { path: '', code: 'INVALID_FORMAT', message: 'has an invalid format' },
+      ]);
+      // The message names paths and codes only, never the offending text.
+      expect((error as Error).message).toBe('Invalid event: (payload) INVALID_FORMAT');
+      expect(await rows(input.eventId)).toEqual([]);
+      expect(await users(sub)).toEqual([]);
+    },
+  );
+
+  it('TC-57-14 still stores valid surrogate pairs and Vietnamese text', async () => {
+    const input = { ...event(), extension: { emoji: `x${HI}${LO}y`, vi: 'Ngân hàng số' } };
+    await tx.run(manager => writer.add(manager, input));
+    expect((await rows(input.eventId))[0].payload).toEqual(input);
+  });
+
   it('TC-57-08 propagates duplicate 23505, keeps the committed row and rolls back new work', async () => {
     const input = event();
     await tx.run(manager => writer.add(manager, input));
