@@ -11,6 +11,8 @@ export class AccountNotLockedError extends Error {
   override readonly name = 'AccountNotLockedError';
 
   constructor(readonly accountId: string) {
-    super('Account must be locked with lockForUpdate in this transaction before its balance changes');
+    super(
+      'Account must be locked with lockForUpdate in this transaction before its balance changes',
+    );
   }
 }
