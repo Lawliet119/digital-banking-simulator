@@ -14,4 +14,62 @@ worker: riskModules=1, consumerProviders=0, boot=ok
 both: riskModules=1, consumerProviders=0, boot=ok
 PASS: module bootstrap/registration only. No real consumer exists, so this does not prove worker-only polling.
 
-M-59-03b: full APP_ROLE=api/worker app bootstrap with PostgreSQL: NOT RUN. Docker Desktop executable/daemon is unavailable on this machine; docker compose up -d could not connect to //./pipe/dockerDesktopLinuxEngine. Re-run after Docker is available.
+M-59-03b (2026-10-30, earlier attempt): full APP_ROLE=api/worker app bootstrap with PostgreSQL was NOT RUN because Docker daemon was unavailable. Re-run evidence follows below.
+M-59-03b Docker Compose PostgreSQL 17, isolated DB dbs_manual_59_fb7b962f3817
+
+> create isolated DB
+CREATE DATABASE
+exit=0
+
+> migration:run (initial schema)
+        BEFORE UPDATE OR DELETE ON public.audit_log
+        FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+query: CREATE TRIGGER audit_log_no_truncate
+        BEFORE TRUNCATE ON public.audit_log
+        FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200002,"AddAppendOnlyTriggers1792627200002"]
+Migration AddAppendOnlyTriggers1792627200002 has been executed successfully.
+query: COMMIT
+exit=0
+
+> AppModule bootstrap APP_ROLE=api
+
+exit=1
+
+> drop isolated DB
+DROP DATABASE
+exit=0
+M-59-03b retry with env.bootstrap, Docker Compose PostgreSQL 17, isolated DB dbs_manual_59_937674257d7a
+
+> create isolated DB
+CREATE DATABASE
+exit=0
+
+> migration:run (initial schema)
+        BEFORE UPDATE OR DELETE ON public.audit_log
+        FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+query: CREATE TRIGGER audit_log_no_truncate
+        BEFORE TRUNCATE ON public.audit_log
+        FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200002,"AddAppendOnlyTriggers1792627200002"]
+Migration AddAppendOnlyTriggers1792627200002 has been executed successfully.
+query: COMMIT
+exit=0
+
+> AppModule bootstrap APP_ROLE=api
+[Nest] 28704  - 10/31/2026, 2:54:32 PM    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+APP_ROLE=api AppModule boot=ok
+exit=0
+
+> AppModule bootstrap APP_ROLE=worker
+APP_ROLE=worker AppModule boot=ok
+exit=0
+
+> AppModule bootstrap APP_ROLE=both
+[Nest] 20380  - 10/31/2026, 2:54:45 PM    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+APP_ROLE=both AppModule boot=ok
+exit=0
+
+> drop isolated DB
+DROP DATABASE
+exit=0
