@@ -330,7 +330,7 @@ Ba ảnh là CUA chụp trang local hiển thị raw transcript, wrap dòng cho 
 
 ## Vòng 2 · Sửa sau review PR #34
 
-> **Status vòng 2:** Plan approved (sau G3) · **Nguồn:** review code PR #34 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `feat/DBS-57-outbox-writer` (sửa trực tiếp theo yêu cầu người dùng) · **Cập nhật:** 2026-10-31
+> **Status vòng 2:** Implemented (sau G4) · **Nguồn:** review code PR #34 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `feat/DBS-57-outbox-writer` (sửa trực tiếp theo yêu cầu người dùng) · **Cập nhật:** 2026-10-31
 
 ### R1. Bối cảnh
 
@@ -571,3 +571,5 @@ Không có `.skip`, `.only` hay `.todo` trong test của task. **Full DB đạt 
 - `docs/BACKLOG.md`: thêm BL-123; DBS-57 là BL-124 và BL-125 (đổi ID khi merge `main`); BL-002 và BL-019 giữ cả nguồn DBS-55 lẫn DBS-57.
 - `docs/features/README.md`: cập nhật dòng DBS-57.
 - Feature doc: R1–R9; `screenshots/DBS-57/`: 6 ảnh, `manual-test.txt`, `verification.txt`, `tdd-red-green.txt`, 3 file domain review vòng 2.
+
+**Quyết định ở G4 (vòng 2):** người dùng trả lời «duyet g4» ngày 2026-10-31. Chấp nhận BL-123/124/125 như R8, ảnh render bằng Chrome headless, hai sự cố công cụ lúc ghi file đã được khôi phục, BL-125 giữ mở. Push thường lên nhánh PR #34, cập nhật body PR, giữ Draft.
