@@ -388,7 +388,7 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 
 ## Vòng 2 · Sửa sau review PR #33
 
-> **Status vòng 2:** Plan approved (sau G3) · **Nguồn:** review code PR #33 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (1–5) · **Nhánh:** `feat/DBS-55-accounts-service` (sửa trực tiếp theo yêu cầu người dùng) · **Cập nhật:** 2026-10-31
+> **Status vòng 2:** Implemented (sau G4) · **Nguồn:** review code PR #33 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (1–5) · **Nhánh:** `feat/DBS-55-accounts-service` (sửa trực tiếp theo yêu cầu người dùng) · **Cập nhật:** 2026-10-31
 
 ### R1. Bối cảnh
 
@@ -719,3 +719,5 @@ Không có `.skip`, `.only` hay `.todo` trong test của task.
 - `docs/BACKLOG.md`: thêm BL-122; BL-112 thêm nguồn DBS-55; dòng DBS-55 cũ BL-054 → gộp BL-112, BL-056 → BL-121; BL-057 cập nhật.
 - `docs/features/README.md`: mô tả dòng DBS-55.
 - Feature doc: R1–R10; `screenshots/DBS-55/`: 6 ảnh, transcript, verification, TDD, 6 domain review.
+
+**Quyết định ở G4 (vòng 2):** người dùng trả lời «duye» ngày 2026-10-31. Chấp nhận M-55-06 chưa chạy, ảnh render bằng Chrome headless, BL-112/121/122 như R9. Push thường lên nhánh PR #33, cập nhật body PR, giữ Draft.
