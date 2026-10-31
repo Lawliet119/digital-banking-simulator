@@ -228,7 +228,12 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
             trace.query.startsWith('UPDATE accounts') && trace.parameters[1] === '9007199254740993',
         )
         .at(-1);
-      expect(update?.parameters).toEqual([f.accountA, '9007199254740993']);
+      // The third parameter is the txid that ties the UPDATE to the transaction holding the lock.
+      expect(update?.parameters).toEqual([
+        f.accountA,
+        '9007199254740993',
+        expect.stringMatching(/^\d+$/),
+      ]);
       expect(update?.query).toContain('$2::bigint');
     });
   });
@@ -355,6 +360,109 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
       } finally {
         query.mockRestore();
       }
+    });
+  });
+
+  it('TC-55-10a a reused runner cannot apply a lock taken by its previous transaction', async () => {
+    const runner = await startProbeRunner(fixture.source);
+    try {
+      await service.lockForUpdate([f.accountA], runner.manager);
+      await runner.rollbackTransaction();
+      await runner.startTransaction('READ COMMITTED');
+      await expect(
+        service.applyBalanceChange(f.accountA, 0n, runner.manager),
+      ).rejects.toBeInstanceOf(AccountNotLockedError);
+    } finally {
+      await closeProbeRunner(runner);
+    }
+  });
+
+  it('TC-55-17 apply requires a lock taken on the same runner', async () => {
+    await withMoneyProbe(fixture.source, async manager => {
+      const count = fixture.trace.length;
+      await expect(service.applyBalanceChange(f.accountA, 0n, manager)).rejects.toBeInstanceOf(
+        AccountNotLockedError,
+      );
+      expect(fixture.trace).toHaveLength(count);
+      await withMoneyProbe(fixture.source, async other => {
+        await service.lockForUpdate([f.accountC], other);
+        await expect(service.applyBalanceChange(f.accountC, 0n, manager)).rejects.toBeInstanceOf(
+          AccountNotLockedError,
+        );
+      });
+      await service.lockForUpdate([f.missing, f.accountA], manager);
+      await expect(service.applyBalanceChange(f.missing, 0n, manager)).rejects.toBeInstanceOf(
+        AccountNotLockedError,
+      );
+      await expect(service.applyBalanceChange(f.accountA, 0n, manager)).resolves.toBeUndefined();
+    });
+  });
+
+  it('TC-55-21 an empty lock in a new transaction keeps the old lock unusable', async () => {
+    const runner = await startProbeRunner(fixture.source);
+    try {
+      await service.lockForUpdate([f.accountA], runner.manager);
+      await runner.rollbackTransaction();
+      await runner.startTransaction('READ COMMITTED');
+      expect(await service.lockForUpdate([f.missing], runner.manager)).toEqual([]);
+      await expect(
+        service.applyBalanceChange(f.accountA, 0n, runner.manager),
+      ).rejects.toBeInstanceOf(AccountNotLockedError);
+    } finally {
+      await closeProbeRunner(runner);
+    }
+  });
+
+  it('TC-55-20a a lock taken inside a nested transaction is refused before SQL', async () => {
+    await withMoneyProbe(fixture.source, async manager => {
+      const locks = () => fixture.trace.filter(t => t.query.includes('FOR UPDATE')).length;
+      const before = locks();
+      await expect(
+        manager.transaction(nested => service.lockForUpdate([f.accountA], nested)),
+      ).rejects.toThrow('outermost transaction');
+      expect(locks()).toBe(before);
+    });
+  });
+
+  it('TC-55-20b a balance change inside a nested transaction is refused', async () => {
+    await withMoneyProbe(fixture.source, async manager => {
+      await service.lockForUpdate([f.accountA], manager);
+      await expect(
+        manager.transaction(nested => service.applyBalanceChange(f.accountA, 0n, nested)),
+      ).rejects.toThrow('outermost transaction');
+    });
+  });
+
+  it('TC-55-20c an unreadable transaction depth fails closed', async () => {
+    await withMoneyProbe(fixture.source, async manager => {
+      const runner = manager.queryRunner as unknown as Record<string, unknown>;
+      const depth = runner.transactionDepth;
+      runner.transactionDepth = undefined;
+      try {
+        await expect(service.lockForUpdate([f.accountA], manager)).rejects.toThrow(
+          'outermost transaction',
+        );
+      } finally {
+        runner.transactionDepth = depth;
+      }
+    });
+  });
+
+  it('TC-55-20d an outermost lock survives a rolled-back nested transaction', async () => {
+    await withMoneyProbe(fixture.source, async manager => {
+      await service.lockForUpdate([f.accountA], manager);
+      await expect(
+        manager.transaction(async nested => {
+          await nested.query('SELECT 1');
+          throw new Error('nested work failed');
+        }),
+      ).rejects.toThrow('nested work failed');
+      await expect(service.applyBalanceChange(f.accountA, 0n, manager)).resolves.toBeUndefined();
+      await expect(
+        withMoneyProbe(fixture.source, other =>
+          other.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE NOWAIT', [f.accountA]),
+        ),
+      ).rejects.toMatchObject({ code: '55P03' });
     });
   });
 

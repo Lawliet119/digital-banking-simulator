@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import type { DataSource, EntityManager } from 'typeorm';
+import type { DataSource, EntityManager, QueryRunner } from 'typeorm';
 import type { Account, LockedAccount } from './account.types';
 import {
   AccountBalanceNegativeError,
@@ -15,25 +15,39 @@ interface PgFailure {
 }
 
 const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+/** Ids this runner locked, tagged with the PostgreSQL transaction that holds the row locks. */
+interface HeldLocks {
+  txid: string;
+  ids: Set<string>;
+}
+
+type LockedRow = LockedAccount & { txid: string };
+
 const SNAPSHOT_COLUMNS = `a.id, a.customer_id AS "customerId", c.user_id AS "userId",
   a.type, a.status, a.balance, a.created_at AS "createdAt", a.updated_at AS "updatedAt"`;
 
 @Injectable()
 export class AccountsService {
+  // Weak keys: a released runner and its marks are collected together; retries get a new runner.
+  private readonly locks = new WeakMap<QueryRunner, HeldLocks>();
+
   constructor(@InjectDataSource() private readonly source: DataSource) {}
 
   async lockForUpdate(ids: string[], manager: EntityManager): Promise<LockedAccount[]> {
-    this.requireTransaction(manager);
+    const runner = this.requireOutermostTransaction(manager);
     if (!Array.isArray(ids)) throw new TypeError('Account ids must be an array of UUIDs');
     const normalized = [...new Set(Array.from(ids, id => this.normalizeId(id)))];
     if (normalized.length === 0) return [];
     // OF a avoids locking the nullable side of the owner join. SQL order governs lock acquisition.
-    return manager.query<LockedAccount[]>(
-      `SELECT ${SNAPSHOT_COLUMNS} FROM accounts a
+    const rows = await manager.query<LockedRow[]>(
+      `SELECT ${SNAPSHOT_COLUMNS}, pg_current_xact_id()::text AS txid FROM accounts a
        LEFT JOIN customers c ON c.id=a.customer_id
        WHERE a.id=ANY($1::uuid[]) ORDER BY a.id FOR UPDATE OF a`,
       [normalized],
     );
+    // No row means no lock was taken and no txid is known, so the existing mark stays as it was.
+    if (rows.length > 0) this.remember(runner, rows);
+    return rows.map(({ txid: _txid, ...account }) => account);
   }
 
   async applyBalanceChange(
@@ -41,9 +55,11 @@ export class AccountsService {
     delta: bigint,
     manager: EntityManager,
   ): Promise<void> {
-    this.requireTransaction(manager);
+    const runner = this.requireOutermostTransaction(manager);
     const id = this.normalizeId(accountId);
     if (typeof delta !== 'bigint') throw new TypeError('Balance deltas must be bigint');
+    const held = this.locks.get(runner);
+    if (!held?.ids.has(id)) throw new AccountNotLockedError(id);
     // PostgreSQL remains the final guard against customer overdrafts and signed-bigint overflow.
     // clock_timestamp(), not now(): now() is the transaction start, so a writer that waited for this
     // row lock would stamp an earlier time than the writer it waited behind.
@@ -51,8 +67,9 @@ export class AccountsService {
     try {
       result = await manager.query(
         `UPDATE accounts SET balance=balance+$2::bigint, updated_at=clock_timestamp()
-         WHERE id=$1::uuid RETURNING id`,
-        [id, delta.toString()],
+         WHERE id=$1::uuid AND pg_current_xact_id()::text=$3 RETURNING id`,
+        // A runner reused for a new transaction no longer holds the lock this txid stands for.
+        [id, delta.toString(), held.txid],
       );
     } catch (error) {
       throw this.balanceFailure(id, error);
@@ -101,11 +118,27 @@ export class AccountsService {
     return error;
   }
 
-  private requireTransaction(manager: EntityManager): void {
+  private remember(runner: QueryRunner, rows: LockedRow[]): void {
+    const txid = rows[0].txid;
+    const held = this.locks.get(runner);
+    const ids = held?.txid === txid ? held.ids : new Set<string>();
+    for (const row of rows) ids.add(row.id);
+    this.locks.set(runner, { txid, ids });
+  }
+
+  private requireOutermostTransaction(manager: EntityManager): QueryRunner {
     const runner = manager?.queryRunner;
     if (!runner?.isTransactionActive || runner.isReleased) {
       throw new Error('An active caller transaction is required');
     }
+    // ROLLBACK TO SAVEPOINT releases row locks taken after the savepoint while
+    // pg_current_xact_id() stays the same, so a lock taken in a nested transaction cannot be
+    // trusted. TypeORM keeps the depth protected; an unreadable value fails closed.
+    const depth = (runner as unknown as { transactionDepth?: unknown }).transactionDepth;
+    if (depth !== 1) {
+      throw new Error('Account locks must be taken at the outermost transaction');
+    }
+    return runner;
   }
 
   private normalizeId(value: unknown): string {
