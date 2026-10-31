@@ -635,3 +635,87 @@ Thứ tự migration → service → controller không áp dụng: không có mi
 | Xung đột PR | `docs/BACKLOG.md` | S11 |
 
 **Quyết định ở G3 (vòng 2):** người dùng trả lời «duyet» ngày 2026-10-31. BL-121 cho bàn giao R7 (đổi thành BL-122 khi merge main, xem §R9 Lệch); push một lần sau G4.
+
+### R9. Kết quả vòng 2
+
+**Lệnh kiểm tra** trên HEAD `0d7827a` (sau merge `origin/main` `7238cec`), tại `backend/`. Output thô ở [verification.txt](screenshots/DBS-55/verification.txt), phần "Vòng 2".
+
+| Lệnh | Kết quả |
+|---|---|
+| `npm run lint:check` | exit 0 |
+| `npm run typecheck` | exit 0 |
+| `npm test -- --runInBand` | 40 suites, 566/566 đạt, 0 skipped |
+| `npm run test:db -- --runInBand` | 9 suites, 199/199 đạt (DB spec DBS-55: 45 tests) |
+| `npm run test:e2e -- --runInBand` | 8 suites, 57/57 đạt. Chạy trên container `postgres:17` tạm ở cổng 55432 vì cổng 5432 là PostgreSQL 18 native. TC-42-11 (BL-121) không tái hiện lỗi ở lượt này; chưa coi là đã sửa |
+| `npm run test:services -- --runInBand` | 1 suite, 2/2 đạt (suite mới từ `main`) |
+| `npm run build` | exit 0 |
+
+Không có `.skip`, `.only` hay `.todo` trong test của task.
+
+**Đối chiếu test case vòng 2** (`test/db/accounts-service.db-spec.ts`, trừ TC-55-14). Đỏ/xanh từng bước ở [tdd-red-green.txt](screenshots/DBS-55/tdd-red-green.txt), phần "Vòng 2".
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-55-04a…d, 11a…c, 12a/b, 13a/b | đổi tên, nội dung giữ nguyên | đạt |
+| TC-55-06 | `preserves amounts above 2^53…` (assertion tham số có thêm txid, xem Lệch) | đạt |
+| TC-55-07 | `PostgreSQL refuses a negative customer balance` | đạt |
+| TC-55-09 | `rejects %s without leaving tentative balances` (4 scenario) | đạt |
+| TC-55-10, 10a, 10b, 10c | missing update; runner dùng lại; `[[], 1]`; kết quả sai dạng | đạt |
+| TC-55-14 | `src/modules/accounts/accounts.exports.spec.ts` | đạt; đỏ được chứng minh bằng biến thể `cwd` thừa kế (`ERR_MODULE_NOT_FOUND`) |
+| TC-55-16 | `a writer that waited for the lock stamps updated_at after…` | đạt; đỏ với `now()` (T1 sớm hơn T2 44 ms) |
+| TC-55-17 | `apply requires a lock taken on the same runner` | đạt |
+| TC-55-18 | `caps how many accounts one call can lock` | đạt |
+| TC-55-19 | `passes %s through unwrapped` (40P01, CHECK khác) | đạt |
+| TC-55-20a…d | lồng transaction; depth không đọc được; khóa ngoài cùng sống qua savepoint rollback | đạt; 20d xanh từ đầu vì chứng minh hành vi PostgreSQL |
+| TC-55-21 | `an empty lock in a new transaction keeps the old lock unusable` | đạt |
+
+24/24 ca vòng 2 đạt đủ độ sâu, 0 đơn giản hóa.
+
+**Test thủ công** trên commit `0d7827a` (commit cuối có đổi code, SHA ở dòng đầu [manual-test.txt](screenshots/DBS-55/manual-test.txt)), chạy đúng script R5, exit 0, container đã dọn:
+
+| Bước | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-55-00 | `17.11 (Debian 17.11-1.pgdg13+2)` | đạt |
+| M-55-01 | owner snapshot balance `"0"`; FOREIGN/MISSING/SYSTEM/COGNITO_SUB đều `NotFoundException` 404 | đạt |
+| M-55-02 | `highAvailable: true`, ids `[3a…, 3b…]`; crossed `completed: 2, retries: 0` | đạt |
+| M-55-03 | tentative `-300000`/`300000` và `∓9007199254740993`; observer và sau rollback đều `"0"` | đạt |
+| M-55-04 | `AccountBalanceNegativeError` + 23514 + `accounts_balance_non_negative`; `AccountBalanceOverflowError` + 22003; INACTIVE_MANAGER `Error`; HOSTILE/SPARSE/NUMBER `TypeError`; RECOVERED balance `"0"` | đạt |
+| M-55-05 | bốn invariant `true` | đạt |
+| M-55-07 | APPLY_WITHOUT_LOCK và LOCK_ON_OTHER_RUNNER `AccountNotLockedError`; NESTED `Error` (thông điệp "outermost transaction"); SEVENTEEN_IDS `TypeError` ("At most 16") | đạt |
+| M-55-08 | early tx (pid 94) chờ pid 91; `lateCommitStamp 09:09:57.231Z` < `earlyCommitStamp 09:09:57.235Z`; `earlyAfterLate: true` | đạt |
+| M-55-06 | `PENDING`, chờ DBS-60/61 và AuditService | **chưa chạy**, như vòng 1 |
+
+**Ảnh** (render từ `manual-test.txt` bằng Chrome headless, mỗi ảnh là một nhóm dòng của transcript, không sửa nội dung; thay bốn ảnh vòng 1):
+
+![M-55-00/01: phiên bản và quyền sở hữu](screenshots/DBS-55/01-ownership.png)
+
+![M-55-02: thứ tự khóa và hai transaction chéo](screenshots/DBS-55/02-lock-order.png)
+
+![M-55-03: tiền dạng chuỗi và rollback](screenshots/DBS-55/03-money-rollback.png)
+
+![M-55-04/05/06: lỗi có kiểu, phục hồi, invariant](screenshots/DBS-55/04-rejections-invariants.png)
+
+![M-55-07: bắt buộc khóa, cấp ngoài cùng, giới hạn id](screenshots/DBS-55/05-lock-required.png)
+
+![M-55-08: updated_at theo thứ tự commit](screenshots/DBS-55/06-updated-at-order.png)
+
+**Phạm vi so với R8** (`git diff --name-only a9ed90a..HEAD`, trừ file đến từ `main`): `accounts.errors.ts` (mới), `accounts.service.ts`, `index.ts`, `README.md`, `accounts.exports.spec.ts`, `modules/index.ts`, `accounts-service.db-spec.ts`, `accounts-service-probe.ts`, `accounts-service.manual.ts`, `docs/BACKLOG.md`, feature doc, `docs/features/README.md`, `screenshots/DBS-55/` (6 ảnh, `manual-test.txt`, `verification.txt`, `tdd-red-green.txt`, 6 file domain review). Khớp R3 và R8; không có file lạ.
+
+**Lệch so với kế hoạch:**
+
+| Lệch | Lý do | Duyệt |
+|---|---|---|
+| TC-55-06 đổi assertion (R8 ghi "giữ nguyên") | UPDATE có thêm tham số txid theo R3 | gate phụ, người dùng trả lời «duyeejt» ngày 2026-10-31 |
+| Dòng bàn giao R7 là **BL-122**, không phải BL-121 | `main` đã dùng BL-054/056 cho DBS-40. Khi merge: dòng JWKS của DBS-55 gộp vào BL-112 (cùng hai test, thêm nguồn DBS-55); dòng timeout logging đổi thành BL-121; bàn giao R7 thành BL-122. Nội dung không đổi | chỉ đổi ID, không đổi phạm vi; nêu ở G4 |
+| Lint đỏ sau commit S2 (prettier) | quên chạy lint trước commit; sửa ở commit `style(accounts)` kế tiếp | không đổi phạm vi |
+| Ảnh vòng 2 render bằng Chrome headless thay vì CUA | công cụ khác, cùng nguồn transcript thật | nêu ở G4 |
+
+**Bàn giao:** BL-122 (R7, Dev DBS-60/61). Giữ mở: BL-057 (Dev review và merge), BL-112, BL-121, BL-002/003/008/015/017/019. Không có dòng backlog nào được vòng 2 giải quyết.
+
+### R10. Tài liệu đã cập nhật (vòng 2)
+
+- `backend/src/modules/accounts/README.md`: hợp đồng mới (khóa bắt buộc, cấp ngoài cùng, giới hạn id, ba lớp lỗi, `clock_timestamp()`), mục "Hợp đồng với ledger (BL-122)", sửa "trả404".
+- `backend/src/modules/index.ts`: comment `sharedModules`.
+- `docs/BACKLOG.md`: thêm BL-122; BL-112 thêm nguồn DBS-55; dòng DBS-55 cũ BL-054 → gộp BL-112, BL-056 → BL-121; BL-057 cập nhật.
+- `docs/features/README.md`: mô tả dòng DBS-55.
+- Feature doc: R1–R10; `screenshots/DBS-55/`: 6 ảnh, transcript, verification, TDD, 6 domain review.

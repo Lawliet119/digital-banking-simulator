@@ -353,3 +353,28 @@ Node.js v24.15.0
 P5 GREEN (non-DB): driver artifact exists and unsupported mode must exit nonzero
 DBS-55 manual failed {"errorType":"Error"}
 Unsupported-mode assertion exit=1 (expected nonzero; no database work)
+
+# Vòng 2 · 2026-10-31 · sửa sau review PR #33
+Lệnh: npm run test:db -- --runInBand --runTestsByPath test/db/accounts-service.db-spec.ts (PostgreSQL 17 qua Testcontainers)
+== Vòng 2 · S2 R-2 (RETURNING rows) ==
+RED: test/db/accounts-service.db-spec.ts:1:10 - error TS2305: Module '"@modules/accounts"' has no exported member 'AccountNotLockedError'.
+GREEN: Tests:       34 passed, 34 total
+== Vòng 2 · S3 R-1 (clock_timestamp) ==
+RED: TC-55-16  Expected: > 1793435943003  Received: 1793435942959
+GREEN: Tests:       35 passed, 35 total
+== Vòng 2 · S4 R-3a (typed balance errors) ==
+RED: test/db/accounts-service.db-spec.ts:2:3 - error TS2305: Module '"@modules/accounts"' has no exported member 'AccountBalanceNegativeError'.
+GREEN: Tests:       37 passed, 37 total
+== Vòng 2 · S5 R-3b/3c (lock required, outermost tx) ==
+RED: Tests:       6 failed, 38 passed, 44 total — TC-55-10a, 17, 20a, 20b, 20c, 21 đỏ; TC-55-20d xanh từ đầu (hành vi PostgreSQL)
+Lệch (gate phụ đã duyệt 2026-10-31): TC-55-06 đỏ vì UPDATE thêm tham số txid; assertion đổi thành [id, amount, /^\d+$/]
+GREEN: Tests:       44 passed, 44 total
+== Vòng 2 · S6 R-4 (id caps) ==
+RED: TC-55-18     Received promise resolved instead of rejected
+GREEN: Tests:       45 passed, 45 total
+== Vòng 2 · S7 R-5 (async eslint probe, fixed cwd) ==
+RED (biến thể cwd: process.cwd() sau chdir về repo gốc): Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'eslint' imported from <repo>
+GREEN: Tests:       1 passed, 1 total
+== Vòng 2 · S9 manual driver ==
+RED: driver cũ trên code mới exit 1 tại M-55-04 (assert code ở cấp trên cùng, lỗi giờ đã bọc)
+GREEN: driver mới exit 0
