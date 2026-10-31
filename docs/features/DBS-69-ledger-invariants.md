@@ -122,7 +122,10 @@ Ví dụ khách có balance bị cộng ngoài sổ một đồng:
 |---|---|---|
 | `npm run check:invariants` sạch | Một report PASS trên stdout | 0 |
 | Cùng lệnh, có vi phạm | Một report FAIL trên stdout, đủ ID và số tiền | 1 |
-| Cấu hình, kết nối, quyền, schema, timeout hoặc đọc SQL lỗi | Không có report PASS/FAIL; một JSON ERROR trên stderr | 2 |
+| Cấu hình, kết nối, quyền, schema, timeout hoặc đọc SQL lỗi **trước khi commit** | Một JSON ERROR trên stderr; stdout rỗng, không in report | 2 |
+| Kiểm tra đã commit nhưng dọn dẹp (`release`/`destroy`) lỗi | Report in ra stdout, thêm một JSON ERROR `CHECK_ERROR` trên stderr | FAIL: 1; PASS: **2** (không nhận là sạch) |
+
+Mã thoát là **thẩm quyền cuối cùng**: exit 2 kèm một report PASS nghĩa là "không nhận là sạch", không phải PASS. Lỗi `INVALID_CONFIG` kèm `"invalid":[tên biến]` (chỉ tên, không bao giờ giá trị); CLI nhận `DATABASE_URL` hoặc bộ `DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD` như ECS.
 | `npm run check:invariants -- --help` | Hướng dẫn cố định, không kết nối DB | 0 |
 | Có tham số ngoài `--help` | ERROR `INVALID_ARGUMENT`, không kết nối DB | 2 |
 

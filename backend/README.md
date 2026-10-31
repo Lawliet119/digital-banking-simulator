@@ -44,7 +44,7 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm run test:e2e` | e2e (`test/*.e2e-spec.ts`) |
 | `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Tự động khởi tạo PostgreSQL 17 qua Testcontainers (hoặc dùng `DATABASE_URL` có sẵn nếu đã xuất ra môi trường). Cần Docker Desktop bật; nếu Docker tắt thì test báo lỗi ngay, không treo |
 | `npm run test:services -- --runInBand` | sample Valkey 8 và ElasticMQ thật (`test/services/`): mỗi lần chạy tự tạo container/cổng động, thử SET/GET, SQS send/receive, pause/resume và stop/start rồi dọn container. Cần Docker; không lấy endpoint từ Compose |
-| `npm run check:invariants` | kiểm năm bất biến sổ cái trên `DATABASE_URL`: exit 0 sạch, 1 có vi phạm, 2 không hoàn tất kiểm tra |
+| `npm run check:invariants` | kiểm năm bất biến sổ cái trên `DATABASE_URL` (hoặc bộ `DB_*` như ECS): exit 0 sạch, 1 có vi phạm, 2 không nhận là sạch; mã thoát là thẩm quyền cuối cùng |
 | `npm run migration:run` · `migration:revert` · `migration:show` | migration trên DB local |
 | `npm run migration:generate -- src/database/migrations/<Tên>` | sinh migration từ thay đổi entity |
 | `npm run migration:create -- src/database/migrations/<Tên>` | tạo migration rỗng |
@@ -236,7 +236,7 @@ PASS/FAIL là JSON trên stdout, gồm `totals` và `violations` với `check`, 
 |---|---|---|
 | 0 | PASS, đủ năm phép kiểm sạch | Có thể tiếp tục bước sau |
 | 1 | FAIL, có vi phạm | Giữ IDs/report, điều tra; công cụ không tự sửa dữ liệu |
-| 2 | ERROR trên stderr: cấu hình, kết nối, quyền, schema, I/O hoặc timeout | Kiểm tra chưa hoàn tất, không nhận dữ liệu sạch; sửa môi trường rồi chạy lại |
+| 2 | Không nhận là sạch: ERROR trên stderr (cấu hình, kết nối, quyền, schema, I/O, timeout, hoặc dọn dẹp lỗi sau commit). Có thể kèm report PASS trên stdout | Mã thoát là **thẩm quyền cuối cùng**: exit 2 kèm PASS là "không nhận là sạch". Sửa môi trường rồi chạy lại |
 
 Dùng `--silent` khi cần parse JSON; npm không silent có thể thêm banner. `psql -f test/support/invariants.sql` chỉ trả report, không tự đổi FAIL thành exit khác 0; CI/load gate dùng CLI và giữ nguyên mã thoát.
 

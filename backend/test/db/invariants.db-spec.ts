@@ -847,6 +847,53 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     expect(JSON.parse(result.stderr)).toMatchObject({ databaseCode: '57P01' });
     expect(result.stdout + result.stderr).not.toContain('POOL_SECRET_SENTINEL');
   });
+  // TC-69-20e: the exit contract changed (exit 2 may come with a PASS report; the exit code is
+  // authoritative). Four places state it. Each is cut out by literal markers, so neither the
+  // presence of the new wording nor the absence of the old one can be satisfied by another part of
+  // a file (this feature doc quotes the old phrase itself).
+  function slice(text: string, from: string, to: string): string {
+    const start = text.indexOf(from);
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = text.indexOf(to, start + from.length);
+    expect(end).toBeGreaterThan(start);
+    return text.slice(start, end);
+  }
+  it('TC-69-20e the four places that state the exit contract say the exit code is authoritative', () => {
+    const root = resolve(backend, '..');
+    const featureDoc = readFileSync(
+      resolve(root, 'docs/features/DBS-69-ledger-invariants.md'),
+      'utf8',
+    );
+    const readme = readFileSync(resolve(backend, 'README.md'), 'utf8');
+    const cli = readFileSync(cliFile, 'utf8');
+    const NEW = 'thẩm quyền cuối cùng';
+
+    // (i) feature doc section 2.2: first full heading, end marker searched after it.
+    const doc22 = slice(featureDoc, '\n### 2.2 Hàm và CLI\n', '\n### 2.3 Giới hạn vận hành');
+    expect(doc22).toContain(NEW);
+    expect(doc22).not.toContain('Không có report PASS/FAIL');
+
+    // (ii) README section 9 up to the literal "## Docker" (its bash block has a "# từ backend/" line).
+    const readme9 = slice(readme, '### 9. Kiểm tra bất biến sổ cái', '\n## Docker');
+    expect(readme9).toContain('| Exit | Ý nghĩa');
+    expect(readme9).toContain(NEW);
+    expect(readme9).not.toContain(
+      'ERROR trên stderr: cấu hình, kết nối, quyền, schema, I/O hoặc timeout | Kiểm tra chưa hoàn tất',
+    );
+
+    // (iii) the single command-table row of the README.
+    const rows = readme
+      .split('\n')
+      .filter(line => line.startsWith('| `npm run check:invariants` |'));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain(NEW);
+    expect(rows[0]).toContain('DB_*');
+    expect(rows[0]).not.toContain('2 không hoàn tất kiểm tra');
+
+    // (iv) the --help text: new English phrase present, old one gone.
+    expect(cli).toContain('exit code is authoritative');
+    expect(cli).not.toContain('2 check error.');
+  });
   it('TC-69-19b import from another cwd neither loads env nor connects or executes the CLI', () => {
     const script = `require(${JSON.stringify(require.resolve('dotenv'))}).config = () => { throw new Error('ENV_LOAD_SENTINEL'); }; require(${JSON.stringify(cliFile)}); console.log('IMPORTED');`;
     const result = spawnSync(
