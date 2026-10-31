@@ -495,6 +495,67 @@ run "db_secret_policy" {
   }
 }
 
+# TC-68-11: task definition của bước migration (DBS-68)
+run "migrate_task_definition" {
+  command = apply
+
+  assert {
+    condition = (
+      aws_ecs_task_definition.migrate.family == "dbs-migrate"
+      && length(jsondecode(aws_ecs_task_definition.migrate.container_definitions)) == 1
+      && jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].name == "migrate"
+      && jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].essential == true
+      && jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].image == jsondecode(aws_ecs_task_definition.api.container_definitions)[0].image
+      && aws_ecs_task_definition.migrate.network_mode == "awsvpc"
+      && contains(aws_ecs_task_definition.migrate.requires_compatibilities, "FARGATE")
+    )
+    error_message = "family dbs-migrate, one essential container named migrate, same image as api, Fargate awsvpc"
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].command == ["node", "./node_modules/typeorm/cli.js", "-d", "dist/database/data-source.js", "migration:run"]
+    )
+    error_message = "command must be migration:run:prod spelled out (no npm, no shell)"
+  }
+
+  assert {
+    condition = (
+      { for e in jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].environment : e.name => e.value } == {
+        NODE_ENV             = "staging"
+        AWS_REGION           = "ap-southeast-1"
+        DB_HOST              = aws_db_instance.main.address
+        DB_PORT              = "5432"
+        DB_NAME              = "dbs"
+        DATABASE_SSL         = "true"
+        DATABASE_SSL_CA_PATH = "/etc/ssl/rds/global-bundle.pem"
+      }
+      && { for s in jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].secrets : s.name => s.valueFrom } == {
+        DB_USER     = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::"
+        DB_PASSWORD = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::"
+      }
+    )
+    error_message = "migrate env is DB_* and TLS only (no COGNITO, REDIS, APP_ROLE); credentials from the RDS master secret"
+  }
+
+  assert {
+    condition = (
+      aws_ecs_task_definition.migrate.execution_role_arn == aws_ecs_task_definition.api.execution_role_arn
+      && aws_ecs_task_definition.migrate.task_role_arn == aws_ecs_task_definition.api.task_role_arn
+      && !can(jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].portMappings)
+    )
+    error_message = "same roles as dbs-api (so PassRole already covers them) and no port mappings"
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].logConfiguration.options["awslogs-stream-prefix"] == "migrate"
+      && jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].logConfiguration.options["awslogs-group"] == jsondecode(aws_ecs_task_definition.api.container_definitions)[0].logConfiguration.options["awslogs-group"]
+    )
+    error_message = "logs go to the api log group under the migrate prefix (migrate/migrate/<task-id>)"
+  }
+}
+
 # TC-75-04: Valkey theo ADR-12: 1 node t4g.micro, cluster mode tắt, TLS bắt buộc, at-rest bằng CMK,
 # token chỉ qua thuộc tính write-only, không snapshot
 run "valkey_replication_group" {

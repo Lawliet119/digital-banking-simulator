@@ -110,6 +110,28 @@ class Render(unittest.TestCase):
         self.assertNotEqual(p.returncode, 0)
         self.assertEqual(p.stdout, "")
 
+    # TC-68-10: --container chọn container được đổi image (family dbs-migrate)
+    def test_container_option_changes_only_that_container(self):
+        resp = json.loads(json.dumps(RESPONSE))
+        resp["taskDefinition"]["containerDefinitions"] = [
+            {"name": "migrate", "image": f"{REPO}:{OLD}", "essential": True, "command": ["node", "x", "migration:run"]}]
+        p = subprocess.run([sys.executable, str(SCRIPT), "--image", f"{REPO}:{NEW}", "--container", "migrate"],
+                           input=json.dumps(resp), capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        c = json.loads(p.stdout)["containerDefinitions"][0]
+        self.assertEqual((c["image"], c["command"]), (f"{REPO}:{NEW}", ["node", "x", "migration:run"]))
+
+    def test_container_option_unknown_name_is_rejected(self):
+        p = subprocess.run([sys.executable, str(SCRIPT), "--image", f"{REPO}:{NEW}", "--container", "migrate"],
+                           input=json.dumps(RESPONSE), capture_output=True, text=True)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertEqual(p.stdout, "")
+
+    def test_default_container_is_still_api(self):
+        p = subprocess.run([sys.executable, str(SCRIPT), "--image", f"{REPO}:{NEW}"],
+                           input=json.dumps(RESPONSE), capture_output=True, text=True)
+        self.assertEqual(json.loads(p.stdout)["containerDefinitions"][0]["image"], f"{REPO}:{NEW}")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

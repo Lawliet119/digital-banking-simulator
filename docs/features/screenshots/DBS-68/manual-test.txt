@@ -1,0 +1,32 @@
+SHA code: ebeb1ca (sau rebase lên DBS-67 ngày 2026-10-29: 76317b9, cùng nội dung code)
+Mon Oct 26 03:27:45 AM UTC 2026
+== M-68-01
+bash -n ok
+::error::IMAGE_TAG phải là SHA đầy đủ 40 ký tự hex (không dùng latest), nhận được 'latest'
+exit=1
+== M-68-02 plan session
+641:Plan: 17 to add, 0 to change, 0 to destroy.
+248:  # aws_ecs_task_definition.migrate will be created
+249:  + resource "aws_ecs_task_definition" "migrate" {
+256:      + family                   = "dbs-migrate"
+dòng chứa password (chỉ cờ):
+78:      + manage_master_user_password           = true
+88:      + password_wo                           = (write-only attribute)
+== M-68-03 plan base
+223:Plan: 2 to add, 0 to change, 0 to destroy.
+48:  # aws_iam_role.github_deploy will be created
+89:  # aws_iam_role_policy.deploy will be created
+== M-68-07 simulate-custom-policy (policy từ plan của base, chưa apply; mỗi statement một tài liệu)
+RunTask dbs-migrate:1, cluster đúng: allowed
+RunTask dbs-migrate:1, cluster sai:  implicitDeny
+RunTask dbs-api:1, cluster đúng:     implicitDeny
+RunTask dbs-migrate:1, tên cluster (không ARN): implicitDeny
+StopTask task/dbs-dev/x: allowed
+GetLogEvents migrate/migrate/x:   implicitDeny
+GetLogEvents migrate/migrate/x:*  allowed
+GetLogEvents api/api/x:           implicitDeny
+GetLogEvents api/api/x:*          implicitDeny
+== M-68-08 data-source nạp với env rút gọn của task migrate
+entities: 1 migrations glob ok: true url set: true
+== M-68-08b: nạp từng file *.entity.js trong dist với cùng env rút gọn
+entity files loaded: 0

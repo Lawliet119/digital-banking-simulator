@@ -73,6 +73,59 @@ resource "aws_ecs_task_definition" "api" {
   }])
 }
 
+# DBS-68: bước migration của pipeline. deploy.sh/migrate.sh đăng ký revision mới (chỉ đổi image) và chạy bằng
+# `run-task` trước khi cập nhật service; không có service nên không có ignore_changes. Cùng execution role và task
+# role với dbs-api; kết nối bằng secret master như api (BL-103, DBS-119 tách role dbs_migrator và execution role).
+# Chỉ cần DB_* và TLS: data-source.ts không đọc COGNITO_*, REDIS_URL hay APP_ROLE.
+resource "aws_ecs_task_definition" "migrate" {
+  family                   = "dbs-migrate"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
+  container_definitions = jsonencode([{
+    name      = "migrate"
+    image     = "${local.base.ecr_repository_url}:${var.image_tag}"
+    essential = true
+
+    # Đúng `npm run migration:run:prod`, không qua npm hay shell.
+    command = ["node", "./node_modules/typeorm/cli.js", "-d", "dist/database/data-source.js", "migration:run"]
+
+    environment = [
+      { name = "NODE_ENV", value = var.node_env },
+      { name = "AWS_REGION", value = var.region },
+      { name = "DB_HOST", value = aws_db_instance.main.address },
+      { name = "DB_PORT", value = "5432" },
+      { name = "DB_NAME", value = "dbs" },
+      { name = "DATABASE_SSL", value = "true" },
+      { name = "DATABASE_SSL_CA_PATH", value = "/etc/ssl/rds/global-bundle.pem" },
+    ]
+
+    secrets = [
+      { name = "DB_USER", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::" },
+      { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
+    ]
+
+    # Stream thực tế: migrate/migrate/<task-id>; role deploy chỉ đọc được stream bắt đầu bằng migrate/.
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = local.base.api_log_group_name
+        "awslogs-region"        = var.region
+        "awslogs-stream-prefix" = "migrate"
+      }
+    }
+  }])
+}
+
 resource "aws_ecs_service" "api" {
   name                              = "api"
   cluster                           = aws_ecs_cluster.main.id
