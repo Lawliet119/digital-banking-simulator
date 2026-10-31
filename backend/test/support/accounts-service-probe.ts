@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { setImmediate } from 'node:timers/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
 import { DataSource, type EntityManager, type Logger, type QueryRunner } from 'typeorm';
 import type { AccountsService } from '@modules/accounts';
@@ -168,11 +168,14 @@ async function backendPid(runner: QueryRunner): Promise<number> {
   return row.pid;
 }
 
+// A short pause keeps the catalog polling from saturating the shared pool on a slow CI runner.
+const POLL_INTERVAL_MS = 15;
+
 async function pollDatabase(check: () => Promise<boolean>, description: string): Promise<void> {
   const deadline = performance.now() + 4000;
   while (performance.now() < deadline) {
     if (await check()) return;
-    await setImmediate();
+    await delay(POLL_INTERVAL_MS);
   }
   throw new Error(`Timed out observing ${description}`);
 }
