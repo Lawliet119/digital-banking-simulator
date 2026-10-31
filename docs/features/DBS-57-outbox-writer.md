@@ -327,3 +327,88 @@ Ba ảnh là CUA chụp trang local hiển thị raw transcript, wrap dòng cho 
 - [x] Sáu lệnh baseline đã chạy; unit 32 suites/505 tests và E2E 8 suites/57 tests đạt, full DB final process exit trước count: **chưa xanh**, BL-055
 - [x] Link checker 134 files/0 broken links tại G4, diff whitespace sạch; chuyển Implemented sau khi G4 được duyệt
 - [x] Handoff/DoD chưa đạt có BL-002/019/024/053/055; BL-011 đã xử lý được xóa, không nhận downstream/process đạt
+
+## Vòng 2 · Sửa sau review PR #34
+
+> **Status vòng 2:** Draft (đến G2) · **Nguồn:** review code PR #34 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `feat/DBS-57-outbox-writer` (sửa trực tiếp theo yêu cầu người dùng) · **Cập nhật:** 2026-10-31
+
+### R1. Bối cảnh
+
+| ID | Điểm | Vị trí | Vấn đề | Hướng sửa đề xuất |
+|---|---|---|---|---|
+| R-1 | 2 | `outbox-writer.ts:22-35` | `correlationId` lấy từ context của logger; event có id khác context thì bị từ chối. Producer chạy nền (relay, consumer) ở role `both`, nếu khởi động từ trong một request HTTP, sẽ thừa kế context của request đó và mọi event đúng đều bị từ chối | Không đổi code. Ghi hợp đồng vào README outbox và một dòng BACKLOG cho #3 (relay/consumer): chạy ngoài context của request. Thêm một TC chứng minh hành vi hiện có |
+| R-2 | 2 | `outbox-writer.ts:21` | Chuỗi chứa ký tự NUL (`\u0000`) qua validation (`allowUnknown: true`) nhưng PostgreSQL từ chối `::jsonb` (22P05): cả giao dịch tiền rollback, caller nhận 500 chung | Duyệt object đã `JSON.parse`, từ chối chuỗi hoặc khóa có NUL bằng `InvalidEventError` trước INSERT, không in giá trị |
+| R-3 | 2 | `outbox-writer-bootstrap.db-spec.ts:49` | Test lọc bỏ `DATABASE_URL` nên mỗi role dựng một container PostgreSQL riêng, trong khi `globalSetup` đã dựng sẵn một cái | Xem câu hỏi G1 #2 |
+
+**Baseline 2026-10-31** trên `b54b7f9` (đầu nhánh PR): `lint:check` exit 0; `typecheck` exit 0; unit 32 suites/505 tests đạt; DB 11 suites/188 tests đạt (167,8 s); E2E 8 suites/57 tests đạt, 0 skipped; `build` exit 0. E2E chạy trên container `postgres:17` ở cổng 55432 vì máy có PostgreSQL 18 native chiếm cổng 5432.
+
+**Người gọi các symbol bị đổi:** `OutboxWriter.add` chỉ được gọi trong `test/db/outbox-writer*.db-spec.ts`, `test/support/outbox-writer-probe.ts`, `test/manual/outbox-writer.manual.ts`. Chưa có caller production (DBS-60/61 chưa bắt đầu).
+
+**Tích hợp với `main`:** PR #33 (DBS-55) đã merge nên `main` tiến tới `5562884`. Nhánh này xung đột ở `backend/src/modules/index.ts`, `modules.spec.ts`, `docs/BACKLOG.md`, `docs/features/README.md`. Phải giữ cả `OutboxModule` (ở `sharedModules`) và `AccountsModule` (ở `apiModules`, kèm comment mới) và kiểm lại ID backlog, vì `main` đã dùng tới BL-122.
+
+**Ngoài phạm vi:** các mục 0–1 điểm của review (`switch` với `never` cho `aggregateId`, ba lần Joi, tên test theo role, mã lỗi `INVALID_FORMAT` cho context sai kiểu, tham chiếu BL-011 treo ở `outbox-writer.ts:16` và `validate-event.ts:177`); relay/consumer/cleanup (task #3); BL-002/003/009/010/018/019/024/053/055 giữ nguyên.
+
+**Câu hỏi mở:** xem tin nhắn G1.
+
+**Quyết định ở G1 (vòng 2):** người dùng trả lời «duyet» ngày 2026-10-31, chấp nhận cả năm đề xuất: (1) R-1 không đổi code, ghi hợp đồng và BACKLOG cho #3, thêm TC khóa hành vi; (2) R-2 từ chối chuỗi NUL trước INSERT; (3) R-3 truyền URL của `globalSetup` qua biến không thuộc dự án; (4) merge `main` ở cuối vòng; (5) push thường, không force.
+
+### R2. Hành vi thay đổi
+
+Không có API HTTP. Phần không ghi ở đây giữ nguyên như §2.
+
+| Hành vi | Trước | Sau |
+|---|---|---|
+| R-2 · chuỗi chứa NUL (`U+0000`) hoặc surrogate lẻ, ở **giá trị hoặc khóa** của mọi tầng, kể cả trong mảng và object lồng | qua `assertEvent` (vì `allowUnknown: true`), rồi `::jsonb` ném 22P05 hoặc 22P02, caller nhận 500 chung | `InvalidEventError` với đúng một issue `{ path: '', code: 'INVALID_FORMAT', message: 'has an invalid format' }`, **trước** INSERT. Thông điệp và issue không chứa giá trị. Cặp surrogate hợp lệ (emoji) vẫn được ghi. Caller rollback như mọi `InvalidEventError` khác |
+| R-1 · producer chạy nền thừa kế context của request | event bị `NOT_ALLOWED` nếu id của event khác id của context | **Không đổi.** Hợp đồng được viết ra: producer chạy nền phải chạy ngoài context của request (hoặc mang đúng id của context). Khóa bằng TC-57-15 |
+| R-3 · test bootstrap ba role | mỗi role tự dựng một container PostgreSQL | dùng lại server của `globalSetup` qua biến `DBS57_BASE_DATABASE_URL`; driver vẫn tạo và xóa DB tạm riêng. Môi trường của child vẫn không có biến cấu hình dự án |
+
+**R-2: phạm vi kiểm.** PostgreSQL 17 từ chối `\u0000` (`unsupported Unicode escape sequence`) **và** surrogate lẻ như `\ud800` (`invalid input syntax for type json`). Mình đã chạy cả hai trên server thật. Review chỉ nêu NUL; vì lỗi cùng hậu quả (rollback cả giao dịch tiền, 500) nên cùng được chặn. `JSON.stringify` ghi surrogate lẻ ở dạng escape `\udXXX`, và `JSON.parse` trả lại đúng ký tự đó, nên kiểm trên snapshot đã parse là đúng chỗ.
+
+**R-3: giới hạn được chấp nhận.** TC-57-13 tự động trước đây còn chứng minh "tự dựng PostgreSQL khi không có `DATABASE_URL`". Sau khi dùng lại server chung, phần đó chỉ còn được chứng minh bằng **M-57-07 chạy tay** (shell sạch, không có `DBS57_BASE_DATABASE_URL`, tự dựng container cho cả ba role). Điều này được ghi rõ ở §R9.
+
+### R3. Kiến trúc
+
+- **Vị trí:** `backend/src/modules/outbox/outbox-writer.ts` (R-2); `outbox/README.md` (R-1, R-2). Test và harness: `test/db/outbox-writer.db-spec.ts`, `outbox-writer-context.db-spec.ts`, `outbox-writer-bootstrap.db-spec.ts`, `test/manual/outbox-writer.manual.ts`. Tài liệu: `docs/BACKLOG.md` (một dòng bàn giao cho #3), feature doc, `docs/features/README.md`.
+- **Interface:** `OutboxWriter.add(manager, event): Promise<void>` giữ nguyên. Không export mới, không `ErrorCode` mới, không env của ứng dụng mới (`DBS57_BASE_DATABASE_URL` chỉ test đọc).
+- **Thứ tự trong `add`:** transaction đang chạy → `assertEvent(event)` → stringify → parse → `assertEvent(snapshot)` → **kiểm chuỗi không hợp lệ cho JSONB (mới)** → kiểm context → INSERT. Việc kiểm mới chạy trên snapshot đã parse, bằng một vòng lặp có ngăn xếp tường minh (không đệ quy), nên không phụ thuộc độ sâu của object.
+- **Dữ liệu:** `outbox_events` không đổi. Không migration.
+- **Ranh giới transaction:** của caller, như cũ. Không Redis/HTTP/SQS.
+- **Thay đổi cấp hệ thống:** không có. `docs/components/_shared/event-contract.md` không đổi: đây là hành vi của writer với trường mở rộng, không phải trường của contract.
+
+```mermaid
+sequenceDiagram
+  participant C as Caller (TransactionService.run)
+  participant W as OutboxWriter.add
+  participant P as PostgreSQL
+  C->>W: add(manager, event)
+  W->>W: assertEvent · stringify · parse · assertEvent(snapshot)
+  W->>W: chuỗi có NUL hoặc surrogate lẻ? → InvalidEventError (path rỗng, INVALID_FORMAT)
+  W->>W: context ≠ event.correlationId? → NOT_ALLOWED
+  W->>P: INSERT INTO outbox_events … $4::jsonb
+  P-->>C: lỗi thoát callback → rollback toàn bộ
+```
+
+### R4. Test cases tự động (thêm hoặc đổi)
+
+PostgreSQL 17 thật, `test/db/`.
+
+| ID | Truy vết | Given · When · Then | Lỗi mong đợi |
+|---|---|---|---|
+| TC-57-14 | DoD1, R-2 | (a) NUL trong giá trị extension; (b) trong khóa extension; (c) trong phần tử của mảng lồng 3 tầng; (d) surrogate cao lẻ; (e) surrogate thấp lẻ. Mỗi ca: INSERT user rồi add → rollback user và outbox, không có truy vấn INSERT outbox nào, `issues` đúng một phần tử `path ''` + `INVALID_FORMAT`, `message` và `JSON.stringify(issues)` không chứa giá trị. (f) cặp surrogate hợp lệ (😀) và chuỗi tiếng Việt có dấu được ghi, payload đọc lại bằng nhau | `InvalidEventError` |
+| TC-57-15 | DoD2, R-1 | producer khởi động trong `logger.runInContext` với id X, một callback chạy sau (sau một `await` và một `setImmediate`) ghi event có id Y hợp lệ → `NOT_ALLOWED`, không row. Cùng callback khởi động **ngoài** `runInContext` → ghi thành công với id Y. Chứng minh hợp đồng: producer nền phải tách khỏi context của request | `InvalidEventError` / — |
+| TC-57-13 (đổi) | DoD1/3/4, R-3 | child nhận `DBS57_BASE_DATABASE_URL`, không nhận `DATABASE_URL` hay biến dự án; ba role mỗi role đúng 1 row, cleanup; JSON của driver có `ownContainer: false` | — |
+| TC-57-11 (giữ) | | `cycle`, `toJSON`, mutation sau add vẫn đạt | như cũ |
+
+Đỏ trước khi sửa: TC-57-14 (a…e) ném 22P05/22P02 thay vì `InvalidEventError`; TC-57-13 có `ownContainer: true`. TC-57-15 chạy xanh ngay vì khóa hành vi sẵn có (ghi rõ ở bằng chứng).
+
+### R5. Test thủ công
+
+Chạy lại toàn bộ M-57-01…07 trên commit cuối đổi code, cách chạy như §5. Thay đổi:
+
+| Bước | Việc làm | Mong đợi |
+|---|---|---|
+| M-57-03 (mở rộng) | thêm ca extension chứa NUL và ca surrogate lẻ | `InvalidEventError`, user/outbox 0, không in giá trị |
+| M-57-05 (mở rộng) | thêm producer nền khởi động trong request và producer khởi động ngoài request | trong request: `NOT_ALLOWED`; ngoài request: 1 row |
+| M-57-07 | ba role trong shell sạch, **không** có `DBS57_BASE_DATABASE_URL` và `DATABASE_URL` | tự dựng container, mỗi role đúng 1 row, tự dọn; in role/count, không in URL. Đây là chỗ duy nhất còn chứng minh "tự dựng PostgreSQL" |
+
+Máy này có PostgreSQL 18 native chiếm cổng 5432: M-57-07 dùng Testcontainers (cổng ngẫu nhiên), nên không đụng cổng đó. Các mode khác dùng server dựng sẵn ở 55432: `export DBS57_BASE_DATABASE_URL=…` đặt ngoài transcript. Ảnh: chụp lại ba ảnh cũ từ output mới và thêm `04-surrogate-nul.png`, `05-ambient-context.png`.
