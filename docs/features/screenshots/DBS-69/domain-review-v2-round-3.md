@@ -1,0 +1,11 @@
+| # | Severity | Section of the doc | Finding | Suggested fix |
+|---|---|---|---|---|
+| 1 | should-fix | R3 Interface; R4 TC-69-20(e) | The new exit contract is fixed in two places only. At least two more still state the old contract: README line 46 (table "## Lệnh") and `invariants.ts:95` `--help`. TC-69-20(e) checks only that a new sentence exists, not that the old wording is gone. | Name all four places in R3 (§2.2 line 125, README line 46, README §9 line 234, the `--help` text). Check both directions in TC-69-20(e) on a short stable phrase. Extend TC-69-16c so `--help` states exit 2 can come with a report. |
+| 2 | minor | R2 R-2b rule (1) vs "R-2: vì sao an toàn" | If a pool error arrives before commit but the commit succeeds on FAIL data, rule (1) prints only ERROR with exit 2, losing the FAIL report. The doc does not say this is deliberate. I traced the other paths in `runCli`: no await between `commitTransaction` resolving and `committed` being set, so a pool error (macrotask) cannot slip in; the other paths are consistent. | State that the FAIL report is deliberately dropped under rule (1), or print it. TC-69-17d dirty-DB variant must check the choice. |
+| 3 | minor | R3 Interface | Wrong case letter: "TC-69-20d" is the commitTransaction patch; the wording check is (e). | Change to TC-69-20(e). |
+| 4 | minor | R2 R-2b rule (3); R4 TC-69-20 | No TC injects `release()` throwing after commit. Patching `release` to throw before calling the original repeats the v2-2 #2 trap. | Add TC-69-20(f): `release` awaits the original and then throws, on dirty and clean DB. |
+| 5 | minor | R4 TC-69-15 (manual driver) | On Node 24, `spawnSync('npm', [args], { shell: true })` emits `[DEP0190]` on stderr (verified on v24.11.1). | Pass one fixed command string with no args array. |
+| 6 | minor | R5 bulk measurement | "requireDatabaseUrl() (or its own container)" contradicts itself: `requireDatabaseUrl()` throws without DATABASE_URL, and a ts-node script has no Jest globalSetup. | Require DATABASE_URL and fail clearly, or describe how it starts and cleans a container. |
+| 7 | minor | R6 Lượt 1, row 6 | The handling text still says "kết quả vào §R8"; R5 uses §R7. | Change row 6 to §R7. |
+
+Verdict: REVISE
