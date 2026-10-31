@@ -1,7 +1,0 @@
-<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#0d1117;color:#e6edf3;font:13px/1.5 Consolas,monospace}.h{background:#161b22;padding:10px 16px;color:#7ee787;border-bottom:1px solid #30363d}.b{padding:12px 16px;white-space:pre-wrap;word-break:break-all}.c{color:#79c0ff;margin-top:6px}.e{color:#7ee787}</style><div class="h">DBS-69 · M-69-04: owner trả lại 1 đồng, PASS exit 0 · commit 154c76ce2311</div><div class="b"><div class="">M-69-04 owner restores one dong and runs the real CLI again </div>
-<div class="">SQL&gt; owner and superuser catalog proof {"role":"dbs_test_inv_06e84b657855","rolsuper":false,"owns":true}</div>
-<div class="">SQL&gt; UPDATE public.accounts SET balance=balance+$2::bigint WHERE id=$1 ["384905ae-c1ce-4b96-896c-489b0b7d2c55","-1"]</div>
-<div class="c">$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}</div>
-<div class="">{"status":"PASS","totals":{"debit":"1250000","credit":"1250000","balance":"0"},"violations":[]}</div>
-<div class="e">EXIT 0</div>
-<div class="">M-69-04 PASS </div></div>

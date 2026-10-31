@@ -1,7 +1,0 @@
-<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#0d1117;color:#e6edf3;font:13px/1.5 Consolas,monospace}.h{background:#161b22;padding:10px 16px;color:#7ee787;border-bottom:1px solid #30363d}.b{padding:12px 16px;white-space:pre-wrap;word-break:break-all}.c{color:#79c0ff;margin-top:6px}.e{color:#7ee787}</style><div class="h">DBS-69 · M-69-05: giao dịch COMPLETED không có cặp bút toán, FAIL exit 1 · commit 154c76ce2311</div><div class="b"><div class="">M-69-05 completed transfer with no ledger pair in another disposable database </div>
-<div class="">TEMP DATABASE "dbs_test_57a454e9eec2"</div>
-<div class="c">$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57a454e9eec2"}</div>
-<div class="">{"status":"FAIL","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[{"check":"completed_pairs","actual":{"debitCount":"0","creditCount":"0","debitAmount":"0","creditAmount":"0","debitAccountId":null,"creditAccountId":null},"expected":{"amount":"100000","debitCount":"1","creditCount":"1","toAccountId":"f23b0ed4-61fc-415a-bfe7-2da7ab41cac6","fromAccountId":"ce129b16-cb2d-4ad0-aa03-370f1469017b"},"accountId":null,"transferId":"c5287f2c-5640-4604-92df-aefae52223ee"}]}</div>
-<div class="e">EXIT 1</div>
-<div class="">DROPPED TEMP DATABASE "dbs_test_57a454e9eec2"</div>
-<div class="">M-69-05 PASS </div></div>
