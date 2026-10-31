@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import type { Account, LockedAccount } from './account.types';
+import { AccountNotLockedError } from './accounts.errors';
 
 const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const SNAPSHOT_COLUMNS = `a.id, a.customer_id AS "customerId", c.user_id AS "userId",
@@ -34,13 +35,17 @@ export class AccountsService {
     const id = this.normalizeId(accountId);
     if (typeof delta !== 'bigint') throw new TypeError('Balance deltas must be bigint');
     // PostgreSQL remains the final guard against customer overdrafts and signed-bigint overflow.
-    // Its raw UPDATE result is [rows, rowCount], unlike a SELECT's rows-only result.
-    const [, affected] = await manager.query<[{ id: string }[], number]>(
+    const result: unknown = await manager.query(
       `UPDATE accounts SET balance=balance+$2::bigint, updated_at=now()
        WHERE id=$1::uuid RETURNING id`,
       [id, delta.toString()],
     );
-    if (affected === 0) throw new NotFoundException('Account not found');
+    // Trust the RETURNING rows, not the driver's row count: a changed result shape must never
+    // read as a successful money movement.
+    if (!Array.isArray(result) || !Array.isArray(result[0])) {
+      throw new Error('Unexpected UPDATE result shape');
+    }
+    if (result[0].length === 0) throw new AccountNotLockedError(id);
   }
 
   async getOwnedAccount(accountId: string, userId: string): Promise<Account> {

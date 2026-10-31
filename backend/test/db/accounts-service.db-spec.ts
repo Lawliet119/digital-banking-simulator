@@ -1,4 +1,4 @@
-import { AccountsModule, AccountsService } from '@modules/accounts';
+import { AccountNotLockedError, AccountsModule, AccountsService } from '@modules/accounts';
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -269,10 +269,38 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     },
   );
 
-  it('TC-55-10 missing update is 404 rather than mistaking the raw tuple for rows', async () => {
+  it('TC-55-10 missing update is rejected rather than mistaking the raw tuple for rows', async () => {
     await expect(
       withMoneyProbe(fixture.source, manager => service.applyBalanceChange(f.missing, 0n, manager)),
-    ).rejects.toMatchObject({ status: 404 });
+    ).rejects.toBeInstanceOf(AccountNotLockedError);
+  });
+
+  it('TC-55-10b empty RETURNING rows fail even when the driver reports a row count', async () => {
+    await withMoneyProbe(fixture.source, async manager => {
+      await service.lockForUpdate([f.accountA], manager);
+      const query = jest.spyOn(manager, 'query').mockResolvedValueOnce([[], 1]);
+      try {
+        await expect(service.applyBalanceChange(f.accountA, 0n, manager)).rejects.toBeInstanceOf(
+          AccountNotLockedError,
+        );
+      } finally {
+        query.mockRestore();
+      }
+    });
+  });
+
+  it('TC-55-10c an UPDATE result of an unexpected shape is never taken as success', async () => {
+    await withMoneyProbe(fixture.source, async manager => {
+      await service.lockForUpdate([f.accountA], manager);
+      const query = jest.spyOn(manager, 'query').mockResolvedValueOnce({ records: [] });
+      try {
+        await expect(service.applyBalanceChange(f.accountA, 0n, manager)).rejects.toThrow(
+          'Unexpected UPDATE result shape',
+        );
+      } finally {
+        query.mockRestore();
+      }
+    });
   });
 
   it('TC-55-13b apply rejects injection and non-bigint deltas before SQL', async () => {
