@@ -1,6 +1,6 @@
 # Tài liệu từng task (feature docs)
 
-> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-26
+> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-27
 
 Mỗi task implement trên board (tính năng, sửa lỗi, hạ tầng, test) có **một file** ở đây: `DBS-<n>-<slug>.md`. File được viết trước khi code và hoàn tất khi bàn giao, theo skill [`dbs-delivering-task`](../../.claude/skills/dbs-delivering-task/SKILL.md) và mẫu [`feature-doc.md`](../../.claude/skills/dbs-delivering-task/templates/feature-doc.md).
 
@@ -43,6 +43,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-31](DBS-31-terraform-bootstrap-s3-backend.md) | Terraform bootstrap: S3 state có versioning, mã hóa và khóa state | #5 Platform & Ops | Implemented |
 | [DBS-33](DBS-33-terraform-vpc-ecr.md) | Terraform: VPC 2 AZ, gateway endpoint S3 và ECR `dbs-api` (stack `envs/dev/base`) | #5 Platform & Ops | Implemented |
 | [DBS-50](DBS-50-jwt-auth-guard-jwks.md) | Identity: JwtAuthGuard xác minh JWT bằng JWKS có cache, guard toàn cục mặc định | Dev | Implemented |
+| [DBS-55](DBS-55-accounts-service.md) | AccountsService: khóa theo id, đổi số dư trong caller transaction và ownership 404; vòng 2 (2026-10-31) bắt buộc đã khóa ở cấp ngoài cùng, lỗi có kiểu, `clock_timestamp()` | Dev | Implemented; G4 đã duyệt, [Draft PR #33](https://github.com/Lawliet119/digital-banking-simulator/pull/33); CI theo Checks, chờ Dev review/merge; TC 15/15 và manual 5/6 đạt, M-55-06 chờ ledger/audit; E2E local còn lỗi logging timeout |
 | [DBS-34](DBS-34-terraform-ecs-alb.md) | Terraform: ECS Fargate cluster, service api và ALB HTTPS (nhóm xóa hằng ngày) | #5 Platform & Ops | Implemented |
 | [DBS-54](DBS-54-terraform-cognito.md) | Terraform: Cognito user pool, 4 nhóm, app client và script seed tài khoản nhân viên demo | #5 Platform & Ops | Implemented |
 | [DBS-38](DBS-38-auto-deploy-ecs.md) | Deploy tự động: push main → image mới → ECS → /health/ready (role OIDC riêng, `deploy.sh`) | #5 Platform & Ops | Implemented |

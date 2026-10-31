@@ -1,6 +1,6 @@
 # accounts — Concept Brief
 
-> **Status:** Draft · **Owner:** #2 · **Cặp đôi:** #3 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** Dev · **Review:** Dev khác · **Verified against code:** AccountsService primitives; các API use case chưa có · **Cập nhật:** 2026-10-27
 
 ## Component
 
@@ -24,6 +24,12 @@ Khách cần hồ sơ và tối đa 3 tài khoản; nhân viên cần khóa tài
 - Khóa tài khoản = đổi trạng thái **và** thu hồi phiên của chủ tài khoản trong cùng lệnh, không chờ sự kiện.
 - Truy cập tài khoản không thuộc mình trả 404, không phải 403.
 - Cho nhân viên tra cứu tài khoản của khách (`GET /v1/operator/accounts`, FR-ACC-04): không trả số dư, mỗi lần tra cứu ghi nhật ký.
+
+## Phần đã có
+
+`AccountsModule` cung cấp ba primitive qua `@modules/accounts`: khóa các hàng account theo id trong transaction người gọi, cộng số dư bigint trong cùng transaction và đọc tài khoản theo internal `users.id`. Snapshot giữ số dư dạng string. `getOwnedAccount` dùng cùng404 cho missing/foreign/SYSTEM và UUID sai; không có Redis balance cache. Module được nạp cho API/both, chưa có controller/consumer.
+
+[Hồ sơ DBS-55](../../features/DBS-55-accounts-service.md) có test PostgreSQL thật cho thứ tự lấy khóa, transaction chéo không retry, rollback/bigint/constraint và ownership. Các luồng onboarding/mở/khóa tài khoản, nạp/chuyển tiền qua ledger và audit DENIED vẫn thuộc task khác; không nhận toàn bộ use case từ các primitive.
 
 ## Ngoài phạm vi (v1)
 

@@ -1,0 +1,5 @@
+| # | Severity (blocking / should-fix / minor) | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | should-fix | §5 — lệnh chạy manual driver | Pipeline qua `tee` không bật `pipefail`, nên driver thất bại nhưng shell vẫn có thể trả exit 0 nếu `tee` thành công; bằng chứng chạy manual vì vậy có thể báo thành công giả. Ngoài ra, thư mục `docs/features/screenshots/DBS-55` hiện chưa tồn tại, trong khi lệnh ghi SHA chạy trước driver và chưa có bước tạo thư mục, nên chạy nguyên văn sẽ mất dòng SHA bắt buộc. | `docs/features/DBS-55-accounts-service.md` §5: hai lệnh redirect SHA và `ts-node ... | tee -a ...`; checklist G4 trong cùng tài liệu yêu cầu SHA ở dòng đầu transcript. Kiểm tra trực tiếp `Test-Path docs/features/screenshots/DBS-55` trả `False`. | Thêm `set -euo pipefail` và `mkdir -p ../docs/features/screenshots/DBS-55` trước hai lệnh. Ghi rõ driver phải trả exit khác 0 khi assertion thất bại, đồng thời vẫn cleanup trong `finally`; pipeline phải giữ trạng thái thất bại đó. |
+
+Verdict: REVISE
