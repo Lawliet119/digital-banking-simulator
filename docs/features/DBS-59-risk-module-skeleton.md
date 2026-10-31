@@ -4,7 +4,7 @@
 
 ## 1. Bối cảnh
 
-Board: Task, High, In Progress, P5; không có dependency. Expect: "Khung sẵn để viết 6 luật mà không phải sửa lại cấu trúc." Board giao cho #4 Fraud; người dùng xác nhận chính mình nhận task và đã kéo trạng thái In Progress. Repo ban đầu chỉ có `modules/risk/README.md`; `modules/index.ts` chưa đăng ký RiskModule. Docker daemon local không chạy và Docker Desktop executable không có ở đường dẫn mặc định.
+Board: Task, High, In Progress, P5; không có dependency. Expect: "Khung sẵn để viết 6 luật mà không phải sửa lại cấu trúc." Board giao cho #4 Fraud; người dùng xác nhận chính mình nhận task và đã kéo trạng thái In Progress. Repo ban đầu chỉ có `modules/risk/README.md`; `modules/index.ts` chưa đăng ký RiskModule. Docker Compose đã được bật để kiểm lại phần local vào 2026-10-31.
 
 DoD: (1) `RiskRule {id; evaluate(event, features, params): RuleHit|null}` thuần, `RuleHit` có weight và explanation; (2) `FeatureProvider` với hai hiện thực rỗng online/offline, chữ ký theo thiết kế cùng #1/#6; (3) RiskModule chỉ khởi động consumer ở worker, import module khác qua public index; (4) unit test rule giả/provider giả; (5) PR merge main, CI xanh, Dev review và bảng đối chiếu đầy đủ.
 
@@ -79,7 +79,7 @@ Không có `errorCode` trong module khung. Các test role/module không chứng 
 | M-59-02 | Gọi hai provider khung từ driver | Báo lỗi chưa cấu hình, không trả feature giả |
 | M-59-03 | Khởi động Nest context của RiskModule dưới `api`, `worker`, `both`; nếu Docker có sẵn thì khởi động cả AppModule | Module khởi động; bước này **chỉ chứng minh bootstrap**, chưa chứng minh worker-only consumer |
 
-M-59-03 cần Docker/PostgreSQL local; nếu daemon chưa chạy sẽ ghi chưa chạy và lý do thật. Không có consumer runtime để gửi message ở task này. Test queue/worker-only được bàn giao vào backlog khi consumer ra đời.
+M-59-03 chạy với Docker Compose PostgreSQL local trên database tạm riêng. Không có consumer runtime để gửi message ở task này. Test queue/worker-only được bàn giao vào backlog khi consumer ra đời.
 
 ## 6. Domain review
 
@@ -101,13 +101,15 @@ Rủi ro: placeholder bị dùng như provider thật; giảm bằng lỗi rõ r
 |---|---|
 | `lint:check`, `typecheck`, `build` | Đạt sau khi sửa import test và kiểu DEPOSIT |
 | Test DBS-59 (`risk.contract.spec.ts`, `modules.spec.ts`) | 2 suite, 10 test đạt; test đầu đỏ vì các contract/module chưa tồn tại |
-| Unit toàn repo | Baseline 29/30 suite, 493/495 test đạt; 2 test JWKS cooldown của Identity đỏ. Chạy lại riêng: 1/13 test vẫn đỏ. Không sửa Identity trong DBS-59 |
-| E2E toàn repo | Không hoàn tất: AppModule không nối được PostgreSQL vì Docker local không có |
-| Manual | [Transcript](screenshots/DBS-59/manual-test.txt) trên commit code `f55b9a1`: M-59-01/02 và bootstrap RiskModule đạt; full app chưa chạy do Docker; không có consumer thật |
+| Unit toàn repo | Chạy lại `npm test -- --runInBand` 2026-10-31: 31/31 suite, 501/501 test đạt, gồm JWKS cooldown. Lần baseline trước từng đỏ vì timing; không có thay đổi Identity trong DBS-59 |
+| E2E toàn repo | Chạy lại `npm run test:e2e -- --runInBand` với Docker: 8/8 suite, 57/57 test đạt |
+| Manual | [Transcript](screenshots/DBS-59/manual-test.txt) trên commit code `f55b9a1`: M-59-01/02 và RiskModule đạt; AppModule `api`, `worker`, `both` đều boot được trên database tạm đã migrate và xóa sau test. Lần đầu driver thiếu `env.bootstrap`, đã sửa cách chạy test tay; không đổi code sản phẩm. Chưa có consumer thật |
 
 ![Kết quả driver và bootstrap dựng từ transcript thật](screenshots/DBS-59/01-manual-output.png)
 
-Đối chiếu: TC-59-01/02/04 đạt ở lớp unit. TC-59-03 chỉ đạt phần module registration; worker-only consumer chưa kiểm được (BL-041). DoD #2 chưa có xác nhận chữ ký từ #1/#6 (BL-053). DoD #5 chưa đạt: [Draft PR #42](https://github.com/Lawliet119/digital-banking-simulator/pull/42) đã mở, CI/Dev review/merge còn chờ (BL-054). Người dùng đã cho phép commit, push và Draft PR; manual test được chạy lại trên commit code cuối `f55b9a1`.
+![Kết quả bootstrap AppModule trên PostgreSQL local](screenshots/DBS-59/02-app-bootstrap.png)
+
+Đối chiếu: TC-59-01/02/04 đạt ở lớp unit. TC-59-03 đạt phần module registration và full AppModule bootstrap; worker-only consumer chưa kiểm được (BL-041). DoD #2 chưa có xác nhận chữ ký từ #1/#6 (BL-053). DoD #5 chưa đạt: [Draft PR #42](https://github.com/Lawliet119/digital-banking-simulator/pull/42) có sáu check CI xanh trên head trước lần cập nhật evidence này; Dev review/merge còn chờ (BL-054). Người dùng đã cho phép commit, push và Draft PR; manual test chạy trên commit code cuối `f55b9a1`.
 
 ## 9. Tài liệu cập nhật
 
