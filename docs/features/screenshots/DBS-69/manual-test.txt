@@ -1,66 +1,88 @@
-1d921ffbe12007304cb3e06c061f93da5455219b
-M-69-01 create owned PostgreSQL 17 container, disposable database and real migrations
-TEMP DATABASE "dbs_test_597d955a35cc"
+154c76ce2311b3350b9cb89606f6a85c33415268
+M-69-01 create owned PostgreSQL 17 container, disposable database and real migrations 
+TEMP DATABASE "dbs_test_57fc5b0aecac"
 SQL> SELECT name FROM migrations ORDER BY timestamp [{"name":"CreateUsersCustomersAccounts1791763200000"},{"name":"CreateTransfersLedgerIdempotency1791849600000"},{"name":"CreateOutboxEventsProcessedEvents1792627200000"},{"name":"CreateAuditLog1792627200001"},{"name":"AddAppendOnlyTriggers1792627200002"}]
-$ npm run --silent check:invariants {"database":"dbs_test_597d955a35cc"}
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}
 {"status":"PASS","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[]}
 EXIT 0
-M-69-01 PASS
-M-69-02 seed SQL via invariant-fixtures.ts: deposit 1000000, transfer 250000, unused account, rejected order
-SQL> accounts/transfers/ledger_entries (IDs and money only) {"accounts":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","status":"ACTIVE","balance":"-1000000"},{"id":"267437d4-7133-461f-9786-22f0580b8ede","type":"CHECKING","status":"ACTIVE","balance":"750000"},{"id":"3c9fa9c1-031b-42da-990d-37f6f5aaf8b3","type":"SAVINGS","status":"LOCKED","balance":"250000"},{"id":"4517407f-2725-489f-9cb8-272f30325e3f","type":"CHECKING","status":"ACTIVE","balance":"0"}],"transfers":[{"id":"00c916d4-6521-4332-a91d-9a79c847a2d7","type":"TRANSFER","from_account_id":"267437d4-7133-461f-9786-22f0580b8ede","to_account_id":"3c9fa9c1-031b-42da-990d-37f6f5aaf8b3","amount":"10000000","status":"REJECTED"},{"id":"896cce39-c04a-4af5-b930-87dc921435ac","type":"DEPOSIT","from_account_id":"00000000-0000-4000-8000-000000000001","to_account_id":"267437d4-7133-461f-9786-22f0580b8ede","amount":"1000000","status":"COMPLETED"},{"id":"98bd7fa3-395d-4c55-a521-51929966ef3c","type":"TRANSFER","from_account_id":"267437d4-7133-461f-9786-22f0580b8ede","to_account_id":"3c9fa9c1-031b-42da-990d-37f6f5aaf8b3","amount":"250000","status":"COMPLETED"}],"entries":[{"id":"1","transfer_id":"896cce39-c04a-4af5-b930-87dc921435ac","account_id":"00000000-0000-4000-8000-000000000001","direction":"DEBIT","amount":"1000000","balance_after":"-1000000"},{"id":"2","transfer_id":"896cce39-c04a-4af5-b930-87dc921435ac","account_id":"267437d4-7133-461f-9786-22f0580b8ede","direction":"CREDIT","amount":"1000000","balance_after":"1000000"},{"id":"3","transfer_id":"98bd7fa3-395d-4c55-a521-51929966ef3c","account_id":"267437d4-7133-461f-9786-22f0580b8ede","direction":"DEBIT","amount":"250000","balance_after":"750000"},{"id":"4","transfer_id":"98bd7fa3-395d-4c55-a521-51929966ef3c","account_id":"3c9fa9c1-031b-42da-990d-37f6f5aaf8b3","direction":"CREDIT","amount":"250000","balance_after":"250000"}]}
-SQL> test/support/invariants.sql (one SELECT)
+$ npm run --silent check:invariants (fixed command string, shell) 
+M-69-01 PASS (ts-node and npm script agree) 
+M-69-02 seed SQL via invariant-fixtures.ts: deposit 1000000, transfer 250000, unused account, rejected order 
+SQL> accounts/transfers/ledger_entries (IDs and money only) {"accounts":[{"id":"00000000-0000-4000-8000-000000000001","type":"SYSTEM","status":"ACTIVE","balance":"-1000000"},{"id":"201a3bf6-9c33-4841-8126-1c51a42fe42f","type":"SAVINGS","status":"LOCKED","balance":"250000"},{"id":"384905ae-c1ce-4b96-896c-489b0b7d2c55","type":"CHECKING","status":"ACTIVE","balance":"750000"},{"id":"c750b4f7-654f-43c7-a9d0-60d8940a9785","type":"CHECKING","status":"ACTIVE","balance":"0"}],"transfers":[{"id":"078a2e7e-8f71-4d02-b261-93a50bf2dbb7","type":"DEPOSIT","from_account_id":"00000000-0000-4000-8000-000000000001","to_account_id":"384905ae-c1ce-4b96-896c-489b0b7d2c55","amount":"1000000","status":"COMPLETED"},{"id":"1d04b5f6-a842-4643-a795-9be2e1ec0256","type":"TRANSFER","from_account_id":"384905ae-c1ce-4b96-896c-489b0b7d2c55","to_account_id":"201a3bf6-9c33-4841-8126-1c51a42fe42f","amount":"10000000","status":"REJECTED"},{"id":"ef0c49a9-3d13-4bca-b2e9-50adc1219d5a","type":"TRANSFER","from_account_id":"384905ae-c1ce-4b96-896c-489b0b7d2c55","to_account_id":"201a3bf6-9c33-4841-8126-1c51a42fe42f","amount":"250000","status":"COMPLETED"}],"entries":[{"id":"1","transfer_id":"078a2e7e-8f71-4d02-b261-93a50bf2dbb7","account_id":"00000000-0000-4000-8000-000000000001","direction":"DEBIT","amount":"1000000","balance_after":"-1000000"},{"id":"2","transfer_id":"078a2e7e-8f71-4d02-b261-93a50bf2dbb7","account_id":"384905ae-c1ce-4b96-896c-489b0b7d2c55","direction":"CREDIT","amount":"1000000","balance_after":"1000000"},{"id":"3","transfer_id":"ef0c49a9-3d13-4bca-b2e9-50adc1219d5a","account_id":"384905ae-c1ce-4b96-896c-489b0b7d2c55","direction":"DEBIT","amount":"250000","balance_after":"750000"},{"id":"4","transfer_id":"ef0c49a9-3d13-4bca-b2e9-50adc1219d5a","account_id":"201a3bf6-9c33-4841-8126-1c51a42fe42f","direction":"CREDIT","amount":"250000","balance_after":"250000"}]}
+SQL> test/support/invariants.sql (one SELECT) 
 RAW SQL REPORT {"status":"PASS","totals":{"debit":"1250000","credit":"1250000","balance":"0"},"violations":[]}
 FUNCTION REPORT {"status":"PASS","totals":{"debit":"1250000","credit":"1250000","balance":"0"},"violations":[]}
-$ npm run --silent check:invariants {"database":"dbs_test_597d955a35cc"}
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}
 {"status":"PASS","totals":{"debit":"1250000","credit":"1250000","balance":"0"},"violations":[]}
 EXIT 0
-M-69-02 PASS
-M-69-03 NOSUPERUSER table owner corrupts a committed balance by one dong
-SQL> owner and superuser catalog proof {"role":"dbs_test_inv_53f0c6907d35","rolsuper":false,"owns":true}
-SQL> UPDATE public.accounts SET balance=balance+$2::bigint WHERE id=$1 ["267437d4-7133-461f-9786-22f0580b8ede","1"]
-$ npm run --silent check:invariants {"database":"dbs_test_597d955a35cc"}
-{"status":"FAIL","totals":{"debit":"1250000","credit":"1250000","balance":"1"},"violations":[{"check":"account_balances","actual":{"balance":"750001"},"expected":{"balance":"750000"},"accountId":"267437d4-7133-461f-9786-22f0580b8ede","transferId":null},{"check":"total_balances","actual":{"balance":"1"},"expected":{"balance":"0"},"accountId":null,"transferId":null}]}
+M-69-02 PASS 
+M-69-03 NOSUPERUSER table owner corrupts a committed balance by one dong 
+SQL> owner and superuser catalog proof {"role":"dbs_test_inv_06e84b657855","rolsuper":false,"owns":true}
+SQL> UPDATE public.accounts SET balance=balance+$2::bigint WHERE id=$1 ["384905ae-c1ce-4b96-896c-489b0b7d2c55","1"]
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}
+{"status":"FAIL","totals":{"debit":"1250000","credit":"1250000","balance":"1"},"violations":[{"check":"account_balances","actual":{"balance":"750001"},"expected":{"balance":"750000"},"accountId":"384905ae-c1ce-4b96-896c-489b0b7d2c55","transferId":null},{"check":"total_balances","actual":{"balance":"1"},"expected":{"balance":"0"},"accountId":null,"transferId":null}]}
 EXIT 1
-M-69-03 PASS: violation detected; ledger/transfers unchanged
-M-69-04 owner restores one dong and runs the real CLI again
-SQL> owner and superuser catalog proof {"role":"dbs_test_inv_53f0c6907d35","rolsuper":false,"owns":true}
-SQL> UPDATE public.accounts SET balance=balance+$2::bigint WHERE id=$1 ["267437d4-7133-461f-9786-22f0580b8ede","-1"]
-$ npm run --silent check:invariants {"database":"dbs_test_597d955a35cc"}
+M-69-03 PASS: violation detected; ledger/transfers unchanged 
+M-69-04 owner restores one dong and runs the real CLI again 
+SQL> owner and superuser catalog proof {"role":"dbs_test_inv_06e84b657855","rolsuper":false,"owns":true}
+SQL> UPDATE public.accounts SET balance=balance+$2::bigint WHERE id=$1 ["384905ae-c1ce-4b96-896c-489b0b7d2c55","-1"]
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}
 {"status":"PASS","totals":{"debit":"1250000","credit":"1250000","balance":"0"},"violations":[]}
 EXIT 0
-M-69-04 PASS
-M-69-05 completed transfer with no ledger pair in another disposable database
-TEMP DATABASE "dbs_test_1975bebed1ca"
-$ npm run --silent check:invariants {"database":"dbs_test_1975bebed1ca"}
-{"status":"FAIL","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[{"check":"completed_pairs","actual":{"debitCount":"0","creditCount":"0","debitAmount":"0","creditAmount":"0","debitAccountId":null,"creditAccountId":null},"expected":{"amount":"100000","debitCount":"1","creditCount":"1","toAccountId":"ad073a53-b396-4d0e-863b-1cdcdcf4688d","fromAccountId":"c4a4447a-586b-476a-a6de-0cb7e407a141"},"accountId":null,"transferId":"89fde352-1dfd-4aa7-a2a8-3793c5ceaaf9"}]}
+M-69-04 PASS 
+M-69-05 completed transfer with no ledger pair in another disposable database 
+TEMP DATABASE "dbs_test_57a454e9eec2"
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57a454e9eec2"}
+{"status":"FAIL","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[{"check":"completed_pairs","actual":{"debitCount":"0","creditCount":"0","debitAmount":"0","creditAmount":"0","debitAccountId":null,"creditAccountId":null},"expected":{"amount":"100000","debitCount":"1","creditCount":"1","toAccountId":"f23b0ed4-61fc-415a-bfe7-2da7ab41cac6","fromAccountId":"ce129b16-cb2d-4ad0-aa03-370f1469017b"},"accountId":null,"transferId":"c5287f2c-5640-4604-92df-aefae52223ee"}]}
 EXIT 1
-DROPPED TEMP DATABASE "dbs_test_1975bebed1ca"
-M-69-05 PASS
-M-69-06 boundary amount 9007199254740993 is preserved by SQL/function/CLI
-TEMP DATABASE "dbs_test_6d727cd1b945"
-SQL> test/support/invariants.sql (one SELECT)
+DROPPED TEMP DATABASE "dbs_test_57a454e9eec2"
+M-69-05 PASS 
+M-69-06 boundary amount 9007199254740993 is preserved by SQL/function/CLI 
+TEMP DATABASE "dbs_test_92d15322a57f"
+SQL> test/support/invariants.sql (one SELECT) 
 RAW SQL REPORT {"status":"PASS","totals":{"debit":"9007199254740993","credit":"9007199254740993","balance":"0"},"violations":[]}
 FUNCTION REPORT {"status":"PASS","totals":{"debit":"9007199254740993","credit":"9007199254740993","balance":"0"},"violations":[]}
-$ npm run --silent check:invariants {"database":"dbs_test_6d727cd1b945"}
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_92d15322a57f"}
 {"status":"PASS","totals":{"debit":"9007199254740993","credit":"9007199254740993","balance":"0"},"violations":[]}
 EXIT 0
-DROPPED TEMP DATABASE "dbs_test_6d727cd1b945"
-M-69-06 PASS
-M-69-07 missing schema is an error; restored original fixture remains clean
-TEMP DATABASE "dbs_test_70cd01420e6b"
-$ npm run --silent check:invariants {"database":"dbs_test_70cd01420e6b"}
+DROPPED TEMP DATABASE "dbs_test_92d15322a57f"
+M-69-06 PASS 
+M-69-07 missing schema is an error; restored original fixture remains clean 
+TEMP DATABASE "dbs_test_f8fb332f4e41"
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_f8fb332f4e41"}
 {"status":"ERROR","kind":"CHECK_ERROR","databaseCode":"42P01"}
 EXIT 2
-DROPPED TEMP DATABASE "dbs_test_70cd01420e6b"
-$ npm run --silent check:invariants {"database":"dbs_test_597d955a35cc"}
+DROPPED TEMP DATABASE "dbs_test_f8fb332f4e41"
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}
 {"status":"PASS","totals":{"debit":"1250000","credit":"1250000","balance":"0"},"violations":[]}
 EXIT 0
-M-69-07 PASS
-M-69-08 cleanup owned databases/roles, stop ONLY this container, then verify a failed connection
-DROPPED TEMP DATABASE "dbs_test_597d955a35cc"
-DROPPED FIXTURE ROLE "dbs_test_inv_53f0c6907d35"
-$ npm run --silent check:invariants {"database":"dbs_test_597d955a35cc"}
+M-69-07 PASS 
+M-69-09 the ECS DB_* parts (no DATABASE_URL), then a malformed DB_PORT 
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}
+{"status":"PASS","totals":{"debit":"1250000","credit":"1250000","balance":"0"},"violations":[]}
+EXIT 0
+DB_* composed into a connection: PASS, exit 0 
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}
+{"status":"ERROR","kind":"INVALID_CONFIG","invalid":["DB_PORT"]}
+EXIT 2
+M-69-09 PASS: INVALID_CONFIG names only DB_PORT, no value printed 
+M-69-10 a mismatch stays FAIL (exit 1), never turned into ERROR, then restores 
+SQL> owner and superuser catalog proof {"role":"dbs_test_inv_06e84b657855","rolsuper":false,"owns":true}
+SQL> UPDATE public.accounts SET balance=balance+$2::bigint WHERE id=$1 ["384905ae-c1ce-4b96-896c-489b0b7d2c55","1"]
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}
+{"status":"FAIL","totals":{"debit":"1250000","credit":"1250000","balance":"1"},"violations":[{"check":"account_balances","actual":{"balance":"750001"},"expected":{"balance":"750000"},"accountId":"384905ae-c1ce-4b96-896c-489b0b7d2c55","transferId":null},{"check":"total_balances","actual":{"balance":"1"},"expected":{"balance":"0"},"accountId":null,"transferId":null}]}
+EXIT 1
+SQL> owner and superuser catalog proof {"role":"dbs_test_inv_06e84b657855","rolsuper":false,"owns":true}
+SQL> UPDATE public.accounts SET balance=balance+$2::bigint WHERE id=$1 ["384905ae-c1ce-4b96-896c-489b0b7d2c55","-1"]
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}
+{"status":"PASS","totals":{"debit":"1250000","credit":"1250000","balance":"0"},"violations":[]}
+EXIT 0
+M-69-10 PASS 
+M-69-08 cleanup owned databases/roles, stop ONLY this container, then verify a failed connection 
+DROPPED TEMP DATABASE "dbs_test_57fc5b0aecac"
+DROPPED FIXTURE ROLE "dbs_test_inv_06e84b657855"
+$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants) {"database":"dbs_test_57fc5b0aecac"}
 {"status":"ERROR","kind":"CHECK_ERROR","databaseCode":"ECONNREFUSED"}
 EXIT 2
-M-69-08 PASS
-MANUAL RESULT {"passed":8,"total":8,"finalShaEvidence":true}
+M-69-08 PASS 
+MANUAL RESULT {"passed":10,"total":10,"finalShaEvidence":true}

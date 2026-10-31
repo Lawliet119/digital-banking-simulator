@@ -474,7 +474,7 @@ Bằng chứng: [baseline](screenshots/DBS-69/baseline-phase1.txt), [review vòn
 
 ## Vòng 2 · Sửa sau review PR #35
 
-> **Status vòng 2:** Plan approved (sau G3) · **Nguồn:** review code PR #35 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `codex/DBS-69-ledger-invariants` (sửa trực tiếp theo yêu cầu người dùng; mọi commit trước đó của tác giả `Đức PHạm`) · **Cập nhật:** 2026-10-31
+> **Status vòng 2:** Implemented (sau G4) · **Nguồn:** review code PR #35 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `codex/DBS-69-ledger-invariants` (sửa trực tiếp theo yêu cầu người dùng; mọi commit trước đó của tác giả `Đức PHạm`) · **Cập nhật:** 2026-10-31
 
 ### R1. Bối cảnh
 
@@ -694,3 +694,90 @@ Thứ tự migration → service → controller không áp dụng: không có mi
 | Bàn giao | R-4 (checker trong image ECS), tích hợp money test và load run | BL-128 (vai #5) và BL-127 (đổi ID từ BL-054) |
 
 **Quyết định ở G3 (vòng 2):** người dùng trả lời «duỵet» (gõ nhầm của «duyệt») ngày 2026-10-31. BL-126/127/128 cho ba dòng backlog (kiểm lại ID khi merge `main`); push một lần sau G4.
+
+### R7. Kết quả vòng 2
+
+**Lệnh kiểm tra** trên code cuối `154c76c` (sau merge `origin/main` `0feedf7`), tại `backend/`. Output thô ở [verification.txt](screenshots/DBS-69/verification.txt), phần "Vòng 2".
+
+| Lệnh | Kết quả |
+|---|---|
+| `npm run lint:check` | exit 0 |
+| `npm run typecheck` | exit 0 |
+| `npm test -- --runInBand` | 42 suites, 576/576 đạt, 0 skipped |
+| `npm run test:db -- --runInBand` | 13 suites, 301/301 đạt (DB spec DBS-69: 53 tests) |
+| `npm run test:e2e -- --runInBand` | 8 suites, 57/57 đạt, trên container `postgres:17` ở cổng 55432 vì cổng 5432 là PostgreSQL 18 native |
+| `npm run test:services -- --runInBand` | 1 suite, 2/2 đạt |
+| `npm run build` | exit 0 |
+
+Không có `.skip`, `.only` hay `.todo` trong test của task. **Một test ngoài phạm vi đỏ không ổn định:** `src/modules/identity/jwks-verifier.service.spec.ts` (`refetches on key rotation…`) đỏ ở lượt unit đầu sau merge và xanh khi chạy lại (3 lượt riêng lẻ: 13/13, 1 đỏ, 13/13; rồi cả suite 576/576). PR này không đụng file identity nào. Đây là lỗi đã ghi ở BL-112, chưa được coi là đã sửa.
+
+**Đối chiếu test case vòng 2** (`test/db/invariants.db-spec.ts`). Đỏ/xanh từng bước ở [red-green.txt](screenshots/DBS-69/red-green.txt), phần "Vòng 2".
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-69-16a…d, 17a…d, 19a/b | đổi tên, nội dung giữ nguyên | đạt |
+| TC-69-15 | CLI gọi trực tiếp bằng `ts-node`: sạch, lệch, phục hồi (0/1/0) | đạt |
+| TC-69-15n | `npm run --silent check:invariants` chạy cùng CLI, thất bại có thông báo khi thiếu `npm_execpath` | đạt; đỏ khi chạy jest trực tiếp không có `npm_execpath` |
+| TC-69-16a/b/c | `INVALID_CONFIG` kèm đúng `invalid` (mỗi khóa TLS, thiếu URL, URL hỏng, production không TLS, CA không đọc được, `DB_PORT` sai, `DB_USER` trống); `--help` nêu `DB_*` và `exit code is authoritative` | đạt; đỏ 16/16 trước khi sửa |
+| TC-69-17d | lỗi pool **trước** commit: ERROR exit 2, stdout rỗng, `57P01` | đạt, giữ nguyên |
+| TC-69-17e | lỗi pool trước commit trên DB lệch: vẫn chỉ ERROR, stdout rỗng, exit 2 (không in report FAIL) | đạt; xanh sẵn vì khóa hành vi sẵn có |
+| TC-69-20a, 20b | lỗi pool **sau** commit không đổi PASS (exit 0) và không che FAIL (exit 1) | đạt; đỏ trước khi sửa (exit 2) |
+| TC-69-20c1, 20c2 | `destroy` lỗi sau commit: FAIL in report exit 1; PASS in report exit 2 | đạt; đỏ trước khi sửa |
+| TC-69-20d | `commitTransaction` ném: stdout rỗng, exit 2 | đạt; xanh sẵn |
+| TC-69-20e | văn bản hợp đồng exit ở bốn đoạn có mốc nguyên văn, hai chiều | đạt; đỏ trước khi sửa (cụm "thẩm quyền cuối cùng" chưa có) |
+| TC-69-20f1, 20f2 | `release` của chỉ runner `runCli` tạo ném sau khi bản gốc chạy xong: FAIL exit 1, PASS exit 2 | đạt; đỏ trước khi sửa |
+| TC-69-21 | `DB_*` (role `LOGIN`, mật khẩu `p@ss:w/rd?x#%y`) khi `DATABASE_URL` rỗng cho PASS; `DATABASE_URL` hợp lệ thắng `DB_*` sai; `DB_*` sai mật khẩu cho `28P01` exit 2; kiểm `env/.env.test` không tồn tại | đạt; đỏ trước khi sửa |
+| TC-69-01…14, 18, 19a/b | giữ nguyên | đạt |
+
+Đã tách mã con theo R-5, nên mỗi `it` có một mã duy nhất. 100% ca vòng 2 đạt đủ độ sâu, 0 đơn giản hóa. Hai ca xanh sẵn (17e, 20d) khóa hành vi đã có, nên không có bằng chứng đỏ; mình ghi rõ thay vì dựng một ca đỏ giả.
+
+**Test thủ công** trên commit `154c76c` (commit cuối có đổi code, SHA ở dòng đầu [manual-test.txt](screenshots/DBS-69/manual-test.txt)), `MANUAL RESULT {"passed":10,"total":10,"finalShaEvidence":true}`, exit 0, driver tự dựng và dọn container/DB/role:
+
+| Bước | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-69-01 | CLI bằng `ts-node` và `npm run --silent check:invariants` (một chuỗi lệnh cố định) cùng PASS exit 0 | đạt |
+| M-69-02 | Nợ = Có = 1 250 000; funding −1 000 000; tổng 0; SQL, hàm và CLI khớp | đạt |
+| M-69-03 | owner NOSUPERUSER +1 đồng: `FAIL`, `account_balances` đúng account (750001 so với 750000) và `total_balances` 1, exit 1; ledger/transfers không đổi | đạt |
+| M-69-04 | owner trả 1 đồng: PASS exit 0, trạng thái như M-69-02 | đạt |
+| M-69-05 | COMPLETED không có cặp bút toán: `FAIL completed_pairs`, transfer ID, count 0/0, exit 1 | đạt |
+| M-69-06 | `9007199254740993` giữ nguyên chuỗi trên SQL, hàm, CLI | đạt |
+| M-69-07 | schema thiếu: `42P01` exit 2; DB đã phục hồi PASS exit 0 | đạt |
+| M-69-08 | dọn DB/role, dừng container riêng; CLI: `ECONNREFUSED` exit 2 | đạt |
+| M-69-09 | chỉ `DB_*` (không `DATABASE_URL`): PASS exit 0; `DB_PORT=abc`: `INVALID_CONFIG`, `invalid ["DB_PORT"]`, exit 2, không in giá trị | đạt |
+| M-69-10 | DB lệch +1: vẫn `FAIL` exit 1 (không thành ERROR); trả lại: PASS exit 0 | đạt |
+
+**Đo thử R-7** (tùy chọn, ngoài `manual-test.txt`, `DBS69_BULK_ROWS=1000000`, [verification.txt](screenshots/DBS-69/verification.txt)): 1 000 002 dòng `ledger_entries` (500 000 giao dịch COMPLETED cộng một cặp nạp) nạp trong 23,0 s, **CLI chạy 3,67 s, PASS exit 0**, DB tạm được drop. Với con số này, statement timeout 60 giây còn dư khoảng 16 lần, nên **không có lý do tối ưu SQL** và không mở dòng BACKLOG mới. Lưu ý: dữ liệu đo đã cân bằng (PASS); thời gian có thể khác khi có nhiều vi phạm hoặc bảng `transfers` lớn hơn, và máy đo là máy phát triển, không phải RDS.
+
+**Ảnh** (render từ `manual-test.txt` bằng Chrome headless, mỗi ảnh là một nhóm dòng của transcript, không sửa nội dung; thay năm ảnh vòng 1 và thêm ảnh 06):
+
+![M-69-02: PASS](screenshots/DBS-69/01-clean.png)
+
+![M-69-03: owner làm lệch, FAIL](screenshots/DBS-69/02-owner-mismatch.png)
+
+![M-69-04: phục hồi, PASS](screenshots/DBS-69/03-restored.png)
+
+![M-69-05: thiếu cặp bút toán, FAIL](screenshots/DBS-69/04-missing-pair.png)
+
+![M-69-07/08: schema thiếu và DB tắt, ERROR](screenshots/DBS-69/05-unavailable.png)
+
+![M-69-09/10: DB_* và FAIL không bị đổi thành ERROR](screenshots/DBS-69/06-db-parts.png)
+
+**Phạm vi so với §R6.1** (`git diff --name-only 0feedf7 HEAD`, trừ file thuộc DBS-69 doc/ảnh): `backend/test/support/invariants.ts`, `invariants.sql` (không đổi), `invariant-fixtures.ts` (không đổi), `test/db/invariants.db-spec.ts`, `test/manual/invariants.manual.ts`, `test/manual/invariants.bulk.manual.ts` (mới), `backend/README.md`, `docs/BACKLOG.md`, `docs/features/README.md`. Khớp §R3 và §R6.1; không có file lạ. Các file còn lại là phần PR đã có từ vòng 1 hoặc đến từ `main` qua merge.
+
+**Lệch so với kế hoạch:**
+
+| Lệch | Lý do | Duyệt |
+|---|---|---|
+| Hai lần ghi file hỏng do công cụ: script ghi test dùng dấu backtick trong chuỗi `String.raw` bị cú pháp sai; chuỗi `\n` trong script con bị xuống dòng thật | chưa ghi gì hoặc test đỏ sai lý do; phát hiện ngay ở lần chạy đỏ đầu (dấu `POOL_ERROR_EMITTED` rỗng), sửa rồi chạy lại để đỏ đúng lý do | không đổi phạm vi |
+| Ảnh vòng 2 render ra HTML sai thư mục ở lần đầu (PNG còn ảnh cũ) và bốn ảnh bị cắt dưới | phát hiện khi đọc lại ảnh và dấu thời gian; dựng lại ở đúng thư mục và tăng chiều cao | không đổi phạm vi |
+| TC-69-20 viết thành các ca 20a, 20b, 20c1/c2, 20d, 20e, 20f1/f2 thay vì một mã | R-5: mỗi `it` một mã duy nhất | không đổi phạm vi |
+| Ảnh vòng 2 render bằng Chrome headless thay vì CUA | cùng nguồn transcript thật | nêu ở G4 |
+
+**Bàn giao:** **BL-126** (Dev review và merge PR #35), **BL-127** (gắn checker vào money test, load/drill run, scheduler), **BL-128** (#5 Platform & Ops: chạy checker trong image ECS hoặc ECS one-off task; hiện cần `ts-node`). Giữ mở: BL-112 (test JWKS flaky, vừa gặp lại). Không có dòng backlog nào được vòng 2 giải quyết.
+
+### R8. Tài liệu đã cập nhật (vòng 2)
+
+- `backend/README.md`: bảng lệnh và mục 9 (bộ `DB_*`, `invalid`, mã thoát là thẩm quyền cuối cùng).
+- Feature doc §2.2: bảng CLI và quy tắc mã thoát; R1–R8; `screenshots/DBS-69/`: 6 ảnh, `manual-test.txt`, `verification.txt`, `red-green.txt`, 7 file domain review vòng 2.
+- `docs/BACKLOG.md`: BL-053 thành BL-126, BL-054 thành BL-127 (đổi ID khi merge `main`), thêm BL-128.
+- `docs/features/README.md`: cập nhật dòng DBS-69.

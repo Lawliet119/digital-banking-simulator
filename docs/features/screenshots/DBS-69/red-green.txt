@@ -661,3 +661,26 @@ Tests:       40 passed, 40 total
 Snapshots:   0 total
 Time:        73.028 s
 Ran all test suites within paths "test/db/invariants.db-spec.ts".
+
+# Vòng 2 · 2026-10-31 · S2–S8
+Lệnh: npm run test:db -- --runInBand --runTestsByPath test/db/invariants.db-spec.ts (PostgreSQL 17 qua Testcontainers); driver manual chạy trên PostgreSQL 17 qua Testcontainers
+== Vòng 2 · S3 R-6 (CLI qua ts-node, TC-69-15n) ==
+RED: jest chạy trực tiếp bằng node với npm_execpath chưa đặt: Tests:       1 failed, 40 skipped, 41 total — TC-69-15n thất bại với thông báo 'needs npm_execpath' (không bỏ qua im lặng)
+GREEN: chạy qua npm run test:db: Tests:       41 passed, 41 total
+== Vòng 2 · S4 R-2/R-2b (cờ committed, quy tắc đầu ra) ==
+RED: Tests:       6 failed, 41 skipped, 2 passed, 49 total — đỏ: TC-69-20a, 20b, 20c1, 20c2, 20f1, 20f2 (code cũ trả exit 2 và không in report khi lỗi đến sau commit); đã xanh sẵn: TC-69-20d (commit ném) và TC-69-17e (lỗi pool trước commit trên DB lệch)
+Lần đỏ đầu của TC-69-20a/b sai lý do (dấu POOL_ERROR_EMITTED rỗng vì chuỗi \n trong script con bị xuống dòng thật); đã sửa escape rồi chạy lại để đỏ đúng lý do (Expected 0, Received 2)
+GREEN: Tests:       49 passed, 49 total
+== Vòng 2 · S5 R-3 (DB_* qua composeDatabaseUrl, INVALID_CONFIG kèm invalid) ==
+RED: Tests:       16 failed, 35 skipped, 1 passed, 52 total — TC-69-16a (8 khóa TLS), 16b (6 ca), 16c (--help), 21 đỏ vì stderr thiếu trường invalid, --help chưa nêu DB_*, DB_* chưa được dùng
+Lệch nhỏ: lần xanh đầu 16c đỏ vì câu --help còn chứa '2 check error.'; đã viết lại câu rồi chạy lại
+GREEN: Tests:       52 passed, 52 total
+== Vòng 2 · S6 hợp đồng exit ở bốn chỗ (TC-69-20e) ==
+RED: Tests:       1 failed, 52 skipped, 53 total — Expected substring 'thẩm quyền cuối cùng' (cụm mới chưa có ở §2.2, README mục 9, bảng lệnh)
+GREEN: Tests:       52 skipped, 1 passed, 53 total
+== Vòng 2 · S7 driver manual (ts-node trực tiếp, M-69-09, M-69-10) ==
+RED: driver cũ trên code mới chạy 8/8 nhưng không có M-69-09/M-69-10 và phụ thuộc npm_execpath (đã chạy với npm_execpath chưa đặt: vẫn đạt nhờ đường dự phòng trên máy này, không tồn tại trên Linux/Homebrew); bước mới được thêm rồi chạy
+GREEN: MANUAL RESULT passed 10/10, exit 0 (finalShaEvidence false vì cây làm việc chưa commit; bước chính thức ở S10)
+== Vòng 2 · S8 script đo thử R-7 (tùy chọn) ==
+RED: không có DATABASE_URL: 'DATABASE_URL is not set…' thoát có thông báo; không có DBS69_BULK_ROWS: 'nothing to do (opt-in)'
+GREEN (smoke): DBS69_BULK_ROWS=20000: 20002 dòng, CLI 2,4 s, PASS exit 0, DB tạm được drop

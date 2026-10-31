@@ -217,7 +217,7 @@ Chi tiết và bằng chứng: [DBS-42](../docs/features/DBS-42-json-logger.md).
 Chạy sau money test hoặc load run, từ checkout có devDependencies và quyền SELECT ba bảng `public.accounts`, `public.transfers`, `public.ledger_entries`:
 
 ```bash
-# từ backend/; DATABASE_URL được cấp qua môi trường hoặc env/.env.<NODE_ENV>
+# từ backend/; DATABASE_URL hoặc bộ DB_* của ECS được cấp qua môi trường hoặc env/.env.<NODE_ENV>
 npm run --silent check:invariants
 npm run check:invariants -- --help
 ```
@@ -252,7 +252,7 @@ expect(report.violations).toEqual([]);
 
 Hàm không tạo kết nối, log, đổi timeout hoặc mở/commit/rollback transaction. Dùng cùng runner để kiểm dữ liệu của transaction caller; kết nối khác chỉ nhìn dữ liệu đã commit. Test cố ý làm lệch assert FAIL rồi rollback/drop DB tạm, không ép thành PASS bằng sửa/xóa sổ.
 
-CLI chỉ đọc `NODE_ENV`, `DATABASE_URL`, `DATABASE_SSL`, `DATABASE_SSL_CA_PATH`, không cần Redis/SQS/Cognito. Luật TLS dùng validator hiện có: staging/production bắt buộc TLS và xác minh chứng chỉ; CA tùy chọn qua đường dẫn cấu hình. Query key `ssl*` và `uselibpqcompat` trong URL bị từ chối để không ghi đè CA/xác minh. ERROR chỉ có loại lỗi và SQLSTATE/network code được phép, không in URL, password, SQL hoặc stack.
+CLI chỉ đọc `NODE_ENV`, `DATABASE_URL`, `DATABASE_SSL`, `DATABASE_SSL_CA_PATH` và bộ `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (như task ECS), không cần Redis/SQS/Cognito. `DATABASE_URL` không rỗng luôn thắng; không có thì CLI ghép URL từ `DB_*` bằng `composeDatabaseUrl` của ứng dụng (mật khẩu được mã hóa URL). Lỗi cấu hình in `{"status":"ERROR","kind":"INVALID_CONFIG","invalid":[…]}` với **tên** biến sai (ví dụ `["DB_PORT"]`), không bao giờ in giá trị, đường dẫn hay URL. Luật TLS dùng validator hiện có: staging/production bắt buộc TLS và xác minh chứng chỉ; CA tùy chọn qua đường dẫn cấu hình. Query key `ssl*` và `uselibpqcompat` trong URL bị từ chối để không ghi đè CA/xác minh. ERROR chỉ có loại lỗi và SQLSTATE/network code được phép, không in URL, password, SQL hoặc stack.
 
 CLI mở transaction READ ONLY với connect timeout 5 giây, lock timeout 2 giây, statement timeout 60 giây, idle timeout 10 giây. Đây là full scan, không cắt IDs; bảng quá lớn hoặc DB không đáp ứng sẽ trả ERROR. Công cụ không kiểm lịch sử `balance_after`, không thay constraint lúc commit và không phải scheduler đối soát. Nó cần checkout cùng `test/`/devDependencies, không nằm trong image ứng dụng. Hướng dẫn và bằng chứng: [DBS-69](../docs/features/DBS-69-ledger-invariants.md).
 
