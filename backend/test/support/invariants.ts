@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import * as Joi from 'joi';
 import { DataSource, type QueryRunner } from 'typeorm';
 import { getErrorCode } from '@common/utils/pg-error.util';
+import { composeDatabaseUrl } from '@config/compose-database-url';
 import { loadEnv } from '@config/load-env';
 import { validationSchema, type Env } from '@config/validation.schema';
 import { buildSslOptions } from '@database/pg-ssl';
@@ -82,8 +83,23 @@ const NETWORK_CODES = new Set([
   'EPIPE',
 ]);
 
+/** Thrown for configuration problems. It carries variable names only, never their values. */
+class InvalidConfigError extends Error {
+  constructor(readonly invalid: readonly string[]) {
+    super('Invalid database configuration');
+  }
+}
+
+const DB_CONFIG_KEYS = [
+  'NODE_ENV',
+  'DATABASE_URL',
+  'DATABASE_SSL',
+  'DATABASE_SSL_CA_PATH',
+] as const;
+
 async function runCli(args: string[]): Promise<void> {
   let kind = 'INVALID_ARGUMENT';
+  let invalid: readonly string[] | undefined;
   let source: DataSource | undefined;
   let runner: QueryRunner | undefined;
   let report: LedgerInvariantReport | undefined;
@@ -95,28 +111,56 @@ async function runCli(args: string[]): Promise<void> {
   try {
     if (args.length === 1 && args[0] === '--help') {
       console.log(
-        'Usage: npm run check:invariants [-- --help]\nDATABASE_URL, DATABASE_SSL, DATABASE_SSL_CA_PATH; exits: 0 clean, 1 violations, 2 check error.',
+        [
+          'Usage: npm run check:invariants [-- --help]',
+          'Config: DATABASE_URL, or DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD (the ECS parts); DATABASE_SSL, DATABASE_SSL_CA_PATH.',
+          'Exits: 0 clean, 1 violations, 2 the check did not complete cleanly. The exit code is authoritative: a report may be printed with exit 2, and a PASS report with exit 2 is not accepted as clean.',
+          'A config error prints {"status":"ERROR","kind":"INVALID_CONFIG","invalid":[names]} on stderr; names only, never values.',
+        ].join('\n'),
       );
       return;
     }
     if (args.length) throw new Error('Unexpected argument');
     kind = 'INVALID_CONFIG';
     loadEnv();
-    const keys = ['NODE_ENV', 'DATABASE_URL', 'DATABASE_SSL', 'DATABASE_SSL_CA_PATH'] as const;
+    // ECS passes the parts, not a URL. composeDatabaseUrl is pure and the rule is the app's own: a
+    // non-empty DATABASE_URL always wins. An incomplete or malformed set stops here, naming only the
+    // DB_* variables that are wrong; letting Joi run would also add DATABASE_URL to the list.
+    const composed = composeDatabaseUrl(process.env);
+    if (composed.invalid.length > 0) throw new InvalidConfigError([...composed.invalid].sort());
+    if (composed.url) process.env.DATABASE_URL = composed.url;
     const schema = Joi.object(
-      Object.fromEntries(keys.map(key => [key, validationSchema.extract(key)])),
+      Object.fromEntries(DB_CONFIG_KEYS.map(key => [key, validationSchema.extract(key)])),
     );
     const validated = schema.validate(process.env, { abortEarly: false, allowUnknown: true });
-    if (validated.error) throw new Error('Invalid database configuration');
-    const env = validated.value as Pick<Env, (typeof keys)[number]>;
-    const url = new URL(env.DATABASE_URL);
+    if (validated.error) {
+      // Joi detail paths are variable names from the fixed list above, never values.
+      const names = new Set<string>(DB_CONFIG_KEYS);
+      const wrong = validated.error.details
+        .map(detail => String(detail.path[0]))
+        .filter(name => names.has(name));
+      throw new InvalidConfigError([...new Set(wrong)].sort());
+    }
+    const env = validated.value as Pick<Env, (typeof DB_CONFIG_KEYS)[number]>;
+    let url: URL;
+    try {
+      url = new URL(env.DATABASE_URL);
+    } catch {
+      throw new InvalidConfigError(['DATABASE_URL']);
+    }
     // pg lets these URL fields replace the verified SSL object, including its configured CA.
     for (const key of url.searchParams.keys()) {
       if (key.toLowerCase().startsWith('ssl') || key.toLowerCase() === 'uselibpqcompat') {
-        throw new Error('TLS must be configured through database settings');
+        throw new InvalidConfigError(['DATABASE_URL']);
       }
     }
-    const ssl = buildSslOptions({ enabled: env.DATABASE_SSL, caPath: env.DATABASE_SSL_CA_PATH });
+    let ssl: ReturnType<typeof buildSslOptions>;
+    try {
+      ssl = buildSslOptions({ enabled: env.DATABASE_SSL, caPath: env.DATABASE_SSL_CA_PATH });
+    } catch {
+      // The message names the CA path; only the variable name may leave this process.
+      throw new InvalidConfigError(['DATABASE_SSL_CA_PATH']);
+    }
     kind = 'CHECK_ERROR';
     source = new DataSource({
       type: 'postgres',
@@ -146,6 +190,7 @@ async function runCli(args: string[]): Promise<void> {
     committed = true;
   } catch (error) {
     failure = error;
+    if (error instanceof InvalidConfigError) invalid = error.invalid;
     if (runner?.isTransactionActive) {
       try {
         await runner.rollbackTransaction();
@@ -176,7 +221,12 @@ async function runCli(args: string[]): Promise<void> {
     const databaseCode =
       code && (/^[0-9A-Z]{5}$/.test(code) || NETWORK_CODES.has(code)) ? code : undefined;
     console.error(
-      JSON.stringify({ status: 'ERROR', kind, ...(databaseCode ? { databaseCode } : {}) }),
+      JSON.stringify({
+        status: 'ERROR',
+        kind,
+        ...(invalid ? { invalid } : {}),
+        ...(databaseCode ? { databaseCode } : {}),
+      }),
     );
   };
   if (trusted && report) {

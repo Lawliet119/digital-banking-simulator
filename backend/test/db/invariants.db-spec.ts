@@ -99,6 +99,10 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
       timeout: 45_000,
     });
   }
+  function expectInvalid(result: ReturnType<typeof cli>, invalid: string[]) {
+    expectSafeError(result, 'INVALID_CONFIG');
+    expect((JSON.parse(result.stderr) as { invalid?: unknown }).invalid).toEqual(invalid);
+  }
   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(2);
@@ -529,22 +533,92 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
   ])('TC-69-16a rejects URL TLS override %s before connecting', key => {
     const url = new URL(db.url);
     url.searchParams.set(key, key === 'sslnegotiation' ? 'direct' : 'SENTINEL');
-    expectSafeError(cli([], { DATABASE_URL: url.toString() }), 'INVALID_CONFIG');
+    expectInvalid(cli([], { DATABASE_URL: url.toString() }), ['DATABASE_URL']);
   });
+  // A complete DB_* set with a valid DB_HOST: composeDatabaseUrl returns no URL when DB_HOST is
+  // undefined, so a lone DB_PORT would report DATABASE_URL instead of DB_PORT.
+  const DB_PARTS = {
+    DATABASE_URL: '',
+    DB_HOST: '127.0.0.1',
+    DB_PORT: '5432',
+    DB_NAME: 'banking',
+    DB_USER: 'banking',
+    DB_PASSWORD: 'PASSWORD_SENTINEL',
+  };
   it.each([
-    ['missing URL', { DATABASE_URL: '' }],
-    ['malformed URL', { DATABASE_URL: 'INVALID_URL_SENTINEL' }],
-    ['production without TLS', { NODE_ENV: 'production', DATABASE_SSL: 'false' }],
-    ['unreadable CA', { DATABASE_SSL: 'true', DATABASE_SSL_CA_PATH: 'MISSING_CA_SENTINEL.pem' }],
-  ] as const)('TC-69-16b rejects %s without echoing configuration values', (_name, env) => {
-    expectSafeError(cli([], env), 'INVALID_CONFIG');
+    ['missing URL', { DATABASE_URL: '' }, ['DATABASE_URL']],
+    ['malformed URL', { DATABASE_URL: 'INVALID_URL_SENTINEL' }, ['DATABASE_URL']],
+    ['production without TLS', { NODE_ENV: 'production', DATABASE_SSL: 'false' }, ['DATABASE_SSL']],
+    [
+      'unreadable CA',
+      { DATABASE_SSL: 'true', DATABASE_SSL_CA_PATH: 'MISSING_CA_SENTINEL.pem' },
+      ['DATABASE_SSL_CA_PATH'],
+    ],
+    ['malformed DB_PORT', { ...DB_PARTS, DB_PORT: 'abc' }, ['DB_PORT']],
+    ['empty DB_USER', { ...DB_PARTS, DB_USER: ' ' }, ['DB_USER']],
+  ] as const)('TC-69-16b rejects %s and names only the variable', (_name, env, invalid) => {
+    const result = cli([], env);
+    expectInvalid(result, [...invalid]);
+    expect(result.stderr).not.toMatch(/SENTINEL|abc/);
   });
   it('TC-69-16c --help does not need a DB and unexpected arguments fail safely', () => {
     const help = cli(['--help'], { DATABASE_URL: '' });
     expect(help.status).toBe(0);
     expect(help.stderr).toBe('');
     expect(help.stdout).toContain('check:invariants');
+    for (const name of ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']) {
+      expect(help.stdout).toContain(name);
+    }
+    expect(help.stdout).toContain('exit code is authoritative');
+    expect(help.stdout).not.toContain('2 check error.');
     expectSafeError(cli(['UNEXPECTED_SENTINEL']), 'INVALID_ARGUMENT');
+  });
+  async function loginRole(password: string): Promise<string> {
+    const role = `dbs_test_inv_${randomBytes(6).toString('hex')}`;
+    if (!/^dbs_test_inv_[0-9a-f]{12}$/.test(role)) throw new Error('Unsafe fixture role');
+    await server.query(
+      `CREATE ROLE "${role}" LOGIN PASSWORD '${password.replace(/'/g, "''")}' NOSUPERUSER NOCREATEDB NOCREATEROLE`,
+    );
+    roles.push(role);
+    await db.runner.query(`GRANT USAGE ON SCHEMA public TO "${role}"`);
+    for (const table of ['accounts', 'transfers', 'ledger_entries']) {
+      await db.runner.query(`GRANT SELECT ON public.${table} TO "${role}"`);
+    }
+    return role;
+  }
+  function dbParts(role: string, password: string, overrides: Record<string, string> = {}) {
+    const url = new URL(db.url);
+    return {
+      DATABASE_URL: '',
+      DB_HOST: url.hostname,
+      DB_PORT: url.port || '5432',
+      DB_NAME: decodeURIComponent(url.pathname.slice(1)),
+      DB_USER: role,
+      DB_PASSWORD: password,
+      ...overrides,
+    };
+  }
+  it('TC-69-21 the ECS DB_* parts are used when DATABASE_URL is empty, and DATABASE_URL wins when set', async () => {
+    // beforeAll of this block guarantees an env file cannot add DB_* behind the test's back.
+    expect(existsSync(resolve(backend, 'env/.env.test'))).toBe(false);
+    const password = 'p@ss:w/rd?x#%y';
+    const role = await loginRole(password);
+    await seedInvariantLedger(db.runner);
+    await db.runner.commitTransaction();
+    // (a) DATABASE_URL empty, DB_* correct (password with @ : / ? # %): the parts are composed.
+    const composed = cli([], dbParts(role, password));
+    expect(composed.stderr).toBe('');
+    expect(composed.status).toBe(0);
+    expect(JSON.parse(composed.stdout)).toMatchObject({ status: 'PASS' });
+    expect(composed.stdout).not.toContain(password);
+    // (b) a valid DATABASE_URL wins over DB_* that would fail to log in.
+    const urlWins = cli([], { ...dbParts(role, 'WRONG_PASSWORD_SENTINEL'), DATABASE_URL: db.url });
+    expect(urlWins.status).toBe(0);
+    expect(JSON.parse(urlWins.stdout)).toMatchObject({ status: 'PASS' });
+    // (c) no URL and DB_* with a wrong password: the parts were really used, so login fails.
+    const wrong = cli([], dbParts(role, 'WRONG_PASSWORD_SENTINEL'));
+    expectSafeError(wrong);
+    expect(JSON.parse(wrong.stderr)).toMatchObject({ databaseCode: '28P01' });
   });
   it('TC-69-16d the real pg parser preserves the configured CA and certificate verification for accepted URLs', () => {
     const ssl = buildSslOptions({ enabled: true, caPath: 'fixture.pem' }, () => 'FIXTURE_CA');
