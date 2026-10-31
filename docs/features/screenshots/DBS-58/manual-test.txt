@@ -1,19 +1,506 @@
-a0596c092f3362b0c84adea94a6d5cfecddb67da
-DBS-58 manual test, 2026-10-30, PowerShell, Node 24
+1d1f06d74a098e0859578e239a8d892aba4dd0ef
+DBS-58 manual test, 2026-10-31, Docker Compose PostgreSQL 17; isolated temporary DB dbs_manual_58_38eb65b0ab4e
 
-Preflight: docker info --format '{{.ServerVersion}}'
-Result: failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; Docker daemon unavailable.
-Preflight: HAS_DATABASE_URL=False; no local PostgreSQL service or psql executable found.
+> CREATE DATABASE isolated
+CREATE DATABASE
+exit=0
 
-Attempted: npm run test:db -- --runInBand --runTestsByPath test/db/fraud-schema.db-spec.ts
-Result: Jest globalSetup failed: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Could not find a working container runtime strategy.
+> npm run migration:run
 
-M-58-01 migration:run and inspect three tables/seed: CHUA CHAY (no local PostgreSQL).
-M-58-02 insert duplicate flag/hit and partial review rows: CHUA CHAY (no local PostgreSQL).
-M-58-03 migration:revert then migration:run on isolated DB: CHUA CHAY (no local PostgreSQL).
-Screenshots of psql output: CHUA CO (manual steps not run).
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
 
-Static checks: npm run typecheck PASS; npm run lint:check PASS; npm run format:check PASS; npm run build PASS.
-Baseline npm test -- --runInBand: 493 passed, 2 failed (JWKS cooldown timing, unchanged identity files).
 
-CI (separate from manual): https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41040395347 ; 6/6 jobs success, DB 9 suites and 162 tests passed on PostgreSQL 17. Manual steps remain CHUA CHAY.
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: CREATE TABLE "migrations" ("id" SERIAL NOT NULL, "timestamp" bigint NOT NULL, "name" character varying NOT NULL, CONSTRAINT "PK_8c82d7f526340ab734260ea46be" PRIMARY KEY ("id"))
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+0 migrations are already loaded in the database.
+6 migrations were found in the source code.
+6 migrations are new migrations must be executed.
+query: START TRANSACTION
+query:
+      CREATE TABLE users (
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+query:
+      CREATE TABLE customers (
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+query:
+      CREATE TABLE accounts (
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+query: CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM'
+query: CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL
+query:
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791763200000,"CreateUsersCustomersAccounts1791763200000"]
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+query:
+      CREATE TABLE transfers (
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+query:
+      CREATE INDEX transfers_account_completed_idx ON transfers (from_account_id, created_at)
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query:
+      CREATE INDEX transfers_pair_completed_idx ON transfers (from_account_id, to_account_id, created_at)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+query:
+      CREATE TABLE ledger_entries (
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+query:
+      CREATE INDEX ledger_entries_daily_debit_idx ON ledger_entries (account_id, created_at)
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+query:
+      CREATE INDEX ledger_entries_account_history_idx
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+query:
+      CREATE TABLE idempotency_keys (
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+query: CREATE INDEX idempotency_keys_created_idx ON idempotency_keys (created_at)
+query:
+      CREATE VIEW v_transfer_facts AS
+        SELECT id, type, from_account_id, to_account_id, amount, status, created_at
+        FROM transfers
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1791849600000,"CreateTransfersLedgerIdempotency1791849600000"]
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+query:
+      CREATE TABLE outbox_events (
+        id bigint GENERATED ALWAYS AS IDENTITY,
+        event_id uuid NOT NULL DEFAULT gen_random_uuid(),
+        event_type text NOT NULL,
+        aggregate_id uuid NOT NULL,
+        payload jsonb NOT NULL,
+        correlation_id uuid NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+        published_at timestamptz,
+        CONSTRAINT outbox_events_pkey PRIMARY KEY (id),
+        CONSTRAINT outbox_events_event_id_key UNIQUE (event_id)
+      )
+query:
+      CREATE TABLE processed_events (
+        consumer text NOT NULL,
+        event_id uuid NOT NULL,
+        processed_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT processed_events_pkey PRIMARY KEY (consumer, event_id)
+      )
+query: CREATE INDEX outbox_unpublished_idx
+      ON outbox_events (id) WHERE published_at IS NULL
+query: CREATE INDEX outbox_published_cleanup_idx
+      ON outbox_events (published_at) WHERE published_at IS NOT NULL
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200000,"CreateOutboxEventsProcessedEvents1792627200000"]
+Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed successfully.
+query: CREATE TABLE audit_log (
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+query: CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id)
+query: CREATE INDEX audit_log_actor_occurred_idx ON audit_log (actor_user_id, occurred_at DESC)
+query: CREATE INDEX audit_log_action_occurred_idx ON audit_log (action, occurred_at DESC)
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200001,"CreateAuditLog1792627200001"]
+Migration CreateAuditLog1792627200001 has been executed successfully.
+query: CREATE FUNCTION public.forbid_mutation() RETURNS trigger
+      LANGUAGE plpgsql AS $$
+      BEGIN
+        RAISE EXCEPTION '% on % is not allowed (append-only)', TG_OP, TG_TABLE_NAME
+          USING ERRCODE = '42501';
+      END;
+      $$
+query: CREATE TRIGGER ledger_entries_append_only
+        BEFORE UPDATE OR DELETE ON public.ledger_entries
+        FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+query: CREATE TRIGGER ledger_entries_no_truncate
+        BEFORE TRUNCATE ON public.ledger_entries
+        FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+query: CREATE TRIGGER transfers_append_only
+        BEFORE UPDATE OR DELETE ON public.transfers
+        FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+query: CREATE TRIGGER transfers_no_truncate
+        BEFORE TRUNCATE ON public.transfers
+        FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+query: CREATE TRIGGER audit_log_append_only
+        BEFORE UPDATE OR DELETE ON public.audit_log
+        FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+query: CREATE TRIGGER audit_log_no_truncate
+        BEFORE TRUNCATE ON public.audit_log
+        FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200002,"AddAppendOnlyTriggers1792627200002"]
+Migration AddAppendOnlyTriggers1792627200002 has been executed successfully.
+query: CREATE TABLE risk_rule_sets (
+      version int NOT NULL,
+      config jsonb NOT NULL,
+      created_by uuid,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT risk_rule_sets_pkey PRIMARY KEY (version),
+      CONSTRAINT risk_rule_sets_created_by_fkey FOREIGN KEY (created_by)
+        REFERENCES users(id) ON DELETE RESTRICT
+    )
+query: INSERT INTO risk_rule_sets(version,config,created_by) VALUES(1,$1::jsonb,NULL) -- PARAMETERS: ["{\"mode\":\"rule_only\",\"thresholds\":{\"medium\":40,\"high\":70},\"rules\":{\"R1\":{\"enabled\":true,\"weight\":30,\"maxTransfers\":5,\"windowMinutes\":10},\"R2\":{\"enabled\":true,\"weight\":25,\"medianMultiplier\":5,\"historyDays\":30,\"minHistory\":5},\"R3\":{\"enabled\":true,\"weight\":35,\"maxAccountAgeHoursExclusive\":24,\"minAmountExclusive\":\"10000000\"},\"R4\":{\"enabled\":true,\"weight\":20,\"reverseWindowMinutes\":60},\"R5\":{\"enabled\":true,\"weight\":40,\"minNewRecipients\":5,\"windowMinutes\":60,\"noveltyDays\":30,\"sameOwnerExempt\":true},\"R6\":{\"enabled\":true,\"weight\":30,\"minBalancePercent\":90,\"minBalance\":\"1000000\",\"sameOwnerExempt\":true}},\"ml\":{\"enabled\":false}}"]
+query: CREATE TABLE fraud_flags (
+      transfer_id uuid NOT NULL,
+      score int NOT NULL,
+      risk_level text NOT NULL,
+      rule_set_version int NOT NULL,
+      review_status text NOT NULL DEFAULT 'OPEN',
+      reviewed_by uuid,
+      reviewed_at timestamptz,
+      review_note text,
+      created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      CONSTRAINT fraud_flags_pkey PRIMARY KEY (transfer_id),
+      CONSTRAINT fraud_flags_transfer_id_fkey FOREIGN KEY (transfer_id)
+        REFERENCES transfers(id) ON DELETE RESTRICT,
+      CONSTRAINT fraud_flags_rule_set_version_fkey FOREIGN KEY (rule_set_version)
+        REFERENCES risk_rule_sets(version) ON DELETE RESTRICT,
+      CONSTRAINT fraud_flags_reviewed_by_fkey FOREIGN KEY (reviewed_by)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT fraud_flags_score_check CHECK (score >= 0),
+      CONSTRAINT fraud_flags_risk_level_check CHECK (risk_level IN ('MEDIUM','HIGH')),
+      CONSTRAINT fraud_flags_review_status_check CHECK
+        (review_status IN ('OPEN','CONFIRMED_FRAUD','FALSE_POSITIVE')),
+      CONSTRAINT fraud_flags_review_consistent CHECK (
+        (review_status = 'OPEN' AND reviewed_by IS NULL AND reviewed_at IS NULL)
+        OR
+        (review_status <> 'OPEN' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)
+      )
+    )
+query: CREATE TABLE fraud_rule_hits (
+      transfer_id uuid NOT NULL,
+      rule_id text NOT NULL,
+      weight int NOT NULL,
+      explanation text NOT NULL,
+      CONSTRAINT fraud_rule_hits_pkey PRIMARY KEY (transfer_id,rule_id),
+      CONSTRAINT fraud_rule_hits_transfer_id_fkey FOREIGN KEY (transfer_id)
+        REFERENCES fraud_flags(transfer_id) ON DELETE RESTRICT,
+      CONSTRAINT fraud_rule_hits_rule_id_check CHECK (rule_id IN ('R1','R2','R3','R4','R5','R6'))
+    )
+query: CREATE INDEX fraud_flags_open_queue_idx
+      ON fraud_flags (risk_level,created_at DESC) WHERE review_status = 'OPEN'
+query: CREATE TRIGGER risk_rule_sets_append_only
+      BEFORE UPDATE OR DELETE ON public.risk_rule_sets
+      FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+query: CREATE TRIGGER risk_rule_sets_no_truncate
+      BEFORE TRUNCATE ON public.risk_rule_sets
+      FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792713600000,"CreateFraudStorage1792713600000"]
+Migration CreateFraudStorage1792713600000 has been executed successfully.
+query: COMMIT
+exit=0
+
+> psql inspect schema, seed, duplicate/review rejection in rolled-back fixture
+                     Table "public.risk_rule_sets"
+   Column   |           Type           | Collation | Nullable | Default
+------------+--------------------------+-----------+----------+---------
+ version    | integer                  |           | not null |
+ config     | jsonb                    |           | not null |
+ created_by | uuid                     |           |          |
+ created_at | timestamp with time zone |           | not null | now()
+Indexes:
+    "risk_rule_sets_pkey" PRIMARY KEY, btree (version)
+Foreign-key constraints:
+    "risk_rule_sets_created_by_fkey" FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+Referenced by:
+    TABLE "fraud_flags" CONSTRAINT "fraud_flags_rule_set_version_fkey" FOREIGN KEY (rule_set_version) REFERENCES risk_rule_sets(version) ON DELETE RESTRICT
+Triggers:
+    risk_rule_sets_append_only BEFORE DELETE OR UPDATE ON risk_rule_sets FOR EACH ROW EXECUTE FUNCTION forbid_mutation()
+    risk_rule_sets_no_truncate BEFORE TRUNCATE ON risk_rule_sets FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation()
+
+                               Table "public.fraud_flags"
+      Column      |           Type           | Collation | Nullable |      Default
+------------------+--------------------------+-----------+----------+-------------------
+ transfer_id      | uuid                     |           | not null |
+ score            | integer                  |           | not null |
+ risk_level       | text                     |           | not null |
+ rule_set_version | integer                  |           | not null |
+ review_status    | text                     |           | not null | 'OPEN'::text
+ reviewed_by      | uuid                     |           |          |
+ reviewed_at      | timestamp with time zone |           |          |
+ review_note      | text                     |           |          |
+ created_at       | timestamp with time zone |           | not null | clock_timestamp()
+Indexes:
+    "fraud_flags_pkey" PRIMARY KEY, btree (transfer_id)
+    "fraud_flags_open_queue_idx" btree (risk_level, created_at DESC) WHERE review_status = 'OPEN'::text
+Check constraints:
+    "fraud_flags_review_consistent" CHECK (review_status = 'OPEN'::text AND reviewed_by IS NULL AND reviewed_at IS NULL OR review_status <> 'OPEN'::text AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)
+    "fraud_flags_review_status_check" CHECK (review_status = ANY (ARRAY['OPEN'::text, 'CONFIRMED_FRAUD'::text, 'FALSE_POSITIVE'::text]))
+    "fraud_flags_risk_level_check" CHECK (risk_level = ANY (ARRAY['MEDIUM'::text, 'HIGH'::text]))
+    "fraud_flags_score_check" CHECK (score >= 0)
+Foreign-key constraints:
+    "fraud_flags_reviewed_by_fkey" FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE RESTRICT
+    "fraud_flags_rule_set_version_fkey" FOREIGN KEY (rule_set_version) REFERENCES risk_rule_sets(version) ON DELETE RESTRICT
+    "fraud_flags_transfer_id_fkey" FOREIGN KEY (transfer_id) REFERENCES transfers(id) ON DELETE RESTRICT
+Referenced by:
+    TABLE "fraud_rule_hits" CONSTRAINT "fraud_rule_hits_transfer_id_fkey" FOREIGN KEY (transfer_id) REFERENCES fraud_flags(transfer_id) ON DELETE RESTRICT
+
+             Table "public.fraud_rule_hits"
+   Column    |  Type   | Collation | Nullable | Default
+-------------+---------+-----------+----------+---------
+ transfer_id | uuid    |           | not null |
+ rule_id     | text    |           | not null |
+ weight      | integer |           | not null |
+ explanation | text    |           | not null |
+Indexes:
+    "fraud_rule_hits_pkey" PRIMARY KEY, btree (transfer_id, rule_id)
+Check constraints:
+    "fraud_rule_hits_rule_id_check" CHECK (rule_id = ANY (ARRAY['R1'::text, 'R2'::text, 'R3'::text, 'R4'::text, 'R5'::text, 'R6'::text]))
+Foreign-key constraints:
+    "fraud_rule_hits_transfer_id_fkey" FOREIGN KEY (transfer_id) REFERENCES fraud_flags(transfer_id) ON DELETE RESTRICT
+
+ version |   mode    | r1_weight
+---------+-----------+-----------
+       1 | rule_only | 30
+(1 row)
+
+ has_rule_version
+------------------
+ f
+(1 row)
+
+BEGIN
+INSERT 0 1
+INSERT 0 1
+NOTICE:  duplicate flag rejected: SQLSTATE 23505, constraint fraud_flags_pkey
+NOTICE:  duplicate hit rejected: SQLSTATE 23505, constraint fraud_rule_hits_pkey
+DO
+ROLLBACK
+NOTICE:  review without reviewer rejected: SQLSTATE 23514, constraint fraud_flags_review_consistent
+exit=0
+
+> npm run migration:revert
+
+> digital-banking-simulator-backend@0.1.0 migration:revert
+> npm run typeorm -- migration:revert
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:revert
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+6 migrations are already loaded in the database.
+CreateFraudStorage1792713600000 is the last executed migration. It was executed on Fri Oct 23 2026 07:00:00 GMT+0700 (Indochina Time).
+Now reverting it...
+query: START TRANSACTION
+query: SELECT current_setting('transaction_isolation') AS isolation
+query: LOCK TABLE fraud_rule_hits,fraud_flags,risk_rule_sets IN ACCESS EXCLUSIVE MODE
+query: SELECT
+      (SELECT count(*) FROM fraud_flags) AS flags,
+      (SELECT count(*) FROM fraud_rule_hits) AS hits
+query: SELECT version,created_by,config=$1::jsonb AS unchanged FROM risk_rule_sets -- PARAMETERS: ["{\"mode\":\"rule_only\",\"thresholds\":{\"medium\":40,\"high\":70},\"rules\":{\"R1\":{\"enabled\":true,\"weight\":30,\"maxTransfers\":5,\"windowMinutes\":10},\"R2\":{\"enabled\":true,\"weight\":25,\"medianMultiplier\":5,\"historyDays\":30,\"minHistory\":5},\"R3\":{\"enabled\":true,\"weight\":35,\"maxAccountAgeHoursExclusive\":24,\"minAmountExclusive\":\"10000000\"},\"R4\":{\"enabled\":true,\"weight\":20,\"reverseWindowMinutes\":60},\"R5\":{\"enabled\":true,\"weight\":40,\"minNewRecipients\":5,\"windowMinutes\":60,\"noveltyDays\":30,\"sameOwnerExempt\":true},\"R6\":{\"enabled\":true,\"weight\":30,\"minBalancePercent\":90,\"minBalance\":\"1000000\",\"sameOwnerExempt\":true}},\"ml\":{\"enabled\":false}}"]
+query: DROP TABLE fraud_rule_hits
+query: DROP TABLE fraud_flags
+query: DROP TRIGGER risk_rule_sets_append_only ON public.risk_rule_sets
+query: DROP TRIGGER risk_rule_sets_no_truncate ON public.risk_rule_sets
+query: DROP TABLE risk_rule_sets
+query: DELETE FROM "migrations" WHERE "timestamp" = $1 AND "name" = $2 -- PARAMETERS: [1792713600000,"CreateFraudStorage1792713600000"]
+Migration CreateFraudStorage1792713600000 has been reverted successfully.
+query: COMMIT
+exit=0
+
+> after revert: fraud tables absent, shared forbid_mutation remains
+|forbid_mutation()
+exit=0
+
+> npm run migration:run again
+
+> digital-banking-simulator-backend@0.1.0 migration:run
+> npm run typeorm -- migration:run
+
+
+> digital-banking-simulator-backend@0.1.0 typeorm
+> ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts migration:run
+
+query: SELECT version()
+query: SELECT * FROM current_schema()
+query: SELECT * FROM "information_schema"."tables" WHERE "table_schema" = 'public' AND "table_name" = 'migrations'
+query: SELECT * FROM "migrations" "migrations" ORDER BY "id" DESC
+5 migrations are already loaded in the database.
+6 migrations were found in the source code.
+AddAppendOnlyTriggers1792627200002 is the last executed migration. It was executed on Thu Oct 22 2026 07:00:00 GMT+0700 (Indochina Time).
+1 migrations are new migrations must be executed.
+query: START TRANSACTION
+query: CREATE TABLE risk_rule_sets (
+      version int NOT NULL,
+      config jsonb NOT NULL,
+      created_by uuid,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT risk_rule_sets_pkey PRIMARY KEY (version),
+      CONSTRAINT risk_rule_sets_created_by_fkey FOREIGN KEY (created_by)
+        REFERENCES users(id) ON DELETE RESTRICT
+    )
+query: INSERT INTO risk_rule_sets(version,config,created_by) VALUES(1,$1::jsonb,NULL) -- PARAMETERS: ["{\"mode\":\"rule_only\",\"thresholds\":{\"medium\":40,\"high\":70},\"rules\":{\"R1\":{\"enabled\":true,\"weight\":30,\"maxTransfers\":5,\"windowMinutes\":10},\"R2\":{\"enabled\":true,\"weight\":25,\"medianMultiplier\":5,\"historyDays\":30,\"minHistory\":5},\"R3\":{\"enabled\":true,\"weight\":35,\"maxAccountAgeHoursExclusive\":24,\"minAmountExclusive\":\"10000000\"},\"R4\":{\"enabled\":true,\"weight\":20,\"reverseWindowMinutes\":60},\"R5\":{\"enabled\":true,\"weight\":40,\"minNewRecipients\":5,\"windowMinutes\":60,\"noveltyDays\":30,\"sameOwnerExempt\":true},\"R6\":{\"enabled\":true,\"weight\":30,\"minBalancePercent\":90,\"minBalance\":\"1000000\",\"sameOwnerExempt\":true}},\"ml\":{\"enabled\":false}}"]
+query: CREATE TABLE fraud_flags (
+      transfer_id uuid NOT NULL,
+      score int NOT NULL,
+      risk_level text NOT NULL,
+      rule_set_version int NOT NULL,
+      review_status text NOT NULL DEFAULT 'OPEN',
+      reviewed_by uuid,
+      reviewed_at timestamptz,
+      review_note text,
+      created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      CONSTRAINT fraud_flags_pkey PRIMARY KEY (transfer_id),
+      CONSTRAINT fraud_flags_transfer_id_fkey FOREIGN KEY (transfer_id)
+        REFERENCES transfers(id) ON DELETE RESTRICT,
+      CONSTRAINT fraud_flags_rule_set_version_fkey FOREIGN KEY (rule_set_version)
+        REFERENCES risk_rule_sets(version) ON DELETE RESTRICT,
+      CONSTRAINT fraud_flags_reviewed_by_fkey FOREIGN KEY (reviewed_by)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT fraud_flags_score_check CHECK (score >= 0),
+      CONSTRAINT fraud_flags_risk_level_check CHECK (risk_level IN ('MEDIUM','HIGH')),
+      CONSTRAINT fraud_flags_review_status_check CHECK
+        (review_status IN ('OPEN','CONFIRMED_FRAUD','FALSE_POSITIVE')),
+      CONSTRAINT fraud_flags_review_consistent CHECK (
+        (review_status = 'OPEN' AND reviewed_by IS NULL AND reviewed_at IS NULL)
+        OR
+        (review_status <> 'OPEN' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)
+      )
+    )
+query: CREATE TABLE fraud_rule_hits (
+      transfer_id uuid NOT NULL,
+      rule_id text NOT NULL,
+      weight int NOT NULL,
+      explanation text NOT NULL,
+      CONSTRAINT fraud_rule_hits_pkey PRIMARY KEY (transfer_id,rule_id),
+      CONSTRAINT fraud_rule_hits_transfer_id_fkey FOREIGN KEY (transfer_id)
+        REFERENCES fraud_flags(transfer_id) ON DELETE RESTRICT,
+      CONSTRAINT fraud_rule_hits_rule_id_check CHECK (rule_id IN ('R1','R2','R3','R4','R5','R6'))
+    )
+query: CREATE INDEX fraud_flags_open_queue_idx
+      ON fraud_flags (risk_level,created_at DESC) WHERE review_status = 'OPEN'
+query: CREATE TRIGGER risk_rule_sets_append_only
+      BEFORE UPDATE OR DELETE ON public.risk_rule_sets
+      FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+query: CREATE TRIGGER risk_rule_sets_no_truncate
+      BEFORE TRUNCATE ON public.risk_rule_sets
+      FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792713600000,"CreateFraudStorage1792713600000"]
+Migration CreateFraudStorage1792713600000 has been executed successfully.
+query: COMMIT
+exit=0
+
+> seed version after rerun
+1
+exit=0
+
+M-58-01..03 PASS on isolated Docker Compose PostgreSQL 17
+
+> DROP DATABASE isolated
+DROP DATABASE
+exit=0

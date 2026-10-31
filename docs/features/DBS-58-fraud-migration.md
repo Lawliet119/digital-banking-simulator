@@ -1,6 +1,6 @@
 # DBS-58 · Migration lưu cấu hình và cờ fraud
 
-> **Status:** Implemented; Draft PR #44, chờ manual/Dev review/merge · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-58-fraud-migration` · **Ngày:** 2026-10-30
+> **Status:** Implemented; Draft PR #44, chờ Dev review/merge · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-58-fraud-migration` · **Ngày:** 2026-10-30
 
 ## 1. Bối cảnh
 
@@ -10,7 +10,7 @@ DoD: seed `risk_rule_sets` v1 ngay trong migration, cặp trigger append-only; `
 
 Backlog liên quan: BL-021 (cặp trigger, owner/no-match/empty truncate/revert) và BL-047 (CHECK review baseline bị hở) được nhận vào task. BL-048/049 và ADR-14 Proposed về `risk_decisions` giữ ngoài phạm vi. Không có bảng hay worker fraud trước đó.
 
-Docker daemon và PostgreSQL local không có trên máy hiện tại; test PostgreSQL sẽ chạy qua `test:db` trên GitHub CI service. Manual local migration/psql chỉ đánh dấu đạt nếu chạy được với DB tạm thật; nếu không, ghi `chưa chạy` và dùng CI integration evidence riêng, không thay thế bằng giả lập.
+Docker Compose PostgreSQL 17 đã có trên máy. Manual migration/psql chạy trên database tạm riêng, sau đó xóa database; CI integration evidence được giữ riêng.
 
 ## 2. Hành vi
 
@@ -80,7 +80,7 @@ Rủi ro: seed config chưa có interface runtime nên key shape cần đồng b
 
 ## 8. Kết quả
 
-Code migration commit `1d1f06d74a098e0859578e239a8d892aba4dd0ef`, test cuối `a0596c092f3362b0c84adea94a6d5cfecddb67da`. Test-first red: `npm run typecheck` báo TS2307 thiếu module migration; sau implementation typecheck, lint, format, build đều xanh. `npm run test:db -- --runInBand --runTestsByPath test/db/fraud-schema.db-spec.ts` dừng ở globalSetup vì Docker daemon không có; không chạy được PostgreSQL local. Backend unit baseline trên main: 493/495 pass, 2 test cooldown JWKS lỗi theo thời gian, không có code identity thay đổi trong PR.
+Code migration commit `1d1f06d74a098e0859578e239a8d892aba4dd0ef`, test cuối `a0596c092f3362b0c84adea94a6d5cfecddb67da`. Test-first red: `npm run typecheck` báo TS2307 thiếu module migration; sau implementation typecheck, lint, format, build đều xanh. Chạy lại `npm run test:db -- --runInBand --runTestsByPath test/db/fraud-schema.db-spec.ts` trên Docker local: 1 suite, 8/8 test đạt (2026-10-31). Backend unit baseline trên main: 493/495 pass, 2 test cooldown JWKS lỗi theo thời gian, không có code identity thay đổi trong PR.
 
 [CI run 41040395347](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41040395347) trên `b37b359`: 6/6 job success; DB 9/9 suites, 162/162 tests trên PostgreSQL 17. [CI run 41040889485](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41040889485) trên code cuối `32bab0b`: 6/6 job success, gồm hai assertions FK bổ sung và kiểm trực tiếp `tgfoid` của shared function. Hai CI đỏ trước đó là lỗi test (trigger FK nội bộ, scope DBS-27 cũ, dạng kết quả TypeORM), đã sửa. [Checks PR #44](https://github.com/Lawliet119/digital-banking-simulator/pull/44/checks) là trạng thái hiện hành trước khi merge.
 
@@ -91,13 +91,15 @@ Code migration commit `1d1f06d74a098e0859578e239a8d892aba4dd0ef`, test cuối `a
 | TC-58-03 / review | Test partial NULL bị 23514, bản hợp lệ được nhận | Đạt trên CI PostgreSQL |
 | TC-58-04 / BL-021 | Test owner NOSUPERUSER, matched/no-match, empty TRUNCATE | Đạt trên CI PostgreSQL |
 | TC-58-05 / revert | CLI run→revert→run; thử dữ liệu user, version mới, seed sửa/xóa | Đạt trên CI PostgreSQL |
-| Manual M-58 | [Transcript](screenshots/DBS-58/manual-test.txt) | Chưa chạy do không có Docker/PG local; BL-056 |
+| Manual M-58 | [Transcript](screenshots/DBS-58/manual-test.txt) trên Docker Compose PostgreSQL 17, database tạm riêng | M-58-01..03 đạt: schema/seed, SQLSTATE 23505/23514, revert→run; đã xóa database tạm |
 | CI, Dev review, merge | [Draft PR #44](https://github.com/Lawliet119/digital-banking-simulator/pull/44), [CI 6/6 xanh trên code cuối](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41040889485) | CI đạt; chờ Dev review/merge; BL-057 |
 
-Các test DBS-27 đã được giới hạn về migration prefix của chính nó để migration DBS-58 về sau không thay đổi lịch sử mà suite cũ đang kiểm. Không tạo `risk_decisions` hay áp ADR-14 Proposed. Contract JSON v1 bàn giao cho Dev task scoring và API UC-12; không sửa sheet. Ảnh `\d` và SQL manual chưa có do chưa chạy được, được theo dõi trong BL-056.
+![Kết quả local từ transcript PostgreSQL thật](screenshots/DBS-58/01-manual-schema-and-constraints.png)
+
+Các test DBS-27 đã được giới hạn về migration prefix của chính nó để migration DBS-58 về sau không thay đổi lịch sử mà suite cũ đang kiểm. Không tạo `risk_decisions` hay áp ADR-14 Proposed. Contract JSON v1 bàn giao cho Dev task scoring và API UC-12; không sửa sheet. Output thật của `\d`, seed, constraint và migration run→revert→run nằm trong transcript; BL-056 đã đóng.
 
 ## 9. Tài liệu cập nhật
 
 - [database-design §4.8 và §8.3](../components/_shared/database-design.md): CHECK review không hở NULL, migration trigger risk đã triển khai.
 - [Risk README](../../backend/src/modules/risk/README.md), [feature index](README.md), [BACKLOG](../BACKLOG.md), [domain review](screenshots/DBS-58/domain-review.md), [manual transcript](screenshots/DBS-58/manual-test.txt).
-- Xóa BL-021 và BL-047: CI PostgreSQL đã chứng minh trigger và CHECK review trên bảng thật.
+- Xóa BL-056 sau khi chạy manual trên Docker local; BL-021 và BL-047 đã được xóa trước đó sau khi CI PostgreSQL chứng minh trigger và CHECK review trên bảng thật.
