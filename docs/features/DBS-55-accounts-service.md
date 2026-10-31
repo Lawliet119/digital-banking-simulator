@@ -385,3 +385,253 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 - [x] Sáu lệnh kiểm tra đã chạy và có số đếm; **E2E còn 1 lỗi/57 tests**, không nhận baseline xanh; unit từng có hai lỗi JWKS được giữ trong bằng chứng
 - [x] Mọi fact thay đổi đã cập nhật; link checker 136 files/0 broken links, diff whitespace sạch; status chuyển Implemented sau khi G4 được duyệt
 - [x] Bàn giao/DoD chưa đạt ghi §8 và BACKLOG, gồm BL-057/054/056; không có backlog đã giải quyết cần xóa
+
+## Vòng 2 · Sửa sau review PR #33
+
+> **Status vòng 2:** Plan approved (sau G3) · **Nguồn:** review code PR #33 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (1–5) · **Nhánh:** `feat/DBS-55-accounts-service` (sửa trực tiếp theo yêu cầu người dùng) · **Cập nhật:** 2026-10-31
+
+### R1. Bối cảnh
+
+**Phạm vi:** chín phát hiện, đánh số theo báo cáo review. Phát hiện 4 điểm (R-2) phải chạy đủ chuẩn skill. Các mục khác cũng qua cùng các gate, vì CLAUDE.md yêu cầu gate cho mọi thay đổi file.
+
+| ID | Điểm | Vị trí | Vấn đề | Hướng sửa đề xuất |
+|---|---|---|---|---|
+| R-2 | 4 | `accounts.service.ts:35` | 404 phụ thuộc tuple `[rows, rowCount]` của TypeORM; nếu tuple đổi dạng thì `affected` là `undefined`, account thiếu bị coi là thành công | Xét `rows.length === 0` từ `RETURNING id`, không đọc `rowCount` |
+| R-1 | 3 | `accounts.service.ts:41` | `updated_at=now()` là thời điểm bắt đầu transaction, có thể đi lùi khi tranh chấp khóa | `clock_timestamp()`, giống lý do ở migration `CreateTransfersLedgerIdempotency` |
+| R-3 | 3 | `accounts.service.ts:38` | Lỗi 23514/22003 lọt ra thành `QueryFailedError` thô; `applyBalanceChange` không kiểm tra caller đã khóa hàng | Lỗi miền có kiểu (không thêm `ErrorCode`); bắt buộc đã `lockForUpdate` trong cùng QueryRunner |
+| R-7 | 3 | `accounts-service.db-spec.ts` | Mã TC trùng: TC-55-04 ×4, TC-55-11 ×3, TC-55-12 ×2 | Tách mã con (TC-55-04a…), cập nhật §4/§8 và PR |
+| R-4 | 2 | `accounts.service.ts:18` | `lockForUpdate` không giới hạn số ID | Chặn trên số ID sau khi bỏ trùng |
+| R-5 | 2 | `accounts.exports.spec.ts:5` | `execFileSync` chặn event loop, phụ thuộc `cwd` | `execFile` bất đồng bộ, có timeout, `cwd` tính từ `__dirname` |
+| R-6 | 2 | `accounts-service-probe.ts:150` | `pollDatabase` lặp `setImmediate` không nghỉ | Nghỉ 10–20 ms giữa các lần poll |
+| R-M | 2 | `modules/index.ts:21` | `AccountsModule` chỉ ở `apiModules`; worker cần `AccountsService` sẽ lỗi DI | Câu hỏi G1 #3 |
+| — | 1 | `account.types.ts:13`, `README.md:28-29` | Alias `LockedAccount`; "trả404" | Ngoài phạm vi (điểm 1); typo "trả404" sửa kèm khi đụng README cho R-3 |
+
+**Baseline 2026-10-31** trên `a9ed90a` (đầu nhánh PR): `lint:check` exit 0; `typecheck` exit 0; unit 31 suites/497 tests đạt; DB 9 suites/186 tests đạt (Testcontainers PostgreSQL 17); E2E 8 suites/57 tests đạt, 0 skipped. Máy này có dịch vụ PostgreSQL 18 native (`postgresql-x64-18`) chiếm cổng 5432, nên `localhost:5432` của compose trả `28P01`. E2E chạy trên một container `postgres:17` tạm ở cổng 55432 (đã migrate, đã xóa sau khi chạy), `DATABASE_URL` trỏ tới đó, theo `manual-testing.md`. Lỗi BL-056 không tái hiện trong lượt này, BL-056 vẫn mở.
+
+**Người gọi các symbol bị đổi:** `lockForUpdate`, `applyBalanceChange`, `getOwnedAccount` chỉ được gọi trong `test/db/accounts-service.db-spec.ts`, `test/support/accounts-service-probe.ts`, `test/manual/accounts-service.manual.ts`. Chưa có caller production (DBS-60/61 chưa bắt đầu).
+
+**Ngoài phạm vi:** BL-054/056 (test inherited), M-55-06 (chờ DBS-60/61), alias `LockedAccount` (điểm 1), map lỗi ra HTTP `errorCode` (việc của DBS-60/61).
+
+**Câu hỏi mở:** xem tin nhắn G1.
+
+**Quyết định ở G1 (vòng 2):** người dùng trả lời «duyet» ngày 2026-10-31, chấp nhận cả sáu đề xuất: (1) lỗi miền có kiểu, không thêm `ErrorCode`; (2) bắt buộc đã khóa trong cùng QueryRunner; (3) ngưỡng 16 ID; (4) giữ `AccountsModule` ở `apiModules`, chỉ sửa comment; (5) merge `main` để gỡ xung đột BACKLOG; (6) push thường lên nhánh PR, không force.
+
+### R2. Hành vi thay đổi
+
+Không có API HTTP. Những gì không ghi ở đây giữ nguyên như §2.
+
+| Hành vi | Trước | Sau |
+|---|---|---|
+| R-2 · `applyBalanceChange` không cập nhật hàng nào | 404 nếu `rowCount === 0` (phần tử 2 của tuple) | Kết quả không có dạng `[rows[], number]` → `Error('Unexpected UPDATE result shape')`. Mảng `RETURNING id` rỗng → `AccountNotLockedError`: id đã qua kiểm tra khóa thì hàng chắc chắn tồn tại, nên rỗng chỉ có thể do transaction đã khác lúc khóa, tức là lỗi giao thức của caller. **`applyBalanceChange` không còn ném 404**, để bug nội bộ không ra client thành 404 (review v2 #2). Không bao giờ coi là thành công |
+| R-1 · `updated_at` khi đổi số dư | `now()` (giờ bắt đầu transaction) | `clock_timestamp()` (giờ ghi hàng). Transaction bắt đầu sớm nhưng chờ khóa rồi commit sau vẫn có `updated_at` lớn hơn transaction commit trước |
+| R-3a · khách xuống âm (23514 **và** constraint đúng là `accounts_balance_non_negative`) | `QueryFailedError` thô | `AccountBalanceNegativeError` (`accountId`, `cause` = lỗi gốc). Transaction đã bị PostgreSQL hủy; caller để `TransactionService` rollback. 23514 của constraint khác ném nguyên |
+| R-3a · tràn signed bigint (22003) | `QueryFailedError` thô | `AccountBalanceOverflowError` (`accountId`, `cause`) |
+| R-3a · lỗi DB khác (40P01, 57014, …) | ném nguyên | Ném nguyên, không bọc, để `isRetryableTransactionError` / `isTransientDbError` vẫn đọc `code` |
+| R-3b · đổi số dư account chưa khóa | chạy UPDATE | `AccountNotLockedError` trước SQL. "Đã khóa" = id nằm trong kết quả `lockForUpdate` của **cùng QueryRunner, cùng transaction cấp ngoài cùng**. Khóa trên runner khác, id không tồn tại (không có trong snapshot), hay runner đã sang transaction mới đều bị từ chối |
+| R-3c · gọi `lockForUpdate`/`applyBalanceChange` trong transaction lồng (savepoint của `manager.transaction`) | chạy | `Error('Account locks must be taken at the outermost transaction')` trước SQL. Lý do: `ROLLBACK TO SAVEPOINT` nhả khóa hàng lấy sau savepoint mà `pg_current_xact_id()` không đổi (review v2 #1). Khóa lấy ở cấp ngoài cùng sống tới hết transaction, kể cả khi savepoint về sau bị rollback. `SAVEPOINT` viết tay bằng SQL thì service không thấy được: README ghi là không hỗ trợ |
+| R-4 · `lockForUpdate` nhận hơn 16 id sau khi bỏ trùng | khóa hết | `TypeError('At most 16 account ids can be locked at once')` trước SQL; đúng 16 id khác nhau vẫn chạy. Hai lớp chặn: mảng thô dài hơn 256 phần tử bị từ chối trước khi chuẩn hóa với `TypeError('At most 256 account id entries are accepted')` (review v2-2 #7); sau đó với từng phần tử: chuẩn hóa (kiểm UUID, đổi về chữ thường), rồi so với tập đã thấy, và dừng ngay khi id khác nhau thứ 17 xuất hiện (review v2 #11, v2-4 #2) |
+
+Ba lớp lỗi mới là lỗi nội bộ module, export qua `@modules/accounts`, không phải `HttpException`, **không có `errorCode`**. Gặp chúng nghĩa là guard của caller có bug: guard của Ledger phải quyết định REJECTED (số dư, trạng thái, hạn mức) **trước** UPDATE, vì sau 23514 PostgreSQL đã hủy transaction nên không ghi được `transfers` REJECTED, audit hay response idempotency (BR-07). Vì vậy chúng **phải ra 500**, caller không map sang 422 (review v2 #3). `getErrorCode` vẫn đọc được SQLSTATE qua `cause`, nên chúng không bị coi là retryable hay transient.
+
+Thay đổi test và harness, không đổi hành vi service:
+
+| ID | Sau |
+|---|---|
+| R-5 | TC-55-14 dùng `execFile` bất đồng bộ (`promisify`), `timeout: 20000`, `cwd` = `backend/` tính từ `__dirname`; `it(..., 25_000)` lớn hơn timeout của child, vì Jest mặc định 5 s và nay timer của Jest chạy được (review v2-2 #2) |
+| R-6 | `pollDatabase` nghỉ 15 ms giữa các lần thử (`setTimeout` của `node:timers/promises`), deadline 4 s giữ nguyên |
+| R-7 | Mỗi `it` một mã riêng; ca trùng thành TC-55-04a…d, TC-55-11a…c, TC-55-12a/b. Một `it.each` giữ một mã cho cả bảng tham số |
+| R-M | Comment `sharedModules` ghi rõ: module chỉ được module khác import (Accounts cho Ledger) thì không cần có trong danh sách role; Accounts ở `apiModules` để DI kiểm sớm ở `api` |
+
+### R3. Kiến trúc
+
+- **Vị trí:** `backend/src/modules/accounts/`, role `api`/`both`. Thêm `accounts.errors.ts`; sửa `accounts.service.ts`, `index.ts`, `README.md`, `modules/index.ts` (comment). Test và harness: `test/db/accounts-service.db-spec.ts`, `test/support/accounts-service-probe.ts`, `test/manual/accounts-service.manual.ts`, `src/modules/accounts/accounts.exports.spec.ts`.
+- **Cấp transaction:** TypeORM giữ `transactionDepth` ở dạng `protected`. Service đọc nó qua một hàm nhỏ có kiểm kiểu: không phải số thì fail closed (ném lỗi). Có một TC khóa hành vi này để lần nâng TypeORM nào đổi tên field sẽ đỏ ngay. Yêu cầu `depth === 1` cho cả hai method thay đổi.
+- **Interface:** chữ ký ba method giữ nguyên. Export thêm `AccountBalanceNegativeError`, `AccountBalanceOverflowError`, `AccountNotLockedError` (đều `extends Error`, `readonly accountId: string`, `cause`).
+- **Ghi nhận khóa:** `private readonly locks = new WeakMap<QueryRunner, { txid: string; ids: Set<string> }>()`. Câu `SELECT … FOR UPDATE` trả thêm `pg_current_xact_id()::text` (cùng một truy vấn; `FOR UPDATE` vốn đã cấp xid). Nếu txid khác lần ghi trước, set được làm mới. `applyBalanceChange` kiểm id trong set trước SQL, rồi UPDATE thêm điều kiện `AND pg_current_xact_id()::text=$3` với txid đã lưu. Runner được dùng lại cho transaction mới mà chưa khóa lại thì không hàng nào khớp, ra `AccountNotLockedError` (R-2). Như vậy vẫn đúng một truy vấn mỗi lần gọi, và dấu khóa không sống quá transaction đã lấy khóa. Trường `txid` bị bỏ khỏi snapshot trả cho caller, nên type `Account` không đổi. **Không có hàng** (input `[]` trả sớm trước SQL, hoặc mọi id đều không tồn tại) thì không đụng tới map: không tạo entry, không làm mới, không gộp (review v2-2 #5).
+- **Retry:** `transaction.helper.ts:87` tạo QueryRunner mới mỗi lần thử, nên dấu khóa không mang sang lần thử sau.
+- **Tài liệu:** `backend/src/modules/accounts/README.md` (hợp đồng mới, sửa "trả404"), `docs/BACKLOG.md` (một dòng BL mới cho bàn giao R7), feature doc, `docs/features/README.md`.
+- **Dữ liệu:** chỉ `accounts.balance`, `accounts.updated_at`. Không migration, không đổi schema.
+- **Ranh giới transaction:** của caller, như cũ. Không Redis/HTTP/SQS.
+- **Thay đổi cấp hệ thống:** không có (ADR, `ErrorCode`, env, event, schema giữ nguyên).
+
+```mermaid
+sequenceDiagram
+  participant L as Ledger (DBS-60/61)
+  participant A as AccountsService
+  participant P as PostgreSQL
+  L->>A: lockForUpdate([src,dst], m)
+  A->>P: SELECT …, pg_current_xact_id() ORDER BY id FOR UPDATE OF a
+  A-->>A: locks[m.queryRunner] = {txid, {src,dst}}
+  L->>A: applyBalanceChange(src, delta, m)
+  Note over A: id chưa khóa → AccountNotLockedError, không SQL
+  A->>P: UPDATE … updated_at=clock_timestamp() WHERE id=$1 AND pg_current_xact_id()::text=$3 RETURNING id
+  P-->>A: 23514 (đúng constraint) → AccountBalanceNegativeError · 22003 → AccountBalanceOverflowError · [] → AccountNotLockedError
+```
+
+### R4. Test cases tự động (thêm hoặc đổi)
+
+PostgreSQL 17 thật, `test/db/accounts-service.db-spec.ts`; riêng TC-55-14 là unit.
+
+| ID | Truy vết | Given · When · Then | Lỗi mong đợi |
+|---|---|---|---|
+| TC-55-07 (đổi) | DoD2, R-3a | khách 0, đã khóa, −1n → lỗi có kiểu, `cause` giữ 23514 + constraint; `getErrorCode` = 23514, `isRetryableTransactionError` và `isTransientDbError` = false, `safeErrorMetadata` có `code` 23514 và không có SQL; rollback, invariants đạt | `AccountBalanceNegativeError` |
+| TC-55-09 (đổi) | DoD2, R-3a | bốn scenario tràn; cùng các kiểm tra phân loại như TC-55-07 | `AccountBalanceOverflowError`, `cause.code` 22003 |
+| TC-55-10 (đổi) | DoD2, R-2 | (a) runner rollback rồi `startTransaction` lại, apply id đã khóa ở transaction cũ → lỗi, số dư không đổi; (b) spy `manager.query` trả `[[], 1]` → lỗi; (c) trả `{ records: [] }` → `Error` shape | `AccountNotLockedError` / `Error` |
+| TC-55-16 | DoD2, R-1 | **có tranh chấp:** T1 mở transaction trước; T2 khóa A; T1 gọi `lockForUpdate([A])` và bị chặn (xác nhận bằng `pg_blocking_pids`); T2 apply `0n` và commit; T1 nhận khóa, apply `0n`, commit → `updated_at` T1 > T2. Với code cũ (`now()`) T1 < T2, nên đây là test đỏ hợp lệ. Delta 0 nên invariants vẫn đạt | — |
+| TC-55-17 | DoD2, R-3b | (a) apply khi chưa lock → lỗi, không truy vấn; (b) lock A trên runner X, apply A trên runner Y → lỗi; (c) lock [missing, A], apply missing → lỗi; (d) đã lock → chạy | `AccountNotLockedError` |
+| TC-55-18 | DoD1, R-4 | 16 id khác nhau (4 fixture + 12 UUID không tồn tại) → chạy; 17 → lỗi, không truy vấn; 20 bản của 1 id → chạy; mảng 256 UUID chữ thường khác nhau bị từ chối với **đúng 17** lần gọi `normalizeId`, chứng minh dừng sớm. Spy đặt trên instance: `jest.spyOn(service as unknown as { normalizeId(v: unknown): string }, 'normalizeId')`, restore trong `finally` (review v2-4 #2); mảng 257 phần tử (dù trùng) bị từ chối với **0** lần chuẩn hóa; 256 bản của 1 id → chạy (review v2-3 #1) | `TypeError` (thông điệp 16 / 256) |
+| TC-55-19 | R-3a | (a) spy UPDATE ném lỗi 40P01 → ném nguyên, `isRetryableTransactionError` = true; (b) spy ném 23514 với constraint khác → ném nguyên, không bọc | lỗi gốc |
+| TC-55-20 | R-3c | (a) lock A trong `manager.transaction(...)` lồng → lỗi, không truy vấn; (b) lock A ở cấp ngoài, rồi apply A trong transaction lồng → lỗi; (c) runner không có `transactionDepth` dạng số (thay thuộc tính) → lỗi; (d) lock A ở cấp ngoài, chạy một `manager.transaction` lồng ném lỗi (ROLLBACK TO SAVEPOINT), rồi apply A ở cấp ngoài → chạy, và runner khác `FOR UPDATE NOWAIT` trên A nhận 55P03 (khóa vẫn giữ) | `Error` / — |
+| TC-55-21 | R-3b | lock A ở tx1, rollback, `startTransaction` lại cùng runner (tx2), `lockForUpdate([missing])` (0 hàng), apply A → lỗi, số dư không đổi | `AccountNotLockedError` |
+| TC-55-14 (đổi) | DoD4, R-5 | `execFile` bất đồng bộ, `cwd` của child lấy từ `__dirname`. Bằng chứng không phụ thuộc cwd của Jest: test `process.chdir` sang thư mục repo gốc trước khi chạy child và trả lại trong `finally`. Nếu `cwd` bị thừa kế thì child không resolve được `eslint` (repo gốc không có `node_modules`) nên test đỏ (review v2-3 #3, v2-4 #3). Test không dùng `test.concurrent`; timeout Jest (25 s) phải lớn hơn timeout của child (20 s) để `finally` luôn trả lại cwd. Jest chỉ chạy được từ `backend/`: ts-jest đọc `tsconfig.json` theo cwd, và mình đã kiểm rằng chạy từ `backend/src` thì suite lỗi. Vì vậy không nhận "chạy từ repo gốc" (review v2-2 #1) | lint diagnostic |
+| TC-55-04a…d, 11a…c, 12a/b | R-7 | chỉ đổi tên, nội dung giữ nguyên | như cũ |
+
+Thứ tự kiểm trong `applyBalanceChange`: transaction đang chạy → cấp ngoài cùng → id → delta → đã khóa → SQL. TC-55-04 và TC-55-13 vì vậy vẫn ra đúng lỗi cũ.
+
+### R5. Test thủ công
+
+Driver thật `test/manual/accounts-service.manual.ts all` (Nest context với `AccountsModule` thật), chạy lại toàn bộ trên commit cuối đổi code. `manual-test.txt` được ghi đè, SHA ở dòng đầu. Driver cần sửa `expectRejection` để nhận `type` là lớp lỗi mới, kiểm `cause.code`/`cause.constraint`, và in `name` của lỗi (review v2 #5).
+
+**Môi trường trên máy này** (cổng 5432 là PostgreSQL 18 native, review v2 #4). Chạy tại `backend/`, Git Bash:
+
+```bash
+set -euo pipefail
+docker rm -f dbs55-manual-pg >/dev/null 2>&1 || true
+docker run -d --name dbs55-manual-pg -e POSTGRES_DB=banking -e POSTGRES_USER=banking \
+  -e POSTGRES_PASSWORD=banking_local_only -p 55432:5432 postgres:17 >/dev/null
+trap 'docker rm -f dbs55-manual-pg >/dev/null 2>&1' EXIT
+# Đợi qua TCP: server init của image chỉ nghe Unix socket rồi khởi động lại.
+for i in $(seq 1 60); do
+  docker exec dbs55-manual-pg pg_isready -h 127.0.0.1 -p 5432 -U banking -d banking >/dev/null 2>&1 && break
+  [ "$i" = 60 ] && { echo 'PostgreSQL 17 không sẵn sàng sau 60 s'; exit 1; }
+  sleep 1
+done
+export DATABASE_URL=postgres://banking:banking_local_only@127.0.0.1:55432/banking   # không ghi vào transcript
+OUT=../docs/features/screenshots/DBS-55/manual-test.txt
+git rev-parse HEAD > "$OUT"
+docker exec dbs55-manual-pg psql -h 127.0.0.1 -U banking -d banking -tAc 'SHOW server_version' | tee -a "$OUT"   # phải bắt đầu bằng 17
+npx cross-env NODE_ENV=test ts-node -r tsconfig-paths/register test/manual/accounts-service.manual.ts all 2>&1 | tee -a "$OUT"
+```
+
+Driver tự tạo DB tạm từ `DATABASE_URL`, migrate rồi xóa trong `finally`. `trap … EXIT` xóa container kể cả khi driver lỗi (review v2-2 #3).
+
+| Bước | Việc làm | Mong đợi |
+|---|---|---|
+| M-55-00 | `SHOW server_version` | bắt đầu bằng `17.` |
+| M-55-01…03, 05 | như §5 | như §5 |
+| M-55-04 (đổi) | khách −1; tràn | in `name` `AccountBalanceNegativeError` + `cause` 23514/`accounts_balance_non_negative`; `AccountBalanceOverflowError` + 22003 |
+| M-55-07 | apply khi chưa lock; lock runner X rồi apply runner Y; lock trong transaction lồng; 17 id; đọc lại số dư | `AccountNotLockedError` ×2, `Error` (cấp ngoài cùng), `TypeError`; số dư 0 |
+| M-55-08 | như TC-55-16: T1 bắt đầu trước, bị T2 chặn (in PID bị chặn), T2 commit `0n`, T1 commit `0n`; in hai `updated_at` | T1 > T2; số dư vẫn 0, invariants đạt |
+| M-55-06 | — | **Chưa chạy**, chờ DBS-60/61 như vòng 1 |
+
+Ảnh: chụp lại bốn ảnh từ output mới, thêm `05-lock-required.png`, `06-updated-at-order.png`.
+
+### R6. Domain review (AI)
+
+**Reviewer:** subagent mới, model Opus 5.5 (`claude-opus-5-5`), ngày 2026-10-31 · **Lượt 1:** 12 phát hiện (blocking 0, should-fix 5, minor 7), verdict REVISE · [nguyên văn lượt 1](screenshots/DBS-55/domain-review-v2-round-1.md)
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | should-fix | `pg_current_xact_id()` không đổi qua savepoint; `ROLLBACK TO SAVEPOINT` nhả khóa mà dấu khóa còn | đã sửa R2 (R-3c), R3, TC-55-20: bắt buộc cấp ngoài cùng (`transactionDepth === 1`) |
+| 2 | should-fix | 404 trở thành lỗi giao thức nội bộ nhưng ra client thành 404 | đã sửa R2 (R-2), R3, TC-55-10: ném `AccountNotLockedError`, bỏ 404 khỏi `applyBalanceChange` |
+| 3 | should-fix | Map lỗi số dư âm sang 422 vi phạm BR-07; BL-002/003 không đúng chủ đề | đã sửa R2: lỗi mới phải ra 500, guard quyết định trước; bỏ tham chiếu BL-002/003; bàn giao ở §8 vòng 2 |
+| 4 | should-fix | Script manual không chạy được nguyên văn trên máy có PG18 ở 5432 | đã sửa R5: lệnh dựng PG17 ở 55432, M-55-00 kiểm phiên bản |
+| 5 | should-fix | `expectRejection` của driver không kiểm được lỗi bọc; R3 thiếu file test | đã sửa R3 (Vị trí), R5 |
+| 6 | minor | Bọc 23514 phải kiểm tên constraint | đã sửa R2, TC-55-19(b) |
+| 7 | minor | Chưa có ca khóa việc phân loại lỗi bọc | đã sửa TC-55-07/09 |
+| 8 | minor | TC-55-16 tuần tự, chưa có tranh chấp khóa | đã sửa TC-55-16, M-55-08: có chặn thật qua `pg_blocking_pids` |
+| 9 | minor | Lệnh chạy Jest từ repo gốc sai | đã sửa TC-55-14 |
+| 10 | minor | TC-55-04 có 4 ca, không phải 5 | đã sửa R2/R4: a…d |
+| 11 | minor | Ngưỡng 16 kiểm sau khi chuẩn hóa cả mảng | đã sửa R2 (R-4), TC-55-18 |
+| 12 | minor (bàn giao) | Ledger dùng cùng manager, không lồng transaction, ra 500 | chuyển sang R7, README accounts và dòng BL mới |
+
+**Lượt 2 (re-review):** 7 phát hiện (blocking 0, should-fix 4, minor 3), verdict REVISE · [nguyên văn lượt 2](screenshots/DBS-55/domain-review-v2-round-2.md). Reviewer xác nhận đúng: caller thường ở depth 1, `AccountNotLockedError` ra 500, SQLSTATE vẫn đọc được qua `cause`, TC-55-16 đỏ với `now()`.
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| v2-2 #1 | should-fix | "Chạy từ repo gốc" sai thật (đã tự kiểm) | đã sửa TC-55-14: chứng minh bằng spy `process.cwd`, không nhận chạy được từ repo gốc |
+| v2-2 #2 | should-fix | Timeout 5 s mặc định của Jest | đã sửa R-5: `it(..., 25_000)` |
+| v2-2 #3 | should-fix | Script đợi qua Unix socket, không giới hạn, không dọn container khi lỗi | đã sửa R5: đợi qua TCP, tối đa 60 s, `trap` xóa container, xóa container sót trước khi chạy |
+| v2-2 #4 | should-fix | Bàn giao chưa có mục riêng, BACKLOG chưa có trong R3 | đã sửa: thêm R7, R3 liệt kê `docs/BACKLOG.md` và README |
+| v2-2 #5 | minor | Chưa định nghĩa quy tắc map khi 0 hàng | đã sửa R3, thêm TC-55-21 |
+| v2-2 #6 | minor | Chưa có test chứng minh khóa ngoài cùng còn giữ sau khi savepoint rollback | đã sửa: TC-55-20(d) |
+| v2-2 #7 | minor | Mảng trùng rất dài vẫn chạy regex N lần | đã sửa R-4: chặn mảng thô > 256, thêm ca vào TC-55-18 |
+
+**Lượt 3:** 4 phát hiện (blocking 0, should-fix 2, minor 2), verdict REVISE · [nguyên văn lượt 3](screenshots/DBS-55/domain-review-v2-round-3.md). Reviewer đã chạy thật script R5 trên máy này: PG 17.11, exit 0, container được dọn.
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| v2-3 #1 | should-fix | Ca 10 000 id không chạm được tới bước dừng sớm | đã sửa TC-55-18: 256 id khác nhau dẫn tới đúng 17 lần chuẩn hóa; 257 phần tử dẫn tới 0 lần; đã ghi rõ thông điệp |
+| v2-3 #2 | should-fix | Không còn 404 từ apply, nên Ledger phải tự kiểm id thiếu | đã sửa R7: thêm dòng bàn giao, kèm điều kiện đóng |
+| v2-3 #3 | minor | Spy `process.cwd` không chứng minh `cwd` lấy từ `__dirname` | đã sửa TC-55-14: dùng `process.chdir` thật, trả lại trong `finally` |
+| v2-3 #4 | minor | Bàn giao savepoint bỏ sót thứ tự nguy hiểm | đã sửa R7 dòng 1 |
+
+**Lượt 4:** 3 phát hiện (blocking 0, should-fix 1, minor 2), verdict REVISE · [nguyên văn lượt 4](screenshots/DBS-55/domain-review-v2-round-4.md). Xác nhận v2-3 #1 và #4 đã sửa đúng.
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| v2-4 #1 | should-fix | Bàn giao ghi đích không tồn tại ra 404, sai UC-5 6a; DENIED audit bị rollback cùng transaction | đã sửa R7 dòng 2: đích → 422 `ACCOUNT_NOT_ACTIVE`; nguồn → 404 trước transaction, audit trong transaction riêng |
+| v2-4 #2 | minor | Chưa ghi cách spy `normalizeId` private, và chưa ghi thứ tự chuẩn hóa trước khi so trùng | đã sửa R-4 và TC-55-18 |
+| v2-4 #3 | minor | Lý do test đỏ ở TC-55-14 ghi sai; thiếu ràng buộc timeout và concurrent | đã sửa TC-55-14 |
+
+**Lượt 5:** 1 phát hiện (should-fix), verdict REVISE · [nguyên văn lượt 5](screenshots/DBS-55/domain-review-v2-round-5.md). Xác nhận v2-4 #1 (luồng chuyển tiền), #2, #3 đã sửa đúng.
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| v2-5 #1 | should-fix | Bàn giao chưa nói luồng nạp tiền (không có kiểm sở hữu; đích thiếu → 422; thiếu funding → 500) | đã sửa R7 dòng 2 và điều kiện đóng |
+
+**Lượt 6:** 0 phát hiện, **verdict APPROVE** · [nguyên văn lượt 6](screenshots/DBS-55/domain-review-v2-round-6.md).
+
+### R7. Bàn giao
+
+| Nhận | Việc | Điều kiện đóng | Ghi ở |
+|---|---|---|---|
+| Dev DBS-60/61 (Ledger) | Gọi `lockForUpdate` và `applyBalanceChange` trên **cùng `manager`** trong cùng `TransactionService.run`, ở cấp ngoài cùng. Không gọi trong `manager.transaction` lồng. Không có `SAVEPOINT` viết tay nào **đang mở** khi gọi `lockForUpdate`, và không `ROLLBACK TO SAVEPOINT` giữa lock và apply: service không thấy savepoint viết tay (review v2-3 #4) | E2E nạp/chuyển của DBS-60/61 chạy qua primitive mà không gặp `AccountNotLockedError` | README accounts, BL mới |
+| Dev DBS-60/61 (Ledger) | So snapshot của `lockForUpdate` với các id đã yêu cầu **trước** mọi `applyBalanceChange`, vì `lockForUpdate` bỏ qua id không tồn tại và `applyBalanceChange` không còn trả 404 (review v2-3 #2). **Đích** không tồn tại thì đi qua guard: `REJECTED` / 422 `ACCOUNT_NOT_ACTIVE`, `to_account_id` NULL, lưu `transfers`, audit và response idempotency (UC-5 6a, BR-07). **Nguồn** không tồn tại hoặc không thuộc caller thì bị chặn ở kiểm tra sở hữu **trước** transaction: 404 kèm audit DENIED trong transaction riêng (AC-5.8, threat model T11) (review v2-4 #1). **Nạp tiền** (UC-3, docs/03 §6.4): không có bước kiểm sở hữu. Tài khoản khách (đích) không tồn tại thì `REJECTED` / 422 `ACCOUNT_NOT_ACTIVE`, `to_account_id` NULL, lưu `transfers`, audit và response idempotency. Thiếu hàng `funding` trong snapshot là lỗi cài đặt, ra 500, không phải 404 (review v2-5 #1) | Test ledger: chuyển tới đích không tồn tại ra 422 `ACCOUNT_NOT_ACTIVE`; nguồn không thuộc caller ra 404; nạp vào tài khoản không tồn tại ra 422 `ACCOUNT_NOT_ACTIVE`; không ca nào do khách gây ra 500 | README accounts, BL mới |
+| Dev DBS-60/61 (Ledger) | Guard quyết định REJECTED (số dư, trạng thái, hạn mức) **trước** UPDATE. `AccountBalanceNegativeError`, `AccountBalanceOverflowError`, `AccountNotLockedError` là bug và phải ra 500, không map sang 422 (BR-07) | Test ledger: thiếu tiền ra 422 `INSUFFICIENT_FUNDS` từ guard; không có đường nào map lỗi mới sang 4xx | README accounts, BL mới |
+
+**Quyết định ở G2 (vòng 2):** người dùng trả lời «oke dfuyet» ngày 2026-10-31. Chấp nhận R2–R7, đọc `transactionDepth` qua hàm có kiểm kiểu và fail closed (câu hỏi 1), chụp lại 4 ảnh cũ và thêm 2 ảnh mới (câu hỏi 2).
+
+### R8. Kế hoạch triển khai
+
+Mỗi bước viết test trước, chạy cho đỏ, sửa ít nhất có thể để xanh, rồi commit. Lệnh DB chạy tại `backend/`: `npm run test:db -- --runInBand --runTestsByPath test/db/accounts-service.db-spec.ts` (gọi tắt **DB**). Tất cả commit lên `feat/DBS-55-accounts-service`.
+
+| Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| S0 · Tách mã TC | `test/db/accounts-service.db-spec.ts` | đổi tên TC-55-04a…d, 11a…c, 12a/b (không đổi nội dung) | không áp dụng (chỉ đổi tên); DB xanh 32 tests | DB | `test(accounts): give each DBS-55 case its own id` |
+| S1 · Harness | `test/support/accounts-service-probe.ts` | không có test mới; R-6 nghỉ 15 ms trong `pollDatabase` | không áp dụng; DB xanh, TC-55-02/03 vẫn đạt | DB | `test(accounts): pause between lock-state polls` |
+| S2 · R-2 kết quả UPDATE | `src/modules/accounts/accounts.service.ts`, `accounts.errors.ts` (mới), `index.ts`, db-spec | TC-55-10(b)(c) | … | DB; `npm run typecheck` | `fix(accounts): read RETURNING rows instead of the raw UPDATE tuple` |
+| S3 · R-1 `clock_timestamp()` | service, db-spec, probe (helper chặn T1 bởi T2) | TC-55-16 | … | DB | `fix(accounts): stamp updated_at with clock_timestamp()` |
+| S4 · R-3a lỗi có kiểu | service, `accounts.errors.ts`, db-spec | TC-55-07, TC-55-09 (đổi), TC-55-19 | … | DB | `feat(accounts): wrap balance CHECK and overflow failures in typed errors` |
+| S5 · R-3b/3c khóa bắt buộc | service, db-spec (TC-55-05/06/08/09/11/15 đã khóa trước, giữ nguyên) | TC-55-17, TC-55-20, TC-55-21, TC-55-10(a) | … | DB; `npm run typecheck` | `feat(accounts): require the row lock and the outermost transaction before a balance change` |
+| S6 · R-4 giới hạn id | service, db-spec | TC-55-18 | … | DB | `feat(accounts): cap how many accounts one call can lock` |
+| S7 · R-5 test boundary | `src/modules/accounts/accounts.exports.spec.ts` | TC-55-14 với `process.chdir` (đỏ trước khi đặt `cwd` từ `__dirname`) | … | `npm test -- --runInBand --runTestsByPath src/modules/accounts/accounts.exports.spec.ts` | `test(accounts): run the eslint boundary probe asynchronously from a fixed cwd` |
+| S8 · R-M comment | `src/modules/index.ts` | không áp dụng (comment); `src/modules/modules.spec.ts` vẫn xanh | không áp dụng | `npm test -- --runInBand --runTestsByPath src/modules/modules.spec.ts` | `docs(modules): explain why accounts is registered for api only` |
+| S9 · Driver manual | `test/manual/accounts-service.manual.ts` | `expectRejection` nhận lớp lỗi và `cause`; thêm M-55-07, M-55-08 | đỏ: chạy driver mới trên code đã sửa trước khi sửa `expectRejection` → assert `code` ở cấp trên cùng fail | script R5 | `test(accounts): cover lock and timestamp rules in the manual driver` |
+| S10 · Toàn bộ kiểm tra + manual | — | — | — | `lint:check`, `typecheck`, unit, DB, E2E (PG17 tạm ở 55432), `build`; script R5 | — |
+| S11 · Merge `main` | `docs/BACKLOG.md` (xung đột), `docs/features/README.md` | — | — | `git merge origin/main`; chạy lại S10 nếu merge đổi file code | `chore(accounts): merge main into DBS-55` |
+| S12 · Tài liệu và bằng chứng | `src/modules/accounts/README.md` (hợp đồng mới, R7, sửa "trả404"), `docs/BACKLOG.md` (BL-121 cho R7), feature doc R9, `docs/features/README.md`, `screenshots/DBS-55/` (`manual-test.txt`, `verification.txt`, `tdd-red-green.txt` thêm phần vòng 2, 6 ảnh) | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`; `git diff --check` | `docs(accounts): record DBS-55 round-2 review fixes` |
+
+Thứ tự migration → service → controller không áp dụng: không có migration, controller hay OpenAPI. Không có audit hay outbox.
+
+**Rủi ro và cách lùi:**
+- S5 có thể làm đỏ test cũ nào gọi apply mà chưa khóa. Mình đã rà: chỉ TC-55-04 (lỗi trước kiểm khóa) và TC-55-10 (sửa ở S5). Nếu còn ca khác đỏ thì dừng lại, không sửa test cho xanh mà không hỏi.
+- `transactionDepth` là field nội bộ của TypeORM. Nếu bản nâng cấp đổi tên, TC-55-20(c) đỏ và service fail closed. Muốn lùi thì revert commit S5, các commit khác vẫn đứng được.
+- Merge `main` (S11) có thể chạm file code của DBS-38/67/68/75 (hạ tầng). Nếu merge đổi file trong `backend/`, chạy lại toàn bộ S10 và manual.
+- Push thường, không force. Nếu remote có commit mới của `ducp8822` thì `git pull --no-rebase` trước, rồi chạy lại S10.
+
+**Plan sweep:**
+
+| Nguồn | Mục | Xử lý |
+|---|---|---|
+| R1 phạm vi | R-1, R-2, R-3, R-4, R-5, R-6, R-7, R-M | S3, S2, S4/S5, S6, S7, S1, S0, S8 |
+| R1 phạm vi | Typo "trả404" (điểm 1) | S12 README |
+| R1 ngoài phạm vi | alias `LockedAccount` (điểm 1) | ngoài phạm vi, không sửa |
+| R6 lượt 1–6 | 34 phát hiện | mỗi phát hiện "đã sửa" nằm trong R2–R5/R7, thực hiện ở S2–S9, S12 |
+| R7 bàn giao | 3 dòng | S12: README accounts và BL-121 |
+| DoD1–5 (task gốc) | khóa theo thứ tự, apply trong tx caller, 404 sở hữu, export, bigint | vẫn được TC-55-01…15 khóa lại; S10 chạy đủ |
+| DoD6 quy trình | merge, Dev review, bảng TC trong PR | BL-057 giữ mở; cập nhật bảng TC trong PR body sau G4 |
+| Hạn chế §8 vòng 1 | BL-054, BL-056, M-55-06, BL-008/015/017/019 | ngoài phạm vi, giữ nguyên |
+| Xung đột PR | `docs/BACKLOG.md` | S11 |
+
+**Quyết định ở G3 (vòng 2):** người dùng trả lời «duyet» ngày 2026-10-31. BL-121 cho bàn giao R7; push một lần sau G4.
