@@ -2,8 +2,13 @@ import { AppRole } from '@common/app-role/app-role';
 import { HealthModule } from './health';
 import { AccountsModule } from '@modules/accounts';
 import { modulesForRole } from './index';
+import { OutboxModule } from './outbox';
 
 describe('modulesForRole', () => {
+  it.each(Object.values(AppRole))('TC-57-12 loads the outbox writer once in the %s role', role => {
+    expect(modulesForRole(role).filter(module => module === OutboxModule)).toHaveLength(1);
+  });
+
   it('TC-55-15 accounts is public and loads in api/both, without starting in worker', () => {
     expect(modulesForRole(AppRole.Api)).toContain(AccountsModule);
     expect(modulesForRole(AppRole.Both)).toContain(AccountsModule);

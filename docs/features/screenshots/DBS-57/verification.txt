@@ -1,0 +1,511 @@
+DBS-57 local verification — 2026-10-27
+Base: ab53152; branch feat/DBS-57-outbox-writer
+Node v24.15.0, npm 11.12.1. npm ci uses existing lockfile, no dependency source changes.
+
+RED (tests written before production code): npm run typecheck
+Exit: 1
+src/modules/modules.spec.ts(4,30): TS2307 Cannot find module './outbox'.
+src/modules/outbox/outbox.module.spec.ts(5,28): TS2307 Cannot find module '@modules/outbox'.
+test/db/outbox-writer.db-spec.ts(6,30): TS2307 Cannot find module '../../src/modules/outbox/outbox-writer'.
+Production writer/module do not exist yet. Real PostgreSQL suite awaits root scheduler token.
+
+CORE RED: npm run test:db -- --runInBand outbox-writer.db-spec.ts (root DB token granted)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand outbox-writer.db-spec.ts
+
+FAIL test/db/outbox-writer.db-spec.ts
+  ● Test suite failed to run
+
+    test/db/outbox-writer.db-spec.ts:6:30 - error TS2307: Cannot find module '../../src/modules/outbox/outbox-writer' or its corresponding type declarations.
+
+    6 import { OutboxWriter } from '../../src/modules/outbox/outbox-writer';
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        1.602 s
+Ran all test suites matching outbox-writer.db-spec.ts.
+CORE RED exit=1
+
+UNIT RED: npm test -- --runInBand outbox.module.spec.ts modules.spec.ts outbox-boundaries.spec.ts
+Exit: 1. Module specs fail TS2307 because @modules/outbox and ./outbox do not exist.
+Boundary specs also reveal an independent test-loader issue: ESLint ESM config dynamic import inside Jest needs experimental-vm-modules. Repair test harness using a plain Node subprocess; do not change ESLint configuration.
+Core writer implementation starts only after the PostgreSQL suite RED above.
+
+CORE GREEN: npm run test:db -- --runInBand outbox-writer.db-spec.ts (root token granted)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand outbox-writer.db-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        4.2 s
+Ran all test suites matching outbox-writer.db-spec.ts.
+CORE GREEN exit=0
+
+CONTEXT RED: npm run test:db -- --runInBand outbox-writer-context.db-spec.ts (root token granted)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand outbox-writer-context.db-spec.ts
+
+(node:22248) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:22248) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+FAIL test/db/outbox-writer-context.db-spec.ts (8.26 s)
+  ● DBS-57 existing Pino ALS and real HTTP/PG propagation › TC-57-07 accepts a matching context and refuses a different valid context
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: undefined
+
+      134 |     expect((await rows(input.eventId))[0].correlation_id).toBe(input.correlationId);
+      135 |     const mismatch = event();
+    > 136 |     await expect(
+          |           ^
+      137 |       logger.runInContext(() => tx.run(manager => writer.add(manager, mismatch)), {
+      138 |         bindings: { correlationId: randomUUID() },
+      139 |       }),
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (test/db/outbox-writer-context.db-spec.ts:136:11)
+
+  ● DBS-57 existing Pino ALS and real HTTP/PG propagation › TC-57-07 refuses malformed ALS binding 42 without fallback
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: undefined
+
+      154 |     async correlationId => {
+      155 |       const input = event();
+    > 156 |       await expect(
+          |             ^
+      157 |         logger.runInContext(() => tx.run(manager => writer.add(manager, input)), {
+      158 |           bindings: { correlationId },
+      159 |         }),
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at test/db/outbox-writer-context.db-spec.ts:156:13
+
+  ● DBS-57 existing Pino ALS and real HTTP/PG propagation › TC-57-07 refuses malformed ALS binding  without fallback
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: undefined
+
+      154 |     async correlationId => {
+      155 |       const input = event();
+    > 156 |       await expect(
+          |             ^
+      157 |         logger.runInContext(() => tx.run(manager => writer.add(manager, input)), {
+      158 |           bindings: { correlationId },
+      159 |         }),
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at test/db/outbox-writer-context.db-spec.ts:156:13
+
+  ● DBS-57 existing Pino ALS and real HTTP/PG propagation › TC-57-07 refuses malformed ALS binding invalid-context without fallback
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: undefined
+
+      154 |     async correlationId => {
+      155 |       const input = event();
+    > 156 |       await expect(
+          |             ^
+      157 |         logger.runInContext(() => tx.run(manager => writer.add(manager, input)), {
+      158 |           bindings: { correlationId },
+      159 |         }),
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at test/db/outbox-writer-context.db-spec.ts:156:13
+
+  ● DBS-57 existing Pino ALS and real HTTP/PG propagation › TC-57-07 refuses malformed ALS binding AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA without fallback
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: undefined
+
+      154 |     async correlationId => {
+      155 |       const input = event();
+    > 156 |       await expect(
+          |             ^
+      157 |         logger.runInContext(() => tx.run(manager => writer.add(manager, input)), {
+      158 |           bindings: { correlationId },
+      159 |         }),
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at test/db/outbox-writer-context.db-spec.ts:156:13
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 7 passed, 12 total
+Snapshots:   0 total
+Time:        8.364 s
+Ran all test suites matching outbox-writer-context.db-spec.ts.
+CONTEXT RED exit=1
+
+CORE+CONTEXT GREEN: npm run test:db -- --runInBand outbox-writer-context.db-spec.ts outbox-writer.db-spec.ts (root token granted)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand outbox-writer-context.db-spec.ts outbox-writer.db-spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       30 passed, 30 total
+Snapshots:   0 total
+Time:        4.72 s, estimated 13 s
+Ran all test suites matching outbox-writer-context.db-spec.ts|outbox-writer.db-spec.ts.
+CORE+CONTEXT GREEN exit=0
+
+MODULE GREEN: npm test -- --runInBand outbox.module.spec.ts modules.spec.ts outbox-boundaries.spec.ts
+Exit 0: 3 suites passed, 14 tests passed. ESLint on six module-owned files: exit 0.
+Typecheck after module/core implementation: exit 0.
+Local green commits (no push): 9143ca1 core, 6d67084 public module/roles.
+Mermaid design render: root verified Mermaid CLI 12.0.0 with installed Chrome, exit 0, PNG 41123 bytes, visual checked; temporary files/tool cache outside repository.
+
+BOOTSTRAP RED: npm run test:db -- --runInBand outbox-writer-bootstrap.db-spec.ts (root token granted; driver not implemented)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand outbox-writer-bootstrap.db-spec.ts
+
+FAIL test/db/outbox-writer-bootstrap.db-spec.ts
+  ● TC-57-13 manual driver bootstraps from a clean project environment › commits and cleans up in the api role without inherited project env
+
+    Command failed: C:\Program Files\nodejs\node.exe -r C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\ts-node\register\index.js -r C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\tsconfig-paths\register.js C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\manual\outbox-writer.manual.ts commit --role=api
+    Error: Cannot find module 'C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\manual\outbox-writer.manual.ts'
+
+      at Module._resolveFilename.sharedData.moduleResolveFilenameHook.installedValue (node_modules/@cspotcode/source-map-support/source-map-support.js:811:30)
+      at Module._resolveFilename (node_modules/tsconfig-paths/src/register.ts:115:36)
+      at node:internal/main/run_main_module:33:47 {
+        code: 'MODULE_NOT_FOUND',
+        requireStack: []
+      }
+
+  ● TC-57-13 manual driver bootstraps from a clean project environment › commits and cleans up in the worker role without inherited project env
+
+    Command failed: C:\Program Files\nodejs\node.exe -r C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\ts-node\register\index.js -r C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\tsconfig-paths\register.js C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\manual\outbox-writer.manual.ts commit --role=worker
+    Error: Cannot find module 'C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\manual\outbox-writer.manual.ts'
+
+      at Module._resolveFilename.sharedData.moduleResolveFilenameHook.installedValue (node_modules/@cspotcode/source-map-support/source-map-support.js:811:30)
+      at Module._resolveFilename (node_modules/tsconfig-paths/src/register.ts:115:36)
+      at node:internal/main/run_main_module:33:47 {
+        code: 'MODULE_NOT_FOUND',
+        requireStack: []
+      }
+
+  ● TC-57-13 manual driver bootstraps from a clean project environment › commits and cleans up in the both role without inherited project env
+
+    Command failed: C:\Program Files\nodejs\node.exe -r C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\ts-node\register\index.js -r C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\tsconfig-paths\register.js C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\manual\outbox-writer.manual.ts commit --role=both
+    Error: Cannot find module 'C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\manual\outbox-writer.manual.ts'
+
+      at Module._resolveFilename.sharedData.moduleResolveFilenameHook.installedValue (node_modules/@cspotcode/source-map-support/source-map-support.js:811:30)
+      at Module._resolveFilename (node_modules/tsconfig-paths/src/register.ts:115:36)
+      at node:internal/main/run_main_module:33:47 {
+        code: 'MODULE_NOT_FOUND',
+        requireStack: []
+      }
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 3 total
+Snapshots:   0 total
+Time:        1.854 s
+Ran all test suites matching outbox-writer-bootstrap.db-spec.ts.
+BOOTSTRAP RED exit=1
+
+CONTEXT REGRESSION RED: TC-57-06 late arrival after barrier deadline (root token granted)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand outbox-writer-context.db-spec.ts
+
+FAIL test/db/outbox-writer-context.db-spec.ts
+  ● DBS-57 existing Pino ALS and real HTTP/PG propagation › TC-57-06 rejects a late arrival after the fixture barrier deadline
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: undefined
+
+      109 |       jest.advanceTimersByTime(5000);
+      110 |       await first;
+    > 111 |       await expect(gate.arrive()).rejects.toThrow('Probe barrier deadline exceeded');
+          |             ^
+      112 |     } finally {
+      113 |       gate.onModuleDestroy();
+      114 |       jest.useRealTimers();
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (test/db/outbox-writer-context.db-spec.ts:111:13)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 12 passed, 13 total
+Snapshots:   0 total
+Time:        2.668 s, estimated 4 s
+Ran all test suites matching outbox-writer-context.db-spec.ts.
+CONTEXT REGRESSION RED exit=1
+
+ALL TARGETED GREEN: core + context regression + clean-shell bootstrap (root token granted)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand outbox-writer.db-spec.ts outbox-writer-context.db-spec.ts outbox-writer-bootstrap.db-spec.ts
+
+
+Test Suites: 3 passed, 3 total
+Tests:       34 passed, 34 total
+Snapshots:   0 total
+Time:        34.954 s
+Ran all test suites matching outbox-writer.db-spec.ts|outbox-writer-context.db-spec.ts|outbox-writer-bootstrap.db-spec.ts.
+ALL TARGETED GREEN exit=0
+
+FINAL non-db VERIFICATION
+Code SHA: b3418b64e04fc078661d0aae4d947d323ac5d9ed
+
+COMMAND: npm run lint:check
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+EXIT: 0
+
+COMMAND: npm run typecheck
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+EXIT: 0
+
+COMMAND: npm test -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+
+Test Suites: 32 passed, 32 total
+Tests:       505 passed, 505 total
+Snapshots:   0 total
+Time:        13.569 s, estimated 19 s
+Ran all test suites.
+
+EXIT: 0
+
+COMMAND: npm run test:e2e -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 23744  - 21:52:43 27/10/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+
+Test Suites: 8 passed, 8 total
+Tests:       57 passed, 57 total
+Snapshots:   0 total
+Time:        41.89 s
+Ran all test suites.
+
+EXIT: 0
+
+COMMAND: npm run build
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+
+EXIT: 0
+
+FINAL db VERIFICATION
+Code SHA: b3418b64e04fc078661d0aae4d947d323ac5d9ed
+
+COMMAND: npm run test:db -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+FAIL test/db/outbox-writer-bootstrap.db-spec.ts (31.228 s)
+  ● TC-57-13 manual driver bootstraps from a clean project environment › commits and cleans up in the worker role without inherited project env
+
+    Command failed: C:\Program Files\nodejs\node.exe -r C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\ts-node\register\index.js -r C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\tsconfig-paths\register.js C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\manual\outbox-writer.manual.ts commit --role=worker
+
+
+Test Suites: 1 failed, 10 passed, 11 total
+Tests:       1 failed, 187 passed, 188 total
+Snapshots:   0 total
+Time:        147.252 s
+Ran all test suites.
+
+EXIT: 1
+
+FINAL db VERIFICATION
+Code SHA: b3418b64e04fc078661d0aae4d947d323ac5d9ed
+
+COMMAND: npm run test:db -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+Error: Jest: Got error running globalSetup - C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\support\jest-global-setup.ts, reason: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Error details: Could not find a working container runtime strategy
+    at assertDockerAvailable (C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\support\postgres.container.ts:35:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startPostgresContainer (C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\support\postgres.container.ts:44:5)
+    at async globalSetup (C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\test\support\jest-global-setup.ts:9:33)
+    at async C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\@jest\core\build\index.js:3190:11
+    at async waitForPromiseWithCleanup (C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\@jest\transform\build\index.js:135:5)
+    at async ScriptTransformer.requireAndTranspileModule (C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\@jest\transform\build\index.js:630:16)
+    at async runGlobalHook (C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\@jest\core\build\index.js:3186:9)
+    at async runJest (C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\@jest\core\build\index.js:3552:5)
+    at async _run10000 (C:\Users\Admin\.codex\worktrees\dbs57-outbox-writer\digital-banking-simulator\backend\node_modules\@jest\core\build\index.js:1556:5)
+
+EXIT: 1
+
+INSTRUMENTED DB DIAGNOSTIC: current working tree is HEAD b3418b64e04fc078661d0aae4d947d323ac5d9ed plus uncommitted bootstrap spec diagnostics. The following runner header prints HEAD only; this run does not claim committed-code verification.
+Instrumented bootstrap ESLint exit: 0
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+Instrumented typecheck exit: 0
+
+FINAL db VERIFICATION
+Code SHA: b3418b64e04fc078661d0aae4d947d323ac5d9ed
+DOCKER RECOVERY CHECK (no volume reset or configuration edit)
+COMMAND: docker info --format server-version
+29.5.2
+COMMAND: docker compose ps --format service/state/health
+elasticmq running
+postgres running healthy
+valkey running healthy
+
+COMMAND: npm run test:db -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+
+Test Suites: 11 passed, 11 total
+Tests:       188 passed, 188 total
+Snapshots:   0 total
+Time:        228.675 s
+Ran all test suites.
+
+EXIT: 0
+
+FINAL non-db VERIFICATION
+Code SHA: 9a399c5a5da48966b8ba1044cba5dedec69509a0
+
+COMMAND: npm run lint:check
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+EXIT: 0
+
+COMMAND: npm run typecheck
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+EXIT: 0
+
+COMMAND: npm test -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+
+Test Suites: 32 passed, 32 total
+Tests:       505 passed, 505 total
+Snapshots:   0 total
+Time:        31.463 s
+Ran all test suites.
+
+EXIT: 0
+
+COMMAND: npm run test:e2e -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 7748  - 11:35:47 28/10/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+
+Test Suites: 8 passed, 8 total
+Tests:       57 passed, 57 total
+Snapshots:   0 total
+Time:        41.031 s, estimated 42 s
+Ran all test suites.
+
+EXIT: 0
+
+COMMAND: npm run build
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+
+EXIT: 0
+
+FINAL db VERIFICATION
+Code SHA: 9a399c5a5da48966b8ba1044cba5dedec69509a0
+
+COMMAND: npm run test:db -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+
+EXIT: 3221226505
+
+FINAL DB FAILURE DIAGNOSTIC: exit decimal3221226505 = hex0xC0000409. No Jest test counts or failure stack were emitted. No retry performed; final-SHA full DB green is not established. Read-only Windows Application Error1000 lookup for node.exe in the preceding8minutes returned no matching record. Docker remained reachable and Compose PostgreSQL/Valkey healthy; temporary Testcontainers PostgreSQL/Ryuk absent after command completion. Underlying cause remains unverified.
+
+READ-ONLY HOST SNAPSHOT AFTER NATIVE EXIT (not crash-time telemetry): Node v24.15.0; physical RAM16108MB, free3307MB at first snapshot (available3120MB at performance-counter snapshot); committed18562416640bytes / limit26554654720bytes (69percent). Pagefile automatic-managed, allocated9216MB, current331MB, peak391MB, non-temporary. No node.exe-matching report names found at machine WER ReportArchive/ReportQueue or user CrashDumps; user-local WER ReportArchive/ReportQueue absent. No binary dump or other-application report was read. No exception module/FASTFAIL parameter available. This post-failure snapshot does not establish or exclude an earlier memory spike; there is no affirmative evidence yet for OOM or a specific loader abort. No test retry, Node/system change, or restart performed.
+
+TICKET-SPECIFIC DIAGNOSTIC SELECTION: the following core/context/bootstrap selection is a different bounded command after the full DB process exit. Its result does not replace or change the failed final full-DB status above.
+
+FINAL targeted57 VERIFICATION
+Code SHA: 9a399c5a5da48966b8ba1044cba5dedec69509a0
+
+COMMAND: npm run test:db -- --runInBand outbox-writer.db-spec.ts outbox-writer-context.db-spec.ts outbox-writer-bootstrap.db-spec.ts
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand outbox-writer.db-spec.ts outbox-writer-context.db-spec.ts outbox-writer-bootstrap.db-spec.ts
+
+
+Test Suites: 3 passed, 3 total
+Tests:       34 passed, 34 total
+Snapshots:   0 total
+Time:        55.768 s, estimated 122 s
+Ran all test suites matching outbox-writer.db-spec.ts|outbox-writer-context.db-spec.ts|outbox-writer-bootstrap.db-spec.ts.
+
+EXIT: 0
+Format note: a trailing space in the Compose health output was removed for Git whitespace validation; output values and all failures are retained.
+
+# Vòng 2 · 2026-10-31 · sau merge origin/main 5562884, HEAD abf6659b11f39aa1e6c1735eb6ab8c20702f664e
+Máy: Windows 11, Git Bash, Docker 27.3.1. PostgreSQL 18 native chiếm 5432; E2E dùng container postgres:17 ở 127.0.0.1:55432 (DATABASE_URL đặt ngoài transcript).
+$ npm run lint:check → exit 0
+$ npm run typecheck → exit 0
+$ npm test -- --runInBand
+Test Suites: 42 passed, 42 total
+Tests:       576 passed, 576 total
+Time:        34.811 s
+$ npm run test:db -- --runInBand
+Test Suites: 12 passed, 12 total
+Tests:       248 passed, 248 total
+Time:        163.926 s
+$ npm run test:e2e -- --runInBand
+Test Suites: 8 passed, 8 total
+Tests:       57 passed, 57 total
+Time:        67.147 s
+$ npm run test:services -- --runInBand
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Time:        13.527 s
+$ npm run build → exit 0
+skip/only/todo trong test của task: 0
