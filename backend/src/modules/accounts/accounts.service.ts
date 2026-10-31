@@ -15,6 +15,9 @@ interface PgFailure {
 }
 
 const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const MAX_LOCKED_ACCOUNTS = 16;
+const MAX_ID_ENTRIES = 256;
+
 /** Ids this runner locked, tagged with the PostgreSQL transaction that holds the row locks. */
 interface HeldLocks {
   txid: string;
@@ -36,7 +39,7 @@ export class AccountsService {
   async lockForUpdate(ids: string[], manager: EntityManager): Promise<LockedAccount[]> {
     const runner = this.requireOutermostTransaction(manager);
     if (!Array.isArray(ids)) throw new TypeError('Account ids must be an array of UUIDs');
-    const normalized = [...new Set(Array.from(ids, id => this.normalizeId(id)))];
+    const normalized = this.distinctIds(ids);
     if (normalized.length === 0) return [];
     // OF a avoids locking the nullable side of the owner join. SQL order governs lock acquisition.
     const rows = await manager.query<LockedRow[]>(
@@ -116,6 +119,24 @@ export class AccountsService {
     }
     if (code === '22003') return new AccountBalanceOverflowError(accountId, { cause: error });
     return error;
+  }
+
+  /**
+   * A money movement locks two or three accounts. Both caps fail fast before any regex work or row
+   * lock, so a bulk caller cannot hold hundreds of locks against concurrent transfers.
+   */
+  private distinctIds(ids: string[]): string[] {
+    if (ids.length > MAX_ID_ENTRIES) {
+      throw new TypeError(`At most ${MAX_ID_ENTRIES} account id entries are accepted`);
+    }
+    const seen = new Set<string>();
+    for (const id of Array.from(ids)) {
+      seen.add(this.normalizeId(id));
+      if (seen.size > MAX_LOCKED_ACCOUNTS) {
+        throw new TypeError(`At most ${MAX_LOCKED_ACCOUNTS} account ids can be locked at once`);
+      }
+    }
+    return [...seen];
   }
 
   private remember(runner: QueryRunner, rows: LockedRow[]): void {

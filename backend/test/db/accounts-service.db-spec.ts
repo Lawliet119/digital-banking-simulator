@@ -363,6 +363,39 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     });
   });
 
+  it('TC-55-18 caps how many accounts one call can lock', async () => {
+    const absent = (n: number) => `ffffffff-ffff-4fff-8fff-${n.toString(16).padStart(12, '0')}`;
+    const fixtureIds = [f.funding, f.accountA, f.accountB, f.accountC];
+    const normalize = jest.spyOn(
+      service as unknown as { normalizeId(value: unknown): string },
+      'normalizeId',
+    );
+    try {
+      await withMoneyProbe(fixture.source, async manager => {
+        const sixteen = [...fixtureIds, ...Array.from({ length: 12 }, (_, n) => absent(n))];
+        expect(await service.lockForUpdate(sixteen, manager)).toHaveLength(4);
+        expect(await service.lockForUpdate(Array(256).fill(f.accountA), manager)).toHaveLength(1);
+
+        const count = fixture.trace.length;
+        normalize.mockClear();
+        const distinct = Array.from({ length: 256 }, (_, n) => absent(n));
+        await expect(service.lockForUpdate(distinct, manager)).rejects.toThrow(
+          'At most 16 account ids can be locked at once',
+        );
+        expect(normalize).toHaveBeenCalledTimes(17);
+
+        normalize.mockClear();
+        await expect(service.lockForUpdate(Array(257).fill(f.accountA), manager)).rejects.toThrow(
+          'At most 256 account id entries are accepted',
+        );
+        expect(normalize).not.toHaveBeenCalled();
+        expect(fixture.trace).toHaveLength(count);
+      });
+    } finally {
+      normalize.mockRestore();
+    }
+  });
+
   it('TC-55-10a a reused runner cannot apply a lock taken by its previous transaction', async () => {
     const runner = await startProbeRunner(fixture.source);
     try {
