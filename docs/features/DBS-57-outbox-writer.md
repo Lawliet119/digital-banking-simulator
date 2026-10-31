@@ -330,7 +330,7 @@ Ba ảnh là CUA chụp trang local hiển thị raw transcript, wrap dòng cho 
 
 ## Vòng 2 · Sửa sau review PR #34
 
-> **Status vòng 2:** Draft (đến G2) · **Nguồn:** review code PR #34 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `feat/DBS-57-outbox-writer` (sửa trực tiếp theo yêu cầu người dùng) · **Cập nhật:** 2026-10-31
+> **Status vòng 2:** Design approved (sau G2) · **Nguồn:** review code PR #34 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `feat/DBS-57-outbox-writer` (sửa trực tiếp theo yêu cầu người dùng) · **Cập nhật:** 2026-10-31
 
 ### R1. Bối cảnh
 
@@ -456,3 +456,44 @@ Driver đặt `process.exitCode = 1` khi lỗi, `pipefail` giữ mã thoát đó
 |---|---|---|---|
 | v2-3 #1 | minor | (e3) chưa có ca lẻ sát cặp hợp lệ | đã sửa TC-57-14 (e3): thêm cao+cao+thấp, cao+thấp+thấp, thấp+cao+thấp |
 
+
+**Quyết định ở G2 (vòng 2):** người dùng trả lời «duyệt» ngày 2026-10-31. Chấp nhận R2–R6, giữ giới hạn kích thước payload (jsonb 54000) ngoài task và ghi vào dòng BACKLOG bàn giao cho #3, chụp lại 3 ảnh cũ và thêm 2 ảnh mới.
+
+### R7. Kế hoạch triển khai
+
+Mỗi bước viết test trước, chạy cho đỏ, sửa ít nhất có thể để xanh, chạy lint, rồi commit. Lệnh DB chạy tại `backend/`: `npm run test:db -- --runInBand --runTestsByPath test/db/outbox-writer.db-spec.ts` (gọi tắt **DB**; `globalSetup` tự dựng PostgreSQL 17). Mọi commit nằm trên `feat/DBS-57-outbox-writer`.
+
+| Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| S1 · R-2 chặn NUL và surrogate lẻ | `src/modules/outbox/outbox-writer.ts`, `test/db/outbox-writer.db-spec.ts` | TC-57-14 (a…f, e2, e3) | … | DB; `npm run typecheck`; `npx eslint src/modules/outbox test/db` | `fix(outbox): refuse strings PostgreSQL jsonb cannot store before the insert` |
+| S2 · R-1 khóa hành vi context | `test/db/outbox-writer-context.db-spec.ts` | TC-57-15 (a, b, c) | không áp dụng: khóa hành vi sẵn có, chạy xanh ngay (ghi rõ ở bằng chứng) | `npm run test:db -- --runInBand --runTestsByPath test/db/outbox-writer-context.db-spec.ts` | `test(outbox): lock the ambient correlation context contract for background producers` |
+| S3 · R-3 dùng lại server chung | `test/manual/outbox-writer.manual.ts` (`baseUrl = DBS57_BASE_DATABASE_URL \|\| DATABASE_URL`, đọc trước bộ lọc), `test/db/outbox-writer-bootstrap.db-spec.ts` | TC-57-13 (đổi): child nhận `DBS57_BASE_DATABASE_URL`, kỳ vọng `cleanup.ownContainerStopped: false` | child hiện in `ownContainerStopped: true` | `npm run test:db -- --runInBand --runTestsByPath test/db/outbox-writer-bootstrap.db-spec.ts` | `test(outbox): reuse the shared PostgreSQL server in the bootstrap check` |
+| S4 · Driver manual | `test/manual/outbox-writer.manual.ts` | M-57-03 thêm ca NUL và surrogate lẻ; M-57-05 thêm producer nền (trong request và tách bằng `runInContext`) | chạy driver cũ: không có ca mới, nên M-57-03/05 mới chưa tồn tại; bước đỏ là assert ca mới trên code trước S1 không đỏ vì S1 đã xong, nên đỏ được chứng minh bằng việc chạy ca NUL với `git stash`-free cách: bỏ tạm lời gọi scan trong một biến thể chạy một lần và ghi output | script R5 (mode `invalid`, `context`) | `test(outbox): cover unstorable strings and background producers in the manual driver` |
+| S5 · Kiểm tra toàn bộ | — | — | — | `lint:check`, `typecheck`, unit, DB, E2E (PG17 ở 55432), `build` | — |
+| S6 · Merge `main` | `backend/src/modules/index.ts`, `modules.spec.ts`, `docs/BACKLOG.md`, `docs/features/README.md` | giữ cả `OutboxModule` (`sharedModules`) và `AccountsModule` (`apiModules`, kèm comment); `modules.spec.ts` giữ cả TC-55-15 và TC-57-12 | — | `git merge origin/main`; chạy lại S5 và M-57-01…07 vì merge đổi file code | `chore(outbox): merge main into DBS-57` |
+| S7 · Manual chính thức | — | — | — | script R5 trên commit cuối đổi code; M-57-07 bằng lệnh `bash -c` | — |
+| S8 · Tài liệu và bằng chứng | `src/modules/outbox/README.md` (hợp đồng context, quy tắc chuỗi), `docs/BACKLOG.md` (BL-123), feature doc R8 và R9, `docs/features/README.md`, `screenshots/DBS-57/` (`manual-test.txt`, `verification.txt`, `tdd-red-green.txt`, 5 ảnh) | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`; `git diff --check` | `docs(outbox): record DBS-57 round-2 review fixes` |
+
+Thứ tự migration → service → controller không áp dụng: không có migration, controller hay OpenAPI. Writer vẫn không tự ghi audit.
+
+**Rủi ro và cách lùi:**
+- S1 chạy thêm một lượt duyệt object trong transaction đang giữ khóa. Payload của event là vài trăm byte nên chi phí không đáng kể; nếu một event lớn bất thường làm chậm, revert commit S1 mà không ảnh hưởng các bước khác.
+- S3 đổi cách driver chọn URL, nên M-57-07 có thể không còn chứng minh được việc tự dựng container nếu biến môi trường còn sót. Vì vậy S7 chạy bằng `env -u` cả hai biến và kiểm `ownContainerStopped: true`.
+- S6 là merge có xung đột thật. Nếu merge đổi file trong `backend/`, chạy lại toàn bộ S5 và S7; không sửa test cho xanh mà không hỏi.
+- Push thường, không force, lên `feat/DBS-57-outbox-writer` của `ducp8822`. Nếu remote có commit mới thì `git pull --no-rebase` trước rồi chạy lại S5.
+
+**Plan sweep:**
+
+| Nguồn | Mục | Xử lý |
+|---|---|---|
+| R1 phạm vi | R-1, R-2, R-3 | S2 và S8, S1, S3 |
+| R6 domain review | 11 phát hiện qua 3 lượt | mọi mục "đã sửa" nằm trong R2–R5, thực hiện ở S1–S4, S7, S8 |
+| R5 manual | M-57-01…07, ảnh `01`–`05` | S4, S7, S8 |
+| R2 ngoài phạm vi | giới hạn kích thước payload (jsonb 54000) | S8: ghi vào BL-123, không sửa code |
+| R1 ngoài phạm vi | các mục 0–1 điểm, tham chiếu BL-011 treo ở `outbox-writer.ts:16` và `validate-event.ts:177` | giữ nguyên, không sửa |
+| DoD1–4 (task gốc) | chỉ INSERT và validate; `correlation_id` bắt buộc; rollback không có row, commit đúng 1 row; không SQS/Redis/HTTP | vẫn được TC-57-01…12 khóa lại; S5 chạy đủ |
+| DoD5 quy trình | merge, Dev review, bảng TC trong PR | cập nhật bảng TC trong body PR sau G4; Dev review và merge vẫn chờ |
+| Hạn chế vòng 1 | BL-002/003/009/010/018/019/024/053/055 | ngoài phạm vi, giữ nguyên |
+| Xung đột PR | 4 file | S6 |
+
+**Quyết định ở G3 (vòng 2):** ghi lại sau khi được duyệt.
