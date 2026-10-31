@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { DataSource, type QueryRunner } from 'typeorm';
 import { buildSslOptions } from '@database/pg-ssl';
@@ -611,6 +613,165 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     });
     expectSafeError(result);
     expect(JSON.parse(result.stderr)).toMatchObject({ databaseCode: '57P01' });
+  });
+
+  // TC-69-20: pool/cleanup failures that arrive AFTER the check was committed. The child patches
+  // the real pg/TypeORM objects, then runs the real CLI. The marker goes to a temp file, so stdout
+  // stays exactly one JSON document and a test cannot pass without the error being injected.
+  function childWithPatch(patch: string) {
+    const dir = mkdtempSync(join(tmpdir(), 'dbs69-marker-'));
+    const marker = join(dir, 'marker.txt');
+    const script = `
+      require(${JSON.stringify(require.resolve('ts-node/register'))});
+      require(${JSON.stringify(require.resolve('tsconfig-paths/register'))});
+      const fs = require('node:fs');
+      const mark = name => fs.appendFileSync(process.env.DBS69_MARKER_FILE, name + '\\n');
+      ${patch}
+      process.argv = [process.execPath, ${JSON.stringify(cliFile)}];
+      require('node:module').runMain(${JSON.stringify(cliFile)});
+    `;
+    const result = spawnSync(process.execPath, ['-e', script], {
+      cwd: backend,
+      env: { ...childEnvironment(), DBS69_MARKER_FILE: marker },
+      encoding: 'utf8',
+      timeout: 45_000,
+    });
+    const marked = existsSync(marker) ? readFileSync(marker, 'utf8') : '';
+    rmSync(dir, { recursive: true, force: true });
+    return { result, marked };
+  }
+  // Emit a pool error just before the real pool.end: after release, the client is idle, so the
+  // pool really emits 'error' (it only does for idle clients).
+  const POOL_ERROR_AFTER_COMMIT = String.raw`
+    const pg = require('pg'); const end = pg.Pool.prototype.end;
+    pg.Pool.prototype.end = function(...args) {
+      mark('POOL_ERROR_EMITTED');
+      this.emit('error', Object.assign(new Error('POOL_SECRET_SENTINEL'), { code: '57P01' }));
+      return end.apply(this, args);
+    };
+  `;
+  async function seedClean() {
+    await seedInvariantLedger(db.runner);
+    await db.runner.commitTransaction();
+  }
+  async function seedDirty() {
+    const refs = await seedInvariantLedger(db.runner);
+    await db.runner.commitTransaction();
+    await db.runner.query('UPDATE accounts SET balance=balance+1 WHERE id=$1', [refs.senderId]);
+  }
+  it('TC-69-20a a pool error after commit does not change a PASS result', async () => {
+    await seedClean();
+    const { result, marked } = childWithPatch(POOL_ERROR_AFTER_COMMIT);
+    expect(marked).toContain('POOL_ERROR_EMITTED');
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe('');
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: 'PASS' });
+    expect(result.stdout + result.stderr).not.toContain('POOL_SECRET_SENTINEL');
+  });
+  it('TC-69-20b a pool error after commit does not hide a FAIL result', async () => {
+    await seedDirty();
+    const { result, marked } = childWithPatch(POOL_ERROR_AFTER_COMMIT);
+    expect(marked).toContain('POOL_ERROR_EMITTED');
+    expect(result.status).toBe(1);
+    expect(result.stderr).toBe('');
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: 'FAIL' });
+    expect(result.stdout + result.stderr).not.toContain('POOL_SECRET_SENTINEL');
+  });
+  // (c) destroy fails AFTER the original ran, so the pool is really closed and the marker is written.
+  const DESTROY_FAILS_AFTER_CLOSE = String.raw`
+    const pg = require('pg'); const end = pg.Pool.prototype.end;
+    pg.Pool.prototype.end = function(...args) { mark('POOL_END_RAN'); return end.apply(this, args); };
+    const { DataSource } = require('typeorm'); const destroy = DataSource.prototype.destroy;
+    DataSource.prototype.destroy = async function() {
+      await destroy.call(this);
+      throw Object.assign(new Error('DESTROY_SECRET_SENTINEL'), { code: '57P01' });
+    };
+  `;
+  it('TC-69-20c1 a cleanup error after commit keeps a FAIL result: report printed, exit 1', async () => {
+    await seedDirty();
+    const { result, marked } = childWithPatch(DESTROY_FAILS_AFTER_CLOSE);
+    expect(marked).toContain('POOL_END_RAN');
+    expect(result.status).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: 'FAIL' });
+    expect(JSON.parse(result.stderr)).toMatchObject({ status: 'ERROR', kind: 'CHECK_ERROR' });
+    expect(result.stdout + result.stderr).not.toContain('DESTROY_SECRET_SENTINEL');
+  });
+  it('TC-69-20c2 a cleanup error after commit on a PASS is not clean: report printed, exit 2', async () => {
+    await seedClean();
+    const { result, marked } = childWithPatch(DESTROY_FAILS_AFTER_CLOSE);
+    expect(marked).toContain('POOL_END_RAN');
+    expect(result.status).toBe(2);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: 'PASS' });
+    expect(JSON.parse(result.stderr)).toMatchObject({ status: 'ERROR', kind: 'CHECK_ERROR' });
+    expect(result.stdout + result.stderr).not.toContain('DESTROY_SECRET_SENTINEL');
+  });
+  // (d) the commit itself fails: nothing was committed, so no report is trusted or printed.
+  it('TC-69-20d a failing commit prints no report: stdout empty, exit 2', async () => {
+    await seedDirty();
+    const { result, marked } = childWithPatch(String.raw`
+      const { PostgresQueryRunner } = require('typeorm/driver/postgres/PostgresQueryRunner');
+      const commit = PostgresQueryRunner.prototype.commitTransaction;
+      PostgresQueryRunner.prototype.commitTransaction = async function() {
+        mark('COMMIT_PATCHED');
+        throw Object.assign(new Error('COMMIT_SECRET_SENTINEL'), { code: '57P01' });
+      };
+    `);
+    expect(marked).toContain('COMMIT_PATCHED');
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe('');
+    expect(JSON.parse(result.stderr)).toMatchObject({ status: 'ERROR', kind: 'CHECK_ERROR' });
+    expect(result.stdout + result.stderr).not.toContain('COMMIT_SECRET_SENTINEL');
+  });
+  // (f) release() of ONLY the runner runCli creates throws, after the original ran. TypeORM also
+  // creates and releases its own runner inside source.initialize(); that one must stay untouched,
+  // so the throw is attached through DataSource.prototype.createQueryRunner.
+  const RELEASE_FAILS_AFTER_RETURN = String.raw`
+    const pg = require('pg'); const end = pg.Pool.prototype.end;
+    pg.Pool.prototype.end = function(...args) { mark('POOL_END_RAN'); return end.apply(this, args); };
+    const { DataSource } = require('typeorm'); const create = DataSource.prototype.createQueryRunner;
+    DataSource.prototype.createQueryRunner = function(...args) {
+      const runner = create.apply(this, args); const release = runner.release.bind(runner);
+      runner.release = async function() {
+        await release();
+        throw Object.assign(new Error('RELEASE_SECRET_SENTINEL'), { code: '57P01' });
+      };
+      return runner;
+    };
+  `;
+  it('TC-69-20f1 release failing after commit keeps a FAIL result: report printed, exit 1', async () => {
+    await seedDirty();
+    const { result, marked } = childWithPatch(RELEASE_FAILS_AFTER_RETURN);
+    expect(marked).toContain('POOL_END_RAN');
+    expect(result.status).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: 'FAIL' });
+    expect(JSON.parse(result.stderr)).toMatchObject({ status: 'ERROR', kind: 'CHECK_ERROR' });
+    expect(result.stdout + result.stderr).not.toContain('RELEASE_SECRET_SENTINEL');
+  });
+  it('TC-69-20f2 release failing after commit on a PASS is not clean: report printed, exit 2', async () => {
+    await seedClean();
+    const { result, marked } = childWithPatch(RELEASE_FAILS_AFTER_RETURN);
+    expect(marked).toContain('POOL_END_RAN');
+    expect(result.status).toBe(2);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: 'PASS' });
+    expect(JSON.parse(result.stderr)).toMatchObject({ status: 'ERROR', kind: 'CHECK_ERROR' });
+    expect(result.stdout + result.stderr).not.toContain('RELEASE_SECRET_SENTINEL');
+  });
+  // TC-69-17d, dirty variant: a pool error BEFORE commit (inside source.initialize()) is ERROR only,
+  // never the FAIL report, even though the commit afterwards succeeds. The run is not trusted.
+  it('TC-69-17e a pool error before commit hides even a FAIL report: stdout empty, exit 2', async () => {
+    await seedDirty();
+    const { result } = childWithPatch(String.raw`
+      const pg = require('pg'); const connect = pg.Pool.prototype.connect; let injected = false;
+      pg.Pool.prototype.connect = function(...args) {
+        if (!injected) { injected = true; mark('POOL_ERROR_BEFORE_COMMIT'); this.emit('error', Object.assign(new Error('POOL_SECRET_SENTINEL'), { code: '57P01' })); }
+        return connect.apply(this, args);
+      };
+    `);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe('');
+    expect(JSON.parse(result.stderr)).toMatchObject({ databaseCode: '57P01' });
+    expect(result.stdout + result.stderr).not.toContain('POOL_SECRET_SENTINEL');
   });
   it('TC-69-19b import from another cwd neither loads env nor connects or executes the CLI', () => {
     const script = `require(${JSON.stringify(require.resolve('dotenv'))}).config = () => { throw new Error('ENV_LOAD_SENTINEL'); }; require(${JSON.stringify(cliFile)}); console.log('IMPORTED');`;

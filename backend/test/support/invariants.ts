@@ -89,6 +89,9 @@ async function runCli(args: string[]): Promise<void> {
   let report: LedgerInvariantReport | undefined;
   let failure: unknown;
   let poolFailure: unknown;
+  // Set right after COMMIT resolves, with no await in between. The report is assigned before the
+  // commit, so it is not a safe gate: only a committed check has a settled result.
+  let committed = false;
   try {
     if (args.length === 1 && args[0] === '--help') {
       console.log(
@@ -125,8 +128,9 @@ async function runCli(args: string[]): Promise<void> {
       logNotifications: false,
       extra: { max: 1, connectionTimeoutMillis: 5000 },
       // The driver's default handler logs the original message, which can contain credentials.
+      // An idle-client error that arrives after the commit cannot change a settled result.
       poolErrorHandler: (error: unknown) => {
-        poolFailure ??= error;
+        if (!committed) poolFailure ??= error;
       },
     });
     await source.initialize();
@@ -139,6 +143,7 @@ async function runCli(args: string[]): Promise<void> {
       set_config('idle_in_transaction_session_timeout','10000ms',true)`);
     report = await checkLedgerInvariants(runner);
     await runner.commitTransaction();
+    committed = true;
   } catch (error) {
     failure = error;
     if (runner?.isTransactionActive) {
@@ -162,18 +167,27 @@ async function runCli(args: string[]): Promise<void> {
       kind = 'CHECK_ERROR';
     }
   }
+  // A pool error recorded before the commit means the connection was reported broken while the
+  // result was being produced: that run is not trusted, even if the commit then succeeded.
+  const trusted = committed && poolFailure === undefined && report !== undefined;
   failure ??= poolFailure;
-  if (failure) {
-    const code = getErrorCode(failure);
+  const printError = (error: unknown) => {
+    const code = getErrorCode(error);
     const databaseCode =
       code && (/^[0-9A-Z]{5}$/.test(code) || NETWORK_CODES.has(code)) ? code : undefined;
     console.error(
       JSON.stringify({ status: 'ERROR', kind, ...(databaseCode ? { databaseCode } : {}) }),
     );
-    process.exitCode = 2;
-  } else if (report) {
+  };
+  if (trusted && report) {
+    // The result is settled, so it is always printed. A cleanup error afterwards is reported on
+    // stderr; FAIL still exits 1, and a PASS with a cleanup error exits 2 (never "clean").
     console.log(JSON.stringify(report));
-    process.exitCode = report.status === 'PASS' ? 0 : 1;
+    if (failure) printError(failure);
+    process.exitCode = report.status === 'FAIL' ? 1 : failure ? 2 : 0;
+  } else if (failure) {
+    printError(failure);
+    process.exitCode = 2;
   }
 }
 
