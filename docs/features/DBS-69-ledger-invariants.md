@@ -645,3 +645,5 @@ Chạy lại toàn bộ M-69-01…08 trên commit cuối đổi code, cách ch�
 |---|---|---|---|
 | v2-6 #1 | should-fix | Mốc `### 2.2`/`### 2.3` xuất hiện 3 lần vì chính đoạn đặc tả trích lại chúng (đã đếm: 3) | đã sửa TC-69-20(e)(i): dùng dòng tiêu đề đầy đủ `### 2.2 Hàm và CLI` và `### 2.3 Giới hạn vận hành`, lần đầu tiên, mốc cuối tìm sau mốc đầu |
 | v2-6 #2 | minor | Còn một câu cũ nói cắt README "đến tiêu đề kế tiếp", mâu thuẫn với câu mới | đã xóa câu cũ; bốn đoạn là quy tắc duy nhất |
+
+**Lượt 7:** 0 phát hiện, **verdict APPROVE** · [nguyên văn lượt 7](screenshots/DBS-69/domain-review-v2-round-7.md). Chỉ kiểm đoạn TC-69-20(e) vừa sửa ở lượt 6: hai mốc tiêu đề đầy đủ mỗi mốc đúng một lần trong tệp, không còn quy tắc mâu thuẫn, các mục (a)–(d), (f) không bị đụng. Lượt này được chạy nền và hoàn tất sau khi người dùng đề nghị dừng các vòng review; kết quả được ghi nhận như đã nhận.
