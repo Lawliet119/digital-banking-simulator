@@ -498,3 +498,71 @@ Bằng chứng: [baseline](screenshots/DBS-69/baseline-phase1.txt), [review vòn
 **Ngoài phạm vi:** lịch sử `balance_after`, scheduler đối soát, ràng buộc lúc commit (đã nêu ở §2.3); các dòng BL khác của DBS-69.
 
 **Câu hỏi mở:** xem tin nhắn G1.
+
+**Quyết định ở G1 (vòng 2):** người dùng trả lời «duyệt» ngày 2026-10-31, chấp nhận cả sáu đề xuất: (1) đổi ID DBS-69 sang BL-126 trở đi; (2) CLI dùng `composeDatabaseUrl` và `INVALID_CONFIG` kèm tên biến sai; (3) R-4 chỉ ghi bàn giao cho #5, không dời file; (4) R-7 không đổi SQL, chỉ đo thử một bảng lớn tạm và ghi số vào BACKLOG; (5) test gọi `ts-node` trực tiếp qua `process.execPath`; (6) push thường, không force.
+
+### R2. Hành vi thay đổi
+
+Không có API HTTP. Phần không ghi ở đây giữ nguyên như §2.
+
+| Hành vi | Trước | Sau |
+|---|---|---|
+| R-2 · lỗi pool đến **sau** khi kiểm tra đã commit | `failure ??= poolFailure` luôn chạy: ERROR, exit 2 dù report đã là PASS hay FAIL | Lỗi pool chỉ được tính khi **chưa có report**. Đã có report thì in report và thoát theo kết quả (0 hoặc 1). Lỗi pool đến **trước** commit, hoặc làm chính truy vấn thất bại, vẫn là ERROR như cũ |
+| R-3a · bộ biến `DB_*` của ECS | CLI chỉ đọc `DATABASE_URL`: thiếu thì `INVALID_CONFIG` | Sau `loadEnv()`, gọi `composeDatabaseUrl(process.env)` của `@config/compose-database-url` và gán `DATABASE_URL` khi hàm trả URL. `DATABASE_URL` có sẵn luôn thắng (luật của hàm). Bộ `DB_*` thiếu hoặc sai thì báo tên biến |
+| R-3b · `INVALID_CONFIG` | `{"status":"ERROR","kind":"INVALID_CONFIG"}` cho mọi lỗi | thêm `"invalid":[...]`: **danh sách tên biến sai, sắp xếp**, ví dụ `["DATABASE_SSL_CA_PATH"]`, `["DB_PORT"]`, `["DATABASE_URL"]`. Không bao giờ in giá trị, đường dẫn, URL hay thông điệp của Joi. Tham số TLS trong URL (`ssl*`, `uselibpqcompat`) báo `["DATABASE_URL"]`; CA không đọc được báo `["DATABASE_SSL_CA_PATH"]`; URL không phân tích được báo `["DATABASE_URL"]` |
+| R-6 · cách test gọi CLI | `process.execPath` + `npm_execpath!` chạy `npm run check:invariants` | test gọi `process.execPath` với `-r ts-node/register -r tsconfig-paths/register test/support/invariants.ts` (đường dẫn qua `require.resolve`), không phụ thuộc npm. Một ca riêng chạy `npm run --silent check:invariants` khi có `npm_execpath`, để chứng minh script npm còn đúng |
+| R-6 · driver manual | `npm_execpath ?? <execPath>/node_modules/npm/bin/npm-cli.js` (không tồn tại trên Linux/Homebrew) | gọi trực tiếp `ts-node` như test; log dòng lệnh tương đương `npm run --silent check:invariants` |
+
+Thay đổi tài liệu và backlog, không đổi hành vi: R-1 (merge `main`, đổi ID), R-4 (ghi bàn giao), R-5 (đổi mã TC), R-7 (đo thử, ghi số).
+
+**R-2: vì sao an toàn.** Cổng của kiểm tra là `report`, chỉ có sau `commitTransaction()` thành công. Nếu một lỗi rảnh đến sau đó, dữ liệu ledger không đổi và kết quả đã xác lập. Lỗi pool đến khi chưa có report vẫn fail closed (TC-69-17d giữ nguyên). Nếu `destroy()` hoặc `release()` thất bại thì `failure` vẫn đặt kind `CHECK_ERROR` như cũ, nên không có lỗi nào bị nuốt khi chưa có report.
+
+### R3. Kiến trúc
+
+- **Vị trí:** `backend/test/support/invariants.ts` (R-2, R-3, R-6); `test/db/invariants.db-spec.ts` (R-5, R-6, test mới); `test/manual/invariants.manual.ts` (R-6); `backend/README.md` (mục 9: `DB_*`, trường `invalid`); `docs/BACKLOG.md`; feature doc; `docs/features/README.md`. README `ledger`, `scripts`, `load-tests` không trích BL-053/054 (đã grep), nên giữ nguyên.
+- **Interface:** `checkLedgerInvariants(runner)` và `LedgerInvariantReport` giữ nguyên. Chỉ stderr của CLI có thêm trường `invalid`. Không `ErrorCode` mới, không env của ứng dụng mới.
+- **Dữ liệu:** không đổi. SQL không đổi. Không migration.
+- **Sau merge `main`:** `invariants.ts` import `composeDatabaseUrl` từ `@config/compose-database-url` (module thuần, không side-effect), **không** import `@config/env.bootstrap` (có side-effect nạp env và ghi `process.env.REDIS_URL`, sai với CLI chỉ cần DB).
+- **Ranh giới transaction:** giữ nguyên: một SELECT trong transaction READ ONLY, READ COMMITTED.
+
+```mermaid
+sequenceDiagram
+  participant O as Operator / CI
+  participant C as check:invariants
+  participant P as PostgreSQL
+  O->>C: npm run check:invariants
+  C->>C: loadEnv · composeDatabaseUrl (DB_* thành DATABASE_URL nếu chưa có)
+  C->>C: validate NODE_ENV/DATABASE_*; lỗi thì ERROR INVALID_CONFIG kèm invalid[tên biến]
+  C->>P: BEGIN READ ONLY · SELECT invariants.sql · COMMIT
+  P-->>C: report PASS/FAIL (đã xác lập)
+  C->>C: lỗi pool đến sau đây không đổi report
+  C-->>O: JSON report · exit 0 hoặc 1 (ERROR exit 2 chỉ khi chưa có report)
+```
+
+### R4. Test cases tự động (thêm hoặc đổi)
+
+PostgreSQL 17 thật, `test/db/invariants.db-spec.ts`.
+
+| ID | Truy vết | Given · When · Then | Kết quả mong đợi |
+|---|---|---|---|
+| TC-69-20 | DoD #2, R-2 | child nạp `ts-node` rồi phát một lỗi pool (`57P01`) **sau** khi `commitTransaction` thành công → CLI in report PASS, exit 0, stderr rỗng. Biến thể trên DB lệch (một số dư +1) → report FAIL, exit 1. Cả hai không in `POOL_SECRET_SENTINEL` | exit 0 / 1 |
+| TC-69-17d (giữ) | DoD #2 | lỗi pool **trước** commit (ca hiện có) vẫn exit 2, `57P01` | exit 2 |
+| TC-69-21 | DoD #4, R-3a | child chỉ có `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (không `DATABASE_URL`) trỏ tới DB tạm đã migrate, mật khẩu có ký tự cần mã hóa → CLI kết nối được, PASS, exit 0, không in mật khẩu. Khi `DATABASE_URL` và `DB_*` cùng có thì `DATABASE_URL` thắng | exit 0 |
+| TC-69-16 (đổi, mã con a…d) | DoD #2, #4, R-3b | mỗi ca cấu hình sai in stderr JSON `status:'ERROR', kind:'INVALID_CONFIG', invalid:[…]` với **đúng tên biến**: thiếu URL thì `["DATABASE_URL"]`; URL hỏng thì `["DATABASE_URL"]`; mỗi khóa TLS trong URL thì `["DATABASE_URL"]`; production không TLS thì `["DATABASE_SSL"]`; CA không đọc được thì `["DATABASE_SSL_CA_PATH"]`; `DB_PORT=abc` (bộ `DB_*` lỗi, không `DATABASE_URL`) thì `["DB_PORT"]`. Stderr không chứa sentinel của giá trị, đường dẫn, URL hay thông điệp Joi | exit 2 |
+| TC-69-15 (đổi) | DoD #2, #4, R-6 | gọi CLI trực tiếp bằng `ts-node`: sạch, lệch, phục hồi cho exit 0/1/0. Ca qua npm (`npm run --silent check:invariants`) chạy khi có `npm_execpath` và cho cùng kết quả; không dùng `it.skip` | exit 0/1/0 |
+| TC-69-16a…d, 17a…d, 19a/b (đổi tên) | R-5 | mỗi `it` một mã duy nhất, `it.each` giữ một mã chung cho cả bảng tham số: 16a khóa TLS, 16b cấu hình sai, 16c `--help` và flag lạ, 16d CA giữ nguyên với parser pg thật; 17a schema thiếu, 17b thiếu SELECT, 17c xác thực sai, 17d lỗi pool; 19a raw SQL khớp hàm và bỏ qua `search_path` giả, 19b import từ cwd khác | như cũ |
+
+Quy tắc kiểm "đúng tên biến": test so `JSON.parse(stderr).invalid` bằng một mảng chính xác và thêm `expect(stderr).not.toMatch(<sentinel>)` cho mọi giá trị đưa vào.
+
+### R5. Test thủ công
+
+Chạy lại toàn bộ M-69-01…08 trên commit cuối đổi code, cách chạy như §5, `manual-test.txt` ghi đè (SHA ở dòng đầu). Thay đổi:
+
+| Bước | Việc làm | Mong đợi |
+|---|---|---|
+| M-69-01…08 | như §5, nhưng CLI gọi trực tiếp `ts-node` | như §5 |
+| M-69-09 | CLI chỉ với `DB_*` (không `DATABASE_URL`) tới DB của M-69-02; rồi `DB_PORT=abc` | PASS exit 0 với `DB_*`; `ERROR INVALID_CONFIG invalid ["DB_PORT"]` exit 2, không in giá trị |
+| M-69-10 | CLI trên DB lệch (owner +1) | FAIL exit 1, như M-69-03; chạy lại sau R-2 để chứng minh FAIL không bị đổi thành ERROR |
+| Đo thử (R-7) | `ledger_entries` tạm khoảng 1 triệu dòng đã cân bằng trong DB tạm của driver, chạy CLI và đo thời gian | ghi thời gian vào BL-127; không đổi SQL, không đưa vào test tự động |
+
+Ảnh: chụp lại năm ảnh cũ từ output mới và thêm `06-db-parts.png` (M-69-09).
