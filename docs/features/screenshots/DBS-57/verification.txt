@@ -486,3 +486,26 @@ Ran all test suites matching outbox-writer.db-spec.ts|outbox-writer-context.db-s
 
 EXIT: 0
 Format note: a trailing space in the Compose health output was removed for Git whitespace validation; output values and all failures are retained.
+
+# Vòng 2 · 2026-10-31 · sau merge origin/main 5562884, HEAD abf6659b11f39aa1e6c1735eb6ab8c20702f664e
+Máy: Windows 11, Git Bash, Docker 27.3.1. PostgreSQL 18 native chiếm 5432; E2E dùng container postgres:17 ở 127.0.0.1:55432 (DATABASE_URL đặt ngoài transcript).
+$ npm run lint:check → exit 0
+$ npm run typecheck → exit 0
+$ npm test -- --runInBand
+Test Suites: 42 passed, 42 total
+Tests:       576 passed, 576 total
+Time:        34.811 s
+$ npm run test:db -- --runInBand
+Test Suites: 12 passed, 12 total
+Tests:       248 passed, 248 total
+Time:        163.926 s
+$ npm run test:e2e -- --runInBand
+Test Suites: 8 passed, 8 total
+Tests:       57 passed, 57 total
+Time:        67.147 s
+$ npm run test:services -- --runInBand
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Time:        13.527 s
+$ npm run build → exit 0
+skip/only/todo trong test của task: 0

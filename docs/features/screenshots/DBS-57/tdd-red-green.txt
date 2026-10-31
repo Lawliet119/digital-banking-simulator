@@ -1,0 +1,15 @@
+
+# Vòng 2 · 2026-10-31 · S1–S4
+Lệnh: npm run test:db -- --runInBand --runTestsByPath <spec> (PostgreSQL 17 qua Testcontainers); driver manual chạy trên PostgreSQL 17 ở 127.0.0.1:55432
+== Vòng 2 · S1 R-2 (chặn NUL và surrogate lẻ trước INSERT) ==
+RED: Tests:       11 failed, 19 passed, 30 total — 11 ca TC-57-14 đều Expected 0, Received 1 lần INSERT outbox_events (code cũ đi tới INSERT)
+GREEN: Tests:       30 passed, 30 total
+== Vòng 2 · S2 R-1 (khóa hợp đồng context) ==
+RED: không áp dụng, khóa hành vi sẵn có nên chạy xanh ngay
+GREEN: Tests:       16 passed, 16 total (3 ca TC-57-15)
+== Vòng 2 · S3 R-3 (dùng lại server chung) ==
+RED: Tests:       3 failed, 3 total — child in ownContainerStopped: true (vẫn tự dựng container)
+GREEN: Tests:       3 passed, 3 total, Time:        23.873 s
+== Vòng 2 · S4 driver manual ==
+RED (writer cũ b767935): mode invalid exit 1, {"pass":false,"errorType":"AssertionError"} ở ca nul-in-value; mode context exit 0 (khóa hành vi sẵn có)
+GREEN (writer mới): mode invalid exit 0 (refused gồm nul-in-value, lone-surrogate-in-key); mode context exit 0 (backgroundInherited NOT_ALLOWED, backgroundDetachedRows 1)

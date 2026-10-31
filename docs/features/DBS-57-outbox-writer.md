@@ -497,3 +497,77 @@ Thứ tự migration → service → controller không áp dụng: không có mi
 | Xung đột PR | 4 file | S6 |
 
 **Quyết định ở G3 (vòng 2):** người dùng trả lời «duyệt» ngày 2026-10-31. BL-123 cho bàn giao #3 (kiểm lại khi merge `main`); push một lần sau G4.
+
+### R8. Kết quả vòng 2
+
+**Lệnh kiểm tra** trên HEAD `abf6659` (sau merge `origin/main` `5562884`), tại `backend/`. Output thô ở [verification.txt](screenshots/DBS-57/verification.txt), phần "Vòng 2".
+
+| Lệnh | Kết quả |
+|---|---|
+| `npm run lint:check` | exit 0 |
+| `npm run typecheck` | exit 0 |
+| `npm test -- --runInBand` | 42 suites, 576/576 đạt, 0 skipped |
+| `npm run test:db -- --runInBand` | 12 suites, 248/248 đạt (163,9 s) |
+| `npm run test:e2e -- --runInBand` | 8 suites, 57/57 đạt. Chạy trên container `postgres:17` ở cổng 55432 vì cổng 5432 là PostgreSQL 18 native |
+| `npm run test:services -- --runInBand` | 1 suite, 2/2 đạt (suite mới từ `main`) |
+| `npm run build` | exit 0 |
+
+Không có `.skip`, `.only` hay `.todo` trong test của task. **Full DB đạt trên máy này** (12 suites, không thoát `0xC0000409`), nhưng BL-125 chưa coi là đã sửa: đây là một lượt xanh, không phải bằng chứng nguyên nhân gốc. Thời gian full DB là 163,9 s với 12 suites; riêng bootstrap giảm từ ba container xuống dùng chung một server (24 s cho 3 ca).
+
+**Đối chiếu test case vòng 2.** Đỏ/xanh từng bước ở [tdd-red-green.txt](screenshots/DBS-57/tdd-red-green.txt), phần "Vòng 2".
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-57-14 | `outbox-writer.db-spec.ts` › 11 ca `refuses $label before the insert…` (NUL ở giá trị, khóa, mảng lồng; surrogate cao, thấp, trong khóa lồng; cao trước ASCII; thấp-rồi-cao; cao+cặp, cặp+thấp, thấp+cặp) và `still stores valid surrogate pairs…` | đạt; đỏ 11/11 (code cũ chạy tới INSERT: Expected 0, Received 1) |
+| TC-57-15 | `outbox-writer-context.db-spec.ts` › 3 ca (kế thừa context bị `NOT_ALLOWED`; tách bằng `runInContext` không `bindings` ghi được; ngoài mọi context ghi được) | đạt; xanh ngay từ đầu vì khóa hành vi sẵn có |
+| TC-57-13 | `outbox-writer-bootstrap.db-spec.ts` › 3 role dùng `DBS57_BASE_DATABASE_URL`, kỳ vọng `cleanup.ownContainerStopped: false` | đạt; đỏ 3/3 (child in `ownContainerStopped: true`) |
+| TC-57-01…12 | giữ nguyên | đạt (DB spec outbox: 30 + 16 + 3 tests) |
+
+15/15 ca vòng 2 đạt đủ độ sâu, 0 đơn giản hóa. Chưa có ca nào cho giới hạn kích thước payload: ghi ở BL-123.
+
+**Test thủ công** trên commit `abf6659` (commit cuối có đổi code, SHA ở dòng đầu [manual-test.txt](screenshots/DBS-57/manual-test.txt)), chạy đúng script R5, exit 0:
+
+| Bước | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-57-01 commit | `outboxRows:1`, amount `"9007199254740993"` | đạt |
+| M-57-02 rollback | `userRows:0, outboxRows:0` | đạt |
+| M-57-03 invalid | `refused` gồm `missing-correlation, numeric-money, cycle, nul-in-value, lone-surrogate-in-key`; `userRows:0, outboxRows:0` | đạt |
+| M-57-04 duplicate | `23505`, `outbox_events_event_id_key`, `originalRows:1, recoveredRows:1` | đạt |
+| M-57-05 context | 10 request song song, 10 id riêng; `mismatch NOT_ALLOWED`, `malformed INVALID_FORMAT`, `outsideContextRows:1`, `backgroundInherited NOT_ALLOWED`, `backgroundDetachedRows:1` | đạt |
+| M-57-06 transaction | `refusedManagers:4, outboxRows:0` | đạt |
+| M-57-07 api/worker/both | shell sạch (`env -u` cả hai biến): từng role `pass:true, outboxRows:1, ownContainerStopped:true`, container được dọn | đạt |
+
+**Ảnh** (render từ `manual-test.txt` bằng Chrome headless, mỗi ảnh là một nhóm khối của transcript, không sửa nội dung; thay ba ảnh vòng 1):
+
+![M-57-01/02: commit và rollback](screenshots/DBS-57/01-commit.png)
+
+![M-57-03: lỗi trước INSERT](screenshots/DBS-57/02-rollback-validation.png)
+
+![M-57-04/05/06: duplicate, context, transaction](screenshots/DBS-57/03-duplicate-context.png)
+
+![M-57-03 mới: NUL và surrogate lẻ](screenshots/DBS-57/04-surrogate-nul.png)
+
+![M-57-05 mới: producer nền](screenshots/DBS-57/05-ambient-context.png)
+
+![M-57-07: shell sạch, ba role, tự dựng container](screenshots/DBS-57/06-clean-shell-roles.png)
+
+**Phạm vi so với R7** (`git diff --name-only 5562884 HEAD` trừ file thuộc DBS-57 doc/ảnh): `backend/src/modules/outbox/{outbox-writer.ts,README.md,…}`, `index.ts`/`modules.spec.ts` (merge), `outbox-writer*.db-spec.ts`, `outbox-writer.manual.ts`, `docs/BACKLOG.md`, `docs/features/README.md`. Khớp R3 và R7; không có file lạ. Các file còn lại là phần PR đã có từ vòng 1.
+
+**Lệch so với kế hoạch:**
+
+| Lệch | Lý do | Duyệt |
+|---|---|---|
+| Hai lần ghi file hỏng do công cụ (script Python làm rỗng `outbox-writer.db-spec.ts`; ký tự NUL thật trong `outbox-writer.ts` và driver) | chuỗi ` ` và surrogate lẻ không ghi được qua Python hay shell; đã khôi phục từ git và ghi lại, tự kiểm 0 byte NUL trong các file cuối | không đổi phạm vi |
+| Tham chiếu BL-053/055 của DBS-57 đổi thành **BL-124/125**; bàn giao #3 là **BL-123** | `main` đã dùng BL-053..057 và tới BL-122 cho DBS-40/41/55 | chỉ đổi ID, nêu ở G4 |
+| BL-002/003/019: giữ DBS-55 làm nguồn trên `main` và thêm DBS-57 vào BL-002, BL-019 | hai nhánh cùng sửa các dòng này | không đổi phạm vi |
+| S4: bước đỏ của driver chạy với writer cũ (`b767935`) thay vì "bỏ lời gọi scan" | cách chạy rõ ràng và tái hiện được hơn | không đổi phạm vi |
+| Ảnh vòng 2 render bằng Chrome headless | cùng nguồn transcript thật | nêu ở G4 |
+
+**Bàn giao:** **BL-123** (Dev #3: producer nền tách bằng `runInContext` không `bindings`; giới hạn kích thước payload theo SQS). Giữ mở: BL-124 (Dev review và merge), BL-125, BL-002/003/009/010/018/019/024. Không có dòng backlog nào được vòng 2 giải quyết.
+
+### R9. Tài liệu đã cập nhật (vòng 2)
+
+- `backend/src/modules/outbox/README.md`: hợp đồng producer nền (BL-123) và quy tắc chuỗi không lưu được.
+- `docs/BACKLOG.md`: thêm BL-123; DBS-57 là BL-124 và BL-125 (đổi ID khi merge `main`); BL-002 và BL-019 giữ cả nguồn DBS-55 lẫn DBS-57.
+- `docs/features/README.md`: cập nhật dòng DBS-57.
+- Feature doc: R1–R9; `screenshots/DBS-57/`: 6 ảnh, `manual-test.txt`, `verification.txt`, `tdd-red-green.txt`, 3 file domain review vòng 2.
