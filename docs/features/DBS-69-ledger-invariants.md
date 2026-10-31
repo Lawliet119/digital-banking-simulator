@@ -507,15 +507,26 @@ Không có API HTTP. Phần không ghi ở đây giữ nguyên như §2.
 
 | Hành vi | Trước | Sau |
 |---|---|---|
-| R-2 · lỗi pool đến **sau** khi kiểm tra đã commit | `failure ??= poolFailure` luôn chạy: ERROR, exit 2 dù report đã là PASS hay FAIL | Lỗi pool chỉ được tính khi **chưa có report**. Đã có report thì in report và thoát theo kết quả (0 hoặc 1). Lỗi pool đến **trước** commit, hoặc làm chính truy vấn thất bại, vẫn là ERROR như cũ |
-| R-3a · bộ biến `DB_*` của ECS | CLI chỉ đọc `DATABASE_URL`: thiếu thì `INVALID_CONFIG` | Sau `loadEnv()`, gọi `composeDatabaseUrl(process.env)` của `@config/compose-database-url` và gán `DATABASE_URL` khi hàm trả URL. `DATABASE_URL` có sẵn luôn thắng (luật của hàm). Bộ `DB_*` thiếu hoặc sai thì báo tên biến |
-| R-3b · `INVALID_CONFIG` | `{"status":"ERROR","kind":"INVALID_CONFIG"}` cho mọi lỗi | thêm `"invalid":[...]`: **danh sách tên biến sai, sắp xếp**, ví dụ `["DATABASE_SSL_CA_PATH"]`, `["DB_PORT"]`, `["DATABASE_URL"]`. Không bao giờ in giá trị, đường dẫn, URL hay thông điệp của Joi. Tham số TLS trong URL (`ssl*`, `uselibpqcompat`) báo `["DATABASE_URL"]`; CA không đọc được báo `["DATABASE_SSL_CA_PATH"]`; URL không phân tích được báo `["DATABASE_URL"]` |
+| R-2 · lỗi pool đến **sau** khi kiểm tra đã commit | `failure ??= poolFailure` luôn chạy: ERROR, exit 2 dù report đã là PASS hay FAIL | Quyết định theo **thời điểm lỗi đến**, không theo việc cuối cùng có report hay không (review v2-1 #1: `report` được gán trước `commitTransaction`, và ca TC-69-17d phát lỗi trong `source.initialize()` rồi vẫn ra PASS). Thêm cờ `committed`, đặt ngay sau `await runner.commitTransaction()`. `poolErrorHandler` ghi nhận lỗi **chỉ khi `!committed`**; lỗi đến sau commit bị bỏ qua vì kết quả đã xác lập. Lỗi đến **trước** commit (kể cả trong `source.initialize()`) vẫn là ERROR như cũ |
+| R-2b · cleanup thất bại **sau** commit | `failure` đặt từ `release()`/`destroy()` thì chỉ in `{"status":"ERROR"}`, mất report FAIL đã phát hiện | Sau commit thành công, **luôn in report ra stdout**. Nếu cleanup thất bại thì ghi thêm ERROR JSON ra stderr. Mã thoát: **FAIL luôn là 1**; PASS kèm lỗi cleanup là **2** (fail closed). Lỗi trước commit giữ exit 2 như cũ và không in report (review v2-1 #3) |
+| R-3a · bộ biến `DB_*` của ECS | CLI chỉ đọc `DATABASE_URL`: thiếu thì `INVALID_CONFIG` | Sau `loadEnv()`, gọi `composeDatabaseUrl(process.env)` của `@config/compose-database-url` và gán `DATABASE_URL` khi hàm trả URL. `DATABASE_URL` **không rỗng** có sẵn luôn thắng (luật của hàm; chuỗi rỗng được coi là thiếu). **Quy tắc ghép tên lỗi:** nếu `compose.invalid.length > 0` thì **dừng ngay** và báo đúng danh sách của `compose` (ví dụ `["DB_PORT"]`), không chạy tiếp Joi, vì Joi sẽ thêm `DATABASE_URL` bắt buộc vào và làm mảng không còn chính xác (review v2-1 #4) |
+| R-3b · `INVALID_CONFIG` | `{"status":"ERROR","kind":"INVALID_CONFIG"}` cho mọi lỗi | thêm `"invalid":[...]`: **danh sách tên biến sai, sắp xếp**, ví dụ `["DATABASE_SSL_CA_PATH"]`, `["DB_PORT"]`, `["DATABASE_URL"]`. Tên lấy từ một danh sách cố định, không từ khóa của người dùng nên không lộ giá trị hay bí mật. Không bao giờ in giá trị, đường dẫn, URL hay thông điệp của Joi. Tham số TLS trong URL (`ssl*`, `uselibpqcompat`) báo `["DATABASE_URL"]`; CA không đọc được báo `["DATABASE_SSL_CA_PATH"]`; URL không phân tích được báo `["DATABASE_URL"]`. Văn bản `--help` cũng liệt kê `DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD` và trường `invalid` (review v2-1 #9) |
 | R-6 · cách test gọi CLI | `process.execPath` + `npm_execpath!` chạy `npm run check:invariants` | test gọi `process.execPath` với `-r ts-node/register -r tsconfig-paths/register test/support/invariants.ts` (đường dẫn qua `require.resolve`), không phụ thuộc npm. Một ca riêng chạy `npm run --silent check:invariants` khi có `npm_execpath`, để chứng minh script npm còn đúng |
 | R-6 · driver manual | `npm_execpath ?? <execPath>/node_modules/npm/bin/npm-cli.js` (không tồn tại trên Linux/Homebrew) | gọi trực tiếp `ts-node` như test; log dòng lệnh tương đương `npm run --silent check:invariants` |
 
 Thay đổi tài liệu và backlog, không đổi hành vi: R-1 (merge `main`, đổi ID), R-4 (ghi bàn giao), R-5 (đổi mã TC), R-7 (đo thử, ghi số).
 
-**R-2: vì sao an toàn.** Cổng của kiểm tra là `report`, chỉ có sau `commitTransaction()` thành công. Nếu một lỗi rảnh đến sau đó, dữ liệu ledger không đổi và kết quả đã xác lập. Lỗi pool đến khi chưa có report vẫn fail closed (TC-69-17d giữ nguyên). Nếu `destroy()` hoặc `release()` thất bại thì `failure` vẫn đặt kind `CHECK_ERROR` như cũ, nên không có lỗi nào bị nuốt khi chưa có report.
+**R-2: vì sao an toàn.** Cổng của kết quả là `commitTransaction()` thành công, không phải việc biến `report` đã được gán (nó được gán trước commit). Sau commit, dữ liệu ledger không đổi và kết quả đã xác lập, nên một lỗi rảnh đến sau đó không đổi PASS/FAIL. Lỗi đến trước commit vẫn fail closed: TC-69-17d giữ nguyên và chính là bằng chứng đỏ/xanh cho nhánh này. Cleanup thất bại sau commit không làm mất report (R-2b); PASS kèm cleanup thất bại vẫn là exit 2 để cổng CI không coi một lần chạy dở dang là sạch.
+
+**Kế hoạch backlog (review v2-1 #7).**
+
+| ID cũ (DBS-69) | ID mới | Nội dung | Ghi chú |
+|---|---|---|---|
+| BL-053 | **BL-126** | Draft PR #35, Dev review và merge | đổi ID vì BL-053 trên `main` thuộc DBS-40/41 |
+| BL-054 | **BL-127** | gắn checker vào money test, load/drill run, scheduler tương lai | giữ nội dung gốc; số đo R-7 **không** vào đây |
+| (mới) | **BL-128** | R-4: chạy checker trong image ECS hoặc runner chỉ cài production (hiện cần `ts-node` devDependency). Vai đề xuất #5 Platform & Ops | đóng khi CLI chạy được từ image (JS đã biên dịch hoặc runner riêng) và có hướng dẫn trong README |
+
+Số đo R-7 nằm ở feature doc §R8. BL mới chỉ mở nếu số đo cần hành động tối ưu SQL.
 
 ### R3. Kiến trúc
 
@@ -534,9 +545,9 @@ sequenceDiagram
   C->>C: loadEnv · composeDatabaseUrl (DB_* thành DATABASE_URL nếu chưa có)
   C->>C: validate NODE_ENV/DATABASE_*; lỗi thì ERROR INVALID_CONFIG kèm invalid[tên biến]
   C->>P: BEGIN READ ONLY · SELECT invariants.sql · COMMIT
-  P-->>C: report PASS/FAIL (đã xác lập)
-  C->>C: lỗi pool đến sau đây không đổi report
-  C-->>O: JSON report · exit 0 hoặc 1 (ERROR exit 2 chỉ khi chưa có report)
+  P-->>C: report PASS/FAIL, COMMIT xong thì committed = true
+  C->>C: lỗi pool đến sau đây bị bỏ qua (kết quả đã xác lập)
+  C-->>O: report luôn in; exit 0 (PASS), 1 (FAIL); PASS kèm cleanup lỗi thì exit 2; lỗi trước commit thì ERROR exit 2
 ```
 
 ### R4. Test cases tự động (thêm hoặc đổi)
@@ -545,13 +556,12 @@ PostgreSQL 17 thật, `test/db/invariants.db-spec.ts`.
 
 | ID | Truy vết | Given · When · Then | Kết quả mong đợi |
 |---|---|---|---|
-| TC-69-20 | DoD #2, R-2 | child nạp `ts-node` rồi phát một lỗi pool (`57P01`) **sau** khi `commitTransaction` thành công → CLI in report PASS, exit 0, stderr rỗng. Biến thể trên DB lệch (một số dư +1) → report FAIL, exit 1. Cả hai không in `POOL_SECRET_SENTINEL` | exit 0 / 1 |
-| TC-69-17d (giữ) | DoD #2 | lỗi pool **trước** commit (ca hiện có) vẫn exit 2, `57P01` | exit 2 |
-| TC-69-21 | DoD #4, R-3a | child chỉ có `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (không `DATABASE_URL`) trỏ tới DB tạm đã migrate, mật khẩu có ký tự cần mã hóa → CLI kết nối được, PASS, exit 0, không in mật khẩu. Khi `DATABASE_URL` và `DB_*` cùng có thì `DATABASE_URL` thắng | exit 0 |
-| TC-69-16 (đổi, mã con a…d) | DoD #2, #4, R-3b | mỗi ca cấu hình sai in stderr JSON `status:'ERROR', kind:'INVALID_CONFIG', invalid:[…]` với **đúng tên biến**: thiếu URL thì `["DATABASE_URL"]`; URL hỏng thì `["DATABASE_URL"]`; mỗi khóa TLS trong URL thì `["DATABASE_URL"]`; production không TLS thì `["DATABASE_SSL"]`; CA không đọc được thì `["DATABASE_SSL_CA_PATH"]`; `DB_PORT=abc` (bộ `DB_*` lỗi, không `DATABASE_URL`) thì `["DB_PORT"]`. Stderr không chứa sentinel của giá trị, đường dẫn, URL hay thông điệp Joi | exit 2 |
-| TC-69-15 (đổi) | DoD #2, #4, R-6 | gọi CLI trực tiếp bằng `ts-node`: sạch, lệch, phục hồi cho exit 0/1/0. Ca qua npm (`npm run --silent check:invariants`) chạy khi có `npm_execpath` và cho cùng kết quả; không dùng `it.skip` | exit 0/1/0 |
+| TC-69-20 | DoD #2, R-2, R-2b | Child nạp `ts-node` rồi **vá `pg.Pool.prototype.end`** để phát `error` (`57P01`, message `POOL_SECRET_SENTINEL`) ngay trước khi gọi `end` thật: đây là lúc pool đã trả client về (`runner.release()`) và đang đóng, tức là sau `commitTransaction`, và là khoảng duy nhất có client rảnh để pool phát sự kiện (review v2-1 #2). Child in một dấu `POOL_ERROR_EMITTED` ra stdout **trước** khi phát để test khẳng định lỗi thực sự đã được tiêm; thiếu dấu này thì test đỏ. (a) DB sạch thì report PASS ra stdout, exit 0, stderr rỗng. (b) DB lệch (một số dư +1) thì report FAIL, exit 1. (c) vá `PostgresDataSource.destroy` ném lỗi sau commit trên DB lệch thì **FAIL vẫn in ra stdout, exit 1**, kèm ERROR JSON `CHECK_ERROR` ra stderr; trên DB sạch thì PASS in ra, ERROR ra stderr, **exit 2**. Không ca nào in `POOL_SECRET_SENTINEL`. Đỏ trước khi sửa: code hiện tại cho exit 2 ở (a), (b), (c) | exit 0 / 1 / 1 / 2 |
+| TC-69-17d (giữ) | DoD #2, R-2 | lỗi pool phát ở lần `Pool.connect` đầu tiên (trong `source.initialize()`, **trước** commit): vẫn ERROR exit 2, `57P01`, không PASS. Đây là bằng chứng rằng cờ `committed` quyết định, không phải việc cuối cùng có report | exit 2 |
+| TC-69-21 | DoD #4, R-3a | Role fixture `LOGIN` có mật khẩu chứa `@:/%#`, có `SELECT` đúng ba bảng, drop trong `afterAll`. Child chỉ có `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` trỏ tới DB tạm đã migrate, và **`DATABASE_URL` bị đặt rỗng** để `env/.env.test` không thể chen vào (chuỗi rỗng được `compose` coi là thiếu và dotenv không ghi đè biến đã có). (a) PASS, exit 0, không in mật khẩu. (b) Khi `DATABASE_URL` hợp lệ và `DB_*` cố ý sai (cổng sai) thì vẫn PASS, chứng minh `DATABASE_URL` thắng; khi `DATABASE_URL` rỗng và `DB_*` đúng thì cũng PASS nhờ `DB_*`, nên hai nhánh được phân biệt bằng ca (b) thứ hai: `DB_*` sai và không có URL thì ERROR | exit 0 / 0 / 2 |
+| TC-69-16 (đổi, mã con a…d) | DoD #2, #4, R-3b | mỗi ca cấu hình sai in stderr JSON `status:'ERROR', kind:'INVALID_CONFIG', invalid:[…]` với **đúng tên biến**: thiếu URL thì `["DATABASE_URL"]`; URL hỏng thì `["DATABASE_URL"]`; mỗi khóa TLS trong URL thì `["DATABASE_URL"]`; production không TLS thì `["DATABASE_SSL"]`; CA không đọc được thì `["DATABASE_SSL_CA_PATH"]`; `DB_PORT=abc` (bộ `DB_*` lỗi, `DATABASE_URL` rỗng) thì **đúng** `["DB_PORT"]` (quy tắc dừng ngay khi `compose.invalid` khác rỗng). `--help` liệt kê `DB_HOST…DB_PASSWORD` và `invalid`. Stderr không chứa sentinel của giá trị, đường dẫn, URL hay thông điệp Joi | exit 2 |
+| TC-69-15 (đổi) | DoD #2, #4, R-6 | gọi CLI trực tiếp bằng `ts-node`: sạch, lệch, phục hồi cho exit 0/1/0. Một ca riêng `TC-69-15n` chạy `npm run --silent check:invariants` và đòi `npm_execpath`: **nếu thiếu thì ca này thất bại với thông báo rõ ràng** (không `it.skip`, không bỏ qua im lặng), vì nó là ca duy nhất chứng minh script npm còn đúng. Driver manual cũng chạy script npm một lần ở M-69-01 (review v2-1 #8) | exit 0/1/0 |
 | TC-69-16a…d, 17a…d, 19a/b (đổi tên) | R-5 | mỗi `it` một mã duy nhất, `it.each` giữ một mã chung cho cả bảng tham số: 16a khóa TLS, 16b cấu hình sai, 16c `--help` và flag lạ, 16d CA giữ nguyên với parser pg thật; 17a schema thiếu, 17b thiếu SELECT, 17c xác thực sai, 17d lỗi pool; 19a raw SQL khớp hàm và bỏ qua `search_path` giả, 19b import từ cwd khác | như cũ |
-
 Quy tắc kiểm "đúng tên biến": test so `JSON.parse(stderr).invalid` bằng một mảng chính xác và thêm `expect(stderr).not.toMatch(<sentinel>)` cho mọi giá trị đưa vào.
 
 ### R5. Test thủ công
@@ -563,6 +573,8 @@ Chạy lại toàn bộ M-69-01…08 trên commit cuối đổi code, cách ch�
 | M-69-01…08 | như §5, nhưng CLI gọi trực tiếp `ts-node` | như §5 |
 | M-69-09 | CLI chỉ với `DB_*` (không `DATABASE_URL`) tới DB của M-69-02; rồi `DB_PORT=abc` | PASS exit 0 với `DB_*`; `ERROR INVALID_CONFIG invalid ["DB_PORT"]` exit 2, không in giá trị |
 | M-69-10 | CLI trên DB lệch (owner +1) | FAIL exit 1, như M-69-03; chạy lại sau R-2 để chứng minh FAIL không bị đổi thành ERROR |
-| Đo thử (R-7) | `ledger_entries` tạm khoảng 1 triệu dòng đã cân bằng trong DB tạm của driver, chạy CLI và đo thời gian | ghi thời gian vào BL-127; không đổi SQL, không đưa vào test tự động |
+| M-69-01 (bổ sung) | chạy thêm `npm run --silent check:invariants` một lần trên cùng DB | cùng PASS, exit 0 |
+
+**Đo thử R-7 (tách riêng, không thuộc `manual-test.txt`).** Là một bước **tùy chọn** chạy tay bằng một script riêng `backend/test/manual/invariants.bulk.manual.ts`, bật bằng biến `DBS69_BULK_ROWS` (mặc định không chạy). Script tạo DB tạm `dbs_test_*` đã migrate, sinh các giao dịch COMPLETED cân bằng bằng `generate_series` (mỗi giao dịch một DEBIT và một CREDIT cùng số tiền, số dư từng tài khoản được cập nhật cho khớp), trần `DBS69_BULK_ROWS` (đề xuất 1 000 000 dòng `ledger_entries`, ước tính vài trăm MB đĩa trong DB tạm), chạy CLI và đo thời gian bằng `time`, rồi **drop DB tạm trong finally**. Kết quả (số dòng, thời gian, hoặc `ERROR 57014` khi chạm statement timeout 60 giây) ghi vào **feature doc §R8**, không vào `manual-test.txt`. Chỉ mở một dòng BACKLOG nếu số đo cho thấy cần tối ưu SQL (review v2-1 #6, #7).
 
 Ảnh: chụp lại năm ảnh cũ từ output mới và thêm `06-db-parts.png` (M-69-09).
