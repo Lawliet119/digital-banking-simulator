@@ -9,6 +9,7 @@ import {
   createAccountsFixture,
   proveAccountLockOrder,
   proveCrossedAccountLocks,
+  proveUpdatedAtFollowsCommitOrder,
   startProbeRunner,
   withMoneyProbe,
   type AccountsFixture,
@@ -61,6 +62,14 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
       completed: 2,
       retries: 0,
     });
+  });
+
+  it('TC-55-16 a writer that waited for the lock stamps updated_at after the one it waited on', async () => {
+    const { lateStamp, earlyStamp } = await proveUpdatedAtFollowsCommitOrder(
+      fixture.source,
+      service,
+    );
+    expect(earlyStamp.getTime()).toBeGreaterThan(lateStamp.getTime());
   });
 
   it('TC-55-04a lock requires an active unreleased caller transaction even for empty input', async () => {

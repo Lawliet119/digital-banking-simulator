@@ -35,8 +35,10 @@ export class AccountsService {
     const id = this.normalizeId(accountId);
     if (typeof delta !== 'bigint') throw new TypeError('Balance deltas must be bigint');
     // PostgreSQL remains the final guard against customer overdrafts and signed-bigint overflow.
+    // clock_timestamp(), not now(): now() is the transaction start, so a writer that waited for this
+    // row lock would stamp an earlier time than the writer it waited behind.
     const result: unknown = await manager.query(
-      `UPDATE accounts SET balance=balance+$2::bigint, updated_at=now()
+      `UPDATE accounts SET balance=balance+$2::bigint, updated_at=clock_timestamp()
        WHERE id=$1::uuid RETURNING id`,
       [id, delta.toString()],
     );

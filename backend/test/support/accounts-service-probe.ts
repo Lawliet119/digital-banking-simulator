@@ -290,3 +290,54 @@ export async function proveCrossedAccountLocks(source: DataSource, service: Acco
     if (!failed) throwCleanupFailure([...closed, ...finished]);
   }
 }
+
+/**
+ * T1 opens its transaction first, then waits behind T2's row lock. Both apply a zero delta, so the
+ * committed state keeps every balance at 0 while `updated_at` records each write.
+ */
+export async function proveUpdatedAtFollowsCommitOrder(
+  source: DataSource,
+  service: AccountsService,
+) {
+  const f = ACCOUNT_FIXTURE;
+  const runners: QueryRunner[] = [];
+  let failed = false;
+  let pending: Promise<unknown> | undefined;
+  const stamp = async () => {
+    const [row] = await source.query<{ updated_at: Date }[]>(
+      'SELECT updated_at FROM accounts WHERE id=$1',
+      [f.accountA],
+    );
+    return row.updated_at;
+  };
+  try {
+    const early = await startProbeRunner(source);
+    runners.push(early);
+    // Separates the two transaction start times so now() and clock_timestamp() disagree.
+    await delay(20);
+    const late = await startProbeRunner(source);
+    runners.push(late);
+    const earlyPid = await backendPid(early);
+    const latePid = await backendPid(late);
+    await service.lockForUpdate([f.accountA], late.manager);
+    const earlyLocked = service.lockForUpdate([f.accountA], early.manager);
+    pending = earlyLocked;
+    void earlyLocked.catch(() => undefined);
+    await waitBlockedBy(source, earlyPid, latePid);
+    await service.applyBalanceChange(f.accountA, 0n, late.manager);
+    await late.commitTransaction();
+    const lateStamp = await stamp();
+    await earlyLocked;
+    await service.applyBalanceChange(f.accountA, 0n, early.manager);
+    await early.commitTransaction();
+    const earlyStamp = await stamp();
+    return { earlyPid, latePid, lateStamp, earlyStamp };
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    const closed = await Promise.allSettled(runners.map(closeProbeRunner));
+    const finished = pending ? await Promise.allSettled([pending]) : [];
+    if (!failed) throwCleanupFailure([...closed, ...finished]);
+  }
+}
