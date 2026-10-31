@@ -169,6 +169,47 @@ describe('DBS-57 existing Pino ALS and real HTTP/PG propagation', () => {
     expect(await rows(mismatch.eventId)).toEqual([]);
   });
 
+  describe('TC-57-15 background producers and the ambient request context', () => {
+    // A relay or consumer started from inside a request keeps that request's async context. The
+    // contract for them: detach it with runInContext and no bindings, or carry the same id.
+    const startedLater = (input: DomainEvent) => async () => {
+      await new Promise<void>(resolve => setImmediate(resolve));
+      await tx.run(manager => writer.add(manager, input));
+    };
+
+    it('a callback that inherits a request context is refused when its event id differs', async () => {
+      const requestId = randomUUID();
+      const input = event();
+      await expect(
+        logger.runInContext(startedLater(input), { bindings: { correlationId: requestId } }),
+      ).rejects.toMatchObject({
+        name: 'InvalidEventError',
+        issues: [expect.objectContaining({ path: 'correlationId', code: 'NOT_ALLOWED' })],
+      });
+      expect(await rows(input.eventId)).toEqual([]);
+    });
+
+    it('the same callback detached with runInContext and no bindings writes its own id', async () => {
+      const requestId = randomUUID();
+      const input = event();
+      await logger.runInContext(() => logger.runInContext(startedLater(input)), {
+        bindings: { correlationId: requestId },
+      });
+      const stored = await rows(input.eventId);
+      expect(stored).toHaveLength(1);
+      expect(stored[0].correlation_id).toBe(input.correlationId);
+      expect(input.correlationId).not.toBe(requestId);
+    });
+
+    it('a callback started outside every context writes its own id', async () => {
+      const input = event();
+      await startedLater(input)();
+      const stored = await rows(input.eventId);
+      expect(stored).toHaveLength(1);
+      expect(stored[0].correlation_id).toBe(input.correlationId);
+    });
+  });
+
   it.each([42, '', 'invalid-context', 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA'])(
     'TC-57-07 refuses malformed ALS binding %s without fallback',
     async correlationId => {
