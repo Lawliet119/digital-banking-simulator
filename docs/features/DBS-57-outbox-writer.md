@@ -396,7 +396,7 @@ PostgreSQL 17 thật, `test/db/`.
 
 | ID | Truy vết | Given · When · Then | Lỗi mong đợi |
 |---|---|---|---|
-| TC-57-14 | DoD1, R-2 | (a) NUL trong giá trị extension; (b) trong khóa extension; (c) trong phần tử của mảng lồng 3 tầng; (d) surrogate cao lẻ trong giá trị; (e) surrogate thấp lẻ trong giá trị; (e2) surrogate lẻ trong **khóa** của object lồng (`extension.meta['\ud800']`); (e3) surrogate cao đứng trước ASCII, và thứ tự đảo thấp-rồi-cao, trong giá trị. Mỗi ca: INSERT user rồi add → rollback user và outbox, không có truy vấn INSERT outbox nào, `issues` đúng một phần tử `path ''` + `INVALID_FORMAT`, `message` và `JSON.stringify(issues)` không chứa giá trị. (f) cặp surrogate hợp lệ (😀) và chuỗi tiếng Việt có dấu được ghi, payload đọc lại bằng nhau | `InvalidEventError` |
+| TC-57-14 | DoD1, R-2 | (a) NUL trong giá trị extension; (b) trong khóa extension; (c) trong phần tử của mảng lồng 3 tầng; (d) surrogate cao lẻ trong giá trị; (e) surrogate thấp lẻ trong giá trị; (e2) surrogate lẻ trong **khóa** của object lồng (`extension.meta['\ud800']`); (e3) trong giá trị: surrogate cao đứng trước ASCII; thứ tự đảo thấp-rồi-cao; một surrogate lẻ sát một cặp hợp lệ, cả ba dạng cao+cao+thấp, cao+thấp+thấp và thấp+cao+thấp (review v2-3 #1). Mỗi ca: INSERT user rồi add → rollback user và outbox, không có truy vấn INSERT outbox nào, `issues` đúng một phần tử `path ''` + `INVALID_FORMAT`, `message` và `JSON.stringify(issues)` không chứa giá trị. (f) cặp surrogate hợp lệ (😀) và chuỗi tiếng Việt có dấu được ghi, payload đọc lại bằng nhau | `InvalidEventError` |
 | TC-57-15 | DoD2, R-1 | (a) callback khởi động trong `logger.runInContext` với id X, chạy sau một `await` và một `setImmediate`, ghi event có id Y hợp lệ → `NOT_ALLOWED`, không row. (b) cùng callback nhưng được bọc `logger.runInContext(callback)` **không truyền `bindings`** → ghi thành công với id Y, đúng 1 row. (c) khởi động hẳn ngoài mọi context → ghi thành công. Chứng minh hợp đồng và cơ chế tách mà README sẽ nêu | `InvalidEventError` / — |
 | TC-57-13 (đổi) | DoD1/3/4, R-3 | child nhận `DBS57_BASE_DATABASE_URL` (từ `requireDatabaseUrl()`), không nhận `DATABASE_URL` hay biến dự án; ba role mỗi role đúng 1 row, cleanup; JSON của driver có `cleanup.ownContainerStopped: false` (driver không tự dựng container). Assertion cũ `ownContainerStopped: true` phải đảo lại | — |
 | TC-57-11 (giữ) | | `cycle`, `toJSON`, mutation sau add vẫn đạt | như cũ |
@@ -449,3 +449,10 @@ Driver đặt `process.exitCode = 1` khi lỗi, `pipefail` giữ mã thoát đó
 | v2-2 #3 | minor | `??` giữ chuỗi rỗng, âm thầm bật container tự dựng | đã sửa R2: dùng `||` |
 | v2-2 #4 | minor | Lệnh M-57-07 không ở dạng script rõ ràng | đã sửa R5: `bash -c 'set -euo pipefail; …'` |
 | v2-2 #5 | minor | Tham chiếu "§R9" không tồn tại | đã sửa R2: trỏ tới §R8 |
+
+**Lượt 3:** 1 phát hiện (minor), **verdict APPROVE** · [nguyên văn lượt 3](screenshots/DBS-57/domain-review-v2-round-3.md). Reviewer đối chiếu biểu thức với PostgreSQL 17.11 trên 13 đầu vào, cả ở khóa lẫn giá trị: khớp hoàn toàn; xác nhận không cần cờ `u`, quy tắc `||`, ca (e2) và vòng lặp `bash -c`.
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| v2-3 #1 | minor | (e3) chưa có ca lẻ sát cặp hợp lệ | đã sửa TC-57-14 (e3): thêm cao+cao+thấp, cao+thấp+thấp, thấp+cao+thấp |
+
