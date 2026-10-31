@@ -2,15 +2,29 @@
 
 Đưa sự kiện từ bảng `outbox_events` ra các queue, ít nhất một lần.
 
-> **Status:** Draft · **Owner:** Dev · **Verified against code:** schema outbox/processed và partial indexes; writer/relay/consumer chưa triển khai.
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** schema, partial indexes và OutboxWriter; relay/consumer chưa triển khai.
 
 Hai bảng có migration và test PostgreSQL thật. `published_at` được UPDATE khi relay gửi xong, các bảng cho phép cleanup DELETE; không gắn trigger append-only. `processed_events` chống trùng theo cặp consumer/event, không phải khóa ngoại của outbox. `down` chỉ chạy trong transaction READ COMMITTED, khóa cả hai bảng rồi từ chối nếu còn dữ liệu. Hành vi phát/gửi/xử lý sự kiện vẫn chờ các task runtime.
 
 | | |
 |---|---|
-| Chạy ở | **`worker`** |
+| Chạy ở | Writer: **`api` / `worker`**; relay: `worker` (chưa triển khai) |
 | Sở hữu bảng | `outbox_events` (mọi module ghi qua `OutboxWriter.add`, trong transaction của mình), `processed_events` (khung chống xử lý trùng cho mọi consumer) |
 | Thiết kế | `docs/03` §10 |
+
+## Ghi sự kiện
+
+Import `OutboxModule` vào module producer, inject `OutboxWriter` qua `@modules/outbox` rồi gọi `add(manager, event): Promise<void>` bằng manager của `TransactionService.run`. Manager phải có transaction đang hoạt động. Writer chỉ INSERT, không gọi SQS/Redis/HTTP, không tự commit hoặc retry. Trùng `eventId` bị unique constraint từ chối; writer không upsert.
+
+Input phải qua `assertEvent` của `@common/events`; writer chụp JSON đồng bộ trước await, kiểm lại envelope sẽ lưu và lấy mọi cột từ snapshot này. Payload là toàn event, giữ extension tương thích JSON. Producer sai schema hoặc serialization thất bại làm transaction nghiệp vụ rollback có chủ ý; caller không được nuốt lỗi rồi commit (fail-closed). Tiền luôn là chuỗi, không có số dư trong Redis.
+
+`correlationId` trong input luôn bắt buộc và hợp lệ. Writer đọc context ALS hiện có qua public `PinoLogger.logger.bindings()`: thiếu/null dùng `event.correlationId`; context hợp lệ phải trùng `event.correlationId`; mismatch hoặc context sai bị từ chối trước INSERT. Không tạo ID mới hoặc ghi đè để che lỗi producer. Provider context chung xuyên worker/message vẫn thuộc DBS-43.
+
+**Producer chạy nền (BL-123).** Context này sống theo async context của request: một relay hay consumer được khởi động từ bên trong một request giữ nguyên `correlationId` của request đó, nên mọi event mang id khác bị từ chối `NOT_ALLOWED`. Producer nền phải **tách** bằng `logger.runInContext(callback)` **không truyền `bindings`** (mặc định `inherit: false` tạo store mới từ logger gốc), hoặc ghi event mang đúng id của context. Khởi động từ ngoài mọi request thì không cần tách. Hành vi này được khóa bằng TC-57-15.
+
+**Chuỗi không lưu được.** Trường mở rộng được phép (`allowUnknown`), nhưng PostgreSQL jsonb không lưu được ký tự NUL (U+0000) hay surrogate lẻ (ví dụ `�`), ở giá trị lẫn khóa. Writer từ chối chúng trước INSERT bằng `InvalidEventError` với một issue `{ path: '', code: 'INVALID_FORMAT' }`, thông điệp không chứa giá trị, và cả transaction của caller rollback như mọi lỗi validate khác (TC-57-14). Cặp surrogate hợp lệ (emoji) vẫn được lưu. Giới hạn kích thước payload (jsonb từ chối chuỗi quá 268 435 455 byte) chưa có: BL-123.
+
+`TransferCompleted.occurredAt` do producer lấy từ `transfers.created_at` của DB rồi chuyển `Date#toISOString()`; writer chỉ kiểm/bảo toàn, không chứng minh nguồn thời gian. Relay/giao hàng và producer nghiệp vụ chưa được cung cấp bởi writer. [Hợp đồng sự kiện](../../../../docs/components/_shared/event-contract.md) · [Hồ sơ và bằng chứng DBS-57](../../../../docs/features/DBS-57-outbox-writer.md).
 
 ## Phải giữ
 

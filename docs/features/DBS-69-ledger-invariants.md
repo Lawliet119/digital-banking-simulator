@@ -276,7 +276,7 @@ Các lệnh dưới đây chạy từ `backend/`, trừ lệnh được ghi từ
 | 5 | F06, F02 | TC-69-13/15/17 đã kiểm các hành vi owner/CLI/failure trước driver; dùng kịch bản M-69-01, M-69-02, M-69-03, M-69-04, M-69-05, M-69-06, M-69-07, M-69-08 đã viết ở G2 để hoàn thiện driver gọi thật | Đã triển khai sau TC hành vi; 8/8 bước working tree đạt; đã chạy lại final-SHA 8/8 trên 1d921ff | `npm run typecheck`; DB suite riêng; chuẩn bị lệnh `npx ts-node -r tsconfig-paths/register test/manual/invariants.manual.ts` cho bước 7 | `test(ledger): add invariant manual driver` |
 | 6 | F07–F19 | Đối chiếu cách dùng với CLI/hàm đã chạy, DoD #4, giữ đúng giới hạn §7.4. Chỉ sửa các dòng liên quan tool; không viết unit test lặp lại nội dung README | Links 135/135 sạch, Mermaid CLI 12.0.0 render thành công; lệnh CLI/hàm đã chạy thật | Từ root: `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`; kiểm render Mermaid bằng renderer tạm ngoài repo | Gộp commit tài liệu/bằng chứng sau bước 8 |
 | 7 | F01–F06, F13; bằng chứng §7.2 | Chạy toàn bộ test và build; sau khi code cuối đã có commit được cho phép, chạy lại toàn bộ M-69-01…08 trên SHA đó và chụp output thật | Sáu lệnh local xanh khi kiểm tra lại G3; manual final-SHA 8/8, đủ năm ảnh transcript thật; code đổi thì chạy lại §5 | Sáu lệnh §7.5; driver manual; link check và `git diff --check` | Không đổi code chỉ để tạo bằng chứng; SHA code cuối cố định |
-| 8 | F11–F13; bằng chứng §7.2 | Điền đối chiếu đủ 19 TC và mọi subcase; 8 bước manual; file thực tế khớp allowlist; mọi handoff/DoD chưa đạt có BL và điều kiện đóng | Đã điền TC/manual và BL-053/054; inventory đã đối chiếu trước commit; CI/Dev review/merge chưa thực hiện | Từ root: link check, `git status --short --untracked-files=all`, `git diff --check`; so diff/commit tree khi có commit | `docs(ledger): document invariant checks and evidence` |
+| 8 | F11–F13; bằng chứng §7.2 | Điền đối chiếu đủ 19 TC và mọi subcase; 8 bước manual; file thực tế khớp allowlist; mọi handoff/DoD chưa đạt có BL và điều kiện đóng | Đã điền TC/manual và BL-126/054; inventory đã đối chiếu trước commit; CI/Dev review/merge chưa thực hiện | Từ root: link check, `git status --short --untracked-files=all`, `git diff --check`; so diff/commit tree khi có commit | `docs(ledger): document invariant checks and evidence` |
 
 ### 7.2 Danh sách file được dự kiến thay đổi
 
@@ -409,7 +409,7 @@ Tất cả tên dưới thuộc `backend/test/db/invariants.db-spec.ts`; lớp t
 | TC-69-18 | ACCESS EXCLUSIVE khóa thật, statement timeout 57014, rollback/release rồi sạch | Đạt |
 | TC-69-19 | raw SQL = hàm; shadow temp tables không che public; import cwd khác không load env/connect; CLI so hàm ở TC-69-15 | Đạt 2 test và đối chiếu subprocess |
 | Quy trình DoD #4 | README có lệnh/hàm/exit/TLS/giới hạn, links sạch | Đạt local |
-| Quy trình DoD #5 | Draft PR #35 có bảng TC; CI chạy trên GitHub; Dev review/merge chưa thực hiện | Chưa hoàn tất — BL-053; trạng thái CI mới nhất tại checks của PR |
+| Quy trình DoD #5 | Draft PR #35 có bảng TC; CI chạy trên GitHub; Dev review/merge chưa thực hiện | Chưa hoàn tất — BL-126; trạng thái CI mới nhất tại checks của PR |
 
 ### 8.3 Manual trên SHA code cuối
 
@@ -443,13 +443,13 @@ Lệnh đã chạy trong **Git Bash**: `node -r ts-node/register -r tsconfig-pat
 Đối chiếu inventory và diff với base `main` tại `b8742a3`: **32 file = 19 source/docs F01–F19 + 8 text evidence + 5 PNG**; tất cả đúng §7.2. Đã kiểm staged paths trước mỗi commit và diff sau commit; không có workbook, env, state hoặc artifact ngoài scope. Chưa có lệch phạm vi; chưa thêm dependency/lockfile/env/schema/CI hoặc sửa producer/API.
 
 - **BL-006 giữ mở:** tool bắt cặp thiếu/balance tổng lệch; không kiểm lịch sử balance_after hoặc chặn commit bằng trigger.
-- **BL-053 mới:** đã có Draft PR #35 và bảng TC, CI chạy trên GitHub; còn Dev khác review và merge, cần CI xanh ở HEAD được merge. Commit code và manual/ảnh final-SHA đã hoàn tất.
-- **BL-054 mới:** Dev/Ops nhận cách gọi checker cho money/load/drill và scheduler tương lai; chưa nhận các luồng chưa có đã được tích hợp/chạy.
+- **BL-126 mới:** đã có Draft PR #35 và bảng TC, CI chạy trên GitHub; còn Dev khác review và merge, cần CI xanh ở HEAD được merge. Commit code và manual/ảnh final-SHA đã hoàn tất.
+- **BL-127 mới:** Dev/Ops nhận cách gọi checker cho money/load/drill và scheduler tương lai; chưa nhận các luồng chưa có đã được tích hợp/chạy.
 - Tests TLS mới chứng minh config/parser giữ CA, không phải kết nối RDS/TLS server thật. Roles owner/SELECT-only là local fixture, không phải production grants (BL-005/017/019). Không chạy load/AWS E2E hoặc sửa board.
 
 ## 9. Tài liệu đã cập nhật
 
-Đã cập nhật feature doc, backend README, scripts README, ledger README, load-tests README, feature index và sáu dòng/nhóm dòng checker ở references của `.claude`/`.agents` đúng F07–F19. BACKLOG: BL-006 thêm nguồn; BL-053/054 mới; không xóa dòng nào. Các file code/test theo F01–F06 đã tạo/sửa.
+Đã cập nhật feature doc, backend README, scripts README, ledger README, load-tests README, feature index và sáu dòng/nhóm dòng checker ở references của `.claude`/`.agents` đúng F07–F19. BACKLOG: BL-006 thêm nguồn; BL-126/054 mới; không xóa dòng nào. Các file code/test theo F01–F06 đã tạo/sửa.
 
 Bằng chứng: [baseline](screenshots/DBS-69/baseline-phase1.txt), [review vòng 1](screenshots/DBS-69/domain-review-round-1.txt), [review cuối](screenshots/DBS-69/domain-review.md), [probe TLS](screenshots/DBS-69/design-probes.txt), [plan sweep](screenshots/DBS-69/plan-sweep.txt), [red/green](screenshots/DBS-69/red-green.txt), [verification](screenshots/DBS-69/verification.txt), [manual final-SHA](screenshots/DBS-69/manual-test.txt) và năm ảnh §8.3.
 

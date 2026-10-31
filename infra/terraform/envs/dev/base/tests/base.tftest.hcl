@@ -1,4 +1,11 @@
-mock_provider "aws" {}
+mock_provider "aws" {
+  # Giá trị giả đúng định dạng id của Cognito (provider kiểm định dạng khi apply).
+  mock_resource "aws_cognito_user_pool" {
+    defaults = {
+      id = "ap-southeast-1_ABCDEFGHI"
+    }
+  }
+}
 
 variables {
   account_id = "123456789012"

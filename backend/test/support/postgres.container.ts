@@ -29,6 +29,7 @@ export interface StartedPostgres {
  */
 export async function assertDockerAvailable(
   clientGetter: () => Promise<unknown> = getContainerRuntimeClient,
+  contextLabel: string = 'database tests',
 ): Promise<void> {
   try {
     await withTimeout(
@@ -38,7 +39,7 @@ export async function assertDockerAvailable(
     );
   } catch (error) {
     throw new Error(
-      '[Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. ' +
+      `[Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run ${contextLabel}. ` +
         `Error details: ${(error as Error).message}`,
     );
   }
