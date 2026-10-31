@@ -226,6 +226,10 @@ Staging và production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác 
 
 Bước `docker build` và kết nối RDS thật **chưa chạy** (BL-106).
 
+### Kết nối Redis (Valkey) trên AWS
+
+**Ghép `REDIS_URL` (DBS-75).** Giống `DATABASE_URL`: task truyền `REDIS_HOST`, `REDIS_PORT` (biến thường) và `REDIS_AUTH_TOKEN` (từ secret `dbs/dev/redis-auth`). `env.bootstrap` ghép thành `rediss://:<token đã mã hóa URL>@<host>:<port>`. `REDIS_URL` đã có giá trị (local, CI) thì được giữ nguyên; thiếu `REDIS_HOST` thì không ghép. Giá trị sai (host lạ, cổng ngoài 1–65535, token rỗng) chỉ làm log nêu **tên** biến, không in giá trị, và schema báo thiếu `REDIS_URL`. Staging và production bắt buộc `rediss://` (TLS). App chưa có client Redis (DBS-76).
+
 ### Hạ tầng phía trước app
 Staging và production bắt buộc `TRUST_PROXY_HOPS` (≥ 1; ALB = 1). Để 0 thì mọi khách chung địa chỉ IP của ALB và rate limit theo IP sẽ chặn nhầm tất cả.
 
