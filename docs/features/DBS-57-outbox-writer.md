@@ -330,7 +330,7 @@ Ba ảnh là CUA chụp trang local hiển thị raw transcript, wrap dòng cho 
 
 ## Vòng 2 · Sửa sau review PR #34
 
-> **Status vòng 2:** Design approved (sau G2) · **Nguồn:** review code PR #34 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `feat/DBS-57-outbox-writer` (sửa trực tiếp theo yêu cầu người dùng) · **Cập nhật:** 2026-10-31
+> **Status vòng 2:** Plan approved (sau G3) · **Nguồn:** review code PR #34 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `feat/DBS-57-outbox-writer` (sửa trực tiếp theo yêu cầu người dùng) · **Cập nhật:** 2026-10-31
 
 ### R1. Bối cảnh
 
@@ -496,4 +496,4 @@ Thứ tự migration → service → controller không áp dụng: không có mi
 | Hạn chế vòng 1 | BL-002/003/009/010/018/019/024/053/055 | ngoài phạm vi, giữ nguyên |
 | Xung đột PR | 4 file | S6 |
 
-**Quyết định ở G3 (vòng 2):** ghi lại sau khi được duyệt.
+**Quyết định ở G3 (vòng 2):** người dùng trả lời «duyệt» ngày 2026-10-31. BL-123 cho bàn giao #3 (kiểm lại khi merge `main`); push một lần sau G4.
