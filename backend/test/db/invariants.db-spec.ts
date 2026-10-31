@@ -62,7 +62,13 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
 
   const backend = resolve(__dirname, '../..');
   const cliFile = resolve(backend, 'test/support/invariants.ts');
-  const npmFile = process.env.npm_execpath!;
+  const tsNodeArgs = [
+    '-r',
+    require.resolve('ts-node/register'),
+    '-r',
+    require.resolve('tsconfig-paths/register'),
+    cliFile,
+  ];
   function childEnvironment(overrides: Record<string, string | undefined> = {}) {
     const env: NodeJS.ProcessEnv = {
       ...process.env,
@@ -84,16 +90,12 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     return env;
   }
   function cli(args: string[] = [], overrides: Record<string, string | undefined> = {}) {
-    return spawnSync(
-      process.execPath,
-      [npmFile, 'run', '--silent', 'check:invariants', ...(args.length ? ['--', ...args] : [])],
-      {
-        cwd: backend,
-        env: childEnvironment(overrides),
-        encoding: 'utf8',
-        timeout: 45_000,
-      },
-    );
+    return spawnSync(process.execPath, [...tsNodeArgs, ...args], {
+      cwd: backend,
+      env: childEnvironment(overrides),
+      encoding: 'utf8',
+      timeout: 45_000,
+    });
   }
   function expectSafeError(result: ReturnType<typeof cli>, kind = 'CHECK_ERROR') {
     expect(result.error).toBeUndefined();
@@ -486,6 +488,32 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
       expect(report).toEqual(await checkLedgerInvariants(db.runner));
       expect(report).toMatchObject({ status });
     }
+  });
+  it('TC-69-15n the npm script check:invariants runs the same CLI', async () => {
+    const npmFile = process.env.npm_execpath;
+    if (!npmFile) {
+      throw new Error(
+        'TC-69-15n needs npm_execpath: run the suite through npm (npm run test:db), not jest directly',
+      );
+    }
+    const refs = await seedInvariantLedger(db.runner);
+    await db.runner.commitTransaction();
+    const run = () =>
+      spawnSync(process.execPath, [npmFile, 'run', '--silent', 'check:invariants'], {
+        cwd: backend,
+        env: childEnvironment(),
+        encoding: 'utf8',
+        timeout: 45_000,
+      });
+    const clean = run();
+    expect(clean.error).toBeUndefined();
+    expect(clean.status).toBe(0);
+    expect(JSON.parse(clean.stdout)).toMatchObject({ status: 'PASS' });
+    await db.runner.query('UPDATE accounts SET balance=balance+1 WHERE id=$1', [refs.senderId]);
+    const dirty = run();
+    expect(dirty.status).toBe(1);
+    expect(JSON.parse(dirty.stdout)).toMatchObject({ status: 'FAIL' });
+    await db.runner.query('UPDATE accounts SET balance=balance-1 WHERE id=$1', [refs.senderId]);
   });
   it.each([
     'ssl',
