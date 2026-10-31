@@ -468,3 +468,33 @@ Bằng chứng: [baseline](screenshots/DBS-69/baseline-phase1.txt), [review vòn
 ### Bàn giao GitHub sau G4
 
 Đã push nhánh `codex/DBS-69-ledger-invariants` và mở [Draft PR #35](https://github.com/Lawliet119/digital-banking-simulator/pull/35). PR theo template, có bảng đối chiếu DoD/TC và bằng chứng local/manual. Đã đối chiếu 32 file của PR với allowlist, kiểm tree/outgoing history không có workbook hoặc env/state nhạy cảm. CI đầu tiên khởi chạy tại commit `dd63067`; kết quả CI trên HEAD cuối được xác minh tại checks của PR khi bàn giao, không dùng kết quả local thay CI. Agent không merge/sửa board; cần Dev khác review và người dùng cập nhật In Review.
+
+## Vòng 2 · Sửa sau review PR #35
+
+> **Status vòng 2:** Draft (đến G2) · **Nguồn:** review code PR #35 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `codex/DBS-69-ledger-invariants` (sửa trực tiếp theo yêu cầu người dùng; mọi commit trước đó của tác giả `Đức PHạm`) · **Cập nhật:** 2026-10-31
+
+### R1. Bối cảnh
+
+| ID | Điểm | Vị trí | Vấn đề | Hướng sửa đề xuất |
+|---|---|---|---|---|
+| R-1 | 4 | `docs/BACKLOG.md`, `docs/features/README.md`, `backend/README.md`, `backend/package.json` | Xung đột với `main`; BL-053/054 của DBS-69 trùng BL-053/054 của DBS-40/41 (nay `main` tới BL-125) | Merge `main`, gỡ xung đột giữ đủ hai bên, đánh lại ID DBS-69 từ BL-126, sửa mọi tham chiếu |
+| R-2 | 3 | `invariants.ts:152` | Lỗi pool đến sau khi kiểm tra đã commit và đã có report PASS thì bị biến thành ERROR, exit 2 | Chỉ coi lỗi pool là lỗi khi chưa có report; có test |
+| R-3 | 3 | `invariants.ts:101-107` | CLI không dùng `composeDatabaseUrl` như ECS (dựng URL từ `DB_*`); mọi lỗi cấu hình gộp thành `INVALID_CONFIG`, mất tên biến sai | Sau merge, gọi `composeDatabaseUrl`; `INVALID_CONFIG` kèm **tên** biến sai (không bao giờ giá trị) |
+| R-4 | 3 | vị trí `test/support/invariants.ts` | Cần `ts-node` (devDependency); không chạy được trong image ECS (`npm prune --omit=dev`) | Xem câu hỏi G1 #3 |
+| R-5 | 2 | `invariants.db-spec.ts` | Mã TC trùng: TC-69-19 ×2, TC-69-16 ×4, TC-69-17 ×4 | Tách mã con (TC-69-16a…d, 17a…d, 19a/b) |
+| R-6 | 2 | `invariants.db-spec.ts:65`, `invariants.manual.ts:22` | `process.env.npm_execpath!` chỉ có khi chạy qua npm; đường dự phòng không tồn tại trên Linux/Homebrew | Chạy `ts-node` trực tiếp qua `process.execPath`, không phụ thuộc npm |
+| R-7 | 2 | `invariants.sql` | Quét `ledger_entries` ba lần trong một câu, statement timeout 60 s | Xem câu hỏi G1 #4 |
+
+**Mục 1 điểm ngoài phạm vi:** đọc lại `invariants.sql` mỗi lần gọi `checkLedgerInvariants` (`readFileSync`).
+
+**Baseline 2026-10-31** trên `dbf4951` (đầu nhánh PR): `lint:check` exit 0; `typecheck` exit 0; unit 30 suites/495 tests đạt; DB 9 suites/194 tests đạt (163,5 s); E2E 8 suites/57 tests đạt, 0 skipped; `build` exit 0. E2E chạy trên container `postgres:17` ở cổng 55432 vì máy có PostgreSQL 18 native chiếm cổng 5432.
+
+**Đã tái hiện:** chạy `invariants.sql` thẳng trên PostgreSQL 17 đã migrate: DB sạch trả `PASS`; sửa một số dư thêm 1 trong một transaction rồi rollback trả `FAIL` đúng tài khoản lệch và tổng lệch (DoD 3 đúng). Chưa tái hiện R-2 và R-7 (cần lỗi kết nối giữa chừng và bảng lớn).
+
+**Người gọi các symbol bị đổi:** `checkLedgerInvariants` chỉ được gọi trong `test/db/invariants.db-spec.ts` và `test/manual/invariants.manual.ts`; CLI chỉ chạy qua `npm run check:invariants`. Chưa có caller production (DBS-60/61/load test chưa dùng).
+
+**Tích hợp với `main`:** `main` đã có PR #33, #34, DBS-75 và các thay đổi hạ tầng. Nhánh này xung đột ở 4 file; `main` có `backend/src/config/compose-database-url.ts` và `env.bootstrap.ts` mà nhánh chưa có. Sau khi merge, `backend/package.json` và `backend/README.md` phải giữ cả các script và mục của `main` lẫn `check:invariants`.
+
+**Ngoài phạm vi:** lịch sử `balance_after`, scheduler đối soát, ràng buộc lúc commit (đã nêu ở §2.3); các dòng BL khác của DBS-69.
+
+**Câu hỏi mở:** xem tin nhắn G1.
