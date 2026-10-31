@@ -471,7 +471,7 @@ Bằng chứng: [baseline](screenshots/DBS-69/baseline-phase1.txt), [review vòn
 
 ## Vòng 2 · Sửa sau review PR #35
 
-> **Status vòng 2:** Design approved (sau G2) · **Nguồn:** review code PR #35 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `codex/DBS-69-ledger-invariants` (sửa trực tiếp theo yêu cầu người dùng; mọi commit trước đó của tác giả `Đức PHạm`) · **Cập nhật:** 2026-10-31
+> **Status vòng 2:** Plan approved (sau G3) · **Nguồn:** review code PR #35 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `codex/DBS-69-ledger-invariants` (sửa trực tiếp theo yêu cầu người dùng; mọi commit trước đó của tác giả `Đức PHạm`) · **Cập nhật:** 2026-10-31
 
 ### R1. Bối cảnh
 
@@ -690,4 +690,4 @@ Thứ tự migration → service → controller không áp dụng: không có mi
 | DoD5 quy trình | merge, Dev review, bảng TC trong PR | cập nhật bảng TC trong body PR sau G4; Dev review và merge vẫn chờ (BL-126) |
 | Bàn giao | R-4 (checker trong image ECS), tích hợp money test và load run | BL-128 (vai #5) và BL-127 (đổi ID từ BL-054) |
 
-**Quyết định ở G3 (vòng 2):** ghi lại sau khi được duyệt.
+**Quyết định ở G3 (vòng 2):** người dùng trả lời «duỵet» (gõ nhầm của «duyệt») ngày 2026-10-31. BL-126/127/128 cho ba dòng backlog (kiểm lại ID khi merge `main`); push một lần sau G4.
