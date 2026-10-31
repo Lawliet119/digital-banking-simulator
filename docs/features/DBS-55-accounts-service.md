@@ -215,7 +215,7 @@ Các lệnh dưới chạy trong `backend/` của worktree DBS-55 trừ khi ghi 
 | P3 · Quyền sở hữu | `backend/src/modules/accounts/accounts.service.ts`; `backend/test/db/accounts-service.db-spec.ts`; `backend/test/support/accounts-service-probe.ts` | TC-55-11/12. Đỏ TS2339 thiếu owned; xanh DB31 tests tại 078093a, gồm valid Cognito sub khác internal id. | Cùng lệnh DB P1; `npm run typecheck` | `feat(accounts): enforce uniform ownership checks` |
 | P4 · Public API và Nest wiring | `backend/src/modules/accounts/accounts.module.ts`; `backend/src/modules/accounts/index.ts`; `backend/src/modules/accounts/accounts.exports.spec.ts`; `backend/src/modules/index.ts`; `backend/src/modules/modules.spec.ts`; `backend/test/db/accounts-service.db-spec.ts` | TC-55-14/15. Unit đỏ TS2305 chưa có AccountsModule; xanh unit6/DB32 tests tại a3c8851. Boundary dùng effective rule thật, không sửa eslint. | `npm test -- --runInBand --runTestsByPath src/modules/accounts/accounts.exports.spec.ts src/modules/modules.spec.ts`; DB P1; `npm run lint:check`; `npm run typecheck` | `feat(accounts): expose and register accounts service` |
 | P5 · Driver và lỗi vận hành | `backend/test/manual/accounts-service.manual.ts`; `backend/test/support/accounts-service-probe.ts` | Dùng TC-55-01…15 đã xanh; M-55-01…05. Artifact assertion đỏ exit 1 rồi xanh exit 0; unsupported-mode assertion exit 1 trước DB; manual `all` trên f1d7a5f đạt M01–05, exit 0; M06 chưa chạy như G1. | Lệnh Git Bash §5 với `all`, `pipefail`; transcript có SHA code cuối và không token/URL | `078fbca`; `f1d7a5f` |
-| P6 · Docs, đối chiếu và evidence | Các path chính xác ở bảng inventory dưới; không thêm path khác | TC01–15 đạt, manual M01–05 đạt/M06 chờ; đủ bốn ảnh thật. Full checks đã chạy, E2E còn 1 lỗi inherited; người dùng giữ phạm vi cũ, ghi BL-054/056. Kết quả chi tiết §8. | Full checks, manual, render Mermaid; `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`; `git diff --check` | `docs(accounts): record service verification and handoffs` (chờ commit local) |
+| P6 · Docs, đối chiếu và evidence | Các path chính xác ở bảng inventory dưới; không thêm path khác | TC01–15 đạt, manual M01–05 đạt/M06 chờ; đủ bốn ảnh thật. Full checks đã chạy, E2E còn 1 lỗi inherited; người dùng giữ phạm vi cũ, ghi BL-112/121. Kết quả chi tiết §8. | Full checks, manual, render Mermaid; `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`; `git diff --check` | `docs(accounts): record service verification and handoffs` (chờ commit local) |
 
 Không tách abstraction production mới ngoài service/types/module/index. Helper P1 phục vụ cả DB spec và manual driver để giữ cùng fixture0/cleanup/invariant SQL; assertions từng case vẫn ở spec/driver. Tranh chấp dùng QueryRunner trực tiếp, không TransactionService retry; money probes chỉ gọi service và rollback trước invariant. Không sửa migration, `TransactionService`, `@common/money`, filter, config hoặc package/lockfile; nếu thiếu khả năng trong inventory thì xin gate phụ trước khi sửa.
 
@@ -271,7 +271,7 @@ Sau P1–P5, chạy lần lượt tại `backend/`: `npm run lint:check`; `npm r
 
 ## 8. Kết quả
 
-**Quyết định G4 và xuất bản:** Người dùng trả lời «duyệt G4» ngày 2026-10-28 cho DBS-55 và DBS-57, sau thông điệp bàn giao nêu rõ giới hạn kiểm thử và đề xuất push hai nhánh, tạo hai Draft PR. Bàn giao DBS-55 được chấp nhận với **M-55-06 chưa chạy** (chờ DBS-60/61 và AuditService), E2E local còn một timeout logging (BL-056) và quan sát timing JWKS (BL-054). Nhánh đã push và [Draft PR #33](https://github.com/Lawliet119/digital-banking-simulator/pull/33) đã mở với bảng đối chiếu TC. Kết quả CI của HEAD hiện tại được theo dõi tại [Checks của PR](https://github.com/Lawliet119/digital-banking-simulator/pull/33/checks); Dev review và merge chưa hoàn tất, giữ BL-057. Agent không sửa board hoặc tự merge.
+**Quyết định G4 và xuất bản:** Người dùng trả lời «duyệt G4» ngày 2026-10-28 cho DBS-55 và DBS-57, sau thông điệp bàn giao nêu rõ giới hạn kiểm thử và đề xuất push hai nhánh, tạo hai Draft PR. Bàn giao DBS-55 được chấp nhận với **M-55-06 chưa chạy** (chờ DBS-60/61 và AuditService), E2E local còn một timeout logging (BL-121) và quan sát timing JWKS (BL-112). Nhánh đã push và [Draft PR #33](https://github.com/Lawliet119/digital-banking-simulator/pull/33) đã mở với bảng đối chiếu TC. Kết quả CI của HEAD hiện tại được theo dõi tại [Checks của PR](https://github.com/Lawliet119/digital-banking-simulator/pull/33/checks); Dev review và merge chưa hoàn tất, giữ BL-057. Agent không sửa board hoặc tự merge.
 
 **Đồng bộ upstream trước xuất bản:** nhánh đã nhận `origin/main` `b8742a3` (DBS-41) bằng merge, giữ workflow và bằng chứng CI của task đó. BL-016 đã được [DBS-41](DBS-41-testcontainers-ci.md) giải quyết trên upstream; không còn là handoff pending. BL-052 trên upstream thuộc DBS-41, nên process-gap DBS-55 đổi sang **BL-057**, không đổi phạm vi hoặc yêu cầu review/CI/merge. Đồng bộ không sửa file TypeScript trong source/test; SHA cuối đổi code và manual vẫn là `f1d7a5f321d463231868c6ab2c8b450f675c8644`. Diff PR được đối chiếu với `origin/main`, không tính các file DBS-41 đã thuộc base.
 
@@ -320,16 +320,16 @@ Các lệnh dưới chạy tại `backend/`, trên code SHA `f1d7a5f321d46323186
 |---|---|
 | `npm run lint:check` | Exit 0 |
 | `npm run typecheck` | Exit 0 |
-| `npm test -- --runInBand` | Lượt cuối tuần tự: 31/31 suites, 497/497 tests đạt, 0 skipped, exit 0. Lượt trước khi chạy cùng DB: 30/31 suites, 495/497 tests đạt, hai lỗi cooldown JWKS; giữ BL-054, không nhận đã sửa flaky |
+| `npm test -- --runInBand` | Lượt cuối tuần tự: 31/31 suites, 497/497 tests đạt, 0 skipped, exit 0. Lượt trước khi chạy cùng DB: 30/31 suites, 495/497 tests đạt, hai lỗi cooldown JWKS; giữ BL-112, không nhận đã sửa flaky |
 | `npm run test:db -- --runInBand` | 9/9 suites, 186/186 tests đạt, 0 skipped, PostgreSQL 17 thật, exit 0 |
 | `npm run test:e2e -- --runInBand` | **Chưa xanh:** 7/8 suites, 56/57 tests đạt, 0 skipped, exit 1; TC-42-11 worker DB failure trong `test/logging-bootstrap.e2e-spec.ts` bị `spawnSync ETIMEDOUT` ở deadline 25 giây |
 | `npm run build` | Exit 0 |
 | Mermaid §3 | Mermaid CLI 12 và Chrome render diagram nguyên bản ngoài repo, đã mở kiểm ảnh |
 | Link checker và diff whitespace | `check-doc-links.mjs`: 136 files checked, 0 broken link(s); `git diff --check`: exit 0 |
 
-Diagnostic riêng cho TC-42-11 giữ fixture gốc, chỉ tăng deadline của launcher ngoài repo lên 60 giây: child exit 1 sau 10409 ms; startup-failed tại 10372 ms với ECONNREFUSED, năm lần kết nối cách nhau khoảng 2 giây; không treo trong lượt này. Output đã phân loại an toàn và kiểm không lộ fixture nhạy cảm. Đây là bằng chứng chẩn đoán, **không** chứng minh đã khắc phục timeout của full E2E; BL-056 vẫn mở.
+Diagnostic riêng cho TC-42-11 giữ fixture gốc, chỉ tăng deadline của launcher ngoài repo lên 60 giây: child exit 1 sau 10409 ms; startup-failed tại 10372 ms với ECONNREFUSED, năm lần kết nối cách nhau khoảng 2 giây; không treo trong lượt này. Output đã phân loại an toàn và kiểm không lộ fixture nhạy cảm. Đây là bằng chứng chẩn đoán, **không** chứng minh đã khắc phục timeout của full E2E; BL-121 vẫn mở.
 
-Hai test JWKS tạo/sign RSA sau lần fetch nhưng giả định còn trong cooldown 200 ms; sự phụ thuộc thời gian/tải đã được ghi BL-054. Ngày 2026-10-28, sau đề nghị gate phụ sửa hai file test inherited JWKS/logging trên cả hai nhánh, người dùng chọn **«Giữ phạm vi cũ, ghi rõ lỗi/hạn chế»**. Vì vậy không sửa các file ngoài §7, không tăng timeout trong source hoặc nhận full baseline đã xanh. Đây là quyết định giữ nguyên phạm vi, không phải miễn yêu cầu báo lỗi.
+Hai test JWKS tạo/sign RSA sau lần fetch nhưng giả định còn trong cooldown 200 ms; sự phụ thuộc thời gian/tải đã được ghi BL-112. Ngày 2026-10-28, sau đề nghị gate phụ sửa hai file test inherited JWKS/logging trên cả hai nhánh, người dùng chọn **«Giữ phạm vi cũ, ghi rõ lỗi/hạn chế»**. Vì vậy không sửa các file ngoài §7, không tăng timeout trong source hoặc nhận full baseline đã xanh. Đây là quyết định giữ nguyên phạm vi, không phải miễn yêu cầu báo lỗi.
 
 ### Test thủ công và ảnh
 
@@ -363,8 +363,8 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 | BL-008 | Dev nền tảng bổ sung luật lint tiền chuyên biệt; task này giữ string/bigint và chỉ kiểm luật import hiện có |
 | BL-015/017 | Dev harness/Ops xử lý timing và production-role evidence; local run không đóng các gap này |
 | BL-057 | Theo dõi CI theo HEAD tại Checks của Draft PR #33; Dev reviewer và người quản lý repo hoàn thành review độc lập và merge; bảng TC đã có trong PR |
-| BL-054 | Dev identity/test harness xử lý hai test JWKS phụ thuộc cửa sổ cooldown/tải; lượt unit tuần tự xanh không đóng gap |
-| BL-056 | Dev logging/test harness điều tra TC-42-11 subprocess timeout trong full E2E; diagnostic standalone không thay bằng chứng suite |
+| BL-112 | Dev identity/test harness xử lý hai test JWKS phụ thuộc cửa sổ cooldown/tải; lượt unit tuần tự xanh không đóng gap |
+| BL-121 | Dev logging/test harness điều tra TC-42-11 subprocess timeout trong full E2E; diagnostic standalone không thay bằng chứng suite |
 
 Đã thêm nguồn DBS-55 vào các gap tồn tại, không tạo duplicate hoặc xóa backlog chưa giải quyết. Sau commit docs/evidence `d731a48`, `git diff --stat main...HEAD` có đúng 24 file source/test/docs/evidence, khớp inventory §7; working tree sạch. Không sửa hai test inherited ngoài scope theo quyết định người dùng. Staged paths, commit tree và lịch sử nhánh đã kiểm không có workbook `.xls`/`.xlsx` hoặc `.env`.
 
@@ -373,7 +373,7 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 - `backend/src/modules/accounts/README.md`: chữ ký, transaction/ownership/bigint contract và phần API chưa có.
 - `docs/components/accounts/01-concept-brief.md`: phân biệt primitive đã kiểm với full use case còn chờ.
 - `docs/features/README.md`: thêm DBS-55, chuyển Implemented sau G4; liên kết Draft PR #33, CI theo Checks, Dev review/merge chưa hoàn tất và các hạn chế local.
-- `docs/BACKLOG.md`: giữ nguồn DBS-55 ở BL-002/003/008/015/017/019 và các gap BL-054/056; process-gap DBS-55 là BL-057. Đồng bộ upstream DBS-41 đã xóa BL-016; DBS-55 không tự nhận đã giải quyết gap này. Giữ nguyên BL-052 của DBS-41.
+- `docs/BACKLOG.md`: giữ nguồn DBS-55 ở BL-002/003/008/015/017/019 và các gap BL-112/121; process-gap DBS-55 là BL-057. Đồng bộ upstream DBS-41 đã xóa BL-016; DBS-55 không tự nhận đã giải quyết gap này. Giữ nguyên BL-052 của DBS-41.
 - Feature doc, hai domain-review files giữ nguyên, TDD/verification/manual transcript và bốn ảnh output thật đã đủ trong inventory, đã commit và push lên nhánh của Draft PR #33. CI theo Checks của PR; Dev review/merge chưa hoàn tất, không sửa board.
 
 ## Checklist G4 (người dùng đã duyệt ngày 2026-10-28)
@@ -406,11 +406,11 @@ Bốn ảnh dưới chụp bằng CUA từ trang local hiển thị nguyên outp
 | R-M | 2 | `modules/index.ts:21` | `AccountsModule` chỉ ở `apiModules`; worker cần `AccountsService` sẽ lỗi DI | Câu hỏi G1 #3 |
 | — | 1 | `account.types.ts:13`, `README.md:28-29` | Alias `LockedAccount`; "trả404" | Ngoài phạm vi (điểm 1); typo "trả404" sửa kèm khi đụng README cho R-3 |
 
-**Baseline 2026-10-31** trên `a9ed90a` (đầu nhánh PR): `lint:check` exit 0; `typecheck` exit 0; unit 31 suites/497 tests đạt; DB 9 suites/186 tests đạt (Testcontainers PostgreSQL 17); E2E 8 suites/57 tests đạt, 0 skipped. Máy này có dịch vụ PostgreSQL 18 native (`postgresql-x64-18`) chiếm cổng 5432, nên `localhost:5432` của compose trả `28P01`. E2E chạy trên một container `postgres:17` tạm ở cổng 55432 (đã migrate, đã xóa sau khi chạy), `DATABASE_URL` trỏ tới đó, theo `manual-testing.md`. Lỗi BL-056 không tái hiện trong lượt này, BL-056 vẫn mở.
+**Baseline 2026-10-31** trên `a9ed90a` (đầu nhánh PR): `lint:check` exit 0; `typecheck` exit 0; unit 31 suites/497 tests đạt; DB 9 suites/186 tests đạt (Testcontainers PostgreSQL 17); E2E 8 suites/57 tests đạt, 0 skipped. Máy này có dịch vụ PostgreSQL 18 native (`postgresql-x64-18`) chiếm cổng 5432, nên `localhost:5432` của compose trả `28P01`. E2E chạy trên một container `postgres:17` tạm ở cổng 55432 (đã migrate, đã xóa sau khi chạy), `DATABASE_URL` trỏ tới đó, theo `manual-testing.md`. Lỗi BL-121 không tái hiện trong lượt này, BL-121 vẫn mở.
 
 **Người gọi các symbol bị đổi:** `lockForUpdate`, `applyBalanceChange`, `getOwnedAccount` chỉ được gọi trong `test/db/accounts-service.db-spec.ts`, `test/support/accounts-service-probe.ts`, `test/manual/accounts-service.manual.ts`. Chưa có caller production (DBS-60/61 chưa bắt đầu).
 
-**Ngoài phạm vi:** BL-054/056 (test inherited), M-55-06 (chờ DBS-60/61), alias `LockedAccount` (điểm 1), map lỗi ra HTTP `errorCode` (việc của DBS-60/61).
+**Ngoài phạm vi:** BL-112/121 (test inherited), M-55-06 (chờ DBS-60/61), alias `LockedAccount` (điểm 1), map lỗi ra HTTP `errorCode` (việc của DBS-60/61).
 
 **Câu hỏi mở:** xem tin nhắn G1.
 
@@ -449,7 +449,7 @@ Thay đổi test và harness, không đổi hành vi service:
 - **Interface:** chữ ký ba method giữ nguyên. Export thêm `AccountBalanceNegativeError`, `AccountBalanceOverflowError`, `AccountNotLockedError` (đều `extends Error`, `readonly accountId: string`, `cause`).
 - **Ghi nhận khóa:** `private readonly locks = new WeakMap<QueryRunner, { txid: string; ids: Set<string> }>()`. Câu `SELECT … FOR UPDATE` trả thêm `pg_current_xact_id()::text` (cùng một truy vấn; `FOR UPDATE` vốn đã cấp xid). Nếu txid khác lần ghi trước, set được làm mới. `applyBalanceChange` kiểm id trong set trước SQL, rồi UPDATE thêm điều kiện `AND pg_current_xact_id()::text=$3` với txid đã lưu. Runner được dùng lại cho transaction mới mà chưa khóa lại thì không hàng nào khớp, ra `AccountNotLockedError` (R-2). Như vậy vẫn đúng một truy vấn mỗi lần gọi, và dấu khóa không sống quá transaction đã lấy khóa. Trường `txid` bị bỏ khỏi snapshot trả cho caller, nên type `Account` không đổi. **Không có hàng** (input `[]` trả sớm trước SQL, hoặc mọi id đều không tồn tại) thì không đụng tới map: không tạo entry, không làm mới, không gộp (review v2-2 #5).
 - **Retry:** `transaction.helper.ts:87` tạo QueryRunner mới mỗi lần thử, nên dấu khóa không mang sang lần thử sau.
-- **Tài liệu:** `backend/src/modules/accounts/README.md` (hợp đồng mới, sửa "trả404"), `docs/BACKLOG.md` (một dòng BL mới cho bàn giao R7), feature doc, `docs/features/README.md`.
+- **Tài liệu:** `backend/src/modules/accounts/README.md` (hợp đồng mới, sửa "trả404"), `docs/BACKLOG.md` (một dòng BL mới cho bàn giao R7: BL-122), feature doc, `docs/features/README.md`.
 - **Dữ liệu:** chỉ `accounts.balance`, `accounts.updated_at`. Không migration, không đổi schema.
 - **Ranh giới transaction:** của caller, như cũ. Không Redis/HTTP/SQS.
 - **Thay đổi cấp hệ thống:** không có (ADR, `ErrorCode`, env, event, schema giữ nguyên).
@@ -610,7 +610,7 @@ Mỗi bước viết test trước, chạy cho đỏ, sửa ít nhất có thể
 | S9 · Driver manual | `test/manual/accounts-service.manual.ts` | `expectRejection` nhận lớp lỗi và `cause`; thêm M-55-07, M-55-08 | đỏ: chạy driver mới trên code đã sửa trước khi sửa `expectRejection` → assert `code` ở cấp trên cùng fail | script R5 | `test(accounts): cover lock and timestamp rules in the manual driver` |
 | S10 · Toàn bộ kiểm tra + manual | — | — | — | `lint:check`, `typecheck`, unit, DB, E2E (PG17 tạm ở 55432), `build`; script R5 | — |
 | S11 · Merge `main` | `docs/BACKLOG.md` (xung đột), `docs/features/README.md` | — | — | `git merge origin/main`; chạy lại S10 nếu merge đổi file code | `chore(accounts): merge main into DBS-55` |
-| S12 · Tài liệu và bằng chứng | `src/modules/accounts/README.md` (hợp đồng mới, R7, sửa "trả404"), `docs/BACKLOG.md` (BL-121 cho R7), feature doc R9, `docs/features/README.md`, `screenshots/DBS-55/` (`manual-test.txt`, `verification.txt`, `tdd-red-green.txt` thêm phần vòng 2, 6 ảnh) | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`; `git diff --check` | `docs(accounts): record DBS-55 round-2 review fixes` |
+| S12 · Tài liệu và bằng chứng | `src/modules/accounts/README.md` (hợp đồng mới, R7, sửa "trả404"), `docs/BACKLOG.md` (BL-122 cho R7), feature doc R9, `docs/features/README.md`, `screenshots/DBS-55/` (`manual-test.txt`, `verification.txt`, `tdd-red-green.txt` thêm phần vòng 2, 6 ảnh) | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`; `git diff --check` | `docs(accounts): record DBS-55 round-2 review fixes` |
 
 Thứ tự migration → service → controller không áp dụng: không có migration, controller hay OpenAPI. Không có audit hay outbox.
 
@@ -628,10 +628,10 @@ Thứ tự migration → service → controller không áp dụng: không có mi
 | R1 phạm vi | Typo "trả404" (điểm 1) | S12 README |
 | R1 ngoài phạm vi | alias `LockedAccount` (điểm 1) | ngoài phạm vi, không sửa |
 | R6 lượt 1–6 | 34 phát hiện | mỗi phát hiện "đã sửa" nằm trong R2–R5/R7, thực hiện ở S2–S9, S12 |
-| R7 bàn giao | 3 dòng | S12: README accounts và BL-121 |
+| R7 bàn giao | 3 dòng | S12: README accounts và BL-122 |
 | DoD1–5 (task gốc) | khóa theo thứ tự, apply trong tx caller, 404 sở hữu, export, bigint | vẫn được TC-55-01…15 khóa lại; S10 chạy đủ |
 | DoD6 quy trình | merge, Dev review, bảng TC trong PR | BL-057 giữ mở; cập nhật bảng TC trong PR body sau G4 |
-| Hạn chế §8 vòng 1 | BL-054, BL-056, M-55-06, BL-008/015/017/019 | ngoài phạm vi, giữ nguyên |
+| Hạn chế §8 vòng 1 | BL-112, BL-121, M-55-06, BL-008/015/017/019 | ngoài phạm vi, giữ nguyên |
 | Xung đột PR | `docs/BACKLOG.md` | S11 |
 
-**Quyết định ở G3 (vòng 2):** người dùng trả lời «duyet» ngày 2026-10-31. BL-121 cho bàn giao R7; push một lần sau G4.
+**Quyết định ở G3 (vòng 2):** người dùng trả lời «duyet» ngày 2026-10-31. BL-121 cho bàn giao R7 (đổi thành BL-122 khi merge main, xem §R9 Lệch); push một lần sau G4.

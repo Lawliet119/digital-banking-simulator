@@ -16,6 +16,14 @@ export interface Env {
   TRUST_PROXY_HOPS: number;
 
   DATABASE_URL: string;
+  DB_HOST?: string;
+  DB_PORT?: string;
+  DB_NAME?: string;
+  DB_USER?: string;
+  DB_PASSWORD?: string;
+  REDIS_HOST?: string;
+  REDIS_PORT?: string;
+  REDIS_AUTH_TOKEN?: string;
   DATABASE_POOL_MAX: number;
   DATABASE_SSL: boolean;
   DATABASE_SSL_CA_PATH?: string;
@@ -66,6 +74,13 @@ export const validationSchema = Joi.object<Env>({
   DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),
+  // Parts of DATABASE_URL for ECS (env.bootstrap joins them when DATABASE_URL is not set). Not read
+  // anywhere else; DATABASE_URL stays required, so an incomplete set fails here with a clear error.
+  DB_HOST: Joi.string(),
+  DB_PORT: Joi.string(),
+  DB_NAME: Joi.string(),
+  DB_USER: Joi.string(),
+  DB_PASSWORD: Joi.string(),
   DATABASE_POOL_MAX: Joi.number().integer().min(1).max(50).default(10),
   // NFR-SEC-03: connections to the database are encrypted in every deployed environment.
   // Staging talks to a real RDS over the same cloud network as production.
@@ -102,6 +117,11 @@ export const validationSchema = Joi.object<Env>({
     }),
   // Redis is an accelerator, never the source of truth: a slow Redis must not slow a transfer.
   REDIS_COMMAND_TIMEOUT_MS: Joi.number().integer().min(10).max(1000).default(50),
+  // Parts of REDIS_URL for ECS (DBS-75, env.bootstrap joins them when REDIS_URL is not set). Not read
+  // anywhere else; REDIS_URL stays required, so an incomplete set fails here with a clear error.
+  REDIS_HOST: Joi.string(),
+  REDIS_PORT: Joi.string(),
+  REDIS_AUTH_TOKEN: Joi.string(),
 
   AWS_REGION: Joi.string().default('ap-southeast-1'),
   SQS_ENDPOINT: Joi.string().uri().optional(),

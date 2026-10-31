@@ -43,11 +43,14 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm test` | unit test (`src/**/*.spec.ts`) |
 | `npm run test:e2e` | e2e (`test/*.e2e-spec.ts`) |
 | `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Tự động khởi tạo PostgreSQL 17 qua Testcontainers (hoặc dùng `DATABASE_URL` có sẵn nếu đã xuất ra môi trường). Cần Docker Desktop bật; nếu Docker tắt thì test báo lỗi ngay, không treo |
+| `npm run test:services -- --runInBand` | sample Valkey 8 và ElasticMQ thật (`test/services/`): mỗi lần chạy tự tạo container/cổng động, thử SET/GET, SQS send/receive, pause/resume và stop/start rồi dọn container. Cần Docker; không lấy endpoint từ Compose |
 | `npm run migration:run` · `migration:revert` · `migration:show` | migration trên DB local |
 | `npm run migration:generate -- src/database/migrations/<Tên>` | sinh migration từ thay đổi entity |
 | `npm run migration:create -- src/database/migrations/<Tên>` | tạo migration rỗng |
 
 Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db`. CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) giữ sáu job `lint`, `typecheck`, `unit`, `e2e`, `db`, `build`. Job `e2e` chạy thêm sample DBS-39 và migration run → revert → run qua Testcontainers với `DATABASE_URL` được gỡ bỏ; job `db` vẫn chạy toàn bộ DB suite trên PostgreSQL service. Lệnh này không revert database dùng chung: test tạo và xóa database `dbs_test_*` riêng. Cách đọc kết quả: [CONTRIBUTING mục 4b](../CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions).
+
+Helper DBS-40 ở `test/support/valkey.container.ts` và `elasticmq.container.ts` trả endpoint động và `pause()`, `resume()`, `stop()`. `pause()` làm dịch vụ không phản hồi để kiểm timeout/fallback; nó không mô phỏng được độ trễ hữu hạn tùy chỉnh. ElasticMQ quảng bá queue URL theo địa chỉ nội bộ trong config; helper lấy đường dẫn queue thật rồi ghép với endpoint Testcontainers. CI hiện chưa chạy `test:services`; DBS-41 phụ trách tích hợp suite này vào CI.
 
 ## Cấu trúc
 
@@ -124,7 +127,7 @@ Hệ thống sử dụng bảng sổ cái chỉ-thêm (`append-only ledger` như
 
 
 ### 6. Migration
-Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`). Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1, 2, outbox và audit). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser.
+Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`) là một task ECS chạy một lần trước khi deploy, không phải lúc app khởi động ([DBS-68](../docs/features/DBS-68-migration-step.md)); chạy tay trên cloud bằng `IMAGE_TAG=<sha-40-ky-tu> bash .github/scripts/migrate.sh` (xem `infra/terraform/README.md`, mục "Migration trước deploy"). Task đọc kết nối từ `DB_*` (DBS-67), nên chạy được cả khi `DATABASE_URL` không có. Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1, 2, outbox và audit). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser.
 
 
 **Schema outbox.**
@@ -215,7 +218,17 @@ docker run --rm -e APP_ROLE=worker --env-file backend/env/.env.development dbs-b
 ```
 
 ### Kết nối RDS qua TLS
-Staging và production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác minh chứng chỉ của server. Node không tin CA của Amazon RDS mặc định, nên cần tải bundle CA của AWS (`https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem`) vào image trong pipeline và đặt `DATABASE_SSL_CA_PATH` trỏ tới file đó. **Không** tắt xác minh chứng chỉ để "cho kết nối được": như vậy vẫn mã hóa nhưng chấp nhận mọi chứng chỉ, kể cả của kẻ tấn công. Bước tải bundle chưa được thử trên RDS thật — #5 kiểm khi dựng RDS ở tuần 2.
+Staging và production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác minh chứng chỉ của server (`rejectUnauthorized: true`). Node không tin CA của Amazon RDS mặc định, nên Dockerfile tải `global-bundle.pem` vào `/etc/ssl/rds/global-bundle.pem` (`ADD --checksum=sha256:…`, cần BuildKit) và task đặt `DATABASE_SSL_CA_PATH` trỏ tới file đó. **Không** tắt xác minh chứng chỉ để "cho kết nối được".
+
+**Ghép `DATABASE_URL` từ secret (DBS-67).** ECS `secrets` không nối chuỗi được, nên task truyền `DB_HOST`, `DB_PORT`, `DB_NAME` (biến thường) và `DB_USER`, `DB_PASSWORD` (từ secret master do RDS quản lý). `env.bootstrap` ghép thành `DATABASE_URL` (user và mật khẩu được mã hóa URL). `DATABASE_URL` đã có giá trị thì được giữ nguyên. Giá trị `DB_*` sai chỉ làm log nêu **tên** biến, không in giá trị. CLI typeorm cũng đi qua `env.bootstrap` nên dùng được cách này.
+
+**Làm mới hash khi AWS đổi bundle.** Build đỏ ở dòng `ADD --checksum` nghĩa là AWS đã cập nhật bundle. Tải bản mới, kiểm nguồn, tính `sha256sum global-bundle.pem`, thay hash trong `backend/Dockerfile` và chạy `jest test/support/dockerfile.spec.ts`.
+
+Bước `docker build` và kết nối RDS thật **chưa chạy** (BL-106).
+
+### Kết nối Redis (Valkey) trên AWS
+
+**Ghép `REDIS_URL` (DBS-75).** Giống `DATABASE_URL`: task truyền `REDIS_HOST`, `REDIS_PORT` (biến thường) và `REDIS_AUTH_TOKEN` (từ secret `dbs/dev/redis-auth`). `env.bootstrap` ghép thành `rediss://:<token đã mã hóa URL>@<host>:<port>`. `REDIS_URL` đã có giá trị (local, CI) thì được giữ nguyên; thiếu `REDIS_HOST` thì không ghép. Giá trị sai (host lạ, cổng ngoài 1–65535, token rỗng) chỉ làm log nêu **tên** biến, không in giá trị, và schema báo thiếu `REDIS_URL`. Staging và production bắt buộc `rediss://` (TLS). App chưa có client Redis (DBS-76).
 
 ### Hạ tầng phía trước app
 Staging và production bắt buộc `TRUST_PROXY_HOPS` (≥ 1; ALB = 1). Để 0 thì mọi khách chung địa chỉ IP của ALB và rate limit theo IP sẽ chặn nhầm tất cả.

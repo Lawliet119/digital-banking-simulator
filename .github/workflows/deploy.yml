@@ -1,0 +1,64 @@
+# Deploy image dbs-api:<SHA> lên service api của ECS sau khi Image đẩy xong (DBS-38).
+# Xác thực bằng OIDC với role dbs-github-deploy (chỉ tin đúng repo và nhánh main,
+# infra/terraform/envs/dev/base/deploy_role.tf). Cần biến repo AWS_DEPLOY_ROLE_ARN (chủ repo tạo);
+# thiếu biến thì job bị bỏ qua. Chạy lại bằng `gh workflow run deploy.yml --ref main`.
+#
+# Quy tắc: chỉ image.yml và deploy.yml được xin `id-token: write`. Role deploy ghi vào ECS nên workflow
+# này không dùng cache và không đưa `github.event.*` thẳng vào `run:`. Nếu sau này có môi trường cần người
+# duyệt, thêm `environment:` và đổi `sub` của role. Script .github/scripts/check-image-workflow.py kiểm
+# điều này. Tên job `deploy` không được trùng sáu tên hợp đồng của ci.yml.
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [Image]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy
+    if: >-
+      vars.AWS_DEPLOY_ROLE_ARN != '' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Kiểm tĩnh workflow
+        run: |
+          pip install pyyaml==6.0.2
+          python3 .github/scripts/check-image-workflow.py
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Sự kiện workflow_run: bỏ qua nếu head_sha không còn là đầu main (tránh hạ cấp).
+      - name: Deploy
+        env:
+          CHECK_MAIN_HEAD: ${{ github.event_name == 'workflow_run' && '1' || '0' }}
+        run: bash .github/scripts/deploy.sh

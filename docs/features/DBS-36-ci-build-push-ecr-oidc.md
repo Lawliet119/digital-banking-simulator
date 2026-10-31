@@ -19,7 +19,7 @@
   - AWS: chưa có IAM OIDC provider nào; ECR `dbs-api` IMMUTABLE, scan on push, lifecycle (DBS-33).
   - GitHub Secrets: 0 mục (đã đếm).
   - Máy này không có docker nên không build thử image cục bộ; runner GitHub có docker.
-  - Handoff từ DBS-33 (BL-031): role OIDC chỉ được push vào `ecr_repository_arn`; bỏ qua push nếu tag SHA đã tồn tại (repo IMMUTABLE); không dùng `latest`.
+  - Handoff từ DBS-33 (BL-032): role OIDC chỉ được push vào `ecr_repository_arn`; bỏ qua push nếu tag SHA đã tồn tại (repo IMMUTABLE); không dùng `latest`.
 - **Baseline:** Terraform `fmt` sạch; `terraform test` bootstrap 9/9, `envs/dev/base` 8/8, `envs/dev/session` 1/1 (chạy lúc kết thúc DBS-33). Task này không đổi mã backend nên không chạy bốn lệnh backend.
 - **Giới hạn đã biết:** lifecycle ECR giữ 20 image mới nhất nên "mỗi commit có một image" chỉ đúng với 20 commit gần nhất; rollback của DBS-38 chỉ quay lại trong phạm vi đó (bàn giao DBS-38).
 - **Ngoài phạm vi:**
@@ -214,15 +214,15 @@ Rủi ro và cách lùi: `terraform destroy -target` cho ba tài nguyên IAM (mi
 | M-36-05 | đạt: Secrets `0` |
 | M-36-06 | đạt: `OK` |
 | M-36-07 | đạt: `No changes` ở lần plan thứ hai |
-| M-36-08 | **chưa chạy (chờ merge và biến `AWS_ROLE_ARN`)**: BL-033 |
-| M-36-09 | **chưa chạy (chờ merge)**: BL-033 |
+| M-36-08 | **chưa chạy (chờ merge và biến `AWS_ROLE_ARN`)**: BL-034 |
+| M-36-09 | **chưa chạy (chờ merge)**: BL-034 |
 
 - **Phạm vi so với §7:** `git diff --stat` khớp: `oidc.tf`, `variables.tf`, `outputs.tf`, `tests/oidc.tftest.hcl`, `image.yml`, `check-image-workflow.py`, README, BACKLOG và các file doc. Không có file lạ.
 - **Ảnh chụp:** không áp dụng (người dùng bỏ qua ảnh console, 2026-10-25; bằng chứng là output thô).
 - **Lệch so với kế hoạch:** không có lệch ngoài kế hoạch. Hai bước M-36-08/09 vốn đã được §5 ghi là chạy sau merge.
-- **Bàn giao:** BL-033 (chạy thật sau merge, chủ repo tạo `AWS_ROLE_ARN` trước merge), BL-034 (chặn scan theo mức, quét secret, required checks BL-012), BL-035 (rollback DBS-38 chỉ trong 20 image); BL-028 thêm vào nguồn: script kiểm workflow và `oidc.tftest.hcl` đưa vào CI chung.
+- **Bàn giao:** BL-034 (chạy thật sau merge, chủ repo tạo `AWS_ROLE_ARN` trước merge), BL-035 (chặn scan theo mức, quét secret, required checks BL-012), BL-036 (rollback DBS-38 chỉ trong 20 image); BL-028 thêm vào nguồn: script kiểm workflow và `oidc.tftest.hcl` đưa vào CI chung.
 - **Chi phí:** 3 tài nguyên IAM miễn phí; không có gì tính tiền đang chạy.
 
 ## 9. Tài liệu đã cập nhật
 
-`infra/terraform/README.md` (mục "Đẩy image lên ECR bằng OIDC"), `docs/BACKLOG.md` (thêm BL-033, BL-034, BL-035), `docs/features/README.md` (hàng DBS-36). Không xóa dòng BACKLOG nào: BL-031 còn phần DBS-34/66/54 chưa làm.
+`infra/terraform/README.md` (mục "Đẩy image lên ECR bằng OIDC"), `docs/BACKLOG.md` (thêm BL-034, BL-035, BL-036), `docs/features/README.md` (hàng DBS-36). Không xóa dòng BACKLOG nào: BL-032 còn phần DBS-34/66/54 chưa làm.

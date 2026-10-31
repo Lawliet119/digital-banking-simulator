@@ -23,6 +23,7 @@
     "test": "jest --config ./test/jest-unit.js",
     "test:e2e": "jest --config ./test/jest-e2e.js",
     "test:db": "jest --config ./test/jest-db.js",
+    "test:services": "jest --config ./test/jest-services.js",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
@@ -55,6 +56,7 @@
     "typeorm": "^0.3.31"
   },
   "devDependencies": {
+    "@aws-sdk/client-sqs": "^3.1156.0",
     "@eslint/js": "^9.39.5",
     "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.1.0",
@@ -72,6 +74,7 @@
     "globals": "^17.13.0",
     "jest": "^30.5.2",
     "prettier": "^3.9.9",
+    "redis": "^5.12.1",
     "supertest": "^7.3.0",
     "testcontainers": "^10.18.0",
     "ts-jest": "^29.4.14",
