@@ -15,7 +15,10 @@ type ModuleRef = Type<unknown> | DynamicModule;
  * starts a consumer must guard it with `runsWorkers()` so an `api` instance never polls a queue.
  */
 const sharedModules: ModuleRef[] = [
-  // AccountsModule, LedgerModule, AuditModule, RiskModule — added by their owners.
+  // LedgerModule, AuditModule, RiskModule — added by their owners.
+  // A module that other modules only import (AccountsModule is imported by LedgerModule) does not
+  // need to be listed for each role: Nest resolves it through the importer. AccountsModule sits in
+  // apiModules so an `api` instance fails at boot if its providers ever stop resolving.
 ];
 
 const apiModules: ModuleRef[] = [HealthModule, IdentityModule, AccountsModule];
