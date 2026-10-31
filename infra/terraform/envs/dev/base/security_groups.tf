@@ -1,5 +1,5 @@
 # DBS-34: security group của ALB và của task api (ADR-10). Ở `base` vì miễn phí và để các stack sau
-# (RDS, ElastiCache) tham chiếu SG task mà không phụ thuộc phần xóa hằng ngày (BL-031).
+# (RDS, ElastiCache) tham chiếu SG task mà không phụ thuộc phần xóa hằng ngày (BL-032).
 # Luật tách thành tài nguyên riêng để hai SG tham chiếu nhau mà không tạo vòng phụ thuộc.
 resource "aws_security_group" "alb" {
   name        = "dbs-dev-alb"

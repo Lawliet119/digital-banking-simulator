@@ -1,5 +1,6 @@
 import { AppRole } from '@common/app-role/app-role';
 import { HealthModule } from './health';
+import { AccountsModule } from '@modules/accounts';
 import { modulesForRole } from './index';
 import { OutboxModule } from './outbox';
 
@@ -8,6 +9,11 @@ describe('modulesForRole', () => {
     expect(modulesForRole(role).filter(module => module === OutboxModule)).toHaveLength(1);
   });
 
+  it('TC-55-15 accounts is public and loads in api/both, without starting in worker', () => {
+    expect(modulesForRole(AppRole.Api)).toContain(AccountsModule);
+    expect(modulesForRole(AppRole.Both)).toContain(AccountsModule);
+    expect(modulesForRole(AppRole.Worker)).not.toContain(AccountsModule);
+  });
   it('an api instance serves HTTP, so it loads the health probes', () => {
     expect(modulesForRole(AppRole.Api)).toContain(HealthModule);
   });

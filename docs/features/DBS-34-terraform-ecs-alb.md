@@ -22,11 +22,11 @@
 - **Baseline:** `terraform test`: bootstrap 9/9, `base` 13/13, `session` 1/1; `fmt` và `validate` sạch (chạy lúc bàn giao DBS-36).
 - **Ngoài phạm vi:**
   - Service `worker`, WAF, tên miền và chứng chỉ ACM công khai (câu 3).
-  - Security group và subnet group của RDS/Redis (DBS-66, BL-031), DB secrets và TLS (DBS-67), Cognito (DBS-54).
+  - Security group và subnet group của RDS/Redis (DBS-66, BL-032), DB secrets và TLS (DBS-67), Cognito (DBS-54).
   - Chạy task thật: cần image trên ECR (sau merge DBS-36 và biến `AWS_ROLE_ARN`), DB (DBS-66) và secrets (DBS-67). Task chưa thể `healthy` khi chưa có các thứ này.
   - Deploy tự động và rollback (DBS-38).
 - **Câu hỏi mở** (kèm đề xuất):
-  1. **Vị trí.** Security group `alb` và `api` và **log group** `/dbs/dev/api` đặt trong `envs/dev/base` (SG: BL-031; log group: README và ADR-11 xếp logs vào phần giữ lại, và log là bằng chứng cho P4; cả hai gần như miễn phí); cluster, task definition, service, ALB, target group, listener, chứng chỉ, IAM role đặt trong `envs/dev/session` (nhóm xóa hằng ngày). Đề xuất: đúng như vậy.
+  1. **Vị trí.** Security group `alb` và `api` và **log group** `/dbs/dev/api` đặt trong `envs/dev/base` (SG: BL-032; log group: README và ADR-11 xếp logs vào phần giữ lại, và log là bằng chứng cho P4; cả hai gần như miễn phí); cluster, task definition, service, ALB, target group, listener, chứng chỉ, IAM role đặt trong `envs/dev/session` (nhóm xóa hằng ngày). Đề xuất: đúng như vậy.
   2. **Task chưa chạy được thật.** Task cần DB, Redis, Cognito, SQS mà các task khác mới tạo. Đề xuất: task definition chỉ có biến môi trường không bí mật (`NODE_ENV`, `APP_ROLE=api`, `TRUST_PROXY_HOPS=1`, `PORT`, `AWS_REGION`, `LOG_LEVEL`); `secrets` và các biến còn lại do DBS-66/67/54 thêm. `desired_count` là biến, **mặc định 0** (task chưa thể khởi động: thiếu `DATABASE_URL`, `DATABASE_SSL`, `REDIS_URL` dạng `rediss`, `COGNITO_*`; để 1 sẽ chết lặp lại và tốn tiền) cho tới khi DBS-66, DBS-67, DBS-54 và task ElastiCache xong; ghi "chưa chạy" cho việc task healthy thật (BACKLOG).
   3. **HTTPS.** NFR-SEC-03 và docs/03 §12 yêu cầu mã hóa ở ALB; chưa có tên miền nên chưa có chứng chỉ ACM công khai. Domain review vòng 1 chặn phương án HTTP-only. Đề xuất đã chọn: chứng chỉ **self-signed** do Terraform tạo (provider `hashicorp/tls`, ghim version, khóa nằm trong state đã mã hóa) và import vào ACM (miễn phí); listener 443 (`ELBSecurityPolicy-TLS13-1-2-2021-06`), listener 80 chuyển hướng 301 sang 443; kiểm bằng `curl -k`. Chứng chỉ công khai thật (domain + ACM) và WAF: BACKLOG, giao một dòng BACKLOG riêng cho việc WAF/ALB tuần 6–8 (không phải DBS-38, vì DBS-38 chỉ là pipeline deploy). Thêm provider `tls` là phụ thuộc mới của Terraform: ghi ở đây và ở BACKLOG.
   4. **`NODE_ENV` của task.** Đề xuất: biến `node_env` mặc định `staging` (dev trên AWS chạy `staging` theo `platform.md`, bắt buộc TLS DB/Redis và `TRUST_PROXY_HOPS`).
@@ -230,14 +230,14 @@ Rủi ro và cách lùi: `terraform destroy` session xóa ALB và mọi thứ t�
 | M-34-07c | đạt: bỏ target, dừng task, task definition tạm `INACTIVE` rồi `DELETE_IN_PROGRESS` |
 | M-34-08 | đạt: `Destroy complete! 13 destroyed` (17:30:32Z); ALB và mọi thứ tính tiền tồn tại khoảng 6 phút |
 | M-34-09 | đạt: sau 60 giây ALB 0, target group 0, cluster `INACTIVE`, task 0, EIP 0, ENI trong VPC 0, ACM 0 |
-| M-34-10 | **chưa chạy (chờ image sau merge DBS-36, DBS-66, DBS-67, DBS-54, task ElastiCache)**: BL-037 |
+| M-34-10 | **chưa chạy (chờ image sau merge DBS-36, DBS-66, DBS-67, DBS-54, task ElastiCache)**: BL-038 |
 
 - **Phạm vi so với §7:** `git diff --stat` khớp: các file `.tf` của `base` (SG, log group, outputs) và test; các file `.tf` của `session` (versions, variables, tls, iam, alb, ecs, outputs), lock file, test; README, BACKLOG, doc. Thêm `session/locals.tf` (chỉ gom `local.base` và tag), không có trong §7; không có file lạ nào khác.
 - **Ảnh chụp:** không áp dụng (người dùng bỏ qua ảnh console, 2026-10-25).
 - **Lệch so với kế hoạch:** (1) quyết định G1 câu 3 (HTTP-only) tự duyệt sai, đã sửa thành HTTPS sau domain review vòng 1, trước G2; (2) §7 ghi "khoảng 18 tài nguyên", thực tế 13, đã sửa; (3) thêm `locals.tf`. Không lệch nào cần gate phụ.
-- **Bàn giao:** BL-036 (chứng chỉ công khai, WAF tuần 6–8), BL-037 (task chạy thật, M-34-10), BL-038 (DBS-38 cách đổi `image_tag`; DBS-67 quyền execution role; DBS-66 và task ElastiCache thêm egress SG-to-SG). `terraform test` của `session` cần chạy trong CI chung (BL-028).
+- **Bàn giao:** BL-037 (chứng chỉ công khai, WAF tuần 6–8), BL-038 (task chạy thật, M-34-10), BL-039 (DBS-38 cách đổi `image_tag`; DBS-67 quyền execution role; DBS-66 và task ElastiCache thêm egress SG-to-SG). `terraform test` của `session` cần chạy trong CI chung (BL-028).
 - **Chi phí:** ALB và task tạm tồn tại khoảng 6 phút (≈ 0,005 USD); sau `destroy` kiểm không còn gì tính tiền. SG và log group ở `base` miễn phí và được giữ.
 
 ## 9. Tài liệu đã cập nhật
 
-`infra/terraform/README.md` (provider `tls`, biến `session`, lệnh dựng và xóa, ghi chú HTTPS self-signed), `docs/BACKLOG.md` (thêm BL-036, BL-037, BL-038), `docs/features/README.md` (hàng DBS-34). Không xóa dòng BACKLOG nào: BL-031 còn phần DBS-66/54.
+`infra/terraform/README.md` (provider `tls`, biến `session`, lệnh dựng và xóa, ghi chú HTTPS self-signed), `docs/BACKLOG.md` (thêm BL-037, BL-038, BL-039), `docs/features/README.md` (hàng DBS-34). Không xóa dòng BACKLOG nào: BL-032 còn phần DBS-66/54.

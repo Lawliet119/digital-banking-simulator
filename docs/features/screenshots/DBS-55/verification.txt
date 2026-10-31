@@ -1,0 +1,396 @@
+
+FINAL non-db VERIFICATION
+Code SHA: 078fbcac0cfde0e98a0855e4ec162ab05ee3efda
+
+COMMAND: npm run lint:check
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+EXIT: 0
+
+COMMAND: npm run typecheck
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+EXIT: 0
+
+COMMAND: npm test -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+
+Test Suites: 31 passed, 31 total
+Tests:       497 passed, 497 total
+Snapshots:   0 total
+Time:        18.001 s
+Ran all test suites.
+
+EXIT: 0
+
+COMMAND: npm run test:e2e -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 32700  - 21:56:29 27/10/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+
+Test Suites: 8 passed, 8 total
+Tests:       57 passed, 57 total
+Snapshots:   0 total
+Time:        44.711 s
+Ran all test suites.
+
+EXIT: 0
+
+COMMAND: npm run build
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+
+EXIT: 0
+
+FINAL db VERIFICATION
+Code SHA: f1d7a5f321d463231868c6ab2c8b450f675c8644
+
+FINAL non-db VERIFICATION
+Code SHA: f1d7a5f321d463231868c6ab2c8b450f675c8644
+
+COMMAND: npm run lint:check
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+EXIT: 0
+
+COMMAND: npm run typecheck
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+EXIT: 0
+
+COMMAND: npm test -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+FAIL src/modules/identity/jwks-verifier.service.spec.ts
+  ● JwksVerifierService › refetches on key rotation once the cooldown has elapsed, but not before
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 2
+
+      245 |     // cached (kid1-only) set can't find kid-2 and the call is rejected.
+      246 |     await expect(verifier.verifyAccessToken(token2)).rejects.toBeInstanceOf(TokenVerificationError);
+    > 247 |     expect(fixture.fetchCount).toBe(1);
+          |                                ^
+      248 |
+      249 |     // Past the cooldown: now a rotated key DOES trigger exactly one refetch, and succeeds.
+      250 |     await new Promise(resolve => setTimeout(resolve, COOLDOWN_MS + 50));
+
+      at Object.<anonymous> (src/modules/identity/jwks-verifier.service.spec.ts:247:32)
+
+  ● JwksVerifierService › honours the refetch cooldown: a second unknown kid right after a refetch does not refetch again
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 3
+
+      274 |     const token3 = await fixture.signWith('kid-3', key3.privateKey, baseClaims());
+      275 |     await expect(verifier.verifyAccessToken(token3)).rejects.toBeInstanceOf(TokenVerificationError);
+    > 276 |     expect(fixture.fetchCount).toBe(fetchesAfterRotation);
+          |                                ^
+      277 |
+      278 |     // Past the cooldown, a legitimately rotated key DOES trigger a refetch.
+      279 |     await new Promise(resolve => setTimeout(resolve, COOLDOWN_MS + 50));
+
+      at Object.<anonymous> (src/modules/identity/jwks-verifier.service.spec.ts:276:32)
+
+
+Summary of all failing tests
+FAIL src/modules/identity/jwks-verifier.service.spec.ts
+  ● JwksVerifierService › refetches on key rotation once the cooldown has elapsed, but not before
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 2
+
+      245 |     // cached (kid1-only) set can't find kid-2 and the call is rejected.
+      246 |     await expect(verifier.verifyAccessToken(token2)).rejects.toBeInstanceOf(TokenVerificationError);
+    > 247 |     expect(fixture.fetchCount).toBe(1);
+          |                                ^
+      248 |
+      249 |     // Past the cooldown: now a rotated key DOES trigger exactly one refetch, and succeeds.
+      250 |     await new Promise(resolve => setTimeout(resolve, COOLDOWN_MS + 50));
+
+      at Object.<anonymous> (src/modules/identity/jwks-verifier.service.spec.ts:247:32)
+
+  ● JwksVerifierService › honours the refetch cooldown: a second unknown kid right after a refetch does not refetch again
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: 3
+
+      274 |     const token3 = await fixture.signWith('kid-3', key3.privateKey, baseClaims());
+      275 |     await expect(verifier.verifyAccessToken(token3)).rejects.toBeInstanceOf(TokenVerificationError);
+    > 276 |     expect(fixture.fetchCount).toBe(fetchesAfterRotation);
+          |                                ^
+      277 |
+      278 |     // Past the cooldown, a legitimately rotated key DOES trigger a refetch.
+      279 |     await new Promise(resolve => setTimeout(resolve, COOLDOWN_MS + 50));
+
+      at Object.<anonymous> (src/modules/identity/jwks-verifier.service.spec.ts:276:32)
+
+
+Test Suites: 1 failed, 30 passed, 31 total
+Tests:       2 failed, 495 passed, 497 total
+Snapshots:   0 total
+Time:        13.39 s, estimated 18 s
+Ran all test suites.
+
+EXIT: 1
+
+COMMAND: npm run test:db -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+
+Test Suites: 9 passed, 9 total
+Tests:       186 passed, 186 total
+Snapshots:   0 total
+Time:        122.662 s
+Ran all test suites.
+
+EXIT: 0
+DOCKER RECOVERY CHECK (no volume reset or configuration edit)
+COMMAND: docker info --format server-version
+29.5.2
+COMMAND: docker compose ps --format service/state/health
+elasticmq running
+postgres running healthy
+valkey running healthy
+
+FINAL non-db VERIFICATION
+Code SHA: f1d7a5f321d463231868c6ab2c8b450f675c8644
+
+COMMAND: npm run lint:check
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+EXIT: 0
+
+COMMAND: npm run typecheck
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+EXIT: 0
+
+COMMAND: npm test -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+
+Test Suites: 31 passed, 31 total
+Tests:       497 passed, 497 total
+Snapshots:   0 total
+Time:        9.057 s, estimated 14 s
+Ran all test suites.
+
+EXIT: 0
+
+COMMAND: npm run test:e2e -- --runInBand
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 25140  - 11:30:35 28/10/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+FAIL test/logging-bootstrap.e2e-spec.ts (61.77 s)
+  ● DBS-42 bootstrap failure logging (real subprocess) › TC-42-11 worker DB failure exits with sanitized JSON only
+
+    expect(received).toBeUndefined()
+
+    Received: [Error: spawnSync C:\Program Files\nodejs\node.exe ETIMEDOUT]
+
+      33 |     },
+      34 |   );
+    > 35 |   expect(result.error).toBeUndefined();
+         |                        ^
+      36 |   const output = result.stdout + result.stderr;
+      37 |   const rows = output
+      38 |     .trim()
+
+      at runMain (test/logging-bootstrap.e2e-spec.ts:35:24)
+      at test/logging-bootstrap.e2e-spec.ts:57:40
+
+
+Test Suites: 1 failed, 7 passed, 8 total
+Tests:       1 failed, 56 passed, 57 total
+Snapshots:   0 total
+Time:        83.691 s
+Ran all test suites.
+
+EXIT: 1
+
+FINAL build VERIFICATION
+Code SHA: f1d7a5f321d463231868c6ab2c8b450f675c8644
+
+COMMAND: npm run build
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+
+EXIT: 0
+
+SAFE STANDALONE BOOTSTRAP DIAGNOSTIC (no repository source changes; timeout extended only in external diagnostic)
+{
+  "diagnostic": "DBS-42 inherited worker DB failure subprocess, original fixture and options except 60000ms deadline",
+  "elapsedMs": 10409,
+  "status": 1,
+  "signal": null,
+  "errorCode": null,
+  "stdoutCharacters": 2778,
+  "stderrCharacters": 0,
+  "sensitiveFixturePresentInOutput": false,
+  "rows": [
+    {
+      "category": "other-json-log",
+      "elapsedMs": 2253,
+      "level": 30,
+      "role": "worker"
+    },
+    {
+      "category": "module-initialized",
+      "elapsedMs": 2268,
+      "level": 30,
+      "role": "worker"
+    },
+    {
+      "category": "module-initialized",
+      "elapsedMs": 2268,
+      "level": 30,
+      "role": "worker"
+    },
+    {
+      "category": "module-initialized",
+      "elapsedMs": 2268,
+      "level": 30,
+      "role": "worker"
+    },
+    {
+      "category": "module-initialized",
+      "elapsedMs": 2268,
+      "level": 30,
+      "role": "worker"
+    },
+    {
+      "category": "module-initialized",
+      "elapsedMs": 2268,
+      "level": 30,
+      "role": "worker"
+    },
+    {
+      "category": "module-initialized",
+      "elapsedMs": 2307,
+      "level": 30,
+      "role": "worker"
+    },
+    {
+      "category": "module-initialized",
+      "elapsedMs": 2307,
+      "level": 30,
+      "role": "worker"
+    },
+    {
+      "category": "other-json-log",
+      "elapsedMs": 2315,
+      "level": 50,
+      "role": "worker"
+    },
+    {
+      "category": "other-json-log",
+      "elapsedMs": 4333,
+      "level": 50,
+      "role": "worker"
+    },
+    {
+      "category": "other-json-log",
+      "elapsedMs": 6343,
+      "level": 50,
+      "role": "worker"
+    },
+    {
+      "category": "other-json-log",
+      "elapsedMs": 8357,
+      "level": 50,
+      "role": "worker"
+    },
+    {
+      "category": "other-json-log",
+      "elapsedMs": 10371,
+      "level": 50,
+      "role": "worker"
+    },
+    {
+      "category": "other-json-log",
+      "elapsedMs": 10372,
+      "level": 50,
+      "role": "worker"
+    },
+    {
+      "category": "startup-failed",
+      "elapsedMs": 10372,
+      "level": 50,
+      "role": "worker",
+      "errorType": "Error",
+      "code": "ECONNREFUSED"
+    }
+  ]
+}
+COMMAND: docker compose exec -T postgres psql -U banking -d banking -Atc "SELECT count(*) FROM pg_database WHERE datname LIKE 'dbs_test_%';"
+6
+The server-wide count includes 6 pre-existing or unattributed temporary databases. It does not identify the final driver fixture. No databases from other runs were removed. The final driver exited 0 after its own awaited fixture.close/drop; do not interpret this count as proof that the server has no leftover test databases.
+Format note: a trailing space in the Compose health output was removed for Git whitespace validation; output values and all failures are retained.
+
+# Vòng 2 · 2026-10-31 · sau merge origin/main 7238cec, HEAD 0d7827a340083f0e4f9526df2cb19084336f238e
+Máy: Windows 11, Git Bash, Docker 27.3.1. PostgreSQL 18 native chiếm 5432; E2E dùng container postgres:17 tạm ở 127.0.0.1:55432 (DATABASE_URL đặt ngoài transcript).
+$ npm run lint:check → exit 0
+$ npm run typecheck → exit 0
+$ npm test -- --runInBand
+Test Suites: 40 passed, 40 total
+Tests:       566 passed, 566 total
+Snapshots:   0 total
+Time:        26.175 s
+$ npm run test:db -- --runInBand
+Test Suites: 9 passed, 9 total
+Tests:       199 passed, 199 total
+Time:        119.838 s
+$ npm run test:e2e -- --runInBand
+Test Suites: 8 passed, 8 total
+Tests:       57 passed, 57 total
+Time:        54.105 s
+$ npm run test:services -- --runInBand
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Time:        11.234 s
+$ npm run build → exit 0
+skip/only/todo trong test của task: 0

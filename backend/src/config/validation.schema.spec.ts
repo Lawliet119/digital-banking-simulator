@@ -265,4 +265,27 @@ describe('validateEnv', () => {
       ).not.toThrow();
     });
   });
+
+  describe('TC-75-10 REDIS_* parts', () => {
+    const redisParts = {
+      REDIS_HOST: 'master.dbs-dev.abc123.apse1.cache.amazonaws.com',
+      REDIS_PORT: '6379',
+      REDIS_AUTH_TOKEN: 'Q7rVd2kLm9XwTz4bN8pYh3sJc6fGa1uE',
+    };
+
+    it('accepts the parts next to REDIS_URL', () => {
+      expect(() => validateEnv({ ...production, ...redisParts })).not.toThrow();
+    });
+
+    it('still refuses a plain redis:// url in production, parts or not', () => {
+      expect(() =>
+        validateEnv({ ...production, ...redisParts, REDIS_URL: 'redis://cache.internal:6379' }),
+      ).toThrow(/REDIS_URL/);
+    });
+
+    it('still demands REDIS_URL when only the parts are given (they are joined by env.bootstrap)', () => {
+      const { REDIS_URL: _url, ...withoutUrl } = production;
+      expect(() => validateEnv({ ...withoutUrl, ...redisParts })).toThrow(/REDIS_URL/);
+    });
+  });
 });

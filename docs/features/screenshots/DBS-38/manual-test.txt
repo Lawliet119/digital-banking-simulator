@@ -1,0 +1,19 @@
+46c5943993f2e31a218c1ae49b01993c69baee0a
+# Chỉ chạy được phần không cần AWS; các bước M-38-00..09 dùng AWS thật: chưa chạy (xem BL-104)
+$ IMAGE_TAG=latest bash .github/scripts/deploy.sh
+::error::IMAGE_TAG phải là SHA đầy đủ 40 ký tự hex (không dùng latest), nhận được 'latest'
+exit=1
+$ IMAGE_TAG=abc bash .github/scripts/deploy.sh
+::error::IMAGE_TAG phải là SHA đầy đủ 40 ký tự hex (không dùng latest), nhận được 'abc'
+exit=1
+$ python3 .github/scripts/check-image-workflow.py
+OK
+exit=0
+$ python3 .github/scripts/tests/test_deploy.py
+Ran 17 tests in 4.887s
+
+OK
+$ python3 .github/scripts/tests/test_render_task_definition.py
+Ran 6 tests in 0.284s
+
+OK

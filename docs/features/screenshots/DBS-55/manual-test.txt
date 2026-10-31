@@ -1,0 +1,32 @@
+0d7827a340083f0e4f9526df2cb19084336f238e
+Git Bash; PostgreSQL 17 container on 127.0.0.1:55432 (native PostgreSQL 18 owns 5432); DATABASE_URL supplied externally; NODE_ENV=test.
+COMMAND: npx cross-env NODE_ENV=test ts-node -r tsconfig-paths/register test/manual/accounts-service.manual.ts all
+M-55-00 SERVER_VERSION 17.11 (Debian 17.11-1.pgdg13+2)
+M-55-01 OWNED {"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-10-31T09:09:56.904Z","updatedAt":"2026-10-31T09:09:56.904Z"}
+M-55-01 FOREIGN {"name":"NotFoundException","errorType":"Error","status":404}
+M-55-01 MISSING {"name":"NotFoundException","errorType":"Error","status":404}
+M-55-01 SYSTEM {"name":"NotFoundException","errorType":"Error","status":404}
+M-55-01 COGNITO_SUB_IS_NOT_USER_ID {"name":"NotFoundException","errorType":"Error","status":404}
+M-55-02 LOCK_ORDER {"holderPid":91,"subjectPid":93,"highAvailable":true,"ids":["3a000000-0000-4000-8000-000000000001","3b000000-0000-4000-8000-000000000002"]}
+M-55-02 CROSSED_LOCKS {"winnerPid":91,"waitingPid":94,"completed":2,"retries":0}
+M-55-03 TENTATIVE_SNAPSHOTS [{"id":"00000000-0000-4000-8000-000000000001","customerId":null,"userId":null,"type":"SYSTEM","status":"ACTIVE","balance":"-300000","createdAt":"2026-10-31T09:09:56.837Z","updatedAt":"2026-10-31T09:09:57.021Z"},{"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"300000","createdAt":"2026-10-31T09:09:56.904Z","updatedAt":"2026-10-31T09:09:57.023Z"}]
+M-55-03 COMMITTED_OBSERVER [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-03 AFTER_ROLLBACK [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-03 TENTATIVE_SNAPSHOTS [{"id":"00000000-0000-4000-8000-000000000001","customerId":null,"userId":null,"type":"SYSTEM","status":"ACTIVE","balance":"-9007199254740993","createdAt":"2026-10-31T09:09:56.837Z","updatedAt":"2026-10-31T09:09:57.041Z"},{"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"9007199254740993","createdAt":"2026-10-31T09:09:56.904Z","updatedAt":"2026-10-31T09:09:57.043Z"}]
+M-55-03 COMMITTED_OBSERVER [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-03 AFTER_ROLLBACK [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-04 CUSTOMER_NEGATIVE {"name":"AccountBalanceNegativeError","errorType":"Error","code":"23514","constraint":"accounts_balance_non_negative"}
+M-55-04 OVERFLOW {"name":"AccountBalanceOverflowError","errorType":"Error","code":"22003"}
+M-55-04 INACTIVE_MANAGER {"name":"Error","errorType":"Error"}
+M-55-04 HOSTILE_ID {"name":"TypeError","errorType":"Error"}
+M-55-04 SPARSE_IDS {"name":"TypeError","errorType":"Error"}
+M-55-04 NUMBER_DELTA {"name":"TypeError","errorType":"Error"}
+M-55-07 APPLY_WITHOUT_LOCK {"name":"AccountNotLockedError","errorType":"Error"}
+M-55-07 LOCK_ON_OTHER_RUNNER {"name":"AccountNotLockedError","errorType":"Error"}
+M-55-07 NESTED_TRANSACTION {"name":"Error","errorType":"Error"}
+M-55-07 SEVENTEEN_IDS {"name":"TypeError","errorType":"Error"}
+M-55-08 UPDATED_AT_ORDER {"earlyTxPid":94,"waitedBehindPid":91,"lateCommitStamp":"2026-10-31T09:09:57.231Z","earlyCommitStamp":"2026-10-31T09:09:57.235Z","earlyAfterLate":true}
+M-55-04 RECOVERED {"accountId":"3a000000-0000-4000-8000-000000000001","balance":"0"}
+M-55-05 POST_ROLLBACK_CHECKS {"entriesEqual":true,"totalZero":true,"customersNonnegative":true,"balancesMatchEntries":true,"scope":"zero-balance fixture after rollback; no double-entry claim for tentative changes"}
+M-55-06 PENDING {"status":"chưa chạy","dependencies":["DBS-60","DBS-61","AuditService"]}
+EXIT 0

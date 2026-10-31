@@ -1,0 +1,67 @@
+c9bd21794c6aae4875fd1dc23828fe3b751ab38b
+## M-66-00 base plan
+  # aws_db_subnet_group.main will be created
+  # aws_kms_alias.main will be created
+  # aws_kms_key.main will be created
+  # aws_security_group.db will be created
+  # aws_vpc_security_group_egress_rule.api_to_db will be created
+  # aws_vpc_security_group_ingress_rule.db_from_api will be created
+Plan: 6 to add, 0 to change, 0 to destroy.
+## M-66-01 base apply and checks
+Apply complete! Resources: 6 added, 0 changed, 0 destroyed.
+db sg [ingress(from,to,proto,cidrs,fromApiSg)], egress rules: [[[5432, 5432, "tcp", 0, true]], 0]
+api sg egress: [[5432, "tcp", null, true], [443, "tcp", "0.0.0.0/0", false]]
+kms rotation: True; alias: alias/dbs-dev
+## M-66-02 session plan
+Plan: 15 to add, 0 to change, 0 to destroy.
+## M-66-03 session apply (start 18:13:06Z)
+Apply complete! Resources: 15 added, 0 changed, 0 destroyed.
+apply done 18:22:08Z
+available	postgres	17.9	db.t4g.micro	False	True	True	False	dbs-dev-postgres17	in-sync	1	rds-ca-rsa2048-g1	gp3	20
+## M-66-04 probe setup
+## M-66-05/06 probe from SG api (TLS check)
+exit code: 0 stopped: Essential container in task exited
+psql: error: connection to server at "<rds-host>" (10.20.10.119), port 5432 failed: FATAL:  no pg_hba.conf entry for host "<ip>", user "dbs_master", database "dbs", no encryption
+t|TLSv1.3
+UTC
+79
+3
+2
+PostgreSQL 17.9 on aarch64-unknown-linux-gnu, compiled by aarch64-unknown-linux-gnu-gcc (GCC) 12.4.0, 64-bit
+## M-66-07 negative control with temporary SG (no ingress on db sg)
+exit code: 0 stopped: Essential container in task exited
+psql: error: connection to server at "<rds-host>" (10.20.10.119), port 5432 failed: timeout expired
+psql exit=2
+## M-66-08 cleanup probe
+INACTIVE
+DELETE_IN_PROGRESS
+{
+    "Return": true,
+    "GroupId": "sg-xxxx"
+}
+deny sg deleted
+iam role: NoSuchEntity
+active probe task defs: 0
+## M-66-09 destroy session (start 18:24:57Z)
+Destroy complete! Resources: 15 destroyed.
+end 18:26:59Z
+## M-66-10 leftovers
+db instances: 0
+automated backups of dbs-dev: 
+manual snapshots: 0
+list-secrets (rds, incl. planned deletion) count: 0
+enis in vpc: 0
+## done
+## M-66-03b parameter group check (free, parameter group only)
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+Destroy complete! Resources: 1 destroyed.
+## M-66-10b automated backups of dbs-dev
+aws: [ERROR]: An error occurred (DBInstanceAutomatedBackupNotFound) when calling the DescribeDBInstanceAutomatedBackups operation: DBInstanceAutomatedBackup for DBInstance dbs-dev not found.
+state resources left in session: 0
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+--- source=user:
+0 params
+--- by name (all sources):
+rds.force_ssl	1	system
+timezone	UTC	system
+Destroy complete! Resources: 1 destroyed.

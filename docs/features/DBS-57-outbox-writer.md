@@ -219,7 +219,7 @@ Tại root chạy `node .claude/skills/dbs-delivering-task/scripts/check-doc-lin
 | DoD1 INSERT/contract; DoD3 atomicity; TC01–03/08–11 | Bước 1; SQL/static TC12 bước 1–2; M01–04/06 bước 4–5 |
 | DoD2 correlation; TC04–07; HTTP10parallel; strict input/ALS, malformed/mismatch | Bước 3; M03/05 bước 4–5; không provider giả |
 | DoD4 no external; public DI/lint TC12; clean-shell TC13/M07 | Bước 2–4; placeholders Redis/SQS chỉ validation; real PG không mock |
-| DoD5, bảng đối chiếu PR/CI/review/merge | Bước 5 điền evidence; dự kiến BL-053 riêng DBS-57 cho CI/review/merge chưa đạt (BL-052 dành DBS-55); kiểm ID còn trống khi viết, không tự merge/board |
+| DoD5, bảng đối chiếu PR/CI/review/merge | Bước 5 điền evidence; dự kiến BL-124 riêng DBS-57 cho CI/review/merge chưa đạt (BL-052 dành DBS-55); kiểm ID còn trống khi viết, không tự merge/board |
 | M01–07 success/reject/recovery/transaction/clean shell; SHA/ảnh/transcript | Bước 4 viết đủ modes, bước 5 chạy toàn bộ; không miễn manual |
 | BL-011 fail-closed, JSON extension/cycle/toJSON/mutation, rollback user trước writer | Bước 1/3/4, chứng minh rồi bước 5 xóa BL-011 và ghi ID §9 |
 | BL-002/003, producer occurredAt DB→ISOZ; không fixture tiền/ledger | Ngoài scope; bước 5 thêm nguồn/handoff vào BL-002 tương ứng; fixture chỉ chứng minh preserve, không sửa producer |
@@ -233,11 +233,11 @@ Tại root chạy `node .claude/skills/dbs-delivering-task/scripts/check-doc-lin
 
 ## 8. Kết quả
 
-**Quyết định G4 (2026-10-28):** Người dùng trả lời «duyệt G4», chấp nhận kết quả và các giới hạn đã trình, cho phép push nhánh và tạo Draft PR. BL-055 về full DB local vẫn mở; agent không sửa board hoặc merge PR. Status chuyển Implemented cho phạm vi đã bàn giao; CI remote, Dev review và merge được theo dõi riêng ở BL-053.
+**Quyết định G4 (2026-10-28):** Người dùng trả lời «duyệt G4», chấp nhận kết quả và các giới hạn đã trình, cho phép push nhánh và tạo Draft PR. BL-125 về full DB local vẫn mở; agent không sửa board hoặc merge PR. Status chuyển Implemented cho phạm vi đã bàn giao; CI remote, Dev review và merge được theo dõi riêng ở BL-124.
 
-**Xuất bản:** Nhánh đã push lên origin và mở [Draft PR #34](https://github.com/Lawliet119/digital-banking-simulator/pull/34), base `main`. Kết quả CI gắn với HEAD hiện hành được ghi tại Checks và phần validation của PR; Dev review/merge còn mở ở BL-053. Workbook `.xls`/`.xlsx` không có trong staged paths, commit tree hoặc lịch sử nhánh trước push.
+**Xuất bản:** Nhánh đã push lên origin và mở [Draft PR #34](https://github.com/Lawliet119/digital-banking-simulator/pull/34), base `main`. Kết quả CI gắn với HEAD hiện hành được ghi tại Checks và phần validation của PR; Dev review/merge còn mở ở BL-124. Workbook `.xls`/`.xlsx` không có trong staged paths, commit tree hoặc lịch sử nhánh trước push.
 
-**Đồng bộ trước xuất bản:** `origin/main` tiến tới `b8742a3` với DBS-41 (CI và tài liệu). Merge giữ workflow/ảnh/tài liệu upstream, giữ BL-052 của DBS-41 và BL-053/055 của task này; BL-016 đã được upstream đóng. Code và tests TypeScript không thay đổi so với SHA đã kiểm chứng, nên SHA manual vẫn là `9a399c5`. Phạm vi PR được đối chiếu với `origin/main`, gồm 26 file trong §7.
+**Đồng bộ trước xuất bản:** `origin/main` tiến tới `b8742a3` với DBS-41 (CI và tài liệu). Merge giữ workflow/ảnh/tài liệu upstream, giữ BL-052 của DBS-41 và BL-124/055 của task này; BL-016 đã được upstream đóng. Code và tests TypeScript không thay đổi so với SHA đã kiểm chứng, nên SHA manual vẫn là `9a399c5`. Phạm vi PR được đối chiếu với `origin/main`, gồm 26 file trong §7.
 
 **Đã triển khai và đóng băng code:** `9a399c5a5da48966b8ba1044cba5dedec69509a0`, đã xuất bản qua Draft PR #34. Writer chỉ INSERT bằng caller manager, snapshot/contract và correlation đã có test PostgreSQL thật; module/API roles có test DI/lint. Manual M01–07 đạt trên SHA cuối. **Full DB trên SHA cuối chưa xanh:** process thoát native trước khi in số đếm. [Verification raw](screenshots/DBS-57/verification.txt) giữ từng lượt, phân biệt working tree chẩn đoán với commit cuối.
 
@@ -272,7 +272,7 @@ Tại root chạy `node .claude/skills/dbs-delivering-task/scripts/check-doc-lin
 | TC-57-11 | core: extension/snapshot mutation, cycle, toJSON sai | Đạt tại final targeted |
 | TC-57-12 | core SQL tham số/hostile text; module/registry/boundaries 14 unit; source review writer không external client | Đạt tại final targeted/full unit; không external client là rà soát tĩnh source |
 | TC-57-13 | bootstrap process: api/worker/both shell sạch, tự PostgreSQL, row 1 và cleanup | Đạt tại final targeted; manual ba role cuối đạt |
-| DoD #5 quy trình | Draft PR #34; CI remote tại Checks/validation của PR; review Dev/merge | PR đã mở; review/merge còn chờ, BL-053 |
+| DoD #5 quy trình | Draft PR #34; CI remote tại Checks/validation của PR; review Dev/merge | PR đã mở; review/merge còn chờ, BL-124 |
 
 ### Full DB failure và phạm vi giữ nguyên
 
@@ -280,7 +280,7 @@ Các lỗi được giữ riêng trong raw verification, không gộp thành m�
 
 - Full DB ở b3418b6: 10/11 suites, 187/188 tests đạt, worker bootstrap child thoát với stdout/stderr trống; chưa xác định nguyên nhân.
 - Lượt kế tiếp dừng globalSetup do Docker unreachable, chưa vào test; đây là lỗi môi trường riêng. Sau khôi phục Docker không reset volume/cấu hình, working tree chẩn đoán đạt 11 suites/188 tests như bảng trên, không chứng minh lỗi worker cũ đã được sửa.
-- Full DB final 9a399c5: process exit `0xC0000409` trước count/stack. Read-only Application Error 1000/WER không có bằng chứng node crash tương ứng; Docker vẫn reachable và PostgreSQL/Valkey healthy sau lệnh. Snapshot RAM/pagefile **sau** lỗi không chứng minh hoặc loại trừ memory spike/OOM, không có module/FASTFAIL parameter để kết luận loader hay nguyên nhân cụ thể. Không sửa Node/system hoặc rerun cùng full command để lấy xanh. Targeted task chạy bằng command khác đạt không đóng BL-055.
+- Full DB final 9a399c5: process exit `0xC0000409` trước count/stack. Read-only Application Error 1000/WER không có bằng chứng node crash tương ứng; Docker vẫn reachable và PostgreSQL/Valkey healthy sau lệnh. Snapshot RAM/pagefile **sau** lỗi không chứng minh hoặc loại trừ memory spike/OOM, không có module/FASTFAIL parameter để kết luận loader hay nguyên nhân cụ thể. Không sửa Node/system hoặc rerun cùng full command để lấy xanh. Targeted task chạy bằng command khác đạt không đóng BL-125.
 
 Ngày 2026-10-28, người dùng trả lời **«Giữ phạm vi cũ, ghi rõ lỗi/hạn chế»** cho đề nghị gate phụ sửa hai file test inherited JWKS/logging trên cả hai nhánh. Không sửa các file ngoài §7; full unit/E2E của nhánh này đạt như bảng, không suy ra đã sửa tính phụ thuộc timing quan sát ở nhánh DBS-55.
 
@@ -310,13 +310,13 @@ Ba ảnh là CUA chụp trang local hiển thị raw transcript, wrap dòng cho 
 
 **Review trong implementation, phạm vi không đổi:** deadline của barrier cần từ chối cả late arrival sau hết hạn; đã viết test đỏ rồi sửa trong helper có sẵn. Test HTTP được tăng kiểm hai ID client không được chọn. Không sửa middleware/config/harness/schema hoặc tạo business stub. Không có test được bỏ; mọi DB command được scheduler cấp trước khi chạy.
 
-**Backlog:** đã xóa **BL-011** vì validation trước INSERT, event đúng commit và schema sai rollback caller có test PostgreSQL thật và manual cuối; thêm **BL-053** cho PR/CI/review/merge và **BL-055** cho worker output trống/full DB native exit chưa rõ nguyên nhân. BL-002/019/024 thêm nguồn DBS-57; BL-003/009/010/018 giữ ngoài scope. Chưa nhận E2E chuyển/nạp tiền, relay/consumer, provider DBS-43 hoặc quyền production đạt.
+**Backlog:** đã xóa **BL-011** vì validation trước INSERT, event đúng commit và schema sai rollback caller có test PostgreSQL thật và manual cuối; thêm **BL-124** cho PR/CI/review/merge và **BL-125** cho worker output trống/full DB native exit chưa rõ nguyên nhân. BL-002/019/024 thêm nguồn DBS-57; BL-003/009/010/018 giữ ngoài scope. Chưa nhận E2E chuyển/nạp tiền, relay/consumer, provider DBS-43 hoặc quyền production đạt.
 
 **Bàn giao producer, chưa thực hiện:** Dev ledger/deposit phải tạo occurredAt của TransferCompleted từ transfers.created_at do DB trả về, Date#toISOString(); writer chỉ validate/bảo toàn. Test envelope tổng hợp không chứng minh nguồn thời gian nghiệp vụ. Handoff đã bổ sung vào BL-002; không nhận integration downstream đạt. Audit/roles vẫn BL-019; context worker/message chung và log binding vẫn BL-024.
 
 ## 9. Tài liệu đã cập nhật
 
-Đã cập nhật hồ sơ này, README backend/outbox/modules, concept brief outbox, feature index và BACKLOG; lưu nguyên văn hai domain review, verification/manual transcript và ảnh trong inventory §7. BACKLOG xóa BL-011, thêm BL-053/055, thêm nguồn vào BL-002/019/024; BL-041 không còn tham chiếu BL-011 đã đóng. Sau commit docs/evidence `9527a1f`, diff có đúng 26 file khớp inventory §7. Staged paths, commit tree và lịch sử nhánh đã kiểm không có workbook `.xls`/`.xlsx` hoặc `.env`. G4 đã cho phép xuất bản; thông tin Draft PR được ghi tại §8. Không sửa board hoặc merge.
+Đã cập nhật hồ sơ này, README backend/outbox/modules, concept brief outbox, feature index và BACKLOG; lưu nguyên văn hai domain review, verification/manual transcript và ảnh trong inventory §7. BACKLOG xóa BL-011, thêm BL-124/055, thêm nguồn vào BL-002/019/024; BL-041 không còn tham chiếu BL-011 đã đóng. Sau commit docs/evidence `9527a1f`, diff có đúng 26 file khớp inventory §7. Staged paths, commit tree và lịch sử nhánh đã kiểm không có workbook `.xls`/`.xlsx` hoặc `.env`. G4 đã cho phép xuất bản; thông tin Draft PR được ghi tại §8. Không sửa board hoặc merge.
 
 ## Checklist G4 (đã được người dùng duyệt)
 
@@ -324,7 +324,7 @@ Ba ảnh là CUA chụp trang local hiển thị raw transcript, wrap dòng cho 
 - [x] Manual trên SHA code cuối, SHA đầu transcript; M01–07 đạt qua 9 invocation, đường thành công/rejection/recovery đã chạy
 - [x] Đủ ba ảnh đúng path, đã mở kiểm viewer thật; transcript không có token/Authorization/password/AWS account ID/ARN
 - [x] Diff PR với `origin/main`: 26 file khớp §7 sau đồng bộ DBS-41; không sửa file inherited ngoài phạm vi hoặc workbook được bảo vệ
-- [x] Sáu lệnh baseline đã chạy; unit 32 suites/505 tests và E2E 8 suites/57 tests đạt, full DB final process exit trước count: **chưa xanh**, BL-055
+- [x] Sáu lệnh baseline đã chạy; unit 32 suites/505 tests và E2E 8 suites/57 tests đạt, full DB final process exit trước count: **chưa xanh**, BL-125
 - [x] Link checker 134 files/0 broken links tại G4, diff whitespace sạch; chuyển Implemented sau khi G4 được duyệt
 - [x] Handoff/DoD chưa đạt có BL-002/019/024/053/055; BL-011 đã xử lý được xóa, không nhận downstream/process đạt
 
