@@ -471,7 +471,7 @@ Bằng chứng: [baseline](screenshots/DBS-69/baseline-phase1.txt), [review vòn
 
 ## Vòng 2 · Sửa sau review PR #35
 
-> **Status vòng 2:** Draft (đến G2) · **Nguồn:** review code PR #35 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `codex/DBS-69-ledger-invariants` (sửa trực tiếp theo yêu cầu người dùng; mọi commit trước đó của tác giả `Đức PHạm`) · **Cập nhật:** 2026-10-31
+> **Status vòng 2:** Design approved (sau G2) · **Nguồn:** review code PR #35 ngày 2026-10-31, các phát hiện chấm 2 điểm trở lên trên thang "mức độ phải audit lại" (0–5) · **Nhánh:** `codex/DBS-69-ledger-invariants` (sửa trực tiếp theo yêu cầu người dùng; mọi commit trước đó của tác giả `Đức PHạm`) · **Cập nhật:** 2026-10-31
 
 ### R1. Bối cảnh
 
@@ -647,3 +647,47 @@ Chạy lại toàn bộ M-69-01…08 trên commit cuối đổi code, cách ch�
 | v2-6 #2 | minor | Còn một câu cũ nói cắt README "đến tiêu đề kế tiếp", mâu thuẫn với câu mới | đã xóa câu cũ; bốn đoạn là quy tắc duy nhất |
 
 **Lượt 7:** 0 phát hiện, **verdict APPROVE** · [nguyên văn lượt 7](screenshots/DBS-69/domain-review-v2-round-7.md). Chỉ kiểm đoạn TC-69-20(e) vừa sửa ở lượt 6: hai mốc tiêu đề đầy đủ mỗi mốc đúng một lần trong tệp, không còn quy tắc mâu thuẫn, các mục (a)–(d), (f) không bị đụng. Lượt này được chạy nền và hoàn tất sau khi người dùng đề nghị dừng các vòng review; kết quả được ghi nhận như đã nhận.
+
+**Quyết định ở G2 (vòng 2):** người dùng trả lời «duyệt» ngày 2026-10-31, chấp nhận R2–R6 và kết thúc review ở lượt 7 (APPROVE), đo thử 1 triệu dòng bằng script riêng bật bằng `DBS69_BULK_ROWS`, chụp lại 5 ảnh cũ và thêm `06-db-parts.png`.
+
+### R6.1. Kế hoạch triển khai
+
+Mỗi bước viết test trước, chạy cho đỏ, sửa ít nhất có thể để xanh, chạy `npm run lint:check`, rồi commit. Lệnh DB chạy tại `backend/`: `npm run test:db -- --runInBand --runTestsByPath test/db/invariants.db-spec.ts` (gọi tắt **DB**; `globalSetup` tự dựng PostgreSQL 17). Mọi commit nằm trên `codex/DBS-69-ledger-invariants`. **Merge `main` làm trước** (S1) vì `composeDatabaseUrl` chỉ có trên `main`.
+
+| Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| S1 · Merge `main`, đổi ID backlog | `docs/BACKLOG.md`, `docs/features/README.md`, `backend/README.md`, `backend/package.json`, feature doc | không có test mới; sau merge chạy lại toàn bộ baseline | không áp dụng | `git merge origin/main`; lint, typecheck, unit, DB, E2E, build | `chore(ledger): merge main into DBS-69` |
+| S2 · R-5 tách mã TC | `test/db/invariants.db-spec.ts` | đổi tên TC-69-16a…d, 17a…d, 19a/b (không đổi nội dung) | không áp dụng (chỉ đổi tên); DB giữ nguyên số test | DB; kiểm không còn mã trùng | `test(ledger): give each DBS-69 case its own id` |
+| S3 · R-6 gọi CLI bằng `ts-node` | `test/db/invariants.db-spec.ts` (hàm `cli`, `TC-69-15`, `TC-69-15n`) | TC-69-15 gọi `process.execPath -r ts-node/register -r tsconfig-paths/register`; TC-69-15n chạy `npm run --silent check:invariants` và thất bại có thông báo khi thiếu `npm_execpath` | TC-69-15n đỏ khi bỏ `npm_execpath` khỏi môi trường child (chứng minh ca không bị bỏ qua im lặng) | DB | `test(ledger): run the invariant CLI through ts-node instead of npm_execpath` |
+| S4 · R-2/R-2b cờ `committed` và quy tắc đầu ra | `test/support/invariants.ts`, `test/db/invariants.db-spec.ts` | TC-69-20 (a, b, c, d, f), TC-69-17d biến thể DB lệch | TC-69-20(a)(b)(c-lệch)(f) đỏ: code hiện tại cho exit 2 vì lỗi pool sau commit; (d) đã đúng | DB; `npm run typecheck` | `fix(ledger): keep the committed result when a pool error arrives after commit` |
+| S5 · R-3 `composeDatabaseUrl` và `INVALID_CONFIG` kèm `invalid` | `test/support/invariants.ts` (kể cả chuỗi `--help`), `test/db/invariants.db-spec.ts` | TC-69-16 (a…d, đúng mảng `invalid`, `--help` nêu `DB_*` và `exit code is authoritative`), TC-69-21 (a, b, c) với role `LOGIN` | thiếu `invalid`, `DB_*` bị bỏ qua | DB | `feat(ledger): accept the ECS DB parts and name the invalid variables` |
+| S6 · Hợp đồng exit ở bốn chỗ | `docs/features/DBS-69-ledger-invariants.md` §2.2, `backend/README.md` (bảng lệnh, mục 9), `invariants.ts` (`--help`, nếu chưa đổi ở S5) | TC-69-20(e): kiểm văn bản hai chiều trên bốn đoạn có mốc nguyên văn | đỏ: cụm "thẩm quyền cuối cùng" chưa có, bốn chuỗi cũ còn nguyên văn | DB | `docs(ledger): state that the exit code is authoritative` |
+| S7 · Driver manual | `test/manual/invariants.manual.ts` | M-69-01 chạy thêm `spawnSync('npm run --silent check:invariants', { shell: true })` bằng một chuỗi cố định; CLI gọi trực tiếp `ts-node`; thêm M-69-09 (`DB_*`) và M-69-10 | chạy driver cũ trên code mới: assert M-69-09 chưa tồn tại; output ghi lại trước khi sửa driver | script R5 | `test(ledger): cover DB parts and committed results in the manual driver` |
+| S8 · Đo thử R-7 | `test/manual/invariants.bulk.manual.ts` (mới) | script đòi `DATABASE_URL` (thiếu thì thất bại rõ ràng), trần dòng `DBS69_BULK_ROWS`, tự đo bằng `process.hrtime.bigint()`, drop DB tạm trong `finally` | chạy không có `DATABASE_URL`: thoát có thông báo | `DBS69_BULK_ROWS=1000000 npx ts-node …` | `test(ledger): add an opt-in bulk timing script for the invariant query` |
+| S9 · Kiểm tra toàn bộ | — | — | — | `lint:check`, `typecheck`, unit, DB, E2E (PG17 ở 55432), `build` | — |
+| S10 · Manual chính thức | — | — | — | script R5 trên commit cuối đổi code | — |
+| S11 · Tài liệu và bằng chứng | feature doc §R7 (Kết quả), `backend/README.md` mục 9 (`DB_*`, `invalid`), `docs/BACKLOG.md` (BL-126, 127, 128), `docs/features/README.md`, `screenshots/DBS-69/` | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`; `git diff --check` | `docs(ledger): record DBS-69 round-2 review fixes` |
+
+Thứ tự migration → service → controller không áp dụng: không có migration, controller hay OpenAPI. Không audit hay outbox.
+
+**Rủi ro và cách lùi:**
+- S4 đổi hợp đồng exit công khai. Nếu một caller (load test, CI) đang đọc `status` từ stdout khi exit 2, nó sẽ thấy PASS. Giảm rủi ro bằng S6 (sửa bốn chỗ tài liệu) và vì chưa có caller production. Lùi: revert S4 và S6 cùng nhau.
+- S1 là merge có xung đột thật ở 4 file. Nếu merge làm đỏ test nào, mình dừng lại hỏi bạn, không tự sửa test cho xanh.
+- S8 sinh dữ liệu lớn nên chỉ chạy khi bật `DBS69_BULK_ROWS`, trên DB tạm có tên `dbs_test_*`, và luôn drop trong `finally`. Nếu chạm statement timeout 60 giây thì ghi kết quả đó vào §R7, không đổi SQL.
+- Push thường, không force, lên nhánh `codex/…` của `ducp8822`. Nếu remote có commit mới thì `git pull --no-rebase` trước, rồi chạy lại S9.
+
+**Plan sweep:**
+
+| Nguồn | Mục | Xử lý |
+|---|---|---|
+| R1 phạm vi | R-1…R-7 | S1, S2/S11, S4, S5, S11 (BL-128), S3/S7, S8 |
+| R6 domain review | 33 phát hiện qua 7 lượt | mọi mục "đã sửa" nằm trong R2–R5, thực hiện ở S1–S8, S11 |
+| R2 hành vi | R-2, R-2b, R-3a, R-3b, R-6 | S4, S5, S3/S7 |
+| R4 test | TC-69-15/15n, 16a…d, 17a…d, 19a/b, 20 (a…f), 21 (a…c) | S2, S3, S4, S5, S6 |
+| R5 manual | M-69-01…10, đo thử, ảnh | S7, S8, S10, S11 |
+| R1 ngoài phạm vi | mục 1 điểm (`readFileSync` mỗi lần gọi), lịch sử `balance_after`, scheduler | giữ nguyên, không sửa |
+| DoD1–4 (task gốc) | năm phép kiểm, exit khác 0 và in ID, sửa số dư bằng role chủ bảng, gọi từ hàm và CLI | vẫn được TC-69-01…19 khóa lại; S9 chạy đủ |
+| DoD5 quy trình | merge, Dev review, bảng TC trong PR | cập nhật bảng TC trong body PR sau G4; Dev review và merge vẫn chờ (BL-126) |
+| Bàn giao | R-4 (checker trong image ECS), tích hợp money test và load run | BL-128 (vai #5) và BL-127 (đổi ID từ BL-054) |
+
+**Quyết định ở G3 (vòng 2):** ghi lại sau khi được duyệt.
