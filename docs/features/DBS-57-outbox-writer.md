@@ -360,13 +360,13 @@ Không có API HTTP. Phần không ghi ở đây giữ nguyên như §2.
 |---|---|---|
 | R-2 · chuỗi chứa NUL (`U+0000`) hoặc surrogate lẻ, ở **giá trị hoặc khóa** của mọi tầng, kể cả trong mảng và object lồng | qua `assertEvent` (vì `allowUnknown: true`), rồi `::jsonb` ném 22P05 hoặc 22P02, caller nhận 500 chung | `InvalidEventError` với đúng một issue `{ path: '', code: 'INVALID_FORMAT', message: 'has an invalid format' }`, **trước** INSERT. Thông điệp và issue không chứa giá trị. Cặp surrogate hợp lệ (emoji) vẫn được ghi. Caller rollback như mọi `InvalidEventError` khác |
 | R-1 · producer chạy nền thừa kế context của request | event bị `NOT_ALLOWED` nếu id của event khác id của context | **Không đổi.** Hợp đồng được viết ra: producer chạy nền phải tách khỏi context của request bằng **`logger.runInContext(callback)` không truyền `bindings`** (mặc định `inherit: false` tạo store mới từ logger gốc, nên không còn `correlationId`), hoặc mang đúng id của context. Khởi động "ngoài request" không phải là cách một producer đang chạy trong request có thể làm được. Khóa bằng TC-57-15, kể cả cơ chế tách này (review v2-1 #2) |
-| R-3 · test bootstrap ba role | mỗi role tự dựng một container PostgreSQL | dùng lại server của `globalSetup` qua biến `DBS57_BASE_DATABASE_URL`; driver vẫn tạo và xóa DB tạm riêng. Môi trường của child vẫn không có biến cấu hình dự án. **Quy tắc chọn URL của driver:** `baseUrl = DBS57_BASE_DATABASE_URL ?? DATABASE_URL`, đọc từ env gốc **trước** bộ lọc `runtimeKeys` (hai biến này không thuộc `runtimeKeys`, nên child không thừa kế chúng sau lọc). Spec dựng env của child là `{ ...envĐãLọc, DBS57_BASE_DATABASE_URL: requireDatabaseUrl() }`, nên thiếu URL thì fail rõ ràng (review v2-1 #1). Các mode M-57-01…06 vẫn dùng `DATABASE_URL` đặt ngoài transcript như vòng 1 |
+| R-3 · test bootstrap ba role | mỗi role tự dựng một container PostgreSQL | dùng lại server của `globalSetup` qua biến `DBS57_BASE_DATABASE_URL`; driver vẫn tạo và xóa DB tạm riêng. Môi trường của child vẫn không có biến cấu hình dự án. **Quy tắc chọn URL của driver:** `baseUrl = DBS57_BASE_DATABASE_URL || DATABASE_URL` (toán tử `||`, để biến đặt nhưng rỗng không che `DATABASE_URL` và không âm thầm bật container tự dựng; review v2-2 #3), đọc từ env gốc **trước** bộ lọc `runtimeKeys` (hai biến này không thuộc `runtimeKeys`, nên child không thừa kế chúng sau lọc). Spec dựng env của child là `{ ...envĐãLọc, DBS57_BASE_DATABASE_URL: requireDatabaseUrl() }`, nên thiếu URL thì fail rõ ràng (review v2-1 #1). Các mode M-57-01…06 vẫn dùng `DATABASE_URL` đặt ngoài transcript như vòng 1 |
 
-**R-2: phạm vi kiểm.** PostgreSQL 17 từ chối `\u0000` (22P05, `unsupported Unicode escape sequence`) **và** surrogate lẻ như `\ud800` (22P02, `invalid input syntax for type json`), cả ở giá trị lẫn khóa. Đã chạy trên server thật, và reviewer kiểm thêm: cặp surrogate hợp lệ, U+FFFF, ký tự điều khiển, `__proto__`, khóa trùng, `1e999`, `-0` đều được chấp nhận (và `JSON.stringify` không bao giờ sinh khóa trùng, Infinity hay -0). Vậy "NUL và surrogate lẻ" là toàn bộ tập từ chối ở mức ký tự. Review gốc chỉ nêu NUL; vì lỗi cùng hậu quả (rollback cả giao dịch tiền, 500) nên cùng được chặn. `JSON.stringify` ghi surrogate lẻ ở dạng escape `\udXXX`, và `JSON.parse` trả lại đúng ký tự đó, nên kiểm trên snapshot đã parse là đúng chỗ. Cách kiểm mỗi chuỗi: `!s.includes('\0') && s.isWellFormed()` (Node 24 có `isWellFormed`), áp lên mọi giá trị chuỗi và mọi khóa.
+**R-2: phạm vi kiểm.** PostgreSQL 17 từ chối `\u0000` (22P05, `unsupported Unicode escape sequence`) **và** surrogate lẻ như `\ud800` (22P02, `invalid input syntax for type json`), cả ở giá trị lẫn khóa. Đã chạy trên server thật, và reviewer kiểm thêm: cặp surrogate hợp lệ, U+FFFF, ký tự điều khiển, `__proto__`, khóa trùng, `1e999`, `-0` đều được chấp nhận (và `JSON.stringify` không bao giờ sinh khóa trùng, Infinity hay -0). Vậy "NUL và surrogate lẻ" là toàn bộ tập từ chối ở mức ký tự. Review gốc chỉ nêu NUL; vì lỗi cùng hậu quả (rollback cả giao dịch tiền, 500) nên cùng được chặn. `JSON.stringify` ghi surrogate lẻ ở dạng escape `\udXXX`, và `JSON.parse` trả lại đúng ký tự đó, nên kiểm trên snapshot đã parse là đúng chỗ. Cách kiểm mỗi chuỗi (giá trị **và** khóa, mọi tầng): biểu thức chính quy `/\0|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/`. Không dùng `String.prototype.isWellFormed`: nó chỉ có trong `lib.es2024` còn dự án build với `lib: ["ES2022"]`, nên `typecheck` và `build` sẽ đỏ (TS2550, đã tái hiện), và mình không đổi `lib` của cả dự án cho một kiểm tra này. Đã chạy biểu thức với 7 mẫu trên Node 24 và so với `isWellFormed`: NUL, surrogate cao lẻ, surrogate thấp lẻ, thứ tự đảo (thấp rồi cao) và surrogate cao đứng trước ASCII đều bị bắt; cặp hợp lệ (😀) và tiếng Việt có dấu đi qua (review v2-2 #1).
 
 **R-2: ngoài phạm vi.** PostgreSQL còn từ chối một chuỗi jsonb dài hơn 268 435 455 byte (54000, `string too long to represent as jsonb string`) mà `JSON.parse` chấp nhận; lỗi này vẫn rollback và ra 500 chung. Giới hạn kích thước payload là một quyết định riêng (cần số liệu từ SQS: tin nhắn tối đa 256 KiB), nên mình giữ ngoài task này và ghi vào cùng dòng BACKLOG bàn giao cho #3. Độ sâu lồng không cần xử lý riêng: `JSON.stringify` và `JSON.parse` của Node đã ném `RangeError` ở độ sâu khoảng 6000, trước khi bước kiểm chạy, và `RangeError` đó đã được TC-57-11 (`cycle`) bao phủ về mặt rollback.
 
-**R-3: giới hạn được chấp nhận.** TC-57-13 tự động trước đây còn chứng minh "tự dựng PostgreSQL khi không có `DATABASE_URL`". Sau khi dùng lại server chung, phần đó chỉ còn được chứng minh bằng **M-57-07 chạy tay** (shell sạch, không có `DBS57_BASE_DATABASE_URL`, tự dựng container cho cả ba role). Điều này được ghi rõ ở §R9.
+**R-3: giới hạn được chấp nhận.** TC-57-13 tự động trước đây còn chứng minh "tự dựng PostgreSQL khi không có `DATABASE_URL`". Sau khi dùng lại server chung, phần đó chỉ còn được chứng minh bằng **M-57-07 chạy tay** (shell sạch, không có `DBS57_BASE_DATABASE_URL`, tự dựng container cho cả ba role). Điều này sẽ được ghi rõ ở §R8 (Kết quả) khi bàn giao.
 
 ### R3. Kiến trúc
 
@@ -396,7 +396,7 @@ PostgreSQL 17 thật, `test/db/`.
 
 | ID | Truy vết | Given · When · Then | Lỗi mong đợi |
 |---|---|---|---|
-| TC-57-14 | DoD1, R-2 | (a) NUL trong giá trị extension; (b) trong khóa extension; (c) trong phần tử của mảng lồng 3 tầng; (d) surrogate cao lẻ; (e) surrogate thấp lẻ. Mỗi ca: INSERT user rồi add → rollback user và outbox, không có truy vấn INSERT outbox nào, `issues` đúng một phần tử `path ''` + `INVALID_FORMAT`, `message` và `JSON.stringify(issues)` không chứa giá trị. (f) cặp surrogate hợp lệ (😀) và chuỗi tiếng Việt có dấu được ghi, payload đọc lại bằng nhau | `InvalidEventError` |
+| TC-57-14 | DoD1, R-2 | (a) NUL trong giá trị extension; (b) trong khóa extension; (c) trong phần tử của mảng lồng 3 tầng; (d) surrogate cao lẻ trong giá trị; (e) surrogate thấp lẻ trong giá trị; (e2) surrogate lẻ trong **khóa** của object lồng (`extension.meta['\ud800']`); (e3) surrogate cao đứng trước ASCII, và thứ tự đảo thấp-rồi-cao, trong giá trị. Mỗi ca: INSERT user rồi add → rollback user và outbox, không có truy vấn INSERT outbox nào, `issues` đúng một phần tử `path ''` + `INVALID_FORMAT`, `message` và `JSON.stringify(issues)` không chứa giá trị. (f) cặp surrogate hợp lệ (😀) và chuỗi tiếng Việt có dấu được ghi, payload đọc lại bằng nhau | `InvalidEventError` |
 | TC-57-15 | DoD2, R-1 | (a) callback khởi động trong `logger.runInContext` với id X, chạy sau một `await` và một `setImmediate`, ghi event có id Y hợp lệ → `NOT_ALLOWED`, không row. (b) cùng callback nhưng được bọc `logger.runInContext(callback)` **không truyền `bindings`** → ghi thành công với id Y, đúng 1 row. (c) khởi động hẳn ngoài mọi context → ghi thành công. Chứng minh hợp đồng và cơ chế tách mà README sẽ nêu | `InvalidEventError` / — |
 | TC-57-13 (đổi) | DoD1/3/4, R-3 | child nhận `DBS57_BASE_DATABASE_URL` (từ `requireDatabaseUrl()`), không nhận `DATABASE_URL` hay biến dự án; ba role mỗi role đúng 1 row, cleanup; JSON của driver có `cleanup.ownContainerStopped: false` (driver không tự dựng container). Assertion cũ `ownContainerStopped: true` phải đảo lại | — |
 | TC-57-11 (giữ) | | `cycle`, `toJSON`, mutation sau add vẫn đạt | như cũ |
@@ -415,15 +415,18 @@ Chạy lại toàn bộ M-57-01…07 trên commit cuối đổi code, cách ch�
 
 Máy này có PostgreSQL 18 native chiếm cổng 5432: M-57-07 dùng Testcontainers (cổng ngẫu nhiên), nên không đụng cổng đó. Các mode M-57-01…06 dùng server dựng sẵn ở 55432 qua `DATABASE_URL` đặt ngoài transcript. **M-57-07 phải gỡ cả hai biến**, vì nếu còn một biến thì driver dùng lại server và không còn chứng minh được gì về việc tự dựng:
 
+Chạy tại `backend/` trong Git Bash, dạng một tiến trình riêng để `set -e` không đóng terminal đang mở (review v2-2 #4):
+
 ```bash
+bash -c 'set -euo pipefail
 for role in api worker both; do
   env -u DBS57_BASE_DATABASE_URL -u DATABASE_URL \
     node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts commit --role=$role 2>&1 \
     | tee -a ../docs/features/screenshots/DBS-57/manual-test.txt
-done
+done'
 ```
 
-(`set -euo pipefail` ở đầu script để một role lỗi dừng ngay.) Ảnh: chụp lại ba ảnh cũ từ output mới và thêm `04-surrogate-nul.png`, `05-ambient-context.png`.
+Driver đặt `process.exitCode = 1` khi lỗi, `pipefail` giữ mã thoát đó qua `tee`, và `-e` dừng vòng lặp ở role lỗi đầu tiên. Ảnh: chụp lại ba ảnh cũ từ output mới và thêm `04-surrogate-nul.png`, `05-ambient-context.png`.
 
 ### R6. Domain review (AI)
 
@@ -436,3 +439,13 @@ done
 | 3 | should-fix | M-57-07 thiếu lệnh; nếu còn `DBS57_BASE_DATABASE_URL` thì không còn chứng minh tự dựng | đã sửa R5: lệnh `env -u` cả hai biến, kỳ vọng `ownContainerStopped: true` |
 | 4 | minor | Trường `ownContainer` không tồn tại; assertion cũ phải đảo | đã sửa TC-57-13: dùng `cleanup.ownContainerStopped: false`, ghi đảo assertion |
 | 5 | minor | Giới hạn 54000 của jsonb chưa nêu; "ngăn xếp tường minh để chịu độ sâu" sai; nên dùng `isWellFormed` | đã sửa R2/R3: ghi 54000 ngoài phạm vi (kèm BACKLOG cho #3), bỏ claim độ sâu, dùng `isWellFormed` |
+
+**Lượt 2:** 5 phát hiện (blocking 0, should-fix 1, minor 4), verdict REVISE · [nguyên văn lượt 2](screenshots/DBS-57/domain-review-v2-round-2.md). Reviewer xác nhận 5 mục của lượt 1 đã sửa đúng.
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| v2-2 #1 | should-fix | `isWellFormed` không có trong `lib: ES2022`, `typecheck` và `build` sẽ đỏ (đã tự tái hiện TS2550) | đã sửa R2: dùng biểu thức chính quy, không đổi `lib`; đã đối chiếu 7 mẫu với `isWellFormed` |
+| v2-2 #2 | minor | Surrogate lẻ trong **khóa** chưa có ca test | đã sửa TC-57-14: thêm (e2) và (e3) |
+| v2-2 #3 | minor | `??` giữ chuỗi rỗng, âm thầm bật container tự dựng | đã sửa R2: dùng `||` |
+| v2-2 #4 | minor | Lệnh M-57-07 không ở dạng script rõ ràng | đã sửa R5: `bash -c 'set -euo pipefail; …'` |
+| v2-2 #5 | minor | Tham chiếu "§R9" không tồn tại | đã sửa R2: trỏ tới §R8 |
