@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
+import { requireDatabaseUrl } from '../support/temp-database';
+
 const runtimeKeys =
   /^(PATH|SYSTEMROOT|WINDIR|TEMP|TMP|USERPROFILE|HOME|COMSPEC|PATHEXT|DOCKER_.+|TESTCONTAINERS_.+)$/i;
 
@@ -43,11 +45,15 @@ function safeOutput(text: string | undefined) {
 
 describe('TC-57-13 manual driver bootstraps from a clean project environment', () => {
   it.each(['api', 'worker', 'both'])(
-    'commits and cleans up in the %s role without inherited project env',
+    'commits and cleans up in the %s role on the shared server without inherited project env',
     async role => {
-      const env = Object.fromEntries(
-        Object.entries(process.env).filter(([key]) => runtimeKeys.test(key)),
-      );
+      // The child keeps no project configuration. It gets only the server globalSetup already
+      // started, under a name that is not a project variable, instead of starting its own
+      // container for each role. requireDatabaseUrl() fails loudly when globalSetup set none.
+      const env = {
+        ...Object.fromEntries(Object.entries(process.env).filter(([key]) => runtimeKeys.test(key))),
+        DBS57_BASE_DATABASE_URL: requireDatabaseUrl(),
+      };
       let stdout: string;
       try {
         ({ stdout } = await execute(
@@ -95,7 +101,7 @@ describe('TC-57-13 manual driver bootstraps from a clean project environment', (
           role,
           pass: true,
           outboxRows: 1,
-          cleanup: { databaseDropped: true, ownContainerStopped: true, cwdRestored: true },
+          cleanup: { databaseDropped: true, ownContainerStopped: false, cwdRestored: true },
         }),
       );
       expect(stdout).not.toMatch(/postgres(?:ql)?:\/\/|DATABASE_URL|password|Authorization/i);

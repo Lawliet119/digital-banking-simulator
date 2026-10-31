@@ -20,7 +20,9 @@ async function main(): Promise<void> {
   assert.ok(['api', 'worker', 'both'].includes(role));
   const originalEnv = process.env;
   const originalCwd = process.cwd();
-  let baseUrl = originalEnv.DATABASE_URL;
+  // Read before the env filter below drops every project variable. `||`, not `??`: a variable that
+  // is set but empty must not hide DATABASE_URL, nor silently start a container of our own.
+  let baseUrl = originalEnv.DBS57_BASE_DATABASE_URL || originalEnv.DATABASE_URL;
   const sandbox = mkdtempSync(join(tmpdir(), 'dbs57-manual-'));
   let app: NestExpressApplication | undefined;
   let temp: TempDatabase | undefined;
