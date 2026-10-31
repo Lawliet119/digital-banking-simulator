@@ -125,13 +125,25 @@ async function main(): Promise<void> {
       assert.equal((await users(sub)).length, 0);
       result = { eventId: input.eventId, userRows: 0, outboxRows: 0 };
     } else if (mode === 'invalid') {
-      const cases = ['missing-correlation', 'numeric-money', 'cycle'] as const;
+      const cases = [
+        'missing-correlation',
+        'numeric-money',
+        'cycle',
+        'nul-in-value',
+        'lone-surrogate-in-key',
+      ] as const;
       for (const invalidCase of cases) {
         const input = { ...event() } as DomainEvent & { cycle?: unknown };
         if (invalidCase === 'missing-correlation')
           delete (input as Partial<DomainEvent>).correlationId;
         if (invalidCase === 'numeric-money') Object.assign(input, { amount: 500000 });
         if (invalidCase === 'cycle') input.cycle = input;
+        if (invalidCase === 'nul-in-value')
+          Object.assign(input, { extension: { note: `a${String.fromCharCode(0)}b` } });
+        if (invalidCase === 'lone-surrogate-in-key')
+          Object.assign(input, {
+            extension: { meta: { [`k${String.fromCharCode(0xd800)}`]: 1 } },
+          });
         const sub = randomUUID();
         await assert.rejects(
           logger.runInContext(
@@ -144,6 +156,16 @@ async function main(): Promise<void> {
           ),
           error => {
             if (invalidCase === 'cycle') return error instanceof TypeError;
+            if (invalidCase === 'nul-in-value' || invalidCase === 'lone-surrogate-in-key') {
+              // One issue on the whole payload, and a message that never carries the text.
+              return (
+                error instanceof events.InvalidEventError &&
+                error.issues.length === 1 &&
+                error.issues[0].path === '' &&
+                error.issues[0].code === 'INVALID_FORMAT' &&
+                error.message === 'Invalid event: (payload) INVALID_FORMAT'
+              );
+            }
             const code = invalidCase === 'missing-correlation' ? 'MISSING_FIELD' : 'WRONG_TYPE';
             return (
               error instanceof events.InvalidEventError &&
@@ -222,12 +244,34 @@ async function main(): Promise<void> {
       const outside = event();
       await tx.run(manager => writer.add(manager, outside));
       assert.equal((await rows(outside.eventId))[0].correlation_id, outside.correlationId);
+      // A background producer started inside a request keeps that request's context. It is refused
+      // while it inherits the context, and accepted once detached with no bindings.
+      const requestId = randomUUID();
+      const later = (input: DomainEvent) => async () => {
+        await new Promise<void>(resolve => setImmediate(resolve));
+        await tx.run(manager => writer.add(manager, input));
+      };
+      const inherited = event();
+      await assert.rejects(
+        logger.runInContext(later(inherited), { bindings: { correlationId: requestId } }),
+        error =>
+          error instanceof events.InvalidEventError &&
+          error.issues.some(issue => issue.code === 'NOT_ALLOWED'),
+      );
+      assert.equal((await rows(inherited.eventId)).length, 0);
+      const detached = event();
+      await logger.runInContext(() => logger.runInContext(later(detached)), {
+        bindings: { correlationId: requestId },
+      });
+      assert.equal((await rows(detached.eventId))[0].correlation_id, detached.correlationId);
       result = {
         httpRows: 10,
         distinctCorrelationIds: correlations,
         mismatch: 'NOT_ALLOWED',
         malformed: 'INVALID_FORMAT',
         outsideContextRows: 1,
+        backgroundInherited: 'NOT_ALLOWED',
+        backgroundDetachedRows: 1,
       };
     } else {
       const input = event();
