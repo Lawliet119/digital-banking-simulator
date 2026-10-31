@@ -1,4 +1,17 @@
-import { AccountNotLockedError, AccountsModule, AccountsService } from '@modules/accounts';
+import {
+  AccountBalanceNegativeError,
+  AccountBalanceOverflowError,
+  AccountNotLockedError,
+  AccountsModule,
+  AccountsService,
+} from '@modules/accounts';
+import { safeErrorMetadata } from '@common/logging/logging.options';
+import {
+  getErrorCode,
+  isRetryableTransactionError,
+  isTransientDbError,
+} from '@common/utils/pg-error.util';
+import { QueryFailedError } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -221,12 +234,19 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
   });
 
   it('TC-55-07 PostgreSQL refuses a negative customer balance', async () => {
-    await expect(
+    const error = await rejection(
       withMoneyProbe(fixture.source, async manager => {
         await service.lockForUpdate([f.accountA], manager);
         await service.applyBalanceChange(f.accountA, -1n, manager);
       }),
-    ).rejects.toMatchObject({ code: '23514', constraint: 'accounts_balance_non_negative' });
+    );
+    expect(error).toBeInstanceOf(AccountBalanceNegativeError);
+    expect(error).toMatchObject({
+      name: 'AccountBalanceNegativeError',
+      accountId: f.accountA,
+      cause: { code: '23514', constraint: 'accounts_balance_non_negative' },
+    });
+    expectInternalDbFailure(error, '23514');
   });
 
   it('TC-55-08 accepts signed bigint bounds for funding with balanced service probes', async () => {
@@ -257,7 +277,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
   it.each(['customer overflow', 'funding underflow', 'large delta', 'small delta'])(
     'TC-55-09 rejects %s without leaving tentative balances',
     async scenario => {
-      await expect(
+      const error = await rejection(
         withMoneyProbe(fixture.source, async manager => {
           await service.lockForUpdate([f.funding, f.accountA, f.accountC], manager);
           if (scenario === 'customer overflow') {
@@ -274,9 +294,35 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
             await service.applyBalanceChange(f.accountA, delta, manager);
           }
         }),
-      ).rejects.toMatchObject({ code: '22003' });
+      );
+      expect(error).toBeInstanceOf(AccountBalanceOverflowError);
+      expect(error).toMatchObject({
+        name: 'AccountBalanceOverflowError',
+        cause: { code: '22003' },
+      });
+      expectInternalDbFailure(error, '22003');
     },
   );
+
+  it.each([
+    ['deadlock', { code: '40P01' }],
+    ['another CHECK', { code: '23514', constraint: 'accounts_type_check' }],
+  ])('TC-55-19 passes %s through unwrapped', async (_name, fields) => {
+    const failure = Object.assign(new QueryFailedError('UPDATE accounts', [], new Error('x')), {
+      ...fields,
+      driverError: { ...fields },
+    });
+    await withMoneyProbe(fixture.source, async manager => {
+      await service.lockForUpdate([f.accountA], manager);
+      const query = jest.spyOn(manager, 'query').mockRejectedValueOnce(failure);
+      try {
+        await expect(service.applyBalanceChange(f.accountA, 0n, manager)).rejects.toBe(failure);
+      } finally {
+        query.mockRestore();
+      }
+    });
+    expect(isRetryableTransactionError(failure)).toBe(fields.code === '40P01');
+  });
 
   it('TC-55-10 missing update is rejected rather than mistaking the raw tuple for rows', async () => {
     await expect(
@@ -429,6 +475,25 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
       await context.close();
     }
   });
+
+  async function rejection(work: Promise<unknown>): Promise<unknown> {
+    try {
+      await work;
+    } catch (error) {
+      return error;
+    }
+    throw new Error('Expected a rejection');
+  }
+
+  /** A wrapped balance refusal still exposes its SQLSTATE, and is neither retried nor 503. */
+  function expectInternalDbFailure(error: unknown, code: string): void {
+    expect(getErrorCode(error)).toBe(code);
+    expect(isRetryableTransactionError(error)).toBe(false);
+    expect(isTransientDbError(error)).toBe(false);
+    const metadata = safeErrorMetadata(error);
+    expect(metadata).toEqual({ errorType: 'Error', code });
+    expect(JSON.stringify(metadata)).not.toMatch(/UPDATE|accounts|3a000000/);
+  }
 
   async function ownershipError(account: string, user: string): Promise<NotFoundException> {
     try {

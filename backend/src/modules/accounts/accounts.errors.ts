@@ -16,3 +16,27 @@ export class AccountNotLockedError extends Error {
     );
   }
 }
+
+/** PostgreSQL refused to take a customer balance below zero (CHECK accounts_balance_non_negative). */
+export class AccountBalanceNegativeError extends Error {
+  override readonly name = 'AccountBalanceNegativeError';
+
+  constructor(
+    readonly accountId: string,
+    options: { cause: unknown },
+  ) {
+    super('Customer balance would become negative', options);
+  }
+}
+
+/** The new balance or the delta does not fit PostgreSQL's signed bigint. */
+export class AccountBalanceOverflowError extends Error {
+  override readonly name = 'AccountBalanceOverflowError';
+
+  constructor(
+    readonly accountId: string,
+    options: { cause: unknown },
+  ) {
+    super('Balance is outside the signed bigint range', options);
+  }
+}

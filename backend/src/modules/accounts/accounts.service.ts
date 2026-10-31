@@ -2,7 +2,17 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import type { Account, LockedAccount } from './account.types';
-import { AccountNotLockedError } from './accounts.errors';
+import {
+  AccountBalanceNegativeError,
+  AccountBalanceOverflowError,
+  AccountNotLockedError,
+} from './accounts.errors';
+
+interface PgFailure {
+  code?: unknown;
+  constraint?: unknown;
+  driverError?: { code?: unknown; constraint?: unknown };
+}
 
 const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const SNAPSHOT_COLUMNS = `a.id, a.customer_id AS "customerId", c.user_id AS "userId",
@@ -37,11 +47,16 @@ export class AccountsService {
     // PostgreSQL remains the final guard against customer overdrafts and signed-bigint overflow.
     // clock_timestamp(), not now(): now() is the transaction start, so a writer that waited for this
     // row lock would stamp an earlier time than the writer it waited behind.
-    const result: unknown = await manager.query(
-      `UPDATE accounts SET balance=balance+$2::bigint, updated_at=clock_timestamp()
-       WHERE id=$1::uuid RETURNING id`,
-      [id, delta.toString()],
-    );
+    let result: unknown;
+    try {
+      result = await manager.query(
+        `UPDATE accounts SET balance=balance+$2::bigint, updated_at=clock_timestamp()
+         WHERE id=$1::uuid RETURNING id`,
+        [id, delta.toString()],
+      );
+    } catch (error) {
+      throw this.balanceFailure(id, error);
+    }
     // Trust the RETURNING rows, not the driver's row count: a changed result shape must never
     // read as a successful money movement.
     if (!Array.isArray(result) || !Array.isArray(result[0])) {
@@ -68,6 +83,22 @@ export class AccountsService {
     );
     if (!account) throw new NotFoundException('Account not found');
     return account;
+  }
+
+  /**
+   * Only the two refusals that mean "the guard let a bad amount through" are given a type. Every
+   * other failure (deadlock, timeout, another CHECK) passes through untouched so the retry and
+   * transient classification still see it as it came from the driver.
+   */
+  private balanceFailure(accountId: string, error: unknown): unknown {
+    const record = error !== null && typeof error === 'object' ? (error as PgFailure) : {};
+    const code = record.driverError?.code ?? record.code;
+    const constraint = record.driverError?.constraint ?? record.constraint;
+    if (code === '23514' && constraint === 'accounts_balance_non_negative') {
+      return new AccountBalanceNegativeError(accountId, { cause: error });
+    }
+    if (code === '22003') return new AccountBalanceOverflowError(accountId, { cause: error });
+    return error;
   }
 
   private requireTransaction(manager: EntityManager): void {
