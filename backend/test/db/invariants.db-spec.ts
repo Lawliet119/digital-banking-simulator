@@ -449,7 +449,7 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     }
     expect((await checkLedgerInvariants(db.runner)).status).toBe('PASS');
   });
-  it('TC-69-19 raw SQL and function agree and ignore search_path shadow tables', async () => {
+  it('TC-69-19a raw SQL and function agree and ignore search_path shadow tables', async () => {
     const refs = await seedInvariantLedger(db.runner);
     await db.runner.query('UPDATE public.accounts SET balance=balance+1 WHERE id=$1', [
       refs.senderId,
@@ -496,7 +496,7 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     'sslnegotiation',
     'SSLMODE',
     'uselibpqcompat',
-  ])('TC-69-16 rejects URL TLS override %s before connecting', key => {
+  ])('TC-69-16a rejects URL TLS override %s before connecting', key => {
     const url = new URL(db.url);
     url.searchParams.set(key, key === 'sslnegotiation' ? 'direct' : 'SENTINEL');
     expectSafeError(cli([], { DATABASE_URL: url.toString() }), 'INVALID_CONFIG');
@@ -506,17 +506,17 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     ['malformed URL', { DATABASE_URL: 'INVALID_URL_SENTINEL' }],
     ['production without TLS', { NODE_ENV: 'production', DATABASE_SSL: 'false' }],
     ['unreadable CA', { DATABASE_SSL: 'true', DATABASE_SSL_CA_PATH: 'MISSING_CA_SENTINEL.pem' }],
-  ] as const)('TC-69-16 rejects %s without echoing configuration values', (_name, env) => {
+  ] as const)('TC-69-16b rejects %s without echoing configuration values', (_name, env) => {
     expectSafeError(cli([], env), 'INVALID_CONFIG');
   });
-  it('TC-69-16 --help does not need a DB and unexpected arguments fail safely', () => {
+  it('TC-69-16c --help does not need a DB and unexpected arguments fail safely', () => {
     const help = cli(['--help'], { DATABASE_URL: '' });
     expect(help.status).toBe(0);
     expect(help.stderr).toBe('');
     expect(help.stdout).toContain('check:invariants');
     expectSafeError(cli(['UNEXPECTED_SENTINEL']), 'INVALID_ARGUMENT');
   });
-  it('TC-69-16 the real pg parser preserves the configured CA and certificate verification for accepted URLs', () => {
+  it('TC-69-16d the real pg parser preserves the configured CA and certificate verification for accepted URLs', () => {
     const ssl = buildSslOptions({ enabled: true, caPath: 'fixture.pem' }, () => 'FIXTURE_CA');
     const probe = spawnSync(
       process.execPath,
@@ -535,7 +535,7 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     expect(probe.stdout.trim()).toBe('TLS_PRESERVED');
     expect(probe.stderr).toBe('');
   });
-  it('TC-69-17 missing schema is ERROR 42P01, never a clean empty database', async () => {
+  it('TC-69-17a missing schema is ERROR 42P01, never a clean empty database', async () => {
     const empty = await createTempDatabase();
     try {
       const result = cli([], { DATABASE_URL: empty.url });
@@ -545,7 +545,7 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
       await empty.drop();
     }
   });
-  it('TC-69-17 missing SELECT is ERROR 42501', async () => {
+  it('TC-69-17b missing SELECT is ERROR 42501', async () => {
     const role = await roleWith([]);
     await db.runner.commitTransaction();
     const url = new URL(db.url);
@@ -554,14 +554,14 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     expectSafeError(result);
     expect(JSON.parse(result.stderr)).toMatchObject({ databaseCode: '42501' });
   });
-  it('TC-69-17 authentication failure does not expose credentials', () => {
+  it('TC-69-17c authentication failure does not expose credentials', () => {
     const url = new URL(db.url);
     url.password = 'WRONG_PASSWORD_SENTINEL';
     const result = cli([], { DATABASE_URL: url.toString() });
     expectSafeError(result);
     expect(JSON.parse(result.stderr)).toMatchObject({ databaseCode: '28P01' });
   });
-  it('TC-69-17 a real pool error event cannot log its raw message or emit PASS', async () => {
+  it('TC-69-17d a real pool error event cannot log its raw message or emit PASS', async () => {
     await seedInvariantLedger(db.runner);
     await db.runner.commitTransaction();
     const script = `
@@ -584,7 +584,7 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     expectSafeError(result);
     expect(JSON.parse(result.stderr)).toMatchObject({ databaseCode: '57P01' });
   });
-  it('TC-69-19 import from another cwd neither loads env nor connects or executes the CLI', () => {
+  it('TC-69-19b import from another cwd neither loads env nor connects or executes the CLI', () => {
     const script = `require(${JSON.stringify(require.resolve('dotenv'))}).config = () => { throw new Error('ENV_LOAD_SENTINEL'); }; require(${JSON.stringify(cliFile)}); console.log('IMPORTED');`;
     const result = spawnSync(
       process.execPath,
