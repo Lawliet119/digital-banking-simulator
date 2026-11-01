@@ -12,4 +12,6 @@ Kịch bản [k6](https://k6.io/). Phụ trách: #6.
 
 Sau mỗi lần chạy phải kiểm tra bất biến: tổng Nợ = tổng Có, tổng số dư = 0, không tài khoản khách nào âm.
 
+Từ checkout có devDependencies, chạy `npm run --silent check:invariants` trong `backend/` với `DATABASE_URL` của môi trường vừa chạy tải. Phải nhận exit **0**; exit **1** kèm IDs vi phạm, exit **2** là lỗi chưa kiểm được. Giữ report và mã thoát cùng bằng chứng load run, không bỏ qua lỗi. Công cụ kiểm thêm từng balance khớp sổ và mỗi COMPLETED đủ cặp/đúng tiền/nguồn/đích; funding được âm nhưng vẫn tính vào tổng. [Cách dùng, quyền DB và giới hạn full scan](../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái). Câu SQL riêng trả report, CLI mới ánh xạ kết quả thành exit code.
+
 Kết quả chạy lưu ở `load-tests/results/` (không commit); số liệu tổng hợp đưa vào báo cáo P4.
