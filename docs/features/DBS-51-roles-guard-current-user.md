@@ -1,6 +1,6 @@
 # DBS-51 · @Roles, RolesGuard và @CurrentUser; vai trò lấy từ cognito:groups
 
-> **Status:** Plan approved (sau G3) · **Vai:** Dev · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-51-roles-guard-current-user` (từ `main` = `6528c02`) · **PR:** — · **Cập nhật:** 2026-11-02
+> **Status:** Implemented (sau G4) · **Vai:** Dev · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-51-roles-guard-current-user` (từ `main` = `6528c02`) · **PR:** — (chưa mở) · **Cập nhật:** 2026-11-02
 
 ## 1. Bối cảnh
 
@@ -477,7 +477,7 @@ skip / only / todo trong test của task: 0
 ![Mất Postgres ra 503 rồi hồi phục](screenshots/DBS-51/05-outage-503-then-recovery.png)
 ![Log từ chối 403](screenshots/DBS-51/06-denial-log-18-lines.png)
 
-- **Lệch so với kế hoạch** (chưa được duyệt, cần người duyệt đồng ý ở G4):
+- **Lệch so với kế hoạch** (đã được duyệt ở G4, 2026-11-02, theo đề xuất của agent cho cả ba điểm: giữ `roles-app.ts`, chấp nhận TC-51-27 đơn giản hóa, chấp nhận ảnh dựng từ output thô):
   1. **File ngoài bản đồ §7:** `backend/test/support/roles-app.ts`, helper dựng app thử (JWKS thật, ký token, hai `APP_GUARD`) dùng chung cho `roles.e2e-spec.ts` và `roles-security.e2e-spec.ts`. Mình tạo mà **không dừng hỏi** như luật gate phụ yêu cầu; đúng ra phải ghi vào bản đồ và xin duyệt trước.
   2. `ROLES_KEY` được export thêm ở `index.ts` (§3 không liệt kê); README identity đã ghi.
   3. TC-51-19 và TC-51-20 nằm trong `roles.e2e-spec.ts` ở commit bước 6 (kế hoạch ghi bước 7). Không đổi phạm vi.
