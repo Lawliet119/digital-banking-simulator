@@ -150,6 +150,8 @@ CREATE TABLE customers (
 
 Dòng `users` được tạo bằng `INSERT … ON CONFLICT (cognito_sub) DO NOTHING` ở token hợp lệ đầu tiên của mọi vai trò (khách, nhân viên, kiểm toán viên, admin). Không lưu vai trò: nguồn sự thật duy nhất là nhóm Cognito trong JWT (`cognito:groups`). Lưu thêm một cột `role` là tạo hai nơi có thể lệch nhau mà không có ai dùng; nhật ký ghi vai trò tại thời điểm thao tác ở `audit_log.actor_role`. Không lưu email, số điện thoại: Cognito giữ danh tính, DB chỉ giữ `cognito_sub`. Ít dữ liệu cá nhân hơn nghĩa là ít thứ phải bảo vệ.
 
+**Ngoại lệ audit (DBS-52, duyệt 2026-11-01):** việc tạo dòng `users` ở token hợp lệ đầu tiên là hệ thống tự cấp phát, không phải thao tác do người dùng hay nhân viên ra lệnh, nên **không** ghi `audit_log` (FR-AUD-01 không liệt kê ngoại lệ này; đây là quyết định thiết kế đã được người duyệt chấp nhận). Khi `AuditService` (DBS-56) có, [BL-130](../../BACKLOG.md) đề xuất ghi hành động `user.provisioned` với `actor_user_id` NULL (hệ thống).
+
 ### 4.2 `accounts`
 
 ```sql

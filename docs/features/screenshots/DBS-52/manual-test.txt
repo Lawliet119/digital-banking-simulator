@@ -1,0 +1,104 @@
+52c6c1ab0f5e6fa71fa3bedf6aadef1fc9b17ba9
+# DBS-52 manual test, run on 2026-11-01T16:04Z, Postgres 17 via docker compose (host port 5433)
+
+## M-52-01: disposable database, migrate, count
+NOTICE:  database "dbs52_manual" does not exist, skipping
+DROP DATABASE
+CREATE DATABASE
+        FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1792627200002,"AddAppendOnlyTriggers1792627200002"]
+Migration AddAppendOnlyTriggers1792627200002 has been executed successfully.
+query: COMMIT
+$ psql -d dbs52_manual -c "SELECT count(*) FROM users"
+ count 
+-------
+     0
+(1 row)
+
+
+## M-52-02..06: manual-smoke.dbs52.ts main
+$ npx ts-node -r tsconfig-paths/register src/scripts/manual-smoke.dbs52.ts main
+DBS-52 manual smoke, mode=main, app at http://127.0.0.1:56303
+users rows at start (N0): 0
+
+--- M-52-02: first token of a self-registered customer (no group) ---
+sub 5b0d7c1e-3f4a-4c8e-9d2b-7a1e6f0c9a42 (customer, no group) -> 200 userId=1edccffb-37fe-44ad-8744-724d5095a6aa groups=[]
+row in DB: id=1edccffb-37fe-44ad-8744-724d5095a6aa
+users rows now: 1
+
+--- M-52-03: the same token three more times ---
+call 1 -> 200 userId=1edccffb-37fe-44ad-8744-724d5095a6aa groups=[]
+call 2 -> 200 userId=1edccffb-37fe-44ad-8744-724d5095a6aa groups=[]
+call 3 -> 200 userId=1edccffb-37fe-44ad-8744-724d5095a6aa groups=[]
+users rows now: 1
+
+--- M-52-04: operator, auditor, admin (one sub each) ---
+operator 8d1f2a60-4b7c-4e19-a5d3-0c9b6e2f7a11 -> 200 userId=d8bd540e-731e-4d54-b98b-d2e9867158c2 groups=["operator"]
+auditor 3e6c9b72-1a58-4d04-8f2e-5b7a0d4c1e93 -> 200 userId=4e4e5813-2b40-4e86-9c2a-435bafe07d82 groups=["auditor"]
+admin 9a4b7e15-6c2d-4f83-b0a1-2e8d5c3f6b07 -> 200 userId=b7023732-e382-4a33-86de-64a6efd42c16 groups=["admin"]
+users rows now: 4
+
+--- M-52-05: 20 parallel requests for one new sub ---
+statuses: [200,200,200,200,200,200,200,200,200,200,200,200,200,200,200,200,200,200,200,200]
+distinct userIds: 1; row in DB: id=e6d99c47-f99f-4913-b488-6ee85cd36796
+users rows now: 5
+
+--- M-52-06: foreign key, expired token, no token ---
+[Nest] 31836  - 11/01/2026, 11:05:28 PM    WARN [JwksVerifierService] access token failed verification: JWSSignatureVerificationFailed
+signed with an unknown key -> 401 UNAUTHENTICATED
+[Nest] 31836  - 11/01/2026, 11:05:28 PM    WARN [JwksVerifierService] access token expired
+expired token -> 401 TOKEN_EXPIRED
+no Authorization header -> 401 UNAUTHENTICATED
+row for e7a3c914-2b6f-4d58-a1e0-4c9d7b2a6f35 (must be none): null
+users rows now: 5
+exit=0
+$ psql -d dbs52_manual -c "SELECT id, cognito_sub FROM users ORDER BY created_at"
+                  id                  |             cognito_sub              
+--------------------------------------+--------------------------------------
+ 1edccffb-37fe-44ad-8744-724d5095a6aa | 5b0d7c1e-3f4a-4c8e-9d2b-7a1e6f0c9a42
+ d8bd540e-731e-4d54-b98b-d2e9867158c2 | 8d1f2a60-4b7c-4e19-a5d3-0c9b6e2f7a11
+ 4e4e5813-2b40-4e86-9c2a-435bafe07d82 | 3e6c9b72-1a58-4d04-8f2e-5b7a0d4c1e93
+ b7023732-e382-4a33-86de-64a6efd42c16 | 9a4b7e15-6c2d-4f83-b0a1-2e8d5c3f6b07
+ e6d99c47-f99f-4913-b488-6ee85cd36796 | c2f8d605-7e1a-4b39-9c4d-6a0e3b5f8d21
+(5 rows)
+
+
+## M-52-07: manual-smoke.dbs52.ts rerun (new process, new key, empty cache)
+$ npx ts-node -r tsconfig-paths/register src/scripts/manual-smoke.dbs52.ts rerun
+DBS-52 manual smoke, mode=rerun, app at http://127.0.0.1:58266
+users rows at start (N0): 5
+
+--- M-52-07: new process, new key, empty cache, same sub as M-52-02 ---
+sub 5b0d7c1e-3f4a-4c8e-9d2b-7a1e6f0c9a42 -> 200 userId=1edccffb-37fe-44ad-8744-724d5095a6aa groups=[]
+row in DB: id=1edccffb-37fe-44ad-8744-724d5095a6aa
+users rows now: 5
+exit=0
+
+## M-52-08/09: manual-smoke.dbs52.ts outage (operator stops/starts PostgreSQL; Enter is fed to stdin)
+$ npx ts-node -r tsconfig-paths/register src/scripts/manual-smoke.dbs52.ts outage
+[driver 16:10:15] docker compose stop postgres
+ Container dbs-postgres-1  Stopping
+ Container dbs-postgres-1  Stopped
+[driver 16:10:50] Enter #1 (35 s after stop)
+[driver 16:11:00] docker compose start postgres
+ Container dbs-postgres-1  Starting
+ Container dbs-postgres-1  Started
+[driver 16:11:08] postgres health=healthy; Enter #2
+DBS-52 manual smoke, mode=outage, app at http://127.0.0.1:50300
+users rows at start (N0): 5
+
+--- M-52-08: PostgreSQL stopped ---
+
+Stop PostgreSQL now (docker compose stop postgres), wait 35 s, then press Enter... [Nest] 31908  - 11/01/2026, 11:10:50 PM    WARN [ProblemDetailsFilter] Object(2) {
+  errorType: 'Error',
+  code: 'ECONNREFUSED'
+}
+[Nest] 31908  - 11/01/2026, 11:10:50 PM    WARN [ProblemDetailsFilter] Transient database error
+sub e7a3c914-2b6f-4d58-a1e0-4c9d7b2a6f35 while PostgreSQL is down -> 503 SERVICE_TEMPORARILY_UNAVAILABLE retry-after=5
+
+--- M-52-09: PostgreSQL started again ---
+
+Start PostgreSQL (docker compose start postgres), wait until healthy, then press Enter... sub e7a3c914-2b6f-4d58-a1e0-4c9d7b2a6f35 after recovery -> 200 userId=0ea25581-52d1-4735-8e19-ea6219860e7c groups=[]
+row in DB: id=0ea25581-52d1-4735-8e19-ea6219860e7c
+users rows now: 6
+exit=0
