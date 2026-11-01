@@ -2,7 +2,7 @@
 
 <!-- Tài liệu làm việc: §1 điền ở Phase 1 (G1). §2–§9 điền ở các phase sau. -->
 
-> **Status:** Plan approved (sau G3, 2026-11-01); đang chờ G4 · **Vai:** Dev · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-52-users-upsert-first-token` · **PR:** — · **Cập nhật:** 2026-11-01
+> **Status:** Implemented (sau G4, 2026-11-01) · **Vai:** Dev · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-52-users-upsert-first-token` · **PR:** — · **Cập nhật:** 2026-11-01
 
 ## 1. Bối cảnh
 
