@@ -29,8 +29,12 @@ export interface Holder {
 }
 
 export interface IdentityUsersFixture {
+  /** URL of the migrated throwaway database, for an app that must connect to the same one. */
+  url: string;
   /** A plain connection for counting rows and polling pg_stat_activity. */
   admin: DataSource;
+  /** Holds LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE: every INSERT into users must wait. */
+  openTableLock(): Promise<Pick<Holder, 'commit' | 'rollback'>>;
   newService(options?: ServiceOptions): Promise<{ service: IdentityService; source: DataSource }>;
   /** Opens a transaction that INSERTs `sub` into users and leaves it uncommitted. */
   openHolder(sub: string): Promise<Holder>;
@@ -59,7 +63,21 @@ export async function createIdentityUsersFixture(): Promise<IdentityUsersFixture
     const admin = await open(ADMIN_APP_NAME, 2);
 
     return {
+      url: database.url,
       admin,
+
+      async openTableLock() {
+        const source = await open(HOLDER_APP_NAME, 1);
+        const runner = source.createQueryRunner();
+        holders.push(runner);
+        await runner.connect();
+        await runner.startTransaction();
+        await runner.manager.query('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE');
+        return {
+          commit: () => runner.commitTransaction(),
+          rollback: () => runner.rollbackTransaction(),
+        };
+      },
 
       async newService(options = {}) {
         const source = await open(options.applicationName ?? RACE_APP_NAME, options.poolMax ?? 2);
