@@ -17,7 +17,7 @@ import { calls, RolesSampleModule } from './roles-sample.module';
 
 export const ISSUER = 'https://issuer.test';
 export const CLIENT_ID = 'test-client';
-const KID = 'kid-roles-e2e';
+export const KID = 'kid-roles-e2e';
 
 /**
  * Supplies a fake `authConfig.KEY` without running the real factory (which validates the whole
