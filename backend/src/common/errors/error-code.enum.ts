@@ -46,6 +46,14 @@ export enum ErrorCode {
    */
   TOKEN_EXPIRED = 'TOKEN_EXPIRED',
 
+  // ── Authorization (role check, HTTP 403) ──
+  /**
+   * The token is valid but none of the caller's roles may use this endpoint (HTTP 403). Retrying
+   * with the same token will never succeed; the client should not offer the action at all. The
+   * response never says which role was needed. Another user's resource is a 404, not this. DBS-51.
+   */
+  FORBIDDEN = 'FORBIDDEN',
+
   // ── Session ──
   /**
    * The presented token was issued before the user's sessions were revoked, e.g. an operator

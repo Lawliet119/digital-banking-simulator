@@ -56,3 +56,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-75](DBS-75-terraform-valkey.md) | Terraform: ElastiCache Valkey 8 (TLS bắt buộc, AUTH token write-only xoay bằng ROTATE), task api ghép `REDIS_URL` từ `REDIS_*` | #5 Platform & Ops | Implemented |
 | [DBS-68](DBS-68-migration-step.md) | Bước migration riêng trong pipeline: task ECS `dbs-migrate` chạy một lần trước `update-service` | #5 Platform & Ops | Implemented |
 | [DBS-52](DBS-52-users-upsert-first-token.md) | Identity: tạo dòng `users` bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên (`IdentityService.resolveUserId`, cache tiến trình) | Dev | Implemented |
+| [DBS-51](DBS-51-roles-guard-current-user.md) | Identity: `@Roles`, `RolesGuard` (`APP_GUARD` thứ hai) và `@CurrentUser`; vai trò chỉ từ `cognito:groups`, không nhóm là `customer`, sai vai trò 403 `FORBIDDEN` | Dev | Implemented |
