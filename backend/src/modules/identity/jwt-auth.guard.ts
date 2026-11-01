@@ -10,8 +10,9 @@ import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '@common/auth/public.decorator';
 import { ErrorCode } from '@common/errors/error-code.enum';
 import { TokenExpiredError } from './identity.errors';
-import { AuthenticatedUser } from './jwt-claims';
+import { AuthenticatedUser, CognitoAccessTokenClaims } from './jwt-claims';
 import { JwksVerifierService } from './jwks-verifier.service';
+import { IdentityService } from './identity.service';
 
 export type RequestWithUser = Request & { user?: AuthenticatedUser };
 
@@ -29,6 +30,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly verifier: JwksVerifierService,
     private readonly reflector: Reflector,
+    private readonly identity: IdentityService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -50,20 +52,33 @@ export class JwtAuthGuard implements CanActivate {
       unauthenticated(ErrorCode.UNAUTHENTICATED, 'Missing or malformed Authorization header');
     }
 
+    let claims: CognitoAccessTokenClaims;
     try {
-      const claims = await this.verifier.verifyAccessToken(token);
-      request.user = {
-        sub: claims.sub,
-        groups: claims['cognito:groups'] ?? [],
-        tokenUse: 'access',
-        claims,
-      };
-      return true;
+      claims = await this.verifier.verifyAccessToken(token);
     } catch (err) {
       if (err instanceof TokenExpiredError) {
         unauthenticated(ErrorCode.TOKEN_EXPIRED, 'Access token expired');
       }
       unauthenticated(ErrorCode.UNAUTHENTICATED, 'Access token failed verification');
     }
+
+    // The database is touched only after the signature and every claim check passed: a caller
+    // with a bad token cannot add rows to `users`. This sits outside the try/catch above on
+    // purpose — a database failure is not an authentication failure, so it must not turn into a
+    // 401 (the client would sign in again for nothing); it escapes to ProblemDetailsFilter, which
+    // answers 503 for a transient error.
+    if (typeof claims.sub !== 'string' || claims.sub.length === 0) {
+      unauthenticated(ErrorCode.UNAUTHENTICATED, 'Access token has no subject');
+    }
+    const userId = await this.identity.resolveUserId(claims.sub);
+
+    request.user = {
+      sub: claims.sub,
+      userId,
+      groups: claims['cognito:groups'] ?? [],
+      tokenUse: 'access',
+      claims,
+    };
+    return true;
   }
 }
