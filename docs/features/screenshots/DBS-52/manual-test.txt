@@ -102,3 +102,63 @@ Start PostgreSQL (docker compose start postgres), wait until healthy, then press
 row in DB: id=0ea25581-52d1-4735-8e19-ea6219860e7c
 users rows now: 6
 exit=0
+
+## TC-52-24: manual-smoke.dbs50.ts still runs after the guard change (no PostgreSQL needed)
+$ npx ts-node -r tsconfig-paths/register src/scripts/manual-smoke.dbs50.ts
+Manual smoke app listening at http://127.0.0.1:56816 (JWKS fixture at http://127.0.0.1:56815/.well-known/jwks.json)
+
+--- M-50-01: GET /v1/identity/me, no Authorization header ---
+{
+  errorCode: 'UNAUTHENTICATED',
+  type: 'about:blank',
+  title: 'Unauthorized',
+  status: 401,
+  detail: 'Missing or malformed Authorization header',
+  correlationId: 'e14095f5-5ee3-4176-8152-b310b88436a6'
+}
+
+--- M-50-02: Authorization: Bearer not-a-jwt ---
+[Nest] 20888  - 11/01/2026, 11:26:12 PM    WARN [JwksVerifierService] access token failed verification: JWSInvalid
+{
+  errorCode: 'UNAUTHENTICATED',
+  type: 'about:blank',
+  title: 'Unauthorized',
+  status: 401,
+  detail: 'Access token failed verification',
+  correlationId: 'cdb2d467-df56-435b-b5cc-19eeed5bbdd9'
+}
+
+--- M-50-03: valid token ---
+{
+  sub: 'user-123',
+  userId: '0f6a3d52-8c1b-4e7a-b6d4-2c9e1a7f5b30',
+  groups: [ 'operator' ],
+  tokenUse: 'access',
+  claims: {
+    sub: 'user-123',
+    iss: 'https://issuer.manual-smoke.test',
+    client_id: 'manual-smoke-client',
+    token_use: 'access',
+    'cognito:groups': [ 'operator' ],
+    iat: 1793550372,
+    exp: 1793551272
+  }
+}
+
+--- M-50-04: expired token (exp in the past) ---
+[Nest] 20888  - 11/01/2026, 11:26:12 PM    WARN [JwksVerifierService] access token expired
+{
+  errorCode: 'TOKEN_EXPIRED',
+  type: 'about:blank',
+  title: 'Unauthorized',
+  status: 401,
+  detail: 'Access token expired',
+  correlationId: 'ea24b315-95ab-489a-9489-eaff84fcdc2b'
+}
+
+--- M-50-05: Swagger bearerAuth scheme (GET /docs-json) ---
+components.securitySchemes: {
+  'access-token': { scheme: 'bearer', bearerFormat: 'JWT', type: 'http' }
+}
+/v1/identity/me security: [ { 'access-token': [] } ]
+exit=0
