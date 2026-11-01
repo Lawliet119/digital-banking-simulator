@@ -321,15 +321,15 @@ Thứ tự: hằng và hàm thuần → decorator → lỗi + guard → `@Curren
 | Bước | File | Test viết trước | Kết quả đỏ (1 dòng, điền khi chạy) | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
 | 0 | `docs/features/DBS-51-roles-guard-current-user.md`, `docs/features/screenshots/DBS-51/domain-review*.md` | không áp dụng (tài liệu) | không áp dụng | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(features): DBS-51 feature doc and domain review` |
-| 1 | `src/modules/identity/roles.ts` (`ROLES`, `Role`, `rolesFromGroups`), `roles.spec.ts` | TC-51-01, 02, 03, 04 | (điền) | `npx jest -c test/jest-unit.js src/modules/identity/roles.spec.ts` | `feat(identity): derive roles from cognito groups` |
-| 2 | `src/modules/identity/roles.decorator.ts` (`ROLES_KEY`, `Roles`), `roles.decorator.spec.ts` | TC-51-05 | (điền) | `npx jest -c test/jest-unit.js src/modules/identity/roles.decorator.spec.ts` | `feat(identity): add the Roles decorator` |
-| 3 | `src/common/errors/error-code.enum.ts` (`FORBIDDEN`), `src/modules/identity/roles.guard.ts`, `roles.guard.spec.ts` | TC-51-06, 07, 08, 09, 10, 30, và ca unit của 31 (`route` undefined) | (điền) | `npx jest -c test/jest-unit.js src/modules/identity/roles.guard.spec.ts` | `feat(identity): add RolesGuard and ErrorCode.FORBIDDEN` |
-| 4 | `src/modules/identity/current-user.decorator.ts` (`CurrentUser`, `CurrentUserInfo`), `current-user.decorator.spec.ts` | TC-51-11, 12 | (điền) | `npx jest -c test/jest-unit.js src/modules/identity/current-user.decorator.spec.ts` | `feat(identity): add the CurrentUser decorator` |
-| 5 | `src/modules/identity/index.ts`, `index.spec.ts` (mới) | TC-51-13 | (điền) | `npx jest -c test/jest-unit.js src/modules/identity/index.spec.ts` rồi `npm run typecheck` | `feat(identity): export roles and current user` |
-| 6 | `test/support/roles-sample.module.ts` (controller mẫu + bộ đếm, chỉ ở test), `test/roles.e2e-spec.ts` (ma trận, nhiều nhóm, không nhóm, kế thừa lớp, `/whoami`, 403 không lộ, `x-roles`) — chưa nối `RolesGuard` vào app | TC-51-15, 16, 17, 18, 21, 24, 25, 26 | (điền) | `npm run test:e2e -- test/roles.e2e-spec.ts --forceExit` | (gộp vào bước 7) |
-| 7 | `src/app.module.ts` (thêm `APP_GUARD` thứ hai `RolesGuard`, trong `httpGuardProviders`), `test/roles.e2e-spec.ts` (ca thứ tự guard, mặc định không `@Roles`, `@Public`+`@Roles`), `test/roles-app.e2e-spec.ts` (`AppModule` thật: TC-51-14, 27) | TC-51-14, 19, 20, 27 | (điền) | `npm run test:e2e -- test/roles.e2e-spec.ts test/roles-app.e2e-spec.ts --forceExit` | `feat(identity): enforce roles with a global RolesGuard` |
-| 8 | `test/roles-security.e2e-spec.ts` (giả mạo header/body/query/cookie, payload sửa, khóa lạ, ID token, `cognito:groups` sai kiểu thật, log không chứa query) | TC-51-22, 23, 29, 31 (e2e) | (điền) | `npm run test:e2e -- test/roles-security.e2e-spec.ts --forceExit` | `test(identity): prove roles cannot be forged` |
-| 9 | `test/db/identity-roles.db-spec.ts` (`IdentityService` thật, Postgres thật) | TC-51-28 | (điền) | `npm run test:db -- test/db/identity-roles.db-spec.ts` | `test(identity): cover CurrentUser userId against Postgres` |
+| 1 | `src/modules/identity/roles.ts` (`ROLES`, `Role`, `rolesFromGroups`), `roles.spec.ts` | TC-51-01, 02, 03, 04 | đỏ vì thiếu code: `TS2307 Cannot find module './roles'` | `npx jest -c test/jest-unit.js src/modules/identity/roles.spec.ts` | `feat(identity): derive roles from cognito groups` |
+| 2 | `src/modules/identity/roles.decorator.ts` (`ROLES_KEY`, `Roles`), `roles.decorator.spec.ts` | TC-51-05 | đỏ vì thiếu code: `TS2307 Cannot find module './roles.decorator'` | `npx jest -c test/jest-unit.js src/modules/identity/roles.decorator.spec.ts` | `feat(identity): add the Roles decorator` |
+| 3 | `src/common/errors/error-code.enum.ts` (`FORBIDDEN`), `src/modules/identity/roles.guard.ts`, `roles.guard.spec.ts` | TC-51-06, 07, 08, 09, 10, 30, và ca unit của 31 (`route` undefined) | đỏ vì thiếu code: `TS2307 Cannot find module './roles.guard'` và `TS2339 Property 'FORBIDDEN' does not exist on type 'typeof ErrorCode'` | `npx jest -c test/jest-unit.js src/modules/identity/roles.guard.spec.ts` | `feat(identity): add RolesGuard and ErrorCode.FORBIDDEN` |
+| 4 | `src/modules/identity/current-user.decorator.ts` (`CurrentUser`, `CurrentUserInfo`), `current-user.decorator.spec.ts` | TC-51-11, 12 | đỏ vì thiếu code: `TS2307 Cannot find module './current-user.decorator'` | `npx jest -c test/jest-unit.js src/modules/identity/current-user.decorator.spec.ts` | `feat(identity): add the CurrentUser decorator` |
+| 5 | `src/modules/identity/index.ts`, `index.spec.ts` (mới) | TC-51-13 | đỏ vì thiếu code: `TS2305 Module '@modules/identity' has no exported member 'Role'` (và `CurrentUserInfo`, `ROLES`, `Roles`, `RolesGuard`) | `npx jest -c test/jest-unit.js src/modules/identity/index.spec.ts` rồi `npm run typecheck` | `feat(identity): export roles and current user` |
+| 6 | `test/support/roles-sample.module.ts` (controller mẫu + bộ đếm, chỉ ở test), `test/roles.e2e-spec.ts` (ma trận, nhiều nhóm, không nhóm, kế thừa lớp, `/whoami`, 403 không lộ, `x-roles`) — chưa nối `RolesGuard` vào app | TC-51-15, 16, 17, 18, 21, 24, 25, 26 | đỏ vì thiếu code: `TS2307 Cannot find module './support/roles-app'`. Sau khi có module mẫu và helper, 25 test xanh ngay vì `RolesGuard` (bước 3) đã có; độ sâu được chứng minh bằng đột biến (§8) | `npm run test:e2e -- test/roles.e2e-spec.ts --forceExit` | (gộp vào bước 7) |
+| 7 | `src/app.module.ts` (thêm `APP_GUARD` thứ hai `RolesGuard`, trong `httpGuardProviders`), `test/roles.e2e-spec.ts` (ca thứ tự guard, mặc định không `@Roles`, `@Public`+`@Roles`), `test/roles-app.e2e-spec.ts` (`AppModule` thật: TC-51-14, 27) | TC-51-14, 19, 20, 27 | TC-51-14 đỏ đúng lý do: `getGlobalGuards()` thiếu `RolesGuard` (`- "RolesGuard"`) cho tới khi nối vào `app.module.ts`. TC-51-19/20 nằm ở `roles.e2e-spec.ts` trên app thử đã có sẵn hai guard nên xanh ngay; độ sâu chứng minh bằng đột biến đảo thứ tự guard (24 đỏ, trong đó TC-51-19) | `npm run test:e2e -- test/roles.e2e-spec.ts test/roles-app.e2e-spec.ts --forceExit` | `feat(identity): enforce roles with a global RolesGuard` |
+| 8 | `test/roles-security.e2e-spec.ts` (giả mạo header/body/query/cookie, payload sửa, khóa lạ, ID token, `cognito:groups` sai kiểu thật, log không chứa query) | TC-51-22, 23, 29, 31 (e2e) | không có đỏ trước khi viết code: hành vi đã có từ bước 3 và 7 (lần chạy đầu có 1 đỏ do lỗi của chính test: hai request supertest tạo cùng lúc nên một cổng đóng sớm, `ECONNREFUSED`). Độ sâu chứng minh bằng ba đột biến (§8) | `npm run test:e2e -- test/roles-security.e2e-spec.ts --forceExit` | `test(identity): prove roles cannot be forged` |
+| 9 | `test/db/identity-roles.db-spec.ts` (`IdentityService` thật, Postgres thật) | TC-51-28 | không có đỏ trước khi viết code: `IdentityService` thật từ DBS-52 đã cấp `userId` (lần chạy đầu đỏ do kiểu của helper `.expect` trên `Promise`, lỗi của test). Độ sâu chứng minh bằng đột biến `userId` lấy từ `sub` (5 đỏ) | `npm run test:db -- test/db/identity-roles.db-spec.ts` | `test(identity): cover CurrentUser userId against Postgres` |
 | 10 | `src/scripts/manual-smoke.dbs51.ts` (controller mẫu viết trong script, không import `test/`) | M-51-01…14 | không áp dụng | chạy §5 thật, ghi `docs/features/screenshots/DBS-51/manual-test.txt` | `test(identity): add DBS-51 manual smoke script` |
 | 11 | `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §7.1, `src/modules/identity/README.md`, `docs/security/threat-model.md` (T11, T21), `docs/BACKLOG.md` (`BL-132`, `BL-133`), `docs/features/README.md`, feature doc §8–§9, ảnh chụp | không áp dụng (tài liệu) | không áp dụng | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(identity): record DBS-51 handover` |
 
@@ -377,8 +377,126 @@ Thứ tự: hằng và hàm thuần → decorator → lỗi + guard → `@Curren
 
 ## 8. Kết quả
 
-(Phase 4–5.)
+- **Lệnh kiểm tra** (chạy lúc bàn giao, code ở `1fe0cec`, Postgres cổng 5433):
+
+```text
+npm run lint:check            exit 0
+npm run typecheck             exit 0
+npm test                      48 suites, 655 tests, 0 đỏ        (baseline 43/597, 1 đỏ là BL-112)
+npm run test:e2e --forceExit  11 suites, 110 tests, 0 đỏ        (baseline 8/57)
+npm run test:db               16 suites, 325 tests, 0 đỏ        (baseline 15/317)
+skip / only / todo trong test của task: 0
+```
+
+  Thêm 5 suites và 58 test unit, 3 suites và 53 test e2e, 1 suite và 8 test db. `BL-112` (`jwks-verifier`) không đỏ lần này; chưa rõ vì sao, và mình không sửa.
+
+- **Đối chiếu test case** (30 case tự động đạt đủ độ sâu, 1 đơn giản hóa; case quy trình chưa làm):
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-51-01 | `roles.spec.ts` › `ROLES`, không nhóm và `[]` là customer | đạt |
+| TC-51-02 | `roles.spec.ts` › một nhóm, nhiều nhóm theo thứ tự cố định, không lặp | đạt |
+| TC-51-03 | `roles.spec.ts` › 6 tên lạ (gồm `__proto__`, `constructor`), lẫn nhóm hợp lệ | đạt |
+| TC-51-04 | `roles.spec.ts` › 10 kiểu claim sai kiểu, mảng mới mỗi lần | đạt |
+| TC-51-05 | `roles.decorator.spec.ts` › metadata, method thay class, khai báo sai, `x-roles` và 403 | đạt |
+| TC-51-06 | `roles.guard.spec.ts` › không `@Roles` cho qua; 4 kiểu metadata hỏng đều 403 | đạt |
+| TC-51-07 | `roles.guard.spec.ts` › khớp thì qua, sai thì 403, body không nêu vai trò, không phân cấp | đạt |
+| TC-51-08 | `roles.guard.spec.ts` › method thay class (`Reflector` thật) | đạt |
+| TC-51-09 | `roles.guard.spec.ts` › có `@Roles` mà không có `request.user` thì 401 | đạt |
+| TC-51-10 | `roles.guard.spec.ts` › header, body, query, cookie bị bỏ qua; `groups` sai kiểu | đạt |
+| TC-51-11 | `current-user.decorator.spec.ts` › đúng ba khóa, không `claims`/`groups`, đối tượng mới | đạt |
+| TC-51-12 | `current-user.decorator.spec.ts` › bỏ qua header/body giả; không `request.user` thì 401 | đạt |
+| TC-51-13 | `identity/index.spec.ts` › giá trị lúc chạy, kiểu lúc biên dịch | đạt |
+| TC-51-14 | `roles-app.e2e-spec.ts` › `getGlobalGuards()` đúng thứ tự, app khởi động, `/identity/me` không token vẫn 401 | đạt |
+| TC-51-15 | `roles.e2e-spec.ts` › ma trận 16 ô (4 ô 200, 12 ô 403, handler không chạy) | đạt |
+| TC-51-16 | `roles.e2e-spec.ts` › `/staff` cho đúng operator và admin | đạt |
+| TC-51-17 | `roles.e2e-spec.ts` › nhiều nhóm | đạt |
+| TC-51-18 | `roles.e2e-spec.ts` › không claim, `[]`, chỉ nhóm lạ là customer | đạt |
+| TC-51-19 | `roles.e2e-spec.ts` › token hết hạn ra `TOKEN_EXPIRED`; không token và token rác ra `UNAUTHENTICATED` | đạt |
+| TC-51-20 | `roles.e2e-spec.ts` › `/any` mọi vai; `/public`; `@Public`+`@Roles` không token và với token admin | đạt |
+| TC-51-21 | `roles.e2e-spec.ts` › `@Roles` cấp class, method thay class | đạt |
+| TC-51-22 | `roles-security.e2e-spec.ts` › 9 header, cookie, query, body giả; `@CurrentUser` không đổi | đạt |
+| TC-51-23 | `roles-security.e2e-spec.ts` › payload sửa, khóa lạ, `alg none`, ID token, `client_id` khác | đạt |
+| TC-51-24 | `roles.e2e-spec.ts` › `/whoami` đúng `userId`, `sub`, `roles` | đạt |
+| TC-51-25 | `roles.e2e-spec.ts` › 12 body 403 không chứa vai trò, nhóm, claim, token, `sub` | đạt |
+| TC-51-26 | `roles.e2e-spec.ts` › `/docs-json` có `x-roles` và 403, `/any` không có | đạt |
+| TC-51-27 | `roles-app.e2e-spec.ts` › mọi route có `@Public`/`@Roles`/allowlist, không route nào có cả hai, đột biến trên `HealthController` | đơn giản hóa: đột biến "xóa `identity/me` khỏi allowlist" mình chạy tay (2 test đỏ, đã khôi phục), không nằm trong test; đột biến trên `HealthController` nằm trong test |
+| TC-51-28 | `test/db/identity-roles.db-spec.ts` › 5 loại token, gọi lại, hai `sub` khác nhau, route `@Public` không tạo dòng (Postgres thật) | đạt |
+| TC-51-29 | `roles-security.e2e-spec.ts` › 7 kiểu `cognito:groups` sai kiểu, token ký thật | đạt |
+| TC-51-30 | `roles.guard.spec.ts` › một lời gọi `warn` mỗi 403, không token/`sub`/`groups`/query | đạt |
+| TC-51-31 | `roles-security.e2e-spec.ts` › log trên app thử có mẫu route, không query; `roles.guard.spec.ts` › `route` vắng thì `(unknown route)` | đạt (e2e chạy trên app thử, không phải `AppModule`) |
+| TC-51-32 | quy trình (PR, CI, review) | chưa làm: PR chưa mở (`BL-134`) |
+
+- **Đột biến** (sửa code cho sai, test phải đỏ, rồi khôi phục và chạy lại xanh; `cmp` xác nhận file giống bản gốc):
+
+| Đột biến | Test đỏ |
+|---|---|
+| `RolesGuard` luôn `return true` | unit 14 đỏ, e2e ma trận 19 đỏ |
+| `admin` ngầm có `operator` | e2e 3 đỏ (admin vào endpoint operator) |
+| `RolesGuard` tin header `x-role` | unit 4 đỏ; e2e bảo mật 3 đỏ (TC-51-22, 29) |
+| `rolesFromGroups` không `Array.isArray` | unit 1 đỏ; e2e bảo mật 2 đỏ (chuỗi, đối tượng khóa theo vai trò) |
+| Bỏ `ROLES.includes` ở `@Roles` | 1 đỏ (TC-51-05) |
+| Metadata hỏng cho qua (`!required?.length`) | TC-51-06 (danh sách rỗng) 1 đỏ |
+| Log 403 dùng `originalUrl` | unit 3 đỏ; e2e TC-51-31 1 đỏ |
+| Đảo thứ tự hai guard ở app thử | 24 đỏ, gồm TC-51-19 |
+| Đảo thứ tự hai guard ở `app.module.ts` | TC-51-14 đỏ |
+| Bỏ `RolesGuard` khỏi `app.module.ts` | TC-51-14 đỏ |
+| `@CurrentUser` lấy `roles` từ body | 1 đỏ; rò `claims` 5 đỏ; trả `undefined` thay vì 401: 1 đỏ |
+| `userId` lấy từ `sub` (Postgres thật) | 5 đỏ |
+| Xóa `identity/me` khỏi allowlist | TC-51-27 2 đỏ |
+| Bỏ export kiểu `Role` | `index.spec` và `typecheck` (exit 2) đỏ |
+
+- **Test thủ công** (SHA đầu `manual-test.txt` = `1fe0cec`, commit cuối đổi code; DB dùng một lần `dbs51_manual`; output thô ở [manual-test.txt](screenshots/DBS-51/manual-test.txt); chạy bằng script tạm ngoài repo để tự dừng và bật Postgres; không dùng seed SQL). Đã quét: không còn token, `Authorization`, `Bearer`, mật khẩu, ARN; còn một dòng `ls -l` có tên người dùng Windows.
+
+| Bước | Việc làm và kết quả (rút gọn) | Kết quả |
+|---|---|---|
+| M-51-01 | `/docs-json`: `/admin` `x-roles=["admin"]` và có 403; `/operator` tương tự; `/any` không `x-roles`, không 403 | đạt |
+| M-51-02 | 4 vai gọi endpoint của mình: 200 ×4; `/whoami` trả đúng `roles` và `userId` | đạt |
+| M-51-03 | 12 ô chéo: 403 `FORBIDDEN` `application/problem+json` ×12; handler chạy trong ma trận = 0 | đạt |
+| M-51-04 | không nhóm: `/customer` 200, `/operator` 403; operator+auditor: 200, 200, 403; nhóm lạ `ops`: `["customer"]` | đạt |
+| M-51-05 | `X-Role`, cookie, `?role=admin`, body `roles`: `GET /admin` 403, `POST /echo-admin` 403, `/whoami` vẫn `["customer"]` | đạt |
+| M-51-06 | payload sửa thành admin: 401 `UNAUTHENTICATED`; khóa ký lạ: 401; dòng `users` của kẻ giả: `null` | đạt |
+| M-51-07 | không token: 401 `UNAUTHENTICATED`; token hết hạn: 401 `TOKEN_EXPIRED` | đạt |
+| M-51-08 | `userId` bằng `users.id` cả 4 vai (`same=true`); `psql` trên `dbs51_manual` ra 9 dòng khớp | đạt |
+| M-51-09 | dừng Postgres, đợi 38 giây, gọi bằng `sub` mới: **503** `SERVICE_TEMPORARILY_UNAVAILABLE`, `retry-after=5`; bật lại: 200 và có dòng `users` | đạt |
+| M-51-10 | chạy lại `main` ở tiến trình mới: ma trận và mã trạng thái giống hệt (`diff` rỗng, không tính `userId`), `users` giữ 9 dòng | đạt |
+| M-51-11 | `groups` là chuỗi `"admin"` và `["admin "]`: `/admin` 403, `/whoami` `["customer"]` | đạt |
+| M-51-12 | `/any`: 200 cho 4 vai và token không nhóm, 401 không token; `/public-roles` với token admin: 401 | đạt |
+| M-51-13 | 18 lần 403 ứng với 18 khối log `[RolesGuard]` (12 + 2 + 2 + 2); mỗi khối có `userId`, `method`, `route`, `requiredRoles`, `roles`; không `eyJ`, không `sub`/`groups`/`claims` | đạt, kèm lưu ý dưới |
+| M-51-14 | `npm run build` ra `dist/main.js`, không có `dist/src/main.js` | đạt |
+
+  **Lưu ý M-51-13:** mỗi lần 403 là **một** lời gọi `logger.warn`, nhưng `ConsoleLogger` của Nest in nó thành **hai** dòng vật lý (khối đối tượng, rồi dòng "Request denied"). §2.2 và §5 viết "một dòng" là nói theo lời gọi. Ở production, pino ghi một dòng JSON.
+
+- **Phạm vi so với §7:** 16 file code và test mới (kế hoạch ghi 15), sửa 3 file code (`app.module.ts`, `error-code.enum.ts`, `identity/index.ts`); `identity.controller.ts` không đổi. Mới ngoài bản đồ: **`test/support/roles-app.ts`** (xem "Lệch" dưới). Docs sửa 5 file: danh sách ở §9.
+- **Ảnh chụp** (`docs/features/screenshots/DBS-51/`): **không phải ảnh cửa sổ terminal**, mà dựng từ chính `manual-test.txt` thành trang HTML rồi chụp bằng Chrome headless; ảnh 01 đến 05 bỏ các khối `Object(5) {…}` nhiều dòng của Nest cho gọn, ảnh 06 giữ nguyên một khối thật.
+
+![Ma trận vai trò](screenshots/DBS-51/01-role-matrix.png)
+![Giả mạo bị từ chối](screenshots/DBS-51/02-forgery-refused.png)
+![userId bằng users.id](screenshots/DBS-51/03-userid-equals-users-id.png)
+![Nhóm sai kiểu và mặc định không @Roles](screenshots/DBS-51/04-wrong-type-groups-and-default.png)
+![Mất Postgres ra 503 rồi hồi phục](screenshots/DBS-51/05-outage-503-then-recovery.png)
+![Log từ chối 403](screenshots/DBS-51/06-denial-log-18-lines.png)
+
+- **Lệch so với kế hoạch** (chưa được duyệt, cần người duyệt đồng ý ở G4):
+  1. **File ngoài bản đồ §7:** `backend/test/support/roles-app.ts`, helper dựng app thử (JWKS thật, ký token, hai `APP_GUARD`) dùng chung cho `roles.e2e-spec.ts` và `roles-security.e2e-spec.ts`. Mình tạo mà **không dừng hỏi** như luật gate phụ yêu cầu; đúng ra phải ghi vào bản đồ và xin duyệt trước.
+  2. `ROLES_KEY` được export thêm ở `index.ts` (§3 không liệt kê); README identity đã ghi.
+  3. TC-51-19 và TC-51-20 nằm trong `roles.e2e-spec.ts` ở commit bước 6 (kế hoạch ghi bước 7). Không đổi phạm vi.
+  4. TC-51-27: đột biến "xóa khỏi allowlist" chạy tay, xem bảng case.
+
+- **Bàn giao cho vai khác** (đã thêm vào [`docs/BACKLOG.md`](../BACKLOG.md)):
+
+| BL | Việc | Chủ |
+|---|---|---|
+| `BL-132` | audit `DENIED` ở nhánh 403 của `RolesGuard` (FR-AUD-02) | Dev chủ audit (DBS-56) |
+| `BL-133` | `@UseGuards(JwtAuthGuard)` thừa trên `identity/me`; xóa `BL-030` đã cũ | Dev chủ DBS-50 |
+| `BL-134` | DoD #5: PR merge, CI xanh, review, bảng đối chiếu | Dev chủ DBS-51 |
+
+  Ngoài backlog: chuyển board DBS-50 (đã merge, vẫn ghi In Review) và DBS-52 do người dùng làm; agent không sửa board. `auth:dev-token` của DBS-53 sẽ thay script JWKS trong RAM khi DBS-53 xong.
 
 ## 9. Tài liệu đã cập nhật
 
-(Phase 5.)
+- [`docs/03_HIGH_LEVEL_ARCHITECTURE.md`](../03_HIGH_LEVEL_ARCHITECTURE.md) §7.1: thêm `UNAUTHENTICATED`, `TOKEN_EXPIRED`, `FORBIDDEN`.
+- [`backend/src/modules/identity/README.md`](../../backend/src/modules/identity/README.md): quy tắc vai trò, `@Roles`, `RolesGuard`, `@CurrentUser`, export mới.
+- [`docs/security/threat-model.md`](../security/threat-model.md): T21 "Đã kiểm phần DBS-51", T11 trỏ tới `BL-132`.
+- [`docs/BACKLOG.md`](../BACKLOG.md): thêm `BL-132`, `BL-133`, `BL-134`. Không xóa dòng nào (`BL-030` thuộc DBS-50, `BL-112` không đụng).
+- [`docs/features/README.md`](README.md): thêm dòng DBS-51.

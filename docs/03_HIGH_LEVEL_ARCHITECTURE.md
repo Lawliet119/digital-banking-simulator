@@ -520,6 +520,9 @@ sequenceDiagram
 | `IDEMPOTENCY_KEY_REQUIRED` | 400 | Lệnh chuyển/nạp tiền thiếu header `Idempotency-Key` | BR-07 |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Cùng `Idempotency-Key` nhưng nội dung khác | BR-07 |
 | `ACCOUNT_LIMIT_REACHED` | 409 | Khách đã có tối đa số tài khoản | BR-14 |
+| `UNAUTHENTICATED` | 401 | Thiếu token, token sai dạng, sai chữ ký, khóa ký lạ, sai `iss` / `client_id` / `token_use`; hoặc route có `@Roles` mà không có người gọi (route `@Public`) | Đăng nhập lại, gửi lại cùng token không bao giờ được |
+| `TOKEN_EXPIRED` | 401 | `exp` của access token đã qua | Khác `UNAUTHENTICATED`: client có refresh token được phép làm mới im lặng |
+| `FORBIDDEN` | 403 | Token hợp lệ nhưng không vai trò nào của người gọi được dùng endpoint này | Không nêu vai trò đang có hay cần. Tài nguyên của người khác là 404, không phải mã này (AC-5.8) |
 | `SESSION_REVOKED` | 401 | Token phát hành trước mốc thu hồi phiên (ví dụ tài khoản bị khóa) | BR-12 · khác "hết hạn": dùng lại token không bao giờ được |
 | `RATE_LIMITED` | 429 | Vượt giới hạn tần suất | NFR-SEC-05 |
 | `SERVICE_TEMPORARILY_UNAVAILABLE` | 503 | Lỗi database tạm thời | Kèm `Retry-After`; gửi lại cùng `Idempotency-Key` |

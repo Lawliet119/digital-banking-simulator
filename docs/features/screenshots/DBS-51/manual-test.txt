@@ -1,0 +1,397 @@
+1fe0cec0834c47c65b252ebd3f0c77a89fd3336f
+# DBS-51 manual test, 2026-11-02T01:48:38+07:00
+# working tree clean for code: 0 changed files
+
+=== reset: throwaway database dbs51_manual ===
+DROP DATABASE
+CREATE DATABASE
+Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed successfully.
+Migration CreateAuditLog1792627200001 has been executed successfully.
+Migration AddAppendOnlyTriggers1792627200002 has been executed successfully.
+ users_before 
+--------------
+            0
+(1 row)
+
+
+=== main (first run): M-51-01 .. M-51-07, M-51-11, M-51-12 ===
+DBS-51 manual smoke, mode=main, app at http://127.0.0.1:53583
+users rows at start (N0): 0
+subs: {"customer":"5b0d7c1e-3f4a-4c8e-9d2b-7a1e6f0c9a42","operator":"8d1f2a60-4b7c-4e19-a5d3-0c9b6e2f7a11","auditor":"3e6c9b72-1a58-4d04-8f2e-5b7a0d4c1e93","admin":"9a4b7e15-6c2d-4f83-b0a1-2e8d5c3f6b07","noGroup":"c2f8d605-7e1a-4b39-9c4d-6a0e3b5f8d21","multi":"1f7a3c58-9d24-4e6b-8a05-3b9c6d1e7f42","unknownGroup":"6d2e8b14-5a93-4c70-b1f6-8e4a2c7d0b95","stringGroups":"a4c9e271-3b86-4d15-9e07-1f5b8a3c6d20","spaceGroup":"b7e1d493-2c58-4a60-8f19-6d3a0b9e5c71","forger":"d8f3a6b0-1e47-4c92-a5d8-2b7c9e1f4a63"}
+
+--- M-51-01: OpenAPI of the sample routes ---
+/v1/sample/admin: x-roles=["admin"] 403-response=true
+/v1/sample/operator: x-roles=["operator"] 403-response=true
+/v1/sample/any: x-roles=undefined 403-response=false
+handlers run so far: 0; users rows: 0
+
+--- M-51-02: each role calls the endpoint of its own role ---
+customer -> /sample/customer -> 200 handler=customer [application/json]
+operator -> /sample/operator -> 200 handler=operator [application/json]
+auditor -> /sample/auditor -> 200 handler=auditor [application/json]
+admin -> /sample/admin -> 200 handler=admin [application/json]
+customer /whoami -> 200 roles=["customer"] userId=36d6c495-eb95-49f5-a58c-e0a6235cdd5d [application/json]
+operator /whoami -> 200 roles=["operator"] userId=636027be-93d8-49fe-bae8-2182f4d2b225 [application/json]
+auditor /whoami -> 200 roles=["auditor"] userId=049d3051-fc01-4f12-be2e-dc3ce32564d2 [application/json]
+admin /whoami -> 200 roles=["admin"] userId=871d60d6-1844-4572-95f8-85231578a214 [application/json]
+handlers run so far: 4; users rows: 4
+
+--- M-51-03: the 12-cell denial matrix (every role calls the other three) ---
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '36d6c495-eb95-49f5-a58c-e0a6235cdd5d',
+  method: 'GET',
+  route: '/v1/sample/operator',
+  requiredRoles: [
+    'operator'
+  ],
+  roles: [
+    'customer'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+customer -> /sample/operator -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '36d6c495-eb95-49f5-a58c-e0a6235cdd5d',
+  method: 'GET',
+  route: '/v1/sample/auditor',
+  requiredRoles: [
+    'auditor'
+  ],
+  roles: [
+    'customer'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+customer -> /sample/auditor -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '36d6c495-eb95-49f5-a58c-e0a6235cdd5d',
+  method: 'GET',
+  route: '/v1/sample/admin',
+  requiredRoles: [
+    'admin'
+  ],
+  roles: [
+    'customer'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+customer -> /sample/admin -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '636027be-93d8-49fe-bae8-2182f4d2b225',
+  method: 'GET',
+  route: '/v1/sample/customer',
+  requiredRoles: [
+    'customer'
+  ],
+  roles: [
+    'operator'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+operator -> /sample/customer -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '636027be-93d8-49fe-bae8-2182f4d2b225',
+  method: 'GET',
+  route: '/v1/sample/auditor',
+  requiredRoles: [
+    'auditor'
+  ],
+  roles: [
+    'operator'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+operator -> /sample/auditor -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '636027be-93d8-49fe-bae8-2182f4d2b225',
+  method: 'GET',
+  route: '/v1/sample/admin',
+  requiredRoles: [
+    'admin'
+  ],
+  roles: [
+    'operator'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+operator -> /sample/admin -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '049d3051-fc01-4f12-be2e-dc3ce32564d2',
+  method: 'GET',
+  route: '/v1/sample/customer',
+  requiredRoles: [
+    'customer'
+  ],
+  roles: [
+    'auditor'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+auditor -> /sample/customer -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '049d3051-fc01-4f12-be2e-dc3ce32564d2',
+  method: 'GET',
+  route: '/v1/sample/operator',
+  requiredRoles: [
+    'operator'
+  ],
+  roles: [
+    'auditor'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+auditor -> /sample/operator -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '049d3051-fc01-4f12-be2e-dc3ce32564d2',
+  method: 'GET',
+  route: '/v1/sample/admin',
+  requiredRoles: [
+    'admin'
+  ],
+  roles: [
+    'auditor'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+auditor -> /sample/admin -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '871d60d6-1844-4572-95f8-85231578a214',
+  method: 'GET',
+  route: '/v1/sample/customer',
+  requiredRoles: [
+    'customer'
+  ],
+  roles: [
+    'admin'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+admin -> /sample/customer -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '871d60d6-1844-4572-95f8-85231578a214',
+  method: 'GET',
+  route: '/v1/sample/operator',
+  requiredRoles: [
+    'operator'
+  ],
+  roles: [
+    'admin'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+admin -> /sample/operator -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '871d60d6-1844-4572-95f8-85231578a214',
+  method: 'GET',
+  route: '/v1/sample/auditor',
+  requiredRoles: [
+    'auditor'
+  ],
+  roles: [
+    'admin'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+admin -> /sample/auditor -> 403 FORBIDDEN [application/problem+json]
+handlers run during the matrix (must be 0): 0
+handlers run so far: 4; users rows: 4
+
+--- M-51-04: no group, several groups, an unknown group ---
+no group -> /customer -> 200 handler=customer [application/json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: 'c66dafc0-fcd2-44ef-a3ae-e731c452ec15',
+  method: 'GET',
+  route: '/v1/sample/operator',
+  requiredRoles: [
+    'operator'
+  ],
+  roles: [
+    'customer'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+no group -> /operator -> 403 FORBIDDEN [application/problem+json]
+operator+auditor -> /operator -> 200 handler=operator [application/json]
+operator+auditor -> /auditor -> 200 handler=auditor [application/json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '3fe1d54f-0bae-4d8c-91fd-b59df5913e74',
+  method: 'GET',
+  route: '/v1/sample/admin',
+  requiredRoles: [
+    'admin'
+  ],
+  roles: [
+    'operator',
+    'auditor'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+operator+auditor -> /admin -> 403 FORBIDDEN [application/problem+json]
+unknown group "ops" /whoami -> 200 roles=["customer"] userId=55a18a1d-a8b1-4eb9-95fa-6864e58b0d88 [application/json]
+handlers run so far: 7; users rows: 7
+
+--- M-51-05: a customer claims admin in a header, a cookie, the query and a body ---
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '36d6c495-eb95-49f5-a58c-e0a6235cdd5d',
+  method: 'GET',
+  route: '/v1/sample/admin',
+  requiredRoles: [
+    'admin'
+  ],
+  roles: [
+    'customer'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+GET /admin?role=admin with X-Role and cookie -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: '36d6c495-eb95-49f5-a58c-e0a6235cdd5d',
+  method: 'POST',
+  route: '/v1/sample/echo-admin',
+  requiredRoles: [
+    'admin'
+  ],
+  roles: [
+    'customer'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+POST /echo-admin with a body that says admin -> 403 FORBIDDEN [application/problem+json]
+GET /whoami with the same claims -> 200 roles=["customer"] userId=36d6c495-eb95-49f5-a58c-e0a6235cdd5d [application/json]
+handlers run so far: 7; users rows: 7
+
+--- M-51-06: an edited payload and a token signed by another key ---
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [JwksVerifierService] access token failed verification: JWSSignatureVerificationFailed
+edited payload (admin) -> 401 UNAUTHENTICATED [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [JwksVerifierService] access token failed verification: JWSSignatureVerificationFailed
+unknown signing key (admin) -> 401 UNAUTHENTICATED [application/problem+json]
+row for the forger (must be none): null
+handlers run so far: 7; users rows: 7
+
+--- M-51-07: no token, and an expired token ---
+no token -> /operator -> 401 UNAUTHENTICATED [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [JwksVerifierService] access token expired
+expired operator token -> /operator -> 401 TOKEN_EXPIRED [application/problem+json]
+handlers run so far: 7; users rows: 7
+
+--- M-51-08: userId equals users.id in the database ---
+customer: userId=36d6c495-eb95-49f5-a58c-e0a6235cdd5d users.id=36d6c495-eb95-49f5-a58c-e0a6235cdd5d same=true
+operator: userId=636027be-93d8-49fe-bae8-2182f4d2b225 users.id=636027be-93d8-49fe-bae8-2182f4d2b225 same=true
+auditor: userId=049d3051-fc01-4f12-be2e-dc3ce32564d2 users.id=049d3051-fc01-4f12-be2e-dc3ce32564d2 same=true
+admin: userId=871d60d6-1844-4572-95f8-85231578a214 users.id=871d60d6-1844-4572-95f8-85231578a214 same=true
+handlers run so far: 7; users rows: 7
+
+--- M-51-11: cognito:groups of the wrong type ---
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: 'e9507168-0ba1-45c7-b954-ab4c13cc342d',
+  method: 'GET',
+  route: '/v1/sample/admin',
+  requiredRoles: [
+    'admin'
+  ],
+  roles: [
+    'customer'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+groups = "admin" (a string) -> /admin -> 403 FORBIDDEN [application/problem+json]
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Object(5) {
+  userId: 'cfb7afde-c919-44cd-9de8-adbe8944ddba',
+  method: 'GET',
+  route: '/v1/sample/admin',
+  requiredRoles: [
+    'admin'
+  ],
+  roles: [
+    'customer'
+  ]
+}
+[Nest] 25760  - 11/02/2026, 1:48:51 AM    WARN [RolesGuard] Request denied: role not allowed
+groups = ["admin "] (trailing space) -> /admin -> 403 FORBIDDEN [application/problem+json]
+groups = "admin" /whoami -> 200 roles=["customer"] userId=e9507168-0ba1-45c7-b954-ab4c13cc342d [application/json]
+groups = ["admin "] /whoami -> 200 roles=["customer"] userId=cfb7afde-c919-44cd-9de8-adbe8944ddba [application/json]
+handlers run so far: 7; users rows: 9
+
+--- M-51-12: the default for a route with no @Roles, and @Public with @Roles ---
+customer -> /any -> 200 handler=any [application/json]
+operator -> /any -> 200 handler=any [application/json]
+auditor -> /any -> 200 handler=any [application/json]
+admin -> /any -> 200 handler=any [application/json]
+no group -> /any -> 200 handler=any [application/json]
+no token -> /any -> 401 UNAUTHENTICATED [application/problem+json]
+admin token -> /public-roles -> 401 UNAUTHENTICATED [application/problem+json]
+handlers run so far: 12; users rows: 9
+
+=== M-51-08: users.id in the database ===
+                  id                  |             cognito_sub              
+--------------------------------------+--------------------------------------
+ 3fe1d54f-0bae-4d8c-91fd-b59df5913e74 | 1f7a3c58-9d24-4e6b-8a05-3b9c6d1e7f42
+ 049d3051-fc01-4f12-be2e-dc3ce32564d2 | 3e6c9b72-1a58-4d04-8f2e-5b7a0d4c1e93
+ 36d6c495-eb95-49f5-a58c-e0a6235cdd5d | 5b0d7c1e-3f4a-4c8e-9d2b-7a1e6f0c9a42
+ 55a18a1d-a8b1-4eb9-95fa-6864e58b0d88 | 6d2e8b14-5a93-4c70-b1f6-8e4a2c7d0b95
+ 636027be-93d8-49fe-bae8-2182f4d2b225 | 8d1f2a60-4b7c-4e19-a5d3-0c9b6e2f7a11
+ 871d60d6-1844-4572-95f8-85231578a214 | 9a4b7e15-6c2d-4f83-b0a1-2e8d5c3f6b07
+ e9507168-0ba1-45c7-b954-ab4c13cc342d | a4c9e271-3b86-4d15-9e07-1f5b8a3c6d20
+ cfb7afde-c919-44cd-9de8-adbe8944ddba | b7e1d493-2c58-4a60-8f19-6d3a0b9e5c71
+ c66dafc0-fcd2-44ef-a3ae-e731c452ec15 | c2f8d605-7e1a-4b39-9c4d-6a0e3b5f8d21
+(9 rows)
+
+ users_after_first_run 
+-----------------------
+                     9
+(1 row)
+
+
+=== M-51-10: main again, new process, new key, same database ===
+userId lines identical between the two runs (M-51-02 /whoami and M-51-08):
+  identical
+users rows at start (N0): 9
+handlers run so far: 0; users rows: 9
+ users_after_second_run 
+------------------------
+                      9
+(1 row)
+
+
+=== M-51-13: RolesGuard denial log lines per step (from the first run) ===
+M-51-03: 12
+M-51-04: 2
+M-51-05: 2
+M-51-11: 2
+total 18
+403 replies in the first run: 18
+token-like strings (eyJ) in the first run: 0
+'secret' / 'sub' leaks in RolesGuard lines: 0
+
+=== M-51-09: outage (PostgreSQL stopped, waited 38 s) ===
+[driver] docker compose stop postgres
+ Container dbs-postgres-1  Stopping
+ Container dbs-postgres-1  Stopped
+[driver] docker compose start postgres
+ Container dbs-postgres-1  Starting
+ Container dbs-postgres-1  Started
+DBS-51 manual smoke, mode=outage, app at http://127.0.0.1:53106
+users rows at start (N0): 9
+subs: {"customer":"5b0d7c1e-3f4a-4c8e-9d2b-7a1e6f0c9a42","operator":"8d1f2a60-4b7c-4e19-a5d3-0c9b6e2f7a11","auditor":"3e6c9b72-1a58-4d04-8f2e-5b7a0d4c1e93","admin":"9a4b7e15-6c2d-4f83-b0a1-2e8d5c3f6b07","noGroup":"c2f8d605-7e1a-4b39-9c4d-6a0e3b5f8d21","multi":"1f7a3c58-9d24-4e6b-8a05-3b9c6d1e7f42","unknownGroup":"6d2e8b14-5a93-4c70-b1f6-8e4a2c7d0b95","stringGroups":"a4c9e271-3b86-4d15-9e07-1f5b8a3c6d20","spaceGroup":"b7e1d493-2c58-4a60-8f19-6d3a0b9e5c71","forger":"d8f3a6b0-1e47-4c92-a5d8-2b7c9e1f4a63"}
+
+--- M-51-09: PostgreSQL stopped (new sub b3f34e2d-6420-4338-94d0-f44948799a4b) ---
+
+Stop PostgreSQL now (docker compose stop postgres), wait 35 s, then press Enter... [Nest] 29220  - 11/02/2026, 1:50:04 AM    WARN [ProblemDetailsFilter] Object(2) {
+  errorType: 'Error',
+  code: 'ECONNREFUSED'
+}
+[Nest] 29220  - 11/02/2026, 1:50:04 AM    WARN [ProblemDetailsFilter] Transient database error
+operator, never seen before, while PostgreSQL is down -> 503 SERVICE_TEMPORARILY_UNAVAILABLE [application/problem+json] retry-after=5
+
+--- PostgreSQL started again ---
+
+Start PostgreSQL (docker compose start postgres), wait until healthy, then press Enter... same token after recovery -> 200 handler=operator [application/json]
+row in DB: id=b4da3f86-ce5d-4c80-ab57-3e88a1d2fdbc
+users rows now: 10
+
+=== M-51-14: build keeps dist/main.js ===
+> nest build
+
+-rw-r--r-- 1 ADMIN 197121 4335 Nov  2 01:50 dist/main.js
+ls: cannot access 'dist/src/main.js': No such file or directory
+=== done ===
