@@ -345,11 +345,15 @@ CREATE TABLE fraud_rule_hits (
 CREATE TABLE notification_log (
   id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   event_id   uuid NOT NULL,
-  kind       text NOT NULL,                  -- 'transfer_completed', 'account_status_changed'
-  user_id    uuid REFERENCES users(id),      -- người nhận; v1 có thể NULL (xem §13, mục 14)
+  kind       text NOT NULL CONSTRAINT notification_log_kind_check
+               CHECK (kind IN ('transfer_completed', 'account_status_changed')),
+  user_id    uuid CONSTRAINT notification_log_user_id_fkey REFERENCES users(id) ON DELETE RESTRICT,
   message    text NOT NULL,                  -- không nêu lý do gian lận (BR-13)
   created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX notification_log_event_id_idx ON notification_log(event_id);
+-- BR-13: writer chỉ ghi thông báo chung, không nêu lý do gian lận.
+-- Index không UNIQUE: một event có thể có nhiều người nhận. DBS-96.
 
 CREATE TABLE reconciliation_runs (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
