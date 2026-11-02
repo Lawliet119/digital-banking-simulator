@@ -1,5 +1,7 @@
 # Tài liệu từng task (feature docs)
 
+DBS-78: [Redis degraded readiness](DBS-78-health-redis-degraded.md) · Dev · triển khai tạm trên DBS-76 theo lựa chọn của người dùng, chờ dependency merge để mở PR từ main.
+
 DBS-76: [Redis adapter](DBS-76-redis-adapter.md) · Dev · Implemented, chờ review/merge.
 
 > **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-31

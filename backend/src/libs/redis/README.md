@@ -39,6 +39,12 @@ by this generic adapter. API/worker wiring belongs the caller tasks.
 Nest shutdown stops breaker timers, reconnect timers and sockets immediately, discarding
 pending cache operations. No Redis QUIT is awaited through a stalled connection.
 
+DBS-78 integration: RedisModule constructs a lazy client, starting connection in
+onModuleInit without awaiting Redis availability. This keeps a failed NestFactory.create
+from leaking reconnect sockets before the bootstrap code receives a cleanup context.
+Direct diagnostic constructor calls keep the previous eager default. Callers importing
+RedisModule get automatic initialization and shutdown through Nest lifecycle.
+
 Test: npm run test:services -- --runInBand --runTestsByPath test/services/redis-adapter.services-spec.ts
 Manual: docker compose up -d valkey; from backend run npm run build then
 node scripts/manual-dbs76.cjs. Driver uses only Compose Valkey and a local TCP proxy,

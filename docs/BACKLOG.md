@@ -2,6 +2,10 @@
 
 | ID | Việc còn tồn | Nguồn | Chủ trì | Điều kiện đóng |
 |---|---|---|---|---|
+| BL-142 | DBS-78 dùng dependency DBS-76 tạm theo lựa chọn người dùng; chờ PR52 merge để rebase riêng commit78 lên main, mở main-based Draft PR, kiểm CI và Dev review/merge | [DBS-78](features/DBS-78-health-redis-degraded.md) §8 | Dev thực hiện / reviewer | PR52 merged; nhánh78 chỉ có diff task78 so với main; CI xanh, Dev review/merge và bảng DoD đầy đủ |
+
+| ID | Việc còn tồn | Nguồn | Chủ trì | Điều kiện đóng |
+|---|---|---|---|---|
 | BL-140 | DBS-76 chưa có Dev khác review và merge main; xác nhận CI trên head cuối qua PR checks | [DBS-76](features/DBS-76-redis-adapter.md) §8 | Dev reviewer | CI xanh, review và merge; bảng đối chiếu DoD đầy đủ |
 | BL-141 | RedisMetrics đã có registry/counter thật; chưa ghép vào HTTP metrics endpoint/dashboard của app | [DBS-76](features/DBS-76-redis-adapter.md) §8 | Dev observability | Metrics endpoint của api/worker xuất redis_fallback_total và dashboard đọc đúng counter; lỗi Redis tăng counter |
 
