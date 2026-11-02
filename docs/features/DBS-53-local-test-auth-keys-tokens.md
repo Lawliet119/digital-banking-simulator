@@ -2,7 +2,7 @@
 
 <!-- Tài liệu làm việc, không phải báo cáo: ưu tiên bảng hơn văn xuôi. -->
 
-> **Status:** Plan approved (sau G3, 2026-11-02; đang chờ G4) · **Vai:** Dev · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-53-local-auth-keys` (từ `main` = `f123c9d`) · **PR:** — · **Cập nhật:** 2026-11-02
+> **Status:** Implemented (sau G4, 2026-11-02) · **Vai:** Dev · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-53-local-auth-keys` (từ `main` = `f123c9d`) · **PR:** — · **Cập nhật:** 2026-11-02
 
 ## 1. Bối cảnh
 
@@ -410,3 +410,7 @@ npm run test:db      16 suites, 325 tests passed (baseline: 325)
 - `.claude/skills/dbs-delivering-task/references/{testing,manual-testing}.md` và bản `.agents/` tương ứng: đổi đúng dòng "DBS-53, once merged" thành "đã có"; hai bản vốn đã khác nhau, không đồng bộ lại.
 - `docs/features/README.md` (hàng DBS-53; trạng thái *Implemented* sau G4), `docs/BACKLOG.md` (thêm `BL-135`, `BL-136`; không xóa dòng nào).
 - Không đổi: ADR-06 và `docs/components/identity/01-concept-brief.md` (đã đúng nguyên văn), `docs/03` dòng 782 (đã nêu `AUTH_MODE=local`).
+
+## 10. Quyết định ở G4 (2026-11-02)
+
+Duyệt G4, 7 câu theo đề xuất: (1) chấp nhận lệch SHA `7c84c94` so với HEAD (chỉ thêm test), không chạy lại §5; (2) M-53-09 do người dùng tự chạy và chụp, ghi `BL-135`; (3) chấp nhận 5 ảnh transcript thay ảnh màn hình; (4) ghi nhận lần `test:db` đỏ một lần, theo dõi khi CI chạy; (5) giữ T3 là *Đã kiểm* với phạm vi đã ghi; (6) dọn stack dev (container `dbs53-postgres-1`, `~/dbs-53-postgres.yml`, `.auth-local/`, `env/.env.development`, và cả container compose mặc định) **sau khi người dùng báo PR đã merge**; (7) push nhánh và mở PR.
