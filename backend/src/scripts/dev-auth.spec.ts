@@ -11,7 +11,7 @@ import {
   type JWK,
 } from 'jose';
 import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
-import { ROLES } from '@modules/identity';
+import { JwksVerifierService, ROLES, TokenVerificationError } from '@modules/identity';
 import {
   generateDevKeys,
   mintDevToken,
@@ -393,5 +393,44 @@ describe('the README tells a developer how to get a token for Swagger (TC-53-33)
   it('lists both commands in the command table', () => {
     expect(readme).toMatch(/\|\s*`npm run auth:dev-keys`/);
     expect(readme).toMatch(/\|\s*`npm run --silent auth:dev-token/);
+  });
+});
+
+describe('what auth:dev-keys writes is what the verifier reads (TC-53-21)', () => {
+  // The verifier spec makes its keys with jose, and a module's internals never import from
+  // src/scripts, so the real round trip lives here: generateDevKeys -> jwks.json on disk ->
+  // JwksVerifierService (through the module's public index) <- a token from mintDevToken.
+  function verifierFor(jwksPath: string): JwksVerifierService {
+    return new JwksVerifierService({
+      local: { jwksPath },
+      cognito: {
+        userPoolId: undefined,
+        clientId: LOCAL_CLIENT_ID,
+        issuer: LOCAL_ISSUER,
+        jwksUri: undefined,
+        jwksCooldownMs: 200,
+      },
+      accessTokenTtlSeconds: 900,
+    });
+  }
+
+  it.each(ROLES)('verifies a %s token minted from keys written by generateDevKeys', async role => {
+    const keys = await generateDevKeys({ dir });
+    const verifier = verifierFor(keys.jwksPath);
+
+    const claims = await verifier.verifyAccessToken(await mintDevToken({ dir, role }));
+
+    expect(claims).toMatchObject({ sub: `dev-${role}`, 'cognito:groups': [role] });
+  });
+
+  it('rejects a token minted from the keys that --force replaced', async () => {
+    const first = await generateDevKeys({ dir });
+    const staleToken = await mintDevToken({ dir, role: 'admin' });
+    await generateDevKeys({ dir, force: true });
+
+    // A verifier started after --force knows only the new key; the old token no longer passes.
+    await expect(verifierFor(first.jwksPath).verifyAccessToken(staleToken)).rejects.toBeInstanceOf(
+      TokenVerificationError,
+    );
   });
 });

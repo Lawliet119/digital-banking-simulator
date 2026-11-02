@@ -24,7 +24,8 @@ import { ROLES } from './roles';
 /**
  * AUTH_MODE=local (DBS-53): the verifier reads its keys from a file instead of Cognito's JWKS URL.
  * Keys are made here with jose, like the sibling spec: a module's internals never import from
- * `src/scripts`, so the real `auth:dev-keys` output is covered by test/dev-auth.e2e-spec.ts.
+ * `src/scripts`, so the round trip with the real `auth:dev-keys` output (generateDevKeys -> file ->
+ * this verifier) is tested in src/scripts/dev-auth.spec.ts.
  */
 interface DevKey {
   privateKey: KeyLike;
