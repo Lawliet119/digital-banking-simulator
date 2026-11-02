@@ -24,6 +24,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.js",
     "test:db": "jest --config ./test/jest-db.js",
     "check:invariants": "ts-node -r tsconfig-paths/register test/support/invariants.ts",
+    "auth:dev-keys": "ts-node -r tsconfig-paths/register src/scripts/dev-auth.keys.ts",
+    "auth:dev-token": "ts-node -r tsconfig-paths/register src/scripts/dev-auth.token.ts",
     "test:services": "jest --config ./test/jest-services.js",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/database/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run",

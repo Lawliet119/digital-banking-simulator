@@ -13,4 +13,6 @@ Chạy: `npx ts-node -r tsconfig-paths/register src/scripts/<tên>.ts` (từ th�
 
 Migration database **không** nằm ở đây mà ở `src/database/migrations/` (xem `backend/README.md`).
 
+Khóa và token thử nghiệm cho `AUTH_MODE=local` (DBS-53): `npm run auth:dev-keys` và `npm run --silent auth:dev-token -- --role <vai>`, mã nguồn ở `dev-auth.ts`, `dev-auth.keys.ts`, `dev-auth.token.ts`. Các file `dev-auth*` bị loại khỏi bản build production (`tsconfig.build.json`). Hướng dẫn: [backend README mục 10](../../README.md#10-token-thử-ở-local).
+
 Công cụ kiểm sổ cái đã có ở [test/support/invariants.ts](../../test/support/invariants.ts), nguồn SQL ở [invariants.sql](../../test/support/invariants.sql). Từ `backend/`, chạy `npm run --silent check:invariants`; CI/load runner giữ mã thoát 0/1/2. Cách dùng hàm, quyền DB, TLS và giới hạn: [backend README](../../README.md#9-kiểm-tra-bất-biến-sổ-cái). Công cụ chỉ đọc; seed qua API vẫn là quy tắc cho dữ liệu demo.

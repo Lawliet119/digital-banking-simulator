@@ -1,4 +1,6 @@
 import { appConfig } from './app.config';
+import { authConfig } from './auth.config';
+import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from './auth-local';
 import { databaseConfig } from './database.config';
 import { limitsConfig } from './limits.config';
 
@@ -64,5 +66,40 @@ describe('limitsConfig', () => {
     process.env.TRANSFER_LIMIT_PER_TX = '9007199254740993';
     process.env.TRANSFER_LIMIT_PER_DAY = '9007199254740993';
     expect(limitsConfig().transfer.perTx).toBe(9_007_199_254_740_993n);
+  });
+});
+
+describe('authConfig (DBS-53, TC-53-10)', () => {
+  it('cognito mode (the default) has no local section and keeps the Cognito values', () => {
+    process.env.NODE_ENV = 'development';
+    delete process.env.AUTH_MODE;
+    delete process.env.AUTH_LOCAL_JWKS_PATH;
+    process.env.COGNITO_USER_POOL_ID = 'ap-southeast-1_abc';
+    process.env.COGNITO_CLIENT_ID = 'client-abc';
+    process.env.COGNITO_ISSUER =
+      'https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_abc/';
+
+    const cfg = authConfig();
+    expect(cfg.local).toBeUndefined();
+    expect(cfg.cognito.clientId).toBe('client-abc');
+    expect(cfg.cognito.issuer).toBe(process.env.COGNITO_ISSUER);
+    expect(cfg.cognito.jwksUri).toBe(
+      'https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_abc/.well-known/jwks.json',
+    );
+  });
+
+  it('local mode exposes the key path and the fixed issuer and client id, and no remote JWKS', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.AUTH_MODE = 'local';
+    process.env.AUTH_LOCAL_JWKS_PATH = '.auth-local/jwks.json';
+    delete process.env.COGNITO_USER_POOL_ID;
+    delete process.env.COGNITO_CLIENT_ID;
+    delete process.env.COGNITO_ISSUER;
+
+    const cfg = authConfig();
+    expect(cfg.local).toEqual({ jwksPath: '.auth-local/jwks.json' });
+    expect(cfg.cognito.issuer).toBe(LOCAL_ISSUER);
+    expect(cfg.cognito.clientId).toBe(LOCAL_CLIENT_ID);
+    expect(cfg.cognito.jwksUri).toBeUndefined();
   });
 });

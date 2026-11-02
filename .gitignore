@@ -15,6 +15,9 @@ credentials.json
 !backend/test/support/tls-fixtures/server.pem
 !backend/test/support/tls-fixtures/server.key
 
+# Khóa ký thử nghiệm của AUTH_MODE=local (DBS-53, ADR-06). Chỉ dùng ở máy dev, không bao giờ commit.
+backend/.auth-local/
+
 # ---------- Node / NestJS ----------
 node_modules/
 dist/

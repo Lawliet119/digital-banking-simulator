@@ -1,0 +1,22 @@
+HEAD 374e9c0 (last production-code commit 7c84c94; 374e9c0 only adds unit tests), 2026-11-02T04:33:23Z, Postgres 17 at localhost:55433
+
+$ npm run lint:check
+exit=0
+$ npm run typecheck
+exit=0
+$ npm test
+Test Suites: 50 passed, 50 total
+Tests:       770 passed, 770 total
+Snapshots:   0 total
+$ npm run test:e2e
+Test Suites: 13 passed, 13 total
+Tests:       135 passed, 135 total
+$ npm run test:db
+Test Suites: 16 passed, 16 total
+Tests:       325 passed, 325 total
+
+skip/only/todo/xit in the task's tests:
+src/scripts/dev-auth.spec.ts:0
+src/modules/identity/jwks-verifier.local.spec.ts:0
+test/dev-auth.e2e-spec.ts:0
+test/dev-auth-bootstrap.e2e-spec.ts:0

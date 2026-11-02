@@ -55,6 +55,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-67](DBS-67-rds-tls-secrets.md) | RDS: task api đọc secret master, ghép `DATABASE_URL`, kết nối TLS xác minh CA (bundle ghim hash trong image) | #5 Platform & Ops | Implemented |
 | [DBS-75](DBS-75-terraform-valkey.md) | Terraform: ElastiCache Valkey 8 (TLS bắt buộc, AUTH token write-only xoay bằng ROTATE), task api ghép `REDIS_URL` từ `REDIS_*` | #5 Platform & Ops | Implemented |
 | [DBS-68](DBS-68-migration-step.md) | Bước migration riêng trong pipeline: task ECS `dbs-migrate` chạy một lần trước `update-service` | #5 Platform & Ops | Implemented |
+| [DBS-53](DBS-53-local-test-auth-keys-tokens.md) | Identity: `AUTH_MODE=local` và `AUTH_LOCAL_JWKS_PATH` (app từ chối khởi động ở staging/production), `npm run auth:dev-keys` và `auth:dev-token` cấp token mẫu bốn vai, helper token cho e2e | Dev | Implemented |
 | [DBS-52](DBS-52-users-upsert-first-token.md) | Identity: tạo dòng `users` bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên (`IdentityService.resolveUserId`, cache tiến trình) | Dev | Implemented |
 | [DBS-51](DBS-51-roles-guard-current-user.md) | Identity: `@Roles`, `RolesGuard` (`APP_GUARD` thứ hai) và `@CurrentUser`; vai trò chỉ từ `cognito:groups`, không nhóm là `customer`, sai vai trò 403 `FORBIDDEN` | Dev | Implemented |
 | [FRAUD-API-02](FRAUD-API-02-standalone-risk.md) | Adapter OpenAI Decisions và CLI độc lập; chưa nối fraud runtime | Fraud | Implemented — chờ Dev review và CI |

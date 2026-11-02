@@ -42,6 +42,8 @@ export interface Env {
   COGNITO_USER_POOL_ID?: string;
   COGNITO_CLIENT_ID?: string;
   COGNITO_ISSUER?: string;
+  AUTH_MODE: 'cognito' | 'local';
+  AUTH_LOCAL_JWKS_PATH?: string;
   ACCESS_TOKEN_TTL_SECONDS: number;
   JWKS_REFETCH_COOLDOWN_MS: number;
 
@@ -133,9 +135,43 @@ export const validationSchema = Joi.object<Env>({
     .uri()
     .when('APP_ROLE', { is: Joi.valid('worker', 'both'), then: Joi.required() }),
 
-  COGNITO_USER_POOL_ID: Joi.string().when('NODE_ENV', { is: isDeployed, then: Joi.required() }),
-  COGNITO_CLIENT_ID: Joi.string().when('NODE_ENV', { is: isDeployed, then: Joi.required() }),
-  COGNITO_ISSUER: Joi.string().uri().when('NODE_ENV', { is: isDeployed, then: Joi.required() }),
+  // DBS-53, ADR-06, threat T3: the test-key path (`local`) must never be reachable in a deployed
+  // environment. `Joi.invalid('local')` and not `valid('cognito')`: inside `when`, `valid()` ADDS
+  // to the allowed list instead of replacing it, so `production + local` would still pass.
+  AUTH_MODE: Joi.string()
+    .valid('cognito', 'local')
+    .default('cognito')
+    .when('NODE_ENV', { is: isDeployed, then: Joi.invalid('local') }),
+  // Where the local JWKS lives. Allowed only in local mode and never in a deployed environment,
+  // so "a deployed environment holds a test key" is itself a startup error, not just the mode.
+  AUTH_LOCAL_JWKS_PATH: Joi.string().when('NODE_ENV', {
+    is: isDeployed,
+    then: Joi.forbidden(),
+    otherwise: Joi.when('AUTH_MODE', {
+      is: 'local',
+      then: Joi.required(),
+      otherwise: Joi.forbidden(),
+    }),
+  }),
+  // One nested rule per key, never two chained `when`: chained, a correctly set COGNITO_* in
+  // `production + local` is reported as the error (`any.unknown`) instead of the real culprit.
+  COGNITO_USER_POOL_ID: Joi.string().when('NODE_ENV', {
+    is: isDeployed,
+    then: Joi.required(),
+    otherwise: Joi.when('AUTH_MODE', { is: 'local', then: Joi.forbidden() }),
+  }),
+  COGNITO_CLIENT_ID: Joi.string().when('NODE_ENV', {
+    is: isDeployed,
+    then: Joi.required(),
+    otherwise: Joi.when('AUTH_MODE', { is: 'local', then: Joi.forbidden() }),
+  }),
+  COGNITO_ISSUER: Joi.string()
+    .uri()
+    .when('NODE_ENV', {
+      is: isDeployed,
+      then: Joi.required(),
+      otherwise: Joi.when('AUTH_MODE', { is: 'local', then: Joi.forbidden() }),
+    }),
   // Also the TTL of the "sessions revoked" marker in Redis (BR-12): after this long, every token
   // issued before the revocation has expired on its own.
   ACCESS_TOKEN_TTL_SECONDS: Joi.number().integer().min(60).max(86_400).default(900),
