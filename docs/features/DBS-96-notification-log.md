@@ -49,9 +49,9 @@ Kiểm hồi quy phát hiện suite DBS-27 gọi migrate toàn bộ và giả đ
 
 ## 8. Kết quả
 
-Migration code: `292d47e`. Test-first: 3 test đỏ vì bảng chưa tồn tại (42P01/catalog rỗng); sau triển khai 4/4 test trên PostgreSQL 17 Testcontainers xanh, không skip. `lint:check`, `typecheck`, `build` đạt; unit local 769/770, một test Identity cooldown đỏ (BL-112 có sẵn); E2E 135/135 đạt. [CI đầu 41430197926](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41430197926): 5/6 jobs đạt, gồm unit; DB đỏ ở TC-27-10/11 do fixture giả định migration cuối. Đã sửa fixture prefix, đang kiểm lại.
+Migration code: `292d47e`, test regression fix `563850b`. Test-first: 3 test đỏ vì bảng chưa tồn tại (42P01/catalog rỗng); sau triển khai 4/4 test trên PostgreSQL 17 Testcontainers xanh, không skip. `lint:check`, `typecheck`, `build` đạt; unit local 769/770, một test Identity cooldown đỏ (BL-112 có sẵn); E2E 135/135 đạt. Full DB local trước sửa fixture: 327/329, hai lỗi TC-27-10/11. Sau sửa prefix, chạy lại hai suite DBS-27 + DBS-96: 29/29 đạt. [CI đầu 41430197926](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41430197926): 5/6 jobs đạt, gồm unit; DB đỏ ở TC-27-10/11. Kết quả CI toàn bộ trên head mới xem [PR #50 checks](https://github.com/Lawliet119/digital-banking-simulator/pull/50/checks).
 
-Manual chạy trên commit `292d47e`: mọi bước trong script đạt, kể cả ghi hai loại thông báo với user NULL, SQLSTATE 23514/23502, revert giữ users và run lại khôi phục bảng. Database tạm đã xóa. [Transcript](screenshots/DBS-96/manual-test.txt), [ảnh trích từ output thật](screenshots/DBS-96/01-manual-output.png), [review độc lập](screenshots/DBS-96/domain-review.md).
+Manual chạy lại trên commit cuối `563850b`: mọi bước trong script đạt, kể cả ghi hai loại thông báo với user NULL, SQLSTATE 23514/23502, revert giữ users và run lại khôi phục bảng. Database tạm đã xóa. [Transcript](screenshots/DBS-96/manual-test.txt), [ảnh trích từ output thật](screenshots/DBS-96/01-manual-output.png), [review độc lập](screenshots/DBS-96/domain-review.md).
 
 | DoD | Case | Kết quả |
 |---|---|---|
@@ -59,7 +59,7 @@ Manual chạy trên commit `292d47e`: mọi bước trong script đạt, kể c�
 | BR-13 | COMMENT + tài liệu + TC-96-01 | Đạt phần storage; writer kiểm nội dung ở BL-138 |
 | Index event_id | TC-96-01, catalog manual | Đạt, không unique |
 | Revert | TC-96-04, CLI manual run→revert→run | Đạt trên DB tạm |
-| CI, Dev review, merge | Draft PR | Chờ CI/review/merge, BL-137 |
+| CI, Dev review, merge | [Draft PR #50](https://github.com/Lawliet119/digital-banking-simulator/pull/50) | CI theo checks hiện hành; chờ review/merge, BL-137 |
 
 BL-010 xử lý UNKNOWN_EVENT_TYPE thuộc consumer tương lai, ngoài storage migration. BL-138 bàn giao test BR-13 cho writer. BL-137 theo dõi Dev review/merge. Người dùng đã yêu cầu tiếp tục quy trình cũ, không dừng duyệt G1–G4; đã thực hiện thiết kế/review/test/manual và chỉ tạo Draft PR. Transcript không có secret; không đổi env/dependency/ADR. Lỗi dependency baseline do node_modules cũ đã giải quyết bằng npm ci, không sửa lockfile.
 

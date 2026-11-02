@@ -1,5 +1,5 @@
-292d47ef0f43bdbaf5652f70a9ebcb9b60e07fb4
-DBS-96 manual on isolated Docker Compose database: dbs_manual_96_8b3516310d85
+563850b4490c5db01abe7d26130afdf514603bd5
+DBS-96 manual on isolated Docker Compose database: dbs_manual_96_dc3114e13fc6
 
 > create isolated database
 CREATE DATABASE
