@@ -1,0 +1,162 @@
+7c84c94
+# DBS-53 manual test, Git Bash, 2026-11-02T04:19:19Z, Postgres 17 at localhost:55433 (docker compose override outside the repo)
+
+### M-53-01 auth:dev-keys, then what git sees
+$ npm run auth:dev-keys
+> digital-banking-simulator-backend@0.1.0 auth:dev-keys
+> ts-node -r tsconfig-paths/register src/scripts/dev-auth.keys.ts
+Dev keys written (kid DyW-InA3szVcATcmj1N3Hng-GoQ5b-1I5QJuA-tXJFk):
+  .auth-local/private.pem   private key, gitignored: never commit it
+  .auth-local/jwks.json   public key set
+Put these two lines in env/.env.development:
+  AUTH_MODE=local
+  AUTH_LOCAL_JWKS_PATH=.auth-local/jwks.json
+AUTH_MODE=local forbids COGNITO_*: comment out every COGNITO_* line in that file,
+otherwise the app refuses to start. Restart the app after changing the keys.
+Get a token:  npm run --silent auth:dev-token -- --role operator
+$ git status --short (backend/)
+$ git check-ignore -v .auth-local/private.pem .auth-local/jwks.json
+.gitignore:19:backend/.auth-local/	.auth-local/private.pem
+.gitignore:19:backend/.auth-local/	.auth-local/jwks.json
+$ ls -la .auth-local
+-rw-r--r-- 1 ADMIN 197121  529 Nov  2 11:19 jwks.json
+-rw-r--r-- 1 ADMIN 197121 1704 Nov  2 11:19 private.pem
+$ head -c 27 private.pem; jwks keys / private members
+-----BEGIN PRIVATE KEY-----
+keys: 1 kty: RSA kid: DyW-InA3szVc… private members: 0
+
+### M-53-02 second run refuses, --force replaces
+$ npm run auth:dev-keys   (keys exist)
+Dev keys already exist in C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\dbs-53\backend\.auth-local. They were not changed; pass --force to replace them.
+exit=1
+unchanged: yes
+$ npm run auth:dev-keys -- --force
+Dev keys written (kid 1aXu_SCF1G7HMoHxL6X0Mhg55wcAUJ31vw5j_HRS8zo):
+exit=0
+kid changed: yes
+
+### M-53-03 COGNITO_* next to AUTH_MODE=local is refused, then the app starts
+$ (COGNITO_ISSUER left uncommented) start the app
+{"level":50,"time":"2026-11-02T04:19:51.671Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","errorType":"Error","invalidKeys":["COGNITO_ISSUER"],"message":"Application startup failed"}
+$ (COGNITO_ISSUER commented out) start the app; curl /health/ready
+{"level":40,"time":"2026-11-02T04:20:02.599Z","appRole":"api","role":"api","correlationId":null,"context":"JwksVerifierService","message":"AUTH_MODE=local: tokens signed by the local development key are accepted"}
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}
+HTTP 200
+
+### M-53-04 claims of an operator token (the token itself is not recorded)
+$ npm run --silent auth:dev-token -- --role operator | decode
+stdout lines: 1
+<anonymous_script>:1
+-A}�/�7��S�2]Ӣ�V����(EV,A?J���ݦ���ؘ�m^<T8�^��*C��גRݶG x��_�7��z��q�����3�۪L��QE�"	��!IB���:
+ ^
+
+SyntaxError: No number after minus sign in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)
+    at [eval]:1:51
+    at Array.map (<anonymous>)
+    at [eval]:1:39
+    at runScriptInThisContext (node:internal/vm:219:10)
+    at node:internal/process/execution:451:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:449:60)
+    at evalFunction (node:internal/process/execution:283:30)
+    at evalTypeScript (node:internal/process/execution:295:3)
+
+Node.js v24.11.1
+
+### M-53-05 and M-53-06 GET /v1/identity/me for each role
+$ psql: users before
+0
+$ curl -H 'Authorization: Bearer <token>' /v1/identity/me   (role operator)
+HTTP 200 {"sub":"dev-operator","userId":"22bc70d2…","groups":["operator"],"tokenUse":"access"}
+$ curl -H 'Authorization: Bearer <token>' /v1/identity/me   (role customer)
+HTTP 200 {"sub":"dev-customer","userId":"055abf22…","groups":["customer"],"tokenUse":"access"}
+$ curl -H 'Authorization: Bearer <token>' /v1/identity/me   (role auditor)
+HTTP 200 {"sub":"dev-auditor","userId":"b4a503be…","groups":["auditor"],"tokenUse":"access"}
+$ curl -H 'Authorization: Bearer <token>' /v1/identity/me   (role admin)
+HTTP 200 {"sub":"dev-admin","userId":"e544ec18…","groups":["admin"],"tokenUse":"access"}
+$ psql: dev-operator rows after two calls
+dev-admin|1
+dev-auditor|1
+dev-customer|1
+dev-operator|1
+
+### M-53-04 (re-run: my first decode script split the token wrongly; the token was fine, M-53-05/06 show it accepted)
+$ npm run --silent auth:dev-token -- --role operator | decode
+stdout lines: 1
+header  {"alg":"RS256","typ":"JWT","kid":"1aXu_SCF…"}
+payload {"sub":"dev-operator","iss":"https://dbs.local/auth","client_id":"dbs-local-client","token_use":"access","cognito:groups":["operator"],"iat":1793593253,"exp":1793594153,"jti":"c4e749c0…"}
+exp - iat = 900 | header kid equals jwks.json kid: true
+
+### M-53-07 custom sub, expired, tampered signature, no header
+$ auth:dev-token --role customer --sub nguyen-van-an
+HTTP 200 {"sub":"nguyen-van-an","groups":["customer"],"iat":1793593267,"exp":1793594167}
+$ auth:dev-token --role admin --iat 1793589663 --exp 1793591463  (expired 30 min ago)
+HTTP 401 {"errorCode":"TOKEN_EXPIRED","status":401}
+$ first char of the signature segment changed
+HTTP 401 {"errorCode":"UNAUTHENTICATED","status":401}
+$ no Authorization header
+HTTP 401 {"errorCode":"UNAUTHENTICATED","status":401}
+$ psql: users with a dev-style or custom sub
+dev-admin
+nguyen-van-an
+
+### M-53-08 rotate the keys while the app keeps running
+$ (app still running) npm run auth:dev-keys -- --force
+Dev keys written (kid OhkIrh7g2wGgMwvI925RAVdRihr8RKnO4ptJiqWVyYw):
+$ new token, GET /v1/identity/me against the app that still holds the OLD key
+HTTP 401 {"errorCode":"UNAUTHENTICATED"}
+$ restart the app
+restarted, health ok
+HTTP 200 {"sub":"dev-admin","groups":["admin"]}
+
+### M-53-10 deployed environments (env/.env.production|staging do not exist; variables from the shell)
+$ (a) control: production, valid, no local settings
+{"level":50,"time":"2026-11-02T04:22:03.368Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","errorType":"Error","code":"ECONNREFUSED","message":"Application startup failed"}
+exit=1
+$ (b) NODE_ENV=production AUTH_MODE=local
+{"level":50,"time":"2026-11-02T04:22:08.046Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","errorType":"Error","invalidKeys":["AUTH_MODE"],"message":"Application startup failed"}
+exit=1
+$ (c) NODE_ENV=staging AUTH_LOCAL_JWKS_PATH=.auth-local/jwks.json
+{"level":50,"time":"2026-11-02T04:22:12.633Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","errorType":"Error","invalidKeys":["AUTH_LOCAL_JWKS_PATH"],"message":"Application startup failed"}
+exit=1
+$ port 3054 listening afterwards?
+0
+
+### M-53-11 jwks.json deleted: app refuses, token command still works
+$ start the app without .auth-local/jwks.json
+{"level":50,"time":"2026-11-02T04:22:25.219Z","appRole":"api","role":"api","correlationId":null,"context":"Bootstrap","errorType":"Error","invalidKeys":["AUTH_LOCAL_JWKS_PATH"],"message":"Application startup failed"}
+exit=1
+$ does the output contain the path?
+0
+$ auth:dev-token --role customer (needs only private.pem)
+token with 3 segments, length 736
+$ restore with --force
+Dev keys written (kid 6bqwH1Y_MA5baZJfMm1dGzXkUOW4GuyQlirZRDggLYg):
+jwks.json
+private.pem
+
+### M-53-13 production build has no dev-auth
+$ npm run build; ls dist/scripts
+
+  manual-smoke.dbs50.js
+  manual-smoke.dbs50.js.map
+  manual-smoke.dbs51.js
+  manual-smoke.dbs51.js.map
+  manual-smoke.dbs52.js
+  manual-smoke.dbs52.js.map
+dev-auth files in dist: 0
+
+### M-53-12 README section 10, verbatim, from an empty state (no .auth-local/)
+$ npm run auth:dev-keys
+Dev keys written (kid MVGf-xi_DnJC63uJMeImNSfrPAHRr1Tkaw-aVVCrvQ8):
+  .auth-local/private.pem   private key, gitignored: never commit it
+  .auth-local/jwks.json   public key set
+  AUTH_LOCAL_JWKS_PATH=.auth-local/jwks.json
+$ (env/.env.development already has AUTH_MODE=local, AUTH_LOCAL_JWKS_PATH, COGNITO_* commented out) npm run start:dev:api
+{"level":40,"time":"2026-11-02T04:24:07.239Z","appRole":"api","role":"api","correlationId":null,"context":"JwksVerifierService","message":"AUTH_MODE=local: tokens signed by the local development key a
+$ TOKEN=$(npm run --silent auth:dev-token -- --role admin)
+$ curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/v1/identity/me
+HTTP 200 {"sub":"dev-admin","groups":["admin"]}
+$ curl /docs (Swagger UI is served)
+HTTP 200

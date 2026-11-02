@@ -186,6 +186,135 @@ describe('validateEnv', () => {
     });
   });
 
+  // DBS-53, ADR-06, threat T3: the local test-key path must never reach a deployed environment.
+  describe('AUTH_MODE=local is for development and test only (TC-53-01…09)', () => {
+    const KEYS_PATH = '.auth-local/jwks.json';
+    const local = { ...base, AUTH_MODE: 'local', AUTH_LOCAL_JWKS_PATH: KEYS_PATH };
+    // Only the two new keys, on top of a fully valid deployed environment (`local` itself carries
+    // `base`, whose plain redis:// would be a second, unrelated error in production).
+    const deployedLocal = { AUTH_MODE: 'local', AUTH_LOCAL_JWKS_PATH: KEYS_PATH };
+
+    function invalidKeysOf(env: Record<string, unknown>): string[] {
+      try {
+        validateEnv(env);
+      } catch (error) {
+        return (error as ConfigValidationError).invalidKeys;
+      }
+      throw new Error('expected validateEnv to throw');
+    }
+
+    it.each(['development', 'test'])('TC-53-01 accepts local mode in %s', nodeEnv => {
+      const env = validateEnv({ ...local, NODE_ENV: nodeEnv });
+      expect(env.AUTH_MODE).toBe('local');
+      expect(env.AUTH_LOCAL_JWKS_PATH).toBe(KEYS_PATH);
+    });
+
+    it('TC-53-02 refuses AUTH_MODE=local in staging', () => {
+      const staging = { ...production, NODE_ENV: 'staging' };
+      expect(invalidKeysOf({ ...staging, AUTH_MODE: 'local' })).toContain('AUTH_MODE');
+    });
+
+    it('TC-53-03 refuses AUTH_MODE=local in production, with or without a key path', () => {
+      expect(invalidKeysOf({ ...production, AUTH_MODE: 'local' })).toContain('AUTH_MODE');
+      expect(invalidKeysOf({ ...production, ...deployedLocal })).toContain('AUTH_MODE');
+    });
+
+    it.each(['staging', 'production'])(
+      'TC-53-04 refuses a key path in %s even though the mode is cognito',
+      nodeEnv => {
+        const deployed = { ...production, NODE_ENV: nodeEnv };
+        expect(() => validateEnv(deployed)).not.toThrow();
+        expect(invalidKeysOf({ ...deployed, AUTH_LOCAL_JWKS_PATH: KEYS_PATH })).toEqual([
+          'AUTH_LOCAL_JWKS_PATH',
+        ]);
+      },
+    );
+
+    it('TC-53-05 requires the key path when the mode is local', () => {
+      const { AUTH_LOCAL_JWKS_PATH: _path, ...noPath } = local;
+      expect(invalidKeysOf({ ...noPath, NODE_ENV: 'development' })).toEqual([
+        'AUTH_LOCAL_JWKS_PATH',
+      ]);
+    });
+
+    it('TC-53-06 refuses a key path when the mode is cognito (the default)', () => {
+      expect(
+        invalidKeysOf({ ...base, NODE_ENV: 'development', AUTH_LOCAL_JWKS_PATH: KEYS_PATH }),
+      ).toEqual(['AUTH_LOCAL_JWKS_PATH']);
+      expect(
+        invalidKeysOf({
+          ...base,
+          NODE_ENV: 'test',
+          AUTH_MODE: 'cognito',
+          AUTH_LOCAL_JWKS_PATH: KEYS_PATH,
+        }),
+      ).toEqual(['AUTH_LOCAL_JWKS_PATH']);
+    });
+
+    it.each(['LOCAL', 'Local', 'none', '', ' local', 'local '])(
+      'TC-53-07 rejects the AUTH_MODE value %j (exact match, no case folding or trimming)',
+      value => {
+        expect(invalidKeysOf({ ...base, AUTH_MODE: value })).toContain('AUTH_MODE');
+        expect(invalidKeysOf({ ...production, AUTH_MODE: value })).toContain('AUTH_MODE');
+      },
+    );
+
+    it('TC-53-08 refuses COGNITO_* next to AUTH_MODE=local', () => {
+      expect(
+        invalidKeysOf({ ...local, NODE_ENV: 'development', COGNITO_ISSUER: 'https://issuer.test' }),
+      ).toEqual(['COGNITO_ISSUER']);
+      expect(
+        invalidKeysOf({
+          ...local,
+          NODE_ENV: 'test',
+          COGNITO_USER_POOL_ID: 'pool',
+          COGNITO_CLIENT_ID: 'client',
+          COGNITO_ISSUER: 'https://issuer.test',
+        }),
+      ).toEqual(['COGNITO_USER_POOL_ID', 'COGNITO_CLIENT_ID', 'COGNITO_ISSUER']);
+    });
+
+    it('TC-53-08b reports the missing COGNITO_* of a deployed environment, not the ones set correctly', () => {
+      const {
+        COGNITO_USER_POOL_ID: _p,
+        COGNITO_CLIENT_ID: _c,
+        COGNITO_ISSUER: _i,
+        ...rest
+      } = production;
+      const missing = invalidKeysOf({ ...rest, AUTH_MODE: 'local' });
+      expect(missing).toHaveLength(4);
+      expect(missing).toEqual(
+        expect.arrayContaining([
+          'AUTH_MODE',
+          'COGNITO_USER_POOL_ID',
+          'COGNITO_CLIENT_ID',
+          'COGNITO_ISSUER',
+        ]),
+      );
+      expect(missing).not.toContain('AUTH_LOCAL_JWKS_PATH');
+      // All three set correctly: only the new rules fire, never the Cognito keys themselves.
+      expect(invalidKeysOf({ ...production, ...deployedLocal })).toEqual([
+        'AUTH_MODE',
+        'AUTH_LOCAL_JWKS_PATH',
+      ]);
+    });
+
+    it('TC-53-09 defaults to cognito and leaves the existing rules alone', () => {
+      expect(validateEnv({ ...base, NODE_ENV: 'development' }).AUTH_MODE).toBe('cognito');
+      expect(validateEnv({ ...base, NODE_ENV: 'test' }).AUTH_MODE).toBe('cognito');
+      expect(validateEnv(production).AUTH_MODE).toBe('cognito');
+      const { COGNITO_ISSUER: _i, ...missing } = production;
+      expect(invalidKeysOf(missing)).toEqual(['COGNITO_ISSUER']);
+    });
+
+    it('TC-53-09 the shipped env/.env.example does not switch local mode on', () => {
+      const example = parse(readFileSync(resolve(__dirname, '../../env/.env.example')));
+      expect(example.AUTH_MODE).toBeUndefined();
+      expect(example.AUTH_LOCAL_JWKS_PATH).toBeUndefined();
+      expect(validateEnv(example).AUTH_MODE).toBe('cognito');
+    });
+  });
+
   describe('client IP behind the load balancer (per-IP rate limiting depends on it)', () => {
     it('production must say how many proxies sit in front: forgetting makes every client share the ALB address', () => {
       const { TRUST_PROXY_HOPS: _hops, ...forgotten } = production;
