@@ -29,6 +29,17 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   eslintPluginPrettierRecommended,
   {
+    files: ['src/**/*.ts'],
+    ignores: ['src/libs/redis/**'],
+    rules: {
+      'no-restricted-modules': ['error', { paths: [{ name: 'ioredis', message: 'Use @libs/redis so timeout, breaker and fallback metric apply.' }] }],
+      'no-restricted-syntax': ['error',
+        { selector: "ImportDeclaration[source.value=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
+        { selector: "ImportExpression[source.value=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
+      ],
+    },
+  },
+  {
     languageOptions: {
       globals: { ...globals.node, ...globals.jest },
       sourceType: 'commonjs',
