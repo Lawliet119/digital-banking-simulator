@@ -1,0 +1,292 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  calculateJwkThumbprint,
+  createLocalJWKSet,
+  decodeJwt,
+  decodeProtectedHeader,
+  jwtVerify,
+  type JWK,
+} from 'jose';
+import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
+import { ROLES } from '@modules/identity';
+import {
+  generateDevKeys,
+  mintDevToken,
+  parseKeysArgs,
+  parseTokenArgs,
+  runKeysCli,
+  runTokenCli,
+} from './dev-auth';
+
+const PRIVATE_PARTS = ['d', 'p', 'q', 'dp', 'dq', 'qi'];
+
+let dir: string;
+
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), 'dbs-53-keys-'));
+});
+
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+});
+
+function readJwks(): { keys: JWK[] } {
+  return JSON.parse(readFileSync(join(dir, 'jwks.json'), 'utf8')) as { keys: JWK[] };
+}
+
+describe('generateDevKeys (TC-53-13, TC-53-14)', () => {
+  it('TC-53-13 writes a private key and a JWKS that holds the public half only', async () => {
+    const result = await generateDevKeys({ dir });
+
+    expect(result.privateKeyPath).toBe(join(dir, 'private.pem'));
+    expect(result.jwksPath).toBe(join(dir, 'jwks.json'));
+    expect(readFileSync(join(dir, 'private.pem'), 'utf8')).toMatch(/^-----BEGIN PRIVATE KEY-----/);
+
+    const { keys } = readJwks();
+    expect(keys).toHaveLength(1);
+    const [key] = keys;
+    expect(key).toMatchObject({ kty: 'RSA', e: 'AQAB', alg: 'RS256', use: 'sig' });
+    for (const part of PRIVATE_PARTS) expect(key).not.toHaveProperty(part);
+
+    const { kid, ...withoutKid } = key;
+    expect(kid).toBe(await calculateJwkThumbprint(withoutKid));
+    expect(result.kid).toBe(kid);
+  });
+
+  it('TC-53-14 refuses to overwrite existing keys, and --force replaces both files', async () => {
+    const first = await generateDevKeys({ dir });
+    const privateBefore = readFileSync(join(dir, 'private.pem'), 'utf8');
+    const jwksBefore = readFileSync(join(dir, 'jwks.json'), 'utf8');
+
+    await expect(generateDevKeys({ dir })).rejects.toThrow(/--force/);
+    expect(readFileSync(join(dir, 'private.pem'), 'utf8')).toBe(privateBefore);
+    expect(readFileSync(join(dir, 'jwks.json'), 'utf8')).toBe(jwksBefore);
+
+    const second = await generateDevKeys({ dir, force: true });
+    expect(second.kid).not.toBe(first.kid);
+    expect(readFileSync(join(dir, 'private.pem'), 'utf8')).not.toBe(privateBefore);
+    expect(readJwks().keys[0].kid).toBe(second.kid);
+  });
+
+  it('refuses when only one of the two files is left over', async () => {
+    writeFileSync(join(dir, 'jwks.json'), '{}');
+    await expect(generateDevKeys({ dir })).rejects.toThrow(/--force/);
+    expect(existsSync(join(dir, 'private.pem'))).toBe(false);
+  });
+});
+
+describe('mintDevToken (TC-53-15, TC-53-16)', () => {
+  it.each(ROLES)('TC-53-15 signs a verifiable access token for %s', async role => {
+    await generateDevKeys({ dir });
+    const token = await mintDevToken({ dir, role });
+
+    const header = decodeProtectedHeader(token);
+    expect(header).toMatchObject({ alg: 'RS256', typ: 'JWT', kid: readJwks().keys[0].kid });
+
+    // Verified against the published JWKS, the way the app will do it.
+    const { payload } = await jwtVerify(token, createLocalJWKSet(readJwks()), {
+      issuer: LOCAL_ISSUER,
+      algorithms: ['RS256'],
+    });
+    expect(payload).toMatchObject({
+      sub: `dev-${role}`,
+      iss: LOCAL_ISSUER,
+      client_id: LOCAL_CLIENT_ID,
+      token_use: 'access',
+      'cognito:groups': [role],
+    });
+    expect((payload.exp as number) - (payload.iat as number)).toBe(900);
+    expect(typeof payload.jti).toBe('string');
+  });
+
+  it('TC-53-15 gives each token its own jti', async () => {
+    await generateDevKeys({ dir });
+    const a = decodeJwt(await mintDevToken({ dir, role: 'admin' }));
+    const b = decodeJwt(await mintDevToken({ dir, role: 'admin' }));
+    expect(a.jti).not.toBe(b.jti);
+  });
+
+  it('TC-53-16 honours a custom sub, iat and exp, including an iat in the past', async () => {
+    await generateDevKeys({ dir });
+    const token = await mintDevToken({
+      dir,
+      role: 'customer',
+      sub: 'nguyen-van-an',
+      iat: 1_700_000_000,
+      exp: 1_700_000_300,
+    });
+    expect(decodeJwt(token)).toMatchObject({
+      sub: 'nguyen-van-an',
+      iat: 1_700_000_000,
+      exp: 1_700_000_300,
+      'cognito:groups': ['customer'],
+    });
+  });
+
+  it('TC-53-16 derives exp from a custom iat when only iat is given', async () => {
+    await generateDevKeys({ dir });
+    const claims = decodeJwt(await mintDevToken({ dir, role: 'auditor', iat: 1_700_000_000 }));
+    expect(claims.exp).toBe(1_700_000_900);
+  });
+
+  it('TC-53-17 refuses anything that is not one of the four roles, exactly', async () => {
+    await generateDevKeys({ dir });
+    for (const role of ['superadmin', 'Admin', 'ADMIN', ' admin', '', '__proto__']) {
+      await expect(mintDevToken({ dir, role })).rejects.toThrow(/role/);
+    }
+  });
+
+  it.each([
+    ['exp equal to iat', { iat: 1000, exp: 1000 }],
+    ['exp before iat', { iat: 1000, exp: 999 }],
+    ['a fractional iat', { iat: 1000.5 }],
+    ['a negative iat', { iat: -1 }],
+    ['a non-finite exp', { exp: Number.POSITIVE_INFINITY }],
+    ['an empty sub', { sub: '' }],
+    ['a 129 character sub', { sub: 'a'.repeat(129) }],
+    ['a sub with a control character', { sub: 'an\nbinh' }],
+    ['a sub with a NUL', { sub: 'an\u0000binh' }],
+  ])('TC-53-17 refuses %s and signs nothing', async (_label, override) => {
+    await generateDevKeys({ dir });
+    await expect(mintDevToken({ dir, role: 'operator', ...override })).rejects.toThrow();
+  });
+
+  it('TC-53-17 accepts a 128 character sub', async () => {
+    await generateDevKeys({ dir });
+    const sub = 'a'.repeat(128);
+    expect(decodeJwt(await mintDevToken({ dir, role: 'operator', sub })).sub).toBe(sub);
+  });
+
+  it('TC-53-20 names auth:dev-keys when there is no private key yet', async () => {
+    await expect(mintDevToken({ dir, role: 'operator' })).rejects.toThrow(/auth:dev-keys/);
+  });
+});
+
+describe('argument parsing (TC-53-18)', () => {
+  it('reads every flag of auth:dev-token', () => {
+    expect(
+      parseTokenArgs([
+        '--role',
+        'operator',
+        '--sub',
+        'le-thi-hoa',
+        '--iat',
+        '1700000000',
+        '--exp',
+        '1700000900',
+        '--dir',
+        'keys',
+      ]),
+    ).toEqual({
+      role: 'operator',
+      sub: 'le-thi-hoa',
+      iat: 1_700_000_000,
+      exp: 1_700_000_900,
+      dir: 'keys',
+    });
+  });
+
+  it.each([
+    ['no --role', []],
+    ['an unknown flag', ['--role', 'admin', '--admin']],
+    ['a flag without a value', ['--role']],
+    ['a flag followed by another flag', ['--role', '--sub', 'x']],
+    ['a repeated flag', ['--role', 'admin', '--role', 'operator']],
+    ['a non-numeric --iat', ['--role', 'admin', '--iat', 'yesterday']],
+    ['a fractional --exp', ['--role', 'admin', '--exp', '1.5']],
+    ['a bare word', ['admin']],
+  ])('refuses %s', (_label, argv) => {
+    expect(() => parseTokenArgs(argv)).toThrow();
+  });
+
+  it('reads the flags of auth:dev-keys and refuses unknown ones', () => {
+    expect(parseKeysArgs([])).toEqual({ force: false });
+    expect(parseKeysArgs(['--force', '--dir', 'keys'])).toEqual({ force: true, dir: 'keys' });
+    expect(() => parseKeysArgs(['--forse'])).toThrow();
+  });
+});
+
+describe('command line entry points (TC-53-19)', () => {
+  function io(nodeEnv: string | undefined) {
+    const out: string[] = [];
+    const err: string[] = [];
+    return {
+      out,
+      err,
+      options: {
+        nodeEnv,
+        cwd: dir,
+        stdout: (text: string) => out.push(text),
+        stderr: (text: string) => err.push(text),
+      },
+    };
+  }
+
+  it.each(['staging', 'production', 'prod', 'Production', 'preview'])(
+    'refuses both commands when NODE_ENV is %s, writes nothing and prints no token',
+    async nodeEnv => {
+      const keys = io(nodeEnv);
+      expect(await runKeysCli([], keys.options)).toBe(1);
+      expect(existsSync(join(dir, '.auth-local'))).toBe(false);
+      expect(keys.out).toEqual([]);
+
+      // Even with keys on disk, a deployed environment never gets a token.
+      await generateDevKeys({ dir: join(dir, '.auth-local') });
+      const token = io(nodeEnv);
+      expect(await runTokenCli(['--role', 'admin'], token.options)).toBe(1);
+      expect(token.out).toEqual([]);
+      expect(token.err.join('')).toMatch(/NODE_ENV/);
+    },
+  );
+
+  it.each([undefined, 'development', 'test'])('runs when NODE_ENV is %s', async nodeEnv => {
+    const keys = io(nodeEnv);
+    expect(await runKeysCli([], keys.options)).toBe(0);
+    const token = io(nodeEnv);
+    expect(await runTokenCli(['--role', 'admin'], token.options)).toBe(0);
+    expect(token.out).toHaveLength(1);
+  });
+
+  it('auth:dev-keys prints the two env lines and tells the developer to comment COGNITO_* out', async () => {
+    const keys = io('development');
+    expect(await runKeysCli([], keys.options)).toBe(0);
+    const text = keys.out.join('');
+    expect(text).toContain('AUTH_MODE=local');
+    expect(text).toContain('AUTH_LOCAL_JWKS_PATH=.auth-local/jwks.json');
+    expect(text).toMatch(/COGNITO_\*/);
+    expect(text).not.toContain('BEGIN PRIVATE KEY');
+  });
+
+  it('auth:dev-keys exits 1 and leaves the keys alone when they exist', async () => {
+    const first = io('development');
+    await runKeysCli([], first.options);
+    const second = io('development');
+    expect(await runKeysCli([], second.options)).toBe(1);
+    expect(second.err.join('')).toMatch(/--force/);
+    expect(await runKeysCli(['--force'], io('development').options)).toBe(0);
+  });
+
+  it('auth:dev-token prints exactly one line, the token, and nothing else on stdout', async () => {
+    await runKeysCli([], io('test').options);
+    const token = io('test');
+    expect(await runTokenCli(['--role', 'auditor'], token.options)).toBe(0);
+    expect(token.err).toEqual([]);
+    const printed = token.out.join('');
+    expect(printed).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+\n$/);
+    expect(decodeJwt(printed.trim())['cognito:groups']).toEqual(['auditor']);
+  });
+
+  it('auth:dev-token leaves stdout empty and exits 1 on a bad argument or missing keys', async () => {
+    const missing = io('test');
+    expect(await runTokenCli(['--role', 'admin'], missing.options)).toBe(1);
+    expect(missing.out).toEqual([]);
+    expect(missing.err.join('')).toMatch(/auth:dev-keys/);
+
+    await runKeysCli([], io('test').options);
+    const bad = io('test');
+    expect(await runTokenCli(['--role', 'root'], bad.options)).toBe(1);
+    expect(bad.out).toEqual([]);
+  });
+});
