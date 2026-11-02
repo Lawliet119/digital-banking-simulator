@@ -478,8 +478,8 @@ sequenceDiagram
 
 | Method | Path | Vai trò | UC | Ghi chú |
 |---|---|---|---|---|
-| POST | `/v1/customers/me` | customer | UC-1 | Idempotent: gọi lại trả hồ sơ cũ |
-| GET | `/v1/customers/me` | customer | UC-1 | |
+| POST | `/v1/customers/me` | customer | UC-1 | 200 tạo hoặc trả hồ sơ cũ; `fullName` NFC/trim, 1–200 ký tự; lần tạo đầu giữ nguyên tên. UNIQUE `customers.user_id`; audit cùng transaction, lỗi audit rollback |
+| GET | `/v1/customers/me` | customer | UC-1 | 200 hồ sơ của caller và audit đọc; 404 nếu chưa onboarding; lỗi audit trả 500 |
 | POST | `/v1/accounts` | customer | UC-2 | Tối đa 3 tài khoản |
 | GET | `/v1/accounts` | customer | UC-4 | Chỉ tài khoản của mình |
 | GET | `/v1/accounts/{id}` | customer | UC-4 | Số dư mới nhất, đọc từ DB |
