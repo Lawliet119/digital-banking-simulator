@@ -21,7 +21,7 @@ Several things this file mentions do not exist at the time of writing. Check wit
 | Testcontainers harness (Postgres, Valkey, ElasticMQ, DB roles, template database per suite) | DBS-39, 40, 41 | Use the docker compose database through `DATABASE_URL`; create and drop your own temporary database; fail loudly when it is unreachable |
 | `backend/test/support/invariants.sql` (available) | DBS-69 | Five checks are implemented. Call checkLedgerInvariants(runner) or run npm run --silent check:invariants from backend; raw SQL returns a report, CLI supplies exit 0/1/2; [usage](../../../../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái) |
 | CI workflows (`.github/workflows/` holds only `.gitkeep`) | DBS-35 | "CI green" cannot be met: paste the local command results and mark the DoD bullet as not yet verifiable |
-| Dev token helper (`npm run auth:dev-token`) | DBS-53 | `task-kinds.md`, last section |
+| Dev token helper (`npm run auth:dev-token`) | DBS-53 (**built**) | Use it: `backend/README.md` §10. In e2e tests use `createDevTokenIssuer()` (`test/support/dev-tokens.ts`) and `startLocalAuthApp()` (`test/support/local-auth-app.ts`) |
 | `npm run test:db` | defined by the first task that needs it | Use `test:e2e` against the docker compose database |
 
 ## Case rules
