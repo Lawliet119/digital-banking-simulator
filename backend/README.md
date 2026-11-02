@@ -45,6 +45,8 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Tự động khởi tạo PostgreSQL 17 qua Testcontainers (hoặc dùng `DATABASE_URL` có sẵn nếu đã xuất ra môi trường). Cần Docker Desktop bật; nếu Docker tắt thì test báo lỗi ngay, không treo |
 | `npm run test:services -- --runInBand` | sample Valkey 8 và ElasticMQ thật (`test/services/`): mỗi lần chạy tự tạo container/cổng động, thử SET/GET, SQS send/receive, pause/resume và stop/start rồi dọn container. Cần Docker; không lấy endpoint từ Compose |
 | `npm run check:invariants` | kiểm năm bất biến sổ cái trên `DATABASE_URL` (hoặc bộ `DB_*` như ECS): exit 0 sạch, 1 có vi phạm, 2 không nhận là sạch; mã thoát là thẩm quyền cuối cùng |
+| `npm run auth:dev-keys` | sinh khóa ký thử nghiệm và JWKS vào `backend/.auth-local/` (bị gitignore); chỉ chạy được khi `NODE_ENV` là `development`, `test` hoặc để trống. Xem [mục 10](#10-token-thử-ở-local) |
+| `npm run --silent auth:dev-token -- --role <vai>` | in một access token mẫu của `customer`, `operator`, `auditor` hoặc `admin` (stdout chỉ có token); tùy chọn `--sub`, `--iat`, `--exp`, `--dir` |
 | `npm run migration:run` · `migration:revert` · `migration:show` | migration trên DB local |
 | `npm run migration:generate -- src/database/migrations/<Tên>` | sinh migration từ thay đổi entity |
 | `npm run migration:create -- src/database/migrations/<Tên>` | tạo migration rỗng |
@@ -255,6 +257,43 @@ Hàm không tạo kết nối, log, đổi timeout hoặc mở/commit/rollback t
 CLI chỉ đọc `NODE_ENV`, `DATABASE_URL`, `DATABASE_SSL`, `DATABASE_SSL_CA_PATH` và bộ `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (như task ECS), không cần Redis/SQS/Cognito. `DATABASE_URL` không rỗng luôn thắng; không có thì CLI ghép URL từ `DB_*` bằng `composeDatabaseUrl` của ứng dụng (mật khẩu được mã hóa URL). Lỗi cấu hình in `{"status":"ERROR","kind":"INVALID_CONFIG","invalid":[…]}` với **tên** biến sai (ví dụ `["DB_PORT"]`), không bao giờ in giá trị, đường dẫn hay URL. Luật TLS dùng validator hiện có: staging/production bắt buộc TLS và xác minh chứng chỉ; CA tùy chọn qua đường dẫn cấu hình. Query key `ssl*` và `uselibpqcompat` trong URL bị từ chối để không ghi đè CA/xác minh. ERROR chỉ có loại lỗi và SQLSTATE/network code được phép, không in URL, password, SQL hoặc stack.
 
 CLI mở transaction READ ONLY với connect timeout 5 giây, lock timeout 2 giây, statement timeout 60 giây, idle timeout 10 giây. Đây là full scan, không cắt IDs; bảng quá lớn hoặc DB không đáp ứng sẽ trả ERROR. Công cụ không kiểm lịch sử `balance_after`, không thay constraint lúc commit và không phải scheduler đối soát. Nó cần checkout cùng `test/`/devDependencies, không nằm trong image ứng dụng. Hướng dẫn và bằng chứng: [DBS-69](../docs/features/DBS-69-ledger-invariants.md).
+
+### 10. Token thử ở local
+
+Không cần Cognito. Ở máy dev, app xác minh token bằng một JWKS trong file do bạn tự sinh (ADR-06, DBS-53); mọi kiểm tra khác (`iss`, `client_id`, `token_use`, `exp`, vai trò) giữ nguyên như với token Cognito.
+
+```bash
+# từ backend/, lần đầu
+npm run auth:dev-keys        # tạo .auth-local/private.pem và .auth-local/jwks.json
+```
+
+1. Trong `env/.env.development` **chú thích mọi dòng `COGNITO_*`** (chế độ local cấm chúng, app sẽ không khởi động nếu còn) rồi thêm:
+
+   ```
+   AUTH_MODE=local
+   AUTH_LOCAL_JWKS_PATH=.auth-local/jwks.json
+   ```
+
+2. Chạy app: `npm run start:dev`. Log có một dòng cảnh báo `AUTH_MODE=local` là đúng.
+3. Lấy token, vai là một trong `customer`, `operator`, `auditor`, `admin`:
+
+   ```bash
+   npm run --silent auth:dev-token -- --role operator
+   ```
+
+4. Mở http://localhost:3000/docs, bấm **Authorize**, dán token (không gõ `Bearer`), rồi thử endpoint. Hoặc dùng curl:
+
+   ```bash
+   TOKEN=$(npm run --silent auth:dev-token -- --role admin)
+   curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/v1/identity/me
+   ```
+
+Token sống 15 phút. `sub` mặc định là `dev-<vai>`, ổn định giữa các lần chạy nên dùng chung một dòng `users`. Đặt `--sub nguyen-van-an` để tạo thêm một người dùng khác, hoặc `--iat` và `--exp` (giây epoch) để thử token cũ hay đã hết hạn.
+
+- **Đổi khóa:** `npm run auth:dev-keys -- --force` thay cả hai file. App đọc file một lần lúc khởi động, nên phải **khởi động lại** app (`nest start --watch` chỉ theo dõi `src/`); token cấp từ khóa cũ không còn dùng được.
+- **Không chạy ở nơi khác:** `AUTH_MODE=local` và `AUTH_LOCAL_JWKS_PATH` bị từ chối khi `NODE_ENV` là `staging` hoặc `production` (app không khởi động); hai lệnh trên cũng từ chối chạy khi `NODE_ENV` không phải `development`, `test` hay trống. Thư mục `.auth-local/` nằm trong `.gitignore` và `.dockerignore`, nên khóa không vào git hay image.
+- **Test e2e:** dùng `createDevTokenIssuer()` trong `test/support/dev-tokens.ts` (khóa trong bộ nhớ, không ghi đĩa) và `startLocalAuthApp()` trong `test/support/local-auth-app.ts`. Ví dụ: `test/dev-auth.e2e-spec.ts`.
+- **Quyền file:** `private.pem` được tạo với quyền 0600 nếu hệ điều hành hỗ trợ (trên Windows thì không có ý nghĩa); bảo vệ thật là thư mục bị gitignore và việc môi trường triển khai từ chối chế độ này.
 
 ## Docker
 

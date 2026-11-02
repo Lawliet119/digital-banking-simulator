@@ -360,3 +360,38 @@ describe('the keys stay out of git, the image and the production build (TC-53-32
     expect(scripts['auth:dev-token']).toMatch(/ts-node .*src\/scripts\/dev-auth\.token\.ts/);
   });
 });
+
+describe('the README tells a developer how to get a token for Swagger (TC-53-33)', () => {
+  const readme = readFileSync(resolve(__dirname, '../../README.md'), 'utf8');
+  // Only the section DBS-53 adds, so a mention elsewhere cannot satisfy the test.
+  const section = /### 10\. Token thử ở local[\s\S]*?(?=\n### |\n## |$)/.exec(readme)?.[0] ?? '';
+
+  it('has a section for it', () => {
+    expect(section).not.toBe('');
+  });
+
+  it.each([
+    'npm run auth:dev-keys',
+    'npm run --silent auth:dev-token',
+    '--role',
+    'AUTH_MODE=local',
+    'AUTH_LOCAL_JWKS_PATH',
+    'COGNITO_',
+    'Authorize',
+    '/docs',
+    'khởi động lại',
+  ])('mentions %s', needle => {
+    expect(section).toContain(needle);
+  });
+
+  it('names all four roles and warns that staging and production refuse it', () => {
+    for (const role of ROLES) expect(section).toContain(role);
+    expect(section).toMatch(/staging/);
+    expect(section).toMatch(/production/);
+  });
+
+  it('lists both commands in the command table', () => {
+    expect(readme).toMatch(/\|\s*`npm run auth:dev-keys`/);
+    expect(readme).toMatch(/\|\s*`npm run --silent auth:dev-token/);
+  });
+});
