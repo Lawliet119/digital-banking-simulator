@@ -123,6 +123,8 @@ jobs:
             test/db/migration-revert.db-spec.ts
       - name: Redis adapter latency, outage and recovery (DBS-76)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/redis-adapter.services-spec.ts
+      - name: Readiness with real PostgreSQL and Valkey failures (DBS-78)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/health-readiness.services-spec.ts
 
   db:
     name: db
