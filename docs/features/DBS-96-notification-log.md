@@ -45,9 +45,11 @@ Manual thực thi: tạo database tên dbs_manual_96_<hex> qua Compose psql; đ�
 3. Chạy baseline, DB tests, manual CLI/psql trên DB tạm; lưu transcript.
 4. Cập nhật database-design, notification README, feature index, backlog; kiểm link, commit/push/Draft PR.
 
+Kiểm hồi quy phát hiện suite DBS-27 gọi migrate toàn bộ và giả định migration cuối là append-only. Giới hạn ba lần migrate lên đúng prefix AddAppendOnlyTriggers1792627200002 để thêm migration tương lai không phá fixture. Không thay assertions hoặc migration cũ.
+
 ## 8. Kết quả
 
-Code cuối: `292d47e`. Test-first: 3 test đỏ vì bảng chưa tồn tại (42P01/catalog rỗng); sau triển khai 4/4 test trên PostgreSQL 17 Testcontainers xanh, không skip. `lint:check`, `typecheck`, `build` đạt; unit 769/770, một test Identity cooldown đỏ (BL-112 có sẵn); E2E 135/135 đạt. Full DB suite đang chạy.
+Migration code: `292d47e`. Test-first: 3 test đỏ vì bảng chưa tồn tại (42P01/catalog rỗng); sau triển khai 4/4 test trên PostgreSQL 17 Testcontainers xanh, không skip. `lint:check`, `typecheck`, `build` đạt; unit local 769/770, một test Identity cooldown đỏ (BL-112 có sẵn); E2E 135/135 đạt. [CI đầu 41430197926](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41430197926): 5/6 jobs đạt, gồm unit; DB đỏ ở TC-27-10/11 do fixture giả định migration cuối. Đã sửa fixture prefix, đang kiểm lại.
 
 Manual chạy trên commit `292d47e`: mọi bước trong script đạt, kể cả ghi hai loại thông báo với user NULL, SQLSTATE 23514/23502, revert giữ users và run lại khôi phục bảng. Database tạm đã xóa. [Transcript](screenshots/DBS-96/manual-test.txt), [ảnh trích từ output thật](screenshots/DBS-96/01-manual-output.png), [review độc lập](screenshots/DBS-96/domain-review.md).
 
