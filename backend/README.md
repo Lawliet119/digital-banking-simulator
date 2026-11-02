@@ -43,11 +43,15 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm test` | unit test (`src/**/*.spec.ts`) |
 | `npm run test:e2e` | e2e (`test/*.e2e-spec.ts`) |
 | `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Tự động khởi tạo PostgreSQL 17 qua Testcontainers (hoặc dùng `DATABASE_URL` có sẵn nếu đã xuất ra môi trường). Cần Docker Desktop bật; nếu Docker tắt thì test báo lỗi ngay, không treo |
+| `npm run test:services -- --runInBand` | sample Valkey 8 và ElasticMQ thật (`test/services/`): mỗi lần chạy tự tạo container/cổng động, thử SET/GET, SQS send/receive, pause/resume và stop/start rồi dọn container. Cần Docker; không lấy endpoint từ Compose |
+| `npm run check:invariants` | kiểm năm bất biến sổ cái trên `DATABASE_URL` (hoặc bộ `DB_*` như ECS): exit 0 sạch, 1 có vi phạm, 2 không nhận là sạch; mã thoát là thẩm quyền cuối cùng |
 | `npm run migration:run` · `migration:revert` · `migration:show` | migration trên DB local |
 | `npm run migration:generate -- src/database/migrations/<Tên>` | sinh migration từ thay đổi entity |
 | `npm run migration:create -- src/database/migrations/<Tên>` | tạo migration rỗng |
 
 Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db`. CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) giữ sáu job `lint`, `typecheck`, `unit`, `e2e`, `db`, `build`. Job `e2e` chạy thêm sample DBS-39 và migration run → revert → run qua Testcontainers với `DATABASE_URL` được gỡ bỏ; job `db` vẫn chạy toàn bộ DB suite trên PostgreSQL service. Lệnh này không revert database dùng chung: test tạo và xóa database `dbs_test_*` riêng. Cách đọc kết quả: [CONTRIBUTING mục 4b](../CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions).
+
+Helper DBS-40 ở `test/support/valkey.container.ts` và `elasticmq.container.ts` trả endpoint động và `pause()`, `resume()`, `stop()`. `pause()` làm dịch vụ không phản hồi để kiểm timeout/fallback; nó không mô phỏng được độ trễ hữu hạn tùy chỉnh. ElasticMQ quảng bá queue URL theo địa chỉ nội bộ trong config; helper lấy đường dẫn queue thật rồi ghép với endpoint Testcontainers. CI hiện chưa chạy `test:services`; DBS-41 phụ trách tích hợp suite này vào CI.
 
 ## Cấu trúc
 
@@ -124,12 +128,14 @@ Hệ thống sử dụng bảng sổ cái chỉ-thêm (`append-only ledger` như
 
 
 ### 6. Migration
-Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`). Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1, 2, outbox và audit). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser.
+Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`) là một task ECS chạy một lần trước khi deploy, không phải lúc app khởi động ([DBS-68](../docs/features/DBS-68-migration-step.md)); chạy tay trên cloud bằng `IMAGE_TAG=<sha-40-ky-tu> bash .github/scripts/migrate.sh` (xem `infra/terraform/README.md`, mục "Migration trước deploy"). Task đọc kết nối từ `DB_*` (DBS-67), nên chạy được cả khi `DATABASE_URL` không có. Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1, 2, outbox và audit). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser.
 
 
 **Schema outbox.**
 
-Migration `1792627200000-CreateOutboxEventsProcessedEvents` tạo outbox/processed và hai partial index. Down cần transaction READ COMMITTED; khóa bảng trước kiểm dữ liệu, không cho DROP nếu còn dòng. Test schema legacy dùng `migrateThrough` phiên bản thật; CLI regression vẫn chạy production tới latest và revert từng bước. Runtime writer/relay chưa có.
+Migration `1792627200000-CreateOutboxEventsProcessedEvents` tạo outbox/processed và hai partial index. Down cần transaction READ COMMITTED; khóa bảng trước kiểm dữ liệu, không cho DROP nếu còn dòng. Test schema legacy dùng `migrateThrough` phiên bản thật; CLI regression vẫn chạy production tới latest và revert từng bước.
+
+`OutboxModule`/`OutboxWriter` export qua `@modules/outbox`, dùng được ở API và worker. Producer import module rồi gọi `writer.add(manager, event)` trong `TransactionService.run`: chỉ một INSERT, kiểm common/events và snapshot JSON, không gửi queue hoặc tự mở transaction. Event phải có correlationId hợp lệ; context ALS nếu có phải nhất quán. Lỗi schema/serialization/unique làm transaction caller rollback khi để lỗi lan ra; writer không upsert/nuốt lỗi. Payload lưu toàn envelope; thời gian TransferCompleted do producer lấy từ `transfers.created_at` của DB rồi ISO Z. Relay/consumer chưa có. Chi tiết [module outbox](src/modules/outbox/README.md) và [DBS-57](../docs/features/DBS-57-outbox-writer.md).
 
 **Schema audit.**
 
@@ -206,6 +212,50 @@ HTTP completion chỉ ghi method, status và thời gian xử lý; không ghi UR
 
 Chi tiết và bằng chứng: [DBS-42](../docs/features/DBS-42-json-logger.md).
 
+### 9. Kiểm tra bất biến sổ cái
+
+Chạy sau money test hoặc load run, từ checkout có devDependencies và quyền SELECT ba bảng `public.accounts`, `public.transfers`, `public.ledger_entries`:
+
+```bash
+# từ backend/; DATABASE_URL hoặc bộ DB_* của ECS được cấp qua môi trường hoặc env/.env.<NODE_ENV>
+npm run --silent check:invariants
+npm run check:invariants -- --help
+```
+
+[Nguồn SQL](test/support/invariants.sql) và [hàm/CLI](test/support/invariants.ts) dùng chung một SELECT để năm phép kiểm nhìn cùng snapshot:
+
+1. Tổng DEBIT = tổng CREDIT.
+2. Mỗi `accounts.balance` = SUM(CREDIT) − SUM(DEBIT); không có entry thì kỳ vọng 0.
+3. SUM(balance) toàn hệ thống = 0, **gồm tài khoản SYSTEM funding**.
+4. Không tài khoản khách nào âm; funding được phép âm.
+5. Mỗi COMPLETED có đúng một DEBIT và một CREDIT, đúng amount và tài khoản nguồn/đích của transfer; bắt cả transfer chưa có entry.
+
+PASS/FAIL là JSON trên stdout, gồm `totals` và `violations` với `check`, `accountId`/`transferId`, `actual`, `expected`. Mọi số tiền, tổng và count là chuỗi chính xác, kể cả SUM vượt int64. Không parse aggregate bằng `Number`, `parseInt` hoặc parser `Money` giới hạn int64.
+
+| Exit | Ý nghĩa | Cách xử lý |
+|---|---|---|
+| 0 | PASS, đủ năm phép kiểm sạch | Có thể tiếp tục bước sau |
+| 1 | FAIL, có vi phạm | Giữ IDs/report, điều tra; công cụ không tự sửa dữ liệu |
+| 2 | Không nhận là sạch: ERROR trên stderr (cấu hình, kết nối, quyền, schema, I/O, timeout, hoặc dọn dẹp lỗi sau commit). Có thể kèm report PASS trên stdout | Mã thoát là **thẩm quyền cuối cùng**: exit 2 kèm PASS là "không nhận là sạch". Sửa môi trường rồi chạy lại |
+
+Dùng `--silent` khi cần parse JSON; npm không silent có thể thêm banner. `psql -f test/support/invariants.sql` chỉ trả report, không tự đổi FAIL thành exit khác 0; CI/load gate dùng CLI và giữ nguyên mã thoát.
+
+Ví dụ từ file test trong `test/db/`, với QueryRunner đã kết nối:
+
+```ts
+import { checkLedgerInvariants } from '../support/invariants';
+
+const report = await checkLedgerInvariants(db.runner);
+expect(report.status).toBe('PASS');
+expect(report.violations).toEqual([]);
+```
+
+Hàm không tạo kết nối, log, đổi timeout hoặc mở/commit/rollback transaction. Dùng cùng runner để kiểm dữ liệu của transaction caller; kết nối khác chỉ nhìn dữ liệu đã commit. Test cố ý làm lệch assert FAIL rồi rollback/drop DB tạm, không ép thành PASS bằng sửa/xóa sổ.
+
+CLI chỉ đọc `NODE_ENV`, `DATABASE_URL`, `DATABASE_SSL`, `DATABASE_SSL_CA_PATH` và bộ `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (như task ECS), không cần Redis/SQS/Cognito. `DATABASE_URL` không rỗng luôn thắng; không có thì CLI ghép URL từ `DB_*` bằng `composeDatabaseUrl` của ứng dụng (mật khẩu được mã hóa URL). Lỗi cấu hình in `{"status":"ERROR","kind":"INVALID_CONFIG","invalid":[…]}` với **tên** biến sai (ví dụ `["DB_PORT"]`), không bao giờ in giá trị, đường dẫn hay URL. Luật TLS dùng validator hiện có: staging/production bắt buộc TLS và xác minh chứng chỉ; CA tùy chọn qua đường dẫn cấu hình. Query key `ssl*` và `uselibpqcompat` trong URL bị từ chối để không ghi đè CA/xác minh. ERROR chỉ có loại lỗi và SQLSTATE/network code được phép, không in URL, password, SQL hoặc stack.
+
+CLI mở transaction READ ONLY với connect timeout 5 giây, lock timeout 2 giây, statement timeout 60 giây, idle timeout 10 giây. Đây là full scan, không cắt IDs; bảng quá lớn hoặc DB không đáp ứng sẽ trả ERROR. Công cụ không kiểm lịch sử `balance_after`, không thay constraint lúc commit và không phải scheduler đối soát. Nó cần checkout cùng `test/`/devDependencies, không nằm trong image ứng dụng. Hướng dẫn và bằng chứng: [DBS-69](../docs/features/DBS-69-ledger-invariants.md).
+
 ## Docker
 
 ```bash
@@ -215,7 +265,17 @@ docker run --rm -e APP_ROLE=worker --env-file backend/env/.env.development dbs-b
 ```
 
 ### Kết nối RDS qua TLS
-Staging và production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác minh chứng chỉ của server. Node không tin CA của Amazon RDS mặc định, nên cần tải bundle CA của AWS (`https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem`) vào image trong pipeline và đặt `DATABASE_SSL_CA_PATH` trỏ tới file đó. **Không** tắt xác minh chứng chỉ để "cho kết nối được": như vậy vẫn mã hóa nhưng chấp nhận mọi chứng chỉ, kể cả của kẻ tấn công. Bước tải bundle chưa được thử trên RDS thật — #5 kiểm khi dựng RDS ở tuần 2.
+Staging và production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác minh chứng chỉ của server (`rejectUnauthorized: true`). Node không tin CA của Amazon RDS mặc định, nên Dockerfile tải `global-bundle.pem` vào `/etc/ssl/rds/global-bundle.pem` (`ADD --checksum=sha256:…`, cần BuildKit) và task đặt `DATABASE_SSL_CA_PATH` trỏ tới file đó. **Không** tắt xác minh chứng chỉ để "cho kết nối được".
+
+**Ghép `DATABASE_URL` từ secret (DBS-67).** ECS `secrets` không nối chuỗi được, nên task truyền `DB_HOST`, `DB_PORT`, `DB_NAME` (biến thường) và `DB_USER`, `DB_PASSWORD` (từ secret master do RDS quản lý). `env.bootstrap` ghép thành `DATABASE_URL` (user và mật khẩu được mã hóa URL). `DATABASE_URL` đã có giá trị thì được giữ nguyên. Giá trị `DB_*` sai chỉ làm log nêu **tên** biến, không in giá trị. CLI typeorm cũng đi qua `env.bootstrap` nên dùng được cách này.
+
+**Làm mới hash khi AWS đổi bundle.** Build đỏ ở dòng `ADD --checksum` nghĩa là AWS đã cập nhật bundle. Tải bản mới, kiểm nguồn, tính `sha256sum global-bundle.pem`, thay hash trong `backend/Dockerfile` và chạy `jest test/support/dockerfile.spec.ts`.
+
+Bước `docker build` và kết nối RDS thật **chưa chạy** (BL-106).
+
+### Kết nối Redis (Valkey) trên AWS
+
+**Ghép `REDIS_URL` (DBS-75).** Giống `DATABASE_URL`: task truyền `REDIS_HOST`, `REDIS_PORT` (biến thường) và `REDIS_AUTH_TOKEN` (từ secret `dbs/dev/redis-auth`). `env.bootstrap` ghép thành `rediss://:<token đã mã hóa URL>@<host>:<port>`. `REDIS_URL` đã có giá trị (local, CI) thì được giữ nguyên; thiếu `REDIS_HOST` thì không ghép. Giá trị sai (host lạ, cổng ngoài 1–65535, token rỗng) chỉ làm log nêu **tên** biến, không in giá trị, và schema báo thiếu `REDIS_URL`. Staging và production bắt buộc `rediss://` (TLS). App chưa có client Redis (DBS-76).
 
 ### Hạ tầng phía trước app
 Staging và production bắt buộc `TRUST_PROXY_HOPS` (≥ 1; ALB = 1). Để 0 thì mọi khách chung địa chỉ IP của ALB và rate limit theo IP sẽ chặn nhầm tất cả.

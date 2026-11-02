@@ -1,6 +1,6 @@
 # outbox — Concept Brief
 
-> **Status:** Draft · **Owner:** #3 · **Cặp đôi:** #2 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
+> **Status:** Draft · **Owner:** #3 · **Cặp đôi:** #2 · **Verified against code:** schema outbox/processed và writer trong transaction; relay/consumer chưa có
 
 ## Component
 
@@ -8,7 +8,7 @@
 |---|---|
 | **Slug** | `outbox` |
 | **Loại** | Hạ tầng sự kiện · module backend |
-| **Chạy ở** | `worker` |
+| **Chạy ở** | Writer: `api` + `worker`; relay: `worker` (chưa có) |
 | **Use case / NFR** | — (hạ tầng cho UC-9, thông báo) |
 | **Sở hữu bảng** | `outbox_events`, `processed_events` (mọi module ghi sự kiện qua `OutboxWriter.add`) |
 | **Task trong roadmap** | Task 4 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |
@@ -20,6 +20,7 @@ Sự cố sau commit không được làm mất sự kiện, và ghi sự kiện
 ## Ý tưởng
 
 - Sự kiện ghi vào `outbox_events` cùng transaction với nghiệp vụ; relay lấy theo lô bằng `FOR UPDATE SKIP LOCKED` và gửi tới **mọi** queue quan tâm theo bảng định tuyến.
+- `OutboxWriter.add` kiểm event chung và snapshot JSON trước INSERT; schema sai làm transaction thất bại có chủ ý. Context correlation hiện có phải nhất quán với event. Writer không gửi queue; producer chịu trách nhiệm lấy `TransferCompleted.occurredAt` từ DB.
 - Mỗi consumer một queue SQS + một DLQ riêng, để lỗi của consumer này không chặn consumer kia.
 - Consumer idempotent bằng `processed_events(consumer, event_id)` ghi cùng transaction với tác động.
 - Gửi message **sau** commit; xóa message **sau** khi ghi DB xong.

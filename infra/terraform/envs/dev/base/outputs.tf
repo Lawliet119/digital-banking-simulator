@@ -53,3 +53,46 @@ output "api_log_group_arn" {
   description = "Không có hậu tố `:*`; policy của task phải thêm `:*` cho các action trên log stream."
   value       = aws_cloudwatch_log_group.api.arn
 }
+
+output "cognito_user_pool_id" {
+  value = aws_cognito_user_pool.main.id
+}
+
+output "cognito_client_id" {
+  value = aws_cognito_user_pool_client.app.id
+}
+
+output "cognito_issuer" {
+  description = "Giá trị COGNITO_ISSUER của app."
+  value       = "https://cognito-idp.${var.region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
+}
+
+output "kms_key_arn" {
+  description = "CMK dùng chung của dev (alias/dbs-dev)."
+  value       = aws_kms_key.main.arn
+}
+
+output "db_subnet_group_name" {
+  value = aws_db_subnet_group.main.name
+}
+
+output "db_security_group_id" {
+  value = aws_security_group.db.id
+}
+
+output "github_deploy_role_arn" {
+  description = "Đặt vào biến repo GitHub AWS_DEPLOY_ROLE_ARN (do chủ repo tạo)."
+  value       = aws_iam_role.github_deploy.arn
+}
+
+output "redis_subnet_group_name" {
+  value = aws_elasticache_subnet_group.main.name
+}
+
+output "redis_security_group_id" {
+  value = aws_security_group.redis.id
+}
+
+output "redis_auth_secret_arn" {
+  value = aws_secretsmanager_secret.redis_auth.arn
+}

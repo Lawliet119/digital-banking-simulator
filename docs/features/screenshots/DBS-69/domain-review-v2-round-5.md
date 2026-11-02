@@ -1,0 +1,10 @@
+| # | Severity | Section of the doc | Finding | Suggested fix |
+|---|---|---|---|---|
+| 1 | should-fix | R4 TC-69-20(e), README section 9 cut | The README cut ends at "the next heading", but section 9 has a bash block whose line 215 starts with `# từ backend/; …`. A cut ending at the next line starting with `#` stops at line 215; the exit table (line 234) falls outside the cut, so the absence check is vacuous and the presence check fails even after a correct fix. README: heading line 210, comment line 215, exit row 2 line 234, next real heading `## Docker` line 254. | Name the end marker literally (`### 9. Kiểm tra bất biến sổ cái` to the next `\n## Docker`) and assert the cut contains the `| Exit | Ý nghĩa` table. |
+| 2 | minor | R4 TC-69-20(e) and R3 Interface | (e) also requires the `check:invariants` row to state `DB_*`, but that row is in the `## Lệnh` table (README line 46), outside section 9. The commands table and `--help` are not checked for the new phrase and the old phrase "2 không hoàn tất kiểm tra" has no absence check. | Add a third slice: the single `check:invariants` row of `## Lệnh`; check `DB_*`, the new phrase and absence of the old phrase. For `--help`, name an exact English phrase. |
+| 3 | minor | R4 TC-69-20(e), `--help` | "Không còn '2 check error' đơn thuần" cannot be tested. | Use the exact current string `2 check error.` for absence plus a specific new string for presence. |
+| 4 | minor | R3 sequence diagram | The three outcomes match R-2b's content, but the numbers point the opposite way from R-2b's (1)–(3). | Renumber or label with "luật R-2b (n)". |
+
+Verified fine: TC-69-20(f) against `DataSource.js:402-407`, `PostgresDriver.js:267,288,1249-1255`, `PostgresQueryRunner.js:88-101`: only `runCli`'s runner gets the wrapper, `pool.end` still runs, exits 1 (dirty) and 2 (clean). `### 2.2 Hàm và CLI` and `### 2.3 Giới hạn vận hành` exist exactly; §2.2 contains "Không có report PASS/FAIL" and not "thẩm quyền cuối cùng"; README has the old exit-2 row verbatim and no new phrase yet.
+
+Verdict: REVISE

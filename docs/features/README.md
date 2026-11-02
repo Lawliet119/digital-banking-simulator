@@ -1,6 +1,6 @@
 # Tài liệu từng task (feature docs)
 
-> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-26
+> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-31
 
 Mỗi task implement trên board (tính năng, sửa lỗi, hạ tầng, test) có **một file** ở đây: `DBS-<n>-<slug>.md`. File được viết trước khi code và hoàn tất khi bàn giao, theo skill [`dbs-delivering-task`](../../.claude/skills/dbs-delivering-task/SKILL.md) và mẫu [`feature-doc.md`](../../.claude/skills/dbs-delivering-task/templates/feature-doc.md).
 
@@ -36,13 +36,25 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-27](DBS-27-append-only-triggers.md) | Trigger append-only ba bảng, test owner NOSUPERUSER và revert giữ dữ liệu | Dev | Implemented |
 | [DBS-35](DBS-35-ci-github-actions.md) | GitHub Actions CI: sáu job song song (lint, typecheck, unit, e2e, db, build) trên mỗi PR và push `main` | Dev | Implemented |
 | [DBS-39](DBS-39-testcontainers-postgres.md) | Testcontainers: helper Postgres 17 chạy migration cho test | Dev | Implemented |
-| [DBS-41](DBS-41-testcontainers-ci.md) | CI chạy Testcontainers PostgreSQL và migration run → revert → run trên DB tạm | Dev | Implemented (PR mở) |
+| [DBS-40](DBS-40-valkey-elasticmq-testcontainers.md) | Testcontainers: helper Valkey và ElasticMQ, sample thao tác và mô phỏng sự cố | Dev | Implemented (local) |
+| [DBS-41](DBS-41-testcontainers-ci.md) | CI chạy Testcontainers PostgreSQL và migration run → revert → run trên DB tạm | Dev | Implemented (PR đã merge) |
 | [DBS-25](DBS-25-migration-outbox-events.md) | Migration outbox_events và processed_events | Dev | Implemented |
 | [DBS-42](DBS-42-json-logger.md) | Logger JSON, redaction, log level và HTTP correlation | Dev | Implemented (PR #16, chờ Dev review và CI) |
 | [DBS-31](DBS-31-terraform-bootstrap-s3-backend.md) | Terraform bootstrap: S3 state có versioning, mã hóa và khóa state | #5 Platform & Ops | Implemented |
 | [DBS-33](DBS-33-terraform-vpc-ecr.md) | Terraform: VPC 2 AZ, gateway endpoint S3 và ECR `dbs-api` (stack `envs/dev/base`) | #5 Platform & Ops | Implemented |
 | [DBS-50](DBS-50-jwt-auth-guard-jwks.md) | Identity: JwtAuthGuard xác minh JWT bằng JWKS có cache, guard toàn cục mặc định | Dev | Implemented |
+| [DBS-55](DBS-55-accounts-service.md) | AccountsService: khóa theo id, đổi số dư trong caller transaction và ownership 404; vòng 2 (2026-10-31) bắt buộc đã khóa ở cấp ngoài cùng, lỗi có kiểu, `clock_timestamp()` | Dev | Implemented; G4 đã duyệt, [Draft PR #33](https://github.com/Lawliet119/digital-banking-simulator/pull/33); CI theo Checks, chờ Dev review/merge; TC 15/15 và manual 5/6 đạt, M-55-06 chờ ledger/audit; E2E local còn lỗi logging timeout |
+| [DBS-57](DBS-57-outbox-writer.md) | OutboxWriter: INSERT validated envelope trong transaction caller, correlation ALS nhất quán; vòng 2 (2026-10-31) từ chối chuỗi jsonb không lưu được, khóa hợp đồng context cho producer nền | Dev | Implemented; [Draft PR #34](https://github.com/Lawliet119/digital-banking-simulator/pull/34), chờ Dev review/merge; full DB đạt 12 suites trên máy này nhưng BL-125 chưa đóng |
+| [DBS-69](DBS-69-ledger-invariants.md) | SQL/hàm/CLI kiểm năm bất biến sổ cái, test PostgreSQL và demo owner làm lệch/phục hồi | Dev | Implemented; vòng 2 (2026-10-31): cờ `committed`, `DB_*` của ECS, `INVALID_CONFIG` kèm tên biến; [Draft PR #35](https://github.com/Lawliet119/digital-banking-simulator/pull/35) chờ Dev review |
 | [DBS-34](DBS-34-terraform-ecs-alb.md) | Terraform: ECS Fargate cluster, service api và ALB HTTPS (nhóm xóa hằng ngày) | #5 Platform & Ops | Implemented |
+| [DBS-54](DBS-54-terraform-cognito.md) | Terraform: Cognito user pool, 4 nhóm, app client và script seed tài khoản nhân viên demo | #5 Platform & Ops | Implemented |
+| [DBS-38](DBS-38-auto-deploy-ecs.md) | Deploy tự động: push main → image mới → ECS → /health/ready (role OIDC riêng, `deploy.sh`) | #5 Platform & Ops | Implemented |
+| [DBS-66](DBS-66-terraform-rds.md) | Terraform: RDS PostgreSQL 17 (dev), mã hóa bằng KMS, ép TLS, SG chỉ từ task api | #5 Platform & Ops | Implemented |
 | [DBS-36](DBS-36-ci-build-push-ecr-oidc.md) | CI: build image và đẩy ECR tag SHA bằng OIDC (role chỉ tin repo và nhánh main) | #5 Platform & Ops | Implemented |
 | [FRAUD-API-01](FRAUD-API-01-external-ai-decision.md) | Hồ sơ ADR-14 (Proposed): giữ R1–R6, thêm API AI bổ sung, không tự train; phương án Proposed tách khỏi tài liệu Accepted; chưa triển khai backend fraud | Fraud | Implemented (docs-only, Draft PR #20 chờ Dev review và CI) |
+| [DBS-67](DBS-67-rds-tls-secrets.md) | RDS: task api đọc secret master, ghép `DATABASE_URL`, kết nối TLS xác minh CA (bundle ghim hash trong image) | #5 Platform & Ops | Implemented |
+| [DBS-75](DBS-75-terraform-valkey.md) | Terraform: ElastiCache Valkey 8 (TLS bắt buộc, AUTH token write-only xoay bằng ROTATE), task api ghép `REDIS_URL` từ `REDIS_*` | #5 Platform & Ops | Implemented |
+| [DBS-68](DBS-68-migration-step.md) | Bước migration riêng trong pipeline: task ECS `dbs-migrate` chạy một lần trước `update-service` | #5 Platform & Ops | Implemented |
+| [DBS-52](DBS-52-users-upsert-first-token.md) | Identity: tạo dòng `users` bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên (`IdentityService.resolveUserId`, cache tiến trình) | Dev | Implemented |
+| [DBS-51](DBS-51-roles-guard-current-user.md) | Identity: `@Roles`, `RolesGuard` (`APP_GUARD` thứ hai) và `@CurrentUser`; vai trò chỉ từ `cognito:groups`, không nhóm là `customer`, sai vai trò 403 `FORBIDDEN` | Dev | Implemented |
 | [FRAUD-API-02](FRAUD-API-02-standalone-risk.md) | Adapter OpenAI Decisions và CLI độc lập; chưa nối fraud runtime | Fraud | Implemented — chờ Dev review và CI |

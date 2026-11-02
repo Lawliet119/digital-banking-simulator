@@ -5,8 +5,14 @@ import request from 'supertest';
 import { configureHttpApp } from '../src/app.setup';
 import { authConfig } from '../src/config/auth.config';
 import { ErrorCode } from '../src/common/errors/error-code.enum';
-import { IdentityModule } from '../src/modules/identity';
+import { IdentityModule, IdentityService } from '../src/modules/identity';
 import { startJwksFixture, type JwksFixture } from './support/jwks-fixture';
+
+// This spec has no database: it proves token verification over HTTP. The real upsert is proven on
+// PostgreSQL in test/db/identity-users*.db-spec.ts (DBS-52). overrideProvider is the only way to
+// replace IdentityService — a sibling provider cannot, because JwtAuthGuard resolves it from
+// inside IdentityModule.
+const FAKE_USER_ID = '0f6a3d52-8c1b-4e7a-b6d4-2c9e1a7f5b30';
 
 /**
  * Supplies a fake `authConfig.KEY` without ever calling the real factory (which would run
@@ -62,7 +68,10 @@ describe('GET /v1/identity/me (e2e)', () => {
         }),
         IdentityModule,
       ],
-    }).compile();
+    })
+      .overrideProvider(IdentityService)
+      .useValue({ resolveUserId: () => Promise.resolve(FAKE_USER_ID) })
+      .compile();
     const nest = moduleRef.createNestApplication<NestExpressApplication>();
     configureHttpApp(nest, { trustProxyHops: 0, corsOrigins: [], isProduction: false });
     await nest.init();
@@ -103,6 +112,7 @@ describe('GET /v1/identity/me (e2e)', () => {
 
     expect(res.body).toMatchObject({
       sub: 'user-123',
+      userId: FAKE_USER_ID,
       groups: ['operator'],
       tokenUse: 'access',
     });

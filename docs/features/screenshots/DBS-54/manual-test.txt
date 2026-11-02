@@ -1,0 +1,71 @@
+d6ef68dd0d3ad843d0d853a9178d2cda5b31995c
+## M-54-00 plan
+  # aws_cognito_user_group.groups["admin"] will be created
+  # aws_cognito_user_group.groups["auditor"] will be created
+  # aws_cognito_user_group.groups["customer"] will be created
+  # aws_cognito_user_group.groups["operator"] will be created
+  # aws_cognito_user_pool.main will be created
+  # aws_cognito_user_pool_client.app will be created
+Plan: 6 to add, 0 to change, 0 to destroy.
+## M-54-01 apply and describe
+Apply complete! Resources: 6 added, 0 changed, 0 destroyed.
+issuer: https://cognito-idp.ap-southeast-1.amazonaws.com/<pool-id>
+dbs	OFF	ESSENTIALS	INACTIVE	False	False	12
+[true, ["ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_PASSWORD_AUTH", "ALLOW_USER_SRP_AUTH"], 15, 15, 1, "ENABLED", true]
+admin	operator	customer	auditor
+## M-54-02 dry-run
+[dry-run] pool: <pool-id>, secret: dbs/dev/demo-accounts, rotate: 0
+[dry-run] 1. đọc secret; thiếu thì sinh mật khẩu và ghi secret TRƯỚC (create-secret có tag project/env/owner)
+[dry-run] 2. operator.demo@dbs.invalid: tạo user (--message-action SUPPRESS) nếu chưa có, đặt mật khẩu từ secret (--permanent), nhóm = operator, email_verified = true
+[dry-run] 2. auditor.demo@dbs.invalid: tạo user (--message-action SUPPRESS) nếu chưa có, đặt mật khẩu từ secret (--permanent), nhóm = auditor, email_verified = true
+[dry-run] 2. admin.demo@dbs.invalid: tạo user (--message-action SUPPRESS) nếu chưa có, đặt mật khẩu từ secret (--permanent), nhóm = admin, email_verified = true
+[dry-run] không gọi AWS, không in mật khẩu
+## M-54-03 seed
+OK: operator (operator.demo@dbs.invalid)
+OK: auditor (auditor.demo@dbs.invalid)
+OK: admin (admin.demo@dbs.invalid)
+Xong. Mật khẩu ở Secrets Manager: dbs/dev/demo-accounts
+39ea051c-f0b1-7041-0e3d-700f22d10e5c CONFIRMED
+69dae5ac-3031-7046-0ce5-387e1123511c CONFIRMED
+791a454c-60f1-70f6-89a4-724176b1c920 CONFIRMED
+operator groups: operator
+auditor groups: auditor
+admin groups: admin
+["dbs/dev/demo-accounts", [{"Key": "owner", "Value": "platform"}, {"Key": "env", "Value": "dev"}, {"Key": "project", "Value": "dbs"}]]
+## M-54-04/05 login per role
+operator: token_use=access client_ok=True groups=['operator'] iss_ok=True ttl=900
+## M-54-07 signature: RS256 verified against public JWKS
+auditor: token_use=access client_ok=True groups=['auditor'] iss_ok=True ttl=900
+admin: token_use=access client_ok=True groups=['admin'] iss_ok=True ttl=900
+operator email upper-case login: OK
+## M-54-06 rejections
+wrong password: NotAuthorizedException
+unknown email: NotAuthorizedException
+ADMIN_USER_PASSWORD_AUTH: InvalidParameterException (flow not enabled)
+## M-54-10 sign-up weak password: InvalidPasswordException
+## M-54-08 second seed run
+exit: 0 | secret unchanged: True
+operator still logs in with same password: OK
+users in pool: 3
+## M-54-09 rotate
+rotate exit: 0
+secret changed: True | pending_signout cleared: True
+AWSPREVIOUS holds old password: True
+old password login: NotAuthorizedException
+old refresh token: NotAuthorizedException
+new password login: OK
+## M-54-11 plan with deletion protection ACTIVE (plan only)
+      ~ deletion_protection        = "INACTIVE" -> "ACTIVE"
+Plan: 0 to add, 1 to change, 0 to destroy.
+## baseline
+FMT_OK
+Success! The configuration is valid.
+Success! 9 passed, 0 failed.
+Success! The configuration is valid.
+Success! 24 passed, 0 failed.
+Success! The configuration is valid.
+Success! 9 passed, 0 failed.
+Ran 12 tests in 4.112s
+
+OK
+OK

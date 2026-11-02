@@ -9,6 +9,11 @@
 credentials
 credentials.json
 .aws/
+# Chứng chỉ thử của pg-ssl.tls.spec.ts (DBS-67), không phải secret: xem README trong thư mục và CONTRIBUTING §6
+!backend/test/support/tls-fixtures/ca.pem
+!backend/test/support/tls-fixtures/other-ca.pem
+!backend/test/support/tls-fixtures/server.pem
+!backend/test/support/tls-fixtures/server.key
 
 # ---------- Node / NestJS ----------
 node_modules/

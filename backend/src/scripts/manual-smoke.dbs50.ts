@@ -1,8 +1,13 @@
 /**
  * Manual smoke script for DBS-50 (JwtAuthGuard + JwksVerifierService). Boots a real Nest HTTP
  * app with ONLY IdentityModule, backed by an in-memory JWKS server (no Cognito, no Docker, no
- * Postgres needed — the guard touches none of them), and prints the response of each step in
+ * Postgres needed), and prints the response of each step in
  * `docs/features/DBS-50-jwt-auth-guard-jwks.md` §5.
+ *
+ * DBS-52: the guard now resolves `users.id` through IdentityService, which needs a
+ * TransactionService. This script keeps its "no Postgres" property by supplying a fake one that
+ * answers every query with a fixed id. NestFactory.create has no overrideProvider, hence a
+ * @Global() module instead. The real upsert is exercised by manual-smoke.dbs52.ts.
  *
  * Run (from `backend/`): npx ts-node -r tsconfig-paths/register src/scripts/manual-smoke.dbs50.ts
  * domain-review vòng 2 #2: kept in the repo (not deleted after running) so the manual test in §5
@@ -16,6 +21,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { configureHttpApp, setupSwagger } from '../app.setup';
 import { authConfig } from '../config/auth.config';
+import { TransactionService } from '../database/transaction.service';
 import { IdentityModule } from '../modules/identity';
 
 const ISSUER = 'https://issuer.manual-smoke.test';
@@ -61,6 +67,23 @@ class ManualSmokeAuthConfigModule {
   }
 }
 
+/** A TransactionService that never reaches a database: every query answers one fixed user id. */
+@Global()
+@Module({})
+class ManualSmokeFakeTransactionModule {
+  static forRoot(): DynamicModule {
+    const fake = {
+      run: <T>(fn: (manager: { query: () => Promise<{ id: string }[]> }) => Promise<T>) =>
+        fn({ query: () => Promise.resolve([{ id: '0f6a3d52-8c1b-4e7a-b6d4-2c9e1a7f5b30' }]) }),
+    };
+    return {
+      module: ManualSmokeFakeTransactionModule,
+      providers: [{ provide: TransactionService, useValue: fake }],
+      exports: [TransactionService],
+    };
+  }
+}
+
 async function getJsonBody(res: Response): Promise<unknown> {
   return res.json();
 }
@@ -84,6 +107,7 @@ async function main(): Promise<void> {
         },
         accessTokenTtlSeconds: 900,
       }),
+      ManualSmokeFakeTransactionModule.forRoot(),
       IdentityModule,
     ],
   };

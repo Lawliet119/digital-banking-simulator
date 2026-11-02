@@ -1,0 +1,342 @@
+SHA code: c444a844909590be9fb2009c999b1b0b87463147 (lần 2, sau khi đổi auth_token_update_strategy sang ROTATE; chạy từ worktree tích hợp DBS-68 + DBS-75 + DBS-73 có cherry-pick c444a84; image_tag 80f8a54…, desired_count 0)
+########## LẦN 2 (2026-10-29 16:42–17:06 UTC) ##########
+Thu Oct 29 05:06:47 PM UTC 2026
+SHA nhánh: c444a844909590be9fb2009c999b1b0b87463147
+== M-75-01 (lần 2)
+rediss: valkey.example.internal 6379 64
+== M-75-02 (lần 2)
+REDIS_* variables are incomplete or malformed, REDIS_URL not composed: REDIS_PORT
+REDIS_URL= undefined
+== M-75-03/04 (lần 2) plan base: tài nguyên Redis đã có, không đổi
+No changes. Your infrastructure matches the configuration.
+arn:aws:kms:ap-southeast-1:<account>:key/1f4498c5-e8e6-43e7-9180-ccafca9a50be
+== M-75-05 (lần 2) apply session
+  # aws_acm_certificate.dev will be created
+  # aws_db_instance.main will be created
+  # aws_db_parameter_group.postgres17 will be created
+  # aws_ecs_cluster.main will be created
+  # aws_ecs_service.api will be created
+  # aws_ecs_task_definition.api will be created
+  # aws_ecs_task_definition.migrate will be created
+  # aws_elasticache_replication_group.main will be created
+      + auth_token_update_strategy     = "ROTATE"
+  # aws_iam_role.execution will be created
+  # aws_iam_role.task will be created
+  # aws_iam_role_policy.execution will be created
+  # aws_iam_role_policy.read_db_master_secret will be created
+  # aws_iam_role_policy.read_redis_auth_secret will be created
+  # aws_lb.main will be created
+  # aws_lb_listener.http will be created
+  # aws_lb_listener.https will be created
+  # aws_lb_target_group.api will be created
+  # aws_secretsmanager_secret_version.redis_auth will be created
+  # tls_private_key.dev will be created
+  # tls_self_signed_cert.dev will be created
+Plan: 20 to add, 0 to change, 0 to destroy.
+start: 2026-10-29T16:42:13Z
+aws_elasticache_replication_group.main: Creation complete after 6m39s [id=dbs-dev]
+aws_db_instance.main: Creation complete after 8m54s [id=db-EDBPY6N2N6DSTKRMR6KGI2UPIY]
+Apply complete! Resources: 20 added, 0 changed, 0 destroyed.
+apply exit=0
+end: 2026-10-29T16:51:17Z
+Thu Oct 29 04:51:48 PM UTC 2026
+== M-75-05 (lần 2) describe-replication-groups
+{
+    "Status": "available",
+    "ClusterEnabled": false,
+    "CacheNodeType": "cache.t4g.micro",
+    "Members": 1,
+    "TransitEncryptionMode": "required",
+    "AtRestEncryptionEnabled": true,
+    "KmsKeyId": "arn:aws:kms:ap-southeast-1:<account>:key/1f4498c5-e8e6-43e7-9180-ccafca9a50be",
+    "AuthTokenEnabled": true,
+    "SnapshotRetentionLimit": 0,
+    "Engine": "valkey"
+}
+độ dài token: 64
+base: 0
+session: 0
+-- versions
+[
+    [
+        "AWSPREVIOUS"
+    ],
+    [
+        "AWSCURRENT"
+    ]
+]
+== M-75-06 (lần 2)
+{
+    "revision": 4,
+    "env": [
+        {
+            "name": "REDIS_HOST",
+            "value": "master.dbs-dev.k1c05p.apse1.cache.amazonaws.com"
+        },
+        {
+            "name": "REDIS_PORT",
+            "value": "6379"
+        }
+    ],
+    "secrets": [
+        "DB_USER",
+        "DB_PASSWORD",
+        "REDIS_AUTH_TOKEN"
+    ]
+}
+endpoint thật: master.dbs-dev.k1c05p.apse1.cache.amazonaws.com; token dạng chữ trong task def: 0
+== tạo role tạm dbs-probe-exec
+arn:aws:iam::<account>:role/dbs-probe-exec
+put-role-policy exit=0
+{
+    "family": "dbs-probe-redis",
+    "revision": 3
+}
+== SG tạm dbs-probe-deny
+sg: sg-0cf8177eea2e61eea
+True
+True
+Thu Oct 29 04:52:48 PM UTC 2026
+== M-75-07 (lần 2) SG api
+task: f151368976e34414961ec6b356659f33
+wait exit=0
+{
+    "stoppedReason": "Essential container in task exited",
+    "exitCode": 0
+}
+start
+ok-tls: PONG
+Terminated
+notls:
+badpass: AUTH failed: WRONGPASS invalid username-password pair or user is disabled. NOAUTH Authentication required.
+nopass: NOAUTH Authentication required.
+== M-75-08 (lần 2) SG dbs-probe-deny
+task: 58b477cc01c2440ba4e34d00cf329d13
+wait exit=0
+{
+    "stoppedReason": "Essential container in task exited",
+    "exitCode": 0
+}
+start
+Terminated
+exit=143
+== M-75-11 (lần 2) plan -target
+  # aws_elasticache_replication_group.main will be updated in-place
+      ~ auth_token_wo_version      = 1 -> 2
+  # aws_secretsmanager_secret_version.redis_auth must be replaced
+      ~ secret_string_wo_version = 1 -> 2 # forces replacement
+Plan: 1 to add, 1 to change, 1 to destroy.
+start: 16:55:28
+ephemeral.random_password.redis_auth: Opening complete after 0s
+aws_secretsmanager_secret_version.redis_auth: Destruction complete after 1s
+aws_elasticache_replication_group.main: Modifications complete after 32s [id=dbs-dev]
+aws_secretsmanager_secret_version.redis_auth: Creation complete after 0s [id=arn:aws:secretsmanager:ap-southeast-1:<account>:secret:dbs/dev/redis-auth-xmVRSk|terraform-nKhhuO24VLPxqouf6mKyj0d5uM]
+ephemeral.random_password.redis_auth: Closing complete after 0s
+Warning: Applied changes may be incomplete
+Apply complete! Resources: 1 added, 1 changed, 1 destroyed.
+== M-75-11 sau xoay
+{
+    "Status": "available",
+    "AuthTokenLastModifiedDate": "2026-10-29T16:55:57.207000+00:00",
+    "Pending": {}
+}
+-- versions
+[
+    {
+        "stages": null,
+        "created": "2026-10-29T22:54:53.862000+07:00"
+    },
+    {
+        "stages": [
+            "AWSPREVIOUS"
+        ],
+        "created": "2026-10-29T23:48:57.650000+07:00"
+    },
+    {
+        "stages": [
+            "AWSCURRENT"
+        ],
+        "created": "2026-10-29T23:56:06.903000+07:00"
+    }
+]
+-- plan sau xoay (-target Redis, redis_auth_version=2)
+No changes. Your infrastructure matches the configuration.
+-- đăng ký probe có token AWSPREVIOUS
+{
+    "family": "dbs-probe-redis",
+    "revision": 4,
+    "secrets": [
+        "REDIS_AUTH_TOKEN",
+        "REDIS_AUTH_TOKEN_OLD"
+    ]
+}
+-- probe (task mới đọc secret lúc khởi động)
+task: 3dc2294877144fed8df94448891f04f8
+wait exit=0
+{
+    "stoppedReason": "Essential container in task exited",
+    "exitCode": 0
+}
+start
+new-token: PONG
+old-token: PONG
+same: no
+badpass: AUTH failed: WRONGPASS invalid username-password pair or user is disabled. NOAUTH Authentication required.
+== M-75-09 dọn probe
+delete-role-policy exit=0
+delete-role exit=0
+INACTIVE
+INACTIVE
+DELETE_IN_PROGRESS	DELETE_IN_PROGRESS
+{
+    "Return": true,
+    "GroupId": "sg-0cf8177eea2e61eea"
+}
+sg deleted
+-- kiểm
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-probe-exec cannot be found.
+ACTIVE task defs: 0
+SG dbs-probe-deny: 0
+== M-75-10 (lần 2) kiểm tài nguyên còn sót
+start: 2026-10-29T16:59:07Z
+Destroy complete! Resources: 20 destroyed.
+destroy exit=0
+end: 2026-10-29T17:05:58Z
+replication groups: 0
+elasticache snapshots: 0
+rds instances: 0
+rds snapshots dbs-dev: rds:dbs-dev-2026-10-29-16-48	automated
+load balancers: 0
+ecs clusters: 0
+eip: 0
+eni trong VPC: 0
+secret rds!db: 0
+redis-auth versions: AWSPREVIOUS AWSCURRENT 
+task def ACTIVE dbs-probe-redis: 0, INACTIVE: 0
+role dbs-dev-api-task: aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operatio
+
+== kiểm lại snapshot RDS ≈ 17:10 UTC: 0
+########## LẦN 1 (strategy SET, M-75-11 không đạt) ##########
+########## LẦN 2 (2026-10-29 16:42–17:06 UTC) ##########
+Thu Oct 29 05:06:47 PM UTC 2026
+SHA nhánh: c444a844909590be9fb2009c999b1b0b87463147
+== M-75-01 (lần 2)
+rediss: valkey.example.internal 6379 64
+== M-75-02 (lần 2)
+REDIS_* variables are incomplete or malformed, REDIS_URL not composed: REDIS_PORT
+REDIS_URL= undefined
+== M-75-03/04 (lần 2) plan base: tài nguyên Redis đã có, không đổi
+No changes. Your infrastructure matches the configuration.
+arn:aws:kms:ap-southeast-1:<account>:key/1f4498c5-e8e6-43e7-9180-ccafca9a50be
+== M-75-05 (lần 2) apply session
+  # aws_acm_certificate.dev will be created
+  # aws_db_instance.main will be created
+  # aws_db_parameter_group.postgres17 will be created
+  # aws_ecs_cluster.main will be created
+  # aws_ecs_service.api will be created
+  # aws_ecs_task_definition.api will be created
+  # aws_ecs_task_definition.migrate will be created
+  # aws_elasticache_replication_group.main will be created
+      + auth_token_update_strategy     = "ROTATE"
+  # aws_iam_role.execution will be created
+  # aws_iam_role.task will be created
+  # aws_iam_role_policy.execution will be created
+  # aws_iam_role_policy.read_db_master_secret will be created
+  # aws_iam_role_policy.read_redis_auth_secret will be created
+  # aws_lb.main will be created
+  # aws_lb_listener.http will be created
+  # aws_lb_listener.https will be created
+  # aws_lb_target_group.api will be created
+  # aws_secretsmanager_secret_version.redis_auth will be created
+  # tls_private_key.dev will be created
+  # tls_self_signed_cert.dev will be created
+Plan: 20 to add, 0 to change, 0 to destroy.
+start: 2026-10-29T16:42:13Z
+aws_elasticache_replication_group.main: Creation complete after 6m39s [id=dbs-dev]
+aws_db_instance.main: Creation complete after 8m54s [id=db-EDBPY6N2N6DSTKRMR6KGI2UPIY]
+Apply complete! Resources: 20 added, 0 changed, 0 destroyed.
+apply exit=0
+end: 2026-10-29T16:51:17Z
+Thu Oct 29 04:51:48 PM UTC 2026
+== M-75-05 (lần 2) describe-replication-groups
+{
+    "Status": "available",
+    "ClusterEnabled": false,
+    "CacheNodeType": "cache.t4g.micro",
+    "Members": 1,
+    "TransitEncryptionMode": "required",
+    "AtRestEncryptionEnabled": true,
+    "KmsKeyId": "arn:aws:kms:ap-southeast-1:<account>:key/1f4498c5-e8e6-43e7-9180-ccafca9a50be",
+    "AuthTokenEnabled": true,
+    "SnapshotRetentionLimit": 0,
+    "Engine": "valkey"
+}
+độ dài token: 64
+base: 0
+session: 0
+-- versions
+[
+    [
+        "AWSPREVIOUS"
+    ],
+    [
+        "AWSCURRENT"
+    ]
+]
+== M-75-06 (lần 2)
+{
+    "revision": 4,
+    "env": [
+        {
+            "name": "REDIS_HOST",
+            "value": "master.dbs-dev.k1c05p.apse1.cache.amazonaws.com"
+        },
+        {
+            "name": "REDIS_PORT",
+            "value": "6379"
+        }
+    ],
+    "secrets": [
+        "DB_USER",
+        "DB_PASSWORD",
+        "REDIS_AUTH_TOKEN"
+    ]
+}
+endpoint thật: master.dbs-dev.k1c05p.apse1.cache.amazonaws.com; token dạng chữ trong task def: 0
+== tạo role tạm dbs-probe-exec
+arn:aws:iam::<account>:role/dbs-probe-exec
+put-role-policy exit=0
+{
+    "family": "dbs-probe-redis",
+    "revision": 3
+}
+== SG tạm dbs-probe-deny
+sg: sg-0cf8177eea2e61eea
+True
+True
+Thu Oct 29 04:52:48 PM UTC 2026
+== M-75-07 (lần 2) SG api
+task: f151368976e34414961ec6b356659f33
+wait exit=0
+{
+    "stoppedReason": "Essential container in task exited",
+    "exitCode": 0
+}
+start
+ok-tls: PONG
+Terminated
+notls:
+badpass: AUTH failed: WRONGPASS invalid username-password pair or user is disabled. NOAUTH Authentication required.
+nopass: NOAUTH Authentication required.
+== M-75-08 (lần 2) SG dbs-probe-deny
+task: 58b477cc01c2440ba4e34d00cf329d13
+wait exit=0
+{
+    "stoppedReason": "Essential container in task exited",
+    "exitCode": 0
+}
+start
+Terminated
+exit=143
+== M-75-11 (lần 2) plan -target
+  # aws_elasticache_replication_group.main will be updat

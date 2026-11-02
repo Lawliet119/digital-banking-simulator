@@ -213,4 +213,4 @@ Manual M-AI-01–04 chạy trên commit code `c5473a9`: [raw output](screenshots
 - `backend/src/modules/risk/README.md`: ranh giới adapter AI độc lập, không nhận đã tích hợp.
 - `backend/src/scripts/README.md`: CLI, opt-in live và xử lý credential.
 - `docs/features/README.md`: index task AI-only.
-- Feature doc này, ba review thiết kế, raw output và ảnh manual; thêm BL-053 cho việc tích hợp, các BL-042/043/044/050 vẫn mở.
+- Feature doc này, ba review thiết kế, raw output và ảnh manual; thêm BL-135 cho việc tích hợp (đổi từ BL-053 vì ID đó đã dùng cho DBS-40/41 trên `main`), các BL-042/043/044/050 vẫn mở.

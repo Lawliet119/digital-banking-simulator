@@ -1,6 +1,6 @@
 # identity — Concept Brief
 
-> **Status:** Draft · **Owner:** #2 · **Cặp đôi:** #3 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
+> **Status:** Draft · **Owner:** #2 · **Cặp đôi:** #3 · **Verified against code:** một phần (JWT/JWKS ở DBS-50, upsert `users` ở DBS-52; chưa có phân quyền, thu hồi phiên, rate limit) · **Cập nhật:** 2026-11-01
 
 ## Component
 

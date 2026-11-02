@@ -1,0 +1,29 @@
+abf6659b11f39aa1e6c1735eb6ab8c20702f664e
+Git Bash; M-57-01..06 use a PostgreSQL 17 container on 127.0.0.1:55432 via DBS57_BASE_DATABASE_URL (native PostgreSQL 18 owns 5432); M-57-07 runs with neither DBS57_BASE_DATABASE_URL nor DATABASE_URL and starts its own container; no credentials printed.
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts commit
+{"mode":"commit","role":"both","pass":true,"eventId":"f57a8b93-b6f3-48fa-9014-ce8c2299a22e","correlationId":"c0a8f3d2-5b61-4e0a-9f27-7d1b3a6c8e55","outboxRows":1,"amount":"9007199254740993","cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts rollback
+{"mode":"rollback","role":"both","pass":true,"eventId":"d92c2fdf-8ffb-41ba-bd47-7be1388f9fab","userRows":0,"outboxRows":0,"cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts invalid
+{"mode":"invalid","role":"both","pass":true,"refused":["missing-correlation","numeric-money","cycle","nul-in-value","lone-surrogate-in-key"],"userRows":0,"outboxRows":0,"cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts duplicate
+{"mode":"duplicate","role":"both","pass":true,"eventId":"d18b8833-4916-43bb-8596-0730457eb862","duplicate":"23505","constraint":"outbox_events_event_id_key","originalRows":1,"recoveredRows":1,"cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts context
+{"mode":"context","role":"both","pass":true,"httpRows":10,"distinctCorrelationIds":["13843246-bc67-45ee-89d4-a368e852a128","b0378d3f-97dd-4f74-a38b-f54433f16b07","a8278b13-0693-4f43-8b73-cfd93e070896","d15190b5-69fe-4c95-90fd-d0c7d7a86361","43284430-99eb-4e57-a7e0-d0ecf69e38de","890d39f5-c753-486f-a9ab-aa13d31b0798","4f5d534c-5acc-4bce-88db-244edc2c493d","11a13c7e-87ca-4c6d-acf3-df615ae8a655","b5dce017-00cf-4464-85fc-ffbc599148e1","96f4a12b-b2ea-4a2a-a572-85281fac3171"],"mismatch":"NOT_ALLOWED","malformed":"INVALID_FORMAT","outsideContextRows":1,"backgroundInherited":"NOT_ALLOWED","backgroundDetachedRows":1,"cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts transaction
+{"mode":"transaction","role":"both","pass":true,"refusedManagers":4,"outboxRows":0,"cleanup":{"databaseDropped":true,"ownContainerStopped":false,"cwdRestored":true}}
+EXIT: 0
+COMMAND: env -u DBS57_BASE_DATABASE_URL -u DATABASE_URL node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts commit --role=api
+{"mode":"commit","role":"api","pass":true,"eventId":"4954cc45-e5f8-4eee-a6c0-007b995ba1cb","correlationId":"c0a8f3d2-5b61-4e0a-9f27-7d1b3a6c8e55","outboxRows":1,"amount":"9007199254740993","cleanup":{"databaseDropped":true,"ownContainerStopped":true,"cwdRestored":true}}
+EXIT: 0
+COMMAND: env -u DBS57_BASE_DATABASE_URL -u DATABASE_URL node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts commit --role=worker
+{"mode":"commit","role":"worker","pass":true,"eventId":"21e87ee7-ac58-4841-979d-174f880dbe67","correlationId":"c0a8f3d2-5b61-4e0a-9f27-7d1b3a6c8e55","outboxRows":1,"amount":"9007199254740993","cleanup":{"databaseDropped":true,"ownContainerStopped":true,"cwdRestored":true}}
+EXIT: 0
+COMMAND: env -u DBS57_BASE_DATABASE_URL -u DATABASE_URL node -r ts-node/register -r tsconfig-paths/register test/manual/outbox-writer.manual.ts commit --role=both
+{"mode":"commit","role":"both","pass":true,"eventId":"2c9b638c-0160-4137-89cb-54def70fba97","correlationId":"c0a8f3d2-5b61-4e0a-9f27-7d1b3a6c8e55","outboxRows":1,"amount":"9007199254740993","cleanup":{"databaseDropped":true,"ownContainerStopped":true,"cwdRestored":true}}
+EXIT: 0

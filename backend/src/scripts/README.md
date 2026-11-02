@@ -12,3 +12,5 @@ Chạy: `npx ts-node -r tsconfig-paths/register src/scripts/<tên>.ts` (từ th�
 Đọc một JSON feature từ stdin. Mặc định không gọi mạng và trả `DISABLED`; `--live` yêu cầu `OPENAI_API_KEY` mới được cấp qua môi trường, không truyền key trong tham số hoặc log. Input, rubric, status, timeout và lệnh thử được mô tả tại [FRAUD-API-02](../../../docs/features/FRAUD-API-02-standalone-risk.md). Chỉ dùng dữ liệu tổng hợp khi chưa có phê duyệt gửi dữ liệu thật; không coi kết quả là bằng chứng phát hiện gian lận hay API tích hợp.
 
 Migration database **không** nằm ở đây mà ở `src/database/migrations/` (xem `backend/README.md`).
+
+Công cụ kiểm sổ cái đã có ở [test/support/invariants.ts](../../test/support/invariants.ts), nguồn SQL ở [invariants.sql](../../test/support/invariants.sql). Từ `backend/`, chạy `npm run --silent check:invariants`; CI/load runner giữ mã thoát 0/1/2. Cách dùng hàm, quyền DB, TLS và giới hạn: [backend README](../../README.md#9-kiểm-tra-bất-biến-sổ-cái). Công cụ chỉ đọc; seed qua API vẫn là quy tắc cho dữ liệu demo.

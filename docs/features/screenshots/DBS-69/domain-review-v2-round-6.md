@@ -1,0 +1,8 @@
+| # | Severity | Section of the doc | Finding | Suggested fix |
+|---|---|---|---|---|
+| 1 | should-fix | R4, TC-69-20(e), slice (i) | The start marker `### 2.2` and end marker `### 2.3` each appear 3 times in the feature doc, not once. The real headings are at lines 105 and 133; the other two copies of each are inside the TC-69-20(e) text itself. A slice taken with `indexOf` works because the real headings come first; `lastIndexOf`, `split` or a "marker is unique" assertion would land in R4 or fail, and that R4 text contains the new phrase and quotes the old string. | Use the full heading lines as markers (`\n### 2.2 Hàm và CLI\n`, `\n### 2.3 Giới hạn vận hành`), which each appear once; or say explicitly: first occurrence, end marker searched after the start. |
+| 2 | minor | R4, TC-69-20(e) | The same paragraph still has an older sentence saying the test cuts the README "giữa tiêu đề mục 9 … và tiêu đề kế tiếp", and a few clauses later says not to search for "tiêu đề kế tiếp" and to use `\n## Docker`. The two rules contradict each other. | Delete or rewrite the first sentence so it points only to the four slices (i)-(iv). |
+
+Checked against the real files, no problems: README markers (`### 9. Kiểm tra bất biến sổ cái` line 210, `\n## Docker` line 254, `| Exit | Ý nghĩa` line 230) each appear exactly once; exactly one line starts with the `check:invariants` row prefix (line 46); all four old strings exist verbatim today (feature doc line 125, README lines 234 and 46, `invariants.ts` line 95); the new strings are absent today so presence checks are red before the fix; R3 diagram labels match R-2b rules (1)-(3).
+
+Verdict: REVISE
