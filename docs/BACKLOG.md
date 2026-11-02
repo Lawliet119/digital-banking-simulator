@@ -1,5 +1,11 @@
 # Backlog: việc còn tồn sau các task
 
+| ID | Việc còn tồn | Nguồn | Chủ trì | Điều kiện đóng |
+|---|---|---|---|---|
+| BL-139 | DBS-77 chưa có Dev khác review và merge main; xem checks của Draft PR để xác nhận CI trên head cuối | [DBS-77](features/DBS-77-sqs-adapter.md) §8 | Dev reviewer | CI xanh, Dev review và merge; PR điền đầy đủ bảng DoD |
+
+BL-010: DBS-77 đã chứng minh nhánh JSON hỏng → DLQ trước source delete trong `processBatch`. Consumer vẫn cần dùng wrapper đó (hoặc thực hiện cùng contract khi dùng raw receive), kiểm schema và quyết định UNKNOWN_EVENT_TYPE; các phần đó chưa đóng BL-010. Xem [DBS-77](features/DBS-77-sqs-adapter.md) §8.
+
 > **Status:** Active · **Owner:** cả nhóm · **Verified against code:** n/a · **Cập nhật:** 2026-11-02
 
 Nơi gom những việc một task **cố ý không làm** và đã chuyển cho người hoặc task khác: một DoD chưa đạt được vì thiếu hạ tầng, một phát hiện review thuộc module khác, một giới hạn đã chấp nhận và cần quay lại sửa. Mỗi dòng trỏ về feature doc đã sinh ra nó. Việc của chính task đang làm không ghi ở đây.

@@ -1,0 +1,11 @@
+6db1e911e0438d6d5edaf86a3975408b784dfcf4
+Created isolated queue dbs77-manual-5d433351-641f-4f07-a122-f438c3feb797
+Created isolated queue dbs77-manual-b9278552-f22a-4186-a86f-c56e26a55eb8
+M-77-01 roundtrip PASS: exact body, correlationId attribute, receipt handle
+M-77-02 success PASS: handler completed, acknowledged, source empty
+M-77-03 redelivery PASS: failed handler message returned with identical MessageId
+M-77-04 malformed PASS: handler not called, raw body in DLQ, source empty
+M-77-05 boundary PASS: batch 11 rejected with RangeError
+Deleted isolated queue /000000000000/dbs77-manual-5d433351-641f-4f07-a122-f438c3feb797
+Deleted isolated queue /000000000000/dbs77-manual-b9278552-f22a-4186-a86f-c56e26a55eb8
+M-77-06 cleanup PASS
