@@ -1,6 +1,7 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   calculateJwkThumbprint,
   createLocalJWKSet,
@@ -288,5 +289,74 @@ describe('command line entry points (TC-53-19)', () => {
     const bad = io('test');
     expect(await runTokenCli(['--role', 'root'], bad.options)).toBe(1);
     expect(bad.out).toEqual([]);
+  });
+});
+
+describe('the two npm commands as real processes (TC-53-15, TC-53-19)', () => {
+  const backend = resolve(__dirname, '../..');
+
+  function run(entry: string, args: string[], nodeEnv: string | undefined) {
+    const env: NodeJS.ProcessEnv = { ...process.env, TS_NODE_TRANSPILE_ONLY: 'true' };
+    if (nodeEnv === undefined) delete env.NODE_ENV;
+    else env.NODE_ENV = nodeEnv;
+    return spawnSync(
+      process.execPath,
+      ['-r', 'ts-node/register', '-r', 'tsconfig-paths/register', `src/scripts/${entry}`, ...args],
+      { cwd: backend, env, encoding: 'utf8', timeout: 60_000 },
+    );
+  }
+
+  it('auth:dev-keys then auth:dev-token leave exactly one line, the token, on stdout', () => {
+    const keys = run('dev-auth.keys.ts', ['--dir', dir], 'development');
+    expect(keys.status).toBe(0);
+    expect(existsSync(join(dir, 'private.pem'))).toBe(true);
+
+    const token = run('dev-auth.token.ts', ['--role', 'operator', '--dir', dir], 'development');
+    expect(token.status).toBe(0);
+    expect(token.stderr).toBe('');
+    expect(token.stdout).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+\n$/);
+    expect(decodeJwt(token.stdout.trim())['cognito:groups']).toEqual(['operator']);
+  });
+
+  it.each(['staging', 'production', 'prod'])(
+    'both entry points exit 1 for NODE_ENV=%s with nothing on stdout and no key written',
+    nodeEnv => {
+      const keys = run('dev-auth.keys.ts', ['--dir', join(dir, 'k')], nodeEnv);
+      expect(keys.status).toBe(1);
+      expect(keys.stdout).toBe('');
+      expect(existsSync(join(dir, 'k'))).toBe(false);
+
+      const token = run('dev-auth.token.ts', ['--role', 'admin', '--dir', dir], nodeEnv);
+      expect(token.status).toBe(1);
+      expect(token.stdout).toBe('');
+    },
+  );
+});
+
+describe('the keys stay out of git, the image and the production build (TC-53-32, TC-53-33)', () => {
+  const backend = resolve(__dirname, '../..');
+  const read = (...parts: string[]) => readFileSync(resolve(backend, ...parts), 'utf8');
+  const lines = (text: string) => text.split(/\r?\n/).map(line => line.trim());
+
+  it('is gitignored (backend/.auth-local/)', () => {
+    expect(lines(read('..', '.gitignore'))).toContain('backend/.auth-local/');
+  });
+
+  it('is dockerignored, and the Dockerfile copies neither it nor runs outside production', () => {
+    expect(lines(read('.dockerignore'))).toContain('.auth-local');
+    const dockerfile = read('Dockerfile');
+    expect(dockerfile).not.toMatch(/auth-local/);
+    expect(dockerfile).toMatch(/^ENV NODE_ENV=production$/m);
+  });
+
+  it('excludes the dev-auth scripts from the production build', () => {
+    const build = JSON.parse(read('tsconfig.build.json')) as { exclude: string[] };
+    expect(build.exclude).toContain('src/scripts/dev-auth*.ts');
+  });
+
+  it('has the two npm commands, run through ts-node like check:invariants', () => {
+    const { scripts } = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
+    expect(scripts['auth:dev-keys']).toMatch(/ts-node .*src\/scripts\/dev-auth\.keys\.ts/);
+    expect(scripts['auth:dev-token']).toMatch(/ts-node .*src\/scripts\/dev-auth\.token\.ts/);
   });
 });
