@@ -36,4 +36,10 @@ Snapshot dùng camelCase, `balance` là chuỗi chính xác, thời gian là Dat
 - So snapshot với các id đã yêu cầu **trước** khi apply. Chuyển tới đích không tồn tại và nạp vào tài khoản không tồn tại là `REJECTED` / 422 `ACCOUNT_NOT_ACTIVE` (`to_account_id` NULL). Nguồn không thuộc caller bị chặn trước transaction (404, audit DENIED trong transaction riêng). Thiếu `funding` là lỗi cài đặt (500).
 - Guard quyết định REJECTED (số dư, trạng thái, hạn mức) **trước** UPDATE. Ba lớp lỗi ở trên nghĩa là guard hoặc giao thức của caller có bug: chúng phải ra 500, không map sang 422, vì sau khi PostgreSQL từ chối UPDATE transaction đã hủy, không còn ghi được `transfers` REJECTED, audit hay response idempotency (BR-07).
 
-Đây là primitive cho ledger; module chưa thêm HTTP controller, onboarding, mở/khóa tài khoản, guard chuyển tiền hoặc bút toán. Test tiền gọi service thật trên DB tạm rồi rollback; không SQL seed tiền/bút toán. Chứng minh primitive và giới hạn E2E/audit nằm trong [DBS-55](../../../../docs/features/DBS-55-accounts-service.md); các API nghiệp vụ chờ task riêng.
+Primitive cho ledger được chứng minh trong [DBS-55](../../../../docs/features/DBS-55-accounts-service.md). Test tiền gọi service thật trên DB tạm rồi rollback; không SQL seed tiền/bút toán. Mở/khóa tài khoản, guard chuyển tiền và bút toán thuộc task riêng.
+
+## Onboarding (DBS-62)
+
+`POST /v1/customers/me` dành cho customer, nhận `{fullName}` (NFC, trim, 1–200 ký tự, không control character). Trả 200 `{id,fullName,createdAt}` cho cả tạo mới và gọi lại; tên đã lưu không bị cập nhật. UNIQUE `customers.user_id` và INSERT ON CONFLICT DO NOTHING bảo vệ request đồng thời. Caller chỉ lấy từ JWT đã xác minh; không nhận owner từ body/query. `GET /v1/customers/me` trả hồ sơ của caller hoặc 404 nếu chưa tạo.
+
+`CustomerProfileService` nội bộ dùng TransactionService và AuditService thật: `customer.created` khi tạo, `customer.read` khi GET/replay, cùng transaction với dữ liệu; lỗi audit trả 500, không tiết lộ hồ sơ và rollback mutation. Metadata chỉ có id, không có tên/token. Không tạo tài khoản hoặc sửa số dư. Test HTTP với JWT local và PostgreSQL thật, gồm 20 request song song và lỗi audit, nằm trong [DBS-62](../../../../docs/features/DBS-62-customer-onboarding.md).
