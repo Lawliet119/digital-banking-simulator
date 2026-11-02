@@ -2,7 +2,7 @@
 
 <!-- Tài liệu làm việc, không phải báo cáo: ưu tiên bảng hơn văn xuôi. -->
 
-> **Status:** Implemented (sau G4, 2026-11-02) · **Vai:** Dev · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-53-local-auth-keys` (từ `main` = `f123c9d`) · **PR:** — · **Cập nhật:** 2026-11-02
+> **Status:** Implemented (sau G4, 2026-11-02) · **Vai:** Dev · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-53-local-auth-keys` (từ `main` = `f123c9d`) · **PR:** [#48](https://github.com/Lawliet119/digital-banking-simulator/pull/48) · **Cập nhật:** 2026-11-02
 
 ## 1. Bối cảnh
 
