@@ -12,7 +12,9 @@ import {
   isTransientDbError,
 } from '@common/utils/pg-error.util';
 import { QueryFailedError } from 'typeorm';
-import { NotFoundException } from '@nestjs/common';
+import { Global, Module, NotFoundException } from '@nestjs/common';
+import { TransactionService } from '@database/transaction.service';
+import { databaseConfig } from '@config/database.config';
 import { Test } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
@@ -27,6 +29,25 @@ import {
   withMoneyProbe,
   type AccountsFixture,
 } from '../support/accounts-service-probe';
+
+// AccountsModule now includes onboarding/audit, which consume the production global
+// TransactionService. Supply the real provider and test timeouts, never a service stub.
+@Global()
+@Module({
+  providers: [
+    TransactionService,
+    {
+      provide: databaseConfig.KEY,
+      useValue: {
+        lockTimeoutMs: 2000,
+        statementTimeoutMs: 5000,
+        idleInTransactionTimeoutMs: 10000,
+      },
+    },
+  ],
+  exports: [TransactionService, databaseConfig.KEY],
+})
+class AccountsTransactionFixtureModule {}
 
 describe('DBS-55 AccountsService on PostgreSQL', () => {
   let fixture: AccountsFixture;
@@ -602,6 +623,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
           migrationsRun: false,
         }),
         AccountsModule,
+        AccountsTransactionFixtureModule,
       ],
     }).compile();
     try {
