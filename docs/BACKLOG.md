@@ -1,5 +1,10 @@
 # Backlog: việc còn tồn sau các task
 
+| ID | Việc còn tồn | Nguồn | Chủ trì | Điều kiện đóng |
+|---|---|---|---|---|
+| BL-140 | DBS-76 chưa có Dev khác review và merge main; xác nhận CI trên head cuối qua PR checks | [DBS-76](features/DBS-76-redis-adapter.md) §8 | Dev reviewer | CI xanh, review và merge; bảng đối chiếu DoD đầy đủ |
+| BL-141 | RedisMetrics đã có registry/counter thật; chưa ghép vào HTTP metrics endpoint/dashboard của app | [DBS-76](features/DBS-76-redis-adapter.md) §8 | Dev observability | Metrics endpoint của api/worker xuất redis_fallback_total và dashboard đọc đúng counter; lỗi Redis tăng counter |
+
 > **Status:** Active · **Owner:** cả nhóm · **Verified against code:** n/a · **Cập nhật:** 2026-11-02
 
 Nơi gom những việc một task **cố ý không làm** và đã chuyển cho người hoặc task khác: một DoD chưa đạt được vì thiếu hạ tầng, một phát hiện review thuộc module khác, một giới hạn đã chấp nhận và cần quay lại sửa. Mỗi dòng trỏ về feature doc đã sinh ra nó. Việc của chính task đang làm không ghi ở đây.
