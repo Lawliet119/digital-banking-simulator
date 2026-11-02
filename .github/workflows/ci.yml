@@ -121,6 +121,8 @@ jobs:
           env -u DATABASE_URL npm run test:db -- --runInBand --runTestsByPath \
             test/db/testcontainers-sample.db-spec.ts \
             test/db/migration-revert.db-spec.ts
+      - name: Redis adapter latency, outage and recovery (DBS-76)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/redis-adapter.services-spec.ts
 
   db:
     name: db
