@@ -1,6 +1,6 @@
 # DBS-116 · Migration `reconciliation_runs`
 
-> **Status:** Plan approved (đủ hồ sơ local trên final code SHA, chờ duyệt G4) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định · **Nhánh:** `codex/DBS-116-reconciliation-runs` · **PR:** — · **Cập nhật:** 2026-11-03
+> **Status:** Implemented (G4 đã duyệt; Draft PR chờ Dev review/merge) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định · **Nhánh:** `codex/DBS-116-reconciliation-runs` · **PR:** [#53](https://github.com/Lawliet119/digital-banking-simulator/pull/53) · **Cập nhật:** 2026-11-03
 
 ## 1. Bối cảnh
 
@@ -330,11 +330,15 @@ Validation bổ sung: Mermaid CLI lần đầu báo lỗi ký tự `;` trong seq
 
 **Ủy quyền chuẩn bị G4 (2026-11-03):** sau đề nghị tạo commit local rồi chạy lại toàn bộ manual trên SHA cuối, người dùng trả lời «chuẩn bị g4». Đã được phép thực hiện các bước local cần thiết này và chốt docs/evidence để trình G4. Commit code là `09e3703b9fb099f45e91120485cb4cca7bb6c1da`; không hiểu yêu cầu chuẩn bị là đã duyệt G4 hoặc cho phép push/PR/board/merge.
 
+**Quyết định ở G4 (2026-11-03):** người dùng trả lời «duyệt g4». Đã duyệt kết quả, tài liệu, bảng27 TC, manual10/10 trên code SHA cuối và4 ảnh; cho phép push nhánh và mở Draft PR. Đã mở [Draft PR #53](https://github.com/Lawliet119/digital-banking-simulator/pull/53). Dev khác tiếp nhận review/merge; người quản lý cập nhật board, agent không thực hiện hai việc đó.
+
 ## 8. Kết quả
 
-Đã triển khai và chốt commit code `09e3703b9fb099f45e91120485cb4cca7bb6c1da` trên base `991c13f`; docs/evidence được chốt bằng commit riêng, không đổi code sau manual. Chưa push/PR và chưa qua G4. Migration đã kiểm trên PostgreSQL17 thật. [Output xác minh](screenshots/DBS-116/verification.txt) giữ cả lượt đỏ, xanh và bằng chứng working tree trước commit; [manual-test.txt](screenshots/DBS-116/manual-test.txt) là lượt chạy lại trên commit code cuối.
+Đã triển khai và chốt commit code `09e3703b9fb099f45e91120485cb4cca7bb6c1da` trên base `991c13f`; docs/evidence được chốt bằng commit riêng, không đổi code sau manual. G4 đã duyệt; đã push và mở [Draft PR #53](https://github.com/Lawliet119/digital-banking-simulator/pull/53). Migration đã kiểm trên PostgreSQL17 thật. [Output xác minh](screenshots/DBS-116/verification.txt) giữ cả lượt đỏ, xanh và bằng chứng working tree trước commit; [manual-test.txt](screenshots/DBS-116/manual-test.txt) là lượt chạy lại trên commit code cuối.
 
 **TDD và automated:** trước code, hai file mới đỏ109/109 do bảng/migration chưa tồn tại (42P01, catalog rỗng hoặc thiếu migration TARGET). Sau migration,109/109 đạt. Bổ sung oracle HEAD27 làm TC-27-10/11/12 đỏ3/3 khi HEAD đang là116; sau sửa prefix và hoàn tác suffix đúng class, full file25/25 đạt. Lượt TDD lọc3 case có22 case không được chọn bởi CLI, không có `.skip` trong source. Lint/typecheck/build cuối đều đạt; unit50 suites/770 tests, E2E13 suites/135 tests và full DB18 suites/434 tests đều exit0, không skip. Một lượt qua pipeline PowerShell dừng mã0xC0000409 trước tổng kết unit; chưa xác định nguyên nhân cũ và không nhận lượt đó là suite xanh. Lượt ghi trực tiếp qua file handle giữ nguyên npm lifecycle đã hoàn tất; raw output/mã thoát/thời lượng nằm trong verification.txt. Cảnh báo MaxListenersExceededWarning của harness có từ baseline; không đổi listener limit hoặc test để che cảnh báo.
+
+**GitHub CI:** trạng thái sáu job của HEAD hiện hành được theo dõi tại [Checks của PR #53](https://github.com/Lawliet119/digital-banking-simulator/pull/53/checks). Phần GitHub CI trong mô tả PR được cập nhật sau khi đối chiếu chính xác HEAD, run và kết luận từng job. Các số đếm ở đoạn trên là kết quả local; Dev review và merge vẫn được theo dõi riêng tại BL-137.
 
 **Đối chiếu case:** schema = [reconciliation-schema.db-spec.ts](../../backend/test/db/reconciliation-schema.db-spec.ts); lifecycle = [reconciliation-migration-revert.db-spec.ts](../../backend/test/db/reconciliation-migration-revert.db-spec.ts); compat = [append-only.db-spec.ts](../../backend/test/db/append-only.db-spec.ts); bootstrap = [dev-auth-bootstrap.e2e-spec.ts](../../backend/test/dev-auth-bootstrap.e2e-spec.ts). Các dòng dưới là automated đã thực thi; kiểm tra toàn suite và manual được báo riêng.
 
@@ -397,13 +401,13 @@ Trên final code SHA, driver116 hoàn tất trong44.891s; driver27 hoàn tất t
 
 **Phạm vi so với §7:** không có deviation; đủ20 file deliverable trong allowlist (7 code/test/driver, 6 docs, 3 raw evidence và4 PNG), không có file ngoài kế hoạch. Script ghi log tạm bên ngoài worktree dùng file handle để thu output/mã thoát, không đổi test, timeout hoặc source runtime. Không sửa helper/datasource, .env, dependency, event, API, ErrorCode hoặc quy tắc tiền.
 
-**Bàn giao:** [BL-137](../BACKLOG.md) còn theo dõi CI/Dev review/merge; commit code, manual final-SHA và bảng TC đã có. BL-138 giao DBS-117 xử lý numeric overflow và ngữ nghĩa kết quả; BL-139 giao DBS-119/job cleanup kiểm quyền thực/identity/retention90 ngày. Không xóa backlog cũ hoặc nhận quyền production từ test superuser.
+**Bàn giao:** [BL-137](../BACKLOG.md) theo dõi [Draft PR #53](https://github.com/Lawliet119/digital-banking-simulator/pull/53), [Checks trên HEAD hiện hành](https://github.com/Lawliet119/digital-banking-simulator/pull/53/checks) và Dev review/merge; commit code, manual final-SHA và bảng TC đã có. BL-138 giao DBS-117 xử lý numeric overflow và ngữ nghĩa kết quả; BL-139 giao DBS-119/job cleanup kiểm quyền thực/identity/retention90 ngày. Không xóa backlog cũ hoặc nhận quyền production từ test superuser.
 
-**Sẵn sàng trình G4:** 27/27 TC automated đạt đủ độ sâu, không đơn giản hóa; manual10/10 đã chạy trên commit cuối đổi code. Bốn PNG và raw transcript đã có. Diff từ main đến nhánh bàn giao gồm đúng20 file ở §7 (7 code/test/driver, 6 docs, 3 raw evidence, 4 PNG); không có artifact được bảo vệ hoặc thay đổi ngoài kế hoạch. Chưa có CI/Dev review/PR/merge; các phần này được theo dõi ở BL-137 và không được ghi đạt. Chỉ sau khi người dùng trả lời «duyệt G4» mới push nhánh và mở Draft PR; agent không merge hoặc sửa board.
+**Bàn giao sau G4:** 27/27 TC automated đạt đủ độ sâu, không đơn giản hóa; manual10/10 đã chạy trên commit cuối đổi code. Bốn PNG và raw transcript đã có. Diff từ main đến nhánh bàn giao gồm đúng20 file ở §7 (7 code/test/driver, 6 docs, 3 raw evidence, 4 PNG); không có artifact được bảo vệ hoặc thay đổi ngoài kế hoạch. [Draft PR #53](https://github.com/Lawliet119/digital-banking-simulator/pull/53) đã mở sau phê duyệt G4. Kết quả CI trên HEAD cuối xem Checks và mô tả PR; Dev review/merge còn chờ tại BL-137. Agent không merge hoặc sửa board.
 
 ## 9. Tài liệu đã cập nhật
 
-Feature doc này và raw review/evidence; database-design header/§4.9/§11/điểm4§13; ledger README; backend README mục6; feature index; BACKLOG thêm BL-137/138/139, không xóa dòng cũ. Source/tests/driver được liệt kê trong §7; trạng thái giữ Plan approved đến khi G4 được duyệt.
+Feature doc này và raw review/evidence; database-design header/§4.9/§11/điểm4§13; ledger README; backend README mục6; feature index; BACKLOG thêm BL-137/138/139, không xóa dòng cũ. Source/tests/driver được liệt kê trong §7; trạng thái chuyển Implemented sau khi người dùng duyệt G4, còn chờ Dev review/merge.
 
 ## Checklist G4
 
@@ -412,5 +416,5 @@ Feature doc này và raw review/evidence; database-design header/§4.9/§11/đi�
 - [x] Đủ4 ảnh và manual-test.txt; đã kiểm không có token, Authorization header, password/connection URL, AWS account ID hoặc ARN trong bằng chứng.
 - [x] Diff main...HEAD khớp20 file trong §7; không có file ngoài kế hoạch, Jira workbook, .env hoặc Terraform state.
 - [x] Sáu kiểm tra nền được chạy lại lúc bàn giao trên code SHA cuối: DB434, unit770, E2E135 đều đạt; lint/typecheck/build đạt, không skip.
-- [x] Docs có fact thay đổi đã cập nhật; link checker186 file/0 link hỏng; trạng thái giữ Plan approved chờ duyệt G4.
-- [x] Mọi DoD/handoff còn thiếu được ghi ở §8 và BL-137/138/139; chưa nhận CI, Dev review, merge hoặc quyền production là đã đạt.
+- [x] Docs có fact thay đổi đã cập nhật; link checker186 file/0 link hỏng; trạng thái chuyển Implemented sau phê duyệt G4.
+- [x] Mọi DoD/handoff còn thiếu được ghi ở §8 và BL-137/138/139; CI theo Checks của HEAD hiện hành, Dev review/merge và quyền production còn được xác minh riêng.
