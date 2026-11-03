@@ -1,6 +1,6 @@
 # Tài liệu từng task (feature docs)
 
-> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-31
+> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-11-03
 
 Mỗi task implement trên board (tính năng, sửa lỗi, hạ tầng, test) có **một file** ở đây: `DBS-<n>-<slug>.md`. File được viết trước khi code và hoàn tất khi bàn giao, theo skill [`dbs-delivering-task`](../../.claude/skills/dbs-delivering-task/SKILL.md) và mẫu [`feature-doc.md`](../../.claude/skills/dbs-delivering-task/templates/feature-doc.md).
 
@@ -58,3 +58,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-53](DBS-53-local-test-auth-keys-tokens.md) | Identity: `AUTH_MODE=local` và `AUTH_LOCAL_JWKS_PATH` (app từ chối khởi động ở staging/production), `npm run auth:dev-keys` và `auth:dev-token` cấp token mẫu bốn vai, helper token cho e2e | Dev | Implemented |
 | [DBS-52](DBS-52-users-upsert-first-token.md) | Identity: tạo dòng `users` bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên (`IdentityService.resolveUserId`, cache tiến trình) | Dev | Implemented |
 | [DBS-51](DBS-51-roles-guard-current-user.md) | Identity: `@Roles`, `RolesGuard` (`APP_GUARD` thứ hai) và `@CurrentUser`; vai trò chỉ từ `cognito:groups`, không nhóm là `customer`, sai vai trò 403 `FORBIDDEN` | Dev | Implemented |
+| [DBS-116](DBS-116-reconciliation-runs.md) | Migration kết quả đối soát, details chỉ ID/tiền chính xác, revert giữ dữ liệu và tương thích lifecycle27 | Dev | Plan approved; code SHA09e3703, automated và manual10/10 đạt trên commit cuối; chờ duyệt G4 |
