@@ -30,4 +30,10 @@ Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bản
 
 Chạy `npm run --silent check:invariants` từ `backend/` sau money test/load run. Năm phép kiểm dùng chung [invariants.sql](../../../test/support/invariants.sql); [hàm](../../../test/support/invariants.ts) nhận QueryRunner của caller. Exit 0 là sạch, 1 có vi phạm kèm IDs, 2 không kiểm được. Funding âm hợp lệ và vẫn tính vào SUM(balance). Chi tiết quyền/config/snapshot và cách dùng: [backend README](../../../README.md#9-kiểm-tra-bất-biến-sổ-cái).
 
-Công cụ chỉ đọc theo yêu cầu, chưa có lịch chạy worker hoặc `reconciliation_runs`; không kiểm chuỗi `balance_after` và không chữa dữ liệu. Giới hạn DB chưa ép đủ cặp/balance_after vẫn theo BL-006.
+Công cụ chỉ đọc theo yêu cầu, chưa có lịch chạy worker; không kiểm chuỗi `balance_after` và không chữa dữ liệu. Giới hạn DB chưa ép đủ cặp/balance_after vẫn theo BL-006.
+
+## Lưu kết quả đối soát
+
+`reconciliation_runs` có trong [migration](../../database/migrations/1793577600000-CreateReconciliationRuns.ts), với status `OK`, `MISMATCH`, `ERROR`, các tổng bigint nullable và details không chứa văn bản tự do. Hợp đồng JSON chỉ gồm `accountId`, `balance`, `ledgerBalance`; tiền trong JSON là chuỗi nguyên signed bigint. [Schema chuẩn](../../../../docs/components/_shared/database-design.md#49-notificationlog-reconciliationruns) và [DBS-116](../../../../docs/features/DBS-116-reconciliation-runs.md) mô tả các ràng buộc và kiểm thử.
+
+Bảng không tự chạy hoặc tính đối soát. Job/producer thuộc DBS-117; quyền production và cleanup90 ngày thuộc DBS-119/job cleanup. Revert chỉ được khi rỗng, trong transaction READ COMMITTED; writer đồng thời được khóa/kiểm lại trước DROP. Không xóa kết quả đã ghi để ép revert.

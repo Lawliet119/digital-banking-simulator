@@ -1,6 +1,6 @@
 # Database Design
 
-> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) ; §4.6 và hai partial indexes outbox (DBS-25); §4.7 và ba index audit (DBS-26); §8.3 trigger ba bảng `transfers`, `ledger_entries`, `audit_log` bằng owner local (DBS-27); production roles và các phần còn lại là thiết kế · **Cập nhật:** 2026-10-24
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17); §4.6 và hai partial indexes outbox (DBS-25); §4.7 và ba index audit (DBS-26); §4.9 chỉ reconciliation_runs, CHECK details và revert (DBS-116); §8.3 trigger ba bảng `transfers`, `ledger_entries`, `audit_log` bằng owner local (DBS-27); notification_log, production roles và các phần còn lại là thiết kế · **Cập nhật:** 2026-11-03
 
 > **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
@@ -351,18 +351,43 @@ CREATE TABLE notification_log (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE reconciliation_runs (
-  id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+CREATE TABLE public.reconciliation_runs (
+  id                  bigint GENERATED ALWAYS AS IDENTITY,
   started_at          timestamptz NOT NULL,
   finished_at         timestamptz,
-  status              text NOT NULL CHECK (status IN ('OK','MISMATCH','ERROR')),
+  status              text NOT NULL,
   total_debit         bigint,
   total_credit        bigint,
-  total_balance       bigint,              -- phải bằng 0
+  total_balance       bigint,              -- 0 khi đối soát sạch; vẫn lưu được giá trị lệch
   mismatched_accounts int NOT NULL DEFAULT 0,
-  details             jsonb                -- danh sách tài khoản lệch (chỉ id và hai con số)
+  details             jsonb,
+  CONSTRAINT reconciliation_runs_pkey PRIMARY KEY (id),
+  CONSTRAINT reconciliation_runs_status_check CHECK (status IN ('OK','MISMATCH','ERROR')),
+  CONSTRAINT reconciliation_runs_details_check CHECK (details IS NULL OR ((
+    jsonb_typeof(details) = 'array'
+    AND jsonb_path_query_array(details, 'strict $[*] ? (
+      @.type() == "object"
+      && exists (@.accountId ? (
+        @.type() == "string"
+        && @ like_regex "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))
+      && exists (@.balance ? (
+        @.type() == "string" && @ like_regex "^(0|-?[1-9][0-9]{0,18})$"
+        && @.bigint().string() == @))
+      && exists (@.ledgerBalance ? (
+        @.type() == "string" && @ like_regex "^(0|-?[1-9][0-9]{0,18})$"
+        && @.bigint().string() == @))
+      && !exists (@.keyvalue() ? (
+        @.key != "accountId" && @.key != "balance" && @.key != "ledgerBalance"))
+    )'::jsonpath, '{}'::jsonb, true) = details
+  ) IS TRUE))
 );
 ```
+
+`reconciliation_runs` đã có trong [migration](../../../backend/src/database/migrations/1793577600000-CreateReconciliationRuns.ts); [DBS-116](../../features/DBS-116-reconciliation-runs.md) có kiểm schema/lifecycle trên PostgreSQL thật. `notification_log` ở trên vẫn là thiết kế.
+
+`details` nhận SQL NULL hoặc mảng (kể cả rỗng) các object đúng ba khóa `accountId`, `balance`, `ledgerBalance`. ID là UUID dạng8-4-4-4-12, không FK để giữ snapshot lịch sử. Hai số là chuỗi nguyên thập phân chuẩn trong miền signed bigint; JSON number, `-0`, số0 đầu, overflow, khóa thừa hoặc kiểu lồng bị CHECK23514 từ chối. Không có ô tên/email/số tài khoản/thông báo lỗi tự do. `silent` cùng `IS TRUE` chặn lỗi chuyển đổi và SQL/JSON unknown lọt CHECK. Tính đúng của số đếm, status và kết quả đối soát thuộc producer/job DBS-117; schema không tự tính hoặc ép các trường phụ thuộc nhau.
+
+`down` cần transaction READ COMMITTED, lấy ACCESS EXCLUSIVE trước khi kiểm rỗng bằng statement mới; có hàng thì SQLSTATE55000 và giữ dữ liệu/history. Không xóa kết quả để rollback. Bảng không có append-only trigger vì có retention90 ngày; role thực và chính sách cleanup thuộc DBS-119/job cleanup, không suy quyền từ superuser test.
 
 ---
 
@@ -589,7 +614,7 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 2. `transfers`, `ledger_entries`, `idempotency_keys`, view `v_transfer_facts` (migration `1791849600000-CreateTransfersLedgerIdempotency`, DBS-21)
 3. `outbox_events`, `processed_events` (migration `1792627200000-CreateOutboxEventsProcessedEvents`, DBS-25); `audit_log` (migration `1792627200001-CreateAuditLog`, DBS-26). Hai nhóm độc lập, không gộp migration hoặc PR.
 4. `risk_rule_sets` (+ **seed phiên bản 1**), `fraud_flags`, `fraud_rule_hits`
-5. `notification_log`, `reconciliation_runs`
+5. `notification_log` (thiết kế); `reconciliation_runs` có migration `1793577600000-CreateReconciliationRuns` (DBS-116), độc lập job DBS-117 và quyền DBS-119
 6. Hàm `public.forbid_mutation()` và sáu trigger trên ledger_entries/transfers/audit_log (`1792627200002-AddAppendOnlyTriggers`, DBS-27); task fraud thêm cặp trigger risk_rule_sets khi bảng tồn tại
 7. Role và `GRANT` (có thể idempotent; chạy bằng tài khoản đủ quyền)
 
@@ -646,7 +671,7 @@ Bảng giữ lại làm lịch sử: 18 điểm từng khác các tài liệu kh
 | 1 | Đặt tên cột **`from_account_id`, `to_account_id`** (nhất quán hậu tố `_id`) | docs/03 §8.2, FRAUD guide §4.2 và roadmap Task 3 dùng `from_account`, `to_account` | Migration tuần 1; sửa SQL ví dụ trong FRAUD guide khi tách docs |
 | 2 | **`transfers.to_account_id` cho phép NULL** để lưu lệnh REJECTED tới tài khoản không tồn tại | docs/03 ERD để ngầm là bắt buộc | Task 3 (UC-5 bước 6a) |
 | 3 | Thêm **`ledger_entries.balance_after`** | Chưa có trong docs | Task 3, đối soát |
-| 4 | Thêm bảng **`reconciliation_runs`** | Chưa có (docs/03 §8 chỉ nói "job đối soát") | Task 3 |
+| 4 | Thêm bảng **`reconciliation_runs`** | Schema, CHECK details và revert đã triển khai ở [§4.9](#49-notificationlog-reconciliationruns); job vẫn chưa có | DBS-116 (lưu trữ), DBS-117 (job) |
 | 5 | Bỏ `fraud_rule_hits.rule_version`, dùng `fraud_flags.rule_set_version`; thêm `weight` | docs/03 ERD có `rule_version` | Task 6 (đã ghi ở roadmap) |
 | 6 | Cho `risk` đọc qua **view `v_transfer_facts`**, không `SELECT` bảng `transfers` | FRAUD guide §5.3 "chỉ SELECT trên `transfers`" | Task 6; hợp P-4 |
 | 7 | **`outbox_events` thuộc module `outbox`**, không thuộc `ledger` | `ledger/README.md` ghi ledger sở hữu; `accounts` cũng ghi vào outbox | Task 4 |
