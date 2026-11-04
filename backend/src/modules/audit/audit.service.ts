@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
-import { assertValidMetadata } from './audit-metadata.guard';
+import { serializeMetadata } from './audit-metadata.guard';
 import type { AuditRecordInput } from './audit.types';
 
 const INSERT_SQL = `INSERT INTO audit_log
@@ -18,7 +18,7 @@ export class AuditService {
    * `TransactionService.run` rolls back the whole transaction — fail-closed (DoD #2).
    */
   async record(manager: EntityManager, input: AuditRecordInput): Promise<void> {
-    assertValidMetadata(input.metadata);
+    const metadata = serializeMetadata(input.metadata);
     await manager.query(INSERT_SQL, [
       input.actor,
       input.role,
@@ -27,7 +27,7 @@ export class AuditService {
       input.target.type,
       input.target.id,
       input.correlationId,
-      JSON.stringify(input.metadata ?? {}),
+      metadata,
     ]);
   }
 
