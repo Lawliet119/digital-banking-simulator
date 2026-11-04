@@ -511,4 +511,4 @@ Round 2 chỉ còn 1 should-fix (không blocking), đã sửa trực tiếp và 
 - `docs/features/screenshots/DBS-56/manual-test.txt` — nối thêm output M-56-04/05.
 - `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` — sạch, 188 file, 0 link hỏng.
 
-**Quyết định ở G4 (vòng 2):** chờ người dùng duyệt sau khi trình bày tin nhắn G4.
+**Quyết định ở G4 (vòng 2, duyệt qua chat 2026-11-04):** Người dùng trả lời "duyệt". Push nhánh `fix/DBS-56-audit-service-record-review-fixes`, mở Draft PR.
