@@ -481,8 +481,8 @@ sequenceDiagram
 | POST | `/v1/customers/me` | customer | UC-1 | 200 tạo hoặc trả hồ sơ cũ; `fullName` NFC/trim, 1–200 ký tự; lần tạo đầu giữ nguyên tên. UNIQUE `customers.user_id`; audit cùng transaction, lỗi audit rollback |
 | GET | `/v1/customers/me` | customer | UC-1 | 200 hồ sơ của caller và audit đọc; 404 nếu chưa onboarding; lỗi audit trả 500 |
 | POST | `/v1/accounts` | customer | UC-2 | 201 CHECKING/SAVINGS, ACTIVE, balance chuỗi `"0"`; khóa customer rồi COUNT/INSERT + audit cùng transaction; đủ 3 kể cả LOCKED → 409 ACCOUNT_LIMIT_REACHED (audit REJECTED commit); chưa onboarding → 404 |
-| GET | `/v1/accounts` | customer | UC-4 | Chỉ tài khoản của mình |
-| GET | `/v1/accounts/{id}` | customer | UC-4 | Số dư mới nhất, đọc từ DB |
+| GET | `/v1/accounts` | customer | UC-4 | 200 mảng own accounts (ACTIVE/LOCKED), chưa có → []; balance chuỗi từ PostgreSQL, audit trước khi trả dữ liệu, không Redis |
+| GET | `/v1/accounts/{id}` | customer | UC-4 | 200 own account, balance chuỗi tại thời điểm SELECT; foreign/missing/SYSTEM/invalid → cùng 404 sau audit DENIED; audit lỗi → 500/503 |
 | GET | `/v1/accounts/{id}/transactions` | customer | UC-6 | Phân trang bằng cursor; lọc thời gian |
 | POST | `/v1/transfers` | customer | UC-5 | **Bắt buộc** header `Idempotency-Key` |
 | GET | `/v1/transfers/{id}` | customer | UC-7 | Chỉ người gửi / người nhận |
