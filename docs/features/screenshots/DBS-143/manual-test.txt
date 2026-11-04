@@ -1,6 +1,6 @@
-SHA cuối đổi code: d4f6acbd61a981b595346633015e098bba6c99d6
-Ngày chạy: 2026-11-04T05:59:31Z
-Lần 1 (0bc4dfb): M-143-02 lỗi ValueError, nhóm chỉ có khóa USAGE_TYPE. Lần 2 (76e7143): mọi dòng rơi vào '(không rõ dịch vụ)' vì AWS CLI chỉ giữ cờ --group-by cuối. Đã sửa (TC-143-02, TC-143-09); dưới đây là lần chạy lại toàn bộ §5.
+SHA cuối đổi code: a6c34e378fe47b476be0d03e916a21875fb18e79
+Ngày chạy: 2026-11-04T06:05:10Z
+Lần 1 (0bc4dfb): M-143-02 lỗi ValueError, nhóm chỉ có khóa USAGE_TYPE. Lần 2 (76e7143): mọi dòng rơi vào '(không rõ dịch vụ)' vì AWS CLI chỉ giữ cờ --group-by cuối. Lần 3 (d4f6acb): M-143-01..06 đạt; sau M-143-07, 08 phát hiện lệnh describe-cost-allocation-tag-backfill-history không có trong CLI (đúng là list-…), sửa ở a6c34e3. Dưới đây là lần 4, chạy lại toàn bộ §5 trên a6c34e3; M-143-07, 08 giữ output gốc lúc chạy (ở cuối).
 
 === M-143-01 $ aws sts get-caller-identity; aws configure get region
 {
@@ -10,7 +10,7 @@ Lần 1 (0bc4dfb): M-143-02 lỗi ValueError, nhóm chỉ có khóa USAGE_TYPE. 
 }
 ap-southeast-1
 
-=== M-143-02 $ python3 infra/scripts/cost-report.py --start 2026-10-01 --end 2026-11-04
+=== M-143-02 + M-143-09 $ python3 infra/scripts/cost-report.py --start 2026-10-01 --end 2026-11-04
 exit=0
 # Báo cáo chi phí AWS 2026-10-01 → 2026-11-04
 
@@ -52,7 +52,11 @@ Chi phí gộp (trước credit), USD, ngày UTC; khoảng [2026-10-01, 2026-11-
 
 ## 3. Theo tag env
 
-Tag `env` chưa bật trong Cost allocation tags (trạng thái: Inactive); xem infra/terraform/README.md mục Báo cáo chi phí tuần.
+| env | Lũy kế |
+|---|---:|
+| (không tag) | 0,6513 |
+
+- Lưu ý: dữ liệu tag chưa đủ (chờ backfill hoặc 24 giờ sau khi bật tag); backfill gần nhất: PROCESSING.
 
 ## 4. Credit và dự báo
 
@@ -75,7 +79,7 @@ Tag `env` chưa bật trong Cost allocation tags (trạng thái: Inactive); xem 
 ```
 Chi phí AWS 7 ngày (28/10–03/11): 0,4808 USD; lũy kế từ 01/10: 0,6513 USD.
 Credit còn lại ≈ 199,2942 / 200,0000 USD; dự báo tới 13/12: 2,7472 USD.
-Giờ dựng: 2 ngày có phiên.
+Giờ dựng: 2 ngày có phiên. dữ liệu tag chưa đủ (chờ backfill hoặc 24 giờ sau khi bật tag).
 Không có cảnh báo.
 ```
 
@@ -106,18 +110,52 @@ stdout bytes: 0
 stderr:
 Lỗi khi gọi aws ce get-cost-and-usage: aws: [ERROR]: The config profile (dbs-none) could not be found
 
-=== M-143-06 $ (envs/dev/base) terraform plan -out=tags.tfplan -var account_id=<account-id> -target='aws_ce_cost_allocation_tag.this'
-  # aws_ce_cost_allocation_tag.this["env"] will be created
-      + status  = "Active"
-      + tag_key = "env"
-  # aws_ce_cost_allocation_tag.this["owner"] will be created
-      + status  = "Active"
-      + tag_key = "owner"
-  # aws_ce_cost_allocation_tag.this["project"] will be created
-      + status  = "Active"
-      + tag_key = "project"
+=== M-143-06 (sau apply) $ terraform plan -var account_id=<account-id> -target='aws_ce_cost_allocation_tag.this'
+No changes. Your infrastructure matches the configuration.
+
+=== M-143-08 (lại) $ aws ce list-cost-allocation-tag-backfill-history
+2026-10-01T00:00:00Z	2026-11-04T06:04:17Z	PROCESSING
+
+----- Output gốc lúc chạy M-143-06/07 (2026-11-04, trước lần 4) -----
+
+=== M-143-06 (chạy lại ngay trước apply) $ terraform plan -out=tags.tfplan -var account_id=<account-id> -target='aws_ce_cost_allocation_tag.this'
 Plan: 3 to add, 0 to change, 0 to destroy.
-Warning: Resource targeting is in effect
+
+=== M-143-07 $ terraform apply tags.tfplan
+aws_ce_cost_allocation_tag.this["project"]: Creation complete after 1s [id=project]
+aws_ce_cost_allocation_tag.this["env"]: Creation complete after 1s [id=env]
+aws_ce_cost_allocation_tag.this["owner"]: Creation complete after 1s [id=owner]
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
+$ aws ce list-cost-allocation-tags --tag-keys project env owner
+env	Active
+project	Active
+owner	Active
+
+=== M-143-08 $ aws ce start-cost-allocation-tag-backfill --backfill-from 2026-10-01T00:00:00Z
+{
+    "BackfillRequest": {
+        "BackfillFrom": "2026-10-01T00:00:00Z",
+        "RequestedAt": "2026-11-04T06:04:17Z",
+        "BackfillStatus": "PROCESSING",
+        "LastUpdatedAt": "2026-11-04T06:04:17Z"
+    }
+}
+exit=0
+$ aws ce describe-cost-allocation-tag-backfill-history
+
+aws: [ERROR]: An error occurred (ParamValidation): argument operation: Found invalid choice 'describe-cost-allocation-tag-backfill-history'
+
+Maybe you meant:
+
+  * list-cost-allocation-tag-backfill-history
+
+usage: aws [options] <command> <subcommand> [<subcommand> ...] [parameters]
+To see help text, you can run:
+
+  aws help
+  aws <command> help
+  aws <command> <subcommand> help
+
 
 === M-143-10 đối chiếu (từ M-143-02 và get-cost-and-usage DAILY nhóm USAGE_TYPE, 24/10–03/11)
 2026-10-25 0.0801  (phiên: RDS, ALB, Fargate, IPv4)
