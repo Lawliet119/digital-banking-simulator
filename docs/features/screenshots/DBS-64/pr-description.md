@@ -7,6 +7,8 @@ Thêm GET `/v1/accounts` và GET `/v1/accounts/{id}` cho customer, lọc owner n
 
 PR này chỉ được mở vào main sau khi dependency DBS-63 được merge, rồi rebase riêng commit DBS-64 khỏi base24d33f4. Không đưa các commit62/63 vào PR64.
 
+Kiểm tra local: lint/typecheck/build xanh;834/834 unit,135/135 e2e,84/84 test PostgreSQL liên quan; thủ công6/6. Đo HTTP thật gồm JWT/DB/audit: p95 list23.63ms, detail21.18ms. Transcript/samples và SHA9660737 tại `docs/features/screenshots/DBS-64/manual-test.txt`.
+
 ## Loại thay đổi
 
 - [x] Tính năng mới
@@ -32,7 +34,7 @@ UC-4, FR-ACC-02, FR-ID-04, BR-10, FR-AUD-02. Public AccountsService và flow led
 
 ## Kiểm tra
 
-- [ ] Test thủ công hoàn tất — cập nhật bằng kết quả chạy thật trước khi mở PR
+- [x] Test thủ công6/6, invariant PASS, list p95 23.63ms/detail21.18ms (<150),100 mẫu/route sau10 warmups; local small data, không nhận đã chứng minh cloud/load SLO
 - [x] Có test PostgreSQL và money mapper; không SQL balance seed/fake ledger
 - [ ] CI xanh — cần run thật trên main-based PR
 - [x] Không secret trong task code; không log token/private key/connection URL

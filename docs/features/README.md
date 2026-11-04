@@ -29,7 +29,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 
 | Task | Tóm tắt | Vai | Trạng thái |
 |---|---|---|---|
-| [DBS-64](DBS-64-read-accounts.md) | UC-4 own list/detail, balance string từ PostgreSQL, audit read/denial và đo p95 HTTP | Dev | Implementing on approved temporary DBS-63 base24d33f4; process BL-146, actual nonzero balance proof BL-147 |
+| [DBS-64](DBS-64-read-accounts.md) | UC-4 own list/detail, balance string từ PostgreSQL, audit read/denial và đo p95 HTTP | Dev | Implemented; local tests/manual passed, p95 list23.63ms/detail21.18ms; approved temporary DBS-63 base24d33f4, process BL-146/nonzero proof BL-147 |
 | [DBS-63](DBS-63-open-accounts.md) | UC-2 mở CHECKING/SAVINGS, khóa customer để giữ giới hạn 3; audit atomic và test đồng thời | Dev | Implemented; user-approved temporary DBS-62 base7d41a51, main PR/CI/review/merge pending BL-145 |
 | [DBS-62](DBS-62-customer-onboarding.md) | UC-1 customer onboarding: create-or-return, own GET, transaction audit and concurrent HTTP/PostgreSQL tests | Dev | Implemented; [Draft PR #56](https://github.com/Lawliet119/digital-banking-simulator/pull/56) targets main after rebase; Dev review/merge pending BL-144 |
 | [DBS-20](DBS-20-migration-users-customers-accounts.md) | Migration 1: users, customers, accounts và tài khoản SYSTEM funding | #1 Ledger | Implemented |

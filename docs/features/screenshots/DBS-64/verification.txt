@@ -1,0 +1,33 @@
+DBS-64 verification summary, 2026-11-04 (summarized from actual commands)
+Code SHA: 9660737906d2526759202269e8f2b2be362165bc
+User-approved temporary dependency base: DBS-63 at24d33f424e3a63af033cbe7f01fdeea80b482072.
+
+Design: independent review APPROVE, no verified findings. Raw reply retained.
+Test first: real HTTP/PostgreSQL initial8 failed/1 passed; missing GET routes404/OpenAPI absent.
+The passing projection case alone did not prove endpoint behavior. After implementation9/9 DB cases passed.
+
+lint:check/typecheck/build: passed.
+npm test -- --runInBand: 56 suites834/834 passed,117.624s,including8 DTO money/privacy tests.
+npm run test:db -- --runInBand --runTestsByPath test/db/account-reads.db-spec.ts test/db/account-opening.db-spec.ts test/db/customer-onboarding.db-spec.ts test/db/accounts-service.db-spec.ts test/db/audit.service.db-spec.ts
+5 suites84/84 passed,43.461s. Actual JWT/PostgreSQL/audit, no fake guard/ledger/financial SQL seed.
+Full test:db suite not rerun;5 affected-module suites used. No skipped task tests.
+Full e2e:13 suites135/135 passed,226.543s.
+Manual: node scripts/manual-dbs64.cjs exit0,6/6 steps passed at code SHA above, cleanup completed.
+Measured list p95:23.631000000001222ms; detail p95:21.182700000001205ms, both below150ms.
+Each route10 warmups then100 measured sequential HTTP requests, real auth/DB/audit commit/JSON response.
+Raw samples kept in manual-test.txt; nearest-rank p95 independently recomputed and validated.
+Node24.19.0/PostgreSQL17 Docker local/127.0.0.1/concurrency1/3 accounts per measured owner.
+Other heavy tests finished before measurement. Preliminary local small-data result, not cloud/load SLO proof.
+Actual HTTP/security/audit-fault/recovery output retained, ledger invariants PASS with zero violations.
+Code SHA verified; token/credential markers absent; actual output screenshot visually inspected.
+
+Money depth: HTTP reads actual accounts initialized through real opening API at0.
+Above2^53 and max bigint proven in mapper unit cases, plus actual PostgreSQL bigint projection->mapper.
+Actual nonzero balance account HTTP roundtrip pending real deposit API;BL-147.
+No claim that projection/mapper evidence is a complete financial HTTP roundtrip.
+
+No Redis dependency/import/cache in AccountQueryService; every call SELECTs owned PostgreSQL data.
+Status-only fixture demonstrates committed state freshness, not balance mutation/deposit proof.
+Main-based PR/CI/review/merge pending dependency;BL-146. Board unchanged.
+Final fetch main still a9e607b, lacks onboarding/opening; no main-based DBS-64 PR opened yet.
+Documentation link check:205 files,0 broken links.

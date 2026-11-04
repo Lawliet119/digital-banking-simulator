@@ -1,6 +1,6 @@
 # DBS-64 · UC-4 own accounts and balance reads
 
-Status: Implementing on user-approved temporary DBS-63 base24d33f4. Owner Dev, updated2026-11-04.
+Status: Implemented locally on user-approved temporary DBS-63 base24d33f4; main PR/CI/review/merge pending BL-146. Owner Dev, updated2026-11-04.
 
 ## 1. Context and scope
 
@@ -106,12 +106,45 @@ Files: query service, account-view DTO/mapper/unit tests, existing AccountsContr
 
 Implemented AccountQueryService, safe AccountViewDto/mapper and the two GET controller methods, registered the provider. Existing opening route and public primitives unchanged. Initial red run8 failed/1 passed: reads returned404 because routes were absent; the passing case only proved PostgreSQL bigint projection. After implementation9/9 PostgreSQL cases passed (12.999s), including added real PG projection-to-mapper assertion. Mapper unit tests were written before implementation; their results included in the final unit verification. No skipped cases or human gate approvals claimed.
 
-Current automated verification: lint/typecheck/build passed;56 unit suites834/834 passed (117.624s), including8 mapper boundary/privacy cases. Five related real PostgreSQL suites84/84 passed (43.461s); full DB suite not rerun. Full E2E/manual/benchmark results recorded at handover after execution. No result inferred from implementation.
+Final automated verification: lint/typecheck/build passed;56 unit suites834/834 passed (117.624s), including8 mapper boundary/privacy cases. Five related real PostgreSQL suites84/84 passed (43.461s); full DB suite not rerun. Full E2E13 suites135/135 passed (226.543s). No skipped task tests. No result inferred from implementation.
 
 Initial independent work: exact task/dependencies fetched; main a9e607b lacked opening/onboarding and PR56 remained unmerged. docker compose up -d and local main lint/typecheck passed; design and10 planned cases reviewed APPROVE. User then explicitly approved temporary DBS-63 source, branch fast-forwarded to24d33f4 before code. No dependency stub or shared status update. User requests no gate pauses; no claim of human gate approval.
 
 BL-146 tracks main-based PR, actual CI, Dev review and merge after dependency. BL-147 tracks real nonzero/above2^53 HTTP roundtrip with actual deposit flow; unit/projection evidence is explicitly shallower, not substituted for that flow. Existing gaps in section1 remain; no backlog row closed by64.
 
+Code commit `9660737906d2526759202269e8f2b2be362165bc`. Executed `node scripts/manual-dbs64.cjs` from backend after all heavy tests finished. [Raw output](screenshots/DBS-64/manual-test.txt), [verification](screenshots/DBS-64/verification.txt), [prepared PR mapping](screenshots/DBS-64/pr-description.md). Transcript first line matches code SHA; tokens/credentials markers checked absent. Six manual steps executed, no skipped manual step beyond the separately disclosed nonzero financial roundtrip.
+
+| Case | Actual proof | Depth |
+|---|---|---|
+| TC-64-01 | Real HTTP list own3, exact safe fields/order, list SUCCESS audit bound actor/count/server correlationId | Matched |
+| TC-64-02 | Detail equals list, uppercase UUID, actual SUCCESS audit, next read reflects committed LOCKED fixture | Matched for committed status/zero balance; nonzero freshness BL-147 |
+| TC-64-03 | Foreign/missing/SYSTEM/malformed uniform404; persisted DENIED with safe target/reason, invalid path not recorded | Matched |
+| TC-64-04 | Empty/unonboarded[], ignored forged owner selectors, per-request list audit | Matched |
+| TC-64-05 | Actual missing/expired JWT401 and all3 staff403 on both GET endpoints | Matched |
+| TC-64-06 | Real audit trigger fault, no list/detail data; denial500 instead404; recovery | Matched |
+| TC-64-07 |8 unit boundary/privacy cases and real PG bigint projection->mapper exact string | Simplified: no actual account balance above2^53 HTTP roundtrip, BL-147 |
+| TC-64-08 | Actual generated OpenAPI for both GETs, safe DTO/status enums/examples/error responses | Matched |
+| TC-64-09 |12 parallel cross-owner reads each return correct own data and correct actor/correlation audit | Matched |
+| TC-64-10 / p95 DoD | M-64-05:100 real full HTTP samples per route after10 warmups, nearest-rank p95 independently recomputed from saved raw samples | Matched for preliminary local small-data target |
+| Process DoD | BL-146, actual CI/review/merge pending main-based PR | Not yet achieved |
+
+| Manual step | Actual result |
+|---|---|
+| M-64-01 | Own list3/detail200, balance string0, matching audit SUCCESS, invariant PASS |
+| M-64-02 | Other owner isolated; foreign/SYSTEM/missing/malformed404+DENIED;401/403 |
+| M-64-03 | Empty/unonboarded[], forged selector ignored; committed LOCKED visible |
+| M-64-04 | Audit fault500 with no balance; recovered200 and invariant PASS |
+| M-64-05 | List p95 **23.631000000001222ms**, detail p95 **21.182700000001205ms**, both <150ms;100 samples+10 warmups per route |
+| M-64-06 | App/public JWKS/temp database/owned PostgreSQL17 cleaned up |
+
+Measurement environment: Node24.19.0, PostgreSQL17 Docker local,127.0.0.1 HTTP, actual local JWT verification and read/audit transaction,3 accounts per measured owner, concurrency1, sequential samples. Includes response JSON consumption; printing excluded from timed requests. No samples discarded. This is a preliminary local measurement, not a cloud sustained-load SLO claim. All business invariant checks PASS with zero violations; status-only fixture never changes money.
+
+![Actual HTTP and p95 excerpt](screenshots/DBS-64/01-http-and-p95.png)
+
+Final fetch main still a9e607b, lacks onboarding/opening: dependency not on main. [Published DBS-64 branch](https://github.com/Lawliet119/digital-banking-simulator/tree/feat/DBS-64-read-accounts). After dependency merge, `git rebase --onto origin/main 24d33f4 feat/DBS-64-read-accounts` replays64-only commits; rerun affected checks and all manual/latency evidence at final rebased SHA before Draft PR/CI. No stacked PR, auto-merge or board edit. Keep In Progress until reviewable main-based PR exists.
+
+Delivery checklist: design review APPROVE, source/tests/manual/latency/raw output/screenshot/docs complete locally; screenshot visually inspected; credential markers absent; exact source SHA and measurement depth disclosed. Main PR/CI/Dev review/merge and nonzero account HTTP proof explicitly pending BL-146/147. No human gate approval or full financial roundtrip claim.
+
 ## 9. Sources and changed docs
 
-Sheet DBS-64; docs02 UC-4/FR-ACC-02/FR-ID-04/BR-10/FR-AUD-02, docs03 API/read-cache/performance tables; database-design accounts; ADR-07 money; accounts/audit README and actual64 dependency code, CONTRIBUTING5/5b. Feature doc written before production implementation.
+Sheet DBS-64; docs02 UC-4/FR-ACC-02/FR-ID-04/BR-10/FR-AUD-02, docs03 API/read-cache/performance tables; database-design accounts; ADR-07 money; accounts/audit README and actual64 dependency code, CONTRIBUTING5/5b. Feature doc written before production implementation. Updated Accounts README, docs03 GET contract, feature index/BACKLOG BL-146/147, review and verification/manual evidence. No schema/env/ADR/event changes, no public primitive signature change. No backlog rows closed.
