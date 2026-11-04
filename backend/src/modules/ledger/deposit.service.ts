@@ -55,8 +55,7 @@ export class DepositService {
         [actor, key, hash],
       );
       // Safe duplicate barrier only. Exact replay/hash-conflict responses are task DBS-79.
-      if (!keys.length)
-        throw new ConflictException('Idempotency key already used; replay support pending DBS-79');
+      if (!keys.length) throw new ConflictException('Idempotency key already used');
       const locked = await this.accounts.lockForUpdate([FUNDING, toId], manager);
       const funding = locked.find(a => a.id === FUNDING),
         target = locked.find(a => a.id === toId);

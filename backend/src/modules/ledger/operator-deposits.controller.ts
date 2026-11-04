@@ -29,7 +29,7 @@ export class OperatorDepositsController {
   @ApiOperation({
     summary: 'Operator: deposit from SYSTEM funding with atomic double entry',
     description:
-      'First execution only; reused keys409 until DBS-79 replay support. No external network inside transaction.',
+      'First execution only; reused keys return409. Stored-result replay is not supported yet.',
   })
   @ApiHeader({
     name: 'Idempotency-Key',
@@ -41,7 +41,7 @@ export class OperatorDepositsController {
   @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED / TOKEN_EXPIRED' })
   @ApiForbiddenResponse({ description: 'FORBIDDEN' })
   @ApiConflictResponse({
-    description: 'Key already used; full replay/conflict handling pending DBS-79',
+    description: 'Idempotency key already used; reuse is not accepted by this endpoint',
   })
   @ApiUnprocessableEntityResponse({ description: 'ACCOUNT_NOT_ACTIVE with persisted transferId' })
   @ApiInternalServerErrorResponse({
