@@ -60,3 +60,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-52](DBS-52-users-upsert-first-token.md) | Identity: tạo dòng `users` bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên (`IdentityService.resolveUserId`, cache tiến trình) | Dev | Implemented |
 | [DBS-51](DBS-51-roles-guard-current-user.md) | Identity: `@Roles`, `RolesGuard` (`APP_GUARD` thứ hai) và `@CurrentUser`; vai trò chỉ từ `cognito:groups`, không nhóm là `customer`, sai vai trò 403 `FORBIDDEN` | Dev | Implemented |
 | [DBS-59](DBS-59-risk-module-skeleton.md) | Khung RiskModule, RiskRule và FeatureProvider | #4 Fraud | Draft PR #42, chờ CI/review và các handoff |
+| [DBS-58](DBS-58-fraud-migration.md) | Migration risk_rule_sets v1, fraud_flags, fraud_rule_hits và trigger append-only | Fraud | Implemented (Draft PR #44; CI xanh; chờ manual/Dev review/merge) |
