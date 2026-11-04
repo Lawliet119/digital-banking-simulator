@@ -1,0 +1,5 @@
+| # | Severity (blocking / should-fix / minor) | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | should-fix | §2, §4 TC-63-08/09 | The contract describes audit failures categorically as 500 and omits 503 from the documented responses. Transient failures during account or denial-audit transactions instead propagate to the existing filter as 503. The planned fault tests cover audit-trigger failures but omit the parent-lock timeout and subsequent recovery. | `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §7 requires transient DB failures to return 503 with `Retry-After`; ADR-04 specifies transaction timeouts; `backend/src/common/filters/problem-details.filter.ts::toProblem` and `backend/src/common/utils/pg-error.util.ts::isTransientDbError` implement that behavior. | Distinguish unexpected audit failures (500) from transient DB failures (503). Add 503 to Swagger and an HTTP/PostgreSQL case holding the customer lock beyond the configured timeout, asserting `SERVICE_TEMPORARILY_UNAVAILABLE`, `Retry-After`, no account/SUCCESS audit, then successful creation after release. |
+
+Verdict: REVISE
