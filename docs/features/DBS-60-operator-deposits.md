@@ -1,6 +1,6 @@
 # DBS-60 · UC-3 raw operator deposits
 
-Status: Implemented locally; verification/main Draft PR handover in progress. Owner Dev, updated2026-11-04. Branch feat/DBS-60-operator-deposits from main a9e607b.
+Status: Implemented; [Draft PR57](https://github.com/Lawliet119/digital-banking-simulator/pull/57) targets main, finalCI/Dev review/merge tracked by BL-149. Owner Dev, updated2026-11-04. Branch feat/DBS-60-operator-deposits from main a9e607b.
 
 ## 1. Scope / dependencies
 
@@ -119,6 +119,8 @@ Manual `node scripts/manual-dbs60.cjs` executed all6 steps on code commit: [raw 
 ![Actual deposit ledger evidence](screenshots/DBS-60/01-deposit-evidence.png)
 
 Case mapping: TC-60-01/02/03/04/05/06/07/08/09/09b/10/11/12/13 all matched by named cases in operator-deposits.db-spec.ts (16 Jest cases, fault matrix includes success/rejection and each failure stage). Test13 role registration additionally validated by real AppModule full e2e. DoD replay explicitly deferred79, AC-5.3/4/5 matching responses not claimed. BL-149 remains until actual CI/Dev review/merge; agent does not merge or edit board.
+
+Main-based [Draft PR57](https://github.com/Lawliet119/digital-banking-simulator/pull/57), [final checks](https://github.com/Lawliet119/digital-banking-simulator/pull/57/checks). Local results do not substitute for these checks. Delivery checklist: independent review APPROVE, planned cases matched, manual6/6 and actual screenshot/zero-violation reports retained at codeSHA; no tokens/credentials in transcript; no schema/env/ADR/event change; Dev review/merge and exact replay79 explicitly still open. User moves board to In Review when handing the PR to a Dev reviewer; no gate approval or Dev review fabricated.
 
 ## 9. Sources / docs
 
