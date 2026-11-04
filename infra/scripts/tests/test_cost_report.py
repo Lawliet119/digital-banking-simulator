@@ -132,8 +132,10 @@ class CostReport(unittest.TestCase):
         usage = next(c for c in cau if arg(c, "--granularity") == "DAILY")
         self.assertEqual(json.loads(arg(usage, "--filter")),
                          {"Not": {"Dimensions": {"Key": "RECORD_TYPE", "Values": ["Credit", "Refund"]}}})
-        groups = [usage[i + 1] for i, a in enumerate(usage) if a == "--group-by"]
-        self.assertEqual(groups, ["Type=DIMENSION,Key=SERVICE", "Type=DIMENSION,Key=USAGE_TYPE"])
+        # AWS CLI chỉ giữ lần `--group-by` cuối: hai nhóm phải nằm sau một cờ (lỗi tìm thấy ở M-143-02)
+        self.assertEqual(usage.count("--group-by"), 1)
+        i = usage.index("--group-by")
+        self.assertEqual(usage[i + 1:i + 3], ["Type=DIMENSION,Key=SERVICE", "Type=DIMENSION,Key=USAGE_TYPE"])
         credit = next(c for c in cau if any("RECORD_TYPE" in a for a in c if a.startswith("Type=")))
         self.assertNotIn("--filter", credit)
         self.assertEqual(arg(credit, "--time-period"), f"Start=2026-08-01,End={TODAY}")

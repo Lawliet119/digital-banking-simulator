@@ -36,7 +36,16 @@ def period(argv):
 
 
 def group_keys(argv):
-    return [argv[i + 1] for i, a in enumerate(argv) if a == "--group-by"]
+    """Như AWS CLI thật: `--group-by` lặp lại thì chỉ lần cuối có hiệu lực; nhiều nhóm phải nằm sau một cờ."""
+    if "--group-by" not in argv:
+        return []
+    i = len(argv) - 1 - argv[::-1].index("--group-by")
+    out = []
+    for a in argv[i + 1:]:
+        if a.startswith("--"):
+            break
+        out.append(a)
+    return out
 
 
 def metrics(cost, qty=None):
@@ -48,11 +57,12 @@ def metrics(cost, qty=None):
 
 def usage(fx, argv):
     start, end = period(argv)
+    both = group_keys(argv) == ["Type=DIMENSION,Key=SERVICE", "Type=DIMENSION,Key=USAGE_TYPE"]
     rows = []  # (day, group) theo thứ tự ngày
     for day in sorted(fx.get("usage", {})):
         if start <= day < end:
             for svc, ut, cost, qty in fx["usage"][day]:
-                rows.append((day, {"Keys": [svc, ut] if svc else [ut], "Metrics": metrics(cost, qty)}))
+                rows.append((day, {"Keys": [svc, ut] if svc and both else [ut], "Metrics": metrics(cost, qty)}))
     size = fx.get("page_size") or len(rows) or 1
     page = int(arg(argv, "--next-page-token", "0"))
     chunk = rows[page * size:(page + 1) * size]

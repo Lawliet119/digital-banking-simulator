@@ -131,7 +131,7 @@ def collect(a, today):
     data = {}
     data["usage"] = paged("ce", "get-cost-and-usage", "--time-period", period(a.start, a.end),
                           "--granularity", "DAILY", "--metrics", "UnblendedCost", "UsageQuantity",
-                          "--group-by", "Type=DIMENSION,Key=SERVICE", "--group-by", "Type=DIMENSION,Key=USAGE_TYPE",
+                          "--group-by", "Type=DIMENSION,Key=SERVICE", "Type=DIMENSION,Key=USAGE_TYPE",  # một cờ: CLI chỉ giữ lần cuối
                           "--filter", json.dumps(NOT_CREDIT))
     tags = aws("ce", "list-cost-allocation-tags", "--tag-keys", "project", "env", "owner")
     data["tags"] = {t["TagKey"]: t["Status"] for t in tags.get("CostAllocationTags", [])}
