@@ -311,3 +311,204 @@ Không còn phát hiện `blocking` sau vòng 2. Các điểm còn lại thuộc
 - `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` — sạch, 106 file, 0 link hỏng.
 
 **Quyết định ở G4 (duyệt 2026-10-26):** Người dùng trả lời "duyệt", chấp nhận không có ảnh chụp PNG (thư viện nội bộ, không có UI) — `manual-test.txt` là bằng chứng thay thế. Chuyển Status thành Implemented, push branch, mở PR.
+
+## Vòng 2 · Sửa sau code-review nhánh `feat/DBS-56-audit-service-record`
+
+> **Status vòng 2:** Draft (đã implement và test, chờ G4) · **Nguồn:** review code (`/code-review`, model Claude, mức medium) ngày 2026-11-03 trên nhánh gốc, chưa merge · **Nhánh:** `fix/DBS-56-audit-service-record-review-fixes` (rebase từ `origin/main`, PR chưa mở) · **Cập nhật:** 2026-11-04
+
+### R1. Bối cảnh
+
+**Phạm vi:** 3 phát hiện của review (xem báo cáo gửi người dùng trong chat 2026-11-03), đã xác minh thật bằng script tái hiện và đọc code trước khi thiết kế fix:
+
+| ID | Mức (từ review) | Vị trí | Vấn đề | Đã xác minh |
+|---|---|---|---|---|
+| F-1 | nghiêm trọng | `backend/src/modules/audit/audit-metadata.guard.ts:22` | `assertValidMetadata` chỉ kiểm `Object.keys(metadata)` (key enumerable); `audit.service.ts` serialize bằng `JSON.stringify(metadata)`, gọi cả `toJSON()` non-enumerable → hai cơ chế nhìn metadata khác nhau | Tái hiện bằng script Node thật: `Object.defineProperty(m, 'toJSON', {value: () => ({email: 'victim@example.com'}), enumerable: false})` → `Object.keys(m)` = `[]` (guard pass), `JSON.stringify(m)` = `{"email":"victim@example.com"}` (PII lọt vào `audit_log.metadata`) |
+| F-2 | should-fix | `backend/src/modules/audit/audit.service.ts:42` | `recordDenied()` không được gọi lồng trong `TransactionService.run` khác (giữ 2 connection, retry deadlock ghi trùng DENIED) — chỉ là JSDoc, không có kiểm runtime, khác với `AccountsService.requireOutermostTransaction` (DBS-55) | Đọc `accounts.service.ts:150` xác nhận pattern đã có nhưng dựa vào `manager.queryRunner.transactionDepth` — cần có `manager` sẵn. `recordDenied()` không nhận `manager` (đúng chủ đích, tự mở transaction riêng) nên cần cơ chế khác: theo dõi "đang có transaction mở" bằng `AsyncLocalStorage`, set trong `withTransaction` (`backend/src/database/transaction.helper.ts`) — **file nền tảng dùng chung, không riêng module `audit`** |
+| F-3 | should-fix | `backend/src/modules/index.ts`, `docs/BACKLOG.md`, `docs/features/README.md` | Nhánh gốc dựa trên `main` cũ (điểm rẽ `82c8e23`), `main` đã tiến 19 commit (DBS-50/51/52/53/55/57/69…) → conflict khi merge | Tái hiện bằng `git merge-tree --write-tree origin/main <nhánh gốc>`: đúng 3 file conflict. **Đã giải quyết bằng rebase** (xem dưới), không còn là việc cần làm ở §7 |
+
+**Đã làm trước khi vào G1:** tạo nhánh làm việc `fix/DBS-56-audit-service-record-review-fixes` từ `origin/feat/DBS-56-audit-service-record` (SHA `4e43261`); chạy baseline đủ 4 lệnh + `test:db` (xanh, remap Postgres cổng 5433 — cùng tình huống đã lường ở vòng 1 §1); **rebase lên `origin/main`** mới nhất (người dùng đồng ý ở G1 làm ngay, tránh giải conflict hai lần) — giải 3 conflict đúng như F-3 dự đoán:
+- `backend/src/modules/index.ts`: gộp `AuditModule` và `OutboxModule` vào `sharedModules` (trước đó mỗi nhánh chỉ có một), giữ `AccountsModule` ở `apiModules`, sửa lại comment.
+- `docs/BACKLOG.md`: giữ bản thu hẹp của **BL-019** (narrowed, từ commit `dc2d9f3` của nhánh gốc) over bản cũ của `main`; phát hiện ID `BL-031` bị trùng (nhánh gốc đã chiếm cho DoD #5 của DBS-56, nhưng trên `main` hiện tại `BL-031` đã là dòng khác của DBS-33) → đổi dòng DoD #5 DBS-56 thành **BL-137** (số tiếp theo sau `BL-136` hiện có trên `main`).
+- `docs/features/README.md`: thêm dòng DBS-56 vào danh sách đầy đủ của `main` (giữ tất cả dòng DBS-55/57/69/34/54/38/66/36/67/75/68/53/52/51 đã có), không còn dùng danh sách cũ, ngắn của nhánh gốc.
+
+Baseline sau rebase (`npm install` lại để nhận `redis`/`@aws-sdk/client-sqs` mới từ `main`, revert `package-lock.json` về đúng bản đã rebase — không phải bản tự `npm install` sinh ra, tránh lockfile drift do thứ tự resolve `peer`):
+| Lệnh | Kết quả |
+|---|---|
+| `npm run lint:check` | sạch, 0 lỗi |
+| `npm run typecheck` | sạch, 0 lỗi |
+| `npm test` | 788/788 pass, loại trừ `jwks-verifier.service.spec.ts` |
+| `npm run test:e2e` | 13/13 suites, 135/135 tests pass |
+| `npm run test:db` | 16/16 suites, 335/335 tests pass, loại trừ `outbox-writer-bootstrap.db-spec.ts` |
+
+Hai file loại trừ **không liên quan `audit` hay nhánh này** — đã xác minh bằng cách tái hiện độc lập trên một worktree `origin/main` sạch (`git worktree add`, không có thay đổi gì của DBS-56):
+- `jwks-verifier.service.spec.ts` (`refetches on key rotation…`, `honours the refetch cooldown…`): timer thật `setTimeout`/`COOLDOWN_MS` nhạy với tải máy — đúng BL-112 đã ghi trên `docs/BACKLOG.md`. Fail trên cả `origin/main` sạch (5/5 lần chạy lại trong phiên này — tỷ lệ cao hơn ghi chú gốc của BL-112, nhưng cùng nguyên nhân: máy đang bận).
+- `outbox-writer-bootstrap.db-spec.ts` (TC-57-13, cả 3 role `api`/`worker`/`both`): `execFile` spawn child process với `env` đã lọc theo whitelist (không gồm `NODE_OPTIONS`), nên child không có cờ `--experimental-global-webcrypto` mà Node 18 cần để có `globalThis.crypto` (package.json yêu cầu `engines.node: >=24`). Tái hiện cùng `ReferenceError` trên `origin/main` sạch khi chạy trực tiếp `node -r ts-node/register … outbox-writer.manual.ts` không có `NODE_OPTIONS`. Không phải lỗi của `audit`; CI (Node ≥24) không gặp vấn đề này.
+
+**Người gọi các symbol bị đổi:** grep `assertValidMetadata`, `recordDenied`, `withTransaction` trong `backend/src/` (ngoài test) → không có caller production nào khác ngoài `audit.service.ts` và `transaction.service.ts` tự nó. An toàn để sửa nội bộ mà không phá giao diện của symbol khác.
+
+**Ngoài phạm vi:** registry đóng cho `action`/`role`/`target.id` (BL-019 đã ghi, không đổi); API tra cứu UC-8; production role grants; đo tải pool cho `recordDenied()` dưới tải thật. Không đổi chữ ký public `record()`/`recordDenied()` — chỉ sửa hành vi nội bộ.
+
+**Câu hỏi mở:** đã hỏi ở G1 (chat), đã được duyệt:
+1. Finding F-2 cần sửa file nền tảng `backend/src/database/transaction.helper.ts` (không riêng `audit`) — làm trong PR này, có test riêng cho `transaction.helper.spec.ts`. **Đã duyệt.**
+2. Rebase lên `origin/main` ngay ở Phase 1 (không để tới Phase 4). **Đã duyệt, đã làm (xem trên).**
+
+**Quyết định ở G1 (vòng 2, duyệt qua chat 2026-11-03):** Người dùng trả lời "duyệt" (gõ "duyêht"), không góp ý thêm. Cả 2 câu hỏi được chấp thuận theo đề xuất của agent. Chuyển sang Phase 2.
+
+### R2. Hành vi thay đổi
+
+**F-1 — guard metadata kiểm cùng thứ sẽ được ghi, không phải `Object.keys`.** Thay `assertValidMetadata` bằng cách validate trên `JSON.parse(JSON.stringify(metadata === undefined ? {} : metadata))` — chính là giá trị sẽ đi vào DB — thay vì validate trên object gốc rồi serialize riêng. **Default chỉ áp dụng khi `metadata === undefined`, dùng so sánh chặt, không dùng `??`** (domain review vòng 2 round 1 #1, blocking — bản thiết kế đầu thiếu bước default này nên `JSON.stringify(undefined)` trả **giá trị JS `undefined`**, không phải chuỗi, khiến `JSON.parse(undefined)` throw `SyntaxError` ngay, tức mọi lệnh gọi `record()` không có `metadata` — trường hợp phổ biến nhất — sẽ crash; domain review vòng 2 round 2 #5, should-fix — bản sửa #1 ban đầu dùng `metadata ?? {}`, nhưng `??` coi `null` giống `undefined`, nên một `metadata` tường minh là `null` sẽ bị âm thầm biến thành `{}` và **được accept**, thay vì reject như hành vi hiện tại và như TC-56-07c yêu cầu — dùng `=== undefined` tường minh mới phân biệt đúng hai case). Hai bước (validate, serialize) đổi thành một chuỗi: default khi `undefined` → serialize → validate trên kết quả serialize → ghi SQL bằng chính chuỗi đã serialize đó (không serialize lại hai lần, tránh lệch nếu `toJSON()` không idempotent). Hệ quả hành vi mới:
+- `metadata` bị bỏ qua (`undefined`) → default `{}` → `JSON.stringify({})` = `'{}'`→ `JSON.parse('{}')` = `{}` → guard pass (không có key nào) — **giữ đúng hành vi cũ** (TC-56-04c, TC-56-16), không crash.
+- `metadata` tường minh là `null` → **không** default (vì `null !== undefined`) → `JSON.stringify(null)` = chuỗi `'null'` → `JSON.parse('null')` = `null` → guard thấy `typeof !== 'object' || metadata === null` → `AuditMetadataError` — **giữ đúng hành vi cũ** (TC-56-07c), không bị accept nhầm thành `{}`.
+- `{ id: 'a', toJSON: () => ({ email: 'x' }) }` (hay bất kỳ object có `toJSON`) → bị thấy đúng là `{ email: 'x' }` sau `JSON.parse(JSON.stringify(...))`, `email` không thuộc `{id, reason, count}` → `AuditMetadataError`, đúng như một object `{ email: 'x' }` thường.
+- Một `Date` làm `metadata` (hiếm nhưng hợp `typeof === 'object'`) → `JSON.stringify` cho ra một **chuỗi** (`"2026-11-03T..."`), không phải object → `JSON.parse` lại cho string đó → guard thấy `typeof !== 'object'` → reject, đúng (một `Date` không có field nào trong `{id, reason, count}` nên không hợp lệ).
+- Nếu `JSON.stringify` tự nó throw (ví dụ `metadata` chứa `BigInt`, hoặc một `getter` throw) — lỗi đó lan ra từ `record()` **trước khi chạm DB**, không bọc — vẫn là fail-closed (giống hành vi #2 đã có, chỉ sớm hơn một bước).
+- Giá trị đã `JSON.parse(JSON.stringify(x))` không còn giữ `undefined` cho field bị bỏ qua (JSON không có `undefined`) — không đổi hành vi hiện có vì guard đã coi field thiếu và field `undefined` như nhau (`metadata.id !== undefined`).
+
+Không đổi `AuditMetadataError`, không đổi `ALLOWED_KEYS`/`ID_PATTERN`/`VALID_REASONS`, không đổi chữ ký `assertValidMetadata`. Message lỗi vẫn cố định, không echo giá trị gốc (kể cả giá trị đã qua `JSON.stringify`).
+
+**F-2 — `recordDenied()` từ chối chạy khi đang có `TransactionService.run` mở trên cùng async context.** Thêm một theo dõi runtime bằng `AsyncLocalStorage<boolean>` trong `withTransaction()` (`transaction.helper.ts`): khi vào thân `try` (sau `startTransaction`, trước khi gọi `fn`), chạy `fn` bên trong `activeTransactionContext.run(true, () => fn(manager))`. `recordDenied()` đọc `activeTransactionContext.getStore()`; nếu `=== true`, reject ngay với một lỗi mới `NestedTransactionError` (message cố định, không echo input) **trước khi** gọi `this.transactionService.run(...)` — không mở transaction mới, không chạm DB.
+- Gọi đúng (ngoài mọi `run()`, hoặc sau khi `run()` đã resolve/reject): `getStore()` là `undefined` (ngoài context) → `recordDenied()` chạy như cũ.
+- Gọi lồng trong `run()` khác (dù trực tiếp hay qua một hàm async khác gọi từ trong callback — `AsyncLocalStorage` theo dõi theo chuỗi async, không theo lexical scope): `getStore()` là `true` → reject `NestedTransactionError` ngay, không mở transaction thứ hai, không có nguy cơ ghi trùng khi retry deadlock.
+- Một `recordDenied()` gọi từ một `.then()`/callback **đã thoát khỏi** `await fn(manager)` của `withTransaction` (ví dụ do caller `void` một promise rồi tiếp tục) — ngoài phạm vi: `AsyncLocalStorage` chỉ theo dõi chuỗi async đồng bộ với `fn`; một fire-and-forget đã tự rời khỏi mọi ràng buộc transaction, không phải lỗi mới do fix này gây ra.
+- **Giới hạn đã biết, ghi lại cho người wire sau (domain review vòng 2 #2):** guard ALS chỉ bắt được lồng **đồng bộ theo chuỗi async** (gọi trực tiếp, hoặc qua một hàm `async` khác được `await` — TC-56-21). Một caller tương lai kiểu `OutboxWriter`/consumer (nhắc ở `module-notes.md` "Async, events và audit") mà gọi `recordDenied()` từ trong một listener `EventEmitter`/`setImmediate` được đăng ký bên trong `run()` nhưng kích hoạt **sau, từ bên ngoài** chuỗi async đó — guard sẽ không thấy (`getStore()` trả `undefined` dù transaction gốc vẫn đang mở) tùy theo cách callback đó được nối dây. Guard này không phải lưới an toàn toàn diện cho mọi cách gọi bất đồng bộ — chỉ chặn đúng ca JSDoc cũ mô tả (gọi trực tiếp/awaited trong `run()` khác).
+
+Không đổi hành vi hiện có của `withTransaction`/`TransactionService.run` cho mọi caller khác (`AccountsService`, `OutboxWriter` tương lai...) — `AsyncLocalStorage.run()` chỉ bọc thêm quanh `fn`, không đổi giá trị trả về, không đổi exception path, không đổi retry logic.
+
+### R3. Kiến trúc thay đổi
+
+- **F-1**, trong `backend/src/modules/audit/`: `audit-metadata.guard.ts` đổi chữ ký nội bộ (không đổi export): thêm một hàm `serializeMetadata(metadata: AuditMetadata | undefined): string` làm bước trung gian — `JSON.stringify(metadata === undefined ? {} : metadata)` (default chỉ khi `undefined`, so sánh chặt — domain review vòng 2 round 1 #1 và round 2 #5: `??` sẽ default luôn cả `null` thành `{}`, phá hành vi reject `null` của TC-56-07c), rồi validate trên `JSON.parse(...)` kết quả đó. `audit.service.ts` gọi `serializeMetadata` một lần, dùng kết quả (chuỗi) cho cả validate và SQL param thứ 8 (hiện đang gọi `JSON.stringify(input.metadata ?? {})` riêng ở đó — sẽ xóa, dùng lại chuỗi từ `serializeMetadata`; lưu ý SQL param vẫn nhận `'{}'` khi `undefined` giống hệt hôm nay, chỉ khác là `null` giờ bị chặn ở bước validate trước khi tới SQL thay vì lọt qua `?? {}` ở service). Không export thêm gì mới ra `index.ts`.
+- **F-2**, hai file:
+  - `backend/src/database/transaction.helper.ts` (nền tảng, không riêng `audit`): thêm `export const activeTransactionContext = new AsyncLocalStorage<true>()` (module-level, singleton — giống cách `pg-error.util.ts` xuất hàm thuần không có state); sửa `withTransaction` để chạy `fn` bên trong `activeTransactionContext.run(true, () => fn(queryRunner.manager))`. Không export gì khác, không đổi `TransactionOptions`.
+  - `backend/src/modules/audit/audit.service.ts`: `recordDenied()` import `activeTransactionContext` từ `@database/transaction.helper`, kiểm `activeTransactionContext.getStore()` trước khi gọi `this.transactionService.run(...)`.
+  - `backend/src/modules/audit/audit.types.ts`: thêm `export class NestedTransactionError extends Error` (cùng pattern `AuditMetadataError` — message cố định, không echo input).
+- **Không có thay đổi dữ liệu, không có migration mới, không đổi `_shared`/ADR/event-contract.** Transaction boundary không đổi: `record()` vẫn chạy trong `manager` của caller; `recordDenied()` vẫn tự mở transaction riêng — chỉ thêm một bước kiểm trước khi mở.
+- **Người gọi `withTransaction`/`TransactionService.run` khác** (`AccountsService`, test helpers): không cần đổi gì, `AsyncLocalStorage.run()` transparent với giá trị trả về và exception.
+
+### R4. Test cases tự động (vòng 2)
+
+| ID | Truy vết | Lớp | Given · When · Then |
+|---|---|---|---|
+| TC-56-14 | F-1 | unit | Given `metadata` có `toJSON()` non-enumerable trả `{ email: 'x' }` (`Object.defineProperty(m, 'toJSON', {value: () => ({email: 'x'}), enumerable: false})`) · When `record(manager, {...INPUT, metadata: m})` · Then reject `AuditMetadataError`, `manager.query` không được gọi |
+| TC-56-15 | F-1 | unit | Given `metadata` là `new Date()` · When `record()` · Then reject `AuditMetadataError` (chuỗi ISO sau `JSON.stringify` không phải object hợp lệ) |
+| TC-56-16 | F-1 (positive, không phá hành vi cũ) | unit | Given lần lượt mọi case accept hiện có của TC-56-07d (omitted, `{}`, `{id}`, `{reason: ErrorCode...}`, `{reason: AuditReason...}`, `{count: 0}`, đủ ba field) · When `record()` · Then không reject, SQL param thứ 8 là `JSON.stringify(metadata)` giống hệt hành vi cũ (không đổi output khi input không có `toJSON`) |
+| TC-56-16b | F-1 (negative, domain review vòng 2 round 2 #5) | unit | Given `metadata` tường minh là `null` (ví dụ ép kiểu `null as unknown as AuditMetadata`, không phải bỏ qua param) · When `record()` · Then reject `AuditMetadataError`, `manager.query` không được gọi — phân biệt rõ với `undefined` (TC-56-16): `??` sẽ default cả hai case này thành `{}` và accept nhầm `null`, `=== undefined` thì chỉ default đúng case bị bỏ qua |
+| TC-56-17 | F-1 | unit | Given `metadata` mà `JSON.stringify` tự throw (ví dụ chứa `BigInt`, hoặc `get count() { throw new Error('boom') }`) · When `record()` · Then reject (lỗi gốc, không bọc), `manager.query` không được gọi |
+| TC-56-18 | F-2 | unit (`fakeDataSource` + `TransactionService` thật) | Given gọi `recordDenied(input)` **trong** callback của `transactionService.run(async manager => { ...; await auditService.recordDenied(input); })`, `transactionService.run` được spy (`jest.spyOn`) để đếm số lần gọi · When `run()` chạy · Then `recordDenied()` reject `NestedTransactionError` ngay; `transactionService.run` chỉ được gọi **đúng 1 lần** tổng (lần gọi ngoài của test, không có lần gọi thứ hai từ bên trong `recordDenied`) — domain review vòng 2 #3: chỉ đếm `createQueryRunner` không phân biệt được "guard chặn đúng" với "guard bị đặt sai vị trí/bị xóa nhưng vẫn chỉ có 1 runner vì lý do khác"; đếm `transactionService.run` mới thật sự chứng minh nhánh early-return chạy trước khi `recordDenied` kịp tự gọi `run()` |
+| TC-56-19 | F-2 (positive control) | unit | Given gọi `recordDenied(input)` **ngoài** mọi `run()` (như hiện tại) · When gọi · Then không reject `NestedTransactionError`, chạy `record()` qua `transactionService.run` như bình thường (hành vi TC-56-06 không đổi) |
+| TC-56-20 | F-2 | unit | Given gọi `recordDenied(input)` sau khi một `run()` khác đã resolve (không còn đang mở) · When gọi · Then không reject `NestedTransactionError` — `AsyncLocalStorage` context đã kết thúc cùng `fn` |
+| TC-56-21 | F-2 (chuỗi async, domain review sẽ kiểm) | unit | Given `recordDenied(input)` được gọi từ một hàm `async` thứ hai mà callback của `run()` `await` trực tiếp (ví dụ `await helper()` trong đó `helper` gọi `recordDenied`) — không gọi trực tiếp tại lexical scope của callback · When `run()` chạy · Then vẫn reject `NestedTransactionError` (chứng minh theo dõi theo chuỗi async, không theo lexical scope) |
+| TC-56-22 | F-1/F-2 (hồi quy) | integration (db-spec, Postgres thật) | Given mọi test case hiện có TC-56-01 → TC-56-13 · When chạy lại sau fix · Then không có test nào đổi hành vi mong đợi (SQL param thứ 8 vẫn là chuỗi JSON giống cũ cho metadata hợp lệ, `recordDenied()` gọi đúng chỗ vẫn commit DENIED như TC-56-06) |
+
+**Không áp dụng:** không có thay đổi dữ liệu/migration nên không cần test schema mới; F-3 (rebase) không sinh test case — đã xác minh bằng `git merge-tree` (§R1), không phải hành vi runtime.
+
+### R5. Test thủ công (vòng 2)
+
+Cùng script `backend/test/manual/audit-record.manual.ts` (từ vòng 1), mở rộng thêm hai bước mới chứng minh hai fix bằng ứng dụng thật, không chỉ unit test:
+
+| Bước | Việc làm | Kết quả mong đợi |
+|---|---|---|
+| M-56-04 | Script: tạo `metadata` có `toJSON()` non-enumerable trả `{ email: 'victim@example.com' }`, gọi `transactionService.run(m => auditService.record(m, {..., metadata}))` | Script in lỗi `AuditMetadataError`, không có gì commit; `psql select * from audit_log where correlation_id = '<id>'` → 0 dòng (PII không lọt vào DB) |
+| M-56-05 | Script: gọi `transactionService.run(async m => { await auditService.recordDenied({...}); })` (gọi `recordDenied` lồng trong `run()` đang mở) | Script in lỗi `NestedTransactionError`; `psql` với `correlation_id` của lần gọi đó → 0 dòng (không ghi trùng, không mở transaction thứ hai) |
+
+Điều kiện chạy: như vòng 1 (`docker compose up -d`, `npm run migration:run`, seed `users` + `fc_scratch`, remap cổng 5433 nếu máy có Postgres native khác chiếm 5432). Output nối tiếp vào `docs/features/screenshots/DBS-56/manual-test.txt` (dòng đầu đổi thành SHA commit cuối của vòng 2).
+
+### R6. Domain review (AI, vòng 2)
+
+**Round 1 — Reviewer:** subagent (model mặc định phiên, general-purpose), 2026-11-04 · **Kết quả:** 4 phát hiện (1 blocking, 1 should-fix, 2 minor) · Verdict: REVISE · [trả lời nguyên văn](screenshots/DBS-56/domain-review-round3.md)
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | blocking | Thiết kế F-1 thiếu bước default `metadata ?? {}` trước `JSON.stringify` — `JSON.stringify(undefined)` trả giá trị JS `undefined` (không phải chuỗi), `JSON.parse(undefined)` throw `SyntaxError` ngay; case phổ biến nhất (không truyền `metadata`) sẽ crash | **đã sửa** §R2/§R3 — `serializeMetadata` thêm bước default trước `JSON.stringify`, nêu rõ trong cả hành vi và kiến trúc; thêm giải thích case "omitted" vào R2 (sau đó round 2 sửa tiếp cách default, xem phát hiện #5) |
+| 2 | should-fix | Guard ALS (F-2) chỉ bắt lồng đồng bộ theo chuỗi async; một caller tương lai kiểu outbox/event-driven gọi `recordDenied()` từ callback bị kích hoạt tách rời chuỗi async (`EventEmitter`/`setImmediate`) sẽ không bị guard bắt, dù transaction gốc vẫn mở | **đã sửa** §R2 — thêm một đoạn "Giới hạn đã biết" nêu rõ đây không phải lưới an toàn toàn diện, cảnh báo trước cho người wire `recordDenied()` vào consumer bất đồng bộ sau này |
+| 3 | minor | TC-56-18 chỉ đếm `createQueryRunner`, không phân biệt được "guard chặn đúng" với "chỉ có 1 runner vì lý do khác" | **đã sửa** §R4 — đổi assertion sang spy trực tiếp `transactionService.run`, xác nhận không bị gọi lần hai |
+| 4 | minor | Xác nhận F-3 (rebase giải quyết conflict) đúng, không cần sửa | không cần sửa — reviewer tự xác nhận đã đúng |
+
+**Round 2 — Reviewer:** subagent (model mặc định phiên, general-purpose), 2026-11-04 · Review lại các phần đã sửa (R2/R3/R4/R6) sau round 1 · **Kết quả:** xác nhận cả 4 phát hiện round 1 đã xử lý đúng, phát hiện thêm 1 should-fix mới · Verdict: REVISE · [trả lời nguyên văn](screenshots/DBS-56/domain-review-round3.md)
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 5 | should-fix | Bản sửa #1 (round 1) dùng `metadata ?? {}` để default — nhưng `??` coi `null` giống `undefined`, nên một `metadata` tường minh là `null` (đúng kiểu bypass F-1 muốn chặn) bị âm thầm biến thành `{}` và **được accept**, thay vì reject như hành vi hiện tại và như TC-56-07c yêu cầu | **đã sửa** §R2/§R3 — đổi default sang so sánh chặt `metadata === undefined ? {} : metadata` (không dùng `??`), tự verify bằng `node -e` xác nhận `null` vẫn reject đúng và `undefined` vẫn default `{}` đúng; thêm test case TC-56-16b (reject `null` tường minh) vào §R4 |
+
+Round 2 chỉ còn 1 should-fix (không blocking), đã sửa trực tiếp và tự verify bằng thực nghiệm (`node -e`) khớp đúng hành vi mong đợi của TC-56-07c/TC-56-16 — không chạy thêm round 3 trước khi trình G2 vì fix không đổi kiến trúc tổng thể, chỉ đổi cách default một biểu thức.
+
+**Quyết định ở G2 (vòng 2, duyệt qua chat 2026-11-04):** Người dùng trả lời "duyệt" (gõ "duyêth"), không góp ý thêm. Chuyển sang Phase 3.
+
+### R7. Kế hoạch triển khai (vòng 2)
+
+| Bước | File | Test viết trước | Kết quả đỏ (1 dòng, điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `backend/src/modules/audit/audit-metadata.guard.spec.ts` | TC-56-14, TC-56-15, TC-56-16, TC-56-16b, TC-56-17 (mới, cho `serializeMetadata` — đổi `assertValidMetadata` để gọi hàm mới nội bộ) | `TS2305: Module has no exported member 'serializeMetadata'` | `npm run test -- audit-metadata.guard.spec.ts` | `16dfa73` |
+| 2 | `backend/src/modules/audit/audit-metadata.guard.ts` | (test bước 1 đỏ vì `serializeMetadata` chưa tồn tại) | (như trên) → xanh: 34/34 | `npm run test -- audit-metadata.guard.spec.ts` | `da86d99` |
+| 3 | `backend/src/modules/audit/audit.service.ts` | TC-56-16 (SQL param thứ 8 phải là chuỗi từ `serializeMetadata`, không `JSON.stringify` riêng); `audit.service.spec.ts` TC-56-01 giữ nguyên (hồi quy) | n/a — thay code production, không viết test đỏ riêng ở bước này | `npm run test -- audit.service.spec.ts audit-metadata.guard.spec.ts` → xanh: 38/38 | `fe4034d` |
+| 4 | `backend/src/database/transaction.helper.spec.ts` | Test mới: `activeTransactionContext.getStore()` là `true` trong `fn`, `undefined` ngoài `withTransaction`, giữ `undefined` sau khi `fn` resolve/reject | `TS2305: Module has no exported member 'activeTransactionContext'` | `npm run test -- transaction.helper.spec.ts` | `c4871c4` |
+| 5 | `backend/src/database/transaction.helper.ts` | (test bước 4 đỏ vì `activeTransactionContext` chưa tồn tại) | (như trên) → xanh: 19/19 | `npm run test -- transaction.helper.spec.ts`, sau đó `npm run test` toàn bộ | `d0f0174` |
+| 6 | `backend/src/modules/audit/audit.types.ts` | `audit.types.spec.ts` thêm case `NestedTransactionError` là `instanceof Error`, message cố định | n/a — type/class mới, thêm cùng lúc với test (không tách được đỏ riêng vì compile-time) | `npm run test -- audit.types.spec.ts` → xanh: 3/3 | `cff5a53` |
+| 7 | `backend/src/modules/audit/audit.service.spec.ts` | TC-56-18, TC-56-19, TC-56-20, TC-56-21 (mới, cho guard lồng transaction trong `recordDenied()`) | TC-56-18 và TC-56-21 fail: "Resolved to value: undefined" thay vì reject `NestedTransactionError` | `npm run test -- audit.service.spec.ts` | `b3ce59c` |
+| 8 | `backend/src/modules/audit/audit.service.ts` | (test bước 7 đỏ vì chưa có guard) | (như trên) → xanh: 8/8 | `npm run test -- audit.service.spec.ts` | `66b26ab` |
+| 9 | — (hồi quy toàn bộ) | TC-56-22: chạy lại TC-56-01→13 | n/a | `npm run test` (818/820, 2 fail pre-existing không liên quan) và `npm run test:db -- audit` (51/51) | (không commit riêng — đã xác nhận, xem R8) |
+| 10 | `backend/test/manual/audit-record.manual.ts` | M-56-04, M-56-05 (mở rộng script, không phải unit test) | — | chạy tay qua Docker Postgres thật, dán output vào `manual-test.txt` | `248a0bf` |
+| 11 | `docs/features/DBS-56-audit-service-record.md` + `docs/features/screenshots/DBS-56/manual-test.txt` | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | (commit này, sau khi G4 được duyệt) |
+
+**Rủi ro và cách lùi:**
+- Bước 2/5/8 đổi hành vi runtime production; nếu `npm run test` toàn bộ (`audit`, `database`, các module khác dùng `withTransaction`) đỏ bất ngờ sau một bước, dừng lại ở đó, không đi tiếp bước sau — sửa ngay trong cùng bước, không gộp nhiều thay đổi logic vào một commit.
+- Bước 5 đổi `transaction.helper.ts`, file nền tảng dùng chung với `AccountsService`, `OutboxWriter` (tương lai) — chạy `npm run test` toàn bộ backend (không chỉ file audit) sau bước 5 để chắc không phá caller khác, trước khi qua bước 6.
+- Nếu bước 9 phát hiện hồi quy, lùi về bước trước đó bằng `git revert` commit vừa tạo, không sửa đè lên commit cũ.
+- Baseline trước khi bắt đầu: `npm run lint:check && npm run typecheck && npm run test` sạch (trừ hai test pre-existing-flaky đã ghi ở §R1: `jwks-verifier.service.spec.ts` BL-112, `outbox-writer-bootstrap.db-spec.ts` do thiếu `NODE_OPTIONS=--experimental-global-webcrypto` trên Node 18 local — không thuộc phạm vi DBS-56).
+
+**Quyết định ở G3 (duyệt qua chat 2026-11-04):** Người dùng trả lời "duyệt". Chuyển sang Phase 4.
+
+### R8. Kết quả (vòng 2)
+
+- **Lệnh kiểm tra** (chạy lúc bàn giao, branch `fix/DBS-56-audit-service-record-review-fixes`, `DATABASE_URL` trỏ cổng 5433 vì máy có Postgres native chiếm 5432, `NODE_OPTIONS=--experimental-global-webcrypto` vì môi trường local dùng Node 18 — xem §R1):
+  ```
+  npm run lint:check  → sạch, 0 lỗi
+  npm run typecheck   → sạch, 0 lỗi
+  npm run test        → 53 suites / 818 tests pass, 1 suite fail (jwks-verifier.service.spec.ts,
+                         BL-112, flaky có sẵn trên main — không do vòng 2)
+  npm run test:e2e    → 13 suites / 135 tests pass
+  npm run test:db     → 16 suites / 335 tests pass, 1 suite fail (outbox-writer-bootstrap.db-spec.ts,
+                         pre-existing trên main — NODE_OPTIONS không truyền qua execFile whitelist
+                         trên Node 18 local, không do vòng 2; xem §R1)
+  ```
+  Cả hai lỗi còn lại đã được xác nhận pre-existing trước khi bắt đầu Phase 4 (baseline chạy trước bước 1, và lại sau bước 9) — không phải regression của vòng 2.
+
+- **Đối chiếu test case (vòng 2):**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-56-14 | `audit-metadata.guard.spec.ts` › TC-56-14 rejects a non-enumerable toJSON() | đạt |
+| TC-56-15 | `audit-metadata.guard.spec.ts` › TC-56-15 rejects a Date | đạt |
+| TC-56-16 | `audit-metadata.guard.spec.ts` › TC-56-16 accepts … and returns its JSON serialization | đạt |
+| TC-56-16b | `audit-metadata.guard.spec.ts` › TC-56-16b rejects an explicit null | đạt |
+| TC-56-17 | `audit-metadata.guard.spec.ts` › TC-56-17 propagates an error from JSON.stringify itself | đạt |
+| TC-56-18 | `audit.service.spec.ts` › TC-56-18 rejects NestedTransactionError … run() is only invoked once total | đạt |
+| TC-56-19 | `audit.service.spec.ts` › TC-56-19 (positive control) runs normally outside any run() | đạt |
+| TC-56-20 | `audit.service.spec.ts` › TC-56-20 runs normally after an earlier run() has resolved | đạt |
+| TC-56-21 | `audit.service.spec.ts` › TC-56-21 rejects NestedTransactionError nested through an awaited async helper | đạt |
+| TC-56-22 | `npm run test` + `npm run test:db -- audit` (toàn bộ TC-56-01→13) | đạt — không test nào đổi hành vi mong đợi |
+
+- **Test thủ công:** chạy thật trên `docker compose` (Postgres remap cổng 5433), một `users` thật seed qua script Node trực tiếp (tương đương `psql`), bảng `fc_scratch` đã có từ vòng 1. Script: `backend/test/manual/audit-record.manual.ts` (mở rộng từ vòng 1). Output thô nối tiếp vào [manual-test.txt](screenshots/DBS-56/manual-test.txt), đoạn "Vòng 2" ở cuối file (commit cuối đổi code: `66b26ab`).
+
+  | Bước | Lệnh | Phản hồi (rút gọn) | Kết quả |
+  |---|---|---|---|
+  | M-56-04 | script tạo `metadata` có `toJSON()` non-enumerable trả `{email: 'victim@example.com'}`, gọi `record()` | script in lỗi `AuditMetadataError` ngay; xác nhận trực tiếp qua `select count(*)`: 0 dòng cho correlation đó | đạt |
+  | M-56-05 | script gọi `recordDenied()` **trong** một `transactionService.run()` đang mở | script in lỗi `NestedTransactionError` ngay; xác nhận trực tiếp qua `select count(*)`: 0 dòng cho correlation đó | đạt |
+
+  Điều kiện chạy: như vòng 1 (`docker compose up -d`, Postgres đã migrate từ trước, seed `users` + `fc_scratch`, remap cổng 5433).
+
+- **Phạm vi so với §R7:** `git diff --stat main...HEAD` → đúng các file ở §R7 (9 file code/test: `audit-metadata.guard.ts`/`.spec.ts`, `audit.service.ts`/`.spec.ts`, `audit.types.ts`/`.spec.ts`, `transaction.helper.ts`/`.spec.ts`, `audit-record.manual.ts`) cộng tài liệu (`DBS-56-audit-service-record.md`, `manual-test.txt`, `domain-review-round3.md`) và các file rebase đã nêu ở §R1 (`modules/index.ts`, `BACKLOG.md`, `features/README.md`). Không có file ngoài kế hoạch.
+
+- **Ảnh chụp:** không có PNG — cùng lý do vòng 1 (thư viện nội bộ, không có UI). Bằng chứng là output terminal/truy vấn DB trực tiếp, lưu đủ ở `manual-test.txt`.
+
+- **Lệch so với kế hoạch:** không có.
+
+- **Bàn giao cho vai khác:** không có mục mới — **BL-137** (theo dõi DoD #5: PR merge, Dev review, CI) vẫn mở, không đổi bởi vòng sửa review này.
+
+### R9. Tài liệu đã cập nhật (vòng 2)
+
+- `docs/features/DBS-56-audit-service-record.md` — thêm toàn bộ mục "Vòng 2" (R1–R9).
+- `docs/features/screenshots/DBS-56/domain-review-round3.md` — mới, chứa cả 2 round domain review của vòng 2 (round 1: 4 phát hiện REVISE; round 2: xác nhận + 1 phát hiện mới REVISE).
+- `docs/features/screenshots/DBS-56/manual-test.txt` — nối thêm output M-56-04/05.
+- `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` — sạch, 188 file, 0 link hỏng.
+
+**Quyết định ở G4 (vòng 2):** chờ người dùng duyệt sau khi trình bày tin nhắn G4.
