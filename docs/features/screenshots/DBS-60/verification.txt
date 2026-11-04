@@ -1,5 +1,5 @@
 DBS-60 verification summary,2026-11-04 (from executed commands)
-Code SHA:f011937a881b5c017e0cd07e6a28a40dc99b9f00
+Code SHA:5e026deaa874b8fa3d26d7b55c1cd32b14ecfadb
 Base main:a9e607b; no62/63/64 dependency commits.
 All actual business dependencies on main, board53 lagged actual PR48 code.
 
@@ -29,3 +29,5 @@ Draft PR57:https://github.com/Lawliet119/digital-banking-simulator/pull/57
 Final check status:https://github.com/Lawliet119/digital-banking-simulator/pull/57/checks
 Code unchanged after manual run; subsequent commits are evidence/docs only.
 Documentation link check199 files,0 broken links.
+
+Final code update5e026de changes only duplicate-key response/Swagger wording (no internal issue ID in API error); financial logic unchanged. Deposit suite16/16 passed5.917s and all6 manual steps rerun on this final codeSHA. Full unit/e2e before wording-only update; final GitHub checks validate final head.
