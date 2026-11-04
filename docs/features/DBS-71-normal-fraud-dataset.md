@@ -1,6 +1,6 @@
 # DBS-71 · Generator giao dịch bình thường
 
-> **Status:** Implemented; Draft PR #43, Dev review/merge pending · **Vai:** Dev (#6 Quality/data) · **Nhánh:** `feat/DBS-71-normal-fraud-dataset` · **Ngày:** 2026-10-30
+> **Status:** Implemented (rebase lên main 2026-11-04, chờ CI/review và merge) · **Vai:** Dev (#6 Quality/data) · **Nhánh:** `feat/DBS-71-normal-fraud-dataset` · **Ngày:** 2026-10-30
 
 ## 1. Bối cảnh
 
@@ -81,13 +81,16 @@ Code commit `263d08baae91b0d3537b2a261cb9065579a96628`. `node --test load-tests/
 | TC-71-04 / bất biến | Node test toàn bộ rows; min balance 0, debit=credit 96.043.641.000, ending+funding=0 | Đạt |
 | TC-71-05 / CLI | Node test và M-71-04 | Đạt; exit 1, không tạo CSV |
 | DoD 5 / README, wall | [README generator](../../load-tests/fraud-dataset/README.md) | Đạt; chỉ giao CSV cho #4 |
-| DoD 6 / CI, review, merge | [Draft PR #43](https://github.com/Lawliet119/digital-banking-simulator/pull/43); [CI 6/6 xanh](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41037306313); Dev khác review và merge | CI đạt; review/merge chưa đạt; [BL-055](../BACKLOG.md) |
+| DoD 6 / CI, review, merge | [Draft PR #43](https://github.com/Lawliet119/digital-banking-simulator/pull/43); [CI 6/6 xanh](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41037306313); Dev khác review và merge | CI đạt; review/merge chưa đạt; [BL-142](../BACKLOG.md) |
 
 Manual test [transcript](screenshots/DBS-71/manual-test.txt), [ảnh kết quả CLI được dựng từ output đã đo](screenshots/DBS-71/01-cli-evidence.png): M-71-01 đến M-71-04 đều đạt. Ba CSV nằm trong `load-tests/results/`, không commit. Không gửi source generator hoặc nhãn holdout cho #4.
 
-Không đổi dependency, biến môi trường, DB, hợp đồng sự kiện hay ADR. Giới hạn: bộ này chỉ sinh dữ liệu bình thường; fraud injection, tune và holdout thuộc task khác. Bàn giao: Dev khác review [PR #43](https://github.com/Lawliet119/digital-banking-simulator/pull/43); người quản lý repo merge. Theo BL-055, không tự nhận hoàn tất DoD 6.
+Không đổi dependency, biến môi trường, DB, hợp đồng sự kiện hay ADR. Giới hạn: bộ này chỉ sinh dữ liệu bình thường; fraud injection, tune và holdout thuộc task khác. Bàn giao: Dev khác review [PR #43](https://github.com/Lawliet119/digital-banking-simulator/pull/43); người quản lý repo merge. Theo BL-142, không tự nhận hoàn tất DoD 6.
+
+**Rebase lên main (2026-11-04):** nhánh xung đột với `main` sau khi PR #44 (DBS-58) và PR #42 (DBS-59) merge, vì `docs/BACKLOG.md` và `docs/features/README.md` cùng chạm các dòng lân cận; `.github/workflows/ci.yml` tự merge sạch. Rebase (không merge) giữ nguyên nội dung 3 commit gốc; conflict chỉ ở hai file docs, không chạm `generate.mjs`/`generate.test.mjs`. `docs/BACKLOG.md`: `BL-055` của PR này đổi số thành **BL-142** (số BL-055 cũ đã bị DBS-39/DBS-40 chiếm trên `main`; BL-140/141 đã bị PR DBS-58 chiếm). SHA cuối sau rebase: `3b49bc34a6b117c3a2bf66857d96d033d6b3101c`. Baseline sau rebase (Node 18 local): `lint:check`, `typecheck`, `build` xanh; `node --test load-tests/fraud-dataset/generate.test.mjs` 4/4 đạt; `npm test` 822/824 và `test:db` 309/328 (lỗi còn lại cùng nguyên nhân `crypto is not defined`/JWKS cooldown môi trường Node 18 đã biết từ trước, CI dùng Node 24 không gặp); `fraud-schema.db-spec.ts`/`append-only.db-spec.ts` (test của DBS-58, không thuộc PR này nhưng dùng để xác nhận rebase không phá vỡ nhánh khác) 33/33 đạt trên PostgreSQL 17 Docker thật. Chưa push; chờ duyệt G4.
 
 ## 9. Tài liệu cập nhật
 
 - [README load-tests](../../load-tests/README.md) và [README generator](../../load-tests/fraud-dataset/README.md): cách chạy, schema, seed và ranh giới bàn giao.
 - [Feature index](README.md), [BACKLOG](../BACKLOG.md), review độc lập và bằng chứng manual ở `screenshots/DBS-71/`.
+- Rebase 2026-11-04: `docs/BACKLOG.md` (BL-055 → BL-142), `docs/features/README.md` (giữ mọi dòng mới của `main`, trong đó có DBS-59 và DBS-58).
