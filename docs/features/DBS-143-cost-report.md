@@ -220,3 +220,63 @@ Ghi ở `infra/terraform/README.md` mục "Báo cáo chi phí tuần":
 **Quét giới hạn và DoD:** DoD 1 → bước 1–4, 6; DoD 2 → bước 4, 6; DoD 3 → bước 5 (quy trình), gửi nhóm do người dùng làm. BL-031, BL-102, BL-118 → bước 7. BL-033 ngoài phạm vi (§1). Không còn mục nào không có dòng.
 
 **Quyết định ở G3** (gate tự duyệt theo `CLAUDE_local.md`, 2026-11-04): duyệt kế hoạch 7 bước. Không mở Draft PR trước G4.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (lúc bàn giao, commit `d4f6acb`): stack `base` `terraform fmt -check` sạch, `validate` đạt, `terraform test` **35/35** (34 cũ + `cost_tags`); `python3 infra/scripts/tests/test_cost_report.py` **18/18 OK**, 0 skip; `test_seed_cognito.py` 12/12 (không đổi); `check-doc-links.mjs` 0 link hỏng. Không đổi `backend/` nên không chạy baseline backend.
+- **Kiểm đột biến** (tự làm, không giữ trong repo): bỏ filter credit → TC-143-02 đỏ; tính credit từ `--start` → TC-143-06 đỏ; tính data transfer cả service `AWS Data Transfer` → ban đầu **không** test nào đỏ, đã thêm assert vào TC-143-01, sau đó đỏ.
+- **Đối chiếu test case:**
+
+| ID | Test (`infra/scripts/tests/test_cost_report.py`, `base/tests/cost_tags.tftest.hcl`) | Đạt? |
+|---|---|---|
+| TC-143-01 | `test_service_table_has_dod_rows_in_order` | đạt |
+| TC-143-02 | `test_usage_query_excludes_credits` | đạt (thêm kiểm chỉ một cờ `--group-by`, lỗi tìm thấy ở M-143-02) |
+| TC-143-03 | `test_session_hours_and_unit_prices` | đạt |
+| TC-143-04 | `test_transfer_inside_other_services_not_double_counted` | đạt |
+| TC-143-05 | `test_env_tag_inactive`, `test_env_tag_active_complete`, `test_env_tag_active_incomplete` | đạt (aws giả; chưa có dữ liệu tag thật, xem M-143-09) |
+| TC-143-06 | `test_credit_from_credit_since_and_projection_warning` | đạt |
+| TC-143-07 | `test_forecast_unavailable`, `test_forecast_skipped_for_past_end`, `test_forecast_request_shape` | đạt |
+| TC-143-08 | `test_forbidden_usage_and_last_day_reminder` | đạt |
+| TC-143-09 | `test_pagination_merges_by_day`, `test_group_without_service_key` | đạt |
+| TC-143-10 | `test_bad_arguments` | đạt |
+| TC-143-11 | `test_aws_failure_leaves_stdout_empty` | đạt |
+| TC-143-12 | `test_default_end_and_seven_day_window` | đạt |
+| TC-143-13 | `cost_tags.tftest.hcl` › `cost_allocation_tags_active` | đạt (mock_provider) |
+| TC-143-14 | quy trình: [báo cáo đầu](../components/platform-infra/cost-reports/2026-11-04.md) có "Đề xuất cắt giảm"; README mục "Báo cáo chi phí tuần"; `test_summary_block_present` | đạt; gửi nhóm do người dùng làm |
+
+- **Test thủ công** (output thô: [manual-test.txt](screenshots/DBS-143/manual-test.txt), SHA `d4f6acb`, chạy 2026-11-04 05:5x UTC). Hai lần chạy đầu **không đạt** ở M-143-02 và đưa về 4a:
+  - lần 1 (`0bc4dfb`): `ValueError` vì Cost Explorer trả một số nhóm chỉ có khóa `USAGE_TYPE`. Sửa ở `76e7143` + test `test_group_without_service_key`.
+  - lần 2 (`76e7143`): mọi dòng rơi vào "(không rõ dịch vụ)". Nguyên nhân: AWS CLI chỉ giữ cờ `--group-by` cuối, nên lệnh chỉ nhóm theo `USAGE_TYPE`; `aws` giả cũ chấp nhận cách gọi sai. Sửa ở `d4f6acb`: hai nhóm sau một cờ, `aws` giả làm giống CLI thật, TC-143-02 kiểm một cờ.
+  - Lần 3 chạy lại toàn bộ §5:
+
+| Bước | Lệnh | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|---|
+| M-143-01 | `aws sts get-caller-identity`; region | user nhóm `dbs-admin`, `ap-southeast-1` | đạt |
+| M-143-02 | `cost-report.py --start 2026-10-01 --end 2026-11-04` | thoát 0; tổng 0,6513; RDS 0,0211, ElastiCache 0,0384, ECS 0,0029, ALB 0,1008, SQS/CloudWatch/Data transfer 0; credit đã dùng 0,7058, còn 199,2942; dự báo AWS 1,4135; dự báo tới 13/12 2,7472; 2 ngày có phiên (25/10, 29/10) | đạt (tổng 0,6513, kỳ vọng 0,6514 ± 0,001) |
+| M-143-03 | `get-cost-and-usage` MONTHLY nhóm `SERVICE`, lọc credit | RDS 0.0211, ElastiCache 0.0384, ELB 0.1008, tổng 0.6513 | đạt (khớp 4 chữ số) |
+| M-143-04 | `--start 2026-11-04 --end 2026-10-01`; `--credit-total -5` | `error: --end phải sau --start` thoát 2; `--credit-total không được âm` thoát 2 | đạt |
+| M-143-05 | profile `dbs-none`, config `/dev/null` | thoát 1, stdout 0 byte, stderr `Lỗi khi gọi aws ce get-cost-and-usage: … profile (dbs-none) could not be found` | đạt |
+| M-143-06 | `terraform plan -target='aws_ce_cost_allocation_tag.this'` | 3 tag `status = "Active"`; `Plan: 3 to add, 0 to change, 0 to destroy` | đạt |
+| M-143-07 | `terraform apply tags.tfplan`; `list-cost-allocation-tags` | — | **chưa chạy** (chờ người dùng đồng ý thay đổi tài khoản AWS thật) |
+| M-143-08 | `start-cost-allocation-tag-backfill` | — | **chưa chạy** (cùng lý do; phụ thuộc M-143-07) |
+| M-143-09 | báo cáo sau khi bật tag | — | **chưa chạy** (phụ thuộc M-143-07, 08) |
+| M-143-10 | đối chiếu BL-031, 102, 118 | 26–28/10 và 30/10–03/11 chỉ có Secrets Manager, KMS, S3 (0,034–0,060 USD/ngày); RDS `db.t4g.micro` 0,0250/giờ (khớp); Valkey `cache.t4g.micro` 0,0192/giờ (+20 %, README sửa theo số thật); secret 0,4000/secret-tháng (khớp) | đạt |
+
+- **Phạm vi so với §7:** `git diff --stat main...HEAD` gồm `cost_tags.tf`, `cost_tags.tftest.hcl`, `cost-report.py`, `test_cost_report.py`, `fake_aws_ce.py`, `infra/terraform/README.md`, báo cáo `cost-reports/2026-11-04.md`, `BACKLOG.md`, feature doc DBS-33/66/75/143, `docs/features/README.md`, `screenshots/DBS-143/` (domain-review, manual-test): khớp §3 và §7.
+- **Ảnh chụp:** không có. Task không có giao diện (script và Terraform); bằng chứng là output terminal ở `manual-test.txt` và báo cáo Markdown. Cần người duyệt chấp nhận ở G4.
+- **Lệch so với kế hoạch:**
+  1. Bước 2–4 của §7 gộp thành một commit `0bc4dfb` (cùng file, cùng phạm vi; test viết trước, chạy đỏ 17/17 rồi xanh). Thêm hai commit sửa lỗi `76e7143`, `d4f6acb` do test thủ công tìm thấy. Không thêm file hay phạm vi.
+  2. Thêm hai hành vi nhỏ ngoài §2, phát sinh từ dữ liệu thật: nhóm không có khóa `SERVICE` vào dòng "(không rõ dịch vụ)"; dịch vụ ngoài DoD có tổng 0 thì ẩn (Cost Explorer trả nhiều dòng 0 USD như `AWS Glue`). Gate tự duyệt theo `CLAUDE_local.md` (không thuộc nhóm phải hỏi).
+  3. Giá Valkey trong README đổi từ ≈ 0,016 sang 0,0192 USD/giờ theo số thật (điều kiện đóng BL-118). ADR-11, ADR-12 giữ nguyên vì ghi rõ là ước tính.
+- **Bàn giao cho vai khác:**
+  - **BL-138** (#5, cùng leader merge DBS-73): state `base` lệch với `main`; `plan` đầy đủ sẽ xóa 11 tài nguyên SQS.
+  - M-143-07, 08, 09 chưa chạy: nếu không chạy trong PR này thì cần một dòng BL mới (bật tag + backfill + bảng env thật); quyết định ở G4.
+  - BL-033 (ngưỡng budget ACTUAL > 150) vẫn mở: trên tài khoản hiện chỉ có ngưỡng ACTUAL > 50, ACTUAL > 100, FORECASTED > 100.
+
+## 9. Tài liệu đã cập nhật
+
+- `infra/terraform/README.md`: mục mới "Báo cáo chi phí tuần (DBS-143)" (lệnh thứ Hai, tag, backfill, cảnh báo state lệch); giá Valkey thật 0,0192 USD/giờ.
+- `docs/components/platform-infra/cost-reports/2026-11-04.md`: báo cáo chi phí đầu tiên.
+- `docs/BACKLOG.md`: **xóa BL-031, BL-102, BL-118** (đã đối chiếu, xem M-143-10); **thêm BL-138**.
+- `docs/features/DBS-33-terraform-vpc-ecr.md`, `DBS-66-terraform-rds.md`, `DBS-75-terraform-valkey.md`: dòng kết quả đối chiếu Cost Explorer ở §8.
+- `docs/features/README.md`: hàng DBS-143.
