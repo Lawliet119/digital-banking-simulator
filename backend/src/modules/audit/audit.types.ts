@@ -46,3 +46,15 @@ export class AuditMetadataError extends Error {
     this.name = 'AuditMetadataError';
   }
 }
+
+/**
+ * Thrown by `recordDenied()` when called from inside another already-open transaction (DBS-56
+ * vòng 2, F-2) — a deadlock retry would otherwise insert the DENIED row twice. Message is fixed
+ * and never echoes input, same pattern as `AuditMetadataError`.
+ */
+export class NestedTransactionError extends Error {
+  constructor() {
+    super('recordDenied() không được gọi khi đang có transaction khác đang mở');
+    this.name = 'NestedTransactionError';
+  }
+}

@@ -1,6 +1,7 @@
 import { ErrorCode } from '@common/errors/error-code.enum';
 import {
   AuditReason,
+  NestedTransactionError,
   type AuditMetadata,
   type AuditOutcome,
   type AuditRecordInput,
@@ -42,5 +43,13 @@ describe('audit types (DBS-56)', () => {
 
   it('accepts a fully valid AuditRecordInput', () => {
     expect(VALID_INPUT.outcome).toBe('SUCCESS');
+  });
+
+  it('NestedTransactionError has a fixed message and never echoes input', () => {
+    const error = new NestedTransactionError();
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe('NestedTransactionError');
+    expect(error.message).toBeTruthy();
   });
 });
