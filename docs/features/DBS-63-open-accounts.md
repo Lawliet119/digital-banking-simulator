@@ -1,6 +1,6 @@
 # DBS-63 · UC-2 open customer accounts
 
-Status: Implementing on user-approved temporary DBS-62 base7d41a51. Owner: Dev. Updated 2026-11-04.
+Status: Implemented on user-approved temporary DBS-62 base7d41a51; main PR/CI/review/merge pending BL-145. Owner: Dev. Updated 2026-11-04.
 
 ## 1. Context and scope
 
@@ -100,14 +100,47 @@ Rollback: remove DBS-63-only commits; no schema/data teardown or shared DB rever
 
 ## 8. Results / handoff
 
-Implemented AccountOpeningService, AccountsController and DTOs; registered in the real AccountsModule. New HTTP/PostgreSQL suite has10 cases, all passed. Four related DB suites75/75 passed (42.017s), including actual onboarding/AccountsService/AuditService. Full unit55 suites826/826 passed (190.029s). Lint/typecheck/build passed. E2E/manual pending execution on code commit. No skipped task tests.
+Implemented AccountOpeningService, AccountsController and DTOs; registered in the real AccountsModule. New HTTP/PostgreSQL suite has10 cases, all passed. Four related DB suites75/75 passed (42.017s), including actual onboarding/AccountsService/AuditService. Full unit55 suites826/826 passed (190.029s); full E2E13 suites135/135 passed (158.212s). Lint/typecheck/build passed. Manual6/6 passed on code commit. No skipped task tests. Full DB suite not rerun; the four related PostgreSQL suites cover affected modules. Doc links202 files/0 broken.
 
 Test-first evidence: after fixing a TypeScript test-helper signature (unknown body vs Supertest object), all10 tests failed as expected because POST /v1/accounts was absent (404, no OpenAPI route). Production code was written after that red run; all10 passed, then strengthened concurrent audit actor/target assertions and reran related suites75/75.
 
 User's existing request skips gate pauses, not design review/tests/evidence. No human gate approval claimed. Existing known handoffs BL-112/121/130/132/017/122/008 remain; process dependency/PR handoff gets next free BL id at delivery if still pending.
 
-Initial checks on main a9e607b: docker compose up -d succeeded (all3 local services running); local lint:check/typecheck passed; main CI [41840640181](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41840640181) has6 required jobs green. Main branch deliberately has no onboarding; User explicitly approved temporary DBS-62 source via the dependency question on2026-11-04; branch fast-forwarded to7d41a51 before implementation. No branch push, PR, shared status edit, or test stub.
+Initial checks on main a9e607b: docker compose up -d succeeded (all3 local services running); local lint:check/typecheck passed; main CI [41840640181](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41840640181) has6 required jobs green. Main branch deliberately has no onboarding; User explicitly approved temporary DBS-62 source via the dependency question on2026-11-04; branch fast-forwarded to7d41a51 before implementation. Separate DBS-63 branch published at handover; no PR before dependency merge, shared status edit, or test stub.
+
+Implementation commit `eb645902758d0f6d885fa3d494aa797d33bf321d`. Manual driver executed on that commit; [raw transcript](screenshots/DBS-63/manual-test.txt), [verification summary](screenshots/DBS-63/verification.txt), [prepared PR mapping](screenshots/DBS-63/pr-description.md).
+
+| Case / DoD | Evidence in account-opening.db-spec.ts | Result |
+|---|---|---|
+| TC-63-01 / DoD1/3 | Both labels, own FK, zero string/ACTIVE, exact SUCCESS audit | Matched |
+| TC-63-02 / BR-14 | Third201/fourth409 and committed REJECTED audit | Matched |
+| TC-63-03 / DoD2 | 10 simultaneous first requests; exactly3 distinct accounts/7 correct409; every audit actor,target,metadata,correlation verified | Matched |
+| TC-63-04 / ownership | Independent limits for two customers; forged owner400 | Matched |
+| TC-63-05 / locking | Observe actual pg_stat_activity Lock; other customer proceeds; LOCKED account counted (status-only SQL input fixture, no balance seed) | Matched |
+| TC-63-06 / DoD3 | SYSTEM/bad types and privileged extra fields400, no accounts | Matched |
+| TC-63-07 / security | Real JWT/roles,401 codes, staff403; missing profile404 and DENIED survives | Matched |
+| TC-63-08 / atomic audit | DB trigger fails audit INSERT; success/rejection/denial500, account rollback and subsequent recovery | Matched |
+| TC-63-09 / OpenAPI | Allowed enum, DTO/example, bearer role, success and errors incl503 | Matched |
+| TC-63-10 / recovery | Real parent-lock timeout503 stable code/Retry-After, no account/audit, release/retry201 | Matched |
+| DoD4 / process | BL-145 | Main-based PR/CI/Dev review/merge pending, not claimed complete |
+
+All business cases end with actual ledger-invariant checker PASS, zero violations. Only account initialization at default zero; no funds moved, deposits/transfers synthesized or balance UPDATE.
+
+| Manual step | Actual result on code commit |
+|---|---|
+| M-63-01 | CHECKING and SAVINGS201, zero string/ACTIVE; rows2/audit SUCCESS2, invariants PASS |
+| M-63-02 | Third201/fourth409; count3, REJECTED audit committed, invariants PASS |
+| M-63-03 | 10 real parallel POSTs ->3 success7 rejection; actual audit counts3+7, invariants PASS |
+| M-63-04 | SYSTEM/forged owner400;401/403; missing onboarding404 with stored DENIED; invariants PASS |
+| M-63-05 | Audit trigger fault500 rolls back account; remove trigger/retry201, zero, invariants PASS |
+| M-63-06 | App/public JWKS/temp DB/owned PostgreSQL container cleaned up |
+
+![Actual HTTP output excerpt](screenshots/DBS-63/01-http-results.png)
+
+Handoff BL-145: after PR56 merges, fetch main and replay only DBS-63 commits using `git rebase --onto origin/main 7d41a51 feat/DBS-63-open-accounts`. Rerun relevant checks and manual evidence at rebased SHA, then main-based Draft PR with prepared mapping and actual CI links. No PR against the dependency branch, board edit, or auto-merge. Board stays In Progress pending main-based PR. Existing handoff rows unchanged, no backlog items closed.
+
+Final fetch: PR56 still open/unmerged; origin/main remains a9e607b. [Published DBS-63 branch](https://github.com/Lawliet119/digital-banking-simulator/tree/feat/DBS-63-open-accounts). No GitHub CI/Dev review/merge claimed for DBS-63. Delivery checklist: design/re-review APPROVE, all ten planned cases matched, local automated checks and six manual steps complete; raw output inspected for credential markers and screenshot visually checked; source SHA recorded; no schema/env/dependency/ErrorCode/ADR/event change. Main PR, final CI and Dev review/merge remain explicitly in BL-145.
 
 ## 9. Sources and changed docs
 
-Exact sheet DBS-63; docs02 UC-2, FR-ACC-01, BR-14, FR-AUD-01/02; docs03 API/error table; shared database-design4.2, event-contract; Accounts/Audit README, actual schema/TransactionService/AuditService, CONTRIBUTING5/5b. New feature doc; other docs pending implementation.
+Exact sheet DBS-63; docs02 UC-2, FR-ACC-01, BR-14, FR-AUD-01/02; docs03 API/error table; shared database-design4.2, event-contract; Accounts/Audit README, actual schema/TransactionService/AuditService, CONTRIBUTING5/5b. Updated Accounts README and docs03 POST API contract, this feature doc, feature index, BACKLOG BL-145 and raw review/test/manual evidence. Public primitive exports and schema unchanged.

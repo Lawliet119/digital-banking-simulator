@@ -1,0 +1,39 @@
+DBS-63 verification summary, 2026-11-04 (summarized from executed commands)
+Code SHA: eb645902758d0f6d885fa3d494aa797d33bf321d
+User-approved temporary dependency base: DBS-62 at7d41a51d79e005480e287498724f81e92b2a8a13.
+Main-based PR and GitHub CI pending actual DBS-62 merge, tracked BL-145.
+
+Baseline:
+main a9e607b CI run41840640181 has6 required checks passed.
+Local docker compose up -d, lint:check/typecheck passed.
+Actual dependency branch has final CI green (DBS-62 PR56); no service/guard stub.
+
+Test first:
+Initial TypeScript helper signature corrected before meaningful red run.
+All10 HTTP/PostgreSQL cases failed because POST /v1/accounts was absent (404/OpenAPI absent).
+After production implementation10/10 passed; then concurrent audit assertions strengthened.
+
+Final automated checks:
+npm run lint:check: passed.
+npm run typecheck: passed.
+npm run build: passed.
+npm test -- --runInBand: 55 suites,826/826 passed,190.029s.
+npm run test:db -- --runInBand --runTestsByPath test/db/account-opening.db-spec.ts test/db/customer-onboarding.db-spec.ts test/db/accounts-service.db-spec.ts test/db/audit.service.db-spec.ts
+4 suites,75/75 passed,42.017s. Includes10 DBS-63 cases and real parent-lock timeout/recovery.
+No skipped task tests. Full test:db suite not rerun in this task; relevant4 suites used.
+Full e2e: npm run test:e2e -- --runInBand,13 suites135/135 passed,158.212s.
+
+Manual:
+node scripts/manual-dbs63.cjs: exit0,6/6 steps passed at code SHA above.
+Actual HTTP201/409/400/401/403/404/500 and correlation IDs in manual-test.txt.
+Ten parallel first requests ->exact3 success+7 ACCOUNT_LIMIT_REACHED.
+Audit SUCCESS3/REJECTED7 for that customer; actual ledger invariants PASS with zero violations.
+Real audit trigger failure rolls back account; recovery succeeds.
+Owned PostgreSQL17/temp database/app/JWKS cleaned up. No tokens/credentials printed.
+
+Independent design review: first REVISE,1 should-fix corrected (500 vs503 and timeout recovery).
+Final independent review: APPROVE, no remaining findings.
+Documentation link check: 202 files,0 broken links after final artifacts.
+Final fetch confirms DBS-62 PR56 still open/unmerged, main still a9e607b.
+Published branch feat/DBS-63-open-accounts; no main PR yet per user's dependency decision.
+CI/Dev review/merge are not claimed by local checks; no main PR until dependency merge.
