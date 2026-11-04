@@ -90,6 +90,58 @@ async function main(): Promise<void> {
       );
     }
     log('M-56-03 correlationId (expect 1 row, outcome DENIED)', m3CorrelationId);
+
+    // M-56-04 (vòng 2, F-1): a non-enumerable toJSON() that Object.keys() cannot see must still
+    // be rejected, because audit.service.ts serializes with JSON.stringify (which calls toJSON).
+    const m4CorrelationId = randomUUID();
+    const pii = { id: '11111111-1111-1111-1111-111111111111' };
+    Object.defineProperty(pii, 'toJSON', {
+      value: () => ({ email: 'victim@example.com' }),
+      enumerable: false,
+    });
+    try {
+      await transactionService.run(manager =>
+        auditService.record(manager, {
+          actor: userId,
+          role: 'operator',
+          action: 'ledger.transfer',
+          outcome: 'SUCCESS',
+          target: { type: 'account', id: randomUUID() },
+          correlationId: m4CorrelationId,
+          metadata: pii,
+        }),
+      );
+      log('M-56-04 UNEXPECTED: record() did not reject (PII may have leaked)');
+    } catch (error) {
+      log('M-56-04 record() rejected as expected (AuditMetadataError)', (error as Error).message);
+    }
+    log('M-56-04 correlationId (expect 0 rows in audit_log, no PII committed)', m4CorrelationId);
+
+    // M-56-05 (vòng 2, F-2): recordDenied() called while already inside an open transaction must
+    // reject before opening a second one, not insert a second DENIED row.
+    const m5CorrelationId = randomUUID();
+    try {
+      await transactionService.run(async manager => {
+        await manager.query('INSERT INTO fc_scratch(id) VALUES ($1)', [randomUUID()]);
+        await auditService.recordDenied({
+          actor: userId,
+          role: 'customer',
+          action: 'access.denied',
+          target: { type: 'account', id: randomUUID() },
+          correlationId: m5CorrelationId,
+        });
+      });
+      log('M-56-05 UNEXPECTED: recordDenied() did not reject while nested');
+    } catch (error) {
+      log(
+        'M-56-05 recordDenied() rejected as expected (NestedTransactionError)',
+        (error as Error).message,
+      );
+    }
+    log(
+      'M-56-05 correlationId (expect 0 rows in audit_log, no duplicate open transaction)',
+      m5CorrelationId,
+    );
   } finally {
     await dataSource.destroy();
   }
