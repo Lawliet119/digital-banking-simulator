@@ -2,7 +2,8 @@
 """`aws` giả cho test của cost-report.py (DBS-143): chỉ hiểu các lệnh `aws ce …` mà script gọi.
 
 Dữ liệu lấy từ $FAKE_STATE/fixture.json:
-  usage:     {"YYYY-MM-DD": [[service, usage_type, cost, quantity], ...]}  (lệnh #1, DAILY SERVICE + USAGE_TYPE)
+  usage:     {"YYYY-MM-DD": [[service, usage_type, cost, quantity], ...]}  (lệnh #1, DAILY SERVICE + USAGE_TYPE;
+             service null → nhóm chỉ có một khóa, như Cost Explorer thật trả cho vài dòng không gắn dịch vụ)
   page_size: số nhóm tối đa mỗi trang của lệnh #1 (mặc định không chia trang)
   tags:      {"env": "Active", ...}                                        (list-cost-allocation-tags)
   env:       {"env$dev": "0.60", "env$": "0.05"}                            (nhóm TAG env, một tháng)
@@ -51,7 +52,7 @@ def usage(fx, argv):
     for day in sorted(fx.get("usage", {})):
         if start <= day < end:
             for svc, ut, cost, qty in fx["usage"][day]:
-                rows.append((day, {"Keys": [svc, ut], "Metrics": metrics(cost, qty)}))
+                rows.append((day, {"Keys": [svc, ut] if svc else [ut], "Metrics": metrics(cost, qty)}))
     size = fx.get("page_size") or len(rows) or 1
     page = int(arg(argv, "--next-page-token", "0"))
     chunk = rows[page * size:(page + 1) * size]

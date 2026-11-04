@@ -169,7 +169,7 @@ def render(a, data):
     for start, groups in data["usage"].items():
         day = dt.date.fromisoformat(start)
         for g in groups:
-            svc, utype = g["Keys"]
+            svc, utype = g["Keys"] if len(g["Keys"]) == 2 else ("(không rõ dịch vụ)", g["Keys"][-1])
             cost, q = amount(g), amount(g, "UsageQuantity")
             svc_total[svc] += cost
             if day >= week_start:
@@ -196,7 +196,7 @@ def render(a, data):
     dod_names = {s for _, s in DOD_SERVICES}
     for label, svc in DOD_SERVICES:
         out.append(f"| {label} | {usd(svc_total[svc])} | {usd(svc_week[svc])} |")
-    for svc in sorted((s for s in svc_total if s not in dod_names), key=lambda s: (-svc_total[s], s)):
+    for svc in sorted((s for s in svc_total if s not in dod_names and svc_total[s] != 0), key=lambda s: (-svc_total[s], s)):
         out.append(f"| {svc} | {usd(svc_total[svc])} | {usd(svc_week[svc])} |")
     out += [f"| **Tổng** | **{usd(total)}** | **{usd(total_week)}** |", "",
             f"- Phụ: trong đó data transfer tính ở dịch vụ khác: {usd(transfer_elsewhere)} (đã nằm trong dịch vụ gốc, không cộng thêm).", ""]

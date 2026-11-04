@@ -258,6 +258,16 @@ class CostReport(unittest.TestCase):
         self.assertIn("0,1500", line_with(out, KMS))  # 5 ngày × 0,03, không mất trang nào
         self.assertIn("0,734", line_with(out, "InstanceUsage:db.t4g.micro"))
 
+    # TC-143-09 (lỗi tìm thấy ở M-143-02): nhóm chỉ có khóa USAGE_TYPE, không có SERVICE
+    def test_group_without_service_key(self):
+        usage = copy.deepcopy(BASE["usage"])
+        usage["2026-10-25"].append([None, "APS2-Catalog-Request", "0.0010", "2"])
+        out = self.ok(self.env(usage=usage))
+        self.assertIn("0,0010", line_with(out, "| (không rõ dịch vụ) |"))
+        usage["2026-10-25"].append(["AWS Glue", "APS1-Catalog-Request", "0", "3"])
+        self.assertNotIn("AWS Glue", self.ok(self.env(usage=usage)))  # dịch vụ ngoài DoD có tổng 0 thì ẩn
+        self.assertIn("0,2893", line_with(out, "| **Tổng** |"))  # 0,2883 của BASE + 0,0010
+
     # TC-143-10: tham số sai → thoát 2, không gọi aws
     def test_bad_arguments(self):
         cases = [
