@@ -41,3 +41,16 @@ export function assertValidMetadata(metadata: AuditMetadata | undefined): void {
     throw new AuditMetadataError();
   }
 }
+
+/**
+ * Serializes `metadata` exactly as `audit.service.ts` will write it to the DB, then validates on
+ * that serialized form — not on the original object — so a non-enumerable `toJSON()` (invisible
+ * to `Object.keys`, but followed by `JSON.stringify`) cannot smuggle PII past the guard. Only an
+ * omitted (`undefined`) `metadata` defaults to `'{}'`; an explicit `null` is serialized as-is and
+ * rejected by `assertValidMetadata` like today, so it is not silently accepted as empty.
+ */
+export function serializeMetadata(metadata: AuditMetadata | undefined): string {
+  const json = JSON.stringify(metadata === undefined ? {} : metadata);
+  assertValidMetadata(JSON.parse(json) as AuditMetadata);
+  return json;
+}
