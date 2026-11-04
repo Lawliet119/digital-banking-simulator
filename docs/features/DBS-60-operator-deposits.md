@@ -112,6 +112,16 @@ Implemented LedgerModule/DepositService/DTO/operator controller from main, no62/
 
 Both design findings fixed and re-reviewed APPROVE. BL-002 resolved by actual valid deposit events including negativefundingsnapshot/DBtime/nullsourceowner. BL-122 narrowed to remaining transfer work; deposit part tested. BL-148 explicitly tracks79 replay/conflict work per board, BL-149 process/CI/Dev review/merge. BL-004 and other source gaps preserved. No human gate approvals or CI outcome claimed before actual run. Input SQL only creates zero-default accounts/customers/users, not money or ledger.
 
+Code commit `f011937a881b5c017e0cd07e6a28a40dc99b9f00`. Full e2e13 suites135/135 passed (83.334s); final deposit suite16/16 passed (6.232s) after lint-compatible bigint subtraction change. No skipped task tests; full DB suite not rerun locally, four affected suites used. [Verification summary](screenshots/DBS-60/verification.txt), [prepared PR mapping](screenshots/DBS-60/pr-description.md).
+
+Manual `node scripts/manual-dbs60.cjs` executed all6 steps on code commit: [raw transcript](screenshots/DBS-60/manual-test.txt). M1 deposit1m exacttwo lines/audit1/outbox1/key1; M2 negative funding/valid event nullowner/false sameOwner/DBZtime; M3 locked/missing/SYSTEM422 with persistedreject, missingkey400/wrongrole403; M4 actual audit/outboxfault500 and samekeyretry201; M5 ten concurrent distinct deposits, guarded duplicate409,9007199254740993 exact via actualAPI; M6 app/publicJWKS/tempDB/container cleanup. Every invariant report PASS, zero violations,total balance0. No unexecuted step claimed passed; no token/credential markers in output.
+
+![Actual deposit ledger evidence](screenshots/DBS-60/01-deposit-evidence.png)
+
+Case mapping: TC-60-01/02/03/04/05/06/07/08/09/09b/10/11/12/13 all matched by named cases in operator-deposits.db-spec.ts (16 Jest cases, fault matrix includes success/rejection and each failure stage). Test13 role registration additionally validated by real AppModule full e2e. DoD replay explicitly deferred79, AC-5.3/4/5 matching responses not claimed. BL-149 remains until actual CI/Dev review/merge; agent does not merge or edit board.
+
 ## 9. Sources / docs
 
 Sheet60, docs02 UC3/FR-LED-01/05/06, BR01/02/04/07/09, docs03 criticalpath6.1/UC3 diagram6.4; ADR04/05/07/09; database-design4.2-4.5; event-contract, actual accountprimitives/audit/outbox/transaction/guards, CONTRIBUTING5/5b. No sealed fraud dataset reads.
+
+Updated Ledger README/public exports and docs03 API maturity note, featureindex, BACKLOG (removed002, narrowed122, added148/149), independent review/manual/screenshot/verification artifacts. No schema/ADR/event/env change. Fixture-only user/customer/default-zero rows clearly labelled; no financial seeding or new mocked service.

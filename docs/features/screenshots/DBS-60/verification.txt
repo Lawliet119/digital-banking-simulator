@@ -1,0 +1,27 @@
+DBS-60 verification summary,2026-11-04 (from executed commands)
+Code SHA:f011937a881b5c017e0cd07e6a28a40dc99b9f00
+Base main:a9e607b; no62/63/64 dependency commits.
+All actual business dependencies on main, board53 lagged actual PR48 code.
+
+Independent review: first REVISE2 should-fix, corrected destination metadata and final-key UPDATE fault proofs.
+Final review APPROVE, raw replies retained.
+Meaningful initial red:16/16 deposit tests failed because HTTP route absent404 (after test key-type signature fixed).
+
+lint:check/typecheck/build passed.
+Full unit55 suites826/826 passed,45.158s.
+Full e2e13 suites135/135 passed,83.334s.
+Related realPG4 suites104/104 passed,9.872s: deposits,AccountsService,AuditService,OutboxWriter.
+Final deposit suite16/16 passed,6.232s after exact-bigint lint-compatible subtraction change.
+Full test:db not rerun locally; related suites and finalCI cover changes. No skipped task tests.
+
+Manual node scripts/manual-dbs60.cjs exit0,6/6 steps passed on code SHA above.
+SQL INPUT fixture rows only, default-zero accounts. No money or ledger SQL seed.
+Real JWT/Identity/TransactionService/AccountsService/AuditService/OutboxWriter/Pino HTTP context.
+Actual deposit1m with exact2 lines,audit1,outbox1,key1; subsequent negative funding snapshot validated.
+Real audit/outbox failure rollback and same-key recovery; concurrent distinct deposits,duplicate409,>2^53 exact via API.
+All invariant reports PASS with zero violations, total balance0. Owned app/JWKS/tempDB/PostgreSQL17 cleaned up.
+Transcript verified correctSHA,6 PASS, no credential markers; screenshot visually inspected.
+
+BL-002 resolved; BL-122 deposit portion done, transfer portion remains. BL-004 remains cross-flow hash handoff.
+Reused key409 only; full replay/conflict semantics deferred79/BL-148, no false full-idempotency claim.
+Actual CI/Dev review/merge recorded in main-based PR/BL-149, not inferred from local results.
