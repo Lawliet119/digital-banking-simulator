@@ -289,6 +289,7 @@ Vòng 3 chưa chạy: các xử lý vòng 2 là chi tiết lệnh và một ràn
 - **Ảnh chụp:** không có (không có bước giao diện, như DBS-66, DBS-67, DBS-73); bằng chứng là `manual-test.txt`. Chờ người dùng chấp nhận ở G4.
 - **Lệch so với kế hoạch:** (1) như DBS-73, `apply base` từ worktree tích hợp bằng `-target`, `image_tag` là SHA đỉnh nhánh; người dùng đồng ý 2026-10-29 («đồng ý và tiếp tục»). (2) M-75-11 plan bằng `-target` hai tài nguyên Redis vì drift RDS (hẹp hơn §5). (3) Image probe đổi tên như trên. (4) M-75-11 lần 2 thêm kiểm token `AWSPREVIOUS` (đọc qua ECS `secrets` với nhãn phiên bản, không lộ token) để chứng minh hành vi `ROTATE`. (5) Strategy `SET` → `ROTATE`: gate phụ đã duyệt như trên.
 - **Bàn giao cho vai khác:** BL-116 (DBS-76: app kết nối Valkey thật), BL-117 (alarm Redis), BL-118 (Cost Explorer), BL-119 (DBS-121: SG worker tới Redis), BL-120 (DBS-66: drift parameter group). BL-038 sửa (Redis đã có), BL-039 xóa.
+- **Đối chiếu Cost Explorer (BL-118, đóng ở [DBS-143](DBS-143-cost-report.md)):** `NodeUsage:cache.t4g.micro` 2 giờ, 0,0384 USD, tức 0,0192 USD/giờ (cao hơn ước tính 0,016 khoảng 20 %; README đã sửa theo số thật); Secrets Manager 0,40 USD/secret-tháng (khớp).
 
 ## 9. Tài liệu đã cập nhật
 

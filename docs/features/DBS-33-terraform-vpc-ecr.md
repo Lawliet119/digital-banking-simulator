@@ -202,6 +202,7 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
   3. Thêm `locals.tf` ngoài danh sách file ở §7 (chứa tag mặc định, `versions.tf` tham chiếu). Không đổi hành vi.
   4. Trạng thái cuối: sau M-33-08 đã dựng lại `base` (VPC mới) và `session` để giữ, theo phép của người dùng.
 - **Bàn giao cho vai khác:** không có việc nào cho Dev. Việc của #5 ghi vào BACKLOG: BL-031 (xác nhận Cost Explorer ngày hôm sau cho DoD 3), BL-032 (DBS-34/66: security group và subnet group đặt trong `base`; DBS-36: role OIDC chỉ push vào `ecr_repository_arn`, bỏ qua khi tag SHA đã tồn tại, không `latest`; DBS-54: Cognito đặt trong `envs/dev/base`), BL-033 (Budget thiếu cảnh báo ACTUAL > 150 USD, người dùng tự xử lý, cần xác nhận lại).
+- **Đối chiếu Cost Explorer (BL-031, đóng ở [DBS-143](DBS-143-cost-report.md)):** ngày 26/10 (sau phiên 25/10) chỉ có phần giữ lại: Secrets Manager, KMS, S3, tổng 0,0453 USD; EC2-Other, VPC, ECR, ALB, ECS bằng 0. `destroy` xóa sạch phần tính tiền.
 
 ## 9. Tài liệu đã cập nhật
 

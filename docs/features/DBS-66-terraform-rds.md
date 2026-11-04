@@ -208,6 +208,7 @@ Rủi ro và cách lùi: RDS tính tiền theo giờ; `destroy` ngay sau khi ki�
 - **Ảnh chụp:** không áp dụng (người dùng bỏ qua ảnh console).
 - **Lệch so với kế hoạch:** (1) bản engine thực tế là `17.9` (không phải 17.11 như ước tính); (2) M-66-03b: kỳ vọng `--source user` sai, đã sửa bằng kiểm theo tên; (3) mock id Cognito hợp lệ thêm vào mọi test của `base` (provider kiểm định dạng khi `apply`). Không lệch nào cần gate phụ.
 - **Bàn giao:** BL-102 (đối chiếu chi phí RDS thật), BL-103 (DBS-67: secret master, `DATABASE_URL`, quyền execution role, CA bundle `rds-ca-rsa2048-g1`; DBS-68: DB role và migration; ngưỡng task). `terraform test` của `base` và `session` cần chạy trong CI chung (BL-028).
+- **Đối chiếu Cost Explorer (BL-102, đóng ở [DBS-143](DBS-143-cost-report.md)):** `InstanceUsage:db.t4g.micro` 0,734 giờ, 0,0183 USD, tức 0,0250 USD/giờ (khớp ước tính); gp3 0,0027 USD; không có khoản RDS ngoài hai ngày có phiên 25/10 và 29/10.
 - **Chi phí còn lại:** KMS CMK ≈ 1 USD/tháng chạy liên tục (giữ lại); không còn gì tính tiền theo giờ.
 
 ## 9. Tài liệu đã cập nhật

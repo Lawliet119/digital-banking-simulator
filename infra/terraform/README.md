@@ -186,9 +186,35 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 - **Task api** nhận `REDIS_HOST` (primary endpoint), `REDIS_PORT=6379` làm biến thường và `REDIS_AUTH_TOKEN` từ secret; execution role có `GetSecretValue` trên đúng secret này. App ghép `REDIS_URL` (`rediss://`), xem [backend/README.md](../../backend/README.md).
 - **Xoay token giữa phiên:** tăng `redis_auth_version` (mặc định 1) rồi `apply`. Strategy `ROTATE`: Valkey nhận cả token mới và token cũ, task đang chạy giữ kết nối, task khởi động sau đó đọc token mới (`aws ecs update-service --force-new-deployment` để thay hết). Token cũ còn hợp lệ tới lần xoay sau; xoay thêm một lần nếu cần loại hẳn nó. Không dùng `SET`: ElastiCache chỉ nhận `SET` cho token đầu tiên. Cùng cách đó dùng để khôi phục khi token của secret và Valkey lệch nhau (`WRONGPASS`), ví dụ ghi secret thất bại giữa chừng.
 - Sau `destroy session`, secret vẫn còn một version `AWSCURRENT` chứa token của phiên đã xóa; không hại gì vì Valkey dùng token đó đã bị xóa.
-- **Chi phí khi bật** (ADR-11, ADR-12): node ≈ 0,016 USD/giờ (quên `destroy` ≈ 12 USD/tháng), secret 0,40 USD/tháng. Tạo mất 5–10 phút, xóa khoảng 5 phút; chạy song song với RDS.
+- **Chi phí khi bật** (ADR-11, ADR-12; giá thật trên Cost Explorer, DBS-143): node 0,0192 USD/giờ (quên `destroy` ≈ 14 USD/tháng), secret 0,40 USD/tháng. Tạo mất 5–10 phút, xóa khoảng 5 phút; chạy song song với RDS.
 - Provider: `aws >= 6.70, < 7.0` ở `base` và `session` (cần thuộc tính write-only), `random ~> 3.7` ở `session`.
 - Kiểm tĩnh: `terraform test` ở `envs/dev/base` (`tests/redis.tftest.hcl`) và `envs/dev/session` (run `valkey_replication_group`, `redis_connection`, `redis_secret_policy`…). Probe chạy thật trên AWS: [DBS-75 §8](../../docs/features/DBS-75-terraform-valkey.md).
+
+## Báo cáo chi phí tuần (DBS-143)
+
+[`infra/scripts/cost-report.py`](../scripts/cost-report.py) đọc Cost Explorer (chỉ đọc) và in báo cáo Markdown: chi phí gộp theo dịch vụ (đã lọc bỏ credit, vì credit trừ hết mọi khoản), số giờ dựng và đơn giá theo từng usage type, chi phí theo tag `env`, credit đã dùng và còn lại, dự báo, cảnh báo (NAT Gateway hoặc VPC endpoint theo ADR-10; tài nguyên phiên còn chạy ở ngày cuối). Mỗi lệnh Cost Explorer tính 0,01 USD; một lần chạy 4–6 lệnh.
+
+**Mỗi thứ Hai**, sau 19:00 giờ Việt Nam (Cost Explorer trễ tới 24 giờ):
+
+```bash
+AWS_PROFILE=dbs-admin python3 infra/scripts/cost-report.py --start 2026-10-01 --end <thứ Hai YYYY-MM-DD> \
+  > docs/components/platform-infra/cost-reports/<thứ Hai YYYY-MM-DD>.md
+```
+
+1. Đối chiếu "Credit còn lại" với console Billing → Credits; nếu khác thì chạy lại với `--credit-total <số thật>`.
+2. Viết mục "Đề xuất cắt giảm" (script chỉ gợi ý khoản lớn nhất và các cảnh báo).
+3. Commit báo cáo; dán mục "Tóm tắt gửi nhóm" vào kênh chat của nhóm.
+
+Tham số: `--end` không tính (exclusive) và mặc định là hôm nay UTC; `--credit-since` (mặc định 2026-08-01, tháng đầu có credit); `--project-end` mặc định 2026-12-14 (hết ngày 13/12). Script lỗi (credential, quyền) thì thoát 1 và stdout rỗng, không ghi nửa báo cáo. Test: `python3 infra/scripts/tests/test_cost_report.py`.
+
+**Tag chi phí.** `base/cost_tags.tf` bật `project`, `env`, `owner` trong Cost allocation tags (miễn phí); xóa resource hoặc `destroy base` đặt chúng về Inactive. Tag mới bật cần tới 24 giờ mới nhóm được; dữ liệu cũ cần backfill một lần:
+
+```bash
+aws ce start-cost-allocation-tag-backfill --backfill-from 2026-10-01T00:00:00Z
+aws ce list-cost-allocation-tag-backfill-history
+```
+
+> **State `base` đang lệch với `main`:** queue SQS của DBS-73 (PR #40, chưa merge) đã được apply, còn role deploy thì chưa có trong state. `terraform plan` đầy đủ từ `main` sẽ **xóa 11 tài nguyên SQS**. Tới khi DBS-73 merge, chỉ apply tag bằng `-target`: `terraform plan -out=tags.tfplan -var account_id=<account-id> -target='aws_ce_cost_allocation_tag.this'`, rồi `terraform apply tags.tfplan` ([BL-138](../../docs/BACKLOG.md)).
 
 ## Kiểm tra trước khi push
 
