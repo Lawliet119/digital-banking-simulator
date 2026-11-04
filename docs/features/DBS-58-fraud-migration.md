@@ -1,6 +1,6 @@
 # DBS-58 · Migration lưu cấu hình và cờ fraud
 
-> **Status:** Implemented; Draft PR #44, chờ Dev review/merge · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-58-fraud-migration` · **Ngày:** 2026-10-30
+> **Status:** Implemented (rebase lên main 2026-11-04, chờ CI/review và merge) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-58-fraud-migration` · **Ngày:** 2026-10-30
 
 ## 1. Bối cảnh
 
@@ -92,14 +92,17 @@ Code migration commit `1d1f06d74a098e0859578e239a8d892aba4dd0ef`, test cuối `a
 | TC-58-04 / BL-021 | Test owner NOSUPERUSER, matched/no-match, empty TRUNCATE | Đạt trên CI PostgreSQL |
 | TC-58-05 / revert | CLI run→revert→run; thử dữ liệu user, version mới, seed sửa/xóa | Đạt trên CI PostgreSQL |
 | Manual M-58 | [Transcript](screenshots/DBS-58/manual-test.txt) trên Docker Compose PostgreSQL 17, database tạm riêng | M-58-01..03 đạt: schema/seed, SQLSTATE 23505/23514, revert→run; đã xóa database tạm |
-| CI, Dev review, merge | [Draft PR #44](https://github.com/Lawliet119/digital-banking-simulator/pull/44), [CI 6/6 xanh trên code cuối](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41040889485) | CI đạt; chờ Dev review/merge; BL-057 |
+| CI, Dev review, merge | [Draft PR #44](https://github.com/Lawliet119/digital-banking-simulator/pull/44), [CI 6/6 xanh trên code cuối](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41040889485) | CI đạt; chờ Dev review/merge; BL-141 |
 
 ![Kết quả local từ transcript PostgreSQL thật](screenshots/DBS-58/01-manual-schema-and-constraints.png)
 
 Các test DBS-27 đã được giới hạn về migration prefix của chính nó để migration DBS-58 về sau không thay đổi lịch sử mà suite cũ đang kiểm. Không tạo `risk_decisions` hay áp ADR-14 Proposed. Contract JSON v1 bàn giao cho Dev task scoring và API UC-12; không sửa sheet. Output thật của `\d`, seed, constraint và migration run→revert→run nằm trong transcript; BL-056 đã đóng.
+
+**Rebase lên main (2026-11-04):** nhánh xung đột với `main` sau khi PR #42 (DBS-59) merge, vì `docs/BACKLOG.md` và `docs/features/README.md` cùng chạm các dòng lân cận. Rebase (không merge) giữ nguyên nội dung 8 commit gốc; conflict chỉ ở hai file docs, không chạm code/migration/test. `docs/BACKLOG.md`: BL-056/BL-057 của PR này đổi số thành **BL-140/BL-141** (số BL-056/057 cũ đã bị PR DBS-40/DBS-55 chiếm trên `main`); BL-021 và BL-047 bị xóa (đã đóng, theo §9 cũ, nhưng vẫn còn sống trên `main` thời điểm rebase — xác nhận đóng bằng migration thật: `forbid_mutation()` trigger thật và CHECK hai nhánh `fraud_flags_review_consistent`). SHA cuối sau rebase: `a0f6041237af003e09cbe341ce1c0a302172cdbc`. Baseline sau rebase (Node 18 local): `lint:check`, `typecheck`, `build` xanh; `npm test` 822/824 (2 lỗi cooldown JWKS/`crypto is not defined` môi trường Node 18, không liên quan thay đổi); `test:db` 309/328 (lỗi còn lại cùng nguyên nhân `crypto is not defined`, CI dùng Node 24 không gặp); `fraud-schema.db-spec.ts` và `append-only.db-spec.ts` (test của chính DBS-58) chạy lại 33/33 đạt trên PostgreSQL 17 Docker thật (cổng 5433 tạm do cổng 5432 host bị PostgreSQL 18 native chiếm). Chưa push; chờ duyệt G4.
 
 ## 9. Tài liệu cập nhật
 
 - [database-design §4.8 và §8.3](../components/_shared/database-design.md): CHECK review không hở NULL, migration trigger risk đã triển khai.
 - [Risk README](../../backend/src/modules/risk/README.md), [feature index](README.md), [BACKLOG](../BACKLOG.md), [domain review](screenshots/DBS-58/domain-review.md), [manual transcript](screenshots/DBS-58/manual-test.txt).
 - Xóa BL-056 sau khi chạy manual trên Docker local; BL-021 và BL-047 đã được xóa trước đó sau khi CI PostgreSQL chứng minh trigger và CHECK review trên bảng thật.
+- Rebase 2026-11-04: `docs/BACKLOG.md` (BL-056/BL-057 → BL-140/BL-141, xóa lại BL-021/BL-047 do hai dòng này còn sống trên `main` thời điểm rebase), `docs/features/README.md` (giữ mọi dòng mới của `main`, trong đó có dòng DBS-59).
