@@ -63,7 +63,7 @@ Mọi ngày theo UTC (Cost Explorer tính theo UTC); `--end` và `--project-end`
 |---|---|---|
 | 1 | `ce get-cost-and-usage` DAILY [`--start`, `--end`), `UnblendedCost` + `UsageQuantity`, nhóm `SERVICE` và `USAGE_TYPE`, lọc `Not RECORD_TYPE ∈ {Credit, Refund}` | bảng dịch vụ (lũy kế, 7 ngày cuối), giờ dựng, đơn giá, cảnh báo |
 | 2 | `ce list-cost-allocation-tags --tag-keys project env owner` | tag đã bật chưa |
-| 3 | (chỉ khi `env` Active) như #1 nhưng MONTHLY, nhóm `TAG` `env`; và `ce describe-cost-allocation-tag-backfill-history` | bảng theo env, độ đủ dữ liệu tag |
+| 3 | (chỉ khi `env` Active) như #1 nhưng MONTHLY, nhóm `TAG` `env`; và `ce list-cost-allocation-tag-backfill-history` | bảng theo env, độ đủ dữ liệu tag |
 | 4 | `ce get-cost-and-usage` MONTHLY [`--credit-since`, `--end`), nhóm `RECORD_TYPE`, không lọc | credit đã dùng |
 | 5 | (khi `--end` ≥ hôm nay UTC) `ce get-cost-forecast` [`--end`, ngày 1 tháng sau của `--end`), `--metric UNBLENDED_COST`, `--granularity MONTHLY`, filter `RECORD_TYPE = Usage` | dự báo AWS tới hết tháng |
 
@@ -130,7 +130,7 @@ Ghi ở `infra/terraform/README.md` mục "Báo cáo chi phí tuần":
 - **Vị trí:** mới: `infra/scripts/cost-report.py`, `infra/scripts/tests/test_cost_report.py`, `infra/scripts/tests/fake_aws_ce.py`, `infra/terraform/envs/dev/base/cost_tags.tf`, `infra/terraform/envs/dev/base/tests/cost_tags.tftest.hcl`, `docs/components/platform-infra/cost-reports/2026-11-04.md`. Sửa: `infra/terraform/README.md`, `docs/BACKLOG.md`, `docs/features/README.md`, `docs/features/DBS-33-terraform-vpc-ecr.md`, `DBS-66-terraform-rds.md`, `DBS-75-terraform-valkey.md` (ghi kết quả đối chiếu BL-031/102/118). Không chạm `backend/`, không chạy trong ECS.
 - **Interface:** chỉ AWS CLI v2 (`aws ce …`, `--output json`), gọi qua `subprocess.run([...])` không qua shell, credential theo `AWS_PROFILE` của người chạy. Không thêm phụ thuộc Python (không boto3). Không đổi symbol nào đã có.
 - **Dữ liệu:** không chạm database. Script không ghi file; người chạy chuyển hướng stdout ra file báo cáo.
-- **IAM của người chạy:** `ce:GetCostAndUsage`, `ce:GetCostForecast`, `ce:ListCostAllocationTags`, `ce:DescribeCostAllocationTagBackfillHistory`; khi apply và backfill: `ce:UpdateCostAllocationTagsStatus`, `ce:StartCostAllocationTagBackfill`. Group `dbs-admin` có đủ. Không thêm quyền cho role deploy của GitHub. Role chỉ đọc chi phí cho người khác chạy script: chưa cần, ngoài phạm vi.
+- **IAM của người chạy:** `ce:GetCostAndUsage`, `ce:GetCostForecast`, `ce:ListCostAllocationTags`, `ce:ListCostAllocationTagBackfillHistory`; khi apply và backfill: `ce:UpdateCostAllocationTagsStatus`, `ce:StartCostAllocationTagBackfill`. Group `dbs-admin` có đủ. Không thêm quyền cho role deploy của GitHub. Role chỉ đọc chi phí cho người khác chạy script: chưa cần, ngoài phạm vi.
 - **Sơ đồ:** một thành phần (script → Cost Explorer), không cần.
 - **Thay đổi cấp hệ thống:** không đổi ADR.
 
@@ -166,7 +166,7 @@ Ghi ở `infra/terraform/README.md` mục "Báo cáo chi phí tuần":
 | M-143-05 | `AWS_PROFILE=dbs-none AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null` chạy lại | thoát 1, stderr nêu lệnh `aws ce …` hỏng, stdout rỗng |
 | M-143-06 | Trong `envs/dev/base`: `terraform init -backend-config=backend.hcl`; `terraform plan -out=tags.tfplan -var account_id=<account-id> -target='aws_ce_cost_allocation_tag.this'` | 3 to add, 0 change, 0 destroy |
 | M-143-07 | (cần đồng ý) `terraform apply tags.tfplan`; `aws ce list-cost-allocation-tags --tag-keys project env owner` | 3 tag `Active` |
-| M-143-08 | (cần đồng ý) `aws ce start-cost-allocation-tag-backfill --backfill-from 2026-10-01T00:00:00Z`; `aws ce describe-cost-allocation-tag-backfill-history` | yêu cầu `PROCESSING` hoặc `SUCCEEDED` |
+| M-143-08 | (cần đồng ý) `aws ce start-cost-allocation-tag-backfill --backfill-from 2026-10-01T00:00:00Z`; `aws ce list-cost-allocation-tag-backfill-history` | yêu cầu `PROCESSING` hoặc `SUCCEEDED` |
 | M-143-09 | Chạy lại báo cáo sau khi bật tag | mục 3 có bảng env; nếu backfill chưa xong thì có dòng "dữ liệu tag chưa đủ" (đó là kết quả đúng của bước này); bảng đủ dữ liệu ghi vào báo cáo thứ Hai 09/11 |
 | M-143-10 | Đối chiếu BL-031, BL-102, BL-118 bằng mục 2 | đơn giá RDS instance, Valkey node trong ± 20 % ước tính, hoặc README sửa theo số thật; ngày 26–28/10 và 30/10–03/11 không có RDS, ElastiCache, ALB, Fargate |
 

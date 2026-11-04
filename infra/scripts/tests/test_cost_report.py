@@ -176,7 +176,7 @@ class CostReport(unittest.TestCase):
         e = self.env()
         out = self.ok(e)
         self.assertIn("Tag `env` chưa bật", out)
-        self.assertNotIn("describe-cost-allocation-tag-backfill-history", e.ops())
+        self.assertNotIn("list-cost-allocation-tag-backfill-history", e.ops())
         self.assertFalse(any(a.startswith("Type=TAG") for c in e.calls() for a in c))
 
     def test_env_tag_active_complete(self):

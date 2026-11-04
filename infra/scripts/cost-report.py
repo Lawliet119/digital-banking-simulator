@@ -139,7 +139,7 @@ def collect(a, today):
         data["env"] = paged("ce", "get-cost-and-usage", "--time-period", period(a.start, a.end),
                             "--granularity", "MONTHLY", "--metrics", "UnblendedCost",
                             "--group-by", "Type=TAG,Key=env", "--filter", json.dumps(NOT_CREDIT))
-        reqs = aws("ce", "describe-cost-allocation-tag-backfill-history").get("BackfillRequests", [])
+        reqs = aws("ce", "list-cost-allocation-tag-backfill-history").get("BackfillRequests", [])
         data["backfill"] = max(reqs, key=lambda r: r["RequestedAt"])["BackfillStatus"] if reqs else None
     data["credits"] = paged("ce", "get-cost-and-usage", "--time-period", period(a.credit_since, a.end),
                             "--granularity", "MONTHLY", "--metrics", "UnblendedCost",

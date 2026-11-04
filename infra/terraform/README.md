@@ -211,7 +211,7 @@ Tham số: `--end` không tính (exclusive) và mặc định là hôm nay UTC; 
 
 ```bash
 aws ce start-cost-allocation-tag-backfill --backfill-from 2026-10-01T00:00:00Z
-aws ce describe-cost-allocation-tag-backfill-history
+aws ce list-cost-allocation-tag-backfill-history
 ```
 
 > **State `base` đang lệch với `main`:** queue SQS của DBS-73 (PR #40, chưa merge) đã được apply, còn role deploy thì chưa có trong state. `terraform plan` đầy đủ từ `main` sẽ **xóa 11 tài nguyên SQS**. Tới khi DBS-73 merge, chỉ apply tag bằng `-target`: `terraform plan -out=tags.tfplan -var account_id=<account-id> -target='aws_ce_cost_allocation_tag.this'`, rồi `terraform apply tags.tfplan` ([BL-138](../../docs/BACKLOG.md)).

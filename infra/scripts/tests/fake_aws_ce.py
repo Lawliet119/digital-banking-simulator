@@ -7,7 +7,7 @@ Dữ liệu lấy từ $FAKE_STATE/fixture.json:
   page_size: số nhóm tối đa mỗi trang của lệnh #1 (mặc định không chia trang)
   tags:      {"env": "Active", ...}                                        (list-cost-allocation-tags)
   env:       {"env$dev": "0.60", "env$": "0.05"}                            (nhóm TAG env, một tháng)
-  backfill:  "SUCCEEDED" | "PROCESSING" | null                              (describe-cost-allocation-tag-backfill-history)
+  backfill:  "SUCCEEDED" | "PROCESSING" | null                              (list-cost-allocation-tag-backfill-history)
   credits:   {"YYYY-MM-01": "-0.05"}                                        (nhóm RECORD_TYPE, MONTHLY)
   forecast:  "1.23" | {"error": "DataUnavailableException"}
   fail:      {"<lệnh>": "AccessDeniedException"}                           (lệnh đó lỗi, thoát 254)
@@ -102,7 +102,7 @@ def main():
             out = usage(fx, argv)
     elif op == "list-cost-allocation-tags":
         out = {"CostAllocationTags": [{"TagKey": k, "Type": "UserDefined", "Status": v} for k, v in fx.get("tags", {}).items()]}
-    elif op == "describe-cost-allocation-tag-backfill-history":
+    elif op == "list-cost-allocation-tag-backfill-history":
         b = fx.get("backfill")
         out = {"BackfillRequests": [] if b is None else [
             {"BackfillFrom": "2026-10-01T00:00:00Z", "RequestedAt": "2026-11-04T10:00:00Z", "BackfillStatus": b}]}
