@@ -1,6 +1,6 @@
 # DBS-59 · Khung module risk
 
-> **Status:** Implemented (Draft PR, chờ CI, review và merge) · **Vai board:** #4 Fraud · **Nhánh:** `feat/DBS-59-risk-module-skeleton` · **PR:** [#42](https://github.com/Lawliet119/digital-banking-simulator/pull/42) · **Ngày:** 2026-10-30
+> **Status:** Implemented (rebase lên `main` 2026-11-04, chờ CI, review và merge) · **Vai board:** #4 Fraud · **Nhánh:** `feat/DBS-59-risk-module-skeleton` · **PR:** [#42](https://github.com/Lawliet119/digital-banking-simulator/pull/42) · **Ngày:** 2026-10-30 (cập nhật 2026-11-04)
 
 ## 1. Bối cảnh
 
@@ -103,14 +103,15 @@ Rủi ro: placeholder bị dùng như provider thật; giảm bằng lỗi rõ r
 | Test DBS-59 (`risk.contract.spec.ts`, `modules.spec.ts`) | 2 suite, 10 test đạt; test đầu đỏ vì các contract/module chưa tồn tại |
 | Unit toàn repo | Chạy lại `npm test -- --runInBand` 2026-10-31: 31/31 suite, 501/501 test đạt, gồm JWKS cooldown. Lần baseline trước từng đỏ vì timing; không có thay đổi Identity trong DBS-59 |
 | E2E toàn repo | Chạy lại `npm run test:e2e -- --runInBand` với Docker: 8/8 suite, 57/57 test đạt |
-| Manual | [Transcript](screenshots/DBS-59/manual-test.txt) trên commit code `f55b9a1`: M-59-01/02 và RiskModule đạt; AppModule `api`, `worker`, `both` đều boot được trên database tạm đã migrate và xóa sau test. Lần đầu driver thiếu `env.bootstrap`, đã sửa cách chạy test tay; không đổi code sản phẩm. Chưa có consumer thật |
+| Manual | [Transcript](screenshots/DBS-59/manual-test.txt) trên commit code `f55b9a1` (nay `8b700fd` sau rebase, nội dung code không đổi): M-59-01/02 và RiskModule đạt; AppModule `api`, `worker`, `both` đều boot được trên database tạm đã migrate và xóa sau test. Lần đầu driver thiếu `env.bootstrap`, đã sửa cách chạy test tay; không đổi code sản phẩm. Chưa có consumer thật |
+| Rebase 2026-11-04 | `feat/DBS-59-risk-module-skeleton` đi sau `main` 14 commit; `backend/src/modules/index.ts` và `modules.spec.ts` xung đột với `OutboxModule` (DBS-57), `AccountsModule` (DBS-55), `AuditModule` (DBS-56) đã merge sau khi PR mở. Resolve giữ cả 4 module/test; rerun lint/typecheck/build/unit/M-59-03 — xem M-59-03c trong transcript. `docs/BACKLOG.md` cũng xung đột số: hai dòng DBS-59 từng ghi `BL-053`/`BL-054` trùng với hai dòng khác (DBS-40/41) đã merge sau; đổi thành `BL-138`/`BL-139` |
 
 ![Kết quả driver và bootstrap dựng từ transcript thật](screenshots/DBS-59/01-manual-output.png)
 
 ![Kết quả bootstrap AppModule trên PostgreSQL local](screenshots/DBS-59/02-app-bootstrap.png)
 
-Đối chiếu: TC-59-01/02/04 đạt ở lớp unit. TC-59-03 đạt phần module registration và full AppModule bootstrap; worker-only consumer chưa kiểm được (BL-041). DoD #2 chưa có xác nhận chữ ký từ #1/#6 (BL-053). DoD #5 chưa đạt: [Draft PR #42](https://github.com/Lawliet119/digital-banking-simulator/pull/42) có sáu check CI xanh trên head trước lần cập nhật evidence này; Dev review/merge còn chờ (BL-054). Người dùng đã cho phép commit, push và Draft PR; manual test chạy trên commit code cuối `f55b9a1`.
+Đối chiếu: TC-59-01/02/04 đạt ở lớp unit. TC-59-03 đạt phần module registration và full AppModule bootstrap, rerun đạt sau rebase (M-59-03c) cùng OutboxModule/AccountsModule/AuditModule thật; worker-only consumer chưa kiểm được (BL-041). DoD #2 chưa có xác nhận chữ ký từ #1/#6 (BL-138). DoD #5 chưa đạt: [Draft PR #42](https://github.com/Lawliet119/digital-banking-simulator/pull/42) còn Draft, vừa rebase lên `main` 2026-11-04 nên cần CI chạy lại trên head mới; Dev review/merge còn chờ (BL-139). Người dùng đã cho phép commit, push và Draft PR; manual test rerun trên commit code cuối sau rebase `8b700fd`.
 
 ## 9. Tài liệu cập nhật
 
-Đã cập nhật `backend/src/modules/risk/README.md`, `docs/features/README.md`, `docs/BACKLOG.md`; thêm BL-053 và BL-054, cập nhật BL-041. Không đổi ADR/event contract/schema/env var/dependency.
+Đã cập nhật `backend/src/modules/risk/README.md`, `docs/features/README.md`, `docs/BACKLOG.md`; thêm BL-138 và BL-139 (đổi số từ BL-053/054 ban đầu do trùng với dòng DBS-40/41 đã merge vào `main`), cập nhật BL-041. Không đổi ADR/event contract/schema/env var/dependency.

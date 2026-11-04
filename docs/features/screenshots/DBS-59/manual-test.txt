@@ -1,4 +1,4 @@
-f55b9a17a40dabbafeb447f22dee5ad3ffc1d85a
+8b700fde61725ea0e3e2a68114fa3242b16f693c
 M-59-01: node -e driver of compiled risk contracts with a fake R1 rule.
 {"hit":{"id":"R1","weight":30,"explanation":"6 lenh chuyen trong 10 phut"},"disabled":null}
 PASS: hit when enabled; null when disabled. The rule is a fake; R1 implementation is a later task.
@@ -73,3 +73,30 @@ exit=0
 > drop isolated DB
 DROP DATABASE
 exit=0
+
+M-59-03c (2026-11-04, rerun after rebase onto main 7f3b700): RiskModule now shares sharedModules with
+the real OutboxModule, AccountsModule and AuditModule (merged after this PR opened), so M-59-03a/b are
+rerun on the rebased code (commit 8b700fd) to prove RiskModule still registers once and the combined
+AppModule still boots in every role. Docker Compose PostgreSQL 17 (dbs-postgres-1, host port 5433),
+migrations already applied on the shared dev database.
+
+> modulesForRole registration count
+api riskModules=1, total=6
+worker riskModules=1, total=3
+both riskModules=1, total=6
+PASS: RiskModule still registers exactly once per role alongside OutboxModule/AccountsModule/AuditModule.
+
+> AppModule bootstrap APP_ROLE=api
+[Nest] 30968  - 11/04/2026, 4:33:30 PM    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+APP_ROLE=api AppModule boot=ok
+exit=0
+
+> AppModule bootstrap APP_ROLE=worker
+APP_ROLE=worker AppModule boot=ok
+exit=0
+
+> AppModule bootstrap APP_ROLE=both
+[Nest] 22060  - 11/04/2026, 4:33:52 PM    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+APP_ROLE=both AppModule boot=ok
+exit=0
+PASS: AppModule boots in every role with RiskModule alongside the real Outbox/Accounts/Audit modules.
