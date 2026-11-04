@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
+import { activeTransactionContext } from '@database/transaction.helper';
 import { TransactionService } from '@database/transaction.service';
 import { serializeMetadata } from './audit-metadata.guard';
-import type { AuditRecordInput } from './audit.types';
+import { NestedTransactionError, type AuditRecordInput } from './audit.types';
 
 const INSERT_SQL = `INSERT INTO audit_log
   (actor_user_id, actor_role, action, outcome, target_type, target_id, correlation_id, metadata)
@@ -40,6 +41,9 @@ export class AuditService {
    * could not be recorded must not be reported as a clean 404.
    */
   async recordDenied(input: Omit<AuditRecordInput, 'outcome'>): Promise<void> {
+    if (activeTransactionContext.getStore() === true) {
+      throw new NestedTransactionError();
+    }
     await this.transactionService.run(manager =>
       this.record(manager, { ...input, outcome: 'DENIED' }),
     );
