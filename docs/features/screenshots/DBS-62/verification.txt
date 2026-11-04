@@ -1,5 +1,19 @@
-DBS-62 verification summary, 2026-11-02 (summarized from executed commands)
-Final code SHA: 1f9f4a4a0b9ac28dea54a1c816a5f77c949aa643
+DBS-62 verification summary (summarized from executed commands)
+
+2026-11-04 post-rebase verification:
+Base origin/main a9e607b, actual AuditService from merged PR54 (7f3b700).
+Only DBS-62 commits replayed; temporary integration08e605e removed.
+Rebased implementation586ef11, real-provider fixture08d50fa.
+Manual tested SHA e40a7e45aa293737876bb1c8a43b82b2a40b2172 (code plus original docs).
+lint:check/typecheck/build: passed.
+Targeted real PostgreSQL suites: onboarding, AccountsService, AuditService65/65 passed (37.429s).
+Full unit: 825 passed,1 failed (existing Identity JWKS cooldown test, expected2 fetches/received3).
+Identity code unchanged; isolated retry and GitHub CI result recorded in final handover.
+Manual: 6/6 passed with fresh output/correlation IDs/screenshot on rebased code.
+Docs link check: 198 files,0 broken links.
+
+Historical 2026-11-02 pre-rebase results:
+Code SHA: 1f9f4a4a0b9ac28dea54a1c816a5f77c949aa643
 
 npm run lint:check: exit 0
 npm run typecheck: exit 0
@@ -26,5 +40,4 @@ Owned disposable PostgreSQL17/temp database/public JWKS cleaned up.
 
 Independent design review: APPROVE, 1 should-fix and 1 minor addressed.
 GitHub CI, Dev review and merge: pending BL-144; no local result claimed as CI proof.
-Dependency origin/feat/DBS-56-audit-service-record is not an ancestor of origin/main at final fetch.
-Temporary integration base08e605e; rebase only subsequent DBS-62 commits after actual audit merge.
+At the original handover dependency was absent from main; resolved by PR54 and the 2026-11-04 rebase above.

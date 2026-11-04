@@ -1,10 +1,10 @@
 # DBS-62 · Customer onboarding
 
-Status: Implemented locally; main-based PR waiting for the real audit dependency (BL-144). Owner: Dev. Updated 2026-11-02.
+Status: Implemented; rebased onto main after audit PR #54. Draft PR/CI handover in progress (BL-144). Owner: Dev. Updated 2026-11-04.
 
 ## 1. Scope and dependencies
 
-Board Dev, Highest, In Progress. DBS-20/51/52 Done. DBS-53 board says In Progress but its implementation/token tools are already on main991c13f via merged PR48; use actual code, no auth stub. Main has AccountsService but no onboarding controller. Real AuditService is required by FR-AUD-01/BR-09 yet remains only in origin/feat/DBS-56-audit-service-record (no associated PR found). Temporary integration base08e605e merges that real code into current main; conflict resolution retains Outbox/Accounts/Audit, and renames collided audit handoff BL-031 to BL-143 (cost BL-031 retained). Separate DBS-62 commits will be rebased onto main after audit dependency merges, following prior temporary-dependency workflow. No merge into main, board edits or duplicate service.
+Board Dev, Highest, In Progress. DBS-20/51/52 Done. DBS-53 board says In Progress but its implementation/token tools are on main via merged PR48. AuditService is now on main via [PR54](https://github.com/Lawliet119/digital-banking-simulator/pull/54), commit7f3b700, including metadata serialization and nested-transaction protections. On 2026-11-04 rebased only the three DBS-62 commits onto main a9e607b, removing temporary integration08e605e and all dependency commits from the PR diff. Kept main's backlog rows (including audit BL-137); the temporary BL-143 duplicate was discarded. No schema or audit implementation changes in DBS-62.
 
 Deliver POST/GET /v1/customers/me per docs03 UC-1. Actual requirement is FR-ID-02 (board references FR-ACC-01, which docs02 assigns to account opening/UC-2). User authorizes prior delivery workflow without gate pauses: design review/test/manual/commit/push; main-based PR when dependencies available.
 
@@ -77,7 +77,7 @@ Temporary real audit integration08e605e, then tests first (missing route404 red)
 
 ## 8. Results
 
-Code commits: `e7b96a2` implementation and `1f9f4a4` real-provider fixture adjustment. Test first: all 7 new tests failed because `/v1/customers/me` was absent (HTTP404); after implementation all7 passed. No skipped task tests.
+Rebased code commits: `586ef11` implementation and `08d50fa` real-provider fixture adjustment (originally e7b96a2 and1f9f4a4). Test first: all 7 new tests failed because `/v1/customers/me` was absent (HTTP404); after implementation all7 passed. No skipped task tests. Results below are the original 2026-11-02 verification; the post-rebase results are recorded in verification.txt and the final handover below.
 
 | Verification | Actual result |
 |---|---|
@@ -99,13 +99,13 @@ Code commits: `e7b96a2` implementation and `1f9f4a4` real-provider fixture adjus
 
 Manual command from `backend`: `node scripts/manual-dbs62.cjs`. [Raw output](screenshots/DBS-62/manual-test.txt) first line contains final code SHA. Six steps M-62-01..06 executed successfully: missing GET404/create200, replay/GET unchanged,20 parallel200 with one customer/audit,401/403/400 rejection, actual audit failure500/rollback/recovery200, cleanup. Public JWKS file only; disposable PostgreSQL17 and owned temp database, no shared DB revert. Driver logs HTTP status, sanitized response and server correlationId, never token or connection URL.
 
-[Verification summary](screenshots/DBS-62/verification.txt) and [prepared PR description](screenshots/DBS-62/pr-description.md) retain the DoD mapping for the main-based PR. GitHub branch `feat/DBS-62-customer-onboarding`; PR intentionally pending BL-144.
+[Verification summary](screenshots/DBS-62/verification.txt) and [PR description](screenshots/DBS-62/pr-description.md) retain the DoD mapping for the main-based PR. GitHub branch `feat/DBS-62-customer-onboarding`; current PR/check links are recorded in the final handover.
 
 ![Actual HTTP output excerpt](screenshots/DBS-62/01-http-results.png)
 
-Deviation: AccountsModule now has a real audit/transaction dependency; updated existing TC-55-15 fixture to provide real TransactionService/config, identified by the full DB run. Temporary integration is reversible: after audit merge, `git rebase --onto origin/main 08e605e feat/DBS-62-customer-onboarding` replays only DBS-62 commits; resolve docs, rerun relevant checks and manual output on final rebased SHA before PR. Do not merge/present dependency commits as DBS-62 work. No main PR created while dependency is absent.
+Deviation: AccountsModule now has a real audit/transaction dependency; updated existing TC-55-15 fixture to provide real TransactionService/config, identified by the full DB run. Completed `git rebase --onto origin/main 08e605e feat/DBS-62-customer-onboarding` on2026-11-04. Conflict only in BACKLOG; kept main's rows and DBS-62 handoff. No dependency code is in the diff. The existing design and real audit interface remain compatible; runtime tests include actual PR54 implementation.
 
-BL-144 tracks main-based PR, CI, Dev review and merge. BL-132 global roles-denial audit, BL-130 identity provision audit and BL-019 audit API/roles remain owned by their existing tasks. No fabricated service or silently waived onboarding mutation audit. Temporary audit handoff collision renamed BL-143; no backlog items closed by DBS-62.
+BL-144 now tracks Dev review and merge after the main-based Draft PR and its CI. BL-132 global roles-denial audit, BL-130 identity provision audit and BL-019 audit API/roles remain owned by their existing tasks. No fabricated service or silently waived onboarding mutation audit. No backlog items closed by DBS-62.
 
 Handover checklist: implementation/test/manual/evidence/docs complete locally; raw output inspected for tokens/secrets; independent review findings addressed; no dependency/env/schema/ErrorCode change; GitHub CI/Dev review/merge pending; board stays In Progress until a reviewable main-based PR exists. No human gate approval or Dev review is claimed.
 
