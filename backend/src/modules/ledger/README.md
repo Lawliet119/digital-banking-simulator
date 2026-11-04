@@ -2,7 +2,7 @@
 
 Mọi đồng tiền vào, ra, di chuyển. Nơi duy nhất được phép thay đổi số dư.
 
-> **Status:** Schema, trigger và công cụ kiểm bất biến implemented · **Owner:** #1 · **Verified against code:** migration và DB tests; luồng chuyển/nạp tiền, scheduler đối soát chưa triển khai.
+> **Status:** Schema, trigger, công cụ kiểm bất biến và nạp tiền bản thô implemented · **Owner:** Dev (Ledger) · **Verified against code:** migration/DB tests và DBS-60; transfer, replay DBS-79 và scheduler đối soát còn chờ.
 
 Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bảng `transfers`, `ledger_entries`: BEFORE UPDATE/DELETE theo hàng và BEFORE TRUNCATE theo statement, cùng hàm `public.forbid_mutation()` của [DBS-27](../../../../docs/features/DBS-27-append-only-triggers.md). INSERT vẫn được phép; mutation có hàng và TRUNCATE kể cả bảng rỗng trả SQLSTATE `42501` từ RAISE của hàm. UPDATE/DELETE không khớp hàng trả 0 hàng. Test dùng owner NOSUPERUSER và đối chứng quyền sau down; quyền production và chủ view `v_transfer_facts` còn chờ task roles (BL-005). Revert chỉ gỡ trigger/hàm, giữ dữ liệu và sequence nhưng làm mất lớp bảo vệ này; không dùng revert như cách sửa dữ liệu nghiệp vụ.
 
@@ -24,7 +24,15 @@ Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bản
 
 ## Export công khai (`index.ts`)
 
-`LedgerQueryService` cho `accounts`/`identity` đọc lịch sử và trạng thái.
+`LedgerModule` phục vụ operator deposit ở api/both; không nạp HTTP deposit trong worker. Query lịch sử/trạng thái sẽ có ở task riêng, chưa export service chưa tồn tại.
+
+## Nạp tiền bản thô (DBS-60)
+
+`POST /v1/operator/deposits` chỉ operator; body `{toAccountId,amount}` với amount là chuỗi VND dương chuẩn, header `Idempotency-Key` bắt buộc1–128 ký tự. Transaction reserve key → `AccountsService.lockForUpdate` theo id → kiểm đích ACTIVE → transfer DEPOSIT +hai ledger lines +hai cập nhật số dư qua AccountsService → audit → TransferCompleted qua OutboxWriter → lưu response key → commit. SYSTEM funding được âm và bỏ qua hạn mức/số dư nguồn.
+
+Đích LOCKED/missing/SYSTEM: ghi transfer REJECTED +audit +key, commit rồi422 ACCOUNT_NOT_ACTIVE; không bút toán/sự kiện/đổi tiền. Metadata audit giữ UUID đích yêu cầu khi FK đích NULL. Funding thiếu/hỏng hoặc lỗi ghi bất kỳ trả500 (transient503), toàn bộ transaction/key rollback. Thư viện money giữ bigint/string, cả giá trị >2^53; ledger không SQL đọc/ghi accounts trực tiếp.
+
+Bản thô **không replay**: key đã dùng trả409, không thực hiện lần hai, không trả response của actor khác. DBS-79 bổ sung same-body replay/khác-body422 theo ADR05; hash/result đã lưu để tích hợp. Không coi409 là hoàn thành AC-5.3/4/5. Event dùng fromUserId null/sameOwner false, fromBalanceBefore có dấu và occurredAt từ DB, mọi thời gian ISO Z. Test thật/fault rollback và bằng chứng ở [DBS-60](../../../../docs/features/DBS-60-operator-deposits.md).
 
 ## Kiểm bất biến
 
