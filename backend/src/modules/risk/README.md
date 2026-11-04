@@ -2,6 +2,8 @@
 
 > **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../../../docs/adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../../../docs/features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
+DBS-59 thêm `RiskModule` vào `sharedModules`, contract `RiskRule`/`FeatureProvider` và hai lớp provider khung. Hai provider khung ném lỗi rõ ràng khi gọi, không tạo feature giả và chưa được đăng ký vào DI. Chưa có consumer hay 6 luật; điều kiện worker-only phải được thực thi và test khi consumer được triển khai. Xem [feature doc DBS-59](../../../../docs/features/DBS-59-risk-module-skeleton.md).
+
 Phát hiện giao dịch đáng ngờ; nhân viên review và quyết định.
 
 | | |
