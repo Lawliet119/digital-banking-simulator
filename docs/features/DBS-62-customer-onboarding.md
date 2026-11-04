@@ -1,6 +1,6 @@
 # DBS-62 · Customer onboarding
 
-Status: Implemented; rebased onto main after audit PR #54. Draft PR/CI handover in progress (BL-144). Owner: Dev. Updated 2026-11-04.
+Status: Implemented; [Draft PR56](https://github.com/Lawliet119/digital-banking-simulator/pull/56) targets main after rebase. Dev review/merge pending BL-144. Owner: Dev. Updated 2026-11-04.
 
 ## 1. Scope and dependencies
 
@@ -107,7 +107,11 @@ Deviation: AccountsModule now has a real audit/transaction dependency; updated e
 
 BL-144 now tracks Dev review and merge after the main-based Draft PR and its CI. BL-132 global roles-denial audit, BL-130 identity provision audit and BL-019 audit API/roles remain owned by their existing tasks. No fabricated service or silently waived onboarding mutation audit. No backlog items closed by DBS-62.
 
-Handover checklist: implementation/test/manual/evidence/docs complete locally; raw output inspected for tokens/secrets; independent review findings addressed; no dependency/env/schema/ErrorCode change; GitHub CI/Dev review/merge pending; board stays In Progress until a reviewable main-based PR exists. No human gate approval or Dev review is claimed.
+2026-11-04 handover: [Draft PR56](https://github.com/Lawliet119/digital-banking-simulator/pull/56), base main a9e607b. [GitHub checks](https://github.com/Lawliet119/digital-banking-simulator/pull/56/checks) are authoritative for final PR status; first run [41843997481](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41843997481). No local result is substituted for CI.
+
+Post-rebase lint/typecheck/build passed; three real PostgreSQL suites65/65 passed (onboarding, AccountsService and actual merged AuditService). Manual6/6 passed at e40a7e45 with refreshed screenshot/transcript. Full unit825/826, isolated Identity retry12/13: the same cooldown fetch-count failure on this machine, tracked by existing BL-112; Identity source/test unchanged. E2E and CI final results recorded in verification.txt/PR checks.
+
+Handover checklist: implementation/manual/evidence/docs complete; raw output inspected for tokens/secrets; independent review findings addressed; no dependency/env/schema/ErrorCode change. GitHub CI/Dev review/merge tracked in PR56 and BL-144. User moves board to In Review when handing this PR to a Dev reviewer. No human gate approval or Dev review is claimed.
 
 ## 9. Sources
 
