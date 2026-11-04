@@ -8,9 +8,14 @@ Manual tested SHA e40a7e45aa293737876bb1c8a43b82b2a40b2172 (code plus original d
 lint:check/typecheck/build: passed.
 Targeted real PostgreSQL suites: onboarding, AccountsService, AuditService65/65 passed (37.429s).
 Full unit: 825 passed,1 failed (existing Identity JWKS cooldown test, expected2 fetches/received3).
-Identity code unchanged; isolated retry and GitHub CI result recorded in final handover.
+Identity code unchanged; isolated local retry12/13 (same cooldown failure), existing BL-112.
+Full e2e after rebase: 13 suites,135/135 passed (239.093s).
 Manual: 6/6 passed with fresh output/correlation IDs/screenshot on rebased code.
 Docs link check: 198 files,0 broken links.
+Main-based Draft PR56: https://github.com/Lawliet119/digital-banking-simulator/pull/56
+Final GitHub checks: https://github.com/Lawliet119/digital-banking-simulator/pull/56/checks
+First CI run: https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41843997481
+CI conclusion is recorded in PR checks; Dev review/merge pending BL-144.
 
 Historical 2026-11-02 pre-rebase results:
 Code SHA: 1f9f4a4a0b9ac28dea54a1c816a5f77c949aa643

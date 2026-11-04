@@ -29,7 +29,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 
 | Task | Tóm tắt | Vai | Trạng thái |
 |---|---|---|---|
-| [DBS-62](DBS-62-customer-onboarding.md) | UC-1 customer onboarding: create-or-return, own GET, transaction audit and concurrent HTTP/PostgreSQL tests | Dev | Implemented; rebased onto main after audit PR54; Draft PR/CI handover, Dev review/merge pending BL-144 |
+| [DBS-62](DBS-62-customer-onboarding.md) | UC-1 customer onboarding: create-or-return, own GET, transaction audit and concurrent HTTP/PostgreSQL tests | Dev | Implemented; [Draft PR #56](https://github.com/Lawliet119/digital-banking-simulator/pull/56) targets main after rebase; Dev review/merge pending BL-144 |
 | [DBS-20](DBS-20-migration-users-customers-accounts.md) | Migration 1: users, customers, accounts và tài khoản SYSTEM funding | #1 Ledger | Implemented |
 | [DBS-21](DBS-21-migration-transfers-ledger-idempotency.md) | Migration 2: transfers, ledger_entries, idempotency_keys, view v_transfer_facts | Dev | Implemented |
 | [DBS-22](DBS-22-common-money-type-dto-validator.md) | @common/money: `Money`, `Balance`, `@IsMoneyAmount`, JSON an toàn cho bigint | Dev | Implemented |

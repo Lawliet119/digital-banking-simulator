@@ -7,7 +7,7 @@ Thêm POST/GET `/v1/customers/me` cho customer. POST tạo hoặc trả hồ sơ
 
 Nhánh đã rebase lên main a9e607b sau khi AuditService được merge qua PR #54. Diff chỉ gồm thay đổi DBS-62; kiểm tra tích hợp dùng AuditService thật sau review.
 
-Kiểm tra sau rebase: lint/typecheck/build xanh; 65/65 test PostgreSQL của onboarding/AccountsService/AuditService và 6/6 bước thủ công xanh. Lượt unit đầy đủ: 825/826 xanh, test cooldown JWKS Identity bị lỗi timing trên máy local; không sửa Identity trong DBS-62. Xem kết quả retry và GitHub checks khi review.
+Kiểm tra sau rebase: lint/typecheck/build xanh; 135/135 e2e, 65/65 test PostgreSQL của onboarding/AccountsService/AuditService và 6/6 bước thủ công xanh. Lượt unit đầy đủ: 825/826 xanh; retry riêng 12/13, cùng test cooldown JWKS Identity bị lỗi timing trên máy local (BL-112). Identity giữ nguyên trong DBS-62. Xem GitHub checks để xác minh CI.
 
 ## Loại thay đổi
 
