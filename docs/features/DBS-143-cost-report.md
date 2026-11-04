@@ -1,6 +1,6 @@
 # DBS-143 · Báo cáo chi phí tuần đầu từ Cost Explorer theo dịch vụ và tag
 
-> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-143-cost-report` · **PR:** — · **Cập nhật:** 2026-11-04
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-143-cost-report` · **PR:** [#55](https://github.com/Lawliet119/digital-banking-simulator/pull/55) · **Cập nhật:** 2026-11-04
 
 ## 1. Bối cảnh
 
