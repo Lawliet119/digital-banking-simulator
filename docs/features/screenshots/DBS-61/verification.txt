@@ -1,0 +1,52 @@
+DBS-61 final source SHA: 58d628e5274fd2f05bd8df0a75a4b9e442f1e994
+Temporary parent: 42d5d1d1205f2d5aed0e59f8b4efecafad9c1531 (DBS-60, explicit user authorization)
+Date: 2026-11-05 Asia/Saigon
+
+Baseline before production code:
+docker compose up -d: postgres/valkey/elasticmq running
+lint:check PASS; typecheck PASS; build PASS
+unit 55 suites,826/826 PASS,97.570s
+e2e 13 suites,135/135 PASS,107.520s
+
+Test-first red:
+One initial test-helper TS error (unknown not valid supertest body) corrected.
+Then19/19 actual PostgreSQL tests failed before transfer route existed,9.315s.
+AC5.1 expected201 got404; Swagger route absent. No production transfer code existed.
+
+After implementation:
+Initial green19/19 actualPG,12.481s.
+Lint exposed unnecessary non-null assertion and unsafe test return.
+Corrected source assertion/test query type; no runtime feature changes.
+Final lint:check PASS; typecheck PASS; build PASS.
+Final related PG six matching suites,129/129 PASS,74.124s.
+Command: npm run test:db -- --runInBand customer-transfers operator-deposits accounts-service audit-service outbox-writer
+No task .only/.skip/.todo; zero skipped task cases.
+
+Full unit final: 54 passed suites,1 failed suite;824 passed tests,2 failed /826,82.360s.
+Both failures inherited BL-112, jwks-verifier.service.spec.ts:
+- refetches on key rotation once cooldown elapsed, but not before: expected fetchCount1 got2, line247
+- honours refetch cooldown second unknown kid: expected fetchCount2 got3,line276
+Baseline was826/826. Identity source untouched. No rerun-until-green, no false unit-green claim.
+Full e2e final:13 suites135/135 PASS,126.079s.
+Full test:db not rerun; targeted129 not claimed as full DB suite.
+node --check scripts/manual-dbs61.cjs PASS.
+
+Manual command: node scripts/manual-dbs61.cjs
+6/6 steps PASS on final source SHA (see manual-test.txt first line).
+Actual Nest production modules, JWT, HTTP, PostgreSQL17, owned tempDB/container.
+SQL INPUT only users/customers/default-zero accounts. All money seeded by actual deposit API.
+Invariant PASS after business stages; final debit=credit18014398512884986,balance0,violations[].
+Actual triggers fail audit/outbox, complete rollback then same-key retry201.
+Actual10parallel200k withdrawals:5completed5rejected, no overdraft.
+Actual above2^53 amount9007199254740993 exact DB/event string.
+No Authorization/Bearer/JWT/password/DBURI/AWSARN patterns in transcript.
+Screenshot is a rendered excerpt of real transcript, visually inspected.
+
+Independent design review APPROVE zero findings; final implementation review APPROVE zero findings.
+Final docs link check203 files0broken.
+git diff --check PASS.
+
+No main PR, CI, Dev review or merge evidence for DBS-61 yet.
+Wait DBS60 PR57 merge, rebase ONLY own commits using exact parent, reverify/manual, then Draft PR base main.
+Board remains In Progress; no sheet edits or merges by agent.
+BL-003/122 resolved, BL-148 extended; BL-150 process dependency and BL-151 full week3 guard/rejection handoff.

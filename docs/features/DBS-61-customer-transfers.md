@@ -1,6 +1,6 @@
 # DBS-61 · Customer transfers with atomic double entry
 
-> **Status:** Design, implementation pending · **Role:** Dev · **Branch:** `feat/DBS-61-customer-transfers` · **PR:** pending dependency merge · **Updated:** 2026-11-05
+> **Status:** Implemented locally; dependency/rebase/PR/CI/Dev review/merge pending · **Role:** Dev · **Branch:** `feat/DBS-61-customer-transfers` · **PR:** pending dependency merge · **Updated:** 2026-11-05
 
 ## 1. Context
 
@@ -17,7 +17,7 @@ Dependency: [DBS-60](DBS-60-operator-deposits.md), Draft [PR57](https://github.c
 
 Existing primitives: AccountsService ownership read/ordered locks/balance apply, TransactionService bounded retry, real AuditService and OutboxWriter, deposit API and its real JWT/HTTP/PG fixture. Baseline running; results recorded §8 before production code. No transfer endpoint exists yet (red test will demonstrate404).
 
-Scope: raw transfer, basic ACTIVE/balance guard, ownership DENIED audit, atomic failure proof. Resolve BL-003 SYSTEM transfer protection and BL-122 transfer integration. Deferred: limits/day clock and full sync guard (week3); replay/conflict DBS-79 (safe409 barrier only, inherited BL-148); comprehensive rejection persistence DBS-83 (here basic transfer/reason/key/audit persisted). BL-004 hash documentation inconsistency remains for79: follow ADR05 canonical method/path/body. BL-005/006/008/017 DB role/constraints/lint, BL-112 Identity timing, BL-121 logging startup timing, BL-130 provisioning audit, BL-132 role-denial audit remain separate. No schema, event, ErrorCode, env or dependency changes.
+Scope: raw transfer, basic ACTIVE/balance guard, ownership DENIED audit, atomic failure proof. Resolve BL-003 SYSTEM transfer protection and BL-122 transfer integration. Deferred: limits/day clock and full sync guard (week3); replay/conflict DBS-79 (safe409 barrier only, inherited BL-148); comprehensive rejection persistence DBS-83 (here basic transfer/reason/key/audit persisted). BL-004 hash documentation inconsistency remains for79: follow ADR05 canonical method/path/body. BL-005/006/008/017 DB role/constraints/lint, BL-007 config-money parsing, BL-112 Identity timing, BL-121 logging startup timing, BL-130 provisioning audit, BL-132 role-denial audit remain separate. No schema, event, ErrorCode, env or dependency changes.
 
 ## 2. Behaviour
 
@@ -108,8 +108,70 @@ Sweep: schema/event/env/dependency/other modules unchanged. No broad refactor De
 
 ## 8. Results
 
-Baseline on temporary parent: lint/typecheck/build passed; unit55 suites826/826 (97.570s), e2e13 suites135/135 (107.520s). Red test after fixing one test-helper TypeScript body type: real PG19/19 cases fail, endpoint404 (AC5.1 expected201 got404; Swagger route absent), 9.315s. No production code existed at this point. Manual/final tests pending. No CI/review/merge claims.
+Baseline on temporary parent: lint/typecheck/build passed; unit55 suites826/826 (97.570s), e2e13 suites135/135 (107.520s). Red test after fixing one test-helper TypeScript body type: real PG19/19 cases fail, endpoint404 (AC5.1 expected201 got404; Swagger route absent), 9.315s. No production code existed at this point.
+
+Final source commit: `58d628e5274fd2f05bd8df0a75a4b9e442f1e994`. Later commits change documentation/evidence only. Commands from backend:
+
+| Command | Actual result |
+|---|---|
+| `npm run lint:check` | PASS after correcting an unnecessary source non-null assertion and typing the test balance query |
+| `npm run typecheck` / `npm run build` | PASS |
+| `npm test -- --runInBand` | **824 passed, 2 failed /826**, 54/55 suites,82.360s. Both failures inherited BL-112 JWKS cooldown fetch counts (expected1 got2; expected2 got3). Not fixed or hidden; baseline826/826 passed. No rerun-until-green |
+| `npm run test:e2e -- --runInBand` | **135/135**,13 suites,126.079s |
+| `npm run test:db -- --runInBand customer-transfers` | Initial green **19/19**,12.481s |
+| `npm run test:db -- --runInBand customer-transfers operator-deposits accounts-service audit-service outbox-writer` | Final **129/129**,6 matching suites,74.124s, includes all19 DBS61 and deposit regression |
+| `node --check scripts/manual-dbs61.cjs` | PASS |
+| `node scripts/manual-dbs61.cjs` | **6/6 manual steps PASS**, actual JWT/HTTP/PG17; source SHA first line |
+| `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` from root | PASS,203 files,0broken links |
+
+No skipped DBS61 cases, no `.only`/`.skip`/`.todo`. Full `test:db` and CI not run for this branch yet; targeted129 is not claimed as full DB suite. No mock money services; fresh PG databases and actual modules. Overflow case uses a second isolated DB so API deposits of MAX+1 total fit signed-min funding without unrelated deposits exhausting capacity.
+
+### Case mapping
+
+All tests below in [customer-transfers.db-spec.ts](../../backend/test/db/customer-transfers.db-spec.ts); each business case ends with the shared five-invariant check, capacity DB also checked before cleanup.
+
+| Case | Actual test evidence | Depth |
+|---|---|---|
+| TC01 | `AC5.1 A1m → B300k` exact balances, pair/balance_after, actor/audit, valid event with DB timestamps/owner snapshots/server CID, canonical hash/key201 | Full |
+| TC02 | `AC5.2 insufficient commits rejection` +shared assertRejected checks totals delta, no money/lines/events, stored422/audit/transfer reason/problem JSON | Full |
+| TC03 | `foreign/missing/SYSTEM sources uniformly404` exact DENIED per request, no key/business effect | Full |
+| TC04 | `ACTIVE first` source/target LOCKED/missing/SYSTEM including locked source withzero balance, stored422 and FK null distinction | Full |
+| TC05 | `JWT/role/input/key validation` no/expired token, threewrongroles, malformed/hostile/extra fields, money bounds, sameaccount, key missing/128/129 | Full |
+| TC06 | `ten concurrent withdrawals` actual Promise.all10 →5completed5insufficient, exactbalances; tenactual opposite-direction transfers all201, invariant clean | Full for raw concurrency; no full load/limit claim |
+| TC07 | `duplicate barrier user scope and same-owner` 10samekey →one201/nine409, otheractor samekey succeeds; own distinct account eventtrue | Full barrier scope; AC5.3/4/5 replay deferred79 |
+| TC08 | Five success-write real DB triggers +two rejection-write triggers: full snapshot identical on500, samekey succeeds/persists422 after trigger removal | Full,7 parameterized cases |
+| TC09 | `real lock timeout503` heldPGrowlock, key/money rollback, Retry-After, release/retry201 | Full |
+| TC10 | `>2^53 exact` +`signed64 destination overflow500` 2 real API cases including every financial write rollback in owned capacityDB | Full |
+| TC11 | `denied audit failure` actual audittrigger500, no effects; remove/retry404+oneDENIED | Full |
+| TC12 | `Swagger lists JWT,key,DTO example and response statuses` | Full |
+| Process | No PR/CI/Dev review/merge yet; dependency PR57 still required | Pending BL-150 |
+
+### Manual results
+
+Command `node scripts/manual-dbs61.cjs`, raw [manual-test.txt](screenshots/DBS-61/manual-test.txt). SQL INPUT only users/customers/default-zeroaccounts; no SQL balances or ledger seeding. **All money seeded through actual operator deposit HTTP**. Public JWKS temporary file only, private signing key in memory. Transcript checked for Authorization/Bearer/JWT/connection URI/password/AWS ARN patterns: none.
+
+| Step | Real response / query evidence | Result |
+|---|---|---|
+| M01 | Actual201 transfer `964ab78c-f6c7-4b55-905d-bb0f58444144`, correlation `c34b804d-c2ca-469f-9fdd-6a4fb7ca7a1d`; queried700000/300000 and exact2lines, audit/outbox/key counts1, event validator success | PASS |
+| M02 | Actual422 INSUFFICIENT_FUNDS and ACCOUNT_NOT_ACTIVE with persisted IDs/reasons, totals unchanged except transfer/audit/key; foreign source404+queried DENIED | PASS |
+| M03 |400 IDEMPOTENCY_KEY_REQUIRED,403 FORBIDDEN, duplicate409 with exact snapshot unchanged | PASS |
+| M04 | Actual audit/outbox failures500 with generic detail, full snapshot unchanged; remove trigger, samekey201 twice | PASS |
+| M05 |10parallel200000 →5completed5insufficient, source0/destination1000000; large amount API→DB→event `9007199254740993` exact; final debit=credit `18014398512884986`, totalbalance0, zero violations | PASS |
+| M06 |App, publicJWKS directory, ownedtemporaryDB and ownedPG17 cleaned in finally | PASS |
+
+![Actual manual transcript excerpt](screenshots/DBS-61/01-transfer-evidence.png)
+
+Screenshot is an excerpt rendered from the actual transcript, not a fabricated application UI. Raw HTTP and rows remain available alongside it.
+
+Plan sweep: source files match §7; changes since parent are isolated DBS61 commits. No schema/event/env/dependency/module boundary changes; no own merge or shared sheet edits. Assertions/type-helper corrections were implementation fixes within plan. Manual runs on final codeSHA; no later source edits.
+
+### Handoffs
+
+- **BL-150:** DBS60 dependency/main rebase/PR/CI/Dev review/merge. Keep board **In Progress**. After PR57 merges: fetch, then `git rebase --onto origin/main 42d5d1d1205f2d5aed0e59f8b4efecafad9c1531 feat/DBS-61-customer-transfers`, resolve/reverify source/manual on new SHA, open Draft PR with base main using prepared [PR description](screenshots/DBS-61/pr-description.md). No PR against the DBS60 feature branch.
+- **BL-148:** DBS79 replay/hash conflict, currentlysafe409 for reused keys. No claim of full idempotency acceptance/replay semantics.
+- **BL-151:** full week3 syncguard/limits/daily boundary and comprehensive DBS83 rejection contract.
+- **BL-112:** inherited full-unit JWKS cooldown timing failures remain visible. No Identity source changed.
 
 ## 9. Documentation
 
-Planned changes listed §7. Unfinished process and replay/limits/rejection followups must be represented in BACKLOG before handover.
+Updated ledger README, docs03 API current maturity, feature index, BACKLOG. Removed resolved **BL-003** and **BL-122** (source SYSTEM404/DENIED, targetSYSTEM422, actual transfer primitive/rollback integration proved). Extended existing BL-148 to include transfer; added BL-150/151. Other unrelated backlog rows retained. Added feature doc, raw independent reviews, actual manual transcript, screenshot, verification and prepared PR description. No ADR edits.
