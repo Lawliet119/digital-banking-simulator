@@ -1,0 +1,530 @@
+DBS-86 verification
+
+
+ROOT FINAL VERIFICATION v1 · 2026-11-05 · local evidence, not GitHub CI
+Main refreshed and rechecked: a9e607b0e6cd3d35869d57307d80d8fc8084d212.
+Shared approved P0 commit: b93ab08a17259d5051568fb739f46d655ed67a9f.
+Only P0 file: backend/test/dev-auth-bootstrap.e2e-spec.ts. Existing deployed-control
+red was ETIMEDOUT; patch uses refusal at loopback instead of DNS-dependent db.internal,
+adds startup-failure/no-listener assertions, preserves25s timeout/TLS/guards/retrycounts.
+Baseline green before feature production: lint/typecheck0;55unit suites826tests0skip;
+13E2E suites135tests0skip;18PostgreSQL suites346tests0skip. Docker initially unavailable:
+one full E2E attempt failed connecting before tests; after Docker recovery full E2E passed.
+Docker runtime recovery preserved stale socket-only folders outside repo; no data reset.
+No production dependency/schema/ErrorCode/env/money-rule change. Test tooling installs
+follow existing package-lock; no source/env-secret file edited.
+
+Command output: p0-red.txt
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand --runTestsByPath test/dev-auth-bootstrap.e2e-spec.ts
+
+FAIL test/dev-auth-bootstrap.e2e-spec.ts (47.956 s)
+  ● DBS-53 local auth is refused outside development and test (real process) › control: the deployed environment alone passes validation
+
+    expect(received).toBeUndefined()
+
+    Received: [Error: spawnSync C:\Program Files\nodejs\node.exe ETIMEDOUT]
+
+      41 |     { cwd: backend, encoding: 'utf8', timeout: 25_000, env },
+      42 |   );
+    > 43 |   expect(result.error).toBeUndefined();
+         |                        ^
+      44 |   const output = result.stdout + result.stderr;
+      45 |   const rows = output
+      46 |     .trim()
+
+      at runMain (test/dev-auth-bootstrap.e2e-spec.ts:43:24)
+      at Object.<anonymous> (test/dev-auth-bootstrap.e2e-spec.ts:67:17)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 3 passed, 4 total
+Snapshots:   0 total
+Time:        48.274 s
+Ran all test suites within paths "test/dev-auth-bootstrap.e2e-spec.ts".
+
+
+Command output: p0-green.txt
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand --runTestsByPath test/dev-auth-bootstrap.e2e-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        32.081 s, estimated 48 s
+Ran all test suites within paths "test/dev-auth-bootstrap.e2e-spec.ts".
+
+
+Command output: lint-baseline.txt
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+
+Command output: typecheck-baseline.txt
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+
+Command output: unit-baseline.txt
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWSSignatureVerificationFailed
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token expired
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWTClaimValidationFailed
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+DB_* variables are incomplete or malformed, DATABASE_URL not composed: DB_PASSWORD
+
+Test Suites: 55 passed, 55 total
+Tests:       826 passed, 826 total
+Snapshots:   0 total
+Time:        57.21 s
+Ran all test suites.
+
+
+Command output: e2e-baseline.txt
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 23012  - 10:35:51 05/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+[Nest] 23012  - 10:35:51 05/11/2026   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (1)...
+AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[Nest] 23012  - 10:35:53 05/11/2026   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (2)...
+AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[Nest] 23012  - 10:35:55 05/11/2026   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (3)...
+AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[Nest] 23012  - 10:35:57 05/11/2026   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (4)...
+AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[Nest] 23012  - 10:35:59 05/11/2026   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (5)...
+AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[Nest] 23012  - 10:35:59 05/11/2026   ERROR [ExceptionHandler] AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:5432
+        at createConnectionError (node:net:1746:14)
+        at afterConnectMultiple (node:net:1776:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 5432
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:5432
+        at createConnectionError (node:net:1746:14)
+        at afterConnectMultiple (node:net:1776:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 5432
+    }
+  ]
+}
+  ●  process.exit called with "1"
+
+      64 |     ({ IS_PUBLIC_KEY } = await import('../src/common/auth/public.decorator'));
+      65 |
+    > 66 |     app = await NestFactory.create<NestExpressApplication>(AppModule, {
+         |           ^
+      67 |       logger: ['error', 'warn'],
+      68 |     });
+      69 |     configureHttpApp(app as NestExpressApplication, {
+
+      at DEFAULT_TEARDOWN (D:/UET_PROJECT/digital-banking-simulator/backend/node_modules/@nestjs/core/errors/exceptions-zone.js:6:40)
+      at ExceptionsZone.asyncRun (D:/UET_PROJECT/digital-banking-simulator/backend/node_modules/@nestjs/core/errors/exceptions-zone.js:29:13)
+      at NestFactoryStatic.initialize (D:/UET_PROJECT/digital-banking-simulator/backend/node_modules/@nestjs/core/nest-factory.js:111:13)
+      at NestFactoryStatic.create (D:/UET_PROJECT/digital-banking-simulator/backend/node_modules/@nestjs/core/nest-factory.js:43:9)
+      at Object.<anonymous> (test/roles-app.e2e-spec.ts:66:11)
+
+
+Command output: e2e-baseline-after-docker.txt
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 4896  - 10:39:18 05/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+[Nest] 4896  - 10:40:08 05/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+
+Test Suites: 13 passed, 13 total
+Tests:       135 passed, 135 total
+Snapshots:   0 total
+Time:        96.847 s
+Ran all test suites.
+
+
+Command output: db-baseline.txt
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+(node:11492) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11492) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:11492) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+
+Test Suites: 18 passed, 18 total
+Tests:       346 passed, 346 total
+Snapshots:   0 total
+Time:        299.781 s
+Ran all test suites.
+
+
+Final source/test SHA: e8210108463caad6c8a5ba38c3b4165b3b8b23a0
+
+Command output: 86-final-lint.txt
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+
+Command output: 86-final-typecheck.txt
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+
+Command output: 86-final-unit.txt
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+[Nest] 19372  - 10:55:57 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:55:57 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:55:57 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:55:57 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:55:57 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:55:57 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWSSignatureVerificationFailed
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] access token expired
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWTClaimValidationFailed
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 19372  - 10:56:01 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+DB_* variables are incomplete or malformed, DATABASE_URL not composed: DB_PASSWORD
+
+Test Suites: 55 passed, 55 total
+Tests:       827 passed, 827 total
+Snapshots:   0 total
+Time:        55.554 s
+Ran all test suites.
+
+
+Command output: 86-final-e2e.txt
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 5704  - 10:57:10 05/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+[Nest] 5704  - 10:58:31 05/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+
+Test Suites: 13 passed, 13 total
+Tests:       135 passed, 135 total
+Snapshots:   0 total
+Time:        95.398 s
+Ran all test suites.
+
+
+Command output: 86-final-db.txt
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+(node:16636) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16636) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:16636) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+
+
+Command output: 86-final-build.txt
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+
+
+Windows fullDB failed natively before Jest counts: exit -1073740791 =0xC0000409.
+Exactly one bounded diagnostic rerun used --verbose --logHeapUsage and NODE_OPTIONS
+--report-on-fatalerror --report-exclude-env --report-exclude-network --trace-warnings
+with an outside-repo report directory. It exited the same native code, report directory empty.
+Read-only Application Error/WER lookup supplied no corresponding node crash event.
+No root-cause/OOM/loader claim; BL-125 remains open. Reruns/targeted/Linux do not close it.
+
+Command output: 86-final-db-diagnostic.txt
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --verbose --logHeapUsage
+
+  console.log
+    Migration "CreateOutboxEventsProcessedEvents1792627200000" failed, error: relation "processed_events" already exists
+
+      at PlatformTools.log (D:/UET_PROJECT/digital-banking-simulator/backend/src/platform/PlatformTools.ts:274:17)
+
+
+
+Command output: 86-linux-db.txt
+Unable to find image 'node:24.15.0-bookworm-slim' locally
+24.15.0-bookworm-slim: Pulling from library/node
+57549c358e5b: Pulling fs layer
+2ef05dcd22f2: Pulling fs layer
+068fedd6b0f1: Pulling fs layer
+37b6eb746f79: Pulling fs layer
+be6d2dd2599a: Pulling fs layer
+57549c358e5b: Download complete
+2ef05dcd22f2: Download complete
+be6d2dd2599a: Download complete
+068fedd6b0f1: Download complete
+8169ad3cb94e: Download complete
+5b501bac4b60: Download complete
+068fedd6b0f1: Pull complete
+37b6eb746f79: Download complete
+2ef05dcd22f2: Pull complete
+57549c358e5b: Pull complete
+be6d2dd2599a: Pull complete
+37b6eb746f79: Pull complete
+Digest: sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d
+Status: Downloaded newer image for node:24.15.0-bookworm-slim
+v24.15.0
+11.12.1
+npm warn reify Removing non-directory /workspace/backend/node_modules
+npm error code EROFS
+npm error syscall unlink
+npm error path /workspace/backend/node_modules
+npm error errno -30
+npm error rofs EROFS: read-only file system, unlink '/workspace/backend/node_modules'
+npm error rofs Often virtualized file systems, or other file systems that don't support symlinks, give this error.
+npm error A complete log of this run can be found in: /root/.npm/_logs/2026-11-05T09_38_50_466Z-debug-0.log
+
+
+First archive preparation used the wrong cwd and produced invalidtar; no Jest ran.
+Corrected git -C .. archive from exacte821010 (backend/docs only; no sealed dataset).
+Linux command used official node:24.15.0-bookworm-slim, pull digest
+sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d.
+Archive was mounted readonly and extracted inside disposable container; npmci from lockfile,
+fresh Linux dependencies, existing dedicated local PostgreSQL17 via DATABASE_URL in environment.
+No Windows junction/node_modules reuse, Docker socket or production data/config changes.
+Actual Linux result19suites381tests0skip,162.615s, exit0. Separate from failed Windows runs/CI.
+
+Command output: 86-linux-db-archive.txt
+v24.15.0
+11.12.1
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated uuid@10.0.0: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 943 packages in 15s
+npm notice
+npm notice New major version of npm available! 11.12.1 -> 12.2.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+npm notice To update run: npm install -g npm@12.2.2
+npm notice
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+PASS test/db/invariants.db-spec.ts (62.081 s)
+PASS test/db/ledger-schema.db-spec.ts
+PASS test/db/accounts-service.db-spec.ts
+PASS test/db/outbox-schema.db-spec.ts (23.959 s)
+  ● Console
+
+    console.log
+      Migration "CreateOutboxEventsProcessedEvents1792627200000" failed, error: relation "processed_events" already exists
+
+      at PlatformTools.log (src/platform/PlatformTools.ts:274:17)
+
+PASS test/db/append-only.db-spec.ts (15.428 s)
+PASS test/db/audit-schema.db-spec.ts (22.1 s)
+  ● Console
+
+    console.log
+      Migration "CreateAuditLog1792627200001" failed, error: relation "audit_log_actor_occurred_idx" already exists
+
+      at PlatformTools.log (src/platform/PlatformTools.ts:274:17)
+
+PASS test/db/resource-ownership.db-spec.ts
+PASS test/db/fraud-schema.db-spec.ts (5.582 s)
+PASS test/db/outbox-writer.db-spec.ts
+PASS test/db/accounts-schema.db-spec.ts
+PASS test/db/audit.service.db-spec.ts
+(node:129) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:129) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:129) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+PASS test/db/identity-users-http.db-spec.ts
+PASS test/db/outbox-writer-context.db-spec.ts
+PASS test/db/migration-revert.db-spec.ts (14.014 s)
+PASS test/db/identity-roles.db-spec.ts
+PASS test/db/identity-users.db-spec.ts
+PASS test/db/outbox-writer-bootstrap.db-spec.ts (8.714 s)
+PASS test/db/testcontainers-sample.db-spec.ts
+PASS test/db/audit-migration-revert.db-spec.ts
+
+Test Suites: 19 passed, 19 total
+Tests:       381 passed, 381 total
+Snapshots:   0 total
+Time:        162.615 s
+Ran all test suites.
+
+
+Final-SHA inherited manual regression launcher (external operator wrapper):
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+const require = createRequire(join(process.cwd(), 'package.json'));
+require('ts-node/register');
+require('tsconfig-paths/register');
+const { startPostgresContainer, stopPostgresContainer } = require(join(process.cwd(), 'test/support/postgres.container.ts'));
+let started = false;
+try {
+  const server = await startPostgresContainer();
+  started = true;
+  console.log('DBS-55 regression: real manual driver on a dedicated PostgreSQL17 test container; URL kept in child environment.');
+  const child = spawnSync(process.execPath,
+    ['-r', 'ts-node/register', '-r', 'tsconfig-paths/register', 'test/manual/accounts-service.manual.ts', 'all'],
+    { env: { ...process.env, NODE_ENV: 'test', DATABASE_URL: server.databaseUrl }, stdio: 'inherit', timeout: 120000 });
+  if (child.error) {
+    console.error('Manual regression child failed', JSON.stringify({ code: child.error.code }));
+    process.exitCode = 1;
+  } else process.exitCode = child.status ?? 1;
+} catch (error) {
+  console.error('Manual regression setup failed', JSON.stringify({ name: error?.name, code: error?.code }));
+  process.exitCode = 1;
+} finally {
+  if (started) {
+    await stopPostgresContainer();
+    console.log('DBS-55 regression container stopped.');
+  }
+}
+
+
+Command output: manual-55-final.txt
+DBS-55 regression: real manual driver on a dedicated PostgreSQL17 test container; URL kept in child environment.
+M-55-01 OWNED {"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-05T09:52:14.344Z","updatedAt":"2026-11-05T09:52:14.344Z"}
+M-55-01 FOREIGN {"name":"NotFoundException","errorType":"Error","status":404}
+M-55-01 MISSING {"name":"NotFoundException","errorType":"Error","status":404}
+M-55-01 SYSTEM {"name":"NotFoundException","errorType":"Error","status":404}
+M-55-01 COGNITO_SUB_IS_NOT_USER_ID {"name":"QueryFailedError","errorType":"Error","code":"23503"}
+M-55-02 LOCK_ORDER {"holderPid":463,"subjectPid":464,"highAvailable":true,"ids":["3a000000-0000-4000-8000-000000000001","3b000000-0000-4000-8000-000000000002"]}
+M-55-02 CROSSED_LOCKS {"winnerPid":463,"waitingPid":465,"completed":2,"retries":0}
+M-55-03 TENTATIVE_SNAPSHOTS [{"id":"00000000-0000-4000-8000-000000000001","customerId":null,"userId":null,"type":"SYSTEM","status":"ACTIVE","balance":"-300000","createdAt":"2026-11-05T09:52:14.243Z","updatedAt":"2026-11-05T09:52:14.460Z"},{"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"300000","createdAt":"2026-11-05T09:52:14.344Z","updatedAt":"2026-11-05T09:52:14.461Z"}]
+M-55-03 COMMITTED_OBSERVER [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-03 AFTER_ROLLBACK [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-03 TENTATIVE_SNAPSHOTS [{"id":"00000000-0000-4000-8000-000000000001","customerId":null,"userId":null,"type":"SYSTEM","status":"ACTIVE","balance":"-9007199254740993","createdAt":"2026-11-05T09:52:14.243Z","updatedAt":"2026-11-05T09:52:14.474Z"},{"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"9007199254740993","createdAt":"2026-11-05T09:52:14.344Z","updatedAt":"2026-11-05T09:52:14.475Z"}]
+M-55-03 COMMITTED_OBSERVER [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-03 AFTER_ROLLBACK [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-04 CUSTOMER_NEGATIVE {"name":"AccountBalanceNegativeError","errorType":"Error","code":"23514","constraint":"accounts_balance_non_negative"}
+M-55-04 OVERFLOW {"name":"AccountBalanceOverflowError","errorType":"Error","code":"22003"}
+M-55-04 INACTIVE_MANAGER {"name":"Error","errorType":"Error"}
+M-55-04 HOSTILE_ID {"name":"TypeError","errorType":"Error"}
+M-55-04 SPARSE_IDS {"name":"TypeError","errorType":"Error"}
+M-55-04 NUMBER_DELTA {"name":"TypeError","errorType":"Error"}
+M-55-07 APPLY_WITHOUT_LOCK {"name":"AccountNotLockedError","errorType":"Error"}
+M-55-07 LOCK_ON_OTHER_RUNNER {"name":"AccountNotLockedError","errorType":"Error"}
+M-55-07 NESTED_TRANSACTION {"name":"Error","errorType":"Error"}
+M-55-07 SEVENTEEN_IDS {"name":"TypeError","errorType":"Error"}
+M-55-08 UPDATED_AT_ORDER {"earlyTxPid":465,"waitedBehindPid":463,"lateCommitStamp":"2026-11-05T09:52:14.587Z","earlyCommitStamp":"2026-11-05T09:52:14.593Z","earlyAfterLate":true}
+M-55-04 RECOVERED {"accountId":"3a000000-0000-4000-8000-000000000001","balance":"0"}
+M-55-05 POST_ROLLBACK_CHECKS {"entriesEqual":true,"totalZero":true,"customersNonnegative":true,"balancesMatchEntries":true,"scope":"zero-balance fixture after rollback; no double-entry claim for tentative changes"}
+M-55-06 PENDING {"status":"chưa chạy","dependencies":["DBS-60","DBS-61","AuditService"]}
+DBS-55 regression container stopped.
+
+
+Cross-feature integration (isolated detached worktree, no feature/main merge):
+DBS-86 source e8210108463caad6c8a5ba38c3b4165b3b8b23a0 plus DBS-103 source
+8894117dfff7ee8ce05bcbeec1a3920cc3bfa6a4; applied source/test diff from sharedb93ab08.
+Unit module/worker matrix15/15,2suites,0skip; real HTTP+ownership77/77,2suites,0skip.
+
+Command output: integration-unit.txt
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand --runTestsByPath src/modules/audit/audit-http.module.spec.ts src/modules/modules.spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       15 passed, 15 total
+Snapshots:   0 total
+Time:        8.955 s
+Ran all test suites within paths "src/modules/audit/audit-http.module.spec.ts", "src/modules/modules.spec.ts".
+
+
+Command output: integration-db.txt
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search.http.db-spec.ts test/db/resource-ownership.db-spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       77 passed, 77 total
+Snapshots:   0 total
+Time:        17.054 s
+Ran all test suites within paths "test/db/audit-search.http.db-spec.ts", "test/db/resource-ownership.db-spec.ts".
+
+
+Manual evidence: manual-test.txt first line is the final code SHA above; full raw output is
+kept there. Screenshots are real browser captures of verbatim excerpts from actual curl/psql
+or service transcript output, labelled with SHA/source path. No fake terminal or expected-result
+image was constructed. Browser JPEG capture converted to PNG with decoded pixels asserted equal;
+no cropping, retouching, resizing or generated imagery. Five images per task match §7 allowlist.
+Both original AI domain review files are retained verbatim. Protected workbook artifacts,
+keys and runtime credentials are excluded from staged paths/commits. All text evidence scanned
+for JWTs, bearer values, credential URLs, ARN and NUL bytes before commit; URL/credential redaction
+applied only when needed. Local checks/manual are not cloud, CI, independent Dev review or merge.
+
+FINAL HANDOVER SWEEP: scoped link/image checker197files/0broken on each branch; gitdiffcheck/cachedcheckclean. Inventory34paths forDBS103/28paths forDBS86 exactlymatchesapproved§7;17docs/evidence stagedperbranch,0unexpectedpaths/protectedworkbooks. Source/test immutable after manualSHA. All5PNGs/task viewed and rawtext scan JWT/bearer/credentialURL/ARN/NUL=0. Updateddocs03Mermaid rendered and visuallychecked. Dedicated manualDBs/roles/containers/TCPhelper and evidenceHTTPviewer stopped/cleaned; sharedCompose services remainhealthy. No push/PR/board/merge, no GitHubCI claimed.
+
+Text-only evidence normalization: CRLF converted to LF and trailing line-padding spaces/tabs removed for git whitespace checks. Values/counts/statuses and the final code SHA are unchanged. Original byte captures retained outside repo under raw-text-before-normalization. Screenshots show the observed output before this transport-whitespace cleanup.

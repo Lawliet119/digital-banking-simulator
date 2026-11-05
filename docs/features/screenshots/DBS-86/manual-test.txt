@@ -1,0 +1,28 @@
+e8210108463caad6c8a5ba38c3b4165b3b8b23a0
+M-86-01 OWNED {"account":{"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-05T09:49:35.311Z","updatedAt":"2026-11-05T09:49:35.311Z"},"auditCount":0}
+M-86-02 FOREIGN {"problem":{"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"438e34f4-d159-4827-b17d-709f8e028b58"},"audit":{"id":"1","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"3b000000-0000-4000-8000-000000000002","correlationId":"438e34f4-d159-4827-b17d-709f8e028b58","metadata":{"reason":"NOT_OWNER"}}}
+M-86-03 SAME_404 {"kind":"missing","problem":{"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"f8b995fb-6c7b-4e01-8c43-dca797c0c847"},"audit":{"id":"2","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"ffffffff-ffff-4fff-8fff-ffffffffffff","correlationId":"f8b995fb-6c7b-4e01-8c43-dca797c0c847","metadata":{"reason":"NOT_OWNER"}}}
+M-86-03 SAME_404 {"kind":"SYSTEM","problem":{"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"4078cdfe-926d-4f22-b53d-9cd529f12225"},"audit":{"id":"3","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"00000000-0000-4000-8000-000000000001","correlationId":"4078cdfe-926d-4f22-b53d-9cd529f12225","metadata":{"reason":"NOT_OWNER"}}}
+M-86-03 SAME_404 {"kind":"malformed-email","problem":{"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"885a8277-ec4e-4796-b0ae-ac85a74c5060"},"audit":{"id":"4","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"invalid","correlationId":"885a8277-ec4e-4796-b0ae-ac85a74c5060","metadata":{"reason":"NOT_OWNER"}}}
+M-86-03 SAME_404 {"kind":"malformed-injection","problem":{"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"6315e471-84df-4895-a413-6443b99788a9"},"audit":{"id":"5","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"invalid","correlationId":"6315e471-84df-4895-a413-6443b99788a9","metadata":{"reason":"NOT_OWNER"}}}
+M-86-04 DENIAL_SURVIVES_ROLLBACK {"correlationId":"438e34f4-d159-4827-b17d-709f8e028b58","scratchCount":0,"audit":{"id":"1","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"3b000000-0000-4000-8000-000000000002","correlationId":"438e34f4-d159-4827-b17d-709f8e028b58","metadata":{"reason":"NOT_OWNER"}}}
+M-86-05 INSERT_REFUSED {"correlationId":"619dd601-c7d6-44d3-aad1-3bc7becf013c","failure":{"name":"QueryFailedError","code":"42501"},"auditCount":0}
+M-86-06 RECOVERED {"failure":{"name":"NotFoundException","status":404},"audit":{"id":"6","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"3b000000-0000-4000-8000-000000000002","correlationId":"34f403ba-3d2a-4d08-9a3d-c3dbdbd32477","metadata":{"reason":"NOT_OWNER"}}}
+M-86-07 CONTEXT_REFUSED {"kind":"absent","failure":{"name":"TypeError"},"sqlCount":0}
+M-86-07 CONTEXT_REFUSED {"kind":"wrong-role","failure":{"name":"TypeError"},"sqlCount":0}
+M-86-07 CONTEXT_REFUSED {"kind":"wrong-action","failure":{"name":"TypeError"},"sqlCount":0}
+M-86-07 ACTOR_FK_REFUSED {"correlationId":"d3f682c9-b060-41ae-b971-515bc2a42e26","failure":{"name":"QueryFailedError","code":"23503"},"auditCount":0}
+M-86-08 TRANSACTION_REFUSED {"kind":"owned","correlationId":"f8838dbc-9bb9-40fb-a05b-1879edb54419","failure":{"name":"TypeError"},"accountSelects":0,"scratchCount":0,"auditCount":0}
+M-86-08 TRANSACTION_REFUSED {"kind":"foreign","correlationId":"619463dc-9d60-430a-8577-3587062f6f99","failure":{"name":"TypeError"},"accountSelects":0,"scratchCount":0,"auditCount":0}
+M-86-09 INVARIANTS {"balances":[{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}],"transfers":"0","ledgerEntries":"0","invariants":{"status":"PASS","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[]}}
+M-86-HTTP-TRANSFER PENDING {"status":"chưa chạy","dependencies":["DBS-61","DBS-60"]}
+M-86-HTTP-ACCOUNT PENDING {"status":"chưa chạy","dependencies":["DBS-64"]}
+M-86-HTTP-HISTORY PENDING {"status":"chưa chạy","dependencies":["DBS-87","DBS-61"]}
+M-86-09 CLEANUP {"databases":"0","roles":"0"}
+M-86-09 CONTAINER_STOPPED {"ownedByThisRun":true}
+
+Operator command, Git Bash from backend (this run exited0):
+set -euo pipefail
+OUT=../docs/features/screenshots/DBS-86/manual-test.txt
+git rev-parse HEAD > "$OUT"
+npx cross-env NODE_ENV=test ts-node -r tsconfig-paths/register test/manual/resource-ownership.manual.ts all 2>&1 | tee -a "$OUT"

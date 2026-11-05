@@ -1,6 +1,6 @@
 # Tài liệu từng task (feature docs)
 
-> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-10-31
+> **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-11-05
 
 Mỗi task implement trên board (tính năng, sửa lỗi, hạ tầng, test) có **một file** ở đây: `DBS-<n>-<slug>.md`. File được viết trước khi code và hoàn tất khi bàn giao, theo skill [`dbs-delivering-task`](../../.claude/skills/dbs-delivering-task/SKILL.md) và mẫu [`feature-doc.md`](../../.claude/skills/dbs-delivering-task/templates/feature-doc.md).
 
@@ -62,3 +62,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-59](DBS-59-risk-module-skeleton.md) | Khung RiskModule, RiskRule và FeatureProvider | #4 Fraud | Draft PR #42, chờ CI/review và các handoff |
 | [DBS-58](DBS-58-fraud-migration.md) | Migration risk_rule_sets v1, fraud_flags, fraud_rule_hits và trigger append-only | Fraud | Implemented (Draft PR #44; CI xanh; chờ manual/Dev review/merge) |
 | [DBS-71](DBS-71-normal-fraud-dataset.md) | Generator CSV giao dịch bình thường có seed cố định, thói quen khách và đối soát số dư | Dev | Implemented (Draft PR #43; CI xanh; chờ Dev review/merge) |
+| [DBS-86](DBS-86-resource-ownership.md) | Mandatory ownership context, cùng404 và audit DENIED độc lập/fail-closed | Dev | Plan approved (G3), phạm vi service; HTTP DBS-61/64/87 và full AC-5.8 còn bàn giao; chờ G4/Dev review/CI/merge |

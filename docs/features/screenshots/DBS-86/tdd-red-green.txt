@@ -1,0 +1,673 @@
+Baseline: b93ab08a17259d5051568fb739f46d655ed67a9f
+P1 RED — npm run typecheck (tests/callers first; production unchanged)
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+src/modules/accounts/accounts.exports.spec.ts(4,15): error TS2305: Module '"./index"' has no exported member 'AccountOwnershipAction'.
+src/modules/accounts/accounts.exports.spec.ts(4,39): error TS2305: Module '"./index"' has no exported member 'AccountOwnershipContext'.
+src/modules/accounts/accounts.exports.spec.ts(22,5): error TS2578: Unused '@ts-expect-error' directive.
+test/db/accounts-service.db-spec.ts(45,7): error TS2554: Expected 1 arguments, but got 2.
+test/db/resource-ownership.db-spec.ts(3,32): error TS2305: Module '"@modules/accounts"' has no exported member 'AccountOwnershipContext'.
+test/db/resource-ownership.db-spec.ts(31,40): error TS2345: Argument of type 'DataSource' is not assignable to parameter of type 'Pick<QueryRunner, "query">'.
+  Types of property 'query' are incompatible.
+    Type '<T = any>(query: string, parameters?: any[] | undefined, queryRunner?: QueryRunner | undefined) => Promise<T>' is not assignable to type '{ (query: string, parameters: any[] | undefined, useStructuredResult: true): Promise<QueryResult<any>>; (query: string, parameters?: any[] | undefined): Promise<...>; }'.
+      Types of parameters 'queryRunner' and 'useStructuredResult' are incompatible.
+        Type 'boolean' is not assignable to type 'QueryRunner'.
+test/support/resource-ownership-probe.ts(21,8): error TS2305: Module '"@modules/accounts"' has no exported member 'AccountOwnershipContext'.
+test/support/resource-ownership-probe.ts(251,45): error TS2554: Expected 1 arguments, but got 2.
+test/support/resource-ownership-probe.ts(311,69): error TS2345: Argument of type '{ readonly userId: any; readonly role: any; readonly action: any; readonly correlationId: any; toJSON(): { email: string; }; }' is not assignable to parameter of type 'string'.
+
+P1 CONTRACT GREEN — npm run typecheck after mandatory type/constructor/DI wiring only
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+P1 BEHAVIOR RED — npm run test:db -- --runInBand --runTestsByPath test/db/resource-ownership.db-spec.ts (constructor/type/DI wired; ownership logic unchanged)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/resource-ownership.db-spec.ts
+
+FAIL test/db/resource-ownership.db-spec.ts
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-02 commits exactly one attributed DENIED before returning the foreign-account 404
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      71 |     expect((error as HttpException).getStatus()).toBe(404);
+      72 |     const rows = await ownershipAuditRows(fixture.observer, context.correlationId);
+    > 73 |     expect(rows).toHaveLength(1);
+         |                  ^
+      74 |     expect(rows[0]).toEqual({
+      75 |       id: expect.stringMatching(/^\d+$/),
+      76 |       actor: f.userA,
+
+      at Object.<anonymous> (test/db/resource-ownership.db-spec.ts:73:18)
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-03 foreign, absent and SYSTEM accounts have identical safe raw and formatted 404s
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+       99 |       const { correlationId: _correlationId, ...safe } = problem;
+      100 |       problems.push(safe);
+    > 101 |       expect(await ownershipAuditRows(fixture.observer, context.correlationId)).toHaveLength(1);
+          |                                                                                 ^
+      102 |     }
+      103 |     expect(responses).toEqual([responses[0], responses[0], responses[0]]);
+      104 |     expect(problems).toEqual([problems[0], problems[0], problems[0]]);
+
+      at Object.<anonymous> (test/db/resource-ownership.db-spec.ts:101:81)
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-04 malformed resource null does not SELECT accounts and audits only the sentinel
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      119 |       expect(accountLookups(fixture.trace.slice(begin))).toEqual([]);
+      120 |       const rows = await ownershipAuditRows(fixture.observer, context.correlationId);
+    > 121 |       expect(rows).toHaveLength(1);
+          |                    ^
+      122 |       expect(rows[0]).toMatchObject({
+      123 |         actor: f.userA,
+      124 |         targetId: 'invalid',
+
+      at test/db/resource-ownership.db-spec.ts:121:20
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-04 malformed resource undefined does not SELECT accounts and audits only the sentinel
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      119 |       expect(accountLookups(fixture.trace.slice(begin))).toEqual([]);
+      120 |       const rows = await ownershipAuditRows(fixture.observer, context.correlationId);
+    > 121 |       expect(rows).toHaveLength(1);
+          |                    ^
+      122 |       expect(rows[0]).toMatchObject({
+      123 |         actor: f.userA,
+      124 |         targetId: 'invalid',
+
+      at test/db/resource-ownership.db-spec.ts:121:20
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-04 malformed resource "" does not SELECT accounts and audits only the sentinel
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      119 |       expect(accountLookups(fixture.trace.slice(begin))).toEqual([]);
+      120 |       const rows = await ownershipAuditRows(fixture.observer, context.correlationId);
+    > 121 |       expect(rows).toHaveLength(1);
+          |                    ^
+      122 |       expect(rows[0]).toMatchObject({
+      123 |         actor: f.userA,
+      124 |         targetId: 'invalid',
+
+      at test/db/resource-ownership.db-spec.ts:121:20
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-04 malformed resource "an@example.invalid" does not SELECT accounts and audits only the sentinel
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      119 |       expect(accountLookups(fixture.trace.slice(begin))).toEqual([]);
+      120 |       const rows = await ownershipAuditRows(fixture.observer, context.correlationId);
+    > 121 |       expect(rows).toHaveLength(1);
+          |                    ^
+      122 |       expect(rows[0]).toMatchObject({
+      123 |         actor: f.userA,
+      124 |         targetId: 'invalid',
+
+      at test/db/resource-ownership.db-spec.ts:121:20
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-04 malformed resource "' OR 1=1 --" does not SELECT accounts and audits only the sentinel
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      119 |       expect(accountLookups(fixture.trace.slice(begin))).toEqual([]);
+      120 |       const rows = await ownershipAuditRows(fixture.observer, context.correlationId);
+    > 121 |       expect(rows).toHaveLength(1);
+          |                    ^
+      122 |       expect(rows[0]).toMatchObject({
+      123 |         actor: f.userA,
+      124 |         targetId: 'invalid',
+
+      at test/db/resource-ownership.db-spec.ts:121:20
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-04 malformed resource "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" does not SELECT accounts and audits only the sentinel
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      119 |       expect(accountLookups(fixture.trace.slice(begin))).toEqual([]);
+      120 |       const rows = await ownershipAuditRows(fixture.observer, context.correlationId);
+    > 121 |       expect(rows).toHaveLength(1);
+          |                    ^
+      122 |       expect(rows[0]).toMatchObject({
+      123 |         actor: f.userA,
+      124 |         targetId: 'invalid',
+
+      at test/db/resource-ownership.db-spec.ts:121:20
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-04 malformed resource "not-uuid" does not SELECT accounts and audits only the sentinel
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      119 |       expect(accountLookups(fixture.trace.slice(begin))).toEqual([]);
+      120 |       const rows = await ownershipAuditRows(fixture.observer, context.correlationId);
+    > 121 |       expect(rows).toHaveLength(1);
+          |                    ^
+      122 |       expect(rows[0]).toMatchObject({
+      123 |         actor: f.userA,
+      124 |         targetId: 'invalid',
+
+      at test/db/resource-ownership.db-spec.ts:121:20
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-05 normalizes valid account, actor and correlation UUIDs once
+
+    expect(received).toMatchObject(expected)
+
+    Matcher error: received value must be a non-null object
+
+    Received has value: undefined
+
+      151 |     expect(query.parameters).toEqual([f.accountB, f.userA]);
+      152 |     const [row] = await ownershipAuditRows(fixture.observer, context.correlationId);
+    > 153 |     expect(row).toMatchObject({
+          |                 ^
+      154 |       actor: f.userA,
+      155 |       targetId: f.accountB,
+      156 |       correlationId: context.correlationId.toLowerCase(),
+
+      at Object.<anonymous> (test/db/resource-ownership.db-spec.ts:153:17)
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-06 the committed denial survives a later independent scratch rollback
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      180 |       ]),
+      181 |     ).toEqual([]);
+    > 182 |     expect(await ownershipAuditRows(fixture.observer, context.correlationId)).toHaveLength(1);
+          |                                                                               ^
+      183 |   });
+      184 |
+      185 |   it('TC-86-07 real INSERT refusal fails closed; granting INSERT recovers to 404 and one denial', async () => {
+
+      at Object.<anonymous> (test/db/resource-ownership.db-spec.ts:182:79)
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-07 real INSERT refusal fails closed; granting INSERT recovers to 404 and one denial
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "42501"
+    Received: undefined
+
+      189 |       expect((await role.accounts.getOwnedAccount(f.accountA, blocked)).balance).toBe('0');
+      190 |       const failure = await rejected(role.accounts.getOwnedAccount(f.accountB, blocked));
+    > 191 |       expect(getErrorCode(failure)).toBe('42501');
+          |                                     ^
+      192 |       expect(failure).not.toBeInstanceOf(HttpException);
+      193 |       expect(await ownershipAuditRows(fixture.observer, blocked.correlationId)).toEqual([]);
+      194 |       await role.grantAuditInsert();
+
+      at Object.<anonymous> (test/db/resource-ownership.db-spec.ts:191:37)
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-08 rejects invalid trusted context before any SQL (undefined)
+
+    expect(received).toBeInstanceOf(expected)
+
+    Expected constructor: TypeError
+    Received constructor: NotFoundException
+
+      220 |       fixture.accounts.getOwnedAccount(f.accountA, context as AccountOwnershipContext),
+      221 |     );
+    > 222 |     expect(error).toBeInstanceOf(TypeError);
+          |                   ^
+      223 |     expect((error as Error).message).toBe('Account ownership context is invalid');
+      224 |     expect(fixture.trace.slice(begin)).toEqual([]);
+      225 |   });
+
+      at test/db/resource-ownership.db-spec.ts:222:19
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-08 rejects invalid trusted context before any SQL (null)
+
+    expect(received).toBeInstanceOf(expected)
+
+    Expected constructor: TypeError
+    Received constructor: NotFoundException
+
+      220 |       fixture.accounts.getOwnedAccount(f.accountA, context as AccountOwnershipContext),
+      221 |     );
+    > 222 |     expect(error).toBeInstanceOf(TypeError);
+          |                   ^
+      223 |     expect((error as Error).message).toBe('Account ownership context is invalid');
+      224 |     expect(fixture.trace.slice(begin)).toEqual([]);
+      225 |   });
+
+      at test/db/resource-ownership.db-spec.ts:222:19
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-08 rejects invalid trusted context before any SQL ("10000000-0000-4000-8000-000000000001")
+
+    expect(received).toBeInstanceOf(expected)
+
+    Expected constructor: TypeError
+    Received constructor: NotFoundException
+
+      220 |       fixture.accounts.getOwnedAccount(f.accountA, context as AccountOwnershipContext),
+      221 |     );
+    > 222 |     expect(error).toBeInstanceOf(TypeError);
+          |                   ^
+      223 |     expect((error as Error).message).toBe('Account ownership context is invalid');
+      224 |     expect(fixture.trace.slice(begin)).toEqual([]);
+      225 |   });
+
+      at test/db/resource-ownership.db-spec.ts:222:19
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-08 rejects invalid trusted context before any SQL ({})
+
+    expect(received).toBeInstanceOf(expected)
+
+    Expected constructor: TypeError
+    Received constructor: NotFoundException
+
+      220 |       fixture.accounts.getOwnedAccount(f.accountA, context as AccountOwnershipContext),
+      221 |     );
+    > 222 |     expect(error).toBeInstanceOf(TypeError);
+          |                   ^
+      223 |     expect((error as Error).message).toBe('Account ownership context is invalid');
+      224 |     expect(fixture.trace.slice(begin)).toEqual([]);
+      225 |   });
+
+      at test/db/resource-ownership.db-spec.ts:222:19
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-08 rejects invalid trusted context before any SQL ({"action": "account.read", "correlationId": "1959eeb4-6e3e-40d1-b762-cb087b04b3cc", "role": "customer", "userId": ""})
+
+    expect(received).toBeInstanceOf(expected)
+
+    Expected constructor: TypeError
+    Received constructor: NotFoundException
+
+      220 |       fixture.accounts.getOwnedAccount(f.accountA, context as AccountOwnershipContext),
+      221 |     );
+    > 222 |     expect(error).toBeInstanceOf(TypeError);
+          |                   ^
+      223 |     expect((error as Error).message).toBe('Account ownership context is invalid');
+      224 |     expect(fixture.trace.slice(begin)).toEqual([]);
+      225 |   });
+
+      at test/db/resource-ownership.db-spec.ts:222:19
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-08 rejects invalid trusted context before any SQL ({"action": "account.read", "correlationId": "7bfb5a72-c333-430a-854f-0b82fc82e0c6", "role": "customer", "userId": "an@example.invalid"})
+
+    expect(received).toBeInstanceOf(expected)
+
+    Expected constructor: TypeError
+    Received constructor: NotFoundException
+
+      220 |       fixture.accounts.getOwnedAccount(f.accountA, context as AccountOwnershipContext),
+      221 |     );
+    > 222 |     expect(error).toBeInstanceOf(TypeError);
+          |                   ^
+      223 |     expect((error as Error).message).toBe('Account ownership context is invalid');
+      224 |     expect(fixture.trace.slice(begin)).toEqual([]);
+      225 |   });
+
+      at test/db/resource-ownership.db-spec.ts:222:19
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-08 rejects invalid trusted context before any SQL ({"action": "account.read", "correlationId": "client-header-not-uuid", "role": "customer", "userId": "10000000-0000-4000-8000-000000000001"})
+
+    The ownership operation unexpectedly succeeded
+
+      160 |     return error;
+      161 |   }
+    > 162 |   throw new Error('The ownership operation unexpectedly succeeded');
+          |         ^
+      163 | }
+      164 |
+      165 | export interface OwnershipAuditRow {
+
+      at rejected (test/support/resource-ownership-probe.ts:162:9)
+      at test/db/resource-ownership.db-spec.ts:219:19
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-08 rejects invalid trusted context before any SQL ({"action": "account.read", "correlationId": "d0ec1cb6-b428-40c3-9e39-4f71cd87e5b7", "role": "admin", "userId": "10000000-0000-4000-8000-000000000001"})
+
+    The ownership operation unexpectedly succeeded
+
+      160 |     return error;
+      161 |   }
+    > 162 |   throw new Error('The ownership operation unexpectedly succeeded');
+          |         ^
+      163 | }
+      164 |
+      165 | export interface OwnershipAuditRow {
+
+      at rejected (test/support/resource-ownership-probe.ts:162:9)
+      at test/db/resource-ownership.db-spec.ts:219:19
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-08 rejects invalid trusted context before any SQL ({"action": "account.read", "correlationId": "388c5b53-c60a-4bfa-b2ca-4e6ea12c9e79", "role": "operator", "userId": "10000000-0000-4000-8000-000000000001"})
+
+    The ownership operation unexpectedly succeeded
+
+      160 |     return error;
+      161 |   }
+    > 162 |   throw new Error('The ownership operation unexpectedly succeeded');
+          |         ^
+      163 | }
+      164 |
+      165 | export interface OwnershipAuditRow {
+
+      at rejected (test/support/resource-ownership-probe.ts:162:9)
+      at test/db/resource-ownership.db-spec.ts:219:19
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-08 rejects invalid trusted context before any SQL ({"action": "an@example.invalid", "correlationId": "34d7f819-b375-4af9-8de4-698ce532f604", "role": "customer", "userId": "10000000-0000-4000-8000-000000000001"})
+
+    The ownership operation unexpectedly succeeded
+
+      160 |     return error;
+      161 |   }
+    > 162 |   throw new Error('The ownership operation unexpectedly succeeded');
+          |         ^
+      163 | }
+      164 |
+      165 | export interface OwnershipAuditRow {
+
+      at rejected (test/support/resource-ownership-probe.ts:162:9)
+      at test/db/resource-ownership.db-spec.ts:219:19
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-09 a missing internal actor ffffffff-ffff-4fff-8fff-ffffffffffff is an audit FK failure, never a clean 404
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "23503"
+    Received: undefined
+
+      230 |       const context = ownershipContext({ userId });
+      231 |       const error = await rejected(fixture.accounts.getOwnedAccount(f.accountA, context));
+    > 232 |       expect(getErrorCode(error)).toBe('23503');
+          |                                   ^
+      233 |       expect(error).not.toBeInstanceOf(HttpException);
+      234 |       expect(await ownershipAuditRows(fixture.observer, context.correlationId)).toEqual([]);
+      235 |       expect(await fixture.observer.query('SELECT id FROM users WHERE id=$1', [userId])).toEqual(
+
+      at test/db/resource-ownership.db-spec.ts:232:35
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-09 a missing internal actor a1000000-0000-4000-8000-000000000001 is an audit FK failure, never a clean 404
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "23503"
+    Received: undefined
+
+      230 |       const context = ownershipContext({ userId });
+      231 |       const error = await rejected(fixture.accounts.getOwnedAccount(f.accountA, context));
+    > 232 |       expect(getErrorCode(error)).toBe('23503');
+          |                                   ^
+      233 |       expect(error).not.toBeInstanceOf(HttpException);
+      234 |       expect(await ownershipAuditRows(fixture.observer, context.correlationId)).toEqual([]);
+      235 |       expect(await fixture.observer.query('SELECT id FROM users WHERE id=$1', [userId])).toEqual(
+
+      at test/db/resource-ownership.db-spec.ts:232:35
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-11 refuses ownership inside an active transaction before SELECT (3a000000-0000-4000-8000-000000000001)
+
+    The ownership operation unexpectedly succeeded
+
+      160 |     return error;
+      161 |   }
+    > 162 |   throw new Error('The ownership operation unexpectedly succeeded');
+          |         ^
+      163 | }
+      164 |
+      165 | export interface OwnershipAuditRow {
+
+      at rejected (test/support/resource-ownership-probe.ts:162:9)
+      at test/db/resource-ownership.db-spec.ts:261:21
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-11 refuses ownership inside an active transaction before SELECT (3b000000-0000-4000-8000-000000000002)
+
+    expect(received).toBeInstanceOf(expected)
+
+    Expected constructor: TypeError
+    Received constructor: NotFoundException
+
+      267 |         }),
+      268 |       );
+    > 269 |       expect(error).toBeInstanceOf(TypeError);
+          |                     ^
+      270 |       expect((error as Error).message).toBe('Account ownership cannot run inside a transaction');
+      271 |       expect(accountLookups(fixture.trace.slice(begin))).toEqual([]);
+      272 |       expect(
+
+      at test/db/resource-ownership.db-spec.ts:269:21
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-11 refuses ownership inside an active transaction before SELECT (invalid-resource)
+
+    expect(received).toBeInstanceOf(expected)
+
+    Expected constructor: TypeError
+    Received constructor: NotFoundException
+
+      267 |         }),
+      268 |       );
+    > 269 |       expect(error).toBeInstanceOf(TypeError);
+          |                     ^
+      270 |       expect((error as Error).message).toBe('Account ownership cannot run inside a transaction');
+      271 |       expect(accountLookups(fixture.trace.slice(begin))).toEqual([]);
+      272 |       expect(
+
+      at test/db/resource-ownership.db-spec.ts:269:21
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-12 a PostgreSQL lock barrier proves scalar snapshots and no context serialization
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Object {
+    -   "action": 1,
+    -   "correlationId": 1,
+    -   "role": 1,
+    +   "action": 0,
+    +   "correlationId": 0,
+    +   "role": 0,
+        "userId": 1,
+      }
+
+      282 |     const result = await proveOwnershipSnapshot(fixture);
+      283 |     expect(result.error).toBeInstanceOf(NotFoundException);
+    > 284 |     expect(result.reads).toEqual({ userId: 1, role: 1, action: 1, correlationId: 1 });
+          |                          ^
+      285 |     expect(result.serialized).toBe(false);
+      286 |     expect(result.rows).toHaveLength(1);
+      287 |     expect(result.rows[0]).toMatchObject({
+
+      at Object.<anonymous> (test/db/resource-ownership.db-spec.ts:284:26)
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-13 ten parallel denials keep exact per-invocation attribution
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 10
+    Received length: 0
+    Received array:  []
+
+      317 |       calls.map(call => ownershipAuditRows(fixture.observer, call.context.correlationId)),
+      318 |     );
+    > 319 |     expect(allRows.flat()).toHaveLength(10);
+          |                            ^
+      320 |     for (const [n, rows] of allRows.entries()) {
+      321 |       expect(rows).toHaveLength(1);
+      322 |       expect(rows[0]).toMatchObject({
+
+      at Object.<anonymous> (test/db/resource-ownership.db-spec.ts:319:28)
+
+  ● DBS-86 service ownership on real PostgreSQL › TC-86-14 resolves AccountsModule with real public Audit and Transaction providers
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      339 |       await rejected(fixture.context.get(AccountsService).getOwnedAccount(f.accountB, context)),
+      340 |     ).toBeInstanceOf(NotFoundException);
+    > 341 |     expect(await ownershipAuditRows(fixture.observer, context.correlationId)).toHaveLength(1);
+          |                                                                               ^
+      342 |   });
+      343 | });
+      344 |
+
+      at Object.<anonymous> (test/db/resource-ownership.db-spec.ts:341:79)
+
+Test Suites: 1 failed, 1 total
+Tests:       30 failed, 2 passed, 32 total
+Snapshots:   0 total
+Time:        4.087 s
+Ran all test suites within paths "test/db/resource-ownership.db-spec.ts".
+
+P2 GREEN CHECK — npm run test:db -- --runInBand --runTestsByPath test/db/resource-ownership.db-spec.ts test/db/accounts-service.db-spec.ts
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/resource-ownership.db-spec.ts test/db/accounts-service.db-spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       77 passed, 77 total
+Snapshots:   0 total
+Time:        4.84 s
+Ran all test suites within paths "test/db/resource-ownership.db-spec.ts", "test/db/accounts-service.db-spec.ts".
+
+P2 TYPECHECK — npm run typecheck
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+test/manual/resource-ownership.manual.ts(167,52): error TS2352: Conversion of type '{ readonly role: "admin"; readonly userId: string; readonly action: AccountOwnershipAction; readonly correlationId: string; } | { readonly action: "untrusted"; readonly userId: string; readonly role: "customer"; readonly correlationId: string; } | undefined' to type 'AccountOwnershipContext' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ readonly action: "untrusted"; readonly userId: string; readonly role: "customer"; readonly correlationId: string; }' is not comparable to type 'AccountOwnershipContext'.
+    Types of property 'action' are incompatible.
+      Type '"untrusted"' is not comparable to type 'AccountOwnershipAction'.
+
+P2 REVIEW REGRESSION PROBE (observed GREEN; no production change) — npm run test:db -- --runInBand --runTestsByPath test/db/resource-ownership.db-spec.ts --testNamePattern 'TC-86-04|TC-86-08' (UUID with trailing newline)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/resource-ownership.db-spec.ts --testNamePattern TC-86-04|TC-86-08
+
+Test Suites: 1 passed, 1 total
+Tests:       15 skipped, 20 passed, 35 total
+Snapshots:   0 total
+Time:        3.013 s, estimated 4 s
+Ran all test suites within paths "test/db/resource-ownership.db-spec.ts".
+
+P2 GREEN UNIT CONTRACT — npm test -- --runInBand --runTestsByPath src/modules/accounts/accounts.exports.spec.ts
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand --runTestsByPath src/modules/accounts/accounts.exports.spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        7.129 s
+Ran all test suites within paths "src/modules/accounts/accounts.exports.spec.ts".
+
+P3 DRIVER PREFLIGHT (uncommitted code, not final-SHA evidence) — npx cross-env NODE_ENV=test ts-node -r tsconfig-paths/register test/manual/resource-ownership.manual.ts all
+M-86-01 OWNED {"account":{"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-05T03:52:28.267Z","updatedAt":"2026-11-05T03:52:28.267Z"},"auditCount":0}
+M-86-02 FOREIGN {"problem":{"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"3a862052-5cc1-439e-8d23-d49c7a941134"},"audit":{"id":"1","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"3b000000-0000-4000-8000-000000000002","correlationId":"3a862052-5cc1-439e-8d23-d49c7a941134","metadata":{"reason":"NOT_OWNER"}}}
+M-86-03 SAME_404 {"kind":"missing","problem":{"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"4dce7ef2-ea2e-4bd7-ae17-a3be799f66ce"},"audit":{"id":"2","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"ffffffff-ffff-4fff-8fff-ffffffffffff","correlationId":"4dce7ef2-ea2e-4bd7-ae17-a3be799f66ce","metadata":{"reason":"NOT_OWNER"}}}
+M-86-03 SAME_404 {"kind":"SYSTEM","problem":{"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"22f78fa7-d9d8-4c02-9a2f-e41be0a714e3"},"audit":{"id":"3","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"00000000-0000-4000-8000-000000000001","correlationId":"22f78fa7-d9d8-4c02-9a2f-e41be0a714e3","metadata":{"reason":"NOT_OWNER"}}}
+M-86-03 SAME_404 {"kind":"malformed-email","problem":{"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"052ff685-436d-43b5-a861-18c0c262e742"},"audit":{"id":"4","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"invalid","correlationId":"052ff685-436d-43b5-a861-18c0c262e742","metadata":{"reason":"NOT_OWNER"}}}
+M-86-03 SAME_404 {"kind":"malformed-injection","problem":{"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"8e86a48d-8680-457b-b929-cd3ea0a37472"},"audit":{"id":"5","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"invalid","correlationId":"8e86a48d-8680-457b-b929-cd3ea0a37472","metadata":{"reason":"NOT_OWNER"}}}
+M-86-04 DENIAL_SURVIVES_ROLLBACK {"correlationId":"3a862052-5cc1-439e-8d23-d49c7a941134","scratchCount":0,"audit":{"id":"1","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"3b000000-0000-4000-8000-000000000002","correlationId":"3a862052-5cc1-439e-8d23-d49c7a941134","metadata":{"reason":"NOT_OWNER"}}}
+M-86-05 INSERT_REFUSED {"correlationId":"ba1f30e2-5394-43bd-a2fc-fa506275cae5","failure":{"name":"QueryFailedError","code":"42501"},"auditCount":0}
+M-86-06 RECOVERED {"failure":{"name":"NotFoundException","status":404},"audit":{"id":"6","actor":"10000000-0000-4000-8000-000000000001","role":"customer","action":"account.read","outcome":"DENIED","targetType":"account","targetId":"3b000000-0000-4000-8000-000000000002","correlationId":"60e098ed-7a0f-464f-9c82-c18de8923c55","metadata":{"reason":"NOT_OWNER"}}}
+M-86-07 CONTEXT_REFUSED {"kind":"absent","failure":{"name":"TypeError"},"sqlCount":0}
+M-86-07 CONTEXT_REFUSED {"kind":"wrong-role","failure":{"name":"TypeError"},"sqlCount":0}
+M-86-07 CONTEXT_REFUSED {"kind":"wrong-action","failure":{"name":"TypeError"},"sqlCount":0}
+M-86-07 ACTOR_FK_REFUSED {"correlationId":"35f55335-dfea-4658-afb7-87b36083d3c9","failure":{"name":"QueryFailedError","code":"23503"},"auditCount":0}
+M-86-08 TRANSACTION_REFUSED {"kind":"owned","correlationId":"ce14dce0-df6d-404e-87b7-2d35c5a330e9","failure":{"name":"TypeError"},"accountSelects":0,"scratchCount":0,"auditCount":0}
+M-86-08 TRANSACTION_REFUSED {"kind":"foreign","correlationId":"34a07f44-c86e-440e-aa01-1f75f7f335fb","failure":{"name":"TypeError"},"accountSelects":0,"scratchCount":0,"auditCount":0}
+M-86-09 INVARIANTS {"balances":[{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}],"transfers":"0","ledgerEntries":"0","invariants":{"status":"PASS","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[]}}
+M-86-HTTP-TRANSFER PENDING {"status":"chưa chạy","dependencies":["DBS-61","DBS-60"]}
+M-86-HTTP-ACCOUNT PENDING {"status":"chưa chạy","dependencies":["DBS-64"]}
+M-86-HTTP-HISTORY PENDING {"status":"chưa chạy","dependencies":["DBS-87","DBS-61"]}
+M-86-09 CLEANUP {"databases":"0","roles":"0"}
+M-86-09 CONTAINER_STOPPED {"ownedByThisRun":true}
+
+P3 DBS-55 MANUAL REGRESSION PREFLIGHT — real disposable PostgreSQL + accounts-service.manual.ts all (uncommitted source, not final-SHA evidence)
+M-55-01 OWNED {"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-05T03:53:09.887Z","updatedAt":"2026-11-05T03:53:09.887Z"}
+M-55-01 FOREIGN {"name":"NotFoundException","errorType":"Error","status":404}
+M-55-01 MISSING {"name":"NotFoundException","errorType":"Error","status":404}
+M-55-01 SYSTEM {"name":"NotFoundException","errorType":"Error","status":404}
+M-55-01 COGNITO_SUB_IS_NOT_USER_ID {"name":"QueryFailedError","errorType":"Error","code":"23503"}
+M-55-02 LOCK_ORDER {"holderPid":485,"subjectPid":486,"highAvailable":true,"ids":["3a000000-0000-4000-8000-000000000001","3b000000-0000-4000-8000-000000000002"]}
+M-55-02 CROSSED_LOCKS {"winnerPid":485,"waitingPid":487,"completed":2,"retries":0}
+M-55-03 TENTATIVE_SNAPSHOTS [{"id":"00000000-0000-4000-8000-000000000001","customerId":null,"userId":null,"type":"SYSTEM","status":"ACTIVE","balance":"-300000","createdAt":"2026-11-05T03:53:09.749Z","updatedAt":"2026-11-05T03:53:10.022Z"},{"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"300000","createdAt":"2026-11-05T03:53:09.887Z","updatedAt":"2026-11-05T03:53:10.023Z"}]
+M-55-03 COMMITTED_OBSERVER [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-03 AFTER_ROLLBACK [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-03 TENTATIVE_SNAPSHOTS [{"id":"00000000-0000-4000-8000-000000000001","customerId":null,"userId":null,"type":"SYSTEM","status":"ACTIVE","balance":"-9007199254740993","createdAt":"2026-11-05T03:53:09.749Z","updatedAt":"2026-11-05T03:53:10.042Z"},{"id":"3a000000-0000-4000-8000-000000000001","customerId":"20000000-0000-4000-8000-000000000001","userId":"10000000-0000-4000-8000-000000000001","type":"CHECKING","status":"ACTIVE","balance":"9007199254740993","createdAt":"2026-11-05T03:53:09.887Z","updatedAt":"2026-11-05T03:53:10.044Z"}]
+M-55-03 COMMITTED_OBSERVER [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-03 AFTER_ROLLBACK [{"id":"00000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3a000000-0000-4000-8000-000000000001","balance":"0"},{"id":"3b000000-0000-4000-8000-000000000002","balance":"0"},{"id":"3c000000-0000-4000-8000-000000000003","balance":"0"}]
+M-55-04 CUSTOMER_NEGATIVE {"name":"AccountBalanceNegativeError","errorType":"Error","code":"23514","constraint":"accounts_balance_non_negative"}
+M-55-04 OVERFLOW {"name":"AccountBalanceOverflowError","errorType":"Error","code":"22003"}
+M-55-04 INACTIVE_MANAGER {"name":"Error","errorType":"Error"}
+M-55-04 HOSTILE_ID {"name":"TypeError","errorType":"Error"}
+M-55-04 SPARSE_IDS {"name":"TypeError","errorType":"Error"}
+M-55-04 NUMBER_DELTA {"name":"TypeError","errorType":"Error"}
+M-55-07 APPLY_WITHOUT_LOCK {"name":"AccountNotLockedError","errorType":"Error"}
+M-55-07 LOCK_ON_OTHER_RUNNER {"name":"AccountNotLockedError","errorType":"Error"}
+M-55-07 NESTED_TRANSACTION {"name":"Error","errorType":"Error"}
+M-55-07 SEVENTEEN_IDS {"name":"TypeError","errorType":"Error"}
+M-55-08 UPDATED_AT_ORDER {"earlyTxPid":487,"waitedBehindPid":485,"lateCommitStamp":"2026-11-05T03:53:10.214Z","earlyCommitStamp":"2026-11-05T03:53:10.219Z","earlyAfterLate":true}
+M-55-04 RECOVERED {"accountId":"3a000000-0000-4000-8000-000000000001","balance":"0"}
+M-55-05 POST_ROLLBACK_CHECKS {"entriesEqual":true,"totalZero":true,"customersNonnegative":true,"balancesMatchEntries":true,"scope":"zero-balance fixture after rollback; no double-entry claim for tentative changes"}
+M-55-06 PENDING {"status":"chưa chạy","dependencies":["DBS-60","DBS-61","AuditService"]}
+
+P2 FINAL TARGETED GREEN — npm run test:db -- --runInBand --runTestsByPath test/db/resource-ownership.db-spec.ts test/db/accounts-service.db-spec.ts (includes3newline regression cases, previously already green)
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/resource-ownership.db-spec.ts test/db/accounts-service.db-spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       80 passed, 80 total
+Snapshots:   0 total
+Time:        4.918 s, estimated 5 s
+Ran all test suites within paths "test/db/resource-ownership.db-spec.ts", "test/db/accounts-service.db-spec.ts".
+
+P2 FINAL TYPECHECK — npm run typecheck (previous logging attempt was not executed because the DB-test transcript still held the file)
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json

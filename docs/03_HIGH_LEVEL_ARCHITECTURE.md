@@ -1,6 +1,6 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Accepted v1.7 (chốt 2026-10-11, bổ sung 2026-10-12) · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-12
+> **Status:** Accepted v1.7 (chốt 2026-10-11, bổ sung 2026-10-12) · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** khung backend và ownership service accounts; các endpoint nghiệp vụ còn chờ tích hợp · **Cập nhật:** 2026-11-05
 
 > **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
@@ -764,6 +764,8 @@ flowchart LR
 ---
 
 ## 12. Bảo mật
+
+Customer ownership ở `AccountsService.getOwnedAccount(accountId, context)` bắt buộc context gồm internal users.id, role customer, một action account.read/account.transactions/ledger.transfer và correlationId do server sinh. Service snapshot scalar trước await; owned trả Account hiện có, foreign/missing/SYSTEM/malformed await một DENIED độc lập rồi cùng404. Audit lỗi lan ra; lookup lỗi không chuyển thành missing. Gọi trước transaction nghiệp vụ: ALS guard chặn cả owned/denied trước SELECT; raw BEGIN/savepoint ngoài ALS không được dùng để bọc helper. Các luồng operator có policy riêng. [Contract và evidence DBS-86](features/DBS-86-resource-ownership.md) chỉ chứng minh service; HTTP DBS-61/64/87 và full AC-5.8 còn BL-122/145.
 
 ```mermaid
 flowchart LR

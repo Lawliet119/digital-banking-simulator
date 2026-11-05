@@ -1,5 +1,7 @@
 # accounts 🟡 Supporting
 
+> **Status:** Accepted · **Owner:** Dev · **Verified against code:** public service, ownership và audit denial; các API nghiệp vụ còn chờ task endpoint.
+
 Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 
 | | |
@@ -20,15 +22,36 @@ Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 
 ## Export công khai (`index.ts`)
 
-Import qua `@modules/accounts`: `AccountsModule`, `AccountsService`, type `Account` và `LockedAccount`, ba lớp lỗi `AccountNotLockedError`, `AccountBalanceNegativeError`, `AccountBalanceOverflowError`.
+Import qua `@modules/accounts`: `AccountsModule`, `AccountsService`, các type `Account`, `LockedAccount`, `AccountOwnershipAction`, `AccountOwnershipContext`, ba lớp lỗi `AccountNotLockedError`, `AccountBalanceNegativeError`, `AccountBalanceOverflowError`. `AccountsModule` import public `AuditModule`; DataSource và TransactionService thật do DatabaseModule global cung cấp.
 
 | Hàm | Contract service hiện có |
 |---|---|
 | `lockForUpdate(ids: string[], manager: EntityManager): Promise<LockedAccount[]>` | Manager phải có QueryRunner còn hoạt động, ở **cấp transaction ngoài cùng** (không trong `manager.transaction` lồng). SQL lấy khóa account theo id tăng dần; duplicate được bỏ, empty trả `[]`, id thiếu chỉ bị loại khỏi snapshot. Tối đa 16 id khác nhau và 256 phần tử, vượt thì `TypeError` trước SQL. LOCKED/SYSTEM vẫn được trả để caller quyết định guard |
 | `applyBalanceChange(accountId: string, delta: bigint, manager: EntityManager): Promise<void>` | Cộng số dư bằng SQL trong transaction người gọi, `updated_at = clock_timestamp()`; nhận bigint, không tự mở/commit/retry. Account phải đã có trong kết quả `lockForUpdate` của **cùng QueryRunner, cùng transaction**, nếu không thì `AccountNotLockedError` (kể cả id không tồn tại). Khách xuống âm → `AccountBalanceNegativeError`; tràn signed bigint → `AccountBalanceOverflowError`; lỗi gốc nằm ở `cause`. Lỗi DB khác (deadlock, timeout) ném nguyên |
-| `getOwnedAccount(accountId: string, userId: string): Promise<Account>` | `userId` là internal `users.id`, không phải Cognito sub. Đọc committed state từ PostgreSQL. Missing/foreign/SYSTEM/UUID sai cùng trả 404; không tạo audit DENIED thay caller |
+| `getOwnedAccount(accountId: string, context: AccountOwnershipContext): Promise<Account>` | Context bắt buộc lấy từ server sau JWT/customer guard. Owner hợp lệ trả snapshot, kể cả LOCKED, không tự ghi SUCCESS. Missing/foreign/SYSTEM/resource UUID sai đều await một audit DENIED đã commit rồi trả cùng 404. Lỗi lookup hoặc audit lan ra; context sai và lời gọi trong callback transaction bị chặn trước SELECT |
 
 Snapshot dùng camelCase, `balance` là chuỗi chính xác, thời gian là Date. Không đổi tiền sang Number hoặc cache Redis. Các truy vấn mutation dùng manager đã truyền vào; `startTransaction()` phải chạy trước, raw SQL BEGIN không đáp ứng trạng thái QueryRunner. Invalid UUID/array (kể cả sparse array) hoặc delta không-bigint bị chặn trước SQL. Không bắt lỗi SQL để tiếp tục transaction đã bị abort.
+
+### Context kiểm quyền sở hữu
+
+[AccountOwnershipContext](account.types.ts) gồm `userId`, `role`, `action`, `correlationId`. Caller tạo nó sau khi JWT đã được xác minh và endpoint đã chấp nhận vai customer:
+
+```ts
+await accounts.getOwnedAccount(accountId, {
+  userId: currentUser.userId,
+  role: 'customer',
+  action: 'account.read',
+  correlationId: request.correlationId,
+});
+```
+
+`userId` là internal `users.id`; `correlationId` do middleware server sinh. Action do endpoint chọn trong `account.read`, `account.transactions`, `ledger.transfer`. Với token nhiều nhóm, caller chọn literal customer theo policy endpoint. Không bind context từ body/query/header hoặc lấy `roles[0]`. Helper này phục vụ tài nguyên của khách; operator search/deposit/lock dùng policy operator riêng.
+
+Service snapshot mỗi scalar đúng một lần trước await, chuẩn hóa UUID thành chữ thường và không serialize context. Context thiếu, chữ ký userId string cũ, actor/correlation sai UUID hoặc role/action ngoài allowlist gây TypeError cố định trước SQL. Actor UUID đúng dạng nhưng không tồn tại trong `users` làm audit FK từ chối (`23503`); lỗi lan ra thay vì trả 404 sạch.
+
+Foreign/missing/SYSTEM dùng cùng `AuditReason.NOT_OWNER`. Resource id sai dạng không SELECT account; audit dùng target `{type:'account',id:'invalid'}`. Resource UUID hợp lệ dùng target UUID đã chuẩn hóa. Mỗi denial ghi actor customer, action đã chọn, server correlation và metadata `{reason:'NOT_OWNER'}` qua `AuditService.recordDenied`; không chép input thô hay dữ liệu hồ sơ. Audit INSERT/commit lỗi phải làm lời gọi thất bại, không bắt lỗi để tiếp tục trả 404.
+
+Gọi ownership **trước** `TransactionService.run` nghiệp vụ. Service kiểm `activeTransactionContext` trước SELECT ở cả đường owned và denied để tránh giữ thêm connection audit trong transaction. ALS chỉ theo dõi transaction helper hiện có; raw BEGIN/savepoint tự viết nằm ngoài khả năng phát hiện này và không được dùng để bọc ownership.
 
 ### Hợp đồng với ledger (BL-122)
 
@@ -36,4 +59,4 @@ Snapshot dùng camelCase, `balance` là chuỗi chính xác, thời gian là Dat
 - So snapshot với các id đã yêu cầu **trước** khi apply. Chuyển tới đích không tồn tại và nạp vào tài khoản không tồn tại là `REJECTED` / 422 `ACCOUNT_NOT_ACTIVE` (`to_account_id` NULL). Nguồn không thuộc caller bị chặn trước transaction (404, audit DENIED trong transaction riêng). Thiếu `funding` là lỗi cài đặt (500).
 - Guard quyết định REJECTED (số dư, trạng thái, hạn mức) **trước** UPDATE. Ba lớp lỗi ở trên nghĩa là guard hoặc giao thức của caller có bug: chúng phải ra 500, không map sang 422, vì sau khi PostgreSQL từ chối UPDATE transaction đã hủy, không còn ghi được `transfers` REJECTED, audit hay response idempotency (BR-07).
 
-Đây là primitive cho ledger; module chưa thêm HTTP controller, onboarding, mở/khóa tài khoản, guard chuyển tiền hoặc bút toán. Test tiền gọi service thật trên DB tạm rồi rollback; không SQL seed tiền/bút toán. Chứng minh primitive và giới hạn E2E/audit nằm trong [DBS-55](../../../../docs/features/DBS-55-accounts-service.md); các API nghiệp vụ chờ task riêng.
+Module cung cấp primitive cho ledger và ownership; chưa thêm HTTP controller, onboarding, mở/khóa tài khoản, guard chuyển tiền hoặc bút toán. Test tiền gọi service thật trên DB tạm rồi rollback; không SQL seed tiền/bút toán. [DBS-55](../../../../docs/features/DBS-55-accounts-service.md) giữ bằng chứng primitive tiền; [DBS-86](../../../../docs/features/DBS-86-resource-ownership.md) mô tả contract ownership, kiểm PostgreSQL và các phần bàn giao. Endpoint account của DBS-64, transfer của DBS-61 và history/status của DBS-87 còn phải tích hợp và kiểm từng đường HTTP; kết quả service chưa hoàn tất full AC-5.8.
