@@ -297,19 +297,44 @@ describe('Audit search on real PostgreSQL (DBS-103)', () => {
       parseAuditSearchQuery({ correlationId: F.performanceCorrelationId, limit: '50' }),
     );
     expect((await search({ correlationId: F.performanceCorrelationId })).entries).toHaveLength(1);
+    const usesCorrelationIndex = (node: unknown): boolean => {
+      if (node === null || typeof node !== 'object' || Array.isArray(node)) return false;
+      const value = node as Record<string, unknown>;
+      if (
+        value['Node Type'] === 'Index Scan' &&
+        value['Index Name'] === 'audit_log_correlation_idx'
+      ) {
+        return true;
+      }
+      return Array.isArray(value.Plans) && value.Plans.some(usesCorrelationIndex);
+    };
+    expect(
+      usesCorrelationIndex({
+        'Node Type': 'Bitmap Index Scan',
+        'Index Name': 'audit_log_correlation_idx',
+      }),
+    ).toBe(false);
     const times: number[] = [];
+    let warmupExecutionMs: number | undefined;
     for (let i = 0; i < 6; i++) {
       const result = await fixture.source.query<
         { 'QUERY PLAN': { Plan: unknown; 'Execution Time': number }[] }[]
       >(`EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) ${built.sql}`, built.parameters);
       const plan = result[0]['QUERY PLAN'][0];
-      expect(JSON.stringify(plan.Plan)).toContain('Index Scan');
-      expect(JSON.stringify(plan.Plan)).toContain('audit_log_correlation_idx');
+      expect(usesCorrelationIndex(plan.Plan)).toBe(true);
       if (i !== 0) {
         times.push(plan['Execution Time']);
-        expect(plan['Execution Time']).toBeLessThanOrEqual(10);
-      }
+      } else warmupExecutionMs = plan['Execution Time'];
     }
-    console.log(JSON.stringify({ case: 'TC-103-18', fixtureRows: count, warmExecutionMs: times }));
+    console.log(
+      JSON.stringify({
+        case: 'TC-103-18',
+        fixtureRows: count,
+        warmupExecutionMs,
+        warmExecutionMs: times,
+      }),
+    );
+    expect(times).toHaveLength(5);
+    for (const executionMs of times) expect(executionMs).toBeLessThanOrEqual(10);
   });
 });
