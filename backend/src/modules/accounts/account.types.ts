@@ -11,3 +11,13 @@ export interface Account {
 }
 
 export type LockedAccount = Account;
+
+export type AccountOwnershipAction = 'account.read' | 'account.transactions' | 'ledger.transfer';
+
+/** Constructed by server code after JWT and the customer-role guard, never by a request DTO. */
+export interface AccountOwnershipContext {
+  readonly userId: string;
+  readonly role: 'customer';
+  readonly action: AccountOwnershipAction;
+  readonly correlationId: string;
+}

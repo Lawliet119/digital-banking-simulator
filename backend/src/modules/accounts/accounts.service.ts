@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource, EntityManager, QueryRunner } from 'typeorm';
-import type { Account, LockedAccount } from './account.types';
+import type { Account, AccountOwnershipContext, LockedAccount } from './account.types';
+import { AuditReason, AuditService } from '@modules/audit';
+import { activeTransactionContext } from '@database/transaction.helper';
 import {
   AccountBalanceNegativeError,
   AccountBalanceOverflowError,
@@ -34,7 +36,10 @@ export class AccountsService {
   // Weak keys: a released runner and its marks are collected together; retries get a new runner.
   private readonly locks = new WeakMap<QueryRunner, HeldLocks>();
 
-  constructor(@InjectDataSource() private readonly source: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly source: DataSource,
+    private readonly audit: AuditService,
+  ) {}
 
   async lockForUpdate(ids: string[], manager: EntityManager): Promise<LockedAccount[]> {
     const runner = this.requireOutermostTransaction(manager);
@@ -85,24 +90,55 @@ export class AccountsService {
     if (result[0].length === 0) throw new AccountNotLockedError(id);
   }
 
-  async getOwnedAccount(accountId: string, userId: string): Promise<Account> {
-    // Invalid, absent and foreign identifiers all hide account existence behind the same 404.
-    if (
-      typeof accountId !== 'string' ||
-      !UUID_PATTERN.test(accountId) ||
-      typeof userId !== 'string' ||
-      !UUID_PATTERN.test(userId)
-    ) {
-      throw new NotFoundException('Account not found');
+  async getOwnedAccount(accountId: string, context: AccountOwnershipContext): Promise<Account> {
+    if (context === null || typeof context !== 'object' || Array.isArray(context)) {
+      throw new TypeError('Account ownership context is invalid');
     }
-    const [account] = await this.source.query<Account[]>(
-      `SELECT ${SNAPSHOT_COLUMNS} FROM accounts a
-       JOIN customers c ON c.id=a.customer_id
-       WHERE a.id=$1::uuid AND c.user_id=$2::uuid`,
-      [accountId.toLowerCase(), userId.toLowerCase()],
-    );
-    if (!account) throw new NotFoundException('Account not found');
-    return account;
+    // Capture trusted scalar fields once: a caller can mutate its object while SELECT waits.
+    // Spreading or serializing it would also invoke unrelated getters or toJSON hooks.
+    const { userId, role, action, correlationId } = context;
+    if (
+      typeof userId !== 'string' ||
+      !UUID_PATTERN.test(userId) ||
+      typeof correlationId !== 'string' ||
+      !UUID_PATTERN.test(correlationId) ||
+      role !== 'customer' ||
+      (action !== 'account.read' &&
+        action !== 'account.transactions' &&
+        action !== 'ledger.transfer')
+    ) {
+      throw new TypeError('Account ownership context is invalid');
+    }
+    // Enforce the same boundary on owned and denied paths, before taking any pooled connection.
+    // Denial must commit independently; a caller must therefore check ownership before BEGIN.
+    if (activeTransactionContext.getStore() === true) {
+      throw new TypeError('Account ownership cannot run inside a transaction');
+    }
+    const actor = userId.toLowerCase();
+    const requestId = correlationId.toLowerCase();
+    const id =
+      typeof accountId === 'string' && UUID_PATTERN.test(accountId)
+        ? accountId.toLowerCase()
+        : 'invalid';
+    if (id !== 'invalid') {
+      const [account] = await this.source.query<Account[]>(
+        `SELECT ${SNAPSHOT_COLUMNS} FROM accounts a
+         JOIN customers c ON c.id=a.customer_id
+         WHERE a.id=$1::uuid AND c.user_id=$2::uuid`,
+        [id, actor],
+      );
+      if (account) return account;
+    }
+    // No catch: an audit failure must propagate instead of becoming an unaudited clean 404.
+    await this.audit.recordDenied({
+      actor,
+      role,
+      action,
+      target: { type: 'account', id },
+      correlationId: requestId,
+      metadata: { reason: AuditReason.NOT_OWNER },
+    });
+    throw new NotFoundException('Account not found');
   }
 
   /**
