@@ -8,7 +8,8 @@ const example = parse(readFileSync(resolve(backend, 'env/.env.example')));
 
 /** A fully valid deployed environment, so the only thing that can fail is what a test adds. */
 const deployed = {
-  DATABASE_URL: 'postgres://u:p@db.internal:5432/banking',
+  // Refuse locally so DNS/connect timeouts cannot outlast the startup control's deadline.
+  DATABASE_URL: 'postgres://u:p@127.0.0.1:1/banking',
   DATABASE_SSL: 'true',
   REDIS_URL: 'rediss://cache.internal:6379',
   TRUST_PROXY_HOPS: '1',
@@ -65,7 +66,9 @@ describe('DBS-53 local auth is refused outside development and test (real proces
     // It then fails to reach the database, which is unrelated: what matters is that the
     // configuration itself is not what stopped it.
     const run = runMain({ ...deployed, NODE_ENV: 'production', APP_ROLE: 'api' });
+    expect(run.failure).toBeDefined();
     expect(run.failure?.invalidKeys).toBeUndefined();
+    expect(run.rows.some(row => row.message === 'HTTP listener started')).toBe(false);
   });
 
   it('TC-53-11 production with AUTH_MODE=local exits with a JSON error naming the two settings', () => {
