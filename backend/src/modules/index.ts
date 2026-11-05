@@ -1,6 +1,6 @@
 import type { DynamicModule, Type } from '@nestjs/common';
 import { AppRole, runsHttp, runsWorkers } from '@common/app-role/app-role';
-import { AuditModule } from './audit';
+import { AuditHttpModule, AuditModule } from './audit';
 import { HealthModule } from './health';
 import { IdentityModule } from './identity';
 import { OutboxModule } from './outbox';
@@ -27,7 +27,7 @@ const sharedModules: ModuleRef[] = [
   // apiModules so an `api` instance fails at boot if its providers ever stop resolving.
 ];
 
-const apiModules: ModuleRef[] = [HealthModule, IdentityModule, AccountsModule];
+const apiModules: ModuleRef[] = [HealthModule, IdentityModule, AccountsModule, AuditHttpModule];
 
 const workerModules: ModuleRef[] = [
   // Outbox relay providers and NotificationModule — added by #3.

@@ -52,7 +52,7 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function matches(pattern: RegExp, value: string): boolean {
-  // JavaScript's `$` also matches before a final newline; the entire scalar must be canonical.
+  // Compare the complete scalar so normalization cannot silently discard trailing data.
   return pattern.exec(value)?.[0] === value;
 }
 
