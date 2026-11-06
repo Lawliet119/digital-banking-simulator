@@ -185,3 +185,5 @@ Current checks after rebase: lint/typecheck/build PASS; full unit56suites832/832
 Rebased full E2E13suites135/135 PASS(96.796s); no task skips. Docs link check209files0broken; git diff --check clean. Targeted DB result below, full DB suite covered by CI rather than inferred from local selection.
 
 Final explicit related-DB selection after rebase: five suites123/123 PASS(26.876s), includes all19 DBS61 cases. Selection uses exact paths customer-transfers/operator-deposits/accounts-service/audit.service/outbox-writer; older129 result used a broader regex/six suites, so not the same selection. Full DB evidence belongs to final CI.
+
+Opened [Draft PR61](https://github.com/Lawliet119/digital-banking-simulator/pull/61), base **main**. Final required lint/typecheck/build/unit/e2e/db tracked in [Checks](https://github.com/Lawliet119/digital-banking-simulator/pull/61/checks); actual final result verified at handover. Local checks do not replace CI. Dev review/merge pending **BL-152**. User may move board to In Review; agent does not edit sheet or merge.

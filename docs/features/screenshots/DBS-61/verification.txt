@@ -65,3 +65,6 @@ Full E2E after rebase:13suites135/135 PASS,96.796s.
 Final doc links209files0broken; git diff --check PASS.
 Final relatedDB explicit paths:5suites123/123 PASS(26.876s), including19 DBS61.
 Older129 was broader six-suite regex; final123 is exact5suite selection, not a failed/removed test.
+Main Draft PR61: https://github.com/Lawliet119/digital-banking-simulator/pull/61
+Final CI: https://github.com/Lawliet119/digital-banking-simulator/pull/61/checks
+Final result independently verified at handover; Dev review and merge pending.
