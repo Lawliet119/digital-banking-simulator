@@ -22,6 +22,8 @@ import {
 import type { TransferCompleted } from '@common/events';
 import { TransferDto, TransferResultDto } from './transfer.dto';
 
+const FUNDING_ACCOUNT_ID = '00000000-0000-4000-8000-000000000001';
+
 class SourceOwnershipChangedError extends Error {}
 interface TransferRow {
   id: string;
@@ -71,7 +73,12 @@ export class TransferService {
         );
         // The week-2 barrier prevents duplicate writes. Stored-result replay belongs to DBS-79.
         if (!keys.length) throw new ConflictException('Idempotency key already used');
-        const locked = await this.accounts.lockForUpdate([fromId, toId], manager);
+        // The funding account (ADR-09) is the only SYSTEM account and has a fixed, guessable id. A
+        // customer may name it as destination, so never lock it here: that would queue behind every
+        // deposit, which holds this row for its whole transaction, and end in a 503 instead of the
+        // 422 this destination always gets. If another SYSTEM account is ever added, extend this check.
+        const lockIds = toId === FUNDING_ACCOUNT_ID ? [fromId] : [fromId, toId];
+        const locked = await this.accounts.lockForUpdate(lockIds, manager);
         const source = locked.find(a => a.id === fromId),
           target = locked.find(a => a.id === toId);
         // Authorization reads never supply the money snapshot; check ownership again under lock.

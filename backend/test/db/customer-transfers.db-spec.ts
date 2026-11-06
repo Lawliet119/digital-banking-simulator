@@ -418,6 +418,21 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     }
     await transfer(a, b.accountId, '1000', key).expect(201);
   });
+  it('TC-61-14 transfer to the funding account never waits on its row lock: persisted 422, not 503', async () => {
+    const a = await target('1000000');
+    const held = app.source.createQueryRunner();
+    await held.connect();
+    await held.startTransaction();
+    try {
+      // Stands in for any in-flight deposit: every deposit holds this one row for its whole transaction.
+      await held.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE', [FUNDING]);
+      await assertRejected(a, FUNDING, '300000', 'ACCOUNT_NOT_ACTIVE', null);
+    } finally {
+      await held.rollbackTransaction();
+      await held.release();
+    }
+    expect(await balance(a.accountId)).toBe('1000000');
+  });
   it('TC-61-10 >2^53 exact through deposit/transfer/DB/event', async () => {
     const amount = '9007199254740993',
       a = await target(amount),
