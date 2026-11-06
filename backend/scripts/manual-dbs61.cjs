@@ -5,6 +5,9 @@ require('tsconfig-paths/register');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
+const { readdirSync } = require('node:fs');
+const { tmpdir } = require('node:os');
+const { Client } = require('pg');
 const {
   startPostgresContainer,
   stopPostgresContainer,
@@ -16,10 +19,15 @@ const { validateEvent } = require('../src/common/events');
 
 async function main() {
   console.log(execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim());
-  let db, app;
+  let db, app, dbName, containerId;
+  let completed = false;
+  const jwksDirs = () => readdirSync(tmpdir()).filter(name => name.startsWith('dbs60-jwks-'));
+  const jwksBefore = jwksDirs();
   try {
     process.env.DATABASE_URL = (await startPostgresContainer()).databaseUrl;
     db = await createTempDatabase();
+    dbName = new URL(db.url).pathname.slice(1);
+    containerId = globalThis.__POSTGRES_CONTAINER__?.getId();
     await migrate(db.url);
     app = await startDepositApp(db.url);
     const q = (sql, args = []) => db.runner.query(sql, args),
@@ -240,17 +248,61 @@ async function main() {
     console.log(
       'M-61-05 PASS:10parallel200k →5complete5reject, no overdraft; >2^53 exact API/DB/event',
     );
+    completed = true;
   } finally {
-    try {
-      await app?.close();
-    } finally {
+    // Cleanup is observed, not assumed: each check below reads the real state back, and a failed
+    // check fails the run. M-61-06 is reported PASS only when every earlier step passed as well.
+    const problems = [];
+    const attempt = async (label, work) => {
       try {
-        await db?.drop();
-      } finally {
-        await stopPostgresContainer();
+        await work();
+      } catch (error) {
+        problems.push(`${label}: ${error.message}`);
       }
+    };
+    await attempt('close app', async () => {
+      await app?.close();
+      const leftover = jwksDirs().filter(name => !jwksBefore.includes(name));
+      assert.equal(leftover.length, 0, 'temporary JWKS directory still exists');
+    });
+    await attempt('drop temporary database', async () => {
+      await db?.drop();
+      if (!dbName) return;
+      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      await client.connect();
+      try {
+        const found = await client.query('SELECT 1 FROM pg_database WHERE datname=$1', [dbName]);
+        assert.equal(found.rowCount, 0, 'temporary database still listed in pg_database');
+      } finally {
+        await client.end();
+      }
+    });
+    await attempt('stop PostgreSQL container', async () => {
+      await stopPostgresContainer();
+      if (!containerId) return;
+      const left = execFileSync(
+        'docker',
+        ['ps', '-aq', '--no-trunc', '--filter', `id=${containerId}`],
+        {
+          encoding: 'utf8',
+        },
+      ).trim();
+      assert.equal(left, '', 'owned PostgreSQL container still exists');
+    });
+    if (!completed) {
+      console.log(
+        'M-61-06 NOT RUN AS PASS: an earlier step failed; cleanup problems: ' +
+          (problems.join('; ') || 'none'),
+      );
+      process.exitCode = 1;
+    } else if (problems.length) {
+      console.log('M-61-06 FAIL: ' + problems.join('; '));
+      process.exitCode = 1;
+    } else {
+      console.log(
+        'M-61-06 PASS: app closed, JWKS directory gone, temporary database absent from pg_database, owned PG17 container removed',
+      );
     }
-    console.log('M-61-06 PASS: app/publicJWKS/owned temporary DB/owned PG17 cleaned up');
   }
 }
 main().catch(error => {
