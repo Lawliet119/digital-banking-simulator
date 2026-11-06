@@ -12,6 +12,46 @@ const digest = (value) => createHash('sha256').update(value).digest('hex');
 const dataset = generateDataset();
 const rows = dataset.csv.trimEnd().split('\n').map((line) => line.split(','));
 
+test("TC-126-01/07: NORMAL golden bytes and replayable opening/credit/ending trace", () => {
+  assert.equal(
+    digest(dataset.csv),
+    "60e10c49abe8a6f9377dab29b729eaaf4a0f1d1a11dadfa759d8813aa7a7476f",
+  );
+  const trace = dataset.simulation;
+  assert.equal(trace.version, 1);
+  assert.equal(trace.customers.length, 2000);
+  const balances = new Map(
+    trace.accounts.map((a) => [a.accountId, BigInt(a.openingBalance)]),
+  );
+  let funding = BigInt(trace.initialFundingBalance);
+  assert.equal(
+    [...balances.values()].reduce((a, b) => a + b, funding),
+    0n,
+  );
+  const credits = [...trace.credits].sort(
+    (a, b) =>
+      a.occurredAt.localeCompare(b.occurredAt) || a.sequence - b.sequence,
+  );
+  let next = 0;
+  for (const row of rows.slice(1)) {
+    while (next < credits.length && credits[next].occurredAt <= row[1]) {
+      const c = credits[next++];
+      balances.set(c.accountId, balances.get(c.accountId) + BigInt(c.amount));
+      funding -= BigInt(c.amount);
+    }
+    assert.equal(balances.get(row[2]), BigInt(row[7]));
+    balances.set(row[2], balances.get(row[2]) - BigInt(row[6]));
+    balances.set(row[3], balances.get(row[3]) + BigInt(row[6]));
+  }
+  for (const c of credits.slice(next)) {
+    balances.set(c.accountId, balances.get(c.accountId) + BigInt(c.amount));
+    funding -= BigInt(c.amount);
+  }
+  for (const a of trace.accounts)
+    assert.equal(balances.get(a.accountId), BigInt(a.endingBalance));
+  assert.equal(funding, BigInt(trace.endingFundingBalance));
+});
+
 test('TC-71-01: fixed seed is byte identical and a changed seed differs', () => {
   assert.equal(digest(dataset.csv), digest(generateDataset().csv));
   assert.notEqual(digest(dataset.csv), digest(generateDataset({ seed: 'dbs-normal-v2' }).csv));
