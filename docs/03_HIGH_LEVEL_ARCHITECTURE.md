@@ -486,7 +486,7 @@ sequenceDiagram
 | GET | `/v1/accounts/{id}/transactions` | customer | UC-6 | Phân trang bằng cursor; lọc thời gian |
 | POST | `/v1/transfers` | customer | UC-5 | **Bắt buộc** header `Idempotency-Key` |
 | GET | `/v1/transfers/{id}` | customer | UC-7 | Chỉ người gửi / người nhận |
-| POST | `/v1/operator/deposits` | operator | UC-3 | **Bắt buộc** header `Idempotency-Key` |
+| POST | `/v1/operator/deposits` | operator | UC-3 | **Bắt buộc** `Idempotency-Key`1–128, body `toAccountId` + amount string;201 COMPLETED; locked/missing/SYSTEM target422 ACCOUNT_NOT_ACTIVE +transferId (reject commit); key đã dùng409 ở bản thô DBS-60, replay/conflict đầy đủ ở DBS-79 |
 | GET | `/v1/operator/accounts` | operator | UC-3, UC-11 | Tìm tài khoản của khách theo `accountId` hoặc tên khách (khớp một phần), tối đa 20 kết quả. Trả mã, loại, trạng thái, tên chủ; **không** trả số dư. Mỗi lần tra cứu được ghi nhật ký (BR-10) |
 | POST | `/v1/operator/accounts/{id}/lock` | operator | UC-11 | Thu hồi phiên ngay |
 | POST | `/v1/operator/accounts/{id}/unlock` | operator | UC-11 | |

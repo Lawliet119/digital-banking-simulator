@@ -6,6 +6,7 @@ import { IdentityModule } from './identity';
 import { OutboxModule } from './outbox';
 import { AccountsModule } from './accounts';
 import { RiskModule } from './risk';
+import { LedgerModule } from './ledger';
 
 type ModuleRef = Type<unknown> | DynamicModule;
 
@@ -21,13 +22,12 @@ const sharedModules: ModuleRef[] = [
   OutboxModule,
   AuditModule,
   RiskModule,
-  // LedgerModule — added by its owner.
   // A module that other modules only import (AccountsModule is imported by LedgerModule) does not
   // need to be listed for each role: Nest resolves it through the importer. AccountsModule sits in
   // apiModules so an `api` instance fails at boot if its providers ever stop resolving.
 ];
 
-const apiModules: ModuleRef[] = [HealthModule, IdentityModule, AccountsModule];
+const apiModules: ModuleRef[] = [HealthModule, IdentityModule, AccountsModule, LedgerModule];
 
 const workerModules: ModuleRef[] = [
   // Outbox relay providers and NotificationModule — added by #3.
