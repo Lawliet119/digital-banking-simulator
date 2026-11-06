@@ -51,3 +51,6 @@ All10 DBS63 cases including10parallel=>3accounts/7ACCOUNT_LIMIT_REACHED.
 Manual6/6 PASS, zero invariant violations; new raw output/screenshot retained.
 No Bearer/JWT/DBURI/AWSARN credentials in transcript. Authorization word appears only in sanitized missing-header401 error.
 Actual main-based Draft PR/Checks linked in feature doc; no agent merge or sheet edit.
+Main-based Draft PR58: https://github.com/Lawliet119/digital-banking-simulator/pull/58
+Final CI: https://github.com/Lawliet119/digital-banking-simulator/pull/58/checks
+Final doc links209files0broken. Dev review and merge pending.
