@@ -36,6 +36,10 @@ export default tseslint.config(
       'no-restricted-syntax': ['error',
         { selector: "ImportDeclaration[source.value=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
         { selector: "ImportExpression[source.value=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
+        // A template-literal source (e.g. import(`ioredis`)) has no Literal .value, so the
+        // selectors above don't match it; catch that bypass separately (DBS-76 code-review).
+        { selector: "ImportExpression > TemplateLiteral[quasis.0.value.raw=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
+        { selector: "CallExpression[callee.name='require'] > TemplateLiteral[quasis.0.value.raw=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
       ],
     },
   },

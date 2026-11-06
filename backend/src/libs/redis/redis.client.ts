@@ -100,7 +100,7 @@ export class RedisClient implements OnModuleDestroy {
   }
   private ttl(seconds: number): void {
     if (!Number.isSafeInteger(seconds) || seconds < 1 || seconds > 604800)
-      throw new TypeError('Redis TTL must be an integer from1 to604800 seconds');
+      throw new TypeError('Redis TTL must be an integer from 1 to 604800 seconds');
   }
   get(key: string): Promise<string | null> {
     return this.run(() => this.driver.get(key));
