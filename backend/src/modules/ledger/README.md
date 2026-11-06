@@ -36,12 +36,13 @@ Bản thô **không replay**: key đã dùng trả409, không thực hiện lầ
 
 ## Chuyển tiền bản thô (DBS-61)
 
-`POST /v1/transfers` chỉ customer, body `{fromAccountId,toAccountId,amount}` (UUID khác nhau, amount chuỗi VND dương), bắt buộc key1–128. Kiểm nguồn qua `getOwnedAccount`; foreign/missing/SYSTEM nguồn cùng404, ghi DENIED ở transaction riêng. Trong transaction: reserve key → khóa hai account theo id → kiểm lại owner và ACTIVE/số dư từ snapshot đã khóa → transfer TRANSFER +hai bút toán/số dư +audit +TransferCompleted +key result. Nguồn LOCKED, đích LOCKED/missing/SYSTEM trả422 ACCOUNT_NOT_ACTIVE; thiếu tiền422 INSUFFICIENT_FUNDS. REJECTED/audit/key commit trước phản hồi, không bút toán/event/đổi tiền. Mọi lỗi ghi rollback toàn bộ; retry503 dùng cùng key.
+`POST /v1/transfers` chỉ dành cho customer. Body `{fromAccountId, toAccountId, amount}`: hai UUID khác nhau, `amount` là chuỗi số đồng dương. Header `Idempotency-Key` bắt buộc, 1–128 ký tự.
 
-Key đã dùng trả409 an toàn, chưa replay (DBS-79). Hạn mức lần/ngày và full sync guard chờ tuần3; chưa coi endpoint này hoàn tất FR-LED-04 hoặc AC-5.3–5.6. Cùng chủ khác tài khoản được chuyển, event sameOwner true. Test dùng PostgreSQL thật, seed tiền qua deposit API; [DBS-61](../../../../docs/features/DBS-61-customer-transfers.md) có bảng case và bằng chứng. Nhánh tạm kế thừa DBS-60, chưa là tính năng đã merge vào main.
+- Nguồn được kiểm quyền bằng `getOwnedAccount`. Nguồn của người khác, không tồn tại hoặc là SYSTEM đều trả cùng một 404, và audit `DENIED` được ghi ngoài transaction nghiệp vụ.
+- Trong một transaction: đặt chỗ key → khóa tài khoản theo thứ tự id → kiểm lại chủ sở hữu, trạng thái ACTIVE và số dư trên bản đã khóa → ghi transfer, hai dòng sổ, hai số dư, audit, event `TransferCompleted` và kết quả của key.
+- Nguồn hoặc đích LOCKED, đích không tồn tại hoặc SYSTEM → 422 `ACCOUNT_NOT_ACTIVE`; thiếu tiền → 422 `INSUFFICIENT_FUNDS`. Transfer REJECTED, audit và kết quả của key được commit trước khi trả 422; không có dòng sổ, event hay thay đổi số dư.
+- Đích là tài khoản `funding` không bị khóa (chỉ khóa nguồn), để lệnh chuyển tới `funding` không phải xếp hàng sau các lệnh nạp tiền. Nếu sau này có tài khoản SYSTEM khác, phải mở rộng điều kiện này trong `transfer.service.ts`.
+- Mọi lỗi ghi đều rollback toàn bộ kể cả key; lỗi tạm thời trả 503 và thử lại được với cùng key.
+- Hai tài khoản khác nhau của cùng một người được phép, event có `sameOwner = true`.
 
-## Kiểm bất biến
-
-Chạy `npm run --silent check:invariants` từ `backend/` sau money test/load run. Năm phép kiểm dùng chung [invariants.sql](../../../test/support/invariants.sql); [hàm](../../../test/support/invariants.ts) nhận QueryRunner của caller. Exit 0 là sạch, 1 có vi phạm kèm IDs, 2 không kiểm được. Funding âm hợp lệ và vẫn tính vào SUM(balance). Chi tiết quyền/config/snapshot và cách dùng: [backend README](../../../README.md#9-kiểm-tra-bất-biến-sổ-cái).
-
-Công cụ chỉ đọc theo yêu cầu, chưa có lịch chạy worker hoặc `reconciliation_runs`; không kiểm chuỗi `balance_after` và không chữa dữ liệu. Giới hạn DB chưa ép đủ cặp/balance_after vẫn theo BL-006.
+Key đã dùng trả 409, chưa replay (DBS-79). Hạn mức theo lần và theo ngày và sync guard đầy đủ chờ tuần 3, nên endpoint này chưa hoàn tất FR-LED-04 hay AC-5.3 đến AC-5.6. Test dùng PostgreSQL thật, tiền vào qua API nạp tiền. Bảng case và bằng chứng nằm ở [DBS-61](../../../../docs/features/DBS-61-customer-transfers.md).

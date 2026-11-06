@@ -1,70 +1,41 @@
-DBS-61 final source SHA: 58d628e5274fd2f05bd8df0a75a4b9e442f1e994
-Temporary parent: 42d5d1d1205f2d5aed0e59f8b4efecafad9c1531 (DBS-60, explicit user authorization)
-Date: 2026-11-05 Asia/Saigon
+DBS-61 kết quả kiểm tra. Node 24.22.2 (bản portable), Windows, thư mục backend/.
+Commit code cuối: b34bec7d187c0ebe0245dcc32937b2d3125575b8
 
-Baseline before production code:
-docker compose up -d: postgres/valkey/elasticmq running
-lint:check PASS; typecheck PASS; build PASS
-unit 55 suites,826/826 PASS,97.570s
-e2e 13 suites,135/135 PASS,107.520s
+Môi trường:
+  Dịch vụ PostgreSQL cài sẵn trên máy chiếm cổng 5432, nên e2e chạy với DATABASE_URL trỏ tới một
+  container postgres:17-alpine tạm ở cổng 55432. test:db và manual dùng Testcontainers.
 
-Test-first red:
-One initial test-helper TS error (unknown not valid supertest body) corrected.
-Then19/19 actual PostgreSQL tests failed before transfer route existed,9.315s.
-AC5.1 expected201 got404; Swagger route absent. No production transfer code existed.
+Baseline trước khi sửa (đầu PR 2771771):
+  lint:check đạt; typecheck đạt
+  unit 831/832: hỏng "honours the refetch cooldown..." trong jwks-verifier.service.spec.ts (BL-112)
+  e2e 135/135
 
-After implementation:
-Initial green19/19 actualPG,12.481s.
-Lint exposed unnecessary non-null assertion and unsafe test return.
-Corrected source assertion/test query type; no runtime feature changes.
-Final lint:check PASS; typecheck PASS; build PASS.
-Final related PG six matching suites,129/129 PASS,74.124s.
-Command: npm run test:db -- --runInBand customer-transfers operator-deposits accounts-service audit-service outbox-writer
-No task .only/.skip/.todo; zero skipped task cases.
+Test viết trước:
+  TC-61-14 (chuyển tới funding khi hàng funding bị giữ khóa) hỏng trước khi sửa:
+    expected 422 "Unprocessable Entity", got 503 "Service Unavailable"
+  Sau khi sửa transfer.service.ts: customer-transfers 20/20 (lúc đó chưa có TC-61-13).
+  TC-61-13 đạt ngay vì code đã có nhánh kiểm lại chủ sở hữu. Kiểm bằng đột biến: bỏ ghi audit DENIED
+  thì hỏng ("Expected: 404 Received: 500"); đã khôi phục mã.
+  TC-61-03 và TC-61-04 siết thêm assertion, đạt ngay.
 
-Full unit final: 54 passed suites,1 failed suite;824 passed tests,2 failed /826,82.360s.
-Both failures inherited BL-112, jwks-verifier.service.spec.ts:
-- refetches on key rotation once cooldown elapsed, but not before: expected fetchCount1 got2, line247
-- honours refetch cooldown second unknown kid: expected fetchCount2 got3,line276
-Baseline was826/826. Identity source untouched. No rerun-until-green, no false unit-green claim.
-Full e2e final:13 suites135/135 PASS,126.079s.
-Full test:db not rerun; targeted129 not claimed as full DB suite.
-node --check scripts/manual-dbs61.cjs PASS.
+Kiểm tra cuối trên b34bec7:
+  npm run lint:check               đạt
+  npm run typecheck                đạt
+  npm run build                    đạt
+  npm test -- --runInBand          831/832 đạt, 55/56 suite (37,3 s); hỏng "refetches on key rotation..."
+                                   trong jwks-verifier.service.spec.ts (BL-112)
+  chạy riêng jwks-verifier         38/39; hỏng "honours the refetch cooldown..." (BL-112, khác test lần trước)
+  npm run test:e2e --runInBand     135/135 đạt, 13 suite (66,2 s)
+  npm run test:db --runInBand      390/390 đạt, 21 suite (219,6 s), chạy toàn bộ
+  test:db customer-transfers       21/21 đạt
+  node scripts/manual-dbs61.cjs    6/6 bước đạt (xem manual-test.txt)
 
-Manual command: node scripts/manual-dbs61.cjs
-6/6 steps PASS on final source SHA (see manual-test.txt first line).
-Actual Nest production modules, JWT, HTTP, PostgreSQL17, owned tempDB/container.
-SQL INPUT only users/customers/default-zero accounts. All money seeded by actual deposit API.
-Invariant PASS after business stages; final debit=credit18014398512884986,balance0,violations[].
-Actual triggers fail audit/outbox, complete rollback then same-key retry201.
-Actual10parallel200k withdrawals:5completed5rejected, no overdraft.
-Actual above2^53 amount9007199254740993 exact DB/event string.
-No Authorization/Bearer/JWT/password/DBURI/AWSARN patterns in transcript.
-Screenshot is a rendered excerpt of real transcript, visually inspected.
+Bằng chứng cho script manual:
+  Bản sao có chèn assert.fail ở bước M-61-01 thoát mã 1 và in
+  "M-61-06 NOT RUN AS PASS: an earlier step failed; cleanup problems: none"; không in PASS giả.
 
-Independent design review APPROVE zero findings; final implementation review APPROVE zero findings.
-Final docs link check203 files0broken.
-git diff --check PASS.
+Chạy trên Node 18 (không dùng làm bằng chứng): hỏng thêm typeorm-options.spec.ts
+  (crypto is not defined) và 16 test e2e. Lỗi crypto do phiên bản Node (repo yêu cầu >=24); e2e hỏng vì không kết nối
+  được Postgres khi không đặt DATABASE_URL (Node 24 cũng báo 'password authentication failed' trong cùng điều kiện).
 
-No main PR, CI, Dev review or merge evidence for DBS-61 yet.
-Wait DBS60 PR57 merge, rebase ONLY own commits using exact parent, reverify/manual, then Draft PR base main.
-Board remains In Progress; no sheet edits or merges by agent.
-BL-003/122 resolved, BL-148 extended; BL-152 process dependency and BL-151 full week3 guard/rejection handoff.
-
-FINAL REBASE VERIFICATION 2026-11-06 Asia/Saigon
-DBS60 PR57 merged d01907f82c7fd216f1edf653663fb1e95e129c64.
-Rebased ONLY own commits after42d5d1d onto main2df7d0a.
-Rebased source28c0cc4; tested tree/manual21917bc01185c067de2d72a40c0fd622334ed3bf.
-Application source,tests,manual driver byte-identical after rebase.
-Conflicts only documentation; preserved main backlog150 for DBS77, remapped own process150 to152. Guard handoff remains151.
-Lint/typecheck/build PASS. Full unit56suites832/832 PASS(70.158s); historical BL112 failure remains known, not claimed fixed.
-Manual6/6 PASS on rebased tree; invariant debit=credit18014398512884986,totalbalance0,violations0.
-No credentials in transcript. Screenshot refreshed from raw and visually inspected.
-Final e2e/DB/PR/CI results linked at handover below; no agent merge or board edit.
-Full E2E after rebase:13suites135/135 PASS,96.796s.
-Final doc links209files0broken; git diff --check PASS.
-Final relatedDB explicit paths:5suites123/123 PASS(26.876s), including19 DBS61.
-Older129 was broader six-suite regex; final123 is exact5suite selection, not a failed/removed test.
-Main Draft PR61: https://github.com/Lawliet119/digital-banking-simulator/pull/61
-Final CI: https://github.com/Lawliet119/digital-banking-simulator/pull/61/checks
-Final result independently verified at handover; Dev review and merge pending.
+Không có .skip, .only, .todo trong test của task.
