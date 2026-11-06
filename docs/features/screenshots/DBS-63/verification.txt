@@ -37,3 +37,17 @@ Documentation link check: 202 files,0 broken links after final artifacts.
 Final fetch confirms DBS-62 PR56 still open/unmerged, main still a9e607b.
 Published branch feat/DBS-63-open-accounts; no main PR yet per user's dependency decision.
 CI/Dev review/merge are not claimed by local checks; no main PR until dependency merge.
+
+FINAL REBASE VERIFICATION 2026-11-06 Asia/Saigon
+DBS62 PR56 merged689a8e85831f1ff6c9c51b8aeef66a4ba1f73caa.
+DBS63-only rebase from old base7d41a51 to main2df7d0a.
+Source a69bfcf, tested tree/manual HEAD b9e68eb76c1a8912f1286607c1ff8ace154d4514.
+Task application source/tests/manual driver byte-identical before/after rebase.
+Conflicts resolved ONLY BACKLOG/feature index, preserving main rows plus own task.
+Lint/typecheck/build PASS. Full unit832/832(56 suites,50.551s). E2E135/135(13 suites,83.168s).
+Initial related command had filename typo audit-service (ENOENT),62tests passed but command failed; not treated as success.
+Corrected actual audit.service path: four related PG suites75/75 PASS,10.185s.
+All10 DBS63 cases including10parallel=>3accounts/7ACCOUNT_LIMIT_REACHED.
+Manual6/6 PASS, zero invariant violations; new raw output/screenshot retained.
+No Bearer/JWT/DBURI/AWSARN credentials in transcript. Authorization word appears only in sanitized missing-header401 error.
+Actual main-based Draft PR/Checks linked in feature doc; no agent merge or sheet edit.

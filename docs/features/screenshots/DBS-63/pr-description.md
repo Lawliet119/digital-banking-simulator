@@ -7,7 +7,7 @@ Thêm `POST /v1/accounts` cho customer mở CHECKING/SAVINGS, số dư chuỗi `
 
 Mô tả PR đã chuẩn bị; chỉ mở PR vào main sau khi DBS-62 PR #56 được merge và rebase riêng DBS-63 khỏi base7d41a51.
 
-Kiểm tra local: lint/typecheck/build xanh;826/826 unit,135/135 e2e,75/75 test PostgreSQL của bốn suite liên quan; test thủ công6/6 và invariants PASS. Chưa chạy CI của DBS-63 vì chưa mở PR vào main.
+Kiểm tra local: lint/typecheck/build xanh;832/832 unit,135/135 e2e,75/75 test PostgreSQL của bốn suite liên quan; test thủ công6/6 và invariants PASS. Chưa chạy CI của DBS-63 vì chưa mở PR vào main.
 
 ## Loại thay đổi
 

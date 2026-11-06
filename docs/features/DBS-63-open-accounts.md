@@ -1,12 +1,12 @@
 # DBS-63 · UC-2 open customer accounts
 
-Status: Implemented on user-approved temporary DBS-62 base7d41a51; main PR/CI/review/merge pending BL-145. Owner: Dev. Updated 2026-11-04.
+Status: Rebased onto main2df7d0a after DBS-62 merge; main-based Draft PR/CI in progress, Dev review/merge pending BL-145. Owner: Dev. Updated 2026-11-06.
 
 ## 1. Context and scope
 
 Board: Week2, Story, Dev, Highest, In Progress. Exact DoD: open CHECKING/SAVINGS inside a transaction locking the customers row; at least5 concurrent requests create exactly3 accounts, others ACCOUNT_LIMIT_REACHED; audit, initial balance0, SYSTEM forbidden; CI green, Dev review, PR merged and complete test mapping.
 
-Dependencies: DBS-55 on main (PR33). DBS-62 exists in Draft PR56, not merged as of this fetch; main a9e607b lacks onboarding. Branch feat/DBS-63-open-accounts starts from current main; User explicitly approved using the real DBS-62 branch temporarily on2026-11-04. No fake onboarding or SQL customer seed. Fast-forwarded to DBS-62 at7d41a51; keep DBS-63 commits separate, then rebase only those commits onto main after PR56 merges before opening a main-based PR. No board edits or merges by agent.
+Dependencies now on main: DBS-55 PR33; DBS-62 [PR56](https://github.com/Lawliet119/digital-banking-simulator/pull/56) merged2026-11-06 at689a8e85831f1ff6c9c51b8aeef66a4ba1f73caa. Historical implementation started before that merge; main then a9e607b lacked onboarding. Branch feat/DBS-63-open-accounts starts from current main; User explicitly approved using the real DBS-62 branch temporarily on2026-11-04. No fake onboarding or SQL customer seed. Fast-forwarded to DBS-62 at7d41a51; keep DBS-63 commits separate, then rebase only those commits onto main after PR56 merges before opening a main-based PR. No board edits or merges by agent.
 
 Scope is POST /v1/accounts (UC-2, FR-ACC-01, BR-14), zero balance creation plus audit. No balance mutation, deposit/transfer, new account-number field, schema/env/dependency/ErrorCode changes, lock/unlock API, list/balance API, or event contract extension. Account creation is a new resource per request (until3), not transfer/deposit idempotency. Existing gaps BL-112/121 test timing and BL-130/132 identity/global-role audit are reported and remain with their owners. BL-017 application-role test harness is not claimed solved. BL-122 ledger callers/BL-008 money lint remain out of scope.
 
@@ -137,10 +137,18 @@ All business cases end with actual ledger-invariant checker PASS, zero violation
 
 ![Actual HTTP output excerpt](screenshots/DBS-63/01-http-results.png)
 
-Handoff BL-145: after PR56 merges, fetch main and replay only DBS-63 commits using `git rebase --onto origin/main 7d41a51 feat/DBS-63-open-accounts`. Rerun relevant checks and manual evidence at rebased SHA, then main-based Draft PR with prepared mapping and actual CI links. No PR against the dependency branch, board edit, or auto-merge. Board stays In Progress pending main-based PR. Existing handoff rows unchanged, no backlog items closed.
+Historical BL-145 dependency handoff is now resolved by rebase after PR56 merge; current PR/CI/review state is recorded in the final handover below. No PR against dependency branch, board edit or auto-merge. BL-145 remains open only for final CI/Dev review/merge.
 
-Final fetch: PR56 still open/unmerged; origin/main remains a9e607b. [Published DBS-63 branch](https://github.com/Lawliet119/digital-banking-simulator/tree/feat/DBS-63-open-accounts). No GitHub CI/Dev review/merge claimed for DBS-63. Delivery checklist: design/re-review APPROVE, all ten planned cases matched, local automated checks and six manual steps complete; raw output inspected for credential markers and screenshot visually checked; source SHA recorded; no schema/env/dependency/ErrorCode/ADR/event change. Main PR, final CI and Dev review/merge remain explicitly in BL-145.
+Historical pre-merge fetch2026-11-04: PR56 was still open/unmerged and origin/main a9e607b. [Published DBS-63 branch](https://github.com/Lawliet119/digital-banking-simulator/tree/feat/DBS-63-open-accounts). At that historical handoff no GitHub CI/Dev review/merge was claimed for DBS-63; see current handover below. Delivery checklist: design/re-review APPROVE, all ten planned cases matched, local automated checks and six manual steps complete; raw output inspected for credential markers and screenshot visually checked; source SHA recorded; no schema/env/dependency/ErrorCode/ADR/event change. Current final CI and Dev review/merge tracked in BL-145; main PR is now authorized by the follow-up request.
 
 ## 9. Sources and changed docs
 
 Exact sheet DBS-63; docs02 UC-2, FR-ACC-01, BR-14, FR-AUD-01/02; docs03 API/error table; shared database-design4.2, event-contract; Accounts/Audit README, actual schema/TransactionService/AuditService, CONTRIBUTING5/5b. Updated Accounts README and docs03 POST API contract, this feature doc, feature index, BACKLOG BL-145 and raw review/test/manual evidence. Public primitive exports and schema unchanged.
+
+## Rebase and final handover ? 2026-11-06
+
+User requested completion after DBS-62 merge. Independently verified PR56 merged into main689a8e8 (GitHub API), then replayed ONLY commits after7d41a51 onto main2df7d0a. Rebasing application code/tests/manual driver caused no conflicts and byte-for-byte task source is unchanged. Resolved BACKLOG/feature-index conflicts by retaining main rows plus DBS63 own row; no duplicate DBS62 row or inherited commits in PR. Rebased source commit a69bfcf; tested tree/manual HEAD b9e68eb includes only later documentation. Manual re-executed6/6 on that exact tree, raw firstline SHA records it. Automated check results, new PR and final CI appended below once observed. No human Dev review/merge claimed; board changes remain with user.
+
+Rebased-tree checks2026-11-06: lint/typecheck/build PASS; full unit56 suites832/832 PASS(50.551s), full e2e13 suites135/135 PASS(83.168s), manual6/6 PASS at b9e68eb. Initial related-DB command had a filename typo(audit-service instead of actual audit.service),62 actual cases passed but command failed ENOENT; corrected command rerun and final result recorded below. Never treated ENOENT as suite success. No task test skips.
+
+Final corrected related-DB command: four suites75/75 PASS(10.185s), including all10 account-opening cases and real parent-lock503/recovery. Full DB suite remains for PR CI; selected75 not claimed fullDB.
