@@ -672,8 +672,31 @@ test("TC-126-01/12: identical memory artifacts without wall clock or unseeded ra
       "load-tests/results/fraud-mixed.csv.simulation.json",
       "load-tests/results/fraud-mixed.csv.stats.json",
     ],
-    { encoding: "utf8" },
+    {
+      encoding: "utf8",
+      cwd: fileURLToPath(new URL("../../", import.meta.url)),
+    },
   );
   assert.equal(check.status, 0, check.stderr);
   assert.equal(check.stdout.trim().split("\n").length, 3);
+});
+
+test("TC-126-12: ignore checks work from the backend CI working directory", () => {
+  const childEnv = { ...process.env };
+  delete childEnv.NODE_TEST_CONTEXT;
+  const child = spawnSync(
+    process.execPath,
+    [
+      "--test",
+      "--test-name-pattern=identical memory",
+      fileURLToPath(import.meta.url),
+    ],
+    {
+      encoding: "utf8",
+      env: childEnv,
+      cwd: fileURLToPath(new URL("../../backend/", import.meta.url)),
+    },
+  );
+  assert.equal(child.status, 0, child.stdout + child.stderr);
+  assert.match(child.stdout, /tests 1\b/);
 });
