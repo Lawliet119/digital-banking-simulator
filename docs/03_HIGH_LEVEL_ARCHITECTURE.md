@@ -615,6 +615,8 @@ erDiagram
 
 Các bảng kỹ thuật không vẽ trong sơ đồ: `outbox_events`, `processed_events`, `audit_log`, `risk_rule_sets`, `notification_log`, `reconciliation_runs`. Sơ đồ trên là bản rút gọn; **schema đầy đủ** (cột, ràng buộc, index, quyền) chỉ nằm ở [`components/_shared/database-design.md`](components/_shared/database-design.md). Vai trò người dùng không lưu ở `users` mà lấy từ nhóm Cognito trong JWT.
 
+DBS-96: `notification_log.message` chỉ chứa thông báo chung, không chứa lý do gian lận (BR-13). Writer chịu trách nhiệm kiểm nội dung và phải có test; COMMENT của migration ghi lại quy tắc, không kiểm được ngữ nghĩa văn bản. `event_id` có index không unique vì một event có thể có nhiều người nhận; chống xử lý trùng thuộc `processed_events` của consumer.
+
 | Domain (tài liệu 02) | Bảng | Ràng buộc bảo vệ bất biến |
 |---|---|---|
 | Account | `accounts` | `CHECK (type = 'SYSTEM' OR balance >= 0)` |

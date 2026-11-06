@@ -1,5 +1,10 @@
 # Backlog: việc còn tồn sau các task
 
+| ID | Việc còn tồn | Nguồn | Chủ trì | Điều kiện đóng |
+|---|---|---|---|---|
+| BL-137 | DBS-96 chưa có Dev khác review và merge main | [DBS-96](features/DBS-96-notification-log.md) §8 | Dev reviewer | CI xanh, Dev review, merge main và bảng đối chiếu PR đầy đủ |
+| BL-138 | Consumer tương lai phải test BR-13 cho message; schema chỉ ghi COMMENT, không thể kiểm ngữ nghĩa văn bản | [DBS-96](features/DBS-96-notification-log.md) §8 | Dev notification consumer | Test nội dung chung cho TransferCompleted/AccountStatusChanged, không lộ lý do hoặc cờ gian lận |
+
 > **Status:** Active · **Owner:** cả nhóm · **Verified against code:** n/a · **Cập nhật:** 2026-11-02
 
 Nơi gom những việc một task **cố ý không làm** và đã chuyển cho người hoặc task khác: một DoD chưa đạt được vì thiếu hạ tầng, một phát hiện review thuộc module khác, một giới hạn đã chấp nhận và cần quay lại sửa. Mỗi dòng trỏ về feature doc đã sinh ra nó. Việc của chính task đang làm không ghi ở đây.
