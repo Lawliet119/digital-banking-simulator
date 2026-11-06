@@ -1,6 +1,6 @@
 # DBS-103 · API tra cứu nhật ký kiểm toán
 
-> **Status:** Plan approved — code và evidence local đã có, chờ G4 · **Vai:** Dev · **Dev review:** chưa phân công · **Nhánh:** `codex/DBS-103-audit-search` · **PR:** — · **Cập nhật:** 2026-11-05
+> **Status:** Implemented — G4 đã duyệt phạm vi bàn giao; các giới hạn và process DoD còn mở · **Vai:** Dev · **Dev review:** chưa phân công · **Nhánh:** `codex/DBS-103-audit-search` · **PR:** — · **Cập nhật:** 2026-11-06
 
 ## 1. Bối cảnh
 
@@ -560,6 +560,12 @@ Năm ảnh dưới chụp browser viewer hiển thị **trích nguyên văn raw 
 
 **Tích hợp tài liệu khi hai PR được review/merge:** đã đối chiếu bốn diff dùng chung. Giữ đồng thời diagram/contract UC-8 của DBS-103 và ownership/transaction boundary của DBS-86 trong docs03; T22 cùng T11/T12 trong threat model; cả hai dòng feature index. BL-019 là cùng một row: khi hợp hai thay đổi, giữ API UC-8 và primitive DENIED đã có, chỉ giữ grants/full AC-8.1/registry/load/sensitive reads còn thiếu; không trả phần API đã xử lý về trạng thái thiếu. Giữ BL-143/144 và BL-145/146 không trùng ID. Đây là lưu ý cho Dev review/merge, chưa có merge main hoặc CI remote.
 
+### Phê duyệt G4 và công bố ngày 2026-11-06
+
+Người dùng trả lời **«duyệt g4»**, chấp nhận kết quả và từng giới hạn đã nêu trong bàn giao G4, cho phép push nhánh và mở Draft PR. Status chuyển thành **Implemented** cho phạm vi G1–G3; không đánh dấu toàn bộ DoD hoàn tất. Source/test giữ nguyên SHA đã chạy manual; chỉ sửa tài liệu sau G4.
+
+Fetch trước công bố xác nhận `origin/main` đã tới `2df7d0a` (thêm DBS-60/62/77). `git merge-tree --write-tree --name-only --no-messages HEAD origin/main` phát hiện conflict ở: `backend/src/modules/index.ts`, `docs/BACKLOG.md`, `docs/features/README.md`. Không rebase/merge source sau G4; kiểm thử đã lưu áp dụng cho source SHA và base `a9e607b` đã công bố, chưa chứng minh tích hợp với main mới. Dev xử lý conflict và chạy lại verification trước review/merge, theo BL-144. Hai PR vẫn cần giữ các thay đổi tài liệu dùng chung của cả hai task.
+
 ## 9. Tài liệu đã cập nhật
 
 | Tài liệu | Fact đã cập nhật |
@@ -577,7 +583,7 @@ Bốn tài liệu dùng chung do điều phối viên cập nhật và đối ch
 
 ## Checklist G4
 
-Đang chuẩn bị G4; giữ status **Plan approved**. Các giới hạn M05/M09/TC06R/TC17 và quy trình đã được nêu tên, cần người duyệt chấp nhận ở G4; không nhận toàn DoD đã đạt.
+G4 đã duyệt ngày 2026-11-06; status **Implemented** trong phạm vi đã duyệt. Người dùng chấp nhận các giới hạn M05/M09/TC06R/TC17 và quy trình được nêu tên; không nhận toàn DoD đã đạt. Checklist dưới đây ghi kết quả tại thời điểm trình G4.
 
 - [x] 20/21 TC chính đạt trong độ sâu đã duyệt; TC17 partial production roles và TC06R handoff chưa chạy; 0 case bị đơn giản hóa hoặc skip để nhận đạt.
 - [x] Manual trên final source/test SHA `8894117`: 9 bước đạt, M05 một phần/M09 chưa chạy nêu rõ. M10 Ctrl+C cleanup đạt nhưng PTY wrapper exit1 được giữ nguyên, không nhận normal exit0.

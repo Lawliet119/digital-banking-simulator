@@ -62,4 +62,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-59](DBS-59-risk-module-skeleton.md) | Khung RiskModule, RiskRule và FeatureProvider | #4 Fraud | Draft PR #42, chờ CI/review và các handoff |
 | [DBS-58](DBS-58-fraud-migration.md) | Migration risk_rule_sets v1, fraud_flags, fraud_rule_hits và trigger append-only | Fraud | Implemented (Draft PR #44; CI xanh; chờ manual/Dev review/merge) |
 | [DBS-71](DBS-71-normal-fraud-dataset.md) | Generator CSV giao dịch bình thường có seed cố định, thói quen khách và đối soát số dư | Dev | Implemented (Draft PR #43; CI xanh; chờ Dev review/merge) |
-| [DBS-103](DBS-103-audit-search.md) | GET audit entries auditor-only, cursor chính xác và audit.search cùng transaction | Dev | Plan approved (G3); kiểm local và bằng chứng bàn giao ở feature doc; chờ G4/Dev review/CI/merge |
+| [DBS-103](DBS-103-audit-search.md) | GET audit entries auditor-only, cursor chính xác và audit.search cùng transaction | Dev | Implemented (G4 2026-11-06); kiểm local và bằng chứng bàn giao ở feature doc; chờ tích hợp main mới/Dev review/CI/merge |
