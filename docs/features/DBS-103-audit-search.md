@@ -1,6 +1,6 @@
 # DBS-103 · API tra cứu nhật ký kiểm toán
 
-> **Status:** Implemented — G4 đã duyệt phạm vi bàn giao; các giới hạn và process DoD còn mở · **Vai:** Dev · **Dev review:** chưa phân công · **Nhánh:** `codex/DBS-103-audit-search` · **PR:** — · **Cập nhật:** 2026-11-06
+> **Status:** Implemented — G4 đã duyệt phạm vi bàn giao; các giới hạn và process DoD còn mở · **Vai:** Dev · **Dev review:** chưa phân công · **Nhánh:** `codex/DBS-103-audit-search` · **PR:** [#59](https://github.com/Lawliet119/digital-banking-simulator/pull/59) (Draft) · **Cập nhật:** 2026-11-06
 
 ## 1. Bối cảnh
 
@@ -561,6 +561,8 @@ Năm ảnh dưới chụp browser viewer hiển thị **trích nguyên văn raw 
 **Tích hợp tài liệu khi hai PR được review/merge:** đã đối chiếu bốn diff dùng chung. Giữ đồng thời diagram/contract UC-8 của DBS-103 và ownership/transaction boundary của DBS-86 trong docs03; T22 cùng T11/T12 trong threat model; cả hai dòng feature index. BL-019 là cùng một row: khi hợp hai thay đổi, giữ API UC-8 và primitive DENIED đã có, chỉ giữ grants/full AC-8.1/registry/load/sensitive reads còn thiếu; không trả phần API đã xử lý về trạng thái thiếu. Giữ BL-143/144 và BL-145/146 không trùng ID. Đây là lưu ý cho Dev review/merge, chưa có merge main hoặc CI remote.
 
 ### Phê duyệt G4 và công bố ngày 2026-11-06
+
+Đã push nhánh và mở [Draft PR #59](https://github.com/Lawliet119/digital-banking-simulator/pull/59). Chưa có bằng chứng CI xanh, Dev review hoặc merge; conflict với main mới vẫn chờ xử lý theo BL-144.
 
 Người dùng trả lời **«duyệt g4»**, chấp nhận kết quả và từng giới hạn đã nêu trong bàn giao G4, cho phép push nhánh và mở Draft PR. Status chuyển thành **Implemented** cho phạm vi G1–G3; không đánh dấu toàn bộ DoD hoàn tất. Source/test giữ nguyên SHA đã chạy manual; chỉ sửa tài liệu sau G4.
 
