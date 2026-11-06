@@ -1,6 +1,6 @@
 # DBS-61 · Customer transfers with atomic double entry
 
-> **Status:** Implemented locally; dependency/rebase/PR/CI/Dev review/merge pending · **Role:** Dev · **Branch:** `feat/DBS-61-customer-transfers` · **PR:** pending dependency merge · **Updated:** 2026-11-05
+> **Status:** Rebased onto main after DBS-60 merge; Draft PR/final CI in progress, Dev review/merge pending · **Role:** Dev · **Branch:** `feat/DBS-61-customer-transfers` · **PR:** pending dependency merge · **Updated:** 2026-11-05
 
 ## 1. Context
 
@@ -144,7 +144,7 @@ All tests below in [customer-transfers.db-spec.ts](../../backend/test/db/custome
 | TC10 | `>2^53 exact` +`signed64 destination overflow500` 2 real API cases including every financial write rollback in owned capacityDB | Full |
 | TC11 | `denied audit failure` actual audittrigger500, no effects; remove/retry404+oneDENIED | Full |
 | TC12 | `Swagger lists JWT,key,DTO example and response statuses` | Full |
-| Process | No PR/CI/Dev review/merge yet; dependency PR57 still required | Pending BL-150 |
+| Process | No PR/CI/Dev review/merge yet; dependency PR57 still required | Pending BL-152 |
 
 ### Manual results
 
@@ -152,7 +152,7 @@ Command `node scripts/manual-dbs61.cjs`, raw [manual-test.txt](screenshots/DBS-6
 
 | Step | Real response / query evidence | Result |
 |---|---|---|
-| M01 | Actual201 transfer `964ab78c-f6c7-4b55-905d-bb0f58444144`, correlation `c34b804d-c2ca-469f-9fdd-6a4fb7ca7a1d`; queried700000/300000 and exact2lines, audit/outbox/key counts1, event validator success | PASS |
+| M01 | Actual201 transfer `1eb42bcf-2770-44b2-95d2-defca4642a7f`, correlation `952b279c-36ee-4bd4-a77a-0954e39ca1ec`; queried700000/300000 and exact2lines, audit/outbox/key counts1, event validator success | PASS |
 | M02 | Actual422 INSUFFICIENT_FUNDS and ACCOUNT_NOT_ACTIVE with persisted IDs/reasons, totals unchanged except transfer/audit/key; foreign source404+queried DENIED | PASS |
 | M03 |400 IDEMPOTENCY_KEY_REQUIRED,403 FORBIDDEN, duplicate409 with exact snapshot unchanged | PASS |
 | M04 | Actual audit/outbox failures500 with generic detail, full snapshot unchanged; remove trigger, samekey201 twice | PASS |
@@ -167,11 +167,21 @@ Plan sweep: source files match §7; changes since parent are isolated DBS61 comm
 
 ### Handoffs
 
-- **BL-150:** DBS60 dependency/main rebase/PR/CI/Dev review/merge. Keep board **In Progress**. After PR57 merges: fetch, then `git rebase --onto origin/main 42d5d1d1205f2d5aed0e59f8b4efecafad9c1531 feat/DBS-61-customer-transfers`, resolve/reverify source/manual on new SHA, open Draft PR with base main using prepared [PR description](screenshots/DBS-61/pr-description.md). No PR against the DBS60 feature branch.
+- **BL-152:** Dependency PR57 merge/rebase now resolved as recorded below. Final main-based Draft PR/CI/Dev review/merge tracked in final handover; [PR mapping](screenshots/DBS-61/pr-description.md). No PR against the DBS60 feature branch.
 - **BL-148:** DBS79 replay/hash conflict, currentlysafe409 for reused keys. No claim of full idempotency acceptance/replay semantics.
 - **BL-151:** full week3 syncguard/limits/daily boundary and comprehensive DBS83 rejection contract.
 - **BL-112:** inherited full-unit JWKS cooldown timing failures remain visible. No Identity source changed.
 
 ## 9. Documentation
 
-Updated ledger README, docs03 API current maturity, feature index, BACKLOG. Removed resolved **BL-003** and **BL-122** (source SYSTEM404/DENIED, targetSYSTEM422, actual transfer primitive/rollback integration proved). Extended existing BL-148 to include transfer; added BL-150/151. Other unrelated backlog rows retained. Added feature doc, raw independent reviews, actual manual transcript, screenshot, verification and prepared PR description. No ADR edits.
+Updated ledger README, docs03 API current maturity, feature index, BACKLOG. Removed resolved **BL-003** and **BL-122** (source SYSTEM404/DENIED, targetSYSTEM422, actual transfer primitive/rollback integration proved). Extended existing BL-148 to include transfer; added BL-152/151. Other unrelated backlog rows retained. Added feature doc, raw independent reviews, actual manual transcript, screenshot, verification and prepared PR description. No ADR edits.
+
+## Final rebase handover ? 2026-11-06
+
+DBS60 PR57 independently verified merged into main d01907f82c7fd216f1edf653663fb1e95e129c64. Replayed only DBS61 commits after42d5d1d onto origin/main2df7d0a. Rebased source28c0cc4; tested tree21917bc includes only later docs. Application source/tests/manual driver byte-identical before/after; no business changes. Conflicts only BACKLOG/feature index: preserved main records, resolved removal of completed BL-122, extended existing BL-148. Main had independently allocated BL-150 to DBS77, so own process handoff renumbered to **BL-152**; syncguard handoff remainsBL-151. No lost main row or duplicate IDs. Actual rerun results and new PR recorded below after observed.
+
+Current checks after rebase: lint/typecheck/build PASS; full unit56suites832/832 PASS(70.158s). Historical824/826 result above retained as actual BL-112 timing evidence; no Identity change and no root-cause fix claimed. Manual rerun6/6 at tested tree21917bc; new raw HTTP IDs/screenshot retained. E2E/DB and final main PR/CI recorded below once complete.
+
+Rebased full E2E13suites135/135 PASS(96.796s); no task skips. Docs link check209files0broken; git diff --check clean. Targeted DB result below, full DB suite covered by CI rather than inferred from local selection.
+
+Final explicit related-DB selection after rebase: five suites123/123 PASS(26.876s), includes all19 DBS61 cases. Selection uses exact paths customer-transfers/operator-deposits/accounts-service/audit.service/outbox-writer; older129 result used a broader regex/six suites, so not the same selection. Full DB evidence belongs to final CI.

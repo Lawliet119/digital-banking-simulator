@@ -17,7 +17,7 @@ Customer POST `/v1/transfers` kiểm quyền nguồn, khóa hai account theo id,
 
 ## Liên quan tới
 
-UC-5, FR-LED-02/03/06, BR-02/03/09/10, AC-5.1/5.2/5.7/5.8; ADR-04/05/07/09 và TransferCompleted contract. Chỉ bản thô: chưa full-limit FR-LED-04/AC5.6; chưa replay AC5.3/4/5 (DBS-79). Key đã dùng409 an toàn. BL-003/122 resolved; BL-148,BL-150/151 handoff.
+UC-5, FR-LED-02/03/06, BR-02/03/09/10, AC-5.1/5.2/5.7/5.8; ADR-04/05/07/09 và TransferCompleted contract. Chỉ bản thô: chưa full-limit FR-LED-04/AC5.6; chưa replay AC5.3/4/5 (DBS-79). Key đã dùng409 an toàn. BL-003/122 resolved; BL-148,BL-152/151 handoff.
 
 ## Đối chiếu test case
 
@@ -33,13 +33,13 @@ Test file: `backend/test/db/customer-transfers.db-spec.ts`, thực sự gọi HT
 | Ownership; AC5.8 | TC03/11 foreign/missing/SYSTEM sources404+DENIED; actual auditfault500 | Khớp |
 | Money/string/event contract | TC01 DBtimes/owners/CID/hash; TC07 sameOwnertrue; TC10 >2^53 exact API/DB/event | Khớp |
 | API contract | TC05 validation,TC12 Swagger statuses/key/body | Khớp |
-| DoD5 CI/Dev review/merge | Wait dependency merge/rebase/main Draft PR/checks/review/merge | Chưa làm,BL-150 |
+| DoD5 CI/Dev review/merge | Draft PR base main; final checks/review/merge | Chưa làm,BL-152 |
 | Replay / full limits | Safe409 barrier TC07; full replay79 and full syncguard week3 | Ngoài phạm vi bản thô,BL-148/151; không claim các AC đầy đủ |
 
 ## Kiểm tra
 
 - [x] Docker compose local đang chạy; actual HTTP/PG17 manual workflow6/6 đạt trên owned database/container
-- [x] Test tiền PostgreSQL thật:19/19 DBS61,129/129 relatedDB; e2e135/135
+- [x] Test tiền PostgreSQL thật:19/19 DBS61,123/123 relatedDB (5 explicit suites); e2e135/135 (after rebase96.796s)
 - [ ] Full unit xanh:824/826,hai lỗi inherited BL-112 JWKS cooldown; baseline826/826. Không sửa Identity trong DBS61
 - [ ] CI xanh — chưa có PR/CI; phải cập nhật trên SHA sau rebase
 - [x] Không có secret trong code/log/evidence
