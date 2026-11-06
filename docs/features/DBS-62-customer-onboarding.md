@@ -1,120 +1,187 @@
-# DBS-62 · Customer onboarding
+# DBS-62 · UC-1 onboarding: tạo hồ sơ customers cho người dùng
 
-Status: Implemented; [Draft PR56](https://github.com/Lawliet119/digital-banking-simulator/pull/56) targets main after rebase. Dev review/merge pending BL-144. Owner: Dev. Updated 2026-11-04.
+> **Status:** Implemented (G4 chờ duyệt lại sau khi dọn tài liệu) · **Vai:** Dev (Accounts) · **Nhánh:** `feat/DBS-62-customer-onboarding` · **PR:** [#56 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/56) · **Cập nhật:** 2026-11-06
 
-## 1. Scope and dependencies
+## 1. Bối cảnh
 
-Board Dev, Highest, In Progress. DBS-20/51/52 Done. DBS-53 board says In Progress but its implementation/token tools are on main via merged PR48. AuditService is now on main via [PR54](https://github.com/Lawliet119/digital-banking-simulator/pull/54), commit7f3b700, including metadata serialization and nested-transaction protections. On 2026-11-04 rebased only the three DBS-62 commits onto main a9e607b, removing temporary integration08e605e and all dependency commits from the PR diff. Kept main's backlog rows (including audit BL-137); the temporary BL-143 duplicate was discarded. No schema or audit implementation changes in DBS-62.
+**Board:** Story, Tuần 2, Highest, Dev, In Progress; đọc bằng `fetch-task.mjs DBS-62`.
 
-Deliver POST/GET /v1/customers/me per docs03 UC-1. Actual requirement is FR-ID-02 (board references FR-ACC-01, which docs02 assigns to account opening/UC-2). User authorizes prior delivery workflow without gate pauses: design review/test/manual/commit/push; main-based PR when dependencies available.
+**Expect nguyên văn:** Người dùng mới tự tạo hồ sơ khách hàng.
 
-## 2. API and rules
+**DoD nguyên văn:**
 
-Customer-only endpoints using existing global JwtAuthGuard/RolesGuard and @CurrentUser. Caller userId comes only from verified token mapping, never body/path/query. POST body {fullName:"Nguyễn Minh Anh"}; normalize NFC and trim, require1..200 characters, reject control characters/non-string/empty and extra fields with400 problem+json. Do not add ErrorCode: current validation400 and profile404 are distinguished by HTTP status. 401 UNAUTHENTICATED/TOKEN_EXPIRED and403 FORBIDDEN are existing guard codes.
+1. Endpoint onboarding (customer) tạo `customers` với `user_id` UNIQUE: mỗi user đúng một customer; gọi lại → kết quả nhất quán, không tạo trùng.
+2. Swagger có ví dụ và mã lỗi; test e2e Postgres thật gồm gọi song song.
+3. PR đã merge vào main (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ.
 
-POST is create-or-return, HTTP200 for first creation and replay. Response {id:<uuid>,fullName:<stored name>,createdAt:<ISO UTC Z>}. First committed insert wins; later valid body with a different name returns original profile unchanged. customers.user_id UNIQUE guarantees one row; do not use DO UPDATE or mutate name on replay. GET returns caller's profile, or404 if not onboarded. No accounts/balances created, no CustomerCreated event invented (not in accepted event contract).
+**Phụ thuộc:**
 
-Audit in same transaction: new profile -> customer.created SUCCESS, replay/GET existing profile -> customer.read SUCCESS (sensitive access); actor verified internal userId, acting role customer, target customer/id, server-generated correlationId, metadata only id. Audit failure rolls back profile; no swallowing errors. Missing GET profile is404, not permission denial. Generic role403 audit persistence remains existing global guard gap BL-132 and is not claimed fixed here. No token/name/email/full request data in audit metadata or errors.
+| Phụ thuộc | Board | Thực tế trong repo |
+|---|---|---|
+| DBS-20 Migration 1 (`users`, `customers`, `accounts`) | Done | [Migration](../../backend/src/database/migrations/1791763200000-CreateUsersCustomersAccounts.ts) |
+| DBS-51 `@Roles`/`RolesGuard`/`@CurrentUser` | Done | [identity module](../../backend/src/modules/identity/index.ts) |
+| DBS-52 Tạo dòng `users` bằng upsert theo `cognito_sub` | Done | [identity.service.ts](../../backend/src/modules/identity/identity.service.ts) |
+| DBS-53 Xác thực local/test (token mẫu từng vai) | Board "In Progress" nhưng code đã merge main qua PR #48 | [auth-local](../../backend/src/config/auth-local.ts) |
+| DBS-56 `AuditService.record` | Không nằm trong danh sách phụ thuộc gốc của board, nhưng cần cho fail-closed audit; đã merge main qua PR #54 (commit `7f3b700`) trước khi rebase nhánh này | [audit.service.ts](../../backend/src/modules/audit/audit.service.ts) |
 
-## 3. Architecture and transaction
+**Đã có:** schema migration 1 (bảng `customers` có `user_id UNIQUE`), `AccountsService` (DBS-55, chỉ primitive, chưa có HTTP). Chưa có module `accounts` phần HTTP (chỉ README). Luồng tham chiếu: [docs/02 FR-ID-02](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md), [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md). Board ghi `FR-ACC-01`, nhưng docs/02 dùng mã đó cho mở tài khoản (UC-2) — mã đúng cho onboarding là `FR-ID-02`.
 
-AccountsModule imports AuditModule. New CustomerProfileService injects real TransactionService + AuditService, queries owned customers only via parameterized SQL and manager in tx.run. POST INSERT ... ON CONFLICT(user_id) DO NOTHING RETURNING ...; if no returned row, separate SELECT in READ COMMITTED sees the committed winner after unique-conflict wait. Then audit the result and commit before HTTP response. No service-level retry beyond TransactionService. GET selects/audits in same transaction. Request middleware correlationId is required before invoking service; missing server context is a programming error500.
+**Baseline sau rebase lên `a9e607b`:** `lint:check`/`typecheck`/`build` exit 0; e2e 13 suites/135 tests; PostgreSQL thật 65/65 tests liên quan (onboarding + AccountsService + AuditService); unit 825/826 (1 lỗi timing đã biết của `jwks-verifier.service.spec.ts`, xem BL-112, không liên quan code task này).
 
-DTO/controller/response types are module-local; existing AccountsService public primitives remain unchanged. No schema/entity/new dependency/env/ADR/ErrorCode changes. Main role module registry already loads AccountsModule for api/both. Actor identity upsert remains its existing separate guard transaction (BL-130 exemption); failure of onboarding does not delete valid users identity.
+**Ngoài phạm vi:** mở tài khoản/số dư/sổ cái (task riêng); event `CustomerCreated` (không có trong event contract đã chốt); sửa guard xác thực hiện có; vận hành worker.
+
+**Quyết định ở G1 (ghi lại, techlead duyệt retroactive 2026-11-06):** chấp nhận phạm vi và phụ thuộc như trên; DBS-53 coi là đủ điều kiện vì code thật đã merge dù board lag; DBS-56 (không có trong danh sách phụ thuộc gốc trên board) là phụ thuộc thật cần thêm vì audit fail-closed là một phần DoD #1 ("kết quả nhất quán").
+
+## 2. Hành vi
+
+**2.1 `POST /v1/customers/me`.** `@Roles('customer')`, guard toàn cục (`JwtAuthGuard`, `RolesGuard`). Body `{"fullName": "Nguyễn Minh Anh"}`: chuẩn hóa Unicode NFC và trim trước khi validate, 1–200 ký tự, không chứa ký tự điều khiển ASCII (`\u0000`–`\u001f`, `\u007f`), phải là string, không field lạ (`ValidationPipe` toàn cục `whitelist: true, forbidNonWhitelisted: true` tự chặn `userId`, `role`, … bằng 400).
+
+Trả `200` (không phải `201` — đây là create-or-return, không phải tạo mới thuần) `{"id": "<uuid>", "fullName": "<tên đã lưu>", "createdAt": "<ISO UTC Z>"}` cho cả lần gọi đầu và mọi lần gọi lại. Tên gửi ở lần gọi lại **không** được dùng để cập nhật hồ sơ — hồ sơ giữ nguyên tên của lần tạo đầu tiên thắng cuộc.
+
+**2.2 `GET /v1/customers/me`.** Trả hồ sơ của caller (từ JWT, không bao giờ từ body/query/path), hoặc `404 Customer profile not found` nếu chưa onboarding. Không có DTO cho query string nên một `userId` giả trong query bị Nest bỏ qua hoàn toàn, không ảnh hưởng logic.
+
+**2.3 Đảm bảo không trùng.** `customers.user_id UNIQUE` (từ migration 1) là ràng buộc DB thật sự bảo vệ request đồng thời: `INSERT INTO customers (user_id, full_name) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING RETURNING ...`. Nếu không chèn được (đã có hồ sơ), chạy `SELECT` riêng trong cùng transaction — ở READ COMMITTED, câu `SELECT` này chờ transaction đang giữ `user_id` đó commit/rollback xong rồi mới thấy đúng dòng đã thắng (cùng pattern với `IdentityService.lookupOrCreate`, DBS-52). Không dùng `DO UPDATE`: không có gì để update, và sẽ ghi dead tuple mỗi lần gọi lại.
+
+**2.4 Audit, fail-closed.** Cùng transaction với dữ liệu: tạo mới → `customer.created` (SUCCESS); gọi lại hoặc GET → `customer.read` (SUCCESS, vì đang truy cập dữ liệu nhạy cảm — đúng FR-AUD-02). Actor là `users.id` đã verify, role `customer`, target `{type: 'customer', id}`, correlationId do server sinh, `metadata` chỉ có `{id}` — không tên, không token, không PII khác. `AuditService.record` không try/catch lỗi insert; lỗi bất kỳ (ví dụ trigger DB từ chối) làm rollback toàn bộ transaction, kể cả với GET (không trả hồ sơ, không rò dữ liệu, lỗi trả `500` chung). `404` khi chưa onboarding không ghi audit (không có dữ liệu nhạy cảm nào để xem).
+
+**2.5 Không áp dụng cho task này.** Việc 403 `FORBIDDEN` (sai role) được ghi `audit_log` với `outcome = DENIED` là lỗ hổng chung đã biết của `RolesGuard` (BL-132), không thuộc DBS-62 và không được sửa ở đây.
+
+## 3. Kiến trúc
+
+- **Vị trí:** module có sẵn `backend/src/modules/accounts/` (chỉ có `AccountsService` trước đây), thêm `CustomerProfileService`, `CreateCustomerProfileDto`/`CustomerProfileDto`, `CustomersController`. Đăng ký ở `apiModules` qua [`modules/index.ts`](../../backend/src/modules/index.ts) (đã có từ trước, không đổi).
+- **Import:** `AccountsModule` giờ import `AuditModule` (export công khai `@modules/audit`) để inject `AuditService`. `AccountsService` export công khai không đổi chữ ký.
+- **Interface dùng:**
+  - `TransactionService.run<T>(fn)` — [transaction.service.ts](../../backend/src/database/transaction.service.ts).
+  - `AuditService.record(manager, input)` — [audit.service.ts](../../backend/src/modules/audit/audit.service.ts).
+- **Dữ liệu:** bảng `customers` (đã có từ migration 1), `audit_log`; không migration mới, không ErrorCode/schema/env/ADR mới.
+- **Ranh giới transaction:** toàn bộ §2.3–§2.4 nằm trong một `TransactionService.run`. Không Redis/HTTP/SQS trong callback.
+- **Người gọi bị ảnh hưởng (grep):** fixture test cũ `backend/test/db/accounts-service.db-spec.ts` (DBS-55) giờ cần cung cấp `TransactionService` thật (vì `AccountsModule` kéo thêm `AuditModule`) — đã thêm module fixture `AccountsTransactionFixtureModule` trong chính file test đó, không đổi `AccountsService` hay API công khai của nó.
 
 ```mermaid
 sequenceDiagram
-    participant HTTP as Customer HTTP
+    participant HTTP as Customer (JWT)
     participant Guard as JWT / Roles / CurrentUser
     participant Profile as CustomerProfileService
-    participant DB as PostgreSQL transaction
+    participant DB as PostgreSQL (transaction)
     participant Audit as AuditService
-    HTTP->>Guard: verified token, fullName
-    Guard->>Profile: internal userId, server correlationId
-    Profile->>DB: INSERT ON CONFLICT or owned SELECT
-    Profile->>Audit: record with the same manager
+    HTTP->>Guard: token đã verify, fullName
+    Guard->>Profile: userId nội bộ, correlationId server
+    Profile->>DB: INSERT ON CONFLICT hoặc SELECT hồ sơ đã có
+    Profile->>Audit: record cùng manager
     Audit->>DB: INSERT audit_log
-    DB-->>Profile: commit (rollback on any error)
-    Profile-->>HTTP: profile only after commit
+    DB-->>Profile: commit (rollback nếu có lỗi)
+    Profile-->>HTTP: trả hồ sơ chỉ sau khi commit
 ```
 
-## 4. Cases
+## 4. Test cases tự động
 
-| Case | Evidence |
-|---|---|
-| TC-62-01 | Actual JWT/local JWKS, real IdentityService, RolesGuard, HTTP+Postgres: valid POST ->200 normalized name, one customer and customer.created audit with server correlationId; no account created |
-| TC-62-02 | Replay same/different valid name ->identical profile, unchanged stored name, one creation audit; reads audit per request |
-| TC-62-03 | 20 real simultaneous first POSTs (Promise.all, pool30) ->identical200 bodies, one users mapping, one customer and one creation audit; other requests read winner |
-| TC-62-04 | GET missing404, owner GET exact own profile, another identity cannot obtain it by forged query/body; extra userId/role fields400 |
-| TC-62-05 | No/expired token401 existing code; operator/auditor/admin403 FORBIDDEN; customer accepted; no unauthorized customer writes |
-| TC-62-06 | Empty/whitespace/too-long/control/non-string name400; valid Vietnamese/max boundary; SQL-like name is a parameter, no SQL execution; metadata no name |
-| TC-62-07 | Real DB trigger rejects audit INSERT ->HTTP500 sanitized, customer insert rolled back; GET/replay existing profile also500/no profile disclosed/no mutation or audit; remove fixture trigger and retry ->success; guard-created user may remain |
-| TC-62-08 | Swagger bearer auth, role, name constraints/examples and success/error responses; role metadata uses existing public contracts |
-| Process | Full CI, Dev review, merge, complete PR DoD table |
+Toàn bộ ở `backend/test/db/customer-onboarding.db-spec.ts`, PostgreSQL thật qua Testcontainers, app thật dựng bởi `backend/test/support/onboarding-app.ts` (JWT/Identity/TransactionService/AuditService và guard toàn cục thật).
 
-Tests live test/db/customer-onboarding.db-spec.ts: full HTTP-to-real-Postgres end-to-end layer discovered by existing CI db job. Reuse production migrations and real auth/audit services, with temporary JWKS public file and issuer from DBS-53. No fake user resolver or AuditService. Each test uses distinct sub; isolated temp DB owned by suite, cleanup after app.close. Fault trigger only on this disposable DB, removed in finally.
+| ID | Truy vết (DoD / AC) | Lớp | Given · When · Then | `errorCode` mong đợi |
+|---|---|---|---|---|
+| TC-62-01/02 | DoD #1 | e2e Postgres | POST lần đầu → 200, tên chuẩn hóa NFC/trim; gọi lại với tên khác → 200 trả lại đúng hồ sơ cũ (tên không đổi); đúng 1 audit `customer.created`, mỗi lần gọi lại thêm 1 audit `customer.read` | — |
+| TC-62-03 | DoD #1, #2 | e2e Postgres, đồng thời | 20 POST thật chạy song song (`Promise.all`) cho cùng user mới → cả 20 trả cùng body; đúng 1 dòng `users`, 1 dòng `customers`, 1 audit `customer.created`, 19 audit `customer.read` | — |
+| TC-62-04 | DoD #1 | e2e Postgres + security | GET trước khi onboarding → 404; GET sau khi tạo → đúng hồ sơ của mình; user khác GET bằng query giả `?userId=...` → vẫn 404 (không rò); body có field lạ (`userId`, `role`) → 400 | — |
+| TC-62-05 | DoD #2 (security) | e2e Postgres | Không token → 401 `UNAUTHENTICATED`; token hết hạn → 401 `TOKEN_EXPIRED`; role operator/auditor/admin → 403 `FORBIDDEN`, không ghi gì | `UNAUTHENTICATED` / `TOKEN_EXPIRED` / `FORBIDDEN` |
+| TC-62-06 | DoD #1 | e2e Postgres + security | Tên rỗng/chỉ khoảng trắng/201 ký tự/chứa ký tự điều khiển/không phải string/null → 400; tên dạng SQL injection (`O'Neil'); DROP TABLE customers; --`) lưu đúng y nguyên qua parameterized query, không thực thi; tên đúng 200 ký tự (biên) → 200; audit `metadata` chỉ có `id`, không tên | — |
+| TC-62-07 | DoD #1 (fail-closed) | e2e Postgres, fault injection | Trigger giả lỗi `audit_log` BEFORE INSERT → POST mới trả 500, không tạo customer; GET hồ sơ cũ đã tồn tại cũng trả 500 (không rò hồ sơ, không đổi tên); bỏ trigger, gửi lại → 200 thành công | — |
+| TC-62-08 | DoD #2 | e2e | OpenAPI: route có bearer auth, DTO `fullName` có ví dụ, có đủ response 200/400, GET có 404 | — |
+| Quy trình | DoD #3 | PR/CI | Bảng đối chiếu TC trong PR; CI, Dev review, merge theo dõi riêng (xem §8) | — |
 
-## 5. Manual
+## 5. Test thủ công
 
-Implement backend/scripts/manual-dbs62.cjs; run from backend: npm run build then node scripts/manual-dbs62.cjs. Driver creates disposable Postgres17, runs real migrations, boots real Nest AccountsModule/IdentityModule/guards/TransactionService/AuditService with local signing helper. Temp public JWKS only; do not log token/private key, connection credentials or real PII. HTTP requests use demo Vietnamese names. Source is kept for replay.
+`backend/scripts/manual-dbs62.cjs`, chạy `npm run build` rồi `node scripts/manual-dbs62.cjs` từ `backend/`. Script tự dựng PostgreSQL 17 (Testcontainers), chạy migration thật, dựng app Nest thật (`AccountsModule`/`IdentityModule`/guard/`TransactionService`/`AuditService`) với JWKS local tạm. Không log token/private key/connection string/PII thật — chỉ dùng tên demo tiếng Việt.
 
-| Step | Action | Expected |
+| Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
-| M-62-01 | GET me before onboarding, then valid customer POST | 404 then200; profile matches normalized demo name; query one customer and creation audit |
-| M-62-02 | POST replay with different name, GET me | Same original id/name/timestamp; no duplicate customer/creation audit |
-| M-62-03 | 20 simultaneous new-user POSTs | All200 with identical profile; one customer/creation audit |
-| M-62-04 | No token, operator token, invalid/forged body | 401 UNAUTHENTICATED,403 FORBIDDEN,400; no unauthorized customer writes |
-| M-62-05 | Install audit failure fixture, fresh customer POST; remove trigger and retry | Sanitized500/no customer; retry200/one customer; audit metadata only ids |
-| M-62-06 | finally close app, remove JWKS/temp DB/container | No shared DB touched, no handles; raw output + final codeSHA recorded, no tokens/credentials |
+| M-62-01 | GET trước khi onboarding, rồi POST hợp lệ | 404 rồi 200; hồ sơ khớp tên demo chuẩn hóa; 1 customer + 1 audit created |
+| M-62-02 | POST lại với tên khác, rồi GET | Cùng id/tên/thời điểm tạo ban đầu; không có customer hay audit created thứ hai |
+| M-62-03 | 20 POST đồng thời cho user mới | Cả 20 trả 200 giống nhau; 1 customer + 1 audit created |
+| M-62-04 | Không token, token staff, body giả mạo | 401 `UNAUTHENTICATED`, 403 `FORBIDDEN`, 400; không ghi gì trái phép |
+| M-62-05 | Gắn fault audit, POST mới; bỏ fault, gửi lại | 500 không tạo customer; gửi lại 200 tạo thành công; audit metadata chỉ có id |
+| M-62-06 | Đóng app, xóa JWKS tạm, drop DB tạm, dừng container | Không đụng DB chia sẻ, không còn handle treo; transcript ghi SHA cuối, không token/credential |
 
-## 6. Review
+Điều kiện chạy: Docker (Testcontainers tự dựng PostgreSQL, không cần Docker Compose có sẵn).
 
-Independent design review APPROVE with one should-fix for explicit GET/replay audit success/failure evidence and one minor column naming correction. Both addressed in cases/tests; no blocking finding. [Raw review](screenshots/DBS-62/domain-review.md), reviewer inherited Codex model (no override). No blocking finding, 1 should-fix addressed, 1 minor addressed.
+## 6. Domain review (AI)
 
-## 7. Plan
+**Reviewer:** subagent kế thừa model Codex (không override), 2026-11-02 · **Kết quả:** 1 should-fix, 1 minor, 0 blocking, verdict **APPROVE** · [nguyên văn](screenshots/DBS-62/domain-review.md)
 
-Temporary real audit integration08e605e, then tests first (missing route404 red). Implement DTO/profile service/controller, register and import real AuditModule. HTTP/Postgres tests, audit fault/rollback, concurrency and security; lint/typecheck/build/unit/e2e/db and manual on final code commit. Update docs03/accounts README/feature index/backlog, link check, push branch. Open main-based Draft PR only after audit dependency is on main; rebase only DBS-62 commits (strip temporary integration base). No account opening/balance/ledger/idempotency-key feature, no auth guard rewrite or worker operation.
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | should-fix | TC-62-04/07 chưa có assertion rõ ràng rằng GET thành công ghi đúng 1 audit `customer.read`; case audit-failure chỉ test nhánh tạo mới, chưa test GET/replay khi audit lỗi | Đã sửa: TC-62-01/02/04 giờ assert đúng actor/target/correlationId của audit `customer.read`; TC-62-07 mở rộng để GET hồ sơ cũ cũng trả 500 khi audit lỗi, không rò hồ sơ |
+| 2 | minor | §2 (bản cũ) viết sai "`users.id` UNIQUE trong customers" — cột đúng là `user_id` | Đã sửa cách diễn đạt ở §2.3 trên: "`customers.user_id UNIQUE`" |
 
-## 8. Results
+**Quyết định ở G2 (ghi lại, techlead duyệt retroactive 2026-11-06):** chấp nhận §2–§5 ở trên; cả should-fix và minor đã sửa đúng, verdict APPROVE không còn finding mở.
 
-Rebased code commits: `586ef11` implementation and `08d50fa` real-provider fixture adjustment (originally e7b96a2 and1f9f4a4). Test first: all 7 new tests failed because `/v1/customers/me` was absent (HTTP404); after implementation all7 passed. No skipped task tests. Results below are the original 2026-11-02 verification; the post-rebase results are recorded in verification.txt and the final handover below.
+## 7. Kế hoạch triển khai
 
-| Verification | Actual result |
+**Kế hoạch đã thực hiện (ghi lại sau khi code xong, techlead duyệt retroactive 2026-11-06):**
+
+| Bước | File | Test viết trước | Kết quả đỏ | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `test/db/customer-onboarding.db-spec.ts`, `test/support/onboarding-app.ts` | TC-62-01…08 | Route `/v1/customers/me` chưa tồn tại → 7 test đỏ (404) trước khi có code | `npm run test:db -- --runInBand customer-onboarding.db-spec.ts` | `586ef11` |
+| 2 | `customer-profile.dto.ts`, `customer-profile.service.ts`, `customers.controller.ts`, `accounts.module.ts` | (cùng bộ test trên) | Sau code: 7/7 xanh | `npm run test:db -- --runInBand customer-onboarding.db-spec.ts` | `586ef11` |
+| 3 | `test/db/accounts-service.db-spec.ts` — fixture cung cấp `TransactionService` thật | Toàn bộ suite DBS-55 cũ | Đỏ vì `AccountsModule` giờ cần `AuditModule`/`TransactionService` mà fixture cũ chưa cấp | `npm run test:db -- --runInBand accounts-service.db-spec.ts` | `08d50fa` |
+| 4 | Domain review → sửa audit assertion rõ hơn + diễn đạt §2 | (mở rộng TC-62-01/02/04/07) | — | `npm run test:db -- --runInBand customer-onboarding.db-spec.ts` | `e40a7e4` |
+| 5 | Rebase chỉ 2 commit code (`586ef11`, `08d50fa`) lên `main` sau khi AuditService merge qua PR #54; toàn bộ baseline + docs | — | `lint:check`/`typecheck`/`build`/unit/e2e/PostgreSQL thật đầy đủ | xem §8 | `2e7f3bc`, `7d41a51` |
+
+**Rủi ro và cách lùi:** rollback chỉ ở nhánh code, không revert schema hay xóa dữ liệu chung. Rủi ro lớn nhất đã kiểm: race condition khi 20 request đồng thời (bảo vệ bằng UNIQUE constraint + SELECT sau conflict, không retry thủ công); tên bị đổi khi gọi lại (ngăn bằng `DO NOTHING`, không `DO UPDATE`); audit lỗi làm lộ hồ sơ hoặc tạo mutation không có log (ngăn bằng không try/catch, rollback toàn transaction).
+
+## 8. Kết quả
+
+**Lệnh kiểm tra** (chạy lúc bàn giao, trên `7d41a51` — commit cuối đổi docs sau rebase):
+
+| Lệnh | Kết quả |
 |---|---|
-| lint:check / typecheck / build | Passed |
-| Unit, full suite | 54 suites, 801/801 passed on retry. First run800/801: existing Identity JWKS cooldown timing test failed under concurrent load; isolated retry13/13 and subsequent full801/801 passed. No Identity code changed |
-| e2e, full suite | 13 suites,135/135 passed |
-| Database | Final full run18 suites,345/345 passed (253.021s),0 skipped. First run344/345, existing AccountsModule fixture missing newly-required real TransactionService. Added real provider/config fixture, no stub; affected AccountsService+onboarding suites52/52 passed before final full run. Existing server MaxListeners warnings appeared; no test failure |
-| Docs link check | 190 files,0 broken links before adding verification summary; final count recorded in handover |
+| `npm run lint:check` | exit 0 |
+| `npm run typecheck` | exit 0 |
+| `npm run build` | exit 0 |
+| `npm test -- --runInBand` (unit, full) | 825/826 tests đạt; 1 lỗi timing đã biết của `jwks-verifier.service.spec.ts` (BL-112), không liên quan code task này; retry riêng 12/13 (cùng lỗi lặp lại) |
+| `npm run test:e2e -- --runInBand` | 13 suites, 135/135 tests đạt |
+| PostgreSQL thật, 3 suites liên quan (onboarding, AccountsService, AuditService) | 65/65 tests đạt |
 
-| DoD / case | Proof | Depth |
+Không `.skip`/`.only`/`.todo` trong test của task.
+
+**Đối chiếu test case:**
+
+| ID | Test | Đạt? |
 |---|---|---|
-| Unique customer, consistent replay; TC-62-01/02 | Actual HTTP, JWT verification, identity mapping, PostgreSQL INSERT, stored profile and audit assertions | Matched |
-| Parallel onboarding; TC-62-03 | 20 concurrent first HTTP requests, pool30; users=1, customer=1, created audit=1, read audits=19 | Matched |
-| Own GET/security; TC-62-04/05 | Actual guards, expired/missing JWT, customer/staff, forged owner body/query,404 | Matched |
-| Validation and privacy; TC-62-06 | Vietnamese names, boundaries, parameterized SQL-like input; metadata onlyid | Matched |
-| Atomic audit; TC-62-07 | Real database trigger rejects audit INSERT; creation rollback, GET/replay500 without profile; recovery succeeds | Matched |
-| Swagger examples/errors; TC-62-08 | OpenAPI generated from real controller/DTO; bearer/security/statuses; property examples and existing error codes documented | Matched; Swagger UI clicking not claimed |
-| PR/CI/Dev review/merge | BL-144 | Pending real audit dependency on main; local results do not prove GitHub CI |
+| TC-62-01…08 | `test/db/customer-onboarding.db-spec.ts` (7 test case Jest) | đạt |
+| Quy trình (DoD #3) | — | chưa làm (CI/Dev review/merge) — xem BL-144 |
 
-Manual command from `backend`: `node scripts/manual-dbs62.cjs`. [Raw output](screenshots/DBS-62/manual-test.txt) first line contains final code SHA. Six steps M-62-01..06 executed successfully: missing GET404/create200, replay/GET unchanged,20 parallel200 with one customer/audit,401/403/400 rejection, actual audit failure500/rollback/recovery200, cleanup. Public JWKS file only; disposable PostgreSQL17 and owned temp database, no shared DB revert. Driver logs HTTP status, sanitized response and server correlationId, never token or connection URL.
+**Test thủ công:** chạy `node scripts/manual-dbs62.cjs` trên commit `e40a7e4` (commit cuối đổi code nghiệp vụ trước rebase; `2e7f3bc`/`7d41a51` sau đó chỉ đổi evidence/docs sau rebase, không đổi logic — rebase chỉ thay đổi base, không thay đổi nội dung 2 commit code). SHA đầu [manual-test.txt](screenshots/DBS-62/manual-test.txt) là `e40a7e45aa293737876bb1c8a43b82b2a40b2172`.
 
-[Verification summary](screenshots/DBS-62/verification.txt) and [PR description](screenshots/DBS-62/pr-description.md) retain the DoD mapping for the main-based PR. GitHub branch `feat/DBS-62-customer-onboarding`; current PR/check links are recorded in the final handover.
+| Bước | Kết quả thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-62-01 | GET 404 → POST 200, hồ sơ chuẩn hóa; audit created = 1 | đạt |
+| M-62-02 | Replay và GET trả cùng id/tên/thời điểm tạo ban đầu | đạt |
+| M-62-03 | 20 request đồng thời → 20×200; customer = 1, audit created = 1 | đạt |
+| M-62-04 | 401 `UNAUTHENTICATED`, 403 `FORBIDDEN`; body giả mạo → 400 | đạt |
+| M-62-05 | Audit INSERT lỗi thật → 500, customer = 0; phục hồi → 200, metadata chỉ có id | đạt |
+| M-62-06 | Dọn app/JWKS/DB tạm/container | đạt |
 
-![Actual HTTP output excerpt](screenshots/DBS-62/01-http-results.png)
+Full output thô: [manual-test.txt](screenshots/DBS-62/manual-test.txt).
 
-Deviation: AccountsModule now has a real audit/transaction dependency; updated existing TC-55-15 fixture to provide real TransactionService/config, identified by the full DB run. Completed `git rebase --onto origin/main 08e605e feat/DBS-62-customer-onboarding` on2026-11-04. Conflict only in BACKLOG; kept main's rows and DBS-62 handoff. No dependency code is in the diff. The existing design and real audit interface remain compatible; runtime tests include actual PR54 implementation.
+**Phạm vi so với §7:** `git diff --stat main...HEAD` khớp danh sách file production/test ở §7, cộng các file docs/evidence liệt kê ở §9. Không có file lạ ngoài kế hoạch.
 
-BL-144 now tracks Dev review and merge after the main-based Draft PR and its CI. BL-132 global roles-denial audit, BL-130 identity provision audit and BL-019 audit API/roles remain owned by their existing tasks. No fabricated service or silently waived onboarding mutation audit. No backlog items closed by DBS-62.
+**Ảnh:**
 
-2026-11-04 handover: [Draft PR56](https://github.com/Lawliet119/digital-banking-simulator/pull/56), base main a9e607b. [GitHub checks](https://github.com/Lawliet119/digital-banking-simulator/pull/56/checks) are authoritative for final PR status; first run [41843997481](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41843997481). No local result is substituted for CI.
+![Kết quả HTTP thật của onboarding](screenshots/DBS-62/01-http-results.png)
 
-Post-rebase lint/typecheck/build passed; three real PostgreSQL suites65/65 passed (onboarding, AccountsService and actual merged AuditService). Manual6/6 passed at e40a7e45 with refreshed screenshot/transcript. Full unit825/826, isolated Identity retry12/13: the same cooldown fetch-count failure on this machine, tracked by existing BL-112; Identity source/test unchanged. E2E and CI final results recorded in verification.txt/PR checks.
+**Lệch so với kế hoạch:** không có lệch kỹ thuật. Lệch về quy trình: PR #56 được mở (push nhánh, tạo Draft PR) **trước khi có người duyệt thật các gate G1–G3** — cùng tình trạng với PR #57. Techlead xác nhận ngày 2026-11-06 duyệt retroactive G1–G3 dựa trên nội dung đã có trong tài liệu (không đổi phạm vi/thiết kế/kế hoạch), đồng thời yêu cầu viết lại toàn bộ feature doc và dòng BACKLOG liên quan bằng tiếng Việt, theo đúng văn phong chuẩn của repo — đã thực hiện ở lượt sửa 2026-11-06, không đổi code.
 
-Handover checklist: implementation/manual/evidence/docs complete; raw output inspected for tokens/secrets; independent review findings addressed; no dependency/env/schema/ErrorCode change. GitHub CI/Dev review/merge tracked in PR56 and BL-144. User moves board to In Review when handing this PR to a Dev reviewer. No human gate approval or Dev review is claimed.
+**Bàn giao cho vai khác:**
 
-## 9. Sources
+- **BL-112** (đã có từ trước, thêm nguồn) — lỗi timing của `jwks-verifier.service.spec.ts` cũng xuất hiện khi chạy full unit + isolated retry trên nhánh này; không phải lỗi mới, không liên quan code DBS-62.
+- **BL-132** (đã có từ trước, không đổi) — 403 `FORBIDDEN` chưa ghi `audit_log DENIED`; DBS-62 không nhận đã sửa gap này, thuộc `RolesGuard` (DBS-51/56).
+- **BL-144** (mới) — Draft PR #56 cần CI xanh trên head cuối, một Dev khác review đầy đủ bảng đối chiếu test case, rồi mới merge main. Đóng khi có CI xanh + Dev review + merge, link bằng chứng.
 
-docs02 UC-1/FR-ID-02/FR-AUD-01/02, docs03 §7/§8 API table, database-design §4.1, ADR-06, accounts/audit README, actual AuditService public index and metadata guard. Changes tracked here rather than inventing retired component feature files.
+## 9. Tài liệu đã cập nhật
 
-Updated docs03 API table, accounts README, feature index, BACKLOG BL-144, this feature doc and raw review/manual evidence. Runtime change is in accounts controller/DTO/service/module; existing AccountsService primitive code remains unchanged.
+- `backend/src/modules/accounts/README.md` — thêm mục "Onboarding (DBS-62)".
+- `docs/03_HIGH_LEVEL_ARCHITECTURE.md` — cập nhật 2 dòng API `/v1/customers/me` (POST/GET) trong bảng danh sách endpoint.
+- `docs/features/README.md` — thêm dòng DBS-62.
+- `docs/BACKLOG.md` — thêm nguồn DBS-62 vào BL-112, thêm BL-144.
+- `docs/features/screenshots/DBS-62/` — `domain-review.md`, `manual-test.txt`, `verification.txt`, `pr-description.md`, `01-http-results.png`.
+- Lượt sửa 2026-11-06 (viết lại tiếng Việt, không đổi code): file này (`DBS-62-customer-onboarding.md`), `docs/BACKLOG.md` (viết lại BL-144 bằng tiếng Việt, cập nhật nguồn BL-112), `docs/features/README.md` (sửa tóm tắt DBS-62 sang tiếng Việt, bỏ dòng trống thừa).
