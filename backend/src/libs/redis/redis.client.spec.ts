@@ -122,13 +122,13 @@ describe('DBS-76 Redis policy', () => {
     expect(driver.disconnect).toHaveBeenCalled();
   });
   it('constructing a second RedisMetrics does not throw on the shared default-registry counter', async () => {
-    const before = (await defaultRegister.getSingleMetric('redis_fallback_total')?.get())
-      ?.values[0]?.value ?? 0;
+    const before =
+      (await defaultRegister.getSingleMetric('redis_fallback_total')?.get())?.values[0]?.value ?? 0;
     expect(() => new RedisMetrics()).not.toThrow();
     const other = new RedisMetrics();
     other.increment();
-    const after = (await defaultRegister.getSingleMetric('redis_fallback_total')?.get())
-      ?.values[0]?.value ?? 0;
+    const after =
+      (await defaultRegister.getSingleMetric('redis_fallback_total')?.get())?.values[0]?.value ?? 0;
     expect(after).toBe(before + 1);
     // other's own isolated counter is unaffected by this instance's increments.
     expect(await other.count()).toBe(1);
