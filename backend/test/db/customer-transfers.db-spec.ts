@@ -207,6 +207,7 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
   it('TC-61-03 foreign/missing/SYSTEM sources uniformly404 and independently DENIED', async () => {
     const a = await target('1000000'),
       b = await target();
+    const bodies: unknown[] = [];
     for (const source of [b.accountId, randomUUID(), FUNDING]) {
       const before = await totals();
       const res = await send(
@@ -214,6 +215,9 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
         a.token,
       ).expect(404);
       expect(res.body).not.toHaveProperty('transferId');
+      // AC-5.8: the caller must not be able to tell the three cases apart.
+      const { correlationId: _correlationId, ...sameForAll } = res.body as Record<string, unknown>;
+      bodies.push(sameForAll);
       expect(await totals()).toEqual([{ ...before[0], audits: before[0].audits + 1 }]);
       expect(
         await q(
@@ -227,11 +231,16 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
         correlation_id: res.headers['x-correlation-id'],
       });
     }
+    expect(bodies[1]).toEqual(bodies[0]);
+    expect(bodies[2]).toEqual(bodies[0]);
   });
   it('TC-61-04 ACTIVE first: locked source/target, missing/SYSTEM target are persisted422', async () => {
     const a = await target('1000000'),
       b = await target(),
+      poor = await target('100'),
       locked = await target('0', 'LOCKED');
+    // A locked destination wins over an insufficient balance: ACTIVE is checked before the balance.
+    await assertRejected(poor, locked.accountId, '300000', 'ACCOUNT_NOT_ACTIVE', locked.accountId);
     for (const [to, fk] of [
       [locked.accountId, locked.accountId],
       [randomUUID(), null],
