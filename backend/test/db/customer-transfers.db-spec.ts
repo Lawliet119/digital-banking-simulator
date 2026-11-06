@@ -418,6 +418,51 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     }
     await transfer(a, b.accountId, '1000', key).expect(201);
   });
+  it('TC-61-13 owner changed after authorization but before the lock: 404, one DENIED, no effects', async () => {
+    const a = await target('1000000'),
+      b = await target(),
+      newOwner = await target();
+    const before = await totals();
+    const held = app.source.createQueryRunner();
+    await held.connect();
+    await held.startTransaction();
+    let pending: Promise<request.Response> | undefined;
+    try {
+      await held.query('SELECT id FROM accounts WHERE id=$1 FOR UPDATE', [a.accountId]);
+      // The request passes getOwnedAccount (a committed read), opens its transaction and then queues
+      // for the row lock held above. Wait on the real lock state, not on a timer.
+      pending = Promise.resolve(transfer(a, b.accountId, '1000'));
+      for (let i = 0; ; i++) {
+        const waiting = (await q('SELECT count(*)::int AS n FROM pg_locks WHERE NOT granted')) as {
+          n: number;
+        }[];
+        if (waiting[0].n > 0) break;
+        if (i > 100) throw new Error('transfer never queued for the source row lock');
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      await held.query('UPDATE accounts SET customer_id=$2 WHERE id=$1', [
+        a.accountId,
+        newOwner.customerId,
+      ]);
+      await held.commitTransaction();
+    } catch (error) {
+      await held.rollbackTransaction().catch(() => undefined);
+      throw error;
+    } finally {
+      await held.release();
+    }
+    const res = await pending;
+    expect(res.status).toBe(404);
+    expect(res.body).not.toHaveProperty('transferId');
+    expect(await totals()).toEqual([{ ...before[0], audits: before[0].audits + 1 }]);
+    expect(
+      await q('SELECT actor_user_id,outcome,metadata FROM audit_log WHERE target_id=$1', [
+        a.accountId,
+      ]),
+    ).toEqual([{ actor_user_id: a.userId, outcome: 'DENIED', metadata: { reason: 'NOT_OWNER' } }]);
+    expect(await balance(a.accountId)).toBe('1000000');
+    expect(await balance(b.accountId)).toBe('0');
+  });
   it('TC-61-14 transfer to the funding account never waits on its row lock: persisted 422, not 503', async () => {
     const a = await target('1000000');
     const held = app.source.createQueryRunner();
