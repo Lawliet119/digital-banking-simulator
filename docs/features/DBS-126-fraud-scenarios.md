@@ -186,7 +186,7 @@ CLI/inspector đã có; script chạy thật nằm ở [manual-test.sh](screensh
 | M-126-06 | Tạo bản sao CSV a trong results, sửa `from_balance_before` của một dòng giảm 1đ bằng script Node ngắn; chạy inspector với manifest a | Exit 1 vì snapshot lệch; giữ bản a nguyên; sau đó chạy lại inspector a đạt để chứng minh đường phục hồi |
 | M-126-07 | Chạy CLI NORMAL cũ và `node --test load-tests/fraud-dataset/generate.test.mjs` | Golden hash CSV cũ không đổi, 4 test DBS-71 đạt |
 
-Git Bash ghi UTF-8 transcript bằng `2>&1 | tee -a .../manual-test.txt` với `set -o pipefail`; lưu PIPESTATUS ngay sau pipeline để giữ mã thoát. Runner lấy SHA commit cuối chạm source/CI, từ chối nếu source lệch commit đó, ghi SHA ở dòng đầu transcript. Sau G4 đã chạy lại đủ M-126-01–07 trên `8699311adccaa24a60abed488d6465efe500853c`; bốn ảnh đã cập nhật theo output lần này.
+Git Bash ghi UTF-8 transcript bằng `2>&1 | tee -a .../manual-test.txt` với `set -o pipefail`; lưu PIPESTATUS ngay sau pipeline để giữ mã thoát. Runner lấy SHA commit cuối chạm source/CI, từ chối nếu source lệch commit đó, ghi SHA ở dòng đầu transcript. Sau G4 đã chạy lại đủ M-126-01–07 trên `ff5798ac955ec177169eb39af237395bee6af160`; bốn ảnh đã cập nhật theo output lần này.
 
 ## 6. Domain review (AI)
 
@@ -203,7 +203,7 @@ Git Bash ghi UTF-8 transcript bằng `2>&1 | tee -a .../manual-test.txt` với `
 
 ### 7.1 Thứ tự thực hiện và test viết trước
 
-Bảng được lập trước code và thực hiện sau khi G3 được duyệt. G4 đã ủy quyền commit/xuất bản; code/test/CI/runner nằm trong commit `8699311adccaa24a60abed488d6465efe500853c`, docs/evidence được commit riêng sau khi chạy lại manual. Cột đỏ ghi lỗi thực tế, output và kết quả xanh nằm trong [verification.txt](screenshots/DBS-126/verification.txt). Không có migration/service/controller/audit/outbox cần sắp thứ tự vì task không thay backend.
+Bảng được lập trước code và thực hiện sau khi G3 được duyệt. G4 đã ủy quyền commit/xuất bản; code/test/CI/runner nằm trong commit `ff5798ac955ec177169eb39af237395bee6af160`, docs/evidence được commit riêng sau khi chạy lại manual. Cột đỏ ghi lỗi thực tế, output và kết quả xanh nằm trong [verification.txt](screenshots/DBS-126/verification.txt). Không có migration/service/controller/audit/outbox cần sắp thứ tự vì task không thay backend.
 
 | Bước | File | Test viết trước | Kết quả đỏ | Lệnh chứng minh (tại gốc repo trừ khi ghi khác) | Commit đề xuất, chỉ khi được phép |
 |---|---|---|---|---|---|
@@ -211,9 +211,9 @@ Bảng được lập trước code và thực hiện sau khi G3 được duyệ
 | 2. Inspector độc lập | `load-tests/fraud-dataset/inspect-fraud.test.mjs`, `inspect-fraud.mjs` | TC-126-06/07/08/09 và mutation §4 bằng fixture viết tay có tổng đã biết: replay, validation, BigInt, median oracle, quantile và activity theo ngày Việt Nam. Sau fixture mới thử trace NORMAL bước 1 | Đỏ thật: ERR_MODULE_NOT_FOUND inspector; xanh 38/38 cùng NORMAL | `node --test load-tests/fraud-dataset/inspect-fraud.test.mjs load-tests/fraud-dataset/generate.test.mjs` | `feat(dataset): validate and inspect synthetic transfers` |
 | 3. Dựng 8 scenario fraud, replay và merge | `load-tests/fraud-dataset/generate-fraud.test.mjs`, `generate-fraud.mjs`, `scenarios.mjs` | TC-126-02/03/05/06/07: mỗi scenario subtest riêng, assertions trước implementation tương ứng; oracle R1–R6 theo số học và lịch sử CSV; incoming mule không tính outgoing, chiều trả phải muộn hơn chiều đi. Test lỗi thiếu cohort/thiếu tiền thay vì clamp hoặc cắt episode | Đỏ thật: module thiếu, sau đó từng missing SCENARIO; warmup ngoài 30 ngày bị bắt; xanh 10/10 | `node --test load-tests/fraud-dataset/generate-fraud.test.mjs` | `feat(dataset): generate eight coherent fraud scenarios` |
 | 4. Hard negatives và cân tỉ lệ toàn bộ | `load-tests/fraud-dataset/generate-fraud.test.mjs`, `generate-fraud.mjs`, `scenarios.mjs` | TC-126-04/05: 5 nhóm HN riêng, hai lần tiền nhà, cùng chủ khác account, lương trước chuyển; điều chỉnh ngân sách trên N0 thực tế sau HN/lịch sử, không đổi label; các seed và cấu hình min đều đủ 13 nhóm | Đỏ thật: 5 HN thiếu + all-label coverage; xanh 17/17 | `node --test load-tests/fraud-dataset/generate-fraud.test.mjs` | `feat(dataset): add hard negatives and balance fraud prevalence` |
-| 5. CLI, artifact, tái lập và lỗi | `load-tests/fraud-dataset/generate-fraud.test.mjs`, `inspect-fraud.test.mjs`, `generate-fraud.mjs`, `inspect-fraud.mjs` | TC-126-01/08/10/11/12: subprocess thật, ba artifact bằng bytes theo seed/TZ, report độc lập, output tùy chọn, tham số invalid, sentinel không bị sửa, I/O failure không in success; seed dấu phẩy/newline không lọt CSV | Đỏ thật: CLI không tạo CSV, invalid input exit 0, API không reject; xanh toàn bộ 59/59 | `node --test load-tests/fraud-dataset/generate.test.mjs load-tests/fraud-dataset/inspect-fraud.test.mjs load-tests/fraud-dataset/generate-fraud.test.mjs` | `feat(dataset): expose reproducible fraud generation CLI` |
-| 6. Đưa test mới vào CI và full verification | `.github/workflows/ci.yml`, `docs/features/screenshots/DBS-126/verification.txt` | Giữ nguyên tất cả TC và 4 test DBS-71. CI unit step gọi tường minh cả 3 test file như bước 5 (đường dẫn thêm `../` vì cwd CI là backend); không đổi job/pin/trigger | Không có red test YAML riêng; lệnh CI tương đương chạy 59/59, không tạo test giả cho chuỗi lệnh | Lệnh Node bước 5; các lệnh backend tại §7.2; `git diff --check` | `ci(dataset): run fraud generator and inspector tests` |
-| 7. Manual, tài liệu và bàn giao | Tất cả file docs/evidence trong §7.3 | Thực hiện M-126-01–07 theo §5 trên code cuối; đối chiếu từng TC với test thực tế, không thay độ sâu test bằng unit chung | 7/7 bước đạt trên final code commit 8699311; BL-153 đã giải quyết | `bash docs/features/screenshots/DBS-126/manual-test.sh`; `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`; đối chiếu file bằng `git status --short` và diff khi chưa commit | `docs(dataset): document fraud dataset behavior and evidence` |
+| 5. CLI, artifact, tái lập và lỗi | `load-tests/fraud-dataset/generate-fraud.test.mjs`, `inspect-fraud.test.mjs`, `generate-fraud.mjs`, `inspect-fraud.mjs` | TC-126-01/08/10/11/12: subprocess thật, ba artifact bằng bytes theo seed/TZ, report độc lập, output tùy chọn, tham số invalid, sentinel không bị sửa, I/O failure không in success; seed dấu phẩy/newline không lọt CSV | Đỏ thật: CLI không tạo CSV, invalid input exit 0, API không reject; xanh toàn bộ 60/60 | `node --test load-tests/fraud-dataset/generate.test.mjs load-tests/fraud-dataset/inspect-fraud.test.mjs load-tests/fraud-dataset/generate-fraud.test.mjs` | `feat(dataset): expose reproducible fraud generation CLI` |
+| 6. Đưa test mới vào CI và full verification | `.github/workflows/ci.yml`, `docs/features/screenshots/DBS-126/verification.txt` | Giữ nguyên tất cả TC và 4 test DBS-71. CI unit step gọi tường minh cả 3 test file như bước 5 (đường dẫn thêm `../` vì cwd CI là backend); không đổi job/pin/trigger | Không có red test YAML riêng; lệnh CI tương đương chạy 60/60, không tạo test giả cho chuỗi lệnh | Lệnh Node bước 5; các lệnh backend tại §7.2; `git diff --check` | `ci(dataset): run fraud generator and inspector tests` |
+| 7. Manual, tài liệu và bàn giao | Tất cả file docs/evidence trong §7.3 | Thực hiện M-126-01–07 theo §5 trên code cuối; đối chiếu từng TC với test thực tế, không thay độ sâu test bằng unit chung | 7/7 bước đạt trên final code commit ff5798a; BL-153 đã giải quyết | `bash docs/features/screenshots/DBS-126/manual-test.sh`; `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs`; đối chiếu file bằng `git status --short` và diff khi chưa commit | `docs(dataset): document fraud dataset behavior and evidence` |
 
 `scenarios.mjs` là file nội bộ cho các hàm lập lịch cohort trong cùng tiến trình đã duyệt ở §3, không phải service/interface backend mới. Nó giữ PRNG/UUID/lập lịch/episode; `generate-fraud.mjs` điều phối NORMAL background, replay, merge, kiểm tỉ lệ và CLI; inspector không import planner/generator. Test ngữ nghĩa/oracle đặt trong `generate-fraud.test.mjs`, fixture inspector trong `inspect-fraud.test.mjs`; không thêm thư viện hay test framework.
 
@@ -278,13 +278,16 @@ Tên file sau dấu phẩy trong cùng ô được hiểu tương đối theo th
 
 ## 8. Kết quả
 
+**Sửa regression CI sau xuất bản:** [run 42204457243](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42204457243) có 58/59 Node tests đạt, TC-126-12 lỗi vì `git check-ignore` chạy từ cwd `backend/`. Đã tái hiện đỏ local từ backend, cố định cwd về repo root và thêm regression subprocess chạy từ backend (xóa NODE_TEST_CONTEXT để child thực sự chạy). Cả ba file theo đúng lệnh CI đạt **60/60**, 0 skip. Sửa trong file test đã có ở §7.3, không đổi generator/backend hoặc độ sâu case. Commit test/code cuối `ff5798ac955ec177169eb39af237395bee6af160`; đã chạy lại manual 7/7 và cập nhật bốn ảnh theo SHA này.
+
+
 ### 8.1 Verification và final code commit
 
-[Output tự động đầy đủ](screenshots/DBS-126/verification.txt). Các kiểm tra tự động bên dưới chạy trên đúng nội dung source đã commit (đối chiếu SHA-256). Code/test/CI commit `8699311adccaa24a60abed488d6465efe500853c`; toàn bộ manual chạy lại sau commit, SHA ở dòng đầu transcript. Docs/evidence commit riêng không thay code. G4 đã cho phép commit, push và Draft PR; không sửa board hoặc merge.
+[Output tự động đầy đủ](screenshots/DBS-126/verification.txt). Các kiểm tra tự động bên dưới chạy trên đúng nội dung source đã commit (đối chiếu SHA-256). Code/test/CI commit `ff5798ac955ec177169eb39af237395bee6af160`; toàn bộ manual chạy lại sau commit, SHA ở dòng đầu transcript. Docs/evidence commit riêng không thay code. G4 đã cho phép commit, push và Draft PR; không sửa board hoặc merge.
 
 | Lệnh | Kết quả |
 |---|---|
-| Node test runner, cả ba file `generate.test.mjs`, `inspect-fraud.test.mjs`, `generate-fraud.test.mjs` | **59/59 đạt**, 0 skipped; gồm 4 regression DBS-71, trace, 13 nhóm hành vi và các fixture/mutation/CLI |
+| Node test runner, cả ba file `generate.test.mjs`, `inspect-fraud.test.mjs`, `generate-fraud.test.mjs` | **60/60 đạt**, 0 skipped; gồm 4 regression DBS-71, trace, 13 nhóm hành vi và các fixture/mutation/CLI |
 | `npm run lint:check` | Đạt, exit 0 |
 | `npm run typecheck` | Đạt, exit 0 |
 | `npm test -- --maxWorkers=2` | 56 suites, **832/832 đạt**, 0 skipped |
@@ -315,17 +318,17 @@ DB suite phát `MaxListenersExceededWarning` cho `listening`, `error`, `close` t
 
 ### 8.3 Manual và thống kê đo được
 
-Đã chạy lại `bash docs/features/screenshots/DBS-126/manual-test.sh` sau commit; [transcript UTF-8](screenshots/DBS-126/manual-test.txt) giữ lệnh, response và exit từng bước. Dòng đầu là **`8699311adccaa24a60abed488d6465efe500853c`**, tiếp theo SHA-256 bốn source file. **7/7 bước đạt trên commit code cuối**, đủ điều kiện đóng BL-153. Không có bước chưa chạy, không dùng SQL seed/DB để tạo dữ liệu.
+Đã chạy lại `bash docs/features/screenshots/DBS-126/manual-test.sh` sau commit; [transcript UTF-8](screenshots/DBS-126/manual-test.txt) giữ lệnh, response và exit từng bước. Dòng đầu là **`ff5798ac955ec177169eb39af237395bee6af160`**, tiếp theo SHA-256 bốn source file. **7/7 bước đạt trên commit code cuối**, đủ điều kiện đóng BL-153. Không có bước chưa chạy, không dùng SQL seed/DB để tạo dữ liệu.
 
 | Bước | Lệnh / phản hồi thật rút gọn | Kết quả |
 |---|---|---|
-| M-126-01 | CLI mặc định → 73.106 rows, 723 fraud, rate 0,009889749131398244; đủ 8+5 nhóm; exit 0 | Đạt trên commit 8699311 |
-| M-126-02 | CLI a/b; sha256sum + cmp CSV/simulation/stats → cả ba cặp cùng bytes, tất cả cmp exit 0 | Đạt trên commit 8699311 |
-| M-126-03 | Seed dbs-fraud-v2 → 76.447 rows, 731 fraud; hash `9fb24e3d…` khác `fc08c565…`; cmp exit 1 như mong đợi | Đạt trên commit 8699311 |
-| M-126-04 | Inspector a → report khớp sidecar bằng deepEqual, replay thành công; in header và một dòng thật mỗi scenario | Đạt trên commit 8699311 |
-| M-126-05 | Customers 999 → exit 1, không artifact; 1000/30 → 18.773 rows, 159 fraud, 0,846961%, đủ nhóm, exit 0 | Đạt trên commit 8699311 |
-| M-126-06 | Sửa snapshot bản sao giảm 1đ → `balance snapshot mismatch at row 1`, exit 1; inspector a nguyên bản sau đó exit 0 | Đạt trên commit 8699311 |
-| M-126-07 | NORMAL CLI → 96.200 rows, hash `60e10c49…` giữ nguyên; 5 test đạt, gồm 4 test DBS-71 cũ và 1 trace mới | Đạt trên commit 8699311 |
+| M-126-01 | CLI mặc định → 73.106 rows, 723 fraud, rate 0,009889749131398244; đủ 8+5 nhóm; exit 0 | Đạt trên commit ff5798a |
+| M-126-02 | CLI a/b; sha256sum + cmp CSV/simulation/stats → cả ba cặp cùng bytes, tất cả cmp exit 0 | Đạt trên commit ff5798a |
+| M-126-03 | Seed dbs-fraud-v2 → 76.447 rows, 731 fraud; hash `9fb24e3d…` khác `fc08c565…`; cmp exit 1 như mong đợi | Đạt trên commit ff5798a |
+| M-126-04 | Inspector a → report khớp sidecar bằng deepEqual, replay thành công; in header và một dòng thật mỗi scenario | Đạt trên commit ff5798a |
+| M-126-05 | Customers 999 → exit 1, không artifact; 1000/30 → 18.773 rows, 159 fraud, 0,846961%, đủ nhóm, exit 0 | Đạt trên commit ff5798a |
+| M-126-06 | Sửa snapshot bản sao giảm 1đ → `balance snapshot mismatch at row 1`, exit 1; inspector a nguyên bản sau đó exit 0 | Đạt trên commit ff5798a |
+| M-126-07 | NORMAL CLI → 96.200 rows, hash `60e10c49…` giữ nguyên; 5 test đạt, gồm 4 test DBS-71 cũ và 1 trace mới | Đạt trên commit ff5798a |
 
 Mẫu `dbs-fraud-v1`, 2.000 khách, 60 ngày:
 
@@ -345,7 +348,7 @@ Không có precision/recall, split hoặc scoring online được đo. Cận r�
 
 ### 8.4 Ảnh và phạm vi
 
-Bốn ảnh chụp bằng browser từ **bản hiển thị read-only của output CLI thực tế**, không phải ảnh terminal native; header ảnh nêu final code commit `8699311adccaa24a60abed488d6465efe500853c`. JSON chỉ xuống dòng để đọc; transcript là nguồn raw. Trang HTML viewer là artifact ignored tại results, không đưa vào PR; đã dừng server localhost sau chụp.
+Bốn ảnh chụp bằng browser từ **bản hiển thị read-only của output CLI thực tế**, không phải ảnh terminal native; header ảnh nêu final code commit `ff5798ac955ec177169eb39af237395bee6af160`. JSON chỉ xuống dòng để đọc; transcript là nguồn raw. Trang HTML viewer là artifact ignored tại results, không đưa vào PR; đã dừng server localhost sau chụp.
 
 - [01-summary.png](screenshots/DBS-126/01-summary.png): lệnh và report mặc định.
 - [02-reproducibility.png](screenshots/DBS-126/02-reproducibility.png): sha256sum/cmp cả ba artifact.
@@ -368,9 +371,9 @@ Bốn ảnh chụp bằng browser từ **bản hiển thị read-only của outp
 
 ## Checklist G4
 
-- [x] 12/12 nhóm TC đạt đủ độ sâu, 0 đơn giản hóa; 59 Node tests đạt, không skip.
-- [x] Manual M-126-01–07 đạt trên final code commit `8699311adccaa24a60abed488d6465efe500853c`; SHA dòng đầu transcript, bốn ảnh cập nhật; BL-153 đã giải quyết.
+- [x] 12/12 nhóm TC đạt đủ độ sâu, 0 đơn giản hóa; 60 Node tests đạt, không skip.
+- [x] Manual M-126-01–07 đạt trên final code commit `ff5798ac955ec177169eb39af237395bee6af160`; SHA dòng đầu transcript, bốn ảnh cập nhật; BL-153 đã giải quyết.
 - [x] Đủ 4 ảnh output thật và transcript UTF-8; đã kiểm không có token, header Authorization, AWS account hoặc ARN.
 - [x] 23 file đúng §7.3, diff code + docs/evidence không có file lạ hoặc generated CSV.
-- [x] Baseline/verification chạy lúc bàn giao: lint/typecheck/build đạt; unit 832, e2e 135, DB 369, Node 59; cảnh báo listener đã ghi.
+- [x] Baseline/verification chạy lúc bàn giao: lint/typecheck/build đạt; unit 832, e2e 135, DB 369, Node 60; cảnh báo listener đã ghi.
 - [x] Tài liệu đã cập nhật, link check sạch; status Implemented sau duyệt G4; handoff và DoD chưa đạt có BL-151/152/154/155.

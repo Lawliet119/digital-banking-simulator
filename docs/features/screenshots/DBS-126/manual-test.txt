@@ -1,4 +1,4 @@
-8699311adccaa24a60abed488d6465efe500853c
+ff5798ac955ec177169eb39af237395bee6af160
 DBS-126 manual CLI, Git Bash, synthetic data only
 v24.15.0
 7ec8a41231c6b7c297c94e6463785a928407186e88a8573922f4fdda9d48d419 *load-tests/fraud-dataset/generate.mjs
@@ -99,11 +99,11 @@ $ node --input-type=module -e import\{readFileSync\}from\"node:fs\"\;import\{cre
 NORMAL golden hash unchanged: 60e10c49abe8a6f9377dab29b729eaaf4a0f1d1a11dadfa759d8813aa7a7476f
 exit=0 expected=0
 $ node --test load-tests/fraud-dataset/generate.test.mjs
-✔ TC-126-01/07: NORMAL golden bytes and replayable opening/credit/ending trace (139.8557ms)
-✔ TC-71-01: fixed seed is byte identical and a changed seed differs (954.5363ms)
-✔ TC-71-02: distinct habits, familiar recipients, skew and payday peak (0.3077ms)
-✔ TC-71-03/04: exact schema, valid references, sorted positive transfers and conservation (137.5432ms)
-✔ TC-71-05: CLI writes selected path and rejects invalid arguments (118.7929ms)
+✔ TC-126-01/07: NORMAL golden bytes and replayable opening/credit/ending trace (132.122ms)
+✔ TC-71-01: fixed seed is byte identical and a changed seed differs (920.0113ms)
+✔ TC-71-02: distinct habits, familiar recipients, skew and payday peak (0.4758ms)
+✔ TC-71-03/04: exact schema, valid references, sorted positive transfers and conservation (134.664ms)
+✔ TC-71-05: CLI writes selected path and rejects invalid arguments (106.5019ms)
 ℹ tests 5
 ℹ suites 0
 ℹ pass 5
@@ -111,7 +111,7 @@ $ node --test load-tests/fraud-dataset/generate.test.mjs
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 1938.068
+ℹ duration_ms 1827.8141
 exit=0 expected=0
 
-M-126-01 through M-126-07 PASS on final code commit 8699311adccaa24a60abed488d6465efe500853c.
+M-126-01 through M-126-07 PASS on final code commit ff5798ac955ec177169eb39af237395bee6af160.

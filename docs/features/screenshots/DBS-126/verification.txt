@@ -1,5 +1,5 @@
 DBS-126 verification — G4 approved; automated source bytes committed as 8699311adccaa24a60abed488d6465efe500853c; manual rerun on that commit
-Final verification summary (raw runs below): Node 59/59, backend unit 832/832, e2e 135/135, real PostgreSQL 369/369; no skipped tests. lint/typecheck/build exit 0. PostgreSQL emitted MaxListenersExceededWarning, retained below and handed off BL-154.
+Final verification summary (raw runs below): Node 60/60, backend unit 832/832, e2e 135/135, real PostgreSQL 369/369; no skipped tests. lint/typecheck/build exit 0. PostgreSQL emitted MaxListenersExceededWarning, retained below and handed off BL-154.
 Final scope audit: 23/23 planned files, no extra files, no generated CSV among tracked/untracked changes; no test.skip/test.only/test.todo. Four source SHA-256 hashes still match manual transcript. manual-test.txt/verification.txt are UTF-8; no token/header/AWS-identifier pattern found. check-doc-links: 208 files, 0 broken links; git diff --check clean.
 Step 1 RED: node --test load-tests/fraud-dataset/generate.test.mjs
 4 pass, 1 fail, 0 skipped. TypeError: Cannot read properties of undefined (reading 'version').
@@ -223,3 +223,103 @@ Ran all test suites.
 ℹ duration_ms 13790.5405
 
 Post-G4: commit 8699311adccaa24a60abed488d6465efe500853c; M-126-01 through M-126-07 rerun PASS; first transcript line is final code SHA, four source SHA-256 hashes unchanged, four screenshots refreshed. BL-153 resolved.
+✖ TC-126-01/12: identical memory artifacts without wall clock or unseeded randomness (421.2001ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 506.7325
+
+✖ failing tests:
+
+test at ..\load-tests\fraud-dataset\generate-fraud.test.mjs:648:1
+✖ TC-126-01/12: identical memory artifacts without wall clock or unseeded randomness (421.2001ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  1 !== 0
+
+      at TestContext.<anonymous> (file:///D:/UET_PROJECT/digital-banking-simulator/load-tests/fraud-dataset/generate-fraud.test.mjs:677:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1201:25)
+      at Test.start (node:internal/test_runner/test:1096:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+✔ TC-126-02: ATO has six outgoing, five new recipients and a real drain (1402.6461ms)
+✔ TC-126-02: mule is funded by incoming money before six outgoing (426.2302ms)
+✔ TC-126-02: velocity contains six actual small outgoing in ten minutes (87.8443ms)
+✔ TC-126-02: bust-out is new, large, funded after opening and drains (421.7905ms)
+✔ TC-126-02: round-trip has an actual strictly later return of equal money (79.9796ms)
+✔ TC-126-03: SLOW_DRIP has its intended shape and no v1 source rule trigger (445.3868ms)
+✔ TC-126-03: STRUCTURING has its intended shape and no v1 source rule trigger (528.2201ms)
+✔ TC-126-03: FAN_IN has its intended shape and no v1 source rule trigger (626.496ms)
+✔ TC-126-09: history median keeps a half dong exactly (0.2876ms)
+✔ TC-126-05/06/07: emitted fraud prevalence, labels, IDs and independently replayed totals (803.4428ms)
+✔ TC-126-04: rent has small prior history and genuinely monthly payments (127.8105ms)
+✔ TC-126-04: self transfer uses two distinct real accounts with the same owner (123.6431ms)
+✔ TC-126-04: new salary customer is funded before a large same-day transfer (108.35ms)
+✔ TC-126-04: group meal pays five new friends in one sitting (143.4599ms)
+✔ TC-126-04: borrow and repay has a later equal return on the same Vietnamese day (125.8251ms)
+✔ TC-126-05: all fraud and hard-negative labels, seeds and minimum supported configuration (5115.3267ms)
+✔ TC-126-05: insufficient cohort rejects rather than silently dropping episodes (0.8718ms)
+✔ TC-126-01/10/12: real CLI artifacts reproduce across output paths and timezones (1367.0595ms)
+✔ TC-126-11: invalid input rejects without modifying sentinel or creating sidecars (1007.6038ms)
+✔ TC-126-11/12: API options, seed boundaries and hostile CSV characters (629.5282ms)
+✔ TC-126-01/12: identical memory artifacts without wall clock or unseeded randomness (663.1569ms)
+✔ TC-126-12: ignore checks work from the backend CI working directory (555.7299ms)
+✔ TC-126-01/07: NORMAL golden bytes and replayable opening/credit/ending trace (157.6694ms)
+✔ TC-71-01: fixed seed is byte identical and a changed seed differs (1101.5452ms)
+✔ TC-71-02: distinct habits, familiar recipients, skew and payday peak (0.384ms)
+✔ TC-71-03/04: exact schema, valid references, sorted positive transfers and conservation (150.7651ms)
+✔ TC-71-05: CLI writes selected path and rejects invalid arguments (114.6154ms)
+✔ TC-126-06/07/08/09: hand-calculated replay, precise money, Vietnamese midnight and zero days (4.3403ms)
+✔ TC-126-08: multiple accounts count under one customer, including inactive customers (0.3419ms)
+✔ TC-126-07: inspect the existing NORMAL trace independently (3.2366ms)
+✔ TC-126-06/07: reject missing column (0.6447ms)
+✔ TC-126-06/07: reject duplicate tx (0.2236ms)
+✔ TC-126-06/07: reject unknown account (0.1808ms)
+✔ TC-126-06/07: reject wrong owner (0.1724ms)
+✔ TC-126-06/07: reject self account (0.15ms)
+✔ TC-126-06/07: reject invalid date (0.1589ms)
+✔ TC-126-06/07: reject noncanonical date (0.294ms)
+✔ TC-126-06/07: reject time goes backwards (0.2427ms)
+✔ TC-126-06/07: reject out of period (0.1719ms)
+✔ TC-126-06/07: reject negative amount (0.1457ms)
+✔ TC-126-06/07: reject exponent amount (0.1124ms)
+✔ TC-126-06/07: reject leading zero (0.1316ms)
+✔ TC-126-06/07: reject bad snapshot (0.1373ms)
+✔ TC-126-06/07: reject missing credit (0.1206ms)
+✔ TC-126-06/07: reject credit before opening (0.0832ms)
+✔ TC-126-06/07: reject duplicate credit sequence (0.0851ms)
+✔ TC-126-06/07: reject credit outside period (0.067ms)
+✔ TC-126-06/07: reject unknown credit account (0.0853ms)
+✔ TC-126-06/07: reject negative credit (0.0982ms)
+✔ TC-126-06/07: reject new account with opening balance (0.0773ms)
+✔ TC-126-06/07: reject wrong ending balance (0.8499ms)
+✔ TC-126-06/07: reject wrong initial funding (0.2046ms)
+✔ TC-126-06/07: reject wrong final funding (0.1514ms)
+✔ TC-126-06/07: reject invalid fraud label (0.1083ms)
+✔ TC-126-06/07: reject scenario label mismatch (0.0922ms)
+✔ TC-126-06/07: reject unknown scenario (0.0837ms)
+✔ TC-126-06/07: reject wrong account created snapshot (0.0845ms)
+✔ TC-126-06/07: reject transfer at opening (0.0978ms)
+✔ TC-126-06/07: reject duplicate registry id (0.0977ms)
+✔ TC-126-06/07: reject missing customer (0.0661ms)
+ℹ tests 60
+ℹ suites 0
+ℹ pass 60
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14941.3874
+
+CI regression: run 42204457243 unit 58/59; check-ignore depended on backend cwd. Reproduced RED from backend, fixed explicit repo cwd and added a real subprocess regression (clear NODE_TEST_CONTEXT). GREEN 60/60 from backend, zero skipped; targeted root/backend regression 2/2. Final test/code commit ff5798ac955ec177169eb39af237395bee6af160; manual rerun 7/7 and four screenshots refreshed. Generator source hashes and CSV outputs unchanged.
