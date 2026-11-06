@@ -78,6 +78,18 @@ describe('DBS-77 SQS transport', () => {
     ).toEqual([{ messageId: 'bad', status: 'failed' }]);
     expect(send).toHaveBeenCalledTimes(2);
   });
+  it('TC-77-04 reports dead-lettered when DLQ forwarding succeeds but the source delete fails', async () => {
+    send
+      .mockResolvedValueOnce({
+        Messages: [{ MessageId: 'bad', Body: '{', ReceiptHandle: 'receipt' }],
+      })
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('delete failed'));
+    expect(
+      await client.processBatch('source', 'dlq', () => Promise.resolve(), { waitTimeSeconds: 0 }),
+    ).toEqual([{ messageId: 'bad', status: 'dead-lettered' }]);
+    expect(send).toHaveBeenCalledTimes(3);
+  });
   it('TC-77-05 propagates transport errors and reports delete failure', async () => {
     send.mockRejectedValueOnce(new Error('unavailable'));
     await expect(client.receive('queue')).rejects.toThrow('unavailable');

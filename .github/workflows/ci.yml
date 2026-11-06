@@ -82,7 +82,10 @@ jobs:
     name: e2e
     runs-on: ubuntu-24.04
     # Allows a cold Testcontainers image pull; the 10–12 minute CI target is measured separately.
-    timeout-minutes: 15
+    # jest-services.js tự ghi ngân sách tệ nhất 1.080.000ms (~18 phút) cho suite ElasticMQ (DBS-77)
+    # chạy ở bước cuối job này; 15 phút cũ không đủ chứa ngân sách đó cộng với test:e2e và bước
+    # Testcontainers PostgreSQL phía trước, nên nâng lên có biên an toàn.
+    timeout-minutes: 35
     # app-guard.e2e-spec.ts (DBS-50) boots the real AppModule, và DatabaseModule luôn mở kết nối
     # Postgres thật lúc app.init() bất kể route nào được gọi — nên job này cần service Postgres như
     # job `db`, dù phần lớn test:e2e khác fake DataSource. Bước Testcontainers dưới đây tự gỡ

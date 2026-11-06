@@ -107,7 +107,14 @@ export class SqsClient implements OnModuleDestroy {
                 MessageAttributes: message.MessageAttributes,
               }),
             );
-            await this.acknowledge(queue, message);
+            // Forwarding already succeeded; report dead-lettered even if this delete fails,
+            // so callers don't mistake a forwarded message for one nothing happened to.
+            try {
+              await this.acknowledge(queue, message);
+            } catch {
+              // Source stays visible and will redeliver; next attempt forwards to the DLQ
+              // again, which the DLQ consumer must tolerate (at-least-once, see README).
+            }
             return result('dead-lettered');
           }
           await handler(body, message);
