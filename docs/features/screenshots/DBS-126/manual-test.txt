@@ -1,0 +1,117 @@
+8699311adccaa24a60abed488d6465efe500853c
+DBS-126 manual CLI, Git Bash, synthetic data only
+v24.15.0
+7ec8a41231c6b7c297c94e6463785a928407186e88a8573922f4fdda9d48d419 *load-tests/fraud-dataset/generate.mjs
+d1e31159753cde85ef605a5f8d84cf424c745ac0a2cb5db82de215708df2534e *load-tests/fraud-dataset/generate-fraud.mjs
+1a6ae6089bc5c39bb109944693fd4f2a52e13d8510505082e5f01cdecfd9486f *load-tests/fraud-dataset/scenarios.mjs
+14e1883ed4388c61acd2155a692641a3d311cae33e2d4fca8d3f4ebdeda71c5d *load-tests/fraud-dataset/inspect-fraud.mjs
+
+M-126-01
+$ node load-tests/fraud-dataset/generate-fraud.mjs --output load-tests/results/dbs126-a.csv
+{"sha256":"fc08c565275646cb19068f088749ae4a6f89e71eb7b172cc1804de8f7b57f7e1","transactions":73106,"fraudTransactions":723,"fraudRate":0.009889749131398244,"scenarioCounts":{"NORMAL":72371,"HN_RENT":3,"BUST_OUT":91,"STRUCTURING":90,"ATO_DRAIN":90,"VELOCITY_BURST":90,"SLOW_DRIP":91,"FAN_IN":90,"MULE_FANOUT":91,"ROUND_TRIP":90,"HN_GROUP_MEAL":5,"HN_NEW_SALARY":1,"HN_BORROW_REPAY":2,"HN_SELF_TRANSFER":1},"amount":{"min":"2000","p50":"507000","p90":"2541000","p99":"8960000","max":"60795000"},"activity":{"customers":2000,"days":60,"customerDays":120000,"mean":0.6092166666666666,"p50":0,"p90":2,"max":45},"totalDebits":"80100216350","totalCredits":"80100216350","endingCustomerBalances":"207873984000","fundingBalance":"-207873984000","minBalance":"0"}
+exit=0 expected=0
+
+M-126-02
+$ node load-tests/fraud-dataset/generate-fraud.mjs --output load-tests/results/dbs126-b.csv
+{"sha256":"fc08c565275646cb19068f088749ae4a6f89e71eb7b172cc1804de8f7b57f7e1","transactions":73106,"fraudTransactions":723,"fraudRate":0.009889749131398244,"scenarioCounts":{"NORMAL":72371,"HN_RENT":3,"BUST_OUT":91,"STRUCTURING":90,"ATO_DRAIN":90,"VELOCITY_BURST":90,"SLOW_DRIP":91,"FAN_IN":90,"MULE_FANOUT":91,"ROUND_TRIP":90,"HN_GROUP_MEAL":5,"HN_NEW_SALARY":1,"HN_BORROW_REPAY":2,"HN_SELF_TRANSFER":1},"amount":{"min":"2000","p50":"507000","p90":"2541000","p99":"8960000","max":"60795000"},"activity":{"customers":2000,"days":60,"customerDays":120000,"mean":0.6092166666666666,"p50":0,"p90":2,"max":45},"totalDebits":"80100216350","totalCredits":"80100216350","endingCustomerBalances":"207873984000","fundingBalance":"-207873984000","minBalance":"0"}
+exit=0 expected=0
+$ sha256sum load-tests/results/dbs126-a.csv load-tests/results/dbs126-b.csv
+fc08c565275646cb19068f088749ae4a6f89e71eb7b172cc1804de8f7b57f7e1 *load-tests/results/dbs126-a.csv
+fc08c565275646cb19068f088749ae4a6f89e71eb7b172cc1804de8f7b57f7e1 *load-tests/results/dbs126-b.csv
+exit=0 expected=0
+$ cmp load-tests/results/dbs126-a.csv load-tests/results/dbs126-b.csv
+exit=0 expected=0
+$ sha256sum load-tests/results/dbs126-a.csv.simulation.json load-tests/results/dbs126-b.csv.simulation.json
+93b6a534392d57566c4385cb073ce902bf3f3fd2e38815bced7c1861a64525da *load-tests/results/dbs126-a.csv.simulation.json
+93b6a534392d57566c4385cb073ce902bf3f3fd2e38815bced7c1861a64525da *load-tests/results/dbs126-b.csv.simulation.json
+exit=0 expected=0
+$ cmp load-tests/results/dbs126-a.csv.simulation.json load-tests/results/dbs126-b.csv.simulation.json
+exit=0 expected=0
+$ sha256sum load-tests/results/dbs126-a.csv.stats.json load-tests/results/dbs126-b.csv.stats.json
+bc291565b3b5357164c6ba48bb3364a164d693d4125b1d4c30132e2ae6c85862 *load-tests/results/dbs126-a.csv.stats.json
+bc291565b3b5357164c6ba48bb3364a164d693d4125b1d4c30132e2ae6c85862 *load-tests/results/dbs126-b.csv.stats.json
+exit=0 expected=0
+$ cmp load-tests/results/dbs126-a.csv.stats.json load-tests/results/dbs126-b.csv.stats.json
+exit=0 expected=0
+
+M-126-03
+$ node load-tests/fraud-dataset/generate-fraud.mjs --seed dbs-fraud-v2 --output load-tests/results/dbs126-c.csv
+{"sha256":"9fb24e3d151e3cc399352320de1c80b71f7426f758f780ad3ab395476a4b2545","transactions":76447,"fraudTransactions":731,"fraudRate":0.009562180334087669,"scenarioCounts":{"NORMAL":75704,"HN_RENT":3,"MULE_FANOUT":91,"BUST_OUT":95,"ATO_DRAIN":90,"VELOCITY_BURST":90,"SLOW_DRIP":91,"FAN_IN":90,"STRUCTURING":90,"HN_GROUP_MEAL":5,"HN_NEW_SALARY":1,"ROUND_TRIP":94,"HN_BORROW_REPAY":2,"HN_SELF_TRANSFER":1},"amount":{"min":"4000","p50":"476000","p90":"2490000","p99":"8855000","max":"44332000"},"activity":{"customers":2000,"days":60,"customerDays":120000,"mean":0.6370583333333333,"p50":0,"p90":2,"max":47},"totalDebits":"81349533050","totalCredits":"81349533050","endingCustomerBalances":"207829227000","fundingBalance":"-207829227000","minBalance":"0"}
+exit=0 expected=0
+$ sha256sum load-tests/results/dbs126-a.csv load-tests/results/dbs126-c.csv
+fc08c565275646cb19068f088749ae4a6f89e71eb7b172cc1804de8f7b57f7e1 *load-tests/results/dbs126-a.csv
+9fb24e3d151e3cc399352320de1c80b71f7426f758f780ad3ab395476a4b2545 *load-tests/results/dbs126-c.csv
+exit=0 expected=0
+$ cmp load-tests/results/dbs126-a.csv load-tests/results/dbs126-c.csv
+load-tests/results/dbs126-a.csv load-tests/results/dbs126-c.csv differ: byte 160, line 2
+exit=1 expected=1
+
+M-126-04
+$ node load-tests/fraud-dataset/inspect-fraud.mjs --csv load-tests/results/dbs126-a.csv --simulation load-tests/results/dbs126-a.csv.simulation.json
+{"sha256":"fc08c565275646cb19068f088749ae4a6f89e71eb7b172cc1804de8f7b57f7e1","transactions":73106,"fraudTransactions":723,"fraudRate":0.009889749131398244,"scenarioCounts":{"NORMAL":72371,"HN_RENT":3,"BUST_OUT":91,"STRUCTURING":90,"ATO_DRAIN":90,"VELOCITY_BURST":90,"SLOW_DRIP":91,"FAN_IN":90,"MULE_FANOUT":91,"ROUND_TRIP":90,"HN_GROUP_MEAL":5,"HN_NEW_SALARY":1,"HN_BORROW_REPAY":2,"HN_SELF_TRANSFER":1},"amount":{"min":"2000","p50":"507000","p90":"2541000","p99":"8960000","max":"60795000"},"activity":{"customers":2000,"days":60,"customerDays":120000,"mean":0.6092166666666666,"p50":0,"p90":2,"max":45},"totalDebits":"80100216350","totalCredits":"80100216350","endingCustomerBalances":"207873984000","fundingBalance":"-207873984000","minBalance":"0"}
+exit=0 expected=0
+$ node --input-type=module -e $'\nimport {readFileSync} from "node:fs";\nimport assert from "node:assert/strict";\nimport {inspectDataset} from "./load-tests/fraud-dataset/inspect-fraud.mjs";\nconst path="load-tests/results/dbs126-a.csv", csv=readFileSync(path,"utf8");\nassert.deepEqual(inspectDataset(csv,JSON.parse(readFileSync(path+".simulation.json","utf8"))),JSON.parse(readFileSync(path+".stats.json","utf8")));\nconst lines=csv.trimEnd().split("\\n"),seen=new Set(); console.log(lines[0]);\nfor(const line of lines.slice(1)){const row=line.split(",");if(!seen.has(row[11])){seen.add(row[11]);console.log(line);}}\nconsole.log("Independent report matches sidecar; one real row per scenario printed.");'
+tx_id,occurred_at,from_account,to_account,from_customer,to_customer,amount,from_balance_before,from_account_created_at,to_account_created_at,is_fraud,scenario
+6f1feca2-4765-4b52-aa37-4a0851dd870d,2025-12-31T17:00:42.000Z,c9936396-7622-4de6-a566-0e814d537f05,48b1a95b-1a67-4990-abd7-6e7654bbdd62,014645c6-c935-4bc7-af1e-7fba3eae7ebc,edd47495-3b50-48af-ae46-1d9f25394902,79000,43161000,2024-10-24T17:00:00.000Z,2025-05-10T17:00:00.000Z,0,NORMAL
+3f3bf1b1-4abd-4d46-ac54-2b04a0d7ac6b,2026-01-01T11:00:00.000Z,3e6503f5-f06b-4a06-ac2b-42a8dab65adf,8eb5438f-b6de-4701-afbe-e1e5c70d21fc,ef05b66b-43cc-4d1d-a31c-30adf4391290,04814aa2-5953-4274-aee5-dbb7bc2c7999,8970000,199392000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,0,HN_RENT
+0ec8de5c-b72c-4951-a9c0-ef0a534f0aed,2026-01-03T02:29:42.000Z,3964bc6b-026b-408a-ad4e-df18922ced39,1c112a07-4cca-4dec-a174-48bea1e8e6c4,1ced3162-d6b9-4c3c-a61a-76a703e6b797,a1c78ae3-ccf0-4cb9-aa38-ecdc12525144,26825150,28237000,2026-01-03T01:29:42.000Z,2025-06-14T17:00:00.000Z,1,BUST_OUT
+31712119-26de-46d0-a78d-6d5ff3833fc5,2026-01-03T05:09:26.000Z,c2b41472-35d0-4092-a1f2-6c618bf3ec92,56aad181-1f3c-4851-a01e-772cae6301e6,fbf1dc14-1dc7-4d72-a4b9-e60185352c31,f787e945-e501-41ca-a247-62efc45da23e,9736000,451320000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,1,STRUCTURING
+56d9ba05-b441-4ff1-ad5c-b9aba6c331e0,2026-01-04T03:10:11.000Z,33ff91a9-65d2-46f5-a8f2-b9d8212ca084,15141d1d-dada-4f0e-a013-142bcc79519d,30681f8d-cdef-41ac-a98a-6733d9d2bc2e,0d7780af-b3f7-4e87-a519-8135b94de65c,108000,25643000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,1,ATO_DRAIN
+2fcf6d51-1a4d-45e0-afb6-f1d1afec72f4,2026-01-04T05:13:41.000Z,a0117d3c-6d25-4036-a66c-72b7ab84fc93,83fbfff2-c39e-4905-ab5d-9b3d62c6393c,d6645cef-3193-4f5c-acbd-fedf6ea5942d,20bfd0a9-a9ae-4f20-aac6-05ee3a519b2e,228000,50000000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,1,VELOCITY_BURST
+46fc6d3f-f698-45cb-aadb-c8744c8e75a2,2026-01-05T04:17:29.000Z,26964ca4-8f9d-4cdb-ab5c-71a3a35b9c93,990a2b23-ac3a-4672-a461-5e53e63c3d37,db61a593-6c05-4593-a60f-12bce95597df,7273e24c-2ccf-4291-a2e3-4d6ecf3c9020,142000,49290000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,1,SLOW_DRIP
+b9397da5-3451-41af-a941-1e01211cfb32,2026-01-05T05:27:17.000Z,511d9ed7-c848-41fb-a439-9437b5365fe9,2b3779ef-cdea-44fc-a29f-4d13ab7e9968,f5ecf027-b4b3-4c2a-ab6d-ff740c93e230,579e9d2d-4b38-43d1-a0e6-d840f1c0df73,320000,48400000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,1,FAN_IN
+53f395af-7fb1-46f3-a587-a4fa10cd75ee,2026-01-05T08:11:08.000Z,326ff49d-f7b6-4dac-ab50-46cd6c60cac8,b85334e8-f72f-4cff-a03f-ac788a95aae8,5a35a945-7d1b-4b41-a069-73d335b46218,d815eb54-e469-40c6-aa18-764ca5d8d688,20080000,390000000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,1,MULE_FANOUT
+f354b035-62e6-4b51-afb9-f0bb8d476a7d,2026-01-11T04:02:52.000Z,b45a95e4-7687-431d-a403-ac3fe2f969f4,6190bccf-6edf-40b8-a9e5-cba7e83797ae,df4e5304-3811-4453-aa95-02eb323134e5,95ccfdb3-d2f9-4e26-a6e0-68afcf0734a5,1760000,20000000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,1,ROUND_TRIP
+e9d992f5-6357-4452-a99c-b38cb267df38,2026-01-16T03:25:09.000Z,3831e09e-8d77-4ca2-aa57-65ec5f0e1834,1113be80-ee31-493c-ae1c-6da21c5b1158,66d575ba-04cb-44ad-a0d1-41122ffaf41e,71b3428b-3dc0-4ec9-a1c9-d4905cb803ec,395000,10000000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,0,HN_GROUP_MEAL
+f0566983-dba0-4b0d-a28e-456dfc78e1fb,2026-01-26T07:18:57.000Z,8852ac63-6597-4941-ae1e-a3af9c8a3122,b9d4056a-3b15-4838-a9e1-48df2cd5e77b,4546f8b9-09ef-4cd8-a6e0-7f215614f06d,c764715f-072a-428c-aa30-cf09396f5172,20000000,25000000,2026-01-26T06:18:57.000Z,2025-06-14T17:00:00.000Z,0,HN_NEW_SALARY
+ebb2e1f2-4855-4036-a275-b4ce40d301d6,2026-02-10T05:03:31.000Z,2350649a-f62d-4c3b-a56d-f5279b69c07c,9cdf600c-9752-4409-a50f-30a70265fb6b,c2dee14b-41e1-4242-a684-b13329d53ff2,29fcad17-6db3-450e-a199-3f1d2dd1a8bd,2290000,25000000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,0,HN_BORROW_REPAY
+278395d0-7829-4dd5-a0b6-0037e4bea6d5,2026-02-12T02:15:46.000Z,24ed16cc-f0ac-4a94-a6c5-09ad225f402d,4676d51a-ff44-4409-aadc-c2d55fbe0ad9,44f9f2b0-189a-4a35-a8b0-a1b36ba5ee0e,44f9f2b0-189a-4a35-a8b0-a1b36ba5ee0e,23750000,25000000,2025-06-14T17:00:00.000Z,2025-06-14T17:00:00.000Z,0,HN_SELF_TRANSFER
+Independent report matches sidecar; one real row per scenario printed.
+exit=0 expected=0
+
+M-126-05
+$ node load-tests/fraud-dataset/generate-fraud.mjs --customers 999 --output load-tests/results/dbs126-invalid.csv
+customers must be 1000–100000
+exit=1 expected=1
+$ node --input-type=module -e import\{existsSync\}from\"node:fs\"\;\ for\(const\ suffix\ of\ \[\"\"\,\".simulation.json\"\,\".stats.json\"\]\)\ if\(existsSync\(\"load-tests/results/dbs126-invalid.csv\"+suffix\)\)\ throw\ new\ Error\(\"unexpected\ invalid\ artifact\"\)\;console.log\(\"No\ invalid\ artifacts\"\)\;
+No invalid artifacts
+exit=0 expected=0
+$ node load-tests/fraud-dataset/generate-fraud.mjs --customers 1000 --days 30 --output load-tests/results/dbs126-min.csv
+{"sha256":"7bfa28603315f304ac4da606fbed62443c63e38ca79b1d3f8a230830f2d43baa","transactions":18773,"fraudTransactions":159,"fraudRate":0.00846961061098386,"scenarioCounts":{"NORMAL":18603,"HN_RENT":2,"BUST_OUT":23,"ROUND_TRIP":22,"VELOCITY_BURST":18,"HN_GROUP_MEAL":5,"HN_NEW_SALARY":1,"SLOW_DRIP":21,"HN_BORROW_REPAY":2,"FAN_IN":18,"HN_SELF_TRANSFER":1,"MULE_FANOUT":21,"STRUCTURING":18,"ATO_DRAIN":18},"amount":{"min":"6000","p50":"549000","p90":"2686000","p99":"8744000","max":"40255300"},"activity":{"customers":1000,"days":30,"customerDays":30000,"mean":0.6257666666666667,"p50":0,"p90":2,"max":11},"totalDebits":"21580458850","totalCredits":"21580458850","endingCustomerBalances":"74864240000","fundingBalance":"-74864240000","minBalance":"0"}
+exit=0 expected=0
+
+M-126-06
+$ node --input-type=module -e import\{readFileSync\,writeFileSync\}from\"node:fs\"\;const\ lines=readFileSync\(\"load-tests/results/dbs126-a.csv\"\,\"utf8\"\).split\(\"\\n\"\)\,row=lines\[1\].split\(\"\,\"\)\;row\[7\]=String\(BigInt\(row\[7\]\)-1n\)\;lines\[1\]=row.join\(\"\,\"\)\;writeFileSync\(\"load-tests/results/dbs126-broken.csv\"\,lines.join\(\"\\n\"\)\)\;console.log\(\"Changed\ only\ the\ copy:\ first\ balance\ snapshot\ -1\ dong\"\)\;
+Changed only the copy: first balance snapshot -1 dong
+exit=0 expected=0
+$ node load-tests/fraud-dataset/inspect-fraud.mjs --csv load-tests/results/dbs126-broken.csv --simulation load-tests/results/dbs126-a.csv.simulation.json
+balance snapshot mismatch at row 1
+exit=1 expected=1
+$ node load-tests/fraud-dataset/inspect-fraud.mjs --csv load-tests/results/dbs126-a.csv --simulation load-tests/results/dbs126-a.csv.simulation.json
+{"sha256":"fc08c565275646cb19068f088749ae4a6f89e71eb7b172cc1804de8f7b57f7e1","transactions":73106,"fraudTransactions":723,"fraudRate":0.009889749131398244,"scenarioCounts":{"NORMAL":72371,"HN_RENT":3,"BUST_OUT":91,"STRUCTURING":90,"ATO_DRAIN":90,"VELOCITY_BURST":90,"SLOW_DRIP":91,"FAN_IN":90,"MULE_FANOUT":91,"ROUND_TRIP":90,"HN_GROUP_MEAL":5,"HN_NEW_SALARY":1,"HN_BORROW_REPAY":2,"HN_SELF_TRANSFER":1},"amount":{"min":"2000","p50":"507000","p90":"2541000","p99":"8960000","max":"60795000"},"activity":{"customers":2000,"days":60,"customerDays":120000,"mean":0.6092166666666666,"p50":0,"p90":2,"max":45},"totalDebits":"80100216350","totalCredits":"80100216350","endingCustomerBalances":"207873984000","fundingBalance":"-207873984000","minBalance":"0"}
+exit=0 expected=0
+
+M-126-07
+$ node load-tests/fraud-dataset/generate.mjs --output load-tests/results/dbs126-normal.csv
+{"output":"D:\\UET_PROJECT\\digital-banking-simulator\\load-tests\\results\\dbs126-normal.csv","sha256":"60e10c49abe8a6f9377dab29b729eaaf4a0f1d1a11dadfa759d8813aa7a7476f","transactions":96200,"minLambda":0.3000000000127816,"maxLambda":2.9990335613655,"familiarShare":0.8005509355509356,"activeHourShare":0.9379106029106029,"paydayRateRatio":1.6902730639487502,"p50Amount":478000,"p90Amount":2411000,"salaryCredits":4000,"minBalance":"0","totalDebits":"96043641000","totalCredits":"96043641000","endingCustomerBalances":"253305091000","fundingBalance":"-253305091000"}
+exit=0 expected=0
+$ node --input-type=module -e import\{readFileSync\}from\"node:fs\"\;import\{createHash\}from\"node:crypto\"\;import\ assert\ from\"node:assert/strict\"\;const\ hash=createHash\(\"sha256\"\).update\(readFileSync\(\"load-tests/results/dbs126-normal.csv\"\)\).digest\(\"hex\"\)\;assert.equal\(hash\,\"60e10c49abe8a6f9377dab29b729eaaf4a0f1d1a11dadfa759d8813aa7a7476f\"\)\;console.log\(\"NORMAL\ golden\ hash\ unchanged:\"\,hash\)\;
+NORMAL golden hash unchanged: 60e10c49abe8a6f9377dab29b729eaaf4a0f1d1a11dadfa759d8813aa7a7476f
+exit=0 expected=0
+$ node --test load-tests/fraud-dataset/generate.test.mjs
+✔ TC-126-01/07: NORMAL golden bytes and replayable opening/credit/ending trace (139.8557ms)
+✔ TC-71-01: fixed seed is byte identical and a changed seed differs (954.5363ms)
+✔ TC-71-02: distinct habits, familiar recipients, skew and payday peak (0.3077ms)
+✔ TC-71-03/04: exact schema, valid references, sorted positive transfers and conservation (137.5432ms)
+✔ TC-71-05: CLI writes selected path and rejects invalid arguments (118.7929ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1938.068
+exit=0 expected=0
+
+M-126-01 through M-126-07 PASS on final code commit 8699311adccaa24a60abed488d6465efe500853c.
