@@ -1,6 +1,6 @@
 # DBS-86 · Kiểm tra sở hữu tài nguyên và audit DENIED
 
-> **Status:** Plan approved — code đã triển khai, đang kiểm chứng và chuẩn bị bàn giao G4 · **Vai:** Dev · **Dev review:** chưa phân công · **Nhánh:** `codex/DBS-86-resource-ownership` · **PR:** — · **Cập nhật:** 2026-11-05
+> **Status:** Implemented — G4 đã duyệt phạm vi service; HTTP integration và process DoD còn mở · **Vai:** Dev · **Dev review:** chưa phân công · **Nhánh:** `codex/DBS-86-resource-ownership` · **PR:** — · **Cập nhật:** 2026-11-06
 
 ## 1. Bối cảnh
 
@@ -557,6 +557,12 @@ BACKLOG đã có BL-145/146 và cập nhật BL-019/122/125 cho đúng phần c�
 
 **Tích hợp tài liệu khi hai PR được review/merge:** đã đối chiếu bốn diff dùng chung. Giữ đồng thời diagram/contract UC-8 của DBS-103 và ownership/transaction boundary của DBS-86 trong docs03; T22 cùng T11/T12 trong threat model; cả hai dòng feature index. BL-019 là cùng một row: khi hợp hai thay đổi, giữ API UC-8 và primitive DENIED đã có, chỉ giữ grants/full AC-8.1/registry/load/sensitive reads còn thiếu; không trả phần API đã xử lý về trạng thái thiếu. Giữ BL-143/144 và BL-145/146 không trùng ID. Đây là lưu ý cho Dev review/merge, chưa có merge main hoặc CI remote.
 
+### Phê duyệt G4 và công bố ngày 2026-11-06
+
+Người dùng trả lời **«duyệt g4»**, chấp nhận kết quả và từng giới hạn đã nêu trong bàn giao G4, cho phép push nhánh và mở Draft PR. Status chuyển thành **Implemented** cho phạm vi G1–G3; không đánh dấu toàn bộ DoD hoàn tất. Source/test giữ nguyên SHA đã chạy manual; chỉ sửa tài liệu sau G4.
+
+Fetch trước công bố xác nhận `origin/main` đã tới `2df7d0a` (thêm DBS-60/62/77). `git merge-tree --write-tree --name-only --no-messages HEAD origin/main` phát hiện conflict ở: `backend/src/modules/accounts/README.md`, `backend/src/modules/accounts/accounts.module.ts`, `backend/test/db/accounts-service.db-spec.ts`, `docs/BACKLOG.md`, `docs/features/README.md`. Không rebase/merge source sau G4; kiểm thử đã lưu áp dụng cho source SHA và base `a9e607b` đã công bố, chưa chứng minh tích hợp với main mới. Dev xử lý conflict và chạy lại verification trước review/merge, theo BL-146. Hai PR vẫn cần giữ các thay đổi tài liệu dùng chung của cả hai task.
+
 ## 9. Tài liệu đã cập nhật
 
 - [README accounts](../../backend/src/modules/accounts/README.md): public mandatorycontext, DENIED fail-closed, attribution, ALS boundary và handoff endpoint.
@@ -567,7 +573,7 @@ BACKLOG đã có BL-145/146 và cập nhật BL-019/122/125 cho đúng phần c�
 - [BACKLOG](../BACKLOG.md): thêm BL-145 (endpoint ownership), BL-146 (process DoD); cập nhật BL-019/122/125. Không xóa backlog row nào.
 - Feature này cập nhật G3, final code SHA, test mapping, manual9/9 và năm ảnh, tách native Windows gap với Linux full suite. Hai raw domain review tại §6 được giữ nguyên; TDD và manual transcript có evidence thực. [Verification](screenshots/DBS-86/verification.txt) đã ghép raw baseline/final/native diagnostics/Linux/integration và regression manual55; link checker197files/0broken, whitespace sạch.
 
-## Checklist G4 · trạng thái trước khi duyệt
+## Checklist G4 · snapshot đã được duyệt ngày 2026-11-06
 
 - [x] 15/15 TC của phạm vi service đã duyệt đạt đủ độ sâu, 0 đơn giản hóa; Handoff-86-HTTP và process DoD được ghi riêng là chưa hoàn tất.
 - [x] Manual M-86-01…09 chạy trên final code SHA e821010, SHA ở dòng đầu transcript, exit0; đường owned/denied/failure/recovery đã chạy. Ba bước M-86-HTTP-TRANSFER/ACCOUNT/HISTORY chưa chạy được nêu đích danh để người dùng chấp nhận tại G4.
