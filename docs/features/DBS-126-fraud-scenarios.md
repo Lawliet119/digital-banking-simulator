@@ -1,6 +1,6 @@
 # DBS-126 · Generator kịch bản gian lận và hard negatives
 
-> **Status:** Implemented (G4 đã duyệt; final-code manual đạt, đang xuất bản Draft PR) · **Vai:** Dev (#6 Quality/data) · **Review:** Dev khác người viết generator, không phải #4 Fraud · **Nhánh:** `codex/DBS-126-fraud-scenarios-20261106` · **PR:** — · **Cập nhật:** 2026-11-06
+> **Status:** Implemented (G4 đã duyệt; Draft PR #62, chờ Dev review/merge) · **Vai:** Dev (#6 Quality/data) · **Review:** Dev khác người viết generator, không phải #4 Fraud · **Nhánh:** `codex/DBS-126-fraud-scenarios-20261106` · **PR:** [Draft #62](https://github.com/Lawliet119/digital-banking-simulator/pull/62) · **Cập nhật:** 2026-11-06
 
 ## 1. Bối cảnh
 
@@ -292,7 +292,7 @@ Tên file sau dấu phẩy trong cùng ô được hiểu tương đối theo th
 | `npm run test:db -- --maxWorkers=2` | PostgreSQL thật, 20 suites, **369/369 đạt**, 0 skipped; có cảnh báo listener dưới đây |
 | `npm run build` | Đạt, exit 0 |
 
-DB suite phát `MaxListenersExceededWarning` cho `listening`, `error`, `close` trên `Server` (11 listeners, giới hạn 10). Chưa xác định nguồn/root cause; không suppression hoặc sửa harness. Bàn giao **BL-154**. Hai timeout bootstrap ở baseline G1 không tái hiện trong lần verification E2E này; không tuyên bố đã sửa nguyên nhân cũ. Remote CI và các bước ElasticMQ/Testcontainers đặc thù CI chưa chạy cho thay đổi này (**BL-151**).
+DB suite phát `MaxListenersExceededWarning` cho `listening`, `error`, `close` trên `Server` (11 listeners, giới hạn 10). Chưa xác định nguồn/root cause; không suppression hoặc sửa harness. Bàn giao **BL-154**. Hai timeout bootstrap ở baseline G1 không tái hiện trong lần verification E2E này; không tuyên bố đã sửa nguyên nhân cũ. CI remote và các bước ElasticMQ/Testcontainers đặc thù CI được theo dõi tại [PR #62 Checks](https://github.com/Lawliet119/digital-banking-simulator/pull/62/checks); trạng thái trực tiếp ở đó là nguồn xác nhận CI trên HEAD cuối, không thay bằng kết quả local (**BL-151**).
 
 ### 8.2 Đối chiếu test case
 
@@ -358,7 +358,7 @@ Bốn ảnh chụp bằng browser từ **bản hiển thị read-only của outp
 
 **Bàn giao:** BL-151 (CI/review/merge); BL-152 (DBS-127, wall/split/giao); BL-154 (harness warning); BL-155 (giới hạn cohort/HN/quy mô và P5). Các BL-040/041/044/050/142 còn nguyên phạm vi G1, không đóng bằng suy đoán.
 
-**G4:** Người dùng trả lời “duyệt g4” ngày 2026-11-06 cho đề xuất commit → chạy lại manual trên code SHA cuối → cập nhật bằng chứng → push và mở Draft PR. Đã commit code và chạy lại manual đủ 7/7; đang hoàn tất xuất bản. Không tự merge/sửa board; Dev khác review PR.
+**G4:** Người dùng trả lời “duyệt g4” ngày 2026-11-06 cho đề xuất commit → chạy lại manual trên code SHA cuối → cập nhật bằng chứng → push và mở Draft PR. Đã commit code và chạy lại manual đủ 7/7; đã push và mở [Draft PR #62](https://github.com/Lawliet119/digital-banking-simulator/pull/62). CI theo [Checks](https://github.com/Lawliet119/digital-banking-simulator/pull/62/checks); Dev khác review và người có quyền merge còn chờ. Không tự merge/sửa board.
 
 ## 9. Tài liệu đã cập nhật
 
