@@ -24,7 +24,7 @@ export class TransferDto {
   @ApiProperty({
     type: String,
     example: '300000',
-    description: 'Positive canonical whole VND string, at most9223372036854775807',
+    description: 'Positive canonical whole VND string, at most 9223372036854775807',
   })
   @IsMoneyAmount()
   amount!: string;

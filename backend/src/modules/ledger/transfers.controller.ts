@@ -31,7 +31,7 @@ export class TransfersController {
   @ApiOperation({
     summary: 'Customer: transfer between distinct customer accounts with atomic double entry',
     description:
-      'Source must belong to caller. Basic ACTIVE/balance checks only; per-transfer/day limits are pending. First execution only; reused keys return409. Stored-result replay is not supported yet.',
+      'Source must belong to caller. Basic ACTIVE/balance checks only; per-transfer/day limits are pending. First execution only; reused keys return 409. Stored-result replay is not supported yet.',
   })
   @ApiHeader({
     name: 'Idempotency-Key',
@@ -71,7 +71,7 @@ export class TransfersController {
         message: 'Idempotency-Key is required',
       });
     if ([...key].length > 128)
-      throw new BadRequestException('Idempotency-Key must contain at most128 characters');
+      throw new BadRequestException('Idempotency-Key must contain at most 128 characters');
     if (!request.correlationId) throw new Error('Missing server correlation context');
     return this.transfers.transfer(user.userId, key, body, request.correlationId);
   }
