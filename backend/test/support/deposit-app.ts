@@ -35,10 +35,21 @@ const settings = {
 export interface FixtureLimits {
   transfer: { perTx: bigint; perDay: bigint };
 }
+/** Per-transaction database waits; defaults match env/.env.example. A test shortens them to hit a timeout quickly. */
+export interface DbTimeouts {
+  lockTimeoutMs: number;
+  statementTimeoutMs: number;
+  idleInTransactionTimeoutMs: number;
+}
+const DEFAULT_TIMEOUTS: DbTimeouts = {
+  lockTimeoutMs: 2000,
+  statementTimeoutMs: 5000,
+  idleInTransactionTimeoutMs: 10000,
+};
 @Global()
 @Module({})
 class DepositFixtureConfig {
-  static forRoot(auth: unknown, limits: FixtureLimits): DynamicModule {
+  static forRoot(auth: unknown, limits: FixtureLimits, timeouts: DbTimeouts): DynamicModule {
     return {
       module: DepositFixtureConfig,
       providers: [
@@ -46,11 +57,7 @@ class DepositFixtureConfig {
         { provide: appConfig.KEY, useValue: settings },
         {
           provide: databaseConfig.KEY,
-          useValue: {
-            lockTimeoutMs: 2000,
-            statementTimeoutMs: 5000,
-            idleInTransactionTimeoutMs: 10000,
-          },
+          useValue: timeouts,
         },
         {
           provide: limitsConfig.KEY,
@@ -70,7 +77,10 @@ class DepositFixtureConfig {
 }
 
 /** Actual modules, JWT/identity and Pino context. Only test configuration supplied. */
-export async function startDepositApp(databaseUrl: string) {
+export async function startDepositApp(
+  databaseUrl: string,
+  options: { timeouts?: Partial<DbTimeouts> } = {},
+) {
   const issuer = await createDevTokenIssuer(),
     tempRoot = resolve(tmpdir());
   const dir = mkdtempSync(join(tempRoot, 'dbs60-jwks-')),
@@ -106,6 +116,7 @@ export async function startDepositApp(databaseUrl: string) {
             accessTokenTtlSeconds: 900,
           },
           limits,
+          { ...DEFAULT_TIMEOUTS, ...options.timeouts },
         ),
         IdentityModule,
         AccountsModule,
