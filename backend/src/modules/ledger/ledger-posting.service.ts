@@ -25,6 +25,17 @@ interface StoredKeyRow {
   response_body: Record<string, unknown> | null;
 }
 
+/** Same value with object keys in code-unit order at every depth; array order is data and is kept. */
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value === null || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, inner]) => [key, sortKeys(inner)]),
+  );
+}
+
 /**
  * The part of a money movement that is the same for every kind of transfer: claiming the
  * Idempotency-Key, writing the transfer row, the two ledger lines and the two balance changes,
@@ -36,10 +47,16 @@ interface StoredKeyRow {
 export class LedgerPostingService {
   constructor(private readonly accounts: AccountsService) {}
 
-  /** sha256 of the request as the client sent it, so the same key with another body is detectable. */
+  /**
+   * sha256 of the request as the client sent it, so the same key with another body is detectable.
+   * Keys are sorted at every level (ADR-05): the hash must not depend on the order in which a
+   * caller happened to write them, or a harmless refactor would turn every stored key into
+   * IDEMPOTENCY_KEY_REUSED. Bodies written in alphabetical order keep the hash they already had.
+   * Amounts stay strings; a number would merge 9007199254740992 and 9007199254740993.
+   */
   hashRequest(path: string, body: Record<string, string>): string {
     return createHash('sha256')
-      .update(JSON.stringify({ method: 'POST', path, body }))
+      .update(JSON.stringify({ method: 'POST', path, body: sortKeys(body) }))
       .digest('hex');
   }
 
