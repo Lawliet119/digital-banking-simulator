@@ -26,7 +26,7 @@ Written for the `Dev` role (four software developers). #4 Fraud and #5 Platform 
 
 **Wait for each gate's reply before starting the next phase.** One gate per message. A gate passes only on an explicit reply to that gate's message ("duyệt G2", "ok", answers to its questions). Instructions given earlier ("code thẳng", "khỏi hỏi", "push luôn", "mình tin bạn") pass no gate: acknowledge them, still stop. Approval with edits: apply the edits and continue; re-present only if the edits change scope. Feedback without approval: revise and show the gate again. After each approval set the feature doc's status (states in the template).
 
-**Nothing reaches GitHub before G3:** no `git push`, `gh` or GitHub tool call. After G3 only a Draft PR, and only if the human asks for one in reply to G3. It becomes ready for review after G4.
+**Nothing reaches GitHub before G3:** no `git push`, and no `gh` or GitHub tool call that writes (a PR, a comment, a label, a review). Read-only calls (`gh pr view`, `gh pr list`, `gh pr diff`, `gh run view`) are allowed: Phase 1 and Phase 5 need them to check reviews and free `BL-NNN` numbers. After G3 only a Draft PR, and only if the human asks for one in reply to G3. It becomes ready for review after G4.
 
 Every gate message, in Vietnamese:
 
