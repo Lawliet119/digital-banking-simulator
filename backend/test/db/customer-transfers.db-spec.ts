@@ -650,6 +650,120 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     expect(again.body.errorCode).toBe('INSUFFICIENT_FUNDS');
     expect(await balance(a.accountId)).toBe('101000');
   });
+  /** The body without `correlationId`, which always belongs to the request that is answered now. */
+  const sameAnswer = (body: Record<string, unknown>) => {
+    const { correlationId: _correlationId, ...rest } = body;
+    return rest;
+  };
+  /** Rows one transfer left behind, counted per table, for the "exactly once" assertions. */
+  const footprint = async (transferId: string, key: string, userId: string) => ({
+    lines: (
+      await q('SELECT count(*)::int AS n FROM ledger_entries WHERE transfer_id=$1', [transferId])
+    )[0].n,
+    audits: (
+      await q('SELECT count(*)::int AS n FROM audit_log WHERE target_id=$1', [transferId])
+    )[0].n,
+    events: (
+      await q('SELECT count(*)::int AS n FROM outbox_events WHERE aggregate_id=$1', [transferId])
+    )[0].n,
+    keys: (
+      await q('SELECT count(*)::int AS n FROM idempotency_keys WHERE user_id=$1 AND idem_key=$2', [
+        userId,
+        key,
+      ])
+    )[0].n,
+  });
+  it('TC-79-07 AC-5.4: ten parallel requests with one key make one transfer, two lines, ten equal answers', async () => {
+    const a = await target('1000000'),
+      b = await target(),
+      key = randomUUID();
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => transfer(a, b.accountId, '1000', key)),
+    );
+    expect(results.map(r => r.status)).toEqual(Array(10).fill(201));
+    for (const r of results) expect(r.body).toEqual(results[0].body);
+    const transferId = results[0].body.transferId as string;
+    expect(
+      await q('SELECT count(*)::int AS n FROM transfers WHERE from_account_id=$1', [a.accountId]),
+    ).toEqual([{ n: 1 }]);
+    expect(await footprint(transferId, key, a.userId)).toEqual({
+      lines: 2,
+      audits: 1,
+      events: 1,
+      keys: 1,
+    });
+    expect(await balance(a.accountId)).toBe('999000');
+    expect(await balance(b.accountId)).toBe('1000');
+  });
+  it('TC-79-08 AC-5.4: ten parallel requests that are refused share one rejection and one transferId', async () => {
+    const a = await target('1000'),
+      b = await target(),
+      key = randomUUID();
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => transfer(a, b.accountId, '5000', key)),
+    );
+    expect(results.map(r => r.status)).toEqual(Array(10).fill(422));
+    for (const r of results) {
+      expect(r.headers['content-type']).toContain('application/problem+json');
+      expect(sameAnswer(r.body)).toEqual(sameAnswer(results[0].body));
+    }
+    expect(results[0].body.errorCode).toBe('INSUFFICIENT_FUNDS');
+    const transferId = results[0].body.transferId as string;
+    expect(
+      await q('SELECT status,reject_reason FROM transfers WHERE from_account_id=$1', [a.accountId]),
+    ).toEqual([{ status: 'REJECTED', reject_reason: 'INSUFFICIENT_FUNDS' }]);
+    expect(await footprint(transferId, key, a.userId)).toEqual({
+      lines: 0,
+      audits: 1,
+      events: 0,
+      keys: 1,
+    });
+    expect(await balance(a.accountId)).toBe('1000');
+    expect(await balance(b.accountId)).toBe('0');
+  });
+  it('TC-79-09 above 2^53: replay keeps every digit and a one-dong change is IDEMPOTENCY_KEY_REUSED', async () => {
+    const amount = '9007199254740993',
+      neighbour = '9007199254740992'; // the same JavaScript number as `amount`
+    const a = await target(amount),
+      b = await target(),
+      key = randomUUID();
+    const saved = { ...app.limits.transfer };
+    app.limits.transfer.perTx = app.limits.transfer.perDay = BigInt(amount);
+    try {
+      const first = await transfer(a, b.accountId, amount, key).expect(201);
+      const before = await totals();
+      const again = await transfer(a, b.accountId, amount, key).expect(201);
+      expect(again.body).toEqual(first.body);
+      expect(await totals()).toEqual(before);
+      const reused = await transfer(a, b.accountId, neighbour, key).expect(422);
+      expect(reused.body.errorCode).toBe('IDEMPOTENCY_KEY_REUSED');
+      expect(await totals()).toEqual(before);
+      expect(
+        await q('SELECT amount::text FROM ledger_entries WHERE transfer_id=$1', [
+          first.body.transferId,
+        ]),
+      ).toEqual([{ amount }, { amount }]);
+      const [event] = await q('SELECT payload FROM outbox_events WHERE aggregate_id=$1', [
+        first.body.transferId,
+      ]);
+      expect(event.payload).toMatchObject({ amount, fromBalanceBefore: amount });
+      expect(await balance(a.accountId)).toBe('0');
+      expect(await balance(b.accountId)).toBe(amount);
+    } finally {
+      Object.assign(app.limits.transfer, saved);
+    }
+  });
+  it('TC-79-10 a replayed 422 is the first answer word for word, apart from correlationId', async () => {
+    const a = await target('1000'),
+      b = await target(),
+      key = randomUUID();
+    const first = await transfer(a, b.accountId, '5000', key).expect(422);
+    const again = await transfer(a, b.accountId, '5000', key).expect(422);
+    expect(again.headers['content-type']).toContain('application/problem+json');
+    expect(sameAnswer(again.body)).toEqual(sameAnswer(first.body));
+    expect(again.body.correlationId).toBe(again.headers['x-correlation-id']);
+    expect(again.body.correlationId).not.toBe(first.body.correlationId);
+  });
   it('TC-54-01 per-transfer limit: 50,000,000 passes, one dong more is 422 and persisted', async () => {
     const a = await target('120000000'),
       b = await target();
