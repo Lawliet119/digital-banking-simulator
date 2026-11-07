@@ -49,78 +49,157 @@
 
 **Quyết định ở G1** (người dùng trả lời «duyệt», 2026-11-07, chấp nhận mọi đề xuất): (1) đi bù G1 → G4 từng gate trên code hiện có; (2) baseline chạy trên Node 24, thực hiện bằng bản portable thay vì container vì Testcontainers cần Docker socket; (3) chạy lại domain review bằng subagent mới ở G2; (4) không push trước G3, khi push là push thường và hỏi lại; (5) giữ fixture `UPDATE accounts SET status='LOCKED'`, ghi ở §4.
 
-## 2. Behaviour and HTTP contract
+## 2. Hành vi
 
-POST /v1/accounts, existing global JWT/role guards, @Roles('customer'). Request exactly {"type":"CHECKING"} or {"type":"SAVINGS"}; IsIn only these two values, forbid extra owner/balance/status/id fields. Missing/null/non-string/lowercase/SYSTEM/SQL-like type ->400. Caller internal users.id only from @CurrentUser, server correlationId required from middleware.
+`POST /v1/accounts` · vai `customer` · guard JWT và vai là guard toàn cục có sẵn · không có `Idempotency-Key` (mỗi lần gọi là một tài khoản mới, đến tối đa 3; FR-LED-05 chỉ áp dụng cho nạp và chuyển tiền).
 
-201 response {"id":"<uuid>","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"<ISO UTC Z>","updatedAt":"<ISO UTC Z>"}. Both labels behave identically. All accounts belonging to the customer count toward3, including LOCKED. No application balance conversion to Number; SQL DEFAULT0/ACTIVE used, money serialized as string. A fourth valid request ->409 with existing errorCode ACCOUNT_LIMIT_REACHED. The rejection is audited REJECTED and COMMITTED before throwing409; no extra account. Invalid DTO400 happens before service; global guard401 UNAUTHENTICATED/TOKEN_EXPIRED or403 FORBIDDEN use current contracts (role DENIED persistence remains BL-132).
+**Request:** đúng một trường `{"type": "CHECKING"}` hoặc `{"type": "SAVINGS"}`. Hai loại hành xử giống nhau, chỉ là nhãn (database-design §4.2). Owner, số dư, trạng thái và id không bao giờ lấy từ client.
 
-Authenticated customer without onboarding ->404 (no new ErrorCode). Service returns missing from its first transaction; outside its callback calls real AuditService.recordDenied in its own transaction, action account.open, target {type:'user',id:callerUserId}, metadata{id:callerUserId}, then throws404. No nonexistent account/customer id invented. If denial audit fails,500 instead of clean404.
+| # | Điều kiện | Kết quả | `errorCode` / ghi chú |
+|---|---|---|---|
+| 2.1 | Customer đã onboarding, đang có 0–2 tài khoản | 201, tạo tài khoản mới của chính caller | — |
+| 2.2 | Customer đang có đủ 3 tài khoản (tính cả `LOCKED`) | 409, không tạo gì | `ACCOUNT_LIMIT_REACHED` |
+| 2.3 | `type` là `SYSTEM`, chữ thường, rỗng, `null`, số, chuỗi SQL, hoặc thiếu | 400 | lỗi validate, không tới service |
+| 2.4 | Body có thêm `customerId`, `userId`, `balance`, `status`, `id` | 400 | `forbidNonWhitelisted` toàn cục |
+| 2.5 | Không có token, token sai hoặc hết hạn | 401 | `UNAUTHENTICATED` / `TOKEN_EXPIRED` |
+| 2.6 | Vai `operator`, `auditor`, `admin` | 403 | `FORBIDDEN` |
+| 2.7 | Customer có token hợp lệ nhưng chưa gọi `POST /v1/customers/me` | 404, không tạo gì | không có `errorCode` mới (không thêm `ErrorCode`) |
+| 2.8 | Lỗi DB tạm thời (kể cả hết thời gian chờ khóa hàng `customers`) | 503 | `SERVICE_TEMPORARILY_UNAVAILABLE` + `Retry-After`, không tạo tài khoản, không ghi audit SUCCESS |
+| 2.9 | Ghi audit thất bại | 500, rollback, không tạo tài khoản | thông điệp chung, không lộ SQL hay PII |
 
-Audit SUCCESS action account.open targets {type:'account',id:newAccountId}, metadata{id:newAccountId}, actor verified internal userId, role customer, correlationId server UUID. Limit REJECTED same action targets {type:'customer',id:customerId}, metadata{reason:ACCOUNT_LIMIT_REACHED,count:actualCount}. Audit errors propagate and rollback insert/rejection; unexpected audit trigger errors produce sanitized500, while transient PostgreSQL errors (including lock timeout) use the existing filter's503 SERVICE_TEMPORARILY_UNAVAILABLE plus Retry-After. The same mapping applies to a denial-audit transaction. No SQL/token/PII echoed. No AccountCreated event in accepted contract; no invented event/outbox insertion.
+**201 (ví dụ):**
 
-## 3. Architecture and locking
+```json
+{
+  "id": "2c0f9e9b-638b-4b69-aa26-aa767bd7ee38",
+  "type": "CHECKING",
+  "status": "ACTIVE",
+  "balance": "0",
+  "createdAt": "2026-11-06T05:28:48.632Z",
+  "updatedAt": "2026-11-06T05:28:48.632Z"
+}
+```
 
-New module-private AccountOpeningService and AccountsController/CreateAccountDto/OpenedAccountDto in accounts module. Keep exported AccountsService and its callers/signatures unchanged. Reuse real TransactionService, AuditModule/AuditService from actual dependencies. Register controller/service in AccountsModule; api/both via current registry, worker does not expose HTTP.
+**409 (ví dụ):**
 
-open(userId,type,correlationId): tx.run READ COMMITTED -> SELECT id FROM customers WHERE user_id=$1 FOR UPDATE -> if missing return missing -> SELECT count(*)::int AS count FROM accounts WHERE customer_id=$1 (all types/statuses) -> count>=3: audit REJECTED same manager, return limit -> else INSERT accounts(customer_id,type) VALUES($1,$2) RETURNING id,type,status,balance::text,... -> audit SUCCESS same manager -> return created. After tx commit: map created to201, limit to409, missing to separate DENIED audit then404. Never recordDenied inside transaction (PR54 nested-transaction protection). Do not catch a failed statement to keep using aborted transaction. No additional retry loop; tx wrapper handles deadlock/serialization.
+```json
+{
+  "errorCode": "ACCOUNT_LIMIT_REACHED",
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Customer account limit reached",
+  "correlationId": "18b6d366-e244-4aa2-a008-fe7691b26521"
+}
+```
 
-Parent row lock serializes ONLY the same customer's openings, then a fresh statement snapshot sees prior committed accounts. Other customers are independent. Every production opening path must use this protocol; direct administrator SQL remains outside API guarantee. No account/ledger row locks needed to initialize a new zero balance account. No external I/O inside transaction. Missing server correlation context is programmer error500 before SQL.
+**Quy tắc:**
+- Số dư ban đầu là `0` lấy từ DEFAULT của cột, trả về dạng chuỗi (`balance::text`), ứng dụng không chuyển sang `Number`. Trạng thái `ACTIVE` cũng từ DEFAULT. Không có bút toán sổ cái nào được tạo.
+- Giới hạn 3 tính theo `customer_id`, mọi `type` và mọi `status`. Hai customer khác nhau không ảnh hưởng nhau.
+- Giới hạn chỉ được bảo đảm cho mọi đường mở tài khoản đi qua service này. SQL của admin ngoài API không được bảo vệ (BR-14 không biểu diễn được bằng `CHECK`).
+- Mọi truy vấn có tham số. Không có sự kiện outbox: không có `AccountOpened` trong `event-contract.md`.
+
+**Audit** (action `account.open`, actor là `users.id` đã xác minh, vai `customer`, `correlationId` do server sinh):
+
+| Tình huống | `outcome` | `target` | `metadata` | Giao dịch |
+|---|---|---|---|---|
+| 2.1 thành công | `SUCCESS` | `account` / id tài khoản mới | `{id}` | cùng transaction với INSERT |
+| 2.2 đủ 3 | `REJECTED` | `customer` / id customer | `{reason: "ACCOUNT_LIMIT_REACHED", count}` | cùng transaction, **commit trước khi trả 409** |
+| 2.7 chưa onboarding | `DENIED` | `user` / id người gọi | `{id}` | transaction riêng, ghi sau khi transaction đầu kết thúc |
+
+Lỗi audit lan ra ngoài và làm rollback (FR-AUD-01: không ghi được audit thì hủy thao tác). Nếu ghi `DENIED` lỗi thì trả 500 thay vì 404.
+
+## 3. Kiến trúc
+
+- **Vị trí:** module `accounts`, role `api` (cũng có khi `APP_ROLE=both`; worker không mở HTTP). File: `account-opening.service.ts` (`AccountOpeningService`, chỉ dùng trong module), `accounts.controller.ts` (`AccountsController`), `open-account.dto.ts` (`CreateAccountDto`, `OpenedAccountDto`), đăng ký trong `accounts.module.ts`.
+- **Interface dùng:** `TransactionService.run<T>(cb)` (READ COMMITTED, có retry `40P01`/`40001` ba lần rồi 503), `AuditService.record(manager, entry)` và `AuditService.recordDenied(entry)` (transaction riêng), `@CurrentUser()`, `@Roles('customer')`, `request.correlationId` từ middleware.
+- **Interface cung cấp:** `AccountOpeningService.open(userId: string, type: CustomerAccountType, correlationId: string): Promise<OpenedAccountDto>`. `AccountsService` (export) và mọi người gọi nó **không đổi**: module chỉ thêm controller và provider.
+- **Dữ liệu:** `customers` (khóa hàng `FOR UPDATE`), `accounts` (COUNT, INSERT; `accounts_customer_idx` phục vụ COUNT), `audit_log`. Không migration, không đổi schema.
+- **Ranh giới transaction:** một `TransactionService.run` gồm: khóa hàng `customers` theo `user_id` → COUNT → (INSERT hoặc audit REJECTED) → audit SUCCESS. Không gọi Redis, HTTP, SQS bên trong. Callback trả một kết quả (`created` / `limit` / `missing`); 409 và 404 chỉ được ném **sau khi** transaction trả về, để audit REJECTED không bị rollback. Không bắt lỗi DB trong callback.
+- **Khóa:** khóa hàng cha `customers` làm hàng đợi cho cùng một customer, kể cả khi chưa có tài khoản nào để khóa. COUNT là câu lệnh riêng sau khi giữ khóa nên thấy tài khoản mà người giữ khóa trước vừa commit (READ COMMITTED). Không có hai khóa nên không có thứ tự khóa và không có deadlock.
 
 ```mermaid
 sequenceDiagram
-    participant C as Customer HTTP
-    participant G as JWT / Roles / CurrentUser
+    participant C as Customer
+    participant G as JWT / Roles / ValidationPipe
     participant S as AccountOpeningService
-    participant DB as PostgreSQL transaction
+    participant DB as PostgreSQL
     participant A as AuditService
-    C->>G: POST /v1/accounts type
-    G->>S: verified userId + type + server correlationId
-    S->>DB: lock own customer FOR UPDATE
-    S->>DB: count all owned accounts
-    alt below three
-      S->>DB: INSERT default zero ACTIVE account
-      S->>A: record SUCCESS with same manager
-    else limit reached
-      S->>A: record REJECTED with same manager
+    C->>G: POST /v1/accounts {type}
+    G->>S: userId, type, correlationId
+    S->>DB: BEGIN; SELECT id FROM customers WHERE user_id=$1 FOR UPDATE
+    alt không có hàng customers
+      S->>DB: COMMIT (không ghi gì)
+      S->>A: recordDenied (transaction riêng)
+      S-->>C: 404
+    else có
+      S->>DB: SELECT count(*) FROM accounts WHERE customer_id=$1
+      alt count >= 3
+        S->>A: record REJECTED (cùng manager)
+        S->>DB: COMMIT
+        S-->>C: 409 ACCOUNT_LIMIT_REACHED
+      else count < 3
+        S->>DB: INSERT INTO accounts (customer_id, type)
+        S->>A: record SUCCESS (cùng manager)
+        S->>DB: COMMIT
+        S-->>C: 201
+      end
     end
-    A->>DB: INSERT audit_log
-    DB-->>S: commit, or rollback if audit fails
-    S-->>C: 201 account or 409 ACCOUNT_LIMIT_REACHED
 ```
 
-## 4. Automated cases
+- **Thay đổi cấp hệ thống:** docs/03 bảng API (dòng `POST /v1/accounts`) và README module accounts. Không đổi ADR, `_shared`, env, `ErrorCode`, event.
+- **Hạn chế chấp nhận:** (a) giới hạn 3 chỉ do quy ước khóa của ứng dụng giữ, admin SQL ngoài API không được bảo vệ; (b) 404 "chưa onboarding" không mang `errorCode` riêng.
 
-Full HTTP/auth-to-PostgreSQL tests in test/db/account-opening.db-spec.ts, reusing real DBS-62 startOnboardingApp, JWT issuer, migrations and temporary DB. Customer profiles created through actual onboarding HTTP, accounts only via the new API (no SQL balance/ledger seed). Pool30; Promise.all sends10 requests without awaiting each. Assert ledger invariants PASS after each business case; no funding or ledger changes. Fault trigger only in this suite's owned database, always removed in finally.
+## 4. Test cases tự động
 
-| Case | Expected and proof | Trace |
+File `backend/test/db/account-opening.db-spec.ts` (`npm run test:db`), HTTP thật với JWT cục bộ, PostgreSQL thật qua Testcontainers, hồ sơ customer tạo bằng onboarding thật, tài khoản chỉ tạo qua API mới. Sau mỗi case có `checkLedgerInvariants` phải PASS. Không seed số dư hay bút toán bằng SQL; ngoại lệ duy nhất là TC-63-05 dùng `UPDATE accounts SET status='LOCKED'` làm fixture trạng thái vì API khóa chưa có (không stub API khóa).
+
+| ID | Truy vết | Lớp | Given · When · Then | `errorCode` |
+|---|---|---|---|---|
+| TC-63-01 | DoD #1, #3; FR-ACC-01 | e2e Postgres | Customer đã onboarding mở CHECKING rồi SAVINGS → 201, body đúng từng trường, `balance` là chuỗi `"0"`, `ACTIVE`; dòng DB đúng `customer_id`; audit SUCCESS đúng actor, vai, target, `correlationId`, metadata chỉ có `id` | — |
+| TC-63-02 | DoD #1; BR-14 | e2e Postgres | Mở tuần tự 3 lần → 201; lần 4 → 409; DB vẫn đúng 3 dòng; audit REJECTED còn sau 409 với `count: 3` | `ACCOUNT_LIMIT_REACHED` |
+| TC-63-03 | DoD #2 | e2e Postgres, đồng thời | 10 request mở cùng lúc (`Promise.all`, loại xen kẽ) cho một customer mới → đúng 3×201 và 7×409; 3 id khác nhau; DB đúng 3 dòng số dư 0; mỗi `correlationId` có đúng 1 dòng audit, SUCCESS (3) hoặc REJECTED (7) với actor, target, metadata đúng | `ACCOUNT_LIMIT_REACHED` |
+| TC-63-04 | Expect; ownership | e2e Postgres, đồng thời | Hai customer, mỗi người 5 request cùng lúc → 6×201 + 4×409, mỗi người đúng 3; body có `customerId` của người khác → 400 | `ACCOUNT_LIMIT_REACHED` |
+| TC-63-05 | DoD #1 (khóa hàng customers) | e2e Postgres, khóa thật | Một kết nối giữ `FOR UPDATE` hàng customer A; request mở của A bắt đầu; thăm dò `pg_stat_activity` đến khi thấy truy vấn thật sự chờ `Lock`; trong lúc đó chưa có tài khoản, và customer B mở được; nhả khóa → request của A xong 201. Sau đó đặt một tài khoản `LOCKED` (fixture) → vẫn bị tính vào giới hạn | `ACCOUNT_LIMIT_REACHED` |
+| TC-63-06 | DoD #3 | e2e Postgres, bảo mật | `SYSTEM`, `checking`, chuỗi SQL, rỗng, `null`, `42`, thiếu `type`, và từng trường thừa `customerId/userId/balance/status/id` → 400; không tạo tài khoản nào | 400 |
+| TC-63-07 | Bảo mật; FR-AUD-02 | e2e Postgres, bảo mật | Không token → 401; token hết hạn → 401; `operator`/`auditor`/`admin` → 403; customer chưa onboarding → 404 và có đúng 1 audit `DENIED` target `user` | `UNAUTHENTICATED`, `TOKEN_EXPIRED`, `FORBIDDEN` |
+| TC-63-08 | DoD #3; FR-AUD-01, NFR-AUD-01 | e2e Postgres, lỗi thật | Trigger làm INSERT `audit_log` luôn lỗi: mở thành công / đủ 3 / chưa onboarding đều 500, thông điệp chung (không lộ SQL, không có "audit unavailable"), tài khoản được rollback, không có dòng audit; bỏ trigger → mở lại 201, đủ 3 vẫn 409, chưa onboarding vẫn 404 | `ACCOUNT_LIMIT_REACHED` |
+| TC-63-09 | docs/03 §7 (OpenAPI) | e2e (tài liệu) | OpenAPI có bearer, enum `type` đúng 2 giá trị, ví dụ, và các phản hồi 201/400/401/403/404/409/500/503, ví dụ 409 chứa `ACCOUNT_LIMIT_REACHED` | — |
+| TC-63-10 | ADR-04 | e2e Postgres, khóa thật | Một kết nối giữ khóa hàng customer đến quá thời gian chờ khóa → 503 + `Retry-After`; không tài khoản, không audit; nhả khóa → mở lại 201 | `SERVICE_TEMPORARILY_UNAVAILABLE` |
+| Quy trình | DoD #4 | — | PR vào main, CI xanh, Dev khác review, bảng đối chiếu điền đủ | `BL-158` |
+
+**Checklist bảo mật** (`references/testing.md`):
+
+| Yêu cầu | Chỗ thực thi | Case | Ghi chú |
+|---|---|---|---|
+| Guard vai đúng | controller `@Roles('customer')` | TC-63-07 | |
+| Ownership, 404 cho tài nguyên người khác | service | TC-63-04, 06 | Không có id tài nguyên trong request; owner luôn lấy từ JWT, mọi trường owner gửi lên bị 400. Không áp dụng "404 + DENIED cho người khác". |
+| Idempotency key theo user | — | không áp dụng | Mỗi lần gọi tạo tài nguyên mới đến tối đa 3 |
+| REJECTED cùng transaction, DENIED transaction riêng | service | TC-63-02, 03, 07, 08 | |
+| Không có trường fraud trong response | DTO | TC-63-01 | `toEqual` đúng 6 trường |
+| Lỗi không lộ nội bộ; có `correlationId` | `ProblemDetailsFilter` | TC-63-08 | |
+| SQL có tham số; đầu vào độc hại | service | TC-63-06 | |
+| TLS Postgres/Redis; không secret | config | không áp dụng | Không đổi cấu hình |
+
+**Chưa có test, ghi để reviewer thấy:** không có test cho việc admin SQL chèn thẳng tài khoản thứ 4 (ngoài phạm vi, đã nêu ở §3); không có test thu hồi phiên (do guard Identity, task khác).
+
+## 5. Test thủ công
+
+Chạy trên **ứng dụng thật** (`npm run start:dev`, `APP_ROLE=both`) với PostgreSQL, Valkey và ElasticMQ thật, token thật từ `auth:dev-token` (DBS-53), bằng `curl` và `psql`. Output thô ghi vào `screenshots/DBS-63/manual-test.txt` (Git Bash, `tee -a`), dòng đầu là SHA commit cuối cùng đổi code.
+
+**Điều kiện chạy:** từ gốc repo `docker compose up -d` (nếu cổng 5432 đã bị Postgres khác dùng: chạy Postgres riêng `dbs63-pg` ở cổng 55432 với `banking/banking_local_only` và đặt `DATABASE_URL` tương ứng, ghi ở §8). Từ `backend/`: `cp env/.env.example env/.env.development`, `npm run auth:dev-keys`, chú thích mọi dòng `COGNITO_*` và thêm `AUTH_MODE=local`, `AUTH_LOCAL_JWKS_PATH=.auth-local/jwks.json`; `npm run migration:run`; `npm run start:dev`. Token: `TOKEN=$(npm run --silent auth:dev-token -- --role customer --sub nguyen-minh-anh)`.
+
+| Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
-| TC-63-01 | CHECKING/SAVINGS201, exact DTO, zero string, ACTIVE, UUID/timestamps, correct own DB FK and SUCCESS audit actor/role/target/server correlationId, metadata onlyid | DoD1/3, FR-ACC-01 |
-| TC-63-02 | Three sequential opens201, fourth409 ACCOUNT_LIMIT_REACHED; count3/zero, REJECTED audit persists with count3 and reason | BR-14, audit |
-| TC-63-03 | Ten parallel first opens ->exact3x201+7x409 with correct code; 3 distinct ids/rows/SUCCESS audits,7 REJECTED audits; responses' correlation IDs match audits | DoD2 |
-| TC-63-04 | Two customers each receive independent limit3, cannot redirect creation with forged owner fields; new request always binds caller | Ownership, BR-10 |
-| TC-63-05 | Physically hold one customer's row lock; start API open, poll pg_stat_activity Lock for actual opening query before releasing; no account while blocked. Another customer's open completes while first waits. Release ->first succeeds. A LOCKED existing account still counts toward limit | Required FOR UPDATE, count all statuses |
-| TC-63-06 | SYSTEM, other/missing/null/lowercase/SQL-like type and extra customerId/userId/balance/status/id400; no account or money mutation | DoD3, DTO/security |
-| TC-63-07 | Missing/expired JWT401 with code, all3 staff roles403; fresh unonboarded customer404 with persisted DENIED audit targeted at user; no account | Role, dependency |
-| TC-63-08 | Real audit trigger failure on successful open500 ->account rollback/count0; after trigger removal retry201. Limit audit failure500 leaves3 accounts and no false REJECTED row; denied audit failure500 instead404; recovery consistent | Fail-closed FR-AUD-01/02 |
-| TC-63-09 | Swagger customer bearer/type enum/example,201 DTO and400/401/403/404/409/500/503; error409 example ACCOUNT_LIMIT_REACHED,503 SERVICE_TEMPORARILY_UNAVAILABLE with Retry-After | API docs |
-| TC-63-10 | Hold actual parent customer lock until configured lock timeout; HTTP503 SERVICE_TEMPORARILY_UNAVAILABLE + Retry-After, no account/SUCCESS audit. Release lock, retry201, invariants PASS. No artificial sleep or timeout override; wait for real DB refusal | ADR-04, transient recovery |
-| Process | Main-based Draft PR, actual CI checks, complete mapping; Dev review/merge remain backlog until proven | DoD4 |
+| M-63-01 | `POST /v1/customers/me {"fullName":"Nguyễn Minh Anh"}`, rồi `POST /v1/accounts` với `CHECKING` và `SAVINGS`. `psql`: các tài khoản và audit | 200, rồi 201 hai lần, `balance:"0"`, `ACTIVE`; 2 dòng `accounts`, 2 audit `SUCCESS` `account.open` |
+| M-63-02 | Mở thêm lần 3 (201) và lần 4 | lần 3 → 201; lần 4 → 409 `ACCOUNT_LIMIT_REACHED` kèm `correlationId`; `psql`: 3 tài khoản, 1 audit `REJECTED` `count:3` |
+| M-63-03 | Customer mới `--sub tran-thu-ha`, onboarding, rồi 10 `curl` chạy song song (`xargs -P 10`) | đúng 3×201 và 7×409; `psql`: 3 tài khoản, 3 audit SUCCESS + 7 REJECTED |
+| M-63-04 | `type":"SYSTEM"`; body có `"customerId"`; không token; token `--role operator`; customer chưa onboarding (`--sub pham-ngoc-lan`) | 400; 400; 401; 403; 404 và 1 audit `DENIED`; không tài khoản nào được tạo |
+| M-63-05 | `psql`: tạo trigger làm `audit_log` luôn lỗi. Customer mới mở tài khoản. Bỏ trigger, mở lại | 500 chung chung, `accounts` của người đó = 0; sau khi bỏ trigger → 201, `balance:"0"` |
+| M-63-06 | Chạy `npm run --silent check:invariants` | thoát mã 0, `PASS`, không vi phạm |
+| M-63-07 | Dừng app, dọn container riêng và dữ liệu thử | không còn tiến trình hay container của task |
 
-Money fields never number, fraud fields absent, correlationId in problem responses, all SQL parameterized. No new resource path accepts another owner's UUID. Revocation remains real Identity guard. Idempotency-Key is not applicable: FR-LED-05 covers deposit/transfer, not account opening. TLS/env/secrets config unchanged; local owned Testcontainers only.
-
-## 5. Manual script (before implementation)
-
-Keep backend/scripts/manual-dbs63.cjs, run from backend after build with node scripts/manual-dbs63.cjs. Owned PostgreSQL17+temp database, actual migrations/auth/onboarding/accounts/audit, local public JWKS only; tokens/credentials never printed. Demo names Vietnamese, output real HTTP status/body/correlation IDs and safe counts/invariant result. First transcript line tested code SHA. All cleanup in finally.
-
-| Step | Action -> expected |
-|---|---|
-| M-63-01 | Actual JWT, onboarding Nguyen demo profile, open CHECKING/SAVINGS ->201 zero ACTIVE and2 SUCCESS audits; DB ownership/invariants PASS |
-| M-63-02 | Third open201/fourth409 ACCOUNT_LIMIT_REACHED ->3 accounts, committed REJECTED audit, balances zero |
-| M-63-03 | Fresh demo profile,10 simultaneous first POSTs ->3 success7 rejection; count3/audit3+7/invariants PASS |
-| M-63-04 | SYSTEM/forged owner400, no JWT401, operator403, unonboarded404 with DENIED audit; no account mutation |
-| M-63-05 | Actual audit failure trigger, fresh profile open500/count0; recover/retry201; invariant PASS |
-| M-63-06 | app/JWKS/temp DB/container cleanup ->no owned handles; retain raw transcript/screenshot and SHA |
+Bước ép khóa quá thời gian (503) được chứng minh bằng TC-63-10 chứ không có bước tay riêng. `backend/scripts/manual-dbs63.cjs` chạy một app dựng trong test-support với JWKS giả, nên **không thay** cho các bước trên.
 
 ## 6. Design review
 
