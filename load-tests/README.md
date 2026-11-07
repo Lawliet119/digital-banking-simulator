@@ -16,4 +16,4 @@ Từ checkout có devDependencies, chạy `npm run --silent check:invariants` tr
 
 Kết quả chạy lưu ở `load-tests/results/` (không commit); số liệu tổng hợp đưa vào báo cáo P4.
 
-Bộ tạo giao dịch bình thường DBS-71: [fraud-dataset/README.md](fraud-dataset/README.md).
+Bộ dữ liệu tổng hợp [fraud-dataset/README.md](fraud-dataset/README.md) có CLI NORMAL tương thích DBS-71 và CLI mixed (8 kịch bản gian lận, 5 hard negatives), cùng inspector replay/summary. Dữ liệu này phục vụ đánh giá offline; chưa là bằng chứng load test, scoring runtime hoặc tập tune/holdout đã chia và giao cho #4 (DBS-127).

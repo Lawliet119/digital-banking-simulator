@@ -1,0 +1,325 @@
+DBS-126 verification — original runs, CI cwd failure/reproduction and final 60-test validation; final manual SHA is recorded in manual-test.txt
+Final verification summary (raw runs below): Node 60/60, backend unit 832/832, e2e 135/135, real PostgreSQL 369/369; no skipped tests. lint/typecheck/build exit 0. PostgreSQL emitted MaxListenersExceededWarning, retained below and handed off BL-154.
+Final scope audit: 23/23 planned files, no extra files, no generated CSV among tracked/untracked changes; no test.skip/test.only/test.todo. Four source SHA-256 hashes still match manual transcript. manual-test.txt/verification.txt are UTF-8; no token/header/AWS-identifier pattern found. check-doc-links: 208 files, 0 broken links; git diff --check clean.
+Step 1 RED: node --test load-tests/fraud-dataset/generate.test.mjs
+4 pass, 1 fail, 0 skipped. TypeError: Cannot read properties of undefined (reading 'version').
+Golden CSV hash assertion passed before the missing trace assertion.
+Step 1 GREEN: 5/5 tests, 0 skipped; hash unchanged; 96200 rows replayed.
+Step 2 RED: ERR_MODULE_NOT_FOUND inspect-fraud.mjs (test written before implementation).
+Step 2 GREEN: generate.test.mjs + inspect-fraud.test.mjs, 38/38 pass, 0 skipped.
+Step 3 RED: ERR_MODULE_NOT_FOUND generate-fraud.mjs, then each not-yet-implemented scenario failed with missing SCENARIO.
+Step 3: ATO passed first; mule, velocity, bust-out and round-trip each ran green individually after implementation.
+Step 3 correction: SLOW_DRIP/STRUCTURING/FAN_IN initially failed adequate warmup: day-zero history could be older than 30 days. Changed warmup to the day before each episode. All 10 fraud tests then passed.
+Step 4 RED: five missing HN_* scenarios, six failing tests including all-label coverage. Implemented each HN and ran its targeted test green before proceeding. Full mixed suite: 17/17 pass, 0 skipped.
+Step 5 RED: CLI must create CSV; invalid --customers 999 returned 0; API options missing expected exception.
+Step 5 GREEN: full three-file run 59/59 pass, 0 skipped. Includes real subprocesses, timezone and seed reproducibility, invalid options/sentinel/I/O and 30 mutated inspector inputs.
+✔ TC-126-02: ATO has six outgoing, five new recipients and a real drain (1284.8434ms)
+✔ TC-126-02: mule is funded by incoming money before six outgoing (398.3191ms)
+✔ TC-126-02: velocity contains six actual small outgoing in ten minutes (88.1229ms)
+✔ TC-126-02: bust-out is new, large, funded after opening and drains (415.6952ms)
+✔ TC-126-02: round-trip has an actual strictly later return of equal money (90.0055ms)
+✔ TC-126-03: SLOW_DRIP has its intended shape and no v1 source rule trigger (374.6812ms)
+✔ TC-126-03: STRUCTURING has its intended shape and no v1 source rule trigger (454.3522ms)
+✔ TC-126-03: FAN_IN has its intended shape and no v1 source rule trigger (532.3257ms)
+✔ TC-126-09: history median keeps a half dong exactly (0.6738ms)
+✔ TC-126-05/06/07: emitted fraud prevalence, labels, IDs and independently replayed totals (705.2794ms)
+✔ TC-126-04: rent has small prior history and genuinely monthly payments (132.2211ms)
+✔ TC-126-04: self transfer uses two distinct real accounts with the same owner (126.0508ms)
+✔ TC-126-04: new salary customer is funded before a large same-day transfer (127.0172ms)
+✔ TC-126-04: group meal pays five new friends in one sitting (138.9294ms)
+✔ TC-126-04: borrow and repay has a later equal return on the same Vietnamese day (91.4898ms)
+✔ TC-126-05: all fraud and hard-negative labels, seeds and minimum supported configuration (4862.4504ms)
+✔ TC-126-05: insufficient cohort rejects rather than silently dropping episodes (0.4903ms)
+✔ TC-126-01/10/12: real CLI artifacts reproduce across output paths and timezones (1287.5665ms)
+✔ TC-126-11: invalid input rejects without modifying sentinel or creating sidecars (974.0353ms)
+✔ TC-126-11/12: API options, seed boundaries and hostile CSV characters (574.1454ms)
+✔ TC-126-01/12: identical memory artifacts without wall clock or unseeded randomness (637.5238ms)
+✔ TC-126-01/07: NORMAL golden bytes and replayable opening/credit/ending trace (160.4166ms)
+✔ TC-71-01: fixed seed is byte identical and a changed seed differs (936.5383ms)
+✔ TC-71-02: distinct habits, familiar recipients, skew and payday peak (0.3133ms)
+✔ TC-71-03/04: exact schema, valid references, sorted positive transfers and conservation (153.3217ms)
+✔ TC-71-05: CLI writes selected path and rejects invalid arguments (129.3453ms)
+✔ TC-126-06/07/08/09: hand-calculated replay, precise money, Vietnamese midnight and zero days (3.9452ms)
+✔ TC-126-08: multiple accounts count under one customer, including inactive customers (0.3482ms)
+✔ TC-126-07: inspect the existing NORMAL trace independently (2.723ms)
+✔ TC-126-06/07: reject missing column (0.3978ms)
+✔ TC-126-06/07: reject duplicate tx (0.2169ms)
+✔ TC-126-06/07: reject unknown account (0.1772ms)
+✔ TC-126-06/07: reject wrong owner (0.3364ms)
+✔ TC-126-06/07: reject self account (0.1785ms)
+✔ TC-126-06/07: reject invalid date (0.2068ms)
+✔ TC-126-06/07: reject noncanonical date (0.2187ms)
+✔ TC-126-06/07: reject time goes backwards (0.2318ms)
+✔ TC-126-06/07: reject out of period (0.1758ms)
+✔ TC-126-06/07: reject negative amount (0.1386ms)
+✔ TC-126-06/07: reject exponent amount (0.1782ms)
+✔ TC-126-06/07: reject leading zero (0.1419ms)
+✔ TC-126-06/07: reject bad snapshot (0.1193ms)
+✔ TC-126-06/07: reject missing credit (0.124ms)
+✔ TC-126-06/07: reject credit before opening (0.0854ms)
+✔ TC-126-06/07: reject duplicate credit sequence (0.0848ms)
+✔ TC-126-06/07: reject credit outside period (0.0689ms)
+✔ TC-126-06/07: reject unknown credit account (0.0707ms)
+✔ TC-126-06/07: reject negative credit (0.0905ms)
+✔ TC-126-06/07: reject new account with opening balance (0.0777ms)
+✔ TC-126-06/07: reject wrong ending balance (0.6865ms)
+✔ TC-126-06/07: reject wrong initial funding (0.1574ms)
+✔ TC-126-06/07: reject wrong final funding (0.1417ms)
+✔ TC-126-06/07: reject invalid fraud label (0.187ms)
+✔ TC-126-06/07: reject scenario label mismatch (0.0984ms)
+✔ TC-126-06/07: reject unknown scenario (0.0903ms)
+✔ TC-126-06/07: reject wrong account created snapshot (0.0848ms)
+✔ TC-126-06/07: reject transfer at opening (0.095ms)
+✔ TC-126-06/07: reject duplicate registry id (0.0876ms)
+✔ TC-126-06/07: reject missing customer (0.0715ms)
+ℹ tests 59
+ℹ suites 0
+ℹ pass 59
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13460.2951
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --maxWorkers=2
+
+[Nest] 28948  - 17:11:48 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:49 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:49 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:49 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:49 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:49 06/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] access token failed verification: JWSSignatureVerificationFailed
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] access token expired
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] access token failed verification: JWTClaimValidationFailed
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 28948  - 17:11:53 06/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+DB_* variables are incomplete or malformed, DATABASE_URL not composed: DB_PASSWORD
+
+Test Suites: 56 passed, 56 total
+Tests:       832 passed, 832 total
+Snapshots:   0 total
+Time:        37.564 s, estimated 476 s
+Ran all test suites.
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --maxWorkers=2
+
+[Nest] 27652  - 17:12:54 06/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+[Nest] 13164  - 17:13:03 06/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+
+Test Suites: 13 passed, 13 total
+Tests:       135 passed, 135 total
+Snapshots:   0 total
+Time:        56.188 s
+Ran all test suites.
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --maxWorkers=2
+
+(node:19372) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:19372) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:19372) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+
+Test Suites: 20 passed, 20 total
+Tests:       369 passed, 369 total
+Snapshots:   0 total
+Time:        184.686 s
+Ran all test suites.
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+✔ TC-126-02: ATO has six outgoing, five new recipients and a real drain (1247.9228ms)
+✔ TC-126-02: mule is funded by incoming money before six outgoing (390.2027ms)
+✔ TC-126-02: velocity contains six actual small outgoing in ten minutes (84.138ms)
+✔ TC-126-02: bust-out is new, large, funded after opening and drains (403.151ms)
+✔ TC-126-02: round-trip has an actual strictly later return of equal money (75.426ms)
+✔ TC-126-03: SLOW_DRIP has its intended shape and no v1 source rule trigger (403.8663ms)
+✔ TC-126-03: STRUCTURING has its intended shape and no v1 source rule trigger (392.8459ms)
+✔ TC-126-03: FAN_IN has its intended shape and no v1 source rule trigger (523.7784ms)
+✔ TC-126-09: history median keeps a half dong exactly (0.7119ms)
+✔ TC-126-05/06/07: emitted fraud prevalence, labels, IDs and independently replayed totals (752.7338ms)
+✔ TC-126-04: rent has small prior history and genuinely monthly payments (142.6394ms)
+✔ TC-126-04: self transfer uses two distinct real accounts with the same owner (126.7855ms)
+✔ TC-126-04: new salary customer is funded before a large same-day transfer (134.7059ms)
+✔ TC-126-04: group meal pays five new friends in one sitting (150.3865ms)
+✔ TC-126-04: borrow and repay has a later equal return on the same Vietnamese day (130.9209ms)
+✔ TC-126-05: all fraud and hard-negative labels, seeds and minimum supported configuration (5093.9693ms)
+✔ TC-126-05: insufficient cohort rejects rather than silently dropping episodes (0.4878ms)
+✔ TC-126-01/10/12: real CLI artifacts reproduce across output paths and timezones (1299.0081ms)
+✔ TC-126-11: invalid input rejects without modifying sentinel or creating sidecars (1037.3319ms)
+✔ TC-126-11/12: API options, seed boundaries and hostile CSV characters (593.8627ms)
+✔ TC-126-01/12: identical memory artifacts without wall clock or unseeded randomness (658.7467ms)
+✔ TC-126-01/07: NORMAL golden bytes and replayable opening/credit/ending trace (137.867ms)
+✔ TC-71-01: fixed seed is byte identical and a changed seed differs (915.8535ms)
+✔ TC-71-02: distinct habits, familiar recipients, skew and payday peak (0.4401ms)
+✔ TC-71-03/04: exact schema, valid references, sorted positive transfers and conservation (149.3654ms)
+✔ TC-71-05: CLI writes selected path and rejects invalid arguments (117.6398ms)
+✔ TC-126-06/07/08/09: hand-calculated replay, precise money, Vietnamese midnight and zero days (4.0425ms)
+✔ TC-126-08: multiple accounts count under one customer, including inactive customers (0.3582ms)
+✔ TC-126-07: inspect the existing NORMAL trace independently (3.0284ms)
+✔ TC-126-06/07: reject missing column (0.418ms)
+✔ TC-126-06/07: reject duplicate tx (0.2259ms)
+✔ TC-126-06/07: reject unknown account (0.1985ms)
+✔ TC-126-06/07: reject wrong owner (0.1931ms)
+✔ TC-126-06/07: reject self account (0.158ms)
+✔ TC-126-06/07: reject invalid date (0.1647ms)
+✔ TC-126-06/07: reject noncanonical date (0.2676ms)
+✔ TC-126-06/07: reject time goes backwards (0.2339ms)
+✔ TC-126-06/07: reject out of period (0.186ms)
+✔ TC-126-06/07: reject negative amount (0.1665ms)
+✔ TC-126-06/07: reject exponent amount (0.1373ms)
+✔ TC-126-06/07: reject leading zero (0.1456ms)
+✔ TC-126-06/07: reject bad snapshot (0.1681ms)
+✔ TC-126-06/07: reject missing credit (0.1464ms)
+✔ TC-126-06/07: reject credit before opening (0.1043ms)
+✔ TC-126-06/07: reject duplicate credit sequence (0.3272ms)
+✔ TC-126-06/07: reject credit outside period (0.1819ms)
+✔ TC-126-06/07: reject unknown credit account (0.1366ms)
+✔ TC-126-06/07: reject negative credit (0.1274ms)
+✔ TC-126-06/07: reject new account with opening balance (0.1191ms)
+✔ TC-126-06/07: reject wrong ending balance (0.8557ms)
+✔ TC-126-06/07: reject wrong initial funding (0.2682ms)
+✔ TC-126-06/07: reject wrong final funding (0.2605ms)
+✔ TC-126-06/07: reject invalid fraud label (0.1968ms)
+✔ TC-126-06/07: reject scenario label mismatch (0.189ms)
+✔ TC-126-06/07: reject unknown scenario (0.1928ms)
+✔ TC-126-06/07: reject wrong account created snapshot (0.1998ms)
+✔ TC-126-06/07: reject transfer at opening (0.239ms)
+✔ TC-126-06/07: reject duplicate registry id (0.1661ms)
+✔ TC-126-06/07: reject missing customer (0.1463ms)
+ℹ tests 59
+ℹ suites 0
+ℹ pass 59
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13790.5405
+
+Post-G4: commit 8699311adccaa24a60abed488d6465efe500853c; M-126-01 through M-126-07 rerun PASS; first transcript line is final code SHA, four source SHA-256 hashes unchanged, four screenshots refreshed. BL-153 resolved.
+✖ TC-126-01/12: identical memory artifacts without wall clock or unseeded randomness (421.2001ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 506.7325
+
+✖ failing tests:
+
+test at ..\load-tests\fraud-dataset\generate-fraud.test.mjs:648:1
+✖ TC-126-01/12: identical memory artifacts without wall clock or unseeded randomness (421.2001ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  1 !== 0
+
+      at TestContext.<anonymous> (file:///D:/UET_PROJECT/digital-banking-simulator/load-tests/fraud-dataset/generate-fraud.test.mjs:677:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1201:25)
+      at Test.start (node:internal/test_runner/test:1096:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+✔ TC-126-02: ATO has six outgoing, five new recipients and a real drain (1402.6461ms)
+✔ TC-126-02: mule is funded by incoming money before six outgoing (426.2302ms)
+✔ TC-126-02: velocity contains six actual small outgoing in ten minutes (87.8443ms)
+✔ TC-126-02: bust-out is new, large, funded after opening and drains (421.7905ms)
+✔ TC-126-02: round-trip has an actual strictly later return of equal money (79.9796ms)
+✔ TC-126-03: SLOW_DRIP has its intended shape and no v1 source rule trigger (445.3868ms)
+✔ TC-126-03: STRUCTURING has its intended shape and no v1 source rule trigger (528.2201ms)
+✔ TC-126-03: FAN_IN has its intended shape and no v1 source rule trigger (626.496ms)
+✔ TC-126-09: history median keeps a half dong exactly (0.2876ms)
+✔ TC-126-05/06/07: emitted fraud prevalence, labels, IDs and independently replayed totals (803.4428ms)
+✔ TC-126-04: rent has small prior history and genuinely monthly payments (127.8105ms)
+✔ TC-126-04: self transfer uses two distinct real accounts with the same owner (123.6431ms)
+✔ TC-126-04: new salary customer is funded before a large same-day transfer (108.35ms)
+✔ TC-126-04: group meal pays five new friends in one sitting (143.4599ms)
+✔ TC-126-04: borrow and repay has a later equal return on the same Vietnamese day (125.8251ms)
+✔ TC-126-05: all fraud and hard-negative labels, seeds and minimum supported configuration (5115.3267ms)
+✔ TC-126-05: insufficient cohort rejects rather than silently dropping episodes (0.8718ms)
+✔ TC-126-01/10/12: real CLI artifacts reproduce across output paths and timezones (1367.0595ms)
+✔ TC-126-11: invalid input rejects without modifying sentinel or creating sidecars (1007.6038ms)
+✔ TC-126-11/12: API options, seed boundaries and hostile CSV characters (629.5282ms)
+✔ TC-126-01/12: identical memory artifacts without wall clock or unseeded randomness (663.1569ms)
+✔ TC-126-12: ignore checks work from the backend CI working directory (555.7299ms)
+✔ TC-126-01/07: NORMAL golden bytes and replayable opening/credit/ending trace (157.6694ms)
+✔ TC-71-01: fixed seed is byte identical and a changed seed differs (1101.5452ms)
+✔ TC-71-02: distinct habits, familiar recipients, skew and payday peak (0.384ms)
+✔ TC-71-03/04: exact schema, valid references, sorted positive transfers and conservation (150.7651ms)
+✔ TC-71-05: CLI writes selected path and rejects invalid arguments (114.6154ms)
+✔ TC-126-06/07/08/09: hand-calculated replay, precise money, Vietnamese midnight and zero days (4.3403ms)
+✔ TC-126-08: multiple accounts count under one customer, including inactive customers (0.3419ms)
+✔ TC-126-07: inspect the existing NORMAL trace independently (3.2366ms)
+✔ TC-126-06/07: reject missing column (0.6447ms)
+✔ TC-126-06/07: reject duplicate tx (0.2236ms)
+✔ TC-126-06/07: reject unknown account (0.1808ms)
+✔ TC-126-06/07: reject wrong owner (0.1724ms)
+✔ TC-126-06/07: reject self account (0.15ms)
+✔ TC-126-06/07: reject invalid date (0.1589ms)
+✔ TC-126-06/07: reject noncanonical date (0.294ms)
+✔ TC-126-06/07: reject time goes backwards (0.2427ms)
+✔ TC-126-06/07: reject out of period (0.1719ms)
+✔ TC-126-06/07: reject negative amount (0.1457ms)
+✔ TC-126-06/07: reject exponent amount (0.1124ms)
+✔ TC-126-06/07: reject leading zero (0.1316ms)
+✔ TC-126-06/07: reject bad snapshot (0.1373ms)
+✔ TC-126-06/07: reject missing credit (0.1206ms)
+✔ TC-126-06/07: reject credit before opening (0.0832ms)
+✔ TC-126-06/07: reject duplicate credit sequence (0.0851ms)
+✔ TC-126-06/07: reject credit outside period (0.067ms)
+✔ TC-126-06/07: reject unknown credit account (0.0853ms)
+✔ TC-126-06/07: reject negative credit (0.0982ms)
+✔ TC-126-06/07: reject new account with opening balance (0.0773ms)
+✔ TC-126-06/07: reject wrong ending balance (0.8499ms)
+✔ TC-126-06/07: reject wrong initial funding (0.2046ms)
+✔ TC-126-06/07: reject wrong final funding (0.1514ms)
+✔ TC-126-06/07: reject invalid fraud label (0.1083ms)
+✔ TC-126-06/07: reject scenario label mismatch (0.0922ms)
+✔ TC-126-06/07: reject unknown scenario (0.0837ms)
+✔ TC-126-06/07: reject wrong account created snapshot (0.0845ms)
+✔ TC-126-06/07: reject transfer at opening (0.0978ms)
+✔ TC-126-06/07: reject duplicate registry id (0.0977ms)
+✔ TC-126-06/07: reject missing customer (0.0661ms)
+ℹ tests 60
+ℹ suites 0
+ℹ pass 60
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14941.3874
+
+CI regression: run 42204457243 unit 58/59; check-ignore depended on backend cwd. Reproduced RED from backend, fixed explicit repo cwd and added a real subprocess regression (clear NODE_TEST_CONTEXT). GREEN 60/60 from backend, zero skipped; targeted root/backend regression 2/2. Final test/code commit ff5798ac955ec177169eb39af237395bee6af160; manual rerun 7/7 and four screenshots refreshed. Generator source hashes and CSV outputs unchanged.
