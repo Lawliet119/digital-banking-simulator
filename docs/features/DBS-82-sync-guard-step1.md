@@ -1,6 +1,6 @@
 # DBS-82 · Sync guard bước 1: ACTIVE, hạn mức theo lần, thứ tự ưu tiên lý do từ chối
 
-> **Status:** Implemented · **Vai:** Dev (ledger; #4 review theo ghi chú 12/10 trên board) · **Nhánh:** `feat/DBS-82-sync-guard` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev (ledger; #4 review theo ghi chú 12/10 trên board) · **Nhánh:** `feat/DBS-82-sync-guard` · **PR:** [#72](https://github.com/Lawliet119/digital-banking-simulator/pull/72) · **Cập nhật:** 2026-11-08
 >
 > Techlead waiver: G1–G4 do agent tự duyệt theo yêu cầu của techlead; không có Dev khác (kể cả #4) review trước merge (BL-174); không có ảnh PNG, bằng chứng là `manual-test.txt` thô; domain review do chính agent làm, không dùng subagent (§6).
 
