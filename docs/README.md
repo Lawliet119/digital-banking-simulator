@@ -19,7 +19,7 @@ docs/
 ├── 02_REQUIREMENTS_AND_DOMAIN_MODEL.md    Use case, FR, NFR, AC, domain model           (cấp hệ thống)
 ├── 03_HIGH_LEVEL_ARCHITECTURE.md          Kiến trúc tổng thể và chi tiết từng module    (cấp hệ thống)
 ├── BACKLOG.md                             Việc còn tồn mà các task đã chuyển cho người/task khác
-├── adr/                                   13 quyết định kiến trúc (ADR-01…13) và lý do
+├── adr/                                   13 quyết định kiến trúc đã chốt (ADR-01…13), ADR-14 Proposed, kèm lý do
 ├── security/                              Threat model STRIDE (P3)
 ├── superpowers/plans/                     Implementation plan (master roadmap, plan từng task)
 ├── features/                              Một file cho mỗi task implement + screenshots/ (ảnh tính năng)

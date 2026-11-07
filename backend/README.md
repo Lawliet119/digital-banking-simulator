@@ -5,7 +5,7 @@ Một ứng dụng NestJS (TypeScript strict). **Một image, chạy theo `APP_R
 | `APP_ROLE` | Chạy | Không chạy | Dùng ở |
 |---|---|---|---|
 | `api` | HTTP (controller) | consumer, scheduler | ECS service `api` |
-| `worker` | outbox relay, risk scoring, notification | HTTP listener | ECS service `worker` |
+| `worker` | module dùng chung (Outbox, Audit, Risk). Đích: outbox relay, risk scoring, notification; `workerModules` hiện còn rỗng, chưa có relay hay consumer | HTTP listener | ECS service `worker` |
 | `both` *(mặc định)* | tất cả | — | máy local, test |
 
 ## Chạy local
@@ -53,7 +53,7 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 
 Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db`. CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) giữ sáu job `lint`, `typecheck`, `unit`, `e2e`, `db`, `build`. Job `e2e` chạy thêm sample DBS-39 và migration run → revert → run qua Testcontainers với `DATABASE_URL` được gỡ bỏ; job `db` vẫn chạy toàn bộ DB suite trên PostgreSQL service. Lệnh này không revert database dùng chung: test tạo và xóa database `dbs_test_*` riêng. Cách đọc kết quả: [CONTRIBUTING mục 4b](../CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions).
 
-Helper DBS-40 ở `test/support/valkey.container.ts` và `elasticmq.container.ts` trả endpoint động và `pause()`, `resume()`, `stop()`. `pause()` làm dịch vụ không phản hồi để kiểm timeout/fallback; nó không mô phỏng được độ trễ hữu hạn tùy chỉnh. ElasticMQ quảng bá queue URL theo địa chỉ nội bộ trong config; helper lấy đường dẫn queue thật rồi ghép với endpoint Testcontainers. CI hiện chưa chạy `test:services`; DBS-41 phụ trách tích hợp suite này vào CI.
+Helper DBS-40 ở `test/support/valkey.container.ts` và `elasticmq.container.ts` trả endpoint động và `pause()`, `resume()`, `stop()`. `pause()` làm dịch vụ không phản hồi để kiểm timeout/fallback; nó không mô phỏng được độ trễ hữu hạn tùy chỉnh. ElasticMQ quảng bá queue URL theo địa chỉ nội bộ trong config; helper lấy đường dẫn queue thật rồi ghép với endpoint Testcontainers. Job CI `e2e` chạy `test:services` cho `sqs-adapter` và `redis-adapter`; riêng `testcontainers.services-spec.ts` chưa chạy trong CI (BL-053).
 
 ## Cấu trúc
 
@@ -66,7 +66,7 @@ backend/
 │   ├── common/              # app-role, errors (ErrorCode), filters, middleware, money (@common/money), utils — không chứa nghiệp vụ
 │   ├── config/              # mỗi nhóm cấu hình một file + validation.schema.ts (Joi)
 │   ├── database/            # kết nối, TransactionService / withTransaction, migrations/
-│   ├── libs/                # adapter dịch vụ ngoài (redis, sqs, cognito)
+│   ├── libs/                # adapter dịch vụ ngoài (redis, sqs)
 │   ├── modules/             # module nghiệp vụ — xem modules/README.md
 │   └── scripts/             # công cụ chạy một lần
 ├── test/                    # e2e + cấu hình jest
@@ -314,7 +314,7 @@ Bước `docker build` và kết nối RDS thật **chưa chạy** (BL-106).
 
 ### Kết nối Redis (Valkey) trên AWS
 
-**Ghép `REDIS_URL` (DBS-75).** Giống `DATABASE_URL`: task truyền `REDIS_HOST`, `REDIS_PORT` (biến thường) và `REDIS_AUTH_TOKEN` (từ secret `dbs/dev/redis-auth`). `env.bootstrap` ghép thành `rediss://:<token đã mã hóa URL>@<host>:<port>`. `REDIS_URL` đã có giá trị (local, CI) thì được giữ nguyên; thiếu `REDIS_HOST` thì không ghép. Giá trị sai (host lạ, cổng ngoài 1–65535, token rỗng) chỉ làm log nêu **tên** biến, không in giá trị, và schema báo thiếu `REDIS_URL`. Staging và production bắt buộc `rediss://` (TLS). App chưa có client Redis (DBS-76).
+**Ghép `REDIS_URL` (DBS-75).** Giống `DATABASE_URL`: task truyền `REDIS_HOST`, `REDIS_PORT` (biến thường) và `REDIS_AUTH_TOKEN` (từ secret `dbs/dev/redis-auth`). `env.bootstrap` ghép thành `rediss://:<token đã mã hóa URL>@<host>:<port>`. `REDIS_URL` đã có giá trị (local, CI) thì được giữ nguyên; thiếu `REDIS_HOST` thì không ghép. Giá trị sai (host lạ, cổng ngoài 1–65535, token rỗng) chỉ làm log nêu **tên** biến, không in giá trị, và schema báo thiếu `REDIS_URL`. Staging và production bắt buộc `rediss://` (TLS). Client Redis có ở `@libs/redis` (DBS-76) nhưng chưa nối vào module nào.
 
 ### Hạ tầng phía trước app
 Staging và production bắt buộc `TRUST_PROXY_HOPS` (≥ 1; ALB = 1). Để 0 thì mọi khách chung địa chỉ IP của ALB và rate limit theo IP sẽ chặn nhầm tất cả.
