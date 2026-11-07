@@ -2,16 +2,16 @@
 
 Mỗi thư mục là một module nghiệp vụ (một bounded context ở `docs/02` §6). Bảng dưới là nguồn tham chiếu nhanh; chi tiết nằm trong README của từng module.
 
-| Module | Loại | Use case | Role chạy | Phụ trách |
-|---|---|---|---|---|
-| [`ledger`](ledger/README.md) | 🔴 Core | UC-3, 5, 6, 7 | api | #1 |
-| [`accounts`](accounts/README.md) | 🟡 Supporting | UC-1, 2, 4, 11 | api | #2 |
-| [`identity`](identity/README.md) | ⚪ Generic | UC-1, 11 | api | #2 |
-| [`risk`](risk/README.md) | 🟠 Supporting | UC-9, 10, 12 | api + worker | #4 |
-| [`audit`](audit/README.md) | 🟡 Supporting | UC-8 | api + worker (thư viện cho mọi module) | #3 |
-| [`outbox`](outbox/README.md) | Hạ tầng sự kiện | — | writer: api + worker; relay: worker (chưa có) | #3 |
-| [`notification`](notification/README.md) | ⚪ Generic | — | worker | #3 |
-| [`health`](health) | Hạ tầng | — | api | #5 |
+| Module                                   | Loại            | Use case       | Role chạy                                     | Phụ trách |
+| ---------------------------------------- | --------------- | -------------- | --------------------------------------------- | --------- |
+| [`ledger`](ledger/README.md)             | 🔴 Core         | UC-3, 5, 6, 7  | api                                           | #1        |
+| [`accounts`](accounts/README.md)         | 🟡 Supporting   | UC-1, 2, 4, 11 | api                                           | #2        |
+| [`identity`](identity/README.md)         | ⚪ Generic      | UC-1, 11       | api                                           | #2        |
+| [`risk`](risk/README.md)                 | 🟠 Supporting   | UC-9, 10, 12   | api + worker                                  | #4        |
+| [`audit`](audit/README.md)               | 🟡 Supporting   | UC-8           | api + worker (thư viện cho mọi module)        | #3        |
+| [`outbox`](outbox/README.md)             | Hạ tầng sự kiện | —              | writer: api + worker; relay: worker | #3        |
+| [`notification`](notification/README.md) | ⚪ Generic      | —              | worker                                        | #3        |
+| [`health`](health)                       | Hạ tầng         | —              | api                                           | #5        |
 
 ## Quy tắc (được `eslint` ép, xem `backend/eslint.config.mjs`)
 

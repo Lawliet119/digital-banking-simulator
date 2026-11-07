@@ -2,12 +2,12 @@
 
 Ai đang gọi và họ được làm gì. Dùng Cognito, không tự quản mật khẩu.
 
-| | |
-|---|---|
-| Use case | UC-1 (liên kết user Cognito với customer) · UC-11 (thu hồi phiên) |
-| Chạy ở | `api` |
+|             |                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------- |
+| Use case    | UC-1 (liên kết user Cognito với customer) · UC-11 (thu hồi phiên)                                     |
+| Chạy ở      | `api`                                                                                                 |
 | Sở hữu bảng | `users` (`cognito_sub`, `sessions_revoked_at`); vai trò lấy từ nhóm Cognito trong JWT, không lưu ở DB |
-| Thiết kế | `docs/03` §6.2, §12 · `docs/02` NFR-SEC-01, 02 |
+| Thiết kế    | `docs/03` §6.2, §12 · `docs/02` NFR-SEC-01, 02                                                        |
 
 ## Phải giữ
 

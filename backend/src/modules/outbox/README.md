@@ -2,15 +2,15 @@
 
 Đưa sự kiện từ bảng `outbox_events` ra các queue, ít nhất một lần.
 
-> **Status:** Draft · **Owner:** Dev · **Verified against code:** schema, partial indexes và OutboxWriter; relay/consumer chưa triển khai.
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** schema, partial indexes, OutboxWriter và relay (PostgreSQL + ElasticMQ thật); consumer của risk chưa có.
 
-Hai bảng có migration và test PostgreSQL thật. `published_at` được UPDATE khi relay gửi xong, các bảng cho phép cleanup DELETE; không gắn trigger append-only. `processed_events` chống trùng theo cặp consumer/event, không phải khóa ngoại của outbox. `down` chỉ chạy trong transaction READ COMMITTED, khóa cả hai bảng rồi từ chối nếu còn dữ liệu. Hành vi phát/gửi/xử lý sự kiện vẫn chờ các task runtime.
+Hai bảng có migration và test PostgreSQL thật. `published_at` được UPDATE khi relay gửi xong, các bảng cho phép cleanup DELETE; không gắn trigger append-only. `processed_events` chống trùng theo cặp consumer/event, không phải khóa ngoại của outbox. `down` chỉ chạy trong transaction READ COMMITTED, khóa cả hai bảng rồi từ chối nếu còn dữ liệu. Relay (`OutboxRelayService`, module `OutboxRelayModule`) chạy ở worker: mỗi ≤ 500 ms lấy tối đa 50 dòng chưa gửi bằng `FOR UPDATE SKIP LOCKED`, gửi tới từng queue theo bảng định tuyến (`outbox-routing.ts`), rồi đặt `published_at` trong cùng transaction. Gửi lỗi giữa chừng thì các sự kiện trước đó vẫn được đánh dấu đã gửi, sự kiện lỗi và các sự kiện sau nằm lại hàng đợi; loại sự kiện chưa có route nằm lại (BL-010). Mỗi giờ một job xóa dòng đã gửi và `processed_events` quá 7 ngày. Test: `test/services/outbox-relay.services-spec.ts`.
 
-| | |
-|---|---|
-| Chạy ở | Writer: **`api` / `worker`**; relay: `worker` (chưa triển khai) |
+|             |                                                                                                                                                    |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chạy ở      | Writer: **`api` / `worker`**; relay: `worker`                                                                                    |
 | Sở hữu bảng | `outbox_events` (mọi module ghi qua `OutboxWriter.add`, trong transaction của mình), `processed_events` (khung chống xử lý trùng cho mọi consumer) |
-| Thiết kế | `docs/03` §10 |
+| Thiết kế    | `docs/03` §10                                                                                                                                      |
 
 ## Ghi sự kiện
 

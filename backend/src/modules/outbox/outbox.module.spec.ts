@@ -14,8 +14,13 @@ describe('TC-57-12 OutboxModule public API and dependency injection', () => {
     process.env = originalEnv;
   });
 
-  it('exports only the writer and its module through the public index', () => {
-    expect(Object.keys(publicApi).sort()).toEqual(['OutboxModule', 'OutboxWriter']);
+  it('exports only the writer, the relay and their modules through the public index', () => {
+    expect(Object.keys(publicApi).sort()).toEqual([
+      'OutboxModule',
+      'OutboxRelayModule',
+      'OutboxRelayService',
+      'OutboxWriter',
+    ]);
   });
 
   it.each(Object.values(AppRole))(

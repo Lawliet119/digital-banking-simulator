@@ -1,6 +1,6 @@
 # Components — Mục lục
 
-> **Status:** Draft · **Owner:** cả nhóm · **Verified against code:** một phần (2026-11-07): accounts, identity, ledger, audit, health có code; outbox mới có writer, notification và scoring của risk chưa có · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** cả nhóm · **Verified against code:** một phần (2026-11-07): accounts, identity, ledger, audit, health có code; outbox có writer và relay, notification có consumer (ghi log); consumer và scoring của risk chưa có · **Cập nhật:** 2026-10-03
 
 Mỗi **component** (module code, hạ tầng, bộ dữ liệu, kịch bản test) có một thư mục. Dùng mục lục này để tìm nhanh component nào làm việc gì, rồi mở docs của nó.
 Khác biệt giữa component và module: xem [glossary](_shared/glossary.md).

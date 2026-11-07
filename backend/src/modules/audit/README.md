@@ -10,12 +10,12 @@ Migration `AddAppendOnlyTriggers1792627200002` cung cấp hai trigger audit: UPD
 
 `AuditService.record`/`recordDenied` ([DBS-56](../../../../docs/features/DBS-56-audit-service-record.md)) dùng `INSERT` SQL thuần, không `RETURNING` — chạy đúng dưới role chỉ có quyền INSERT (đã kiểm bằng role tạo tạm trong test, xem DBS-56 §3/§4). Thu quyền production (`dbs_api`, `dbs_worker`) và kiểm AC-8.1 đầy đủ với role đó còn chờ task roles; API tra cứu UC-8 còn chờ task riêng.
 
-| | |
-|---|---|
-| Use case | UC-8 tra cứu cho kiểm toán viên · ghi nhật ký cho mọi thao tác thay đổi dữ liệu |
-| Chạy ở | `api` và `worker` — là **thư viện** mọi module ghi dữ liệu gọi (API tra cứu UC-8 chỉ ở `api`) |
-| Sở hữu bảng | `audit_log` (chỉ INSERT và SELECT) |
-| Thiết kế | `docs/03` §8, §12 · `docs/01` BR-09 |
+|             |                                                                                               |
+| ----------- | --------------------------------------------------------------------------------------------- |
+| Use case    | UC-8 tra cứu cho kiểm toán viên · ghi nhật ký cho mọi thao tác thay đổi dữ liệu               |
+| Chạy ở      | `api` và `worker` — là **thư viện** mọi module ghi dữ liệu gọi (API tra cứu UC-8 chỉ ở `api`) |
+| Sở hữu bảng | `audit_log` (chỉ INSERT và SELECT)                                                            |
+| Thiết kế    | `docs/03` §8, §12 · `docs/01` BR-09                                                           |
 
 ## Phải giữ
 
