@@ -12,7 +12,7 @@
 
 Hệ thống có 8 module nghiệp vụ (identity, accounts, ledger, risk, audit, outbox, notification, health). Use case quan trọng nhất là chuyển tiền (UC-5). Nó chạm bốn module trong một thao tác: `ledger` ghi bút toán, `accounts` khóa và đổi số dư, `audit` ghi nhật ký, `outbox` ghi sự kiện. Ba việc phải thành công cùng nhau hoặc cùng không xảy ra (BR-02, NFR-COR-01).
 
-Ràng buộc: 6 sinh viên, 10 tuần, một người lo toàn bộ hạ tầng (#5). Tải thiết kế là 120 RPS (docs/02 §5), nhỏ so với khả năng của một tiến trình Node.js có pool kết nối.
+Ràng buộc: 6 sinh viên, 10 tuần, một người lo toàn bộ hạ tầng (#5). Tải thiết kế là 120 RPS (docs/BRD.md Phần 2 §5), nhỏ so với khả năng của một tiến trình Node.js có pool kết nối.
 
 ## Các phương án
 
@@ -27,7 +27,7 @@ Ràng buộc: 6 sinh viên, 10 tuần, một người lo toàn bộ hạ tầng 
 
 ## Quyết định
 
-Chọn **B**: một ứng dụng NestJS chia module theo bounded context của docs/02 §6, chạy thành hai ECS service là `api` và `worker`. Hai service dùng cùng image và khác nhau ở biến `APP_ROLE` (ADR-13).
+Chọn **B**: một ứng dụng NestJS chia module theo bounded context của docs/BRD.md Phần 3 §6, chạy thành hai ECS service là `api` và `worker`. Hai service dùng cùng image và khác nhau ở biến `APP_ROLE` (ADR-13).
 
 ## Lý do
 

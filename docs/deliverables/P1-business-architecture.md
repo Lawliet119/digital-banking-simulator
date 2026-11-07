@@ -1,11 +1,11 @@
 # P1 — Business & Initial Architecture: Digital Banking Simulator
 
 > **Status:** Bản ghép để nhóm duyệt và nộp (DBS-14) · **Dẫn dắt:** #2 · **Cập nhật:** 2026-10-11
-> Bản này **tóm tắt và trỏ về nguồn**, không viết lại. Mọi con số lấy từ [docs/01](../01_BUSINESS_ANALYSIS.md), [docs/02](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) và [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §1–5. Sửa số ở nguồn trước rồi mới sửa ở đây. Nếu giảng viên có mẫu riêng, chép các mục dưới vào mẫu đó theo đúng thứ tự.
+> Bản này **tóm tắt và trỏ về nguồn**, không viết lại. Mọi con số lấy từ [docs/BRD.md](../BRD.md) và [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §1–5. Sửa số ở nguồn trước rồi mới sửa ở đây. Nếu giảng viên có mẫu riêng, chép các mục dưới vào mẫu đó theo đúng thứ tự.
 
 ## 1. Business problem
 
-Ngân hàng số X (mô phỏng): khoảng 50.000 khách đăng ký, 5.000 khách hoạt động mỗi ngày. Nghiệp vụ cốt lõi là mở tài khoản, nạp tiền tại quầy và chuyển tiền nội bộ ([docs/01 §1](../01_BUSINESS_ANALYSIS.md)).
+Ngân hàng số X (mô phỏng): khoảng 50.000 khách đăng ký, 5.000 khách hoạt động mỗi ngày. Nghiệp vụ cốt lõi là mở tài khoản, nạp tiền tại quầy và chuyển tiền nội bộ ([docs/BRD.md Phần 1 §1](../BRD.md)).
 
 | # | Vấn đề hiện tại | Hậu quả |
 |---|---|---|
@@ -18,7 +18,7 @@ Ngân hàng số X (mô phỏng): khoảng 50.000 khách đăng ký, 5.000 khác
 
 **Problem statement.** Ngân hàng số X cần một nền tảng quản lý tài khoản và chuyển tiền nội bộ **không bao giờ sai số dư, không bao giờ trừ tiền hai lần, và truy vết được mọi thao tác**, bởi vì sai sót về tiền là rủi ro nghiêm trọng nhất của ngân hàng và kiểm toán yêu cầu chứng minh được ai đã làm gì, khi nào.
 
-**Mục tiêu đo được** ([docs/01 §2](../01_BUSINESS_ANALYSIS.md)):
+**Mục tiêu đo được** ([docs/BRD.md Phần 1 §2](../BRD.md)):
 
 | ID | Mục tiêu | Chỉ số |
 |---|---|---|
@@ -39,11 +39,11 @@ Ngân hàng số X (mô phỏng): khoảng 50.000 khách đăng ký, 5.000 khác
 | Kiểm toán viên | Tra cứu nhật ký theo người, hành động, thời gian, mã liên kết | Nhật ký đầy đủ, không sửa được |
 | Admin | Cấu hình luật và hạn mức theo phiên bản | Đổi cấu hình an toàn, có dấu vết |
 
-Stakeholder khác (ban điều hành, bộ phận rủi ro, đội kỹ thuật, hội đồng) và ma trận ảnh hưởng – quan tâm: [docs/01 §3](../01_BUSINESS_ANALYSIS.md). Quy trình to-be: [docs/01 §5](../01_BUSINESS_ANALYSIS.md). Quy tắc nghiệp vụ BR-01…14: [docs/01 §6](../01_BUSINESS_ANALYSIS.md).
+Stakeholder khác (ban điều hành, bộ phận rủi ro, đội kỹ thuật, hội đồng) và ma trận ảnh hưởng – quan tâm: [docs/BRD.md Phần 1 §3](../BRD.md). Quy trình to-be: [docs/BRD.md Phần 1 §5](../BRD.md). Quy tắc nghiệp vụ BR-01…14: [docs/BRD.md Phần 1 §6](../BRD.md).
 
 ## 3. Functional requirements
 
-12 use case, 11 ở mức Must ([docs/02 §1.2](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md)):
+12 use case, 11 ở mức Must ([docs/BRD.md Phần 2 §1.2](../BRD.md)):
 
 | ID | Use case | Actor |
 |---|---|---|
@@ -56,11 +56,11 @@ Stakeholder khác (ban điều hành, bộ phận rủi ro, đội kỹ thuật,
 | UC-11 | Khóa / mở khóa tài khoản, thu hồi phiên ngay | Nhân viên |
 | UC-12 | Cấu hình luật và hạn mức theo phiên bản (Could) | Admin |
 
-Yêu cầu chức năng chi tiết FR-*: [docs/02 §2](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md). Tiêu chí chấp nhận dạng Given–When–Then (AC-5.1…5.10, 8.x, 9.x, 10.x, 11.x): [docs/02 §3](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md). Ngoài phạm vi v1: đảo giao dịch, rút tiền, chuyển liên ngân hàng, đóng tài khoản, sao kê.
+Yêu cầu chức năng chi tiết FR-*: [docs/BRD.md Phần 2 §2](../BRD.md). Tiêu chí chấp nhận dạng Given–When–Then (AC-5.1…5.10, 8.x, 9.x, 10.x, 11.x): [docs/BRD.md Phần 2 §3](../BRD.md). Ngoài phạm vi v1: đảo giao dịch, rút tiền, chuyển liên ngân hàng, đóng tài khoản, sao kê.
 
 ## 4. Non-functional requirements
 
-Mỗi NFR có con số mục tiêu và cách kiểm chứng ([docs/02 §4](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md)):
+Mỗi NFR có con số mục tiêu và cách kiểm chứng ([docs/BRD.md Phần 2 §4](../BRD.md)):
 
 | Nhóm | NFR | Mục tiêu |
 |---|---|---|
@@ -85,7 +85,7 @@ Mỗi NFR có con số mục tiêu và cách kiểm chứng ([docs/02 §4](../02
 | Đọc / ghi | 80% / 20% | ≈ 25 lệnh chuyển/giây ở tải thiết kế |
 | Dữ liệu | < ~10 GB/năm | ~20.000 bút toán/ngày |
 
-Loại workload: OLTP, ưu tiên nhất quán và độ trễ thấp. Nút thắt thật là **tài khoản nóng**, không phải tổng RPS. Các mốc load test: 12, 60, 120 RPS và stress vượt 120 ([docs/02 §5](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md)).
+Loại workload: OLTP, ưu tiên nhất quán và độ trễ thấp. Nút thắt thật là **tài khoản nóng**, không phải tổng RPS. Các mốc load test: 12, 60, 120 RPS và stress vượt 120 ([docs/BRD.md Phần 2 §5](../BRD.md)).
 
 ## 6. Initial cloud architecture
 

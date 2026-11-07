@@ -6,7 +6,7 @@
 | Ngày | YYYY-MM-DD |
 | Người viết | |
 | Người duyệt | |
-| Liên quan | Driver D-x, NFR-xxx, UC-x (docs/02, docs/03) |
+| Liên quan | Driver D-x, NFR-xxx, UC-x (docs/BRD.md, docs/03) |
 
 ## Bối cảnh
 

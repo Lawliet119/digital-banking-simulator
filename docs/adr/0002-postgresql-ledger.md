@@ -17,7 +17,7 @@ Sổ cái cần bốn khả năng cùng lúc:
 3. Ràng buộc trong DB bảo vệ bất biến kể cả khi code sai: số dư khách không âm, mỗi giao dịch đúng một dòng Nợ và một dòng Có, mã yêu cầu duy nhất theo user.
 4. Truy vấn lịch sử, đối soát và đặc trưng gian lận (trung vị 30 ngày, chuyển vòng) bằng SQL.
 
-Workload là OLTP khoảng 120 RPS với 20% ghi (docs/02 §5). Không phải dữ liệu lớn hay streaming.
+Workload là OLTP khoảng 120 RPS với 20% ghi (docs/BRD.md Phần 2 §5). Không phải dữ liệu lớn hay streaming.
 
 ## Các phương án
 

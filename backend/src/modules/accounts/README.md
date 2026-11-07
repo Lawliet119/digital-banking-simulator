@@ -9,7 +9,7 @@ Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 | Use case    | UC-1 onboarding · UC-2 mở tài khoản · UC-4 xem số dư · UC-11 khóa / mở khóa |
 | Chạy ở      | `api` và phần API của `both`; chưa nạp trong `worker`                       |
 | Sở hữu bảng | `customers`, `accounts` (gồm tài khoản SYSTEM `funding`)                    |
-| Thiết kế    | `docs/03` §6.2 (khóa và thu hồi phiên), §8 · `docs/02` §3 (AC-11.x)         |
+| Thiết kế    | `docs/03` §6.2 (khóa và thu hồi phiên), §8 · `docs/BRD.md` Phần 2 §3 (AC-11.x)         |
 
 ## Phải giữ
 

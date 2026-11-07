@@ -48,8 +48,7 @@ digital-banking-simulator/
 │   ├── terraform/        # hạ tầng AWS
 │   └── local/            # cấu hình cho môi trường local (ElasticMQ...)
 ├── docs/
-│   ├── 01_BUSINESS_ANALYSIS.md
-│   ├── 02_REQUIREMENTS_AND_DOMAIN_MODEL.md
+│   ├── BRD.md            # nghiệp vụ, yêu cầu, mô hình miền (3 phần)
 │   ├── 03_HIGH_LEVEL_ARCHITECTURE.md
 │   ├── README.md         # bản đồ tài liệu: đọc gì trước, một sự thật ở một chỗ
 │   ├── adr/              # Architecture Decision Records (ADR-01…13 Accepted, ADR-14 Proposed)
@@ -92,8 +91,7 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 
 | Tài liệu | Nội dung |
 |---|---|
-| [01 — Business Analysis](docs/01_BUSINESS_ANALYSIS.md) | Bài toán, mục tiêu, stakeholder, quy trình, quy tắc nghiệp vụ |
-| [02 — Requirements & Domain Model](docs/02_REQUIREMENTS_AND_DOMAIN_MODEL.md) | Use case, FR, NFR, tiêu chí chấp nhận, workload, domain model |
+| [BRD — Business Requirements](docs/BRD.md) | Phần 1 bài toán, mục tiêu, stakeholder, quy trình, quy tắc nghiệp vụ · Phần 2 use case, FR, NFR, tiêu chí chấp nhận, workload · Phần 3 domain model |
 | [03 — High-Level Architecture](docs/03_HIGH_LEVEL_ARCHITECTURE.md) | Kiến trúc, luồng chuyển tiền, dữ liệu, Redis, sự kiện, bảo mật, triển khai |
 | [ADR](docs/adr/README.md) | 13 quyết định kiến trúc đã chốt, 1 đề xuất (ADR-14), kèm lý do |
 | [Threat model](docs/security/threat-model.md) | Mối đe dọa STRIDE của luồng tiền và biện pháp |

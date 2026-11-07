@@ -36,6 +36,6 @@ Cần xác thực người dùng và phân quyền theo 4 vai trò mà không t�
 ## Liên kết
 
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §6.2 Khóa tài khoản và thu hồi phiên; §9 Redis (R-1 rate limit, R-2 mốc thu hồi); §12 Bảo mật.
-- Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
+- Nghiệp vụ, yêu cầu và mô hình miền: [docs/BRD.md](../../BRD.md).
 - Quy tắc code và những điều phải giữ: [`backend/src/modules/identity/README.md`](../../../backend/src/modules/identity/README.md).
 - Giao diện và mốc: Task 2 của roadmap cũ (đã xóa); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).

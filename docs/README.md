@@ -6,7 +6,7 @@
 
 | Bạn là… | Đọc theo thứ tự |
 |---|---|
-| Người mới vào nhóm | [README gốc](../README.md) → [01](01_BUSINESS_ANALYSIS.md) → [03](03_HIGH_LEVEL_ARCHITECTURE.md) §1–5 |
+| Người mới vào nhóm | [README gốc](../README.md) → [BRD](BRD.md) → [03](03_HIGH_LEVEL_ARCHITECTURE.md) §1–5 |
 | Sắp làm một task | Skill [`dbs-delivering-task`](../.claude/skills/dbs-delivering-task/SKILL.md) (bắt buộc) → [`BACKLOG.md`](BACKLOG.md) (việc còn tồn) → [`features/`](features/README.md) (task trước của cùng module) → [`components/index.md`](components/index.md) → các mục docs/03 liên quan |
 | Sắp viết một bản nộp | [`deliverables/README.md`](deliverables/README.md) |
 | Chuẩn bị bảo vệ | [03](03_HIGH_LEVEL_ARCHITECTURE.md) §16–18, [ADR](adr/README.md), [FRAUD guide](components/risk/FRAUD_DETECTION_GUIDE.md) |
@@ -15,8 +15,7 @@
 
 ```
 docs/
-├── 01_BUSINESS_ANALYSIS.md                Bài toán, mục tiêu, quy tắc nghiệp vụ        (cấp hệ thống)
-├── 02_REQUIREMENTS_AND_DOMAIN_MODEL.md    Use case, FR, NFR, AC, domain model           (cấp hệ thống)
+├── BRD.md                                 Nghiệp vụ, yêu cầu, mô hình miền (3 phần)     (cấp hệ thống)
 ├── 03_HIGH_LEVEL_ARCHITECTURE.md          Kiến trúc tổng thể và chi tiết từng module    (cấp hệ thống)
 ├── BACKLOG.md                             Việc còn tồn mà các task đã chuyển cho người/task khác
 ├── adr/                                   13 quyết định kiến trúc đã chốt (ADR-01…13), ADR-14 Proposed, kèm lý do
@@ -33,7 +32,7 @@ docs/
 
 | Loại thông tin | Nơi duy nhất |
 |---|---|
-| Mục tiêu, quy tắc nghiệp vụ (BR), NFR, tiêu chí chấp nhận | `01`, `02` |
+| Mục tiêu, quy tắc nghiệp vụ (BR), NFR, tiêu chí chấp nhận | `BRD` |
 | Kiến trúc hệ thống và chi tiết từng module: luồng, API, mã lỗi, Redis, bảo mật, triển khai | `03` (riêng `risk`: thêm `components/risk/02-architecture.md`) |
 | Schema DB toàn hệ thống: bảng, ràng buộc, index, quyền, migration | `components/_shared/database-design.md` |
 | Hình dạng sự kiện | `components/_shared/event-contract.md` |

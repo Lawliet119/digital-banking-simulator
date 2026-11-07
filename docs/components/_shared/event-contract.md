@@ -60,7 +60,7 @@ Do `@common/events` kiểm (`validateEvent`), cả hai sự kiện:
 
 ## Không phát ở v1
 
-`FraudFlagRaised` và `FraudFlagReviewed` (docs/02 §9) là khái niệm miền. Cờ và kết luận đã được lưu ở `fraud_flags` và `audit_log`; thêm sự kiện khi có bên tiêu thụ.
+`FraudFlagRaised` và `FraudFlagReviewed` (docs/BRD.md Phần 3 §9) là khái niệm miền. Cờ và kết luận đã được lưu ở `fraud_flags` và `audit_log`; thêm sự kiện khi có bên tiêu thụ.
 
 ## Bảng định tuyến
 

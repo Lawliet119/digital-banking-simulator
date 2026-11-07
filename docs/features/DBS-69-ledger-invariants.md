@@ -51,7 +51,7 @@
 | Demo cố ý làm lệch | Đề xuất dùng database tạm cô lập, migrate schema thật, seed SQL cân bằng; role chủ bảng sửa `accounts.balance`, chạy kiểm thấy lệch, phục hồi rồi kiểm sạch |
 | Tài liệu / bằng chứng | Cách dùng trong [backend/README](../../backend/README.md), feature doc, test và bằng chứng manual PostgreSQL thật |
 
-Nguồn truy vết: [docs/02](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) AC-5.9, NFR-COR-02, §7.1; [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §8.2; [database-design](../components/_shared/database-design.md) §4.2–4.4, §5, §10; [ADR-02](../adr/0002-postgresql-ledger.md); [ADR-09](../adr/0009-funding-system-account.md).
+Nguồn truy vết: [docs/BRD.md](../BRD.md) AC-5.9, NFR-COR-02, §7.1; [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §8.2; [database-design](../components/_shared/database-design.md) §4.2–4.4, §5, §10; [ADR-02](../adr/0002-postgresql-ledger.md); [ADR-09](../adr/0009-funding-system-account.md).
 
 ### Baseline
 

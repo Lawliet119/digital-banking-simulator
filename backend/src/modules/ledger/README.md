@@ -11,7 +11,7 @@ Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bản
 | Use case    | UC-3 nạp tiền · UC-5 chuyển tiền · UC-6 lịch sử · UC-7 trạng thái giao dịch                                                      |
 | Chạy ở      | `api`; job đối soát chạy ở `worker` (scheduler bị chặn ở role `api`, ADR-13)                                                     |
 | Sở hữu bảng | `transfers`, `ledger_entries`, `idempotency_keys`, `reconciliation_runs`; ghi sự kiện qua `OutboxWriter.add` của module `outbox` |
-| Thiết kế    | `docs/03` §6.1 (luồng chuyển tiền), §8 (dữ liệu) · `docs/02` §3 (AC-5.x)                                                         |
+| Thiết kế    | `docs/03` §6.1 (luồng chuyển tiền), §8 (dữ liệu) · `docs/BRD.md` Phần 2 §3 (AC-5.x)                                                         |
 
 ## Phải giữ
 

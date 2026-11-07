@@ -6,7 +6,7 @@
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
-Nguồn: [docs/03 §8](../../03_HIGH_LEVEL_ARCHITECTURE.md) (data architecture), [docs/02 §7–8](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (aggregate, bất biến, vòng đời), [FRAUD_DETECTION_GUIDE §5.3](../risk/FRAUD_DETECTION_GUIDE.md) (bảng fraud). Các điểm từng khác các tài liệu đó đã được sửa vào nguồn; lịch sử ở [§13](#13-các-điểm-đã-chốt).
+Nguồn: [docs/03 §8](../../03_HIGH_LEVEL_ARCHITECTURE.md) (data architecture), [docs/BRD.md Phần 3 §7–8](../../BRD.md) (aggregate, bất biến, vòng đời), [FRAUD_DETECTION_GUIDE §5.3](../risk/FRAUD_DETECTION_GUIDE.md) (bảng fraud). Các điểm từng khác các tài liệu đó đã được sửa vào nguồn; lịch sử ở [§13](#13-các-điểm-đã-chốt).
 
 ---
 
@@ -461,7 +461,7 @@ PostgreSQL **không tự đánh index cho cột khóa ngoại**. Các cột khó
 
 ### 6.3 Dung lượng và có cần phân vùng không
 
-Tải thiết kế ≈ 10.000 lệnh chuyển/ngày (docs/02 §5.3) → ~20.000 dòng `ledger_entries`/ngày ≈ **7,3 triệu dòng/năm**, mỗi dòng cộng index khoảng 100–250 byte → ước lượng **~1–2 GB/năm**, khớp "< 10 GB/năm" trong docs/02. **Không cần phân vùng (partition)** ở quy mô này; ngưỡng cân nhắc là hàng trăm triệu dòng.
+Tải thiết kế ≈ 10.000 lệnh chuyển/ngày (docs/BRD.md Phần 2 §5.3) → ~20.000 dòng `ledger_entries`/ngày ≈ **7,3 triệu dòng/năm**, mỗi dòng cộng index khoảng 100–250 byte → ước lượng **~1–2 GB/năm**, khớp "< 10 GB/năm" trong docs/BRD.md. **Không cần phân vùng (partition)** ở quy mô này; ngưỡng cân nhắc là hàng trăm triệu dòng.
 
 ---
 

@@ -15,11 +15,11 @@ Feature doc: docs/features/DBS-  <!-- hoặc docs/features/<KIND>-YYYYMMDD-<slug
 
 ## Liên quan tới
 
-<!-- Use case, FR, NFR, AC trong docs/02 — ví dụ: UC-5, FR-LED-05, AC-5.4 -->
+<!-- Use case, FR, NFR, AC trong docs/BRD.md — ví dụ: UC-5, FR-LED-05, AC-5.4 -->
 
 ## Đối chiếu test case
 
-<!-- Mỗi tiêu chí trong DoD của task và mỗi AC (docs/02 §3) mà PR đụng tới: test nào chứng minh, độ sâu có khớp không (khớp / đơn giản hóa + lý do / chưa làm + lý do) -->
+<!-- Mỗi tiêu chí trong DoD của task và mỗi AC (docs/BRD.md Phần 2 §3) mà PR đụng tới: test nào chứng minh, độ sâu có khớp không (khớp / đơn giản hóa + lý do / chưa làm + lý do) -->
 
 | DoD / AC | Test | Khớp? |
 |---|---|---|
