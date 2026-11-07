@@ -1,6 +1,6 @@
 # DBS-63 · UC-2 mở tài khoản, tối đa 3 tài khoản mỗi khách
 
-> **Status:** Design approved (G1, G2 đã duyệt 2026-11-07; đang bù G3, rồi implement phần còn lại và G4) · **Vai:** Dev (Accounts) · **Nhánh:** `feat/DBS-63-open-accounts` · **PR:** [#58 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/58) · **Cập nhật:** 2026-11-07
+> **Status:** Plan approved (G1, G2, G3 đã duyệt 2026-11-07; đang implement phần còn lại, đến G4) · **Vai:** Dev (Accounts) · **Nhánh:** `feat/DBS-63-open-accounts` · **PR:** [#58 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/58) · **Cập nhật:** 2026-11-07
 
 > **Ghi chú quy trình:** phần implement, test và manual test của task này đã làm trước khi có G1, G2 và G3, vì yêu cầu ban đầu bỏ qua gate. Skill không cho phép việc đó. Từ đây các gate được bù lần lượt, mỗi gate một tin nhắn, người duyệt trả lời rồi mới sang gate sau. Các mục §2–§9 bên dưới là bản cũ, sẽ được viết lại ở G2 (§2–§6), G3 (§7) và G4 (§8–§9).
 
@@ -267,7 +267,7 @@ Phần lớn code đã có từ trước; kế hoạch này chỉ gồm những 
 
 **Rủi ro và cách lùi:** đổi audit sang `REJECTED` chỉ ảnh hưởng đường 404 của endpoint này; lùi bằng `git revert` các commit ở bước 4–5. Không migration, không dữ liệu cần dọn. Đột biến ở bước 1 chỉ nằm trong working tree, phải khôi phục trước khi commit (kiểm bằng `git diff` trước mỗi commit).
 
-**Quyết định ở G3:** (chờ người duyệt)
+**Quyết định ở G3** (người dùng trả lời «duyệt», 2026-11-07, chấp nhận mọi đề xuất): (1) xóa `verification.txt` và `pr-description.md`; (2) viết lại dòng DBS-63 ở `docs/features/README.md` và README module accounts bằng tiếng Việt; (3) không push trước G4, sau G4 push thường lên nhánh PR #58 và hỏi riêng việc sửa mô tả PR.
 
 ## 8. Results / handoff
 
