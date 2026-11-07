@@ -292,7 +292,8 @@ describe('DBS-58 fraud migration on PostgreSQL', () => {
     expect(await q("SELECT to_regprocedure('public.forbid_mutation()') AS routine")).not.toEqual([
       { routine: null },
     ]);
-    cli('migration:run');
+    // Re-run only through the fraud migration: later migrations must not become the "last" one below.
+    await migrateThrough(db.url, TARGET);
     expect(await q('SELECT version FROM risk_rule_sets')).toEqual([{ version: 1 }]);
     const { transfer } = await fixture();
     await q(
