@@ -1,4 +1,10 @@
-import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Optional,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import { redisConfig } from '@config/redis.config';
 import Redis from 'ioredis';
@@ -18,19 +24,23 @@ const INCR =
 const ZADD =
   "local n=redis.call('ZADD',KEYS[1],ARGV[1],ARGV[2]); redis.call('EXPIRE',KEYS[1],ARGV[3]); return n";
 
+const REDIS_CLIENT_OPTIONS = Symbol('REDIS_CLIENT_OPTIONS');
+
 @Injectable()
-export class RedisClient implements OnModuleDestroy {
+export class RedisClient implements OnModuleDestroy, OnModuleInit {
   private readonly driver: Redis;
   private readonly breaker: CircuitBreaker<[() => Promise<unknown>], unknown>;
   private disposed = false;
   constructor(
     @Inject(redisConfig.KEY) config: ConfigType<typeof redisConfig>,
     private readonly metrics: RedisMetrics,
+    @Optional() @Inject(REDIS_CLIENT_OPTIONS) options?: { lazyConnect?: boolean },
   ) {
     if (!Number.isInteger(config.commandTimeoutMs) || config.commandTimeoutMs < 10)
       throw new TypeError('Invalid Redis command timeout');
     const timeout = Math.min(config.commandTimeoutMs, 50);
     this.driver = new Redis(config.url, {
+      lazyConnect: options?.lazyConnect ?? false,
       commandTimeout: timeout,
       enableOfflineQueue: false,
       autoResendUnfulfilledCommands: false,
@@ -67,6 +77,12 @@ export class RedisClient implements OnModuleDestroy {
   }
   get isReady(): boolean {
     return !this.disposed && this.driver.status === 'ready';
+  }
+  onModuleInit(): void {
+    // NestFactory.create can fail before returning a context to main's cleanup.
+    // A module-owned client must not open reconnect sockets until app.init starts.
+    if (!this.disposed && this.driver.status === 'wait')
+      void this.driver.connect().catch(() => undefined);
   }
   get circuitState(): 'closed' | 'open' | 'half-open' | 'shutdown' {
     return this.disposed

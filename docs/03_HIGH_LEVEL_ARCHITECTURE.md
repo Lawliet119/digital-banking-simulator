@@ -874,6 +874,8 @@ SLO chính thức (chốt 2026-10-11). Đo trong các đợt bật cấu hình p
 - **Alarm:** theo cột cuối của bảng trên, gửi SNS email; tạo bằng Terraform.
 - **Health check:** `/health/ready` báo Redis ở trạng thái *degraded* chứ không *down*, vì hệ thống vẫn chạy được khi không có Redis.
 
+DBS-78: khi PostgreSQL ổn, response giữ Terminus `status: ok`, các trường database và HTTP200, thêm trường root `redis: up|degraded`. Redis timeout/breaker-open/ngừng hoạt động không loại task khỏi ALB. PostgreSQL lỗi vẫn503 và không cần probe Redis; `/health/live` không gọi cả hai dependency.
+
 ---
 
 ## 15. Kiến trúc phát hiện gian lận (P5)

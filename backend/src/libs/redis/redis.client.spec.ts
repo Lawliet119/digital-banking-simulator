@@ -8,6 +8,7 @@ const driver = {
   status: 'ready',
   on: jest.fn(),
   disconnect: jest.fn(),
+  connect: jest.fn<Promise<void>, []>(),
   get: jest.fn<Promise<string | null>, [string]>(),
   set: jest.fn(),
   eval: jest.fn(),
@@ -63,6 +64,26 @@ describe('DBS-76 Redis policy', () => {
         maxRetriesPerRequest: 0,
       }),
     );
+  });
+  it('TC-78 startup integration defers module connection and handles connection errors', async () => {
+    driver.status = 'wait';
+    driver.connect.mockRejectedValueOnce(new Error('unavailable'));
+    const deferred = new RedisClient(
+      { url: 'redis://localhost:6379', commandTimeoutMs: 50 },
+      new RedisMetrics(),
+      { lazyConnect: true },
+    );
+    try {
+      expect(construct).toHaveBeenLastCalledWith(
+        'redis://localhost:6379',
+        expect.objectContaining({ lazyConnect: true }),
+      );
+      deferred.onModuleInit();
+      await Promise.resolve();
+      expect(driver.connect).toHaveBeenCalledTimes(1);
+    } finally {
+      deferred.onModuleDestroy();
+    }
   });
   it('TC-76-01/05 rejects at50ms with one fallback and redacted error', async () => {
     driver.get.mockImplementation(() => new Promise(() => undefined));
