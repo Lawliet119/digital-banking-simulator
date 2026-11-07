@@ -271,7 +271,7 @@ Phần lớn code đã có từ trước; kế hoạch này chỉ gồm những 
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (2026-11-07, Node v24.22.2 portable, `--runInBand`; code cuối cùng là commit `97425a2`, các commit sau chỉ đổi tài liệu và bằng chứng):
+- **Lệnh kiểm tra** (2026-11-07, Node v24.22.2 portable, `--runInBand`; code cuối cùng là commit `b34f9f3`, các commit sau chỉ đổi tài liệu và bằng chứng):
 
 ```text
 npm run lint:check && npm run typecheck && npm run build   -> đạt
@@ -305,7 +305,7 @@ test/db/account-opening.db-spec.ts                                              
 
   11/11 test case đạt đủ độ sâu, 0 đơn giản hóa, 0 chưa làm (không kể dòng quy trình).
 
-- **Test thủ công** (app thật `npm run start:dev`, `APP_ROLE=both`, `AUTH_MODE=local`, token từ `auth:dev-token`, Postgres 17 riêng ở cổng 55432). Output thô: [manual-test.txt](screenshots/DBS-63/manual-test.txt), SHA ở dòng đầu `97425a2608619cf1f9670e7d64bf2fb59f09c848` (commit cuối cùng đổi code). Token không được in; `Authorization` hiển thị `<redacted>`.
+- **Test thủ công** (app thật `npm run start:dev`, `APP_ROLE=both`, `AUTH_MODE=local`, token từ `auth:dev-token`, Postgres 17 riêng ở cổng 55432). Output thô: [manual-test.txt](screenshots/DBS-63/manual-test.txt), SHA ở dòng đầu `b34f9f3c23fdee5bf7c3b4738c1f4873504e8ada` (commit cuối cùng đổi code). Token không được in; `Authorization` hiển thị `<redacted>`.
 
 | Bước | Phản hồi thật (rút gọn) | Kết quả |
 |---|---|---|
@@ -346,7 +346,7 @@ test/db/account-opening.db-spec.ts                                              
 ![Kết quả test thủ công DBS-63 trên ứng dụng thật](screenshots/DBS-63/01-manual-test-results.png)
 
 - **Lệch so với kế hoạch:**
-  1. §7 bước 2, 3 và 4 được commit gộp thành một commit `478d4c8` (test và bản sửa). Hai thay đổi test nằm chung một file đã sửa cùng lúc nên không tách được thành commit xanh riêng. Không đổi phạm vi, không cần gate phụ.
+  1. §7 bước 2, 3 và 4 được commit gộp thành một commit `b81aa22` (test và bản sửa). Hai thay đổi test nằm chung một file đã sửa cùng lúc nên không tách được thành commit xanh riêng. Không đổi phạm vi, không cần gate phụ.
   2. Đột biến ở bước 1 làm đỏ 4 test, nhiều hơn 2 test (TC-63-03 và TC-63-11) kế hoạch dự kiến; là kết quả tốt hơn dự kiến.
   3. Lần chạy test thủ công đầu tiên bị bỏ: tên tiếng Việt bị hỏng khi truyền qua `curl.exe` trên Windows (`Tr?n Thu H�`). Đã sửa kịch bản (gửi body qua file), chạy lại từ database sạch; `manual-test.txt` chỉ chứa lần chạy lại.
   4. Môi trường: Node 24 bản portable (ngoài repo, SHA256 đã kiểm) và Postgres riêng ở cổng 55432, đã ghi ở §1 và §5. Không đổi cấu hình repo.
