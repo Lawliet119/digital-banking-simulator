@@ -1,5 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { DataSource, EntityManager } from 'typeorm';
+import {
+  QueryRunnerProviderAlreadyReleasedError,
+  type DataSource,
+  type EntityManager,
+} from 'typeorm';
 import { isRetryableTransactionError } from '../common/utils/pg-error.util';
 
 /**
@@ -54,6 +58,26 @@ const APPLY_TIMEOUTS_SQL = `SELECT
   set_config('statement_timeout', $2, true),
   set_config('idle_in_transaction_session_timeout', $3, true)`;
 
+/** The part of a pg client this file uses; absent on the fakes of unit tests. */
+interface ConnectionEvents {
+  on?: (event: 'error', listener: (cause: unknown) => void) => unknown;
+  removeListener?: (event: 'error', listener: (cause: unknown) => void) => unknown;
+}
+
+/**
+ * `idle_in_transaction_session_timeout` makes PostgreSQL close the session. TypeORM then releases
+ * the runner on the client's `error` event, and the next query of the callback fails with
+ * QueryRunnerProviderAlreadyReleasedError, which carries no SQLSTATE: the route answered 500 for
+ * a failure that is temporary. When that is what happened, report the error that closed the
+ * connection (25P03, or a code-less "terminated" error), which `isTransientDbError` understands.
+ * Any other failure is returned as it is.
+ */
+function describeFailure(error: unknown, connectionError: unknown): unknown {
+  return error instanceof QueryRunnerProviderAlreadyReleasedError && connectionError !== undefined
+    ? connectionError
+    : error;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise(resolve => {
     setTimeout(resolve, ms);
@@ -97,8 +121,17 @@ export async function withTransaction<T>(
 
   for (let attempt = 0; ; attempt++) {
     const queryRunner = dataSource.createQueryRunner();
+    // TypeORM drops the runner when the server closes the session and keeps no trace of why, so
+    // the cause is kept here (see `describeFailure`).
+    let connectionError: unknown;
+    const onConnectionError = (cause: unknown) => {
+      connectionError ??= cause;
+    };
+    let client: ConnectionEvents | undefined;
     try {
       await queryRunner.connect();
+      client = (queryRunner as { databaseConnection?: ConnectionEvents }).databaseConnection;
+      client?.on?.('error', onConnectionError);
       await queryRunner.startTransaction(isolationLevel);
       // Must be in force before the callback requests its first lock.
       await queryRunner.query(APPLY_TIMEOUTS_SQL, [
@@ -109,7 +142,8 @@ export async function withTransaction<T>(
       const result = await activeTransactionContext.run(true, () => fn(queryRunner.manager));
       await queryRunner.commitTransaction();
       return result;
-    } catch (error) {
+    } catch (raised) {
+      const error = describeFailure(raised, connectionError);
       if (queryRunner.isTransactionActive) {
         try {
           await queryRunner.rollbackTransaction();
@@ -123,6 +157,7 @@ export async function withTransaction<T>(
       onRetry?.({ attempt: attempt + 1, error });
       await sleep(baseDelayMs * 2 ** attempt * (0.5 + Math.random()));
     } finally {
+      client?.removeListener?.('error', onConnectionError);
       await queryRunner.release();
     }
   }

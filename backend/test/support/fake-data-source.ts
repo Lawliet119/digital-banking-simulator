@@ -9,6 +9,8 @@ export interface FakeRunner {
   manager: EntityManager;
   isTransactionActive: boolean;
   connect: jest.Mock;
+  /** The pg client TypeORM exposes on a connected PostgreSQL runner. */
+  databaseConnection?: unknown;
   startTransaction: jest.Mock;
   commitTransaction: jest.Mock;
   rollbackTransaction: jest.Mock;
