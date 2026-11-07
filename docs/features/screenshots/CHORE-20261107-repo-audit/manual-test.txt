@@ -1,0 +1,300 @@
+00b16e1 (commit cuối đổi code; HEAD lúc chạy: 1ef1e0f, nhánh chore/CHORE-20261107-skill)
+Chạy: 2026-11-07T09:02:03Z · Git Bash · node v18.20.8 với NODE_OPTIONS=--experimental-global-webcrypto · PostgreSQL riêng cổng 55432 · Valkey, ElasticMQ của docker compose
+
+## M-CHORE-01 · trạng thái trước trên main (worktree tạm của aeee9c9)
+
+$ git log --oneline -1
+aeee9c9 feat(ledger): add atomic customer transfers (DBS-61) (#61)
+[exit=0]
+
+$ rm -rf dist && npx nest build && ls dist/scripts
+manual-smoke.dbs50.js
+manual-smoke.dbs50.js.map
+manual-smoke.dbs51.js
+manual-smoke.dbs51.js.map
+manual-smoke.dbs52.js
+manual-smoke.dbs52.js.map
+[exit=0]
+
+## M-CHORE-02 · build trên nhánh, khởi động app từ dist/
+
+$ rm -rf dist && npm run build >/dev/null && ls dist/scripts
+ls: cannot access 'dist/scripts': No such file or directory
+[exit=2]
+
+$ ls dist | head -20
+app.module.js
+app.module.js.map
+app.setup.js
+app.setup.js.map
+common
+config
+database
+libs
+main.js
+main.js.map
+modules
+tsconfig.build.tsbuildinfo
+[exit=0]
+
+$ test -f env/.env.development || cp env/.env.example env/.env.development; npm run --silent auth:dev-keys | tail -3
+Dev keys already exist in C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\clownfish\backend\.auth-local. They were not changed; pass --force to replace them.
+[exit=0]
+
+$ curl -s -o /dev/null -w 'live %{http_code}\n' --retry 30 --retry-delay 1 --retry-connrefused http://localhost:3077/health/live
+live 200
+[exit=0]
+
+$ curl -s -i http://localhost:3077/health/ready | sed -n '1p;$p'
+HTTP/1.1 200 OK
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}[exit=0]
+
+$ grep -c '"appRole":"api"' /f/tmp/claude/claude/2d0d39e5ee4f7f6c/308e3962-f999-447d-a76e-8fcd3d963477/scratchpad/app-final.log
+36
+[exit=0]
+(đã dừng app, pid 328)
+
+## M-CHORE-03 · script manual-smoke vẫn chạy từ src/
+
+$ DATABASE_URL=postgres://banking:banking_local_only@localhost:55432/banking npx ts-node -r tsconfig-paths/register src/scripts/manual-smoke.dbs50.ts | tail -8
+  correlationId: 'e5caf8d3-03ff-4baf-8668-31652f0f1d74'
+}
+
+--- M-50-05: Swagger bearerAuth scheme (GET /docs-json) ---
+components.securitySchemes: {
+  'access-token': { scheme: 'bearer', bearerFormat: 'JWT', type: 'http' }
+}
+/v1/identity/me security: [ { 'access-token': [] } ]
+[exit=0]
+
+## M-CHORE-04 · kiểm 6 fact đã sửa bằng lệnh trên code
+### (1) README: libs/ chỉ có redis, sqs
+
+$ ls backend/src/libs; grep -n 'libs/' README.md | head -2
+README.md
+redis
+sqs
+42:│   │   ├── libs/         # adapter: redis, sqs
+[exit=0]
+### (2) backend/README: worker chưa có relay hay consumer
+
+$ grep -n -A2 'const workerModules' backend/src/modules/index.ts; grep -n 'workerModules' backend/README.md
+32:const workerModules: ModuleRef[] = [
+33-  // Outbox relay providers and NotificationModule — added by #3.
+34-];
+8:| `worker` | module dùng chung (Outbox, Audit, Risk). Đích: outbox relay, risk scoring, notification; `workerModules` hiện còn rỗng, chưa có relay hay consumer | HTTP listener | ECS service `worker` |
+[exit=0]
+### (3) docs/03 §7: GET /v1/identity/me
+
+$ grep -n "@Controller('identity')\|@Get('me')" backend/src/modules/identity/identity.controller.ts; grep -n 'identity/me' docs/03_HIGH_LEVEL_ARCHITECTURE.md | head -2
+7:@Controller('identity')
+9:  @Get('me')
+483:| GET | `/v1/identity/me` | mọi vai trò đã đăng nhập | — | Trả claims đã xác thực của caller (smoke test cho `JwtAuthGuard`, DBS-50); 401 `UNAUTHENTICATED` hoặc `TOKEN_EXPIRED` |
+1038:| **1.8** | Đồng bộ với code trên `main` `aeee9c9` (CHORE-20261107-repo-audit): dòng Status ghi module đã có code, Owner là Dev; ghi ADR-14 Proposed ở bảng thuộc tính và §18; thêm `GET /v1/identity/me` vào §7; §5 ghi chú sơ đồ là kiến trúc đích, relay và notification chưa có code |
+[exit=0]
+### (4) ledger brief: có nạp tiền và chuyển tiền bản thô, chưa có GET transfer hay lịch sử
+
+$ grep -rn '@Controller\|@Get\|@Post' backend/src/modules/ledger/*.controller.ts; sed -n '3p' docs/components/ledger/01-concept-brief.md | cut -c1-220
+backend/src/modules/ledger/operator-deposits.controller.ts:25:@Controller('operator/deposits')
+backend/src/modules/ledger/operator-deposits.controller.ts:28:  @Post()
+backend/src/modules/ledger/transfers.controller.ts:26:@Controller('transfers')
+backend/src/modules/ledger/transfers.controller.ts:30:  @Post()
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** một phần: schema `transfers`, `ledger_entries`, `idempotency_keys` (DBS-21) và trigger append-only (DBS-27); kiểu tiền (DBS-22); nạp tiền t
+[exit=0]
+### (5) threat model T11: DENIED ở transfers có test, 403 của RolesGuard chưa ghi audit
+
+$ grep -n 'TC-61-03\|TC-61-11' backend/test/db/customer-transfers.db-spec.ts | head -2; grep -n 'audit\|warn' backend/src/modules/identity/roles.guard.ts | head -4
+207:  it('TC-61-03 foreign/missing/SYSTEM sources uniformly404 and independently DENIED', async () => {
+576:  it('TC-61-11 denied audit failure is fail-closed500 then404 after recovery', async () => {
+40: * - Wrong role: 403 `FORBIDDEN`, handler not run, one `warn` log line (see below).
+42: * The log line is the hook for the audit `DENIED` record that DBS-56 will write at this point
+78:    this.logger.warn(
+[exit=0]
+### (6) BL-053: CI chạy test:services cho sqs và redis, chưa chạy testcontainers.services-spec.ts
+
+$ grep -n 'test:services' .github/workflows/ci.yml; grep -c 'testcontainers.services-spec' .github/workflows/ci.yml
+130:        run: npm run test:services -- --runInBand --runTestsByPath test/services/sqs-adapter.services-spec.ts
+132:        run: npm run test:services -- --runInBand --runTestsByPath test/services/redis-adapter.services-spec.ts
+0
+[exit=1]
+
+## M-CHORE-05 · bảng sửa board và danh sách BL-160 (gh chỉ đọc)
+
+$ node docs/features/screenshots/CHORE-20261107-repo-audit/check-backlog.cjs --cache /f/tmp/claude/claude/2d0d39e5ee4f7f6c/308e3962-f999-447d-a76e-8fcd3d963477/scratchpad/prs-final.json
+48 PR đã merge tới 2026-11-07T01:40:00Z; 76 dòng BL
+đạt
+[exit=0]
+
+$ node docs/features/screenshots/CHORE-20261107-repo-audit/group-bl160.cjs /f/tmp/claude/claude/2d0d39e5ee4f7f6c/308e3962-f999-447d-a76e-8fcd3d963477/scratchpad/prs-final.json
+money 22 #1 #2 #7 #8 #9 #10 #12 #13 #16 #17 #29 #33 #34 #35 #44 #46 #47 #48 #54 #56 #57 #61
+other 24 #4 #5 #6 #11 #15 #18 #19 #20 #22 #23 #24 #25 #27 #30 #32 #36 #37 #38 #39 #41 #42 #43 #51 #52
+docs 2 #3 #28(0 file)
+[exit=0]
+
+$ node /f/tmp/claude/claude/2d0d39e5ee4f7f6c/308e3962-f999-447d-a76e-8fcd3d963477/scratchpad/board-table.mjs /f/tmp/claude/claude/2d0d39e5ee4f7f6c/308e3962-f999-447d-a76e-8fcd3d963477/scratchpad/prs-final.json
+DBS-20 | Tuần 1 | Done | Done | giữ | Đã merge #7 (2026-10-12); DoD review chưa đạt (BL-160)
+DBS-21 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #8 (2026-10-16); DoD review chưa đạt (BL-160); còn BL-004, BL-005, BL-006
+DBS-22 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #9 (2026-10-17); DoD review chưa đạt (BL-160); còn BL-007, BL-008, BL-009
+DBS-24 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #10 (2026-10-19); DoD review chưa đạt (BL-160); còn BL-010
+DBS-25 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #12 (2026-10-24); DoD review chưa đạt (BL-160); còn BL-018
+DBS-26 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #13 (2026-10-24); DoD review chưa đạt (BL-160); còn BL-019
+DBS-27 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #17 (2026-10-24); DoD review chưa đạt (BL-160); còn BL-005, BL-019
+DBS-31 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #22 (2026-10-26); DoD review chưa đạt (BL-160); còn BL-027, BL-028, BL-029
+DBS-33 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #23 (2026-10-27); DoD review chưa đạt (BL-160); còn BL-031, BL-033
+DBS-34 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #25 (2026-10-26); DoD review chưa đạt (BL-160); còn BL-037, BL-038
+DBS-35 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #11 (2026-10-19); DoD review chưa đạt (BL-160); còn BL-012, BL-013
+DBS-36 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #24 (2026-10-27); DoD review chưa đạt (BL-160); còn BL-034, BL-035
+DBS-38 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #36 (2026-10-30); DoD review chưa đạt (BL-160); còn BL-104, BL-105
+DBS-39 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #15 (2026-10-24); DoD review chưa đạt (BL-160); còn BL-015, BL-017
+DBS-40 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #18 (2026-10-30); DoD review chưa đạt (BL-160); còn BL-053, BL-055, BL-056
+DBS-41 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #19 (2026-10-27); DoD review chưa đạt (BL-160); còn BL-053
+DBS-42 | Tuần 1 | Done | In Review | ĐỔI | Đã merge #16 (2026-10-25); DoD review chưa đạt (BL-160); còn BL-023, BL-024, BL-026
+DBS-50 | Tuần 2 | Done | Done | giữ | Đã merge #29 (2026-10-26); DoD review chưa đạt (BL-160)
+DBS-51 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #47 (2026-11-01); DoD review chưa đạt (BL-160); còn BL-132, BL-133, BL-136
+DBS-52 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #46 (2026-11-01); DoD review chưa đạt (BL-160); còn BL-129, BL-130
+DBS-53 | Tuần 2 | In Progress | In Review | ĐỔI | Đã merge #48 (2026-11-02); DoD review chưa đạt (BL-160); còn BL-135, BL-136
+DBS-54 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #39 (2026-10-30); DoD review chưa đạt (BL-160); còn BL-100, BL-101
+DBS-55 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #33 (2026-10-31); DoD review chưa đạt (BL-160); còn BL-008, BL-015, BL-017, BL-112, BL-121
+DBS-56 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #54 (2026-11-04); DoD review chưa đạt (BL-160); còn BL-019
+DBS-57 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #34 (2026-10-31); DoD review chưa đạt (BL-160); còn BL-024, BL-123, BL-125
+DBS-58 | Tuần 2 | Done | Done | giữ | Đã merge #44 (2026-11-04); DoD review chưa đạt (BL-160)
+DBS-59 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #42 (2026-11-04); DoD review chưa đạt (BL-160); còn BL-041, BL-138
+DBS-60 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #57 (2026-11-06); DoD review chưa đạt (BL-160); còn BL-148
+DBS-61 | Tuần 2 | In Progress | In Review | ĐỔI | Đã merge #61 (2026-11-07); DoD review chưa đạt (BL-160); còn BL-148, BL-154, BL-155, BL-156, BL-157
+DBS-62 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #56 (2026-11-06); DoD review chưa đạt (BL-160); còn BL-112
+DBS-66 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #27 (2026-10-30); DoD review chưa đạt (BL-160); còn BL-102, BL-103
+DBS-67 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #37 (2026-10-30); DoD review chưa đạt (BL-160); còn BL-106, BL-107, BL-108, BL-111, BL-112
+DBS-68 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #38 (2026-10-31); DoD review chưa đạt (BL-160); còn BL-109, BL-110
+DBS-69 | Tuần 2 | Done | In Review | ĐỔI | Đã merge #35 (2026-11-01); DoD review chưa đạt (BL-160); còn BL-006, BL-127, BL-128
+DBS-71 | Tuần 2 | Done | Done | giữ | Đã merge #43 (2026-11-04); DoD review chưa đạt (BL-160)
+DBS-75 | Tuần 3 | Done | In Review | ĐỔI | Đã merge #41 (2026-10-31); DoD review chưa đạt (BL-160); còn BL-116, BL-117, BL-118, BL-119, BL-120
+DBS-76 | Tuần 3 | In Progress | In Review | ĐỔI | Đã merge #52 (2026-11-07); DoD review chưa đạt (BL-160); còn BL-152
+DBS-77 | Tuần 3 | Done | In Review | ĐỔI | Đã merge #51 (2026-11-06); DoD review chưa đạt (BL-160); còn BL-010
+[exit=0]
+
+## M-CHORE-06 (âm) · link hỏng phải bị bắt
+
+$ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs | tail -2
+MISSING README.md: docs/khong-ton-tai.md
+213 files checked, 1 broken link(s)
+[exit=0]
+
+$ git diff --stat -- README.md
+[exit=0]
+
+## M-SKILL-01 · fetch-task.mjs trên sheet thật
+
+$ node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs DBS-61 | sed -n '1,3p;/Trạng thái các task/,$p'
+# DBS-61 (Tuần 2)
+
+## Issue Key
+## Trạng thái các task phụ thuộc
+- DBS-60 (Tuần 2): Done — UC-3 nạp tiền bản thô: operator nạp từ tài khoản SYSTEM funding
+[exit=0]
+
+$ node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs --next Dev 5
+# Backlog: 0 dev task(s) still To Do with dependencies Done, in board order
+
+Không có task nào sẵn sàng. Các task đang chặn nhiều task nhất:
+- DBS-61 (Tuần 2, In Progress) chặn 9 task
+- DBS-79 (Tuần 3, To Do) chặn 7 task
+- DBS-101 (Tuần 4, To Do) chặn 5 task
+- DBS-121 (Tuần 4, To Do) chặn 5 task
+- DBS-90 (Tuần 3, To Do) chặn 4 task
+
+Details of one task: node fetch-task.mjs DBS-<n>
+[exit=0]
+
+$ node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs CHORE-20261107-repo-audit
+CHORE-20261107-repo-audit không có trên board: đây là key ngoài board (task-kinds.md). Lấy mô tả và DoD từ người yêu cầu, ghi vào §1 của feature doc.
+[exit=0]
+
+$ node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs FRAUD-API-01
+FRAUD-API-01 không có trên board: đây là key ngoài board (task-kinds.md). Lấy mô tả và DoD từ người yêu cầu, ghi vào §1 của feature doc.
+[exit=0]
+
+$ node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs abc
+Usage: node fetch-task.mjs DBS-<n>   |   node fetch-task.mjs --next [Dev|Fraud|Ops] [count]
+[exit=2]
+
+## M-SKILL-02 · kịch bản áp lực RED/GREEN
+Chạy bằng subagent, nguyên văn ở pressure-red.md và pressure-green.md cùng thư mục.
+
+## M-SKILL-03 · check-doc-links trên repo
+
+$ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs
+213 files checked, 0 broken link(s)
+[exit=0]
+
+$ node --input-type=module -e "import {keepFile} from './.claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs'; console.log('fraud-dataset kept:', keepFile('load-tests/fraud-dataset/README.md'))"
+fraud-dataset kept: false
+[exit=0]
+
+## M-SKILL-04 (âm) · slug có dấu gạch dưới: script cũ và script mới
+### script cũ (main)
+
+$ node /f/tmp/claude/claude/2d0d39e5ee4f7f6c/308e3962-f999-447d-a76e-8fcd3d963477/scratchpad/old-check-doc-links.mjs | grep -E 'README.md|broken'
+ANCHOR  README.md: docs/components/_shared/database-design.md#44-ledger_entries
+ANCHOR  backend/src/modules/audit/README.md: ../../../../docs/components/_shared/database-design.md#47-audit_log
+214 files checked, 2 broken link(s)
+[exit=0]
+### script mới
+
+$ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs | grep -E 'README.md|broken'
+ANCHOR  README.md: docs/components/_shared/database-design.md#44-ledgerentries
+213 files checked, 1 broken link(s)
+[exit=0]
+
+$ git diff --stat -- README.md
+[exit=0]
+
+## Bổ sung 2026-11-07T09:03:57Z, cùng HEAD 1ef1e0f
+
+### M-CHORE-06: exit code không qua pipe
+$ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs >/dev/null; echo exit=$?
+exit=1
+$ git diff --stat -- README.md
+[sạch]
+
+### M-CHORE-05: phân loại theo bullet DoD gốc trên board (bảng ở §8)
+Cột 'còn BL-…' ở board-table.mjs phía trên là mọi dòng BL có nguồn là task. Dưới đây chỉ giữ dòng BL ứng với bullet DoD hoặc bước test thủ công chưa chạy của chính task (đối chiếu DoD bằng scratchpad dods.mjs, đọc từ sheet).
+$ python board_section.py
+| DBS-20 | Done | `Done` | giữ | Đã merge #7 (2026-10-12) https://github.com/Lawliet119/digital-banking-simulator/pull/7; DoD review chưa đạt (BL-160) |
+| DBS-21 | Done | `Done` | giữ | Đã merge #8 (2026-10-16) https://github.com/Lawliet119/digital-banking-simulator/pull/8; DoD review chưa đạt (BL-160) |
+| DBS-22 | Done | `Done` | giữ | Đã merge #9 (2026-10-17) https://github.com/Lawliet119/digital-banking-simulator/pull/9; DoD review chưa đạt (BL-160) |
+| DBS-24 | Done | `Done` | giữ | Đã merge #10 (2026-10-19) https://github.com/Lawliet119/digital-banking-simulator/pull/10; DoD review chưa đạt (BL-160) |
+| DBS-25 | Done | `Done` | giữ | Đã merge #12 (2026-10-24) https://github.com/Lawliet119/digital-banking-simulator/pull/12; DoD review chưa đạt (BL-160) |
+| DBS-26 | Done | `Done` | giữ | Đã merge #13 (2026-10-24) https://github.com/Lawliet119/digital-banking-simulator/pull/13; DoD review chưa đạt (BL-160) |
+| DBS-27 | Done | `Done` | giữ | Đã merge #17 (2026-10-24) https://github.com/Lawliet119/digital-banking-simulator/pull/17; DoD review chưa đạt (BL-160) |
+| DBS-31 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #22 (2026-10-26) https://github.com/Lawliet119/digital-banking-simulator/pull/22; DoD review chưa đạt (BL-160); còn BL-027: DoD 2 "init với backend trên máy của ít nhất 2 người" (M-31-05 chưa chạy) |
+| DBS-33 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #23 (2026-10-27) https://github.com/Lawliet119/digital-banking-simulator/pull/23; DoD review chưa đạt (BL-160); còn BL-031: DoD 3 "chi phí ≈ 0, xác nhận trong Cost Explorer ngày hôm sau" |
+| DBS-34 | Done | `Done` | giữ | Đã merge #25 (2026-10-26) https://github.com/Lawliet119/digital-banking-simulator/pull/25; DoD review chưa đạt (BL-160) |
+| DBS-35 | Done | `Done` | giữ | Đã merge #11 (2026-10-19) https://github.com/Lawliet119/digital-banking-simulator/pull/11; DoD review chưa đạt (BL-160) |
+| DBS-36 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #24 (2026-10-27) https://github.com/Lawliet119/digital-banking-simulator/pull/24; DoD review chưa đạt (BL-160); còn BL-034: DoD 2 "push main: build, scan, đẩy ECR tag SHA" (mọi lần `image.yml` đều skipped vì thiếu `AWS_ROLE_ARN`) |
+| DBS-38 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #36 (2026-10-30) https://github.com/Lawliet119/digital-banking-simulator/pull/36; DoD review chưa đạt (BL-160); còn BL-104: DoD 2 "curl ALB /health/live và /health/ready trả 200" (M-38-08, M-38-09 chưa chạy) |
+| DBS-39 | Done | `Done` | giữ | Đã merge #15 (2026-10-24) https://github.com/Lawliet119/digital-banking-simulator/pull/15; DoD review chưa đạt (BL-160) |
+| DBS-40 | Done | `Done` | giữ | Đã merge #18 (2026-10-30) https://github.com/Lawliet119/digital-banking-simulator/pull/18; DoD review chưa đạt (BL-160) |
+| DBS-41 | Done | `Done` | giữ | Đã merge #19 (2026-10-27) https://github.com/Lawliet119/digital-banking-simulator/pull/19; DoD review chưa đạt (BL-160) |
+| DBS-42 | Done | `Done` | giữ | Đã merge #16 (2026-10-25) https://github.com/Lawliet119/digital-banking-simulator/pull/16; DoD review chưa đạt (BL-160) |
+| DBS-50 | Done | `Done` | giữ | Đã merge #29 (2026-10-26) https://github.com/Lawliet119/digital-banking-simulator/pull/29; DoD review chưa đạt (BL-160) |
+| DBS-51 | Done | `Done` | giữ | Đã merge #47 (2026-11-01) https://github.com/Lawliet119/digital-banking-simulator/pull/47; DoD review chưa đạt (BL-160) |
+| DBS-52 | Done | `Done` | giữ | Đã merge #46 (2026-11-01) https://github.com/Lawliet119/digital-banking-simulator/pull/46; DoD review chưa đạt (BL-160) |
+| DBS-53 | In Progress | `In Review` | **đổi** (In Progress → In Review) | Đã merge #48 (2026-11-02) https://github.com/Lawliet119/digital-banking-simulator/pull/48; DoD review chưa đạt (BL-160); còn BL-135: M-53-09 (Swagger Authorize trên trình duyệt) chưa chạy |
+| DBS-54 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #39 (2026-10-30) https://github.com/Lawliet119/digital-banking-simulator/pull/39; DoD review chưa đạt (BL-160); còn BL-100: DoD 4 "đăng nhập thật và gọi endpoint trên cloud" mới đạt một phần |
+| DBS-55 | Done | `Done` | giữ | Đã merge #33 (2026-10-31) https://github.com/Lawliet119/digital-banking-simulator/pull/33; DoD review chưa đạt (BL-160) |
+| DBS-56 | Done | `Done` | giữ | Đã merge #54 (2026-11-04) https://github.com/Lawliet119/digital-banking-simulator/pull/54; DoD review chưa đạt (BL-160) |
+| DBS-57 | Done | `Done` | giữ | Đã merge #34 (2026-10-31) https://github.com/Lawliet119/digital-banking-simulator/pull/34; DoD review chưa đạt (BL-160) |
+| DBS-58 | Done | `Done` | giữ | Đã merge #44 (2026-11-04) https://github.com/Lawliet119/digital-banking-simulator/pull/44; DoD review chưa đạt (BL-160) |
+| DBS-59 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #42 (2026-11-04) https://github.com/Lawliet119/digital-banking-simulator/pull/42; DoD review chưa đạt (BL-160); còn BL-138: DoD 2 "chữ ký FeatureProvider chốt cùng #1 và #6" chưa có bằng chứng |
+| DBS-60 | Done | `Done` | giữ | Đã merge #57 (2026-11-06) https://github.com/Lawliet119/digital-banking-simulator/pull/57; DoD review chưa đạt (BL-160) |
+| DBS-61 | In Progress | `Done` | **đổi** (In Progress → Done) | Đã merge #61 (2026-11-07) https://github.com/Lawliet119/digital-banking-simulator/pull/61; DoD review chưa đạt (BL-160) |
+| DBS-62 | Done | `Done` | giữ | Đã merge #56 (2026-11-06) https://github.com/Lawliet119/digital-banking-simulator/pull/56; DoD review chưa đạt (BL-160) |
+| DBS-66 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #27 (2026-10-30) https://github.com/Lawliet119/digital-banking-simulator/pull/27; DoD review chưa đạt (BL-160); còn BL-102: DoD 3 đối chiếu chi phí RDS với Cost Explorer |
+| DBS-67 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #37 (2026-10-30) https://github.com/Lawliet119/digital-banking-simulator/pull/37; DoD review chưa đạt (BL-160); còn BL-106: DoD 3 "/health/ready trên cloud trả 200" (M-67-* chưa chạy) |
+| DBS-68 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #38 (2026-10-31) https://github.com/Lawliet119/digital-banking-simulator/pull/38; DoD review chưa đạt (BL-160); còn BL-109: DoD 2 "chạy hai lần liên tiếp không lỗi" trên RDS (M-68-04…06 chưa chạy) |
+| DBS-69 | Done | `Done` | giữ | Đã merge #35 (2026-11-01) https://github.com/Lawliet119/digital-banking-simulator/pull/35; DoD review chưa đạt (BL-160) |
+| DBS-71 | Done | `Done` | giữ | Đã merge #43 (2026-11-04) https://github.com/Lawliet119/digital-banking-simulator/pull/43; DoD review chưa đạt (BL-160) |
+| DBS-75 | Done | `Done` | giữ | Đã merge #41 (2026-10-31) https://github.com/Lawliet119/digital-banking-simulator/pull/41; DoD review chưa đạt (BL-160) |
+| DBS-76 | In Progress | `Done` | **đổi** (In Progress → Done) | Đã merge #52 (2026-11-07) https://github.com/Lawliet119/digital-banking-simulator/pull/52; DoD review chưa đạt (BL-160) |
+| DBS-77 | Done | `Done` | giữ | Đã merge #51 (2026-11-06) https://github.com/Lawliet119/digital-banking-simulator/pull/51; DoD review chưa đạt (BL-160) |
+28 Done; 10 In Review; 12 đổi
