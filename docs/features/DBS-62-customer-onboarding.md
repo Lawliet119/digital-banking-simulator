@@ -24,7 +24,7 @@
 | DBS-53 Xác thực local/test (token mẫu từng vai) | Board "In Progress" nhưng code đã merge main qua PR #48 | [auth-local](../../backend/src/config/auth-local.ts) |
 | DBS-56 `AuditService.record` | Không nằm trong danh sách phụ thuộc gốc của board, nhưng cần cho fail-closed audit; đã merge main qua PR #54 (commit `7f3b700`) trước khi rebase nhánh này | [audit.service.ts](../../backend/src/modules/audit/audit.service.ts) |
 
-**Đã có:** schema migration 1 (bảng `customers` có `user_id UNIQUE`), `AccountsService` (DBS-55, chỉ primitive, chưa có HTTP). Chưa có module `accounts` phần HTTP (chỉ README). Luồng tham chiếu: [docs/02 FR-ID-02](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md), [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md). Board ghi `FR-ACC-01`, nhưng docs/02 dùng mã đó cho mở tài khoản (UC-2) — mã đúng cho onboarding là `FR-ID-02`.
+**Đã có:** schema migration 1 (bảng `customers` có `user_id UNIQUE`), `AccountsService` (DBS-55, chỉ primitive, chưa có HTTP). Chưa có module `accounts` phần HTTP (chỉ README). Luồng tham chiếu: [docs/BRD.md FR-ID-02](../BRD.md), [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md). Board ghi `FR-ACC-01`, nhưng docs/BRD.md dùng mã đó cho mở tài khoản (UC-2) — mã đúng cho onboarding là `FR-ID-02`.
 
 **Baseline sau rebase lên `a9e607b`:** `lint:check`/`typecheck`/`build` exit 0; e2e 13 suites/135 tests; PostgreSQL thật 65/65 tests liên quan (onboarding + AccountsService + AuditService); unit 825/826 (1 lỗi timing đã biết của `jwks-verifier.service.spec.ts`, xem BL-112, không liên quan code task này).
 

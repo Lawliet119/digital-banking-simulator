@@ -1,6 +1,6 @@
 # modules
 
-Mỗi thư mục là một module nghiệp vụ (một bounded context ở `docs/02` §6). Bảng dưới là nguồn tham chiếu nhanh; chi tiết nằm trong README của từng module.
+Mỗi thư mục là một module nghiệp vụ (một bounded context ở `docs/BRD.md` Phần 3 §6). Bảng dưới là nguồn tham chiếu nhanh; chi tiết nằm trong README của từng module.
 
 | Module | Loại | Use case | Role chạy |
 |---|---|---|---|

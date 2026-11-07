@@ -8,11 +8,11 @@
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
 | Phiên bản | 1.8 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
-| Dựa trên | [01_BUSINESS_ANALYSIS.md](01_BUSINESS_ANALYSIS.md) (BG, BR) · [02_REQUIREMENTS_AND_DOMAIN_MODEL.md](02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (UC, FR, NFR, domain model) |
+| Dựa trên | [BRD.md](BRD.md) (Phần 1: BG, BR · Phần 2: UC, FR, NFR · Phần 3: domain model) |
 | Tài liệu liên quan | [ADR-01…13 Accepted, ADR-14 Proposed](adr/README.md) · [threat model](security/threat-model.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đã chốt ngày 2026-10-11 (lý do ở các ADR). Giá cloud là giá tham khảo region `ap-southeast-1`; số thật lấy từ Cost Explorer |
 
-Tài liệu này trả lời câu hỏi **"xây như thế nào và vì sao"**. Mỗi quyết định đều truy về một yêu cầu ở tài liệu 02.
+Tài liệu này trả lời câu hỏi **"xây như thế nào và vì sao"**. Mỗi quyết định đều truy về một yêu cầu ở [BRD](BRD.md).
 
 ---
 
@@ -29,11 +29,11 @@ Không phải yêu cầu nào cũng ảnh hưởng tới kiến trúc như nhau.
 | D-5 | Không mất sự kiện khi sự cố | NFR-FRD-01, FR-RSK-04 | Mẫu **transactional outbox** + hàng đợi có DLQ + consumer idempotent |
 | D-6 | Thu hồi truy cập ngay khi khóa tài khoản | NFR-SEC-02, BR-12 | Mốc thu hồi phiên lưu ở DB, cache ở Redis, kiểm tra ở mọi request |
 | D-7 | 99,9% ở cấu hình production; RPO ≤ 5 phút, RTO ≤ 30 phút | NFR-AVL-01, REC-01, 02 | Dịch vụ managed có Multi-AZ và PITR; app stateless chạy ≥ 2 bản |
-| D-8 | Đội 6 người, 10 tuần, ≤ $150–200/tháng | Ràng buộc dự án (01 §8.2), NFR-COST-01 | **Modular monolith**, ưu tiên managed services, hai cấu hình dev/production, dựng/xóa theo giờ |
+| D-8 | Đội 6 người, 10 tuần, ≤ $150–200/tháng | Ràng buộc dự án (BRD Phần 1 §8.2), NFR-COST-01 | **Modular monolith**, ưu tiên managed services, hai cấu hình dev/production, dựng/xóa theo giờ |
 
 ## 2. Phong cách kiến trúc và nguyên tắc
 
-**Quyết định:** *modular monolith* — một ứng dụng triển khai được, chia module rõ theo bounded context ở tài liệu 02 — cộng **một worker** xử lý bất đồng bộ dùng chung codebase. **Không dùng microservices** (ADR-01).
+**Quyết định:** *modular monolith* — một ứng dụng triển khai được, chia module rõ theo bounded context ở BRD Phần 3 §6 — cộng **một worker** xử lý bất đồng bộ dùng chung codebase. **Không dùng microservices** (ADR-01).
 
 | Phương án | Ưu | Nhược với bài toán này | Kết luận |
 |---|---|---|---|
@@ -126,7 +126,7 @@ Lý do: một Dockerfile, một pipeline build, một lần quét image, và mod
 
 ## 5. Mức 3: Module bên trong ứng dụng
 
-Mỗi module tương ứng một bounded context ở tài liệu 02 §6.
+Mỗi module tương ứng một bounded context ở BRD Phần 3 §6.
 
 ```mermaid
 flowchart TB
@@ -547,7 +547,7 @@ Bốn mã đầu cũng là tập `RejectReason`: chuỗi lưu trong database và
 
 **Vì sao PostgreSQL** (ADR-02):
 
-| Tiêu chí (từ tài liệu 02) | PostgreSQL | DynamoDB | MongoDB |
+| Tiêu chí (từ BRD Phần 2) | PostgreSQL | DynamoDB | MongoDB |
 |---|---|---|---|
 | Transaction nhiều hàng, nhiều bảng | ✅ Tự nhiên | ⚠️ Có nhưng giới hạn, đắt | ⚠️ Có từ v4, phức tạp hơn |
 | Khóa hàng `SELECT … FOR UPDATE` | ✅ | ❌ Phải dùng điều kiện ghi | ⚠️ Hạn chế |
@@ -618,7 +618,7 @@ Các bảng kỹ thuật không vẽ trong sơ đồ: `outbox_events`, `processe
 
 DBS-96: `notification_log.message` chỉ chứa thông báo chung, không chứa lý do gian lận (BR-13). Writer chịu trách nhiệm kiểm nội dung và phải có test; COMMENT của migration ghi lại quy tắc, không kiểm được ngữ nghĩa văn bản. `event_id` có index không unique vì một event có thể có nhiều người nhận; chống xử lý trùng thuộc `processed_events` của consumer.
 
-| Domain (tài liệu 02) | Bảng | Ràng buộc bảo vệ bất biến |
+| Domain (BRD Phần 3) | Bảng | Ràng buộc bảo vệ bất biến |
 |---|---|---|
 | Account | `accounts` | `CHECK (type = 'SYSTEM' OR balance >= 0)` |
 | Transfer + LedgerEntry | `transfers`, `ledger_entries` | `amount > 0`; `UNIQUE (transfer_id, direction)`; khóa ngoại tổng hợp (dòng sổ đúng số tiền và tài khoản của giao dịch `COMPLETED`); quyền DB thu hồi UPDATE/DELETE trên `ledger_entries` |
@@ -629,7 +629,7 @@ DBS-96: `notification_log.message` chỉ chứa thông báo chung, không chứa
 
 **Quy ước:**
 - Tiền là `BIGINT` (đồng), không dùng kiểu số thực.
-- Tài khoản SYSTEM `funding` được âm; `SUM(balance mọi tài khoản) = 0` luôn đúng (ví dụ ở tài liệu 02 §7.3).
+- Tài khoản SYSTEM `funding` được âm; `SUM(balance mọi tài khoản) = 0` luôn đúng (ví dụ ở BRD Phần 3 §7.3).
 - Job đối soát định kỳ kiểm tra: tổng Nợ = tổng Có; `balance` mỗi tài khoản = tổng bút toán của nó; tổng số dư = 0.
 - Index chính (đầy đủ và lý do ở database-design §6): `ledger_entries(account_id, created_at)` cho lịch sử và hạn mức ngày; `transfers(from_account_id, created_at)` và `transfers(from_account_id, to_account_id, created_at)` cho luật gian lận.
 
@@ -742,7 +742,7 @@ flowchart LR
 | `TransferRejected` | Lệnh bị từ chối | **Không phát ở v1** |
 | `AccountStatusChanged` | Khóa / mở khóa tài khoản | `notification-events` |
 
-Ở v1 chỉ `TransferCompleted` và `AccountStatusChanged` đi qua outbox. `TransferRejected` không phát vì chưa có bên tiêu thụ: risk chỉ chấm giao dịch hoàn tất, còn khách đã nhận 422 ngay trong request; lệnh bị từ chối vẫn được lưu ở `transfers` và `audit_log`. `occurredAt` của `TransferCompleted` là `transfers.created_at`, nên cửa sổ thời gian của luật gian lận và hạn mức ngày dùng cùng một đồng hồ (DB). `FraudFlagRaised` và `FraudFlagReviewed` (docs/02 §9) là khái niệm miền: việc tạo và kết luận cờ đã được lưu ở `fraud_flags` và `audit_log`, nên chưa phát sự kiện cho tới khi có bên tiêu thụ. Trường của từng sự kiện nằm ở [event-contract](components/_shared/event-contract.md).
+Ở v1 chỉ `TransferCompleted` và `AccountStatusChanged` đi qua outbox. `TransferRejected` không phát vì chưa có bên tiêu thụ: risk chỉ chấm giao dịch hoàn tất, còn khách đã nhận 422 ngay trong request; lệnh bị từ chối vẫn được lưu ở `transfers` và `audit_log`. `occurredAt` của `TransferCompleted` là `transfers.created_at`, nên cửa sổ thời gian của luật gian lận và hạn mức ngày dùng cùng một đồng hồ (DB). `FraudFlagRaised` và `FraudFlagReviewed` (docs/BRD.md Phần 3 §9) là khái niệm miền: việc tạo và kết luận cờ đã được lưu ở `fraud_flags` và `audit_log`, nên chưa phát sự kiện cho tới khi có bên tiêu thụ. Trường của từng sự kiện nằm ở [event-contract](components/_shared/event-contract.md).
 
 ---
 
@@ -880,7 +880,7 @@ DBS-78: khi PostgreSQL ổn, response giữ Terminus `status: ok`, các trườn
 
 ## 15. Kiến trúc phát hiện gian lận (P5)
 
-Danh mục luật R1–R6 định nghĩa ở tài liệu 02 §2.1. Phần này mô tả **cách chạy** các luật.
+Danh mục luật R1–R6 định nghĩa ở BRD Phần 2 §2.1. Phần này mô tả **cách chạy** các luật.
 
 ### 15.1 Hai tầng
 
@@ -938,7 +938,7 @@ flowchart LR
 
 ## 16. NFR được đáp ứng thế nào
 
-| NFR (tài liệu 02) | Cơ chế kiến trúc | Mục |
+| NFR (BRD Phần 2 §4) | Cơ chế kiến trúc | Mục |
 |---|---|---|
 | NFR-COR-01 Không mất / nhân đôi tiền | Một transaction; mã yêu cầu cùng transaction; khóa hàng theo thứ tự | 6.1 |
 | NFR-COR-02 Bất biến sổ cái | Bút toán kép; `CHECK` trên số dư; tài khoản SYSTEM; job đối soát | 8.2 |
@@ -1023,7 +1023,7 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 13 ADR Accepted (bảng dưới) 
 | 3 | NAT, VPC endpoints hay public subnet? | Public subnet, security group chỉ nhận từ ALB ([ADR-10](adr/0010-fargate-egress-public-subnet.md)) |
 | 4 | ElastiCache Serverless hay node? | Node `cache.t4g.micro`, cluster mode tắt ([ADR-12](adr/0012-redis-valkey-node.md)) |
 | 5 | Cloud có credit hay VPS? | AWS, `ap-southeast-1`, dựng/xóa theo phiên ([ADR-11](adr/0011-aws-managed-session-based.md)) |
-| 6 | Giá trị tham số | Hạn mức 50 triệu/lần, 200 triệu/ngày; rate limit 10 lệnh chuyển/phút/khách, 100 yêu cầu/phút/IP; access token 15 phút; giữ mã yêu cầu 7 ngày; tham số luật `v1` ở docs/02 §2.1 |
+| 6 | Giá trị tham số | Hạn mức 50 triệu/lần, 200 triệu/ngày; rate limit 10 lệnh chuyển/phút/khách, 100 yêu cầu/phút/IP; access token 15 phút; giữ mã yêu cầu 7 ngày; tham số luật `v1` ở docs/BRD.md Phần 2 §2.1 |
 
 ## 21. Lịch sử thay đổi
 

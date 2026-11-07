@@ -15,7 +15,7 @@
 
 ## Vấn đề
 
-Nhật ký thao tác rời rạc và có thể bị sửa nên không đáp ứng kiểm toán, khó điều tra sự cố (P-4 trong docs/01).
+Nhật ký thao tác rời rạc và có thể bị sửa nên không đáp ứng kiểm toán, khó điều tra sự cố (P-4 trong BRD Phần 1).
 
 ## Ý tưởng
 
@@ -32,6 +32,6 @@ Nhật ký thao tác rời rạc và có thể bị sửa nên không đáp ứn
 ## Liên kết
 
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §8 Dữ liệu; §12 Bảo mật; §14 Quan sát (`correlationId`).
-- Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
+- Nghiệp vụ, yêu cầu và mô hình miền: [docs/BRD.md](../../BRD.md).
 - Quy tắc code và những điều phải giữ: [`backend/src/modules/audit/README.md`](../../../backend/src/modules/audit/README.md).
 - Giao diện và mốc: Task 4 của roadmap cũ (đã xóa); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).

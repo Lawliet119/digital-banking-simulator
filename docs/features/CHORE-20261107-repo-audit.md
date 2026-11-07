@@ -72,7 +72,7 @@ Task này không có API. "Hành vi" ở đây là trạng thái của repo sau 
 
 **Cố ý không sửa:**
 - `docs/deliverables/P1-*.md`, `P2-*.md`: là bản nộp, sửa thì không còn khớp với bản đã nộp.
-- `docs/01`, `docs/02`: không có fact sai.
+- `docs/BRD.md`, `docs/BRD.md`: không có fact sai.
 - Changelog docs/03 §21 và các feature doc cũ khi nói về chính thời điểm đó: đó là lịch sử.
 - `export` thừa: lợi ích thấp.
 - Import sâu ở `test/manual/audit-record.manual.ts` và `test/db/audit.service.db-spec.ts` (bỏ A-17 theo review #18).

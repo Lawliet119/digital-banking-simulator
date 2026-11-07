@@ -60,7 +60,7 @@ describe('Balance (DBS-22)', () => {
     }
   });
 
-  it('TC-22-15 follows the funding scenario of docs/02 §7.3 and sums to zero', () => {
+  it('TC-22-15 follows the funding scenario of docs/BRD.md Phần 3 §7.3 and sums to zero', () => {
     // Deposit 1,000,000 to A; A sends 300,000 to B. funding starts at zero and goes negative.
     const deposit = money('1000000');
     const funding = debitBalance(BALANCE_ZERO, deposit);

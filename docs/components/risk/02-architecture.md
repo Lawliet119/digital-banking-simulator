@@ -49,7 +49,7 @@ Schema chính thức nằm tại [`_shared/database-design.md` §4.8](../_shared
 
 ### 2.2 Quy ước tương thích Schema cho 3 chế độ chấm điểm (`v1` → `v2` → `v3`)
 
-Để giữ nguyên `CHECK (rule_id IN ('R1','R2','R3','R4','R5','R6'))` và khóa chính `(transfer_id, rule_id)` trong `database-design.md`, mỗi mã `R1–R6` là một **nhóm luật** đúng như định nghĩa ở [docs/02 §2.1](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (R1 velocity, R2 số tiền bất thường, R3 tài khoản mới chuyển lớn, R4 chuyển vòng, R5 fan-out, R6 rút cạn):
+Để giữ nguyên `CHECK (rule_id IN ('R1','R2','R3','R4','R5','R6'))` và khóa chính `(transfer_id, rule_id)` trong `database-design.md`, mỗi mã `R1–R6` là một **nhóm luật** đúng như định nghĩa ở [docs/BRD.md Phần 2 §2.1](../../BRD.md) (R1 velocity, R2 số tiền bất thường, R3 tài khoản mới chuyển lớn, R4 chuyển vòng, R5 fan-out, R6 rút cạn):
 - Khi chạy **`v1`** và **`v2`**: `fraud_rule_hits` ghi các luật vượt ngưỡng.
 - Khi chạy **`v3`**: điểm của mô hình được quy về một nhóm; nếu luật của nhóm đó đã kích hoạt thì cộng điểm vào dòng đó và nối `[AI]` vào `explanation`, nếu chưa thì tạo dòng mới có `explanation` bắt đầu bằng `[AI-Rn]`. Công thức điểm, vector đặc trưng và cách quy kết nằm ở [guide §4.3.b](FRAUD_DETECTION_GUIDE.md) và [ADR-08](../../adr/0008-fraud-detection-architecture.md).
 

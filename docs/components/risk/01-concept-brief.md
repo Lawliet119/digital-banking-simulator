@@ -17,7 +17,7 @@
 
 ## Vấn đề
 
-Giao dịch đáng ngờ chỉ được phát hiện qua báo cáo hôm sau, lúc tiền đã đi xa (P-5 trong docs/01); báo nhầm lại gây hại thật cho khách.
+Giao dịch đáng ngờ chỉ được phát hiện qua báo cáo hôm sau, lúc tiền đã đi xa (P-5 trong docs/BRD.md); báo nhầm lại gây hại thật cho khách.
 
 ## Ý tưởng
 
@@ -42,7 +42,7 @@ Giao dịch đáng ngờ chỉ được phát hiện qua báo cáo hôm sau, lú
 ## Liên kết
 
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §15 Kiến trúc phát hiện gian lận; §9 Redis (R-3 bộ đếm, R-4 cấu hình); §10 Outbox và event.
-- Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
+- Nghiệp vụ, yêu cầu và mô hình miền: [docs/BRD.md](../../BRD.md).
 - Quy tắc code và những điều phải giữ: [`backend/src/modules/risk/README.md`](../../../backend/src/modules/risk/README.md).
 - [`FRAUD_DETECTION_GUIDE.md`](FRAUD_DETECTION_GUIDE.md) — hướng dẫn làm việc chi tiết (luật, đánh giá, bộ dữ liệu).
 - Thiết kế chi tiết của module: [`02-architecture.md`](02-architecture.md).

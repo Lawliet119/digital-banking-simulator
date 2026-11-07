@@ -1,7 +1,7 @@
 import { registerAs } from '@nestjs/config';
 import { validateEnv } from './validation.schema';
 
-/** Business limits (docs/01 BR-06) and protection thresholds (docs/02 NFR-SEC-05). */
+/** Business limits (docs/BRD.md BR-06) and protection thresholds (NFR-SEC-05, same file). */
 export const limitsConfig = registerAs('limits', () => {
   const env = validateEnv(process.env);
   return {

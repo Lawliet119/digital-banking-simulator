@@ -21,7 +21,7 @@
 4. Test cho từng endpoint có tham số id
 5. PR đã merge vào main (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ
 
-**Tài liệu chi phối:** [docs/02](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) §2 FR-ID-04, §3 AC-5.8 và BR-10; [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §6.1, §6.3, §7, §12; [threat model](../security/threat-model.md) T11/T12; [database-design](../components/_shared/database-design.md) §4.1–4.2, §4.7; [ADR-04](../adr/0004-row-locking-read-committed.md), [ADR-06](../adr/0006-cognito-ecs-fargate.md), [ADR-09](../adr/0009-funding-system-account.md), [ADR-12](../adr/0012-redis-valkey-node.md); [accounts README](../../backend/src/modules/accounts/README.md), [identity README](../../backend/src/modules/identity/README.md), [ledger README](../../backend/src/modules/ledger/README.md), [DBS-55](DBS-55-accounts-service.md) R7 và [DBS-56](DBS-56-audit-service-record.md).
+**Tài liệu chi phối:** [docs/BRD.md](../BRD.md) §2 FR-ID-04, §3 AC-5.8 và BR-10; [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §6.1, §6.3, §7, §12; [threat model](../security/threat-model.md) T11/T12; [database-design](../components/_shared/database-design.md) §4.1–4.2, §4.7; [ADR-04](../adr/0004-row-locking-read-committed.md), [ADR-06](../adr/0006-cognito-ecs-fargate.md), [ADR-09](../adr/0009-funding-system-account.md), [ADR-12](../adr/0012-redis-valkey-node.md); [accounts README](../../backend/src/modules/accounts/README.md), [identity README](../../backend/src/modules/identity/README.md), [ledger README](../../backend/src/modules/ledger/README.md), [DBS-55](DBS-55-accounts-service.md) R7 và [DBS-56](DBS-56-audit-service-record.md).
 
 ### Phụ thuộc: board và source thực tế
 
@@ -419,7 +419,7 @@ P4 chỉ chạy sau khi P0 đã xanh và tất cả thay đổi code/test/driver
 | BL-019 | P6 thêm nguồn task cho ownership callsite đã kiểm; UC-8 thuộc DBS-103. Registry chung, production grants, audit đọc nhạy cảm khác và tải pool giữ ngoài phạm vi |
 | BL-132, BL-002/003/008/015/017, BL-112/121, BL-129/130/133, BL-057/137 | Giữ ngoài phạm vi như §1. P0 chỉ URL positive control DBS-53 nếu được duyệt, không nhận đã khắc phục BL-121 hoặc các lỗi nền khác |
 | DBS-60/61/64/87/88/113 và operator fraud endpoints | P6 bàn giao contract caller. Không thêm endpoint/service/guard giả, không áp ownership customer vào operator lookup/deposit/lock; không tự chuyển DBS-86 Done hoặc giải phóng dependency87/88 |
-| Reference docs có fact đổi | P6 D1/D2/D3/D4/D6/D7: service behavior thật; T11/T12 chỉ phần service; giữ docs/02 requirements, ADR và database-design/event-contract hiện có nguyên vẹn |
+| Reference docs có fact đổi | P6 D1/D2/D3/D4/D6/D7: service behavior thật; T11/T12 chỉ phần service; giữ docs/BRD.md requirements, ADR và database-design/event-contract hiện có nguyên vẹn |
 | Fraud wall, skills và dữ liệu không liên quan | Ngoài phạm vi đọc/sửa sealed fraud. Mọi search dùng `--glob '!**/load-tests/fraud-dataset/**'`; checker ngoài repo giữ logic gốc, chỉ thêm git pathspec exclude folder sealed. Không sửa script skill trong repo |
 
 **Kết quả sweep:** 5/5 DoD có row; TC-86-01…15 có bước, lớp kiểm và lệnh; M-86-01…09 và5ảnh có bước. Ba bước HTTP/deferred, process DoD và từng gap không xử lý đều có handoff/out-of-scope rõ. Đã kiểm inventory source: không có production caller mới ở base7f3b700; chưa phát sinh file ngoài danh sách. Đây là kết quả **kiểm kế hoạch**, không phải test hoặc manual đã đạt. BL-ID mới chỉ cấp khi Phase5 đọc backlog hiện hành, không giữ một số giả định từ lúc lập kế hoạch.

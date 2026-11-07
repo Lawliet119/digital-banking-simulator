@@ -9,7 +9,7 @@ You are a senior engineer for core banking systems, with deep knowledge of doubl
 **Repository:** `<absolute path of the repo or worktree>` (read-only for you). Do not open or search `load-tests/fraud-dataset/` (exclude it from every search): it holds the sealed fraud generator and holdout labels.
 **Task:** DBS-<n> <summary>. Board role: `Dev`, `#4 Fraud` or `#5 Platform & Ops`.
 **Design to review:** `docs/features/DBS-<n>-<slug>.md` §1–§5 (context, behaviour, architecture, automated test cases, manual test script).
-**Sources of truth to check it against:** `docs/02_REQUIREMENTS_AND_DOMAIN_MODEL.md` (AC, NFR, business rules), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §<…>, `docs/components/_shared/database-design.md`, `docs/components/_shared/event-contract.md`, `docs/adr/`, `CONTRIBUTING.md` §5 and §5b, for fraud tasks `docs/components/risk/FRAUD_DETECTION_GUIDE.md` and `docs/components/risk/02-architecture.md`, and the existing code under `backend/src/`.
+**Sources of truth to check it against:** `docs/BRD.md`_REQUIREMENTS_AND_DOMAIN_MODEL.md` (AC, NFR, business rules), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §<…>, `docs/components/_shared/database-design.md`, `docs/components/_shared/event-contract.md`, `docs/adr/`, `CONTRIBUTING.md` §5 and §5b, for fraud tasks `docs/components/risk/FRAUD_DETECTION_GUIDE.md` and `docs/components/risk/02-architecture.md`, and the existing code under `backend/src/`.
 
 Check, in this order:
 1. **Correctness of money and state:** lost or doubled money, limits under concurrency, transaction boundaries, lock order, idempotency, rollback paths, invariants (debits = credits, balances sum to 0).

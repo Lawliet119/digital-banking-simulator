@@ -197,7 +197,7 @@ Chạy script (từ `backend/`): `npx ts-node -r tsconfig-paths/register test/ma
 | 6 | should-fix | Hạ tầng test chưa cụ thể | **đã sửa** §4/§5 |
 | 7 | should-fix | Thiếu test CHECK/uuid cho fail-closed | **đã sửa** — TC-56-10, 11 |
 | 8 | minor | TC-56-04 tính sai số cột | **đã sửa** |
-| 9 | minor | Thiếu trace AC/FR/Threat | **đã sửa một phần vòng 1 (sai: nói docs/02 không có mã), sửa đúng ở vòng 2** |
+| 9 | minor | Thiếu trace AC/FR/Threat | **đã sửa một phần vòng 1 (sai: nói docs/BRD.md không có mã), sửa đúng ở vòng 2** |
 | 10 | minor | Thiếu bàn giao rõ chủ; README sai chữ ký | **đã sửa** — §1 "Ngoài phạm vi" giờ có chủ từng dòng |
 | 11 | minor | Câu hỏi mở §1 #1 lỗi thời | **đã sửa** |
 
@@ -213,7 +213,7 @@ Chạy script (từ `backend/`): `npx ts-node -r tsconfig-paths/register test/ma
 | 6 | should-fix | TC-56-12 (DI boot) trivial vì `DatabaseModule` là `@Global()`, không cần import gì cũng resolve được qua stub; chưa nói rõ thay đổi `modules/index.ts`/`modules.spec.ts` | **đã sửa** — TC-56-12 đổi sang import `DatabaseModule` thật; thêm TC-56-13 cho `modules.spec.ts`; §3 có danh sách file đăng ký cụ thể |
 | 7 | should-fix | `metadata` bỏ qua (`undefined`) có thể gửi `NULL` xuống cột `NOT NULL` → lỗi `23502`, chưa được nói tới hay test | **đã sửa** — hành vi #1 nêu rõ `undefined → '{}'`, TC-56-04c |
 | 8 | minor | Hạ tầng DataSource/TransactionService cho db-spec vẫn chỉ nói "dùng lại", chưa cụ thể | **đã sửa** — câu cụ thể ở đầu §4 |
-| 9 | minor | §6 (vòng 1) nói sai: docs/02 **có** FR-AUD-01..04, AC-5.8, AC-11.3, NFR-AUD-01/02; TC-56-08 trace nhầm DoD #4 (phải là #3) | **đã sửa** — cột truy vết §4 giờ có FR/AC/Threat thật; sửa trace TC-56-08 |
+| 9 | minor | §6 (vòng 1) nói sai: docs/BRD.md **có** FR-AUD-01..04, AC-5.8, AC-11.3, NFR-AUD-01/02; TC-56-08 trace nhầm DoD #4 (phải là #3) | **đã sửa** — cột truy vết §4 giờ có FR/AC/Threat thật; sửa trace TC-56-08 |
 | 10 | minor | Danh sách bàn giao vẫn nói "chốt ở §8 Phase 5"; thiếu chủ cụ thể; thiếu khoảng trống đọc nhạy cảm (FR-AUD-02) | **đã sửa** — §1 "Ngoài phạm vi" giờ có chủ từng dòng, thêm dòng FR-AUD-02 (đọc nhạy cảm) |
 | 11 | minor | `tee -a docs/features/screenshots/...` chạy từ `backend/` sẽ ghi vào `backend/docs/...` (không tồn tại) | **đã sửa** — §5 sửa thành đường dẫn `../docs/...` tính từ `backend/`, nêu rõ "repo root" |
 

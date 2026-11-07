@@ -15,7 +15,7 @@ Migration `AddAppendOnlyTriggers1792627200002` cung cấp hai trigger audit: UPD
 | Use case    | UC-8 tra cứu cho kiểm toán viên · ghi nhật ký cho mọi thao tác thay đổi dữ liệu               |
 | Chạy ở      | `AuditModule` (writer) dùng chung api/worker/both; `AuditHttpModule` (tra cứu UC-8) chỉ ở api/both |
 | Sở hữu bảng | `audit_log` (chỉ INSERT và SELECT)                                                            |
-| Thiết kế    | `docs/03` §8, §12 · `docs/01` BR-09                                                           |
+| Thiết kế    | `docs/03` §8, §12 · `docs/BRD.md` BR-09                                                           |
 
 ## Phải giữ
 

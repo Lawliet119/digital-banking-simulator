@@ -2,7 +2,7 @@
 
 > **Status:** Draft · **Owner:** cả nhóm · **Verified against code:** n/a · **Cập nhật:** 2026-10-03
 
-Thuật ngữ **nghiệp vụ** (sổ cái, bút toán kép, idempotency key, hạn mức, đối soát, cờ gian lận…) nằm ở [docs/01 §10](../../01_BUSINESS_ANALYSIS.md). File này chỉ bổ sung thuật ngữ **kiến trúc** dễ nhầm.
+Thuật ngữ **nghiệp vụ** (sổ cái, bút toán kép, idempotency key, hạn mức, đối soát, cờ gian lận…) nằm ở [docs/BRD.md Phần 1 §10](../../BRD.md). File này chỉ bổ sung thuật ngữ **kiến trúc** dễ nhầm.
 
 | Thuật ngữ | Nghĩa trong dự án |
 |---|---|
