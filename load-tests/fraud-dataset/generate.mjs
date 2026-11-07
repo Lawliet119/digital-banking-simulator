@@ -82,6 +82,15 @@ export function generateDataset({ seed = 'dbs-normal-v1', customers = 2000, days
     };
   });
   const initialCustomerBalances = profiles.reduce((sum, p) => sum + p.balance, 0n);
+  const simulation = {
+    version: 1, seed, days,
+    startAt: new Date(START_MS).toISOString(),
+    endAt: new Date(START_MS + days * DAY_MS).toISOString(),
+    customers: profiles.map(p => ({ customerId: p.customerId, createdAt: p.createdAt })),
+    accounts: profiles.map(p => ({ accountId: p.accountId, customerId: p.customerId,
+      createdAt: p.createdAt, openingBalance: p.balance.toString() })),
+    credits: [], initialFundingBalance: (-initialCustomerBalances).toString(),
+  };
   let fundingBalance = -initialCustomerBalances;
   let totalDebits = 0n;
   let totalCredits = 0n;
@@ -103,6 +112,9 @@ export function generateDataset({ seed = 'dbs-normal-v1', customers = 2000, days
       const source = profiles[fromIndex];
       const payday = day % 30 === source.salaryDay;
       if (payday) {
+        simulation.credits.push({ accountId: source.accountId,
+          occurredAt: new Date(START_MS + day * DAY_MS).toISOString(),
+          amount: source.salaryAmount.toString(), kind: 'salary', sequence: simulation.credits.length });
         source.balance += source.salaryAmount;
         fundingBalance -= source.salaryAmount;
         salaryCredits++;
@@ -171,7 +183,9 @@ export function generateDataset({ seed = 'dbs-normal-v1', customers = 2000, days
     endingCustomerBalances,
     fundingBalance,
   };
-  return { csv: lines.join('\n') + '\n', profiles, stats };
+  simulation.accounts.forEach((a, i) => { a.endingBalance = profiles[i].balance.toString(); });
+  simulation.endingFundingBalance = fundingBalance.toString();
+  return { csv: lines.join('\n') + '\n', profiles, stats, simulation };
 }
 
 function cliOptions(args) {
