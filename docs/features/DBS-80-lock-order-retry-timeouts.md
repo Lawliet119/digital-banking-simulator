@@ -1,6 +1,6 @@
 # DBS-80 · Khóa theo thứ tự id, retry deadlock, timeout và 503 + Retry-After
 
-> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-80-lock-order-retry-timeouts` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-80-lock-order-retry-timeouts` · **PR:** [#70](https://github.com/Lawliet119/digital-banking-simulator/pull/70) · **Cập nhật:** 2026-11-08
 >
 > Techlead waiver: G1–G4 do agent tự duyệt theo yêu cầu của techlead; không có Dev khác review trước merge (BL-174); không có ảnh PNG, bằng chứng là `manual-test.txt` thô; domain review do chính agent làm, không dùng subagent (§6).
 
