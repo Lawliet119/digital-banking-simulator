@@ -465,7 +465,7 @@ Ma trận quyền (S = SELECT, I = INSERT, U = UPDATE, D = DELETE):
 | Bảng / đối tượng | `dbs_api` | `dbs_worker` |
 |---|---|---|
 | `users` | S I U (`sessions_revoked_at`) | — |
-| `customers` | S I | — |
+| `customers` | S I U (`full_name`; cần để `SELECT … FOR UPDATE` khóa hàng khi mở tài khoản) | — |
 | `accounts` | S I U (`balance`, `status`, `updated_at`) | S (đối soát) |
 | `transfers` | S I | — (đọc qua view bên dưới) |
 | `v_transfer_facts` (view) | — | S |

@@ -483,7 +483,7 @@ sequenceDiagram
 | GET | `/v1/identity/me` | mọi vai trò đã đăng nhập | — | Trả claims đã xác thực của caller (smoke test cho `JwtAuthGuard`, DBS-50); 401 `UNAUTHENTICATED` hoặc `TOKEN_EXPIRED` |
 | POST | `/v1/customers/me` | customer | UC-1 | 200 tạo hoặc trả hồ sơ cũ; `fullName` NFC/trim, 1–200 ký tự; lần tạo đầu giữ nguyên tên. UNIQUE `customers.user_id`; audit cùng transaction, lỗi audit rollback |
 | GET | `/v1/customers/me` | customer | UC-1 | 200 hồ sơ của caller và audit đọc; 404 nếu chưa onboarding; lỗi audit trả 500 |
-| POST | `/v1/accounts` | customer | UC-2 | Tối đa 3 tài khoản |
+| POST | `/v1/accounts` | customer | UC-2 | 201 CHECKING/SAVINGS, ACTIVE, balance chuỗi `"0"`; khóa hàng `customers` rồi COUNT/INSERT + audit SUCCESS cùng transaction; đủ 3 kể cả LOCKED → 409 ACCOUNT_LIMIT_REACHED (audit REJECTED commit trước khi trả 409); chưa onboarding → 404 (audit REJECTED cùng transaction); hết thời gian chờ khóa → 503 SERVICE_TEMPORARILY_UNAVAILABLE + `Retry-After` |
 | GET | `/v1/accounts` | customer | UC-4 | Chỉ tài khoản của mình |
 | GET | `/v1/accounts/{id}` | customer | UC-4 | Số dư mới nhất, đọc từ DB |
 | GET | `/v1/accounts/{id}/transactions` | customer | UC-6 | Phân trang bằng cursor; lọc thời gian |
