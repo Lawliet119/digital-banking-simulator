@@ -4,7 +4,7 @@ The five phases and four gates never change. What changes is the baseline, what 
 
 | Kind | Baseline (Phase 1) | Manual test (Phase 4c) | Screenshots |
 |---|---|---|---|
-| **Endpoint or service** | `docker compose up -d`, then the four commands | Swagger or `curl` as the right role, the wrong role, bad input; then `psql` on the rows it wrote (balance, ledger, audit, outbox) | Swagger response, `psql` result |
+| **Endpoint or service** | `docker compose up -d`, then the five commands (`lint:check`, `typecheck`, `test`, `test:e2e`, `test:db`; plus `test:services` for `libs/redis`, `libs/sqs`, `test/support/*.container.ts`) | Swagger or `curl` as the right role, the wrong role, bad input; then `psql` on the rows it wrote (balance, ledger, audit, outbox) | Swagger response, `psql` result |
 | **Migration** | same | `migration:run`, `migration:revert`, `migration:run` on an empty database; `\d` the tables; insert the bad rows by hand and read the refusal | terminal, `\d` |
 | **Consumer, relay or scheduled job** | same | run `APP_ROLE=worker`, produce the event, watch log and rows; kill and restart; send the same message twice | log, rows |
 | **Pure logic with no runtime yet** (a fraud rule, a parser) | same | a small driver script that feeds boundary values through the function and prints the result; if even that is pointless, say "unit only" at G1 and let the human agree to it | script output |
@@ -12,14 +12,17 @@ The five phases and four gates never change. What changes is the baseline, what 
 | **Library with no caller yet** (`libs/redis`, `libs/sqs`) | same | a small driver script (kept in the PR or the feature doc) that calls it; for Redis: `docker compose pause valkey` for slow, `docker compose stop valkey` for down, then unpause or start and watch it recover | script output |
 | **Bug fix** | same, **and reproduce the bug** | reproduce by hand **before** the fix and keep the output; repeat after the fix | before and after |
 | **Test or harness** | same | run the suite from a clean clone, then with Docker stopped (it must fail loudly, not pass) | terminal |
-| **Infrastructure code** (#5) | `terraform init -backend=false && terraform fmt -check && terraform validate` (if Terraform is not installed, say so at G1) | the DoD check against the real thing in an "Up" session the human authorized, or `aws iam simulate-principal-policy` for an IAM claim; the `terraform plan` output is 4b evidence; `apply` only with the human's go-ahead | plan output, console |
+| **Infrastructure code** (#5) | `terraform init -backend=false && terraform fmt -check && terraform validate && terraform test` (if Terraform is not installed, say so at G1) | the DoD check against the real thing in an "Up" session the human authorized, or `aws iam simulate-principal-policy` for an IAM claim; the `terraform plan` output is 4b evidence; `apply` only with the human's go-ahead | plan output, console |
 | **Operations run** (#5: load test, failure drill, cost report) | environment confirmed and recorded | the run itself, from the §5 run plan | dashboard, k6 summary, report |
 | **Docs only** | link check | not applicable: say so; paste the link-check output | not applicable: say so |
+| **Docs across many files** (an audit, a sync with the code) | link check, plus the baseline of any code it touches | every changed fact is checked by a command and the command is recorded in §8; the domain review is still mandatory | not applicable: say so |
+| **Refactor or dead-code removal** | the baseline of the code touched | the success path runs and looks the same as before. Grep every caller and list them in §3. **Removal:** the red step is the build or lint failing while a reference remains. **Refactor:** name the tests guarding each changed function and turn each red by mutation before refactoring (SKILL.md, "Rework and late gates"); a failing build is not a refactor's red step. Mandatory when the refactor touches the money path (`module-notes.md`) | terminal |
+| **Skill change** (`.claude/skills/`) | link check, `node --test .claude/skills/dbs-delivering-task/scripts/` | pressure scenarios run by fresh subagents: RED on the old skill (`git show main:…`), GREEN on the new one; raw replies kept in the screenshots folder. Bump the version in `.claude/skills/README.md` | not applicable: say so |
 
-## Bug fixes and board keys
+## Bug fixes and keys off the board
 
 - **Cannot reproduce** (the endpoint does not exist yet, or the report is wrong): stop at G1 with the evidence you gathered and say what is missing; do not "fix" a guess.
-- **No board key:** ask for one; if none exists, the key is `BUG-YYYYMMDD-<slug>`. Use that whole key where the skill writes `DBS-<n>`: branch `fix/BUG-YYYYMMDD-<slug>`, doc `docs/features/BUG-YYYYMMDD-<slug>.md`, screenshots folder of the same name, gate headers. Case ids are `TC-BUG-NN` and `M-BUG-NN`.
+- **No board key:** ask the human for one first; if none exists, the key is `<KIND>-YYYYMMDD-<slug>` with `KIND` one of `BUG`, `CHORE`, `DOCS`, `SKILL`. Use that whole key where the skill writes `DBS-<n>`: branch `<type>/<KEY>` (`fix/BUG-…`, `chore/CHORE-…`), doc `docs/features/<KEY>.md`, screenshots folder of the same name, gate headers. Case ids are `TC-<KIND>-NN` and `M-<KIND>-NN`. `fetch-task.mjs <KEY>` answers "không có trên board" and exits 0. The existing `FRAUD-API-NN` keys (internal architecture tasks) follow the same rules.
 - The doc stays short: cause, the reproducing test, the fix, the manual before and after.
 
 ## Infrastructure and operations (#5)
