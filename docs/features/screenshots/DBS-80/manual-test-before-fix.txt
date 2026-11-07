@@ -1,0 +1,10 @@
+M-80-01 PASS: 100 C->D + 100 D->C, 20 at a time: 200 x 201, balances unchanged, no 500/503
+M-80-02 PASS: 40P01 twice: callback ran 3 times, still exactly one transfer and one key
+{"method":"POST","path":"/v1/transfers","key":"93d14089-b715-468a-ad71-63692a156e94","request":{"fromAccountId":"51658a48-89a5-46ef-b884-ff96f126d195","toAccountId":"2ae311a6-4c2d-41dc-84d9-630cff0321e9","amount":"50000"},"status":503,"correlationId":"3f67d6f7
+M-80-03 PASS: 40P01 always: 4 runs, 503 + Retry-After: 5, no key left; same key then 201
+{"method":"POST","path":"/v1/transfers","key":"f9d91486-96bb-49e9-b69c-e5c6795f49dc","request":{"fromAccountId":"51658a48-89a5-46ef-b884-ff96f126d195","toAccountId":"2ae311a6-4c2d-41dc-84d9-630cff0321e9","amount":"50000"},"status":503,"correlationId":"5ec57760
+{"lockWaitMs":1010}
+M-80-04 PASS: row lock held past lock_timeout: 503 + Retry-After after ~1s; same key then 201
+{"method":"POST","path":"/v1/transfers","key":"84135d57-baca-434b-b29e-2596a6f26b92","request":{"fromAccountId":"51658a48-89a5-46ef-b884-ff96f126d195","toAccountId":"2ae311a6-4c2d-41dc-84d9-630cff0321e9","amount":"50000"},"status":500,"correlationId":"e7d1dd2f
+DBS-80 cleanup NOT RUN AS PASS: an earlier step failed; cleanup problems: none
+AssertionError: Expected values to be strictly equal:

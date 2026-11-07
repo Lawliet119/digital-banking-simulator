@@ -31,7 +31,7 @@ async function waitFor(condition, label, attempts = 200) {
   throw new Error(`Timed out waiting for ${label}`);
 }
 
-async function runManual(taskId, steps) {
+async function runManual(taskId, steps, options = {}) {
   console.log(execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim());
   let db, app, dbName, containerId;
   let completed = false;
@@ -43,7 +43,7 @@ async function runManual(taskId, steps) {
     dbName = new URL(db.url).pathname.slice(1);
     containerId = globalThis.__POSTGRES_CONTAINER__?.getId();
     await migrate(db.url);
-    app = await startDepositApp(db.url);
+    app = await startDepositApp(db.url, options);
     const q = (sql, args = []) => db.runner.query(sql, args);
     const operator = await app.issuer.token('operator', { sub: randomUUID() });
     async function http(path, body, jwt, key = randomUUID(), quiet = false) {
@@ -173,8 +173,8 @@ async function runManual(taskId, steps) {
   }
 }
 
-function main(taskId, steps) {
-  runManual(taskId, steps).catch(error => {
+function main(taskId, steps, options) {
+  runManual(taskId, steps, options).catch(error => {
     console.error(`${error.name}: ${error.message}`);
     process.exitCode = 1;
   });

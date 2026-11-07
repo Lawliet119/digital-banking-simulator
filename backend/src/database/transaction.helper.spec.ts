@@ -1,4 +1,6 @@
-import type { EntityManager } from 'typeorm';
+import { EventEmitter } from 'node:events';
+import { QueryRunnerProviderAlreadyReleasedError, type EntityManager } from 'typeorm';
+import { isTransientDbError } from '../common/utils/pg-error.util';
 import { fakeDataSource, noSleep, pgError } from '../../test/support/fake-data-source';
 import { activeTransactionContext, withTransaction } from './transaction.helper';
 
@@ -278,6 +280,53 @@ describe('withTransaction', () => {
       expect(fn).not.toHaveBeenCalled(); // unprotected work must not start
       expect(runners[0].rollbackTransaction).toHaveBeenCalledTimes(1);
       expect(runners[0].release).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('connection killed by the server (TC-80-06)', () => {
+    // When PostgreSQL closes the session (idle_in_transaction_session_timeout) TypeORM releases the
+    // runner on the client's `error` event, so the NEXT query fails with
+    // QueryRunnerProviderAlreadyReleasedError and the SQLSTATE is lost: the route answered 500.
+    const fatal = (): Error =>
+      Object.assign(new Error('terminating connection due to idle-in-transaction timeout'), {
+        code: '25P03',
+      });
+
+    it('rethrows the connection error that released the runner, so it is classified as transient', async () => {
+      const client = new EventEmitter();
+      const { dataSource, runners } = fakeDataSource({ databaseConnection: client });
+      const killed = fatal();
+
+      const run = withTransaction(dataSource, () => {
+        client.emit('error', killed);
+        return Promise.reject(new QueryRunnerProviderAlreadyReleasedError());
+      });
+
+      await expect(run).rejects.toBe(killed);
+      expect(isTransientDbError(killed)).toBe(true);
+      expect(runners[0].release).toHaveBeenCalledTimes(1);
+      expect(client.listenerCount('error')).toBe(0); // nothing left on a pooled connection
+    });
+
+    it('leaves a released-runner error alone when no connection error was seen', async () => {
+      const client = new EventEmitter();
+      const { dataSource } = fakeDataSource({ databaseConnection: client });
+      const misuse = new QueryRunnerProviderAlreadyReleasedError();
+
+      await expect(withTransaction(dataSource, () => Promise.reject(misuse))).rejects.toBe(misuse);
+    });
+
+    it('does not replace an unrelated error with an earlier connection error', async () => {
+      const client = new EventEmitter();
+      const { dataSource } = fakeDataSource({ databaseConnection: client });
+      const unrelated = pgError('23505');
+
+      await expect(
+        withTransaction(dataSource, () => {
+          client.emit('error', fatal());
+          return Promise.reject(unrelated);
+        }),
+      ).rejects.toBe(unrelated);
     });
   });
 });
