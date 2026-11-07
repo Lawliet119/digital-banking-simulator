@@ -26,8 +26,8 @@
   - Code: `account-opening.service.ts`, `accounts.controller.ts`, `open-account.dto.ts`, đăng ký trong `accounts.module.ts`. Test `backend/test/db/account-opening.db-spec.ts` (10 case, HTTP + PostgreSQL thật). Script manual `backend/scripts/manual-dbs63.cjs`.
   - Tài liệu: README module accounts, docs/03 (bảng API), `docs/features/README.md`, `docs/BACKLOG.md`, bằng chứng trong `screenshots/DBS-63/`.
   - Người gọi của symbol đã có: `AccountsService` giữ nguyên, không đổi export. `AccountsModule` chỉ thêm `AccountsController` và `AccountOpeningService`.
-  - CI: 6/6 job xanh trên head `ec2f995` của PR (run `42169084841`), trước khi merge main mới.
-- **Baseline** (cây đã merge main `aeee9c9`, commit `e06dbb1`; Node **v24.22.2** bản portable đặt ngoài repo, SHA256 đã kiểm; Postgres riêng cho e2e vì container `dbs-postgres-1` trên máy thuộc worktree khác và có mật khẩu khác, không đụng vào):
+  - CI: 6/6 job xanh trên head `ec2f995` của PR (run `42169084841`), trước khi merge main mới và trước rebase.
+- **Baseline** (cây đã merge main `aeee9c9`, commit merge `e06dbb1` trước rebase, cây sau rebase giống hệt; Node **v24.22.2** bản portable đặt ngoài repo, SHA256 đã kiểm; Postgres riêng cho e2e vì container `dbs-postgres-1` trên máy thuộc worktree khác và có mật khẩu khác, không đụng vào):
 
   | Lệnh | Kết quả |
   |---|---|
@@ -271,7 +271,7 @@ Phần lớn code đã có từ trước; kế hoạch này chỉ gồm những 
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (2026-11-07, Node v24.22.2 portable, `--runInBand`; code cuối cùng là commit `fc684b3`, các commit sau chỉ đổi tài liệu và bằng chứng):
+- **Lệnh kiểm tra** (2026-11-07, Node v24.22.2 portable, `--runInBand`; code cuối cùng là commit `97425a2`, các commit sau chỉ đổi tài liệu và bằng chứng):
 
 ```text
 npm run lint:check && npm run typecheck && npm run build   -> đạt
@@ -305,7 +305,7 @@ test/db/account-opening.db-spec.ts                                              
 
   11/11 test case đạt đủ độ sâu, 0 đơn giản hóa, 0 chưa làm (không kể dòng quy trình).
 
-- **Test thủ công** (app thật `npm run start:dev`, `APP_ROLE=both`, `AUTH_MODE=local`, token từ `auth:dev-token`, Postgres 17 riêng ở cổng 55432). Output thô: [manual-test.txt](screenshots/DBS-63/manual-test.txt), SHA ở dòng đầu `fc684b3ec265f5f3783b0c85212aa9989a3d16a7` (commit cuối cùng đổi code). Token không được in; `Authorization` hiển thị `<redacted>`.
+- **Test thủ công** (app thật `npm run start:dev`, `APP_ROLE=both`, `AUTH_MODE=local`, token từ `auth:dev-token`, Postgres 17 riêng ở cổng 55432). Output thô: [manual-test.txt](screenshots/DBS-63/manual-test.txt), SHA ở dòng đầu `97425a2608619cf1f9670e7d64bf2fb59f09c848` (commit cuối cùng đổi code). Token không được in; `Authorization` hiển thị `<redacted>`.
 
 | Bước | Phản hồi thật (rút gọn) | Kết quả |
 |---|---|---|
@@ -346,7 +346,7 @@ test/db/account-opening.db-spec.ts                                              
 ![Kết quả test thủ công DBS-63 trên ứng dụng thật](screenshots/DBS-63/01-manual-test-results.png)
 
 - **Lệch so với kế hoạch:**
-  1. §7 bước 2, 3 và 4 được commit gộp thành một commit `e08e621` (test và bản sửa). Hai thay đổi test nằm chung một file đã sửa cùng lúc nên không tách được thành commit xanh riêng. Không đổi phạm vi, không cần gate phụ.
+  1. §7 bước 2, 3 và 4 được commit gộp thành một commit `478d4c8` (test và bản sửa). Hai thay đổi test nằm chung một file đã sửa cùng lúc nên không tách được thành commit xanh riêng. Không đổi phạm vi, không cần gate phụ.
   2. Đột biến ở bước 1 làm đỏ 4 test, nhiều hơn 2 test (TC-63-03 và TC-63-11) kế hoạch dự kiến; là kết quả tốt hơn dự kiến.
   3. Lần chạy test thủ công đầu tiên bị bỏ: tên tiếng Việt bị hỏng khi truyền qua `curl.exe` trên Windows (`Tr?n Thu H�`). Đã sửa kịch bản (gửi body qua file), chạy lại từ database sạch; `manual-test.txt` chỉ chứa lần chạy lại.
   4. Môi trường: Node 24 bản portable (ngoài repo, SHA256 đã kiểm) và Postgres riêng ở cổng 55432, đã ghi ở §1 và §5. Không đổi cấu hình repo.

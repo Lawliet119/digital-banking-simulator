@@ -1,4 +1,4 @@
-fc684b3ec265f5f3783b0c85212aa9989a3d16a7
+97425a2608619cf1f9670e7d64bf2fb59f09c848
 # DBS-63 manual test 2026-11-07T03:06:10Z, real app APP_ROLE=both AUTH_MODE=local, PostgreSQL 17 (container dbs63-pg, port 55432)
 
 == M-63-01 onboarding + CHECKING + SAVINGS
