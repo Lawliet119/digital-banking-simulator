@@ -105,7 +105,7 @@
 |---|---|---|---|---|
 | 2.1 thành công | `SUCCESS` | `account` / id tài khoản mới | `{id}` | cùng transaction với INSERT |
 | 2.2 đủ 3 | `REJECTED` | `customer` / id customer | `{reason: "ACCOUNT_LIMIT_REACHED", count}` | cùng transaction, **commit trước khi trả 409** |
-| 2.7 chưa onboarding | `REJECTED` | `user` / id người gọi | `{reason: "CUSTOMER_PROFILE_MISSING"}` | cùng transaction (không ghi dữ liệu nào khác), 404 ném sau commit |
+| 2.7 chưa onboarding | `REJECTED` | `user` / id người gọi | `{id}` (không có `reason`: `reason` chỉ nhận giá trị của `ErrorCode` hoặc `AuditReason`, và không thêm mã mới) | cùng transaction (không ghi dữ liệu nào khác), 404 ném sau commit |
 
 Lỗi audit lan ra ngoài và làm rollback (FR-AUD-01: không ghi được audit thì hủy thao tác). Nếu ghi audit của 2.2 hoặc 2.7 lỗi thì trả 500 thay vì 409 / 404.
 
@@ -118,7 +118,7 @@ Lỗi audit lan ra ngoài và làm rollback (FR-AUD-01: không ghi được audi
 - **Interface cung cấp:** `AccountOpeningService.open(userId: string, type: CustomerAccountType, correlationId: string): Promise<OpenedAccountDto>`. `AccountsService` (export) và mọi người gọi nó **không đổi**: module chỉ thêm controller và provider.
 - **Dữ liệu:** `customers` (khóa hàng `FOR UPDATE`), `accounts` (COUNT, INSERT; `accounts_customer_idx` phục vụ COUNT), `audit_log`. Không migration, không đổi schema.
 - **Ranh giới transaction:** một `TransactionService.run` gồm: khóa hàng `customers` theo `user_id` → COUNT → (INSERT hoặc audit REJECTED) → audit SUCCESS. Không gọi Redis, HTTP, SQS bên trong. Callback trả một kết quả (`created` / `limit` / `missing`); 409 và 404 chỉ được ném **sau khi** transaction trả về, để audit REJECTED (cả hai nhánh) không bị rollback. Không bắt lỗi DB trong callback.
-- **Khóa:** khóa hàng cha `customers` làm hàng đợi cho cùng một customer, kể cả khi chưa có tài khoản nào để khóa. COUNT là câu lệnh riêng sau khi giữ khóa nên thấy tài khoản mà người giữ khóa trước vừa commit (READ COMMITTED). Chỉ có **một khóa độc quyền** (hàng `customers`), nên không có thứ tự khóa và không có chu trình. Ngoài ra có hai khóa `FOR KEY SHARE` do khóa ngoại: INSERT `accounts` lên chính hàng `customers` đó (cùng transaction, không xung đột), và INSERT `audit_log` lên hàng `users` của actor qua `audit_log_actor_user_id_fkey`; không đường ghi nào trong code đổi cột khóa của `users` (chỉ `sessions_revoked_at`, khóa `NO KEY UPDATE`, không xung đột với `KEY SHARE`), nên cũng không có deadlock.
+- **Khóa:** khóa hàng cha `customers` làm hàng đợi cho cùng một customer, kể cả khi chưa có tài khoản nào để khóa. COUNT là câu lệnh riêng sau khi giữ khóa nên thấy tài khoản mà người giữ khóa trước vừa commit (READ COMMITTED). Chỉ có **một khóa độc quyền** (hàng `customers`), nên không có thứ tự khóa và không có chu trình. Ngoài ra có hai khóa `FOR KEY SHARE` do khóa ngoại: INSERT `accounts` lên chính hàng `customers` đó (cùng transaction, không xung đột), và INSERT `audit_log` lên hàng `users` của actor qua `audit_log_actor_user_id_fkey`; hiện chưa có đường ghi nào trong code vào `users` ngoài `INSERT … ON CONFLICT DO NOTHING` của identity; đường thu hồi phiên sau này chỉ đổi `sessions_revoked_at` (không phải cột khóa) nên lấy `NO KEY UPDATE`, không xung đột với `KEY SHARE`. Vì vậy không có chu trình khóa.
 
 ```mermaid
 sequenceDiagram
@@ -165,7 +165,7 @@ File `backend/test/db/account-opening.db-spec.ts` (`npm run test:db`), HTTP th�
 | TC-63-04 | Expect; ownership | e2e Postgres, đồng thời | Hai customer, mỗi người 5 request cùng lúc → 6×201 + 4×409 (**mọi** 409 mang `errorCode`), mỗi người đúng 3 tài khoản, 3 audit SUCCESS + 2 REJECTED; body có `customerId` của người khác → 400 | `ACCOUNT_LIMIT_REACHED` |
 | TC-63-05 | DoD #1 (khóa hàng customers) | e2e Postgres, khóa thật | Một kết nối giữ `FOR UPDATE` hàng customer A; request mở của A bắt đầu; thăm dò `pg_stat_activity` đến khi thấy truy vấn thật sự chờ `Lock`; trong lúc đó chưa có tài khoản, và customer B mở được; nhả khóa → request của A xong 201. Sau đó đặt một tài khoản `LOCKED` (fixture) → vẫn bị tính vào giới hạn | `ACCOUNT_LIMIT_REACHED` |
 | TC-63-06 | DoD #3 | e2e Postgres, bảo mật | `SYSTEM`, `checking`, chuỗi SQL, rỗng, `null`, `42`, thiếu `type`, và từng trường thừa `customerId/userId/balance/status/id` → 400; không tạo tài khoản nào | 400 |
-| TC-63-07 | Bảo mật; FR-AUD-01/02 | e2e Postgres, bảo mật | Không token → 401; token rác / sai chữ ký → 401; token hết hạn → 401; `operator`/`auditor`/`admin` → 403; customer chưa onboarding → 404 và có đúng 1 audit `REJECTED` (actor, vai `customer`, target `user`, metadata `{reason}`) | `UNAUTHENTICATED`, `TOKEN_EXPIRED`, `FORBIDDEN` |
+| TC-63-07 | Bảo mật; FR-AUD-01/02 | e2e Postgres, bảo mật | Không token → 401; token rác / sai chữ ký → 401; token hết hạn → 401; `operator`/`auditor`/`admin` → 403; customer chưa onboarding → 404 và có đúng 1 audit `REJECTED` (actor, vai `customer`, target `user`, metadata `{id}`) | `UNAUTHENTICATED`, `TOKEN_EXPIRED`, `FORBIDDEN` |
 | TC-63-08 | DoD #3; FR-AUD-01, NFR-AUD-01 | e2e Postgres, lỗi thật | Trigger làm INSERT `audit_log` luôn lỗi: mở thành công / đủ 3 / chưa onboarding đều 500, thông điệp chung (không lộ SQL, không có "audit unavailable"), tài khoản được rollback, không có dòng audit; bỏ trigger → mở lại 201, đủ 3 vẫn 409, chưa onboarding vẫn 404 | `ACCOUNT_LIMIT_REACHED` |
 | TC-63-09 | docs/03 §7 (OpenAPI) | e2e (tài liệu) | OpenAPI có bearer, enum `type` đúng 2 giá trị, ví dụ, và các phản hồi 201/400/401/403/404/409/500/503, ví dụ 409 chứa `ACCOUNT_LIMIT_REACHED` | — |
 | TC-63-10 | ADR-04 | e2e Postgres, khóa thật | Một kết nối giữ khóa hàng customer đến quá thời gian chờ khóa → 503 + `Retry-After`; không tài khoản, không audit; nhả khóa → mở lại 201 | `SERVICE_TEMPORARILY_UNAVAILABLE` |
@@ -200,7 +200,7 @@ Chạy trên **ứng dụng thật** (`npm run start:dev`, `APP_ROLE=both`) vớ
 | M-63-01 | `POST /v1/customers/me {"fullName":"Nguyễn Minh Anh"}`, rồi `POST /v1/accounts` với `CHECKING` và `SAVINGS`. `psql`: các tài khoản và audit | 200, rồi 201 hai lần, `balance:"0"`, `ACTIVE`; 2 dòng `accounts`, 2 audit `SUCCESS` `account.open` |
 | M-63-02 | Mở thêm lần 3 (201) và lần 4 | lần 3 → 201; lần 4 → 409 `ACCOUNT_LIMIT_REACHED` kèm `correlationId`; `psql`: 3 tài khoản, 1 audit `REJECTED` `count:3` |
 | M-63-03 | Customer mới `--sub tran-thu-ha`, onboarding, rồi 10 `curl` chạy song song (`xargs -P 10`) | đúng 3×201 và 7×409; `psql`: 3 tài khoản, 3 audit SUCCESS + 7 REJECTED |
-| M-63-04 | `"type":"SYSTEM"`; body có `"customerId"`; không token; token `--role operator`; customer chưa onboarding (`--sub pham-ngoc-lan`) | 400; 400; 401; 403; 404 và 1 audit `REJECTED` (`CUSTOMER_PROFILE_MISSING`); không tài khoản nào được tạo |
+| M-63-04 | `"type":"SYSTEM"`; body có `"customerId"`; không token; token `--role operator`; customer chưa onboarding (`--sub pham-ngoc-lan`) | 400; 400; 401; 403; 404 và 1 audit `REJECTED` (target `user`, metadata `{id}`); không tài khoản nào được tạo |
 | M-63-05 | Customer mới `--sub le-hoang-nam`: onboarding (`"fullName":"Lê Hoàng Nam"`) → 200. `psql`: tạo trigger làm `audit_log` luôn lỗi. Mở tài khoản. Bỏ trigger, mở lại | onboarding 200 trước khi có trigger; mở khi có trigger → 500 chung chung, `accounts` của người đó = 0 và không có audit `account.open` cho `correlationId` đó; sau khi bỏ trigger → 201, `balance:"0"` |
 | M-63-06 | Chạy `npm run --silent check:invariants` | thoát mã 0, `PASS`, không vi phạm |
 | M-63-07 | Dừng app, dọn container riêng và dữ liệu thử | không còn tiến trình hay container của task |
@@ -223,7 +223,14 @@ Bước ép khóa quá thời gian (503) được chứng minh bằng TC-63-10 c
 | 8 | minor | §5: đường dẫn `manual-test.txt` sai nếu chạy từ `backend/`; ghi chú đổi cổng phải ở §1 | Đã sửa §5 (đường dẫn từ gốc repo, ghi ở §1 và §8) |
 | 9 | minor | Dòng API ở docs/03 thiếu audit và 503 | Ghi ở §3 "Thay đổi cấp hệ thống"; sửa file ở Phase 5 |
 
-**Review lại sau khi sửa:** xem dòng verdict dưới đây (chạy lại trên mọi mục đã đổi: §2, §3, §4, §5).
+**Vòng 2** (cùng reviewer, chạy lại trên §2–§5): 2 phát hiện, verdict **REVISE**. Cả 9 phát hiện vòng 1 được xác nhận đã xử lý.
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| R2-1 | blocking | `metadata.reason = CUSTOMER_PROFILE_MISSING` không hợp lệ: `serializeMetadata` chỉ nhận `ErrorCode` hoặc `AuditReason` (`audit-metadata.guard.ts`), nên `record()` ném lỗi và đường chưa onboarding luôn trả 500 | Đã xác minh với code. Đã sửa §2, §4 (TC-63-07), §5 (M-63-04): bỏ `reason`, dùng `metadata {id}` như code hiện tại đang ghi; không đổi module audit hay `ErrorCode` |
+| R2-2 | minor | §3 ngụ ý đã có đường ghi `users.sessions_revoked_at`; hiện chưa có trong code | Đã sửa §3 thành quy tắc cho tương lai |
+
+**Vòng 3 chưa chạy.** Bản sửa R2-1 chính là phương án thay thế mà reviewer đề xuất, và `{id}` đã được code hiện tại ghi thành công (TC-63-07 đang đạt với `metadata {id}`), nên mình không chạy thêm vòng. Nếu bạn muốn đúng quy tắc "review lại mọi mục đã đổi" thì nói, mình chạy vòng 3.
 
 **Quyết định ở G2:** (chờ người duyệt)
 
