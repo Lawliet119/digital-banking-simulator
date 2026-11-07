@@ -2,8 +2,8 @@
 
 <!-- Mô tả ngắn: PR này làm gì, vì sao -->
 
-Task: DBS-
-Feature doc: docs/features/DBS-
+Task: DBS-  <!-- không có mã board: <KIND>-YYYYMMDD-<slug>, xem CONTRIBUTING mục 1 -->
+Feature doc: docs/features/DBS-  <!-- hoặc docs/features/<KIND>-YYYYMMDD-<slug>.md -->
 
 ## Loại thay đổi
 
@@ -30,7 +30,7 @@ Feature doc: docs/features/DBS-
 - [ ] Có test; logic về tiền được test trên PostgreSQL thật
 - [ ] CI xanh
 - [ ] Không có secret trong code, log, commit
-- [ ] Feature doc đủ mục 1–9 (đã qua 4 gate), test thủ công đã chạy (bước chưa chạy ghi rõ lý do), ảnh chụp ở `docs/features/screenshots/DBS-<n>/`
+- [ ] Feature doc đủ mục 1–9 (đã qua 4 gate), test thủ công đã chạy (bước chưa chạy ghi rõ lý do), ảnh chụp ở `docs/features/screenshots/DBS-<n>/` (hoặc `<KIND>-YYYYMMDD-<slug>/`)
 - [ ] Đã cập nhật tài liệu / ADR / OpenAPI nếu cần (đổi thiết kế → `docs/03` hoặc `docs/components/_shared/`)
 
 ## Ghi chú cho người review
