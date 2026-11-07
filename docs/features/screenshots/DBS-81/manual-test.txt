@@ -1,0 +1,21 @@
+ee2d366cef844502792511cffe2d7de4399bd331
+SQL INPUT: users/customers/accounts at migration default ZERO, no SQL balance or ledger seed. ALL funding uses actual deposit HTTP.
+{"method":"POST","path":"/v1/operator/deposits","key":"30789c9f-4d21-4b36-8f2d-a6833d6cedc8","request":{"toAccountId":"991a7b52-3f6d-4899-a350-6513f1b18ccc","amount":"2000000"},"status":201,"correlationId":"eb6de078-5966-4325-8c87-0a91dc6dc57b","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"0ab85d35-437d-41f4-8294-453f1af33164","status":"COMPLETED"}}
+A holds key K and is stopped at the gate
+{"pgLocksWhileWaiting":[{"locktype":"advisory","granted":false,"pid":301,"blocked_by":[293]},{"locktype":"transactionid","granted":false,"pid":302,"blocked_by":[301]}]}
+{"A":{"status":500,"body":{"type":"about:blank","title":"Internal Server Error","status":500,"detail":"Internal server error","correlationId":"c00d8a98-f365-4926-b4c9-da7c3dd56920"}},"B":{"status":201,"body":{"transferId":"a5d636ae-3cef-4bc6-958f-c83c23a762e3","status":"COMPLETED"}}}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"2700000","credit":"2700000","balance":"0"},"violations":[]}}
+M-81-01 PASS: A 500 (rolled back), B 201 COMPLETED as a new request; Em 1300000 / Phuong 700000; key holds B only
+{"method":"POST","path":"/v1/operator/deposits","key":"b11d246c-43b4-4923-8326-261869cca439","request":{"toAccountId":"bcdf7403-f2f1-4b03-8b15-cff7de6e9965","amount":"2000000"},"status":201,"correlationId":"4c44a2c5-b65a-4d62-ad0a-b562527b90ed","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"a0f6b8d1-23dc-4a00-9038-4dba1084cd2a","status":"COMPLETED"}}
+A holds key K and is stopped at the gate
+{"pgLocksWhileWaiting":[{"locktype":"advisory","granted":false,"pid":302,"blocked_by":[293]},{"locktype":"transactionid","granted":false,"pid":301,"blocked_by":[302]}]}
+{"A":{"status":201,"body":{"transferId":"f10f10eb-2a64-42ef-8f21-c09f6335c5a8","status":"COMPLETED"}},"B":{"status":201,"body":{"status":"COMPLETED","transferId":"f10f10eb-2a64-42ef-8f21-c09f6335c5a8"}}}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"5400000","credit":"5400000","balance":"0"},"violations":[]}}
+M-81-02 PASS: A 201, B 201 with A's transferId; debited once
+{"method":"POST","path":"/v1/operator/deposits","key":"85b7e892-21f9-4e77-b822-cdcee6f9ef32","request":{"toAccountId":"ca6fa755-8ced-4530-96d8-0454739c17b4","amount":"2000000"},"status":201,"correlationId":"b9348930-1f70-4d87-8f55-a1712dc5a915","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"a707d0b0-e4ad-443f-96b9-0b7cd8c16f35","status":"COMPLETED"}}
+A holds key K and is stopped at the gate
+{"A":{"status":500,"body":{"type":"about:blank","title":"Internal Server Error","status":500,"detail":"Internal server error","correlationId":"cc8f7f0b-51d3-4667-bdc8-38a4a7e612a7"}}}
+{"resend":{"status":201,"body":{"transferId":"9583c9ba-c713-4be9-88df-545eb1aa9ae6","status":"COMPLETED"}}}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"8100000","credit":"8100000","balance":"0"},"violations":[]}}
+M-81-03 PASS: A 500, key gone; resend of K -> 201 as new, debited once
+DBS-81 cleanup PASS: app closed, JWKS directory gone, temporary database absent from pg_database, owned PG17 container removed
