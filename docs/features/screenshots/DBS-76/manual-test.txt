@@ -1,0 +1,9 @@
+6fd02bc771acc925d381520967dafb556cdf4588
+M-76-01 operations PASS: cache, exact int64 counter string, sorted set and positive TTL
+M-76-02 validation PASS: invalid TTL, no mutation, no fallback increment
+M-76-03 slow PASS: proxy delay250ms, ten TIMEOUTs, breaker open, next call skipped wire
+Observed command elapsed ms: 50,54,55,56,56,55,57,54,56,58
+redis_fallback_total 11
+M-76-04 recovery PASS: half-open after5seconds, PONG, breaker closed
+M-76-05 down PASS: network unavailable, explicit error, fallback counter12
+M-76-06 cleanup PASS: owned keys removed, client/proxy closed
