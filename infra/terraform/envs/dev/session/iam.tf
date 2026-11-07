@@ -91,7 +91,8 @@ resource "aws_iam_role_policy" "read_redis_auth_secret" {
   })
 }
 
-# Task role: quyền của mã ứng dụng. Chưa có quyền nào; SQS, Cognito do task khác thêm.
+# Task role: quyền của mã ứng dụng. Chưa có quyền nào; Cognito do task khác thêm. Không bao giờ có quyền SQS:
+# chỉ worker dùng queue (ADR-13), và queue policy ở base chặn role này (DBS-73).
 # Không gắn policy hay attachment nào ở task này (kiểm bằng grep ở M-34-02).
 resource "aws_iam_role" "task" {
   name               = "dbs-dev-api-task"

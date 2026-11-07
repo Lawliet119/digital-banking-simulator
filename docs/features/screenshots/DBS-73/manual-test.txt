@@ -1,0 +1,286 @@
+SHA code: 142ae3a8b2432b7bf645fb25cc745b8fd9d629e2 (chạy từ worktree tích hợp aa647fa = DBS-68 + DBS-75 + DBS-73, để apply không xóa tài nguyên của nhánh chưa merge)
+== M-73-01 terraform plan base (-target SQS + Redis tuần 3)
+  # aws_elasticache_subnet_group.main will be created
+  # aws_iam_policy.worker_sqs will be created
+  # aws_secretsmanager_secret.redis_auth will be created
+  # aws_security_group.redis will be created
+  # aws_sqs_queue.dlq["notification"] will be created
+  # aws_sqs_queue.dlq["risk"] will be created
+  # aws_sqs_queue.main["notification"] will be created
+  # aws_sqs_queue.main["risk"] will be created
+  # aws_sqs_queue_policy.deny_api["notification"] will be created
+  # aws_sqs_queue_policy.deny_api["notification-dlq"] will be created
+  # aws_sqs_queue_policy.deny_api["risk"] will be created
+  # aws_sqs_queue_policy.deny_api["risk-dlq"] will be created
+  # aws_sqs_queue_redrive_allow_policy.dlq["notification"] will be created
+  # aws_sqs_queue_redrive_allow_policy.dlq["risk"] will be created
+  # aws_vpc_security_group_egress_rule.api_to_redis will be created
+  # aws_vpc_security_group_ingress_rule.redis_from_api will be created
+Plan: 16 to add, 0 to change, 0 to destroy.
+== apply
+Apply complete! Resources: 16 added, 0 changed, 0 destroyed.
+Thu Oct 29 03:39:11 PM UTC 2026
+== M-73-02 thuộc tính dbs-dev-risk-events
+{
+    "VisibilityTimeout": "30",
+    "ReceiveMessageWaitTimeSeconds": "20",
+    "MessageRetentionPeriod": "345600",
+    "DelaySeconds": "0",
+    "SqsManagedSseEnabled": "true",
+    "FifoQueue": null,
+    "RedrivePolicy": "{\"deadLetterTargetArn\":\"arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events-dlq\",\"maxReceiveCount\":5}"
+}
+== M-73-02b thuộc tính dbs-dev-notification-events
+{
+    "VisibilityTimeout": "30",
+    "ReceiveMessageWaitTimeSeconds": "20",
+    "MessageRetentionPeriod": "345600",
+    "SqsManagedSseEnabled": "true",
+    "RedrivePolicy": "{\"deadLetterTargetArn\":\"arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events-dlq\",\"maxReceiveCount\":5}"
+}
+== M-73-03 thuộc tính dbs-dev-risk-events-dlq
+{
+    "MessageRetentionPeriod": "518400",
+    "SqsManagedSseEnabled": "true",
+    "RedriveAllowPolicy": "{\"redrivePermission\":\"byQueue\",\"sourceQueueArns\":[\"arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events\"]}",
+    "RedrivePolicy": null
+}
+== M-73-04 gửi message mẫu
+{
+    "MessageId": "c826a39a-67d1-4a4c-b0ff-ad4fb65f6e5a",
+    "MD5OfMessageBody": "882b107308046a647053bc7f7215d32a"
+}
+-- lần nhận 1
+[
+    {
+        "MessageId": "c826a39a-67d1-4a4c-b0ff-ad4fb65f6e5a",
+        "MD5OfBody": "882b107308046a647053bc7f7215d32a",
+        "ApproximateReceiveCount": "1"
+    }
+]
+-- lần nhận 2
+[
+    {
+        "MessageId": "c826a39a-67d1-4a4c-b0ff-ad4fb65f6e5a",
+        "MD5OfBody": "882b107308046a647053bc7f7215d32a",
+        "ApproximateReceiveCount": "2"
+    }
+]
+-- lần nhận 3
+[
+    {
+        "MessageId": "c826a39a-67d1-4a4c-b0ff-ad4fb65f6e5a",
+        "MD5OfBody": "882b107308046a647053bc7f7215d32a",
+        "ApproximateReceiveCount": "3"
+    }
+]
+-- lần nhận 4
+[
+    {
+        "MessageId": "c826a39a-67d1-4a4c-b0ff-ad4fb65f6e5a",
+        "MD5OfBody": "882b107308046a647053bc7f7215d32a",
+        "ApproximateReceiveCount": "4"
+    }
+]
+-- lần nhận 5
+[
+    {
+        "MessageId": "c826a39a-67d1-4a4c-b0ff-ad4fb65f6e5a",
+        "MD5OfBody": "882b107308046a647053bc7f7215d32a",
+        "ApproximateReceiveCount": "5"
+    }
+]
+-- lần nhận 6
+null
+== M-73-05 nhận ở DLQ
+{"MessageId": "c826a39a-67d1-4a4c-b0ff-ad4fb65f6e5a", "MD5OfBody": "882b107308046a647053bc7f7215d32a", "eventId": "6f1c2a3b-4d5e-4f60-8a71-9b0c1d2e3f40", "amount": "1500000"}
+== M-73-06 redrive DLQ về queue chính
+{
+    "TaskHandle": true
+}
+move task: COMPLETED	0
+Traceback (most recent call last):
+  File "<string>", line 2, in <module>
+  File "/usr/lib/python3.12/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 2 column 1 (char 1)
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/lib/python3.12/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 2 column 1 (char 1)
+dbs-dev-risk-events: 0	0	0
+dbs-dev-risk-events-dlq: 1	0	0
+== M-73-07 queue tạm trỏ redrive vào DLQ risk
+
+aws: [ERROR]: An error occurred (InvalidParameterValue) when calling the CreateQueue operation: Value RedrivePolicy(maxReceiveCount=5, deadLetterTargetArn=arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events-dlq) for parameter RedrivePolicy is invalid. Reason: The value for the dead-letter queue's RedriveAllowPolicy attribute prevents you from completing this request.
+exit=254
+aws: [ERROR]: An error occurred (AWS.SimpleQueueService.NonExistentQueue) when calling the GetQueueUrl operation: The specified queue does not exist.
+== M-73-08 simulate-custom-policy dbs-dev-worker-sqs
+{
+    "roles": [],
+    "users": [],
+    "groups": []
+}
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+== M-73-09 queue policy của 4 queue
+-- dbs-dev-risk-events
+{"Version":"2012-10-17","Statement":[{"Sid":"DenyApiTaskRole","Effect":"Deny","Principal":"*","Action":"sqs:*","Resource":"arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events","Condition":{"ArnLike":{"aws:PrincipalArn":"arn:aws:iam::<account>:role/dbs-dev-api-task"}}}]}
+-- dbs-dev-notification-events
+{"Version":"2012-10-17","Statement":[{"Sid":"DenyApiTaskRole","Effect":"Deny","Principal":"*","Action":"sqs:*","Resource":"arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events","Condition":{"ArnLike":{"aws:PrincipalArn":"arn:aws:iam::<account>:role/dbs-dev-api-task"}}}]}
+-- dbs-dev-risk-events-dlq
+{"Version":"2012-10-17","Statement":[{"Sid":"DenyApiTaskRole","Effect":"Deny","Principal":"*","Action":"sqs:*","Resource":"arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events-dlq","Condition":{"ArnLike":{"aws:PrincipalArn":"arn:aws:iam::<account>:role/dbs-dev-api-task"}}}]}
+-- dbs-dev-notification-events-dlq
+{"Version":"2012-10-17","Statement":[{"Sid":"DenyApiTaskRole","Effect":"Deny","Principal":"*","Action":"sqs:*","Resource":"arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events-dlq","Condition":{"ArnLike":{"aws:PrincipalArn":"arn:aws:iam::<account>:role/dbs-dev-api-task"}}}]}
+-- git grep sqs: trong session
+git grep exit=1
+== M-73-10 terraform output (base)
+sqs_notification_dlq_url = "https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-notification-events-dlq"
+sqs_notification_queue_url = "https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-notification-events"
+sqs_risk_dlq_url = "https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-risk-events-dlq"
+sqs_risk_queue_url = "https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-risk-events"
+
+== Ghi chú: M-73-06 lần 1 hỏng do script (task redrive chạy khi message còn in-flight sau M-73-05, nhận ở queue chính trả rỗng nên python lỗi); M-73-08 lần 1 hỏng do truyền file:// cho tham số danh sách. Chạy lại hai bước dưới đây, hạ tầng không đổi.
+Thu Oct 29 03:41:42 PM UTC 2026
+== M-73-06 (chạy lại) redrive DLQ về queue chính
+DLQ trước: 1	0
+{
+    "TaskHandle": true
+}
+move task: COMPLETED	0
+{"MessageId": "2715fbd9-1e5f-49f9-800b-2fca15e7d6a8", "MD5OfBody": "882b107308046a647053bc7f7215d32a", "ApproximateReceiveCount": "1", "eventId": "6f1c2a3b-4d5e-4f60-8a71-9b0c1d2e3f40"}
+deleted
+dbs-dev-risk-events: 0	0	0
+dbs-dev-risk-events-dlq: 1	0	0
+== M-73-08 (chạy lại) simulate-custom-policy dbs-dev-worker-sqs
+sqs:SendMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events	allowed
+sqs:ReceiveMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events	allowed
+sqs:DeleteMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events	allowed
+sqs:ChangeMessageVisibility	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events	allowed
+sqs:GetQueueAttributes	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events	allowed
+sqs:PurgeQueue	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events	implicitDeny
+sqs:DeleteQueue	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events	implicitDeny
+sqs:SendMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events-dlq	allowed
+sqs:ReceiveMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events-dlq	implicitDeny
+sqs:DeleteMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events-dlq	implicitDeny
+sqs:PurgeQueue	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events-dlq	implicitDeny
+sqs:SendMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events	allowed
+sqs:ReceiveMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events	allowed
+sqs:DeleteMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events	allowed
+sqs:ChangeMessageVisibility	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events	allowed
+sqs:GetQueueAttributes	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events	allowed
+sqs:PurgeQueue	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events	implicitDeny
+sqs:DeleteQueue	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events	implicitDeny
+sqs:SendMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events-dlq	allowed
+sqs:ReceiveMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events-dlq	implicitDeny
+sqs:DeleteMessage	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events-dlq	implicitDeny
+sqs:PurgeQueue	arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events-dlq	implicitDeny
+== M-73-06 đọc lại bộ đếm (Approximate* trễ)
+15:43:26
+dbs-dev-risk-events: 0	0	0
+dbs-dev-risk-events-dlq: 0	0	0
+dbs-dev-notification-events: 0	0	0
+dbs-dev-notification-events-dlq: 0	0	0
+15:44:01
+dbs-dev-risk-events: 0	0	0
+dbs-dev-risk-events-dlq: 0	0	0
+dbs-dev-notification-events: 0	0	0
+dbs-dev-notification-events-dlq: 0	0	0
+15:44:36
+dbs-dev-risk-events: 0	0	0
+dbs-dev-risk-events-dlq: 0	0	0
+dbs-dev-notification-events: 0	0	0
+dbs-dev-notification-events-dlq: 0	0	0
+15:45:10
+dbs-dev-risk-events: 0	0	0
+dbs-dev-risk-events-dlq: 0	0	0
+dbs-dev-notification-events: 0	0	0
+dbs-dev-notification-events-dlq: 0	0	0
+-- receive thử trên DLQ (không xóa)
+null
+Thu Oct 29 03:45:55 PM UTC 2026
+== điều kiện: role chưa tồn tại
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-api-task cannot be found.
+dbs-dev-api-task
+put-role-policy exit=0
+assume-role ok ở lần 2
+-- danh tính dưới role tạm
+arn:aws:sts::<account>:assumed-role/dbs-dev-api-task/m73-11
+-- list-queues (đối chứng dương)
+QUEUEURLS	https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-notification-events
+QUEUEURLS	https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-notification-events-dlq
+QUEUEURLS	https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-risk-events
+QUEUEURLS	https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-risk-events-dlq
+-- send-message dbs-dev-risk-events
+aws: [ERROR]: An error occurred (AccessDenied) when calling the SendMessage operation: User: arn:aws:sts::<account>:assumed-role/dbs-dev-api-task/m73-11 is not authorized to perform: sqs:sendmessage on resource: arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events with an explicit deny in a resource-based policy
+-- receive-message dbs-dev-risk-events
+aws: [ERROR]: An error occurred (AccessDenied) when calling the ReceiveMessage operation: User: arn:aws:sts::<account>:assumed-role/dbs-dev-api-task/m73-11 is not authorized to perform: sqs:receivemessage on resource: arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-risk-events with an explicit deny in a resource-based policy
+-- send-message dbs-dev-notification-events-dlq
+aws: [ERROR]: An error occurred (AccessDenied) when calling the SendMessage operation: User: arn:aws:sts::<account>:assumed-role/dbs-dev-api-task/m73-11 is not authorized to perform: sqs:sendmessage on resource: arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events-dlq with an explicit deny in a resource-based policy
+-- receive-message dbs-dev-notification-events-dlq
+aws: [ERROR]: An error occurred (AccessDenied) when calling the ReceiveMessage operation: User: arn:aws:sts::<account>:assumed-role/dbs-dev-api-task/m73-11 is not authorized to perform: sqs:receivemessage on resource: arn:aws:sqs:ap-southeast-1:<account>:dbs-dev-notification-events-dlq with an explicit deny in a resource-based policy
+== dọn role tạm
+delete-role-policy exit=0
+delete-role exit=0
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-api-task cannot be found.
