@@ -30,7 +30,7 @@ export class TransfersController {
   @ApiOperation({
     summary: 'Customer: transfer between distinct customer accounts with atomic double entry',
     description:
-      'Source must belong to caller. Checks, in order under the account lock: ACTIVE, enough money, per-transfer limit, per-day limit (Vietnam time). Idempotent: the same key with the same body returns the first answer without a second transfer; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.',
+      'Source must belong to caller. Checks, in order under the account lock: both accounts ACTIVE, per-transfer limit, per-day limit (Vietnam time), enough money; the first rule broken is the reason. Idempotent: the same key with the same body returns the first answer without a second transfer; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.',
   })
   @ApiHeader({
     name: 'Idempotency-Key',

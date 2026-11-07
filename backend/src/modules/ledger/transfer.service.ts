@@ -1,19 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
-  Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { type ConfigType } from '@nestjs/config';
-import type { EntityManager } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
-import { limitsConfig } from '@config/limits.config';
 import { AccountsService } from '@modules/accounts';
 import { AuditReason, AuditService } from '@modules/audit';
 import { OutboxWriter } from '@modules/outbox';
-import { ErrorCode } from '@common/errors/error-code.enum';
+import type { RejectReason } from '@common/errors/reject-reason';
 import {
   creditBalance,
   debitBalance,
@@ -29,26 +25,16 @@ import {
   LedgerPostingService,
   type StoredResponse,
 } from './ledger-posting.service';
+import { SyncGuardService } from './sync-guard.service';
 
 class SourceOwnershipChangedError extends Error {}
 
 type Outcome =
   | { kind: 'replay'; stored: StoredResponse }
-  | { kind: 'done'; reason: ErrorCode | undefined; result: Record<string, unknown> };
+  | { kind: 'done'; reason: RejectReason | null; result: Record<string, unknown> };
 
 /** Audit action of a DENIED source check (AccountOwnershipAction); success and REJECTED use 'transfer'. */
 const DENIED_ACTION = 'ledger.transfer' as const;
-
-/**
- * What the source account has already sent today, in Vietnam time (BR-06). The day starts at
- * 00:00 Asia/Ho_Chi_Minh and the clock is read per statement, so a request that waited on the
- * account lock does not use a day boundary that is already past. Debit lines of a customer
- * account only come from its own transfers, never from deposits.
- */
-const SENT_TODAY_SQL = `SELECT coalesce(sum(amount),0)::text AS total FROM ledger_entries
-  WHERE account_id=$1 AND direction='DEBIT'
-    AND created_at >= date_trunc('day', clock_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh')
-                      AT TIME ZONE 'Asia/Ho_Chi_Minh'`;
 
 @Injectable()
 export class TransferService {
@@ -58,7 +44,7 @@ export class TransferService {
     private readonly audit: AuditService,
     private readonly outbox: OutboxWriter,
     private readonly posting: LedgerPostingService,
-    @Inject(limitsConfig.KEY) private readonly limits: ConfigType<typeof limitsConfig>,
+    private readonly guard: SyncGuardService,
   ) {}
 
   async transfer(
@@ -109,7 +95,8 @@ export class TransferService {
             ? target
             : undefined;
         const fromBefore = parseBalance(source.balance);
-        const reason = await this.refusal(manager, source, customerTarget, fromBefore, amount);
+        // Always awaited: a Promise is truthy and would refuse every transfer (SyncGuardService).
+        const reason = await this.guard.checkGuards(manager, source, customerTarget, amount);
         // Overflow is a capacity/invariant error, never a business rejection after a failed SQL write.
         const fromAfter = reason ? undefined : debitBalance(fromBefore, amount);
         const toAfter = reason
@@ -182,30 +169,6 @@ export class TransferService {
         return this.deny(actor, fromId, correlationId);
       throw error;
     }
-  }
-
-  /**
-   * The synchronous guard (docs/03 §6.1, §15.1), run on the locked rows: accounts ACTIVE, enough
-   * money, then the per-transfer and per-day limits. It sits after FOR UPDATE on purpose: the day
-   * total is only trustworthy while no other transfer from this account can commit (AC-5.6).
-   */
-  private async refusal(
-    manager: EntityManager,
-    source: { id: string; status: string },
-    target: { status: string } | undefined,
-    fromBefore: bigint,
-    amount: bigint,
-  ): Promise<ErrorCode | undefined> {
-    if (source.status !== 'ACTIVE' || !target || target.status !== 'ACTIVE') {
-      return ErrorCode.ACCOUNT_NOT_ACTIVE;
-    }
-    if (fromBefore < amount) return ErrorCode.INSUFFICIENT_FUNDS;
-    if (amount > this.limits.transfer.perTx) return ErrorCode.LIMIT_PER_TX_EXCEEDED;
-    const [{ total }]: { total: string }[] = await manager.query(SENT_TODAY_SQL, [source.id]);
-    if (BigInt(total) + amount > this.limits.transfer.perDay) {
-      return ErrorCode.LIMIT_PER_DAY_EXCEEDED;
-    }
-    return undefined;
   }
 
   private async deny(actor: string, sourceId: string, correlationId: string): Promise<never> {
