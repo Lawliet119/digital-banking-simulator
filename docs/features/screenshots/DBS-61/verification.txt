@@ -1,0 +1,41 @@
+DBS-61 kết quả kiểm tra. Node 24.22.2 (bản portable), Windows, thư mục backend/.
+Commit code cuối: b34bec7d187c0ebe0245dcc32937b2d3125575b8
+
+Môi trường:
+  Dịch vụ PostgreSQL cài sẵn trên máy chiếm cổng 5432, nên e2e chạy với DATABASE_URL trỏ tới một
+  container postgres:17-alpine tạm ở cổng 55432. test:db và manual dùng Testcontainers.
+
+Baseline trước khi sửa (đầu PR 2771771):
+  lint:check đạt; typecheck đạt
+  unit 831/832: hỏng "honours the refetch cooldown..." trong jwks-verifier.service.spec.ts (BL-112)
+  e2e 135/135
+
+Test viết trước:
+  TC-61-14 (chuyển tới funding khi hàng funding bị giữ khóa) hỏng trước khi sửa:
+    expected 422 "Unprocessable Entity", got 503 "Service Unavailable"
+  Sau khi sửa transfer.service.ts: customer-transfers 20/20 (lúc đó chưa có TC-61-13).
+  TC-61-13 đạt ngay vì code đã có nhánh kiểm lại chủ sở hữu. Kiểm bằng đột biến: bỏ ghi audit DENIED
+  thì hỏng ("Expected: 404 Received: 500"); đã khôi phục mã.
+  TC-61-03 và TC-61-04 siết thêm assertion, đạt ngay.
+
+Kiểm tra cuối trên b34bec7:
+  npm run lint:check               đạt
+  npm run typecheck                đạt
+  npm run build                    đạt
+  npm test -- --runInBand          831/832 đạt, 55/56 suite (37,3 s); hỏng "refetches on key rotation..."
+                                   trong jwks-verifier.service.spec.ts (BL-112)
+  chạy riêng jwks-verifier         38/39; hỏng "honours the refetch cooldown..." (BL-112, khác test lần trước)
+  npm run test:e2e --runInBand     135/135 đạt, 13 suite (66,2 s)
+  npm run test:db --runInBand      390/390 đạt, 21 suite (219,6 s), chạy toàn bộ
+  test:db customer-transfers       21/21 đạt
+  node scripts/manual-dbs61.cjs    6/6 bước đạt (xem manual-test.txt)
+
+Bằng chứng cho script manual:
+  Bản sao có chèn assert.fail ở bước M-61-01 thoát mã 1 và in
+  "M-61-06 NOT RUN AS PASS: an earlier step failed; cleanup problems: none"; không in PASS giả.
+
+Chạy trên Node 18 (không dùng làm bằng chứng): hỏng thêm typeorm-options.spec.ts
+  (crypto is not defined) và 16 test e2e. Lỗi crypto do phiên bản Node (repo yêu cầu >=24); e2e hỏng vì không kết nối
+  được Postgres khi không đặt DATABASE_URL (Node 24 cũng báo 'password authentication failed' trong cùng điều kiện).
+
+Không có .skip, .only, .todo trong test của task.

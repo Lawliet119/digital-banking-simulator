@@ -2,7 +2,7 @@
 
 Mọi đồng tiền vào, ra, di chuyển. Nơi duy nhất được phép thay đổi số dư.
 
-> **Status:** Schema, trigger, công cụ kiểm bất biến và nạp tiền bản thô implemented · **Owner:** Dev (Ledger) · **Verified against code:** migration/DB tests và DBS-60; transfer, replay DBS-79 và scheduler đối soát còn chờ.
+> **Status:** Schema, trigger, công cụ kiểm bất biến, nạp/chuyển tiền bản thô implemented · **Owner:** Dev (Ledger) · **Verified against code:** migration/DB tests, DBS-60/61; replay DBS-79, full sync guard và scheduler đối soát còn chờ.
 
 Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bảng `transfers`, `ledger_entries`: BEFORE UPDATE/DELETE theo hàng và BEFORE TRUNCATE theo statement, cùng hàm `public.forbid_mutation()` của [DBS-27](../../../../docs/features/DBS-27-append-only-triggers.md). INSERT vẫn được phép; mutation có hàng và TRUNCATE kể cả bảng rỗng trả SQLSTATE `42501` từ RAISE của hàm. UPDATE/DELETE không khớp hàng trả 0 hàng. Test dùng owner NOSUPERUSER và đối chứng quyền sau down; quyền production và chủ view `v_transfer_facts` còn chờ task roles (BL-005). Revert chỉ gỡ trigger/hàm, giữ dữ liệu và sequence nhưng làm mất lớp bảo vệ này; không dùng revert như cách sửa dữ liệu nghiệp vụ.
 
@@ -24,7 +24,7 @@ Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bản
 
 ## Export công khai (`index.ts`)
 
-`LedgerModule` phục vụ operator deposit ở api/both; không nạp HTTP deposit trong worker. Query lịch sử/trạng thái sẽ có ở task riêng, chưa export service chưa tồn tại.
+`LedgerModule` phục vụ operator deposit và customer transfer ở api/both; không nạp HTTP ledger trong worker. Query lịch sử/trạng thái sẽ có ở task riêng, chưa export service chưa tồn tại.
 
 ## Nạp tiền bản thô (DBS-60)
 
@@ -34,8 +34,15 @@ Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bản
 
 Bản thô **không replay**: key đã dùng trả409, không thực hiện lần hai, không trả response của actor khác. DBS-79 bổ sung same-body replay/khác-body422 theo ADR05; hash/result đã lưu để tích hợp. Không coi409 là hoàn thành AC-5.3/4/5. Event dùng fromUserId null/sameOwner false, fromBalanceBefore có dấu và occurredAt từ DB, mọi thời gian ISO Z. Test thật/fault rollback và bằng chứng ở [DBS-60](../../../../docs/features/DBS-60-operator-deposits.md).
 
-## Kiểm bất biến
+## Chuyển tiền bản thô (DBS-61)
 
-Chạy `npm run --silent check:invariants` từ `backend/` sau money test/load run. Năm phép kiểm dùng chung [invariants.sql](../../../test/support/invariants.sql); [hàm](../../../test/support/invariants.ts) nhận QueryRunner của caller. Exit 0 là sạch, 1 có vi phạm kèm IDs, 2 không kiểm được. Funding âm hợp lệ và vẫn tính vào SUM(balance). Chi tiết quyền/config/snapshot và cách dùng: [backend README](../../../README.md#9-kiểm-tra-bất-biến-sổ-cái).
+`POST /v1/transfers` chỉ dành cho customer. Body `{fromAccountId, toAccountId, amount}`: hai UUID khác nhau, `amount` là chuỗi số đồng dương. Header `Idempotency-Key` bắt buộc, 1–128 ký tự.
 
-Công cụ chỉ đọc theo yêu cầu, chưa có lịch chạy worker hoặc `reconciliation_runs`; không kiểm chuỗi `balance_after` và không chữa dữ liệu. Giới hạn DB chưa ép đủ cặp/balance_after vẫn theo BL-006.
+- Nguồn được kiểm quyền bằng `getOwnedAccount`. Nguồn của người khác, không tồn tại hoặc là SYSTEM đều trả cùng một 404, và audit `DENIED` được ghi ngoài transaction nghiệp vụ.
+- Trong một transaction: đặt chỗ key → khóa tài khoản theo thứ tự id → kiểm lại chủ sở hữu, trạng thái ACTIVE và số dư trên bản đã khóa → ghi transfer, hai dòng sổ, hai số dư, audit, event `TransferCompleted` và kết quả của key.
+- Nguồn hoặc đích LOCKED, đích không tồn tại hoặc SYSTEM → 422 `ACCOUNT_NOT_ACTIVE`; thiếu tiền → 422 `INSUFFICIENT_FUNDS`. Transfer REJECTED, audit và kết quả của key được commit trước khi trả 422; không có dòng sổ, event hay thay đổi số dư.
+- Đích là tài khoản `funding` không bị khóa (chỉ khóa nguồn), để lệnh chuyển tới `funding` không phải xếp hàng sau các lệnh nạp tiền. Nếu sau này có tài khoản SYSTEM khác, phải mở rộng điều kiện này trong `transfer.service.ts`.
+- Mọi lỗi ghi đều rollback toàn bộ kể cả key; lỗi tạm thời trả 503 và thử lại được với cùng key.
+- Hai tài khoản khác nhau của cùng một người được phép, event có `sameOwner = true`.
+
+Key đã dùng trả 409, chưa replay (DBS-79). Hạn mức theo lần và theo ngày và sync guard đầy đủ chờ tuần 3, nên endpoint này chưa hoàn tất FR-LED-04 hay AC-5.3 đến AC-5.6. Test dùng PostgreSQL thật, tiền vào qua API nạp tiền. Bảng case và bằng chứng nằm ở [DBS-61](../../../../docs/features/DBS-61-customer-transfers.md).
