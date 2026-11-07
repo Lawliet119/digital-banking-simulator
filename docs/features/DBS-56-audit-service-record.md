@@ -1,6 +1,6 @@
 # DBS-56 · AuditService.record: ghi nhật ký fail-closed trong transaction của người gọi
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định (không có pair cố định, xem `references/team.md`) · **Nhánh:** `feat/DBS-56-audit-service-record` · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented (sau G4) · PR #54 đã merge 2026-11-04; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-56-audit-service-record` · **PR:** [#54](https://github.com/Lawliet119/digital-banking-simulator/pull/54) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

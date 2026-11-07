@@ -1,6 +1,6 @@
 # DBS-58 · Migration lưu cấu hình và cờ fraud
 
-> **Status:** Implemented (rebase lên main 2026-11-04, chờ CI/review và merge) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-58-fraud-migration` · **Ngày:** 2026-10-30
+> **Status:** Implemented · PR #44 đã merge 2026-11-04; chưa có Dev review (BL-160) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-58-fraud-migration` · **PR:** [#44](https://github.com/Lawliet119/digital-banking-simulator/pull/44) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

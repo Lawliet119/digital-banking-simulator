@@ -1,6 +1,6 @@
 # DBS-55 · AccountsService: khóa tài khoản, đổi số dư và kiểm tra sở hữu
 
-> **Status:** Implemented (G4 đã duyệt; Draft PR #33 đã mở, CI theo Checks; chờ Dev review và merge; còn lỗi baseline ngoài phạm vi) · **Vai:** Dev · **Cặp đôi review:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-55-accounts-service` · **PR:** [#33](https://github.com/Lawliet119/digital-banking-simulator/pull/33) · **Cập nhật:** 2026-10-28
+> **Status:** Implemented · PR #33 đã merge 2026-10-31; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-55-accounts-service` · **PR:** [#33](https://github.com/Lawliet119/digital-banking-simulator/pull/33) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 
@@ -30,7 +30,7 @@
 - [TransactionService.run](../../backend/src/database/transaction.service.ts) và [withTransaction](../../backend/src/database/transaction.helper.ts) đã có, truyền `EntityManager`, thiết lập READ COMMITTED/timeouts và retry cả transaction; task accounts cần dùng transaction người gọi theo thiết kế đã chấp nhận.
 - [Luật eslint](../../backend/eslint.config.mjs) đã cấm import sâu module bằng alias và cấm relative import đi ra ngoài module. [Registry module](../../backend/src/modules/index.ts) hiện đăng ký Health/Identity cho API, chưa có AccountsModule.
 - [Kiểu tiền dùng chung](../../backend/src/common/money/index.ts) đã có `Money`/`Balance` dựa trên `bigint`; cột `accounts.balance` là PostgreSQL `bigint`. [ErrorCode](../../backend/src/common/errors/error-code.enum.ts) hiện không có mã riêng cho account 404; [filter](../../backend/src/common/filters/problem-details.filter.ts) hỗ trợ `NotFoundException`. Không cần đổi ErrorCode chỉ để đáp ứng DoD #3.
-- Nguồn đối chiếu: [docs/02](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) FR-ID-04, FR-ACC-02, FR-LED-03, AC-5.8/5.9, NFR-SEC-01; [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §5–8, §12; [database-design](../components/_shared/database-design.md) §4.1–4.2; [ADR-04](../adr/0004-row-locking-read-committed.md), [ADR-07](../adr/0007-nestjs-typeorm-explicit-sql.md), [ADR-09](../adr/0009-funding-system-account.md), [ADR-12](../adr/0012-redis-valkey-node.md); [accounts brief](../components/accounts/01-concept-brief.md); [roadmap Task 2](../superpowers/plans/2026-10-02-master-roadmap.md).
+- Nguồn đối chiếu: [docs/02](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) FR-ID-04, FR-ACC-02, FR-LED-03, AC-5.8/5.9, NFR-SEC-01; [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §5–8, §12; [database-design](../components/_shared/database-design.md) §4.1–4.2; [ADR-04](../adr/0004-row-locking-read-committed.md), [ADR-07](../adr/0007-nestjs-typeorm-explicit-sql.md), [ADR-09](../adr/0009-funding-system-account.md), [ADR-12](../adr/0012-redis-valkey-node.md); [accounts brief](../components/accounts/01-concept-brief.md); roadmap Task 2 (file roadmap đã xóa ngày 2026-11-07).
 - **Trong phạm vi đề xuất:** ba hàm của AccountsService, public export và Nest wiring cần thiết, test PostgreSQL thật cho thứ tự khóa/concurrency/transaction và quyền sở hữu, kiểm tra ranh giới import, tài liệu và bằng chứng cho phần service. Thiết kế chi tiết, case cụ thể và danh sách file triển khai chờ G1 rồi mới lập.
 
 ### Baseline hiện tại

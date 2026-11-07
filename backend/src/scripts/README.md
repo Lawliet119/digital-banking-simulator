@@ -2,9 +2,12 @@
 
 Công cụ chạy một lần, không phải một phần của ứng dụng đang chạy.
 
-| Script (dự kiến) | Việc |
+| Script | Việc |
 |---|---|
-| `seed.ts` | Tạo dữ liệu demo **qua nghiệp vụ nạp tiền**, không `UPDATE balance` trực tiếp, để bất biến `SUM(balance) = 0` luôn đúng |
+| `dev-auth.ts`, `dev-auth.keys.ts`, `dev-auth.token.ts` | Khóa và token thử nghiệm cho `AUTH_MODE=local` (xem đoạn dưới) |
+| `manual-smoke.dbs50.ts`, `manual-smoke.dbs51.ts`, `manual-smoke.dbs52.ts` | Test thủ công của DBS-50, DBS-51, DBS-52. Bị loại khỏi bản build (`tsconfig.build.json`); việc chuyển sang `test/manual/` theo dõi ở BL-136 |
+
+Chưa có script seed. Khi có, dữ liệu demo phải đi **qua nghiệp vụ nạp tiền**, không `UPDATE balance` trực tiếp, để bất biến `SUM(balance) = 0` luôn đúng.
 
 Chạy: `npx ts-node -r tsconfig-paths/register src/scripts/<tên>.ts` (từ thư mục `backend/`).
 

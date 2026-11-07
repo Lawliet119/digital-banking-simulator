@@ -1,6 +1,6 @@
 # FRAUD-API-01 · Fraud không tự train model: quyết định kiến trúc API AI
 
-> **Status:** Implemented vòng 2 (G2, G3 duyệt 2026-10-25, G4 duyệt 2026-10-26; ADR-14 vẫn Proposed) · **Loại:** docs-only, chưa triển khai backend fraud · **Vai:** #4 Fraud · **Review:** domain review AI vòng 5–7 APPROVE; chưa có Dev review (BL-045), chưa ready · **Nhánh:** `docs/FRAUD-API-01-rules-external-ai` · **PR:** [#20 — Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/20) · **Cập nhật:** 2026-10-26
+> **Status:** Implemented vòng 2 (G4 duyệt 2026-10-26; ADR-14 vẫn Proposed) · PR #20 đã merge 2026-10-27; chưa có Dev review (BL-160, BL-045) · **Loại:** docs-only, chưa triển khai backend fraud · **Vai:** #4 Fraud · **Nhánh:** `docs/FRAUD-API-01-rules-external-ai` · **PR:** [#20](https://github.com/Lawliet119/digital-banking-simulator/pull/20) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 
@@ -692,7 +692,7 @@ Chưa push và chưa mở thêm PR: Draft PR #20 sẽ được cập nhật bằ
 - [Risk concept](../components/risk/01-concept-brief.md), [architecture](../components/risk/02-architecture.md), [guide](../components/risk/FRAUD_DETECTION_GUIDE.md), [README source risk](../../backend/src/modules/risk/README.md): thiết kế đích, rule/API/provenance, vận hành và đánh giá.
 - [Database design](../components/_shared/database-design.md): schema Proposed, claim/invariant/quyền/retention/migration; không có migration thực.
 - [Requirements](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md), [HLA](../03_HIGH_LEVEL_ARCHITECTURE.md): fixture AC-9.1, mô hình/sequence/API/provider boundary, chi phí và trạng thái đề xuất.
-- [Roadmap](../superpowers/plans/2026-10-02-master-roadmap.md): Task 6 chuyển đổi Proposed, không đổi sheet hoặc task nhóm khác.
+- Roadmap (file đã xóa ngày 2026-11-07): Task 6 chuyển đổi Proposed, không đổi sheet hoặc task nhóm khác.
 - [Backlog](../BACKLOG.md): sáu handoff fraud đổi thành BL-040–045 để không trùng main; thêm BL-046–048 cho review bổ sung, giữ nguyên các dòng của nhóm; [feature index](README.md): mã nội bộ và Implemented cho task docs-only, chưa ready.
 - Feature doc này và 6 phản hồi nguyên văn ở `screenshots/FRAUD-API-01/`: domain vòng 1/2/3/4, plan vòng 1/2. Không có screenshot runtime.
 
@@ -701,7 +701,7 @@ Chưa push và chưa mở thêm PR: Draft PR #20 sẽ được cập nhật bằ
 ### 9.1 Vòng 2 (hiện hành)
 
 - [ADR-14](../adr/0014-fraud-rules-external-ai.md): dữ kiện provider, ba trường hợp lỗi, mục «Thay đổi yêu cầu và tác động cần nhóm duyệt»; [ADR index](../adr/README.md) giữ như vòng 1.
-- Khôi phục về bản `main` kèm khung ADR-14 (2 dòng thêm mỗi file): [risk concept](../components/risk/01-concept-brief.md), [risk architecture](../components/risk/02-architecture.md), [risk README](../../backend/src/modules/risk/README.md), [requirements](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md), [HLA](../03_HIGH_LEVEL_ARCHITECTURE.md), [database design](../components/_shared/database-design.md), [roadmap](../superpowers/plans/2026-10-02-master-roadmap.md); [guide](../components/risk/FRAUD_DETECTION_GUIDE.md) và requirements còn nhận sửa baseline độc lập với AI (H1–H10, xem §7.7).
+- Khôi phục về bản `main` kèm khung ADR-14 (2 dòng thêm mỗi file): [risk concept](../components/risk/01-concept-brief.md), [risk architecture](../components/risk/02-architecture.md), [risk README](../../backend/src/modules/risk/README.md), [requirements](../02_REQUIREMENTS_AND_DOMAIN_MODEL.md), [HLA](../03_HIGH_LEVEL_ARCHITECTURE.md), [database design](../components/_shared/database-design.md), roadmap (file đã xóa ngày 2026-11-07); [guide](../components/risk/FRAUD_DETECTION_GUIDE.md) và requirements còn nhận sửa baseline độc lập với AI (H1–H10, xem §7.7).
 - Thêm ghi chú Proposed: [threat model](../security/threat-model.md) (T25), [P2](../deliverables/P2-application-data-integration.md), [docs/01](../01_BUSINESS_ANALYSIS.md), [dataset brief](../components/fraud-dataset/01-concept-brief.md), `references/fraud.md` của skill.
 - [Backlog](../BACKLOG.md): BL-040–048 là sáu dòng vòng 1 và ba dòng review bổ sung đã đánh số lại (BL-023–031 cũ); thêm BL-049, BL-050, BL-051; sửa nội dung BL-042 và BL-046; không xóa dòng nào của nhóm. [Feature index](README.md): cập nhật hàng FRAUD-API-01.
 - Feature doc này: §1.6, §2.7, §3.7, §3.8, TC-11..19, M-05..07, §6.1, §7.7, §8.7, §9.1; ba phản hồi nguyên văn domain review vòng 5, 6, 7 và `verification-round2.txt` ở `screenshots/FRAUD-API-01/`.

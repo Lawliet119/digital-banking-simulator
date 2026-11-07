@@ -1,6 +1,6 @@
 # DBS-36 · CI: build image, đẩy ECR với tag SHA bằng OIDC
 
-> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-36-ci-ecr-oidc` (xếp chồng trên `chore/DBS-33-terraform-vpc-ecr`) · **PR:** [#24](https://github.com/Lawliet119/digital-banking-simulator/pull/24) · **Cập nhật:** 2026-10-25
+> **Status:** Implemented · PR #24 đã merge 2026-10-27; chưa có Dev review (BL-160) · **Vai:** #5 Platform & Ops · **Nhánh:** `chore/DBS-36-ci-ecr-oidc` (xếp chồng trên `chore/DBS-33-terraform-vpc-ecr`) · **PR:** [#24](https://github.com/Lawliet119/digital-banking-simulator/pull/24) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

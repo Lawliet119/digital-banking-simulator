@@ -1,6 +1,6 @@
 # DBS-21 · Migration 2: transfers, ledger_entries, idempotency_keys, view v_transfer_facts
 
-> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-21-migration-transfers-ledger-idempotency` · **PR:** — · **Cập nhật:** 2026-10-17
+> **Status:** Implemented · PR #8 đã merge 2026-10-16; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-21-migration-transfers-ledger-idempotency` · **PR:** [#8](https://github.com/Lawliet119/digital-banking-simulator/pull/8) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

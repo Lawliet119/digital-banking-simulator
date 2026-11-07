@@ -1,6 +1,6 @@
 # DBS-24 · Type TypeScript dùng chung cho event trong common/events + test schema
 
-> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-24-common-events` · **PR:** — · **Cập nhật:** 2026-10-19
+> **Status:** Implemented · PR #10 đã merge 2026-10-19; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-24-common-events` · **PR:** [#10](https://github.com/Lawliet119/digital-banking-simulator/pull/10) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

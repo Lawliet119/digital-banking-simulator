@@ -1,6 +1,6 @@
 # ci-cd — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 (deploy, quét image và secret); job test trong CI do #6 viết · **Cặp đôi:** #6 · **Verified against code:** một phần (job test trong `ci.yml`; deploy, quét image và secret chưa có code) · **Cập nhật:** 2026-10-19
+> **Status:** Draft · **Owner:** #5 (deploy, quét image); job test trong CI do Dev viết · **Verified against code:** một phần: `ci.yml` sáu job (DBS-35, DBS-41), build và đẩy image lên ECR qua OIDC kèm đọc kết quả scan ECR (DBS-36, `image.yml`), tự deploy ECS (DBS-38, `deploy.yml`), bước migration (DBS-68). Chưa có: quét secret, chặn deploy theo kết quả scan · **Cập nhật:** 2026-11-07
 
 ## Component
 
@@ -11,7 +11,7 @@
 | **Chạy ở** | GitHub Actions |
 | **Use case / NFR** | — (NFR-MNT-01, 02) |
 | **Sở hữu bảng** | — |
-| **Task trong roadmap** | Task 1 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |
+| **Task trong roadmap** | Task 1 của roadmap cũ (đã xóa ngày 2026-11-07); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md) |
 
 ## Vấn đề
 
@@ -34,4 +34,4 @@ Code merge vào `main` phải tự lên cloud, quay lui được trong vài phú
 
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §13.3 Deploy và rollback.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
-- Giao diện và mốc: Task 1 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).
+- Giao diện và mốc: Task 1 của roadmap cũ (đã xóa); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).

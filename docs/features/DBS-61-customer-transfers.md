@@ -1,6 +1,6 @@
 # DBS-61 · Chuyển tiền bản thô giữa khách, hai bút toán trong một transaction
 
-> **Status:** Implemented (G1–G3 làm bù và G4 đã được duyệt sau góp ý review PR #61; chưa push, chờ Dev khác review và merge) · **Vai:** Dev · **Nhánh:** `feat/DBS-61-customer-transfers` · **PR:** [#61](https://github.com/Lawliet119/digital-banking-simulator/pull/61) (Draft, base `main`) · **Cập nhật:** 2026-11-06
+> **Status:** Implemented · PR #61 đã merge 2026-11-07; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-61-customer-transfers` · **PR:** [#61](https://github.com/Lawliet119/digital-banking-simulator/pull/61) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

@@ -9,10 +9,10 @@ flowchart LR
     R -- Đạt --> M[Squash merge vào main] --> D[Tự động deploy]
 ```
 
-1. Mỗi việc là một **task `DBS-n`** trên board của nhóm.
+1. Mỗi việc là một **task `DBS-n`** trên board của nhóm. Việc không có trên board (lỗi phát hiện giữa chừng, dọn dẹp, sửa skill): hỏi người quản lý board có mã chưa; chưa có thì dùng key `<KIND>-YYYYMMDD-<slug>` với `KIND` là `BUG`, `CHORE`, `DOCS` hoặc `SKILL` (ví dụ `CHORE-20261107-repo-audit`), và dùng key này ở mọi chỗ ghi `DBS-<n>` bên dưới.
 2. Tạo nhánh từ `main` theo quy tắc đặt tên bên dưới.
 3. Chưa đưa gì lên GitHub trước gate G3. Sau G3 chỉ mở **Draft PR** khi người duyệt yêu cầu (để người khác thấy tiến độ); chuyển sang Ready for review sau gate G4.
-4. **Một Dev khác review** trước khi merge và **CI phải xanh**. Ruleset của `main` bắt buộc PR, chỉ cho squash, chặn force push và xóa nhánh, nhưng **không ép số approval** (đặt 0): việc review là quy ước của nhóm, GitHub không chặn. Người mở PR không tự merge khi chưa có Dev khác để lại review.
+4. **Một Dev khác review** trước khi merge và **CI phải xanh**. Ruleset của `main` bắt buộc PR, chỉ cho squash, chặn force push và xóa nhánh, nhưng **không ép số approval** (đặt 0): việc review là quy ước của nhóm, GitHub không chặn. Người mở PR không tự merge khi chưa có Dev khác để lại review. Bấm merge không được tính là review. Review chỉ được tính khi người review là Dev, không phải tác giả và không có commit trong PR.
 5. Merge bằng **Squash and merge** để lịch sử `main` gọn.
 
 **Không push thẳng vào `main`.**
@@ -27,6 +27,7 @@ Board của nhóm (Google Sheet, mỗi tuần một tab) là nơi duy nhất the
 | Draft PR (sau G3) | giữ `In Progress`, dán link PR vào cột Thực trạng |
 | Ready for review (sau G4) | `In Review` |
 | PR đã merge và DoD đạt | `Done` |
+| PR đã merge tới `aeee9c9` (2026-11-07) và bullet DoD duy nhất chưa đạt là Dev review | `Done`, cột Thực trạng ghi "đã merge #N; DoD review chưa đạt (BL-160)". Còn bullet DoD khác chưa đạt (dòng BL ghi rõ DoD của task, hoặc bước test thủ công của task chưa chạy) thì giữ `In Review` và ghi từng mã BL; dòng BL chỉ bàn giao việc cho task hay vai khác thì không chặn `Done`. PR merge sau mốc này phải có review trước khi chuyển `Done` |
 
 - Chỉ bắt đầu task khi mọi task ở cột Phụ thuộc đã `Done`, hoặc đã thống nhất interface với người làm task đó và người duyệt G1 đồng ý phạm vi thu hẹp. Nếu phạm vi thu hẹp rỗng, làm task bị chặn trước.
 - Bị chặn quá một buổi làm việc thì báo ngay trong kênh chat, ghi rõ cần ai.
@@ -38,6 +39,8 @@ Board của nhóm (Google Sheet, mỗi tuần một tab) là nơi duy nhất the
 ```
 <loại>/DBS-<n>-<mô-tả-ngắn>
 ```
+
+Việc không có mã board thì dùng key ở mục 1: `<loại>/<KIND>-YYYYMMDD-<slug>`, ví dụ `chore/CHORE-20261107-repo-audit`.
 
 | Loại | Dùng khi | Ví dụ |
 |---|---|---|
@@ -61,35 +64,35 @@ Ví dụ:
 - `fix(risk): count recipients per sliding window`
 - `docs(adr): add ADR-05 idempotency in postgres`
 
-Module: `ledger`, `accounts`, `identity`, `risk`, `audit`, `outbox`, `notification`, `health`, `common`, `config`, `database`, `infra`, `ci`, `docs`.
+Module: `ledger`, `accounts`, `identity`, `risk`, `audit`, `outbox`, `notification`, `health`, `common`, `config`, `database`, `redis`, `sqs`, `fraud-dataset`, `infra`, `ci`, `docs`.
 
 ## 3b. Làm task với AI agent
 
-Mọi thay đổi code, test, migration, hạ tầng hay tài liệu đi qua skill [`dbs-delivering-task`](.claude/skills/dbs-delivering-task/SKILL.md): 5 phase (hiểu task, thiết kế, kế hoạch, implement và test kể cả **test thủ công**, tài liệu và bàn giao), 4 gate cần người duyệt (phạm vi, thiết kế, kế hoạch, bàn giao), một file `docs/features/DBS-<n>-<slug>.md` và ảnh chụp ở `docs/features/screenshots/DBS-<n>/`. Không dùng AI thì đọc skill đó và làm theo bằng tay.
+Mọi thay đổi code, test, migration, hạ tầng hay tài liệu đi qua skill [`dbs-delivering-task`](.claude/skills/dbs-delivering-task/SKILL.md): 5 phase (hiểu task, thiết kế, kế hoạch, implement và test kể cả **test thủ công**, tài liệu và bàn giao), 4 gate cần người duyệt (phạm vi, thiết kế, kế hoạch, bàn giao), một file `docs/features/DBS-<n>-<slug>.md` và ảnh chụp ở `docs/features/screenshots/DBS-<n>/` (việc không có mã board thì thay `DBS-<n>` bằng key ở mục 1). Không dùng AI thì đọc skill đó và làm theo bằng tay.
 
 ## 4. Định nghĩa "xong"
 
 Một Pull Request chỉ được merge khi:
 
 - [ ] Code chạy được ở local với `docker compose` + `npm run start:dev`
-- [ ] `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db` (trong `backend/`) đều xanh
+- [ ] `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db` (trong `backend/`) đều xanh. Ngoại lệ duy nhất: test đỏ ở local chỉ vì môi trường máy (ví dụ sai phiên bản Node), CI trên `main` xanh, nguyên nhân đã tìm ra, và người duyệt G1 chấp nhận theo tên từng test; khi đó phải dán link lần chạy CI xanh của head PR. Ngoại lệ này không dùng cho test mà PR thêm hoặc sửa, không dùng cho test đường tiền, và Docker không chạy không phải lý do môi trường
 - [ ] Có test cho logic mới; test liên quan đến tiền chạy trên **PostgreSQL thật** (Testcontainers), không mock
 - [ ] CI xanh: đủ sáu check ở [mục 4b](#4b-đọc-kết-quả-ci-trên-github-actions)
 - [ ] Không có secret trong code, log hay commit
 - [ ] Nếu đổi thiết kế: cập nhật `docs/03` (hoặc `docs/01–02`, `_shared/database-design.md`, `_shared/event-contract.md`) và thêm ADR nếu là quyết định kiến trúc; xem [docs/README.md](docs/README.md)
 - [ ] Nếu đổi API: OpenAPI (Swagger) được cập nhật
-- [ ] File `docs/features/DBS-<n>-<slug>.md` đã đủ mục 1–9, test thủ công đã chạy (bước chưa chạy ghi rõ lý do), có ảnh chụp trong `docs/features/screenshots/DBS-<n>/`
+- [ ] File `docs/features/DBS-<n>-<slug>.md` (hoặc `<KIND>-YYYYMMDD-<slug>.md`) đã đủ mục 1–9, test thủ công đã chạy (bước chưa chạy ghi rõ lý do), có ảnh chụp trong `docs/features/screenshots/DBS-<n>/`
 
 ## 4b. Đọc kết quả CI trên GitHub Actions
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) chạy khi mở, cập nhật hay mở lại PR và khi push vào `main`. Sáu job chạy **song song**, mỗi job một lệnh trong `backend/`, nên một job đỏ không che job khác. Mỗi job tối đa 10 phút.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) chạy khi mở, cập nhật hay mở lại PR và khi push vào `main`. Sáu job chạy **song song**, mỗi job một lệnh chính trong `backend/`, nên một job đỏ không che job khác. Mỗi job tối đa 10 phút, trừ `e2e` tối đa 35 phút vì có bốn bước (xem bảng).
 
 | Check trên PR (tên job) | Lệnh chạy lại ở local (trong `backend/`) | Đỏ khi |
 |---|---|---|
 | `lint` | `npm run lint:check` | eslint báo lỗi, gồm luật ranh giới module |
 | `typecheck` | `npm run typecheck` | `tsc` báo lỗi kiểu |
-| `unit` | `npm test` | một test `src/**/*.spec.ts` đỏ |
-| `e2e` | `npm run test:e2e` | một test `test/**/*.e2e-spec.ts` đỏ |
+| `unit` | `npm test`, rồi `node --test ../load-tests/fraud-dataset/generate.test.mjs` | một test `src/**/*.spec.ts` đỏ, hoặc test của generator fraud-dataset đỏ |
+| `e2e` | `npm run test:e2e`; hai suite `test:db` (`testcontainers-sample`, `migration-revert`) trên Testcontainers khi bỏ `DATABASE_URL`; `npm run test:services` cho `sqs-adapter` và `redis-adapter` | một test e2e đỏ, hoặc một trong các suite Testcontainers đỏ (cần Docker) |
 | `db` | `npm run test:db` (cần `docker compose up -d` và `DATABASE_URL`) | một test `test/db/*.db-spec.ts` đỏ, hoặc không nối được PostgreSQL (đỏ, không bao giờ bỏ qua); hoặc role không phải superuser, hay timezone không phải UTC |
 | `build` | `npm run build` | `nest build` lỗi |
 
@@ -130,4 +133,4 @@ Chi tiết: [docs/03_HIGH_LEVEL_ARCHITECTURE.md](docs/03_HIGH_LEVEL_ARCHITECTURE
 
 ## 7. ADR
 
-Mỗi quyết định kiến trúc quan trọng là một file trong `docs/adr/`, theo [mẫu](docs/adr/0000-template.md). 13 ADR hiện có đều đã `Accepted`. Muốn đổi một quyết định thì viết ADR mới thay thế (trạng thái cũ thành `Superseded`), không sửa nội dung ADR cũ; #1 duyệt.
+Mỗi quyết định kiến trúc quan trọng là một file trong `docs/adr/`, theo [mẫu](docs/adr/0000-template.md). ADR-01…13 đã `Accepted`; ADR-14 đang `Proposed`. Muốn đổi một quyết định thì viết ADR mới thay thế (trạng thái cũ thành `Superseded`), không sửa nội dung ADR cũ. Người duyệt gate phụ trong phiên làm task (skill, mục Extra gate) chấp nhận việc đổi quyết định, và một Dev khác review PR.

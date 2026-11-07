@@ -1,6 +1,6 @@
 # DBS-57 · OutboxWriter.add: ghi sự kiện trong transaction của người gọi
 
-> **Status:** Implemented (G4 đã duyệt; giữ hạn chế full DB local, chờ Dev review và merge) · **Vai:** Dev · **Dev review:** Chưa chỉ định · **Nhánh:** `feat/DBS-57-outbox-writer` · **PR:** [#34 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/34) · **Cập nhật:** 2026-10-28
+> **Status:** Implemented · PR #34 đã merge 2026-10-31; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-57-outbox-writer` · **PR:** [#34](https://github.com/Lawliet119/digital-banking-simulator/pull/34) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 
@@ -557,7 +557,7 @@ Không có `.skip`, `.only` hay `.todo` trong test của task. **Full DB đạt 
 
 | Lệch | Lý do | Duyệt |
 |---|---|---|
-| Hai lần ghi file hỏng do công cụ (script Python làm rỗng `outbox-writer.db-spec.ts`; ký tự NUL thật trong `outbox-writer.ts` và driver) | chuỗi ` ` và surrogate lẻ không ghi được qua Python hay shell; đã khôi phục từ git và ghi lại, tự kiểm 0 byte NUL trong các file cuối | không đổi phạm vi |
+| Hai lần ghi file hỏng do công cụ (script Python làm rỗng `outbox-writer.db-spec.ts`; ký tự NUL thật trong `outbox-writer.ts` và driver) | chuỗi `\0` (ký tự NUL) và surrogate lẻ không ghi được qua Python hay shell; đã khôi phục từ git và ghi lại, tự kiểm 0 byte NUL trong các file cuối | không đổi phạm vi |
 | Tham chiếu BL-053/055 của DBS-57 đổi thành **BL-124/125**; bàn giao #3 là **BL-123** | `main` đã dùng BL-053..057 và tới BL-122 cho DBS-40/41/55 | chỉ đổi ID, nêu ở G4 |
 | BL-002/003/019: giữ DBS-55 làm nguồn trên `main` và thêm DBS-57 vào BL-002, BL-019 | hai nhánh cùng sửa các dòng này | không đổi phạm vi |
 | S4: bước đỏ của driver chạy với writer cũ (`b767935`) thay vì "bỏ lời gọi scan" | cách chạy rõ ràng và tái hiện được hơn | không đổi phạm vi |

@@ -1,6 +1,6 @@
 # DBS-41 · Testcontainers trong CI và migration run → revert → run
 
-> **Status:** Implemented (PR Ready for review; vừa rebase theo `main`, chờ CI chạy lại và Dev review/merge) · **Vai:** Dev · **Nhánh:** `infra/DBS-41-testcontainers-ci` · **PR:** [#19](https://github.com/Lawliet119/digital-banking-simulator/pull/19) · **Cập nhật:** 2026-10-27
+> **Status:** Implemented · PR #19 đã merge 2026-10-27; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `infra/DBS-41-testcontainers-ci` · **PR:** [#19](https://github.com/Lawliet119/digital-banking-simulator/pull/19) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

@@ -1,6 +1,6 @@
 # DBS-69 · Script kiểm tra bất biến sổ cái
 
-> **Status:** Implemented (G4 đã duyệt; Draft PR #35 chờ Dev review) · **Vai:** Dev · **Cặp đôi review:** chưa chỉ định · **Nhánh:** `codex/DBS-69-ledger-invariants` · **PR:** [#35](https://github.com/Lawliet119/digital-banking-simulator/pull/35) · **Cập nhật:** 2026-10-29
+> **Status:** Implemented · PR #35 đã merge 2026-11-01; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `codex/DBS-69-ledger-invariants` · **PR:** [#35](https://github.com/Lawliet119/digital-banking-simulator/pull/35) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 
