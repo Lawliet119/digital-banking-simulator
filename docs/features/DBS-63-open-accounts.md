@@ -322,7 +322,21 @@ test/db/account-opening.db-spec.ts                                              
 - **Phạm vi so với §7** (`git diff --stat main...HEAD`, trước commit cuối của tài liệu):
 
 ```text
-@@DIFFSTAT@@
+ backend/scripts/manual-dbs63.cjs                   | 184 +++++++++++
+ backend/src/modules/accounts/README.md             |   6 +
+ .../modules/accounts/account-opening.service.ts    |  99 ++++++
+ .../src/modules/accounts/accounts.controller.ts    |  67 ++++
+ backend/src/modules/accounts/accounts.module.ts    |   6 +-
+ backend/src/modules/accounts/open-account.dto.ts   |  31 ++
+ backend/test/db/account-opening.db-spec.ts         | 361 +++++++++++++++++++++
+ docs/03_HIGH_LEVEL_ARCHITECTURE.md                 |   2 +-
+ docs/BACKLOG.md                                    |   2 +
+ docs/features/DBS-63-open-accounts.md              | 358 ++++++++++++++++++++
+ docs/features/README.md                            |   1 +
+ .../screenshots/DBS-63/01-manual-test-results.png  | Bin 0 -> 459509 bytes
+ docs/features/screenshots/DBS-63/domain-review.md  |  13 +
+ docs/features/screenshots/DBS-63/manual-test.txt   |  94 ++++++
+ 14 files changed, 1221 insertions(+), 3 deletions(-)
 ```
 
   Khớp bảng §7: code sản xuất chỉ có `account-opening.service.ts`; `accounts.controller.ts`, `open-account.dto.ts`, `accounts.module.ts` là phần đã có từ PR cũ (không đổi trong các bước ở đây). Không có file lạ ngoài kế hoạch.
