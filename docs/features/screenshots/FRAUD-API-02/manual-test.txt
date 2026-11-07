@@ -1,0 +1,22 @@
+c5473a9b09c1ddff8c185389298619f6ccc36072
+Manual test: backend/; synthetic input from §5, live key supplied through environment; secret not recorded.
+
+M-AI-01
+$ printf synthetic-input | npx ts-node -r tsconfig-paths/register src/scripts/fraud-ai-evaluate.ts
+{"status":"DISABLED","probability":null,"provider":null,"requestedModel":null,"responseModel":null,"requestId":null,"rubricSha256":null,"inputSha256":null,"usage":null}
+exit: 0
+
+M-AI-02
+$ printf synthetic-input | npx ts-node -r tsconfig-paths/register src/scripts/fraud-ai-evaluate.ts
+{"status":"CONFIG_INVALID","probability":null,"provider":null,"requestedModel":null,"responseModel":null,"requestId":null,"rubricSha256":null,"inputSha256":null,"usage":null}
+exit: 2
+
+M-AI-03
+$ printf synthetic-input | npx ts-node -r tsconfig-paths/register src/scripts/fraud-ai-evaluate.ts --live
+{"status":"SUCCEEDED","probability":0.76,"provider":"openai","requestedModel":"gpt-6-luna","responseModel":"gpt-6-luna","requestId":"req_5010870860094776b2d367b8dd4b8485","rubricSha256":"3d0fd9246b9967727c0bcec8b58677d6246c0c4a9f1f8787df55bd6d503bb6a8","inputSha256":"ed0529af9661048ebac3c5bc2206b64db407050800f88173f174bc6a75d22d3b","usage":{"inputTokens":276,"cachedTokens":0,"cacheWriteTokens":0}}
+exit: 0
+
+M-AI-04
+$ printf synthetic-input | npx ts-node -r tsconfig-paths/register test/manual/fraud-ai-fixture.ts --timeout
+{"fixture":"loopback-timeout-after-headers","status":"UNAVAILABLE","probability":null,"elapsedMs":207.830469,"requestElapsedMs":180.61709700000006,"requests":1,"permitAcquisitions":1,"permitReleases":1,"headersFlushed":true}
+exit: 0
