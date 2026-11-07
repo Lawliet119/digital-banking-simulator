@@ -1,6 +1,6 @@
 # DBS-63 · UC-2 mở tài khoản, tối đa 3 tài khoản mỗi khách
 
-> **Status:** Draft (đang bù G1 → G4; code đã có từ trước, chưa gate nào được người duyệt) · **Vai:** Dev (Accounts) · **Nhánh:** `feat/DBS-63-open-accounts` · **PR:** [#58 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/58) · **Cập nhật:** 2026-11-07
+> **Status:** Draft (đang bù; G1 đã duyệt, đến G2) · **Vai:** Dev (Accounts) · **Nhánh:** `feat/DBS-63-open-accounts` · **PR:** [#58 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/58) · **Cập nhật:** 2026-11-07
 
 > **Ghi chú quy trình:** phần implement, test và manual test của task này đã làm trước khi có G1, G2 và G3, vì yêu cầu ban đầu bỏ qua gate. Skill không cho phép việc đó. Từ đây các gate được bù lần lượt, mỗi gate một tin nhắn, người duyệt trả lời rồi mới sang gate sau. Các mục §2–§9 bên dưới là bản cũ, sẽ được viết lại ở G2 (§2–§6), G3 (§7) và G4 (§8–§9).
 
@@ -27,16 +27,17 @@
   - Tài liệu: README module accounts, docs/03 (bảng API), `docs/features/README.md`, `docs/BACKLOG.md`, bằng chứng trong `screenshots/DBS-63/`.
   - Người gọi của symbol đã có: `AccountsService` giữ nguyên, không đổi export. `AccountsModule` chỉ thêm `AccountsController` và `AccountOpeningService`.
   - CI: 6/6 job xanh trên head `ec2f995` của PR (run `42169084841`), trước khi merge main mới.
-- **Baseline** (cây đã merge main `aeee9c9`, commit `e06dbb1`, Node **v18.20.8**, `docker compose up -d` chạy):
+- **Baseline** (cây đã merge main `aeee9c9`, commit `e06dbb1`; Node **v24.22.2** bản portable đặt ngoài repo, SHA256 đã kiểm; Postgres riêng cho e2e vì container `dbs-postgres-1` trên máy thuộc worktree khác và có mật khẩu khác, không đụng vào):
 
   | Lệnh | Kết quả |
   |---|---|
   | `npm run lint:check` | đạt |
   | `npm run typecheck` | đạt |
-  | `npm test` | **2 suite đỏ**: 835/837 test đạt; `jwks-verifier.service.spec.ts` (1 test cooldown, đúng BL-112) và `typeorm-options.spec.ts` ("Test suite failed to run") |
-  | `npm run test:e2e` | **4 suite đỏ**: 119/135 test đạt; `app-guard`, `roles-app`, `dev-auth-bootstrap`, `logging-bootstrap` |
+  | `npm run build` | đạt |
+  | `npm test -- --runInBand` | 838/839 đạt, 56/57 suite; **1 đỏ**: `jwks-verifier.service.spec.ts` › "honours the refetch cooldown…" (đúng BL-112, đã biết, không do task này) |
+  | `npm run test:e2e -- --runInBand` | 135/135 đạt, 13/13 suite (`DATABASE_URL` trỏ Postgres 17 riêng) |
 
-  Nguyên nhân các lỗi e2e đã thấy: `ReferenceError: crypto is not defined` khi boot `AppModule`. `backend/package.json` yêu cầu Node `>=24` và CI dùng Node 24, máy này chỉ có Node 18. Vì vậy baseline này **chưa đáng tin**: chưa phân biệt được lỗi do môi trường và lỗi do code. Cần chạy lại trên Node 24 (xem câu hỏi 2). Test DB (`test:db`) chưa chạy vì cùng lý do.
+  Lần chạy đầu trên Node 18.20.8 cho kết quả đỏ giả (`crypto is not defined`); không dùng. Chạy song song (không `--runInBand`) trên Node 24 cũng đỏ vì timeout khi máy quá tải, chạy riêng từng suite thì đạt. Baseline chốt là hai dòng `--runInBand`. Test DB (`test:db`) sẽ chạy ở Phase 4b.
 - **Backlog liên quan (module accounts / DoD này):** BL-112 và BL-121 (test thời gian đã có, không do task này), BL-130 và BL-132 (audit từ chối vai ở tầng identity), BL-017 (test DB chạy bằng superuser nên chưa chứng minh quyền role ứng dụng), BL-122 và BL-008 (nằm ngoài). Không dòng nào được đưa vào phạm vi; task này không đóng dòng nào.
 - **Ngoài phạm vi:** thay đổi schema, env, dependency hay `ErrorCode`; sự kiện mới / outbox; API khóa, mở khóa, liệt kê hay xem số dư tài khoản (các task khác); idempotency của việc mở tài khoản (FR-LED-05 chỉ nói nạp và chuyển tiền); ràng buộc DB cho giới hạn 3 (BR-14 giữ bằng khóa hàng customers, SQL của admin ngoài API không được bảo vệ).
 - **Câu hỏi mở:**
@@ -46,7 +47,7 @@
   4. **Nhánh và push.** Mình đã merge main vào nhánh (không rebase) để không phải force-push; conflict chỉ ở `docs/BACKLOG.md`, dòng của task đổi thành `BL-158` vì main đã dùng đến `BL-157`. Mọi thay đổi hiện chỉ nằm trên máy. Đề xuất: không push gì cho đến sau G3, và khi push thì push thường (nhánh này là của PR #58 đang mở, tác giả commit khác, nên cần bạn đồng ý).
   5. **Fixture trạng thái.** TC-63-05 dùng `UPDATE accounts SET status='LOCKED'` bằng SQL vì API khóa tài khoản chưa có. `module-notes.md` chỉ cấm seed số dư bằng SQL, không cấm trạng thái. Đề xuất: giữ, ghi rõ ở §4, không stub API khóa.
 
-**Quyết định ở G1:** (chờ người duyệt)
+**Quyết định ở G1** (người dùng trả lời «duyệt», 2026-11-07, chấp nhận mọi đề xuất): (1) đi bù G1 → G4 từng gate trên code hiện có; (2) baseline chạy trên Node 24, thực hiện bằng bản portable thay vì container vì Testcontainers cần Docker socket; (3) chạy lại domain review bằng subagent mới ở G2; (4) không push trước G3, khi push là push thường và hỏi lại; (5) giữ fixture `UPDATE accounts SET status='LOCKED'`, ghi ở §4.
 
 ## 2. Behaviour and HTTP contract
 
