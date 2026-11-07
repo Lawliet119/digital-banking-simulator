@@ -241,7 +241,7 @@ CREATE TABLE ledger_entries (
 CREATE TABLE idempotency_keys (
   user_id       uuid NOT NULL REFERENCES users(id),
   idem_key      text NOT NULL CHECK (char_length(idem_key) BETWEEN 1 AND 128),
-  request_hash  char(64) NOT NULL,                        -- sha256 hex của (from, to, amount, type)
+  request_hash  char(64) NOT NULL,                        -- sha256 hex của {method, path, body}, khóa body sắp xếp (ADR-05)
   transfer_id   uuid REFERENCES transfers(id),
   response_code smallint,
   response_body jsonb,
