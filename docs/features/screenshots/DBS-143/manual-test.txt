@@ -1,0 +1,174 @@
+SHA cuối đổi code: a6c34e378fe47b476be0d03e916a21875fb18e79
+Ngày chạy: 2026-11-04T06:05:10Z
+Lần 1 (0bc4dfb): M-143-02 lỗi ValueError, nhóm chỉ có khóa USAGE_TYPE. Lần 2 (76e7143): mọi dòng rơi vào '(không rõ dịch vụ)' vì AWS CLI chỉ giữ cờ --group-by cuối. Lần 3 (d4f6acb): M-143-01..06 đạt; sau M-143-07, 08 phát hiện lệnh describe-cost-allocation-tag-backfill-history không có trong CLI (đúng là list-…), sửa ở a6c34e3. Dưới đây là lần 4, chạy lại toàn bộ §5 trên a6c34e3; M-143-07, 08 giữ output gốc lúc chạy (ở cuối).
+
+=== M-143-01 $ aws sts get-caller-identity; aws configure get region
+{
+    "UserId": "<user-id>",
+    "Account": "<account-id>",
+    "Arn": "<arn đã xóa>"
+}
+ap-southeast-1
+
+=== M-143-02 + M-143-09 $ python3 infra/scripts/cost-report.py --start 2026-10-01 --end 2026-11-04
+exit=0
+# Báo cáo chi phí AWS 2026-10-01 → 2026-11-04
+
+Chi phí gộp (trước credit), USD, ngày UTC; khoảng [2026-10-01, 2026-11-04). Ngày cuối (03/11) có thể chưa đủ: Cost Explorer trễ tới 24 giờ.
+
+## 1. Theo dịch vụ
+
+| Dịch vụ | Lũy kế | 7 ngày cuối (28/10–03/11) |
+|---|---:|---:|
+| RDS | 0,0211 | 0,0163 |
+| ElastiCache | 0,0384 | 0,0384 |
+| ECS | 0,0029 | 0,0022 |
+| ALB | 0,1008 | 0,0504 |
+| SQS | 0,0000 | 0,0000 |
+| CloudWatch | 0,0000 | 0,0000 |
+| Data transfer | 0,0000 | 0,0000 |
+| AWS Key Management Service | 0,2850 | 0,2138 |
+| AWS Secrets Manager | 0,1801 | 0,1510 |
+| Amazon Virtual Private Cloud | 0,0108 | 0,0078 |
+| AWS Cost Explorer | 0,0100 | 0,0000 |
+| Amazon Simple Storage Service | 0,0023 | 0,0009 |
+| **Tổng** | **0,6513** | **0,4808** |
+
+- Phụ: trong đó data transfer tính ở dịch vụ khác: 0,0000 (đã nằm trong dịch vụ gốc, không cộng thêm).
+
+## 2. Số giờ dựng và đơn giá
+
+| Nhóm | Usage type | Quantity | Chi phí | Đơn giá |
+|---|---|---:|---:|---:|
+| RDS instance | `APS1-InstanceUsage:db.t4g.micro` | 0,734 giờ | 0,0183 | 0,0250 |
+| RDS storage | `APS1-RDS:GP3-Storage` | 0,020 GB-tháng | 0,0027 | 0,1380 |
+| ElastiCache node | `APS1-NodeUsage:cache.t4g.micro` | 2,000 giờ | 0,0384 | 0,0192 |
+| ALB | `APS1-LoadBalancerUsage` | 4,000 giờ | 0,1008 | 0,0252 |
+| Fargate | `APS1-Fargate-GB-Hours` | 0,095 vCPU-giờ / GB-giờ | 0,0005 | 0,0055 |
+| Fargate | `APS1-Fargate-vCPU-Hours:perCPU` | 0,048 vCPU-giờ / GB-giờ | 0,0024 | 0,0506 |
+| Secrets Manager | `APS1-AWSSecretsManager-Secret` | 0,449 secret-tháng | 0,1798 | 0,4000 |
+
+- Ngày có phiên: 2 ngày (25/10, 29/10).
+
+## 3. Theo tag env
+
+| env | Lũy kế |
+|---|---:|
+| (không tag) | 0,6513 |
+
+- Lưu ý: dữ liệu tag chưa đủ (chờ backfill hoặc 24 giờ sau khi bật tag); backfill gần nhất: PROCESSING.
+
+## 4. Credit và dự báo
+
+- Credit đã dùng (từ 2026-08-01): 0,7058 USD (ước tính, đối chiếu console Billing → Credits).
+- Credit còn lại: 199,2942 USD (credit tổng 200,0000).
+- Dự báo AWS [2026-11-04, hết tháng): 1,4135 USD.
+- Dự báo tới cuối dự án [2026-11-04, 2026-12-14): 2,7472 USD (trung bình 7 ngày cuối 0,0687 USD/ngày × 40 ngày; không cộng với dự báo AWS).
+
+## 5. Cảnh báo
+
+- Không có.
+
+## 6. Đề xuất cắt giảm
+
+- Khoản lớn nhất 7 ngày cuối: AWS Key Management Service (0,2138 USD).
+- (Người chạy bổ sung trước khi gửi.)
+
+## 7. Tóm tắt gửi nhóm
+
+```
+Chi phí AWS 7 ngày (28/10–03/11): 0,4808 USD; lũy kế từ 01/10: 0,6513 USD.
+Credit còn lại ≈ 199,2942 / 200,0000 USD; dự báo tới 13/12: 2,7472 USD.
+Giờ dựng: 2 ngày có phiên. dữ liệu tag chưa đủ (chờ backfill hoặc 24 giờ sau khi bật tag).
+Không có cảnh báo.
+```
+
+=== M-143-03 $ aws ce get-cost-and-usage MONTHLY 2026-10-01..2026-11-04 nhóm SERVICE, lọc bỏ Credit/Refund
+Amazon Relational Database Service 0.0211
+Amazon ElastiCache 0.0384
+Amazon Elastic Load Balancing 0.1008
+TOTAL 0.6513
+
+=== M-143-04a $ cost-report.py --start 2026-11-04 --end 2026-10-01
+usage: cost-report.py [-h] [--start START] [--end END]
+                      [--credit-total CREDIT_TOTAL]
+                      [--credit-since CREDIT_SINCE]
+                      [--project-end PROJECT_END]
+cost-report.py: error: --end phải sau --start
+exit=2
+=== M-143-04b $ cost-report.py --credit-total -5
+usage: cost-report.py [-h] [--start START] [--end END]
+                      [--credit-total CREDIT_TOTAL]
+                      [--credit-since CREDIT_SINCE]
+                      [--project-end PROJECT_END]
+cost-report.py: error: --credit-total không được âm
+exit=2
+
+=== M-143-05 $ AWS_PROFILE=dbs-none AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null cost-report.py --start 2026-10-01 --end 2026-11-04
+exit=1
+stdout bytes: 0
+stderr:
+Lỗi khi gọi aws ce get-cost-and-usage: aws: [ERROR]: The config profile (dbs-none) could not be found
+
+=== M-143-06 (sau apply) $ terraform plan -var account_id=<account-id> -target='aws_ce_cost_allocation_tag.this'
+No changes. Your infrastructure matches the configuration.
+
+=== M-143-08 (lại) $ aws ce list-cost-allocation-tag-backfill-history
+2026-10-01T00:00:00Z	2026-11-04T06:04:17Z	PROCESSING
+
+----- Output gốc lúc chạy M-143-06/07 (2026-11-04, trước lần 4) -----
+
+=== M-143-06 (chạy lại ngay trước apply) $ terraform plan -out=tags.tfplan -var account_id=<account-id> -target='aws_ce_cost_allocation_tag.this'
+Plan: 3 to add, 0 to change, 0 to destroy.
+
+=== M-143-07 $ terraform apply tags.tfplan
+aws_ce_cost_allocation_tag.this["project"]: Creation complete after 1s [id=project]
+aws_ce_cost_allocation_tag.this["env"]: Creation complete after 1s [id=env]
+aws_ce_cost_allocation_tag.this["owner"]: Creation complete after 1s [id=owner]
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
+$ aws ce list-cost-allocation-tags --tag-keys project env owner
+env	Active
+project	Active
+owner	Active
+
+=== M-143-08 $ aws ce start-cost-allocation-tag-backfill --backfill-from 2026-10-01T00:00:00Z
+{
+    "BackfillRequest": {
+        "BackfillFrom": "2026-10-01T00:00:00Z",
+        "RequestedAt": "2026-11-04T06:04:17Z",
+        "BackfillStatus": "PROCESSING",
+        "LastUpdatedAt": "2026-11-04T06:04:17Z"
+    }
+}
+exit=0
+$ aws ce describe-cost-allocation-tag-backfill-history
+
+aws: [ERROR]: An error occurred (ParamValidation): argument operation: Found invalid choice 'describe-cost-allocation-tag-backfill-history'
+
+Maybe you meant:
+
+  * list-cost-allocation-tag-backfill-history
+
+usage: aws [options] <command> <subcommand> [<subcommand> ...] [parameters]
+To see help text, you can run:
+
+  aws help
+  aws <command> help
+  aws <command> <subcommand> help
+
+
+=== M-143-10 đối chiếu (từ M-143-02 và get-cost-and-usage DAILY nhóm USAGE_TYPE, 24/10–03/11)
+2026-10-25 0.0801  (phiên: RDS, ALB, Fargate, IPv4)
+2026-10-26 0.0453  Secrets Manager, S3, KMS        (chỉ phần giữ lại)
+2026-10-27 0.0452  Secrets Manager, S3, KMS
+2026-10-28 0.0452  Secrets Manager, S3, KMS
+2026-10-29 0.1658  (phiên: RDS, Valkey, ALB, Fargate, IPv4)
+2026-10-30 0.0581  Secrets Manager, S3, KMS
+2026-10-31 0.0581  Secrets Manager, S3, KMS
+2026-11-01 0.0600  Secrets Manager, S3, KMS
+2026-11-02 0.0600  Secrets Manager, S3, KMS
+2026-11-03 0.0336  Secrets Manager, S3 request, KMS (ngày chưa đủ)
+RDS InstanceUsage:db.t4g.micro 0,0250 USD/giờ (README 0,025: khớp)
+ElastiCache NodeUsage:cache.t4g.micro 0,0192 USD/giờ (README 0,016: +20 %, sửa README theo số thật)
+Secrets Manager 0,4000 USD/secret-tháng (README 0,40: khớp)
+ALB LoadBalancerUsage 0,0252 USD/giờ (ADR-11 ~0,03)
