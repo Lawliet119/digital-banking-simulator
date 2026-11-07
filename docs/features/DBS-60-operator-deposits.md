@@ -1,6 +1,6 @@
 # DBS-60 · UC-3 nạp tiền bản thô: operator nạp từ tài khoản SYSTEM funding
 
-> **Status:** Implemented (G4 chờ duyệt lại sau khi dọn tài liệu) · **Vai:** Dev (Ledger) · **Nhánh:** `feat/DBS-60-operator-deposits` · **PR:** [#57 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/57) · **Cập nhật:** 2026-11-06
+> **Status:** Implemented · PR #57 đã merge 2026-11-06; chưa có Dev review (BL-160) · **Vai:** Dev (Ledger) · **Nhánh:** `feat/DBS-60-operator-deposits` · **PR:** [#57](https://github.com/Lawliet119/digital-banking-simulator/pull/57) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 
@@ -221,5 +221,5 @@ Full output thô: [manual-test.txt](screenshots/DBS-60/manual-test.txt).
 - `docs/03_HIGH_LEVEL_ARCHITECTURE.md` — dòng API `/v1/operator/deposits` trong bảng danh sách endpoint.
 - `docs/features/README.md` — thêm dòng DBS-60.
 - `docs/BACKLOG.md` — cập nhật BL-122 (nguồn), thêm BL-148, BL-149; xóa BL-002 (đã giải quyết bằng event deposit hợp lệ, có test TC-60-01/02).
-- `docs/features/screenshots/DBS-60/` — `domain-review-round1.md`, `domain-review.md`, `manual-test.txt`, `verification.txt`, `01-deposit-evidence.png`.
+- `docs/features/screenshots/DBS-60/` — `domain-review-round1.md`, `domain-review.md`, `manual-test.txt`, `verification.txt`, `01-deposit-evidence.png`, [`pr-description.md`](screenshots/DBS-60/pr-description.md).
 - Lượt sửa 2026-11-06 (viết lại tiếng Việt, không đổi code): file này (`DBS-60-operator-deposits.md`), `docs/BACKLOG.md` (viết lại BL-122/BL-148/BL-149 bằng tiếng Việt).

@@ -2,7 +2,7 @@
 
 <!-- Tài liệu làm việc: §1 điền ở Phase 1 (G1). §2–§9 điền ở các phase sau. -->
 
-> **Status:** Implemented (sau G4, 2026-11-01) · **Vai:** Dev · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-52-users-upsert-first-token` · **PR:** — · **Cập nhật:** 2026-11-01
+> **Status:** Implemented (sau G4, 2026-11-01) · PR #46 đã merge 2026-11-01; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-52-users-upsert-first-token` · **PR:** [#46](https://github.com/Lawliet119/digital-banking-simulator/pull/46) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

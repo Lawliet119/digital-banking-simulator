@@ -1,6 +1,6 @@
 # FRAUD-API-01 · Fraud không tự train model: quyết định kiến trúc API AI
 
-> **Status:** Implemented vòng 2 (G2, G3 duyệt 2026-10-25, G4 duyệt 2026-10-26; ADR-14 vẫn Proposed) · **Loại:** docs-only, chưa triển khai backend fraud · **Vai:** #4 Fraud · **Review:** domain review AI vòng 5–7 APPROVE; chưa có Dev review (BL-045), chưa ready · **Nhánh:** `docs/FRAUD-API-01-rules-external-ai` · **PR:** [#20 — Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/20) · **Cập nhật:** 2026-10-26
+> **Status:** Implemented vòng 2 (G4 duyệt 2026-10-26; ADR-14 vẫn Proposed) · PR #20 đã merge 2026-10-27; chưa có Dev review (BL-160, BL-045) · **Loại:** docs-only, chưa triển khai backend fraud · **Vai:** #4 Fraud · **Nhánh:** `docs/FRAUD-API-01-rules-external-ai` · **PR:** [#20](https://github.com/Lawliet119/digital-banking-simulator/pull/20) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

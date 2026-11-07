@@ -1,6 +1,6 @@
 # DBS-42 · Logger JSON bằng nestjs-pino với trường chuẩn
 
-> **Status:** Implemented (G4 đã duyệt 2026-10-25; PR #16 chờ Dev review và CI) · **Vai:** Dev · **Review:** Dev khác, chưa xác nhận người review · **Nhánh:** `feat/DBS-42-json-logger` · **PR:** #16 (đã mở, tác giả minhduc47) · **Cập nhật:** 2026-10-25
+> **Status:** Implemented · PR #16 đã merge 2026-10-25; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-42-json-logger` · **PR:** [#16](https://github.com/Lawliet119/digital-banking-simulator/pull/16) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

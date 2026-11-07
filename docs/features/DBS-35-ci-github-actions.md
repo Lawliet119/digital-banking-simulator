@@ -1,6 +1,6 @@
 # DBS-35 · GitHub Actions CI: lint → typecheck → unit → build trên mỗi PR
 
-> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `infra/DBS-35-ci-github-actions` · **PR:** — · **Cập nhật:** 2026-10-19
+> **Status:** Implemented · PR #11 đã merge 2026-10-19; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `infra/DBS-35-ci-github-actions` · **PR:** [#11](https://github.com/Lawliet119/digital-banking-simulator/pull/11) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

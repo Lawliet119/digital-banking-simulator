@@ -1,6 +1,6 @@
 # DBS-20 · Migration 1: users, customers, accounts và tài khoản SYSTEM funding
 
-> **Status:** Implemented · **Vai:** #1 Ledger · **Cặp đôi:** #4 Fraud · **Nhánh:** `feat/DBS-20-migration-users-customers-accounts` · **PR:** — · **Cập nhật:** 2026-10-12
+> **Status:** Implemented · PR #7 đã merge 2026-10-12; chưa có Dev review (BL-160) · **Vai:** #1 Ledger · **Nhánh:** `feat/DBS-20-migration-users-customers-accounts` · **PR:** [#7](https://github.com/Lawliet119/digital-banking-simulator/pull/7) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

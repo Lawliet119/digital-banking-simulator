@@ -1,6 +1,6 @@
 # DBS-77 · SQS adapter
 
-Trạng thái: Implemented; [Draft PR #51](https://github.com/Lawliet119/digital-banking-simulator/pull/51); đã sửa gap sau code-review kỹ thuật, chờ Dev review/merge main (BL-150). Vai: Dev. Cập nhật: 2026-11-06.
+> **Status:** Implemented · PR #51 đã merge 2026-11-06; chưa có Dev review (BL-160) · **Vai:** Dev · **PR:** [#51](https://github.com/Lawliet119/digital-banking-simulator/pull/51) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh và phụ thuộc
 
@@ -104,7 +104,7 @@ Code gốc `6db1e91` (implementation), `65b8468` (docs). Test-first: thiếu mod
 | Xóa sau xử lý, giữ khi lỗi | TC-77-03/05 | Khớp: message đang chờ handler vẫn in-flight; handler reject thì redeliver; peer thành công bị xóa; lỗi delete trả `failed` |
 | Cấu hình local/cloud theo `sqs.config.ts` | TC-77-01, test DI Nest | Khớp: dùng config và provider chain có sẵn, real ElasticMQ ở local; cloud thật chưa provision |
 | JSON hỏng đi DLQ (BL-010) | TC-77-04 | Khớp phần adapter: DLQ-forward thật, giữ nguồn khi DLQ không tới được, và nhánh double-dead-letter vừa sửa; schema/`UNKNOWN_EVENT_TYPE` vẫn thuộc consumer, BL-010 chưa đóng hết |
-| CI/Dev review/merge | PR checks, BL-150 | CI đã sửa timeout; chờ Dev review và merge |
+| CI/Dev review/merge | PR checks, BL-160 | PR #51 đã merge với CI xanh; chưa có Dev review (BL-160) |
 
 Test thủ công M-77-01..06 trên code cuối (sau khi sửa gap) đạt cả 6 bước, transcript tại [manual-test.txt](screenshots/DBS-77/manual-test.txt), ảnh output tại [01-manual-output.png](screenshots/DBS-77/01-manual-output.png). Driver dùng queue tạm, tên ngẫu nhiên, dọn sạch ở `finally`; không tạo tài nguyên AWS thật.
 

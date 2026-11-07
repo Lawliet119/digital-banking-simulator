@@ -1,6 +1,6 @@
 # DBS-71 · Generator giao dịch bình thường
 
-> **Status:** Implemented (rebase lên main 2026-11-04, chờ CI/review và merge) · **Vai:** Dev (#6 Quality/data) · **Nhánh:** `feat/DBS-71-normal-fraud-dataset` · **Ngày:** 2026-10-30
+> **Status:** Implemented · PR #43 đã merge 2026-11-04; chưa có Dev review (BL-160) · **Vai:** Dev (#6 Quality/data) · **Nhánh:** `feat/DBS-71-normal-fraud-dataset` · **PR:** [#43](https://github.com/Lawliet119/digital-banking-simulator/pull/43) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

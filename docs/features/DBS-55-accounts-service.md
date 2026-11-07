@@ -1,6 +1,6 @@
 # DBS-55 · AccountsService: khóa tài khoản, đổi số dư và kiểm tra sở hữu
 
-> **Status:** Implemented (G4 đã duyệt; Draft PR #33 đã mở, CI theo Checks; chờ Dev review và merge; còn lỗi baseline ngoài phạm vi) · **Vai:** Dev · **Cặp đôi review:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-55-accounts-service` · **PR:** [#33](https://github.com/Lawliet119/digital-banking-simulator/pull/33) · **Cập nhật:** 2026-10-28
+> **Status:** Implemented · PR #33 đã merge 2026-10-31; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-55-accounts-service` · **PR:** [#33](https://github.com/Lawliet119/digital-banking-simulator/pull/33) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

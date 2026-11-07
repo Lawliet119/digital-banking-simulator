@@ -1,6 +1,6 @@
 # DBS-39 · Testcontainers: helper Postgres 17 chạy migration cho test
 
-> **Status:** Implemented (đợt sửa vòng 2 sau review, G4 đã duyệt 2026-10-24) · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-39-testcontainers-postgres` · **PR:** — · **Cập nhật:** 2026-10-24
+> **Status:** Implemented (đợt sửa vòng 2 sau review, G4 đã duyệt 2026-10-24) · PR #15 đã merge 2026-10-24; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-39-testcontainers-postgres` · **PR:** [#15](https://github.com/Lawliet119/digital-banking-simulator/pull/15) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 
