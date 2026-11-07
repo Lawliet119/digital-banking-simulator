@@ -1,14 +1,52 @@
-# DBS-63 · UC-2 open customer accounts
+# DBS-63 · UC-2 mở tài khoản, tối đa 3 tài khoản mỗi khách
 
-Status: Rebased onto main2df7d0a after DBS-62 merge; main-based Draft PR/CI in progress, Dev review/merge pending BL-145. Owner: Dev. Updated 2026-11-06.
+> **Status:** Draft (đang bù G1 → G4; code đã có từ trước, chưa gate nào được người duyệt) · **Vai:** Dev (Accounts) · **Nhánh:** `feat/DBS-63-open-accounts` · **PR:** [#58 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/58) · **Cập nhật:** 2026-11-07
 
-## 1. Context and scope
+> **Ghi chú quy trình:** phần implement, test và manual test của task này đã làm trước khi có G1, G2 và G3, vì yêu cầu ban đầu bỏ qua gate. Skill không cho phép việc đó. Từ đây các gate được bù lần lượt, mỗi gate một tin nhắn, người duyệt trả lời rồi mới sang gate sau. Các mục §2–§9 bên dưới là bản cũ, sẽ được viết lại ở G2 (§2–§6), G3 (§7) và G4 (§8–§9).
 
-Board: Week2, Story, Dev, Highest, In Progress. Exact DoD: open CHECKING/SAVINGS inside a transaction locking the customers row; at least5 concurrent requests create exactly3 accounts, others ACCOUNT_LIMIT_REACHED; audit, initial balance0, SYSTEM forbidden; CI green, Dev review, PR merged and complete test mapping.
+## 1. Bối cảnh
 
-Dependencies now on main: DBS-55 PR33; DBS-62 [PR56](https://github.com/Lawliet119/digital-banking-simulator/pull/56) merged2026-11-06 at689a8e85831f1ff6c9c51b8aeef66a4ba1f73caa. Historical implementation started before that merge; main then a9e607b lacked onboarding. Branch feat/DBS-63-open-accounts starts from current main; User explicitly approved using the real DBS-62 branch temporarily on2026-11-04. No fake onboarding or SQL customer seed. Fast-forwarded to DBS-62 at7d41a51; keep DBS-63 commits separate, then rebase only those commits onto main after PR56 merges before opening a main-based PR. No board edits or merges by agent.
+- **Task trên board:** Story · Tuần 2 · vai `Dev` · ưu tiên Highest · Status `In Progress` · Deliverable/Demo `P2`.
+  - **Thực trạng:** Giới hạn 3 tài khoản/khách (BR-14) không biểu diễn được bằng CHECK nên phải giữ bằng transaction có SELECT … FOR UPDATE hàng customers (database-design §4.2).
+  - **Expect:** Khách mở được tối đa 3 tài khoản kể cả khi bấm song song.
+- **DoD** (chép nguyên văn):
+  1. Endpoint mở tài khoản CHECKING/SAVINGS; kiểm số tài khoản trong transaction có khóa hàng customers
+  2. Test: ≥ 5 request mở tài khoản cùng lúc → đúng 3 tài khoản, phần còn lại ACCOUNT_LIMIT_REACHED
+  3. Ghi audit; số dư ban đầu 0; không thể chọn type SYSTEM từ API
+  4. PR đã merge vào main (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ
+- **Phụ thuộc:**
 
-Scope is POST /v1/accounts (UC-2, FR-ACC-01, BR-14), zero balance creation plus audit. No balance mutation, deposit/transfer, new account-number field, schema/env/dependency/ErrorCode changes, lock/unlock API, list/balance API, or event contract extension. Account creation is a new resource per request (until3), not transfer/deposit idempotency. Existing gaps BL-112/121 test timing and BL-130/132 identity/global-role audit are reported and remain with their owners. BL-017 application-role test harness is not claimed solved. BL-122 ledger callers/BL-008 money lint remain out of scope.
+  | Task | Board | Thực trạng trong repo |
+  |---|---|---|
+  | DBS-62 onboarding | Done | Đã vào main (`689a8e8`, [PR #56](https://github.com/Lawliet119/digital-banking-simulator/pull/56)); `customers` và `POST /v1/customers/me` có thật |
+  | DBS-55 AccountsService | Done | Đã vào main ([PR #33](https://github.com/Lawliet119/digital-banking-simulator/pull/33)); không đổi chữ ký nào của `AccountsService` |
+
+  Lúc bắt đầu implement, DBS-62 chưa merge. Người dùng đã duyệt bằng văn bản (2026-11-04) việc dựng tạm trên nhánh DBS-62 thật, không stub guard hay service, không seed customer bằng SQL. Khoảng đó đã hết: nhánh nay chứa main mới nhất.
+- **Đã có gì (trên PR #58):**
+  - Code: `account-opening.service.ts`, `accounts.controller.ts`, `open-account.dto.ts`, đăng ký trong `accounts.module.ts`. Test `backend/test/db/account-opening.db-spec.ts` (10 case, HTTP + PostgreSQL thật). Script manual `backend/scripts/manual-dbs63.cjs`.
+  - Tài liệu: README module accounts, docs/03 (bảng API), `docs/features/README.md`, `docs/BACKLOG.md`, bằng chứng trong `screenshots/DBS-63/`.
+  - Người gọi của symbol đã có: `AccountsService` giữ nguyên, không đổi export. `AccountsModule` chỉ thêm `AccountsController` và `AccountOpeningService`.
+  - CI: 6/6 job xanh trên head `ec2f995` của PR (run `42169084841`), trước khi merge main mới.
+- **Baseline** (cây đã merge main `aeee9c9`, commit `e06dbb1`, Node **v18.20.8**, `docker compose up -d` chạy):
+
+  | Lệnh | Kết quả |
+  |---|---|
+  | `npm run lint:check` | đạt |
+  | `npm run typecheck` | đạt |
+  | `npm test` | **2 suite đỏ**: 835/837 test đạt; `jwks-verifier.service.spec.ts` (1 test cooldown, đúng BL-112) và `typeorm-options.spec.ts` ("Test suite failed to run") |
+  | `npm run test:e2e` | **4 suite đỏ**: 119/135 test đạt; `app-guard`, `roles-app`, `dev-auth-bootstrap`, `logging-bootstrap` |
+
+  Nguyên nhân các lỗi e2e đã thấy: `ReferenceError: crypto is not defined` khi boot `AppModule`. `backend/package.json` yêu cầu Node `>=24` và CI dùng Node 24, máy này chỉ có Node 18. Vì vậy baseline này **chưa đáng tin**: chưa phân biệt được lỗi do môi trường và lỗi do code. Cần chạy lại trên Node 24 (xem câu hỏi 2). Test DB (`test:db`) chưa chạy vì cùng lý do.
+- **Backlog liên quan (module accounts / DoD này):** BL-112 và BL-121 (test thời gian đã có, không do task này), BL-130 và BL-132 (audit từ chối vai ở tầng identity), BL-017 (test DB chạy bằng superuser nên chưa chứng minh quyền role ứng dụng), BL-122 và BL-008 (nằm ngoài). Không dòng nào được đưa vào phạm vi; task này không đóng dòng nào.
+- **Ngoài phạm vi:** thay đổi schema, env, dependency hay `ErrorCode`; sự kiện mới / outbox; API khóa, mở khóa, liệt kê hay xem số dư tài khoản (các task khác); idempotency của việc mở tài khoản (FR-LED-05 chỉ nói nạp và chuyển tiền); ràng buộc DB cho giới hạn 3 (BR-14 giữ bằng khóa hàng customers, SQL của admin ngoài API không được bảo vệ).
+- **Câu hỏi mở:**
+  1. **Bù gate.** Code đã xong trước khi có G1–G3. Đề xuất: đi bù G1 → G2 → G3 → G4, mỗi gate một tin nhắn, dùng code hiện có làm đối tượng để duyệt, chỉ sửa code nếu review hoặc test mới phát hiện lỗi. Nếu bạn muốn làm lại từ đầu, nói rõ.
+  2. **Baseline đỏ vì Node 18.** Đề xuất: chạy baseline và các test DB trong container `node:24` bằng Docker (không cài gì lên máy bạn). Hoặc bạn tự cài Node 24 rồi mình chạy lại. Chưa có kết quả này thì G4 không thể nói "đạt".
+  3. **Reviewer ở G2.** Lần trước domain review dùng "Codex, cùng model", trong khi skill yêu cầu model mạnh nhất. Đề xuất: chạy lại domain review bằng một subagent mới, lưu nguyên văn đè lên `domain-review.md` (bản cũ vẫn trong git).
+  4. **Nhánh và push.** Mình đã merge main vào nhánh (không rebase) để không phải force-push; conflict chỉ ở `docs/BACKLOG.md`, dòng của task đổi thành `BL-158` vì main đã dùng đến `BL-157`. Mọi thay đổi hiện chỉ nằm trên máy. Đề xuất: không push gì cho đến sau G3, và khi push thì push thường (nhánh này là của PR #58 đang mở, tác giả commit khác, nên cần bạn đồng ý).
+  5. **Fixture trạng thái.** TC-63-05 dùng `UPDATE accounts SET status='LOCKED'` bằng SQL vì API khóa tài khoản chưa có. `module-notes.md` chỉ cấm seed số dư bằng SQL, không cấm trạng thái. Đề xuất: giữ, ghi rõ ở §4, không stub API khóa.
+
+**Quyết định ở G1:** (chờ người duyệt)
 
 ## 2. Behaviour and HTTP contract
 
