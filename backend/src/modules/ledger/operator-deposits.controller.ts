@@ -2,7 +2,6 @@ import { BadRequestException, Body, Controller, Headers, Post, Req } from '@nest
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
-  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiHeader,
@@ -29,7 +28,7 @@ export class OperatorDepositsController {
   @ApiOperation({
     summary: 'Operator: deposit from SYSTEM funding with atomic double entry',
     description:
-      'First execution only; reused keys return409. Stored-result replay is not supported yet.',
+      'Idempotent: the same key with the same body returns the first answer without a second deposit; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.',
   })
   @ApiHeader({
     name: 'Idempotency-Key',
@@ -40,10 +39,9 @@ export class OperatorDepositsController {
   @ApiBadRequestResponse({ description: 'IDEMPOTENCY_KEY_REQUIRED or invalid DTO/key length' })
   @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED / TOKEN_EXPIRED' })
   @ApiForbiddenResponse({ description: 'FORBIDDEN' })
-  @ApiConflictResponse({
-    description: 'Idempotency key already used; reuse is not accepted by this endpoint',
+  @ApiUnprocessableEntityResponse({
+    description: 'ACCOUNT_NOT_ACTIVE with persisted transferId, or IDEMPOTENCY_KEY_REUSED',
   })
-  @ApiUnprocessableEntityResponse({ description: 'ACCOUNT_NOT_ACTIVE with persisted transferId' })
   @ApiInternalServerErrorResponse({
     description: 'Internal server error; entire transaction rolled back',
   })

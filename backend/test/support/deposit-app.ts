@@ -12,6 +12,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { appConfig } from '@config/app.config';
 import { authConfig } from '@config/auth.config';
 import { databaseConfig } from '@config/database.config';
+import { limitsConfig } from '@config/limits.config';
 import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
 import { TransactionService } from '@database/transaction.service';
 import { AccountsModule } from '@modules/accounts';
@@ -30,10 +31,14 @@ const settings = {
   corsOrigins: [],
   isProduction: false,
 };
+/** Mutable on purpose: a test that moves more than the real limits allow raises them and restores. */
+export interface FixtureLimits {
+  transfer: { perTx: bigint; perDay: bigint };
+}
 @Global()
 @Module({})
 class DepositFixtureConfig {
-  static forRoot(auth: unknown): DynamicModule {
+  static forRoot(auth: unknown, limits: FixtureLimits): DynamicModule {
     return {
       module: DepositFixtureConfig,
       providers: [
@@ -47,9 +52,19 @@ class DepositFixtureConfig {
             idleInTransactionTimeoutMs: 10000,
           },
         },
+        {
+          provide: limitsConfig.KEY,
+          useValue: limits,
+        },
         TransactionService,
       ],
-      exports: [authConfig.KEY, appConfig.KEY, databaseConfig.KEY, TransactionService],
+      exports: [
+        authConfig.KEY,
+        appConfig.KEY,
+        databaseConfig.KEY,
+        limitsConfig.KEY,
+        TransactionService,
+      ],
     };
   }
 }
@@ -61,6 +76,7 @@ export async function startDepositApp(databaseUrl: string) {
   const dir = mkdtempSync(join(tempRoot, 'dbs60-jwks-')),
     jwksPath = join(dir, 'jwks.json');
   writeFileSync(jwksPath, JSON.stringify(issuer.jwks));
+  const limits: FixtureLimits = { transfer: { perTx: 50_000_000n, perDay: 200_000_000n } };
   let app: NestExpressApplication | undefined, module: TestingModule | undefined;
   const close = async () => {
     if (dirname(resolve(dir)) !== tempRoot || !basename(dir).startsWith('dbs60-jwks-'))
@@ -83,11 +99,14 @@ export async function startDepositApp(databaseUrl: string) {
           retryAttempts: 0,
           extra: { max: 30, connectionTimeoutMillis: 1000 },
         }),
-        DepositFixtureConfig.forRoot({
-          local: { jwksPath },
-          cognito: { clientId: LOCAL_CLIENT_ID, issuer: LOCAL_ISSUER, jwksCooldownMs: 60000 },
-          accessTokenTtlSeconds: 900,
-        }),
+        DepositFixtureConfig.forRoot(
+          {
+            local: { jwksPath },
+            cognito: { clientId: LOCAL_CLIENT_ID, issuer: LOCAL_ISSUER, jwksCooldownMs: 60000 },
+            accessTokenTtlSeconds: 900,
+          },
+          limits,
+        ),
         IdentityModule,
         AccountsModule,
         AuditModule,
@@ -102,7 +121,7 @@ export async function startDepositApp(databaseUrl: string) {
     app = module.createNestApplication<NestExpressApplication>({ logger: false });
     configureHttpApp(app, settings, createHttpLogging(await app.resolve(PinoLogger), settings));
     await app.listen(0, '127.0.0.1');
-    return { app, url: await app.getUrl(), source: app.get(DataSource), issuer, close };
+    return { app, url: await app.getUrl(), source: app.get(DataSource), issuer, limits, close };
   } catch (error) {
     await close();
     throw error;

@@ -238,8 +238,9 @@ describe('DBS-60 operator deposits through real JWT/HTTP/PG and double entry', (
       same = await Promise.all(
         Array.from({ length: 10 }, () => deposit(target.accountId, '1000', key)),
       );
-    expect(same.filter(r => r.status === 201)).toHaveLength(1);
-    expect(same.filter(r => r.status === 409)).toHaveLength(9);
+    // DBS-79: repeats replay the first execution's answer; only one deposit is made.
+    expect(same.every(r => r.status === 201)).toBe(true);
+    expect(new Set(same.map(r => r.body.transferId as string)).size).toBe(1);
     const other = await app.issuer.token('operator', { sub: randomUUID() });
     await deposit(target.accountId, '1000', key, other).expect(201);
     expect(await q('SELECT balance::text FROM accounts WHERE id=$1', [target.accountId])).toEqual([
@@ -250,6 +251,30 @@ describe('DBS-60 operator deposits through real JWT/HTTP/PG and double entry', (
         target.accountId,
       ]),
     ).toEqual([{ n: 12 }]);
+  });
+
+  it('TC-79-05 deposit replay returns the stored 201 once; another body is 422 IDEMPOTENCY_KEY_REUSED', async () => {
+    const target = await seedDepositTarget(db.runner),
+      key = randomUUID();
+    const first = await deposit(target.accountId, '5000', key).expect(201);
+    const before = await totals();
+    const again = await deposit(target.accountId, '5000', key).expect(201);
+    expect(again.body).toEqual(first.body);
+    const reused = await deposit(target.accountId, '6000', key).expect(422);
+    expect(reused.body.errorCode).toBe('IDEMPOTENCY_KEY_REUSED');
+    expect(await totals()).toEqual(before);
+  });
+  it('TC-79-06 a rejected deposit replays the same 422 and transferId', async () => {
+    const locked = await seedDepositTarget(db.runner, 'LOCKED'),
+      key = randomUUID();
+    const first = await deposit(locked.accountId, '5000', key).expect(422);
+    const before = await totals();
+    const again = await deposit(locked.accountId, '5000', key).expect(422);
+    expect(again.body).toMatchObject({
+      errorCode: first.body.errorCode,
+      transferId: first.body.transferId,
+    });
+    expect(await totals()).toEqual(before);
   });
 
   async function fault(table: string, timing: string, body: string, action: () => Promise<void>) {
@@ -385,7 +410,7 @@ describe('DBS-60 operator deposits through real JWT/HTTP/PG and double entry', (
     );
     const route = doc.paths['/v1/operator/deposits'].post!;
     expect(route.security).toContainEqual({ 'access-token': [] });
-    for (const status of ['201', '400', '401', '403', '409', '422', '500', '503'])
+    for (const status of ['201', '400', '401', '403', '422', '500', '503'])
       expect(route.responses[status]).toBeDefined();
     expect(JSON.stringify(route.parameters)).toContain('Idempotency-Key');
     expect(JSON.stringify(doc.components!.schemas!.DepositDto)).toContain('1000000');

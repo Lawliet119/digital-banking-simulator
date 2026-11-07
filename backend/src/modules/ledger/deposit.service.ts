@@ -1,5 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { ConflictException, Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { TransactionService } from '@database/transaction.service';
 import { AccountsService } from '@modules/accounts';
 import { AuditService } from '@modules/audit';
@@ -15,12 +15,15 @@ import {
 } from '@common/money';
 import type { TransferCompleted } from '@common/events';
 import { DepositDto, DepositResultDto } from './deposit.dto';
+import {
+  FUNDING_ACCOUNT_ID,
+  LedgerPostingService,
+  type StoredResponse,
+} from './ledger-posting.service';
 
-const FUNDING = '00000000-0000-4000-8000-000000000001';
-interface TransferRow {
-  id: string;
-  created_at: Date;
-}
+type Outcome =
+  | { kind: 'replay'; stored: StoredResponse }
+  | { kind: 'done'; rejected: boolean; result: Record<string, unknown> };
 
 @Injectable()
 export class DepositService {
@@ -29,6 +32,7 @@ export class DepositService {
     private readonly accounts: AccountsService,
     private readonly audit: AuditService,
     private readonly outbox: OutboxWriter,
+    private readonly posting: LedgerPostingService,
   ) {}
 
   async deposit(
@@ -39,25 +43,15 @@ export class DepositService {
   ): Promise<DepositResultDto> {
     const amount = parsePositiveMoney(body.amount),
       toId = body.toAccountId.toLowerCase();
-    const hash = createHash('sha256')
-      .update(
-        JSON.stringify({
-          method: 'POST',
-          path: '/v1/operator/deposits',
-          body: { amount: formatMoney(amount), toAccountId: toId },
-        }),
-      )
-      .digest('hex');
-    const outcome = await this.tx.run(async manager => {
-      const keys: { idem_key: string }[] = await manager.query(
-        `INSERT INTO idempotency_keys(user_id,idem_key,request_hash) VALUES($1,$2,$3)
-         ON CONFLICT(user_id,idem_key) DO NOTHING RETURNING idem_key`,
-        [actor, key, hash],
-      );
-      // Safe duplicate barrier only. Exact replay/hash-conflict responses are task DBS-79.
-      if (!keys.length) throw new ConflictException('Idempotency key already used');
-      const locked = await this.accounts.lockForUpdate([FUNDING, toId], manager);
-      const funding = locked.find(a => a.id === FUNDING),
+    const hash = this.posting.hashRequest('/v1/operator/deposits', {
+      amount: formatMoney(amount),
+      toAccountId: toId,
+    });
+    const outcome = await this.tx.run<Outcome>(async manager => {
+      const stored = await this.posting.claimKey(manager, actor, key, hash);
+      if (stored) return { kind: 'replay', stored };
+      const locked = await this.accounts.lockForUpdate([FUNDING_ACCOUNT_ID, toId], manager);
+      const funding = locked.find(a => a.id === FUNDING_ACCOUNT_ID),
         target = locked.find(a => a.id === toId);
       if (
         !funding ||
@@ -77,34 +71,24 @@ export class DepositService {
       const toAfter = rejected
         ? undefined
         : creditBalance(parseBalance(customerTarget.balance), amount);
-      const [transfer]: TransferRow[] = await manager.query(
-        `INSERT INTO transfers(type,from_account_id,to_account_id,amount,status,reject_reason,initiated_by,correlation_id)
-         VALUES('DEPOSIT',$1,$2,$3,$4,$5,$6,$7) RETURNING id,created_at`,
-        [
-          FUNDING,
-          customerTarget?.id ?? null,
-          formatMoney(amount),
-          rejected ? 'REJECTED' : 'COMPLETED',
-          rejected ? ErrorCode.ACCOUNT_NOT_ACTIVE : null,
-          actor,
-          correlationId,
-        ],
-      );
+      const transfer = await this.posting.insertTransfer(manager, {
+        type: 'DEPOSIT',
+        fromAccountId: FUNDING_ACCOUNT_ID,
+        toAccountId: customerTarget?.id ?? null,
+        amount,
+        rejectReason: rejected ? ErrorCode.ACCOUNT_NOT_ACTIVE : null,
+        actor,
+        correlationId,
+      });
       if (!rejected && customerTarget && fromAfter !== undefined && toAfter !== undefined) {
-        await manager.query(
-          `INSERT INTO ledger_entries(transfer_id,account_id,direction,amount,balance_after)
-          VALUES($1,$2,'DEBIT',$4,$5),($1,$3,'CREDIT',$4,$6)`,
-          [
-            transfer.id,
-            FUNDING,
-            customerTarget.id,
-            formatMoney(amount),
-            formatBalance(fromAfter),
-            formatBalance(toAfter),
-          ],
-        );
-        await this.accounts.applyBalanceChange(FUNDING, 0n - amount, manager);
-        await this.accounts.applyBalanceChange(customerTarget.id, amount, manager);
+        await this.posting.postDoubleEntry(manager, {
+          transferId: transfer.id,
+          debitAccountId: FUNDING_ACCOUNT_ID,
+          creditAccountId: customerTarget.id,
+          amount,
+          debitBalanceAfter: fromAfter,
+          creditBalanceAfter: toAfter,
+        });
       }
       await this.audit.record(manager, {
         actor,
@@ -123,7 +107,7 @@ export class DepositService {
           correlationId,
           transferId: transfer.id,
           type: 'DEPOSIT',
-          fromAccountId: FUNDING,
+          fromAccountId: FUNDING_ACCOUNT_ID,
           toAccountId: customerTarget.id,
           amount: formatMoney(amount),
           fromBalanceBefore: formatBalance(fromBefore),
@@ -135,20 +119,22 @@ export class DepositService {
         };
         await this.outbox.add(manager, event);
       }
-      const result = rejected
+      const result: Record<string, unknown> = rejected
         ? {
             errorCode: ErrorCode.ACCOUNT_NOT_ACTIVE,
             transferId: transfer.id,
             message: 'Destination account is not active',
           }
         : { transferId: transfer.id, status: 'COMPLETED' as const };
-      await manager.query(
-        'UPDATE idempotency_keys SET transfer_id=$3,response_code=$4,response_body=$5::jsonb WHERE user_id=$1 AND idem_key=$2',
-        [actor, key, transfer.id, rejected ? 422 : 201, JSON.stringify(result)],
-      );
-      return { rejected, result };
+      await this.posting.storeResult(manager, actor, key, transfer.id, {
+        code: rejected ? 422 : 201,
+        body: result,
+      });
+      return { kind: 'done', rejected, result };
     });
+    // The rejection, its audit and the key are committed before the 422 leaves.
+    if (outcome.kind === 'replay') return this.posting.replay<DepositResultDto>(outcome.stored);
     if (outcome.rejected) throw new UnprocessableEntityException(outcome.result);
-    return outcome.result as DepositResultDto;
+    return outcome.result as unknown as DepositResultDto;
   }
 }
