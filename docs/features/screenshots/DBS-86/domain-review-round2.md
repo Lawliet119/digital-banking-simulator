@@ -1,0 +1,5 @@
+| # | Severity (blocking / should-fix / minor) | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| — | — | §4 — Đối chiếu security checklist | Không có phát hiện đã xác minh cần sửa. Bảng mới bao phủ đủ 8 yêu cầu; mapping TC phù hợp với thiết kế đã duyệt. Các phần endpoint/guard, transferId, business REJECTED và TLS production được giới hạn hoặc bàn giao rõ, không nhận bằng chứng service là acceptance HTTP/production. Các TC vẫn là kế hoạch kiểm thử, chưa được trình bày thành kết quả đã đạt. | `.claude/skills/dbs-delivering-task/references/testing.md` — Security checklist for §2 and §4; `docs/features/DBS-86-resource-ownership.md` §2.1–§2.4, §4 TC-86-01…15 và Handoff-86-HTTP, §5; `backend/src/modules/accounts/accounts.service.ts` — truy vấn `getOwnedAccount`; `backend/src/modules/audit/audit.service.ts` — `recordDenied`; `backend/src/common/filters/problem-details.filter.ts` — xử lý lỗi và metadata log an toàn. | — |
+
+Verdict: APPROVE

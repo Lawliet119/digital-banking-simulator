@@ -36,6 +36,9 @@ type Outcome =
   | { kind: 'replay'; stored: StoredResponse }
   | { kind: 'done'; reason: ErrorCode | undefined; result: Record<string, unknown> };
 
+/** Audit action of a DENIED source check (AccountOwnershipAction); success and REJECTED use 'transfer'. */
+const DENIED_ACTION = 'ledger.transfer' as const;
+
 /**
  * What the source account has already sent today, in Vietnam time (BR-06). The day starts at
  * 00:00 Asia/Ho_Chi_Minh and the clock is read per statement, so a request that waited on the
@@ -68,12 +71,14 @@ export class TransferService {
       toId = body.toAccountId.toLowerCase();
     if (fromId === toId) throw new BadRequestException('Source and destination must be distinct');
     const amount = parsePositiveMoney(body.amount);
-    try {
-      await this.accounts.getOwnedAccount(fromId, actor);
-    } catch (error) {
-      if (error instanceof NotFoundException) return this.deny(actor, fromId, correlationId);
-      throw error;
-    }
+    // Before BEGIN: getOwnedAccount audits a foreign/missing/SYSTEM source as DENIED in its own
+    // transaction (and fails closed) before it throws the 404, so nothing more to record here.
+    await this.accounts.getOwnedAccount(fromId, {
+      userId: actor,
+      role: 'customer',
+      action: DENIED_ACTION,
+      correlationId,
+    });
     const hash = this.posting.hashRequest('/v1/transfers', {
       amount: formatMoney(amount),
       fromAccountId: fromId,
@@ -207,7 +212,7 @@ export class TransferService {
     await this.audit.recordDenied({
       actor,
       role: 'customer',
-      action: 'transfer',
+      action: DENIED_ACTION,
       target: { type: 'account', id: sourceId },
       correlationId,
       metadata: { reason: AuditReason.NOT_OWNER },

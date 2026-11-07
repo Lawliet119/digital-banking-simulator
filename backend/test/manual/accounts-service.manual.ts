@@ -2,7 +2,6 @@ import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { Module, HttpException, type INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   AccountBalanceNegativeError,
   AccountBalanceOverflowError,
@@ -11,6 +10,10 @@ import {
   AccountsService,
 } from '@modules/accounts';
 import { safeErrorMetadata } from '@common/logging/logging.options';
+import {
+  OwnershipProbeDatabaseModule,
+  ownershipContext,
+} from '../support/resource-ownership-probe';
 import {
   ACCOUNT_FIXTURE as f,
   assertAccountsInvariants,
@@ -85,32 +88,41 @@ async function main(): Promise<void> {
     context = await NestFactory.createApplicationContext(
       {
         module: AccountsManualModule,
-        imports: [
-          TypeOrmModule.forRoot({ ...source.options, synchronize: false, migrationsRun: false }),
-          AccountsModule,
-        ],
+        imports: [OwnershipProbeDatabaseModule.forSource(source), AccountsModule],
       },
       // Reject initialization failures so our fixture cleanup runs instead of Nest exiting early.
       { logger: false, abortOnError: false },
     );
     const accounts = context.get(AccountsService);
 
-    const owned = await accounts.getOwnedAccount(f.accountA, f.userA);
+    const owned = await accounts.getOwnedAccount(f.accountA, ownershipContext());
     assert.equal(owned.balance, '0');
     report('M-55-01 OWNED', owned);
-    await expectRejection('M-55-01 FOREIGN', () => accounts.getOwnedAccount(f.accountA, f.userB), {
-      status: 404,
-    });
-    await expectRejection('M-55-01 MISSING', () => accounts.getOwnedAccount(f.missing, f.userA), {
-      status: 404,
-    });
-    await expectRejection('M-55-01 SYSTEM', () => accounts.getOwnedAccount(f.funding, f.userA), {
-      status: 404,
-    });
+    await expectRejection(
+      'M-55-01 FOREIGN',
+      () => accounts.getOwnedAccount(f.accountA, ownershipContext({ userId: f.userB })),
+      {
+        status: 404,
+      },
+    );
+    await expectRejection(
+      'M-55-01 MISSING',
+      () => accounts.getOwnedAccount(f.missing, ownershipContext()),
+      {
+        status: 404,
+      },
+    );
+    await expectRejection(
+      'M-55-01 SYSTEM',
+      () => accounts.getOwnedAccount(f.funding, ownershipContext()),
+      {
+        status: 404,
+      },
+    );
     await expectRejection(
       'M-55-01 COGNITO_SUB_IS_NOT_USER_ID',
-      () => accounts.getOwnedAccount(f.accountA, f.cognitoSubA),
-      { status: 404 },
+      () => accounts.getOwnedAccount(f.accountA, ownershipContext({ userId: f.cognitoSubA })),
+      { code: '23503' },
     );
 
     report('M-55-02 LOCK_ORDER', await proveAccountLockOrder(source, accounts));
@@ -130,7 +142,7 @@ async function main(): Promise<void> {
           'SELECT id,balance FROM accounts ORDER BY id',
         );
         assert(outside.every(row => row.balance === '0'));
-        assert.equal((await accounts.getOwnedAccount(f.accountA, f.userA)).balance, '0');
+        assert.equal((await accounts.getOwnedAccount(f.accountA, ownershipContext())).balance, '0');
         report('M-55-03 TENTATIVE_SNAPSHOTS', snapshots);
         report('M-55-03 COMMITTED_OBSERVER', outside);
       });
@@ -236,7 +248,7 @@ async function main(): Promise<void> {
       earlyAfterLate: true,
     });
 
-    const recovered = await accounts.getOwnedAccount(f.accountA, f.userA);
+    const recovered = await accounts.getOwnedAccount(f.accountA, ownershipContext());
     assert.equal(recovered.balance, '0');
     report('M-55-04 RECOVERED', { accountId: recovered.id, balance: recovered.balance });
 

@@ -12,11 +12,15 @@ import {
   isTransientDbError,
 } from '@common/utils/pg-error.util';
 import { QueryFailedError } from 'typeorm';
-import { Global, Module, NotFoundException } from '@nestjs/common';
-import { TransactionService } from '@database/transaction.service';
-import { databaseConfig } from '@config/database.config';
+import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuditService } from '@modules/audit';
+import {
+  accountLookups,
+  OwnershipProbeDatabaseModule,
+  ownershipContext,
+  ownershipTransactions,
+} from '../support/resource-ownership-probe';
 import {
   ACCOUNT_FIXTURE as f,
   assertAccountsInvariants,
@@ -30,32 +34,16 @@ import {
   type AccountsFixture,
 } from '../support/accounts-service-probe';
 
-// AccountsModule now includes onboarding/audit, which consume the production global
-// TransactionService. Supply the real provider and test timeouts, never a service stub.
-@Global()
-@Module({
-  providers: [
-    TransactionService,
-    {
-      provide: databaseConfig.KEY,
-      useValue: {
-        lockTimeoutMs: 2000,
-        statementTimeoutMs: 5000,
-        idleInTransactionTimeoutMs: 10000,
-      },
-    },
-  ],
-  exports: [TransactionService, databaseConfig.KEY],
-})
-class AccountsTransactionFixtureModule {}
-
 describe('DBS-55 AccountsService on PostgreSQL', () => {
   let fixture: AccountsFixture;
   let service: AccountsService;
 
   beforeAll(async () => {
     fixture = await createAccountsFixture();
-    service = new AccountsService(fixture.source);
+    service = new AccountsService(
+      fixture.source,
+      new AuditService(ownershipTransactions(fixture.source)),
+    );
   });
   afterAll(async () => {
     await fixture?.close();
@@ -534,7 +522,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
   });
 
   it('TC-55-11a returns only the account snapshot belonging to the internal user', async () => {
-    const row = await service.getOwnedAccount(f.accountA.toUpperCase(), f.userA);
+    const row = await service.getOwnedAccount(f.accountA.toUpperCase(), ownershipContext());
     expect(row).toMatchObject({
       id: f.accountA,
       customerId: f.customerA,
@@ -555,14 +543,15 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
       'updatedAt',
       'userId',
     ]);
-    expect(await service.getOwnedAccount(f.accountB, f.userB)).toMatchObject({ status: 'LOCKED' });
+    expect(
+      await service.getOwnedAccount(f.accountB, ownershipContext({ userId: f.userB })),
+    ).toMatchObject({ status: 'LOCKED' });
   });
 
   it('TC-55-11b returns the same safe 404 for foreign, missing and SYSTEM accounts', async () => {
     const inputs = [
       [f.accountA, f.userB],
       [f.missing, f.userA],
-      [f.accountA, f.missing],
       [f.funding, f.userA],
     ];
     const responses: unknown[] = [];
@@ -575,6 +564,14 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
       responses.every(response => JSON.stringify(response) === JSON.stringify(responses[0])),
     ).toBe(true);
     expect(JSON.stringify(responses)).not.toMatch(/SELECT|customer_id|30000000|3a000000|10000000/);
+    // With durable attribution, a nonexistent actor cannot manufacture a clean denial.
+    expect(
+      getErrorCode(
+        await rejection(
+          service.getOwnedAccount(f.accountA, ownershipContext({ userId: f.missing })),
+        ),
+      ),
+    ).toBe('23503');
   });
 
   it('TC-55-11c ownership reads committed state rather than a mutation manager snapshot', async () => {
@@ -582,7 +579,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
       await service.lockForUpdate([f.funding, f.accountA], manager);
       await service.applyBalanceChange(f.funding, -300000n, manager);
       await service.applyBalanceChange(f.accountA, 300000n, manager);
-      expect((await service.getOwnedAccount(f.accountA, f.userA)).balance).toBe('0');
+      expect((await service.getOwnedAccount(f.accountA, ownershipContext())).balance).toBe('0');
       expect((await service.lockForUpdate([f.accountA], manager))[0].balance).toBe('300000');
     });
   });
@@ -600,36 +597,39 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
     'TC-55-12a rejects malformed account/user identifiers uniformly (%s, %s)',
     async (account, user) => {
       const count = fixture.trace.length;
-      const error = await ownershipError(account as string, user as string);
-      expect(error.getStatus()).toBe(404);
-      expect(fixture.trace).toHaveLength(count);
+      if (user === f.userA) {
+        const error = await ownershipError(account as string, user);
+        expect(error.getStatus()).toBe(404);
+        expect(accountLookups(fixture.trace.slice(count))).toEqual([]);
+      } else {
+        await expect(
+          service.getOwnedAccount(account as string, ownershipContext({ userId: user as string })),
+        ).rejects.toThrow(TypeError);
+        expect(fixture.trace).toHaveLength(count);
+      }
     },
   );
 
   it('TC-55-12b a valid Cognito sub UUID is not the internal users.id', async () => {
     expect(f.cognitoSubA).not.toBe(f.userA);
-    await expect(service.getOwnedAccount(f.accountA, f.cognitoSubA)).rejects.toMatchObject({
-      status: 404,
-    });
-    expect((await service.getOwnedAccount(f.accountA, f.userA)).id).toBe(f.accountA);
+    expect(
+      getErrorCode(
+        await rejection(
+          service.getOwnedAccount(f.accountA, ownershipContext({ userId: f.cognitoSubA })),
+        ),
+      ),
+    ).toBe('23503');
+    expect((await service.getOwnedAccount(f.accountA, ownershipContext())).id).toBe(f.accountA);
   });
 
   it('TC-55-15 resolves the exported provider through its real Nest module and PostgreSQL', async () => {
     const context = await Test.createTestingModule({
-      imports: [
-        TypeOrmModule.forRoot({
-          ...fixture.source.options,
-          synchronize: false,
-          migrationsRun: false,
-        }),
-        AccountsModule,
-        AccountsTransactionFixtureModule,
-      ],
+      imports: [OwnershipProbeDatabaseModule.forSource(fixture.source), AccountsModule],
     }).compile();
     try {
       const provider = context.get(AccountsService);
       expect(provider).toBeInstanceOf(AccountsService);
-      expect((await provider.getOwnedAccount(f.accountA, f.userA)).balance).toBe('0');
+      expect((await provider.getOwnedAccount(f.accountA, ownershipContext())).balance).toBe('0');
       await withMoneyProbe(fixture.source, async manager => {
         await provider.lockForUpdate([f.accountA], manager);
         await expect(provider.applyBalanceChange(f.accountA, 0n, manager)).resolves.toBeUndefined();
@@ -660,7 +660,7 @@ describe('DBS-55 AccountsService on PostgreSQL', () => {
 
   async function ownershipError(account: string, user: string): Promise<NotFoundException> {
     try {
-      await service.getOwnedAccount(account, user);
+      await service.getOwnedAccount(account, ownershipContext({ userId: user }));
     } catch (error) {
       if (error instanceof NotFoundException) return error;
       throw error;

@@ -1,12 +1,33 @@
 import { execFile } from 'node:child_process';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
+import type { AccountOwnershipAction, AccountOwnershipContext, AccountsService } from './index';
 
 const run = promisify(execFile);
 const BACKEND_DIR = resolve(__dirname, '../../..');
 const REPO_ROOT = resolve(BACKEND_DIR, '..');
 
 describe('DBS-55 accounts public import boundary', () => {
+  it('TC-86-08 exposes a mandatory trusted ownership context instead of a bare user id', () => {
+    const action: AccountOwnershipAction = 'account.read';
+    const context: AccountOwnershipContext = {
+      userId: '10000000-0000-4000-8000-000000000001',
+      role: 'customer',
+      action,
+      correlationId: '86000000-0000-4000-8000-000000000001',
+    };
+    type Args = Parameters<AccountsService['getOwnedAccount']>;
+    const args: Args = ['3a000000-0000-4000-8000-000000000001', context];
+    // The compile check must fail if the old, unauditable overload is ever restored.
+    // @ts-expect-error A verified internal id alone is no longer an ownership context.
+    const legacy: Args = ['3a000000-0000-4000-8000-000000000001', context.userId];
+    // @ts-expect-error The context is mandatory, even for an account that belongs to the caller.
+    const absent: Args = ['3a000000-0000-4000-8000-000000000001'];
+    expect(args[1]).toBe(context);
+    expect(legacy).toHaveLength(2);
+    expect(absent).toHaveLength(1);
+  });
+
   it('TC-55-14 effective eslint permits the index and rejects both kinds of deep import', async () => {
     // Run the real ESM config outside Jest's CommonJS transform, then exercise its effective rule.
     const script = [

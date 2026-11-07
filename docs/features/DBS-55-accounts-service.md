@@ -721,3 +721,24 @@ Không có `.skip`, `.only` hay `.todo` trong test của task.
 - Feature doc: R1–R10; `screenshots/DBS-55/`: 6 ảnh, transcript, verification, TDD, 6 domain review.
 
 **Quyết định ở G4 (vòng 2):** người dùng trả lời «duye» ngày 2026-10-31. Chấp nhận M-55-06 chưa chạy, ảnh render bằng Chrome headless, BL-112/121/122 như R9. Push thường lên nhánh PR #33, cập nhật body PR, giữ Draft.
+
+## Addendum DBS-86 · Hợp đồng caller hiện tại
+
+Các mục và transcript phía trên là bằng chứng lịch sử trên SHA của DBS-55. Contract ownership hiện tại được mô tả trong [DBS-86](DBS-86-resource-ownership.md) và [README accounts](../../backend/src/modules/accounts/README.md); SHA, số đếm và phản hồi cũ được giữ nguyên.
+
+`getOwnedAccount(accountId: string, context: AccountOwnershipContext): Promise<Account>` nhận context bắt buộc gồm internal `userId`, literal role `customer`, action thuộc `account.read | account.transactions | ledger.transfer` và server `correlationId`. Caller dựng context sau JWT/customer guard, kiểm ownership trước transaction nghiệp vụ. Public barrel export thêm `AccountOwnershipAction` và `AccountOwnershipContext`; constructor AccountsService cần AuditService thật, AccountsModule import AuditModule.
+
+| Trường hợp | Contract hiện tại |
+|---|---|
+| Account thuộc internal user, kể cả LOCKED | Trả cùng Account snapshot; balance string, Date giữ nguyên; helper không tự ghi SUCCESS |
+| Account foreign/missing/SYSTEM hoặc resource UUID sai dạng | Await một DENIED đã commit rồi ném cùng NotFound404. Resource sai dùng target sentinel `invalid` và không SELECT account |
+| Context/actor/correlation/role/action sai dạng | TypeError cố định trước SQL; không dùng 404 để che lỗi context do caller dựng |
+| Actor UUID đúng dạng nhưng thiếu users, gồm Cognito sub khác users.id | Audit FK từ chối `23503`, lỗi lan ra; không tự tạo actor hoặc nhận DENIED thành công |
+| Lookup hoặc INSERT/commit audit lỗi | Truyền nguyên lỗi, fail-closed; không trả clean404 sau lỗi audit |
+| Gọi trong callback TransactionService.run | Lỗi lập trình trước SELECT cho cả account owned/denied. Raw BEGIN ngoài ALS không được helper phát hiện và không được dùng để bọc ownership |
+
+DBS-86 port các caller test/manual và Nest fixture sang contract này, giữ toàn bộ **45 tests** của spec AccountsService, gồm lock/apply và đọc committed state qua QueryRunner riêng. Các kỳ vọng 404 cũ cho actor malformed/Cognito sub được đổi thành TypeError/FK theo attribution bắt buộc; primitive tiền giữ nguyên. Driver DBS-55 đã chạy lại `all` trên final source SHA `e8210108463caad6c8a5ba38c3b4165b3b8b23a0`, PostgreSQL17 thật và exit0: lock order/crossed calls, amount string/bigint, rollback, lỗi invariant và updated_at đều đạt, container đã dọn. Raw regression được đưa vào verification của DBS-86; không thay evidence lịch sử phía trên. Manual ownership M-86-01…09 trên cùng SHA đạt9/9 và có transcript/ảnh riêng; M-55-06/full flow ledger cùng ba bước HTTP của DBS-86 vẫn pending DBS-60/61/64/87.
+
+DBS-86 có targeted PostgreSQL **80/80 tests** gồm 35 test ownership mới và 45 regression trên code SHA `e8210108463caad6c8a5ba38c3b4165b3b8b23a0`. Full DB Linux Node 24.15.0/npm 11.12.1 trên archive chính xác SHA này đạt **19 suites/381 tests**, 0 skipped. Hai lượt Windows, gồm lượt chẩn đoán, vẫn thoát native `0xC0000409` trước count/stack; diagnostic report directory rỗng và [BL-125](../BACKLOG.md) giữ mở, chưa kết luận nguyên nhân. Các kết quả môi trường và trạng thái final manual được tách rõ trong DBS-86; Linux xanh không thay lượt Windows, GitHub CI hoặc các số đếm lịch sử DBS-55 phía trên.
+
+AC-5.8 qua POST transfer, GET account/history/status và integration ledger còn chờ DBS-60/61/64/87. Policy operator không dùng helper ownership customer để hạn chế tra cứu/nạp/khóa tài khoản của khách. BL-122 tiếp tục theo dõi phần protocol lock/apply và flow tiền; phần service DENIED mới chưa đủ để nhận các endpoint này đã hoàn tất.
