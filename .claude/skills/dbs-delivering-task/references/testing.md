@@ -7,21 +7,20 @@ Used in Phase 2 (writing §4 test cases) and Phase 4 (writing and running the te
 | Layer | Runs on | For | Command (from `backend/`) |
 |---|---|---|---|
 | Unit | memory, fakes allowed | pure logic: rules, parsing, guard arithmetic | `npm test` |
-| Integration / e2e | real PostgreSQL (Testcontainers once the harness exists, otherwise the docker compose database); Valkey and ElasticMQ when involved | money, concurrency, constraints, triggers, DB roles, HTTP contract | `npm run test:e2e` (and `npm run test:db` where a task defines it) |
+| HTTP e2e | in-process app, no database | HTTP contract, guards, error format | `npm run test:e2e` |
+| Database | real PostgreSQL (`DATABASE_URL`, or Testcontainers when unset); one throwaway database per test file | **money**, concurrency, constraints, triggers, migrations | `npm run test:db` |
+| Services | Valkey and ElasticMQ in Testcontainers | `libs/redis`, `libs/sqs`: timeouts, outage, recovery | `npm run test:services` |
 | Load | k6 against a deployed environment | NFR numbers | a Dev writes the scripts, #5 runs them |
 
 A test that mocks the database cannot prove a lock, `ON CONFLICT` or a trigger. Docker down means the money tests are **not run**, reported as such, never skipped into a green result.
 
-## Not built yet: what to do until it lands
+## Harness and helpers
 
-Several things this file mentions do not exist at the time of writing. Check with `ls` or `fetch-task.mjs` before relying on one; until it exists, say so in the feature doc instead of assuming it.
-
-| Thing | Built by | Until then |
+| Thing | Where | Notes |
 |---|---|---|
-| Testcontainers harness (Postgres, Valkey, ElasticMQ, DB roles, template database per suite) | DBS-39, 40, 41 | Use the docker compose database through `DATABASE_URL`; create and drop your own temporary database; fail loudly when it is unreachable |
-| `backend/test/support/invariants.sql` (available) | DBS-69 | Five checks are implemented. Call checkLedgerInvariants(runner) or run npm run --silent check:invariants from backend; raw SQL returns a report, CLI supplies exit 0/1/2; [usage](../../../../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái) |
-| Dev token helper (`npm run auth:dev-token`) | DBS-53 (**built**) | Use it: `backend/README.md` §10. In e2e tests use `createDevTokenIssuer()` (`test/support/dev-tokens.ts`) and `startLocalAuthApp()` (`test/support/local-auth-app.ts`) |
-| `npm run test:db` | defined by the first task that needs it | Use `test:e2e` against the docker compose database |
+| PostgreSQL, Valkey, ElasticMQ containers | `test/support/postgres.container.ts`, `valkey.container.ts`, `elasticmq.container.ts` | `test:db` runs against `DATABASE_URL`, or starts PostgreSQL 17 when it is unset; each test file gets its own throwaway database (`test/support/temp-database.ts`). Tests connect as a superuser (BL-017): they do not prove the production role grants |
+| Ledger invariants | `backend/test/support/invariants.sql`, `invariants.ts` | Call checkLedgerInvariants(runner) or run npm run --silent check:invariants from backend; raw SQL returns a report, the CLI exits 0/1/2; [usage](../../../../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái) |
+| Dev tokens | `npm run auth:dev-token`; in tests `createDevTokenIssuer()` (`test/support/dev-tokens.ts`) and `startLocalAuthApp()` (`test/support/local-auth-app.ts`) | `backend/README.md` §10 |
 
 ## Case rules
 
@@ -36,7 +35,7 @@ Several things this file mentions do not exist at the time of writing. Check wit
 - **Forced deadlock:** in the test connection `SET deadlock_timeout = '10s'`, lock the higher id, let the transfer take the lower, then request the lower; expect one retry and one COMPLETED.
 - **Midnight boundary:** inject the clock; never edit row timestamps or the machine timezone.
 - **A TTL** (a 60 s cache, a 15 min token): make the TTL injectable and assert the value Redis reports (`TTL`) or the clock-based expiry, instead of waiting.
-- **Data:** seed only through the deposit API, never `UPDATE accounts SET balance`. Each suite gets its own database cloned from a migrated template.
+- **Data:** seed only through the deposit API, never `UPDATE accounts SET balance`. Each test file gets its own throwaway database with the migrations applied.
 - End every business money test with checkLedgerInvariants(runner); expect PASS and no violations. Intentional-corruption cases assert FAIL then rollback. The shared SQL is backend/test/support/invariants.sql; see the [backend README](../../../../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái) for the callable function and CLI.
 
 ## Security checklist for §2 and §4

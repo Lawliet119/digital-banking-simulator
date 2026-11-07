@@ -2,14 +2,14 @@
 
 <!-- Tài liệu làm việc, không phải báo cáo: ưu tiên bảng hơn văn xuôi; không chép lại DoD hay danh sách case ở §8 ngoài ID. Task nhỏ nên trong khoảng 2.500 từ; nếu dài hơn thì cắt văn xuôi trước, không bao giờ cắt kết quả test thủ công. -->
 
-> **Status:** (đặt sau mỗi gate) Draft (đang làm, đến G2) → Design approved (sau G2) → Plan approved (sau G3) → Implemented (sau G4) · **Vai:** #<n> <tên vai> · **Cặp đôi review:** #<n> · **Nhánh:** `<type>/DBS-<n>-<slug>` · **PR:** — · **Cập nhật:** YYYY-MM-DD
+> **Status:** (đặt sau mỗi gate) Draft (đang làm, đến G2) → Design approved (sau G2) → Plan approved (sau G3) → Implemented (sau G4) · **Vai:** Dev \| #4 Fraud \| #5 Platform & Ops · **Nhánh:** `<type>/DBS-<n>-<slug>` (việc ngoài board: `<type>/<KIND>-YYYYMMDD-<slug>`) · **PR:** — · **Cập nhật:** YYYY-MM-DD
 
 ## 1. Bối cảnh
 
 - **Task trên board:** loại, tuần, Deliverable/Demo. **Expect:** chép nguyên văn.
 - **DoD:** chép nguyên văn, đánh số từng gạch đầu dòng.
 - **Phụ thuộc:** từng task kèm trạng thái thật trong repo (không chỉ theo board).
-- **Đã có gì:** file code, tài liệu, task trước liên quan (link). **Baseline:** kết quả bốn lệnh kiểm tra, kèm số test.
+- **Đã có gì:** file code, tài liệu, task trước liên quan (link). **Baseline:** kết quả từng lệnh baseline của loại task (code backend: `lint:check`, `typecheck`, `test`, `test:e2e`, `test:db`), kèm số test. Test đỏ được chấp nhận theo ngoại lệ ở SKILL Phase 1 bước 6 thì nêu tên từng test.
 - **Ngoài phạm vi:** những gì task này cố ý không làm, và task nào làm.
 - **Câu hỏi mở:** đánh số, mỗi câu có đề xuất. **Quyết định ở G1:** ghi lại sau khi được duyệt.
 
@@ -91,6 +91,6 @@ Danh sách file docs khác đã sửa trong PR này (ghi cả `BL-NNN` đã thê
 - [ ] Test thủ công chạy trên commit cuối đổi code (SHA ở dòng đầu `manual-test.txt`): kết quả từng bước M-<n>-NN; đường thành công đã chạy (trừ khi G1 đã miễn); mọi bước "chưa chạy" nêu tên để người duyệt chấp nhận
 - [ ] Ảnh chụp có đủ trong `screenshots/DBS-<n>/` (hoặc nêu từng ảnh còn thiếu); `manual-test.txt` đã xóa token, header `Authorization`, id tài khoản AWS và ARN
 - [ ] `git diff --stat main...HEAD` khớp danh sách file ở §7; mỗi file lạ có phê duyệt gate phụ ghi ở §8
-- [ ] Bốn lệnh kiểm tra (hoặc baseline của loại task) chạy lúc bàn giao, có số đếm
+- [ ] Baseline của loại task chạy lúc bàn giao, có số đếm (code backend: năm lệnh, gồm `test:db`); test đỏ theo ngoại lệ đã có link CI xanh của head PR
 - [ ] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc đang là Plan approved (chuyển thành Implemented sau khi G4 được duyệt)
-- [ ] Việc bàn giao cho vai khác và mọi DoD chưa đạt đã ghi ở §8 **và** có dòng `BL-NNN` trong `docs/BACKLOG.md`; dòng backlog task này đã xử lý thì đã xóa
+- [ ] Việc bàn giao cho vai khác và mọi DoD chưa đạt đã ghi ở §8 **và** có dòng `BL-NNN` trong `docs/BACKLOG.md` (số lớn hơn mọi số trong các PR đang mở); dòng backlog task này đã xử lý thì đã xóa, và chỉ xóa khi toàn bộ điều kiện đóng đã kiểm bằng lệnh

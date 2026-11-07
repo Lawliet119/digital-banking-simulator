@@ -2,6 +2,17 @@
 
 Any developer may meet any module. Facts (schemas, signatures, numbers) live in the docs and the code; this file holds only the traps. Read the module's section before Phase 2.
 
+## The money path
+
+One list, used by the baseline exceptions and the retroactive ban in SKILL.md, the refactor row in `task-kinds.md` and BL-160:
+
+- `backend/src/modules/{ledger,accounts,audit,outbox,identity}/`
+- `backend/src/database/migrations/`, `backend/src/database/transaction.*`
+- `backend/src/common/money/`, `backend/src/common/auth/`, `backend/src/common/events/` (`validateEvent` runs inside the money transaction; the schemas carry `amount`)
+- `backend/src/config/limits.config.ts` (`perTx`, `perDay`, BR-06)
+
+A test **guards the money path** when it imports or calls code on this list, whatever command runs it (`npm test`, `test:e2e`, `test:db`).
+
 ## Ledger (transfer, deposit, guards, reconciliation)
 
 Sources: docs/03 §6.1, ADR-04, 05, 09, database-design.
@@ -44,7 +55,7 @@ Sources: ADR-12, docs/03 §9, §14, `load-tests/README.md`.
 - Every Redis call goes through `libs/redis`: timeout, circuit breaker, explicit error so the caller falls back; a metric counts each fallback. Test Redis **slow**, not only off.
 - `libs/sqs` is the only way to talk to SQS; the same code runs against ElasticMQ and SQS.
 - `/health/ready` reports Redis as degraded, never down, and fails only when PostgreSQL does.
-- The Testcontainers harness (to be built by DBS-39 to 41) starts Postgres, Valkey and ElasticMQ, creates the production DB roles, and gives each suite its own database cloned from a migrated template (truncate is blocked by the append-only triggers). Docker missing means the test fails loudly. Until it exists: `testing.md`, "Not built yet".
+- The Testcontainers harness exists: `test/support/postgres.container.ts` (DBS-39), `valkey.container.ts` and `elasticmq.container.ts` (DBS-40). `test:db` uses the PostgreSQL at `DATABASE_URL`, or starts PostgreSQL 17 when it is unset; every test file creates its own throwaway database `dbs_test_<random>` (`test/support/temp-database.ts`) and runs the migrations into it (truncate is blocked by the append-only triggers). Tests connect as a superuser (BL-017), so they do not prove the production role grants. Docker missing means the test fails loudly.
 - `backend/test/support/invariants.sql` is the shared five-invariant check: debit/credit totals, account balances, total balances, non-negative customer balances, and complete/correct transfer pairs. Use checkLedgerInvariants(runner) after money tests or npm run --silent check:invariants from backend after a load run; require exit 0 (1 violations, 2 check error). Funding may be negative. Usage and limits: [backend README](../../../../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái).
 - Seed only through the deposit API, never `UPDATE accounts SET balance`.
 

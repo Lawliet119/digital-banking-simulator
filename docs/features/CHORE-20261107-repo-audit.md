@@ -1,6 +1,6 @@
 # CHORE-20261107-repo-audit · Rà soát toàn repo: docs, kiến trúc, code thừa, backlog, skill
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `chore/CHORE-20261107-repo-audit` (PR A), `chore/CHORE-20261107-skill` (PR B, xếp chồng lên A) · **PR:** — · **Cập nhật:** 2026-11-07
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `chore/CHORE-20261107-repo-audit` (PR A), `chore/CHORE-20261107-skill` (PR B, xếp chồng lên A) · **PR:** [#63](https://github.com/Lawliet119/digital-banking-simulator/pull/63) (A), [#64](https://github.com/Lawliet119/digital-banking-simulator/pull/64) (B) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 
@@ -296,20 +296,20 @@ PR A làm trên nhánh `chore/CHORE-20261107-repo-audit`. PR B làm trên nhánh
 | Bước | File | Test viết trước | Kết quả đỏ (1 dòng, điền khi chạy) | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
 | 0 | feature doc này và thư mục screenshots | — | — | `check-doc-links.mjs` | `docs(chore): add CHORE-20261107-repo-audit feature doc` |
-| 1 | `backend/tsconfig.build.json` (A-14) | TC-CHORE-01 | | `npx tsc -p tsconfig.build.json --listFilesOnly \| grep -c manual-smoke` cho ra 0, `npm run build` xanh | `build(scripts): exclude manual smoke scripts from dist` |
-| 2 | hai file `.gitkeep` (A-15), `env.bootstrap.spec.ts:22` (A-16) | `git ls-files '*.gitkeep'` có 2 dòng; `grep -n "eslint-disable" …:22` không có `--` | | `git ls-files '*.gitkeep'` rỗng, `npm run lint:check` xanh | `chore(repo): drop stale gitkeep files and explain eslint disable` |
-| 3 | `README.md`, `docs/README.md`, `backend/README.md`, 4 README trong `backend/src` (A-01, A-03, A-04, A-06) | TC-CHORE-02 (phần README) | | TC-CHORE-02 rỗng với nhóm file này | `docs(readme): match readmes to code on main` |
-| 4 | `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (A-05) | TC-CHORE-02 (lệnh `sed` cắt §21), grep `identity/me` trong §7 không thấy | | TC-CHORE-02 rỗng, grep thấy `GET /v1/identity/me` | `docs(architecture): record ADR-14 and built modules in docs/03` |
-| 5 | `docs/components/**` (A-07), `threat-model.md` (A-08), `load-tests/README.md` (A-13) | TC-CHORE-02 (phần components và load-tests); grep "Phụ trách: #6" | | TC-CHORE-02 rỗng; grep `Một phần` có ở T1, T10, T11, T12 | `docs(components): sync status lines and threat model with code` |
-| 6 | `docs/features/**` (A-09, A-10) | TC-CHORE-03 | | TC-CHORE-03 rỗng, `grep -c $'\x1b'` ở DBS-57 bằng 0 | `docs(features): sync status lines with merged PRs` |
-| 7 | `docs/BACKLOG.md` (A-11) và `check-backlog.cjs` | TC-CHORE-04 | | `node docs/features/screenshots/CHORE-20261107-repo-audit/check-backlog.cjs` exit 0; danh sách BL-160 khớp output `group-bl160.cjs` | `docs(backlog): consolidate review gaps into BL-160` |
-| 8 | xóa roadmap (A-12); sửa mọi link tới nó | `git grep -n master-roadmap` có kết quả | | `git grep` chỉ còn trong feature doc này, `check-doc-links.mjs` sạch | `docs(roadmap): remove superseded master roadmap` |
-| 9 | `CONTRIBUTING.md`, `.github/pull_request_template.md` (A-02, cả dòng §1b của phương án Y) | grep câu "Bấm merge không được tính là review" không thấy; grep `<KIND>-YYYYMMDD` không thấy | | Cả hai grep đều thấy; TC-CHORE-02 rỗng với CONTRIBUTING | `docs(contributing): define review, off-board keys and env exception` |
+| 1 | `backend/tsconfig.build.json` (A-14) | TC-CHORE-01 | `grep -c manual-smoke` = 3 | `npx tsc -p tsconfig.build.json --listFilesOnly \| grep -c manual-smoke` cho ra 0, `npm run build` xanh | `build(scripts): exclude manual smoke scripts from dist` |
+| 2 | hai file `.gitkeep` (A-15), `env.bootstrap.spec.ts:22` (A-16) | `git ls-files '*.gitkeep'` có 2 dòng; `grep -n "eslint-disable" …:22` không có `--` | `git ls-files` ra 2 `.gitkeep`; dòng 22 không có `--` | `git ls-files '*.gitkeep'` rỗng, `npm run lint:check` xanh | `chore(repo): drop stale gitkeep files and explain eslint disable` |
+| 3 | `README.md`, `docs/README.md`, `backend/README.md`, 4 README trong `backend/src` (A-01, A-03, A-04, A-06) | TC-CHORE-02 (phần README) | TC-CHORE-02 trúng 11 dòng (README:42,55,97; backend/README:56,69,317; libs/README:9; docs/README:22; …) | TC-CHORE-02 rỗng với nhóm file này | `docs(readme): match readmes to code on main` |
+| 4 | `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (A-05) | TC-CHORE-02 (lệnh `sed` cắt §21), grep `identity/me` trong §7 không thấy | docs/03 dòng 12 có `ADR-01…13` mà không có ADR-14; `identity/me` ở §7: 0 dòng | TC-CHORE-02 rỗng, grep thấy `GET /v1/identity/me` | `docs(architecture): record ADR-14 and built modules in docs/03` |
+| 5 | `docs/components/**` (A-07), `threat-model.md` (A-08), `load-tests/README.md` (A-13) | TC-CHORE-02 (phần components và load-tests); grep "Phụ trách: #6" | `load-tests/README.md:3` "Phụ trách: #6"; T1, T10–T12 ghi "Thiết kế" | TC-CHORE-02 rỗng; grep `Một phần` có ở T1, T10, T11, T12 | `docs(components): sync status lines and threat model with code` |
+| 6 | `docs/features/**` (A-09, A-10) | TC-CHORE-03 | TC-CHORE-03 bắt 12 dòng; DBS-76, DBS-77 không có dòng `> **Status:**` | TC-CHORE-03 rỗng, DBS-57 không còn byte NUL | `docs(features): sync status lines with merged PRs` |
+| 7 | `docs/BACKLOG.md` (A-11) và `check-backlog.cjs` | TC-CHORE-04 | `check-backlog.cjs` exit 1, 24 lỗi (BL-014, 22 dòng chờ merge, thiếu BL-160) | `node docs/features/screenshots/CHORE-20261107-repo-audit/check-backlog.cjs` exit 0; danh sách BL-160 khớp output `group-bl160.cjs` | `docs(backlog): consolidate review gaps into BL-160` |
+| 8 | xóa roadmap (A-12); sửa mọi link tới nó | `git grep -n master-roadmap` có kết quả | `git grep master-roadmap` ra 35 dòng, trong đó có 30 link | `git grep` chỉ còn trong feature doc này, `check-doc-links.mjs` sạch | `docs(roadmap): remove superseded master roadmap` |
+| 9 | `CONTRIBUTING.md`, `.github/pull_request_template.md` (A-02, cả dòng §1b của phương án Y) | grep câu "Bấm merge không được tính là review" không thấy; grep `<KIND>-YYYYMMDD` không thấy | cả hai grep ra 0; TC-CHORE-02 trúng `CONTRIBUTING.md:133` | Cả hai grep đều thấy; TC-CHORE-02 rỗng với CONTRIBUTING | `docs(contributing): define review, off-board keys and env exception` |
 | 10 | — | — | — | Baseline đủ 6 lệnh (TC-CHORE-05), TC-CHORE-06, chạy M-CHORE-01…06 trên đầu nhánh A | — |
-| 11 | `scripts/board.mjs`, `scripts/board.test.mjs`, `scripts/fetch-task.mjs` (B-13) | TC-SKILL-01…04 | | `node --test .claude/skills/dbs-delivering-task/scripts/` xanh; M-SKILL-01 | `feat(skill): detect missing board tabs and unknown dependencies` |
-| 12 | `scripts/check-doc-links.mjs`, `scripts/check-doc-links.test.mjs`, `modules/audit/README.md:7` và mọi link mà script mới báo (B-14) | TC-SKILL-05 | | `node --test` xanh; `check-doc-links.mjs` sạch; M-SKILL-04 | `fix(skill): keep underscores in doc link slugs` |
+| 11 | `scripts/board.mjs`, `scripts/board.test.mjs`, `scripts/fetch-task.mjs` (B-13) | TC-SKILL-01…04 | `node --test`: `ERR_MODULE_NOT_FOUND` board.mjs | `node --test .claude/skills/dbs-delivering-task/scripts/` xanh; M-SKILL-01 | `feat(skill): detect missing board tabs and unknown dependencies` |
+| 12 | `scripts/check-doc-links.mjs`, `scripts/check-doc-links.test.mjs`, `modules/audit/README.md:7` và mọi link mà script mới báo (B-14) | TC-SKILL-05 | `SyntaxError`: không có export `keepFile` | `node --test` xanh; `check-doc-links.mjs` sạch; M-SKILL-04 | `fix(skill): keep underscores in doc link slugs` |
 | 13 | RED của M-SKILL-02: 4 subagent đọc skill trên `main` | kịch bản (i)–(iv) | ghi lỗ hổng mà mỗi RED lộ ra | output thô lưu vào `pressure-red.md` | — (ghi cùng bước 14) |
-| 14 | `SKILL.md`, `references/{testing,module-notes,platform,task-kinds,team,manual-testing}.md`, `templates/feature-doc.md`, `.claude/skills/README.md` (B-01, B-02, B-05…B-12, B-15, B-17) | TC-SKILL-06 (phần grep `.claude/skills`) | | TC-SKILL-06 rỗng | `docs(skill): close baseline, review and rework gaps` |
+| 14 | `SKILL.md`, `references/{testing,module-notes,platform,task-kinds,team,manual-testing}.md`, `templates/feature-doc.md`, `.claude/skills/README.md` (B-01, B-02, B-05…B-12, B-15, B-17) | TC-SKILL-06 (phần grep `.claude/skills`) | TC-SKILL-06 trúng 3 file (task-kinds "four commands", template "bốn lệnh" và "Cặp đôi review", platform "#6") | TC-SKILL-06 rỗng | `docs(skill): close baseline, review and rework gaps` |
 | 15 | ~~xóa `.agents/`, viết lại `AGENTS.md`~~ bỏ (quyết định sau G3) | TC-SKILL-06 (`git diff --stat main -- .agents AGENTS.md` rỗng) | | TC-SKILL-06 đạt | — |
 | 16 | GREEN của M-SKILL-02 rồi `.claude/skills/README.md` v2.6 (B-16) | 4 subagent mới đọc skill trên nhánh | | output thô lưu vào `pressure-green.md`; cả 4 kịch bản đạt | `docs(skill): bump skill to 2.6 with pressure test results` |
 | 17 | — | — | — | Baseline đủ 6 lệnh và `node --test` trên đầu nhánh B. Chạy lại **toàn bộ** §5 trên commit cuối đổi code, SHA ghi ở dòng 1 `manual-test.txt` | — |
@@ -353,3 +353,170 @@ Commit nào cũng kết thúc bằng dòng `Co-Authored-By: Claude Opus 5.5 <nor
 2. Test của script skill chưa vào CI thì ghi BL-161. Task này không sửa CI.
 3. Làm như kế hoạch. Mô tả PR A ghi rõ PR #59, #60 và #62 cần rebase.
 4. Bản `.agents/` và `AGENTS.md` lệch so với skill thì tạm bỏ qua, không ghi dòng BL.
+
+## 8. Kết quả
+
+### 8.1 Lệnh kiểm tra (Phase 4b)
+
+Chạy lúc 2026-11-07T08:56Z trên đầu nhánh B `1ef1e0f`. Từ commit cuối đổi code `00b16e1` tới `1ef1e0f` chỉ có commit đổi `.md`. Máy dùng Node 18.20.8 với cờ webcrypto, PostgreSQL riêng ở cổng 55432. Output thô nằm ở scratchpad của phiên.
+
+| Lệnh | Kết quả |
+|---|---|
+| `npm run lint:check`, `npm run typecheck` | xanh |
+| `npm test` | 839/839, 57 suite. Lần chạy ở đầu nhánh A (`8cf2ad9`, máy đang bận) có 2 test chập chờn của BL-112 đỏ; chạy riêng suite 3 lần đều 13/13. Task không chạm `identity` |
+| `npm run test:e2e` | 135/135 |
+| `npm run test:db` | 387/390. 3 test đỏ đều là TC-57-13, do máy dùng Node 18 (ngoại lệ đã duyệt ở G1 #8). **Trên CI Node 24 của Draft PR #63 (head `8cf2ad9`): 390/390**, `outbox-writer-bootstrap.db-spec.ts` PASS, [run 42356768234](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42356768234). PR B không chạm `backend/src` hay `backend/test` |
+| `npm run test:services` | 10/10 |
+| `npm run build` | xanh; `dist/scripts` không còn |
+| `node --test .claude/skills/dbs-delivering-task/scripts/` | 7/7 |
+| `check-doc-links.mjs` (bản mới) | 213 file, 0 link hỏng |
+| `check-backlog.cjs` (gh trực tiếp) | đạt: 48 PR, 76 dòng BL |
+| CI Draft PR #63 (PR A) | cả 6 job xanh |
+
+Không có `.skip`, `.only` hay `.todo` trong test của task.
+
+### 8.2 Đối chiếu test case
+
+| TC | Test | Kết quả |
+|---|---|---|
+| TC-CHORE-01 | `tsc -p tsconfig.build.json --listFilesOnly \| grep -c manual-smoke`: 3 → 0; build xanh | đạt |
+| TC-CHORE-02 | grep đúng lệnh ở §4 (lọc thêm `grep -v ADR-14`, xem 8.5) | đạt: 11 dòng → rỗng |
+| TC-CHORE-03 | `grep -anE "^> \*\*Status:\*\*.*(chờ\|chưa push\|Draft PR)"` | đạt: 12 dòng → rỗng; mọi feature doc có dòng Status |
+| TC-CHORE-04 | `check-backlog.cjs` | đạt: 24 lỗi → 0 |
+| TC-CHORE-05 | baseline sáu lệnh | đạt, kèm ngoại lệ đã duyệt: TC-57-13 xanh trên CI Node 24 |
+| TC-CHORE-06 | `check-doc-links.mjs` | đạt |
+| TC-SKILL-01…04 | `board.test.mjs` (5 test) | đạt |
+| TC-SKILL-05 | `check-doc-links.test.mjs` (2 test) | đạt |
+| TC-SKILL-06 | grep chữ cũ trong `.claude/skills` rỗng; `git diff main -- .agents AGENTS.md` rỗng | đạt (đổi nội dung theo quyết định sau G3) |
+
+Tổng: 12/12 đạt, không có case nào bị đơn giản hóa.
+
+### 8.3 Kết quả test thủ công
+
+Chạy trên commit cuối đổi code `00b16e1` (HEAD `1ef1e0f`). Output thô ở [manual-test.txt](screenshots/CHORE-20261107-repo-audit/manual-test.txt). File đã kiểm: không có token, header `Authorization`, id tài khoản AWS hay ARN.
+
+| Bước | Lệnh chính | Kết quả |
+|---|---|---|
+| M-CHORE-01 | worktree `main` `aeee9c9`: `nest build && ls dist/scripts` | đạt: có 3 file `manual-smoke.*.js` |
+| M-CHORE-02 | nhánh: build, `ls dist/scripts`, `node dist/main.js` (`APP_ROLE=api`, cổng 3077), `curl` hai probe | đạt: `dist/scripts` không có; `live 200`, `ready 200` với `database up` |
+| M-CHORE-03 | `ts-node … src/scripts/manual-smoke.dbs50.ts` | đạt: chạy hết tới M-50-05, exit 0 |
+| M-CHORE-04 | 6 fact bằng lệnh trên code | đạt cả 6: `libs/` chỉ có `redis`, `sqs`; `workerModules` rỗng; `@Get('me')` có ở identity; ledger chỉ có 2 `@Post`; TC-61-03/11 có, `RolesGuard` chỉ `warn`; CI chạy 2 suite services, 0 lần `testcontainers.services-spec` |
+| M-CHORE-05 | `check-backlog.cjs`, `group-bl160.cjs` (gh trực tiếp), `board-table.mjs`, phân loại theo DoD | đạt: danh sách BL-160 khớp 22/24/2; bảng 8.6 có bằng chứng từng dòng. Xem lệch ở 8.5 #4 |
+| M-CHORE-06 (âm) | thêm link `docs/khong-ton-tai.md` | đạt: `MISSING README.md: docs/khong-ton-tai.md`, 1 link hỏng, exit 1; đã hoàn tác |
+| M-SKILL-01 | `fetch-task.mjs` trên sheet thật | đạt: `DBS-61` in task và phụ thuộc; `--next Dev 5` rỗng nên in 5 task chặn nhiều nhất (DBS-61 chặn 9); `CHORE-…` và `FRAUD-API-01` in "không có trên board", exit 0; `abc` exit 2 |
+| M-SKILL-02 | 4 kịch bản RED/GREEN bằng subagent | đạt: RED cả 4 lộ lỗ hổng ([pressure-red.md](screenshots/CHORE-20261107-repo-audit/pressure-red.md)); GREEN cả 4 đạt, kịch bản (i) chạy lại sau khi sửa `gh` ([pressure-green.md](screenshots/CHORE-20261107-repo-audit/pressure-green.md)) |
+| M-SKILL-03 | `check-doc-links.mjs`, `keepFile('load-tests/fraud-dataset/…')` | đạt: 0 link hỏng; `false` |
+| M-SKILL-04 (âm) | thêm 2 link `#44-ledgerentries`, `#44-ledger_entries`; chạy script cũ và mới | đạt: script cũ báo `ledger_entries` hỏng (và link audit đã sửa), 214 file; script mới chỉ báo `ledgerentries`, 213 file (bỏ qua `fraud-dataset`); đã hoàn tác |
+
+### 8.4 Ảnh chụp
+
+Chưa có ảnh PNG. Bằng chứng là output thô ở `manual-test.txt`, cùng `pressure-red.md` và `pressure-green.md`. Các ảnh còn thiếu dưới đây đã được người duyệt chấp nhận theo tên ở G4 (trả lời «duyệt», 2026-11-07):
+- `01-dist-before-after.png` (M-CHORE-01/02)
+- `02-health-probes.png` (M-CHORE-02)
+- `03-fetch-task.png` (M-SKILL-01)
+- `04-doc-links-old-new.png` (M-SKILL-04)
+
+### 8.5 Lệch so với kế hoạch
+
+Các điểm dưới đây đã được người duyệt chấp nhận ở G4 (trả lời «duyệt», 2026-11-07, theo đề xuất của agent):
+
+1. **Bỏ B-03, B-04 và bước 15** (giữ nguyên `.agents/` và `AGENTS.md`). Đã duyệt sau G3; độ lệch cho tạm bỏ qua ở G3.
+2. **TC-CHORE-02:** thêm bộ lọc `grep -v ADR-14`, vì dòng đã sửa đúng vẫn chứa "ADR-01…13". Ghi vào §4 lúc chạy.
+3. **File ngoài danh sách của §7:**
+   - `backend/src/libs/redis/README.md`: BL-141 đổi thành BL-152, vì bước 7 xóa BL-141 (dòng review cũ) mà README trỏ nhầm.
+   - `docs/features/FRAUD-API-01-…` và `DBS-55-…`: bỏ link tới roadmap đã xóa (bước 8 "sửa mọi link").
+   - BACKLOG: sửa câu cũ ở BL-034, BL-104, BL-133 (DoD 1, "chờ merge" không còn đúng).
+   - Brief `outbox`, `notification`, `load-tests` và `docs/components/index.md`: đổi Owner #1/#2/#3/#6 thành Dev hoặc #5, cùng nằm trong glob của A-07.
+4. **Quy tắc board (Y) hiểu theo bullet DoD.** Câu G2 #4 có ví dụ "DBS-61 còn BL-154/155/156 → In Review", và kết quả mong đợi của M-CHORE-05 ghi "task Done không còn dòng BL nào khác". Khi đối chiếu, phần lớn dòng BL là việc bàn giao cho task hay vai khác, không phải DoD của chính task. Nếu hiểu theo chữ, 33/38 task sẽ về `In Review`, tức gần như phương án X mà G2 đã không chọn.
+   - Agent chọn hiểu theo bullet DoD: 10 task `In Review`, 28 task `Done`.
+   - CONTRIBUTING §1b đã ghi rõ theo cách hiểu này (commit `388b915` trên PR A).
+   - DBS-61 vì vậy thành `Done`: BL-154/155/156 không có trong DoD của DBS-61 (hạn mức làm ở tuần 3, AC-5.9 không thuộc DoD). Đây là câu hỏi G4 số 1, **đã duyệt**: DBS-61 thành `Done`.
+5. **Sửa thêm trong skill** do GREEN (i) tìm ra:
+   - `SKILL.md:29`: lệnh `gh` chỉ đọc được phép trước G3. Trước đó dòng này mâu thuẫn với B-10 và B-17.
+   - `SKILL.md:75`: nhắc ngoại lệ §1b.
+6. **M-CHORE-02 dùng cổng 3077** thay cho 3000 mặc định, để không đụng app khác trên máy.
+7. **GREEN chạy trên `c274db9`.** Đó là commit trước khi nhánh B rebase lên `388b915`; nội dung skill không đổi, sau rebase thành `cf42ebd`.
+
+### 8.6 Bảng giá trị ô board (DoD 5, để người dùng tự dán)
+
+Agent không sửa board. Quy tắc: CONTRIBUTING §1b, phương án Y. Một task giữ `In Review` khi còn bullet DoD (hoặc bước test thủ công) của chính task chưa đạt; dòng BL chỉ bàn giao việc thì không chặn `Done`. Dữ liệu được kiểm bằng `gh` (chỉ đọc), `check-backlog.cjs` và DoD đọc từ sheet ([manual-test.txt](screenshots/CHORE-20261107-repo-audit/manual-test.txt), M-CHORE-05).
+
+Tổng: 38 task đã merge tới `aeee9c9`; 28 `Done`, 10 `In Review`, 12 ô Status phải đổi. Cột Thực trạng của cả 38 dòng thay bằng giá trị dưới đây.
+
+| Task | Status hiện tại | Status mới | Đổi? | Thực trạng (dán nguyên văn) |
+|---|---|---|---|---|
+| DBS-20 | Done | `Done` | giữ | Đã merge #7 (2026-10-12) https://github.com/Lawliet119/digital-banking-simulator/pull/7; DoD review chưa đạt (BL-160) |
+| DBS-21 | Done | `Done` | giữ | Đã merge #8 (2026-10-16) https://github.com/Lawliet119/digital-banking-simulator/pull/8; DoD review chưa đạt (BL-160) |
+| DBS-22 | Done | `Done` | giữ | Đã merge #9 (2026-10-17) https://github.com/Lawliet119/digital-banking-simulator/pull/9; DoD review chưa đạt (BL-160) |
+| DBS-24 | Done | `Done` | giữ | Đã merge #10 (2026-10-19) https://github.com/Lawliet119/digital-banking-simulator/pull/10; DoD review chưa đạt (BL-160) |
+| DBS-25 | Done | `Done` | giữ | Đã merge #12 (2026-10-24) https://github.com/Lawliet119/digital-banking-simulator/pull/12; DoD review chưa đạt (BL-160) |
+| DBS-26 | Done | `Done` | giữ | Đã merge #13 (2026-10-24) https://github.com/Lawliet119/digital-banking-simulator/pull/13; DoD review chưa đạt (BL-160) |
+| DBS-27 | Done | `Done` | giữ | Đã merge #17 (2026-10-24) https://github.com/Lawliet119/digital-banking-simulator/pull/17; DoD review chưa đạt (BL-160) |
+| DBS-31 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #22 (2026-10-26) https://github.com/Lawliet119/digital-banking-simulator/pull/22; DoD review chưa đạt (BL-160); còn BL-027: DoD 2 "init với backend trên máy của ít nhất 2 người" (M-31-05 chưa chạy) |
+| DBS-33 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #23 (2026-10-27) https://github.com/Lawliet119/digital-banking-simulator/pull/23; DoD review chưa đạt (BL-160); còn BL-031: DoD 3 "chi phí ≈ 0, xác nhận trong Cost Explorer ngày hôm sau" |
+| DBS-34 | Done | `Done` | giữ | Đã merge #25 (2026-10-26) https://github.com/Lawliet119/digital-banking-simulator/pull/25; DoD review chưa đạt (BL-160) |
+| DBS-35 | Done | `Done` | giữ | Đã merge #11 (2026-10-19) https://github.com/Lawliet119/digital-banking-simulator/pull/11; DoD review chưa đạt (BL-160) |
+| DBS-36 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #24 (2026-10-27) https://github.com/Lawliet119/digital-banking-simulator/pull/24; DoD review chưa đạt (BL-160); còn BL-034: DoD 2 "push main: build, scan, đẩy ECR tag SHA" (mọi lần `image.yml` đều skipped vì thiếu `AWS_ROLE_ARN`) |
+| DBS-38 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #36 (2026-10-30) https://github.com/Lawliet119/digital-banking-simulator/pull/36; DoD review chưa đạt (BL-160); còn BL-104: DoD 2 "curl ALB /health/live và /health/ready trả 200" (M-38-08, M-38-09 chưa chạy) |
+| DBS-39 | Done | `Done` | giữ | Đã merge #15 (2026-10-24) https://github.com/Lawliet119/digital-banking-simulator/pull/15; DoD review chưa đạt (BL-160) |
+| DBS-40 | Done | `Done` | giữ | Đã merge #18 (2026-10-30) https://github.com/Lawliet119/digital-banking-simulator/pull/18; DoD review chưa đạt (BL-160) |
+| DBS-41 | Done | `Done` | giữ | Đã merge #19 (2026-10-27) https://github.com/Lawliet119/digital-banking-simulator/pull/19; DoD review chưa đạt (BL-160) |
+| DBS-42 | Done | `Done` | giữ | Đã merge #16 (2026-10-25) https://github.com/Lawliet119/digital-banking-simulator/pull/16; DoD review chưa đạt (BL-160) |
+| DBS-50 | Done | `Done` | giữ | Đã merge #29 (2026-10-26) https://github.com/Lawliet119/digital-banking-simulator/pull/29; DoD review chưa đạt (BL-160) |
+| DBS-51 | Done | `Done` | giữ | Đã merge #47 (2026-11-01) https://github.com/Lawliet119/digital-banking-simulator/pull/47; DoD review chưa đạt (BL-160) |
+| DBS-52 | Done | `Done` | giữ | Đã merge #46 (2026-11-01) https://github.com/Lawliet119/digital-banking-simulator/pull/46; DoD review chưa đạt (BL-160) |
+| DBS-53 | In Progress | `In Review` | **đổi** (In Progress → In Review) | Đã merge #48 (2026-11-02) https://github.com/Lawliet119/digital-banking-simulator/pull/48; DoD review chưa đạt (BL-160); còn BL-135: M-53-09 (Swagger Authorize trên trình duyệt) chưa chạy |
+| DBS-54 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #39 (2026-10-30) https://github.com/Lawliet119/digital-banking-simulator/pull/39; DoD review chưa đạt (BL-160); còn BL-100: DoD 4 "đăng nhập thật và gọi endpoint trên cloud" mới đạt một phần |
+| DBS-55 | Done | `Done` | giữ | Đã merge #33 (2026-10-31) https://github.com/Lawliet119/digital-banking-simulator/pull/33; DoD review chưa đạt (BL-160) |
+| DBS-56 | Done | `Done` | giữ | Đã merge #54 (2026-11-04) https://github.com/Lawliet119/digital-banking-simulator/pull/54; DoD review chưa đạt (BL-160) |
+| DBS-57 | Done | `Done` | giữ | Đã merge #34 (2026-10-31) https://github.com/Lawliet119/digital-banking-simulator/pull/34; DoD review chưa đạt (BL-160) |
+| DBS-58 | Done | `Done` | giữ | Đã merge #44 (2026-11-04) https://github.com/Lawliet119/digital-banking-simulator/pull/44; DoD review chưa đạt (BL-160) |
+| DBS-59 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #42 (2026-11-04) https://github.com/Lawliet119/digital-banking-simulator/pull/42; DoD review chưa đạt (BL-160); còn BL-138: DoD 2 "chữ ký FeatureProvider chốt cùng #1 và #6" chưa có bằng chứng |
+| DBS-60 | Done | `Done` | giữ | Đã merge #57 (2026-11-06) https://github.com/Lawliet119/digital-banking-simulator/pull/57; DoD review chưa đạt (BL-160) |
+| DBS-61 | In Progress | `Done` | **đổi** (In Progress → Done) | Đã merge #61 (2026-11-07) https://github.com/Lawliet119/digital-banking-simulator/pull/61; DoD review chưa đạt (BL-160) |
+| DBS-62 | Done | `Done` | giữ | Đã merge #56 (2026-11-06) https://github.com/Lawliet119/digital-banking-simulator/pull/56; DoD review chưa đạt (BL-160) |
+| DBS-66 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #27 (2026-10-30) https://github.com/Lawliet119/digital-banking-simulator/pull/27; DoD review chưa đạt (BL-160); còn BL-102: DoD 3 đối chiếu chi phí RDS với Cost Explorer |
+| DBS-67 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #37 (2026-10-30) https://github.com/Lawliet119/digital-banking-simulator/pull/37; DoD review chưa đạt (BL-160); còn BL-106: DoD 3 "/health/ready trên cloud trả 200" (M-67-* chưa chạy) |
+| DBS-68 | Done | `In Review` | **đổi** (Done → In Review) | Đã merge #38 (2026-10-31) https://github.com/Lawliet119/digital-banking-simulator/pull/38; DoD review chưa đạt (BL-160); còn BL-109: DoD 2 "chạy hai lần liên tiếp không lỗi" trên RDS (M-68-04…06 chưa chạy) |
+| DBS-69 | Done | `Done` | giữ | Đã merge #35 (2026-11-01) https://github.com/Lawliet119/digital-banking-simulator/pull/35; DoD review chưa đạt (BL-160) |
+| DBS-71 | Done | `Done` | giữ | Đã merge #43 (2026-11-04) https://github.com/Lawliet119/digital-banking-simulator/pull/43; DoD review chưa đạt (BL-160) |
+| DBS-75 | Done | `Done` | giữ | Đã merge #41 (2026-10-31) https://github.com/Lawliet119/digital-banking-simulator/pull/41; DoD review chưa đạt (BL-160) |
+| DBS-76 | In Progress | `Done` | **đổi** (In Progress → Done) | Đã merge #52 (2026-11-07) https://github.com/Lawliet119/digital-banking-simulator/pull/52; DoD review chưa đạt (BL-160) |
+| DBS-77 | Done | `Done` | giữ | Đã merge #51 (2026-11-06) https://github.com/Lawliet119/digital-banking-simulator/pull/51; DoD review chưa đạt (BL-160) |
+
+### 8.7 Bàn giao
+
+- **BL-160:** 48 PR cần Dev review, ưu tiên 22 PR đường tiền. Gợi ý: bật required approvals = 1 trên ruleset `main` (cùng chỗ BL-012).
+- **BL-161:** `board.test.mjs` và `check-doc-links.test.mjs` chưa chạy trong CI (G3 #2).
+- **BL-162:** các chỗ hở nhỏ còn lại của skill mà GREEN (i) chạy lại đã chỉ ra:
+  - chữ cố định trong cột Thực trạng chưa có link PR;
+  - task ngoài board không có dòng để đổi trạng thái;
+  - chưa có lệnh liệt kê mọi task đã merge để làm bảng board;
+  - xóa code trên đường tiền chưa có quy tắc riêng;
+  - baseline của "xóa code" chưa ghi `npm run build`.
+- **Báo cho người dùng (không phải dòng BL):**
+  - BL-045 (FRAUD-API-01, PR #20) trùng phần review với BL-160; giữ nguyên vì điều kiện đóng còn nhắc CI remote.
+  - Module README `ledger`, `accounts`, `identity`, `audit`, `outbox` còn "— #1/#2/#3" ở tiêu đề. Các file này nằm ngoài §7 nên chưa sửa.
+- **PR đang mở cần rebase sau khi PR A merge:** #59, #60, #62 (§7, rủi ro).
+- **TC-57-13:** xanh trên CI Node 24, không cần dòng BL.
+
+## 9. Tài liệu đã cập nhật
+
+- **PR A** (`chore/CHORE-20261107-repo-audit`, Draft #63):
+  - README: `README.md`, `docs/README.md`, `backend/README.md`, `backend/src/{libs,scripts,modules,modules/notification}/README.md`, `backend/src/libs/redis/README.md`.
+  - `CONTRIBUTING.md` và `.github/pull_request_template.md`.
+  - `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (v1.8).
+  - `docs/components/**`: 15 brief và `index.md`; `_shared/database-design.md`.
+  - `docs/security/threat-model.md`, `load-tests/README.md`.
+  - Dòng Status của 39 feature doc và `docs/features/README.md`; DBS-35 §8 (M-35-10).
+  - Xóa `docs/superpowers/plans/2026-10-02-master-roadmap.md` và hai `.gitkeep`; `backend/tsconfig.build.json`.
+  - `docs/BACKLOG.md`:
+    - xóa BL-014, BL-020, 022, 025, 030, 052, 054, 057, 124, 126, 131, 134, 137, 139, 141, 142, 144, 149, 150, 151, 153;
+    - thêm BL-160;
+    - thu hẹp BL-053, BL-116, BL-135, BL-136;
+    - sửa câu ở BL-034, BL-104, BL-133.
+- **PR B** (`chore/CHORE-20261107-skill`):
+  - `.claude/skills/dbs-delivering-task/` gồm `SKILL.md`, 6 file `references/`, template và 5 file `scripts/`; `.claude/skills/README.md` (v2.6).
+  - `backend/src/modules/audit/README.md`: anchor `#47-audit_log`.
+  - `docs/BACKLOG.md`: thêm BL-161, BL-162.
+  - `docs/features/README.md`: thêm dòng CHORE-20261107-repo-audit.
