@@ -1,6 +1,6 @@
 # identity — Concept Brief
 
-> **Status:** Draft · **Owner:** #2 · **Cặp đôi:** #3 · **Verified against code:** một phần (JWT/JWKS ở DBS-50, upsert `users` ở DBS-52; chưa có phân quyền, thu hồi phiên, rate limit) · **Cập nhật:** 2026-11-01
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** một phần: JWT/JWKS (DBS-50), `RolesGuard` và `@CurrentUser` (DBS-51), upsert `users` ở token đầu tiên (DBS-52), khóa và token local (DBS-53). Chưa có: thu hồi phiên, rate limit · **Cập nhật:** 2026-11-07
 
 ## Component
 

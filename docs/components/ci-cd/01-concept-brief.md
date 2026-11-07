@@ -1,6 +1,6 @@
 # ci-cd — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 (deploy, quét image và secret); job test trong CI do #6 viết · **Cặp đôi:** #6 · **Verified against code:** một phần (job test trong `ci.yml`; deploy, quét image và secret chưa có code) · **Cập nhật:** 2026-10-19
+> **Status:** Draft · **Owner:** #5 (deploy, quét image); job test trong CI do Dev viết · **Verified against code:** một phần: `ci.yml` sáu job (DBS-35, DBS-41), build và đẩy image lên ECR qua OIDC kèm đọc kết quả scan ECR (DBS-36, `image.yml`), tự deploy ECS (DBS-38, `deploy.yml`), bước migration (DBS-68). Chưa có: quét secret, chặn deploy theo kết quả scan · **Cập nhật:** 2026-11-07
 
 ## Component
 

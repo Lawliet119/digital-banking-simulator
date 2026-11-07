@@ -1,6 +1,6 @@
 # risk — Architecture
 
-> **Status:** Draft · **Owner:** #4 · **Cặp đôi:** #1 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-11
+> **Status:** Draft · **Owner:** #4 · **Verified against code:** một phần: bảng fraud (DBS-58), khung module `risk` (DBS-59); phần còn lại là thiết kế · **Cập nhật:** 2026-11-07
 
 > **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 

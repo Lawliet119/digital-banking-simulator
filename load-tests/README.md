@@ -1,6 +1,6 @@
 # load-tests
 
-Kịch bản [k6](https://k6.io/). Phụ trách: #6.
+Kịch bản [k6](https://k6.io/). Phụ trách: #5 Platform & Ops chạy, Dev viết script. Năm kịch bản k6 dưới đây đều **(dự kiến)**: chưa có file script nào trong thư mục này.
 
 | Kịch bản | Mục đích | Liên quan |
 |---|---|---|

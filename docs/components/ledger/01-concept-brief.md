@@ -1,6 +1,6 @@
 # ledger — Concept Brief
 
-> **Status:** Draft · **Owner:** #1 · **Cặp đôi:** #4 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** một phần: schema `transfers`, `ledger_entries`, `idempotency_keys` (DBS-21) và trigger append-only (DBS-27); kiểu tiền (DBS-22); nạp tiền tại quầy bản thô (DBS-60); chuyển tiền bản thô (DBS-61); checker bất biến (DBS-69). Chưa có: replay idempotency (DBS-79), hạn mức, lịch sử giao dịch, `GET /v1/transfers/{id}`, đối soát · **Cập nhật:** 2026-11-07
 
 > Tài liệu giải thích **một module**, cho người chưa đọc docs 01–03. Đọc xong bạn biết: ledger là gì, nó giữ lời hứa nào, một lệnh chuyển tiền đi qua những bước nào, và vì sao thiết kế như vậy.
 > Nguồn: `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §6.1, §8 · `docs/02_REQUIREMENTS_AND_DOMAIN_MODEL.md` (AC-5.x) · `backend/src/modules/ledger/README.md`.

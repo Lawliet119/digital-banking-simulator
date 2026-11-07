@@ -1,6 +1,6 @@
 # observability — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 (dashboard, alarm; metric do #3 và #6 phát) · **Cặp đôi:** #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #5 (dashboard, alarm; metric do Dev phát) · **Verified against code:** một phần: log JSON có `correlationId` (DBS-42), counter `redis_fallback_total` trong `@libs/redis` (DBS-76, chưa nối vào app). Chưa có: dashboard, alarm, SLI · **Cập nhật:** 2026-11-07
 
 ## Component
 

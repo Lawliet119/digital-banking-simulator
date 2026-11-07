@@ -1,6 +1,6 @@
 # load-tests — Concept Brief
 
-> **Status:** Draft · **Owner:** #6 · **Cặp đôi:** #5 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #5 chạy, Dev viết script · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
 
 ## Component
 

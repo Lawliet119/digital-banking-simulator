@@ -1,6 +1,6 @@
 # notification — Concept Brief
 
-> **Status:** Draft · **Owner:** #3 · **Cặp đôi:** #2 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
 
 ## Component
 

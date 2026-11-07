@@ -1,6 +1,6 @@
 # outbox — Concept Brief
 
-> **Status:** Draft · **Owner:** #3 · **Cặp đôi:** #2 · **Verified against code:** schema outbox/processed và writer trong transaction; relay/consumer chưa có
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** schema outbox/processed và writer trong transaction; relay/consumer chưa có
 
 ## Component
 

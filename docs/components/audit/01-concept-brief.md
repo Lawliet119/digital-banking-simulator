@@ -1,6 +1,6 @@
 # audit — Concept Brief
 
-> **Status:** Draft · **Owner:** #3 · **Cặp đôi:** #2 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** một phần: bảng `audit_log` (DBS-26), trigger append-only (DBS-27), `AuditService.record` ghi trong transaction của module gọi (DBS-56). Chưa có trên `main`: API tra cứu UC-8 (DBS-103, PR #59 đang mở) · **Cập nhật:** 2026-11-07
 
 ## Component
 

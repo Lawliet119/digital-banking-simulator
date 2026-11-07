@@ -1,6 +1,6 @@
 # platform-infra — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 · **Cặp đôi:** #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #5 · **Verified against code:** một phần: `infra/terraform` có bootstrap state (DBS-31), VPC và ECR (DBS-33), ECS và ALB (DBS-34), Cognito (DBS-54), RDS kèm TLS và secret (DBS-66, DBS-67), Valkey (DBS-75). Chưa có trên `main`: SQS (DBS-73, PR #40 đang mở), dashboard và alarm · **Cập nhật:** 2026-11-07
 
 ## Component
 

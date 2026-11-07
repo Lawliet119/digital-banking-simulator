@@ -1,6 +1,6 @@
 # fraud-dataset — Concept Brief
 
-> **Status:** Draft · **Owner:** #6 · **Cặp đôi:** #4 (người dùng dữ liệu) · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** Dev (task dataset), #4 dùng dữ liệu · **Verified against code:** một phần: generator dữ liệu bình thường và test `node --test` chạy trong CI (DBS-71). Chưa có: kịch bản gian lận, hard negative (DBS-126, PR #62 đang mở) · **Cập nhật:** 2026-11-07
 
 ## Component
 

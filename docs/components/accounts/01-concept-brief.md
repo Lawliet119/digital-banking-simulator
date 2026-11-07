@@ -1,6 +1,6 @@
 # accounts — Concept Brief
 
-> **Status:** Draft · **Owner:** Dev · **Review:** Dev khác · **Verified against code:** AccountsService primitives; các API use case chưa có · **Cập nhật:** 2026-10-27
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** một phần: schema (DBS-20), primitive của `AccountsService` (DBS-55), onboarding `POST`/`GET /v1/customers/me` (DBS-62). Chưa có trên `main`: mở tài khoản (DBS-63, PR #58 đang mở), xem tài khoản, khóa/mở khóa, tra cứu cho nhân viên · **Cập nhật:** 2026-11-07
 
 ## Component
 
