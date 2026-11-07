@@ -240,9 +240,9 @@ Phần lớn code đã có từ trước; kế hoạch này chỉ gồm những 
 
 | Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh (từ `backend/`, Node 24) | Commit |
 |---|---|---|---|---|---|
-| 1 | `test/db/account-opening.db-spec.ts` | TC-63-11 (2 tài khoản + 5 request song song → 1×201 + 4×409). Hành vi đã đúng nên **xanh ngay**; chứng minh test có giá trị bằng đột biến: tạm bỏ `FOR UPDATE` trong service, chạy lại, TC-63-03 và TC-63-11 phải **đỏ**, rồi khôi phục (đột biến không commit) | (điền) | `npm run test:db -- --runInBand --runTestsByPath test/db/account-opening.db-spec.ts` | `test(accounts): add boundary concurrency case (DBS-63)` |
-| 2 | `test/db/account-opening.db-spec.ts` | TC-63-07: token rác → 401; chưa onboarding → audit `REJECTED` với `actor_role` và `metadata {id}` (đổi từ `DENIED`) | (điền: kỳ vọng `REJECTED`, thực tế `DENIED`) | như bước 1 | `test(accounts): expect REJECTED audit for missing profile (DBS-63)` |
-| 3 | `test/db/account-opening.db-spec.ts` | TC-63-04: khẳng định `errorCode` của mọi 409, 3 SUCCESS + 2 REJECTED mỗi customer. Đặc tả hành vi đã đúng nên xanh ngay | (điền) | như bước 1 | `test(accounts): assert errorCode and audit in parallel case (DBS-63)` |
+| 1 | `test/db/account-opening.db-spec.ts` | TC-63-11 (2 tài khoản + 5 request song song → 1×201 + 4×409). Hành vi đã đúng nên **xanh ngay**; chứng minh test có giá trị bằng đột biến: tạm bỏ `FOR UPDATE` trong service, chạy lại, TC-63-03 và TC-63-11 phải **đỏ**, rồi khôi phục (đột biến không commit) | xanh ngay (hành vi đã đúng). Đột biến bỏ `FOR UPDATE`: **4 test đỏ** (TC-63-03, 04, 05, 11), đã khôi phục | `npm run test:db -- --runInBand --runTestsByPath test/db/account-opening.db-spec.ts` | `test(accounts): add boundary concurrency case (DBS-63)` |
+| 2 | `test/db/account-opening.db-spec.ts` | TC-63-07: token rác → 401; chưa onboarding → audit `REJECTED` với `actor_role` và `metadata {id}` (đổi từ `DENIED`) | `Expected outcome "REJECTED"`, `Received "DENIED"` (token rác đã qua assertion 401) | như bước 1 | `test(accounts): expect REJECTED audit for missing profile (DBS-63)` |
+| 3 | `test/db/account-opening.db-spec.ts` | TC-63-04: khẳng định `errorCode` của mọi 409, 3 SUCCESS + 2 REJECTED mỗi customer. Đặc tả hành vi đã đúng nên xanh ngay | xanh ngay (hành vi đã đúng) | như bước 1 | `test(accounts): assert errorCode and audit in parallel case (DBS-63)` |
 | 4 | `src/modules/accounts/account-opening.service.ts` | TC-63-07 và TC-63-08 từ bước 2 | — | như bước 1, sau đó `npm run lint:check && npm run typecheck` | `fix(accounts): audit missing profile as REJECTED in the same transaction (DBS-63)` |
 | 5 | `scripts/manual-dbs63.cjs` | — (script bổ sung) | — | `node scripts/manual-dbs63.cjs` chạy sau bước 4: kỳ vọng `DENIED` → `REJECTED` ở M-63-04 | `test(accounts): update supplementary manual driver (DBS-63)` |
 | 6 | — | Chạy lại toàn bộ trên cây hiện tại | — | `npm run lint:check && npm run typecheck && npm run build`; `npm test -- --runInBand`; `npm run test:e2e -- --runInBand` (`DATABASE_URL` Postgres riêng); `npm run test:db -- --runInBand` (**toàn bộ**, không chỉ 4 suite) | — |
@@ -269,59 +269,90 @@ Phần lớn code đã có từ trước; kế hoạch này chỉ gồm những 
 
 **Quyết định ở G3** (người dùng trả lời «duyệt», 2026-11-07, chấp nhận mọi đề xuất): (1) xóa `verification.txt` và `pr-description.md`; (2) viết lại dòng DBS-63 ở `docs/features/README.md` và README module accounts bằng tiếng Việt; (3) không push trước G4, sau G4 push thường lên nhánh PR #58 và hỏi riêng việc sửa mô tả PR.
 
-## 8. Results / handoff
+## 8. Kết quả
 
-Implemented AccountOpeningService, AccountsController and DTOs; registered in the real AccountsModule. New HTTP/PostgreSQL suite has10 cases, all passed. Four related DB suites75/75 passed (42.017s), including actual onboarding/AccountsService/AuditService. Full unit55 suites826/826 passed (190.029s); full E2E13 suites135/135 passed (158.212s). Lint/typecheck/build passed. Manual6/6 passed on code commit. No skipped task tests. Full DB suite not rerun; the four related PostgreSQL suites cover affected modules. Doc links202 files/0 broken.
+- **Lệnh kiểm tra** (2026-11-07, Node v24.22.2 portable, `--runInBand`; code cuối cùng là commit `fc684b3`, các commit sau chỉ đổi tài liệu và bằng chứng):
 
-Test-first evidence: after fixing a TypeScript test-helper signature (unknown body vs Supertest object), all10 tests failed as expected because POST /v1/accounts was absent (404, no OpenAPI route). Production code was written after that red run; all10 passed, then strengthened concurrent audit actor/target assertions and reran related suites75/75.
+```text
+npm run lint:check && npm run typecheck && npm run build   -> đạt
+npm test -- --runInBand            Test Suites: 1 failed, 56 passed, 57 total | Tests: 1 failed, 838 passed, 839 total
+npm run test:e2e -- --runInBand    Test Suites: 13 passed, 13 total           | Tests: 135 passed, 135 total
+npm run test:db -- --runInBand     Test Suites: 22 passed, 22 total           | Tests: 401 passed, 401 total (toàn bộ, 0 skipped)
+test/db/account-opening.db-spec.ts                                              | Tests: 11 passed, 11 total
+```
 
-User's existing request skips gate pauses, not design review/tests/evidence. No human gate approval claimed. Existing known handoffs BL-112/121/130/132/017/122/008 remain; process dependency/PR handoff gets next free BL id at delivery if still pending.
+  - Test đỏ duy nhất ở `npm test`: `jwks-verifier.service.spec.ts` › "refetches on key rotation once the cooldown has elapsed, but not before". Đây là BL-112 (test cooldown JWKS phụ thuộc thời gian, lúc chậm lúc đỏ khi máy bận), **không do task này**. Ở baseline đỏ test kia trong cùng cặp ("honours the refetch cooldown…"). Không được đếm vào kết quả của task.
+  - `e2e` chạy với `DATABASE_URL` trỏ Postgres 17 riêng ở cổng 55432, vì container `dbs-postgres-1` trên máy thuộc worktree khác và có mật khẩu khác (không đụng vào). `test:db` dùng Testcontainers.
+  - Không có `.skip`, `.only`, `.todo` trong test của task (0 skipped).
+  - **Đột biến (§7 bước 1):** tạm bỏ `FOR UPDATE` khỏi truy vấn `customers` → 4 test đỏ: TC-63-03, TC-63-04, TC-63-05, TC-63-11. Đã khôi phục (`git diff` sạch trước khi commit). TC-63-10 vẫn xanh khi bỏ `FOR UPDATE` vì `INSERT INTO accounts` lấy `FOR KEY SHARE` trên hàng `customers` qua khóa ngoại, và khóa đó xung đột với `FOR UPDATE` do kết nối ngoài giữ; điều này không làm yếu các case khác.
 
-Initial checks on main a9e607b: docker compose up -d succeeded (all3 local services running); local lint:check/typecheck passed; main CI [41840640181](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41840640181) has6 required jobs green. Main branch deliberately has no onboarding; User explicitly approved temporary DBS-62 source via the dependency question on2026-11-04; branch fast-forwarded to7d41a51 before implementation. Separate DBS-63 branch published at handover; no PR before dependency merge, shared status edit, or test stub.
+- **Đối chiếu test case:**
 
-Implementation commit `eb645902758d0f6d885fa3d494aa797d33bf321d`. Manual driver executed on that commit; [raw transcript](screenshots/DBS-63/manual-test.txt), [verification summary](screenshots/DBS-63/verification.txt), [prepared PR mapping](screenshots/DBS-63/pr-description.md).
-
-| Case / DoD | Evidence in account-opening.db-spec.ts | Result |
+| ID | Test (`test/db/account-opening.db-spec.ts`) | Đạt? |
 |---|---|---|
-| TC-63-01 / DoD1/3 | Both labels, own FK, zero string/ACTIVE, exact SUCCESS audit | Matched |
-| TC-63-02 / BR-14 | Third201/fourth409 and committed REJECTED audit | Matched |
-| TC-63-03 / DoD2 | 10 simultaneous first requests; exactly3 distinct accounts/7 correct409; every audit actor,target,metadata,correlation verified | Matched |
-| TC-63-04 / ownership | Independent limits for two customers; forged owner400 | Matched |
-| TC-63-05 / locking | Observe actual pg_stat_activity Lock; other customer proceeds; LOCKED account counted (status-only SQL input fixture, no balance seed) | Matched |
-| TC-63-06 / DoD3 | SYSTEM/bad types and privileged extra fields400, no accounts | Matched |
-| TC-63-07 / security | Real JWT/roles,401 codes, staff403; missing profile404 and DENIED survives | Matched |
-| TC-63-08 / atomic audit | DB trigger fails audit INSERT; success/rejection/denial500, account rollback and subsequent recovery | Matched |
-| TC-63-09 / OpenAPI | Allowed enum, DTO/example, bearer role, success and errors incl503 | Matched |
-| TC-63-10 / recovery | Real parent-lock timeout503 stable code/Retry-After, no account/audit, release/retry201 | Matched |
-| DoD4 / process | BL-145 | Main-based PR/CI/Dev review/merge pending, not claimed complete |
+| TC-63-01 | `TC-63-01 opens CHECKING/SAVINGS with zero string and correct atomic audit` | đạt |
+| TC-63-02 | `TC-63-02 fourth opening returns409 with a committed rejection audit` | đạt |
+| TC-63-03 | `TC-63-03 ten simultaneous first requests create exactly3 and reject7` | đạt (kết quả đúng với 10 request; việc các request thật sự chờ nhau được chứng minh riêng ở TC-63-05 và bằng đột biến) |
+| TC-63-04 | `TC-63-04 each customer has an independent limit and cannot forge an owner` | đạt (đã thêm `errorCode` và audit) |
+| TC-63-05 | `TC-63-05 opening really waits for its parent lock, another customer proceeds, LOCKED counts` | đạt; dùng fixture SQL `UPDATE accounts SET status='LOCKED'` (không có API khóa), không seed số dư |
+| TC-63-06 | `TC-63-06 rejects SYSTEM, invalid types and every privileged extra field` | đạt |
+| TC-63-07 | `TC-63-07 applies real guards and audits a missing profile as REJECTED before404` | đạt (đã thêm token rác, `actor_role`, `metadata`; đổi sang `REJECTED`) |
+| TC-63-08 | `TC-63-08 audit failure rolls back success; rejection/denial fail closed and recover` | đạt (tên test còn chữ "denial" từ trước; nội dung kiểm đường chưa onboarding vẫn 500 khi audit lỗi) |
+| TC-63-09 | `TC-63-09 OpenAPI documents allowed types, examples, security and error responses` | đạt |
+| TC-63-10 | `TC-63-10 real parent lock timeout returns503 with Retry-After, then recovers` | đạt |
+| TC-63-11 | `TC-63-11 a customer at two accounts gets exactly one more from five simultaneous requests` | đạt (mới) |
+| Quy trình | DoD #4 | **chưa đạt**, tracked `BL-158` |
 
-All business cases end with actual ledger-invariant checker PASS, zero violations. Only account initialization at default zero; no funds moved, deposits/transfers synthesized or balance UPDATE.
+  11/11 test case đạt đủ độ sâu, 0 đơn giản hóa, 0 chưa làm (không kể dòng quy trình).
 
-| Manual step | Actual result on code commit |
+- **Test thủ công** (app thật `npm run start:dev`, `APP_ROLE=both`, `AUTH_MODE=local`, token từ `auth:dev-token`, Postgres 17 riêng ở cổng 55432). Output thô: [manual-test.txt](screenshots/DBS-63/manual-test.txt), SHA ở dòng đầu `fc684b3ec265f5f3783b0c85212aa9989a3d16a7` (commit cuối cùng đổi code). Token không được in; `Authorization` hiển thị `<redacted>`.
+
+| Bước | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-63-01 | onboarding 200; `POST /v1/accounts` CHECKING 201 và SAVINGS 201, `balance:"0"`, `ACTIVE`; `psql`: 2 tài khoản, `SUCCESS \| account \| 2` | đạt |
+| M-63-02 | lần 3 → 201; lần 4 → 409 `ACCOUNT_LIMIT_REACHED`; `psql`: 3 tài khoản, `REJECTED \| customer \| 1`, `SUCCESS \| account \| 3` | đạt |
+| M-63-03 | 10 `curl` song song (`xargs -P 10`): `3 201`, `7 409`; `psql`: 3 tài khoản, `REJECTED \| customer \| 7`, `SUCCESS \| account \| 3` | đạt |
+| M-63-04 | `SYSTEM` 400; `customerId` thừa 400; không token 401 `UNAUTHENTICATED`; `operator` 403 `FORBIDDEN`; chưa onboarding 404; `psql`: `REJECTED \| user \| customer \| {"id": "…"}`, không tài khoản nào | đạt |
+| M-63-05 | onboarding 200; trigger làm `audit_log` lỗi; mở → 500 chung chung; `psql`: không có tài khoản, 0 audit cho `correlationId` đó; bỏ trigger; mở lại → 201 `balance:"0"` | đạt |
+| M-63-06 | `npm run --silent check:invariants` → `{"status":"PASS",…,"violations":[]}`, `exit=0` | đạt |
+| M-63-07 | Dừng app và watcher của worktree, xóa container `dbs63-pg`, xóa `.auth-local`, `env/.env.development`, `dist`; xác nhận `health` không còn trả lời, không còn container hay tiến trình `node` của worktree. Thực hiện sau khi ghi `manual-test.txt` nên không nằm trong file đó | đạt |
+
+  Không có bước nào ở trạng thái "chưa chạy". Không bước nào dùng SQL seed; `psql` chỉ để đọc, và để tạo/bỏ trigger ở M-63-05. Bước ép khóa quá thời gian (503) không có bước tay riêng, được chứng minh bằng TC-63-10.
+
+- **Phạm vi so với §7** (`git diff --stat main...HEAD`, trước commit cuối của tài liệu):
+
+```text
+@@DIFFSTAT@@
+```
+
+  Khớp bảng §7: code sản xuất chỉ có `account-opening.service.ts`; `accounts.controller.ts`, `open-account.dto.ts`, `accounts.module.ts` là phần đã có từ PR cũ (không đổi trong các bước ở đây). Không có file lạ ngoài kế hoạch.
+
+- **Ảnh chụp:**
+
+![Kết quả test thủ công DBS-63 trên ứng dụng thật](screenshots/DBS-63/01-manual-test-results.png)
+
+- **Lệch so với kế hoạch:**
+  1. §7 bước 2, 3 và 4 được commit gộp thành một commit `e08e621` (test và bản sửa). Hai thay đổi test nằm chung một file đã sửa cùng lúc nên không tách được thành commit xanh riêng. Không đổi phạm vi, không cần gate phụ.
+  2. Đột biến ở bước 1 làm đỏ 4 test, nhiều hơn 2 test (TC-63-03 và TC-63-11) kế hoạch dự kiến; là kết quả tốt hơn dự kiến.
+  3. Lần chạy test thủ công đầu tiên bị bỏ: tên tiếng Việt bị hỏng khi truyền qua `curl.exe` trên Windows (`Tr?n Thu H�`). Đã sửa kịch bản (gửi body qua file), chạy lại từ database sạch; `manual-test.txt` chỉ chứa lần chạy lại.
+  4. Môi trường: Node 24 bản portable (ngoài repo, SHA256 đã kiểm) và Postgres riêng ở cổng 55432, đã ghi ở §1 và §5. Không đổi cấu hình repo.
+  5. Domain review đổi hành vi 404 từ `DENIED` sang `REJECTED` (câu hỏi 1 của G2, đã duyệt) nên code có một thay đổi hành vi so với PR cũ.
+
+- **Bàn giao cho vai khác:**
+
+| Mục | Dòng backlog |
 |---|---|
-| M-63-01 | CHECKING and SAVINGS201, zero string/ACTIVE; rows2/audit SUCCESS2, invariants PASS |
-| M-63-02 | Third201/fourth409; count3, REJECTED audit committed, invariants PASS |
-| M-63-03 | 10 real parallel POSTs ->3 success7 rejection; actual audit counts3+7, invariants PASS |
-| M-63-04 | SYSTEM/forged owner400;401/403; missing onboarding404 with stored DENIED; invariants PASS |
-| M-63-05 | Audit trigger fault500 rolls back account; remove trigger/retry201, zero, invariants PASS |
-| M-63-06 | App/public JWKS/temp DB/owned PostgreSQL container cleaned up |
+| DoD #4: PR vào main, CI xanh trên head cuối, Dev khác review, bảng đối chiếu điền đủ | `BL-158` |
+| Quyền `UPDATE` trên `customers` cho role `dbs_api` (cần cho `SELECT … FOR UPDATE`); liên quan BL-017 | `BL-159` (mới) |
+| Test cooldown JWKS phụ thuộc thời gian, đỏ ngẫu nhiên khi máy bận | `BL-112` (đã có, không do task này) |
 
-![Actual HTTP output excerpt](screenshots/DBS-63/01-http-results.png)
+  Mô tả PR #58 hiện còn lỗi thời (nói chưa mở PR vào main, thiếu bảng đối chiếu mới). Sẽ cập nhật sau G4 nếu người dùng đồng ý.
 
-Historical BL-145 dependency handoff is now resolved by rebase after PR56 merge; current PR/CI/review state is recorded in the final handover below. No PR against dependency branch, board edit or auto-merge. BL-145 remains open only for final CI/Dev review/merge.
+## 9. Tài liệu đã cập nhật
 
-Historical pre-merge fetch2026-11-04: PR56 was still open/unmerged and origin/main a9e607b. [Published DBS-63 branch](https://github.com/Lawliet119/digital-banking-simulator/tree/feat/DBS-63-open-accounts). At that historical handoff no GitHub CI/Dev review/merge was claimed for DBS-63; see current handover below. Delivery checklist: design/re-review APPROVE, all ten planned cases matched, local automated checks and six manual steps complete; raw output inspected for credential markers and screenshot visually checked; source SHA recorded; no schema/env/dependency/ErrorCode/ADR/event change. Current final CI and Dev review/merge tracked in BL-145; main PR is now authorized by the follow-up request.
-
-## 9. Sources and changed docs
-
-Exact sheet DBS-63; docs02 UC-2, FR-ACC-01, BR-14, FR-AUD-01/02; docs03 API/error table; shared database-design4.2, event-contract; Accounts/Audit README, actual schema/TransactionService/AuditService, CONTRIBUTING5/5b. Updated Accounts README and docs03 POST API contract, this feature doc, feature index, BACKLOG BL-145 and raw review/test/manual evidence. Public primitive exports and schema unchanged.
-
-## Rebase and final handover ? 2026-11-06
-
-User requested completion after DBS-62 merge. Independently verified PR56 merged into main689a8e8 (GitHub API), then replayed ONLY commits after7d41a51 onto main2df7d0a. Rebasing application code/tests/manual driver caused no conflicts and byte-for-byte task source is unchanged. Resolved BACKLOG/feature-index conflicts by retaining main rows plus DBS63 own row; no duplicate DBS62 row or inherited commits in PR. Rebased source commit a69bfcf; tested tree/manual HEAD b9e68eb includes only later documentation. Manual re-executed6/6 on that exact tree, raw firstline SHA records it. Automated check results, new PR and final CI appended below once observed. No human Dev review/merge claimed; board changes remain with user.
-
-Rebased-tree checks2026-11-06: lint/typecheck/build PASS; full unit56 suites832/832 PASS(50.551s), full e2e13 suites135/135 PASS(83.168s), manual6/6 PASS at b9e68eb. Initial related-DB command had a filename typo(audit-service instead of actual audit.service),62 actual cases passed but command failed ENOENT; corrected command rerun and final result recorded below. Never treated ENOENT as suite success. No task test skips.
-
-Final corrected related-DB command: four suites75/75 PASS(10.185s), including all10 account-opening cases and real parent-lock503/recovery. Full DB suite remains for PR CI; selected75 not claimed fullDB.
-
-Opened [Draft PR58](https://github.com/Lawliet119/digital-banking-simulator/pull/58), base **main**. Final required jobs lint/typecheck/build/unit/e2e/db tracked in [Checks](https://github.com/Lawliet119/digital-banking-simulator/pull/58/checks); actual result verified before handover. Local checks above do not replace CI. Another Dev review and merge pending BL-145. User can move board to In Review after this main-based handover; agent does not edit sheet or merge. Final docs link check209 files0broken.
+- `backend/src/modules/accounts/README.md`: mục "Mở tài khoản (DBS-63)" (404 chưa onboarding là `REJECTED` cùng transaction; lưu ý quyền `UPDATE`, `BL-159`).
+- `docs/03_HIGH_LEVEL_ARCHITECTURE.md`: dòng `POST /v1/accounts` (audit `REJECTED` cho 409 và 404, 503 + `Retry-After`).
+- `docs/features/README.md`: dòng DBS-63, viết lại bằng tiếng Việt.
+- `docs/BACKLOG.md`: thêm `BL-158` (đổi từ `BL-145`, vì main đã dùng đến `BL-157`) và `BL-159`; không xóa dòng nào.
+- `docs/features/screenshots/DBS-63/`: thay `manual-test.txt`, `domain-review.md`, ảnh `01-manual-test-results.png`; xóa `01-http-results.png`, `verification.txt`, `pr-description.md`, `domain-review-round1.md` (số liệu cũ hoặc đã bị thay thế, còn trong lịch sử git).
+- Không đổi ADR, `_shared`, env, `ErrorCode`, event.
