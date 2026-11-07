@@ -58,6 +58,22 @@ export class AccountsService {
     return rows.map(({ txid: _txid, ...account }) => account);
   }
 
+  /**
+   * Throws AccountNotLockedError unless every id was locked with `lockForUpdate` by THIS
+   * transaction. For code that reads what only a held lock makes trustworthy (a daily total, a
+   * balance snapshot) and must refuse to answer without it. It asks no question of the database:
+   * a runner belongs to one transaction attempt, so the marks `lockForUpdate` left on it are the
+   * lock state.
+   */
+  assertLocked(ids: string[], manager: EntityManager): void {
+    const runner = this.requireOutermostTransaction(manager);
+    const held = this.locks.get(runner);
+    for (const value of ids) {
+      const id = this.normalizeId(value);
+      if (!held?.ids.has(id)) throw new AccountNotLockedError(id);
+    }
+  }
+
   async applyBalanceChange(
     accountId: string,
     delta: bigint,
