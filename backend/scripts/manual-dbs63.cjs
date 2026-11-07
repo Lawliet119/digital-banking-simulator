@@ -134,11 +134,11 @@ async function main() {
         "SELECT outcome,target_type FROM audit_log WHERE action='account.open' AND correlation_id=$1",
         [missing.correlationId],
       ),
-      [{ outcome: 'DENIED', target_type: 'user' }],
+      [{ outcome: 'REJECTED', target_type: 'user' }],
     );
     await invariants();
     console.log(
-      'M-63-04 PASS: SYSTEM/forged owner400; anonymous401, operator403, unonboarded404 with persisted DENIED',
+      'M-63-04 PASS: SYSTEM/forged owner400; anonymous401, operator403, unonboarded404 with persisted REJECTED',
     );
 
     const c = await customer('Phạm Ngọc Lan');
