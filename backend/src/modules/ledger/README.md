@@ -46,3 +46,9 @@ Idempotency (ADR-05): cùng key và cùng body trả lại đúng kết quả l�
 - Hai tài khoản khác nhau của cùng một người được phép, event có `sameOwner = true`.
 
 Thứ tự kiểm tra dưới khóa: ACTIVE, đủ tiền, hạn mức mỗi lần (`TRANSFER_LIMIT_PER_TX`), hạn mức ngày (`TRANSFER_LIMIT_PER_DAY`, tổng dòng ghi nợ của tài khoản nguồn từ 00:00 giờ Việt Nam). Vượt hạn mức → 422 `LIMIT_PER_TX_EXCEEDED` / `LIMIT_PER_DAY_EXCEEDED`, lệnh vẫn được lưu `REJECTED`. Chưa có test ở ranh giới nửa đêm (BL-154). Test dùng PostgreSQL thật, tiền vào qua API nạp tiền. Bảng case và bằng chứng nằm ở [DBS-61](../../../../docs/features/DBS-61-customer-transfers.md).
+
+## Lưu kết quả đối soát
+
+`reconciliation_runs` có trong [migration](../../database/migrations/1793577600000-CreateReconciliationRuns.ts), với status `OK`, `MISMATCH`, `ERROR`, các tổng bigint nullable và details không chứa văn bản tự do. Hợp đồng JSON chỉ gồm `accountId`, `balance`, `ledgerBalance`; tiền trong JSON là chuỗi nguyên signed bigint. [Schema chuẩn](../../../../docs/components/_shared/database-design.md#49-notificationlog-reconciliationruns) và [DBS-116](../../../../docs/features/DBS-116-reconciliation-runs.md) mô tả các ràng buộc và kiểm thử.
+
+Bảng không tự chạy hoặc tính đối soát. Job/producer thuộc DBS-117; quyền production và cleanup90 ngày thuộc DBS-119/job cleanup. Revert chỉ được khi rỗng, trong transaction READ COMMITTED; writer đồng thời được khóa/kiểm lại trước DROP. Không xóa kết quả đã ghi để ép revert.

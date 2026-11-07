@@ -147,6 +147,12 @@ Migration `1792627200001-CreateAuditLog` ([DBS-26](../docs/features/DBS-26-migra
 
 Migration `1792627200002-AddAppendOnlyTriggers` đặt hàm `public.forbid_mutation()` và sáu trigger cho `transfers`, `ledger_entries`, `audit_log`: [DBS-27](../docs/features/DBS-27-append-only-triggers.md). INSERT vẫn được; UPDATE/DELETE có hàng và TRUNCATE kể cả bảng rỗng bị `42501` từ trigger. Revert27 chỉ gỡ trigger/hàm, giữ dữ liệu/sequence, nên phải đánh giá việc bỏ lớp bảo vệ trước khi dùng ngoài DB tạm. Test schema của từng migration dùng prefix thật; CLI vẫn run latest và đọc lịch sử khi revert. Quyền production thuộc task roles, không suy ra từ owner fixture.
 
+**Kết quả đối soát.**
+
+Migration `1793577600000-CreateReconciliationRuns` tạo bảng9 cột `reconciliation_runs`: [schema chuẩn](../docs/components/_shared/database-design.md#49-notificationlog-reconciliationruns). `details` là SQL NULL hoặc mảng các object đóng `accountId`, `balance`, `ledgerBalance`; hai giá trị tiền là chuỗi signed bigint chính xác, không JSON number hoặc văn bản tự do. Revert cần transaction READ COMMITTED, khóa rồi kiểm rỗng; có dữ liệu trả `55000`, giữ nguyên bảng/history. Schema không cung cấp scheduler hoặc quyền production.
+
+Chạy driver vận hành bằng `npx ts-node -r tsconfig-paths/register test/manual/reconciliation-runs.manual.ts` từ `backend/`, với Docker sẵn sàng. Driver dùng PostgreSQL17 riêng, CLI migration thật và database tạm do nó tạo; không ghi database phát triển. Dòng đầu cho biết SHA code hoặc snapshot working tree chưa commit. Test/manual27 chọn đúng prefix và hoàn tác suffix qua migration down thật, nên việc có migration mới không làm revert nhầm. [Evidence và giới hạn bàn giao](../docs/features/DBS-116-reconciliation-runs.md).
+
 ### 7. Tiền: một cách duy nhất, qua `@common/money`
 `JSON` và `Number`/`parseInt` làm tròn mọi số trên 2^53: `9007199254740993` thành `9007199254740992` mà không báo lỗi. Nên tiền trên dây (API, event, tham số SQL) là **chuỗi** số nguyên đồng, trong domain là **`bigint`**, và chỉ đổi qua lại bằng `@common/money` (import `from '@common/money'`, không import file bên trong).
 

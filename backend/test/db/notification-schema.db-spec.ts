@@ -1,11 +1,20 @@
 import { randomUUID } from 'node:crypto';
-import { createTempDatabase, migrate, attempt, type TempDatabase } from '../support/temp-database';
+import {
+  createTempDatabase,
+  migrate,
+  migrateThrough,
+  attempt,
+  type TempDatabase,
+} from '../support/temp-database';
+
+// Pinned so a later migration never becomes the "last" one that undoLast reverts.
+const TARGET = 'CreateNotificationLog1792886400000';
 
 describe('DBS-96 notification storage', () => {
   let db: TempDatabase;
   beforeEach(async () => {
     db = await createTempDatabase();
-    await migrate(db.url);
+    await migrateThrough(db.url, TARGET);
   });
   afterEach(async () => {
     if (db?.runner.isTransactionActive) await db.runner.rollbackTransaction();
@@ -150,7 +159,7 @@ describe('DBS-96 notification storage', () => {
     expect(await db.runner.query('SELECT name FROM migrations ORDER BY id')).toEqual(
       history.slice(0, -1),
     );
-    await migrate(db.url);
+    await migrateThrough(db.url, TARGET);
     expect(await db.runner.query('SELECT name FROM migrations ORDER BY id')).toEqual(history);
     expect(await db.runner.query('SELECT count(*)::int AS n FROM notification_log')).toEqual([
       { n: 0 },

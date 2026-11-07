@@ -46,6 +46,22 @@ function cli(script: string, db: TempDatabase, args: string[] = []) {
     }),
   );
 }
+async function revertSuccessors(db: TempDatabase) {
+  const history = await sql(db, 'SELECT name FROM migrations ORDER BY timestamp,id');
+  const position = history.findIndex(row => row.name === TARGET);
+  assert(position >= 0, 'Append-only migration must be present before selecting its prefix');
+  for (let index = history.length - 1; index > position; index--) {
+    cli('migration:revert', db);
+    assert.deepEqual(
+      await sql(db, 'SELECT name FROM migrations ORDER BY timestamp,id'),
+      history.slice(0, index),
+    );
+  }
+  assert.equal(
+    (await sql(db, 'SELECT name FROM migrations ORDER BY timestamp,id')).at(-1)?.name,
+    TARGET,
+  );
+}
 async function sql(
   db: TempDatabase,
   text: string,
@@ -284,6 +300,7 @@ async function main() {
     roleCreated = true;
     const db = await create();
     cli('migration:run', db);
+    await revertSuccessors(db);
     await sql(
       db,
       "SELECT current_setting('server_version') AS version,current_setting('timezone') AS timezone",
@@ -303,6 +320,7 @@ async function main() {
     log('MANUAL STEP M-27-04 empty TRUNCATE and no-match rows');
     const empty = await create();
     cli('migration:run', empty);
+    await revertSuccessors(empty);
     await assignOwner(empty);
     for (const table of TABLES) {
       assert.deepEqual(await sql(empty, `SELECT * FROM ${table}`), []);
@@ -375,6 +393,7 @@ async function main() {
 
     log('MANUAL STEP M-27-06 re-run restores protection');
     cli('migration:run', db);
+    await revertSuccessors(db);
     await catalog(db);
     assert.deepEqual(await snapshot(db), baseline);
     assert.deepEqual(await sequences(db), beforeSequences);
