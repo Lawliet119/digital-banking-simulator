@@ -1,0 +1,67 @@
+import { Body, Controller, Post, Req } from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiInternalServerErrorResponse,
+  ApiNotFoundResponse,
+  ApiOperation,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { CurrentUser, type CurrentUserInfo, Roles } from '@modules/identity';
+import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
+import { AccountOpeningService } from './account-opening.service';
+import { CreateAccountDto, OpenedAccountDto } from './open-account.dto';
+
+@ApiTags('accounts')
+@ApiBearerAuth('access-token')
+@Roles('customer')
+@Controller('accounts')
+export class AccountsController {
+  constructor(private readonly opening: AccountOpeningService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Customer: open a CHECKING or SAVINGS account (maximum three)' })
+  @ApiCreatedResponse({ type: OpenedAccountDto })
+  @ApiBadRequestResponse({ description: 'Invalid account type or extra body fields' })
+  @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED or TOKEN_EXPIRED' })
+  @ApiForbiddenResponse({ description: 'FORBIDDEN' })
+  @ApiNotFoundResponse({ description: 'Customer profile not created yet' })
+  @ApiConflictResponse({
+    description: 'ACCOUNT_LIMIT_REACHED',
+    schema: {
+      example: {
+        type: 'about:blank',
+        title: 'Conflict',
+        status: 409,
+        errorCode: 'ACCOUNT_LIMIT_REACHED',
+        detail: 'Customer account limit reached',
+        correlationId: 'd461b1d0-dba2-4e40-8304-d91f7b7132c9',
+      },
+    },
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Unexpected failure; no account created without audit',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'SERVICE_TEMPORARILY_UNAVAILABLE; retry after transient DB failure',
+    headers: {
+      'Retry-After': {
+        description: 'Seconds before retry',
+        schema: { type: 'integer', example: 1 },
+      },
+    },
+  })
+  open(
+    @CurrentUser() user: CurrentUserInfo,
+    @Body() body: CreateAccountDto,
+    @Req() request: RequestWithCorrelationId,
+  ): Promise<OpenedAccountDto> {
+    if (!request.correlationId) throw new Error('Missing server correlation context');
+    return this.opening.open(user.userId, body.type, request.correlationId);
+  }
+}
