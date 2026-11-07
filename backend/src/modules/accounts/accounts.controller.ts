@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -8,6 +8,8 @@ import {
   ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
   ApiOperation,
+  ApiOkResponse,
+  ApiParam,
   ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -16,13 +18,62 @@ import { CurrentUser, type CurrentUserInfo, Roles } from '@modules/identity';
 import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
 import { AccountOpeningService } from './account-opening.service';
 import { CreateAccountDto, OpenedAccountDto } from './open-account.dto';
+import { AccountQueryService } from './account-query.service';
+import { AccountViewDto } from './account-view.dto';
 
 @ApiTags('accounts')
 @ApiBearerAuth('access-token')
 @Roles('customer')
 @Controller('accounts')
 export class AccountsController {
-  constructor(private readonly opening: AccountOpeningService) {}
+  constructor(
+    private readonly opening: AccountOpeningService,
+    private readonly queries: AccountQueryService,
+  ) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Customer: list own accounts and committed PostgreSQL balances' })
+  @ApiOkResponse({ type: AccountViewDto, isArray: true })
+  @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED or TOKEN_EXPIRED' })
+  @ApiForbiddenResponse({ description: 'FORBIDDEN' })
+  @ApiInternalServerErrorResponse({ description: 'Internal server error; no data if audit fails' })
+  @ApiServiceUnavailableResponse({
+    description: 'SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds',
+  })
+  list(
+    @CurrentUser() user: CurrentUserInfo,
+    @Req() request: RequestWithCorrelationId,
+  ): Promise<AccountViewDto[]> {
+    return this.queries.list(user.userId, this.correlationId(request));
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Customer: read one owned account and its committed balance' })
+  @ApiParam({
+    name: 'id',
+    description: 'Account UUID; invalid, missing or foreign account returns404',
+    format: 'uuid',
+  })
+  @ApiOkResponse({ type: AccountViewDto })
+  @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED or TOKEN_EXPIRED' })
+  @ApiForbiddenResponse({ description: 'FORBIDDEN' })
+  @ApiNotFoundResponse({ description: 'Account not found (includes invalid, foreign and SYSTEM)' })
+  @ApiInternalServerErrorResponse({ description: 'Internal server error; no data if audit fails' })
+  @ApiServiceUnavailableResponse({
+    description: 'SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds',
+  })
+  get(
+    @CurrentUser() user: CurrentUserInfo,
+    @Param('id') accountId: string,
+    @Req() request: RequestWithCorrelationId,
+  ): Promise<AccountViewDto> {
+    return this.queries.get(user.userId, accountId, this.correlationId(request));
+  }
+
+  private correlationId(request: RequestWithCorrelationId): string {
+    if (!request.correlationId) throw new Error('Missing server correlation context');
+    return request.correlationId;
+  }
 
   @Post()
   @ApiOperation({ summary: 'Customer: open a CHECKING or SAVINGS account (maximum three)' })
