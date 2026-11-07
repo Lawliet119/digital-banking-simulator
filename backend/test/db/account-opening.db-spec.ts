@@ -151,6 +151,34 @@ describe('DBS-63 real HTTP account opening and parent-row serialization', () => 
     await open(a.token, { type: 'CHECKING', customerId: b.id }).expect(400);
   });
 
+  it('TC-63-11 a customer at two accounts gets exactly one more from five simultaneous requests', async () => {
+    const user = await customer();
+    for (let i = 0; i < 2; i++) await open(user.token).expect(201);
+    const results = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        open(user.token, { type: i % 2 ? 'SAVINGS' : 'CHECKING' }),
+      ),
+    );
+    const created = results.filter(r => r.status === 201);
+    const rejected = results.filter(r => r.status === 409);
+    expect(created).toHaveLength(1);
+    expect(rejected).toHaveLength(4);
+    for (const res of rejected) expect(res.body.errorCode).toBe('ACCOUNT_LIMIT_REACHED');
+    expect(
+      await q('SELECT count(*)::int AS n FROM accounts WHERE customer_id=$1', [user.id]),
+    ).toEqual([{ n: 3 }]);
+    for (const res of results) {
+      const rows = await q(
+        "SELECT outcome,metadata FROM audit_log WHERE action='account.open' AND correlation_id=$1",
+        [res.headers['x-correlation-id']],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].outcome).toBe(res.status === 201 ? 'SUCCESS' : 'REJECTED');
+      if (res.status === 409)
+        expect(rows[0].metadata).toEqual({ reason: 'ACCOUNT_LIMIT_REACHED', count: 3 });
+    }
+  });
+
   it('TC-63-05 opening really waits for its parent lock, another customer proceeds, LOCKED counts', async () => {
     const a = await customer(),
       b = await customer();
