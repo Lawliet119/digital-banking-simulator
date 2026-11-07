@@ -144,10 +144,24 @@ describe('DBS-63 real HTTP account opening and parent-row serialization', () => 
     );
     expect(results.filter(r => r.status === 201)).toHaveLength(6);
     expect(results.filter(r => r.status === 409)).toHaveLength(4);
-    for (const user of [a, b])
+    for (const res of results.filter(r => r.status === 409))
+      expect(res.body.errorCode).toBe('ACCOUNT_LIMIT_REACHED');
+    for (const user of [a, b]) {
       expect(
         await q('SELECT count(*)::int AS n FROM accounts WHERE customer_id=$1', [user.id]),
       ).toEqual([{ n: 3 }]);
+      const [actor] = await q('SELECT id FROM users WHERE cognito_sub=$1', [user.sub]);
+      expect(
+        await q(
+          `SELECT outcome,count(*)::int AS n FROM audit_log
+           WHERE action='account.open' AND actor_user_id=$1 GROUP BY outcome ORDER BY outcome`,
+          [actor.id],
+        ),
+      ).toEqual([
+        { outcome: 'REJECTED', n: 2 },
+        { outcome: 'SUCCESS', n: 3 },
+      ]);
+    }
     await open(a.token, { type: 'CHECKING', customerId: b.id }).expect(400);
   });
 
@@ -230,11 +244,12 @@ describe('DBS-63 real HTTP account opening and parent-row serialization', () => 
     ).toEqual([{ n: 0 }]);
   });
 
-  it('TC-63-07 applies real guards and persists missing-onboarding denial before404', async () => {
+  it('TC-63-07 applies real guards and audits a missing profile as REJECTED before404', async () => {
     expect(
       (await request(app.url).post('/v1/accounts').send({ type: 'CHECKING' }).expect(401)).body
         .errorCode,
     ).toBe('UNAUTHENTICATED');
+    expect((await open('not-a-jwt').expect(401)).body.errorCode).toBe('UNAUTHENTICATED');
     const expired = await app.issuer.token('customer', { sub: randomUUID(), iat: 1, exp: 2 });
     expect((await open(expired).expect(401)).body.errorCode).toBe('TOKEN_EXPIRED');
     for (const role of ['operator', 'auditor', 'admin'] as const) {
@@ -246,11 +261,18 @@ describe('DBS-63 real HTTP account opening and parent-row serialization', () => 
     const [actor] = await q('SELECT id FROM users WHERE cognito_sub=$1', [user.sub]);
     expect(
       await q(
-        "SELECT actor_user_id,outcome,target_type,target_id FROM audit_log WHERE action='account.open' AND correlation_id=$1",
+        "SELECT actor_user_id,actor_role,outcome,target_type,target_id,metadata FROM audit_log WHERE action='account.open' AND correlation_id=$1",
         [res.headers['x-correlation-id']],
       ),
     ).toEqual([
-      { actor_user_id: actor.id, outcome: 'DENIED', target_type: 'user', target_id: actor.id },
+      {
+        actor_user_id: actor.id,
+        actor_role: 'customer',
+        outcome: 'REJECTED',
+        target_type: 'user',
+        target_id: actor.id,
+        metadata: { id: actor.id },
+      },
     ]);
   });
 

@@ -31,7 +31,20 @@ export class AccountOpeningService {
         'SELECT id FROM customers WHERE user_id=$1 FOR UPDATE',
         [userId],
       );
-      if (!customers[0]) return { kind: 'missing' };
+      if (!customers[0]) {
+        // A missing profile is a business rejection, not a permission denial: no other write
+        // happens, so REJECTED goes in this transaction and the 404 is thrown after commit.
+        await this.audit.record(manager, {
+          actor: userId,
+          role: 'customer',
+          action: 'account.open',
+          outcome: 'REJECTED',
+          target: { type: 'user', id: userId },
+          correlationId,
+          metadata: { id: userId },
+        });
+        return { kind: 'missing' };
+      }
       const customerId = customers[0].id;
       // A separate READ COMMITTED statement sees accounts committed by the lock's previous holder.
       const [state]: { count: number }[] = await manager.query(
@@ -80,18 +93,7 @@ export class AccountOpeningService {
         message: 'Customer account limit reached',
       });
     }
-    if (outcome.kind === 'missing') {
-      // PR54 forbids recordDenied inside another transaction. Target the real user, not a fictitious customer.
-      await this.audit.recordDenied({
-        actor: userId,
-        role: 'customer',
-        action: 'account.open',
-        target: { type: 'user', id: userId },
-        correlationId,
-        metadata: { id: userId },
-      });
-      throw new NotFoundException('Customer profile not found');
-    }
+    if (outcome.kind === 'missing') throw new NotFoundException('Customer profile not found');
     return outcome.account;
   }
 }
