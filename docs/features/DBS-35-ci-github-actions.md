@@ -358,7 +358,7 @@ process.exit(bad ? 1 : 0);
 | TC-35-10 | [run #6](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39258326502) (commit test hỏng `14dff24`): chỉ `unit` đỏ, năm job còn lại xanh; log: `FAIL src/ci-probe.spec.ts`, `Expected: 3 / Received: 2`, `Tests: 1 failed, 349 passed, 350 total` (ảnh 10, 11) | đạt |
 | TC-35-11 | sau revert lint (`dfd1705`) run #5 xanh 47 giây; sau revert test (`52aec98`) run #7 xanh cả sáu; diff của PR trở lại +768/−35, 17 file, không còn file `ci-probe*` (ảnh 06, 12) | đạt |
 | TC-35-12 | `grep` thấy đủ sáu tên, "Re-run failed jobs", "xung đột", "Expected" trong CONTRIBUTING 4b; tên trong bảng khớp `ci.yml`; `check-doc-links.mjs`: 0 link hỏng | đạt |
-| TC-35-13 | quy trình (merge, review, `push main` xanh) | chưa kiểm được (sau merge, xem BL-014) |
+| TC-35-13 | quy trình (merge, review, `push main` xanh) | `push main` xanh: đạt, xem M-35-10 (kiểm ngày 2026-11-07). Dev review: chưa có (BL-160) |
 | TC-35-14 | job `db` trên Actions ([run #1](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39256485215)): service `postgres:17` khỏe (`Initialize containers` 11 giây, các bước sau chạy), bước `Kiểm Postgres` in `rolsuper=t timezone=Etc/UTC`, `Test Suites: 3 passed`, `Tests: 49 passed` | đạt |
 | TC-35-15 | M-35-03: cổng sai → 49 test đỏ, `Cannot reach PostgreSQL … ECONNREFUSED`, exit 1 | đạt |
 | TC-35-16 | kiểm tĩnh (`permissions`, không `secrets.`, không `${{` trong `run:`, mọi `uses:` ghim SHA, `persist-credentials: false` ở cả sáu checkout) | đạt |
@@ -377,7 +377,7 @@ process.exit(bad ? 1 : 0);
 | M-35-07 | **đạt**: `git revert` → run #5 xanh cả sáu, 47 giây (ảnh 06) |
 | M-35-08 | **đạt**: sau khi chạy cục bộ năm lệnh (chỉ `test` đỏ), đẩy `src/ci-probe.spec.ts` → [run #6](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39258326502): chỉ `unit` đỏ, `Expected: 3 / Received: 2` (ảnh 10, 11) |
 | M-35-09 | **đạt**: `git revert` → run #7 (commit `52aec98`) xanh cả sáu; PR trở lại +768/−35, 17 file (ảnh 12) |
-| M-35-10 | **chưa chạy (chờ merge)**: lần chạy `push main` đầu tiên và việc hai merge liền nhau không hủy nhau |
+| M-35-10 | **đạt** (kiểm sau merge, ngày 2026-11-07, trong CHORE-20261107-repo-audit): lần chạy `push main` đầu tiên là [run 39269889119](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/39269889119) trên `d158296`, xanh. Tính tới `aeee9c9` ([run 42325275992](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42325275992), xanh) có 35/36 lần `push main` xanh, không lần nào Cancelled; lần đỏ duy nhất là `82c8e23`. Cặp merge sát nhau `6138741` và `b2bb5bc` cách nhau 37 giây, cả hai lần chạy đều xanh. BL-014 đã đóng |
 
 - **Phạm vi so với §7** (`git diff --stat origin/main..HEAD`, 10 file; thêm feature doc và ảnh khi commit bước 6): `.github/workflows/ci.yml` (+155), `.github/workflows/.gitkeep` (xóa), `CONTRIBUTING.md`, `README.md`, `backend/README.md`, `docs/BACKLOG.md`, `docs/components/ci-cd/01-concept-brief.md`, `docs/features/README.md`, `.claude/skills/dbs-delivering-task/references/testing.md` đều có trong §7. **Một file ngoài kế hoạch: `backend/package-lock.json`** (xem dưới).
 - **Ảnh chụp:** 01–04 từ output thật của `manual-test.txt` (render bằng Chrome headless); 05–12 chụp từ trang GitHub Actions và PR #11 bằng Claude in Chrome (JPEG):
