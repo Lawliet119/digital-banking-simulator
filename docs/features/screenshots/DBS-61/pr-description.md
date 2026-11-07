@@ -43,7 +43,7 @@ Test: `backend/test/db/customer-transfers.db-spec.ts` (HTTP, JWT và PostgreSQL 
 - [x] Có test; logic về tiền được test trên PostgreSQL thật (`test:db` đầy đủ 390/390; `customer-transfers` 21/21)
 - [ ] CI xanh: CI chạy trước đó (run 42169624547) xanh 6/6 trên đầu cũ `2771771`; các commit sửa theo review chưa được push nên CI trên đầu mới chưa chạy
 - [x] Không có secret trong code, log, commit (transcript manual đã kiểm không có token, header Authorization, chuỗi kết nối hay ARN)
-- [ ] Feature doc đủ mục 1–9 (đã qua 4 gate): G1, G2, G3 đã được duyệt khi làm bù; G4 chờ người duyệt. Test thủ công đã chạy 6/6, ảnh chụp ở `docs/features/screenshots/DBS-61/`
+- [x] Feature doc đủ mục 1–9 (đã qua 4 gate): G1, G2, G3 được duyệt khi làm bù, G4 đã được duyệt. Test thủ công đã chạy 6/6, ảnh chụp ở `docs/features/screenshots/DBS-61/`
 - [x] Đã cập nhật tài liệu: docs/03, README module ledger, chỉ mục feature, BACKLOG
 
 Unit: 831/832, một test hỏng trong `jwks-verifier.service.spec.ts` thuộc BL-112 (lỗi thời gian của module identity, mỗi lần chạy hỏng một test khác nhau, không sửa Identity). e2e 135/135.
