@@ -1,7 +1,13 @@
 import type { DynamicModule, Type } from '@nestjs/common';
 import { AppRole, runsHttp, runsWorkers } from '@common/app-role/app-role';
+import { AuditModule } from './audit';
 import { HealthModule } from './health';
 import { IdentityModule } from './identity';
+import { OutboxModule, OutboxRelayModule } from './outbox';
+import { NotificationModule } from './notification';
+import { AccountsModule } from './accounts';
+import { RiskModule } from './risk';
+import { LedgerModule } from './ledger';
 
 type ModuleRef = Type<unknown> | DynamicModule;
 
@@ -14,14 +20,17 @@ type ModuleRef = Type<unknown> | DynamicModule;
  * starts a consumer must guard it with `runsWorkers()` so an `api` instance never polls a queue.
  */
 const sharedModules: ModuleRef[] = [
-  // AccountsModule, LedgerModule, AuditModule, RiskModule — added by their owners.
+  OutboxModule,
+  AuditModule,
+  RiskModule,
+  // A module that other modules only import (AccountsModule is imported by LedgerModule) does not
+  // need to be listed for each role: Nest resolves it through the importer. AccountsModule sits in
+  // apiModules so an `api` instance fails at boot if its providers ever stop resolving.
 ];
 
-const apiModules: ModuleRef[] = [HealthModule, IdentityModule];
+const apiModules: ModuleRef[] = [HealthModule, IdentityModule, AccountsModule, LedgerModule];
 
-const workerModules: ModuleRef[] = [
-  // OutboxModule (relay), NotificationModule — added by #3.
-];
+const workerModules: ModuleRef[] = [OutboxRelayModule, NotificationModule];
 
 /** The module list for the given role (defaults to the current process's `APP_ROLE`). */
 export function modulesForRole(role?: AppRole): ModuleRef[] {

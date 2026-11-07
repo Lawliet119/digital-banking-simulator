@@ -30,3 +30,34 @@ output "target_group_arn" {
 output "task_definition_arn" {
   value = aws_ecs_task_definition.api.arn
 }
+
+output "db_instance_id" {
+  value = aws_db_instance.main.identifier
+}
+
+output "db_address" {
+  description = "Hostname của RDS (không kèm port)."
+  value       = aws_db_instance.main.address
+}
+
+output "db_endpoint" {
+  value = aws_db_instance.main.endpoint
+}
+
+output "db_port" {
+  value = aws_db_instance.main.port
+}
+
+output "db_master_secret_arn" {
+  description = "Secret mật khẩu master do RDS quản lý (DBS-67, DBS-68 đọc để tạo DB role và DATABASE_URL)."
+  value       = aws_db_instance.main.master_user_secret[0].secret_arn
+}
+
+output "redis_primary_endpoint" {
+  value = aws_elasticache_replication_group.main.primary_endpoint_address
+}
+
+output "redis_replication_group_id" {
+  description = "Cho alarm Redis không truy cập được (docs/03 §14)."
+  value       = aws_elasticache_replication_group.main.id
+}

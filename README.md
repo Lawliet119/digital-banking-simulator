@@ -39,10 +39,10 @@ digital-banking-simulator/
 │   │   ├── common/       # app-role, ErrorCode, filter lỗi, middleware, utils
 │   │   ├── config/       # cấu hình + validate biến môi trường lúc khởi động
 │   │   ├── database/     # kết nối, TransactionService, migrations
-│   │   ├── libs/         # adapter: redis, sqs, cognito
+│   │   ├── libs/         # adapter: redis, sqs
 │   │   ├── modules/      # identity, accounts, ledger, risk, audit, outbox, notification, health
-│   │   └── scripts/      # seed, công cụ chạy một lần
-│   ├── test/             # e2e
+│   │   └── scripts/      # tạo khóa và token dev, script smoke thủ công
+│   ├── test/             # e2e, db (PostgreSQL thật), services (Testcontainers), manual, support
 │   └── Dockerfile        # một image cho cả api và worker
 ├── infra/
 │   ├── terraform/        # hạ tầng AWS
@@ -52,11 +52,12 @@ digital-banking-simulator/
 │   ├── 02_REQUIREMENTS_AND_DOMAIN_MODEL.md
 │   ├── 03_HIGH_LEVEL_ARCHITECTURE.md
 │   ├── README.md         # bản đồ tài liệu: đọc gì trước, một sự thật ở một chỗ
-│   ├── adr/              # Architecture Decision Records (ADR-01…13)
+│   ├── adr/              # Architecture Decision Records (ADR-01…13 Accepted, ADR-14 Proposed)
 │   ├── security/         # threat model STRIDE
 │   ├── components/       # concept brief từng component + thiết kế dùng chung (DB, event)
-│   ├── deliverables/     # 5 bản nộp P1–P5
-│   └── superpowers/plans/ # implementation plan (master roadmap)
+│   ├── features/         # mỗi task một feature doc: thiết kế, test, kết quả
+│   ├── BACKLOG.md        # việc còn tồn sau các task
+│   └── deliverables/     # 5 bản nộp P1–P5
 ├── load-tests/           # kịch bản k6
 ├── .github/              # CI/CD, PR template
 └── docker-compose.yml    # PostgreSQL, Valkey, ElasticMQ cho dev local
@@ -78,7 +79,7 @@ cp env/.env.example env/.env.development
 npm run start:dev          # http://localhost:3000/health/ready · http://localhost:3000/docs
 ```
 
-Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db` (trong `backend/`). CI chạy đúng các lệnh này (cộng `build`) trên mỗi PR; cách đọc kết quả: [CONTRIBUTING mục 4b](CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions). Chi tiết, quy ước và các lệnh khác: [backend/README.md](backend/README.md).
+Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db` (trong `backend/`). CI chạy đúng các lệnh này (cộng `build`) trên mỗi PR. Ngoài ra, job `unit` chạy `node --test` của fraud-dataset, còn job `e2e` chạy hai suite `test:db` trên Testcontainers và hai suite `test:services` (`sqs-adapter`, `redis-adapter`); cách đọc kết quả: [CONTRIBUTING mục 4b](CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions). Chi tiết, quy ước và các lệnh khác: [backend/README.md](backend/README.md).
 
 | Dịch vụ | Địa chỉ |
 |---|---|
@@ -94,11 +95,12 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 | [01 — Business Analysis](docs/01_BUSINESS_ANALYSIS.md) | Bài toán, mục tiêu, stakeholder, quy trình, quy tắc nghiệp vụ |
 | [02 — Requirements & Domain Model](docs/02_REQUIREMENTS_AND_DOMAIN_MODEL.md) | Use case, FR, NFR, tiêu chí chấp nhận, workload, domain model |
 | [03 — High-Level Architecture](docs/03_HIGH_LEVEL_ARCHITECTURE.md) | Kiến trúc, luồng chuyển tiền, dữ liệu, Redis, sự kiện, bảo mật, triển khai |
-| [ADR](docs/adr/README.md) | 13 quyết định kiến trúc và lý do |
+| [ADR](docs/adr/README.md) | 13 quyết định kiến trúc đã chốt, 1 đề xuất (ADR-14), kèm lý do |
 | [Threat model](docs/security/threat-model.md) | Mối đe dọa STRIDE của luồng tiền và biện pháp |
 | [Bản đồ tài liệu](docs/README.md) | Đọc gì trước, cấu trúc `docs/`, quy tắc một sự thật ở một chỗ |
 | [Components](docs/components/index.md) | Mục lục từng module và thành phần hạ tầng, kèm concept brief |
-| [Master roadmap](docs/superpowers/plans/2026-10-02-master-roadmap.md) | Roadmap 10 tuần: task, phụ thuộc, cổng ra theo tuần |
+| [Feature docs](docs/features/README.md) | Mỗi task đã làm một file: thiết kế, test case, kết quả. Việc theo tuần nằm trên board của nhóm (`fetch-task.mjs`) |
+| [Backlog](docs/BACKLOG.md) | Việc còn tồn sau các task |
 | [Deliverables P1–P5](docs/deliverables/README.md) | Năm bản nộp và nguồn của từng bản |
 
 ## Nhóm

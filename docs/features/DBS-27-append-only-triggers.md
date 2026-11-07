@@ -1,10 +1,10 @@
 # DBS-27 · Hàm forbid_mutation và trigger chặn sửa/xóa các bảng chỉ-thêm
 
-> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/14) · **Cập nhật:** 2026-10-24
+> **Status:** Implemented · PR #17 đã merge 2026-10-24; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-27-append-only-triggers` · **PR:** [#17](https://github.com/Lawliet119/digital-banking-simulator/pull/17) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 
-- **Nguồn yêu cầu:** workbook local `Jira chạy bằng cơm (1).xlsx`, tab `Tuần 1`, hàng 12, cột A–K; workbook chỉ đọc và không đưa vào Git. Đã chạy `fetch-task.mjs DBS-27`: yêu cầu giống workbook; board trực tiếp ghi `In Progress`, workbook ghi `To Do`. Ngày 2026-10-24 `fetch-task.mjs DBS-27` ghi `Done` dù PR #14 chưa merge nên DoD #5 chưa đạt; đã báo người dùng, agent không đổi trạng thái board.
+- **Nguồn yêu cầu:** workbook local `Jira chạy bằng cơm (1).xlsx`, tab `Tuần 1`, hàng 12, cột A–K; workbook chỉ đọc và không đưa vào Git. Đã chạy `fetch-task.mjs DBS-27`: yêu cầu giống workbook; board trực tiếp ghi `In Progress`, workbook ghi `To Do`. Ngày 2026-10-24 `fetch-task.mjs DBS-27` ghi `Done` dù PR #14 chưa merge (PR #14 sau đó bị đóng; PR thay thế là [#17](https://github.com/Lawliet119/digital-banking-simulator/pull/17), merge 2026-10-24) nên DoD #5 chưa đạt; đã báo người dùng, agent không đổi trạng thái board.
 - **Task trên board:** Task, Tuần 1, ưu tiên Highest, assignee theo vai `Dev`, Deliverable/Demo `P2`; không có cá nhân được chỉ định trong workbook. Vai Dev phù hợp migration backend.
 - **Expect:** Dù code có lỗi hay ai đó có quyền, sổ cái và nhật ký không bị sửa hoặc xóa.
 - **DoD** (nguyên văn, đánh số):

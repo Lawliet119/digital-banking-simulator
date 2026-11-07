@@ -1,0 +1,55 @@
+BASE_SHA=b8742a3d137b0081120f87fa6e5959656a0665b6
+DATE=2026-10-28
+BRANCH=codex/DBS-69-ledger-invariants
+Phase 1 baseline of existing code; DBS-69 implementation has not started.
+Node v24.15.0; npm 11.12.1
+docker compose up -d: exit 0; postgres and valkey healthy; elasticmq running.
+
+CHECK=lint EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+CHECK=typecheck EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+CHECK=unit EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+
+Test Suites: 30 passed, 30 total
+Tests:       495 passed, 495 total
+Snapshots:   0 total
+Time:        33.231 s, estimated 43 s
+Ran all test suites.
+
+CHECK=e2e EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 24168  - 15:00:04 28/10/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+
+Test Suites: 8 passed, 8 total
+Tests:       57 passed, 57 total
+Snapshots:   0 total
+Time:        45.183 s, estimated 49 s
+Ran all test suites.
+
+CHECK=db EXIT=0
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+
+Test Suites: 8 passed, 8 total
+Tests:       154 passed, 154 total
+Snapshots:   0 total
+Time:        104.28 s, estimated 131 s
+Ran all test suites.

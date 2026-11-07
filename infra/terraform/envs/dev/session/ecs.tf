@@ -7,8 +7,9 @@ resource "aws_ecs_cluster" "main" {
   }
 }
 
-# Chỉ biến môi trường không bí mật. DATABASE_URL, REDIS_URL, COGNITO_* … do DBS-66, 67, 54 thêm
-# (bí mật qua `secrets`, không viết thẳng). Thiếu chúng thì app staging từ chối khởi động,
+# Chỉ biến môi trường không bí mật (COGNITO_* là định danh công khai, không phải bí mật).
+# DB_USER, DB_PASSWORD (DBS-67) và REDIS_AUTH_TOKEN (DBS-75) đi qua `secrets`, không viết thẳng; app ghép
+# DATABASE_URL và REDIS_URL từ các phần (env.bootstrap). Thiếu chúng thì app staging từ chối khởi động,
 # nên desired_count mặc định 0.
 resource "aws_ecs_task_definition" "api" {
   family                   = "dbs-api"
@@ -38,6 +39,27 @@ resource "aws_ecs_task_definition" "api" {
       { name = "PORT", value = "3000" },
       { name = "AWS_REGION", value = var.region },
       { name = "LOG_LEVEL", value = "log" },
+      { name = "COGNITO_USER_POOL_ID", value = local.base.cognito_user_pool_id },
+      { name = "COGNITO_CLIENT_ID", value = local.base.cognito_client_id },
+      { name = "COGNITO_ISSUER", value = local.base.cognito_issuer },
+      # DBS-67: app ghép DATABASE_URL từ DB_* (env.bootstrap). CA bundle nằm trong image (Dockerfile).
+      { name = "DB_HOST", value = aws_db_instance.main.address },
+      { name = "DB_PORT", value = "5432" },
+      { name = "DB_NAME", value = "dbs" },
+      { name = "DATABASE_SSL", value = "true" },
+      { name = "DATABASE_SSL_CA_PATH", value = "/etc/ssl/rds/global-bundle.pem" },
+      # DBS-75: app ghép REDIS_URL = rediss://:<token>@REDIS_HOST:REDIS_PORT (env.bootstrap).
+      { name = "REDIS_HOST", value = aws_elasticache_replication_group.main.primary_endpoint_address },
+      { name = "REDIS_PORT", value = "6379" },
+    ]
+
+    # Mật khẩu master do RDS sinh và xoay; ECS đọc khi task khởi động (execution role, iam.tf).
+    # Task đang chạy giữ mật khẩu cũ sau khi xoay: khởi động lại task (xem README Terraform).
+    secrets = [
+      { name = "DB_USER", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::" },
+      { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
+      # Token mới mỗi phiên, ghi bởi redis.tf; ECS đọc lúc task khởi động.
+      { name = "REDIS_AUTH_TOKEN", valueFrom = local.base.redis_auth_secret_arn },
     ]
 
     logConfiguration = {
@@ -51,6 +73,59 @@ resource "aws_ecs_task_definition" "api" {
   }])
 }
 
+# DBS-68: bước migration của pipeline. deploy.sh/migrate.sh đăng ký revision mới (chỉ đổi image) và chạy bằng
+# `run-task` trước khi cập nhật service; không có service nên không có ignore_changes. Cùng execution role và task
+# role với dbs-api; kết nối bằng secret master như api (BL-103, DBS-119 tách role dbs_migrator và execution role).
+# Chỉ cần DB_* và TLS: data-source.ts không đọc COGNITO_*, REDIS_URL hay APP_ROLE.
+resource "aws_ecs_task_definition" "migrate" {
+  family                   = "dbs-migrate"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
+  container_definitions = jsonencode([{
+    name      = "migrate"
+    image     = "${local.base.ecr_repository_url}:${var.image_tag}"
+    essential = true
+
+    # Đúng `npm run migration:run:prod`, không qua npm hay shell.
+    command = ["node", "./node_modules/typeorm/cli.js", "-d", "dist/database/data-source.js", "migration:run"]
+
+    environment = [
+      { name = "NODE_ENV", value = var.node_env },
+      { name = "AWS_REGION", value = var.region },
+      { name = "DB_HOST", value = aws_db_instance.main.address },
+      { name = "DB_PORT", value = "5432" },
+      { name = "DB_NAME", value = "dbs" },
+      { name = "DATABASE_SSL", value = "true" },
+      { name = "DATABASE_SSL_CA_PATH", value = "/etc/ssl/rds/global-bundle.pem" },
+    ]
+
+    secrets = [
+      { name = "DB_USER", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::" },
+      { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
+    ]
+
+    # Stream thực tế: migrate/migrate/<task-id>; role deploy chỉ đọc được stream bắt đầu bằng migrate/.
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = local.base.api_log_group_name
+        "awslogs-region"        = var.region
+        "awslogs-stream-prefix" = "migrate"
+      }
+    }
+  }])
+}
+
 resource "aws_ecs_service" "api" {
   name                              = "api"
   cluster                           = aws_ecs_cluster.main.id
@@ -58,6 +133,11 @@ resource "aws_ecs_service" "api" {
   desired_count                     = var.desired_count
   launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 60
+
+  # deploy.sh (DBS-38) đăng ký revision mới và đổi task_definition của service; Terraform không kéo về.
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
 
   deployment_circuit_breaker {
     enable   = true

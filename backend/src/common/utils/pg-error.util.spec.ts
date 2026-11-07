@@ -87,6 +87,27 @@ describe('pg-error.util', () => {
       expect(isTransientDbError(Object.assign(new Error('socket'), { code }))).toBe(true);
     });
 
+    it.each([
+      'timeout exceeded when trying to connect',
+      'Connection terminated unexpectedly',
+      'Connection terminated due to connection timeout',
+    ])('BL-129 is true for the code-less pool error "%s", also when wrapped', message => {
+      expect(isTransientDbError(new Error(message))).toBe(true);
+      expect(isTransientDbError(new Error('outer', { cause: new Error(message) }))).toBe(true);
+    });
+
+    it('is false for a code-less error with another message, or one that only quotes the text', () => {
+      expect(isTransientDbError(new Error('something else broke'))).toBe(false);
+      expect(isTransientDbError(new Error('prefix: Connection terminated unexpectedly'))).toBe(
+        false,
+      );
+      expect(
+        isTransientDbError(
+          Object.assign(new Error('Connection terminated unexpectedly'), { code: '42601' }),
+        ),
+      ).toBe(false);
+    });
+
     it('is false for a constraint violation or a syntax error', () => {
       expect(isTransientDbError(queryFailed(PgErrorCode.UNIQUE_VIOLATION))).toBe(false);
       expect(isTransientDbError(queryFailed('42601'))).toBe(false);

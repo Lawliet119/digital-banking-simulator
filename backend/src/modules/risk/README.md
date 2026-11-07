@@ -4,13 +4,17 @@
 
 **Adapter AI độc lập:** `ai/openai-decisions.ts` cung cấp `assess(features, options)` cho thử nghiệm ADR-14; chưa nối RiskModule, consumer, DB hay API operator và chưa có Dev xác nhận contract. Feature/giới hạn/trạng thái mô tả ở [FRAUD-API-02](../../../../docs/features/FRAUD-API-02-standalone-risk.md); gọi provider thật chỉ với key mới, dữ liệu tổng hợp và quyền/giới hạn phù hợp. Không coi adapter là fraud end-to-end hoặc ADR-14 đã Accepted.
 
+DBS-59 thêm `RiskModule` vào `sharedModules`, contract `RiskRule`/`FeatureProvider` và hai lớp provider khung. Hai provider khung ném lỗi rõ ràng khi gọi, không tạo feature giả và chưa được đăng ký vào DI. Chưa có consumer hay 6 luật; điều kiện worker-only phải được thực thi và test khi consumer được triển khai. Xem [feature doc DBS-59](../../../../docs/features/DBS-59-risk-module-skeleton.md).
+
 Phát hiện giao dịch đáng ngờ; nhân viên review và quyết định.
 
-| | |
-|---|---|
-| Use case | UC-9 chấm điểm · UC-10 review cờ · UC-12 cấu hình luật |
-| Chạy ở | **api** (controller review, cấu hình) **+ worker** (consumer chấm điểm) — module dùng chung |
-| Sở hữu bảng | `fraud_flags`, `fraud_rule_hits`, `risk_rule_sets` |
+|             |                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------- |
+| Use case    | UC-9 chấm điểm · UC-10 review cờ · UC-12 cấu hình luật                                      |
+| Chạy ở      | **api** (controller review, cấu hình) **+ worker** (consumer chấm điểm) — module dùng chung |
+| Sở hữu bảng | `fraud_flags`, `fraud_rule_hits`, `risk_rule_sets`                                          |
+
+Migration DBS-58 tạo ba bảng trên, seed rule set v1 (`mode=rule_only`) và cặp trigger append-only cho `risk_rule_sets`. Contract JSON seed và bảng test nằm tại [feature doc](../../../../docs/features/DBS-58-fraud-migration.md). Tính năng scoring/consumer và API review là task tiếp theo; migration không khởi động worker.
 | Thiết kế | `docs/03` §15 |
 
 ## Phải giữ

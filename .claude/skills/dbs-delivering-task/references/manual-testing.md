@@ -25,7 +25,7 @@ From the repo root: `cp .env.example .env`, then `docker compose up -d` (Postgre
 | Database | `docker compose exec postgres psql -U banking banking` (`\d <table>`, `SELECT`) |
 | Queue UI | `http://localhost:9325` (ElasticMQ) |
 | Slow or dead Redis | `docker compose pause valkey` (slow), `docker compose stop valkey` (down); `unpause` or `start` to recover |
-| Token of a role | The dev-token helper from DBS-53 (`npm run auth:dev-token`, per ADR-06), once merged. Before that no endpoint behind the auth guard can be called by hand: see "When a manual step needs something not built yet" in `task-kinds.md` |
+| Token of a role | `npm run --silent auth:dev-token -- --role <customer|operator|auditor|admin>` (DBS-53, ADR-06), after `npm run auth:dev-keys` and `AUTH_MODE=local` in `env/.env.development`. Steps: `backend/README.md` §10. It runs only when `NODE_ENV` is development, test or unset |
 | Port 5432 already used by another PostgreSQL on this machine | Map the container to another port in a compose override kept outside the repo and point `DATABASE_URL` at it; note it in §1 |
 
 ## Screenshots

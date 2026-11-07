@@ -2,16 +2,16 @@
 
 Mỗi thư mục là một module nghiệp vụ (một bounded context ở `docs/02` §6). Bảng dưới là nguồn tham chiếu nhanh; chi tiết nằm trong README của từng module.
 
-| Module | Loại | Use case | Role chạy | Phụ trách |
-|---|---|---|---|---|
-| [`ledger`](ledger/README.md) | 🔴 Core | UC-3, 5, 6, 7 | api | #1 |
-| [`accounts`](accounts/README.md) | 🟡 Supporting | UC-1, 2, 4, 11 | api | #2 |
-| [`identity`](identity/README.md) | ⚪ Generic | UC-1, 11 | api | #2 |
-| [`risk`](risk/README.md) | 🟠 Supporting | UC-9, 10, 12 | api + worker | #4 |
-| [`audit`](audit/README.md) | 🟡 Supporting | UC-8 | api + worker (thư viện cho mọi module) | #3 |
-| [`outbox`](outbox/README.md) | Hạ tầng sự kiện | — | worker | #3 |
-| [`notification`](notification/README.md) | ⚪ Generic | — | worker | #3 |
-| [`health`](health) | Hạ tầng | — | api | #5 |
+| Module | Loại | Use case | Role chạy |
+|---|---|---|---|
+| [`ledger`](ledger/README.md) | 🔴 Core | UC-3, 5, 6, 7 | api |
+| [`accounts`](accounts/README.md) | 🟡 Supporting | UC-1, 2, 4, 11 | api |
+| [`identity`](identity/README.md) | ⚪ Generic | UC-1, 11 | api |
+| [`risk`](risk/README.md) | 🟠 Supporting | UC-9, 10, 12 | api + worker |
+| [`audit`](audit/README.md) | 🟡 Supporting | UC-8 | api + worker (thư viện cho mọi module) |
+| [`outbox`](outbox/README.md) | Hạ tầng sự kiện | — | writer: api + worker; relay: worker |
+| [`notification`](notification/README.md) | ⚪ Generic | — | worker |
+| [`health`](health) | Hạ tầng | — | api |
 
 ## Quy tắc (được `eslint` ép, xem `backend/eslint.config.mjs`)
 
@@ -35,7 +35,7 @@ Mỗi thư mục là một module nghiệp vụ (một bounded context ở `docs
 ├── <tên>.controller.ts      # chỉ có ở module phục vụ HTTP
 ├── <tên>.service.ts
 ├── dto/                     # class-validator, một file mỗi request
-├── entities/                # *.entity.ts (TypeORM)
+├── entities/                # *.entity.ts (TypeORM); chưa module nào dùng, truy vấn là SQL tường minh (ADR-07)
 ├── *.spec.ts                # unit test đặt cạnh file được test
 └── index.ts                 # API công khai
 ```

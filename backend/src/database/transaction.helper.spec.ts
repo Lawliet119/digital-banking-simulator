@@ -1,6 +1,6 @@
 import type { EntityManager } from 'typeorm';
 import { fakeDataSource, noSleep, pgError } from '../../test/support/fake-data-source';
-import { withTransaction } from './transaction.helper';
+import { activeTransactionContext, withTransaction } from './transaction.helper';
 
 describe('withTransaction', () => {
   describe('commit and rollback', () => {
@@ -153,6 +153,51 @@ describe('withTransaction', () => {
 
       await expect(withTransaction(dataSource, fn, { sleep: noSleep })).resolves.toBe('ok');
       expect(fn).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('activeTransactionContext (DBS-56 vòng 2: nested-transaction guard for recordDenied)', () => {
+    it('is undefined outside withTransaction, and true while fn runs', async () => {
+      const { dataSource } = fakeDataSource();
+      expect(activeTransactionContext.getStore()).toBeUndefined();
+
+      let insideStore: true | undefined;
+      await withTransaction(dataSource, () => {
+        insideStore = activeTransactionContext.getStore();
+        return Promise.resolve();
+      });
+
+      expect(insideStore).toBe(true);
+      expect(activeTransactionContext.getStore()).toBeUndefined();
+    });
+
+    it('is undefined again after fn rejects', async () => {
+      const { dataSource } = fakeDataSource();
+
+      await expect(
+        withTransaction(dataSource, () => Promise.reject(new Error('boom')), { sleep: noSleep }),
+      ).rejects.toThrow('boom');
+
+      expect(activeTransactionContext.getStore()).toBeUndefined();
+    });
+
+    it('is true again on each retried attempt', async () => {
+      const { dataSource } = fakeDataSource();
+      const stores: Array<true | undefined> = [];
+      const fn = jest
+        .fn<Promise<string>, [EntityManager]>()
+        .mockImplementationOnce(() => {
+          stores.push(activeTransactionContext.getStore());
+          return Promise.reject(pgError('40P01'));
+        })
+        .mockImplementationOnce(() => {
+          stores.push(activeTransactionContext.getStore());
+          return Promise.resolve('done');
+        });
+
+      await withTransaction(dataSource, fn, { sleep: noSleep });
+
+      expect(stores).toEqual([true, true]);
     });
   });
 

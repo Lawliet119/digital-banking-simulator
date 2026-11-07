@@ -45,7 +45,7 @@ Sources: ADR-12, docs/03 §9, §14, `load-tests/README.md`.
 - `libs/sqs` is the only way to talk to SQS; the same code runs against ElasticMQ and SQS.
 - `/health/ready` reports Redis as degraded, never down, and fails only when PostgreSQL does.
 - The Testcontainers harness (to be built by DBS-39 to 41) starts Postgres, Valkey and ElasticMQ, creates the production DB roles, and gives each suite its own database cloned from a migrated template (truncate is blocked by the append-only triggers). Docker missing means the test fails loudly. Until it exists: `testing.md`, "Not built yet".
-- `backend/test/support/invariants.sql` (to be built by DBS-69) is the single invariant check (debits = credits, balances sum to 0, no customer balance below 0, balance = sum of entries); run it after every money test and load run.
+- `backend/test/support/invariants.sql` is the shared five-invariant check: debit/credit totals, account balances, total balances, non-negative customer balances, and complete/correct transfer pairs. Use checkLedgerInvariants(runner) after money tests or npm run --silent check:invariants from backend after a load run; require exit 0 (1 violations, 2 check error). Funding may be negative. Usage and limits: [backend README](../../../../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái).
 - Seed only through the deposit API, never `UPDATE accounts SET balance`.
 
 ## Migrations and database

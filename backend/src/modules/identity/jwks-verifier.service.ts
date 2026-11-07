@@ -1,16 +1,25 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
-import { createRemoteJWKSet, errors as joseErrors, jwtVerify } from 'jose';
+import { createRemoteJWKSet, errors as joseErrors, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import { authConfig } from '@config/auth.config';
 import { TokenExpiredError, TokenVerificationError } from './identity.errors';
 import { CognitoAccessTokenClaims } from './jwt-claims';
+import { loadLocalJwks } from './local-jwks';
 
 @Injectable()
 export class JwksVerifierService {
   private readonly logger = new Logger(JwksVerifierService.name);
-  private readonly jwks?: ReturnType<typeof createRemoteJWKSet>;
+  private readonly jwks?: JWTVerifyGetKey;
 
   constructor(@Inject(authConfig.KEY) private readonly cfg: ConfigType<typeof authConfig>) {
+    if (cfg.local) {
+      // AUTH_MODE=local (DBS-53; the schema allows it only in development and test). The keys come
+      // from a file read once, now, so a bad file stops the app at boot instead of failing every
+      // request. Only these keys are trusted: no Cognito URL is ever fetched in this mode.
+      this.jwks = loadLocalJwks(cfg.local.jwksPath);
+      this.logger.warn('AUTH_MODE=local: tokens signed by the local development key are accepted');
+      return;
+    }
     // COGNITO_ISSUER is optional outside staging/production (env/.env.example), so a local boot
     // with no Cognito configured must not crash the whole app — only a request that actually
     // reaches this guard should fail, in verifyAccessToken below.

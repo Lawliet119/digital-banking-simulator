@@ -1,15 +1,15 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Accepted v1.7 (chốt 2026-10-11, bổ sung 2026-10-12) · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-12
+> **Status:** Accepted v1.8 (chốt 2026-10-11, bổ sung 2026-11-07) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding, khóa hàng), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày), audit, outbox writer, outbox relay và consumer thông báo (log), health, khung risk; kiểm thu hồi phiên ở `JwtAuthGuard`; script role `dbs_api` / `dbs_worker` đã có và được kiểm (chưa áp dụng cho task ECS); chưa có consumer và scoring của risk, endpoint khóa tài khoản, rate limit, job đối soát, hạ tầng worker/SQS/alarm · **Cập nhật:** 2026-11-07
 
 > **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
-| Phiên bản | 1.7 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
+| Phiên bản | 1.8 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [01_BUSINESS_ANALYSIS.md](01_BUSINESS_ANALYSIS.md) (BG, BR) · [02_REQUIREMENTS_AND_DOMAIN_MODEL.md](02_REQUIREMENTS_AND_DOMAIN_MODEL.md) (UC, FR, NFR, domain model) |
-| Tài liệu liên quan | [ADR-01…13](adr/README.md) · [threat model](security/threat-model.md) · [adr/](adr/README.md) |
+| Tài liệu liên quan | [ADR-01…13 Accepted, ADR-14 Proposed](adr/README.md) · [threat model](security/threat-model.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đã chốt ngày 2026-10-11 (lý do ở các ADR). Giá cloud là giá tham khảo region `ap-southeast-1`; số thật lấy từ Cost Explorer |
 
 Tài liệu này trả lời câu hỏi **"xây như thế nào và vì sao"**. Mỗi quyết định đều truy về một yêu cầu ở tài liệu 02.
@@ -154,6 +154,8 @@ flowchart TB
     SHM -.-> COMMON
     WRKM -.-> COMMON
 ```
+
+Sơ đồ trên là kiến trúc đích. Trên nhánh này có hai chỗ khác: `workerModules` mới có `OutboxRelayModule` và `NotificationModule` (chưa có consumer và scoring của risk); `notification` mới ghi log, chưa gửi gì ra ngoài. Danh sách module theo role nằm ở `backend/src/modules/index.ts`.
 
 **Quy tắc phụ thuộc giữa module:**
 - `ledger` **không** đọc hay ghi bảng `accounts` trực tiếp. Nó gọi các hàm được `accounts` export (`lockForUpdate`, `applyBalanceChange`) và **truyền transaction hiện tại** vào. Nhờ vậy chuyển tiền vẫn là một transaction mà quyền sở hữu dữ liệu không bị phá (P-4).
@@ -478,15 +480,16 @@ sequenceDiagram
 
 | Method | Path | Vai trò | UC | Ghi chú |
 |---|---|---|---|---|
-| POST | `/v1/customers/me` | customer | UC-1 | Idempotent: gọi lại trả hồ sơ cũ |
-| GET | `/v1/customers/me` | customer | UC-1 | |
-| POST | `/v1/accounts` | customer | UC-2 | Tối đa 3 tài khoản |
+| GET | `/v1/identity/me` | mọi vai trò đã đăng nhập | — | Trả claims đã xác thực của caller (smoke test cho `JwtAuthGuard`, DBS-50); 401 `UNAUTHENTICATED` hoặc `TOKEN_EXPIRED` |
+| POST | `/v1/customers/me` | customer | UC-1 | 200 tạo hoặc trả hồ sơ cũ; `fullName` NFC/trim, 1–200 ký tự; lần tạo đầu giữ nguyên tên. UNIQUE `customers.user_id`; audit cùng transaction, lỗi audit rollback |
+| GET | `/v1/customers/me` | customer | UC-1 | 200 hồ sơ của caller và audit đọc; 404 nếu chưa onboarding; lỗi audit trả 500 |
+| POST | `/v1/accounts` | customer | UC-2 | 201 CHECKING/SAVINGS, ACTIVE, balance chuỗi `"0"`; khóa hàng `customers` rồi COUNT/INSERT + audit SUCCESS cùng transaction; đủ 3 kể cả LOCKED → 409 ACCOUNT_LIMIT_REACHED (audit REJECTED commit trước khi trả 409); chưa onboarding → 404 (audit REJECTED cùng transaction); hết thời gian chờ khóa → 503 SERVICE_TEMPORARILY_UNAVAILABLE + `Retry-After` |
 | GET | `/v1/accounts` | customer | UC-4 | Chỉ tài khoản của mình |
 | GET | `/v1/accounts/{id}` | customer | UC-4 | Số dư mới nhất, đọc từ DB |
 | GET | `/v1/accounts/{id}/transactions` | customer | UC-6 | Phân trang bằng cursor; lọc thời gian |
-| POST | `/v1/transfers` | customer | UC-5 | **Bắt buộc** header `Idempotency-Key` |
+| POST | `/v1/transfers` | customer | UC-5 | **Bắt buộc** `Idempotency-Key` 1–128 ký tự; body `fromAccountId`, `toAccountId`, `amount` (chuỗi). Nguồn phải của người gọi. Dưới khóa tài khoản, theo thứ tự: ACTIVE, đủ tiền, hạn mức mỗi lần, hạn mức ngày (giờ Việt Nam). 201 `COMPLETED`, hoặc 422 `ACCOUNT_NOT_ACTIVE` / `INSUFFICIENT_FUNDS` / `LIMIT_PER_TX_EXCEEDED` / `LIMIT_PER_DAY_EXCEEDED` kèm `transferId` (lệnh bị từ chối vẫn được commit); nguồn của người khác, không tồn tại hoặc SYSTEM → 404 kèm audit DENIED. Cùng key và cùng body → trả lại đúng kết quả lần đầu (201, hoặc cùng 422 và `transferId`) mà không ghi lần hai; cùng key khác body → 422 `IDEMPOTENCY_KEY_REUSED`. Chưa có: giới hạn tốc độ và thu hồi phiên (BL-155). Xem [trạng thái triển khai](features/DBS-61-customer-transfers.md) |
 | GET | `/v1/transfers/{id}` | customer | UC-7 | Chỉ người gửi / người nhận |
-| POST | `/v1/operator/deposits` | operator | UC-3 | **Bắt buộc** header `Idempotency-Key` |
+| POST | `/v1/operator/deposits` | operator | UC-3 | **Bắt buộc** `Idempotency-Key` 1–128, body `toAccountId` + amount string; 201 `COMPLETED`; đích locked/missing/SYSTEM → 422 `ACCOUNT_NOT_ACTIVE` + `transferId` (lệnh bị từ chối vẫn được commit). Cùng key và cùng body → trả lại kết quả lần đầu, không nạp lần hai; cùng key khác body → 422 `IDEMPOTENCY_KEY_REUSED` |
 | GET | `/v1/operator/accounts` | operator | UC-3, UC-11 | Tìm tài khoản của khách theo `accountId` hoặc tên khách (khớp một phần), tối đa 20 kết quả. Trả mã, loại, trạng thái, tên chủ; **không** trả số dư. Mỗi lần tra cứu được ghi nhật ký (BR-10) |
 | POST | `/v1/operator/accounts/{id}/lock` | operator | UC-11 | Thu hồi phiên ngay |
 | POST | `/v1/operator/accounts/{id}/unlock` | operator | UC-11 | |
@@ -520,6 +523,9 @@ sequenceDiagram
 | `IDEMPOTENCY_KEY_REQUIRED` | 400 | Lệnh chuyển/nạp tiền thiếu header `Idempotency-Key` | BR-07 |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Cùng `Idempotency-Key` nhưng nội dung khác | BR-07 |
 | `ACCOUNT_LIMIT_REACHED` | 409 | Khách đã có tối đa số tài khoản | BR-14 |
+| `UNAUTHENTICATED` | 401 | Thiếu token, token sai dạng, sai chữ ký, khóa ký lạ, sai `iss` / `client_id` / `token_use`; hoặc route có `@Roles` mà không có người gọi (route `@Public`) | Đăng nhập lại, gửi lại cùng token không bao giờ được |
+| `TOKEN_EXPIRED` | 401 | `exp` của access token đã qua | Khác `UNAUTHENTICATED`: client có refresh token được phép làm mới im lặng |
+| `FORBIDDEN` | 403 | Token hợp lệ nhưng không vai trò nào của người gọi được dùng endpoint này | Không nêu vai trò đang có hay cần. Tài nguyên của người khác là 404, không phải mã này (AC-5.8) |
 | `SESSION_REVOKED` | 401 | Token phát hành trước mốc thu hồi phiên (ví dụ tài khoản bị khóa) | BR-12 · khác "hết hạn": dùng lại token không bao giờ được |
 | `RATE_LIMITED` | 429 | Vượt giới hạn tần suất | NFR-SEC-05 |
 | `SERVICE_TEMPORARILY_UNAVAILABLE` | 503 | Lỗi database tạm thời | Kèm `Retry-After`; gửi lại cùng `Idempotency-Key` |
@@ -959,7 +965,7 @@ flowchart LR
 
 ## 18. Architecture Decision Records
 
-Tối thiểu 3 ADR theo đề bài; nhóm có 13, đều ở trạng thái Accepted.
+Tối thiểu 3 ADR theo đề bài; nhóm có 13 ADR Accepted (bảng dưới) và ADR-14 đang Proposed ([rules + API AI](adr/0014-fraud-rules-external-ai.md), chưa thay ADR-08).
 
 | # | Quyết định | Phương án so sánh | Driver |
 |---|---|---|---|
@@ -983,7 +989,7 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 13, đều ở trạng thái Acce
 |---|---|---|
 | Runtime / ngôn ngữ | Node.js LTS + TypeScript (strict) | Một ngôn ngữ cho API và worker |
 | Framework | NestJS 11, **một app** chạy theo `APP_ROLE` (ADR-13) | Mỗi thư mục trong `src/modules/` = một module ở mục 5; ranh giới do eslint ép |
-| Truy cập DB | TypeORM (CRUD, migration) + **SQL tường minh trong `QueryRunner` cho luồng chuyển tiền** | Cần `ON CONFLICT`, `FOR UPDATE`, thứ tự khóa; Kysely là phương án thay thế (ADR-07) |
+| Truy cập DB | TypeORM (kết nối, pool, migration) + **SQL tường minh trong `QueryRunner`** | Cần `ON CONFLICT`, `FOR UPDATE`, thứ tự khóa. Thực tế hiện nay mọi truy vấn là SQL tường minh, chưa có entity; Kysely là phương án thay thế (ADR-07) |
 | Migration | TypeORM migrations, expand → migrate → contract | Bước riêng trong pipeline |
 | Redis | `ioredis` + storage Redis cho `@nestjs/throttler` | Timeout ngắn, circuit breaker, mọi key có TTL |
 | Cấu hình | `@nestjs/config` + **Joi validate lúc khởi động** | Thiếu/sai biến → app từ chối chạy; staging và production bắt buộc TLS tới Postgres và Redis |
@@ -1029,4 +1035,5 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 13, đều ở trạng thái Acce
 | **1.4** | Lấp các khoảng trống trước khi implement: endpoint tra cứu tài khoản cho nhân viên (§7, §6.4), mã `FLAG_ALREADY_REVIEWED` (§7.1), key `cfg:risk:latest` (§9), ghi chú sự kiện không phát ở v1 (§10), tạo dòng `users` và tài khoản nhân viên (§12) |
 | **1.5** | Đồng bộ với ADR-08 mới: chi phí fraud (§15.5), dòng ADR-08 ở bảng ADR, thêm `GET /v1/operator/fraud-flags/{transferId}` vào bảng API (§7) |
 | **1.6** | Chốt toàn bộ giả định: viết ADR-01…07, 09…12 và chuyển 13 ADR sang Accepted. Task ECS ở public subnet (§13, ADR-10); Redis node cố định (§9, ADR-12); `TransferRejected` không phát ở v1, `occurredAt = transfers.created_at` (§10); tham số SQS và relay (§10); vai trò từ `cognito:groups`, xác thực local (§12); health check ALB và worker (§4, §13.3); SLO chính thức kèm ngưỡng alarm (§14); câu hỏi mở chuyển thành bảng kết luận (§20) |
+| **1.8** | Đồng bộ với code trên `main` `aeee9c9` (CHORE-20261107-repo-audit): dòng Status ghi module đã có code, Owner là Dev; ghi ADR-14 Proposed ở bảng thuộc tính và §18; thêm `GET /v1/identity/me` vào §7; §5 ghi chú sơ đồ là kiến trúc đích, relay và notification chưa có code |
 | **1.7** | Thêm quy tắc §6.1: `TRANSFER` vào tài khoản SYSTEM bị từ chối `ACCOUNT_NOT_ACTIVE`, từ tài khoản SYSTEM thì không qua được kiểm tra sở hữu (404 kèm `DENIED`) |

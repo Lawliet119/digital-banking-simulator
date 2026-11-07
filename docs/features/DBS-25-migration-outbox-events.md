@@ -1,6 +1,6 @@
 # DBS-25 · Migration: outbox_events và processed_events
 
-> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-25-migration-outbox-events` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/12) · **Cập nhật:** 2026-10-24
+> **Status:** Implemented · PR #12 đã merge 2026-10-24; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-25-migration-outbox-events` · **PR:** [#12](https://github.com/Lawliet119/digital-banking-simulator/pull/12) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

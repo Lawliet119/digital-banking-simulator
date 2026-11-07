@@ -1,6 +1,6 @@
 # DBS-50 · Identity: JwtAuthGuard xác minh JWT bằng JWKS có cache
 
-> **Status:** Implemented · **Vai:** Dev (AI — vòng 1 qua Plan mode, vòng 2 xử lý domain-review theo đúng skill `dbs-delivering-task`) · **Nhánh:** `feat/DBS-50-jwt-auth-guard-jwks` · **PR:** — · **Cập nhật:** 2026-10-26
+> **Status:** Implemented · PR #29 đã merge 2026-10-26; chưa có Dev review (BL-160) · **Vai:** Dev (AI — vòng 1 qua Plan mode, vòng 2 xử lý domain-review theo đúng skill `dbs-delivering-task`) · **Nhánh:** `feat/DBS-50-jwt-auth-guard-jwks` · **PR:** [#29](https://github.com/Lawliet119/digital-banking-simulator/pull/29) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

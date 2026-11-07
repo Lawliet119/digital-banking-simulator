@@ -10,3 +10,4 @@ env
 .dockerignore
 Dockerfile
 .eslintcache
+.auth-local

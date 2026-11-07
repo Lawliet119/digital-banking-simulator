@@ -1,6 +1,6 @@
 # DBS-33 · Terraform: VPC (≥ 2 AZ) và ECR
 
-> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-33-terraform-vpc-ecr` · **PR:** [#23](https://github.com/Lawliet119/digital-banking-simulator/pull/23) · **Cập nhật:** 2026-10-25
+> **Status:** Implemented · PR #23 đã merge 2026-10-27; chưa có Dev review (BL-160) · **Vai:** #5 Platform & Ops · **Nhánh:** `chore/DBS-33-terraform-vpc-ecr` · **PR:** [#23](https://github.com/Lawliet119/digital-banking-simulator/pull/23) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

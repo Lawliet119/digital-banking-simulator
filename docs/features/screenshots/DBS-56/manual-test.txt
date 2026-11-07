@@ -1,0 +1,48 @@
+d4aeb40
+
+                  id                  
+--------------------------------------
+ 330462a0-fcc7-4f94-b8c1-0fad4feec68f
+(1 row)
+
+INSERT 0 1
+CREATE TABLE
+M-56-01 correlationId (expect 1 row, outcome SUCCESS) "ffe9cf1f-4dfa-4c8c-9b4a-22e0beccdc68"
+M-56-02 record() rejected as expected (fail-closed) "insert or update on table \"audit_log\" violates foreign key constraint \"audit_log_actor_user_id_fkey\""
+M-56-02 scratchId (expect 0 rows in fc_scratch) "2f32ea54-d940-4173-b7a1-aab245a55b74"
+M-56-02 correlationId (expect 0 rows in audit_log) "8c9ec123-4602-4146-87d9-12802f8a8b6b"
+M-56-03 caller "failed" after recordDenied() had already committed "simulated 404: account does not belong to this customer"
+M-56-03 correlationId (expect 1 row, outcome DENIED) "80e69f0e-51bf-43b2-90a3-4ab9da6e2cef"
+            correlation_id            | outcome | actor_role |     action      
+--------------------------------------+---------+------------+-----------------
+ ffe9cf1f-4dfa-4c8c-9b4a-22e0beccdc68 | SUCCESS | operator   | ledger.transfer
+ 80e69f0e-51bf-43b2-90a3-4ab9da6e2cef | DENIED  | customer   | access.denied
+(2 rows)
+
+ count
+-------
+     0
+(1 row)
+
+--- Vòng 2 (sửa sau code-review), commit cuối 66b26ab ---
+M-56-01 correlationId (expect 1 row, outcome SUCCESS) "136f3c55-02d2-434e-8560-b46bf94d3419"
+M-56-02 record() rejected as expected (fail-closed) "insert or update on table \"audit_log\" violates foreign key constraint \"audit_log_actor_user_id_fkey\""
+M-56-02 scratchId (expect 0 rows in fc_scratch) "33a0f255-139b-4d18-a892-a6f2672242a5"
+M-56-02 correlationId (expect 0 rows in audit_log) "87f59b38-f06d-49c5-9728-f1a28ddd1edf"
+M-56-03 caller "failed" after recordDenied() had already committed "simulated 404: account does not belong to this customer"
+M-56-03 correlationId (expect 1 row, outcome DENIED) "34390da1-4f31-4ba2-9cdc-d0baf90bfb63"
+M-56-04 record() rejected as expected (AuditMetadataError) "audit metadata chứa field hoặc giá trị không hợp lệ"
+M-56-04 correlationId (expect 0 rows in audit_log, no PII committed) "0f914d8f-608c-4e9b-aeb5-5289716b9a41"
+M-56-05 recordDenied() rejected as expected (NestedTransactionError) "recordDenied() không được gọi khi đang có transaction khác đang mở"
+M-56-05 correlationId (expect 0 rows in audit_log, no duplicate open transaction) "43659d11-3229-4b2a-83ec-97fea26a175f"
+-- xác nhận trực tiếp bằng psql: 0 dòng cho cả hai correlation_id của M-56-04 và M-56-05
+ count
+-------
+     0
+(1 row)
+
+ count
+-------
+     0
+(1 row)
+

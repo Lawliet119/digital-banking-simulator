@@ -1,6 +1,6 @@
 # DBS-26 · Migration: audit_log
 
-> **Status:** Implemented · **Vai:** Dev · **Reviewer:** Dev khác, chưa chỉ định · **Nhánh:** `feat/DBS-26-migration-audit-log` · **PR:** [PR](https://github.com/Lawliet119/digital-banking-simulator/pull/13) · **Cập nhật:** 2026-10-24
+> **Status:** Implemented · PR #13 đã merge 2026-10-24; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-26-migration-audit-log` · **PR:** [#13](https://github.com/Lawliet119/digital-banking-simulator/pull/13) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

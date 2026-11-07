@@ -1,5 +1,17 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { DataSource, EntityManager } from 'typeorm';
 import { isRetryableTransactionError } from '../common/utils/pg-error.util';
+
+/**
+ * Set to `true` only while `fn` runs inside `withTransaction` (and reset on each retried
+ * attempt), `undefined` everywhere else. Lets a caller like `AuditService.recordDenied` detect
+ * — and refuse — being invoked from inside another already-open transaction, without needing a
+ * `manager` parameter of its own. Tracks the async call chain, not lexical scope: a caller nested
+ * through an awaited async helper is still detected, but one that escapes via an EventEmitter
+ * listener or `setImmediate` fired after `fn` has already returned is not (see
+ * docs/features/DBS-56-audit-service-record.md, Vòng 2, R2).
+ */
+export const activeTransactionContext = new AsyncLocalStorage<true>();
 
 export type IsolationLevel =
   'READ UNCOMMITTED' | 'READ COMMITTED' | 'REPEATABLE READ' | 'SERIALIZABLE';
@@ -94,7 +106,7 @@ export async function withTransaction<T>(
         `${statementTimeoutMs}ms`,
         `${idleInTransactionTimeoutMs}ms`,
       ]);
-      const result = await fn(queryRunner.manager);
+      const result = await activeTransactionContext.run(true, () => fn(queryRunner.manager));
       await queryRunner.commitTransaction();
       return result;
     } catch (error) {

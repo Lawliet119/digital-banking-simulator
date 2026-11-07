@@ -1,6 +1,6 @@
 # DBS-31 · Terraform bootstrap: S3 backend có versioning, mã hóa và khóa state
 
-> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-31-terraform-bootstrap` · **PR:** [#22](https://github.com/Lawliet119/digital-banking-simulator/pull/22) · **Cập nhật:** 2026-10-25
+> **Status:** Implemented · PR #22 đã merge 2026-10-26; chưa có Dev review (BL-160) · **Vai:** #5 Platform & Ops · **Nhánh:** `chore/DBS-31-terraform-bootstrap` · **PR:** [#22](https://github.com/Lawliet119/digital-banking-simulator/pull/22) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

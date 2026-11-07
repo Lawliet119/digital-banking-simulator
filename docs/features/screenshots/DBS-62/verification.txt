@@ -1,0 +1,48 @@
+DBS-62 verification summary (summarized from executed commands)
+
+2026-11-04 post-rebase verification:
+Base origin/main a9e607b, actual AuditService from merged PR54 (7f3b700).
+Only DBS-62 commits replayed; temporary integration08e605e removed.
+Rebased implementation586ef11, real-provider fixture08d50fa.
+Manual tested SHA e40a7e45aa293737876bb1c8a43b82b2a40b2172 (code plus original docs).
+lint:check/typecheck/build: passed.
+Targeted real PostgreSQL suites: onboarding, AccountsService, AuditService65/65 passed (37.429s).
+Full unit: 825 passed,1 failed (existing Identity JWKS cooldown test, expected2 fetches/received3).
+Identity code unchanged; isolated local retry12/13 (same cooldown failure), existing BL-112.
+Full e2e after rebase: 13 suites,135/135 passed (239.093s).
+Manual: 6/6 passed with fresh output/correlation IDs/screenshot on rebased code.
+Docs link check: 198 files,0 broken links.
+Main-based Draft PR56: https://github.com/Lawliet119/digital-banking-simulator/pull/56
+Final GitHub checks: https://github.com/Lawliet119/digital-banking-simulator/pull/56/checks
+First CI run: https://github.com/Lawliet119/digital-banking-simulator/actions/runs/41843997481
+CI conclusion is recorded in PR checks; Dev review/merge pending BL-144.
+
+Historical 2026-11-02 pre-rebase results:
+Code SHA: 1f9f4a4a0b9ac28dea54a1c816a5f77c949aa643
+
+npm run lint:check: exit 0
+npm run typecheck: exit 0
+npm run build: exit 0
+
+npm test -- --runInBand
+54 suites passed, 801 tests passed, 55.818s (full retry).
+First run: 800 passed, 1 failed (existing Identity JWKS cooldown timing test).
+Isolated retry jwks-verifier.service.spec.ts: 13 passed.
+No Identity production code/test changed for this task.
+
+npm run test:e2e -- --runInBand
+13 suites passed, 135 tests passed, 126.246s.
+
+npm run test:db -- --runInBand
+Final full run: 18 suites passed, 345 tests passed, 253.021s, 0 skipped.
+First full run: 344 passed, 1 failed (TC-55-15 missing real TransactionService in old module fixture).
+Fixture adjusted to provide actual service/config; affected two suites52/52 passed before final full run.
+Final full run emitted server MaxListenersExceededWarning for listening/error/close listeners; tests passed.
+
+node scripts/manual-dbs62.cjs
+6/6 manual steps passed on final code SHA. See manual-test.txt for actual HTTP responses/correlation IDs.
+Owned disposable PostgreSQL17/temp database/public JWKS cleaned up.
+
+Independent design review: APPROVE, 1 should-fix and 1 minor addressed.
+GitHub CI, Dev review and merge: pending BL-144; no local result claimed as CI proof.
+At the original handover dependency was absent from main; resolved by PR54 and the 2026-11-04 rebase above.

@@ -76,12 +76,17 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npm test
+      - run: node --test ../load-tests/fraud-dataset/generate.test.mjs
 
   e2e:
     name: e2e
     runs-on: ubuntu-24.04
     # Allows a cold Testcontainers image pull; the 10–12 minute CI target is measured separately.
-    timeout-minutes: 15
+    # jest-services.js tự ghi ngân sách tệ nhất 1.080.000ms (~18 phút) cho suite ElasticMQ (DBS-77)
+    # chạy sau test:e2e và bước Testcontainers PostgreSQL; bước Redis (DBS-76) cộng thêm cold image
+    # pull Valkey + 10 lần timeout 50ms + chờ breaker reset 5s + container startup. 15 phút cũ
+    # không đủ chứa cả bốn bước, nên nâng lên có biên an toàn.
+    timeout-minutes: 35
     # app-guard.e2e-spec.ts (DBS-50) boots the real AppModule, và DatabaseModule luôn mở kết nối
     # Postgres thật lúc app.init() bất kể route nào được gọi — nên job này cần service Postgres như
     # job `db`, dù phần lớn test:e2e khác fake DataSource. Bước Testcontainers dưới đây tự gỡ
@@ -121,6 +126,12 @@ jobs:
           env -u DATABASE_URL npm run test:db -- --runInBand --runTestsByPath \
             test/db/testcontainers-sample.db-spec.ts \
             test/db/migration-revert.db-spec.ts
+      - name: SQS adapter on ElasticMQ Testcontainers (DBS-77)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/sqs-adapter.services-spec.ts
+      - name: Outbox relay and notification consumer on PostgreSQL + ElasticMQ
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/outbox-relay.services-spec.ts
+      - name: Redis adapter latency, outage and recovery (DBS-76)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/redis-adapter.services-spec.ts
 
   db:
     name: db

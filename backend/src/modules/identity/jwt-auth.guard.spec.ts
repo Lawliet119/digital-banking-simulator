@@ -5,6 +5,9 @@ import { TokenExpiredError, TokenVerificationError } from './identity.errors';
 import { CognitoAccessTokenClaims } from './jwt-claims';
 import { JwtAuthGuard, RequestWithUser } from './jwt-auth.guard';
 import { JwksVerifierService } from './jwks-verifier.service';
+import { IdentityService } from './identity.service';
+
+const USER_ID = '0f6a3d52-8c1b-4e7a-b6d4-2c9e1a7f5b30';
 
 function contextWith(header?: string): { context: ExecutionContext; request: RequestWithUser } {
   const request = { headers: { authorization: header } } as RequestWithUser;
@@ -30,13 +33,22 @@ function claims(overrides: Partial<CognitoAccessTokenClaims> = {}): CognitoAcces
 
 describe('JwtAuthGuard', () => {
   let verifier: { verifyAccessToken: jest.Mock };
+  let identity: { resolveUserId: jest.Mock; sessionsRevokedAt: jest.Mock };
   let reflector: Reflector;
   let guard: JwtAuthGuard;
 
   beforeEach(() => {
     verifier = { verifyAccessToken: jest.fn() };
+    identity = {
+      resolveUserId: jest.fn().mockResolvedValue(USER_ID),
+      sessionsRevokedAt: jest.fn().mockResolvedValue(null),
+    };
     reflector = new Reflector();
-    guard = new JwtAuthGuard(verifier as unknown as JwksVerifierService, reflector);
+    guard = new JwtAuthGuard(
+      verifier as unknown as JwksVerifierService,
+      reflector,
+      identity as unknown as IdentityService,
+    );
   });
 
   async function expectUnauthenticated(
@@ -80,10 +92,118 @@ describe('JwtAuthGuard', () => {
     expect(verifier.verifyAccessToken).toHaveBeenCalledWith('good-token');
     expect(request.user).toEqual({
       sub: 'user-123',
+      userId: USER_ID,
       groups: ['operator'],
       tokenUse: 'access',
       claims: expect.objectContaining({ sub: 'user-123' }),
     });
+  });
+
+  it('TC-52-08 resolves the user id AFTER the token is verified, from the verified sub', async () => {
+    verifier.verifyAccessToken.mockResolvedValue(claims({ sub: 'verified-sub' }));
+    const { context, request } = contextWith('Bearer good-token');
+
+    await guard.canActivate(context);
+
+    expect(identity.resolveUserId).toHaveBeenCalledTimes(1);
+    expect(identity.resolveUserId).toHaveBeenCalledWith('verified-sub');
+    expect(verifier.verifyAccessToken.mock.invocationCallOrder[0]).toBeLessThan(
+      identity.resolveUserId.mock.invocationCallOrder[0],
+    );
+    expect(request.user?.userId).toBe(USER_ID);
+  });
+
+  describe('session revocation (BR-12)', () => {
+    const revokedAtSecond = 1_000;
+    const run = (iat: number | undefined, revoked: number | null) => {
+      verifier.verifyAccessToken.mockResolvedValue(
+        claims(iat === undefined ? { iat: undefined as unknown as number } : { iat }),
+      );
+      identity.sessionsRevokedAt.mockResolvedValue(
+        revoked === null ? null : new Date(revoked * 1000 + 400),
+      );
+      const { context, request } = contextWith('Bearer good');
+      return { result: guard.canActivate(context), request };
+    };
+
+    it('refuses a token issued before the revocation mark', async () => {
+      const { result, request } = run(revokedAtSecond - 5, revokedAtSecond);
+      await expectUnauthenticated(result, ErrorCode.SESSION_REVOKED);
+      expect(request.user).toBeUndefined();
+    });
+
+    it('refuses a token issued in the same second as the mark', async () => {
+      const { result } = run(revokedAtSecond, revokedAtSecond);
+      await expectUnauthenticated(result, ErrorCode.SESSION_REVOKED);
+    });
+
+    it('refuses a token with no iat once the user has been revoked', async () => {
+      const { result } = run(undefined, revokedAtSecond);
+      await expectUnauthenticated(result, ErrorCode.SESSION_REVOKED);
+    });
+
+    it('lets a token issued after the mark through', async () => {
+      const { result, request } = run(revokedAtSecond + 1, revokedAtSecond);
+      await expect(result).resolves.toBe(true);
+      expect(request.user?.userId).toBe(USER_ID);
+    });
+
+    it('lets everyone through when the user was never revoked', async () => {
+      const { result } = run(1, null);
+      await expect(result).resolves.toBe(true);
+    });
+
+    it('answers a failing revocation lookup with the error, never with a 401', async () => {
+      verifier.verifyAccessToken.mockResolvedValue(claims());
+      identity.sessionsRevokedAt.mockRejectedValue(new Error('db down'));
+      const { context } = contextWith('Bearer good');
+      await expect(guard.canActivate(context)).rejects.toThrow('db down');
+    });
+  });
+
+  it.each([
+    ['expired', new TokenExpiredError('expired'), ErrorCode.TOKEN_EXPIRED],
+    ['badly signed', new TokenVerificationError('bad signature'), ErrorCode.UNAUTHENTICATED],
+    ['rejected for an unexpected reason', new Error('boom'), ErrorCode.UNAUTHENTICATED],
+  ])(
+    'TC-52-09 never resolves a user id for a token that is %s',
+    async (_label, failure, errorCode) => {
+      verifier.verifyAccessToken.mockRejectedValue(failure);
+      const { context, request } = contextWith('Bearer bad-token');
+
+      await expectUnauthenticated(guard.canActivate(context), errorCode);
+
+      expect(identity.resolveUserId).not.toHaveBeenCalled();
+      expect(request.user).toBeUndefined();
+    },
+  );
+
+  it.each([
+    ['missing', undefined],
+    ['empty', ''],
+    ['not a string', 42],
+  ])(
+    'TC-52-11 answers 401 UNAUTHENTICATED and never touches the database when a verified sub is %s',
+    async (_label, sub) => {
+      verifier.verifyAccessToken.mockResolvedValue(claims({ sub: sub as unknown as string }));
+      const { context, request } = contextWith('Bearer good-token');
+
+      await expectUnauthenticated(guard.canActivate(context), ErrorCode.UNAUTHENTICATED);
+
+      expect(identity.resolveUserId).not.toHaveBeenCalled();
+      expect(request.user).toBeUndefined();
+    },
+  );
+
+  it('TC-52-12 lets a database failure escape as-is: it is not an authentication failure', async () => {
+    const failure = Object.assign(new Error('terminating connection'), { code: '57P01' });
+    verifier.verifyAccessToken.mockResolvedValue(claims());
+    identity.resolveUserId.mockRejectedValue(failure);
+    const { context, request } = contextWith('Bearer good-token');
+
+    await expect(guard.canActivate(context)).rejects.toBe(failure);
+
+    expect(request.user).toBeUndefined();
   });
 
   it('attaches an empty groups array when the token carries no cognito:groups', async () => {
@@ -131,6 +251,8 @@ describe('JwtAuthGuard', () => {
 
     expect(allowed).toBe(true);
     expect(verifier.verifyAccessToken).not.toHaveBeenCalled();
+    // TC-52-10: no token, so nothing to provision — a @Public() route never reaches the database.
+    expect(identity.resolveUserId).not.toHaveBeenCalled();
   });
 
   it('still requires a token when the handler is not @Public()', async () => {
