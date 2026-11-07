@@ -1,0 +1,1818 @@
+DBS-103 implementation verification (local; not GitHub CI)
+Shared baseline: b93ab08a17259d5051568fb739f46d655ed67a9f
+G3 approved 2026-11-05; only local commits authorized.
+
+STEP 1 - query parser/cursor/SQL
+RED command: npm test -- --runInBand --runTestsByPath src/modules/audit/audit-search.query.spec.ts
+Observed: TS2307 Cannot find module './audit-search.query'; 1 suite failed, 0 tests run.
+GREEN: 1 suite passed, 78 tests passed, 0 skipped, 5.403 s; targeted eslint exit0.
+Commit: b65f19a feat(audit): validate search filters and exact cursors
+
+STEP 2 - atomic service / real PostgreSQL
+Before implementation: unit and PG cases were written; initial import-contract failure was not counted as database behavior proof. A temporary local TDD scaffold with the real transaction boundary and no audit/query was then exercised to obtain the behavioral failures below. The scaffold was replaced before the green commit; no scaffold was committed.
+Commit: 5ba77b9 feat(audit): search and record access atomically
+Commands (backend cwd):
+  npm test -- --runInBand --runTestsByPath src/modules/audit/audit-search.query.spec.ts src/modules/audit/audit-search.service.spec.ts
+  npm run test:db -- --runInBand --runTestsByPath test/db/audit-search.db-spec.ts
+  npx eslint src/modules/audit/audit-search.service.ts src/modules/audit/audit-search.service.spec.ts test/support/audit-search-fixtures.ts test/db/audit-search.db-spec.ts
+Targeted eslint exit0. The raw captured behavior-red and green output follows.
+
+=== unit-behavior-red.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand --runTestsByPath src/modules/audit/audit-search.service.spec.ts
+
+FAIL src/modules/audit/audit-search.service.spec.ts (6.805 s)
+  ● AuditSearchService transaction orchestration (DBS-103) › TC-103-10/11 records first, uses the same manager and waits for commit
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 1
+
+    - Array [
+    -   "record",
+    -   "select",
+    - ]
+    + Array []
+
+      25 |     await reachedCommit;
+      26 |     expect(published).toBe(false);
+    > 27 |     expect(order).toEqual(['record', 'select']);
+         |                   ^
+      28 |     expect(record).toHaveBeenCalledWith(manager, { actor: CALLER.userId, role: 'auditor', action: 'audit.search', outcome: 'SUCCESS', target: { type: 'audit_search', id: CALLER.correlationId }, correlationId: CALLER.correlationId, metadata: {} });
+      29 |     commit();
+      30 |     expect(await result).toEqual({ entries: [{ id: '9007199254740993', occurredAt: '2026-11-04T08:10:00.123456Z', actorUserId: null, actorRole: 'system', action: 'audit.fixture', outcome: 'SUCCESS', target: { type: 'fixture', id: 'source' }, correlationId: row('x').correlationId, metadata: {} }], nextCursor: null });
+
+      at Object.<anonymous> (src/modules/audit/audit-search.service.spec.ts:27:19)
+
+  ● AuditSearchService transaction orchestration (DBS-103) › TC-103-08 uses the last returned row rather than the limit+1 sentinel
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 1
+
+    - Array [
+    -   "10000000000000000",
+    -   "9999999999999999",
+    - ]
+    + Array []
+
+      38 |     const service = new AuditSearchService(tx, { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService);
+      39 |     const page = await service.search(parseAuditSearchQuery({ limit: '2' }), CALLER);
+    > 40 |     expect(page.entries.map(entry => entry.id)).toEqual(['10000000000000000', '9999999999999999']);
+         |                                                 ^
+      41 |     expect(parseAuditSearchQuery({ cursor: page.nextCursor }).cursor?.id).toBe('9999999999999999');
+      42 |   });
+      43 |
+
+      at Object.<anonymous> (src/modules/audit/audit-search.service.spec.ts:40:49)
+
+  ● AuditSearchService transaction orchestration (DBS-103) › TC-103-11 never SELECTs or publishes entries if recording fails
+
+    expect(received).rejects.toBe()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"entries": [], "nextCursor": null}
+
+      47 |     const tx = { run: (fn: (m: EntityManager) => Promise<unknown>) => fn(manager) } as unknown as TransactionService;
+      48 |     const service = new AuditSearchService(tx, { record: jest.fn().mockRejectedValue(original) } as unknown as AuditService);
+    > 49 |     await expect(service.search(parseAuditSearchQuery({}), CALLER)).rejects.toBe(original);
+         |           ^
+      50 |     expect(manager.query).not.toHaveBeenCalled();
+      51 |   });
+      52 |
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (src/modules/audit/audit-search.service.spec.ts:49:11)
+
+  ● AuditSearchService transaction orchestration (DBS-103) › TC-103-12 preserves a SELECT failure for transaction rollback
+
+    expect(received).rejects.toBe()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"entries": [], "nextCursor": null}
+
+      57 |     const record = jest.fn().mockResolvedValue(undefined);
+      58 |     const service = new AuditSearchService(tx, { record } as unknown as AuditService);
+    > 59 |     await expect(service.search(parseAuditSearchQuery({ action: 'private-action-probe' }), CALLER)).rejects.toBe(original);
+         |           ^
+      60 |     expect(record).toHaveBeenCalledTimes(1);
+      61 |     expect(record.mock.calls[0][1].metadata).toEqual({});
+      62 |     expect(JSON.stringify(record.mock.calls)).not.toContain('private-action-probe');
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (src/modules/audit/audit-search.service.spec.ts:59:11)
+
+  ● AuditSearchService transaction orchestration (DBS-103) › TC-103-05 audits an empty valid lookup as a successful search
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 1
+    Received number of calls: 0
+
+      69 |     const service = new AuditSearchService(tx, { record } as unknown as AuditService);
+      70 |     await expect(service.search(parseAuditSearchQuery({ correlationId: '55555555-5555-4555-8555-555555555555' }), CALLER)).resolves.toEqual({ entries: [], nextCursor: null });
+    > 71 |     expect(record).toHaveBeenCalledTimes(1);
+         |                    ^
+      72 |   });
+      73 | });
+      74 |
+
+      at Object.<anonymous> (src/modules/audit/audit-search.service.spec.ts:71:20)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 5 total
+Snapshots:   0 total
+Time:        6.876 s
+Ran all test suites within paths "src/modules/audit/audit-search.service.spec.ts".
+
+
+=== pg-behavior-red.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search.db-spec.ts
+
+FAIL test/db/audit-search.db-spec.ts
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-04 each filter and their combination select the expected stored rows
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 8
+    Received length: 0
+    Received array:  []
+
+      28 |   it('TC-103-04 each filter and their combination select the expected stored rows', async () => {
+      29 |     const interval = { from: '2026-11-04T08:00:00Z', to: '2026-11-04T09:00:00Z' };
+    > 30 |     expect((await search({ actorUserId: F.actorUserId, ...interval })).entries).toHaveLength(8);
+         |                                                                                 ^
+      31 |     expect((await search({ actorUserId: F.otherActorUserId, ...interval })).entries.map(entry => entry.id)).toEqual(['103']);
+      32 |     expect((await search({ action: 'transfer.create', ...interval })).entries).toHaveLength(4);
+      33 |     expect((await search({ correlationId: F.correlationId.toUpperCase() })).entries.map(entry => entry.id)).toEqual(['9007199254740994', '9007199254740993', '9007199254740995']);
+
+      at Object.<anonymous> (test/db/audit-search.db-spec.ts:30:81)
+
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-05/10 commits exactly one self-audit even for an empty lookup
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      45 |     expect(page).toEqual({ entries: [], nextCursor: null });
+      46 |     const audit = await rows(current.correlationId);
+    > 47 |     expect(audit).toHaveLength(1);
+         |                   ^
+      48 |     expect(audit[0]).toMatchObject({ actor_user_id: current.userId, actor_role: 'auditor', action: 'audit.search', outcome: 'SUCCESS', target_type: 'audit_search', target_id: current.correlationId, metadata: {} });
+      49 |     expect(audit[0].correlation_id).not.toBe(queryCorrelation);
+      50 |     expect((await search({ action: 'audit.search' })).entries.some(entry => entry.correlationId === current.correlationId)).toBe(true);
+
+      at Object.<anonymous> (test/db/audit-search.db-spec.ts:47:19)
+
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-08 numeric mixed-length IDs and microseconds page precisely at limit1
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 5
+    + Received  + 1
+
+    - Array [
+    -   "9007199254740994",
+    -   "9007199254740993",
+    -   "9007199254740995",
+    - ]
+    + Array []
+
+      53 |   it.each(['1', '2', '100'])('TC-103-08 numeric mixed-length IDs and microseconds page precisely at limit%s', async limit => {
+      54 |     const precision = await pages(F.correlationId, limit);
+    > 55 |     expect(precision).toEqual(['9007199254740994', '9007199254740993', '9007199254740995']);
+         |                       ^
+      56 |     expect(new Set(precision).size).toBe(3);
+      57 |     expect(await pages(F.sortCorrelationId, limit)).toEqual(['10000000000000000', '9999999999999999', '10', '9']);
+      58 |     expect((await search({ correlationId: F.correlationId, from: '2026-11-04T08:10:00.123455Z', to: '2026-11-04T08:10:00.123456Z' })).entries.map(entry => entry.id)).toEqual(['9007199254740995']);
+
+      at test/db/audit-search.db-spec.ts:55:23
+
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-08 numeric mixed-length IDs and microseconds page precisely at limit2
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 5
+    + Received  + 1
+
+    - Array [
+    -   "9007199254740994",
+    -   "9007199254740993",
+    -   "9007199254740995",
+    - ]
+    + Array []
+
+      53 |   it.each(['1', '2', '100'])('TC-103-08 numeric mixed-length IDs and microseconds page precisely at limit%s', async limit => {
+      54 |     const precision = await pages(F.correlationId, limit);
+    > 55 |     expect(precision).toEqual(['9007199254740994', '9007199254740993', '9007199254740995']);
+         |                       ^
+      56 |     expect(new Set(precision).size).toBe(3);
+      57 |     expect(await pages(F.sortCorrelationId, limit)).toEqual(['10000000000000000', '9999999999999999', '10', '9']);
+      58 |     expect((await search({ correlationId: F.correlationId, from: '2026-11-04T08:10:00.123455Z', to: '2026-11-04T08:10:00.123456Z' })).entries.map(entry => entry.id)).toEqual(['9007199254740995']);
+
+      at test/db/audit-search.db-spec.ts:55:23
+
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-08 numeric mixed-length IDs and microseconds page precisely at limit100
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 5
+    + Received  + 1
+
+    - Array [
+    -   "9007199254740994",
+    -   "9007199254740993",
+    -   "9007199254740995",
+    - ]
+    + Array []
+
+      53 |   it.each(['1', '2', '100'])('TC-103-08 numeric mixed-length IDs and microseconds page precisely at limit%s', async limit => {
+      54 |     const precision = await pages(F.correlationId, limit);
+    > 55 |     expect(precision).toEqual(['9007199254740994', '9007199254740993', '9007199254740995']);
+         |                       ^
+      56 |     expect(new Set(precision).size).toBe(3);
+      57 |     expect(await pages(F.sortCorrelationId, limit)).toEqual(['10000000000000000', '9999999999999999', '10', '9']);
+      58 |     expect((await search({ correlationId: F.correlationId, from: '2026-11-04T08:10:00.123455Z', to: '2026-11-04T08:10:00.123456Z' })).entries.map(entry => entry.id)).toEqual(['9007199254740995']);
+
+      at test/db/audit-search.db-spec.ts:55:23
+
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-09 a newer committed row and later self-audits do not shift older pages
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 1
+
+    - Array [
+    -   "10000000000050002",
+    - ]
+    + Array []
+
+      68 |     const newest = await insert('2026-11-04T08:10:00.000000Z');
+      69 |     const first = await search({ correlationId, limit: '1' });
+    > 70 |     expect(first.entries.map(entry => entry.id)).toEqual([newest]);
+         |                                                  ^
+      71 |     const later = await insert('2026-11-04T08:20:00.000000Z');
+      72 |     const second = await search({ correlationId, limit: '2', cursor: first.nextCursor! });
+      73 |     expect(second.entries.map(entry => entry.id)).toEqual([older]);
+
+      at Object.<anonymous> (test/db/audit-search.db-spec.ts:70:50)
+
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-11 SHARE lock permits SELECT but refuses the mandatory INSERT; recovery records once
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"entries": [], "nextCursor": null}
+
+      82 |       await fixture.db.runner.query('LOCK TABLE audit_log IN SHARE MODE');
+      83 |       expect((await fixture.source.query<{ count: string }[]>('SELECT count(*) FROM audit_log'))[0].count).not.toBe('0');
+    > 84 |       await expect(service.search(parseAuditSearchQuery({ correlationId: F.correlationId }), failed)).rejects.toMatchObject({ code: '55P03' });
+         |             ^
+      85 |       expect(await rows(failed.correlationId)).toHaveLength(0);
+      86 |     } finally { await fixture.db.runner.rollbackTransaction(); }
+      87 |     const recovered = caller();
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (test/db/audit-search.db-spec.ts:84:13)
+
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-12 an actual INSERT followed by SELECT42501 rolls the self-audit back
+
+    expect(received).rejects.toMatchObject()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"entries": [], "nextCursor": null}
+
+      108 |       jest.spyOn(audit, 'record').mockImplementation(async (manager, input) => { await actualRecord(manager, input); inserted = true; });
+      109 |       const restricted = new AuditSearchService(tx, audit);
+    > 110 |       await expect(restricted.search(parseAuditSearchQuery({}), current)).rejects.toMatchObject({ code: '42501' });
+          |             ^
+      111 |       expect(inserted).toBe(true);
+      112 |       expect(await rows(current.correlationId)).toHaveLength(0);
+      113 |     } finally {
+
+      at expect (node_modules/expect/build/index.js:2116:15)
+      at Object.<anonymous> (test/db/audit-search.db-spec.ts:110:13)
+
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-13 ten concurrent real searches retain actor/correlation attribution
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 10
+    Received length: 0
+    Received array:  []
+
+      124 |     expect(pages.every(page => page.entries.length === 0)).toBe(true);
+      125 |     const auditRows = await fixture.source.query<Record<string, unknown>[]>('SELECT * FROM audit_log WHERE correlation_id=ANY($1::uuid[])', [callers.map(current => current.correlationId)]);
+    > 126 |     expect(auditRows).toHaveLength(10);
+          |                       ^
+      127 |     for (const current of callers) expect(auditRows.filter(row => row.correlation_id === current.correlationId)).toEqual([expect.objectContaining({ actor_user_id: current.userId, actor_role: 'auditor', action: 'audit.search' })]);
+      128 |   });
+      129 |
+
+      at Object.<anonymous> (test/db/audit-search.db-spec.ts:126:23)
+
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-14 hostile action remains an exact parameter and never broadens the result
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 1
+    Received:   0
+
+      130 |   it('TC-103-14 hostile action remains an exact parameter and never broadens the result', async () => {
+      131 |     expect((await search({ action: "transfer.create' OR 1=1 --" })).entries).toEqual([]);
+    > 132 |     expect((await search({ action: 'transfer.create' })).entries.length).toBeGreaterThan(1);
+          |                                                                          ^
+      133 |   });
+      134 |
+      135 |   it('TC-103-18 real service SQL chooses the correlation index in all five warm <=10ms plans', async () => {
+
+      at Object.<anonymous> (test/db/audit-search.db-spec.ts:132:74)
+
+  ● Audit search on real PostgreSQL (DBS-103) › TC-103-18 real service SQL chooses the correlation index in all five warm <=10ms plans
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      138 |     expect(BigInt(count)).toBeGreaterThanOrEqual(50000n);
+      139 |     const built = buildAuditSearchSql(parseAuditSearchQuery({ correlationId: F.performanceCorrelationId, limit: '50' }));
+    > 140 |     expect((await search({ correlationId: F.performanceCorrelationId })).entries).toHaveLength(1);
+          |                                                                                   ^
+      141 |     const times: number[] = [];
+      142 |     for (let i = 0; i < 6; i++) {
+      143 |       const result = await fixture.source.query<{ 'QUERY PLAN': { Plan: unknown; 'Execution Time': number }[] }[]>(`EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) ${built.sql}`, built.parameters);
+
+      at Object.<anonymous> (test/db/audit-search.db-spec.ts:140:83)
+
+Test Suites: 1 failed, 1 total
+Tests:       11 failed, 11 total
+Snapshots:   0 total
+Time:        4.389 s
+Ran all test suites within paths "test/db/audit-search.db-spec.ts".
+
+
+=== unit-green.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand --runTestsByPath src/modules/audit/audit-search.query.spec.ts src/modules/audit/audit-search.service.spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       83 passed, 83 total
+Snapshots:   0 total
+Time:        6.667 s, estimated 13 s
+Ran all test suites within paths "src/modules/audit/audit-search.query.spec.ts", "src/modules/audit/audit-search.service.spec.ts".
+
+
+=== pg-green.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search.db-spec.ts
+
+  console.log
+    {"case":"TC-103-18","fixtureRows":"50061","warmExecutionMs":[0.083,0.084,0.09,0.078,0.079]}
+
+      at Object.<anonymous> (test/db/audit-search.db-spec.ts:313:13)
+
+Test Suites: 1 passed, 1 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        6.334 s
+Ran all test suites within paths "test/db/audit-search.db-spec.ts".
+
+
+STEP 3/4 - HTTP/OpenAPI/worker and isolated manual-session lifecycle
+Code commits: 0a6d054d6a049277cb3fcc1d593cbde2ed8d2f90; 29e54493dec6a543840d3a556914dce491b09176
+Final code candidate: 29e54493dec6a543840d3a556914dce491b09176
+Commands (backend cwd):
+  npm test -- --runInBand --runTestsByPath src/modules/audit/audit-http.module.spec.ts src/modules/modules.spec.ts
+  npm run test:db -- --runInBand --runTestsByPath test/db/audit-search.http.db-spec.ts
+  npm run test:db -- --runInBand --runTestsByPath test/db/audit-search-session.db-spec.ts
+  npm run test:db -- --runInBand --runTestsByPath test/db/audit-search.http.db-spec.ts test/db/audit-search-session.db-spec.ts
+Unit/module contract-red and lifecycle missing-helper red are not proof that a real HTTP lookup or cleanup was executed. HTTP route404 behavior-red, full real HTTP green, MIME regression red/green and actual normal/EADDRINUSE cleanup output are separately captured below. The initial HTTP-red run also produced Supertest listener warnings; the test fixture now calls app.listen(0,'127.0.0.1') before the 10-request burst, avoiding ten separate auto-listeners. Runtime product guards were not weakened.
+The neutral matches() comment changed with the HTTP commit; it is not a parser behavior bugfix.
+No new source/test changes after the code candidate above. Full six commands and final-SHA manual evidence are still the coordinator's following steps; targeted passes are not GitHub CI or full acceptance.
+
+=== module-red.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand --runTestsByPath src/modules/audit/audit-http.module.spec.ts src/modules/modules.spec.ts
+
+FAIL src/modules/audit/audit-http.module.spec.ts
+  ● Test suite failed to run
+
+    src/modules/audit/audit-http.module.spec.ts:7:33 - error TS2307: Cannot find module './audit-http.module' or its corresponding type declarations.
+
+    7 import { AuditHttpModule } from './audit-http.module';
+                                      ~~~~~~~~~~~~~~~~~~~~~
+    src/modules/audit/audit-http.module.spec.ts:8:33 - error TS2307: Cannot find module './audit.controller' or its corresponding type declarations.
+
+    8 import { AuditController } from './audit.controller';
+                                      ~~~~~~~~~~~~~~~~~~~~
+    src/modules/audit/audit-http.module.spec.ts:9:36 - error TS2307: Cannot find module './audit-search.service' or its corresponding type declarations.
+
+    9 import { AuditSearchService } from './audit-search.service';
+                                         ~~~~~~~~~~~~~~~~~~~~~~~~
+
+FAIL src/modules/modules.spec.ts
+  ● Test suite failed to run
+
+    src/modules/modules.spec.ts:2:10 - error TS2724: '"./audit"' has no exported member named 'AuditHttpModule'. Did you mean 'AuditModule'?
+
+    2 import { AuditHttpModule, AuditModule } from './audit';
+               ~~~~~~~~~~~~~~~
+
+Test Suites: 2 failed, 2 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        6.587 s
+Ran all test suites within paths "src/modules/audit/audit-http.module.spec.ts", "src/modules/modules.spec.ts".
+
+
+=== http-red.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search.http.db-spec.ts
+
+(node:8340) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8340) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+FAIL test/db/audit-search.http.db-spec.ts (11.826 s)
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-04/15 returns the exact combined filter and public audit projection
+
+    expected 200 "OK", got 404 "Not Found"
+
+      156 |       correlationId: SEARCH_FIXTURE.correlationId.toUpperCase(),
+      157 |       limit: '100',
+    > 158 |     }).expect(200);
+          |        ^
+      159 |     expect(response.headers['cache-control']).toBe('no-store');
+      160 |     expect(entries(response).map(row => row.id)).toEqual(precisionIds);
+      161 |     expect(response.body.nextCursor).toBeNull();
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:158:8)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-04 applies every optional filter independently and preserves a NULL system actor
+
+    expected 200 "OK", got 404 "Not Found"
+
+      184 |
+      185 |   it('TC-103-04 applies every optional filter independently and preserves a NULL system actor', async () => {
+    > 186 |     const actor = await get({ actorUserId: SEARCH_FIXTURE.actorUserId, limit: '100' }).expect(200);
+          |                                                                                        ^
+      187 |     expect(entries(actor).length).toBeGreaterThanOrEqual(3);
+      188 |     expect(entries(actor).every(row => row.actorUserId === SEARCH_FIXTURE.actorUserId)).toBe(true);
+      189 |     const action = await get({ action: 'transfer.create', limit: '100' }).expect(200);
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:186:88)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-05 commits one self-audit even for an empty result
+
+    expected 200 "OK", got 404 "Not Found"
+
+      214 |
+      215 |   it('TC-103-05 commits one self-audit even for an empty result', async () => {
+    > 216 |     const response = await get({ correlationId: randomUUID() }).expect(200);
+          |                                                                 ^
+      217 |     expect(response.body).toEqual({ entries: [], nextCursor: null });
+      218 |     const rows = await auditFor(response.headers['x-correlation-id']);
+      219 |     expect(rows).toHaveLength(1);
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:216:65)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query limit=0 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query limit=101 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query limit=01 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query limit=1.5 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query limit= before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query actorUserId=null before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query correlationId=not-a-uuid before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query action= before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query action=%20%20 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query action=%00 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query from=2026-02-29T00%3A00%3A00Z before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query from=2026-01-01T00%3A00%3A60Z before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query from=2026-01-01T00%3A00%3A00.1234567Z before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query from=1969-12-31T00%3A00%3A00Z before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query from=2026-01-01T00%3A00%3A00%2B00%3A00 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query from=2026-01-01T00%3A00%3A00Z&to=2026-01-01T00%3A00%3A00Z before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query from=2026-01-02T00%3A00%3A00Z&to=2026-01-01T00%3A00%3A00Z before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query unknown=private-probe%40example.invalid before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query limit=1&limit=2 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query limit%5B%5D=1 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query cursor%5Bv%5D=1 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-02 rejects invalid/unknown/repeated/nested query actorUserId%5Bx%5D=1 before self-audit
+
+    expected 400 "Bad Request", got 404 "Not Found"
+
+      251 |         .get(`${ROUTE}?${query}`)
+      252 |         .set('Authorization', `Bearer ${auditorToken}`)
+    > 253 |         .expect(400)
+          |          ^
+      254 |         .expect('Content-Type', /application\/problem\+json/);
+      255 |       expect(response.body.errorCode).toBeUndefined();
+      256 |       expect(response.body.errors).toEqual(expect.any(Array));
+
+      at test/db/audit-search.http.db-spec.ts:253:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-03 rejects damaged cursor payloads and changed filters but permits changing limit
+
+    expected 200 "OK", got 404 "Not Found"
+
+      262 |
+      263 |   it('TC-103-03 rejects damaged cursor payloads and changed filters but permits changing limit', async () => {
+    > 264 |     const first = await get({ correlationId: SEARCH_FIXTURE.sortCorrelationId, limit: '1' }).expect(
+          |                                                                                              ^
+      265 |       200,
+      266 |     );
+      267 |     const cursor = first.body.nextCursor as string;
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:264:94)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-06 refuses missing, altered-signature and expired tokens without searching
+
+    expected 401 "Unauthorized", got 404 "Not Found"
+
+      304 |   it('TC-103-06 refuses missing, altered-signature and expired tokens without searching', async () => {
+      305 |     const before = await searchCount();
+    > 306 |     const missing = await request(app.getHttpServer()).get(ROUTE).expect(401);
+          |                                                                   ^
+      307 |     expect(missing.body.errorCode).toBe('UNAUTHENTICATED');
+      308 |     const parts = auditorToken.split('.');
+      309 |     parts[2] = `${parts[2][0] === 'A' ? 'B' : 'A'}${parts[2].slice(1)}`;
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:306:67)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-07 refuses customer even when query/header/body claim auditor
+
+    expected 403 "Forbidden", got 404 "Not Found"
+
+      327 |         .set('X-Role', 'auditor')
+      328 |         .send({ role: 'auditor' })
+    > 329 |         .expect(403);
+          |          ^
+      330 |       expect(response.body.errorCode).toBe('FORBIDDEN');
+      331 |       expect(response.body.entries).toBeUndefined();
+      332 |       expect(await searchCount()).toBe(before);
+
+      at test/db/audit-search.http.db-spec.ts:329:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-07 refuses operator even when query/header/body claim auditor
+
+    expected 403 "Forbidden", got 404 "Not Found"
+
+      327 |         .set('X-Role', 'auditor')
+      328 |         .send({ role: 'auditor' })
+    > 329 |         .expect(403);
+          |          ^
+      330 |       expect(response.body.errorCode).toBe('FORBIDDEN');
+      331 |       expect(response.body.entries).toBeUndefined();
+      332 |       expect(await searchCount()).toBe(before);
+
+      at test/db/audit-search.http.db-spec.ts:329:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-07 refuses admin even when query/header/body claim auditor
+
+    expected 403 "Forbidden", got 404 "Not Found"
+
+      327 |         .set('X-Role', 'auditor')
+      328 |         .send({ role: 'auditor' })
+    > 329 |         .expect(403);
+          |          ^
+      330 |       expect(response.body.errorCode).toBe('FORBIDDEN');
+      331 |       expect(response.body.entries).toBeUndefined();
+      332 |       expect(await searchCount()).toBe(before);
+
+      at test/db/audit-search.http.db-spec.ts:329:10
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-07 permits an auditor+admin token with audit attribution fixed to auditor
+
+    expected 200 "OK", got 404 "Not Found"
+
+      346 |       .setExpirationTime('15m')
+      347 |       .sign(multiKey);
+    > 348 |     const response = await get({ correlationId: SEARCH_FIXTURE.correlationId }, token).expect(200);
+          |                                                                                        ^
+      349 |     const [row] = await auditFor(response.headers['x-correlation-id']);
+      350 |     expect(row.actor_role).toBe('auditor');
+      351 |     const [user] = (await db.runner.query('SELECT id FROM users WHERE cognito_sub = $1', [
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:348:88)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-08 pages numeric bigint ties and microseconds with limit 1
+
+    expected 200 "OK", got 404 "Not Found"
+
+      367 |           const query: Record<string, string> = { correlationId, limit };
+      368 |           if (cursor !== null) query.cursor = cursor;
+    > 369 |           const response: Response = await get(query).expect(200);
+          |                                                       ^
+      370 |           ids.push(...entries(response).map(row => row.id));
+      371 |           cursor = (response.body as AuditEntriesPage).nextCursor;
+      372 |           expect(ids.length).toBeLessThanOrEqual(expected.length);
+
+      at test/db/audit-search.http.db-spec.ts:369:55
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-08 pages numeric bigint ties and microseconds with limit 2
+
+    expected 200 "OK", got 404 "Not Found"
+
+      367 |           const query: Record<string, string> = { correlationId, limit };
+      368 |           if (cursor !== null) query.cursor = cursor;
+    > 369 |           const response: Response = await get(query).expect(200);
+          |                                                       ^
+      370 |           ids.push(...entries(response).map(row => row.id));
+      371 |           cursor = (response.body as AuditEntriesPage).nextCursor;
+      372 |           expect(ids.length).toBeLessThanOrEqual(expected.length);
+
+      at test/db/audit-search.http.db-spec.ts:369:55
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-08 pages numeric bigint ties and microseconds with limit 100
+
+    expected 200 "OK", got 404 "Not Found"
+
+      367 |           const query: Record<string, string> = { correlationId, limit };
+      368 |           if (cursor !== null) query.cursor = cursor;
+    > 369 |           const response: Response = await get(query).expect(200);
+          |                                                       ^
+      370 |           ids.push(...entries(response).map(row => row.id));
+      371 |           cursor = (response.body as AuditEntriesPage).nextCursor;
+      372 |           expect(ids.length).toBeLessThanOrEqual(expected.length);
+
+      at test/db/audit-search.http.db-spec.ts:369:55
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-09 does not repeat or shift older pages when newer rows/self-audits arrive
+
+    expected 200 "OK", got 404 "Not Found"
+
+      388 |       [correlationId],
+      389 |     )) as { id: string }[];
+    > 390 |     const first = await get({ correlationId, limit: '1' }).expect(200);
+          |                                                            ^
+      391 |     await db.runner.query(
+      392 |       `INSERT INTO audit_log
+      393 |        (occurred_at,actor_role,action,outcome,target_type,target_id,correlation_id)
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:390:60)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-10 uses the server correlation and one durable self-audit per page/retry
+
+    expected 200 "OK", got 404 "Not Found"
+
+      411 |       .set('X-Correlation-Id', SEARCH_FIXTURE.correlationId)
+      412 |       .set('X-Request-Id', SEARCH_FIXTURE.correlationId)
+    > 413 |       .expect(200);
+          |        ^
+      414 |     const next = await get({
+      415 |       correlationId: SEARCH_FIXTURE.correlationId,
+      416 |       cursor: first.body.nextCursor as string,
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:413:8)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-11 fails closed on a real SHARE-lock INSERT timeout, then recovers
+
+    expected 503 "Service Unavailable", got 404 "Not Found"
+
+      451 |       }[];
+      452 |       expect(Number(control.count)).toBeGreaterThan(0);
+    > 453 |       failed = await get({ correlationId: SEARCH_FIXTURE.correlationId }).expect(503);
+          |                                                                           ^
+      454 |       expect(failed.headers['retry-after']).toBe('5');
+      455 |       expect(failed.body.errorCode).toBe('SERVICE_TEMPORARILY_UNAVAILABLE');
+      456 |       expect(failed.body.entries).toBeUndefined();
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:453:75)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-13 attributes ten concurrent real requests to ten users/server correlations
+
+    expected 200 "OK", got 404 "Not Found"
+
+      480 |     const before = await searchCount();
+      481 |     const responses = await Promise.all(
+    > 482 |       tokens.map(token => get({ correlationId: SEARCH_FIXTURE.correlationId }, token).expect(200)),
+          |                                                                                       ^
+      483 |     );
+      484 |     expect(await searchCount()).toBe(before + 10);
+      485 |     const correlations = responses.map(response => response.headers['x-correlation-id']);
+
+      at test/db/audit-search.http.db-spec.ts:482:87
+          at Array.map (<anonymous>)
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:482:14)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at finish (node_modules/supertest/lib/test.js:209:7)
+      at Test.fn [as callback] (node_modules/superagent/src/node/index.js:1196:3)
+      at callback (node_modules/superagent/src/node/index.js:1552:18)
+      at IncomingMessage.fn (node_modules/superagent/src/node/parsers/json.js:24:7)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-14 treats SQL-looking action as exact data and never logs raw query/token/PII
+
+    expected 200 "OK", got 404 "Not Found"
+
+      503 |     output = '';
+      504 |     const hostile = "transfer.create' OR 1=1 --";
+    > 505 |     const response = await get({ action: hostile }).expect(200);
+          |                                                     ^
+      506 |     expect(response.body).toEqual({ entries: [], nextCursor: null });
+      507 |     const invalid = await get({ cursor: 'private-probe@example.invalid' }).expect(400);
+      508 |     expect(JSON.stringify(invalid.body)).not.toContain('private-probe');
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:505:53)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:376:14)
+      at node_modules/supertest/lib/test.js:432:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:409:13)
+      at Test.assert (node_modules/supertest/lib/test.js:274:23)
+      at localAssert (node_modules/supertest/lib/test.js:196:38)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:203:13)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-20 serves the seven-query auditor-only Bearer contract from actual Swagger
+
+    TypeError: Cannot read properties of undefined (reading 'get')
+
+      543 |     const response = await request(app.getHttpServer()).get('/docs-json').expect(200);
+      544 |     const document = response.body;
+    > 545 |     const operation = document.paths[ROUTE].get;
+          |                                             ^
+      546 |     expect(Object.keys(document.paths[ROUTE])).toEqual(['get']);
+      547 |     expect(operation['x-roles']).toEqual(['auditor']);
+      548 |     expect(operation.security).toEqual([{ 'access-token': [] }]);
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:545:45)
+
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-19 boots the real worker with no listener/query/identity while the writer still commits
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      665 |       });
+      666 |     });
+    > 667 |     expect(status).toBe(0);
+          |                    ^
+      668 |     expect(probeOutput).toContain('worker-di-verified');
+      669 |     const rows = await auditFor(correlationId);
+      670 |     expect(rows).toHaveLength(1);
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:667:20)
+
+Test Suites: 1 failed, 1 total
+Tests:       41 failed, 1 passed, 42 total
+Snapshots:   0 total
+Time:        11.903 s
+Ran all test suites within paths "test/db/audit-search.http.db-spec.ts".
+
+
+=== session-red.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search-session.db-spec.ts
+
+FAIL test/db/audit-search-session.db-spec.ts (5.334 s)
+  ● DBS-103 isolated manual-session lifecycle (real process/AppModule/PG) › TC-103-21a listens on loopback then quits through real cleanup and removes only its DB
+
+    Manual session closed before readiness
+
+      104 |       child.once('close', code => {
+      105 |         clearTimeout(deadline);
+    > 106 |         readyReject(new Error('Manual session closed before readiness'));
+          |                     ^
+      107 |         resolve(code);
+      108 |       });
+      109 |     });
+
+      at ChildProcess.<anonymous> (test/db/audit-search-session.db-spec.ts:106:21)
+
+  ● DBS-103 isolated manual-session lifecycle (real process/AppModule/PG) › TC-103-21b a real EADDRINUSE after DB creation still restores admin URL and drops the DB
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "EADDRINUSE"
+    Received string:    "Error: Cannot find module 'C:\\Users\\Admin\\.codex\\worktrees\\dbs-parallel-20261102\\DBS-103\\backend\\test\\manual\\audit-search-session.ts'
+
+      148 |     try {
+      149 |       expect(await session.exit).not.toBe(0);
+    > 150 |       expect(session.output()).toContain('EADDRINUSE');
+          |                                ^
+      151 |       expect(session.output()).toContain('audit-search-cleaned');
+      152 |       expect(session.output()).not.toContain('audit-search-ready');
+      153 |       expect(session.output()).not.toContain(environment.DATABASE_URL!);
+
+      at Module._resolveFilename.sharedData.moduleResolveFilenameHook.installedValue (node_modules/@cspotcode/source-map-support/source-map-support.js:811:30)
+      at Module._resolveFilename (node_modules/tsconfig-paths/src/register.ts:115:36)
+      at node:internal/main/run_main_module:33:47 {
+        code: 'MODULE_NOT_FOUND',
+        requireStack: []
+      }
+      "
+      at Object.<anonymous> (test/db/audit-search-session.db-spec.ts:150:32)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 2 total
+Snapshots:   0 total
+Time:        5.421 s
+Ran all test suites within paths "test/db/audit-search-session.db-spec.ts".
+
+
+=== module-green.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand --runTestsByPath src/modules/audit/audit-http.module.spec.ts src/modules/modules.spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       15 passed, 15 total
+Snapshots:   0 total
+Time:        6.833 s
+Ran all test suites within paths "src/modules/audit/audit-http.module.spec.ts", "src/modules/modules.spec.ts".
+
+
+=== http-green.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search.http.db-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       42 passed, 42 total
+Snapshots:   0 total
+Time:        12.371 s
+Ran all test suites within paths "test/db/audit-search.http.db-spec.ts".
+
+
+=== session-green.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search-session.db-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        11.982 s
+Ran all test suites within paths "test/db/audit-search-session.db-spec.ts".
+
+
+=== openapi-mime-red.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search.http.db-spec.ts
+
+FAIL test/db/audit-search.http.db-spec.ts (12.449 s)
+  ● DBS-103 audit search through the real AppModule, JWT and PostgreSQL › TC-103-20 serves the seven-query auditor-only Bearer contract from actual Swagger
+
+    TypeError: Cannot read properties of undefined (reading 'schema')
+
+      560 |     }
+      561 |     for (const status of ['400', '401', '403', '500', '503']) {
+    > 562 |       expect(operation.responses[status].content['application/problem+json'].schema.$ref).toBe(
+          |                                                                              ^
+      563 |         '#/components/schemas/AuditSearchProblemDto',
+      564 |       );
+      565 |     }
+
+      at Object.<anonymous> (test/db/audit-search.http.db-spec.ts:562:78)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 41 passed, 42 total
+Snapshots:   0 total
+Time:        12.527 s, estimated 13 s
+Ran all test suites within paths "test/db/audit-search.http.db-spec.ts".
+
+
+=== http-session-final-green.txt ===
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search.http.db-spec.ts test/db/audit-search-session.db-spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       44 passed, 44 total
+Snapshots:   0 total
+Time:        24.06 s, estimated 25 s
+Ran all test suites within paths "test/db/audit-search.http.db-spec.ts", "test/db/audit-search-session.db-spec.ts".
+
+
+=== typecheck.txt ===
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+
+REVIEW CORRECTION - TC-103-18 exact plan node
+The reviewer identified that string containment of 'Index Scan' could accept 'Bitmap Index Scan'. The approved TC-103-18 assertion now traverses actual Plan/Plans nodes and requires Node Type exactly 'Index Scan' and Index Name exactly 'audit_log_correlation_idx' on the SAME node; a Bitmap Index Scan negative control is false. SQL, fixture, natural planner and <=10ms threshold remain unchanged. All observed warm timings are collected before threshold assertions, and warm-up timing is now also logged.
+Command: npm run test:db -- --runInBand --runTestsByPath test/db/audit-search.db-spec.ts
+Targeted eslint test/db/audit-search.db-spec.ts exit0.
+Test-only commit: 8894117dfff7ee8ce05bcbeec1a3920cc3bfa6a4
+FINAL SOURCE/TEST SHA FOR FOLLOWING FULL CHECKS AND MANUAL: 8894117dfff7ee8ce05bcbeec1a3920cc3bfa6a4
+Raw output follows. Earlier timings above are retained as separate observed runs; this run was required by the stronger assertion, not selected to hide a slower result.
+HTTP agent reported targeted ESLint exit0 but did not persist an individual lint.txt artifact; its Typecheck raw output is above. Full coordinator lint/typecheck still follow.
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search.db-spec.ts
+
+  console.log
+    {"case":"TC-103-18","fixtureRows":"50061","warmupExecutionMs":0.067,"warmExecutionMs":[0.055,0.064,0.06,0.053,0.053]}
+
+      at Object.<anonymous> (test/db/audit-search.db-spec.ts:329:13)
+
+Test Suites: 1 passed, 1 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        7.225 s
+Ran all test suites within paths "test/db/audit-search.db-spec.ts".
+
+
+
+ROOT FINAL VERIFICATION v1 · 2026-11-05 · local evidence, not GitHub CI
+Main refreshed and rechecked: a9e607b0e6cd3d35869d57307d80d8fc8084d212.
+Shared approved P0 commit: b93ab08a17259d5051568fb739f46d655ed67a9f.
+Only P0 file: backend/test/dev-auth-bootstrap.e2e-spec.ts. Existing deployed-control
+red was ETIMEDOUT; patch uses refusal at loopback instead of DNS-dependent db.internal,
+adds startup-failure/no-listener assertions, preserves25s timeout/TLS/guards/retrycounts.
+Baseline green before feature production: lint/typecheck0;55unit suites826tests0skip;
+13E2E suites135tests0skip;18PostgreSQL suites346tests0skip. Docker initially unavailable:
+one full E2E attempt failed connecting before tests; after Docker recovery full E2E passed.
+Docker runtime recovery preserved stale socket-only folders outside repo; no data reset.
+No production dependency/schema/ErrorCode/env/money-rule change. Test tooling installs
+follow existing package-lock; no source/env-secret file edited.
+
+Command output: p0-red.txt
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand --runTestsByPath test/dev-auth-bootstrap.e2e-spec.ts
+
+FAIL test/dev-auth-bootstrap.e2e-spec.ts (47.956 s)
+  ● DBS-53 local auth is refused outside development and test (real process) › control: the deployed environment alone passes validation
+
+    expect(received).toBeUndefined()
+
+    Received: [Error: spawnSync C:\Program Files\nodejs\node.exe ETIMEDOUT]
+
+      41 |     { cwd: backend, encoding: 'utf8', timeout: 25_000, env },
+      42 |   );
+    > 43 |   expect(result.error).toBeUndefined();
+         |                        ^
+      44 |   const output = result.stdout + result.stderr;
+      45 |   const rows = output
+      46 |     .trim()
+
+      at runMain (test/dev-auth-bootstrap.e2e-spec.ts:43:24)
+      at Object.<anonymous> (test/dev-auth-bootstrap.e2e-spec.ts:67:17)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 3 passed, 4 total
+Snapshots:   0 total
+Time:        48.274 s
+Ran all test suites within paths "test/dev-auth-bootstrap.e2e-spec.ts".
+
+
+Command output: p0-green.txt
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand --runTestsByPath test/dev-auth-bootstrap.e2e-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        32.081 s, estimated 48 s
+Ran all test suites within paths "test/dev-auth-bootstrap.e2e-spec.ts".
+
+
+Command output: lint-baseline.txt
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+
+Command output: typecheck-baseline.txt
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+
+Command output: unit-baseline.txt
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:05 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWSSignatureVerificationFailed
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token expired
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWTClaimValidationFailed
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 16732  - 10:35:09 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+DB_* variables are incomplete or malformed, DATABASE_URL not composed: DB_PASSWORD
+
+Test Suites: 55 passed, 55 total
+Tests:       826 passed, 826 total
+Snapshots:   0 total
+Time:        57.21 s
+Ran all test suites.
+
+
+Command output: e2e-baseline.txt
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 23012  - 10:35:51 05/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+[Nest] 23012  - 10:35:51 05/11/2026   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (1)...
+AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[Nest] 23012  - 10:35:53 05/11/2026   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (2)...
+AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[Nest] 23012  - 10:35:55 05/11/2026   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (3)...
+AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[Nest] 23012  - 10:35:57 05/11/2026   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (4)...
+AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[Nest] 23012  - 10:35:59 05/11/2026   ERROR [TypeOrmModule] Unable to connect to the database. Retrying (5)...
+AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+[Nest] 23012  - 10:35:59 05/11/2026   ERROR [ExceptionHandler] AggregateError:
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:5432
+        at createConnectionError (node:net:1746:14)
+        at afterConnectMultiple (node:net:1776:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 5432
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:5432
+        at createConnectionError (node:net:1746:14)
+        at afterConnectMultiple (node:net:1776:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 5432
+    }
+  ]
+}
+  ●  process.exit called with "1"
+
+      64 |     ({ IS_PUBLIC_KEY } = await import('../src/common/auth/public.decorator'));
+      65 |
+    > 66 |     app = await NestFactory.create<NestExpressApplication>(AppModule, {
+         |           ^
+      67 |       logger: ['error', 'warn'],
+      68 |     });
+      69 |     configureHttpApp(app as NestExpressApplication, {
+
+      at DEFAULT_TEARDOWN (D:/UET_PROJECT/digital-banking-simulator/backend/node_modules/@nestjs/core/errors/exceptions-zone.js:6:40)
+      at ExceptionsZone.asyncRun (D:/UET_PROJECT/digital-banking-simulator/backend/node_modules/@nestjs/core/errors/exceptions-zone.js:29:13)
+      at NestFactoryStatic.initialize (D:/UET_PROJECT/digital-banking-simulator/backend/node_modules/@nestjs/core/nest-factory.js:111:13)
+      at NestFactoryStatic.create (D:/UET_PROJECT/digital-banking-simulator/backend/node_modules/@nestjs/core/nest-factory.js:43:9)
+      at Object.<anonymous> (test/roles-app.e2e-spec.ts:66:11)
+
+
+Command output: e2e-baseline-after-docker.txt
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 4896  - 10:39:18 05/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+[Nest] 4896  - 10:40:08 05/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+
+Test Suites: 13 passed, 13 total
+Tests:       135 passed, 135 total
+Snapshots:   0 total
+Time:        96.847 s
+Ran all test suites.
+
+
+Command output: db-baseline.txt
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+(node:11492) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11492) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:11492) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+
+Test Suites: 18 passed, 18 total
+Tests:       346 passed, 346 total
+Snapshots:   0 total
+Time:        299.781 s
+Ran all test suites.
+
+
+Final source/test SHA: 8894117dfff7ee8ce05bcbeec1a3920cc3bfa6a4
+
+Command output: 103-final-lint.txt
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+
+Command output: 103-final-typecheck.txt
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+
+Command output: 103-final-unit.txt
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand
+
+[Nest] 25548  - 11:06:25 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:25 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:25 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:26 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:26 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:26 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWSSignatureVerificationFailed
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] access token expired
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWTClaimValidationFailed
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 25548  - 11:06:47 05/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+DB_* variables are incomplete or malformed, DATABASE_URL not composed: DB_PASSWORD
+
+Test Suites: 58 passed, 58 total
+Tests:       912 passed, 912 total
+Snapshots:   0 total
+Time:        58.666 s, estimated 79 s
+Ran all test suites.
+
+
+Command output: 103-final-e2e.txt
+
+> digital-banking-simulator-backend@0.1.0 test:e2e
+> jest --config ./test/jest-e2e.js --runInBand
+
+[Nest] 24488  - 11:08:26 05/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+[Nest] 24488  - 11:08:29 05/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+
+Test Suites: 13 passed, 13 total
+Tests:       135 passed, 135 total
+Snapshots:   0 total
+Time:        96.752 s, estimated 117 s
+Ran all test suites.
+
+
+Command output: 103-final-db.txt
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+(node:17464) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17464) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:17464) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+
+Test Suites: 21 passed, 21 total
+Tests:       401 passed, 401 total
+Snapshots:   0 total
+Time:        314.827 s
+Ran all test suites.
+
+
+Command output: 103-final-build.txt
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+
+
+Cross-feature integration (isolated detached worktree, no feature/main merge):
+DBS-86 source e8210108463caad6c8a5ba38c3b4165b3b8b23a0 plus DBS-103 source
+8894117dfff7ee8ce05bcbeec1a3920cc3bfa6a4; applied source/test diff from sharedb93ab08.
+Unit module/worker matrix15/15,2suites,0skip; real HTTP+ownership77/77,2suites,0skip.
+
+Command output: integration-unit.txt
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js --runInBand --runTestsByPath src/modules/audit/audit-http.module.spec.ts src/modules/modules.spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       15 passed, 15 total
+Snapshots:   0 total
+Time:        8.955 s
+Ran all test suites within paths "src/modules/audit/audit-http.module.spec.ts", "src/modules/modules.spec.ts".
+
+
+Command output: integration-db.txt
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/audit-search.http.db-spec.ts test/db/resource-ownership.db-spec.ts
+
+
+Test Suites: 2 passed, 2 total
+Tests:       77 passed, 77 total
+Snapshots:   0 total
+Time:        17.054 s
+Ran all test suites within paths "test/db/audit-search.http.db-spec.ts", "test/db/resource-ownership.db-spec.ts".
+
+
+Manual evidence: manual-test.txt first line is the final code SHA above; full raw output is
+kept there. Screenshots are real browser captures of verbatim excerpts from actual curl/psql
+or service transcript output, labelled with SHA/source path. No fake terminal or expected-result
+image was constructed. Browser JPEG capture converted to PNG with decoded pixels asserted equal;
+no cropping, retouching, resizing or generated imagery. Five images per task match §7 allowlist.
+Both original AI domain review files are retained verbatim. Protected workbook artifacts,
+keys and runtime credentials are excluded from staged paths/commits. All text evidence scanned
+for JWTs, bearer values, credential URLs, ARN and NUL bytes before commit; URL/credential redaction
+applied only when needed. Local checks/manual are not cloud, CI, independent Dev review or merge.
+
+FINAL HANDOVER SWEEP: scoped link/image checker197files/0broken on each branch; gitdiffcheck/cachedcheckclean. Inventory34paths forDBS103/28paths forDBS86 exactlymatchesapproved§7;17docs/evidence stagedperbranch,0unexpectedpaths/protectedworkbooks. Source/test immutable after manualSHA. All5PNGs/task viewed and rawtext scan JWT/bearer/credentialURL/ARN/NUL=0. Updateddocs03Mermaid rendered and visuallychecked. Dedicated manualDBs/roles/containers/TCPhelper and evidenceHTTPviewer stopped/cleaned; sharedCompose services remainhealthy. No push/PR/board/merge, no GitHubCI claimed.
+
+Text-only evidence normalization: CRLF converted to LF and trailing line-padding spaces/tabs removed for git whitespace checks. Values/counts/statuses and the final code SHA are unchanged. Original byte captures retained outside repo under raw-text-before-normalization. Screenshots show the observed output before this transport-whitespace cleanup.

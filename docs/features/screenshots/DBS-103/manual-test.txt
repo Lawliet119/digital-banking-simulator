@@ -1,0 +1,1509 @@
+8894117dfff7ee8ce05bcbeec1a3920cc3bfa6a4
+M-103-01 Search + OpenAPI (real curl against AppModule)
+
+precision page1 · curl GET /v1/audit/entries · role=auditor · query keys=actorUserId,action,from,to,correlationId,limit
+HTTP/1.1 200 OK
+X-Correlation-Id: 8c668461-2e39-4900-ba88-67484acfe7f6
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/json; charset=utf-8
+Content-Length: 877
+ETag: W/"36d-XWsmt0DwoxWjAKimGrDF37Ms4SI"
+Date: Thu, 05 Nov 2026 09:41:26 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "entries": [
+    {
+      "id": "9007199254740994",
+      "occurredAt": "2026-11-04T08:10:00.123456Z",
+      "actorUserId": "11111111-1111-4111-8111-111111111111",
+      "actorRole": "customer",
+      "action": "transfer.create",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "623abce9-69a0-4d3d-90e0-bc21c75aa361",
+      "metadata": {}
+    },
+    {
+      "id": "9007199254740993",
+      "occurredAt": "2026-11-04T08:10:00.123456Z",
+      "actorUserId": "11111111-1111-4111-8111-111111111111",
+      "actorRole": "customer",
+      "action": "transfer.create",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "623abce9-69a0-4d3d-90e0-bc21c75aa361",
+      "metadata": {}
+    }
+  ],
+  "nextCursor": "eyJ2IjoxLCJ0IjoiMjAyNi0xMS0wNFQwODoxMDowMC4xMjM0NTZaIiwiaWQiOiI5MDA3MTk5MjU0NzQwOTkzIiwiZiI6ImVmMmY3ODk2ZmU4ODliYjA5NjI3NTQxNTc0MjBiYWM5NGVkNWJlNzE4Njk4NTI2ZDlkNGQyNDljZmY5YmQ5NzEifQ"
+}
+
+M-103-02 Self-audit; response trace differs from the client/filter trace
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='8c668461-2e39-4900-ba88-67484acfe7f6'::uuid;
+        id         |            actor_user_id             | actor_role |    action    | outcome | target_type  |              target_id               |            correlation_id            | metadata
+-------------------+--------------------------------------+------------+--------------+---------+--------------+--------------------------------------+--------------------------------------+----------
+ 10000000000050001 | 33333333-3333-4333-8333-333333333333 | auditor    | audit.search | SUCCESS | audit_search | 8c668461-2e39-4900-ba88-67484acfe7f6 | 8c668461-2e39-4900-ba88-67484acfe7f6 | {}
+(1 row)
+
+
+psql (dbs_test_efa986e78efa):
+SELECT id,cognito_sub FROM users WHERE cognito_sub='dev-auditor';
+                  id                  | cognito_sub
+--------------------------------------+-------------
+ 33333333-3333-4333-8333-333333333333 | dev-auditor
+(1 row)
+
+
+curl GET /docs-json → actual audit operation:
+{
+  "description": "Auditor only, including a caller with the auditor group alongside other groups. Live keyset pagination; no cross-request snapshot. Every valid lookup, even an empty page, records audit.search before returning.",
+  "operationId": "AuditController_entries_v1",
+  "parameters": [
+    {
+      "name": "cursor",
+      "required": false,
+      "in": "query",
+      "schema": {
+        "type": "string",
+        "maxLength": 512,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "description": "Canonical unpadded base64url keyset cursor bound to the same normalized filters; limit may change"
+    },
+    {
+      "name": "limit",
+      "required": false,
+      "in": "query",
+      "schema": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100,
+        "default": 50
+      },
+      "description": "Canonical decimal integer; leading zeros, decimals and repeated values are rejected"
+    },
+    {
+      "name": "correlationId",
+      "required": false,
+      "in": "query",
+      "schema": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "description": "Exact trace UUID filter, separate from the server correlation of this lookup"
+    },
+    {
+      "name": "to",
+      "required": false,
+      "in": "query",
+      "schema": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "description": "Exclusive UTC Z upper bound; must be later than from when both are present"
+    },
+    {
+      "name": "from",
+      "required": false,
+      "in": "query",
+      "schema": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "description": "Inclusive UTC Z lower bound, year 1970–9999, zero to six fractional digits"
+    },
+    {
+      "name": "action",
+      "required": false,
+      "in": "query",
+      "schema": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "description": "Exact case-sensitive action; no control characters or whitespace-only values"
+    },
+    {
+      "name": "actorUserId",
+      "required": false,
+      "in": "query",
+      "schema": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "description": "Exact internal users.id; UUIDs are normalized to lowercase"
+    }
+  ],
+  "responses": {
+    "200": {
+      "headers": {
+        "Cache-Control": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "no-store"
+            ]
+          }
+        }
+      },
+      "description": "",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/AuditEntriesPageDto"
+          }
+        }
+      }
+    },
+    "400": {
+      "content": {
+        "application/problem+json": {
+          "schema": {
+            "$ref": "#/components/schemas/AuditSearchProblemDto"
+          }
+        }
+      },
+      "description": "Invalid filters/cursor, unknown/repeated/nested query fields; fixed errors with no errorCode"
+    },
+    "401": {
+      "content": {
+        "application/problem+json": {
+          "schema": {
+            "$ref": "#/components/schemas/AuditSearchProblemDto"
+          }
+        }
+      },
+      "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+    },
+    "403": {
+      "content": {
+        "application/problem+json": {
+          "schema": {
+            "$ref": "#/components/schemas/AuditSearchProblemDto"
+          }
+        }
+      },
+      "description": "FORBIDDEN; the caller has no auditor group"
+    },
+    "500": {
+      "content": {
+        "application/problem+json": {
+          "schema": {
+            "$ref": "#/components/schemas/AuditSearchProblemDto"
+          }
+        }
+      },
+      "description": "Safe generic error, no entries and no errorCode"
+    },
+    "503": {
+      "content": {
+        "application/problem+json": {
+          "schema": {
+            "$ref": "#/components/schemas/AuditSearchProblemDto"
+          }
+        }
+      },
+      "description": "SERVICE_TEMPORARILY_UNAVAILABLE; no entries, Retry-After: 5",
+      "headers": {
+        "Retry-After": {
+          "schema": {
+            "type": "integer",
+            "enum": [
+              5
+            ]
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "access-token": []
+    }
+  ],
+  "summary": "Search audit entries and record this lookup atomically",
+  "tags": [
+    "audit"
+  ],
+  "x-roles": [
+    "auditor"
+  ]
+}
+
+M-103-03 Precision page2, numeric mixed-length pagination and empty result
+
+precision page2 · curl GET /v1/audit/entries · role=auditor · query keys=actorUserId,action,from,to,correlationId,limit,cursor
+HTTP/1.1 200 OK
+X-Correlation-Id: f442d86c-9785-4827-8da6-7e9bfe1acc24
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/json; charset=utf-8
+Content-Length: 364
+ETag: W/"16c-4pbPfa5Hk3qQtzTkj9ajc/o8dJE"
+Date: Thu, 05 Nov 2026 09:41:26 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "entries": [
+    {
+      "id": "9007199254740995",
+      "occurredAt": "2026-11-04T08:10:00.123455Z",
+      "actorUserId": "11111111-1111-4111-8111-111111111111",
+      "actorRole": "customer",
+      "action": "transfer.create",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "623abce9-69a0-4d3d-90e0-bc21c75aa361",
+      "metadata": {}
+    }
+  ],
+  "nextCursor": null
+}
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='f442d86c-9785-4827-8da6-7e9bfe1acc24'::uuid;
+        id         |            actor_user_id             | actor_role |    action    | outcome | target_type  |              target_id               |            correlation_id            | metadata
+-------------------+--------------------------------------+------------+--------------+---------+--------------+--------------------------------------+--------------------------------------+----------
+ 10000000000050002 | 33333333-3333-4333-8333-333333333333 | auditor    | audit.search | SUCCESS | audit_search | f442d86c-9785-4827-8da6-7e9bfe1acc24 | f442d86c-9785-4827-8da6-7e9bfe1acc24 | {}
+(1 row)
+
+
+
+numeric ID page · curl GET /v1/audit/entries · role=auditor · query keys=correlationId,limit
+HTTP/1.1 200 OK
+X-Correlation-Id: 08d18f72-afb6-4c00-acc1-abc915930c44
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/json; charset=utf-8
+Content-Length: 543
+ETag: W/"21f-PNIW3/2MCcVSHT7LQ55+oSdwSJ8"
+Date: Thu, 05 Nov 2026 09:41:26 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "entries": [
+    {
+      "id": "10000000000000000",
+      "occurredAt": "2026-11-04T08:20:00.123456Z",
+      "actorUserId": "11111111-1111-4111-8111-111111111111",
+      "actorRole": "customer",
+      "action": "account.read",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "c2b45275-9d6c-4fd8-9053-84ce31c8fa6d",
+      "metadata": {}
+    }
+  ],
+  "nextCursor": "eyJ2IjoxLCJ0IjoiMjAyNi0xMS0wNFQwODoyMDowMC4xMjM0NTZaIiwiaWQiOiIxMDAwMDAwMDAwMDAwMDAwMCIsImYiOiI3ZDRhOTc2ZmQ3M2JjOTkxNzYyMDNiMmJmZTVmNTM2ZWE5Y2QyNjhmNGQ4MDMyZjViZGVkN2NlODVhOTYzZjNmIn0"
+}
+
+numeric ID page · curl GET /v1/audit/entries · role=auditor · query keys=correlationId,limit,cursor
+HTTP/1.1 200 OK
+X-Correlation-Id: 08e785b1-4fd1-4926-8dfe-a25bdf1b619c
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/json; charset=utf-8
+Content-Length: 541
+ETag: W/"21d-A838Tuf/ubRkWXKr0ixtp5zaIh8"
+Date: Thu, 05 Nov 2026 09:41:26 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "entries": [
+    {
+      "id": "9999999999999999",
+      "occurredAt": "2026-11-04T08:20:00.123456Z",
+      "actorUserId": "11111111-1111-4111-8111-111111111111",
+      "actorRole": "customer",
+      "action": "account.read",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "c2b45275-9d6c-4fd8-9053-84ce31c8fa6d",
+      "metadata": {}
+    }
+  ],
+  "nextCursor": "eyJ2IjoxLCJ0IjoiMjAyNi0xMS0wNFQwODoyMDowMC4xMjM0NTZaIiwiaWQiOiI5OTk5OTk5OTk5OTk5OTk5IiwiZiI6IjdkNGE5NzZmZDczYmM5OTE3NjIwM2IyYmZlNWY1MzZlYTljZDI2OGY0ZDgwMzJmNWJkZWQ3Y2U4NWE5NjNmM2YifQ"
+}
+
+numeric ID page · curl GET /v1/audit/entries · role=auditor · query keys=correlationId,limit,cursor
+HTTP/1.1 200 OK
+X-Correlation-Id: 247ffdfb-eaaa-40da-81c3-7e4dcb737694
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/json; charset=utf-8
+Content-Length: 508
+ETag: W/"1fc-6kEXJNSWTjU6iW/A1Dt6R++rYG4"
+Date: Thu, 05 Nov 2026 09:41:26 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "entries": [
+    {
+      "id": "10",
+      "occurredAt": "2026-11-04T08:20:00.123456Z",
+      "actorUserId": "11111111-1111-4111-8111-111111111111",
+      "actorRole": "customer",
+      "action": "account.read",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "c2b45275-9d6c-4fd8-9053-84ce31c8fa6d",
+      "metadata": {}
+    }
+  ],
+  "nextCursor": "eyJ2IjoxLCJ0IjoiMjAyNi0xMS0wNFQwODoyMDowMC4xMjM0NTZaIiwiaWQiOiIxMCIsImYiOiI3ZDRhOTc2ZmQ3M2JjOTkxNzYyMDNiMmJmZTVmNTM2ZWE5Y2QyNjhmNGQ4MDMyZjViZGVkN2NlODVhOTYzZjNmIn0"
+}
+
+numeric ID page · curl GET /v1/audit/entries · role=auditor · query keys=correlationId,limit,cursor
+HTTP/1.1 200 OK
+X-Correlation-Id: aa5c64e9-12ed-4329-ab8d-aea325072237
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/json; charset=utf-8
+Content-Length: 346
+ETag: W/"15a-QQpqGAO2mCpFNF55dhXgTvsLSRU"
+Date: Thu, 05 Nov 2026 09:41:26 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "entries": [
+    {
+      "id": "9",
+      "occurredAt": "2026-11-04T08:20:00.123456Z",
+      "actorUserId": "11111111-1111-4111-8111-111111111111",
+      "actorRole": "customer",
+      "action": "account.read",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "c2b45275-9d6c-4fd8-9053-84ce31c8fa6d",
+      "metadata": {}
+    }
+  ],
+  "nextCursor": null
+}
+Observed numeric ID order: ["10000000000000000","9999999999999999","10","9"]
+
+empty correlation · curl GET /v1/audit/entries · role=auditor · query keys=correlationId
+HTTP/1.1 200 OK
+X-Correlation-Id: a380535b-d1ee-4886-b9ce-a89b407e7136
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/json; charset=utf-8
+Content-Length: 32
+ETag: W/"20-rFgmzAyt0h/KwD9PymX+4Tlky7Q"
+Date: Thu, 05 Nov 2026 09:41:27 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "entries": [],
+  "nextCursor": null
+}
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='a380535b-d1ee-4886-b9ce-a89b407e7136'::uuid;
+        id         |            actor_user_id             | actor_role |    action    | outcome | target_type  |              target_id               |            correlation_id            | metadata
+-------------------+--------------------------------------+------------+--------------+---------+--------------+--------------------------------------+--------------------------------------+----------
+ 10000000000050007 | 33333333-3333-4333-8333-333333333333 | auditor    | audit.search | SUCCESS | audit_search | a380535b-d1ee-4886-b9ce-a89b407e7136 | a380535b-d1ee-4886-b9ce-a89b407e7136 | {}
+(1 row)
+
+
+M-103-04 Authentication, role, invalid parameters and hostile exact-match action
+
+no token · curl GET /v1/audit/entries · role=none · query keys=(raw or absent)
+HTTP/1.1 401 Unauthorized
+X-Correlation-Id: 774bd242-3b43-493a-91df-81827ff47a0b
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 196
+ETag: W/"c4-0E1DkJDTDMF2VeyqLH/E4mdsGDo"
+Date: Thu, 05 Nov 2026 09:44:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "errorCode": "UNAUTHENTICATED",
+  "type": "about:blank",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Missing or malformed Authorization header",
+  "correlationId": "774bd242-3b43-493a-91df-81827ff47a0b"
+}
+
+customer · curl GET /v1/audit/entries · role=customer · query keys=(raw or absent)
+HTTP/1.1 403 Forbidden
+X-Correlation-Id: c81084ee-b50a-4161-b850-500cbf9beac7
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 200
+ETag: W/"c8-IwMWAF2HzqqDpbGtYu4yKl9sTHc"
+Date: Thu, 05 Nov 2026 09:44:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "errorCode": "FORBIDDEN",
+  "type": "about:blank",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "The caller's role is not allowed to use this endpoint.",
+  "correlationId": "c81084ee-b50a-4161-b850-500cbf9beac7"
+}
+
+admin only · curl GET /v1/audit/entries · role=admin · query keys=(raw or absent)
+HTTP/1.1 403 Forbidden
+X-Correlation-Id: fbe84e4a-98a6-44ea-a832-273f0ca85cab
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 200
+ETag: W/"c8-NRxS7ySg2XyCkER2zFlDSbwe4Wc"
+Date: Thu, 05 Nov 2026 09:44:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "errorCode": "FORBIDDEN",
+  "type": "about:blank",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "The caller's role is not allowed to use this endpoint.",
+  "correlationId": "fbe84e4a-98a6-44ea-a832-273f0ca85cab"
+}
+
+limit101 · curl GET /v1/audit/entries · role=auditor · query keys=limit
+HTTP/1.1 400 Bad Request
+X-Correlation-Id: 59f328f5-3611-451d-82dc-4730cbe9a204
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 201
+ETag: W/"c9-EUecjmh2uUFrjF/dVyqGzdm+Yv0"
+Date: Thu, 05 Nov 2026 09:44:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Request validation failed",
+  "errors": [
+    "limit must be an integer from 1 to 100"
+  ],
+  "correlationId": "59f328f5-3611-451d-82dc-4730cbe9a204"
+}
+
+invalid calendar · curl GET /v1/audit/entries · role=auditor · query keys=from
+HTTP/1.1 400 Bad Request
+X-Correlation-Id: 7a7c665b-45b1-4a33-bc30-682f927b7aa1
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 197
+ETag: W/"c5-ecdE7jW+8DoQyZxqOhASgKiJWAw"
+Date: Thu, 05 Nov 2026 09:44:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Request validation failed",
+  "errors": [
+    "from must be a valid UTC timestamp"
+  ],
+  "correlationId": "7a7c665b-45b1-4a33-bc30-682f927b7aa1"
+}
+
+repeated limit · curl GET /v1/audit/entries · role=auditor · query keys=(raw or absent)
+HTTP/1.1 400 Bad Request
+X-Correlation-Id: 268070a7-729e-470c-b2b9-37a531ced8bb
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 215
+ETag: W/"d7-W4Af49ewFHumbU+e2HSJt7bHYDs"
+Date: Thu, 05 Nov 2026 09:44:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Request validation failed",
+  "errors": [
+    "audit search query parameters must be scalar strings"
+  ],
+  "correlationId": "268070a7-729e-470c-b2b9-37a531ced8bb"
+}
+
+altered cursor · curl GET /v1/audit/entries · role=auditor · query keys=actorUserId,action,from,to,correlationId,limit,cursor
+HTTP/1.1 400 Bad Request
+X-Correlation-Id: 1bad258e-48ba-4a86-a082-ee4367df0938
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 198
+ETag: W/"c6-YRC3uOJWsNoEqnxVoQsFHuyw/zM"
+Date: Thu, 05 Nov 2026 09:44:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Request validation failed",
+  "errors": [
+    "cursor is invalid for these filters"
+  ],
+  "correlationId": "1bad258e-48ba-4a86-a082-ee4367df0938"
+}
+
+unknown parameter · curl GET /v1/audit/entries · role=auditor · query keys=unknown
+HTTP/1.1 400 Bad Request
+X-Correlation-Id: bad39010-c427-46b8-906e-1b1394132d9b
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 199
+ETag: W/"c7-ckKJUKwPwlnqbwRVENhz0SbH77A"
+Date: Thu, 05 Nov 2026 09:44:06 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Request validation failed",
+  "errors": [
+    "unknown audit search query parameter"
+  ],
+  "correlationId": "bad39010-c427-46b8-906e-1b1394132d9b"
+}
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='774bd242-3b43-493a-91df-81827ff47a0b'::uuid;
+ id | actor_user_id | actor_role | action | outcome | target_type | target_id | correlation_id | metadata
+----+---------------+------------+--------+---------+-------------+-----------+----------------+----------
+(0 rows)
+
+
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='c81084ee-b50a-4161-b850-500cbf9beac7'::uuid;
+ id | actor_user_id | actor_role | action | outcome | target_type | target_id | correlation_id | metadata
+----+---------------+------------+--------+---------+-------------+-----------+----------------+----------
+(0 rows)
+
+
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='fbe84e4a-98a6-44ea-a832-273f0ca85cab'::uuid;
+ id | actor_user_id | actor_role | action | outcome | target_type | target_id | correlation_id | metadata
+----+---------------+------------+--------+---------+-------------+-----------+----------------+----------
+(0 rows)
+
+
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='59f328f5-3611-451d-82dc-4730cbe9a204'::uuid;
+ id | actor_user_id | actor_role | action | outcome | target_type | target_id | correlation_id | metadata
+----+---------------+------------+--------+---------+-------------+-----------+----------------+----------
+(0 rows)
+
+
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='7a7c665b-45b1-4a33-bc30-682f927b7aa1'::uuid;
+ id | actor_user_id | actor_role | action | outcome | target_type | target_id | correlation_id | metadata
+----+---------------+------------+--------+---------+-------------+-----------+----------------+----------
+(0 rows)
+
+
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='268070a7-729e-470c-b2b9-37a531ced8bb'::uuid;
+ id | actor_user_id | actor_role | action | outcome | target_type | target_id | correlation_id | metadata
+----+---------------+------------+--------+---------+-------------+-----------+----------------+----------
+(0 rows)
+
+
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='1bad258e-48ba-4a86-a082-ee4367df0938'::uuid;
+ id | actor_user_id | actor_role | action | outcome | target_type | target_id | correlation_id | metadata
+----+---------------+------------+--------+---------+-------------+-----------+----------------+----------
+(0 rows)
+
+
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='bad39010-c427-46b8-906e-1b1394132d9b'::uuid;
+ id | actor_user_id | actor_role | action | outcome | target_type | target_id | correlation_id | metadata
+----+---------------+------------+--------+---------+-------------+-----------+----------------+----------
+(0 rows)
+
+
+
+hostile action exact match · curl GET /v1/audit/entries · role=auditor · query keys=action
+HTTP/1.1 200 OK
+X-Correlation-Id: 1e2fa58f-2081-4437-a0aa-66e8738c90ed
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/json; charset=utf-8
+Content-Length: 32
+ETag: W/"20-rFgmzAyt0h/KwD9PymX+4Tlky7Q"
+Date: Thu, 05 Nov 2026 09:44:08 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "entries": [],
+  "nextCursor": null
+}
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='1e2fa58f-2081-4437-a0aa-66e8738c90ed'::uuid;
+        id         |            actor_user_id             | actor_role |    action    | outcome | target_type  |              target_id               |            correlation_id            | metadata
+-------------------+--------------------------------------+------------+--------------+---------+--------------+--------------------------------------+--------------------------------------+----------
+ 10000000000050008 | 33333333-3333-4333-8333-333333333333 | auditor    | audit.search | SUCCESS | audit_search | 1e2fa58f-2081-4437-a0aa-66e8738c90ed | 1e2fa58f-2081-4437-a0aa-66e8738c90ed | {}
+(1 row)
+
+
+
+M-103-05 Unsupported audit mutations; real write-business endpoints are pending
+psql (dbs_test_efa986e78efa):
+SELECT count(*),md5(string_agg(id::text||':'||occurred_at::text||':'||action,',' ORDER BY id)) AS digest FROM audit_log WHERE action <> 'audit.search';
+ count |              digest
+-------+----------------------------------
+ 50012 | 9c1775a8b7722647d71a03eceb0fb5ec
+(1 row)
+
+
+
+auditor POST · curl POST /v1/audit/entries · role=auditor · query keys=(raw or absent)
+HTTP/1.1 404 Not Found
+X-Correlation-Id: a992cc33-7784-4c9a-95e8-31bc27d65a62
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 151
+ETag: W/"97-IMl6XRONS9GFxhngCqSqFZ2lGTM"
+Date: Thu, 05 Nov 2026 09:44:08 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Cannot POST /v1/audit/entries",
+  "correlationId": "a992cc33-7784-4c9a-95e8-31bc27d65a62"
+}
+
+auditor PUT · curl PUT /v1/audit/entries · role=auditor · query keys=(raw or absent)
+HTTP/1.1 404 Not Found
+X-Correlation-Id: 55b81cfb-86eb-4220-849b-bee5a73788f1
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 150
+ETag: W/"96-0sOPAIqs4kXklefJX9DBAkhpYdU"
+Date: Thu, 05 Nov 2026 09:44:08 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Cannot PUT /v1/audit/entries",
+  "correlationId": "55b81cfb-86eb-4220-849b-bee5a73788f1"
+}
+
+auditor PATCH · curl PATCH /v1/audit/entries · role=auditor · query keys=(raw or absent)
+HTTP/1.1 404 Not Found
+X-Correlation-Id: 255e994b-4113-450d-8d1f-42abb9b07b14
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 152
+ETag: W/"98-tTEkzCkPZ7+/uoZejQVfgKeZ1+c"
+Date: Thu, 05 Nov 2026 09:44:08 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Cannot PATCH /v1/audit/entries",
+  "correlationId": "255e994b-4113-450d-8d1f-42abb9b07b14"
+}
+
+auditor DELETE · curl DELETE /v1/audit/entries · role=auditor · query keys=(raw or absent)
+HTTP/1.1 404 Not Found
+X-Correlation-Id: b01cf79f-ad0b-4f94-8008-04268a16aabc
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 153
+ETag: W/"99-FoKqRhlkgJq0k2pX4AwCflFLiOw"
+Date: Thu, 05 Nov 2026 09:44:08 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Cannot DELETE /v1/audit/entries",
+  "correlationId": "b01cf79f-ad0b-4f94-8008-04268a16aabc"
+}
+psql (dbs_test_efa986e78efa):
+SELECT count(*),md5(string_agg(id::text||':'||occurred_at::text||':'||action,',' ORDER BY id)) AS digest FROM audit_log WHERE action <> 'audit.search';
+ count |              digest
+-------+----------------------------------
+ 50012 | 9c1775a8b7722647d71a03eceb0fb5ec
+(1 row)
+
+
+AC-8.1 business mutation endpoint checks: CHƯA CHẠY (actual account/ledger write endpoints absent).
+M-103-06 SHARE lock permits SELECT; the mandatory INSERT must fail closed
+
+search while audit INSERT is locked · curl GET /v1/audit/entries · role=auditor · query keys=correlationId
+HTTP/1.1 503 Service Unavailable
+X-Correlation-Id: a5175dae-6b01-4080-a8a4-49cae97de070
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Retry-After: 5
+Content-Type: application/problem+json; charset=utf-8
+Content-Length: 227
+ETag: W/"e3-qmAPxnge8xTInRTtvhZRftW6HOs"
+Date: Thu, 05 Nov 2026 09:45:31 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "type": "about:blank",
+  "title": "Service Unavailable",
+  "status": 503,
+  "detail": "Service temporarily unavailable — please retry.",
+  "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+  "correlationId": "a5175dae-6b01-4080-a8a4-49cae97de070"
+}
+M-103-07 No committed audit from failed INSERT; recovery records exactly once
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='a5175dae-6b01-4080-a8a4-49cae97de070'::uuid;
+ id | actor_user_id | actor_role | action | outcome | target_type | target_id | correlation_id | metadata
+----+---------------+------------+--------+---------+-------------+-----------+----------------+----------
+(0 rows)
+
+
+
+search after SHARE lock rollback · curl GET /v1/audit/entries · role=auditor · query keys=correlationId
+HTTP/1.1 200 OK
+X-Correlation-Id: b1d31547-aa05-4544-995c-e366b9080495
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/json; charset=utf-8
+Content-Length: 1030
+ETag: W/"406-YROERC33ma1nHryHRrwWJNSLAnU"
+Date: Thu, 05 Nov 2026 09:47:43 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "entries": [
+    {
+      "id": "9007199254740994",
+      "occurredAt": "2026-11-04T08:10:00.123456Z",
+      "actorUserId": "11111111-1111-4111-8111-111111111111",
+      "actorRole": "customer",
+      "action": "transfer.create",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "623abce9-69a0-4d3d-90e0-bc21c75aa361",
+      "metadata": {}
+    },
+    {
+      "id": "9007199254740993",
+      "occurredAt": "2026-11-04T08:10:00.123456Z",
+      "actorUserId": "11111111-1111-4111-8111-111111111111",
+      "actorRole": "customer",
+      "action": "transfer.create",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "623abce9-69a0-4d3d-90e0-bc21c75aa361",
+      "metadata": {}
+    },
+    {
+      "id": "9007199254740995",
+      "occurredAt": "2026-11-04T08:10:00.123455Z",
+      "actorUserId": "11111111-1111-4111-8111-111111111111",
+      "actorRole": "customer",
+      "action": "transfer.create",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "623abce9-69a0-4d3d-90e0-bc21c75aa361",
+      "metadata": {}
+    }
+  ],
+  "nextCursor": null
+}
+psql (dbs_test_efa986e78efa):
+SELECT id,actor_user_id,actor_role,action,outcome,target_type,target_id,correlation_id,metadata FROM audit_log WHERE correlation_id='b1d31547-aa05-4544-995c-e366b9080495'::uuid;
+        id         |            actor_user_id             | actor_role |    action    | outcome | target_type  |              target_id               |            correlation_id            | metadata
+-------------------+--------------------------------------+------------+--------------+---------+--------------+--------------------------------------+--------------------------------------+----------
+ 10000000000050009 | 33333333-3333-4333-8333-333333333333 | auditor    | audit.search | SUCCESS | audit_search | b1d31547-aa05-4544-995c-e366b9080495 | b1d31547-aa05-4544-995c-e366b9080495 | {}
+(1 row)
+
+
+M-103-08 Actual service SQL, natural index selection, one warm-up + five recorded warm runs
+
+selective performance trace · curl GET /v1/audit/entries · role=auditor · query keys=correlationId,limit
+HTTP/1.1 200 OK
+X-Correlation-Id: a82b716f-112f-4dfa-aab5-179819470736
+Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+Vary: Origin, Accept-Encoding
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+Cache-Control: no-store
+Content-Type: application/json; charset=utf-8
+Content-Length: 313
+ETag: W/"139-LFk6ZXPJT1Eq6lUQB8Wb7B3Kt7U"
+Date: Thu, 05 Nov 2026 09:48:46 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "entries": [
+    {
+      "id": "201",
+      "occurredAt": "2026-11-03T08:30:00.000000Z",
+      "actorUserId": null,
+      "actorRole": "system",
+      "action": "audit.fixture",
+      "outcome": "SUCCESS",
+      "target": {
+        "type": "fixture",
+        "id": "11111111-1111-4111-8111-111111111111"
+      },
+      "correlationId": "f0e09d29-2097-450e-8b28-7100e99f48db",
+      "metadata": {}
+    }
+  ],
+  "nextCursor": null
+}
+{
+  "platform": "win32",
+  "node": "v24.15.0",
+  "cpu": "12th Gen Intel(R) Core(TM) i5-12500H",
+  "logicalCPUs": 16,
+  "totalRAMGiB": "15.7",
+  "scope": "local PostgreSQL, not RDS or load acceptance"
+}
+psql (dbs_test_efa986e78efa):
+SELECT version(); SELECT count(*) AS audit_rows,count(*) FILTER (WHERE correlation_id='f0e09d29-2097-450e-8b28-7100e99f48db'::uuid) AS selective_rows FROM audit_log; ANALYZE audit_log;
+                                         version
+------------------------------------------------------------------------------------------
+ PostgreSQL 17.11 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+(1 row)
+
+ audit_rows | selective_rows
+------------+----------------
+      50022 |              1
+(1 row)
+
+ANALYZE
+
+Warm-up:
+psql (dbs_test_efa986e78efa):
+PREPARE manual_search(uuid,int) AS SELECT a.id::text AS id,
+  to_char(a.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "occurredAt",
+  a.actor_user_id AS "actorUserId", a.actor_role AS "actorRole", a.action, a.outcome,
+  a.target_type AS "targetType", a.target_id AS "targetId", a.correlation_id AS "correlationId", a.metadata
+FROM audit_log a
+WHERE a.correlation_id = $1::uuid
+ORDER BY a.occurred_at DESC, a.id DESC
+LIMIT $2;
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE manual_search('f0e09d29-2097-450e-8b28-7100e99f48db',51);
+PREPARE
+                                                                     QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=8.33..8.33 rows=1 width=192) (actual time=0.078..0.079 rows=1 loops=1)
+   Buffers: shared hit=9
+   ->  Sort  (cost=8.33..8.33 rows=1 width=192) (actual time=0.077..0.078 rows=1 loops=1)
+         Sort Key: occurred_at DESC, id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=9
+         ->  Index Scan using audit_log_correlation_idx on audit_log a  (cost=0.29..8.32 rows=1 width=192) (actual time=0.047..0.047 rows=1 loops=1)
+               Index Cond: (correlation_id = 'f0e09d29-2097-450e-8b28-7100e99f48db'::uuid)
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=197
+ Planning Time: 0.820 ms
+ Execution Time: 0.114 ms
+(13 rows)
+
+
+Observed warm run 1:
+psql (dbs_test_efa986e78efa):
+PREPARE manual_search(uuid,int) AS SELECT a.id::text AS id,
+  to_char(a.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "occurredAt",
+  a.actor_user_id AS "actorUserId", a.actor_role AS "actorRole", a.action, a.outcome,
+  a.target_type AS "targetType", a.target_id AS "targetId", a.correlation_id AS "correlationId", a.metadata
+FROM audit_log a
+WHERE a.correlation_id = $1::uuid
+ORDER BY a.occurred_at DESC, a.id DESC
+LIMIT $2;
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE manual_search('f0e09d29-2097-450e-8b28-7100e99f48db',51);
+PREPARE
+                                                                     QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=8.33..8.33 rows=1 width=192) (actual time=0.090..0.090 rows=1 loops=1)
+   Buffers: shared hit=9
+   ->  Sort  (cost=8.33..8.33 rows=1 width=192) (actual time=0.089..0.089 rows=1 loops=1)
+         Sort Key: occurred_at DESC, id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=9
+         ->  Index Scan using audit_log_correlation_idx on audit_log a  (cost=0.29..8.32 rows=1 width=192) (actual time=0.057..0.058 rows=1 loops=1)
+               Index Cond: (correlation_id = 'f0e09d29-2097-450e-8b28-7100e99f48db'::uuid)
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=185
+ Planning Time: 0.863 ms
+ Execution Time: 0.136 ms
+(13 rows)
+
+
+Observed warm run 2:
+psql (dbs_test_efa986e78efa):
+PREPARE manual_search(uuid,int) AS SELECT a.id::text AS id,
+  to_char(a.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "occurredAt",
+  a.actor_user_id AS "actorUserId", a.actor_role AS "actorRole", a.action, a.outcome,
+  a.target_type AS "targetType", a.target_id AS "targetId", a.correlation_id AS "correlationId", a.metadata
+FROM audit_log a
+WHERE a.correlation_id = $1::uuid
+ORDER BY a.occurred_at DESC, a.id DESC
+LIMIT $2;
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE manual_search('f0e09d29-2097-450e-8b28-7100e99f48db',51);
+PREPARE
+                                                                     QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=8.33..8.33 rows=1 width=192) (actual time=0.081..0.082 rows=1 loops=1)
+   Buffers: shared hit=9
+   ->  Sort  (cost=8.33..8.33 rows=1 width=192) (actual time=0.080..0.081 rows=1 loops=1)
+         Sort Key: occurred_at DESC, id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=9
+         ->  Index Scan using audit_log_correlation_idx on audit_log a  (cost=0.29..8.32 rows=1 width=192) (actual time=0.048..0.049 rows=1 loops=1)
+               Index Cond: (correlation_id = 'f0e09d29-2097-450e-8b28-7100e99f48db'::uuid)
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=185
+ Planning Time: 0.959 ms
+ Execution Time: 0.117 ms
+(13 rows)
+
+
+Observed warm run 3:
+psql (dbs_test_efa986e78efa):
+PREPARE manual_search(uuid,int) AS SELECT a.id::text AS id,
+  to_char(a.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "occurredAt",
+  a.actor_user_id AS "actorUserId", a.actor_role AS "actorRole", a.action, a.outcome,
+  a.target_type AS "targetType", a.target_id AS "targetId", a.correlation_id AS "correlationId", a.metadata
+FROM audit_log a
+WHERE a.correlation_id = $1::uuid
+ORDER BY a.occurred_at DESC, a.id DESC
+LIMIT $2;
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE manual_search('f0e09d29-2097-450e-8b28-7100e99f48db',51);
+PREPARE
+                                                                     QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=8.33..8.33 rows=1 width=192) (actual time=0.081..0.082 rows=1 loops=1)
+   Buffers: shared hit=9
+   ->  Sort  (cost=8.33..8.33 rows=1 width=192) (actual time=0.080..0.081 rows=1 loops=1)
+         Sort Key: occurred_at DESC, id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=9
+         ->  Index Scan using audit_log_correlation_idx on audit_log a  (cost=0.29..8.32 rows=1 width=192) (actual time=0.050..0.051 rows=1 loops=1)
+               Index Cond: (correlation_id = 'f0e09d29-2097-450e-8b28-7100e99f48db'::uuid)
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=185
+ Planning Time: 0.780 ms
+ Execution Time: 0.115 ms
+(13 rows)
+
+
+Observed warm run 4:
+psql (dbs_test_efa986e78efa):
+PREPARE manual_search(uuid,int) AS SELECT a.id::text AS id,
+  to_char(a.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "occurredAt",
+  a.actor_user_id AS "actorUserId", a.actor_role AS "actorRole", a.action, a.outcome,
+  a.target_type AS "targetType", a.target_id AS "targetId", a.correlation_id AS "correlationId", a.metadata
+FROM audit_log a
+WHERE a.correlation_id = $1::uuid
+ORDER BY a.occurred_at DESC, a.id DESC
+LIMIT $2;
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE manual_search('f0e09d29-2097-450e-8b28-7100e99f48db',51);
+PREPARE
+                                                                     QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=8.33..8.33 rows=1 width=192) (actual time=0.080..0.081 rows=1 loops=1)
+   Buffers: shared hit=9
+   ->  Sort  (cost=8.33..8.33 rows=1 width=192) (actual time=0.079..0.080 rows=1 loops=1)
+         Sort Key: occurred_at DESC, id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=9
+         ->  Index Scan using audit_log_correlation_idx on audit_log a  (cost=0.29..8.32 rows=1 width=192) (actual time=0.049..0.050 rows=1 loops=1)
+               Index Cond: (correlation_id = 'f0e09d29-2097-450e-8b28-7100e99f48db'::uuid)
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=185
+ Planning Time: 0.787 ms
+ Execution Time: 0.115 ms
+(13 rows)
+
+
+Observed warm run 5:
+psql (dbs_test_efa986e78efa):
+PREPARE manual_search(uuid,int) AS SELECT a.id::text AS id,
+  to_char(a.occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "occurredAt",
+  a.actor_user_id AS "actorUserId", a.actor_role AS "actorRole", a.action, a.outcome,
+  a.target_type AS "targetType", a.target_id AS "targetId", a.correlation_id AS "correlationId", a.metadata
+FROM audit_log a
+WHERE a.correlation_id = $1::uuid
+ORDER BY a.occurred_at DESC, a.id DESC
+LIMIT $2;
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE manual_search('f0e09d29-2097-450e-8b28-7100e99f48db',51);
+PREPARE
+                                                                     QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=8.33..8.33 rows=1 width=192) (actual time=0.105..0.105 rows=1 loops=1)
+   Buffers: shared hit=9
+   ->  Sort  (cost=8.33..8.33 rows=1 width=192) (actual time=0.104..0.104 rows=1 loops=1)
+         Sort Key: occurred_at DESC, id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=9
+         ->  Index Scan using audit_log_correlation_idx on audit_log a  (cost=0.29..8.32 rows=1 width=192) (actual time=0.056..0.057 rows=1 loops=1)
+               Index Cond: (correlation_id = 'f0e09d29-2097-450e-8b28-7100e99f48db'::uuid)
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=185
+ Planning Time: 1.017 ms
+ Execution Time: 0.165 ms
+(13 rows)
+
+
+All five observed execution times (ms): [0.136,0.117,0.115,0.115,0.165]
+M-103-09 CHƯA CHẠY: production DB roles/ACL acceptance awaits DBS-119.
+M-103-10 · admin psql verifies the named temporary database is absent and banking control remains
+SELECT datname FROM pg_database WHERE datname='dbs_test_efa986e78efa';
+ datname
+---------
+(0 rows)
+
+SELECT json_build_object('temporary',count(*) FILTER(WHERE datname='dbs_test_efa986e78efa'),'control',count(*) FILTER(WHERE datname='banking')) FROM pg_database;
+{"temporary" : 0, "control" : 1}
+{"event":"audit-search-seed-sql","tables":["users","audit_log"],"rows":"50012"}
+{"level":30,"time":"2026-11-05T09:52:01.856Z","appRole":"api","role":"api","correlationId":null,"context":"NestFactory","message":"Starting Nest application..."}
+{"level":30,"time":"2026-11-05T09:52:01.886Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.886Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggingModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.886Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.887Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"RiskModule dependencies initialized"}
+{"level":40,"time":"2026-11-05T09:52:01.888Z","appRole":"api","role":"api","correlationId":null,"context":"JwksVerifierService","message":"AUTH_MODE=local: tokens signed by the local development key are accepted"}
+{"level":30,"time":"2026-11-05T09:52:01.889Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigHostModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.893Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"ConfigModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.893Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TerminusModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.893Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"OutboxModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.893Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"LoggerModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.893Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"HealthModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.903Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"TypeOrmCoreModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.903Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"DatabaseModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.903Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"AccountsModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.904Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"AuditModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.904Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"AppModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.904Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"AuditHttpModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.904Z","appRole":"api","role":"api","correlationId":null,"context":"InstanceLoader","message":"IdentityModule dependencies initialized"}
+{"level":30,"time":"2026-11-05T09:52:01.947Z","appRole":"api","role":"api","correlationId":null,"context":"RoutesResolver","message":"HealthController {/health} (version: Neutral):"}
+{"level":30,"time":"2026-11-05T09:52:01.949Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/live, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-11-05T09:52:01.949Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/health/ready, GET} (version: Neutral) route"}
+{"level":30,"time":"2026-11-05T09:52:01.949Z","appRole":"api","role":"api","correlationId":null,"context":"RoutesResolver","message":"IdentityController {/identity} (version: 1):"}
+{"level":30,"time":"2026-11-05T09:52:01.949Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/identity/me, GET} (version: 1) route"}
+{"level":30,"time":"2026-11-05T09:52:01.949Z","appRole":"api","role":"api","correlationId":null,"context":"RoutesResolver","message":"AuditController {/audit} (version: 1):"}
+{"level":30,"time":"2026-11-05T09:52:01.950Z","appRole":"api","role":"api","correlationId":null,"context":"RouterExplorer","message":"Mapped {/audit/entries, GET} (version: 1) route"}
+{"level":30,"time":"2026-11-05T09:52:01.951Z","appRole":"api","role":"api","correlationId":null,"context":"NestApplication","message":"Nest application successfully started"}
+{"level":50,"time":"2026-11-05T09:52:01.952Z","appRole":"api","role":"api","correlationId":null,"context":"NestApplication","message":"Error: listen EADDRINUSE: address already in use 127.0.0.1:3103"}
+{"event":"audit-search-cleaned","database":"dbs_test_4d82298f03b3"}
+{"event":"audit-search-session-failed","errorType":"Error","code":"EADDRINUSE"}
+M-103-11 helper exit=1 (expected nonzero EADDRINUSE)
+
+M-103-10 operator action: Ctrl+C in the real session helper. The helper emitted audit-search-cleaned for dbs_test_efa986e78efa; admin psql confirmed temporary=0/control=1. The PTY wrapper returned exit=1 after the interrupt; this is recorded as observed, not claimed as a normal helper exit=0. Normal quit/exit=0 has separate real-process TC-103-21 evidence.
+Session command: node -r ts-node/register -r tsconfig-paths/register test/manual/audit-search-session.ts --port 3103 --db-name-file <outside-repo-state-file>
+Original session stdout captured by the PTY, with terminal control sequences escaped for plain-text review (no request Authorization headers or tokens):
+"\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[H\u001b]0;C:\\Program Files\\WindowsApps\\OpenAI.CodexPrimaryRuntime.v26-1030-493-0_26.1030.493.0_x64__3k8sg7r9htsxt\\dependencies\\native\\powershell\\pwsh.exe\u0007\u001b[?25h{\"event\":\"audit-search-seed-sql\",\"tables\":[\"users\",\"audit_log\"],\"rows\":\"50012\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.757Z\",\"appRole\":\"api\",\"role\":\"api\",\"correlationId\":null,\"context\":\"NestFactory\",\"message\":\"Starting Nest application...\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.772Z\",\"appRole\":\"api\",\"role\":\"api\",\"correlationId\":null,\"context\":\"InstanceLoader\",\"message\":\"ConfigModule dependencies initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.773Z\",\"appRole\":\"api\",\"role\":\"api\",\"correlationId\":null,\"context\":\"InstanceLoader\",\"message\":\"LoggingModule dependencies initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.773Z\",\"appRole\":\"api\",\"role\":\"api\",\"correlationId\":null,\"context\":\"InstanceLoader\",\"message\":\"TypeOrmModule dependencies initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.773Z\",\"appRole\":\"api\",\"role\":\"api\",\"correlationId\":null,\"context\":\"InstanceLoader\",\"message\":\"RiskModule dependencies initialized\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:39:59.774Z\",\"appRole\":\"api\",\"role\":\"api\",\"correlationId\":null,\"context\":\"JwksVerifierService\",\"message\":\"AUTH_MODE=local: tokens signed by the local development key are accepted\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.775Z\",\"appRole\":\"api\",\"role\":\"api\",\"correlationId\":null,\"context\":\"InstanceLoader\",\"message\":\"ConfigHostModule dependencies initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.779Z\",\"appRole\":\"api\",\"role\":\"api\",\"correlationId\":null,\"context\":\"InstanceLoader\",\"message\":\"ConfigModule dependencies \r\n\u001b[23;80H initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.779Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"TerminusModule dependencie\r\n\u001b[23;80Hes initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.779Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"OutboxModule dependencies \r\n\u001b[23;80H initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.779Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"LoggerModule dependencies \r\n\u001b[23;80H initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.779Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"HealthModule dependencies \r\n\u001b[23;80H initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.789Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"TypeOrmCoreModule dependen\r\n\u001b[23;80Hncies initialized\"}\r\n{\"event\":\"audit-search-ready\",\"database\":\"dbs_test_efa986e78efa\",\"port\":3103,\"fi\r\n\u001b[23;80Hixture\":{\"actorUserId\":\"11111111-1111-4111-8111-111111111111\",\"otherActorUserId\":\r\n\u001b[23;80H:\"22222222-2222-4222-8222-222222222222\",\"auditorUserId\":\"33333333-3333-4333-8333-\r\n\u001b[23;80H-333333333333\",\"correlationId\":\"623abce9-69a0-4d3d-90e0-bc21c75aa361\",\"sortCorrel\r\n\u001b[23;80HlationId\":\"c2b45275-9d6c-4fd8-9053-84ce31c8fa6d\",\"performanceCorrelationId\":\"f0e0\r\n\u001b[23;80H09d29-2097-450e-8b28-7100e99f48db\",\"boundaryCorrelationId\":\"f373c5b7-9265-433b-a6\r\n\u001b[23;80H606-364214e269f4\",\"systemCorrelationId\":\"b746bbdf-830d-42d1-a463-d035f5ff6009\"}} \u001b[24;1H\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.789Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"DatabaseModule dependencie\r\n\u001b[23;80Hes initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.789Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"AccountsModule dependencie\r\n\u001b[23;80Hes initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.789Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"AuditModule dependencies i\r\n\u001b[23;80Hinitialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.789Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"AppModule dependencies ini\r\n\u001b[23;80Hitialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.789Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"AuditHttpModule dependenci\r\n\u001b[23;80Hies initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.789Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"InstanceLoader\",\"message\":\"IdentityModule dependencie\r\n\u001b[23;80Hes initialized\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.893Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"RoutesResolver\",\"message\":\"HealthController {/health}\r\n\u001b[23;80H} (version: Neutral):\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.895Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"RouterExplorer\",\"message\":\"Mapped {/health/live, GET}\r\n\u001b[23;80H} (version: Neutral) route\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.895Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"RouterExplorer\",\"message\":\"Mapped {/health/ready, GET\r\n\u001b[23;80HT} (version: Neutral) route\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.895Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"RoutesResolver\",\"message\":\"IdentityController {/ident\r\n\u001b[23;80Htity} (version: 1):\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.895Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"RouterExplorer\",\"message\":\"Mapped {/identity/me, GET}\r\n\u001b[23;80H} (version: 1) route\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.895Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"RoutesResolver\",\"message\":\"AuditController {/audit} (\r\n\u001b[23;80H(version: 1):\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.896Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"RouterExplorer\",\"message\":\"Mapped {/audit/entries, GE\r\n\u001b[23;80HET} (version: 1) route\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:39:59.897Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":null,\"context\":\"NestApplication\",\"message\":\"Nest application successf\r\n\u001b[23;80Hfully started\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:41:26.071Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"8c668461-2e39-4900-ba88-67484acfe7f6\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":44,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:41:26.550Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"0ce491a7-c6ba-421d-9a67-d1345d32a2aa\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":1,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:41:26.588Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"f442d86c-9785-4827-8da6-7e9bfe1acc24\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":9,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:41:26.845Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"08d18f72-afb6-4c00-acc1-abc915930c44\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":10,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:41:26.887Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"08e785b1-4fd1-4926-8dfe-a25bdf1b619c\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":11,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:41:26.930Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"247ffdfb-eaaa-40da-81c3-7e4dcb737694\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":9,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:41:26.971Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"aa5c64e9-12ed-4329-ab8d-aea325072237\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":8,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:41:27.011Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"a380535b-d1ee-4886-b9ce-a89b407e7136\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":10,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:42:46.547Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"88080b28-171e-4bf3-bf55-a472eda62b5d\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":10,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:42:46.596Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"7505bb99-fb40-48ea-b2c0-0b574b5a5a60\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":4,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:42:46.607Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"c9b28f60-10ab-46e9-b76e-16969161d6f8\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":22,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:42:46.614Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"b014ebbb-79f4-47de-957c-8c5cce64de9c\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":26,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:42:46.655Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"5779e851-aad2-4cf5-b0cf-6f3718b7b48e\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":68,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:42:47.027Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"bb86e3c9-2cdb-4a40-8a45-f1fc110c38a7\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":3,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:06.176Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"774bd242-3b43-493a-91df-81827ff47a0b\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":401},\"responseTime\":1,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:06.228Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":\"c81084ee-b50a-4161-b850-500cbf9beac7\",\"context\":\"RolesGuard\",\"userId\r\n\u001b[23;80Hd\":\"b0423cb1-7547-4e7d-b415-4516dd4c5e31\",\"method\":\"GET\",\"route\":\"/v1/audit/entri\r\n\u001b[23;80Hies\",\"requiredRoles\":[\"auditor\"],\"roles\":[\"customer\"],\"message\":\"Request denied: \r\n\u001b[23;80H role not allowed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:06.229Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"c81084ee-b50a-4161-b850-500cbf9beac7\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":403},\"responseTime\":19,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:06.269Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":\"fbe84e4a-98a6-44ea-a832-273f0ca85cab\",\"context\":\"RolesGuard\",\"userId\r\n\u001b[23;80Hd\":\"e156b1b4-9da6-4212-9cfd-5a8e718632d9\",\"method\":\"GET\",\"route\":\"/v1/audit/entri\r\n\u001b[23;80Hies\",\"requiredRoles\":[\"auditor\"],\"roles\":[\"admin\"],\"message\":\"Request denied: rol\r\n\u001b[23;80Hle not allowed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:06.270Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"fbe84e4a-98a6-44ea-a832-273f0ca85cab\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":403},\"responseTime\":6,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:06.305Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"59f328f5-3611-451d-82dc-4730cbe9a204\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":400},\"responseTime\":1,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:06.337Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"7a7c665b-45b1-4a33-bc30-682f927b7aa1\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":400},\"responseTime\":1,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:06.380Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"268070a7-729e-470c-b2b9-37a531ced8bb\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":400},\"responseTime\":1,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:06.418Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"1bad258e-48ba-4a86-a082-ee4367df0938\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":400},\"responseTime\":1,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:06.454Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"bad39010-c427-46b8-906e-1b1394132d9b\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":400},\"responseTime\":1,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:44:08.228Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"1e2fa58f-2081-4437-a0aa-66e8738c90ed\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":14,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:08.720Z\",\"appRole\":\"api\",\"req\":{\"method\":\"P\r\n\u001b[23;80HPOST\"},\"role\":\"api\",\"correlationId\":\"a992cc33-7784-4c9a-95e8-31bc27d65a62\",\"res\":\r\n\u001b[23;80H:{\"statusCode\":404},\"responseTime\":0,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:08.753Z\",\"appRole\":\"api\",\"req\":{\"method\":\"P\r\n\u001b[23;80HPUT\"},\"role\":\"api\",\"correlationId\":\"55b81cfb-86eb-4220-849b-bee5a73788f1\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":404},\"responseTime\":0,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:08.787Z\",\"appRole\":\"api\",\"req\":{\"method\":\"P\r\n\u001b[23;80HPATCH\"},\"role\":\"api\",\"correlationId\":\"255e994b-4113-450d-8d1f-42abb9b07b14\",\"res\"\r\n\u001b[23;80H\":{\"statusCode\":404},\"responseTime\":1,\"message\":\"Request completed\"}\r\n{\"level\":40,\"time\":\"2026-11-05T09:44:08.818Z\",\"appRole\":\"api\",\"req\":{\"method\":\"D\r\n\u001b[23;80HDELETE\"},\"role\":\"api\",\"correlationId\":\"b01cf79f-ad0b-4f94-8008-04268a16aabc\",\"res\r\n\u001b[23;80Hs\":{\"statusCode\":404},\"responseTime\":0,\"message\":\"Request completed\"}\r\n\u001b[?25l{\"level\":40,\"time\":\"2026-11-05T09:45:31.227Z\",\"appRole\":\"api\",\"role\":\"api\",\"corr\r\n\u001b[23;80HrelationId\":\"a5175dae-6b01-4080-a8a4-49cae97de070\",\"context\":\"ProblemDetailsFilte\r\n\u001b[23;80Her\",\"errorType\":\"Error\",\"code\":\"55P03\",\"message\":\"Transient database error\"}     \u001b[24;76H\u001b[?25h\r\n{\"level\":50,\"time\":\"2026-11-05T09:45:31.227Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"a5175dae-6b01-4080-a8a4-49cae97de070\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":503},\"err\":{\"errorType\":\"Error\"},\"responseTime\":2015,\"message\":\"Req\r\n\u001b[23;80Hquest failed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:47:43.973Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"b1d31547-aa05-4544-995c-e366b9080495\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":20,\"message\":\"Request completed\"}\r\n{\"level\":30,\"time\":\"2026-11-05T09:48:46.986Z\",\"appRole\":\"api\",\"req\":{\"method\":\"G\r\n\u001b[23;80HGET\"},\"role\":\"api\",\"correlationId\":\"a82b716f-112f-4dfa-aab5-179819470736\",\"res\":{\r\n\u001b[23;80H{\"statusCode\":200},\"responseTime\":22,\"message\":\"Request completed\"}\r\n{\"event\":\"audit-search-cleaned\",\"database\":\"dbs_test_efa986e78efa\"}\r\n\u001b[?25l\n\u001b[23;1H\u001b[?25h\u001b[?9001l\u001b[?1004l"
+
+M-103-01 Swagger UI: inspected http://127.0.0.1:3103/docs in the in-app browser, observed Authorize, the GET audit route, seven query fields and problem+json error responses; no token was entered into the UI.
+
+M-103-06/07 Terminal C control (captured from the real psql session, terminal controls escaped):
+Command: docker exec -i dbs-postgres-1 psql -X -a -v ON_ERROR_STOP=1 -U banking -d <validated temporary DB name> -P pager=off
+Input before the failing request: BEGIN; LOCK TABLE audit_log IN SHARE MODE; SELECT count(*) FROM audit_log;
+Input after the503 response: ROLLBACK; then quit psql.
+"\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[HBEGIN;\r\n\u001b]0;C:\\Program Files\\WindowsApps\\OpenAI.CodexPrimaryRuntime.v26-1030-493-0_26.1030.493.0_x64__3k8sg7r9htsxt\\dependencies\\native\\powershell\\pwsh.exe\u0007\u001b[?25h\u001b[?25lLOCK TABLE audit_log IN SHARE MODE;\r\nSELECT count(*) FROM audit_log;\r\nBEGIN;\r\nBEGIN\r\nLOCK TABLE audit_log IN SHARE MODE;\r\nLOCK TABLE\r\nSELECT count(*) FROM audit_log;\r\n count \r\n-------\r\n 50020\r\n(1 row)\u001b[14;1H\u001b[?25hROLLBACK;\r\n\\q\r\nROLLBACK;\r\nROLLBACK\r\n\\q\r\n\u001b[?9001l\u001b[?1004l"
+The actual SELECT count returned50020 while SHARE mode was held; the HTTP request then failed at audit INSERT55P03. ROLLBACK completed before the recovery request.
+M-103-11 · admin psql verifies the named temporary database is absent and banking control remains
+SELECT datname FROM pg_database WHERE datname='dbs_test_4d82298f03b3';
+ datname
+---------
+(0 rows)
+
+SELECT json_build_object('temporary',count(*) FILTER(WHERE datname='dbs_test_4d82298f03b3'),'control',count(*) FILTER(WHERE datname='banking')) FROM pg_database;
+{"temporary" : 0, "control" : 1}

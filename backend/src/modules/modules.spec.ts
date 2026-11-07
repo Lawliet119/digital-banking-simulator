@@ -1,5 +1,5 @@
 import { AppRole } from '@common/app-role/app-role';
-import { AuditModule } from './audit';
+import { AuditHttpModule, AuditModule } from './audit';
 import { HealthModule } from './health';
 import { AccountsModule } from '@modules/accounts';
 import { modulesForRole } from './index';
@@ -7,6 +7,15 @@ import { OutboxModule } from './outbox';
 import { RiskModule } from './risk';
 
 describe('modulesForRole', () => {
+  it('TC-103-19 loads the audit query API only for api/both while preserving the writer', () => {
+    expect(modulesForRole(AppRole.Api)).toContain(AuditHttpModule);
+    expect(modulesForRole(AppRole.Both)).toContain(AuditHttpModule);
+    expect(modulesForRole(AppRole.Worker)).not.toContain(AuditHttpModule);
+    for (const role of Object.values(AppRole)) {
+      expect(modulesForRole(role).filter(module => module === AuditModule)).toHaveLength(1);
+    }
+  });
+
   it.each(Object.values(AppRole))('TC-57-12 loads the outbox writer once in the %s role', role => {
     expect(modulesForRole(role).filter(module => module === OutboxModule)).toHaveLength(1);
   });
