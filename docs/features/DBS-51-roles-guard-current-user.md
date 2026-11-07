@@ -1,6 +1,6 @@
 # DBS-51 · @Roles, RolesGuard và @CurrentUser; vai trò lấy từ cognito:groups
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-51-roles-guard-current-user` (từ `main` = `6528c02`) · **PR:** — (chưa mở) · **Cập nhật:** 2026-11-02
+> **Status:** Implemented (sau G4) · PR #47 đã merge 2026-11-01; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-51-roles-guard-current-user` (từ `main` = `6528c02`) · **PR:** [#47](https://github.com/Lawliet119/digital-banking-simulator/pull/47) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

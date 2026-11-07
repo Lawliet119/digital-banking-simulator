@@ -1,6 +1,6 @@
 # DBS-22 · @common/money: kiểu tiền bigint/string và DTO validator
 
-> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-22-common-money` · **PR:** — · **Cập nhật:** 2026-10-17
+> **Status:** Implemented · PR #9 đã merge 2026-10-17; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `feat/DBS-22-common-money` · **PR:** [#9](https://github.com/Lawliet119/digital-banking-simulator/pull/9) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

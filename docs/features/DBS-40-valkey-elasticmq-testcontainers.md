@@ -1,6 +1,6 @@
 # DBS-40 · Testcontainers cho Valkey và ElasticMQ
 
-> **Status:** Implemented (vòng 2, G4 đang chờ duyệt; chưa push) · **Vai:** Dev · **Nhánh:** `test/DBS-40-valkey-elasticmq` · **PR:** [#18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) · **Cập nhật:** 2026-10-28
+> **Status:** Implemented · PR #18 đã merge 2026-10-30; chưa có Dev review (BL-160) · **Vai:** Dev · **Nhánh:** `test/DBS-40-valkey-elasticmq` · **PR:** [#18](https://github.com/Lawliet119/digital-banking-simulator/pull/18) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

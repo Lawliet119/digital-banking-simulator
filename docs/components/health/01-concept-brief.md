@@ -1,6 +1,6 @@
 # health — Concept Brief
 
-> **Status:** Draft · **Owner:** #6 · **Cặp đôi:** #5 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-06
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** một phần: `/health/live` và `/health/ready` (ready chỉ ping PostgreSQL). Chưa có: báo Redis degraded (DBS-78) · **Cập nhật:** 2026-11-07
 
 ## Component
 
@@ -11,7 +11,7 @@
 | **Chạy ở** | `api` |
 | **Use case / NFR** | — (cho load balancer) |
 | **Sở hữu bảng** | — |
-| **Task trong roadmap** | Task 1 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |
+| **Task trong roadmap** | Task 1 của roadmap cũ (đã xóa ngày 2026-11-07); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md) |
 
 ## Vấn đề
 
@@ -34,4 +34,4 @@ Load balancer cần biết instance nào còn sống và sẵn sàng nhận requ
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §4 Container (health check); §13.3 Deploy và rollback; §14 Quan sát.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
 - Code: [`backend/src/modules/health/`](../../../backend/src/modules/health/).
-- Giao diện và mốc: Task 1 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).
+- Giao diện và mốc: Task 1 của roadmap cũ (đã xóa); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).

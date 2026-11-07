@@ -1,6 +1,6 @@
 # DBS-59 · Khung module risk
 
-> **Status:** Implemented (rebase lên `main` 2026-11-04, chờ CI, review và merge) · **Vai board:** #4 Fraud · **Nhánh:** `feat/DBS-59-risk-module-skeleton` · **PR:** [#42](https://github.com/Lawliet119/digital-banking-simulator/pull/42) · **Ngày:** 2026-10-30 (cập nhật 2026-11-04)
+> **Status:** Implemented · PR #42 đã merge 2026-11-04; chưa có Dev review (BL-160) · **Vai board:** #4 Fraud · **Nhánh:** `feat/DBS-59-risk-module-skeleton` · **PR:** [#42](https://github.com/Lawliet119/digital-banking-simulator/pull/42) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 

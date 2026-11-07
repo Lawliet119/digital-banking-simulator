@@ -1,4 +1,6 @@
-# notification ⚪ Generic — #3
+# notification ⚪ Generic
+
+**Chưa có code:** thư mục này mới chỉ có README. Bảng `notification_log` đang được làm ở DBS-96 (PR #50).
 
 Nhận sự kiện, gửi thông báo. v1 chỉ ghi log (giả lập), chưa gửi email thật.
 

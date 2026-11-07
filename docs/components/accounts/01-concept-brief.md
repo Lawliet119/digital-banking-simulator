@@ -1,6 +1,6 @@
 # accounts — Concept Brief
 
-> **Status:** Draft · **Owner:** Dev · **Review:** Dev khác · **Verified against code:** AccountsService primitives; các API use case chưa có · **Cập nhật:** 2026-10-27
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** một phần: schema (DBS-20), primitive của `AccountsService` (DBS-55), onboarding `POST`/`GET /v1/customers/me` (DBS-62). Chưa có trên `main`: mở tài khoản (DBS-63, PR #58 đang mở), xem tài khoản, khóa/mở khóa, tra cứu cho nhân viên · **Cập nhật:** 2026-11-07
 
 ## Component
 
@@ -11,7 +11,7 @@
 | **Chạy ở** | `api` |
 | **Use case / NFR** | UC-1, UC-2, UC-4, UC-11 |
 | **Sở hữu bảng** | `customers`, `accounts` (gồm tài khoản SYSTEM `funding`) |
-| **Task trong roadmap** | Task 2 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |
+| **Task trong roadmap** | Task 2 của roadmap cũ (đã xóa ngày 2026-11-07); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md) |
 
 ## Vấn đề
 
@@ -42,4 +42,4 @@ Khách cần hồ sơ và tối đa 3 tài khoản; nhân viên cần khóa tài
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §6.2 Khóa tài khoản và thu hồi phiên; §7 API; §8 Dữ liệu.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
 - Quy tắc code và những điều phải giữ: [`backend/src/modules/accounts/README.md`](../../../backend/src/modules/accounts/README.md).
-- Giao diện và mốc: Task 2 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).
+- Giao diện và mốc: Task 2 của roadmap cũ (đã xóa); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).

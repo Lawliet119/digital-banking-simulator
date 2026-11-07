@@ -1,6 +1,6 @@
 # DBS-76 · Redis adapter: timeout, circuit breaker, metric
 
-Trạng thái: Implemented; [Draft PR #52](https://github.com/Lawliet119/digital-banking-simulator/pull/52); đã sửa gap sau code-review kỹ thuật, chờ Dev review/merge main (BL-140). Vai: Dev. Cập nhật: 2026-11-06.
+> **Status:** Implemented · PR #52 đã merge 2026-11-07; chưa có Dev review (BL-160) · **Vai:** Dev · **PR:** [#52](https://github.com/Lawliet119/digital-banking-simulator/pull/52) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh và phụ thuộc
 
@@ -115,7 +115,7 @@ Code gốc `6fd02bc` (implementation), `eb4ec89` (docs). Test-first: thiếu mod
 | `redis_fallback_total` | TC-76-01/02/03/04, manual | Khớp: Counter Prometheus thật tăng đúng 1 mỗi lần từ chối nghiệp vụ; TTL sai/miss/reconnect không tăng; **nay cũng xuất hiện trên `defaultRegister`** (gap #1 đã sửa) |
 | Redis chậm thật và chết | TC-76-03/04 | Khớp: Valkey Testcontainers qua proxy trễ thật; container dừng thật; lỗi không hang; cleanup đã kiểm |
 | get/set/incr/zadd... và không import trực tiếp | TC-76-02 + chính sách ESLint | Khớp: TTL dương, TTL sai/quá lớn không ghi, counter chính xác >2^53; production chỉ dùng `ioredis` trong adapter (gap #5 đã sửa khoảng hở dynamic import) |
-| CI/review/merge | PR checks, BL-140 | CI đã sửa timeout; chờ Dev review và merge |
+| CI/review/merge | PR checks, BL-160 | PR #52 đã merge với CI xanh; chưa có Dev review (BL-160) |
 
 Test thủ công M-76-01..06 trên code cuối (sau khi sửa gap) đạt cả 6 bước, transcript tại [manual-test.txt](screenshots/DBS-76/manual-test.txt), ảnh output tại [01-manual-output.png](screenshots/DBS-76/01-manual-output.png). Driver dùng Compose local + proxy test, dọn sạch ở `finally`.
 

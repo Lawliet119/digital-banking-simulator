@@ -1,6 +1,6 @@
 # observability — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 (dashboard, alarm; metric do #3 và #6 phát) · **Cặp đôi:** #6 · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Draft · **Owner:** #5 (dashboard, alarm; metric do Dev phát) · **Verified against code:** một phần: log JSON có `correlationId` (DBS-42), counter `redis_fallback_total` trong `@libs/redis` (DBS-76, chưa nối vào app). Chưa có: dashboard, alarm, SLI · **Cập nhật:** 2026-11-07
 
 ## Component
 
@@ -11,7 +11,7 @@
 | **Chạy ở** | CloudWatch (hoặc Grafana) |
 | **Use case / NFR** | — (NFR-OBS-01, 02) |
 | **Sở hữu bảng** | — |
-| **Task trong roadmap** | Task 8 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |
+| **Task trong roadmap** | Task 8 của roadmap cũ (đã xóa ngày 2026-11-07); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md) |
 
 ## Vấn đề
 
@@ -32,4 +32,4 @@ Cần biết hệ thống khỏe hay không và truy vết một giao dịch xuy
 
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §14 Quan sát và SLI/SLO.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
-- Giao diện và mốc: Task 8 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).
+- Giao diện và mốc: Task 8 của roadmap cũ (đã xóa); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).

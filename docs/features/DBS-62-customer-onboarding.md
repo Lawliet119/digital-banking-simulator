@@ -1,6 +1,6 @@
 # DBS-62 · UC-1 onboarding: tạo hồ sơ customers cho người dùng
 
-> **Status:** Implemented (G4 chờ duyệt lại sau khi dọn tài liệu) · **Vai:** Dev (Accounts) · **Nhánh:** `feat/DBS-62-customer-onboarding` · **PR:** [#56 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/56) · **Cập nhật:** 2026-11-06
+> **Status:** Implemented · PR #56 đã merge 2026-11-06; chưa có Dev review (BL-160) · **Vai:** Dev (Accounts) · **Nhánh:** `feat/DBS-62-customer-onboarding` · **PR:** [#56](https://github.com/Lawliet119/digital-banking-simulator/pull/56) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 
