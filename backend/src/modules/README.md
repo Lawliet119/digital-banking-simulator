@@ -35,7 +35,7 @@ Mỗi thư mục là một module nghiệp vụ (một bounded context ở `docs
 ├── <tên>.controller.ts      # chỉ có ở module phục vụ HTTP
 ├── <tên>.service.ts
 ├── dto/                     # class-validator, một file mỗi request
-├── entities/                # *.entity.ts (TypeORM)
+├── entities/                # *.entity.ts (TypeORM); chưa module nào dùng, truy vấn là SQL tường minh (ADR-07)
 ├── *.spec.ts                # unit test đặt cạnh file được test
 └── index.ts                 # API công khai
 ```

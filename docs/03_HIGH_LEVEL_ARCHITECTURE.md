@@ -1,6 +1,6 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Accepted v1.7 (chốt 2026-10-11, bổ sung 2026-10-12) · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần: chỉ khung `backend/` (config, transaction, lỗi, health); module nghiệp vụ chưa có code · **Cập nhật:** 2026-10-12
+> **Status:** Accepted v1.7 (chốt 2026-10-11, bổ sung 2026-10-12) · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần (2026-11-07): đã có khung `backend/`, identity (JWT, vai trò), accounts (onboarding, khóa hàng), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày), audit và `OutboxWriter`; chưa có outbox relay, consumer, notification, scoring của risk, thu hồi phiên, rate limit, job đối soát, hạ tầng worker/SQS/alarm. Trạng thái từng phần: [BACKLOG](BACKLOG.md) và [features/](features/README.md) · **Cập nhật:** 2026-11-07
 
 > **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
@@ -986,7 +986,7 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 13, đều ở trạng thái Acce
 |---|---|---|
 | Runtime / ngôn ngữ | Node.js LTS + TypeScript (strict) | Một ngôn ngữ cho API và worker |
 | Framework | NestJS 11, **một app** chạy theo `APP_ROLE` (ADR-13) | Mỗi thư mục trong `src/modules/` = một module ở mục 5; ranh giới do eslint ép |
-| Truy cập DB | TypeORM (CRUD, migration) + **SQL tường minh trong `QueryRunner` cho luồng chuyển tiền** | Cần `ON CONFLICT`, `FOR UPDATE`, thứ tự khóa; Kysely là phương án thay thế (ADR-07) |
+| Truy cập DB | TypeORM (kết nối, pool, migration) + **SQL tường minh trong `QueryRunner`** | Cần `ON CONFLICT`, `FOR UPDATE`, thứ tự khóa. Thực tế hiện nay mọi truy vấn là SQL tường minh, chưa có entity; Kysely là phương án thay thế (ADR-07) |
 | Migration | TypeORM migrations, expand → migrate → contract | Bước riêng trong pipeline |
 | Redis | `ioredis` + storage Redis cho `@nestjs/throttler` | Timeout ngắn, circuit breaker, mọi key có TTL |
 | Cấu hình | `@nestjs/config` + **Joi validate lúc khởi động** | Thiếu/sai biến → app từ chối chạy; staging và production bắt buộc TLS tới Postgres và Redis |
