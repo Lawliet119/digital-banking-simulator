@@ -1,0 +1,5 @@
+| # | Severity (blocking / should-fix / minor) | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| — | — | §1–§5 | Không còn phát hiện đã xác minh. Ba finding vòng trước đã được xử lý trong thiết kế: ORDER BY/cursor dùng cột bigint có qualifier và bổ sung ca ID khác độ dài; thu hồi phiên được tách thành handoff chưa đạt; cleanup khôi phục URL quản trị trước drop và có kiểm chứng DB thật cho shutdown bình thường/setup lỗi. Các giới hạn về production grants/full AC-8.1, BL-132 và baseline E2E đỏ vẫn được giữ rõ. Đây là phê duyệt thiết kế, không xác nhận implementation hoặc test đã đạt. | `docs/features/DBS-103-audit-search.md` §1–§5, TC-103-06R/08/21, M-103-03/10/11; đối chiếu `backend/src/database/migrations/1792627200001-CreateAuditLog.ts`, `backend/src/modules/identity/jwt-auth.guard.ts`, `backend/src/modules/identity/identity.service.ts`, `backend/test/support/temp-database.ts`. | Không yêu cầu sửa thêm trong phạm vi review thiết kế này. |
+
+Verdict: APPROVE

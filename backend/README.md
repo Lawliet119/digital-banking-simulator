@@ -301,6 +301,23 @@ Token sống 15 phút. `sub` mặc định là `dev-<vai>`, ổn định giữa 
 - **Test e2e:** dùng `createDevTokenIssuer()` trong `test/support/dev-tokens.ts` (khóa trong bộ nhớ, không ghi đĩa) và `startLocalAuthApp()` trong `test/support/local-auth-app.ts`. Ví dụ: `test/dev-auth.e2e-spec.ts`.
 - **Quyền file:** `private.pem` được tạo với quyền 0600 nếu hệ điều hành hỗ trợ (trên Windows thì không có ý nghĩa); bảo vệ thật là thư mục bị gitignore và việc môi trường triển khai từ chối chế độ này.
 
+### 11. Tra cứu nhật ký kiểm toán
+
+Sau khi migration và ứng dụng local đã chạy, lấy token auditor theo [mục 10](#10-token-thử-ở-local) và tra cứu:
+
+```bash
+DBS_AUDIT_TOKEN=$(npm run --silent auth:dev-token -- --role auditor)
+curl -sS --get 'http://localhost:3000/v1/audit/entries' \
+  -H "Authorization: Bearer $DBS_AUDIT_TOKEN" \
+  --data-urlencode 'limit=50'
+```
+
+Chỉ nhóm auditor được phép; admin-only cũng nhận 403. Thêm `actorUserId`, `action`, `from`, `to` hoặc `correlationId` để lọc; request sau giữ nguyên bộ lọc và thêm `cursor` lấy từ `nextCursor`, dừng khi null. Mỗi request hợp lệ tự ghi `audit.search` trước khi trả kết quả, kể cả trang rỗng. Response không cache; ID bigint là string, thời gian UTC giữ microsecond. API không có mutation audit. Contract, transaction boundary và giới hạn live keyset ở [module audit](src/modules/audit/README.md#api-tra-cứu-cho-auditor).
+
+`test/manual/audit-search-session.ts` cung cấp session kiểm thủ công trên **DB tạm riêng**, AppModule thật và dữ liệu audit SQL fixture. Chạy với `NODE_ENV=test`, `APP_ROLE=api`, local JWT keys và `DATABASE_URL` quản trị được cấp ngoài transcript; helper nhận `--port` và `--db-name-file`, chỉ bind loopback và in database name/fixture metadata, không in URL hoặc token. Giữ stdin mở rồi gửi `quit` hoặc Ctrl+C để đóng app, khôi phục admin URL và drop đúng DB tạm. Kịch bản Git Bash/curl/psql, đường dẫn Windows và bằng chứng nằm tại [DBS-103](../docs/features/DBS-103-audit-search.md#5-test-thủ-công).
+
+Session helper và dev signing tools chỉ có trong checkout dev/test, không đóng gói vào `dist/`. PostgreSQL role grants/full AC-8.1 vẫn chờ DBS-119; thu hồi phiên chờ DBS-114/186. Local/mock/targeted evidence không thay cho production ACL, CI hoặc kiểm trên AWS.
+
 ## Docker
 
 ```bash

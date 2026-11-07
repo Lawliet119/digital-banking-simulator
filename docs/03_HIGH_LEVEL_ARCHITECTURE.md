@@ -445,31 +445,29 @@ sequenceDiagram
 
 ### 6.6 Tra cứu nhật ký kiểm toán (UC-8) — kiểm toán viên đi qua từng thành phần
 
+`GET /v1/audit/entries` dùng JWT và `@Roles('auditor')`; admin-only bị403, token có nhóm auditor vẫn được phép. `AuditHttpModule` chỉ được nạp ở api/both, writer `AuditModule` dùng ở cả worker. Query exact actor/action/correlation và khoảng UTC `[from,to)`, limit1–100 mặc định50, cursor gắn bộ lọc; thứ tự numeric `(occurred_at,id)` giảm dần, id là string và thời gian giữ6chữ số microsecond. Không có snapshot xuyên request. Chi tiết [contract và bằng chứng DBS-103](features/DBS-103-audit-search.md).
+
+Trong một `TransactionService.run`, service INSERT audit.search (actor users.id, role auditor, server correlation, metadata{}) trước SELECT bằng cùng manager; chỉ trả page sau COMMIT. Lỗi không công bố entries. Response có Cache-Control no-store; không ghi raw filters/cursor vào audit hoặc log. Permission production và kiểm auditor trên endpoint ghi nghiệp vụ thật còn chờ DBS-119 và các task endpoint, xem BL-019; guard thu hồi phiên còn DBS-114/186 (BL-169).
+
 ```mermaid
 sequenceDiagram
     autonumber
     actor KT as Kiểm toán viên
-    participant APP as Công cụ của kiểm toán viên
-    participant EDGE as WAF + ALB
-    participant API as API (identity, audit)
+    participant APP as Công cụ kiểm toán
+    participant API as API identity và audit
     participant DB as PostgreSQL
-
-    Note over KT,APP: Kiểm toán viên đã đăng nhập qua Cognito, thuộc nhóm auditor
-    KT->>APP: Nhập correlationId của giao dịch cần truy vết (lấy từ header X-Correlation-Id hoặc log)
-    APP->>EDGE: GET /v1/audit/entries, lọc theo correlationId
-    EDGE->>API: Lọc request, chuyển tiếp
-    API->>API: identity: xác minh token, vai trò auditor
-    API->>DB: audit: INSERT audit_log (chính việc tra cứu cũng được ghi)
-    API->>DB: audit: SELECT audit_log theo correlation_id (có index)
-    DB-->>API: Các dòng nhật ký của cùng một chuỗi xử lý
-    API-->>APP: 200 danh sách bản ghi
-    APP-->>KT: Thấy cả chuỗi: yêu cầu, ghi sổ, thông báo, cờ, review
-    KT->>APP: Thử một thao tác ghi dữ liệu, ví dụ khóa tài khoản
-    APP->>API: POST /v1/operator/accounts/{id}/lock
-    API->>API: identity: vai trò auditor chỉ được đọc
-    API-->>APP: 403 từ chối
-    Note over API,DB: Lớp bảo vệ thứ hai nếu code có lỗi: role DB của ứng dụng không có quyền UPDATE, DELETE trên audit_log, và trigger chặn cả chủ bảng
-    APP-->>KT: Báo bị từ chối
+    KT->>APP: Chọn bộ lọc và cursor
+    APP->>API: GET /v1/audit/entries với JWT
+    API->>API: Xác minh JWT và vai auditor, validate query
+    API->>DB: BEGIN với timeout của TransactionService
+    API->>DB: INSERT audit.search với server correlation
+    API->>DB: SELECT page theo numeric keyset
+    DB-->>API: Các dòng và sentinel limit cộng một
+    API->>DB: COMMIT
+    DB-->>API: Xác nhận commit
+    API-->>APP: 200 page, nextCursor và Cache-Control no-store
+    Note over API,DB: Lỗi INSERT, SELECT hoặc COMMIT không công bố page
+    Note over API,DB: Production ACL và endpoint ghi thật còn bàn giao
 ```
 
 ---

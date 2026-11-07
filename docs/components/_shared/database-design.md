@@ -1,6 +1,6 @@
 # Database Design
 
-> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) ; §4.6 và hai partial indexes outbox (DBS-25); §4.7 và ba index audit (DBS-26); §8.3 trigger ba bảng `transfers`, `ledger_entries`, `audit_log` bằng owner local (DBS-27); §4.8 nhóm fraud (migration `CreateFraudStorage1792713600000`, DBS-58); §4.9 `notification_log` (migration `CreateNotificationLog1792886400000`, DBS-96) và `reconciliation_runs`, CHECK details và revert (DBS-116); production roles và các phần còn lại là thiết kế · **Cập nhật:** 2026-11-07
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) ; §4.6 và hai partial indexes outbox (DBS-25); §4.7 và ba index audit (DBS-26), writer (DBS-56) và query API (DBS-103); §8.3 trigger ba bảng `transfers`, `ledger_entries`, `audit_log` bằng owner local (DBS-27); §4.8 nhóm fraud (migration `CreateFraudStorage1792713600000`, DBS-58); §4.9 `notification_log` (migration `CreateNotificationLog1792886400000`, DBS-96) và `reconciliation_runs`, CHECK details và revert (DBS-116); production roles và các phần còn lại là thiết kế · **Cập nhật:** 2026-11-07
 
 > **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
@@ -296,9 +296,13 @@ CREATE TABLE audit_log (
 
 `outcome = 'DENIED'` là lần bị từ chối quyền (A mở tài khoản của B): vẫn phải ghi (FR-AUD-02). Không dùng chuỗi hash nối các dòng (kiểu blockchain) vì mọi lệnh ghi sẽ tranh nhau cập nhật "dòng cuối", tạo nút thắt đúng ở đường chuyển tiền. Bảo vệ chống sửa bằng quyền, trigger và (tùy chọn) export sang S3 Object Lock.
 
-Schema audit đã triển khai trong migration `CreateAuditLog1792627200001`, độc lập với outbox; [DBS-26](../../features/DBS-26-migration-audit-log.md) đối chiếu từng cột, constraint và index bằng PostgreSQL thật. Các constraint được đặt tên `audit_log_pkey`, `audit_log_actor_user_id_fkey`, `audit_log_outcome_check`. Role/action/target_type vẫn là text mở; metadata là JSONB và schema không tự lọc PII. Runtime AuditService và quyền production có task riêng; trigger trình bày ở §8.3.
+Schema audit đã triển khai trong migration `CreateAuditLog1792627200001`, độc lập với outbox; [DBS-26](../../features/DBS-26-migration-audit-log.md) đối chiếu từng cột, constraint và index bằng PostgreSQL thật. Các constraint được đặt tên `audit_log_pkey`, `audit_log_actor_user_id_fkey`, `audit_log_outcome_check`. Role/action/target_type vẫn là text mở; metadata là JSONB và schema không tự lọc PII. [AuditService](../../../backend/src/modules/audit/README.md) kiểm metadata tại runtime và INSERT bằng transaction caller; denial có transaction riêng bên ngoài callback nghiệp vụ. Production grants còn chờ DBS-119; trigger trình bày ở §8.3.
 
 Ba index ngoài PK là `audit_log_correlation_idx (correlation_id)`, `audit_log_actor_occurred_idx (actor_user_id, occurred_at DESC)` và `audit_log_action_occurred_idx (action, occurred_at DESC)`, đều B-tree không unique. Migration `down` yêu cầu transaction READ COMMITTED, lấy ACCESS EXCLUSIVE rồi dùng statement mới kiểm dữ liệu; có dòng thì lỗi `55000` và giữ nguyên bảng/history. Không xóa audit để hoàn tác schema.
+
+`GET /v1/audit/entries` chỉ cho JWT có nhóm auditor và trả projection audit tường minh, không JOIN hồ sơ khách. Query dùng alias `a`, sắp `a.occurred_at DESC,a.id DESC`; cursor tuple so cột timestamp/bigint gốc, còn projection `a.id::text` và SQL UTC format giữ string/microsecond cho response. Filter là parameter; không cast cột lọc làm mất index. Bỏ cận thời gian không đặt cutoff lịch sử. `AuditHttpModule` chỉ chạy ở api/both, writer vẫn dùng được ở worker.
+
+Mỗi lookup hợp lệ INSERT `audit.search` trước SELECT trong cùng `TransactionService.run`, bằng cùng manager, rồi trả body sau COMMIT. Role audit cố định auditor, actor là internal users.id, target/correlation là UUID request server, metadata `{}`; filter/cursor không đi vào audit. Lỗi INSERT/SELECT trước commit rollback toàn lookup; nếu COMMIT mất kết nối thì trạng thái commit có thể chưa xác định. Hợp đồng live keyset và bằng chứng PostgreSQL/HTTP ở [DBS-103](../../features/DBS-103-audit-search.md). Đây không phải thay đổi schema hay cấp quyền production; phần production-role AC-8.1 vẫn chưa hoàn tất.
 
 ### 4.8 Nhóm fraud
 
@@ -474,6 +478,8 @@ Tải thiết kế ≈ 10.000 lệnh chuyển/ngày (docs/02 §5.3) → ~20.000 
 | Audit theo `correlationId` | `Index Scan` trên `audit_log (correlation_id)` | ≤ 10 ms |
 
 Mọi `Seq Scan` xuất hiện trên bảng lớn trong các truy vấn trên là lỗi cần sửa.
+
+Query audit được kiểm bằng đúng projection/order/limit+1 của service trên DB tạm ít nhất 50.000 dòng, correlation target khớp một dòng. EXPLAIN tự chọn plan, không ép `enable_seqscan`; assertion yêu cầu cùng node có `Node Type = Index Scan` và `Index Name = audit_log_correlation_idx`, không chấp nhận Bitmap Index Scan. [DBS-103 §8](../../features/DBS-103-audit-search.md#8-kết-quả) giữ các lượt đo warm và giới hạn môi trường local; đây chưa phải benchmark RDS hoặc latency endpoint dưới tải.
 
 ---
 
