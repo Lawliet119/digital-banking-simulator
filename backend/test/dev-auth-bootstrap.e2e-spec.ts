@@ -8,7 +8,7 @@ const example = parse(readFileSync(resolve(backend, 'env/.env.example')));
 
 /** A fully valid deployed environment, so the only thing that can fail is what a test adds. */
 const deployed = {
-  DATABASE_URL: 'postgres://u:p@db.internal:5432/banking',
+  DATABASE_URL: 'postgres://u:p@127.0.0.1:1/banking',
   DATABASE_SSL: 'true',
   REDIS_URL: 'rediss://cache.internal:6379',
   TRUST_PROXY_HOPS: '1',

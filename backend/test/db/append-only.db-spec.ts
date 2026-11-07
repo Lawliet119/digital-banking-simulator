@@ -13,6 +13,7 @@ import {
 } from '../support/temp-database';
 
 const TABLES = ['ledger_entries', 'transfers', 'audit_log'] as const;
+const TARGET = 'AddAppendOnlyTriggers1792627200002';
 describe('append-only migration with a real non-superuser table owner', () => {
   let db: TempDatabase;
   let server: DataSource;
@@ -97,7 +98,7 @@ describe('append-only migration with a real non-superuser table owner', () => {
   beforeEach(async () => {
     roleCreated = false;
     db = await createTempDatabase();
-    await migrateThrough(db.url, 'AddAppendOnlyTriggers1792627200002');
+    await migrateThrough(db.url, TARGET);
     server = await new DataSource({ type: 'postgres', url: requireDatabaseUrl() }).initialize();
     role = `dbs_test_owner_${randomBytes(6).toString('hex')}`;
     if (!/^dbs_test_owner_[0-9a-f]{12}$/.test(role)) throw new Error('Unsafe fixture role');
@@ -155,6 +156,23 @@ describe('append-only migration with a real non-superuser table owner', () => {
       env: { ...process.env, DATABASE_URL: db.url },
       stdio: 'pipe',
     });
+  }
+  async function revertSuccessors() {
+    const history: { name: string }[] = await db.runner.query(
+      'SELECT name FROM migrations ORDER BY timestamp,id',
+    );
+    const position = history.findIndex(row => row.name === TARGET);
+    expect(position).toBeGreaterThanOrEqual(0);
+    for (let index = history.length - 1; index > position; index--) {
+      cli('migration:revert');
+      expect(await db.runner.query('SELECT name FROM migrations ORDER BY timestamp,id')).toEqual(
+        history.slice(0, index),
+      );
+    }
+    const head: { name: string }[] = await db.runner.query(
+      'SELECT name FROM migrations ORDER BY timestamp,id',
+    );
+    expect(head.at(-1)?.name).toBe(TARGET);
   }
   async function blocked(sql: string, params: unknown[] = []) {
     await db.runner.startTransaction();
@@ -267,7 +285,7 @@ describe('append-only migration with a real non-superuser table owner', () => {
     // A separate migrated database proves statement triggers also fire with zero rows.
     const empty = await createTempDatabase();
     try {
-      await migrateThrough(empty.url, 'AddAppendOnlyTriggers1792627200002');
+      await migrateThrough(empty.url, TARGET);
       for (const name of TABLES) await empty.runner.query(`ALTER TABLE ${name} OWNER TO "${role}"`);
       await empty.runner.query(`GRANT SELECT ON accounts,idempotency_keys TO "${role}"`);
       await empty.runner.query(`GRANT TRUNCATE ON idempotency_keys TO "${role}"`);
@@ -328,6 +346,10 @@ describe('append-only migration with a real non-superuser table owner', () => {
     },
   );
   it('TC-27-10 apply to populated schema preserves rows, constraints, indexes and sequences', async () => {
+    const head: { name: string }[] = await db.runner.query(
+      'SELECT name FROM migrations ORDER BY timestamp,id',
+    );
+    expect(head.at(-1)?.name).toBe(TARGET);
     await migrate(db.url, 'undoLast');
     const before = await snapshot();
     const objects = await db.runner.query(
@@ -344,7 +366,7 @@ describe('append-only migration with a real non-superuser table owner', () => {
     const sequences = await db.runner.query(
       "SELECT sequencename,last_value FROM pg_sequences WHERE schemaname='public' AND sequencename IN ('ledger_entries_id_seq','audit_log_id_seq') ORDER BY sequencename",
     );
-    await migrateThrough(db.url, 'AddAppendOnlyTriggers1792627200002');
+    await migrateThrough(db.url, TARGET);
     expect(await snapshot()).toEqual(before);
     expect(
       await db.runner.query(
@@ -411,9 +433,14 @@ describe('append-only migration with a real non-superuser table owner', () => {
     }
   });
   it('TC-27-12 re-run restores protection on every target while INSERT stays allowed', async () => {
+    const head: { name: string }[] = await db.runner.query(
+      'SELECT name FROM migrations ORDER BY timestamp,id',
+    );
+    expect(head.at(-1)?.name).toBe(TARGET);
     const before = await snapshot();
     cli('migration:revert');
-    await migrateThrough(db.url, 'AddAppendOnlyTriggers1792627200002');
+    cli('migration:run');
+    await revertSuccessors();
     expect(await snapshot()).toEqual(before);
     for (const table of TABLES) {
       const column =
