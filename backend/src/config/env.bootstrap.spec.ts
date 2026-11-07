@@ -19,7 +19,7 @@ describe('env.bootstrap (TC-67-06)', () => {
   function bootstrap(env: Record<string, string>): void {
     process.env = { NODE_ENV: 'test', ...env };
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- the module runs on load, so each case needs a fresh require inside isolateModules
       require('./env.bootstrap');
     });
   }
