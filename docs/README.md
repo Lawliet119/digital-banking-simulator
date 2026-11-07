@@ -21,7 +21,6 @@ docs/
 ├── BACKLOG.md                             Việc còn tồn mà các task đã chuyển cho người/task khác
 ├── adr/                                   13 quyết định kiến trúc đã chốt (ADR-01…13), ADR-14 Proposed, kèm lý do
 ├── security/                              Threat model STRIDE (P3)
-├── superpowers/plans/                     Implementation plan (master roadmap, plan từng task)
 ├── features/                              Một file cho mỗi task implement + screenshots/ (ảnh tính năng)
 ├── components/                            Concept brief từng component + thiết kế dùng chung
 │   ├── index.md   _shared/ (database-design, event-contract, glossary)
@@ -42,7 +41,7 @@ docs/
 | Mối đe dọa và biện pháp | `security/threat-model.md` |
 | Thiết kế, test case và kết quả của **một task** | `features/DBS-<n>-<slug>.md` |
 | Việc còn tồn sau các task (DoD chưa đạt vì thiếu hạ tầng, việc bàn giao cho module khác) | `BACKLOG.md` |
-| Kế hoạch thực thi | `superpowers/plans/` (roadmap); việc từng tuần nằm trên board của nhóm |
+| Kế hoạch thực thi | Board của nhóm (đọc bằng `fetch-task.mjs`); roadmap cũ đã xóa ngày 2026-11-07 |
 
 Nơi khác chỉ **link**, không chép lại.
 
