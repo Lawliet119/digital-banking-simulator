@@ -1,6 +1,6 @@
 # DBS-79 · Idempotency: ON CONFLICT DO NOTHING, replay đúng kết quả cũ, request_hash
 
-> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-79-idempotency-replay` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-79-idempotency-replay` · **PR:** [#69](https://github.com/Lawliet119/digital-banking-simulator/pull/69) · **Cập nhật:** 2026-11-08
 >
 > Techlead waiver: G1–G4 do agent tự duyệt theo yêu cầu của techlead (không có người duyệt từng gate); không có Dev khác review trước merge; không có ảnh PNG, bằng chứng là `manual-test.txt` thô; domain review do chính agent làm, không dùng subagent (§6).
 
