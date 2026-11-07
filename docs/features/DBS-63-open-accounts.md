@@ -1,6 +1,6 @@
 # DBS-63 · UC-2 mở tài khoản, tối đa 3 tài khoản mỗi khách
 
-> **Status:** Draft (đang bù; G1 đã duyệt, đến G2) · **Vai:** Dev (Accounts) · **Nhánh:** `feat/DBS-63-open-accounts` · **PR:** [#58 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/58) · **Cập nhật:** 2026-11-07
+> **Status:** Design approved (G1, G2 đã duyệt 2026-11-07; đang bù G3, rồi implement phần còn lại và G4) · **Vai:** Dev (Accounts) · **Nhánh:** `feat/DBS-63-open-accounts` · **PR:** [#58 · Draft](https://github.com/Lawliet119/digital-banking-simulator/pull/58) · **Cập nhật:** 2026-11-07
 
 > **Ghi chú quy trình:** phần implement, test và manual test của task này đã làm trước khi có G1, G2 và G3, vì yêu cầu ban đầu bỏ qua gate. Skill không cho phép việc đó. Từ đây các gate được bù lần lượt, mỗi gate một tin nhắn, người duyệt trả lời rồi mới sang gate sau. Các mục §2–§9 bên dưới là bản cũ, sẽ được viết lại ở G2 (§2–§6), G3 (§7) và G4 (§8–§9).
 
@@ -232,18 +232,42 @@ Bước ép khóa quá thời gian (503) được chứng minh bằng TC-63-10 c
 
 **Vòng 3 chưa chạy.** Bản sửa R2-1 chính là phương án thay thế mà reviewer đề xuất, và `{id}` đã được code hiện tại ghi thành công (TC-63-07 đang đạt với `metadata {id}`), nên mình không chạy thêm vòng. Nếu bạn muốn đúng quy tắc "review lại mọi mục đã đổi" thì nói, mình chạy vòng 3.
 
-**Quyết định ở G2:** (chờ người duyệt)
+**Quyết định ở G2** (người dùng trả lời «duyệt», 2026-11-07, chấp nhận mọi đề xuất): (1) đổi audit "chưa onboarding" từ `DENIED` sang `REJECTED` cùng transaction, sửa code ở Phase 4; (2) sửa TC-63-04, TC-63-07 và thêm TC-63-11 ở Phase 4; (3) test thủ công chạy trên app thật, giữ `manual-dbs63.cjs` làm bằng chứng bổ sung, không tính là test thủ công; (4) bàn giao quyền `UPDATE` trên `customers` thành một dòng `BL-NNN` ở G4; (5) bỏ vòng review 3.
 
-## 7. Implementation plan
+## 7. Kế hoạch triển khai
 
-1. Resolve dependency choice; actual DBS-62 base only if explicitly approved. Retain separate DBS-63 commits.
-2. Write HTTP/PostgreSQL cases first; run and record red404 for missing POST /v1/accounts.
-3. Add DTO, module-private opening service with parent lock/count/insert/audit, controller and module registration. No public primitive signature changes.
-4. Prove concurrency, actual lock blocking/isolation, audit commit/rollback/denial, auth/validation/OpenAPI; lint/typecheck/build/unit/e2e and relevant real DB suites. Reuse exact preceding dependency baseline checks for identical source where applicable; disclose known BL-112 local unit timing failure rather than claim green baseline.
-5. Manual driver on final code commit, all six steps and actual screenshot/transcript; invariant checker after business cases.
-6. Update Accounts README, docs03 POST contract, feature index/backlog and test mapping; doc link check. Commit/push per user's existing workflow. Main-based Draft PR after DBS-62 merge, then actual final CI; no stacked PR silently created.
+Phần lớn code đã có từ trước; kế hoạch này chỉ gồm những gì **còn phải làm** để khớp §2–§5 đã duyệt, rồi chứng minh lại trên cây đã merge main. Thứ tự: test trước, code sau, tài liệu cuối. Mỗi bước xanh mới commit; không `--no-verify`.
 
-Rollback: remove DBS-63-only commits; no schema/data teardown or shared DB revert. No migration needed. Parent locking assumes all customer-account creation follows this service; count is not a schema invariant and administrator SQL is not covered.
+| Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh (từ `backend/`, Node 24) | Commit |
+|---|---|---|---|---|---|
+| 1 | `test/db/account-opening.db-spec.ts` | TC-63-11 (2 tài khoản + 5 request song song → 1×201 + 4×409). Hành vi đã đúng nên **xanh ngay**; chứng minh test có giá trị bằng đột biến: tạm bỏ `FOR UPDATE` trong service, chạy lại, TC-63-03 và TC-63-11 phải **đỏ**, rồi khôi phục (đột biến không commit) | (điền) | `npm run test:db -- --runInBand --runTestsByPath test/db/account-opening.db-spec.ts` | `test(accounts): add boundary concurrency case (DBS-63)` |
+| 2 | `test/db/account-opening.db-spec.ts` | TC-63-07: token rác → 401; chưa onboarding → audit `REJECTED` với `actor_role` và `metadata {id}` (đổi từ `DENIED`) | (điền: kỳ vọng `REJECTED`, thực tế `DENIED`) | như bước 1 | `test(accounts): expect REJECTED audit for missing profile (DBS-63)` |
+| 3 | `test/db/account-opening.db-spec.ts` | TC-63-04: khẳng định `errorCode` của mọi 409, 3 SUCCESS + 2 REJECTED mỗi customer. Đặc tả hành vi đã đúng nên xanh ngay | (điền) | như bước 1 | `test(accounts): assert errorCode and audit in parallel case (DBS-63)` |
+| 4 | `src/modules/accounts/account-opening.service.ts` | TC-63-07 và TC-63-08 từ bước 2 | — | như bước 1, sau đó `npm run lint:check && npm run typecheck` | `fix(accounts): audit missing profile as REJECTED in the same transaction (DBS-63)` |
+| 5 | `scripts/manual-dbs63.cjs` | — (script bổ sung) | — | `node scripts/manual-dbs63.cjs` chạy sau bước 4: kỳ vọng `DENIED` → `REJECTED` ở M-63-04 | `test(accounts): update supplementary manual driver (DBS-63)` |
+| 6 | — | Chạy lại toàn bộ trên cây hiện tại | — | `npm run lint:check && npm run typecheck && npm run build`; `npm test -- --runInBand`; `npm run test:e2e -- --runInBand` (`DATABASE_URL` Postgres riêng); `npm run test:db -- --runInBand` (**toàn bộ**, không chỉ 4 suite) | — |
+| 7 | `docs/features/screenshots/DBS-63/manual-test.txt`, `01-*.png` | Test thủ công §5 M-63-01 → M-63-07 trên app thật; SHA ở dòng đầu là commit cuối cùng đổi code | — | Các lệnh ở §5 (Git Bash, `tee -a`); xóa token và header `Authorization` khỏi file | `docs(accounts): record DBS-63 manual test` |
+| 8 | `README` module accounts, `docs/03` dòng `POST /v1/accounts`, `docs/features/README.md` (dòng DBS-63, viết lại tiếng Việt), `docs/BACKLOG.md` (thêm `BL-159`, cập nhật `BL-158`), xóa `screenshots/DBS-63/verification.txt` và `pr-description.md` (số liệu cũ, trùng với §8 và mô tả PR), §8–§9 của doc này, bỏ phần "Rebase and final handover" cũ | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(accounts): finish DBS-63 handover docs` |
+
+**Quét theo DoD và hạn chế trong tài liệu:**
+
+| Mục | Xử lý |
+|---|---|
+| DoD #1 (khóa hàng customers) | TC-63-02, 05, 10, 11, đột biến ở bước 1 |
+| DoD #2 (≥ 5 request song song) | TC-63-03 (10 request), TC-63-04, TC-63-11 |
+| DoD #3 (audit, số dư 0, cấm SYSTEM) | TC-63-01, 06, 07, 08 |
+| DoD #4 (merge, CI, Dev review, bảng đối chiếu) | Quy trình, dòng `BL-158`; bảng đối chiếu ở §8 và mô tả PR; **không** claim xong |
+| Hạn chế BR-14: admin SQL ngoài API | Giữ nguyên trong README và §3; không xử lý |
+| Quyền `UPDATE` trên `customers` cho `dbs_api` | Bàn giao, dòng `BL-159`, liên quan BL-017 |
+| Fixture `UPDATE accounts SET status='LOCKED'` | Giữ, ghi ở §4, không stub API khóa |
+| BL-112 (test cooldown JWKS, đỏ ở baseline) | Báo là đã biết; không được đếm vào kết quả của task này |
+| Mô tả PR #58 lỗi thời và trạng thái trong README module | Cập nhật ở G4, sau khi được duyệt (chỉ khi người dùng đồng ý sửa mô tả PR) |
+
+**Phạm vi file:** code chỉ đổi `account-opening.service.ts` (và test, script). Mọi file khác là tài liệu. Cuối task sẽ chạy `git diff --stat main...HEAD` và đối chiếu với bảng này ở §8.
+
+**Rủi ro và cách lùi:** đổi audit sang `REJECTED` chỉ ảnh hưởng đường 404 của endpoint này; lùi bằng `git revert` các commit ở bước 4–5. Không migration, không dữ liệu cần dọn. Đột biến ở bước 1 chỉ nằm trong working tree, phải khôi phục trước khi commit (kiểm bằng `git diff` trước mỗi commit).
+
+**Quyết định ở G3:** (chờ người duyệt)
 
 ## 8. Results / handoff
 
