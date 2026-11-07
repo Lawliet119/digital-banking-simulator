@@ -776,11 +776,14 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     expect(row).toEqual({ status: 'REJECTED', reject_reason: 'LIMIT_PER_TX_EXCEEDED' });
     expect(await balance(b.accountId)).toBe('50000000');
   });
-  it('TC-54-02 insufficient funds is reported before the limit', async () => {
+  it('TC-82-10 the per-transfer limit is reported before insufficient funds (BRD UC-5 step 6)', async () => {
     const a = await target('1000'),
       b = await target();
     const res = await transfer(a, b.accountId, '60000000').expect(422);
-    expect(res.body.errorCode).toBe('INSUFFICIENT_FUNDS');
+    expect(res.body.errorCode).toBe('LIMIT_PER_TX_EXCEEDED');
+    // Within the limits, being short of money is still INSUFFICIENT_FUNDS (TC-61-02).
+    const short = await transfer(a, b.accountId, '5000').expect(422);
+    expect(short.body.errorCode).toBe('INSUFFICIENT_FUNDS');
   });
   it('TC-54-03 per-day limit counts what was already sent today, sequentially', async () => {
     const a = await target('300000000'),

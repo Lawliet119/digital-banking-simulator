@@ -2,7 +2,7 @@
 
 Mọi đồng tiền vào, ra, di chuyển. Nơi duy nhất được phép thay đổi số dư.
 
-> **Status:** Schema, trigger, công cụ kiểm bất biến, nạp/chuyển tiền bản thô implemented · **Owner:** Dev (Ledger) · **Verified against code:** migration/DB tests, DBS-60/61; replay idempotency, hạn mức lần/ngày đã có; scheduler đối soát còn chờ.
+> **Status:** Schema, trigger, công cụ kiểm bất biến, nạp/chuyển tiền, sync guard implemented · **Owner:** Dev (Ledger) · **Verified against code:** migration/DB tests, DBS-60/61; replay idempotency, hạn mức lần/ngày đã có; scheduler đối soát còn chờ.
 
 Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bảng `transfers`, `ledger_entries`: BEFORE UPDATE/DELETE theo hàng và BEFORE TRUNCATE theo statement, cùng hàm `public.forbid_mutation()` của [DBS-27](../../../../docs/features/DBS-27-append-only-triggers.md). INSERT vẫn được phép; mutation có hàng và TRUNCATE kể cả bảng rỗng trả SQLSTATE `42501` từ RAISE của hàm. UPDATE/DELETE không khớp hàng trả 0 hàng. Test dùng owner NOSUPERUSER và đối chứng quyền sau down; quyền production và chủ view `v_transfer_facts` còn chờ task roles (BL-005). Revert chỉ gỡ trigger/hàm, giữ dữ liệu và sequence nhưng làm mất lớp bảo vệ này; không dùng revert như cách sửa dữ liệu nghiệp vụ.
 
@@ -39,13 +39,13 @@ Idempotency (ADR-05): cùng key và cùng body trả lại đúng kết quả l�
 `POST /v1/transfers` chỉ dành cho customer. Body `{fromAccountId, toAccountId, amount}`: hai UUID khác nhau, `amount` là chuỗi số đồng dương. Header `Idempotency-Key` bắt buộc, 1–128 ký tự.
 
 - Nguồn được kiểm quyền bằng `getOwnedAccount(fromId, {userId, role:'customer', action:'ledger.transfer', correlationId})` trước khi mở transaction; chính `getOwnedAccount` ghi audit `DENIED` (action `ledger.transfer`) rồi mới ném 404, `TransferService` không ghi thêm. Nguồn của người khác, không tồn tại hoặc là SYSTEM đều trả cùng một 404, và audit `DENIED` được ghi ngoài transaction nghiệp vụ.
-- Trong một transaction: đặt chỗ key → khóa tài khoản theo thứ tự id → kiểm lại chủ sở hữu, trạng thái ACTIVE và số dư trên bản đã khóa → ghi transfer, hai dòng sổ, hai số dư, audit, event `TransferCompleted` và kết quả của key.
-- Nguồn hoặc đích LOCKED, đích không tồn tại hoặc SYSTEM → 422 `ACCOUNT_NOT_ACTIVE`; thiếu tiền → 422 `INSUFFICIENT_FUNDS`. Transfer REJECTED, audit và kết quả của key được commit trước khi trả 422; không có dòng sổ, event hay thay đổi số dư.
+- Trong một transaction: đặt chỗ key → khóa tài khoản theo thứ tự id → kiểm lại chủ sở hữu trên bản đã khóa, rồi chạy sync guard → ghi transfer, hai dòng sổ, hai số dư, audit, event `TransferCompleted` và kết quả của key.
+- Nguồn hoặc đích LOCKED, đích không tồn tại hoặc SYSTEM → 422 `ACCOUNT_NOT_ACTIVE`; thiếu tiền (và không vượt hạn mức) → 422 `INSUFFICIENT_FUNDS`. Transfer REJECTED, audit và kết quả của key được commit trước khi trả 422; không có dòng sổ, event hay thay đổi số dư.
 - Đích là tài khoản `funding` không bị khóa (chỉ khóa nguồn), để lệnh chuyển tới `funding` không phải xếp hàng sau các lệnh nạp tiền. Nếu sau này có tài khoản SYSTEM khác, phải mở rộng điều kiện này trong `transfer.service.ts`.
 - Mọi lỗi ghi đều rollback toàn bộ kể cả key; lỗi tạm thời trả 503 và thử lại được với cùng key.
 - Hai tài khoản khác nhau của cùng một người được phép, event có `sameOwner = true`.
 
-Thứ tự kiểm tra dưới khóa: ACTIVE, đủ tiền, hạn mức mỗi lần (`TRANSFER_LIMIT_PER_TX`), hạn mức ngày (`TRANSFER_LIMIT_PER_DAY`, tổng dòng ghi nợ của tài khoản nguồn từ 00:00 giờ Việt Nam). Vượt hạn mức → 422 `LIMIT_PER_TX_EXCEEDED` / `LIMIT_PER_DAY_EXCEEDED`, lệnh vẫn được lưu `REJECTED`. Chưa có test ở ranh giới nửa đêm (BL-154). Test dùng PostgreSQL thật, tiền vào qua API nạp tiền. Bảng case và bằng chứng nằm ở [DBS-61](../../../../docs/features/DBS-61-customer-transfers.md).
+Sync guard (DBS-82): `SyncGuardService.checkGuards(manager, lockedFrom, lockedTo, amount): Promise<RejectReason | null>` chạy **sau** `lockForUpdate`, luôn `await`, và từ chối trả lời (`AccountNotLockedError`) nếu hai tài khoản chưa được khóa trong transaction này. Lý do đầu tiên đúng được trả, theo thứ tự: hai tài khoản ACTIVE (đích không tồn tại hoặc không phải tài khoản khách tính là không ACTIVE) → hạn mức mỗi lần (`TRANSFER_LIMIT_PER_TX`) → hạn mức ngày (`TRANSFER_LIMIT_PER_DAY`, tổng dòng ghi nợ của tài khoản nguồn từ 00:00 giờ Việt Nam) → đủ tiền. Giới hạn đọc từ `limits.config` lúc gọi. Vượt hạn mức → 422 `LIMIT_PER_TX_EXCEEDED` / `LIMIT_PER_DAY_EXCEEDED`, lệnh vẫn được lưu `REJECTED`. Chưa có test ở ranh giới nửa đêm (BL-154). Test dùng PostgreSQL thật, tiền vào qua API nạp tiền. Bảng case và bằng chứng nằm ở [DBS-61](../../../../docs/features/DBS-61-customer-transfers.md).
 
 ## Lưu kết quả đối soát
 
