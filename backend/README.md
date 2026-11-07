@@ -5,7 +5,7 @@ Một ứng dụng NestJS (TypeScript strict). **Một image, chạy theo `APP_R
 | `APP_ROLE` | Chạy | Không chạy | Dùng ở |
 |---|---|---|---|
 | `api` | HTTP (controller) | consumer, scheduler | ECS service `api` |
-| `worker` | module dùng chung (Outbox, Audit, Risk). Đích: outbox relay, risk scoring, notification; `workerModules` hiện còn rỗng, chưa có relay hay consumer | HTTP listener | ECS service `worker` |
+| `worker` | module dùng chung (Outbox, Audit, Risk). `workerModules` hiện có outbox relay và consumer thông báo (ghi log); đích còn thiếu: risk scoring | HTTP listener | ECS service `worker` |
 | `both` *(mặc định)* | tất cả | — | máy local, test |
 
 ## Chạy local

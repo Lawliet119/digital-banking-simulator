@@ -3,7 +3,8 @@ import { AppRole, runsHttp, runsWorkers } from '@common/app-role/app-role';
 import { AuditModule } from './audit';
 import { HealthModule } from './health';
 import { IdentityModule } from './identity';
-import { OutboxModule } from './outbox';
+import { OutboxModule, OutboxRelayModule } from './outbox';
+import { NotificationModule } from './notification';
 import { AccountsModule } from './accounts';
 import { RiskModule } from './risk';
 import { LedgerModule } from './ledger';
@@ -29,9 +30,7 @@ const sharedModules: ModuleRef[] = [
 
 const apiModules: ModuleRef[] = [HealthModule, IdentityModule, AccountsModule, LedgerModule];
 
-const workerModules: ModuleRef[] = [
-  // Outbox relay providers and NotificationModule — added by #3.
-];
+const workerModules: ModuleRef[] = [OutboxRelayModule, NotificationModule];
 
 /** The module list for the given role (defaults to the current process's `APP_ROLE`). */
 export function modulesForRole(role?: AppRole): ModuleRef[] {

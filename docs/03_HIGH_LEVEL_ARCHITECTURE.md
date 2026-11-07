@@ -1,6 +1,6 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Accepted v1.8 (chốt 2026-10-11, bổ sung 2026-11-07) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding), ledger (nạp tiền, chuyển tiền bản thô), audit, outbox writer, health, khung risk; chưa có outbox relay, notification, consumer ở role worker · **Cập nhật:** 2026-11-07
+> **Status:** Accepted v1.8 (chốt 2026-10-11, bổ sung 2026-11-07) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding, khóa hàng), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày), audit, outbox writer, outbox relay và consumer thông báo (log), health, khung risk; kiểm thu hồi phiên ở `JwtAuthGuard`; script role `dbs_api` / `dbs_worker` đã có và được kiểm (chưa áp dụng cho task ECS); chưa có consumer và scoring của risk, endpoint khóa tài khoản, rate limit, job đối soát, hạ tầng worker/SQS/alarm · **Cập nhật:** 2026-11-07
 
 > **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
@@ -155,7 +155,7 @@ flowchart TB
     WRKM -.-> COMMON
 ```
 
-Sơ đồ trên là kiến trúc đích. Trên `main` (2026-11-07) có ba chỗ khác: `workerModules` còn rỗng; outbox mới có **writer**, chạy ở cả hai role, còn relay chưa có code; `notification` chưa có code. Danh sách module theo role nằm ở `backend/src/modules/index.ts`.
+Sơ đồ trên là kiến trúc đích. Trên nhánh này có hai chỗ khác: `workerModules` mới có `OutboxRelayModule` và `NotificationModule` (chưa có consumer và scoring của risk); `notification` mới ghi log, chưa gửi gì ra ngoài. Danh sách module theo role nằm ở `backend/src/modules/index.ts`.
 
 **Quy tắc phụ thuộc giữa module:**
 - `ledger` **không** đọc hay ghi bảng `accounts` trực tiếp. Nó gọi các hàm được `accounts` export (`lockForUpdate`, `applyBalanceChange`) và **truyền transaction hiện tại** vào. Nhờ vậy chuyển tiền vẫn là một transaction mà quyền sở hữu dữ liệu không bị phá (P-4).
@@ -487,9 +487,9 @@ sequenceDiagram
 | GET | `/v1/accounts` | customer | UC-4 | Chỉ tài khoản của mình |
 | GET | `/v1/accounts/{id}` | customer | UC-4 | Số dư mới nhất, đọc từ DB |
 | GET | `/v1/accounts/{id}/transactions` | customer | UC-6 | Phân trang bằng cursor; lọc thời gian |
-| POST | `/v1/transfers` | customer | UC-5 | **Bắt buộc** `Idempotency-Key` 1–128 ký tự; body `fromAccountId`, `toAccountId`, `amount` (chuỗi). Bản thô DBS-61: nguồn phải của người gọi, hai tài khoản ACTIVE, đủ tiền; 201 `COMPLETED`, hoặc 422 `ACCOUNT_NOT_ACTIVE` / `INSUFFICIENT_FUNDS` kèm `transferId` (lệnh bị từ chối vẫn được commit); nguồn của người khác, không tồn tại hoặc SYSTEM → 404 kèm audit DENIED. Key đã dùng → 409; replay (DBS-79) và hạn mức (tuần 3) chưa có. Xem [trạng thái triển khai](features/DBS-61-customer-transfers.md) |
+| POST | `/v1/transfers` | customer | UC-5 | **Bắt buộc** `Idempotency-Key` 1–128 ký tự; body `fromAccountId`, `toAccountId`, `amount` (chuỗi). Nguồn phải của người gọi. Dưới khóa tài khoản, theo thứ tự: ACTIVE, đủ tiền, hạn mức mỗi lần, hạn mức ngày (giờ Việt Nam). 201 `COMPLETED`, hoặc 422 `ACCOUNT_NOT_ACTIVE` / `INSUFFICIENT_FUNDS` / `LIMIT_PER_TX_EXCEEDED` / `LIMIT_PER_DAY_EXCEEDED` kèm `transferId` (lệnh bị từ chối vẫn được commit); nguồn của người khác, không tồn tại hoặc SYSTEM → 404 kèm audit DENIED. Cùng key và cùng body → trả lại đúng kết quả lần đầu (201, hoặc cùng 422 và `transferId`) mà không ghi lần hai; cùng key khác body → 422 `IDEMPOTENCY_KEY_REUSED`. Chưa có: giới hạn tốc độ và thu hồi phiên (BL-155). Xem [trạng thái triển khai](features/DBS-61-customer-transfers.md) |
 | GET | `/v1/transfers/{id}` | customer | UC-7 | Chỉ người gửi / người nhận |
-| POST | `/v1/operator/deposits` | operator | UC-3 | **Bắt buộc** `Idempotency-Key`1–128, body `toAccountId` + amount string;201 COMPLETED; locked/missing/SYSTEM target422 ACCOUNT_NOT_ACTIVE +transferId (reject commit); key đã dùng409 ở bản thô DBS-60, replay/conflict đầy đủ ở DBS-79 |
+| POST | `/v1/operator/deposits` | operator | UC-3 | **Bắt buộc** `Idempotency-Key` 1–128, body `toAccountId` + amount string; 201 `COMPLETED`; đích locked/missing/SYSTEM → 422 `ACCOUNT_NOT_ACTIVE` + `transferId` (lệnh bị từ chối vẫn được commit). Cùng key và cùng body → trả lại kết quả lần đầu, không nạp lần hai; cùng key khác body → 422 `IDEMPOTENCY_KEY_REUSED` |
 | GET | `/v1/operator/accounts` | operator | UC-3, UC-11 | Tìm tài khoản của khách theo `accountId` hoặc tên khách (khớp một phần), tối đa 20 kết quả. Trả mã, loại, trạng thái, tên chủ; **không** trả số dư. Mỗi lần tra cứu được ghi nhật ký (BR-10) |
 | POST | `/v1/operator/accounts/{id}/lock` | operator | UC-11 | Thu hồi phiên ngay |
 | POST | `/v1/operator/accounts/{id}/unlock` | operator | UC-11 | |
@@ -989,7 +989,7 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 13 ADR Accepted (bảng dưới) 
 |---|---|---|
 | Runtime / ngôn ngữ | Node.js LTS + TypeScript (strict) | Một ngôn ngữ cho API và worker |
 | Framework | NestJS 11, **một app** chạy theo `APP_ROLE` (ADR-13) | Mỗi thư mục trong `src/modules/` = một module ở mục 5; ranh giới do eslint ép |
-| Truy cập DB | TypeORM (CRUD, migration) + **SQL tường minh trong `QueryRunner` cho luồng chuyển tiền** | Cần `ON CONFLICT`, `FOR UPDATE`, thứ tự khóa; Kysely là phương án thay thế (ADR-07) |
+| Truy cập DB | TypeORM (kết nối, pool, migration) + **SQL tường minh trong `QueryRunner`** | Cần `ON CONFLICT`, `FOR UPDATE`, thứ tự khóa. Thực tế hiện nay mọi truy vấn là SQL tường minh, chưa có entity; Kysely là phương án thay thế (ADR-07) |
 | Migration | TypeORM migrations, expand → migrate → contract | Bước riêng trong pipeline |
 | Redis | `ioredis` + storage Redis cho `@nestjs/throttler` | Timeout ngắn, circuit breaker, mọi key có TTL |
 | Cấu hình | `@nestjs/config` + **Joi validate lúc khởi động** | Thiếu/sai biến → app từ chối chạy; staging và production bắt buộc TLS tới Postgres và Redis |

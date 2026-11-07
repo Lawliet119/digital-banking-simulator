@@ -9,8 +9,8 @@ Mỗi thư mục là một module nghiệp vụ (một bounded context ở `docs
 | [`identity`](identity/README.md) | ⚪ Generic | UC-1, 11 | api |
 | [`risk`](risk/README.md) | 🟠 Supporting | UC-9, 10, 12 | api + worker |
 | [`audit`](audit/README.md) | 🟡 Supporting | UC-8 | api + worker (thư viện cho mọi module) |
-| [`outbox`](outbox/README.md) | Hạ tầng sự kiện | — | writer: api + worker; relay: worker (chưa có) |
-| [`notification`](notification/README.md) | ⚪ Generic | — | worker (chưa có code) |
+| [`outbox`](outbox/README.md) | Hạ tầng sự kiện | — | writer: api + worker; relay: worker |
+| [`notification`](notification/README.md) | ⚪ Generic | — | worker |
 | [`health`](health) | Hạ tầng | — | api |
 
 ## Quy tắc (được `eslint` ép, xem `backend/eslint.config.mjs`)
@@ -35,7 +35,7 @@ Mỗi thư mục là một module nghiệp vụ (một bounded context ở `docs
 ├── <tên>.controller.ts      # chỉ có ở module phục vụ HTTP
 ├── <tên>.service.ts
 ├── dto/                     # class-validator, một file mỗi request
-├── entities/                # *.entity.ts (TypeORM)
+├── entities/                # *.entity.ts (TypeORM); chưa module nào dùng, truy vấn là SQL tường minh (ADR-07)
 ├── *.spec.ts                # unit test đặt cạnh file được test
 └── index.ts                 # API công khai
 ```

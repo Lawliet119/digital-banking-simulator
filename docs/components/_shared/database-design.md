@@ -480,6 +480,8 @@ Ma trận quyền (S = SELECT, I = INSERT, U = UPDATE, D = DELETE):
 | `notification_log` | — | I D |
 | `reconciliation_runs` | S | I |
 
+Ma trận này được cài thành SQL ở [`infra/scripts/db-roles.sql`](../../../infra/scripts/db-roles.sql) (idempotent, chạy sau mỗi lần migration; chưa có `notification_log` và `reconciliation_runs` nên chưa được cấp) và được kiểm bằng `backend/test/db/db-roles.db-spec.ts`: luồng nạp tiền, chuyển tiền, replay và thu hồi phiên chạy được chỉ với quyền đã cấp, và mọi thao tác ngoài ma trận bị PostgreSQL từ chối.
+
 Nhìn bảng này thấy ngay: **không role nào có `UPDATE` hay `DELETE` trên `ledger_entries`, `transfers`, `audit_log`**. Với `accounts`, nên cấp `UPDATE` theo cột (`GRANT UPDATE (balance, status, updated_at)`), tương tự `fraud_flags` chỉ cho sửa các cột `review_*`.
 
 **Giới hạn cần nói thật:** FRAUD guide muốn "DB role riêng cho risk consumer, chỉ đọc `transfers` và chỉ ghi bảng fraud". Với một process `worker` chứa cả relay, risk, notification, role đó phải là **hợp** các quyền trên. Muốn tách đúng nghĩa thì `risk` phải mở một kết nối riêng với role riêng; đó là hướng mở rộng, không làm ở v1 (đã ghi ở mục rủi ro chấp nhận của [threat model](../../security/threat-model.md)).

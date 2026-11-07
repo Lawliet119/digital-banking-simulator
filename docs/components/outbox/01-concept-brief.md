@@ -1,6 +1,6 @@
 # outbox — Concept Brief
 
-> **Status:** Draft · **Owner:** Dev · **Verified against code:** schema outbox/processed và writer trong transaction; relay/consumer chưa có
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** schema outbox/processed, writer trong transaction và relay (consumer của risk chưa có)
 
 ## Component
 
@@ -8,7 +8,7 @@
 |---|---|
 | **Slug** | `outbox` |
 | **Loại** | Hạ tầng sự kiện · module backend |
-| **Chạy ở** | Writer: `api` + `worker`; relay: `worker` (chưa có) |
+| **Chạy ở** | Writer: `api` + `worker`; relay: `worker` |
 | **Use case / NFR** | — (hạ tầng cho UC-9, thông báo) |
 | **Sở hữu bảng** | `outbox_events`, `processed_events` (mọi module ghi sự kiện qua `OutboxWriter.add`) |
 | **Task trong roadmap** | Task 4 của roadmap cũ (đã xóa ngày 2026-11-07); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md) |

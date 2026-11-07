@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { EntityManager } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 
 /** Most subs kept in the per-process cache. A constant, not an env var: it only bounds memory. */
@@ -60,6 +61,37 @@ export class IdentityService {
       if (this.cache.get(sub) === pending) this.cache.delete(sub);
     });
     return pending;
+  }
+
+  /**
+   * When this user's sessions were last revoked, or null if never (docs/03 §6.2). A token issued at
+   * or before that moment is refused. Read from PostgreSQL on every authenticated request: it is
+   * the source of truth, so a lock takes effect on the very next request (AC-11.1) with or without
+   * a Redis cache in front (a cache would only save this primary-key read).
+   */
+  async sessionsRevokedAt(userId: string): Promise<Date | null> {
+    return this.tx.run(async manager => {
+      const rows = await manager.query<{ sessions_revoked_at: Date | null }[]>(
+        'SELECT sessions_revoked_at FROM users WHERE id = $1',
+        [userId],
+      );
+      return rows[0]?.sessions_revoked_at ?? null;
+    });
+  }
+
+  /**
+   * Revokes every session of `userId` as of now, inside the caller's transaction so that locking an
+   * account and cutting its owner's sessions commit together (docs/03 §6.2). The database clock is
+   * used, never the application's.
+   */
+  async revokeSessions(manager: EntityManager, userId: string): Promise<Date> {
+    // The pg driver answers an UPDATE ... RETURNING as [rows, affectedCount], unlike a SELECT.
+    const [rows] = await manager.query<[{ sessions_revoked_at: Date }[], number]>(
+      'UPDATE users SET sessions_revoked_at = clock_timestamp() WHERE id = $1 RETURNING sessions_revoked_at',
+      [userId],
+    );
+    if (rows.length === 0) throw new Error('Cannot revoke sessions of an unknown user');
+    return rows[0].sessions_revoked_at;
   }
 
   /**

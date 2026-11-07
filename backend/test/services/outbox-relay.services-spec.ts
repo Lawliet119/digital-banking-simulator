@@ -1,0 +1,215 @@
+import { randomUUID } from 'node:crypto';
+import { DataSource } from 'typeorm';
+import { TransactionService } from '@database/transaction.service';
+import { SqsClient } from '@libs/sqs';
+import { OutboxRelayService } from '@modules/outbox';
+import { NotificationConsumer, dlqUrlFor } from '@modules/notification';
+import { ACCOUNT_LOCKED_SAMPLE, TRANSFER_SAMPLE } from '../support/event-samples';
+import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
+
+/**
+ * Outbox relay and notification consumer against real PostgreSQL and a real SQS protocol server
+ * (ElasticMQ). Needs DATABASE_URL (a PostgreSQL server) and Docker, like the other services specs.
+ */
+describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)', () => {
+  let mq: StartedElasticMq;
+  let db: TempDatabase;
+  let source: DataSource;
+  let sqs: SqsClient;
+  let relay: OutboxRelayService;
+  let consumer: NotificationConsumer;
+  let riskUrl: string;
+  let notificationUrl: string;
+  const oldKey = process.env.AWS_ACCESS_KEY_ID;
+  const oldSecret = process.env.AWS_SECRET_ACCESS_KEY;
+  const q = (sql: string, args: unknown[] = []): Promise<Record<string, unknown>[]> =>
+    db.runner.query(sql, args) as Promise<Record<string, unknown>[]>;
+
+  const transferEvent = () => ({ ...TRANSFER_SAMPLE, eventId: randomUUID() });
+  async function enqueue(event: Record<string, unknown>, type = String(event.eventType)) {
+    await q(
+      `INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id)
+       VALUES($1,$2,$3,$4::jsonb,$5)`,
+      [event.eventId, type, randomUUID(), JSON.stringify(event), event.correlationId],
+    );
+  }
+  async function drain(url: string): Promise<Record<string, unknown>[]> {
+    const bodies: Record<string, unknown>[] = [];
+    for (;;) {
+      const messages = await sqs.receive(url, { waitTimeSeconds: 1, visibilityTimeout: 30 });
+      if (messages.length === 0) return bodies;
+      for (const message of messages) {
+        bodies.push(JSON.parse(message.Body!) as Record<string, unknown>);
+        await sqs.acknowledge(url, message);
+      }
+    }
+  }
+
+  beforeAll(async () => {
+    process.env.AWS_ACCESS_KEY_ID = 'local';
+    process.env.AWS_SECRET_ACCESS_KEY = 'local';
+    mq = await startElasticMqContainer();
+    riskUrl = new URL('/000000000000/risk-events', mq.endpoint).toString();
+    notificationUrl = new URL('/000000000000/notification-events', mq.endpoint).toString();
+    db = await createTempDatabase();
+    await migrate(db.url);
+    source = new DataSource({ type: 'postgres', url: db.url });
+    await source.initialize();
+    const tx = new TransactionService(source, {
+      lockTimeoutMs: 2000,
+      statementTimeoutMs: 5000,
+      idleInTransactionTimeoutMs: 10000,
+    } as never);
+    sqs = new SqsClient({ region: 'us-east-1', endpoint: mq.endpoint });
+    const config = {
+      region: 'us-east-1',
+      endpoint: mq.endpoint,
+      riskQueueUrl: riskUrl,
+      notificationQueueUrl: notificationUrl,
+    };
+    relay = new OutboxRelayService(tx, sqs, config);
+    consumer = new NotificationConsumer(tx, sqs, config);
+  });
+  afterAll(async () => {
+    sqs?.onModuleDestroy();
+    await source?.destroy();
+    await db?.drop();
+    await mq?.stop();
+    if (oldKey === undefined) delete process.env.AWS_ACCESS_KEY_ID;
+    else process.env.AWS_ACCESS_KEY_ID = oldKey;
+    if (oldSecret === undefined) delete process.env.AWS_SECRET_ACCESS_KEY;
+    else process.env.AWS_SECRET_ACCESS_KEY = oldSecret;
+  });
+  beforeEach(async () => {
+    await q('DELETE FROM outbox_events');
+    await q('DELETE FROM processed_events');
+    await drain(riskUrl);
+    await drain(notificationUrl);
+    await drain(dlqUrlFor(notificationUrl));
+  });
+
+  it('TC-OBX-01 routes each event to every queue that wants it, then marks it published', async () => {
+    const transfer = transferEvent();
+    const locked = { ...ACCOUNT_LOCKED_SAMPLE, eventId: randomUUID() };
+    await enqueue(transfer);
+    await enqueue(locked);
+    expect(await relay.relayOnce()).toEqual({ published: 2 });
+    expect((await drain(riskUrl)).map(e => e.eventId)).toEqual([transfer.eventId]);
+    expect((await drain(notificationUrl)).map(e => e.eventId).sort()).toEqual(
+      [transfer.eventId, locked.eventId].sort(),
+    );
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toEqual([]);
+    expect(await relay.relayOnce()).toEqual({ published: 0 });
+    expect(await drain(riskUrl)).toEqual([]);
+  });
+
+  it('TC-OBX-02 two relays running at once never take the same event', async () => {
+    const events = Array.from({ length: 20 }, transferEvent);
+    for (const event of events) await enqueue(event);
+    const results = await Promise.all([relay.relayOnce(10), relay.relayOnce(10)]);
+    expect(results.reduce((sum, r) => sum + r.published, 0)).toBe(20);
+    const sent = (await drain(notificationUrl)).map(e => e.eventId as string);
+    expect(sent).toHaveLength(20);
+    expect(new Set(sent)).toEqual(new Set(events.map(e => e.eventId)));
+    expect(await drain(riskUrl)).toHaveLength(20);
+  });
+
+  it('TC-OBX-03 a failed send publishes what came before it and keeps the rest pending', async () => {
+    const events = [transferEvent(), transferEvent(), transferEvent()];
+    for (const event of events) await enqueue(event);
+    let calls = 0;
+    const flaky = {
+      send: (url: string, body: string, attributes: Record<string, string>) => {
+        calls += 1;
+        // Event 1 uses calls 1 and 2 (risk, notification); event 2 fails on its first send.
+        if (calls === 3) return Promise.reject(new Error('queue unavailable'));
+        return sqs.send(url, body, attributes);
+      },
+    } as unknown as SqsClient;
+    const tx = new TransactionService(source, {
+      lockTimeoutMs: 2000,
+      statementTimeoutMs: 5000,
+      idleInTransactionTimeoutMs: 10000,
+    } as never);
+    const broken = new OutboxRelayService(tx, flaky, {
+      region: 'us-east-1',
+      endpoint: mq.endpoint,
+      riskQueueUrl: riskUrl,
+      notificationQueueUrl: notificationUrl,
+    });
+    const first = await broken.relayOnce();
+    expect(first.published).toBe(1);
+    expect(first.failure).toBeInstanceOf(Error);
+    const pending = await q('SELECT event_id FROM outbox_events WHERE published_at IS NULL');
+    expect(pending.map(r => r.event_id).sort()).toEqual(
+      [events[1].eventId, events[2].eventId].sort(),
+    );
+    // Nothing is lost: the healthy relay finishes the job, and event 1 is not sent again.
+    expect(await relay.relayOnce()).toEqual({ published: 2 });
+    const seen = (await drain(notificationUrl)).map(e => e.eventId as string);
+    expect(seen.sort()).toEqual(events.map(e => e.eventId).sort());
+  });
+
+  it('TC-OBX-04 an event type without a route stays pending and does not block the others', async () => {
+    const mystery = { ...transferEvent(), eventType: 'MysteryHappened' };
+    await enqueue(mystery);
+    await enqueue(transferEvent());
+    expect(await relay.relayOnce()).toEqual({ published: 1 });
+    const pending = await q('SELECT event_type FROM outbox_events WHERE published_at IS NULL');
+    expect(pending).toEqual([{ event_type: 'MysteryHappened' }]);
+  });
+
+  it('TC-OBX-05 cleanup removes only published rows and processed marks past the retention', async () => {
+    const old = transferEvent(),
+      fresh = transferEvent(),
+      pending = transferEvent();
+    for (const event of [old, fresh, pending]) await enqueue(event);
+    await q(`UPDATE outbox_events SET published_at = now() - interval '8 days' WHERE event_id=$1`, [
+      old.eventId,
+    ]);
+    await q(`UPDATE outbox_events SET published_at = now() WHERE event_id=$1`, [fresh.eventId]);
+    await q(
+      `INSERT INTO processed_events(consumer,event_id,processed_at)
+       VALUES('notification',$1,now() - interval '8 days'),('notification',$2,now())`,
+      [randomUUID(), randomUUID()],
+    );
+    expect(await relay.deleteOldRows()).toBe(1);
+    const left = await q('SELECT event_id FROM outbox_events ORDER BY id');
+    expect(left.map(r => r.event_id).sort()).toEqual([fresh.eventId, pending.eventId].sort());
+    expect(await q('SELECT 1 FROM processed_events')).toHaveLength(1);
+  });
+
+  it('TC-NTF-01 end to end: relayed event is handled once even when delivered twice', async () => {
+    const event = transferEvent();
+    await enqueue(event);
+    await relay.relayOnce();
+    // The same event again, as at-least-once delivery allows.
+    await sqs.send(notificationUrl, JSON.stringify(event));
+    const results = await consumer.consumeOnce(1);
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    for (let i = 0; i < 3; i++) await consumer.consumeOnce(1);
+    const marks = await q('SELECT consumer,event_id FROM processed_events');
+    expect(marks).toEqual([{ consumer: 'notification', event_id: event.eventId }]);
+    // Both copies were acknowledged: nothing is left to redeliver.
+    expect(await drain(notificationUrl)).toEqual([]);
+  });
+
+  it('TC-NTF-02 an invalid event is not acknowledged and leaves no mark', async () => {
+    await sqs.send(notificationUrl, JSON.stringify({ eventType: 'TransferCompleted' }));
+    const [result] = await consumer.consumeOnce(1);
+    expect(result.status).toBe('failed');
+    expect(await q('SELECT 1 FROM processed_events')).toEqual([]);
+  });
+
+  it('TC-NTF-03 a body that is not JSON goes straight to the dead-letter queue', async () => {
+    await sqs.send(notificationUrl, 'this is not json');
+    const [result] = await consumer.consumeOnce(1);
+    expect(result.status).toBe('dead-lettered');
+    const [dead] = await sqs.receive(dlqUrlFor(notificationUrl), {
+      waitTimeSeconds: 1,
+      visibilityTimeout: 0,
+    });
+    expect(dead.Body).toBe('this is not json');
+  });
+});

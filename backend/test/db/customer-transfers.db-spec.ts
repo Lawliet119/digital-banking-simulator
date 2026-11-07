@@ -308,15 +308,19 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     expect(await balance(c.accountId)).toBe('1000000');
     expect(await balance(d.accountId)).toBe('1000000');
   });
-  it('TC-61-07 duplicate barrier user scope and same-owner event semantics', async () => {
+  it('TC-61-07 concurrent same-key replay, user scope and same-owner event semantics', async () => {
     const a = await target('1000000'),
       b = await target('1000000'),
       key = randomUUID();
     const results = await Promise.all(
       Array.from({ length: 10 }, () => transfer(a, b.accountId, '1000', key)),
     );
-    expect(results.filter(r => r.status === 201)).toHaveLength(1);
-    expect(results.filter(r => r.status === 409)).toHaveLength(9);
+    // DBS-79: the nine repeats are replays of the one execution, not errors and not new transfers.
+    expect(results.every(r => r.status === 201)).toBe(true);
+    expect(new Set(results.map(r => r.body.transferId as string)).size).toBe(1);
+    expect(
+      await q('SELECT count(*)::int AS n FROM transfers WHERE from_account_id=$1', [a.accountId]),
+    ).toEqual([{ n: 1 }]);
     await transfer(b, a.accountId, '1000', key).expect(201);
     expect(await balance(a.accountId)).toBe('1000000');
     const second = randomUUID();
@@ -491,7 +495,15 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     const amount = '9007199254740993',
       a = await target(amount),
       b = await target();
-    const res = await transfer(a, b.accountId, amount).expect(201);
+    // Above the real per-transfer limit: raise it for this test only, so the 2^53 path is reached.
+    const saved = { ...app.limits.transfer };
+    app.limits.transfer.perTx = app.limits.transfer.perDay = BigInt(amount);
+    let res: request.Response;
+    try {
+      res = await transfer(a, b.accountId, amount).expect(201);
+    } finally {
+      Object.assign(app.limits.transfer, saved);
+    }
     expect(await balance(a.accountId)).toBe('0');
     expect(await balance(b.accountId)).toBe(amount);
     expect(
@@ -590,6 +602,102 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     ).expect(404);
     expect(await totals()).toEqual([{ ...before[0], audits: before[0].audits + 1 }]);
   });
+  it('TC-79-01 same key and body replays the stored 201 with no new rows', async () => {
+    const a = await target('1000000'),
+      b = await target(),
+      key = randomUUID();
+    const first = await transfer(a, b.accountId, '1000', key).expect(201);
+    const before = await totals();
+    const again = await transfer(a, b.accountId, '1000', key).expect(201);
+    expect(again.body).toEqual(first.body);
+    expect(await totals()).toEqual(before);
+    expect(await balance(a.accountId)).toBe('999000');
+  });
+  it('TC-79-02 same key with another body is 422 IDEMPOTENCY_KEY_REUSED and changes nothing', async () => {
+    const a = await target('1000000'),
+      b = await target(),
+      key = randomUUID();
+    await transfer(a, b.accountId, '1000', key).expect(201);
+    const before = await totals();
+    const res = await transfer(a, b.accountId, '2000', key).expect(422);
+    expect(res.body.errorCode).toBe('IDEMPOTENCY_KEY_REUSED');
+    expect(await totals()).toEqual(before);
+  });
+  it('TC-79-03 a rejected transfer replays the same 422 and the same transferId', async () => {
+    const a = await target('1000'),
+      b = await target(),
+      key = randomUUID();
+    const first = await transfer(a, b.accountId, '5000', key).expect(422);
+    expect(first.body.errorCode).toBe('INSUFFICIENT_FUNDS');
+    const before = await totals();
+    const again = await transfer(a, b.accountId, '5000', key).expect(422);
+    expect(again.body.errorCode).toBe('INSUFFICIENT_FUNDS');
+    expect(again.body.transferId).toBe(first.body.transferId);
+    expect(await totals()).toEqual(before);
+  });
+  it('TC-79-04 a rejected key keeps its answer even after the account could now pay', async () => {
+    const a = await target('1000'),
+      b = await target(),
+      key = randomUUID();
+    await transfer(a, b.accountId, '5000', key).expect(422);
+    await request(app.url)
+      .post('/v1/operator/deposits')
+      .auth(operator, { type: 'bearer' })
+      .set('Idempotency-Key', randomUUID())
+      .send({ toAccountId: a.accountId, amount: '100000' })
+      .expect(201);
+    const again = await transfer(a, b.accountId, '5000', key).expect(422);
+    expect(again.body.errorCode).toBe('INSUFFICIENT_FUNDS');
+    expect(await balance(a.accountId)).toBe('101000');
+  });
+  it('TC-54-01 per-transfer limit: 50,000,000 passes, one dong more is 422 and persisted', async () => {
+    const a = await target('120000000'),
+      b = await target();
+    await transfer(a, b.accountId, '50000000').expect(201);
+    const res = await transfer(a, b.accountId, '50000001').expect(422);
+    expect(res.body.errorCode).toBe('LIMIT_PER_TX_EXCEEDED');
+    const [row] = await q('SELECT status,reject_reason FROM transfers WHERE id=$1', [
+      res.body.transferId,
+    ]);
+    expect(row).toEqual({ status: 'REJECTED', reject_reason: 'LIMIT_PER_TX_EXCEEDED' });
+    expect(await balance(b.accountId)).toBe('50000000');
+  });
+  it('TC-54-02 insufficient funds is reported before the limit', async () => {
+    const a = await target('1000'),
+      b = await target();
+    const res = await transfer(a, b.accountId, '60000000').expect(422);
+    expect(res.body.errorCode).toBe('INSUFFICIENT_FUNDS');
+  });
+  it('TC-54-03 per-day limit counts what was already sent today, sequentially', async () => {
+    const a = await target('300000000'),
+      b = await target();
+    for (let i = 0; i < 4; i++) await transfer(a, b.accountId, '50000000').expect(201);
+    const res = await transfer(a, b.accountId, '1').expect(422);
+    expect(res.body.errorCode).toBe('LIMIT_PER_DAY_EXCEEDED');
+    expect(await balance(b.accountId)).toBe('200000000');
+  });
+  it('TC-54-04 AC-5.6: 180m sent, two parallel 15m transfers: exactly one completes', async () => {
+    const a = await target('300000000'),
+      b = await target();
+    for (let i = 0; i < 3; i++) await transfer(a, b.accountId, '50000000').expect(201);
+    await transfer(a, b.accountId, '30000000').expect(201);
+    const results = await Promise.all([
+      transfer(a, b.accountId, '15000000'),
+      transfer(a, b.accountId, '15000000'),
+    ]);
+    expect(results.filter(r => r.status === 201)).toHaveLength(1);
+    const rejected = results.filter(r => r.status === 422);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].body.errorCode).toBe('LIMIT_PER_DAY_EXCEEDED');
+    expect(await balance(b.accountId)).toBe('195000000');
+  });
+  it('TC-54-05 money received today does not count against the account sending limit', async () => {
+    const a = await target('250000000'),
+      b = await target();
+    for (let i = 0; i < 4; i++) await transfer(a, b.accountId, '50000000').expect(201);
+    expect(await balance(b.accountId)).toBe('200000000');
+    await transfer(b, a.accountId, '50000000').expect(201);
+  });
   it('TC-61-12 Swagger lists JWT,key,DTO example and response statuses', () => {
     const doc = SwaggerModule.createDocument(
       app.app,
@@ -601,7 +709,7 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     expect(route.security).toContainEqual({ 'access-token': [] });
     expect(JSON.stringify(route.parameters)).toContain('Idempotency-Key');
     expect(JSON.stringify(doc.components!.schemas!.TransferDto)).toContain('300000');
-    for (const status of ['201', '400', '401', '403', '404', '409', '422', '500', '503'])
+    for (const status of ['201', '400', '401', '403', '404', '422', '500', '503'])
       expect(route.responses[status]).toBeDefined();
   });
 });

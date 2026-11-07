@@ -2,7 +2,6 @@ import { BadRequestException, Body, Controller, Headers, Post, Req } from '@nest
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
-  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiHeader,
@@ -31,7 +30,7 @@ export class TransfersController {
   @ApiOperation({
     summary: 'Customer: transfer between distinct customer accounts with atomic double entry',
     description:
-      'Source must belong to caller. Basic ACTIVE/balance checks only; per-transfer/day limits are pending. First execution only; reused keys return 409. Stored-result replay is not supported yet.',
+      'Source must belong to caller. Checks, in order under the account lock: ACTIVE, enough money, per-transfer limit, per-day limit (Vietnam time). Idempotent: the same key with the same body returns the first answer without a second transfer; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.',
   })
   @ApiHeader({
     name: 'Idempotency-Key',
@@ -47,11 +46,9 @@ export class TransfersController {
   @ApiNotFoundResponse({
     description: 'Source account not found; includes foreign and SYSTEM sources',
   })
-  @ApiConflictResponse({
-    description: 'Idempotency key already used; reuse is not accepted by this endpoint',
-  })
   @ApiUnprocessableEntityResponse({
-    description: 'ACCOUNT_NOT_ACTIVE / INSUFFICIENT_FUNDS; persisted transferId in problem+json',
+    description:
+      'ACCOUNT_NOT_ACTIVE / INSUFFICIENT_FUNDS / LIMIT_PER_TX_EXCEEDED / LIMIT_PER_DAY_EXCEEDED with persisted transferId, or IDEMPOTENCY_KEY_REUSED',
   })
   @ApiInternalServerErrorResponse({
     description: 'Internal server error; all business writes rolled back',

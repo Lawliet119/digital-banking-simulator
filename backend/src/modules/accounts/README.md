@@ -2,12 +2,12 @@
 
 Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 
-| | |
-|---|---|
-| Use case | UC-1 onboarding · UC-2 mở tài khoản · UC-4 xem số dư · UC-11 khóa / mở khóa |
-| Chạy ở | `api` và phần API của `both`; chưa nạp trong `worker` |
-| Sở hữu bảng | `customers`, `accounts` (gồm tài khoản SYSTEM `funding`) |
-| Thiết kế | `docs/03` §6.2 (khóa và thu hồi phiên), §8 · `docs/02` §3 (AC-11.x) |
+|             |                                                                             |
+| ----------- | --------------------------------------------------------------------------- |
+| Use case    | UC-1 onboarding · UC-2 mở tài khoản · UC-4 xem số dư · UC-11 khóa / mở khóa |
+| Chạy ở      | `api` và phần API của `both`; chưa nạp trong `worker`                       |
+| Sở hữu bảng | `customers`, `accounts` (gồm tài khoản SYSTEM `funding`)                    |
+| Thiết kế    | `docs/03` §6.2 (khóa và thu hồi phiên), §8 · `docs/02` §3 (AC-11.x)         |
 
 ## Phải giữ
 
@@ -22,11 +22,11 @@ Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 
 Import qua `@modules/accounts`: `AccountsModule`, `AccountsService`, type `Account` và `LockedAccount`, ba lớp lỗi `AccountNotLockedError`, `AccountBalanceNegativeError`, `AccountBalanceOverflowError`.
 
-| Hàm | Contract service hiện có |
-|---|---|
-| `lockForUpdate(ids: string[], manager: EntityManager): Promise<LockedAccount[]>` | Manager phải có QueryRunner còn hoạt động, ở **cấp transaction ngoài cùng** (không trong `manager.transaction` lồng). SQL lấy khóa account theo id tăng dần; duplicate được bỏ, empty trả `[]`, id thiếu chỉ bị loại khỏi snapshot. Tối đa 16 id khác nhau và 256 phần tử, vượt thì `TypeError` trước SQL. LOCKED/SYSTEM vẫn được trả để caller quyết định guard |
+| Hàm                                                                                           | Contract service hiện có                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lockForUpdate(ids: string[], manager: EntityManager): Promise<LockedAccount[]>`              | Manager phải có QueryRunner còn hoạt động, ở **cấp transaction ngoài cùng** (không trong `manager.transaction` lồng). SQL lấy khóa account theo id tăng dần; duplicate được bỏ, empty trả `[]`, id thiếu chỉ bị loại khỏi snapshot. Tối đa 16 id khác nhau và 256 phần tử, vượt thì `TypeError` trước SQL. LOCKED/SYSTEM vẫn được trả để caller quyết định guard                                                                                             |
 | `applyBalanceChange(accountId: string, delta: bigint, manager: EntityManager): Promise<void>` | Cộng số dư bằng SQL trong transaction người gọi, `updated_at = clock_timestamp()`; nhận bigint, không tự mở/commit/retry. Account phải đã có trong kết quả `lockForUpdate` của **cùng QueryRunner, cùng transaction**, nếu không thì `AccountNotLockedError` (kể cả id không tồn tại). Khách xuống âm → `AccountBalanceNegativeError`; tràn signed bigint → `AccountBalanceOverflowError`; lỗi gốc nằm ở `cause`. Lỗi DB khác (deadlock, timeout) ném nguyên |
-| `getOwnedAccount(accountId: string, userId: string): Promise<Account>` | `userId` là internal `users.id`, không phải Cognito sub. Đọc committed state từ PostgreSQL. Missing/foreign/SYSTEM/UUID sai cùng trả 404; không tạo audit DENIED thay caller |
+| `getOwnedAccount(accountId: string, userId: string): Promise<Account>`                        | `userId` là internal `users.id`, không phải Cognito sub. Đọc committed state từ PostgreSQL. Missing/foreign/SYSTEM/UUID sai cùng trả 404; không tạo audit DENIED thay caller                                                                                                                                                                                                                                                                                 |
 
 Snapshot dùng camelCase, `balance` là chuỗi chính xác, thời gian là Date. Không đổi tiền sang Number hoặc cache Redis. Các truy vấn mutation dùng manager đã truyền vào; `startTransaction()` phải chạy trước, raw SQL BEGIN không đáp ứng trạng thái QueryRunner. Invalid UUID/array (kể cả sparse array) hoặc delta không-bigint bị chặn trước SQL. Không bắt lỗi SQL để tiếp tục transaction đã bị abort.
 

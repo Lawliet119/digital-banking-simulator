@@ -128,6 +128,8 @@ jobs:
             test/db/migration-revert.db-spec.ts
       - name: SQS adapter on ElasticMQ Testcontainers (DBS-77)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/sqs-adapter.services-spec.ts
+      - name: Outbox relay and notification consumer on PostgreSQL + ElasticMQ
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/outbox-relay.services-spec.ts
       - name: Redis adapter latency, outage and recovery (DBS-76)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/redis-adapter.services-spec.ts
 

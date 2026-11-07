@@ -59,7 +59,37 @@ const TRANSIENT_NODE_CODES: ReadonlySet<string> = new Set([
   'EAI_AGAIN',
 ]);
 
+/**
+ * `pg` raises these two from its pool and client without any `code`: the pool ran out of free
+ * connections for `connectionTimeoutMillis`, or a connection was cut under a running query. Both
+ * are temporary, and they reach every authenticated route because the guard touches `users` (BL-129).
+ * Matched on the exact message of an error that has no code, so a database error that happens to
+ * quote this text cannot be mistaken for one.
+ */
+const TRANSIENT_POOL_MESSAGES: ReadonlySet<string> = new Set([
+  'timeout exceeded when trying to connect',
+  'Connection terminated unexpectedly',
+  'Connection terminated due to connection timeout',
+]);
+
 const MAX_CAUSE_DEPTH = 4;
+
+function hasTransientPoolMessage(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < MAX_CAUSE_DEPTH && current && typeof current === 'object'; depth++) {
+    const record = current as {
+      code?: unknown;
+      message?: unknown;
+      driverError?: unknown;
+      cause?: unknown;
+    };
+    if (typeof record.code !== 'string' && typeof record.message === 'string') {
+      if (TRANSIENT_POOL_MESSAGES.has(record.message)) return true;
+    }
+    current = record.driverError ?? record.cause;
+  }
+  return false;
+}
 
 /** First string `code` found on the error or anything it wraps. */
 export function getErrorCode(error: unknown): string | undefined {
@@ -81,7 +111,8 @@ export function isRetryableTransactionError(error: unknown): boolean {
 /** A temporary database failure unrelated to the request itself (answer 503, not 500). */
 export function isTransientDbError(error: unknown): boolean {
   const code = getErrorCode(error);
-  return code !== undefined && (TRANSIENT_PG_CODES.has(code) || TRANSIENT_NODE_CODES.has(code));
+  if (code !== undefined) return TRANSIENT_PG_CODES.has(code) || TRANSIENT_NODE_CODES.has(code);
+  return hasTransientPoolMessage(error);
 }
 
 export function isUniqueViolation(error: unknown): boolean {

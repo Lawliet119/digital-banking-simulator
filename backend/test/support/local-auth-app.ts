@@ -87,7 +87,10 @@ export async function startLocalAuthApp(): Promise<LocalAuthApp> {
     ],
   })
     .overrideProvider(IdentityService)
-    .useValue({ resolveUserId: (sub: string) => Promise.resolve(userIdFor(sub)) })
+    .useValue({
+      resolveUserId: (sub: string) => Promise.resolve(userIdFor(sub)),
+      sessionsRevokedAt: () => Promise.resolve(null),
+    })
     .compile();
 
   const app = moduleRef.createNestApplication<NestExpressApplication>();
