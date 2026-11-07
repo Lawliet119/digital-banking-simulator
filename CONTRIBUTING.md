@@ -27,7 +27,7 @@ Board của nhóm (Google Sheet, mỗi tuần một tab) là nơi duy nhất the
 | Draft PR (sau G3) | giữ `In Progress`, dán link PR vào cột Thực trạng |
 | Ready for review (sau G4) | `In Review` |
 | PR đã merge và DoD đạt | `Done` |
-| PR đã merge tới `aeee9c9` (2026-11-07) và bullet DoD duy nhất chưa đạt là Dev review | `Done`, cột Thực trạng ghi "đã merge #N; DoD review chưa đạt (BL-160)". Còn dòng BL khác thì giữ `In Review` và ghi từng mã BL. PR merge sau mốc này phải có review trước khi chuyển `Done` |
+| PR đã merge tới `aeee9c9` (2026-11-07) và bullet DoD duy nhất chưa đạt là Dev review | `Done`, cột Thực trạng ghi "đã merge #N; DoD review chưa đạt (BL-160)". Còn bullet DoD khác chưa đạt (dòng BL ghi rõ DoD của task, hoặc bước test thủ công của task chưa chạy) thì giữ `In Review` và ghi từng mã BL; dòng BL chỉ bàn giao việc cho task hay vai khác thì không chặn `Done`. PR merge sau mốc này phải có review trước khi chuyển `Done` |
 
 - Chỉ bắt đầu task khi mọi task ở cột Phụ thuộc đã `Done`, hoặc đã thống nhất interface với người làm task đó và người duyệt G1 đồng ý phạm vi thu hẹp. Nếu phạm vi thu hẹp rỗng, làm task bị chặn trước.
 - Bị chặn quá một buổi làm việc thì báo ngay trong kênh chat, ghi rõ cần ai.
