@@ -358,7 +358,7 @@ test/db/account-opening.db-spec.ts                                              
 |---|---|
 | DoD #4: PR vào main, CI xanh trên head cuối, Dev khác review, bảng đối chiếu điền đủ | `BL-158` |
 | Quyền `UPDATE` trên `customers` cho role `dbs_api` (cần cho `SELECT … FOR UPDATE`); liên quan BL-017 | Đã đóng trong PR này: `GRANT UPDATE (full_name) ON customers` ở `infra/scripts/db-roles.sql`, dòng `customers` ở database-design §8, và ca mở tài khoản chạy bằng role `dbs_api` trong `test/db/db-roles.db-spec.ts` (TC-ROLE-01, TC-ROLE-02). Không còn `BL-159` |
-| Test cooldown JWKS phụ thuộc thời gian, đỏ ngẫu nhiên khi máy bận | `BL-112` (đã có, không do task này) |
+| Test cooldown JWKS phụ thuộc thời gian, đỏ ngẫu nhiên khi máy bận (đã làm đỏ job `unit` của CI trên `main` ở commit `1d75e18`) | `BL-112`: đã sửa và đóng trong PR này (ngoài phạm vi ban đầu, ghi ở đây; xem §9) |
 
   Mô tả PR #58 hiện còn lỗi thời (nói chưa mở PR vào main, thiếu bảng đối chiếu mới). Sẽ cập nhật sau G4 nếu người dùng đồng ý.
 
@@ -367,6 +367,7 @@ test/db/account-opening.db-spec.ts                                              
 - `backend/src/modules/accounts/README.md`: mục "Mở tài khoản (DBS-63)" (404 chưa onboarding là `REJECTED` cùng transaction; lưu ý quyền `UPDATE`, `BL-159`).
 - `docs/03_HIGH_LEVEL_ARCHITECTURE.md`: dòng `POST /v1/accounts` (audit `REJECTED` cho 409 và 404, 503 + `Retry-After`).
 - `docs/features/README.md`: dòng DBS-63, viết lại bằng tiếng Việt.
+- `backend/src/modules/identity/jwks-verifier.service.spec.ts`: hai test cooldown dùng đồng hồ tay (`Date.now` giả, jose đo cooldown bằng `Date.now()`) thay vì `setTimeout` thật; bằng chứng: spec chạy 20/20 lần liên tiếp xanh, `npm test` 852/852. Dòng `BL-112` bị xóa khỏi backlog.
 - `docs/BACKLOG.md`: thêm `BL-158` (đổi từ `BL-145`, vì main đã dùng đến `BL-157`); `BL-159` từng được thêm rồi bỏ vì việc đã làm trong PR này; không xóa dòng nào của người khác.
 - `docs/features/screenshots/DBS-63/`: thay `manual-test.txt`, `domain-review.md`, ảnh `01-manual-test-results.png`; xóa `01-http-results.png`, `verification.txt`, `pr-description.md`, `domain-review-round1.md` (số liệu cũ hoặc đã bị thay thế, còn trong lịch sử git).
 - Không đổi ADR, `_shared`, env, `ErrorCode`, event.

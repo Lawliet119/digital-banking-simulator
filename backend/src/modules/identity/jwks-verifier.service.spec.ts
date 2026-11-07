@@ -227,11 +227,23 @@ describe('JwksVerifierService', () => {
     expect(fixture.fetchCount).toBe(fetchesBefore + 1);
   });
 
+  // jose gates the refetch with Date.now(). The cooldown tests drive that clock by hand instead of
+  // sleeping, so a slow or busy runner can never push a "must not refetch yet" step past the
+  // cooldown (BL-112). Restored by jest.restoreAllMocks() in afterEach.
+  const freezeClock = (): ((ms: number) => void) => {
+    let now = Date.now();
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    return ms => {
+      now += ms;
+    };
+  };
+
   // jose's cooldown only gates a REFETCH (an unknown kid against an already-fresh cache); the
   // very first call always fetches unconditionally. So each step below that needs a refetch to
   // actually happen must wait out the cooldown since the last fetch; each step meant to prove
   // the cooldown is honoured must run immediately after the previous fetch, with no wait.
   it('refetches on key rotation once the cooldown has elapsed, but not before', async () => {
+    const advance = freezeClock();
     const verifier = new JwksVerifierService(configFor(fixture));
 
     // Initial call: unconditional fetch (no cache yet) regardless of cooldown.
@@ -247,7 +259,7 @@ describe('JwksVerifierService', () => {
     expect(fixture.fetchCount).toBe(1);
 
     // Past the cooldown: now a rotated key DOES trigger exactly one refetch, and succeeds.
-    await new Promise(resolve => setTimeout(resolve, COOLDOWN_MS + 50));
+    advance(COOLDOWN_MS + 50);
     fixture.rotate('kid-2', key2.publicJwk);
     const claims = await verifier.verifyAccessToken(token2);
 
@@ -256,10 +268,11 @@ describe('JwksVerifierService', () => {
   });
 
   it('honours the refetch cooldown: a second unknown kid right after a refetch does not refetch again', async () => {
+    const advance = freezeClock();
     const verifier = new JwksVerifierService(configFor(fixture));
     await verifier.verifyAccessToken(await fixture.signWith(kid1, key1.privateKey, baseClaims()));
 
-    await new Promise(resolve => setTimeout(resolve, COOLDOWN_MS + 50));
+    advance(COOLDOWN_MS + 50);
     const key2 = await fixture.generateKey('kid-2');
     fixture.rotate('kid-2', key2.publicJwk);
     await verifier.verifyAccessToken(
@@ -276,7 +289,7 @@ describe('JwksVerifierService', () => {
     expect(fixture.fetchCount).toBe(fetchesAfterRotation);
 
     // Past the cooldown, a legitimately rotated key DOES trigger a refetch.
-    await new Promise(resolve => setTimeout(resolve, COOLDOWN_MS + 50));
+    advance(COOLDOWN_MS + 50);
     fixture.rotate('kid-3', key3.publicJwk);
     const claims = await verifier.verifyAccessToken(token3);
 
