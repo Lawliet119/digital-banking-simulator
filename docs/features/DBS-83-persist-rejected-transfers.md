@@ -1,6 +1,6 @@
 # DBS-83 · Lưu lệnh REJECTED cùng key, commit trước khi trả 422
 
-> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-83-persist-rejected` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-83-persist-rejected` · **PR:** [#73](https://github.com/Lawliet119/digital-banking-simulator/pull/73) · **Cập nhật:** 2026-11-08
 >
 > Techlead waiver: G1–G4 do agent tự duyệt theo yêu cầu của techlead; không có Dev khác review trước merge (BL-174); không có ảnh PNG, bằng chứng là `manual-test.txt` thô; domain review do chính agent làm, không dùng subagent (§6).
 
