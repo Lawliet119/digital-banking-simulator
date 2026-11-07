@@ -33,13 +33,16 @@ function claims(overrides: Partial<CognitoAccessTokenClaims> = {}): CognitoAcces
 
 describe('JwtAuthGuard', () => {
   let verifier: { verifyAccessToken: jest.Mock };
-  let identity: { resolveUserId: jest.Mock };
+  let identity: { resolveUserId: jest.Mock; sessionsRevokedAt: jest.Mock };
   let reflector: Reflector;
   let guard: JwtAuthGuard;
 
   beforeEach(() => {
     verifier = { verifyAccessToken: jest.fn() };
-    identity = { resolveUserId: jest.fn().mockResolvedValue(USER_ID) };
+    identity = {
+      resolveUserId: jest.fn().mockResolvedValue(USER_ID),
+      sessionsRevokedAt: jest.fn().mockResolvedValue(null),
+    };
     reflector = new Reflector();
     guard = new JwtAuthGuard(
       verifier as unknown as JwksVerifierService,
@@ -108,6 +111,54 @@ describe('JwtAuthGuard', () => {
       identity.resolveUserId.mock.invocationCallOrder[0],
     );
     expect(request.user?.userId).toBe(USER_ID);
+  });
+
+  describe('session revocation (BR-12)', () => {
+    const revokedAtSecond = 1_000;
+    const run = (iat: number | undefined, revoked: number | null) => {
+      verifier.verifyAccessToken.mockResolvedValue(
+        claims(iat === undefined ? { iat: undefined as unknown as number } : { iat }),
+      );
+      identity.sessionsRevokedAt.mockResolvedValue(
+        revoked === null ? null : new Date(revoked * 1000 + 400),
+      );
+      const { context, request } = contextWith('Bearer good');
+      return { result: guard.canActivate(context), request };
+    };
+
+    it('refuses a token issued before the revocation mark', async () => {
+      const { result, request } = run(revokedAtSecond - 5, revokedAtSecond);
+      await expectUnauthenticated(result, ErrorCode.SESSION_REVOKED);
+      expect(request.user).toBeUndefined();
+    });
+
+    it('refuses a token issued in the same second as the mark', async () => {
+      const { result } = run(revokedAtSecond, revokedAtSecond);
+      await expectUnauthenticated(result, ErrorCode.SESSION_REVOKED);
+    });
+
+    it('refuses a token with no iat once the user has been revoked', async () => {
+      const { result } = run(undefined, revokedAtSecond);
+      await expectUnauthenticated(result, ErrorCode.SESSION_REVOKED);
+    });
+
+    it('lets a token issued after the mark through', async () => {
+      const { result, request } = run(revokedAtSecond + 1, revokedAtSecond);
+      await expect(result).resolves.toBe(true);
+      expect(request.user?.userId).toBe(USER_ID);
+    });
+
+    it('lets everyone through when the user was never revoked', async () => {
+      const { result } = run(1, null);
+      await expect(result).resolves.toBe(true);
+    });
+
+    it('answers a failing revocation lookup with the error, never with a 401', async () => {
+      verifier.verifyAccessToken.mockResolvedValue(claims());
+      identity.sessionsRevokedAt.mockRejectedValue(new Error('db down'));
+      const { context } = contextWith('Bearer good');
+      await expect(guard.canActivate(context)).rejects.toThrow('db down');
+    });
   });
 
   it.each([

@@ -72,6 +72,16 @@ export class JwtAuthGuard implements CanActivate {
     }
     const userId = await this.identity.resolveUserId(claims.sub);
 
+    // A token issued at or before the user's revocation mark is dead (BR-12, NFR-SEC-02). Whole
+    // seconds, because `iat` has no finer resolution: a token minted in the same second as the lock
+    // is refused too, which is the safe side. Like the lookup above, a database failure here is a
+    // 503, not a 401.
+    const revokedAt = await this.identity.sessionsRevokedAt(userId);
+    const issuedAt = typeof claims.iat === 'number' ? claims.iat : 0;
+    if (revokedAt && issuedAt <= Math.floor(revokedAt.getTime() / 1000)) {
+      unauthenticated(ErrorCode.SESSION_REVOKED, 'Session has been revoked');
+    }
+
     request.user = {
       sub: claims.sub,
       userId,

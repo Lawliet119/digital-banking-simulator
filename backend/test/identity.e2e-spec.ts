@@ -70,7 +70,10 @@ describe('GET /v1/identity/me (e2e)', () => {
       ],
     })
       .overrideProvider(IdentityService)
-      .useValue({ resolveUserId: () => Promise.resolve(FAKE_USER_ID) })
+      .useValue({
+        resolveUserId: () => Promise.resolve(FAKE_USER_ID),
+        sessionsRevokedAt: () => Promise.resolve(null),
+      })
       .compile();
     const nest = moduleRef.createNestApplication<NestExpressApplication>();
     configureHttpApp(nest, { trustProxyHops: 0, corsOrigins: [], isProduction: false });

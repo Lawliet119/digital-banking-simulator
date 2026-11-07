@@ -1,6 +1,6 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Accepted v1.7 (chốt 2026-10-11, bổ sung 2026-10-12) · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần (2026-11-07): đã có khung `backend/`, identity (JWT, vai trò), accounts (onboarding, khóa hàng), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày), audit, `OutboxWriter`, outbox relay và consumer thông báo (log); chưa có consumer và scoring của risk, thu hồi phiên, rate limit, job đối soát, hạ tầng worker/SQS/alarm. Trạng thái từng phần: [BACKLOG](BACKLOG.md) và [features/](features/README.md) · **Cập nhật:** 2026-11-07
+> **Status:** Accepted v1.7 (chốt 2026-10-11, bổ sung 2026-10-12) · **Owner:** #1 (duyệt kiến trúc) · **Verified against code:** một phần (2026-11-07): đã có khung `backend/`, identity (JWT, vai trò), accounts (onboarding, khóa hàng), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày), audit, `OutboxWriter`, outbox relay và consumer thông báo (log); kiểm thu hồi phiên ở `JwtAuthGuard`; chưa có consumer và scoring của risk, endpoint khóa tài khoản, rate limit, job đối soát, hạ tầng worker/SQS/alarm. Trạng thái từng phần: [BACKLOG](BACKLOG.md) và [features/](features/README.md) · **Cập nhật:** 2026-11-07
 
 > **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
 
