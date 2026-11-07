@@ -55,8 +55,9 @@ digital-banking-simulator/
 │   ├── adr/              # Architecture Decision Records (ADR-01…13 Accepted, ADR-14 Proposed)
 │   ├── security/         # threat model STRIDE
 │   ├── components/       # concept brief từng component + thiết kế dùng chung (DB, event)
-│   ├── deliverables/     # 5 bản nộp P1–P5
-│   └── superpowers/plans/ # implementation plan (master roadmap)
+│   ├── features/         # mỗi task một feature doc: thiết kế, test, kết quả
+│   ├── BACKLOG.md        # việc còn tồn sau các task
+│   └── deliverables/     # 5 bản nộp P1–P5
 ├── load-tests/           # kịch bản k6
 ├── .github/              # CI/CD, PR template
 └── docker-compose.yml    # PostgreSQL, Valkey, ElasticMQ cho dev local
@@ -98,7 +99,8 @@ Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm 
 | [Threat model](docs/security/threat-model.md) | Mối đe dọa STRIDE của luồng tiền và biện pháp |
 | [Bản đồ tài liệu](docs/README.md) | Đọc gì trước, cấu trúc `docs/`, quy tắc một sự thật ở một chỗ |
 | [Components](docs/components/index.md) | Mục lục từng module và thành phần hạ tầng, kèm concept brief |
-| [Master roadmap](docs/superpowers/plans/2026-10-02-master-roadmap.md) | Roadmap 10 tuần: task, phụ thuộc, cổng ra theo tuần |
+| [Feature docs](docs/features/README.md) | Mỗi task đã làm một file: thiết kế, test case, kết quả. Việc theo tuần nằm trên board của nhóm (`fetch-task.mjs`) |
+| [Backlog](docs/BACKLOG.md) | Việc còn tồn sau các task |
 | [Deliverables P1–P5](docs/deliverables/README.md) | Năm bản nộp và nguồn của từng bản |
 
 ## Nhóm

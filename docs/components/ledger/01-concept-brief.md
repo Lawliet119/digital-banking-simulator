@@ -377,4 +377,4 @@ Tuần 3 là tuần quan trọng nhất của cả dự án: chuyển tiền ch�
 
 ---
 
-Thiết kế chi tiết: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) §6.1, §7, §8, §11 · Giao diện và mốc: Task 3 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md) · Quy tắc code: [`backend/src/modules/ledger/README.md`](../../../backend/src/modules/ledger/README.md).
+Thiết kế chi tiết: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) §6.1, §7, §8, §11 · Giao diện và mốc: Task 3 của roadmap cũ (đã xóa); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md) · Quy tắc code: [`backend/src/modules/ledger/README.md`](../../../backend/src/modules/ledger/README.md).

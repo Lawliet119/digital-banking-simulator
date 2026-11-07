@@ -13,7 +13,7 @@
 | **Chạy ở** | `api` (review, cấu hình) **và** `worker` (chấm điểm) |
 | **Use case / NFR** | UC-9, UC-10, UC-12 |
 | **Sở hữu bảng** | `fraud_flags`, `fraud_rule_hits`, `risk_rule_sets` |
-| **Task trong roadmap** | Task 6 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |
+| **Task trong roadmap** | Task 6 của roadmap cũ (đã xóa ngày 2026-11-07); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md) |
 
 ## Vấn đề
 

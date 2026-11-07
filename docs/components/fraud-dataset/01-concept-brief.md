@@ -11,7 +11,7 @@
 | **Chạy ở** | Script cục bộ |
 | **Use case / NFR** | — (NFR-FRD-03) |
 | **Sở hữu bảng** | — |
-| **Task trong roadmap** | Task 7 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |
+| **Task trong roadmap** | Task 7 của roadmap cũ (đã xóa ngày 2026-11-07); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md) |
 
 ## Vấn đề
 
@@ -34,4 +34,4 @@ Không có dữ liệu thật; cần dữ liệu có nhãn để đo precision, 
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §15.4 Đánh giá.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
 - `FRAUD_DETECTION_GUIDE.md` §6 (thiết kế bộ dữ liệu và bức tường #4/#6).
-- Giao diện và mốc: Task 7 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).
+- Giao diện và mốc: Task 7 của roadmap cũ (đã xóa); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).

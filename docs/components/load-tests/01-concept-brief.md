@@ -11,7 +11,7 @@
 | **Chạy ở** | k6 |
 | **Use case / NFR** | — (NFR-PERF, SCAL) |
 | **Sở hữu bảng** | — |
-| **Task trong roadmap** | Task 8 ([master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md)) |
+| **Task trong roadmap** | Task 8 của roadmap cũ (đã xóa ngày 2026-11-07); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md) |
 
 ## Vấn đề
 
@@ -32,4 +32,4 @@ Mọi cam kết về hiệu năng và tính đúng phải có số đo, không c
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §17 Demo bắt buộc; (docs/02 §5) Phân tích workload.
 - Yêu cầu: [docs/02](../../02_REQUIREMENTS_AND_DOMAIN_MODEL.md) · Nghiệp vụ: [docs/01](../../01_BUSINESS_ANALYSIS.md).
 - Quy tắc code và những điều phải giữ: [`load-tests/README.md`](../../../load-tests/README.md).
-- Giao diện và mốc: Task 8 trong [master roadmap](../../superpowers/plans/2026-10-02-master-roadmap.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).
+- Giao diện và mốc: Task 8 của roadmap cũ (đã xóa); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).
