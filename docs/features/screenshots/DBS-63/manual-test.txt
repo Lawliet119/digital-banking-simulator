@@ -1,37 +1,94 @@
-b9e68eb76c1a8912f1286607c1ff8ace154d4514
-{"method":"POST","path":"/v1/customers/me","status":200,"correlationId":"abc7caf8-f2ad-4c96-aa7e-59ebe91a1215","body":{"id":"3043edd3-f2c7-4e8d-85a8-188e0200d871","fullName":"Nguyễn Minh Anh","createdAt":"2026-11-06T05:28:48.592Z"}}
-{"method":"POST","path":"/v1/accounts","status":201,"correlationId":"28d8eee5-4b1b-4554-968e-f10d20a8ebf7","body":{"id":"2c0f9e9b-638b-4b69-aa26-aa767bd7ee38","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-06T05:28:48.632Z","updatedAt":"2026-11-06T05:28:48.632Z"}}
-{"method":"POST","path":"/v1/accounts","status":201,"correlationId":"afcdff12-b65a-4f3f-9a0c-e72ef162ad2a","body":{"id":"a57bac9a-674b-4762-bb10-617b6ea0c713","type":"SAVINGS","status":"ACTIVE","balance":"0","createdAt":"2026-11-06T05:28:48.656Z","updatedAt":"2026-11-06T05:28:48.656Z"}}
-{"ledgerInvariants":{"status":"PASS","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[]}}
-M-63-01 PASS: CHECKING/SAVINGS201, balance string0 ACTIVE, owned rows2, SUCCESS audits2
-{"method":"POST","path":"/v1/accounts","status":201,"correlationId":"0a357b99-75a9-44c3-bd27-319d7ca55882","body":{"id":"475cc2d2-bffe-4855-b041-1d275dd103e9","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-06T05:28:48.701Z","updatedAt":"2026-11-06T05:28:48.701Z"}}
-{"method":"POST","path":"/v1/accounts","status":409,"correlationId":"18b6d366-e244-4aa2-a008-fe7691b26521","body":{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"18b6d366-e244-4aa2-a008-fe7691b26521"}}
-{"ledgerInvariants":{"status":"PASS","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[]}}
-M-63-02 PASS: third201/fourth409 ACCOUNT_LIMIT_REACHED, rows3, rejection audit committed
-{"method":"POST","path":"/v1/customers/me","status":200,"correlationId":"cfe2368e-dde6-4c08-b476-f629fc2bac9d","body":{"id":"a32ad14c-3337-415b-bc58-acad7a480592","fullName":"Trần Thu Hà","createdAt":"2026-11-06T05:28:48.754Z"}}
-{"method":"POST","path":"/v1/accounts","status":201,"correlationId":"af7ce41a-64c6-43b1-8269-e8bc9a8eff79","body":{"id":"c97edbc5-135c-4c60-99b7-99b603bc9da7","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-06T05:28:48.778Z","updatedAt":"2026-11-06T05:28:48.778Z"}}
-{"method":"POST","path":"/v1/accounts","status":201,"correlationId":"3b6fb459-a438-4a51-9c7a-aedf5c2f667a","body":{"id":"b4213fa5-004f-4fe1-9a64-e33022a08b74","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-06T05:28:48.804Z","updatedAt":"2026-11-06T05:28:48.804Z"}}
-{"method":"POST","path":"/v1/accounts","status":201,"correlationId":"dd5eaa41-5d33-40a6-a820-32b1b095759c","body":{"id":"0861e0ff-7697-42d0-bc61-e9f7787cd37f","type":"SAVINGS","status":"ACTIVE","balance":"0","createdAt":"2026-11-06T05:28:48.807Z","updatedAt":"2026-11-06T05:28:48.807Z"}}
-{"method":"POST","path":"/v1/accounts","status":409,"correlationId":"5f6225ef-80e3-4f99-9586-6938a9f5dcd6","body":{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"5f6225ef-80e3-4f99-9586-6938a9f5dcd6"}}
-{"method":"POST","path":"/v1/accounts","status":409,"correlationId":"314eb2d4-d001-481a-825c-a9c058a5607c","body":{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"314eb2d4-d001-481a-825c-a9c058a5607c"}}
-{"method":"POST","path":"/v1/accounts","status":409,"correlationId":"a4ce1a16-059e-4d80-a02b-5ae5fa16b497","body":{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"a4ce1a16-059e-4d80-a02b-5ae5fa16b497"}}
-{"method":"POST","path":"/v1/accounts","status":409,"correlationId":"ca0b960a-27fc-45fc-9937-987d0886382c","body":{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"ca0b960a-27fc-45fc-9937-987d0886382c"}}
-{"method":"POST","path":"/v1/accounts","status":409,"correlationId":"d75f202b-6eeb-4c6e-908c-6bed4ae6a98f","body":{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"d75f202b-6eeb-4c6e-908c-6bed4ae6a98f"}}
-{"method":"POST","path":"/v1/accounts","status":409,"correlationId":"f876fdb7-a2c3-4b15-b267-6567a6eb6a0a","body":{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"f876fdb7-a2c3-4b15-b267-6567a6eb6a0a"}}
-{"method":"POST","path":"/v1/accounts","status":409,"correlationId":"acfc5140-2fff-4b96-b29c-4e0a7f77f976","body":{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"acfc5140-2fff-4b96-b29c-4e0a7f77f976"}}
-{"parallelAuditCounts":[{"outcome":"REJECTED","n":7},{"outcome":"SUCCESS","n":3}]}
-{"ledgerInvariants":{"status":"PASS","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[]}}
-M-63-03 PASS: ten concurrent POSTs ->exact3x201+7x409; account3/audit3+7
-{"method":"POST","path":"/v1/accounts","status":400,"correlationId":"fec0c656-f45b-41ea-ac68-ce74d63e7713","body":{"type":"about:blank","title":"Bad Request","status":400,"detail":"Request validation failed","errors":["type must be one of the following values: CHECKING, SAVINGS"],"correlationId":"fec0c656-f45b-41ea-ac68-ce74d63e7713"}}
-{"method":"POST","path":"/v1/accounts","status":400,"correlationId":"829a6ff9-3bb2-4009-9be3-97340b3a275f","body":{"type":"about:blank","title":"Bad Request","status":400,"detail":"Request validation failed","errors":["property customerId should not exist"],"correlationId":"829a6ff9-3bb2-4009-9be3-97340b3a275f"}}
-{"method":"POST","path":"/v1/accounts","status":401,"correlationId":"826069b9-683a-428f-9f5d-c09b1307fc86","body":{"errorCode":"UNAUTHENTICATED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Missing or malformed Authorization header","correlationId":"826069b9-683a-428f-9f5d-c09b1307fc86"}}
-{"method":"POST","path":"/v1/accounts","status":403,"correlationId":"03ef0ccb-6057-4031-a163-c2350bba9edc","body":{"errorCode":"FORBIDDEN","type":"about:blank","title":"Forbidden","status":403,"detail":"The caller's role is not allowed to use this endpoint.","correlationId":"03ef0ccb-6057-4031-a163-c2350bba9edc"}}
-{"method":"POST","path":"/v1/accounts","status":404,"correlationId":"fd596b05-4488-4566-9201-eb19c518d517","body":{"type":"about:blank","title":"Not Found","status":404,"detail":"Customer profile not found","correlationId":"fd596b05-4488-4566-9201-eb19c518d517"}}
-{"ledgerInvariants":{"status":"PASS","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[]}}
-M-63-04 PASS: SYSTEM/forged owner400; anonymous401, operator403, unonboarded404 with persisted DENIED
-{"method":"POST","path":"/v1/customers/me","status":200,"correlationId":"00f383b6-1d48-4b34-8d7c-c24bbc3b466e","body":{"id":"78f4fb28-23c5-4f96-aaba-ff6041ce5a8e","fullName":"Phạm Ngọc Lan","createdAt":"2026-11-06T05:28:48.981Z"}}
-{"method":"POST","path":"/v1/accounts","status":500,"correlationId":"6f0b9b85-9760-4dc5-909d-636202b4721f","body":{"type":"about:blank","title":"Internal Server Error","status":500,"detail":"Internal server error","correlationId":"6f0b9b85-9760-4dc5-909d-636202b4721f"}}
-{"method":"POST","path":"/v1/accounts","status":201,"correlationId":"a8fdb5d7-8604-4548-b327-3642ee35e5c5","body":{"id":"ecea3715-dae5-4f5c-9eef-64c3908712b3","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-06T05:28:49.042Z","updatedAt":"2026-11-06T05:28:49.042Z"}}
-{"ledgerInvariants":{"status":"PASS","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[]}}
-M-63-05 PASS: real audit INSERT failure ->sanitized500/account0; recovery201/account1/zero
-M-63-06 PASS: app/JWKS/temp database/owned PostgreSQL17 cleaned up
+fc684b3ec265f5f3783b0c85212aa9989a3d16a7
+# DBS-63 manual test 2026-11-07T03:06:10Z, real app APP_ROLE=both AUTH_MODE=local, PostgreSQL 17 (container dbs63-pg, port 55432)
+
+== M-63-01 onboarding + CHECKING + SAVINGS
+$ curl -s -X POST http://localhost:3000/v1/customers/me -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"fullName":"Nguyễn Minh Anh"}'   # onboarding
+{"status":200,"correlationId":"387d3f73-8ab1-4317-876e-dc39dcce625e","body":{"id":"0c3bd959-49a1-4a4c-bbdf-884cd97a2d56","fullName":"Nguyễn Minh Anh","createdAt":"2026-11-07T03:07:06.964Z"}}
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"type":"CHECKING"}'   # open CHECKING
+{"status":201,"correlationId":"518d3368-0707-4e1b-bfb6-7404155febaf","body":{"id":"960f49b9-1c99-43e7-be61-fdacf62881a3","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-07T03:07:07.553Z","updatedAt":"2026-11-07T03:07:07.553Z"}}
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"type":"SAVINGS"}'   # open SAVINGS
+{"status":201,"correlationId":"f98f0c36-3893-41f4-872d-17b0a8504607","body":{"id":"45593ad2-d51c-41aa-96d6-120e9be69277","type":"SAVINGS","status":"ACTIVE","balance":"0","createdAt":"2026-11-07T03:07:08.176Z","updatedAt":"2026-11-07T03:07:08.176Z"}}
+$ psql: accounts of nguyen-minh-anh
+CHECKING | ACTIVE | 0
+SAVINGS | ACTIVE | 0
+$ psql: audit account.open of nguyen-minh-anh (outcome | target_type | n)
+SUCCESS | account | 2
+M-63-01 RESULT: đạt (201, 201)
+
+== M-63-02 third ok, fourth rejected
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"type":"CHECKING"}'   # third open
+{"status":201,"correlationId":"3ae333ce-4cf2-4e93-b475-15adcd86d317","body":{"id":"a812cacd-64fc-4be3-8f99-e46e15fdb273","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-07T03:07:09.787Z","updatedAt":"2026-11-07T03:07:09.787Z"}}
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"type":"SAVINGS"}'   # fourth open
+{"status":409,"correlationId":"fea202a7-b76e-444a-b69b-0e0dcb6af729","body":{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"fea202a7-b76e-444a-b69b-0e0dcb6af729"}}
+$ psql: accounts of nguyen-minh-anh
+CHECKING | ACTIVE | 0
+SAVINGS | ACTIVE | 0
+CHECKING | ACTIVE | 0
+$ psql: audit account.open of nguyen-minh-anh
+REJECTED | customer | 1
+SUCCESS | account | 3
+M-63-02 RESULT: đạt (201, 409)
+
+== M-63-03 ten parallel requests for a fresh customer
+$ curl -s -X POST http://localhost:3000/v1/customers/me -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"fullName":"Trần Thu Hà"}'   # onboarding
+{"status":200,"correlationId":"19b954ae-fb13-410e-b05a-234ff16f9d50","body":{"id":"ca5cea08-4bdb-485f-a4fd-cc26c0f41e51","fullName":"Trần Thu Hà","createdAt":"2026-11-07T03:07:11.863Z"}}
+$ 10 x curl -s -X POST http://localhost:3000/v1/accounts ... (xargs -P 10, same token, type CHECKING)
+      3 201
+      7 409
+{"id":"37c92b7c-2144-43ba-8064-ce82fcb71d41","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-07T03:07:12.582Z","updatedAt":"2026-11-07T03:07:12.582Z"}
+{"id":"13a300b5-4f82-4a6b-8377-8319414dd771","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-07T03:07:12.646Z","updatedAt":"2026-11-07T03:07:12.646Z"}
+{"id":"0d30d73a-0299-4133-af83-ab5931123c73","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-07T03:07:12.709Z","updatedAt":"2026-11-07T03:07:12.709Z"}
+{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"b427c1fd-1687-4387-bb60-16d6a44cd7a6"}
+{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"bbb8873f-9412-414b-a066-1918bf593cfe"}
+{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"12f1a662-0c81-4dff-8c1b-d0cf9dd2fb1c"}
+{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"acefc021-2d03-411d-b6ab-d6c79a791ad0"}
+{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"72c91306-ae44-4dfc-836a-3b388eb3e7a4"}
+{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"836ab6c6-b81c-40ee-857f-c5b5ad1cc906"}
+{"errorCode":"ACCOUNT_LIMIT_REACHED","type":"about:blank","title":"Conflict","status":409,"detail":"Customer account limit reached","correlationId":"7a2f0fb2-41f1-45c0-91ca-0e8996e15aae"}
+$ psql: accounts of tran-thu-ha
+CHECKING | ACTIVE | 0
+CHECKING | ACTIVE | 0
+CHECKING | ACTIVE | 0
+$ psql: audit account.open of tran-thu-ha
+REJECTED | customer | 7
+SUCCESS | account | 3
+M-63-03 RESULT: đạt (3x201, 7x409)
+
+== M-63-04 rejections
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"type":"SYSTEM"}'   # type SYSTEM
+{"status":400,"correlationId":"cce5dda8-d0a6-403d-8d51-91b880e0aded","body":{"type":"about:blank","title":"Bad Request","status":400,"detail":"Request validation failed","errors":["type must be one of the following values: CHECKING, SAVINGS"],"correlationId":"cce5dda8-d0a6-403d-8d51-91b880e0aded"}}
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"type":"CHECKING","customerId":"00000000-0000-4000-8000-000000000001"}'   # forged customerId
+{"status":400,"correlationId":"3f948543-1df7-40cc-8c57-634c25b29596","body":{"type":"about:blank","title":"Bad Request","status":400,"detail":"Request validation failed","errors":["property customerId should not exist"],"correlationId":"3f948543-1df7-40cc-8c57-634c25b29596"}}
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -d '{"type":"CHECKING"}'   # no token
+{"status":401,"correlationId":"d0fe1ec0-a863-4b10-98f4-97387e907af4","body":{"errorCode":"UNAUTHENTICATED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Missing or malformed Authorization header","correlationId":"d0fe1ec0-a863-4b10-98f4-97387e907af4"}}
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"type":"CHECKING"}'   # operator token
+{"status":403,"correlationId":"9d86cc22-ef92-469c-ad17-c963b2b8ee96","body":{"errorCode":"FORBIDDEN","type":"about:blank","title":"Forbidden","status":403,"detail":"The caller's role is not allowed to use this endpoint.","correlationId":"9d86cc22-ef92-469c-ad17-c963b2b8ee96"}}
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"type":"CHECKING"}'   # customer without onboarding
+{"status":404,"correlationId":"75538445-ec8c-4e7d-ad95-c500c02c7082","body":{"type":"about:blank","title":"Not Found","status":404,"detail":"Customer profile not found","correlationId":"75538445-ec8c-4e7d-ad95-c500c02c7082"}}
+$ psql: audit row for the 404 request (outcome | target_type | actor_role | metadata)
+REJECTED | user | customer | {"id": "7d39b9ad-9a79-4093-bb6c-0122579167cc"}
+$ psql: accounts of pham-ngoc-lan (expect none)
+M-63-04 RESULT: đạt (400, 400, 401, 403, 404)
+
+== M-63-05 audit failure rolls back, then recovers
+$ curl -s -X POST http://localhost:3000/v1/customers/me -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"fullName":"Lê Hoàng Nam"}'   # onboarding
+{"status":200,"correlationId":"8c786f44-bb6b-469f-9762-500e01c3c501","body":{"id":"a49b8065-59f7-40bc-92bf-a60e7e275087","fullName":"Lê Hoàng Nam","createdAt":"2026-11-07T03:07:19.332Z"}}
+$ psql: create trigger that makes every audit_log INSERT fail
+CREATE FUNCTION
+CREATE TRIGGER
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"type":"CHECKING"}'   # open with failing audit
+{"status":500,"correlationId":"114caef6-63ad-4f7a-815a-f5fdcd951624","body":{"type":"about:blank","title":"Internal Server Error","status":500,"detail":"Internal server error","correlationId":"114caef6-63ad-4f7a-815a-f5fdcd951624"}}
+$ psql: accounts of le-hoang-nam (expect none) and audit rows for that correlationId (expect 0)
+0
+$ psql: drop trigger
+DROP TRIGGER
+DROP FUNCTION
+$ curl -s -X POST http://localhost:3000/v1/accounts -H 'Content-Type: application/json' -H 'Authorization: Bearer <redacted>' -d '{"type":"CHECKING"}'   # open after recovery
+{"status":201,"correlationId":"bbffa60e-4c65-4279-8fe8-91541e0d6115","body":{"id":"f3ac09c3-b19a-4a38-b917-e63eca0180a3","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-07T03:07:23.596Z","updatedAt":"2026-11-07T03:07:23.596Z"}}
+$ psql: accounts of le-hoang-nam
+CHECKING | ACTIVE | 0
+M-63-05 RESULT: đạt (200, 500, 201)
+
+== M-63-06 ledger invariants
+{"status":"PASS","totals":{"debit":"0","credit":"0","balance":"0"},"violations":[]}
+check:invariants exit=0
