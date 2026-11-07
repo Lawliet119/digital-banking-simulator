@@ -27,7 +27,7 @@ npm run start:dev                    # APP_ROLE=both, tự reload khi sửa code
 | URL | Là gì |
 |---|---|
 | http://localhost:3000/health/live | process đang sống |
-| http://localhost:3000/health/ready | kết nối được PostgreSQL |
+| http://localhost:3000/health/ready | PostgreSQL ổn →200, thêm redis=up/degraded; Redis lỗi không làm ALB drain task. PostgreSQL lỗi →503 (DBS-78) |
 | http://localhost:3000/docs | Swagger UI (không có ở production) |
 
 Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` và `npm run start:dev:worker`.

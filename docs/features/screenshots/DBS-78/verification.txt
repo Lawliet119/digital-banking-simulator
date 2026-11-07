@@ -1,0 +1,39 @@
+DBS-78 final verification2026-11-07 Asia/Saigon
+Dependency DBS76 PR52 merged06a276a; main e8d7ab6 includes Redis adapter.
+Rebase only two own78 commits after dependency baseeb4ec894f30897a75af976e96d8efcd7dc091956.
+Source d0a7cd4; actual tested/manual HEAD b1341c8e9ffd4768c72da0ed6e729673f8cd3410.
+Health source/tests/helper/manual byte-identical to original78 (git diff checked).
+Docs conflicts preserved main, added only own78 material, no obsolete dependency rows resurrected.
+Old process backlog142 collides with history consolidated into160; own current handoff163.
+
+Lint/typecheck/build PASS.
+Full unit60 suites967/967 PASS,48.344s.
+Full e2e14 suites148/148 PASS,90.869s.
+Services exact command:
+npm run test:services -- --runInBand --detectOpenHandles --runTestsByPath test/services/health-readiness.services-spec.ts test/services/redis-adapter.services-spec.ts
+Two suites7/7 PASS,21.747s; no open-handle warnings or skipped task tests.
+Health HTTP contract includes operational failure reasons, nonPONG, sanitized unexpected500, PG503, liveness/path and Swagger.
+Real readiness suite4 cases: PG/Redis up, actual250ms proxy delay/recovery, stopped Valkey, stoppedPG.
+Redis services3 regression cases remain green.
+No test .only/.skip/.todo in task suites.
+
+Manual node scripts/manual-dbs78.cjs exit0,6/6 PASS.
+Actual PostgreSQL17/Valkey owned Testcontainers +latency proxy +real Nest HTTP/TypeORM/RedisClient.
+M01 live200, ready200/databaseup/redisup.
+M02 delay250ms ready200/statusok/databaseup/redisdegraded.
+M03 remove delay ready200/redisup.
+M04 stopped ownedValkey ready200/degraded,live200.
+M05 stopped ownedPG ready503/databasedown,live200.
+M06 app/proxy/ownedcontainers cleanup succeeds.
+Raw transcript UTF8 first line actual tested HEAD; no Bearer/JWT/RedisURI/DBURI/AWSARN credential markers.
+Screenshot rendered from actual transcript, visually inspected.
+No shared Compose services stopped; no cloud/ALB outage claimed.
+
+Independent design and lifecycle reviews APPROVE retained verbatim; no human Dev review claimed.
+Full test:db not run locally; final CI db job supplies separate proof.
+Main-based Draft PR/final CI/review/merge tracked in feature doc and BL163.
+Agent never edits shared sheet or merges.
+Main-based Draft PR67: https://github.com/Lawliet119/digital-banking-simulator/pull/67
+Final required checks: https://github.com/Lawliet119/digital-banking-simulator/pull/67/checks
+Docs linkcheck222files0broken,git diff --check clean.
+Final CI exact-head verified at handover; independent Dev review/merge pending.

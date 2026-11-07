@@ -1,0 +1,15 @@
+b1341c8e9ffd4768c72da0ed6e729673f8cd3410
+GET /health/live -> 200 {"status":"ok"}
+GET /health/ready -> 200 {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+M-78-01 healthy PASS
+GET /health/ready -> 200 {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"degraded"}
+M-78-02 slow Redis PASS
+GET /health/ready -> 200 {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+M-78-03 recovery PASS
+GET /health/ready -> 200 {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"degraded"}
+GET /health/live -> 200 {"status":"ok"}
+M-78-04 Redis stopped PASS
+GET /health/ready -> 503 {"status":503,"info":{},"details":{"database":{"status":"down"}},"type":"about:blank","title":"Service Unavailable","detail":"Service Unavailable Exception","correlationId":"a005c422-d724-4cdc-ae78-28161ab95f0f"}
+GET /health/live -> 200 {"status":"ok"}
+M-78-05 PostgreSQL stopped PASS
+M-78-06 cleanup PASS: app, proxy and owned containers closed

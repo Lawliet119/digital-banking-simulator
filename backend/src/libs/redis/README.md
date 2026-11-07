@@ -42,6 +42,8 @@ API/worker là việc của các task gọi adapter này.
 Nest shutdown dừng timer breaker, timer reconnect và socket ngay, bỏ qua các lệnh cache đang chờ.
 Không chờ `QUIT` qua một kết nối đã treo.
 
+Tích hợp health (DBS-78): RedisModule tạo client với `lazyConnect=true`, bắt đầu kết nối ở `onModuleInit` nhưng không chờ Redis sẵn sàng để khởi động app. Nếu Nest lỗi trước khi khởi tạo module, client chưa mở socket reconnect. Client tạo trực tiếp ngoài module vẫn giữ mặc định kết nối ngay; shutdown vẫn đóng socket/timer theo hợp đồng cũ.
+
 Test: `npm run test:services -- --runInBand --runTestsByPath test/services/redis-adapter.services-spec.ts`.
 Thủ công: `docker compose up -d valkey`; từ `backend` chạy `npm run build` rồi
 `node scripts/manual-dbs76.cjs`. Driver chỉ dùng Compose Valkey và proxy TCP test, prefix key
