@@ -1,0 +1,67 @@
+DBS-64 verification summary, 2026-11-04 (summarized from actual commands)
+Code SHA: 9660737906d2526759202269e8f2b2be362165bc
+User-approved temporary dependency base: DBS-63 at24d33f424e3a63af033cbe7f01fdeea80b482072.
+
+Design: independent review APPROVE, no verified findings. Raw reply retained.
+Test first: real HTTP/PostgreSQL initial8 failed/1 passed; missing GET routes404/OpenAPI absent.
+The passing projection case alone did not prove endpoint behavior. After implementation9/9 DB cases passed.
+
+lint:check/typecheck/build: passed.
+npm test -- --runInBand: 56 suites834/834 passed,117.624s,including8 DTO money/privacy tests.
+npm run test:db -- --runInBand --runTestsByPath test/db/account-reads.db-spec.ts test/db/account-opening.db-spec.ts test/db/customer-onboarding.db-spec.ts test/db/accounts-service.db-spec.ts test/db/audit.service.db-spec.ts
+5 suites84/84 passed,43.461s. Actual JWT/PostgreSQL/audit, no fake guard/ledger/financial SQL seed.
+Full test:db suite not rerun;5 affected-module suites used. No skipped task tests.
+Full e2e:13 suites135/135 passed,226.543s.
+Manual: node scripts/manual-dbs64.cjs exit0,6/6 steps passed at code SHA above, cleanup completed.
+Measured list p95:23.631000000001222ms; detail p95:21.182700000001205ms, both below150ms.
+Each route10 warmups then100 measured sequential HTTP requests, real auth/DB/audit commit/JSON response.
+Raw samples kept in manual-test.txt; nearest-rank p95 independently recomputed and validated.
+Node24.19.0/PostgreSQL17 Docker local/127.0.0.1/concurrency1/3 accounts per measured owner.
+Other heavy tests finished before measurement. Preliminary local small-data result, not cloud/load SLO proof.
+Actual HTTP/security/audit-fault/recovery output retained, ledger invariants PASS with zero violations.
+Code SHA verified; token/credential markers absent; actual output screenshot visually inspected.
+
+Money depth: HTTP reads actual accounts initialized through real opening API at0.
+Above2^53 and max bigint proven in mapper unit cases, plus actual PostgreSQL bigint projection->mapper.
+Actual nonzero balance account HTTP roundtrip pending real deposit API;BL-147.
+No claim that projection/mapper evidence is a complete financial HTTP roundtrip.
+
+No Redis dependency/import/cache in AccountQueryService; every call SELECTs owned PostgreSQL data.
+Status-only fixture demonstrates committed state freshness, not balance mutation/deposit proof.
+Main-based PR/CI/review/merge pending dependency;BL-146. Board unchanged.
+Final fetch main still a9e607b, lacks onboarding/opening; no main-based DBS-64 PR opened yet.
+Documentation link check:205 files,0 broken links.
+
+FINAL REBASE VERIFICATION 2026-11-07 Asia/Saigon
+Dependency DBS63 PR58 mergedea1af08d92e57f1d5b831ddb2c65171f427324e0.
+Replayed64-only changes after24d33f4 onto main; docs conflicts kept main plus64.
+Rebased query/DTO unchanged. Old2commits consolidated66183b5; final test/manual sourceec12b9ec3004dcf7589c3f4eb565fd0f0db02f0d.
+New integration plan independently APPROVE (final-integration-review.md).
+Lint/typecheck/build PASS; lint/typecheck repeated after test fixture update.
+Full unit59suites860/860 PASS88.633s. Full e2e13suites135/135 PASS97.547s.
+Five related realPG suites86/86 PASS17.924s,including10 account-read cases.
+Standalone10/10 realPG reads passed12.073s. FullDB not rerun locally, required in CI.
+node --check scripts/manual-dbs64.cjs PASS.
+Manual7/7 PASS on exact source SHA, first line rawtranscript.
+TC64-11/M64-07 actual operator deposits1m+9007199253740993, list/detail committed balances1m->9007199254740993 exactstring, audit SUCCESS,fourledgerlines.
+No money SQLseed, no fake ledger. Invariant debit=credit9007199254740993,totalbalance0,violations0. BL147 closed only after actual proof.
+Manual after heavy tests:100measured samples/route,10warmup,concurrency1,HTTP/JWT/DB/read+auditcommit/JSON.
+p95list16.111700000001292ms,p95detail15.979299999999057ms; both<150ms.
+All200rawsamples retained; nearest-rank recomputed independently, exactmatch,no discarded sample.
+No Bearer/JWT/DBURI/AWSARN credentials in transcript; screenshot refreshed and visually inspected.
+Main-based PR/final CI linked in feature doc. Independent Dev review/merge remain BL146; agent does not edit sharedsheet or merge.
+Main-based Draft PR66 https://github.com/Lawliet119/digital-banking-simulator/pull/66
+Final required checks https://github.com/Lawliet119/digital-banking-simulator/pull/66/checks
+Final CI exact-head independently verified at handover; review/merge not claimed.
+Docs links218files0broken; git diff --check clean.
+
+FINAL MAIN UPDATE DURING CI
+Old head9ce0a13/run42386422590 passed6/6, then main merged unrelated Risk PR45 at e8d7ab6.
+Rebased own64 commits again; only backlog conflict, preserved main BL162.
+Accounts source/tests/manual byte-identical (git diff verified).
+Rebased source test/manualc366a61; final tested HEAD5e700cfeb929d9786b3ed9de6ec0bbc7a53fc179.
+RelatedPG rerun86/86 PASS15.101s. Manual rerun7/7 PASS on that HEAD; rawfirstline verified.
+p95list16.20669999999882ms,p95detail16.29269999999815ms,independently recomputed all200samples.
+Real deposits/read balance9007199254740993,audit and invariant PASS; no credentials.
+Full local unit/e2e counts above predate unrelated Risk update; final CI reruns all required suites for newmain.
+New docs linkcheck222files0broken. Final CI exact head linked in PRbody, oldrun not substituted.
