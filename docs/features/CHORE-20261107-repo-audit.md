@@ -1,6 +1,6 @@
 # CHORE-20261107-repo-audit · Rà soát toàn repo: docs, kiến trúc, code thừa, backlog, skill
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `chore/CHORE-20261107-repo-audit` (PR A), `chore/CHORE-20261107-skill` (PR B, xếp chồng lên A) · **PR:** — · **Cập nhật:** 2026-11-07
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `chore/CHORE-20261107-repo-audit` (PR A), `chore/CHORE-20261107-skill` (PR B, xếp chồng lên A) · **PR:** [#63](https://github.com/Lawliet119/digital-banking-simulator/pull/63) (A), [#64](https://github.com/Lawliet119/digital-banking-simulator/pull/64) (B) · **Cập nhật:** 2026-11-07
 
 ## 1. Bối cảnh
 
@@ -410,7 +410,7 @@ Chạy trên commit cuối đổi code `00b16e1` (HEAD `1ef1e0f`). Output thô �
 
 ### 8.4 Ảnh chụp
 
-Chưa có ảnh PNG. Bằng chứng là output thô ở `manual-test.txt`, cùng `pressure-red.md` và `pressure-green.md`. Các ảnh còn thiếu, nêu tên để người duyệt chấp nhận ở G4:
+Chưa có ảnh PNG. Bằng chứng là output thô ở `manual-test.txt`, cùng `pressure-red.md` và `pressure-green.md`. Các ảnh còn thiếu dưới đây đã được người duyệt chấp nhận theo tên ở G4 (trả lời «duyệt», 2026-11-07):
 - `01-dist-before-after.png` (M-CHORE-01/02)
 - `02-health-probes.png` (M-CHORE-02)
 - `03-fetch-task.png` (M-SKILL-01)
@@ -418,7 +418,7 @@ Chưa có ảnh PNG. Bằng chứng là output thô ở `manual-test.txt`, cùng
 
 ### 8.5 Lệch so với kế hoạch
 
-Các điểm dưới đây cần người duyệt chấp nhận ở G4:
+Các điểm dưới đây đã được người duyệt chấp nhận ở G4 (trả lời «duyệt», 2026-11-07, theo đề xuất của agent):
 
 1. **Bỏ B-03, B-04 và bước 15** (giữ nguyên `.agents/` và `AGENTS.md`). Đã duyệt sau G3; độ lệch cho tạm bỏ qua ở G3.
 2. **TC-CHORE-02:** thêm bộ lọc `grep -v ADR-14`, vì dòng đã sửa đúng vẫn chứa "ADR-01…13". Ghi vào §4 lúc chạy.
@@ -430,7 +430,7 @@ Các điểm dưới đây cần người duyệt chấp nhận ở G4:
 4. **Quy tắc board (Y) hiểu theo bullet DoD.** Câu G2 #4 có ví dụ "DBS-61 còn BL-154/155/156 → In Review", và kết quả mong đợi của M-CHORE-05 ghi "task Done không còn dòng BL nào khác". Khi đối chiếu, phần lớn dòng BL là việc bàn giao cho task hay vai khác, không phải DoD của chính task. Nếu hiểu theo chữ, 33/38 task sẽ về `In Review`, tức gần như phương án X mà G2 đã không chọn.
    - Agent chọn hiểu theo bullet DoD: 10 task `In Review`, 28 task `Done`.
    - CONTRIBUTING §1b đã ghi rõ theo cách hiểu này (commit `388b915` trên PR A).
-   - DBS-61 vì vậy thành `Done`: BL-154/155/156 không có trong DoD của DBS-61 (hạn mức làm ở tuần 3, AC-5.9 không thuộc DoD). Đây là **câu hỏi G4**.
+   - DBS-61 vì vậy thành `Done`: BL-154/155/156 không có trong DoD của DBS-61 (hạn mức làm ở tuần 3, AC-5.9 không thuộc DoD). Đây là câu hỏi G4 số 1, **đã duyệt**: DBS-61 thành `Done`.
 5. **Sửa thêm trong skill** do GREEN (i) tìm ra:
    - `SKILL.md:29`: lệnh `gh` chỉ đọc được phép trước G3. Trước đó dòng này mâu thuẫn với B-10 và B-17.
    - `SKILL.md:75`: nhắc ngoại lệ §1b.
