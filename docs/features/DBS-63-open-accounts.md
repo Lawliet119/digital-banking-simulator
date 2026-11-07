@@ -258,7 +258,7 @@ Phần lớn code đã có từ trước; kế hoạch này chỉ gồm những 
 | DoD #3 (audit, số dư 0, cấm SYSTEM) | TC-63-01, 06, 07, 08 |
 | DoD #4 (merge, CI, Dev review, bảng đối chiếu) | Quy trình, dòng `BL-158`; bảng đối chiếu ở §8 và mô tả PR; **không** claim xong |
 | Hạn chế BR-14: admin SQL ngoài API | Giữ nguyên trong README và §3; không xử lý |
-| Quyền `UPDATE` trên `customers` cho `dbs_api` | Bàn giao, dòng `BL-159`, liên quan BL-017 |
+| Quyền `UPDATE` trên `customers` cho `dbs_api` | Bàn giao ban đầu là `BL-159`; đã làm trong PR này sau khi `infra/scripts/db-roles.sql` vào main (xem §8), nên không còn dòng backlog |
 | Fixture `UPDATE accounts SET status='LOCKED'` | Giữ, ghi ở §4, không stub API khóa |
 | BL-112 (test cooldown JWKS, đỏ ở baseline) | Báo là đã biết; không được đếm vào kết quả của task này |
 | Mô tả PR #58 lỗi thời và trạng thái trong README module | Cập nhật ở G4, sau khi được duyệt (chỉ khi người dùng đồng ý sửa mô tả PR) |
@@ -357,7 +357,7 @@ test/db/account-opening.db-spec.ts                                              
 | Mục | Dòng backlog |
 |---|---|
 | DoD #4: PR vào main, CI xanh trên head cuối, Dev khác review, bảng đối chiếu điền đủ | `BL-158` |
-| Quyền `UPDATE` trên `customers` cho role `dbs_api` (cần cho `SELECT … FOR UPDATE`); liên quan BL-017 | `BL-159` (mới) |
+| Quyền `UPDATE` trên `customers` cho role `dbs_api` (cần cho `SELECT … FOR UPDATE`); liên quan BL-017 | Đã đóng trong PR này: `GRANT UPDATE (full_name) ON customers` ở `infra/scripts/db-roles.sql`, dòng `customers` ở database-design §8, và ca mở tài khoản chạy bằng role `dbs_api` trong `test/db/db-roles.db-spec.ts` (TC-ROLE-01, TC-ROLE-02). Không còn `BL-159` |
 | Test cooldown JWKS phụ thuộc thời gian, đỏ ngẫu nhiên khi máy bận | `BL-112` (đã có, không do task này) |
 
   Mô tả PR #58 hiện còn lỗi thời (nói chưa mở PR vào main, thiếu bảng đối chiếu mới). Sẽ cập nhật sau G4 nếu người dùng đồng ý.
@@ -367,6 +367,6 @@ test/db/account-opening.db-spec.ts                                              
 - `backend/src/modules/accounts/README.md`: mục "Mở tài khoản (DBS-63)" (404 chưa onboarding là `REJECTED` cùng transaction; lưu ý quyền `UPDATE`, `BL-159`).
 - `docs/03_HIGH_LEVEL_ARCHITECTURE.md`: dòng `POST /v1/accounts` (audit `REJECTED` cho 409 và 404, 503 + `Retry-After`).
 - `docs/features/README.md`: dòng DBS-63, viết lại bằng tiếng Việt.
-- `docs/BACKLOG.md`: thêm `BL-158` (đổi từ `BL-145`, vì main đã dùng đến `BL-157`) và `BL-159`; không xóa dòng nào.
+- `docs/BACKLOG.md`: thêm `BL-158` (đổi từ `BL-145`, vì main đã dùng đến `BL-157`); `BL-159` từng được thêm rồi bỏ vì việc đã làm trong PR này; không xóa dòng nào của người khác.
 - `docs/features/screenshots/DBS-63/`: thay `manual-test.txt`, `domain-review.md`, ảnh `01-manual-test-results.png`; xóa `01-http-results.png`, `verification.txt`, `pr-description.md`, `domain-review-round1.md` (số liệu cũ hoặc đã bị thay thế, còn trong lịch sử git).
 - Không đổi ADR, `_shared`, env, `ErrorCode`, event.

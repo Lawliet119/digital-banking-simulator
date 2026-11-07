@@ -60,7 +60,7 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
     }
   });
 
-  it('TC-ROLE-01 the real flows run as dbs_api: users row, deposit, transfer, replay, revocation', async () => {
+  it('TC-ROLE-01 the real flows run as dbs_api: users row, deposit, transfer, replay, open account, revocation', async () => {
     const a = await seedDepositTarget(db.runner),
       b = await seedDepositTarget(db.runner);
     const operator = await app.issuer.token('operator', { sub: randomUUID() });
@@ -89,6 +89,13 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
       .set('Idempotency-Key', randomUUID())
       .send({ fromAccountId: a.accountId, toAccountId: b.accountId, amount: '999999999' })
       .expect(422);
+    // Opening an account locks the customer row with FOR UPDATE, which needs a column UPDATE grant (BL-159).
+    const opened = await request(app.url)
+      .post('/v1/accounts')
+      .auth(customer, { type: 'bearer' })
+      .send({ type: 'SAVINGS' })
+      .expect(201);
+    expect(opened.body).toMatchObject({ type: 'SAVINGS', balance: '0', status: 'ACTIVE' });
     // The lock of an account cuts the owner's sessions in the same transaction.
     const identity = app.app.get(IdentityService);
     await app.source.transaction(manager => identity.revokeSessions(manager, a.userId));
@@ -108,6 +115,11 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
     await denied(apiSource.query("UPDATE accounts SET type = 'CHECKING'"));
     await denied(apiSource.query('DELETE FROM accounts'));
     await denied(apiSource.query('UPDATE users SET cognito_sub = cognito_sub'));
+    // Only full_name may change on customers; the other columns and DELETE stay out of reach.
+    await apiSource.query('SELECT 1 FROM customers FOR UPDATE');
+    await denied(apiSource.query('UPDATE customers SET user_id = user_id'));
+    await denied(apiSource.query('UPDATE customers SET created_at = created_at'));
+    await denied(apiSource.query('DELETE FROM customers'));
     await denied(apiSource.query('SELECT 1 FROM outbox_events'));
     await denied(apiSource.query('UPDATE outbox_events SET published_at = now()'));
     await denied(apiSource.query('SELECT 1 FROM processed_events'));

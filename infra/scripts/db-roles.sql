@@ -31,6 +31,10 @@ GRANT USAGE ON SCHEMA public TO dbs_api, dbs_worker;
 GRANT SELECT, INSERT ON users TO dbs_api;
 GRANT UPDATE (sessions_revoked_at) ON users TO dbs_api;
 GRANT SELECT, INSERT ON customers TO dbs_api;
+-- POST /v1/accounts locks the customer row (SELECT ... FOR UPDATE, BR-14), and PostgreSQL asks for the
+-- UPDATE privilege on at least one column for any row lock. full_name is the one column that may
+-- legitimately change later; user_id and created_at stay unchangeable.
+GRANT UPDATE (full_name) ON customers TO dbs_api;
 GRANT SELECT, INSERT ON accounts TO dbs_api;
 GRANT UPDATE (balance, status, updated_at) ON accounts TO dbs_api;
 GRANT SELECT, INSERT ON transfers TO dbs_api;
