@@ -15,7 +15,7 @@
 - **Đã có gì:** `AccountsService` (`getOwnedAccount`, `lockForUpdate`, `applyBalanceChange`), `TransactionService.run`, `AuditService`, `OutboxWriter`, `DepositService` làm khuôn, và fixture HTTP/JWT/PostgreSQL của DBS-60 (`test/support/deposit-app.ts`). Trước task này chưa có endpoint chuyển tiền.
 - **Baseline:** xem §8.
 - **Ngoài phạm vi:**
-  - Hạn mức theo lần và theo ngày, đồng hồ ngày giờ Việt Nam, sync guard đầy đủ (FR-LED-04, AC-5.6): tuần 3, [BL-151](../BACKLOG.md).
+  - Hạn mức theo lần và theo ngày, đồng hồ ngày giờ Việt Nam, sync guard đầy đủ (FR-LED-04, AC-5.6): tuần 3, [BL-154](../BACKLOG.md).
   - Replay đúng response cũ và `IDEMPOTENCY_KEY_REUSED` (AC-5.3/4/5): [DBS-79](../BACKLOG.md), [BL-148](../BACKLOG.md). Task này chỉ chặn key trùng bằng 409.
   - Lưu từ chối đầy đủ: DBS-83. Ở đây chỉ lưu transfer REJECTED, lý do, audit và kết quả của key.
   - AC-5.9 (nhiều khách chuyển chéo đồng thời, một tài khoản nhận rất nhiều lệnh): TC-61-06 chỉ phủ một nguồn → một đích và chuyển chéo hai chiều. Phần nhiều người gửi → một tài khoản nóng thuộc test tải; ghi BACKLOG.
@@ -116,7 +116,7 @@ Tất cả chạy trên PostgreSQL 17 thật qua HTTP và JWT thật, không moc
 | TC-61-12 | DoD #1 (API) | integration | Swagger công bố JWT, header key, ví dụ DTO và các mã trạng thái | — |
 | TC-61-13 | DoD #1 (B7) | e2e Postgres | Đổi chủ nguồn sau khi `getOwnedAccount` đã qua và trước khi khóa được cấp → 404, đúng một audit DENIED, không có key, transfer hay thay đổi tiền | — |
 | TC-61-14 | DoD #2; BL-003 | e2e Postgres | Một transaction giữ khóa hàng `funding`; chuyển tới `funding` vẫn trả 422 ngay (không 503), transfer REJECTED có `to_account_id` rỗng, đúng một audit REJECTED và một key | `ACCOUNT_NOT_ACTIVE` |
-| Quy trình | DoD #5 | — | Rebase, Draft PR, CI, Dev khác review, merge (agent không merge) | chờ [BL-152](../BACKLOG.md) |
+| Quy trình | DoD #5 | — | Rebase, Draft PR, CI, Dev khác review, merge (agent không merge) | chờ [BL-153](../BACKLOG.md) |
 
 Sửa lỗi chữ trong `detail` của lỗi độ dài key (§2 B3) không đổi hành vi nên dùng lại TC-61-05 (kiểm 128/129 theo mã trạng thái, không theo chữ).
 
@@ -171,8 +171,8 @@ Toàn bộ lệnh chạy trong `backend/` bằng Node 24.22.2 (bản portable, n
 **Quét giới hạn và DoD:**
 
 - DoD #1–#4: phủ bởi TC-61-01..14. Hành vi chỉ đổi ở B8 (không khóa `funding`).
-- DoD #5 (merge, review, CI): quy trình, nằm ở [BL-152](../BACKLOG.md).
-- Giới hạn trong doc: hạn mức và sync guard ([BL-151](../BACKLOG.md)), replay và hash canonical ([BL-148](../BACKLOG.md)), lưu từ chối đầy đủ (DBS-83, BL-151), rate limit và `SESSION_REVOKED` ([BL-153](../BACKLOG.md)), AC-5.9 ([BL-154](../BACKLOG.md)), trùng lặp với `DepositService` ([BL-155](../BACKLOG.md)).
+- DoD #5 (merge, review, CI): quy trình, nằm ở [BL-153](../BACKLOG.md).
+- Giới hạn trong doc: hạn mức và sync guard ([BL-154](../BACKLOG.md)), replay và hash canonical ([BL-148](../BACKLOG.md)), lưu từ chối đầy đủ (DBS-83, BL-154), rate limit và `SESSION_REVOKED` ([BL-155](../BACKLOG.md)), AC-5.9 ([BL-156](../BACKLOG.md)), trùng lặp với `DepositService` ([BL-157](../BACKLOG.md)).
 - Không đổi migration, event, `ErrorCode`, env, dependency hay module khác. Không sửa `AccountsService`.
 
 **Rủi ro và cách lùi:**
@@ -201,6 +201,8 @@ Toàn bộ lệnh chạy trong `backend/` bằng Node 24.22.2 (bản portable, n
 
   Test JWKS hỏng là [BL-112](../BACKLOG.md), lỗi thời gian đếm số lần refetch của module identity, không liên quan Ledger. Mỗi lần chạy hỏng một test khác nhau: trước khi sửa là `honours the refetch cooldown…`, lần chạy cuối là `refetches on key rotation…`, và chạy riêng suite đó một lần là `honours the refetch cooldown…`. Không sửa Identity, không chạy lặp cho đến khi xanh. Không có `.skip`, `.only`, `.todo` trong test của task (0 test bị bỏ qua). Trước khi có Node 24, cùng các lệnh trên Node 18 hỏng thêm `typeorm-options.spec.ts` (`crypto is not defined`) và 16 test e2e; đó là lỗi môi trường, không dùng làm bằng chứng.
 
+- **Sau khi rebase lên `main` (06a276a, kéo thêm DBS-76 Redis):** commit code cuối của DBS-61 đổi từ `b34bec7` thành `a50fcd1`; `git diff b34bec7 a50fcd1` trên code ledger, test và script manual rỗng, và commit mới của `main` chỉ thêm `test/support/latency-proxy.ts`. Đã chạy lại với Node 24 sau `npm ci`: `lint:check`, `typecheck`, `build` đạt, `npm test -- --runInBand` **839/839** (57 suite; lần này không test JWKS nào hỏng). **Chưa chạy lại** `test:db`, `test:e2e` và `node scripts/manual-dbs61.cjs` trên cây mới vì Docker không chạy được lúc đó; kết quả ở bảng trên là của `b34bec7`, dòng đầu `manual-test.txt` vẫn là SHA đó. CI của PR chạy trên đầu mới sẽ kiểm `db` và `e2e`.
+
 - **Đối chiếu test case** (file: `test/db/customer-transfers.db-spec.ts`; mỗi ca kết thúc bằng kiểm tra bất biến sổ cái):
 
 | ID | Test | Đạt? |
@@ -210,7 +212,7 @@ Toàn bộ lệnh chạy trong `backend/` bằng Node 24.22.2 (bản portable, n
 | TC-61-03 | `TC-61-03 foreign/missing/SYSTEM sources…` | đạt (đã siết: so body ba response 404; đạt ngay, không đỏ) |
 | TC-61-04 | `TC-61-04 ACTIVE first…` | đạt (đã thêm ca đích LOCKED với nguồn thiếu tiền; đạt ngay, không đỏ) |
 | TC-61-05 | `TC-61-05 JWT/role/input/key validation…` | đạt |
-| TC-61-06 | `TC-61-06 ten concurrent withdrawals…` | đạt cho phạm vi của ca; AC-5.9 người gửi → tài khoản nóng chưa kiểm, [BL-154](../BACKLOG.md) |
+| TC-61-06 | `TC-61-06 ten concurrent withdrawals…` | đạt cho phạm vi của ca; AC-5.9 người gửi → tài khoản nóng chưa kiểm, [BL-156](../BACKLOG.md) |
 | TC-61-07 | `TC-61-07 duplicate barrier user scope and same-owner…` | đạt (chỉ rào chắn 409; replay thuộc DBS-79) |
 | TC-61-08 | `TC-61-08 …` (7 ca tham số hóa) | đạt |
 | TC-61-09 | `TC-61-09 real lock timeout503…` | đạt |
@@ -219,7 +221,7 @@ Toàn bộ lệnh chạy trong `backend/` bằng Node 24.22.2 (bản portable, n
 | TC-61-12 | `TC-61-12 Swagger lists JWT,key,DTO example…` | đạt |
 | TC-61-13 | `TC-61-13 owner changed after authorization…` | đạt. Đã kiểm bằng đột biến (bỏ audit DENIED thì hỏng). Lưu ý: khi đổi `accounts.customer_id`, PostgreSQL loại hàng khỏi `FOR UPDATE OF a … LEFT JOIN customers` nên nhánh `!source` bắt trường hợp này; nhánh `source.userId !== actor` không được test này chạm tới |
 | TC-61-14 | `TC-61-14 transfer to the funding account never waits…` | đạt (đỏ trước với 503, xanh sau khi sửa) |
-| Quy trình | DoD #5 | chưa làm: chờ review và merge, [BL-152](../BACKLOG.md) |
+| Quy trình | DoD #5 | chưa làm: chờ review và merge, [BL-153](../BACKLOG.md) |
 
   Tổng cộng 14/14 ca tự động đạt, 0 ca đơn giản hóa, 1 dòng quy trình chờ.
 
@@ -247,11 +249,11 @@ Toàn bộ lệnh chạy trong `backend/` bằng Node 24.22.2 (bản portable, n
   - Thử phụ: đổi chủ bằng `UPDATE customers SET user_id` khiến test hỏng vì lý do chưa xác định; nằm ngoài phạm vi nên không điều tra và không kết luận gì về nó.
 - **Bàn giao cho vai khác** (đã có dòng trong [`docs/BACKLOG.md`](../BACKLOG.md)):
   - BL-148 (DBS-79): idempotency đầy đủ, dạng canonical của hash, dạng `response_body` của 422, 409 không báo kết quả khi mất response.
-  - BL-151 (tuần 3, DBS-83): sync guard đầy đủ và lưu từ chối đầy đủ.
-  - BL-152: review và merge PR #61.
-  - BL-153 (identity/gateway): rate limit và `SESSION_REVOKED`.
-  - BL-154 (test tải): AC-5.9.
-  - BL-155 (DBS-79): tách phần trùng lặp giữa `TransferService` và `DepositService`.
+  - BL-153: review và merge PR #61.
+  - BL-154 (tuần 3, DBS-83): sync guard đầy đủ và lưu từ chối đầy đủ.
+  - BL-155 (identity/gateway): rate limit và `SESSION_REVOKED`.
+  - BL-156 (test tải): AC-5.9.
+  - BL-157 (DBS-79): tách phần trùng lặp giữa `TransferService` và `DepositService`.
 
 ## 9. Tài liệu đã cập nhật
 
@@ -259,4 +261,4 @@ Toàn bộ lệnh chạy trong `backend/` bằng Node 24.22.2 (bản portable, n
 - [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md): dòng `POST /v1/transfers` trong bảng API.
 - [README module ledger](../../backend/src/modules/ledger/README.md): mục chuyển tiền (thêm quy tắc không khóa `funding`, bỏ ghi chú nhánh tạm đã lỗi thời).
 - [Chỉ mục feature](README.md): dòng DBS-61.
-- [BACKLOG](../BACKLOG.md): đã xóa BL-003 và BL-122 (giải quyết bởi DBS-61, xem §8 TC-61-03, 04, 14); mở rộng BL-148; viết lại BL-151 và BL-152 bằng tiếng Việt; thêm BL-153, BL-154, BL-155.
+- [BACKLOG](../BACKLOG.md): đã xóa BL-003 và BL-122 (giải quyết bởi DBS-61, xem §8 TC-61-03, 04, 14); mở rộng BL-148; thêm BL-153 đến BL-157 (viết bằng tiếng Việt). Main đã dùng BL-151 và BL-152 cho DBS-76, nên các dòng của DBS-61 được đánh số lại từ BL-153.

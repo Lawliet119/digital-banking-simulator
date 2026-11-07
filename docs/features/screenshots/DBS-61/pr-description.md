@@ -17,7 +17,7 @@ Feature doc: docs/features/DBS-61-customer-transfers.md
 
 UC-5, FR-LED-02/03/06, BR-02/03/09/10, AC-5.1, AC-5.2, AC-5.7, AC-5.8; ADR-04/05/07/09 và hợp đồng event `TransferCompleted`.
 
-Đây là bản thô. Chưa có hạn mức theo lần và theo ngày (FR-LED-04, AC-5.6, BL-151). Chưa có replay response cũ (AC-5.3/4/5, DBS-79, BL-148): dùng lại key chỉ trả 409. Rate limit và `SESSION_REVOKED` chưa có (BL-153). Dòng BACKLOG đã xử lý: BL-003, BL-122.
+Đây là bản thô. Chưa có hạn mức theo lần và theo ngày (FR-LED-04, AC-5.6, BL-154). Chưa có replay response cũ (AC-5.3/4/5, DBS-79, BL-148): dùng lại key chỉ trả 409. Rate limit và `SESSION_REVOKED` chưa có (BL-155). Dòng BACKLOG đã xử lý: BL-003, BL-122.
 
 ## Đối chiếu test case
 
@@ -26,7 +26,7 @@ Test: `backend/test/db/customer-transfers.db-spec.ts` (HTTP, JWT và PostgreSQL 
 | DoD / AC | Test | Khớp? |
 |---|---|---|
 | DoD #1: customer, key bắt buộc, nguồn thuộc người gọi | TC-61-03, 05, 11, 13 | khớp |
-| DoD #2: bút toán kép nguyên tử, AC-5.1 | TC-61-01, 06, 14 | khớp (AC-5.9 người gửi → tài khoản nóng: BL-154) |
+| DoD #2: bút toán kép nguyên tử, AC-5.1 | TC-61-01, 06, 14 | khớp (AC-5.9 người gửi → tài khoản nóng: BL-156) |
 | DoD #2: rollback | TC-61-08 (7 ca), 09, 10 | khớp |
 | DoD #3: thiếu tiền, AC-5.2 | TC-61-02 | khớp |
 | ACTIVE, AC-5.7 | TC-61-04 | khớp |
@@ -34,14 +34,14 @@ Test: `backend/test/db/customer-transfers.db-spec.ts` (HTTP, JWT và PostgreSQL 
 | Số tiền, chuỗi, event | TC-61-01, 07, 10 | khớp |
 | API và Swagger | TC-61-05, 12 | khớp |
 | DoD #4: AC-5.1 và AC-5.2 trên Postgres thật | TC-61-01, 02 | khớp |
-| DoD #5: CI, Dev review, merge | — | chờ review và merge (BL-152) |
-| Replay, hạn mức đầy đủ | TC-61-07 chỉ kiểm rào chắn 409 | ngoài phạm vi bản thô (BL-148, BL-151) |
+| DoD #5: CI, Dev review, merge | — | chờ review và merge (BL-153) |
+| Replay, hạn mức đầy đủ | TC-61-07 chỉ kiểm rào chắn 409 | ngoài phạm vi bản thô (BL-148, BL-154) |
 
 ## Kiểm tra
 
 - [x] Chạy được ở local với `docker compose` (test manual dùng Testcontainers: `node scripts/manual-dbs61.cjs`, 6/6 bước đạt trên commit `b34bec7`)
 - [x] Có test; logic về tiền được test trên PostgreSQL thật (`test:db` đầy đủ 390/390; `customer-transfers` 21/21)
-- [ ] CI xanh: CI chạy trước đó (run 42169624547) xanh 6/6 trên đầu cũ `2771771`; các commit sửa theo review chưa được push nên CI trên đầu mới chưa chạy
+- [ ] CI xanh: chưa có kết quả trên đầu mới sau khi rebase lên `main` (06a276a); xem tab Checks của PR. CI chạy trước khi rebase (đầu `e2e2d75`) đã xanh 6/6
 - [x] Không có secret trong code, log, commit (transcript manual đã kiểm không có token, header Authorization, chuỗi kết nối hay ARN)
 - [x] Feature doc đủ mục 1–9 (đã qua 4 gate): G1, G2, G3 được duyệt khi làm bù, G4 đã được duyệt. Test thủ công đã chạy 6/6, ảnh chụp ở `docs/features/screenshots/DBS-61/`
 - [x] Đã cập nhật tài liệu: docs/03, README module ledger, chỉ mục feature, BACKLOG
