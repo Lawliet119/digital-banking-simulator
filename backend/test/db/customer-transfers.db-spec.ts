@@ -222,7 +222,7 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
       expect(
         await q(
           'SELECT actor_user_id,outcome,metadata,correlation_id FROM audit_log WHERE target_id=$1 AND action=$2',
-          [source, 'transfer'],
+          [source, 'ledger.transfer'],
         ),
       ).toContainEqual({
         actor_user_id: a.userId,
