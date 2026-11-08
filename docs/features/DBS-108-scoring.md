@@ -1,6 +1,6 @@
 # DBS-108 · Tính điểm từ sáu luật và tín hiệu AI
 
-> **Status:** Draft · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-105-r4-r6-scoring` · **PR:** chưa tạo
+> **Status:** Implemented (scoring thuần); nối worker/provider thuộc DBS-109/110/111 (gốc: PR #100 của easterlywind, đưa vào main qua PR rebase của techlead) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-105-r4-r6-scoring` · **PR:** xem README feature docs
 
 ## 1. Bối cảnh
 
@@ -86,8 +86,8 @@ Viết test TC-108-01–05 trước; chạy đỏ do module chưa tồn tại; i
 | Bước | File | Test trước / đỏ | Lệnh chứng minh | Commit |
 |---|---|---|---|---|
 | Scoring và sáu luật | `scoring.service.ts`, `scoring.service.spec.ts`, rule R4–R6 | TC-108-01–05 đỏ vì module chưa có | `npm test -- --runInBand src/modules/risk/scoring.service.spec.ts` | `f536209` |
-| Căn median và thời gian | `ai/feature-projection.ts`, `features/velocity-count.ts`, R2/R3 | Test median/1 ns và getter đỏ trước fix; R2 input dài được đo trước/sau | `npm test -- --runInBand src/modules/risk/ai/feature-projection.spec.ts src/modules/risk/rules/r2-unusual-amount.rule.spec.ts` | `f536209`, `183014c` |
-| Manual và bàn giao | `test/manual/scoring.manual.ts`, `docs/features/DBS-108-scoring.md`, `docs/BACKLOG.md` | Không áp dụng, driver chạy input tổng hợp | `npx ts-node -r tsconfig-paths/register test/manual/scoring.manual.ts` | code `f536209`; kết quả §8 trên `183014c` |
+| Căn median và thời gian | `ai/feature-projection.ts`, `features/velocity-count.ts`, R2/R3 | Test median/1 ns và getter đỏ trước fix; R2 input dài được đo trước/sau | `npm test -- --runInBand src/modules/risk/ai/feature-projection.spec.ts src/modules/risk/rules/r2-unusual-amount.rule.spec.ts` | `f536209`, `2523cc2` |
+| Manual và bàn giao | `test/manual/scoring.manual.ts`, `docs/features/DBS-108-scoring.md`, `docs/BACKLOG.md` | Không áp dụng, driver chạy input tổng hợp | `npx ts-node -r tsconfig-paths/register test/manual/scoring.manual.ts` | code `f536209`; kết quả §8 trên `2523cc2` |
 
 Sweep hậu triển khai: không có migration/schema, worker, egress hoặc dữ liệu thực trong PR này; các phần còn thiếu có BL-041/184/185 và TC-108-06/07. Rollback bằng revert các commit code của nhánh; không sửa decision đã ghi vì component này chưa được nối runtime.
 
@@ -95,7 +95,7 @@ Sweep hậu triển khai: không có migration/schema, worker, egress hoặc d�
 
 ## 8. Kết quả và bàn giao
 
-- Code cuối `183014c`: `lint:check`, `typecheck`, unit toàn backend **80 suite / 1.584 test** đạt. E2e chung **15 suite / 153 test** và build đạt; e2e không chứng minh fraud runtime. DB **43 suite / 735 test** đạt trên PostgreSQL cô lập trong quá trình triển khai, trước fix projection/R2 cuối; hai fix không đổi schema. Bộ riêng R3/scoring/DEPOSIT/velocity **4 suite / 171 test**; projection/R2 **2 suite / 134 test**.
+- Code cuối `2523cc2`: `lint:check`, `typecheck`, unit toàn backend **80 suite / 1.584 test** đạt. E2e chung **15 suite / 153 test** và build đạt; e2e không chứng minh fraud runtime. DB **43 suite / 735 test** đạt trên PostgreSQL cô lập trong quá trình triển khai, trước fix projection/R2 cuối; hai fix không đổi schema. Bộ riêng R3/scoring/DEPOSIT/velocity **4 suite / 171 test**; projection/R2 **2 suite / 134 test**.
 - TC-108-01–05: **đạt** qua `scoring.service.spec.ts`; TC-108-08: **đạt** qua `ai/feature-projection.spec.ts`. TC-108-09: **đơn giản hóa**: regression projection kiểm 1 ns và reverse không hợp lệ; test R2 kiểm đầu vào dài bị từ chối, còn thứ tự parse chỉ đo thủ công với 1 triệu chữ số (76,5 ms / 0,3 ms trên máy chạy, không coi là benchmark tải). TC-108-06: **chưa đạt** vì CI PR, Dev review và merge chưa xảy ra. TC-108-07: **chưa làm**, không có provider/worker/repository thật trong phạm vi này; theo dõi [BL-041](../BACKLOG.md), [BL-184](../BACKLOG.md), [BL-185](../BACKLOG.md). Quyền dữ liệu, egress và đánh giá AI theo BL-043/044/051.
 - Manual trên commit code cuối: `npx ts-node -r tsconfig-paths/register test/manual/scoring.manual.ts`. M-108-01 R3+R6 = 65/MEDIUM; M-108-02 AI tổng hợp p=0,9 cho 40 điểm và hits rỗng; M-108-03 UNAVAILABLE giữ 65 điểm baseline; M-108-04 DEPOSIT bỏ qua và config sai bị từ chối; M-108-05 median tối đa được giữ chính xác. [Output thật](screenshots/DBS-108/manual-test.txt), [ảnh terminal](screenshots/DBS-108/01-scoring.png). Không gọi OpenAI thật trong các bước này.
 - Sau khi R3 merge vào `main`, bỏ class R3 trùng và dùng class đã merge; test mới tái hiện lỗi tuổi sát biên 1 ns trước khi sửa. R1 reference window cũng sửa để không mất phần dưới mili giây; provider thật vẫn cần test parity. Các quyết định bổ sung tại §1 và §6; không thay schema, ledger, mạng hoặc `RiskModule`.

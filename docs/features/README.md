@@ -96,7 +96,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-101](DBS-101-consumer-base.md) | `ConsumerBase`: claim `processed_events` và hiệu ứng trong một transaction, sai schema vào DLQ ngay, lỗi tạm thời dead-letter ở lần nhận thứ 5, chỉ chạy ở worker, `correlationId` vào AsyncLocalStorage; `NotificationConsumer` dựa trên khung | Dev | Implemented |
 | [DBS-102](DBS-102-notification-consumer.md) | Notification consumer: `notification_log` cho đúng người gửi/nhận/chủ tài khoản, câu cố định không nêu lý do khóa (BR-13), backoff 5/10/20/40 s khi retry | Dev | Implemented |
 | [DBS-104](DBS-104-consumer-review-focus.md) | Review Focus 4 cho consumer thông báo: cùng eventId 3 lần, message hỏng xen message tốt, thứ tự đảo; test dịch vụ trên ElasticMQ + PostgreSQL và mutation chứng minh test có răng | Dev | Implemented |
-| [DBS-105](DBS-105-r4-round-trip.md) | Rule R4 lịch sử chuyển ngược; SQL/provider chưa có | #4 Fraud | Code thuần trong PR; SQL/EXPLAIN, CI, Dev review và merge chưa xong |
-| [DBS-106](DBS-106-r5-fan-out.md) | Rule R5 số người nhận mới và miễn cùng chủ | #4 Fraud | Code thuần trong PR; provider, CI, Dev review và merge chưa xong |
-| [DBS-107](DBS-107-r6-drain.md) | Rule R6 tỉ lệ rút cạn từ snapshot | #4 Fraud | Code thuần trong PR; chờ CI, Dev review và merge |
-| [DBS-108](DBS-108-scoring.md) | Chấm điểm R1–R6 và cộng AI assessment đã có | #4 Fraud | Code trong PR; chưa nối worker/feature/provider hay bật AI |
+| [DBS-105](DBS-105-r4-round-trip.md) | Rule R4 lịch sử chuyển ngược; SQL/provider chưa có | #4 Fraud | Implemented (hàm thuần); SQL/provider ở DBS-109 |
+| [DBS-106](DBS-106-r5-fan-out.md) | Rule R5 số người nhận mới và miễn cùng chủ | #4 Fraud | Implemented (hàm thuần); SQL/provider ở DBS-109 |
+| [DBS-107](DBS-107-r6-drain.md) | Rule R6 tỉ lệ rút cạn từ snapshot | #4 Fraud | Implemented (hàm thuần); SQL/provider ở DBS-109 |
+| [DBS-108](DBS-108-scoring.md) | Chấm điểm R1–R6 và cộng AI assessment đã có | #4 Fraud | Implemented (hàm thuần); SQL/provider ở DBS-109 |

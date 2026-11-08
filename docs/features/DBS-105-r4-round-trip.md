@@ -1,6 +1,6 @@
 # DBS-105 · R4 chuyển vòng
 
-> **Status:** Đang triển khai · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-105-r4-r6-scoring` · **PR:** chưa tạo
+> **Status:** Implemented (hàm thuần R4); truy vấn SQL, lọc REJECTED và EXPLAIN thuộc DBS-109 (gốc: PR #100 của easterlywind, đưa vào main qua PR rebase của techlead) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-105-r4-r6-scoring` · **PR:** xem README feature docs
 
 ## 1. Bối cảnh
 
@@ -59,7 +59,7 @@ Sweep sau implementation: DoD SQL/REJECTED, provider và quy trình chưa đư�
 
 ## 8. Kết quả và bàn giao
 
-- Xác minh trên code cuối `183014c`: `lint:check`, `typecheck`, `build` đạt; unit toàn backend **80 suite / 1.584 test**, e2e **15 suite / 153 test** đạt trên PostgreSQL/Valkey cô lập. E2e này không chứng minh fraud runtime; DB suite **43 / 735** chạy trong quá trình, trước fix projection/R2 cuối, không đổi schema.
+- Xác minh trên code cuối `2523cc2`: `lint:check`, `typecheck`, `build` đạt; unit toàn backend **80 suite / 1.584 test**, e2e **15 suite / 153 test** đạt trên PostgreSQL/Valkey cô lập. E2e này không chứng minh fraud runtime; DB suite **43 / 735** chạy trong quá trình, trước fix projection/R2 cuối, không đổi schema.
 - TC-105-01/02: **đạt** qua `r4-round-trip.rule.spec.ts` và `transfer-only.spec.ts`; TC-105-03: **chưa làm**, provider/SQL chưa có; TC-105-04: **chưa đạt**, CI/Dev review/merge chưa xảy ra. Theo dõi [BL-185](../BACKLOG.md).
 - Manual trên commit code cuối: `npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts`; M-105-01 đúng 60 phút → hit, quá 1 ns → null; M-95/105/106/107-02 DEPOSIT → null và R3 từ chối timestamp sai. [Output thật](screenshots/DBS-105/manual-test.txt), [ảnh terminal](screenshots/DBS-105/01-rules.png). Input tổng hợp, không chạy provider hay SQL.
 - Độ lệch: code/test được viết trước feature doc và review thiết kế; review được thực hiện sau, không coi là đã hoàn thành theo đúng thứ tự G2/G3. Quyết định sau đó: giữ PR ở Draft, bàn giao rõ review quy trình và các phần chưa chứng minh; không tuyên bố hoàn thành DoD.
