@@ -1,10 +1,10 @@
 # risk 🟠 Supporting (điểm khác biệt, phần AI) — #4
 
-> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../../../docs/adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../../../docs/features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa tích hợp vào fraud runtime. Nội dung dưới đây vẫn là thiết kế Accepted.
+> **ADR-14 (Accepted):** Giữ rules R1–R6 và tùy chọn API AI bổ sung theo [ADR-14](../../../../docs/adr/0014-fraud-rules-external-ai.md); `rule_only` là mặc định. Fraud runtime hoàn chỉnh chưa được tích hợp.
 
-**Adapter AI độc lập:** `ai/openai-decisions.ts` cung cấp `assess(features, options)` cho thử nghiệm ADR-14; chưa nối RiskModule, consumer, DB hay API operator và chưa có Dev xác nhận contract. Feature/giới hạn/trạng thái mô tả ở [FRAUD-API-02](../../../../docs/features/FRAUD-API-02-standalone-risk.md); gọi provider thật chỉ với key mới, dữ liệu tổng hợp và quyền/giới hạn phù hợp. Không coi adapter là fraud end-to-end hoặc ADR-14 đã Accepted.
+**Adapter AI độc lập:** `ai/openai-decisions.ts` cung cấp `assess(features, options)`; chưa nối RiskModule, consumer, DB hay API operator và chưa có Dev xác nhận contract. Feature/giới hạn/trạng thái mô tả ở [FRAUD-API-02](../../../../docs/features/FRAUD-API-02-standalone-risk.md); gọi provider thật chỉ với credential an toàn, dữ liệu tổng hợp và quyền/giới hạn phù hợp. Không coi adapter là fraud end-to-end.
 
-DBS-59 thêm `RiskModule` vào `sharedModules`, contract `RiskRule`/`FeatureProvider` và hai lớp provider khung. Hai provider khung ném lỗi rõ ràng khi gọi, không tạo feature giả và chưa được đăng ký vào DI. Chưa có consumer hay 6 luật; điều kiện worker-only phải được thực thi và test khi consumer được triển khai. Xem [feature doc DBS-59](../../../../docs/features/DBS-59-risk-module-skeleton.md).
+DBS-59 thêm `RiskModule` vào `sharedModules`, contract `RiskRule`/`FeatureProvider` và hai lớp provider khung. DBS-93 thêm rule R1 thuần ([feature doc](../../../../docs/features/DBS-93-r1-velocity.md)); R2–R6, scoring và consumer chưa có. Hai provider khung ném lỗi rõ ràng khi gọi, chưa được đăng ký vào DI. Chưa chứng minh xử lý cửa sổ/dedup hay consumer chỉ chạy ở worker; các kiểm chứng này thuộc task provider/consumer.
 
 Phát hiện giao dịch đáng ngờ; nhân viên review và quyết định.
 
@@ -20,7 +20,7 @@ Migration DBS-58 tạo ba bảng trên, seed rule set v1 (`mode=rule_only`) và 
 ## Phải giữ
 
 - **Hệ thống chỉ gắn cờ, không tự khóa tài khoản.** Khách hàng không bao giờ thấy cờ.
-- Mô hình ML (chế độ `v3`, chỉ khi qua cổng go/no-go của ADR-08) chỉ chạy ở worker, không đổi schema, lỗi thì rơi về 6 luật; không bao giờ là điều kiện để giao dịch hoàn tất.
+- `rule_only` là mặc định; khi được bật qua gate ADR-14, API AI chỉ bổ sung điểm ở worker, lỗi thì dùng kết quả luật và không ảnh hưởng giao dịch đã hoàn tất.
 - **Luật là hàm thuần** `evaluate(event, features, params)`: không gọi Redis hay DB. Đặc trưng đến từ `FeatureProvider` (online: Redis + SQL; offline: dữ liệu trong bộ nhớ) để cùng một code luật chạy được cả trên hệ thống thật lẫn script đánh giá.
 - Mọi cửa sổ thời gian tính theo `occurredAt` của sự kiện, không theo giờ worker.
 - R3, R6 dùng **ảnh chụp** trong sự kiện (`fromBalanceBefore`, `fromAccountCreatedAt`), không đọc trạng thái hiện tại.
