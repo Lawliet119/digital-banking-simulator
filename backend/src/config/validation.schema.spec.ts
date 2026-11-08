@@ -109,6 +109,50 @@ describe('validateEnv', () => {
     });
   });
 
+  describe('TC-92-06 outbox and processed-events retention (DBS-92)', () => {
+    it('defaults both to 7 days', () => {
+      expect(validateEnv(base)).toMatchObject({
+        OUTBOX_RETENTION_DAYS: 7,
+        PROCESSED_EVENTS_RETENTION_DAYS: 7,
+      });
+    });
+
+    it.each(['0', '-1', '1.5', 'abc', '3651'])('rejects OUTBOX_RETENTION_DAYS=%s', value => {
+      try {
+        validateEnv({ ...base, OUTBOX_RETENTION_DAYS: value });
+        throw new Error('expected a ConfigValidationError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ConfigValidationError);
+        expect((error as ConfigValidationError).invalidKeys).toEqual(['OUTBOX_RETENTION_DAYS']);
+      }
+    });
+
+    it.each(['6', '0', '1.5', 'abc', '3651'])(
+      'rejects PROCESSED_EVENTS_RETENTION_DAYS=%s (never shorter than the 6-day DLQ)',
+      value => {
+        try {
+          validateEnv({ ...base, PROCESSED_EVENTS_RETENTION_DAYS: value });
+          throw new Error('expected a ConfigValidationError');
+        } catch (error) {
+          expect(error).toBeInstanceOf(ConfigValidationError);
+          expect((error as ConfigValidationError).invalidKeys).toEqual([
+            'PROCESSED_EVENTS_RETENTION_DAYS',
+          ]);
+        }
+      },
+    );
+
+    it('accepts longer windows for both', () => {
+      expect(
+        validateEnv({
+          ...base,
+          OUTBOX_RETENTION_DAYS: '30',
+          PROCESSED_EVENTS_RETENTION_DAYS: '30',
+        }),
+      ).toMatchObject({ OUTBOX_RETENTION_DAYS: 30, PROCESSED_EVENTS_RETENTION_DAYS: 30 });
+    });
+  });
+
   describe('required values', () => {
     it('refuses to boot without DATABASE_URL or REDIS_URL, listing every problem at once', () => {
       const run = () => validateEnv({});
