@@ -1,6 +1,6 @@
 # DBS-91 · Relay chịu sự cố: chết giữa chừng thì gửi bù, không mất sự kiện
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-91-relay-fault-tolerance` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-91-relay-fault-tolerance` · **PR:** — · **Cập nhật:** 2026-11-08
 
 > **Ghi chú quy trình:** phiên chạy bởi techlead (`Techlead waiver`). Các gate do agent duyệt thay theo yêu cầu của techlead; mỗi gate có đoạn «Quyết định» riêng ở §1, §6, §7 và §8.
 
@@ -135,3 +135,70 @@ Thứ tự gửi giữa các sự kiện không còn được bảo đảm khi c
 | 4 | README outbox, `docs/03` §10, `docs/BACKLOG.md` (BL-181, BL-182), `docs/features/README.md`, feature doc §8–§9, `manual-test.txt`, ảnh | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(outbox): record DBS-91 evidence and hand-offs` |
 
 **Rà soát DoD:** DoD 1 → TC-91-01, 11; DoD 2 → TC-91-02; DoD 3 → TC-91-03; DoD 4 → §8 (M-91-01 là Demo 3); DoD 5 quy trình. Mọi lỗ hổng ở §1 có hàng trong bảng; không file nào ngoài bảng. **Rủi ro và cách lùi:** đổi `break` thành «đi tiếp» làm thay đổi hành vi sau lỗi (thứ tự không bảo đảm); lùi bằng `git revert` bước 2. Gạt id nằm trong bộ nhớ nên mất khi tiến trình khởi động lại (chỉ tốn thêm vài lần thử). **Quyết định ở G3** (agent duyệt thay techlead, 2026-11-08): duyệt kế hoạch. Trạng thái → Plan approved.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (Node 24.22.2, PostgreSQL 17 và ElasticMQ thật):
+
+```text
+npm run lint:check && npm run typecheck && npm run format:check && npm run build   -> đạt
+npm test                                         Test Suites: 70 passed | Tests: 1135 passed
+npm run test:services (faults + outbox-relay)    Tests: 27 passed (15 đã có + 12 mới)
+npm run test:db (db-roles)                       Tests: 4 passed
+npm run test:e2e                                 Test Suites: 15 passed | Tests: 153 passed
+node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs   -> 0 link hỏng
+```
+
+  Không có `.skip`, `.only`, `.todo`. `outbox-relay-faults.services-spec` chạy hai lần liên tiếp đều 12/12.
+
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-91-01 | `outbox-relay-faults` › `TC-91-01 killed after sending…` (tiến trình con, SIGKILL thật) | đạt |
+| TC-91-02 | `TC-91-02 killed before sending…` | đạt |
+| TC-91-03 | `TC-91-03 with every worker off the events pile up…` (25 sự kiện từ HTTP thật, `check` PASS) | đạt |
+| TC-91-04 | `TC-91-04 permanently failing events at the head are parked…`. Đột biến: bỏ việc gạt → đỏ; đã khôi phục | đạt |
+| TC-91-05 | `TC-91-05 when every send fails with a transient error…` | đạt |
+| TC-91-06 | `outbox-relay-policy.spec.ts` › `TC-91-06 a successful send resets…` (và một ca dừng sau ba lỗi) | đạt |
+| TC-91-07 | `TC-91-07 a failure on the second queue…` | đạt |
+| TC-91-08 | `TC-91-08 a send that never answers…` và ca «message đã tới nhưng client bỏ chờ» | đạt |
+| TC-91-09 | `TC-91-09 a batch over its time budget…`. Đột biến: bỏ kiểm ngân sách → đỏ; đã khôi phục | đạt |
+| TC-91-10 | `TC-91-10 on shutdown the relay finishes…`. Đột biến: bỏ cờ dừng → đỏ; đã khôi phục | đạt |
+| TC-91-11 | `TC-91-11 the database drops the relay connection…` (`pg_terminate_backend`) | đạt |
+| TC-91-12 | `outbox-relay-policy.spec.ts` › `TC-91-12 the loop keeps its pace…` | đạt |
+| TC-91-13 | `TC-91-13 a failed send is logged with the outbox id…` | đạt |
+| TC-91-14 | `src/libs/sqs/sqs.client.spec.ts` › `TC-91-14 …` | đạt |
+| Quy trình | DoD 5 | chờ PR |
+
+  14/14 case đạt đủ độ sâu. **Giới hạn trung thực:** TC-91-01, 02, 03 và 11 kiểm hành vi at-least-once **đã có sẵn** của relay (transaction hủy khi chết), nên chúng không đỏ ngay khi viết và chưa được chứng minh bằng đột biến; giá trị của chúng là chứng minh bằng tiến trình bị kill thật chứ không bằng mô phỏng. Các case về hành vi **mới** (04, 05, 06, 09, 10, 12) đều viết trước và đã đỏ trước khi có code.
+
+- **Test thủ công** (api + worker là tiến trình `node dist/main.js` thật, PostgreSQL 17, ElasticMQ **riêng** cổng 9334; trên commit `ad165f9`, SHA ở dòng đầu [manual-test.txt](screenshots/DBS-91/manual-test.txt)):
+
+| Bước | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-91-01 (Demo 3) | không worker: nạp 1 + 20 chuyển (201 cả 21), `unpublished = 21`, queue trống; bật worker: `unpublished = 0`, `risk-events = 21`, `notification_log = 21` | đạt |
+| M-91-02 | `docker pause` ElasticMQ, 5 chuyển tiền đều 201; sau 22 s `unpublished = 5`; log worker có 3 dòng `Outbox event could not be sent` (`kind: transient`, `outboxId`, không payload) | đạt |
+| M-91-03 | `unpause`: `unpublished = 0`, `risk-events` 29 message trong khi chỉ có 26 sự kiện (các bản trùng do client bỏ chờ lúc queue treo), `notification_log = 26` | đạt (có bản trùng như thiết kế) |
+| M-91-04 | worker 1 bị `taskkill /F`, 3 chuyển tiền, ElasticMQ bị pause, worker 2 bật: `unpublished = 3` (kẹt trong lúc gửi), worker 2 bị `taskkill /F`, `unpause`, worker 3 bật: `unpublished = 0`; `notification_log` đạt 29/29 sau 30 s (một message do worker bị kill giữ, quay lại sau visibility timeout); `processed_events = 29`; census `risk-events`: 34 message, 29 `eventId` khác nhau, 4 `eventId` trùng | đạt |
+| M-91-05 | `{"status":"PASS",…,"violations":[]}` | đạt |
+
+  Lưu ý: (1) lần chạy đầu của M-91-04 **không** giết được worker (`kill` của Git Bash không với tới `node.exe`: chuyển tiền vẫn được gửi ngay); đã phát hiện nhờ `unpublished = 0`, sửa script dùng `taskkill /F` theo PID Windows và chạy lại; file chỉ chứa lần chạy cuối. Việc này cũng cho thấy còn tiến trình `node dist/main.js` sót lại từ các lần chạy trước (kể cả của DBS-90): đã dừng hết; lần chạy thủ công của DBS-90 vẫn cho các con số đúng nhưng việc «hai worker» ở đó không được kiểm riêng từng worker. (2) Tên khách trong script dùng không dấu để tránh hỏng ký tự qua `curl` trên Windows. (3) «Kill sau khi gửi hết, trước khi đánh dấu» không dựng được bằng tay một cách tất định; bằng chứng là TC-91-01.
+
+- **Phạm vi so với §7:** `git diff --stat main...HEAD` gồm `libs/sqs` (`sqs.client.ts`, `index.ts`, spec), `outbox-relay.service.ts`, `outbox-relay-policy.spec.ts`, `outbox-relay-faults.services-spec.ts`, `outbox-relay.services-spec.ts` (TC-OBX-03), `test/support/relay-crash-child.ts`, `relay-crash-name.ts`, `test/manual/queue-census.ts`, README outbox, `docs/03`, BACKLOG, features README, feature doc và `screenshots/DBS-91/`. File ngoài bảng §7: `relay-crash-name.ts` (hằng số dùng chung; import thẳng từ module con làm Jest chạy nó, xem Lệch).
+- **Ảnh chụp:** dựng từ output thật của lần chạy cuối (không phải chụp màn hình terminal):
+
+![Kết quả test thủ công DBS-91](screenshots/DBS-91/01-manual-test-results.png)
+
+- **Lệch so với kế hoạch:** (1) thêm `test/support/relay-crash-name.ts`: ban đầu spec import hằng số từ `relay-crash-child.ts` làm Jest chạy luôn `main()` của tiến trình con. (2) `SendOptions` được xuất thêm từ `libs/sqs/index.ts`. Không đổi phạm vi.
+- **Bàn giao:** **BL-181** (cách ly bền vững sự kiện lỗi vĩnh viễn), **BL-182** (`stopTimeout`, alarm tuổi outbox), DBS-111 (chống trùng ở `risk-events`: bản trùng đã được chứng minh có thật ở M-91-03/04), BL-180 và BL-123 mục 2 (đã có).
+
+## 9. Tài liệu đã cập nhật
+
+- `backend/src/modules/outbox/README.md`: hành vi khi lỗi và các giới hạn thời gian.
+- `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §10: hành vi khi lỗi, giới hạn thời gian của lô.
+- `docs/BACKLOG.md`: thêm **BL-181**, **BL-182**.
+- `docs/features/README.md`: dòng DBS-91.
+- Không đổi ADR-03 (các hằng mới ghi ở docs/03 §10 và README), `_shared`, env, `ErrorCode`, event, schema.
+
+**Quyết định ở G4** (agent duyệt thay techlead, 2026-11-08): duyệt bàn giao; ảnh dựng từ output thật được chấp nhận thay cho ảnh chụp màn hình; không có bước «chưa chạy».
