@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { Clock, SystemClock } from '@common/clock';
 import { AccountsModule } from '@modules/accounts';
 import { AuditModule } from '@modules/audit';
 import { OutboxModule } from '@modules/outbox';
@@ -11,7 +12,13 @@ import { TransfersController } from './transfers.controller';
 
 @Module({
   imports: [AccountsModule, AuditModule, OutboxModule],
-  providers: [LedgerPostingService, DepositService, SyncGuardService, TransferService],
+  providers: [
+    { provide: Clock, useClass: SystemClock },
+    LedgerPostingService,
+    DepositService,
+    SyncGuardService,
+    TransferService,
+  ],
   controllers: [OperatorDepositsController, TransfersController],
 })
 export class LedgerModule {}
