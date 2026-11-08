@@ -393,7 +393,7 @@ CREATE TABLE public.reconciliation_runs (
 );
 ```
 
-`reconciliation_runs` đã có trong [migration](../../../backend/src/database/migrations/1793577600000-CreateReconciliationRuns.ts); [DBS-116](../../features/DBS-116-reconciliation-runs.md) có kiểm schema/lifecycle trên PostgreSQL thật. `notification_log` ở trên vẫn là thiết kế.
+`notification_log` ([migration](../../../backend/src/database/migrations/1792886400000-CreateNotificationLog.ts), DBS-96) và `reconciliation_runs` ([migration](../../../backend/src/database/migrations/1793577600000-CreateReconciliationRuns.ts), [DBS-116](../../features/DBS-116-reconciliation-runs.md)) đã có trong migration và được kiểm schema/lifecycle trên PostgreSQL thật.
 
 `details` nhận SQL NULL hoặc mảng (kể cả rỗng) các object đúng ba khóa `accountId`, `balance`, `ledgerBalance`. ID là UUID dạng8-4-4-4-12, không FK để giữ snapshot lịch sử. Hai số là chuỗi nguyên thập phân chuẩn trong miền signed bigint; JSON number, `-0`, số0 đầu, overflow, khóa thừa hoặc kiểu lồng bị CHECK23514 từ chối. Không có ô tên/email/số tài khoản/thông báo lỗi tự do. `silent` cùng `IS TRUE` chặn lỗi chuyển đổi và SQL/JSON unknown lọt CHECK. Tính đúng của số đếm, status và kết quả đối soát thuộc producer/job DBS-117; schema không tự tính hoặc ép các trường phụ thuộc nhau.
 
@@ -527,10 +527,10 @@ Ma trận quyền (S = SELECT, I = INSERT, U = UPDATE, D = DELETE):
 | `fraud_flags` | S U (cột `review_*`) | S I |
 | `fraud_rule_hits` | S | S I |
 | `risk_rule_sets` | S I | S |
-| `notification_log` | — | I D |
-| `reconciliation_runs` | S | I |
+| `notification_log` | — | S I D |
+| `reconciliation_runs` | S | S I D |
 
-Ma trận này được cài thành SQL ở [`infra/scripts/db-roles.sql`](../../../infra/scripts/db-roles.sql) (idempotent, chạy sau mỗi lần migration; chưa có `notification_log` và `reconciliation_runs` nên chưa được cấp) và được kiểm bằng `backend/test/db/db-roles.db-spec.ts`: luồng nạp tiền, chuyển tiền, replay và thu hồi phiên chạy được chỉ với quyền đã cấp, và mọi thao tác ngoài ma trận bị PostgreSQL từ chối.
+Ma trận này được cài thành SQL ở [`infra/scripts/db-roles.sql`](../../../infra/scripts/db-roles.sql) (idempotent, chạy sau mỗi lần migration; bao gồm cả `notification_log` và `reconciliation_runs` cùng sequence identity) và được kiểm bằng `backend/test/db/db-roles.db-spec.ts`: luồng nạp tiền, chuyển tiền, replay và thu hồi phiên chạy được chỉ với quyền đã cấp, và mọi thao tác ngoài ma trận bị PostgreSQL từ chối.
 
 Nhìn bảng này thấy ngay: **không role nào có `UPDATE` hay `DELETE` trên `ledger_entries`, `transfers`, `audit_log`**. Với `accounts`, nên cấp `UPDATE` theo cột (`GRANT UPDATE (balance, status, updated_at)`), tương tự `fraud_flags` chỉ cho sửa các cột `review_*`.
 

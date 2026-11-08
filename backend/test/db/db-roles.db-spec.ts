@@ -123,11 +123,32 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
     await denied(apiSource.query('SELECT 1 FROM outbox_events'));
     await denied(apiSource.query('UPDATE outbox_events SET published_at = now()'));
     await denied(apiSource.query('SELECT 1 FROM processed_events'));
+    await denied(apiSource.query('SELECT 1 FROM notification_log'));
+    await denied(
+      apiSource.query(
+        "INSERT INTO notification_log(event_id,kind,message) VALUES(gen_random_uuid(),'transfer_completed','x')",
+      ),
+    );
+    await apiSource.query('SELECT 1 FROM reconciliation_runs');
+    await denied(
+      apiSource.query("INSERT INTO reconciliation_runs(started_at,status) VALUES(now(),'OK')"),
+    );
+    await denied(apiSource.query('DELETE FROM reconciliation_runs'));
     await denied(apiSource.query('TRUNCATE ledger_entries'));
   });
 
-  it('TC-ROLE-03 dbs_worker reads transfers only through the view and cannot touch money', async () => {
+  it('TC-ROLE-03 dbs_worker reads transfers only through the view, manages notification_log and reconciliation_runs, and cannot touch money', async () => {
     await workerSource.query('SELECT 1 FROM v_transfer_facts');
+    await workerSource.query(
+      "INSERT INTO notification_log(event_id,kind,message) VALUES(gen_random_uuid(),'transfer_completed','Giao dich da hoan tat')",
+    );
+    await workerSource.query('SELECT 1 FROM notification_log');
+    await workerSource.query('DELETE FROM notification_log');
+    await workerSource.query(
+      "INSERT INTO reconciliation_runs(started_at,finished_at,status,total_debit,total_credit,total_balance,mismatched_accounts) VALUES(now(),now(),'OK',0,0,0,0)",
+    );
+    await workerSource.query('SELECT 1 FROM reconciliation_runs');
+    await workerSource.query('DELETE FROM reconciliation_runs');
     await denied(workerSource.query('SELECT 1 FROM transfers'));
     await denied(workerSource.query('SELECT 1 FROM customers'));
     await denied(workerSource.query('SELECT 1 FROM users'));

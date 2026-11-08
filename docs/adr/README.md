@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR theo [mẫu](0000-template.md): bối cảnh, các phương án, lựa chọn, lý do và đánh đổi. Đề bài yêu cầu tối thiểu 3 ADR; nhóm có 13 ADR Accepted và một đề xuất mới.
+Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR theo [mẫu](0000-template.md): bối cảnh, các phương án, lựa chọn, lý do và đánh đổi. Đề bài yêu cầu tối thiểu 3 ADR; nhóm có 14 ADR Accepted.
 
 **Trạng thái:** `Proposed` (đề xuất) → `Accepted` (đã chốt) → có thể `Superseded` (bị thay bởi ADR mới). Đổi một quyết định đã `Accepted` thì viết ADR mới thay thế, không sửa ADR cũ.
 
@@ -13,14 +13,14 @@ Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR th
 | [ADR-05](0005-idempotency-in-postgres.md) | Idempotency trong Postgres, theo user, `ON CONFLICT DO NOTHING`, giữ 7 ngày | Redis · Không idempotency | #1 | Accepted |
 | [ADR-06](0006-cognito-ecs-fargate.md) | Cognito (4 nhóm, access token 15 phút); ECS Fargate | JWT tự cấp · Keycloak; EKS · ECS trên EC2 | #2, #5 | Accepted |
 | [ADR-07](0007-nestjs-typeorm-explicit-sql.md) | NestJS/TypeScript; TypeORM + SQL tường minh cho luồng tiền | Spring Boot · FastAPI; Kysely · Prisma | #1 | Accepted |
-| [ADR-08](0008-fraud-detection-architecture.md) | Fraud bất đồng bộ theo phiên bản: 6 luật (`v1`), luật học tham số (`v2`), mô hình ONNX in-process (`v3`) chỉ sau cổng go/no-go | Chặn đồng bộ · Chỉ luật tĩnh · Microservice Python riêng | #4 | Accepted |
+| [ADR-08](0008-fraud-detection-architecture.md) | Fraud bất đồng bộ: 6 luật giải thích được (`R1–R6`) làm baseline bắt buộc (phần `v2`/`v3` ONNX được thay bởi ADR-14) | Chặn đồng bộ · Chỉ luật tĩnh · Microservice Python riêng | #4 | Accepted |
 | [ADR-09](0009-funding-system-account.md) | Nạp tiền qua tài khoản SYSTEM `funding`, một hàng ở v1 | Sửa số dư trực tiếp · Nhiều tài khoản funding | #1 | Accepted |
 | [ADR-10](0010-fargate-egress-public-subnet.md) | Task Fargate ở public subnet, security group chỉ nhận từ ALB; không NAT | NAT Gateway · VPC interface endpoint | #5 | Accepted |
 | [ADR-11](0011-aws-managed-session-based.md) | AWS managed services, `ap-southeast-1`, dựng/xóa theo phiên | VPS tự quản · Kết hợp VPS + cloud | #5 | Accepted |
 | [ADR-12](0012-redis-valkey-node.md) | Valkey node (cluster mode tắt) cho rate limit, mốc thu hồi, bộ đếm, cấu hình; không cache số dư | Không cache · Bộ nhớ từng task · Cache cả số dư; Serverless | #2, #4 | Accepted |
 | [ADR-13](0013-one-app-app-role.md) | Một ứng dụng, một image, chạy theo `APP_ROLE` | Hai app riêng · Hai repo | #1, #5 | Accepted |
-| [ADR-14](0014-fraud-rules-external-ai.md) | Đề xuất giữ R1–R6, dùng API AI bổ sung, không tự train; có gate chất lượng/dữ liệu/vận hành | Chỉ rules · Tự train/host · Rules + API hosted | Fraud | Proposed |
+| [ADR-14](0014-fraud-rules-external-ai.md) | Giữ R1–R6 (`rule_only`), dùng API AI bổ sung (`rules_with_external_ai`), bỏ tự train/ONNX; có gate chất lượng/dữ liệu/vận hành | Chỉ rules · Tự train/host · Rules + API hosted | Fraud | Accepted |
 
-ADR-14 đề xuất thay riêng phần học tham số và ONNX của ADR-08; chưa được nhóm chấp nhận nên ADR-08 vẫn Accepted. Đây là phương án thiết kế, không xác nhận đã có implementation hoặc benchmark provider.
+ADR-14 thay thế riêng phần học tham số `v2` và ONNX `v3` của ADR-08; phần 6 luật `R1–R6` của ADR-08 giữ nguyên làm mặc định (`rule_only`).
 
 Tên file: `NNNN-tieu-de-ngan.md`, ví dụ `0001-modular-monolith-worker.md`.

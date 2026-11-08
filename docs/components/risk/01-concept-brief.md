@@ -1,8 +1,8 @@
 # risk — Concept Brief
 
-> **Status:** Draft · **Owner:** #4 · **Verified against code:** một phần: bảng fraud (DBS-58), khung module `risk` với interface luật và feature provider (DBS-59). Chưa có: luật R1–R6, chấm điểm ở worker, API review cờ, cấu hình luật · **Cập nhật:** 2026-11-07
+> **Status:** Accepted · **Owner:** #4 · **Verified against code:** một phần: bảng fraud (DBS-58), khung module `risk` với interface luật và feature provider (DBS-59), bộ dữ liệu (DBS-71, DBS-126), adapter AI độc lập (FRAUD-API-02). Chưa có: luật R1–R6, chấm điểm ở worker, API review cờ, cấu hình luật · **Cập nhật:** 2026-11-08
 
-> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
+> **Cập nhật ADR-14 (Accepted, 2026-11-08):** Nhóm đã duyệt [ADR-14](../../adr/0014-fraud-rules-external-ai.md) (mô tả tại [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md) và [FRAUD-API-02](../../features/FRAUD-API-02-standalone-risk.md)): giữ nguyên 6 luật `R1–R6` (`rule_only` là mặc định), bỏ hướng tự train model / ONNX `v3` của ADR-08, dùng adapter API AI bổ sung (`rules_with_external_ai`) khi bật qua gate.
 
 ## Component
 
@@ -27,10 +27,10 @@ Giao dịch đáng ngờ chỉ được phát hiện qua báo cáo hôm sau, lú
 - Hệ thống chỉ gắn cờ (`OPEN`) kèm lời giải thích tiếng Việt theo 6 nhóm rủi ro `R1–R6`; chỉ nhân viên vận hành (`operator`) review và quyết định khóa tài khoản. Khách hàng không bao giờ thấy cờ (BR-13).
 - Mỗi cờ ghi `rule_set_version` đã dùng.
 
-## Quyết định liên quan (đang đề xuất)
+## Quyết định liên quan (Accepted)
 
-- [ADR-08](../../adr/0008-fraud-detection-architecture.md) — **Proposed**. Chốt `v1` và `v2` là phạm vi chính; `v3` ONNX chỉ vào khi qua cổng go/no-go.
-- ADR-12 — **Proposed** (xem [bảng ADR](../../adr/README.md)). Bộ đếm đặc trưng trên Redis (`risk:vel:{accountId}`, `risk:fan:{accountId}`) có đường dự phòng SQL và cache cấu hình bất biến (`cfg:risk:latest`, `cfg:risk:v{n}`).
+- [ADR-08](../../adr/0008-fraud-detection-architecture.md) & [ADR-14](../../adr/0014-fraud-rules-external-ai.md) — **Accepted**. Chốt `v1` (`rule_only`, 6 luật `R1–R6`) làm mặc định bắt buộc; bỏ hướng tự train ONNX `v3` để thay bằng tín hiệu API AI bổ sung (`rules_with_external_ai`) có gate kiểm soát.
+- [ADR-12](../../adr/0012-redis-valkey-node.md) — **Accepted** (xem [bảng ADR](../../adr/README.md)). Bộ đếm đặc trưng trên Redis (`risk:vel:{accountId}`, `risk:fan:{accountId}`) có đường dự phòng SQL và cache cấu hình bất biến (`cfg:risk:latest`, `cfg:risk:v{n}`).
 
 ## Ngoài phạm vi (v1)
 

@@ -1,15 +1,15 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Accepted v1.9 (chốt 2026-10-11, bổ sung 2026-11-08) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding, khóa hàng), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày), audit, outbox writer, outbox relay và consumer thông báo (log), health, khung risk; kiểm thu hồi phiên ở `JwtAuthGuard`; script role `dbs_api` / `dbs_worker` đã có và được kiểm (chưa áp dụng cho task ECS); chưa có consumer và scoring của risk, endpoint khóa tài khoản, rate limit, job đối soát, hạ tầng worker/SQS/alarm · **Cập nhật:** 2026-11-08
+> **Status:** Accepted v1.12 (chốt 2026-10-11, bổ sung 2026-11-08) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding, mở tài khoản, lịch sử giao dịch, tra cứu operator), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày, tra cứu lệnh), rate limit (IP + user), audit (ghi + tìm kiếm), outbox writer, outbox relay và consumer thông báo (`notification_log`), health, khung risk và adapter AI độc lập (`ADR-14`); kiểm thu hồi phiên ở `JwtAuthGuard`; script role `dbs_api` / `dbs_worker` đã có và được kiểm (chưa áp dụng cho task ECS); chưa có consumer và scoring đầy đủ của risk, endpoint khóa tài khoản, job đối soát, hạ tầng worker/SQS/alarm · **Cập nhật:** 2026-11-08
 
-> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
+> **Cập nhật ADR-14 (Accepted 2026-11-08):** Phương án rules `R1–R6` + API AI ngoài tiến trình ([ADR-14](adr/0014-fraud-rules-external-ai.md), [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md), [FRAUD-API-02](features/FRAUD-API-02-standalone-risk.md)) đã được nhóm chấp nhận để thay thế hướng học tham số (`v2`) và mô hình ONNX in-process (`v3`) của [ADR-08](adr/0008-fraud-detection-architecture.md). Baseline `rule_only` (`R1–R6`) vẫn là bắt buộc.
 
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
-| Phiên bản | 1.8 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
+| Phiên bản | 1.12 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [BRD.md](BRD.md) (Phần 1: BG, BR · Phần 2: UC, FR, NFR · Phần 3: domain model) |
-| Tài liệu liên quan | [ADR-01…13 Accepted, ADR-14 Proposed](adr/README.md) · [threat model](security/threat-model.md) · [adr/](adr/README.md) |
+| Tài liệu liên quan | [ADR-01…14 Accepted](adr/README.md) · [threat model](security/threat-model.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đã chốt ngày 2026-10-11 (lý do ở các ADR). Giá cloud là giá tham khảo region `ap-southeast-1`; số thật lấy từ Cost Explorer |
 
 Tài liệu này trả lời câu hỏi **"xây như thế nào và vì sao"**. Mỗi quyết định đều truy về một yêu cầu ở [BRD](BRD.md).
@@ -478,7 +478,7 @@ sequenceDiagram
 
 | Method | Path | Vai trò | UC | Ghi chú |
 |---|---|---|---|---|
-| GET | `/v1/identity/me` | mọi vai trò đã đăng nhập | — | Trả claims đã xác thực của caller (smoke test cho `JwtAuthGuard`, DBS-50); 401 `UNAUTHENTICATED` hoặc `TOKEN_EXPIRED` |
+| GET | `/v1/identity/me` | mọi vai trò đã đăng nhập | — | Trả claims đã xác thực của caller (smoke test cho `JwtAuthGuard`, DBS-50); 401 `UNAUTHENTICATED`, `TOKEN_EXPIRED` hoặc `SESSION_REVOKED` |
 | POST | `/v1/customers/me` | customer | UC-1 | 200 tạo hoặc trả hồ sơ cũ; `fullName` NFC/trim, 1–200 ký tự; lần tạo đầu giữ nguyên tên. UNIQUE `customers.user_id`; audit cùng transaction, lỗi audit rollback |
 | GET | `/v1/customers/me` | customer | UC-1 | 200 hồ sơ của caller và audit đọc; 404 nếu chưa onboarding; lỗi audit trả 500 |
 | POST | `/v1/accounts` | customer | UC-2 | 201 CHECKING/SAVINGS, ACTIVE, balance chuỗi `"0"`; khóa hàng `customers` rồi COUNT/INSERT + audit SUCCESS cùng transaction; đủ 3 kể cả LOCKED → 409 ACCOUNT_LIMIT_REACHED (audit REJECTED commit trước khi trả 409); chưa onboarding → 404 (audit REJECTED cùng transaction); hết thời gian chờ khóa → 503 SERVICE_TEMPORARILY_UNAVAILABLE + `Retry-After` |
@@ -932,7 +932,7 @@ flowchart LR
 - **Quyền:** nhân viên xem/kết luận cờ, kiểm toán viên chỉ đọc, khách không thấy cờ (BR-13).
 - **Dữ liệu:** không ghi số tài khoản đầy đủ hay thông tin cá nhân vào log của consumer hay vào Redis.
 - **Xử lý tiền khi gian lận thật:** ngoài phạm vi v1; hướng mở rộng là giao dịch `REVERSAL` mới qua sổ cái.
-- **Chi phí:** không gọi LLM nên không tốn token; chi phí là CPU worker, truy vấn DB và Redis. Nếu bật chế độ `v3` (mô hình ONNX, ADR-08) thì thêm mức tăng kích thước image và độ trễ suy luận, đo ở cổng go/no-go. Nếu sau này thêm LLM để viết giải thích cho nhân viên thì mới cần phân tích token.
+- **Chi phí:** ở chế độ `rule_only` (`R1–R6`), không gọi LLM nên không tốn token; chi phí là CPU worker, truy vấn DB và Redis. Khi bật chế độ `rules_with_external_ai` ([ADR-14](adr/0014-fraud-rules-external-ai.md), thay thế hướng ONNX `v3` của ADR-08), chỉ các giao dịch lọt candidate gate mới gọi API AI ngoài tiến trình với admission control, timeout cứng và fail-open về `R1–R6`.
 
 ---
 
@@ -969,7 +969,7 @@ flowchart LR
 
 ## 18. Architecture Decision Records
 
-Tối thiểu 3 ADR theo đề bài; nhóm có 13 ADR Accepted (bảng dưới) và ADR-14 đang Proposed ([rules + API AI](adr/0014-fraud-rules-external-ai.md), chưa thay ADR-08).
+Tối thiểu 3 ADR theo đề bài; nhóm có 14 ADR Accepted (bảng dưới; [ADR-14](adr/0014-fraud-rules-external-ai.md) thay thế phần học tham số `v2` / ONNX `v3` của [ADR-08](adr/0008-fraud-detection-architecture.md)).
 
 | # | Quyết định | Phương án so sánh | Driver |
 |---|---|---|---|
@@ -980,12 +980,13 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 13 ADR Accepted (bảng dưới) 
 | [ADR-05](adr/0005-idempotency-in-postgres.md) | Idempotency trong Postgres, scope theo user, `ON CONFLICT DO NOTHING` | Redis · Không idempotency | D-2 |
 | [ADR-06](adr/0006-cognito-ecs-fargate.md) | Cognito; ECS Fargate | JWT tự quản; EKS | D-8 |
 | [ADR-07](adr/0007-nestjs-typeorm-explicit-sql.md) | NestJS/TypeScript và tầng truy cập dữ liệu | Spring Boot · FastAPI; TypeORM vs Kysely vs Prisma | D-8 |
-| [ADR-08](adr/0008-fraud-detection-architecture.md) | Fraud bất đồng bộ theo phiên bản: 6 luật (`v1`), luật học tham số (`v2`), mô hình ONNX in-process (`v3`) chỉ khi qua cổng go/no-go | Chặn đồng bộ · Chỉ luật tĩnh · Microservice Python riêng · Không phát hiện | D-4 |
+| [ADR-08](adr/0008-fraud-detection-architecture.md) | Fraud bất đồng bộ theo phiên bản: 6 luật (`v1`, giữ làm baseline `rule_only`); phần `v2`/`v3` (ONNX) được thay thế bởi [ADR-14](adr/0014-fraud-rules-external-ai.md) | Chặn đồng bộ · Chỉ luật tĩnh · Microservice Python riêng · Không phát hiện | D-4 |
 | [ADR-09](adr/0009-funding-system-account.md) | Nạp tiền qua tài khoản SYSTEM, đi qua sổ cái | Sửa số dư trực tiếp · Không có nạp tiền | D-1 |
 | [ADR-10](adr/0010-fargate-egress-public-subnet.md) | Egress mạng cho Fargate | NAT Gateway · VPC endpoints · Public subnet + security group | D-8 |
 | [ADR-11](adr/0011-aws-managed-session-based.md) | Cloud managed services | VPS tự quản · Kết hợp | D-7, D-8 |
 | [ADR-12](adr/0012-redis-valkey-node.md) | Redis (Valkey) cho rate limit, mốc thu hồi, bộ đếm, cấu hình; **không** cache số dư | Không cache · Bộ nhớ từng task · Cache cả số dư; Serverless vs node | D-6, D-4 |
 | [ADR-13](adr/0013-one-app-app-role.md) | **Một ứng dụng, một image, chạy theo `APP_ROLE`** (`api` / `worker` / `both`) | Hai app riêng (`apps/api`, `apps/worker`) · Hai repo | D-8 |
+| [ADR-14](adr/0014-fraud-rules-external-ai.md) | **Luật R1–R6 kết hợp API AI ngoài tiến trình có kiểm soát** (`rule_only` / `rules_with_external_ai`, bỏ hướng ONNX `v3`) | Giữ ONNX in-process · Chỉ luật tĩnh · Gọi LLM đồng bộ | D-4 |
 
 ## 19. Tech stack
 
@@ -1039,9 +1040,9 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 13 ADR Accepted (bảng dưới) 
 | **1.4** | Lấp các khoảng trống trước khi implement: endpoint tra cứu tài khoản cho nhân viên (§7, §6.4), mã `FLAG_ALREADY_REVIEWED` (§7.1), key `cfg:risk:latest` (§9), ghi chú sự kiện không phát ở v1 (§10), tạo dòng `users` và tài khoản nhân viên (§12) |
 | **1.5** | Đồng bộ với ADR-08 mới: chi phí fraud (§15.5), dòng ADR-08 ở bảng ADR, thêm `GET /v1/operator/fraud-flags/{transferId}` vào bảng API (§7) |
 | **1.6** | Chốt toàn bộ giả định: viết ADR-01…07, 09…12 và chuyển 13 ADR sang Accepted. Task ECS ở public subnet (§13, ADR-10); Redis node cố định (§9, ADR-12); `TransferRejected` không phát ở v1, `occurredAt = transfers.created_at` (§10); tham số SQS và relay (§10); vai trò từ `cognito:groups`, xác thực local (§12); health check ALB và worker (§4, §13.3); SLO chính thức kèm ngưỡng alarm (§14); câu hỏi mở chuyển thành bảng kết luận (§20) |
+| **1.7** | Thêm quy tắc §6.1: `TRANSFER` vào tài khoản SYSTEM bị từ chối `ACCOUNT_NOT_ACTIVE`, từ tài khoản SYSTEM thì không qua được kiểm tra sở hữu (404 kèm `DENIED`) |
+| **1.8** | Đồng bộ với code trên `main` `aeee9c9` (CHORE-20261107-repo-audit): dòng Status ghi module đã có code, Owner là Dev; ghi ADR-14 Proposed ở bảng thuộc tính và §18; thêm `GET /v1/identity/me` vào §7; §5 ghi chú sơ đồ là kiến trúc đích, relay và notification chưa có code |
 | **1.9** | DBS-82: sync guard tách thành `SyncGuardService.checkGuards`; thứ tự lý do từ chối ở §6.1 và bảng API `/v1/transfers` đổi cho khớp BRD (ACTIVE → hạn mức lần → hạn mức ngày → đủ số dư), trước đó §6.1 ghi "đủ số dư" trước hạn mức |
 | **1.10** | DBS-87: hợp đồng UC-6 (`/v1/accounts/{id}/transactions`: cursor, bộ lọc, chỉ lệnh hoàn tất) và UC-7 (`/v1/transfers/{id}`: người gửi/nhận, REJECTED không lộ đích) trong bảng API §7 |
 | **1.11** | DBS-88: hợp đồng `GET /v1/operator/accounts` (tham số `q`, 4 trường, audit bằng vân tay) ở §7; sơ đồ UC-3 (§6.4) ghi rõ nội dung audit |
-| **1.12** | DBS-89: R-1 (§9.1) ghi rõ khóa theo phút, thứ tự middleware/guard, `TRUST_PROXY_HOPS`, `rate_limited_total`; bảng API `POST /v1/transfers` có 429 |
-| **1.8** | Đồng bộ với code trên `main` `aeee9c9` (CHORE-20261107-repo-audit): dòng Status ghi module đã có code, Owner là Dev; ghi ADR-14 Proposed ở bảng thuộc tính và §18; thêm `GET /v1/identity/me` vào §7; §5 ghi chú sơ đồ là kiến trúc đích, relay và notification chưa có code |
-| **1.7** | Thêm quy tắc §6.1: `TRANSFER` vào tài khoản SYSTEM bị từ chối `ACCOUNT_NOT_ACTIVE`, từ tài khoản SYSTEM thì không qua được kiểm tra sở hữu (404 kèm `DENIED`) |
+| **1.12** | DBS-89 & CHORE-20261108: R-1 (§9.1) ghi rõ khóa theo phút, thứ tự middleware/guard, `TRUST_PROXY_HOPS`, `rate_limited_total`; bảng API `POST /v1/transfers` có 429; chấp nhận ADR-14 (bỏ hướng ONNX `v3` của ADR-08, chuyển sang `R1–R6` + API AI ngoài tiến trình) |

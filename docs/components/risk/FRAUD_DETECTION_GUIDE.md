@@ -1,8 +1,8 @@
 # Fraud Detection — Hướng dẫn chi tiết
 
-> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #4 · **Verified against code:** một phần: bảng fraud (DBS-58), khung module `risk` (DBS-59), generator dữ liệu bình thường (DBS-71); luật và mô hình chưa có code · **Cập nhật:** 2026-11-07
+> **Status:** Accepted (chốt 2026-10-11, cập nhật ADR-14 ngày 2026-11-08) · **Owner:** #4 · **Verified against code:** một phần: bảng fraud (DBS-58), khung module `risk` (DBS-59), generator dữ liệu bình thường & gian lận (DBS-71, DBS-126), adapter AI độc lập (FRAUD-API-02); luật và consumer đang triển khai · **Cập nhật:** 2026-11-08
 
-> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
+> **Cập nhật ADR-14 (Accepted, 2026-11-08):** Phương án rules + API AI ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) ([FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md), [FRAUD-API-02](../../features/FRAUD-API-02-standalone-risk.md)) đã được nhóm chấp nhận để bỏ hướng tự train / ONNX `v3` của ADR-08; 6 luật `R1–R6` (`rule_only`) giữ nguyên làm mặc định.
 
 > Tài liệu làm việc nội bộ cho mảng **Fraud** (#4) và người làm bộ dữ liệu (#6).
 > Dựa trên: `docs/BRD.md` (BR-06, BR-11, BR-13, UC-9, UC-10, UC-12, FR-RSK-*, NFR-FRD-*), `docs/03` (mục 9, 10, 15).

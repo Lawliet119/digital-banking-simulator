@@ -1,4 +1,5 @@
 import { Global, Module, type DynamicModule, type INestApplication } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -9,7 +10,7 @@ import { appConfig, databaseConfig } from '../../src/config';
 import { authConfig } from '../../src/config/auth.config';
 import { DatabaseModule } from '../../src/database/database.module';
 import { TransactionService } from '../../src/database/transaction.service';
-import { IdentityModule } from '../../src/modules/identity';
+import { IdentityModule, JwtAuthGuard } from '../../src/modules/identity';
 import { startJwksFixture, type JwksFixture } from '../support/jwks-fixture';
 import {
   createIdentityUsersFixture,
@@ -89,6 +90,7 @@ describe('DBS-52 users provisioning over HTTP (real AppModule pieces, PostgreSQL
 
     const moduleRef = await Test.createTestingModule({
       imports: [FakeConfigModule.forRoot(db.url, jwks.url), DatabaseModule, IdentityModule],
+      providers: [{ provide: APP_GUARD, useExisting: JwtAuthGuard }],
     }).compile();
     const nest = moduleRef.createNestApplication<NestExpressApplication>();
     configureHttpApp(nest, { trustProxyHops: 0, corsOrigins: [], isProduction: false });

@@ -6,13 +6,15 @@ resource "aws_db_parameter_group" "postgres17" {
 
   # PG 15+ đã mặc định force_ssl = 1 và timezone UTC; đặt tường minh để không phụ thuộc mặc định của AWS.
   parameter {
-    name  = "rds.force_ssl"
-    value = "1"
+    name         = "rds.force_ssl"
+    value        = "1"
+    apply_method = "pending-reboot"
   }
 
   parameter {
-    name  = "timezone"
-    value = "UTC"
+    name         = "timezone"
+    value        = "UTC"
+    apply_method = "pending-reboot"
   }
 }
 

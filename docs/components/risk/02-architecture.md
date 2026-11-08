@@ -1,8 +1,8 @@
 # risk — Architecture
 
-> **Status:** Draft · **Owner:** #4 · **Verified against code:** một phần: bảng fraud (DBS-58), khung module `risk` (DBS-59); phần còn lại là thiết kế · **Cập nhật:** 2026-11-07
+> **Status:** Accepted · **Owner:** #4 · **Verified against code:** một phần: bảng fraud (DBS-58), khung module `risk` (DBS-59), adapter AI độc lập (FRAUD-API-02); phần consumer/rules/controllers là thiết kế · **Cập nhật:** 2026-11-08
 
-> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
+> **Cập nhật ADR-14 (Accepted, 2026-11-08):** Phương án giữ 6 luật `R1–R6` + API AI bổ sung ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) ([FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md), [FRAUD-API-02](../../features/FRAUD-API-02-standalone-risk.md)) đã được nhóm chấp nhận để thay thế phần tự train / ONNX `v3` của ADR-08.
 
 > Tài liệu kiến trúc chi tiết của module `risk` (Task 6 của roadmap cũ, đã xóa ngày 2026-11-07), đồng bộ với [`docs/03` §15](../../03_HIGH_LEVEL_ARCHITECTURE.md), [`_shared/database-design.md`](../_shared/database-design.md), [`_shared/event-contract.md`](../_shared/event-contract.md) và [ADR-08](../../adr/0008-fraud-detection-architecture.md).
 

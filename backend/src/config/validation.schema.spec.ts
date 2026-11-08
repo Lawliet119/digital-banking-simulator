@@ -417,4 +417,15 @@ describe('validateEnv', () => {
       expect(() => validateEnv({ ...withoutUrl, ...redisParts })).toThrow(/REDIS_URL/);
     });
   });
+
+  describe('optional OPENAI_API_KEY (ADR-14, FRAUD-API-02)', () => {
+    it('allows OPENAI_API_KEY to be omitted, empty or a non-whitespace token, and rejects whitespace', () => {
+      expect(() => validateEnv(base)).not.toThrow();
+      expect(() => validateEnv({ ...base, OPENAI_API_KEY: '' })).not.toThrow();
+      expect(() => validateEnv({ ...base, OPENAI_API_KEY: 'sk-test-token-123' })).not.toThrow();
+      expect(() => validateEnv({ ...base, OPENAI_API_KEY: 'sk-test-token-123 ' })).toThrow(
+        /OPENAI_API_KEY/,
+      );
+    });
+  });
 });

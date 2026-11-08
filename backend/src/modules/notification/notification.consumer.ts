@@ -77,7 +77,18 @@ export class NotificationConsumer implements OnApplicationBootstrap, OnApplicati
          ON CONFLICT(consumer,event_id) DO NOTHING RETURNING event_id`,
         [NOTIFICATION_CONSUMER, event.eventId],
       );
-      return inserted.length > 0;
+      if (inserted.length === 0) return false;
+      const kind =
+        event.eventType === 'TransferCompleted' ? 'transfer_completed' : 'account_status_changed';
+      const message =
+        event.eventType === 'TransferCompleted'
+          ? 'Giao dịch đã hoàn tất'
+          : 'Trạng thái tài khoản đã thay đổi';
+      await manager.query(
+        'INSERT INTO notification_log(event_id,kind,user_id,message) VALUES($1,$2,NULL,$3)',
+        [event.eventId, kind, message],
+      );
+      return true;
     });
     if (!first) return;
     // Ids and the type only: no amounts, no account numbers, and never a fraud reason (BR-13).

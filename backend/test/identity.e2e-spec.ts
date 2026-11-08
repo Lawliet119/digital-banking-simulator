@@ -1,11 +1,12 @@
 import { Global, Module, type INestApplication } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { configureHttpApp } from '../src/app.setup';
 import { authConfig } from '../src/config/auth.config';
 import { ErrorCode } from '../src/common/errors/error-code.enum';
-import { IdentityModule, IdentityService } from '../src/modules/identity';
+import { IdentityModule, IdentityService, JwtAuthGuard } from '../src/modules/identity';
 import { startJwksFixture, type JwksFixture } from './support/jwks-fixture';
 
 // This spec has no database: it proves token verification over HTTP. The real upsert is proven on
@@ -68,6 +69,7 @@ describe('GET /v1/identity/me (e2e)', () => {
         }),
         IdentityModule,
       ],
+      providers: [{ provide: APP_GUARD, useExisting: JwtAuthGuard }],
     })
       .overrideProvider(IdentityService)
       .useValue({

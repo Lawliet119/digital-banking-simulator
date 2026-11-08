@@ -1,13 +1,12 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
-import { JwtAuthGuard, RequestWithUser } from './jwt-auth.guard';
+import type { RequestWithUser } from './jwt-auth.guard';
 import { AuthenticatedUser } from './jwt-claims';
 
 @ApiTags('identity')
 @Controller('identity')
 export class IdentityController {
   @Get('me')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Verified caller claims (smoke-test endpoint for JwtAuthGuard)' })
   @ApiUnauthorizedResponse({

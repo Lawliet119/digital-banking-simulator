@@ -3,7 +3,7 @@ import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http
 import { Socket } from 'node:net';
 import { performance } from 'node:perf_hooks';
 import type { AiAssessment, DecisionOptions } from './ai-contract';
-import { assess, createLoopbackAdapter } from './openai-decisions';
+import { assess, createLoopbackAdapter, resolveDecisionAiStatus } from './openai-decisions';
 
 const FEATURES = {
   amount: '20000000',
@@ -277,6 +277,11 @@ describe('OpenAI Decisions HTTP behavior (TC-AI-01/03/04/05/10)', () => {
     ['zero admission window', { maxAdmissionDelayMs: 0 }],
     ['infinite admission window', { maxAdmissionDelayMs: Infinity }],
     ['nonfinite selection time', { selectedAtMonotonicMs: NaN }],
+    ['negative selection time', { selectedAtMonotonicMs: -1 }],
+    [
+      'wall-clock epoch selection time (Date.now() instead of performance.now())',
+      { selectedAtMonotonicMs: Date.now() },
+    ],
   ])('rejects %s without admission or network', async (_description, override) => {
     const result = await evaluate(FEATURES, options(override));
     expect(result).toMatchObject({ status: 'CONFIG_INVALID', probability: null });
@@ -663,5 +668,12 @@ describe('OpenAI Decisions HTTP behavior (TC-AI-01/03/04/05/10)', () => {
     expect(result).toMatchObject({ status: 'DISABLED', probability: null });
     expect(tryAcquire).not.toHaveBeenCalled();
     expect(requests).toHaveLength(0);
+  });
+
+  it('maps DISABLED to CONFIG_INVALID when recording a decision in rules_with_external_ai mode', () => {
+    expect(resolveDecisionAiStatus('rule_only', 'DISABLED')).toBe('DISABLED');
+    expect(resolveDecisionAiStatus('rule_only', 'SUCCEEDED')).toBe('DISABLED');
+    expect(resolveDecisionAiStatus('rules_with_external_ai', 'DISABLED')).toBe('CONFIG_INVALID');
+    expect(resolveDecisionAiStatus('rules_with_external_ai', 'SUCCEEDED')).toBe('SUCCEEDED');
   });
 });

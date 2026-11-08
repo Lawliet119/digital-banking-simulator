@@ -52,6 +52,8 @@ export interface Env {
   IDEMPOTENCY_KEY_RETENTION_DAYS: number;
   RATE_LIMIT_TRANSFERS_PER_MINUTE: number;
   RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE: number;
+
+  OPENAI_API_KEY?: string;
 }
 
 const isDeployed = Joi.valid('staging', 'production');
@@ -183,6 +185,10 @@ export const validationSchema = Joi.object<Env>({
   IDEMPOTENCY_KEY_RETENTION_DAYS: Joi.number().integer().min(1).default(7),
   RATE_LIMIT_TRANSFERS_PER_MINUTE: Joi.number().integer().min(1).default(10),
   RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE: Joi.number().integer().min(1).default(100),
+
+  // Optional API key for the external AI fraud evaluation adapter (ADR-14, FRAUD-API-02).
+  // Baseline `rule_only` mode runs without it; whitespace-padded keys are rejected.
+  OPENAI_API_KEY: Joi.string().allow('').pattern(/^\S+$/).optional(),
 }).custom((env: Env, helpers) => {
   if (BigInt(env.TRANSFER_LIMIT_PER_TX) > BigInt(env.TRANSFER_LIMIT_PER_DAY)) {
     return helpers.message({

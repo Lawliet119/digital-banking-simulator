@@ -47,12 +47,12 @@ GRANT SELECT ON fraud_flags TO dbs_api;
 GRANT UPDATE (review_status, reviewed_by, reviewed_at, review_note) ON fraud_flags TO dbs_api;
 GRANT SELECT ON fraud_rule_hits TO dbs_api;
 GRANT SELECT, INSERT ON risk_rule_sets TO dbs_api;
+GRANT SELECT ON reconciliation_runs TO dbs_api;
 
 -- dbs_worker
 GRANT SELECT ON accounts TO dbs_worker;
 GRANT SELECT ON v_transfer_facts TO dbs_worker;
 GRANT SELECT ON ledger_entries TO dbs_worker;
-GRANT DELETE ON idempotency_keys TO dbs_worker;
 GRANT SELECT, DELETE ON idempotency_keys TO dbs_worker;
 GRANT SELECT, DELETE ON outbox_events TO dbs_worker;
 GRANT UPDATE (published_at) ON outbox_events TO dbs_worker;
@@ -61,3 +61,5 @@ GRANT INSERT ON audit_log TO dbs_worker;
 GRANT SELECT, INSERT ON fraud_flags TO dbs_worker;
 GRANT SELECT, INSERT ON fraud_rule_hits TO dbs_worker;
 GRANT SELECT ON risk_rule_sets TO dbs_worker;
+GRANT SELECT, INSERT, DELETE ON notification_log TO dbs_worker;
+GRANT SELECT, INSERT, DELETE ON reconciliation_runs TO dbs_worker;

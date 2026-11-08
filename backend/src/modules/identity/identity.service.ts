@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import type { EntityManager } from 'typeorm';
+import { Injectable, Optional } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 
 /** Most subs kept in the per-process cache. A constant, not an env var: it only bounds memory. */
@@ -34,7 +35,10 @@ export class IdentityService {
    */
   private readonly cache = new Map<string, Promise<string>>();
 
-  constructor(private readonly tx: TransactionService) {}
+  constructor(
+    private readonly tx: TransactionService,
+    @Optional() @InjectDataSource() private readonly dataSource?: DataSource,
+  ) {}
 
   /** `users.id` of an already-verified `sub`. Never call it with a claim that was not verified. */
   resolveUserId(sub: string): Promise<string> {
@@ -70,6 +74,13 @@ export class IdentityService {
    * a Redis cache in front (a cache would only save this primary-key read).
    */
   async sessionsRevokedAt(userId: string): Promise<Date | null> {
+    if (this.dataSource) {
+      const rows = await this.dataSource.query<{ sessions_revoked_at: Date | null }[]>(
+        'SELECT sessions_revoked_at FROM users WHERE id = $1',
+        [userId],
+      );
+      return rows[0]?.sessions_revoked_at ?? null;
+    }
     return this.tx.run(async manager => {
       const rows = await manager.query<{ sessions_revoked_at: Date | null }[]>(
         'SELECT sessions_revoked_at FROM users WHERE id = $1',

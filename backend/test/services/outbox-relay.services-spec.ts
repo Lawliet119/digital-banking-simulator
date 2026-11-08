@@ -84,6 +84,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
   beforeEach(async () => {
     await q('DELETE FROM outbox_events');
     await q('DELETE FROM processed_events');
+    await q('DELETE FROM notification_log');
     await drain(riskUrl);
     await drain(notificationUrl);
     await drain(dlqUrlFor(notificationUrl));
@@ -191,6 +192,8 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     for (let i = 0; i < 3; i++) await consumer.consumeOnce(1);
     const marks = await q('SELECT consumer,event_id FROM processed_events');
     expect(marks).toEqual([{ consumer: 'notification', event_id: event.eventId }]);
+    const logs = await q('SELECT event_id,kind,user_id FROM notification_log');
+    expect(logs).toEqual([{ event_id: event.eventId, kind: 'transfer_completed', user_id: null }]);
     // Both copies were acknowledged: nothing is left to redeliver.
     expect(await drain(notificationUrl)).toEqual([]);
   });
