@@ -6,6 +6,7 @@ import {
   SendMessageCommand,
   ReceiveMessageCommand,
   DeleteMessageCommand,
+  ChangeMessageVisibilityCommand,
   type Message,
 } from '@aws-sdk/client-sqs';
 
@@ -99,6 +100,23 @@ export class SqsClient implements OnModuleDestroy {
     if (!message.ReceiptHandle) throw new Error('SQS message has no receipt handle');
     await this.sdk.send(
       new DeleteMessageCommand({ QueueUrl: queue, ReceiptHandle: message.ReceiptHandle }),
+    );
+  }
+
+  /**
+   * Hides a received message for `seconds` more (0 makes it visible at once): the backoff before
+   * the next delivery of a message whose handling failed.
+   */
+  async changeVisibility(queue: string, message: Message, seconds: number): Promise<void> {
+    if (!message.ReceiptHandle) throw new Error('SQS message has no receipt handle');
+    if (!Number.isInteger(seconds) || seconds < 0 || seconds > 43200)
+      throw new RangeError('Invalid SQS visibility timeout');
+    await this.sdk.send(
+      new ChangeMessageVisibilityCommand({
+        QueueUrl: queue,
+        ReceiptHandle: message.ReceiptHandle,
+        VisibilityTimeout: seconds,
+      }),
     );
   }
 

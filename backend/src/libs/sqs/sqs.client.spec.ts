@@ -150,4 +150,18 @@ describe('DBS-77 SQS transport', () => {
     expect(results).toEqual([{ messageId: 'poison', status: 'failed' }]);
     expect(send).toHaveBeenCalledTimes(2);
   });
+  it('TC-102-04 changeVisibility hides a received message for the given seconds and validates its input', async () => {
+    send.mockResolvedValue({});
+    await client.changeVisibility('queue', { ReceiptHandle: 'receipt' }, 40);
+    expect(send.mock.calls[0][0]).toMatchObject({
+      input: { QueueUrl: 'queue', ReceiptHandle: 'receipt', VisibilityTimeout: 40 },
+    });
+    await expect(client.changeVisibility('queue', {}, 5)).rejects.toThrow('receipt handle');
+    for (const seconds of [-1, 1.5, 43201]) {
+      await expect(
+        client.changeVisibility('queue', { ReceiptHandle: 'receipt' }, seconds),
+      ).rejects.toThrow(RangeError);
+    }
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });

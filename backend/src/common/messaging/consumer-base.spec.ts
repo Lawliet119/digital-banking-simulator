@@ -12,6 +12,7 @@ class TestConsumer extends ConsumerBase {
   readonly committed: DomainEvent[] = [];
   seenCorrelationId: unknown = 'not-run';
   failure: Error | undefined;
+  backoff = 5;
   policy: UnknownEventPolicy = 'dead-letter';
 
   constructor(
@@ -21,6 +22,9 @@ class TestConsumer extends ConsumerBase {
     private readonly url: string | null = 'http://localhost:9324/000000000000/unit-events',
   ) {
     super(tx, sqs, pino);
+  }
+  protected override get retryBackoffSeconds(): number {
+    return this.backoff;
   }
   protected override get unknownEventPolicy(): UnknownEventPolicy {
     return this.policy;
@@ -60,7 +64,8 @@ describe('DBS-101 ConsumerBase (unit)', () => {
   });
   const tx = { run } as unknown as TransactionService;
   const processBatch = jest.fn();
-  const sqs = { processBatch } as unknown as SqsClient;
+  const changeVisibility = jest.fn();
+  const sqs = { processBatch, changeVisibility } as unknown as SqsClient;
   const pino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
   const message = (receiveCount: number): SqsMessage => ({
     MessageId: 'm-1',
@@ -73,6 +78,8 @@ describe('DBS-101 ConsumerBase (unit)', () => {
     seen.clear();
     run.mockClear();
     processBatch.mockReset();
+    changeVisibility.mockReset();
+    changeVisibility.mockResolvedValue(undefined);
     consumer = new TestConsumer(tx, sqs, pino);
   });
   afterEach(() => {
@@ -163,5 +170,45 @@ describe('DBS-101 ConsumerBase (unit)', () => {
   it('consumeOnce fails loudly when the queue is not configured', () => {
     const unconfigured = new TestConsumer(tx, sqs, pino, null);
     expect(() => unconfigured.consumeOnce(1)).toThrow('queue is not configured');
+  });
+  it('TC-102-03 a transient error hides the message for a doubling backoff before the next receive', async () => {
+    consumer.failure = new Error('database unavailable');
+    for (let attempt = 1; attempt < MAX_ATTEMPTS; attempt++) {
+      await expect(consumer.handle(TRANSFER_SAMPLE, message(attempt))).rejects.toThrow(
+        'database unavailable',
+      );
+    }
+    expect(changeVisibility.mock.calls.map((call: unknown[]) => call[2] as number)).toEqual([
+      5, 10, 20, 40,
+    ]);
+    expect(changeVisibility.mock.calls[0][0]).toBe(
+      'http://localhost:9324/000000000000/unit-events',
+    );
+  });
+
+  it('TC-102-03 the backoff is capped, skipped for poison and for the last attempt, and never hides the real error', async () => {
+    consumer.backoff = 100;
+    consumer.failure = new Error('database unavailable');
+    await expect(consumer.handle(TRANSFER_SAMPLE, message(4))).rejects.toThrow(
+      'database unavailable',
+    );
+    expect(changeVisibility.mock.calls[0][2]).toBe(300);
+    changeVisibility.mockClear();
+    await expect(consumer.handle(TRANSFER_SAMPLE, message(MAX_ATTEMPTS))).rejects.toBeInstanceOf(
+      PoisonMessageError,
+    );
+    await expect(consumer.handle({ nope: true }, message(1))).rejects.toBeInstanceOf(
+      PoisonMessageError,
+    );
+    consumer.backoff = 0;
+    await expect(consumer.handle(TRANSFER_SAMPLE, message(1))).rejects.toThrow(
+      'database unavailable',
+    );
+    expect(changeVisibility).not.toHaveBeenCalled();
+    consumer.backoff = 5;
+    changeVisibility.mockRejectedValue(new Error('sqs down'));
+    await expect(consumer.handle(TRANSFER_SAMPLE, message(1))).rejects.toThrow(
+      'database unavailable',
+    );
   });
 });

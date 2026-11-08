@@ -101,6 +101,12 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
     notificationUrl = new URL('/000000000000/notification-events', mq.endpoint).toString();
     db = await createTempDatabase();
     await migrate(db.url);
+    for (const id of [TRANSFER_SAMPLE.fromUserId, TRANSFER_SAMPLE.toUserId]) {
+      await q('INSERT INTO users(id,cognito_sub) VALUES($1,$2) ON CONFLICT DO NOTHING', [
+        id,
+        randomUUID(),
+      ]);
+    }
     source = new DataSource({ type: 'postgres', url: db.url });
     await source.initialize();
     sqs = new SqsClient({ region: 'us-east-1', endpoint: mq.endpoint });
@@ -413,7 +419,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
     });
     for (let i = 0; i < 8; i++) await consumer.consumeOnce(1);
     expect(await q('SELECT 1 FROM processed_events')).toHaveLength(5);
-    expect(await q('SELECT 1 FROM notification_log')).toHaveLength(5);
+    expect(await q('SELECT 1 FROM notification_log')).toHaveLength(10); // sender and recipient of 5 events
     expect(await drain(notificationUrl)).toEqual([]);
   });
 

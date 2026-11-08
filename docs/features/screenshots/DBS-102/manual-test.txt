@@ -1,0 +1,7 @@
+114cde7e52277ce39d26fe41613fd4fd59d6dd59
+M-102-01 PASS: transfer -> 2 notification_log rows (sender, recipient)
+   b2e5c8a1  transfer_completed  "Bạn đã chuyển tiền thành công"
+   d4a7f1c6  transfer_completed  "Tài khoản của bạn vừa nhận tiền"
+M-102-02 PASS: lock notice for the owner has no reason: "Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ ngân hàng để được hỗ trợ"
+M-102-03 PASS: recipient missing -> failed, rolled back (no mark), message hidden by the 5 s backoff (immediate receive is empty)
+cleanup done: temp database dropped, temp queues deleted

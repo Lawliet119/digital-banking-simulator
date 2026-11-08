@@ -18,6 +18,7 @@ import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-
 describe('ConsumerBase (real PostgreSQL + ElasticMQ)', () => {
   class QueueConsumer extends ConsumerBase {
     alwaysFail = false;
+    backoff = 0;
     constructor(
       protected readonly consumerName: string,
       private readonly url: string,
@@ -25,6 +26,9 @@ describe('ConsumerBase (real PostgreSQL + ElasticMQ)', () => {
       sqs: SqsClient,
     ) {
       super(tx, sqs, new PinoLogger({ pinoHttp: { level: 'silent' } } as never));
+    }
+    protected override get retryBackoffSeconds(): number {
+      return this.backoff;
     }
     protected queueUrl(): string {
       return this.url;
@@ -155,5 +159,19 @@ describe('ConsumerBase (real PostgreSQL + ElasticMQ)', () => {
     expect(await effects('c09a')).toBe(0);
     expect(await sqs.receive(b.dlq, opts)).toEqual([]);
     expect(await sqs.receive(a.dlq, { ...opts, maxMessages: 10 })).toHaveLength(2);
+  });
+  it('TC-102-03 a failed message stays hidden for the backoff, then comes back', async () => {
+    const { url } = await queuePair();
+    const consumer = new QueueConsumer('c102', url, tx, sqs);
+    consumer.alwaysFail = true;
+    consumer.backoff = 2;
+    await sqs.send(url, JSON.stringify(event()));
+    const [first] = await consumer.consumeOnce(1);
+    expect(first.status).toBe('failed');
+    // Without the backoff the default 30 s timeout would apply; with it the message is back in ~2 s.
+    expect(await sqs.receive(url, { waitTimeSeconds: 0, visibilityTimeout: 0 })).toEqual([]);
+    await new Promise(resolve => setTimeout(resolve, 2500));
+    const [again] = await consumer.consumeOnce(1);
+    expect(again.messageId).toBe(first.messageId);
   });
 });

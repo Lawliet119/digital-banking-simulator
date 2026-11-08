@@ -13,6 +13,47 @@ export const NOTIFICATION_CONSUMER = 'notification';
 
 export { dlqUrlFor };
 
+interface Notice {
+  userId: string;
+  kind: 'transfer_completed' | 'account_status_changed';
+  message: string;
+}
+
+/**
+ * Who is told what. The texts are fixed sentences chosen from the event type and status only: no
+ * amount, no account number, and nothing from the event that could carry a reason, so a fraud
+ * reason cannot reach a customer (BR-13). Whoever owns both ends of a transfer is told once.
+ */
+export function noticesFor(event: DomainEvent): Notice[] {
+  if (event.eventType === 'AccountStatusChanged') {
+    return [
+      {
+        userId: event.ownerUserId,
+        kind: 'account_status_changed',
+        message:
+          event.newStatus === 'LOCKED'
+            ? 'Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ ngân hàng để được hỗ trợ'
+            : 'Tài khoản của bạn đã được mở khóa',
+      },
+    ];
+  }
+  const received: Notice = {
+    userId: event.toUserId,
+    kind: 'transfer_completed',
+    message:
+      event.type === 'DEPOSIT'
+        ? 'Tài khoản của bạn vừa được nạp tiền'
+        : 'Tài khoản của bạn vừa nhận tiền',
+  };
+  if (event.type === 'DEPOSIT') return [received];
+  const sent: Notice = {
+    userId: event.fromUserId,
+    kind: 'transfer_completed',
+    message: 'Bạn đã chuyển tiền thành công',
+  };
+  return event.fromUserId === event.toUserId ? [sent] : [sent, received];
+}
+
 /**
  * Consumer of `notification-events` (v1: the "notification" is a log line, docs/03 §6.3). The frame
  * (idempotency, DLQ, retry limit, worker-only polling) is `ConsumerBase`; this class only says what
@@ -37,16 +78,12 @@ export class NotificationConsumer extends ConsumerBase {
   }
 
   protected async apply(event: DomainEvent, manager: EntityManager): Promise<void> {
-    const kind =
-      event.eventType === 'TransferCompleted' ? 'transfer_completed' : 'account_status_changed';
-    const message =
-      event.eventType === 'TransferCompleted'
-        ? 'Giao dịch đã hoàn tất'
-        : 'Trạng thái tài khoản đã thay đổi';
-    await manager.query(
-      'INSERT INTO notification_log(event_id,kind,user_id,message) VALUES($1,$2,NULL,$3)',
-      [event.eventId, kind, message],
-    );
+    for (const notice of noticesFor(event)) {
+      await manager.query(
+        'INSERT INTO notification_log(event_id,kind,user_id,message) VALUES($1,$2,$3,$4)',
+        [event.eventId, notice.kind, notice.userId, notice.message],
+      );
+    }
   }
 
   protected override onCommitted(event: DomainEvent): void {
