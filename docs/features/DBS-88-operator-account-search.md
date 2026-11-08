@@ -1,6 +1,6 @@
 # DBS-88 · FR-ACC-04: GET /v1/operator/accounts cho nhân viên tra cứu tài khoản của khách
 
-> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-88-operator-account-search` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-88-operator-account-search` · **PR:** [#77](https://github.com/Lawliet119/digital-banking-simulator/pull/77) · **Cập nhật:** 2026-11-08
 >
 > Techlead waiver: G1–G4 do agent tự duyệt theo yêu cầu của techlead (`huyasuo1109@gmail.com`); không có Dev khác review trước merge; không có ảnh PNG, bằng chứng là output thô; domain review do chính agent làm, không dùng subagent (§6).
 
