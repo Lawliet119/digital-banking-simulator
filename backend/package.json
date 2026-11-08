@@ -8,6 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "openapi:export": "ts-node -r tsconfig-paths/register src/scripts/export-openapi.ts",
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",

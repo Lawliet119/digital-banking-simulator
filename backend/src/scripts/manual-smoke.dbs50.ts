@@ -144,7 +144,7 @@ async function main(): Promise<void> {
     ),
   );
 
-  fixture.setKeys([publicJwk]); // only now does the JWKS endpoint actually serve the key
+  fixture.setKeys([{ ...publicJwk }]); // only now does the JWKS endpoint actually serve the key
   console.log('\n--- M-50-03: valid token ---');
   console.log(
     await getJsonBody(
