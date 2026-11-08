@@ -1,17 +1,20 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { limitsConfig } from '@config/limits.config';
 import { sqsConfig } from '@config/sqs.config';
 import { SqsModule } from '@libs/sqs';
+import { OutboxCleanupService } from './outbox-cleanup.service';
 import { OutboxRelayService } from './outbox-relay.service';
 
 /**
  * The relay half of the outbox (docs/03 §10). Kept apart from `OutboxModule`, which every role
  * loads to write events: a producer needs no queue client, and an `api` instance must not own a
- * relay. It is listed in `workerModules`; the relay also checks `runsWorkers()` before it polls.
+ * relay. It is listed in `workerModules`; the relay and the cleanup job (DBS-92) also check
+ * `runsWorkers()` before they start.
  */
 @Module({
-  imports: [ConfigModule.forFeature(sqsConfig), SqsModule],
-  providers: [OutboxRelayService],
+  imports: [ConfigModule.forFeature(sqsConfig), ConfigModule.forFeature(limitsConfig), SqsModule],
+  providers: [OutboxRelayService, OutboxCleanupService],
   exports: [OutboxRelayService],
 })
 export class OutboxRelayModule {}

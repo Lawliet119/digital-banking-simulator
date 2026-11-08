@@ -55,6 +55,15 @@ describe('databaseConfig', () => {
 });
 
 describe('limitsConfig', () => {
+  it('TC-92-06 exposes the retention days of the outbox and of processed events', () => {
+    process.env.OUTBOX_RETENTION_DAYS = '30';
+    process.env.PROCESSED_EVENTS_RETENTION_DAYS = '14';
+    expect(limitsConfig().outbox).toEqual({ retentionDays: 30, processedEventsRetentionDays: 14 });
+    delete process.env.OUTBOX_RETENTION_DAYS;
+    delete process.env.PROCESSED_EVENTS_RETENTION_DAYS;
+    expect(limitsConfig().outbox).toEqual({ retentionDays: 7, processedEventsRetentionDays: 7 });
+  });
+
   it('exposes transfer limits as bigint, never as a floating-point number (BR-01)', () => {
     const { transfer } = limitsConfig();
     expect(typeof transfer.perTx).toBe('bigint');

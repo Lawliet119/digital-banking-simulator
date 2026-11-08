@@ -140,7 +140,7 @@ Reviewer độc lập `openai-codex/gpt-6.1-sol`: **0 blocking, 0 should-fix, 0 
 | TC-93-01/02/03 | Đạt trên suite unit R1; kiểm so sánh ngưỡng, rule tắt, cấu hình, giá trị lỗi và explanation |
 | TC-93-04 | Compile-time contract chỉ cho `TRANSFER`; **chưa kiểm runtime DEPOSIT** khi chưa có consumer DBS-111; BL-041 |
 | TC-93-05 | **Chưa kiểm cửa sổ và dedup bằng nguồn thật**: provider chưa triển khai; DBS-109/128/112, BL-041 |
-| TC-93-06 | CI remote, Dev khác review và merge chưa có; BL-180 |
+| TC-93-06 | CI remote, Dev khác review và merge chưa có; BL-183 |
 
 Không có bằng chứng fraud end-to-end, chất lượng phát hiện hay tích hợp OpenAI từ task R1. Các task còn lại của yêu cầu tổng thể và các phụ thuộc dữ liệu/Ops được giữ ở §1; không thay chúng bằng mock.
 
@@ -150,5 +150,5 @@ Không có bằng chứng fraud end-to-end, chất lượng phát hiện hay tí
 
 - `backend/src/modules/risk/README.md`: trạng thái R1 và ADR-14, giới hạn runtime.
 - `docs/features/README.md`: index DBS-93.
-- `docs/BACKLOG.md`: cập nhật BL-041 với handoff provider/consumer và nguồn DBS-93; thêm BL-180 theo dõi CI/review/merge.
+- `docs/BACKLOG.md`: cập nhật BL-041 với handoff provider/consumer và nguồn DBS-93; thêm BL-183 theo dõi CI/review/merge.
 - Feature doc này, review thiết kế, output và ảnh test thủ công.

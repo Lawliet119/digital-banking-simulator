@@ -35,6 +35,7 @@ Khác biệt giữa component và module: xem [glossary](_shared/glossary.md).
 
 ## Dùng chung
 
+- [`_shared/api-design.md`](_shared/api-design.md) — thiết kế REST API: quy ước HTTP, headers, DTO request/response, phân trang cursor, bảng `errorCode` chuẩn RFC 7807/9457 cho toàn bộ 18 endpoints.
 - [`_shared/database-design.md`](_shared/database-design.md) — thiết kế DB: bảng, ràng buộc, index, quyền, vòng đời dữ liệu, migration.
 - [`_shared/event-contract.md`](_shared/event-contract.md) — hình dạng sự kiện và bảng định tuyến.
 - [`_shared/glossary.md`](_shared/glossary.md) — thuật ngữ kiến trúc.
