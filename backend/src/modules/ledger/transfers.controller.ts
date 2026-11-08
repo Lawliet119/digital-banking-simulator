@@ -22,12 +22,14 @@ import {
   ApiParam,
   ApiServiceUnavailableResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { CurrentUser, type CurrentUserInfo, Roles } from '@modules/identity';
 import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
 import { ErrorCode } from '@common/errors/error-code.enum';
+import { LimitTransfers } from '@common/rate-limit/limit-transfers.decorator';
 import { TransferDto, TransferResultDto } from './transfer.dto';
 import { TransferQueryService } from './transfer-query.service';
 import { TransferStatusDto } from './transfer-status.dto';
@@ -44,6 +46,7 @@ export class TransfersController {
   ) {}
 
   @Post()
+  @LimitTransfers()
   @ApiOperation({
     summary: 'Customer: transfer between distinct customer accounts with atomic double entry',
     description:
@@ -69,6 +72,10 @@ export class TransfersController {
   })
   @ApiInternalServerErrorResponse({
     description: 'Internal server error; all business writes rolled back',
+  })
+  @ApiTooManyRequestsResponse({
+    description:
+      'RATE_LIMITED: more than RATE_LIMIT_TRANSFERS_PER_MINUTE (10) transfer requests this minute; Retry-After seconds. Nothing was written',
   })
   @ApiServiceUnavailableResponse({
     description: 'SERVICE_TEMPORARILY_UNAVAILABLE; retry same key after Retry-After',

@@ -13,6 +13,9 @@ import { appConfig } from '@config/app.config';
 import { authConfig } from '@config/auth.config';
 import { databaseConfig } from '@config/database.config';
 import { limitsConfig } from '@config/limits.config';
+import { redisConfig } from '@config/redis.config';
+import { RateLimitModule, TransferRateLimitGuard } from '@common/rate-limit';
+import { HealthModule } from '@modules/health';
 import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
 import { TransactionService } from '@database/transaction.service';
 import { AccountsModule } from '@modules/accounts';
@@ -34,6 +37,14 @@ const settings = {
 /** Mutable on purpose: a test that moves more than the real limits allow raises them and restores. */
 export interface FixtureLimits {
   transfer: { perTx: bigint; perDay: bigint };
+  rateLimit: { transfersPerMinute: number; requestsPerIpPerMinute: number };
+}
+/** DBS-89: run the app with the real rate-limit guards against a real Redis (Valkey). */
+export interface RateLimitFixture {
+  redisUrl: string;
+  trustProxyHops?: number;
+  transfersPerMinute?: number;
+  requestsPerIpPerMinute?: number;
 }
 /** Per-transaction database waits; defaults match env/.env.example. A test shortens them to hit a timeout quickly. */
 export interface DbTimeouts {
@@ -79,14 +90,21 @@ class DepositFixtureConfig {
 /** Actual modules, JWT/identity and Pino context. Only test configuration supplied. */
 export async function startDepositApp(
   databaseUrl: string,
-  options: { timeouts?: Partial<DbTimeouts> } = {},
+  options: { timeouts?: Partial<DbTimeouts>; rateLimit?: RateLimitFixture } = {},
 ) {
   const issuer = await createDevTokenIssuer(),
     tempRoot = resolve(tmpdir());
   const dir = mkdtempSync(join(tempRoot, 'dbs60-jwks-')),
     jwksPath = join(dir, 'jwks.json');
   writeFileSync(jwksPath, JSON.stringify(issuer.jwks));
-  const limits: FixtureLimits = { transfer: { perTx: 50_000_000n, perDay: 200_000_000n } };
+  const limits: FixtureLimits = {
+    transfer: { perTx: 50_000_000n, perDay: 200_000_000n },
+    rateLimit: {
+      transfersPerMinute: options.rateLimit?.transfersPerMinute ?? 10,
+      requestsPerIpPerMinute: options.rateLimit?.requestsPerIpPerMinute ?? 100,
+    },
+  };
+  const appSettings = { ...settings, trustProxyHops: options.rateLimit?.trustProxyHops ?? 0 };
   let app: NestExpressApplication | undefined, module: TestingModule | undefined;
   const close = async () => {
     if (dirname(resolve(dir)) !== tempRoot || !basename(dir).startsWith('dbs60-jwks-'))
@@ -99,7 +117,8 @@ export async function startDepositApp(
     }
   };
   try {
-    module = await Test.createTestingModule({
+    const rateLimit = options.rateLimit;
+    const builder = Test.createTestingModule({
       imports: [
         TypeOrmModule.forRoot({
           type: 'postgres',
@@ -123,14 +142,28 @@ export async function startDepositApp(
         AuditModule,
         OutboxModule,
         LedgerModule,
+        ...(rateLimit ? [RateLimitModule, HealthModule] : []),
       ],
+      // The same order as AppModule: JWT, roles, per-customer transfer limit (the IP limit is the
+      // middleware of RateLimitModule).
       providers: [
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
+        ...(rateLimit ? [{ provide: APP_GUARD, useClass: TransferRateLimitGuard }] : []),
       ],
-    }).compile();
+    });
+    if (rateLimit) {
+      builder
+        .overrideProvider(redisConfig.KEY)
+        .useValue({ url: rateLimit.redisUrl, commandTimeoutMs: 50 });
+    }
+    module = await builder.compile();
     app = module.createNestApplication<NestExpressApplication>({ logger: false });
-    configureHttpApp(app, settings, createHttpLogging(await app.resolve(PinoLogger), settings));
+    configureHttpApp(
+      app,
+      appSettings,
+      createHttpLogging(await app.resolve(PinoLogger), appSettings),
+    );
     await app.listen(0, '127.0.0.1');
     return { app, url: await app.getUrl(), source: app.get(DataSource), issuer, limits, close };
   } catch (error) {
