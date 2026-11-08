@@ -27,7 +27,7 @@ hotfix, and for every request that names a task such as
    report the evidence instead of guessing.
 
 3. Retrieve the exact task from the team tracking sheet with
-   `node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs DBS-<n>`.
+   `node .claude/skills/dbs-delivering-task/scripts/fetch-task.mjs DBS-<n>` (hoặc `RSK-<n>` cho task fraud/AI thêm theo ADR-14).
    Read its requirements, acceptance criteria, dependencies,
    assignee, and current status. Never invent ticket details.
 

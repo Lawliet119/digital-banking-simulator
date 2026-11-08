@@ -51,7 +51,7 @@ digital-banking-simulator/
 │   ├── BRD.md            # nghiệp vụ, yêu cầu, mô hình miền (3 phần)
 │   ├── 03_HIGH_LEVEL_ARCHITECTURE.md
 │   ├── README.md         # bản đồ tài liệu: đọc gì trước, một sự thật ở một chỗ
-│   ├── adr/              # Architecture Decision Records (ADR-01…13 Accepted, ADR-14 Proposed)
+│   ├── adr/              # Architecture Decision Records (ADR-01…14 Accepted)
 │   ├── security/         # threat model STRIDE
 │   ├── components/       # concept brief từng component + thiết kế dùng chung (DB, event)
 │   ├── features/         # mỗi task một feature doc: thiết kế, test, kết quả

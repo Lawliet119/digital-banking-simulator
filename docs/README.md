@@ -18,7 +18,7 @@ docs/
 ├── BRD.md                                 Nghiệp vụ, yêu cầu, mô hình miền (3 phần)     (cấp hệ thống)
 ├── 03_HIGH_LEVEL_ARCHITECTURE.md          Kiến trúc tổng thể và chi tiết từng module    (cấp hệ thống)
 ├── BACKLOG.md                             Việc còn tồn mà các task đã chuyển cho người/task khác
-├── adr/                                   13 quyết định kiến trúc đã chốt (ADR-01…13), ADR-14 Proposed, kèm lý do
+├── adr/                                   14 quyết định kiến trúc đã chốt (ADR-01…14), kèm lý do
 ├── security/                              Threat model STRIDE (P3)
 ├── features/                              Một file cho mỗi task implement + screenshots/ (ảnh tính năng)
 ├── components/                            Concept brief từng component + thiết kế dùng chung

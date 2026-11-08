@@ -2,7 +2,7 @@
 
 > **Status:** Accepted v1.1 (chốt 2026-10-11; gộp từ hai tài liệu 01 và 02 ngày 2026-11-08) · **Owner:** cả nhóm (dẫn dắt P1: #2) · **Verified against code:** n/a (không nhắc công nghệ) · **Cập nhật:** 2026-11-08
 
-> **Đề xuất ADR-14 (Proposed):** Phương án rules + API AI được đề xuất ở [ADR-14](adr/0014-fraud-rules-external-ai.md) và mô tả ở [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md); chưa được nhóm chấp nhận, chưa triển khai. Nội dung dưới đây vẫn là thiết kế Accepted.
+> **ADR-14 (Accepted 2026-11-08):** Giữ rules R1–R6 và thêm tùy chọn API AI bổ sung theo [ADR-14](adr/0014-fraud-rules-external-ai.md), mô tả ở [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md); `rule_only` là mặc định, API AI chỉ bật qua gate của ADR. Fraud runtime hoàn chỉnh chưa được triển khai.
 
 | Thuộc tính | Giá trị |
 |---|---|
@@ -367,7 +367,7 @@ flowchart LR
 | **Hạn mức** | Giới hạn số tiền mỗi lần và mỗi ngày của một tài khoản |
 | **Đối soát** (reconciliation) | Kiểm tra tổng Nợ = tổng Có và số dư mỗi tài khoản khớp với sổ cái |
 | **Cờ gian lận** (fraud flag) | Đánh dấu một giao dịch đáng ngờ kèm danh sách luật đã kích hoạt |
-| **Cờ do tín hiệu AI bổ sung** (đề xuất [ADR-14](adr/0014-fraud-rules-external-ai.md), Proposed) | Cờ có tổng điểm đạt ngưỡng nhờ tín hiệu AI bổ sung; có thể không có luật nào kích hoạt. Nhóm chưa chấp nhận; định nghĩa «cờ gian lận» ở trên vẫn là định nghĩa Accepted |
+| **Cờ do tín hiệu AI bổ sung** ([ADR-14](adr/0014-fraud-rules-external-ai.md), Accepted) | Cờ có tổng điểm đạt ngưỡng nhờ tín hiệu AI bổ sung; có thể không có luật nào kích hoạt. Chỉ xảy ra khi chế độ `rules_with_external_ai` được bật qua gate của ADR-14; ở chế độ mặc định `rule_only`, định nghĩa «cờ gian lận» ở trên là định nghĩa áp dụng |
 | **Báo nhầm** (false positive) | Giao dịch hợp lệ nhưng bị gắn cờ |
 | **Nhật ký kiểm toán** (audit trail) | Bản ghi bất biến về ai làm gì, khi nào, trên đối tượng nào |
 | **Giao dịch bị từ chối** (rejected) | Lệnh không được thực hiện vì vi phạm quy tắc nghiệp vụ; vẫn được lưu lại |

@@ -66,8 +66,6 @@ flowchart LR
 
 Trạng thái: **Thiết kế** = biện pháp đã nằm trong thiết kế, chờ code; **Đã kiểm** = có test hoặc ảnh làm bằng chứng. Cột bằng chứng ghi task sẽ tạo ra bằng chứng đó.
 
-Ngoài ra, **Đề xuất** = biện pháp thuộc một ADR còn ở trạng thái Proposed, nhóm chưa chấp nhận.
-
 | # | STRIDE | Mối đe dọa | Biện pháp | Bằng chứng | Trạng thái |
 |---|---|---|---|---|---|
 | T1 | **S**poofing | Token giả, token ký bằng khóa khác, token hết hạn | Xác minh chữ ký qua JWKS, kiểm `iss`, `client_id`, `token_use`, `exp`; không tin claim trước khi verify | DBS-50, DBS-159 | Một phần: `jwks-verifier.service.spec.ts` kiểm sai `iss`, sai `client_id`, `token_use` khác `access`, token hết hạn, khóa không công bố; `test/identity.e2e-spec.ts` kiểm qua HTTP (DBS-50). Còn DBS-159 |
@@ -94,7 +92,7 @@ Ngoài ra, **Đề xuất** = biện pháp thuộc một ADR còn ở trạng th
 | T22 | **E**levation of privilege | Kiểm toán viên sửa dữ liệu | GET audit chỉ nhận auditor, không admin ngầm; không có route mutation audit. Production DB grants và policy trên endpoint ghi nghiệp vụ thật còn chờ triển khai | AC-8.1, DBS-103, DBS-119 | Đã kiểm phần HTTP audit bằng JWT/AppModule/PostgreSQL thật: [DBS-103 §8](../features/DBS-103-audit-search.md#8-kết-quả). Mutation audit404 không thay full AC-8.1; production ACL/endpoint ghi thật còn BL-019 |
 | T23 | **E**levation of privilege | Một task bị chiếm dùng quyền AWS của task khác | Task role riêng: `api` không có quyền SQS; `worker` chỉ 2 queue + DLQ; execution role tách khỏi task role | DBS-120 | Thiết kế |
 | T24 | **E**levation of privilege | Admin tắt luật gian lận âm thầm | Cấu hình luật chỉ thêm phiên bản mới (trigger chặn sửa), mỗi phiên bản ghi audit người tạo; alarm khi cảnh báo/1.000 bất thường | DBS-160, DBS-188 | Thiết kế |
-| T25 | **I**nformation disclosure | Đề xuất ADR-14: đặc trưng giao dịch (số tiền, số dư trước giao dịch, tuổi tài khoản, thống kê cửa sổ) gửi tới dịch vụ AI bên ngoài bị lộ, bị giữ lại ngoài ý muốn hoặc lộ qua log/lỗi; khóa API bị lộ; dịch vụ ngoài lỗi hoặc chậm làm dừng phần phát hiện bổ sung | Chỉ gửi allowlist (không ID, tên, email, free text, nhãn); HTTPS; khóa trong Secrets Manager, không nằm trong repo hay image; không log body, raw response, `Authorization` (logger của DBS-42); timeout, hạn mức, không retry trong một lần xử lý; lỗi provider thì fallback về R1–R6, không chặn chuyển tiền; ZDR chỉ khi tài khoản đủ điều kiện và được xác nhận; AI tắt mặc định | [ADR-14](../adr/0014-fraud-rules-external-ai.md) (Proposed), BL-043, BL-050 | Đề xuất |
+| T25 | **I**nformation disclosure | ADR-14 (Accepted): đặc trưng giao dịch (số tiền, số dư trước giao dịch, tuổi tài khoản, thống kê cửa sổ) gửi tới dịch vụ AI bên ngoài bị lộ, bị giữ lại ngoài ý muốn hoặc lộ qua log/lỗi; khóa API bị lộ; dịch vụ ngoài lỗi hoặc chậm làm dừng phần phát hiện bổ sung | Chỉ gửi allowlist (không ID, tên, email, free text, nhãn); HTTPS; khóa trong Secrets Manager, không nằm trong repo hay image; không log body, raw response, `Authorization` (logger của DBS-42); timeout, hạn mức, không retry trong một lần xử lý; lỗi provider thì fallback về R1–R6, không chặn chuyển tiền; ZDR chỉ khi tài khoản đủ điều kiện và được xác nhận; AI tắt mặc định | [ADR-14](../adr/0014-fraud-rules-external-ai.md) (Accepted), BL-043, BL-050 | Thiết kế |
 
 ## 4. Rủi ro chấp nhận
 

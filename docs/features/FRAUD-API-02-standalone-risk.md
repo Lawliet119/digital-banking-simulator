@@ -6,7 +6,7 @@
 
 Người yêu cầu làm **phần AI**, không nhận làm lại rules, database, audit, queue hoặc giao diện thuộc Dev. Mã `FRAUD-API-02` là mã nội bộ, không phải mã task trên sheet. Các bản phạm vi trước về bộ xử lý fraud đầy đủ đã bị rút lại; không dùng phê duyệt cũ cho phạm vi này.
 
-Nguồn thiết kế: [ADR-14](../adr/0014-fraud-rules-external-ai.md), [FRAUD-API-01](FRAUD-API-01-external-ai-decision.md) và [OpenAI Decisions](https://developers.openai.com/api/docs/guides/decisions). ADR-14 còn Proposed; việc code adapter độc lập không tự đổi trạng thái ADR hoặc chứng minh nhóm đã duyệt triển khai production.
+Nguồn thiết kế: [ADR-14](../adr/0014-fraud-rules-external-ai.md), [FRAUD-API-01](FRAUD-API-01-external-ai-decision.md) và [OpenAI Decisions](https://developers.openai.com/api/docs/guides/decisions). Khi viết task này ADR-14 còn Proposed; từ 2026-11-08 đã Accepted. Việc code adapter độc lập không tự bật AI hoặc chứng minh nhóm đã duyệt triển khai production.
 
 ### Phạm vi đề xuất
 

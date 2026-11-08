@@ -25,7 +25,7 @@ Fraud cần phát hiện giao dịch đáng ngờ sau commit mà không tác đ�
 | Khi thành phần AI lỗi | Không áp dụng | Fallback rules theo thiết kế cũ | Commit baseline, ghi trạng thái AI; không chặn chuyển tiền |
 | Dữ liệu | Lưu trong hệ thống | Có thể xử lý trong hạ tầng nhóm | Feature đi tới bên thứ ba; phải duyệt quyền gửi và điều kiện dịch vụ |
 
-## Quyết định đề xuất
+## Quyết định
 
 Chọn **C có gate**, đồng thời giữ **A là mặc định và đường vận hành độc lập**. Không tự train/fine-tune model, không thêm Python inference service, `.onnx`, `onnxruntime-node` hoặc alias mode cũ vào implementation của phương án này. Chọn ngưỡng/rubric/trọng số thủ công trên tune vẫn là lựa chọn tham số dựa trên dữ liệu và phải báo cáo, không phải bằng chứng model đã được calibration.
 
@@ -77,7 +77,7 @@ Mục này liệt kê nơi ADR-14 chạm vào yêu cầu hoặc quyết định 
 2. **Audit:** `audit_log` chỉ ghi khi tạo cờ và khi review. `risk_decisions` là bảng kỹ thuật append-only cùng nhóm với `processed_events` (baseline không audit từng dòng), nên nằm ngoài FR-AUD-01; AC-8.2 chỉ cần chuỗi cờ → review. Không thêm quyền đọc cho vai auditor và không thêm cột `correlation_id` vào decision; muốn tra quyết định LOW thì cần task API riêng.
 3. **Dung lượng ghi:** `risk_decisions` có một dòng cho mọi TRANSFER, tối đa RPS × 86.400 dòng/ngày (120 RPS liên tục ≈ 10,4 triệu dòng/ngày), giữ vĩnh viễn vì claim phải sống hơn `processed_events` và bảng không DELETE được. Kích thước dòng chưa đo; task migration/load test phải đo trước khi chốt retention. Phân vùng theo thời gian không tương thích PK `transfer_id` + `ON CONFLICT` + FK từ `fraud_flags` (PostgreSQL buộc khóa duy nhất của bảng phân vùng chứa cột phân vùng). Phải chọn trước một hướng: hash partition theo `transfer_id` (chỉ dàn tải, không bỏ dữ liệu theo tuổi), bảng claim hẹp tách khỏi bảng snapshot được phân vùng (bảng hẹp vẫn tăng không giới hạn), hoặc quy trình lưu trữ có ngoại lệ trigger được duyệt (BL-049).
 4. **Logging:** adapter provider phải đi qua `SafeLogger` và cơ chế che dữ liệu của DBS-42, không log body, raw response, khóa hay `Authorization`.
-5. **Tài liệu vai khác:** threat model nhận T25 (dữ liệu giao dịch gửi tới dịch vụ ngoài, secret, outage) ở trạng thái Đề xuất; platform-infra, observability, load-tests, dataset brief và owner của threat model/docs/BRD.md/P2 được bàn giao ở BL-050.
+5. **Tài liệu vai khác:** threat model nhận T25 (dữ liệu giao dịch gửi tới dịch vụ ngoài, secret, outage) ở trạng thái Thiết kế; platform-infra, observability, load-tests, dataset brief và owner của threat model/docs/BRD.md/P2 được bàn giao ở BL-050.
 
 ## Lý do và đánh đổi
 
@@ -99,4 +99,4 @@ Việc phụ thuộc provider mang thêm latency, outage, quota, chi phí và mo
 
 [Feature doc FRAUD-API-01](../features/FRAUD-API-01-external-ai-decision.md#74-handoff-và-lộ-trình-implementation-kế-tiếp) xác định task giữ/thay, kế hoạch và bên nhận. [Backlog](../BACKLOG.md) ghi điều kiện đóng các việc chưa triển khai hoặc chưa bàn giao. Việc đổi phạm vi DBS-161/211–215 do người quản lý board và nhóm xác nhận; agent không sửa sheet và không nhận kết quả API là đã hoàn thành DoD ONNX.
 
-ADR này là hồ sơ đề xuất, không phải bằng chứng backend đã chạy được fraud hoặc API đã được test thật. Implementation phải đi qua task/gate riêng; một Dev review và nhóm chấp thuận trước khi thay trạng thái ADR hoặc bật AI.
+ADR này ghi quyết định đã được nhóm duyệt (Accepted 2026-11-08), không phải bằng chứng backend đã chạy được fraud hoặc API đã được test thật. Implementation phải đi qua task/gate riêng; việc bật AI cần qua gate chất lượng, dữ liệu và vận hành của ADR này.

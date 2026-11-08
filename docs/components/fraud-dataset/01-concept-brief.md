@@ -25,7 +25,7 @@ Không có dữ liệu thật; cần dữ liệu có nhãn để đo precision, 
 - Có hard negatives (giao dịch hợp lệ trông đáng ngờ) và kịch bản ngoài tầm luật để đo recall trung thực.
 - Generator NORMAL và mixed đã có trong [README vận hành](../../../load-tests/fraud-dataset/README.md). Mixed giữ 12 cột, sinh đủ 8 scenario/5 nhóm hard negatives, có manifest replay và thống kê từ CSV; chưa có split/giao dữ liệu hoặc số đo chất lượng scoring. Bằng chứng: [DBS-126](../../features/DBS-126-fraud-scenarios.md).
 - Giới hạn implementation mixed: 75% khách cho background, 25% cho cohort kịch bản, không có giao dịch nối hai nhóm; mặc định khoảng 70–80 nghìn dòng. Cần ghi giới hạn và quy mô thực tế này trong P5, không suy rộng kết quả tổng hợp thành độ chính xác trên dữ liệu thật.
-- **Đề xuất ADR-14 (Proposed):** nếu nhóm chấp nhận phương án gọi API AI, tập tune cần một cột khóa khách hàng để #4 chia nhóm chọn cấu hình và validation, và mỗi giao dịch tune sẽ tạo một lời gọi API trả phí cho B1/B2. Cần #6 xác nhận cột khóa khách có trong CSV tune. Xem [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md).
+- **ADR-14 (Accepted 2026-11-08):** vì phương án gọi API AI bổ sung đã được duyệt, tập tune cần một cột khóa khách hàng để #4 chia nhóm chọn cấu hình và validation, và mỗi giao dịch tune sẽ tạo một lời gọi API trả phí cho B1/B2. Cần #6 xác nhận cột khóa khách có trong CSV tune (BL-050). Xem [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md).
 
 ## Ngoài phạm vi (v1)
 
