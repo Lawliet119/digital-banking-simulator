@@ -102,7 +102,7 @@ Rủi ro: không có thay đổi production. Đột biến: tính theo ngày UTC
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (Node 24.22.2, `backend/`, commit code cuối `a3a02a5`; SHA ở dòng đầu `manual-test.txt`):
+- **Lệnh kiểm tra** (Node 24.22.2, `backend/`, commit code cuối `34a030b`; SHA ở dòng đầu `manual-test.txt`):
 
 | Lệnh | Kết quả |
 |---|---|
@@ -142,7 +142,7 @@ Rủi ro: không có thay đổi production. Đột biến: tính theo ngày UTC
 
 - **Phạm vi so với §7:** khớp. Thêm `sync-guard.service.spec.ts` (TC-85-05), `docs/BACKLOG.md` (xóa BL-154, cập nhật BL-176).
 - **Ảnh chụp:** không có (waiver); bằng chứng là `manual-test.txt`.
-- **Lệch so với kế hoạch:** (1) commit đầu lọt lỗi lint `no-unsafe-return` ở test (đã sửa ở commit kế); (2) không chạy `test:e2e` cục bộ.
+- **Lệch so với kế hoạch:** (1) commit đầu lọt lỗi lint `no-unsafe-return` ở test (đã sửa ở commit kế); (2) không chạy `test:e2e` cục bộ; (3) **CI `db` đỏ lần đầu**: Postgres của CI báo `SHOW timezone` = `Etc/UTC`, máy local báo `UTC` (cùng múi giờ). TC-85-01 khẳng định đúng `UTC`, nên hỏng trên CI; đã sửa thành chấp nhận cả hai tên và kiểm thêm độ lệch bằng 0, chạy lại test thủ công trên SHA mới.
 - **Bàn giao:** BL-176 (thêm PR này). Đã xóa BL-154. Không phát hiện lỗi production.
 
 ## 9. Tài liệu đã cập nhật
