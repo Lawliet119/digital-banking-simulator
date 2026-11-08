@@ -25,11 +25,13 @@
 1. **Chỉ chấm `TRANSFER`:** `event.type` khác `TRANSFER` trả `null` ngay đầu hàm (như R1, R2).
 2. **Cấu hình:** `enabled` boolean; `weight` nguyên trong `[0, 2147483647]`; `thresholds.maxAccountAgeHoursExclusive` số nguyên an toàn trong `[1, 87600]` (v1 là 24); `thresholds.minAmountExclusive` **chuỗi** số đồng canonical qua `parseMoney` (`0 … MONEY_MAX`; v1 là `'10000000'`). Sai kiểu (số thay vì chuỗi), thiếu key hay ngoài miền thì ném `Error` (`Invalid R3 configuration`), kể cả khi rule tắt.
 3. **Rule tắt:** sau khi kiểm cấu hình, `enabled = false` trả `null` ngay, không đọc `amount` hay snapshot.
-4. **Snapshot:** `event.amount` qua `parsePositiveMoney`; lỗi được bắt và ném lại thành `Invalid R3 snapshot field: amount` (không giá trị, không `cause`). `event.occurredAt` và `event.fromAccountCreatedAt` phải là ISO-8601 UTC có `Z`, giây, tối đa 9 chữ số thập phân, ngày giờ có thật (không `2026-02-30`, không giờ 24, không offset `+00:00`). Thiếu (`undefined`, `null`, rỗng) hoặc sai thì ném `Error` với thông báo `Invalid R3 snapshot field: <tên trường>` (tên trường, không bao giờ có giá trị). So sánh ở độ chính xác **mili giây** (phần dưới mili giây bị cắt; nhà phát event dùng `Date#toISOString()` nên chỉ có mili giây, sai số dưới 1 ms). Cách kiểm: khớp regex `^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?Z$`, `Date.parse` ra số, rồi đòi `new Date(ms).toISOString().slice(0, 19) === value.slice(0, 19)` (chặn `2026-02-30`, `…T24:00:00Z`, giây `60`, `1900-02-29`; năm `0099` vẫn là năm 99, không thành 1999).
-5. **Tuổi:** `ageMs = max(0, occurredAt − fromAccountCreatedAt)`; tuổi âm coi là 0 (xem câu hỏi mở 2).
-6. **Kích hoạt** khi rule bật **và** `ageMs < maxAccountAgeHoursExclusive × 3 600 000` **và** `amount > minAmountExclusive` (bigint; cả hai biên là chặt: đúng 24 giờ hoặc đúng 10.000.000 thì **không** kích hoạt).
-7. **Kết quả:** `{ id: 'R3', weight, explanation }`. Explanation: `Tài khoản mở {tuổi} trước, chuyển {amount}đ`. Tuổi luôn **cắt xuống**, không bao giờ nói quá tuổi thật: dưới 1 phút ghi `dưới 1 phút`, từ 1 đến 59 phút ghi `{n} phút`, từ 60 phút ghi `{n} giờ`. Số tiền có dấu chấm ngăn nghìn theo mẫu guide (`20.000.000đ`), tạo **chỉ trên chuỗi chữ số** (`replace(/\B(?=(\d{3})+(?!\d))/g, '.')`), không `Number`, không `toLocaleString` (mất chính xác trên 2^53 và phụ thuộc ICU). Không chứa ID hay dữ liệu khách.
+4. **Snapshot:** `event.amount` qua `parsePositiveMoney`; lỗi được bắt và ném lại thành `Invalid R3 snapshot field: amount` (không giá trị, không `cause`). `event.occurredAt` và `event.fromAccountCreatedAt` phải là ISO-8601 UTC có `Z`, giây, tối đa 9 chữ số thập phân, ngày giờ có thật. Thiếu hoặc sai thì ném `Invalid R3 snapshot field: <tên trường>` không kèm giá trị. `riskTimeNanoseconds` kiểm regex và lịch UTC, giữ đủ 9 chữ số thập phân.
+5. **Tuổi:** `ageNs = max(0, occurredAt − fromAccountCreatedAt)`; tuổi âm coi là 0 (xem câu hỏi mở 2).
+6. **Kích hoạt** khi rule bật **và** `ageNs < maxAccountAgeHoursExclusive × 3 600 000 000 000` **và** `amount > minAmountExclusive` (bigint; cả hai biên là chặt: đúng 24 giờ hoặc đúng 10.000.000 thì **không** kích hoạt).
+7. **Kết quả:** `{ id: 'R3', weight, explanation }`. Explanation: `Tài khoản mở {tuổi} trước, chuyển {amount}đ`. Tuổi luôn **cắt xuống**, không bao giờ nói quá tuổi thật: dưới 1 phút ghi `dưới 1 phút`, từ 1 đến 59 phút ghi `{n} phút`, từ 60 phút ghi `{n} giờ`. Số tiền có dấu chấm ngăn nghìn theo mẫu guide (`20.000.000đ`), tạo **chỉ trên chuỗi chữ số** (`replace(/\B(?=(\d{3})+(?!\d))/g, '.')`), không `Number`, không `toLocaleString` (mất chính xác trên 2^53 và phụ thuộc ICU). Không chứa ID trực tiếp.
 8. Ví dụ: tài khoản mở lúc 00:15:42, `occurredAt` 03:15:42 cùng ngày, `amount = "20000000"` → `Tài khoản mở 3 giờ trước, chuyển 20.000.000đ`, weight 35.
+
+Giải thích không chứa ID trực tiếp nhưng số tiền vẫn là dữ liệu giao dịch nhạy cảm; consumer/API phải kiểm soát quyền đọc, không log công khai.
 
 ## 3. Kiến trúc
 
@@ -88,7 +90,7 @@ Output thô và ảnh lưu ở `docs/features/screenshots/DBS-95/` (`manual-test
 | 4 | should-fix | Cách kiểm UTC còn bỏ ngỏ, các bẫy `Date` | đã sửa §2.4: regex + `Date.parse` + khớp 19 ký tự đầu qua `toISOString`; TC-95-07 |
 | 5 | minor | Kiểm snapshot khi rule tắt làm sai `risk_rule_error_total` và mất cách giảm thiểu | đã sửa §1 câu 5, §2.3: rule tắt thì chỉ kiểm cấu hình |
 | 6 | minor | `0 phút` gượng, `1 giờ` cho 1h59 | đã sửa §2.7: `dưới 1 phút`, cắt xuống có chủ ý; TC-95-06 |
-| 7 | minor | Cắt dưới mili giây lật biên | không sửa: không thực tế (nhà phát dùng `toISOString()`); ghi §2.4 |
+| 7 | minor | Cắt dưới mili giây lật biên | ban đầu không sửa vì nhà phát dùng `toISOString()`; sau đó đã tái hiện bằng timestamp hợp lệ theo hợp đồng và sửa so sánh ở [DBS-108](DBS-108-scoring.md) |
 | 8 | minor | Lỗi `amount` thiếu tên trường | đã sửa §2.4: `Invalid R3 snapshot field: amount`; TC-95-07 |
 | 9 | minor | Thiếu ca biên | đã sửa TC-95-01, 02, 06, 07, 08 |
 | 10 | minor | Kịch bản thủ công thiếu câu `phút`, thiếu nơi lưu bằng chứng | đã sửa §5: M-95-08 và đường lưu |

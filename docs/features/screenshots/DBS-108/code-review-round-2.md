@@ -1,0 +1,3 @@
+**Remaining defect:** A revoked proxy passed as `assessment` can still erase the baseline. `Array.isArray(assessment)` is evaluated outside the assessment `try` block, and it throws a `TypeError` for a revoked proxy. The exception escapes instead of returning the computed rule score with `aiStatus: 'INVALID_RESPONSE'`.
+
+Move the assessment array check inside the narrow assessment `try` block. That preserves baseline-error propagation while handling this malformed AI input.

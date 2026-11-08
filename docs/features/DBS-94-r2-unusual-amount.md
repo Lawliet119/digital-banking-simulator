@@ -27,9 +27,9 @@
 2. **Cấu hình** (`params`): `enabled` boolean; `weight` nguyên trong `[0, 2147483647]`; `thresholds.medianMultiplier` số hữu hạn trong `(0, 1000]` có tối đa 2 chữ số thập phân (v1 là 5); `thresholds.historyDays` đúng số `30`; `thresholds.minHistory` số nguyên an toàn ≥ 5. Sai kiểu (chuỗi `'30'`), thiếu key hay ngoài miền thì ném `Error`, kể cả khi rule tắt (cùng chính sách fail-closed của R1). Thông báo lỗi không lặp lại giá trị đầu vào.
 3. **Dữ liệu cố định:** `event.amount` qua `parsePositiveMoney` (chuỗi đồng canonical, bigint, ≤ `MONEY_MAX`); `historyCount30d` số nguyên an toàn ≥ 0. Sai thì ném lỗi.
 4. **Đủ lịch sử?** `historyCount30d < minHistory` → `null` (bỏ qua, không phải lỗi), **không đọc trung vị**, kể cả khi trung vị có giá trị (provider được phép tính sớm).
-5. **Trung vị:** từ đây `historyCount30d ≥ 5`, nên `medianAmount30dTimes2` phải là chuỗi (`typeof string`) khớp `/^[1-9][0-9]*$/`, với `2 ≤ giá trị ≤ 2 × MONEY_MAX` (tiền là đồng nguyên nên trung vị ≥ 1; cận trên 20 chữ số nên không dùng `parsePositiveMoney`). `null` hay sai định dạng thì ném lỗi: provider hỏng không được âm thầm thành «không cờ».
+5. **Trung vị:** từ đây `historyCount30d ≥ 5`, nên `medianAmount30dTimes2` phải là chuỗi (`typeof string`) khớp `/^[1-9][0-9]*$/`, với `2 ≤ giá trị ≤ 2 × MONEY_MAX` (tiền là đồng nguyên nên trung vị ≥ 1; cận trên 20 chữ số nên không dùng `parsePositiveMoney`). Từ [DBS-108](DBS-108-scoring.md), chuỗi dài hơn 20 chữ số bị từ chối trước regex và `BigInt` để tránh tốn CPU cho đầu vào sai. `null` hay sai định dạng thì ném lỗi: provider hỏng không được âm thầm thành «không cờ».
 6. **So sánh bằng bigint, không số thực:** gọi `m100 = medianMultiplier × 100` (số nguyên, tính chính xác), kích hoạt khi `200 × amount > m100 × medianAmount30dTimes2` (tương đương `amount > multiplier × trung vị`). Đúng bằng thì **không** kích hoạt.
-7. **Kết quả:** `{ id: 'R2', weight, explanation }`. Explanation tiếng Việt, số không có dấu ngăn nghìn, **dấu phẩy thập phân**: `Số tiền {amount} gấp {bội}× trung vị 30 ngày ({trung vị})`. `bội100 = floor(200 × amount / medianAmount30dTimes2)` (bigint), hiển thị là `bội100 / 100` bỏ số 0 thừa nhưng giữ số 0 đứng giữa (`12`, `10,5`, `10,05`). Nếu `bội100 ≤ m100` (vượt rất ít) thì ghi `gấp hơn {medianMultiplier}×` để không bao giờ hiện một con số không vượt ngưỡng cho một cờ. Trung vị hiển thị là `medianAmount30dTimes2 / 2`, có `,5` khi lẻ. Không chứa ID hay dữ liệu khách.
+7. **Kết quả:** `{ id: 'R2', weight, explanation }`. Explanation tiếng Việt, số không có dấu ngăn nghìn, **dấu phẩy thập phân**: `Số tiền {amount} gấp {bội}× trung vị 30 ngày ({trung vị})`. `bội100 = floor(200 × amount / medianAmount30dTimes2)` (bigint), hiển thị là `bội100 / 100` bỏ số 0 thừa nhưng giữ số 0 đứng giữa (`12`, `10,5`, `10,05`). Nếu `bội100 ≤ m100` (vượt rất ít) thì ghi `gấp hơn {medianMultiplier}×` để không bao giờ hiện một con số không vượt ngưỡng cho một cờ. Trung vị hiển thị là `medianAmount30dTimes2 / 2`, có `,5` khi lẻ. Không chứa ID trực tiếp; số tiền và trung vị vẫn là dữ liệu giao dịch nhạy cảm, chỉ được xử lý qua luồng operator được phân quyền.
 8. Ví dụ: `amount = 50000000`, `medianAmount30dTimes2 = "8000000"`, `historyCount30d = 12` → `Số tiền 50000000 gấp 12,5× trung vị 30 ngày (4000000)`, weight 25.
 
 ## 3. Kiến trúc
@@ -90,7 +90,7 @@ Chỉ dữ liệu tổng hợp trong bộ nhớ. Không chứng minh trung vị 
 | 8 | minor | Thiếu ca fail-closed | đã sửa TC-94-07, TC-94-03 |
 | 9 | minor | Tham chiếu §8 chưa có | đã sửa: thêm §6–§8 |
 | 10 | minor | Kịch bản thủ công thiếu ca rủi ro | đã sửa §5: thêm M-94-04, 05; 1 tỷ đổi thành 50 000 000 |
-| H1–H6 | bàn giao | provider phát M2 canonical (H1), `Features` nêu cửa sổ (H2), consumer bắt lỗi từng luật (H3), config ánh xạ key và kiểm lúc ghi (H4), căn chỉnh `feature-projection` (H5), sửa guide §4.2 (H6) | một dòng BACKLOG (§8) |
+| H1–H6 | bàn giao | provider phát M2 canonical (H1), `Features` nêu cửa sổ (H2), consumer xử lý lỗi luật theo ADR-14 (H3), config ánh xạ key và kiểm lúc ghi (H4), căn chỉnh `feature-projection` (H5), sửa guide §4.2 (H6) | một dòng BACKLOG (§8); H3 được làm rõ theo ADR-14 Accepted |
 
 **Quyết định ở G2** (agent duyệt thay techlead, 2026-11-08): duyệt thiết kế; không còn blocking.
 
@@ -154,7 +154,8 @@ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs   -> 0 link 
 ![Kết quả test thủ công DBS-94](screenshots/DBS-94/01-r2-manual.png)
 
 - **Lệch so với kế hoạch:** (1) khi bung `it.each` spec có 111 case thay vì con số ước lượng ở §4; không đổi phạm vi. (2) Thêm quy tắc kiểm `thresholds` thiếu key riêng lẻ và `enabled` không phải boolean theo review #8. Không lệch phạm vi.
-- **Bàn giao cho vai khác:** **BL-184** (sáu mục H1–H6 từ review: provider phát median canonical, comment `Features`, consumer bắt lỗi từng luật, config ánh xạ key và kiểm lúc ghi, căn chỉnh `feature-projection`, sửa guide §4.2) và **BL-183** (Dev khác review PR luật fraud, đã cập nhật để gồm PR này). Provider tính trung vị đúng trên dữ liệu thật vẫn thuộc DBS-109/128: R2 chưa có bằng chứng end-to-end.
+- **Bàn giao cho vai khác:** **BL-184** (sáu mục H1–H6 từ review: provider phát median canonical, comment `Features`, consumer rollback/không ack khi luật lỗi theo ADR-14 Accepted, config ánh xạ key và kiểm lúc ghi, căn chỉnh `feature-projection`, sửa guide §4.2) và **BL-183** (Dev khác review PR luật fraud, đã cập nhật để gồm PR này). Provider tính trung vị đúng trên dữ liệu thật vẫn thuộc DBS-109/128: R2 chưa có bằng chứng end-to-end.
+- **Cập nhật tiếp theo:** H5 về projection median đã được sửa và kiểm trong [DBS-108](DBS-108-scoring.md); BL-184 giữ các mục còn lại. H3 đã căn lại theo ADR-14 Accepted, không phải tiếp tục chấm khi rule lỗi.
 
 ## 9. Tài liệu đã cập nhật
 

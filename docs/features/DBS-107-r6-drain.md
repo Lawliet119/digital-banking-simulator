@@ -1,0 +1,68 @@
+# DBS-107 · R6 rút cạn
+
+> **Status:** Đang triển khai · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-105-r4-r6-scoring` · **PR:** chưa tạo
+
+## 1. Bối cảnh
+
+Task tuần 4, P5, vai #4 Fraud, board To Do; Expect: «R6 đúng với snapshot trong event.» DoD nguyên văn:
+
+1. Hàm thuần: kích hoạt khi !sameOwner và fromBalanceBefore ≥ 1.000.000 và amount ≥ 0,9 × fromBalanceBefore (tính bằng bigint, không số thực)
+2. Test: đúng 90% và dưới 90%, số dư < 1.000.000, sameOwner, số rất lớn
+3. explanation nêu tỉ lệ phần trăm
+4. PR đã merge vào main (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ
+
+DBS-59 Done.
+
+G1 (agent tự quyết): chỉ đánh giá snapshot trong event, không đọc số dư hiện tại hoặc thay luồng tiền. CI, review và merge chưa xảy ra.
+
+## 2. Hành vi
+
+Chỉ TRANSFER; sameOwner bắt buộc boolean. Đọc `fromBalanceBefore` qua `parseBalance`, amount dương qua `parsePositiveMoney`. Hit khi cùng lúc đủ balance, khác chủ và `amount*100 >= balance*minBalancePercent`; cả ba là so sánh bigint. Explanation hiển thị phần trăm xấp xỉ và số tiền/số dư chính xác, đều là dữ liệu nhạy cảm.
+
+## 3. Kiến trúc
+
+`R6DrainRule` là `RiskRule` thuần; không đọc DB, không sửa ledger, không thay contract event.
+
+## 4. Test cases
+
+| ID | Mức | Điều kiện / kết quả |
+|---|---|---|
+| TC-107-01 | unit | Đúng 90% và đúng balance tối thiểu → hit; kém 1 đồng hoặc balance dưới ngưỡng → null. |
+| TC-107-02 | unit | Bigint lớn/nửa đồng ngưỡng, sameOwner, cấu hình, snapshot sai, rule tắt và DEPOSIT. |
+| TC-107-03 | quy trình | CI, Dev review, merge: chưa xảy ra. |
+
+## 5. Manual
+
+`npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts` từ `backend/`: M-107-01 kiểm biên 90% và sameOwner; M-95/105/106/107-02 kiểm DEPOSIT.
+
+## 6. Review
+
+[Review độc lập R5/R6](screenshots/DBS-107/domain-review.md) không phát hiện lỗi trên code được cung cấp; lưu ý explanation cần kiểm soát quyền ở consumer/API. Không thay Dev review.
+
+[Review sau implementation](screenshots/DBS-107/post-implementation-review.md): **APPROVE phạm vi thu hẹp** trên code/test cung cấp; không chạy lại test, không thay Dev review.
+
+**G2 kiểm lại sau code (agent tự quyết):** reviewer model `default` kết luận approve phạm vi thu hẹp, không blocker còn nêu trong code được cung cấp; Dev review không nằm trong kết luận đó. Đây không phải review đã chạy trước implementation.
+
+## 7. Kế hoạch và độ lệch
+
+Test trước class, xác nhận module thiếu rồi implement và chạy lại. Code/test có trước tài liệu này; review độc lập được bổ sung sau đó, không nhận đã review thiết kế trước code.
+
+| Bước | File | Test trước / đỏ | Lệnh chứng minh | Commit |
+|---|---|---|---|---|
+| R6 thuần | `rules/r6-drain.rule.ts` | `r6-drain.rule.spec.ts`, module chưa tồn tại | `npm test -- --runInBand src/modules/risk/rules/r6-drain.rule.spec.ts` | `f536209` |
+| Non-TRANSFER và manual | `rules/transfer-only.spec.ts`, `test/manual/r3-r6.manual.ts` | DEPOSIT trước guard: rule mới trả hit | `npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts` | `f536209` |
+
+Sweep sau implementation: test và giải thích rule được kiểm, CI/Dev review/merge chưa xảy ra và bàn giao BL-185; rollback bằng revert commit code. Việc lập/review kế hoạch sau code là độ lệch ghi tại §8.
+
+**G3 kiểm lại sau code (agent tự quyết):** sweep đã đối chiếu từng DoD với unit/manual hoặc handoff BL-185, ghi rủi ro và cách revert ở trên. Phạm vi thu hẹp có thể công bố ở Draft; sai lệch thứ tự được ghi §8.
+
+## 8. Kết quả và bàn giao
+
+- Xác minh trên code cuối `183014c`: `lint:check`, `typecheck`, `build` đạt; unit toàn backend **80 suite / 1.584 test**, e2e **15 suite / 153 test** đạt trên PostgreSQL/Valkey cô lập. E2e này không chứng minh fraud runtime; DB suite **43 / 735** chạy trong quá trình, trước fix projection/R2 cuối, không đổi schema.
+- TC-107-01/02: **đạt** qua `r6-drain.rule.spec.ts` và `transfer-only.spec.ts`; TC-107-03: **chưa đạt**, CI/Dev review/merge chưa xảy ra. Theo dõi [BL-185](../BACKLOG.md).
+- Manual trên commit code cuối: `npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts`; M-107-01 đúng 90% → hit, dưới 1 đồng và sameOwner → null; M-95/105/106/107-02 DEPOSIT → null. [Output thật](screenshots/DBS-107/manual-test.txt), [ảnh terminal](screenshots/DBS-107/01-rules.png). Dùng snapshot tổng hợp, không chạm ledger.
+- Độ lệch: code/test được viết trước feature doc và review thiết kế; review được thực hiện sau, không coi là đã hoàn thành theo đúng thứ tự G2/G3. Quyết định sau đó: giữ PR ở Draft, bàn giao rõ review quy trình và các phần chưa chứng minh; không tuyên bố hoàn thành DoD.
+
+## 9. Tài liệu
+
+Đã cập nhật `backend/src/modules/risk/README.md`, `docs/features/README.md`, `docs/BACKLOG.md` (BL-185) và guide lỗi theo ADR-14.
