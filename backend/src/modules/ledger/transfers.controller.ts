@@ -1,4 +1,14 @@
-import { BadRequestException, Body, Controller, Headers, Post, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Header,
+  Headers,
+  Param,
+  Post,
+  Req,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -7,7 +17,9 @@ import {
   ApiHeader,
   ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -17,6 +29,8 @@ import { CurrentUser, type CurrentUserInfo, Roles } from '@modules/identity';
 import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
 import { ErrorCode } from '@common/errors/error-code.enum';
 import { TransferDto, TransferResultDto } from './transfer.dto';
+import { TransferQueryService } from './transfer-query.service';
+import { TransferStatusDto } from './transfer-status.dto';
 import { TransferService } from './transfer.service';
 
 @ApiTags('transfers')
@@ -24,7 +38,10 @@ import { TransferService } from './transfer.service';
 @Roles('customer')
 @Controller('transfers')
 export class TransfersController {
-  constructor(private readonly transfers: TransferService) {}
+  constructor(
+    private readonly transfers: TransferService,
+    private readonly queries: TransferQueryService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -71,5 +88,33 @@ export class TransfersController {
       throw new BadRequestException('Idempotency-Key must contain at most 128 characters');
     if (!request.correlationId) throw new Error('Missing server correlation context');
     return this.transfers.transfer(user.userId, key, body, request.correlationId);
+  }
+  @Get(':id')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Customer: status of a transfer the caller sent or received',
+    description:
+      'The sender sees any status; the recipient only a COMPLETED transfer. Anyone else, a transfer that does not exist and a malformed id are the same 404. A REJECTED transfer shows its reason but never a destination account.',
+  })
+  @ApiParam({
+    name: 'id',
+    format: 'uuid',
+    description: 'transferId returned by POST /v1/transfers',
+  })
+  @ApiOkResponse({ type: TransferStatusDto })
+  @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED / TOKEN_EXPIRED' })
+  @ApiForbiddenResponse({ description: 'FORBIDDEN; the caller is not a customer' })
+  @ApiNotFoundResponse({ description: 'Transfer not found, or the caller is not a party to it' })
+  @ApiInternalServerErrorResponse({ description: 'Internal server error; no data if audit fails' })
+  @ApiServiceUnavailableResponse({
+    description: 'SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds',
+  })
+  status(
+    @CurrentUser() user: CurrentUserInfo,
+    @Param('id') transferId: string,
+    @Req() request: RequestWithCorrelationId,
+  ): Promise<TransferStatusDto> {
+    if (!request.correlationId) throw new Error('Missing server correlation context');
+    return this.queries.get(user.userId, transferId, request.correlationId);
   }
 }
