@@ -22,7 +22,7 @@ docs/
 ├── security/                              Threat model STRIDE (P3)
 ├── features/                              Một file cho mỗi task implement + screenshots/ (ảnh tính năng)
 ├── components/                            Concept brief từng component + thiết kế dùng chung
-│   ├── index.md   _shared/ (database-design, event-contract, glossary)
+│   ├── index.md   _shared/ (api-design, database-design, event-contract, glossary)
 │   └── ledger/  accounts/  identity/  risk/  audit/  outbox/  notification/  health/
 │       platform-infra/  ci-cd/  observability/  fraud-dataset/  load-tests/
 └── deliverables/                          Năm bản nộp P1–P5 (bản ghép trỏ về nguồn)
@@ -34,6 +34,7 @@ docs/
 |---|---|
 | Mục tiêu, quy tắc nghiệp vụ (BR), NFR, tiêu chí chấp nhận | `BRD` |
 | Kiến trúc hệ thống và chi tiết từng module: luồng, API, mã lỗi, Redis, bảo mật, triển khai | `03` (riêng `risk`: thêm `components/risk/02-architecture.md`) |
+| Đặc tả chi tiết REST API: headers, DTO request/response, phân trang cursor, mã lỗi `problem+json` | `components/_shared/api-design.md` |
 | Schema DB toàn hệ thống: bảng, ràng buộc, index, quyền, migration | `components/_shared/database-design.md` |
 | Hình dạng sự kiện | `components/_shared/event-contract.md` |
 | Lý do một quyết định | `adr/` |
