@@ -1,0 +1,11 @@
+5f4bb13d0215bdc658d71d3ce41eb727da19d21f
+(waiting 2 s for a new minute)
+M-89-01 PASS: Vũ Thị Giang sent 10 transfers of 1,000 to Bùi Văn Hải in a minute: 10 x 201
+{"step":"M-89-02","status":429,"retryAfter":"60","body":{"errorCode":"RATE_LIMITED","type":"about:blank","title":"Too Many Requests","status":429,"detail":"Too many requests","correlationId":"7335bbd1-300f-4b99-bec0-77947cc78235"}}
+M-89-02 PASS: the 11th: 429 RATE_LIMITED, Retry-After 60 s, no transfer or audit row written
+M-89-03 PASS: Trần Thu Hà transferred in the same minute: 201 (her count is her own)
+{"step":"M-89-04","request":21,"status":429,"retryAfter":"60","body":{"errorCode":"RATE_LIMITED","type":"about:blank","title":"Too Many Requests","status":429,"detail":"Too many requests","correlationId":"986ada9d-d28e-4e37-8b8f-88fb56fbb045"}}
+M-89-04 PASS: no token needed to be counted: requests 1-20 of the minute were 401, the first 429 came at request 21 of 25 (limit 20); 10 x /health/live all 200
+redis_fallback_total 0 -> 54
+M-89-05 PASS: Valkey stopped: 30 unauthenticated requests and 12 transfers by one customer (limit 10) all went through; redis_fallback_total 0 -> 54
+DBS-89 cleanup PASS: app closed, temporary database dropped, Valkey and PostgreSQL containers removed

@@ -48,3 +48,7 @@ Test: `npm run test:services -- --runInBand --runTestsByPath test/services/redis
 Thủ công: `docker compose up -d valkey`; từ `backend` chạy `npm run build` rồi
 `node scripts/manual-dbs76.cjs`. Driver chỉ dùng Compose Valkey và proxy TCP test, prefix key
 riêng, dọn sạch ở `finally`; không bao giờ kết nối AWS.
+
+## Rate limit (DBS-89)
+
+`common/rate-limit` dùng adapter này làm bộ đếm: `RateLimiter.hit(scope, id, limit)` gọi `incr` trên khóa **có số phút** (`rl:{ip|user}:{id}:{phút}`, TTL 60 s). Không dùng một khóa cố định: `incr` đặt lại `EXPIRE` ở mỗi lần gọi nên cửa sổ trượt mãi. Mọi `RedisUnavailableError` (và mọi lỗi bất ngờ) làm `hit` **cho qua** (fail-open, docs/03 §9.3); `redis_fallback_total` tăng ở đây như mọi lệnh Redis khác. Chi tiết và test: [DBS-89](../../../../docs/features/DBS-89-rate-limit.md).
