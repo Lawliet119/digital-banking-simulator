@@ -1,0 +1,6 @@
+290dd4e9443e0dd042dfa3bccc807ac1ff76c2b6
+$ cd backend && npx ts-node -r tsconfig-paths/register test/manual/r1-velocity.manual.ts
+{"case":"M-93-01","atThreshold":null,"aboveThreshold":{"id":"R1","weight":30,"explanation":"6 lệnh chuyển trong 10 phút (ngưỡng 5)"}}
+{"case":"M-93-02","result":null}
+{"case":"M-93-03","result":"CONFIG_ERROR"}
+exit: 0
