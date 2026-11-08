@@ -490,6 +490,10 @@ PostgreSQL 17, `timezone = UTC`, 1.000.400 dòng ghi nợ của một tài kho�
 
 **Quy tắc rút ra:** điều kiện trên cột có index không được chứa hàm `VOLATILE` (`clock_timestamp()`, `random()`): nó chỉ thành `Filter`, không thành `Index Cond`. Đưa "bây giờ" vào dưới dạng tham số (PostgreSQL gấp `date_trunc(… $2 AT TIME ZONE …)` thành hằng khi lập plan) hoặc dùng hàm `STABLE` như `statement_timestamp()`. Test tự động giữ quy tắc này: `backend/test/db/daily-limit.db-spec.ts` › `TC-84-01`.
 
+### 7.2 Đã đo: lịch sử giao dịch trang đầu (DBS-87, 2026-11-08)
+
+Cùng dữ liệu như §7.1 (1.000.400 dòng của một tài khoản, 500.000 dòng của 50.000 tài khoản khác), `limit = 20`, truy vấn của `buildHistorySql` (`ledger_entries` ⨝ `transfers` theo PK), trung vị 7 lần: `Limit` → `Nested Loop` → `Index Scan using ledger_entries_account_history_idx` (21 dòng) + `Index Scan using transfers_pkey`, **không có `Sort`**, 88 buffer, **0,118 ms** (ngưỡng 20 ms). Qua HTTP đầy đủ (JWT, kiểm sở hữu, audit, JSON): trung vị **13 ms**. Output thô: [manual-test.txt](../../features/screenshots/DBS-87/manual-test.txt). Test tự động giữ plan này: `backend/test/db/transaction-history-plan.db-spec.ts` (TC-87-03).
+
 Query audit được kiểm bằng đúng projection/order/limit+1 của service trên DB tạm ít nhất 50.000 dòng, correlation target khớp một dòng. EXPLAIN tự chọn plan, không ép `enable_seqscan`; assertion yêu cầu cùng node có `Node Type = Index Scan` và `Index Name = audit_log_correlation_idx`, không chấp nhận Bitmap Index Scan. [DBS-103 §8](../../features/DBS-103-audit-search.md#8-kết-quả) giữ các lượt đo warm và giới hạn môi trường local; đây chưa phải benchmark RDS hoặc latency endpoint dưới tải.
 
 ---
