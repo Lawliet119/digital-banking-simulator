@@ -17,7 +17,7 @@ runManual('DBS-85', async ctx => {
 
   // M-85-01 the database zone and the day boundary of two neighbouring instants
   const [{ TimeZone }] = await q('SHOW timezone');
-  assert.equal(TimeZone, 'UTC');
+  assert.match(TimeZone, /^(Etc\/)?UTC$/);
   const day = async iso =>
     (
       await q(

@@ -85,12 +85,17 @@ describe('DBS-85 the daily limit resets at 00:00 Vietnam time while the database
   });
 
   it('TC-85-01 the test database and the application sessions run on UTC', async () => {
-    expect((await q('SHOW timezone'))[0].TimeZone).toBe('UTC');
+    // The zone is "UTC" on a docker compose server and "Etc/UTC" on the CI service container:
+    // the same zone, so the name may be either but the offset must be zero.
+    const isUtc = /^(Etc\/)?UTC$/;
+    expect((await q('SHOW timezone'))[0].TimeZone).toMatch(isUtc);
+    const [{ offset }] = await q('SELECT extract(timezone FROM now())::int AS offset');
+    expect(offset).toBe(0);
     const inApp = await tx().run<string>(async manager => {
       const [row]: { TimeZone: string }[] = await manager.query('SHOW timezone');
       return row.TimeZone;
     });
-    expect(inApp).toBe('UTC');
+    expect(inApp).toMatch(isUtc);
   });
 
   // [debit written at, clock reads, counted today?]. 15 March 2026 starts at 14 March 17:00Z.
