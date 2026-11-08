@@ -1,6 +1,6 @@
 # DBS-101 · ConsumerBase: idempotent, message hỏng vào DLQ ngay, lỗi tạm thời retry tối đa 5 lần
 
-> **Status:** Plan approved (G1–G3 agent tự duyệt) · **Vai:** Dev · **Nhánh:** `feat/DBS-101-consumer-base` · **PR:** — · **Cập nhật:** 2026-11-09
+> **Status:** Implemented (G1–G4 agent tự duyệt) · **Vai:** Dev · **Nhánh:** `feat/DBS-101-consumer-base` · **PR:** — · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
@@ -117,8 +117,30 @@ Rủi ro: đổi `NotificationConsumer` làm vỡ `outbox-relay.services-spec` �
 
 ## 8. Kết quả
 
-(điền khi bàn giao)
+- **Lệnh kiểm tra** (commit code cuối `4ec3d5f`): `lint:check` và `typecheck` sạch; unit 76 suite / 1.424 test xanh; e2e 15 suite / 153 test xanh; `test:db -- consumer-base` 3/3; `test:services` `consumer-base` 3/3 và `outbox-relay` 15/15, `outbox-relay-faults` 12/12 (hồi quy sau khi `NotificationConsumer` dùng khung). Không có `.skip`/`.only`.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-101-01 | `test/db/consumer-base.db-spec.ts` › TC-101-01; `consumer-base.spec.ts` › TC-101-01 | đạt |
+| TC-101-02 | `consumer-base.db-spec.ts` › TC-101-02 (3 delivery đồng thời) | đạt |
+| TC-101-03 | `consumer-base.db-spec.ts` › TC-101-03 | đạt |
+| TC-101-04 | `consumer-base.spec.ts` › TC-101-04 | đạt |
+| TC-101-05 | `consumer-base.spec.ts` › TC-101-05 | đạt |
+| TC-101-06 | `consumer-base.spec.ts` › TC-101-06 (hai test) | đạt |
+| TC-101-07 | `test/services/consumer-base.services-spec.ts` › TC-101-07 | đạt |
+| TC-101-08 | `consumer-base.services-spec.ts` › TC-101-08 (4 lần failed, lần 5 dead-lettered) | đạt |
+| TC-101-09 | `consumer-base.services-spec.ts` › TC-101-09 | đạt |
+| TC-101-10 | `consumer-base.spec.ts` › TC-101-10 | đạt |
+| TC-101-11 | `consumer-base.spec.ts` › TC-101-11 | đạt |
+| TC-101-12 | `src/libs/sqs/sqs.client.spec.ts` › TC-101-12 (hai test) | đạt |
+
+- **Test thủ công** (`backend/test/manual/consumer-base.manual.ts`, ElasticMQ của compose + PostgreSQL tạm; output thô ở [manual-test.txt](screenshots/DBS-101/manual-test.txt)): M-101-01 đạt (3 message, 1 claim, 1 hiệu ứng); M-101-02 đạt (DLQ ở lần nhận đầu, nguồn rỗng); M-101-03 đạt (failed ×4 rồi dead-lettered, DLQ giữ event, không có `processed_events`).
+- **Phạm vi so với §7:** thêm `test/services/outbox-relay*.services-spec.ts` (sửa constructor `NotificationConsumer`, TC-NTF-02 đổi sang dead-lettered) và `.github/workflows/ci.yml` (bước services-spec mới); không đổi schema, env hay dependency.
+- **Ảnh chụp:** không có ảnh PNG; bằng chứng là output text thô trong `manual-test.txt` (Techlead waiver).
+- **Lệch so với kế hoạch:** (1) `consumeOnce` nhận thêm tham số `visibilityTimeout` để test deterministic, agent tự quyết vì nhỏ nhất; (2) db-spec viết sau `consumer-base.ts` nên không có bước đỏ riêng cho TC-101-01..03 (bù bằng TC-101-03 chứng minh rollback thật).
+- **Bàn giao:** backoff giữa các lần retry thuộc DBS-102; chính sách `UNKNOWN_EVENT_TYPE` của consumer risk thuộc DBS-111 (đã ghi vào BL-010). Không thêm dòng BL mới.
 
 ## 9. Tài liệu đã cập nhật
 
-(điền khi bàn giao)
+`backend/src/libs/sqs/README.md`, `backend/src/modules/notification/README.md`, `docs/BACKLOG.md` (BL-010 thêm nguồn và phần đã đóng), `docs/features/README.md`.
