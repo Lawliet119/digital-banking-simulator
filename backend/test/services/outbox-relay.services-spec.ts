@@ -62,6 +62,12 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     notificationUrl = new URL('/000000000000/notification-events', mq.endpoint).toString();
     db = await createTempDatabase();
     await migrate(db.url);
+    for (const id of [TRANSFER_SAMPLE.fromUserId, TRANSFER_SAMPLE.toUserId]) {
+      await q('INSERT INTO users(id,cognito_sub) VALUES($1,$2) ON CONFLICT DO NOTHING', [
+        id,
+        randomUUID(),
+      ]);
+    }
     source = new DataSource({ type: 'postgres', url: db.url });
     await source.initialize();
     const tx = new TransactionService(source, {
@@ -403,8 +409,13 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     for (let i = 0; i < 3; i++) await consumer.consumeOnce(1);
     const marks = await q('SELECT consumer,event_id FROM processed_events');
     expect(marks).toEqual([{ consumer: 'notification', event_id: event.eventId }]);
-    const logs = await q('SELECT event_id,kind,user_id FROM notification_log');
-    expect(logs).toEqual([{ event_id: event.eventId, kind: 'transfer_completed', user_id: null }]);
+    const logs = await q('SELECT event_id,kind,user_id FROM notification_log ORDER BY user_id');
+    // One row for the sender and one for the recipient (DBS-102), not one per delivery.
+    expect(logs).toEqual(
+      [TRANSFER_SAMPLE.fromUserId, TRANSFER_SAMPLE.toUserId]
+        .sort()
+        .map(user_id => ({ event_id: event.eventId, kind: 'transfer_completed', user_id })),
+    );
     // Both copies were acknowledged: nothing is left to redeliver.
     expect(await drain(notificationUrl)).toEqual([]);
   });
