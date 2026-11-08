@@ -18,7 +18,7 @@ import type { AddressInfo } from 'node:net';
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { SignJWT } from 'jose';
+import { type JWK, SignJWT } from 'jose';
 import { configureHttpApp, setupSwagger } from '../app.setup';
 import { authConfig } from '../config/auth.config';
 import { TransactionService } from '../database/transaction.service';
@@ -28,9 +28,9 @@ import { newDevKeyPair } from './dev-auth';
 const ISSUER = 'https://issuer.manual-smoke.test';
 const CLIENT_ID = 'manual-smoke-client';
 
-interface JwksKey extends Record<string, unknown> {
+type JwksKey = JWK & {
   kid: string;
-}
+};
 
 async function startFixtureJwks(): Promise<{
   url: string;
