@@ -1,0 +1,21 @@
+a3a02a5095bd317a46e7bf1507ebae7e163d744c
+SQL INPUT: users/customers/accounts at migration default ZERO, no SQL balance or ledger seed. ALL funding uses actual deposit HTTP.
+SHOW timezone = UTC
+day start of 2026-03-14T23:59:59+07:00 = 2026-03-13 17:00:00+00
+day start of 2026-03-15T00:00:00+07:00 = 2026-03-14 17:00:00+00
+M-85-01 PASS: DB on UTC; 23:59:59+07 and 00:00:00+07 give two day starts 24 hours apart
+{"method":"POST","path":"/v1/operator/deposits","key":"9522946f-b765-4f49-a1ca-6f8cff53af28","request":{"toAccountId":"97d17c79-ff28-4d85-9de7-42a69d0da7a1","amount":"300000000"},"status":201,"correlationId":"0047c127-66b8-471a-84ec-744fbc1d75e5","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"4611bc1d-5533-49d9-a8d9-05b686353967","status":"COMPLETED"}}
+SQL INPUT: Giang sent 200,000,000 to Hải at 2026-03-14T23:59:59+07:00
+application clock = 2026-03-14T23:59:59+07:00 (2026-03-14T16:59:59.000Z)
+{"method":"POST","path":"/v1/transfers","key":"2693bff8-bcbd-4c52-a3b9-7978f474ea42","request":{"fromAccountId":"97d17c79-ff28-4d85-9de7-42a69d0da7a1","toAccountId":"5b224ce9-42cf-4e18-9e4d-3ca76e4daf32","amount":"1"},"status":422,"correlationId":"3b29906f-0a4c-4d92-944c-df7ba796d225","retryAfter":null,"contentType":"application/problem+json; charset=utf-8","body":{"errorCode":"LIMIT_PER_DAY_EXCEEDED","transferId":"4dcd94f9-9819-411f-b993-75b65d3be0d1","type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"Transfer rejected","correlationId":"3b29906f-0a4c-4d92-944c-df7ba796d225"}}
+M-85-02 PASS: at 23:59:59+07 the day is full: 422 LIMIT_PER_DAY_EXCEEDED
+application clock = 2026-03-15T00:00:00+07:00 (2026-03-14T17:00:00.000Z)
+{"method":"POST","path":"/v1/transfers","key":"ec125391-a880-4df7-bf10-0cdeff2861c1","request":{"fromAccountId":"97d17c79-ff28-4d85-9de7-42a69d0da7a1","toAccountId":"5b224ce9-42cf-4e18-9e4d-3ca76e4daf32","amount":"50000000"},"status":201,"correlationId":"b7382748-9e9a-4cd0-a081-810443311d04","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"50a23160-14d3-4b3f-b022-c7cc751c37cf","status":"COMPLETED"}}
+M-85-03 PASS: one second later (00:00:00+07) the limit is free again: 201 COMPLETED
+{"method":"POST","path":"/v1/operator/deposits","key":"be5c4839-9be8-49f0-95a5-368d9b3fc038","request":{"toAccountId":"883e48f5-fa42-4ec3-a9ab-766fd1eae5b2","amount":"300000000"},"status":201,"correlationId":"f66c26a6-a927-4255-a974-9f264961fdc5","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"59af7b27-69ff-4f90-ba03-0c9c9ddc49c9","status":"COMPLETED"}}
+SQL INPUT: Khánh sent 200,000,000 to Lan at 2026-03-15T00:00:00+07:00
+application clock = 2026-03-15T00:00:00+07:00 (2026-03-14T17:00:00.000Z)
+{"method":"POST","path":"/v1/transfers","key":"6cf62e18-89b6-4ee4-8474-1df1d6072eb2","request":{"fromAccountId":"883e48f5-fa42-4ec3-a9ab-766fd1eae5b2","toAccountId":"2f4adaff-54a3-4a98-bdad-ad4e6af171dc","amount":"1"},"status":422,"correlationId":"01154d7d-7a51-4e22-8792-5e73079b7bcb","retryAfter":null,"contentType":"application/problem+json; charset=utf-8","body":{"errorCode":"LIMIT_PER_DAY_EXCEEDED","transferId":"92381bda-59be-43f7-b095-f458e96a2aca","type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"Transfer rejected","correlationId":"01154d7d-7a51-4e22-8792-5e73079b7bcb"}}
+M-85-04 PASS: a debit written at exactly 00:00:00+07 counts in the new day: 422
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"1050000000","credit":"1050000000","balance":"0"},"violations":[]}}
+DBS-85 cleanup PASS: app closed, JWKS directory gone, temporary database absent from pg_database, owned PG17 container removed
