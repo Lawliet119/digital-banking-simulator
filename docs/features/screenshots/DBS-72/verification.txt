@@ -1,0 +1,6 @@
+4e5446fa5e8058051e0911d494bc8663f2bd4b30
+Execution summary (full outputs not all captured in this file): Unit:70 suites,1135/1135. Export unit6/6. Real AppModule/CLI DB test1/1. E2E15 suites,153/153,processExit0/signalnull. Lint/typecheck/build exit0. FullDB wrapper exit127 with no Jest summary. Legacy DBS50 smoke runtime error at M50-01; not fixed.
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+

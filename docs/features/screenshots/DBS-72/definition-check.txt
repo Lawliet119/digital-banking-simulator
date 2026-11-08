@@ -1,0 +1,14 @@
+DBS-72 definition check
+Commands: rg CREATE TABLE/from_account_id/to_account_id/balance_after/user_id/idem_key under backend/src/database/migrations; rg error names in error-code.enum.ts and docs/03; manual source comparison.
+users/customers/accounts: CreateUsersCustomersAccounts1791763200000.
+transfers/ledger_entries/idempotency_keys; PK(user_id,idem_key); ledger_entries.balance_after: CreateTransfersLedgerIdempotency1791849600000.
+outbox_events/processed_events: CreateOutboxEventsProcessedEvents1792627200000.
+audit_log: CreateAuditLog1792627200001.
+notification_log: CreateNotificationLog1792886400000.
+risk_rule_sets/fraud_flags/fraud_rule_hits: CreateFraudStorage1792713600000.
+reconciliation_runs: CreateReconciliationRuns1793577600000.
+risk_decisions: named as target only, no migration; no false implementation claim.
+Money/error response conventions are linked to docs/03 and actual Swagger artifact; artifact declares amount string and customer/operator roles.
+modulesForRole(): worker OutboxRelayModule/NotificationModule; RiskModule shared but full risk consumer/scoring and reconciliation job absent.
+ADR-14 is Accepted; stale Proposed descriptions in P2 corrected.
+Rubric/deadline/submission not supplied; current source mapping is not claimed as lecturer rubric.

@@ -1,0 +1,10 @@
+4e5446fa5e8058051e0911d494bc8663f2bd4b30
+{"step":"M-72-01","status":"PASS","paths":["/health/live","/health/ready","/v1/identity/me","/v1/customers/me","/v1/accounts","/v1/accounts/{id}","/v1/operator/accounts","/v1/operator/deposits","/v1/transfers","/v1/transfers/{id}","/v1/accounts/{id}/transactions","/v1/audit/entries"],"amountSchema":{"type":"string","example":"300000","description":"Positive canonical whole VND string, at most 9223372036854775807"},"roles":["customer"]}
+{"step":"M-72-02","status":"PASS","artifactUnchanged":true}
+Manual OpenAPI verification failed
+{"step":"M-72-01","status":"PASS","paths":["/health/live","/health/ready","/v1/identity/me","/v1/customers/me","/v1/accounts","/v1/accounts/{id}","/v1/operator/accounts","/v1/operator/deposits","/v1/transfers","/v1/transfers/{id}","/v1/accounts/{id}/transactions","/v1/audit/entries"],"amountSchema":{"type":"string","example":"300000","description":"Positive canonical whole VND string, at most 9223372036854775807"},"roles":["customer"]}
+{"step":"M-72-02","status":"PASS","artifactUnchanged":true}
+OpenAPI artifact exported
+{"step":"M-72-01","status":"PASS","paths":["/health/live","/health/ready","/v1/identity/me","/v1/customers/me","/v1/accounts","/v1/accounts/{id}","/v1/operator/accounts","/v1/operator/deposits","/v1/transfers","/v1/transfers/{id}","/v1/accounts/{id}/transactions","/v1/audit/entries"],"amountSchema":{"type":"string","example":"300000","description":"Positive canonical whole VND string, at most 9223372036854775807"},"roles":["customer"]}
+{"step":"M-72-02","status":"PASS","artifactUnchanged":true}
+256 files checked, 0 broken link(s)
