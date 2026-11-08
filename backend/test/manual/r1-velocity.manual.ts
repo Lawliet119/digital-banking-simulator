@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import type { Features, TransferEvent } from '../../src/modules/risk/features/feature-provider';
+import { countTransfersInWindow } from '../../src/modules/risk/features/velocity-count';
 import { R1VelocityRule } from '../../src/modules/risk/rules/r1-velocity.rule';
 import type { RuleParams } from '../../src/modules/risk/rules/rule';
 
@@ -69,3 +70,27 @@ assert.equal(depositResult, null);
 console.log(
   JSON.stringify({ case: 'M-93-04', type: 'DEPOSIT', txCount10m: 100, result: depositResult }),
 );
+
+const now = Date.parse(event.occurredAt);
+const stamp = (msAgo: number, transferId: string) => ({
+  transferId,
+  occurredAt: new Date(now - msAgo).toISOString(),
+});
+const current = { transferId: event.transferId, occurredAt: event.occurredAt };
+const fiveInWindow = [1, 2, 3, 4].map(i => stamp(i * 60_000, `t${i}`));
+const flag = (history: ReturnType<typeof stamp>[]) => {
+  const txCount10m = countTransfersInWindow(current, history, 10);
+  return { txCount10m, hit: rule.evaluate(event, { ...features, txCount10m }, params) !== null };
+};
+const five = flag(fiveInWindow);
+const six = flag([...fiveInWindow, stamp(5 * 60_000, 't5')]);
+const noise = flag([
+  ...fiveInWindow,
+  ...fiveInWindow,
+  stamp(10 * 60_000, 'edge'),
+  stamp(11 * 60_000, 'old'),
+]);
+assert.deepEqual(five, { txCount10m: 5, hit: false });
+assert.deepEqual(six, { txCount10m: 6, hit: true });
+assert.deepEqual(noise, { txCount10m: 5, hit: false });
+console.log(JSON.stringify({ case: 'M-93-05', five, six, duplicatesAndOutsideWindow: noise }));
