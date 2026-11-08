@@ -1,12 +1,16 @@
 import { randomUUID } from 'node:crypto';
+import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
 import { OutboxRelayService } from '@modules/outbox';
+import { RELAY_BATCH_SIZE, RELAY_IDLE_DELAY_MS } from '@modules/outbox/outbox-relay.service';
 import { NotificationConsumer, dlqUrlFor } from '@modules/notification';
 import { ACCOUNT_LOCKED_SAMPLE, TRANSFER_SAMPLE } from '../support/event-samples';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
+import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
+import { checkLedgerInvariants } from '../support/invariants';
 
 /**
  * Outbox relay and notification consumer against real PostgreSQL and a real SQS protocol server
@@ -179,6 +183,202 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     const left = await q('SELECT event_id FROM outbox_events ORDER BY id');
     expect(left.map(r => r.event_id).sort()).toEqual([fresh.eventId, pending.eventId].sort());
     expect(await q('SELECT 1 FROM processed_events')).toHaveLength(1);
+  });
+
+  /** A relay on its own connection (like another worker task) whose `send` can be held open. */
+  function relayWith(send?: SqsClient['send']): OutboxRelayService {
+    const tx = new TransactionService(source, {
+      lockTimeoutMs: 2000,
+      statementTimeoutMs: 5000,
+      idleInTransactionTimeoutMs: 10000,
+    } as never);
+    const wrapped = (send ? { send } : sqs) as unknown as SqsClient;
+    return new OutboxRelayService(tx, wrapped, {
+      region: 'us-east-1',
+      endpoint: mq.endpoint,
+      riskQueueUrl: riskUrl,
+      notificationQueueUrl: notificationUrl,
+    });
+  }
+  function gate() {
+    let release!: () => void;
+    const open = new Promise<void>(resolve => (release = resolve));
+    return { open, release };
+  }
+
+  it('TC-90-03 two relays really overlap: the second skips the rows the first still holds', async () => {
+    const events = Array.from({ length: 20 }, transferEvent);
+    for (const event of events) await enqueue(event);
+    const hold = gate();
+    let entered!: () => void;
+    const inside = new Promise<void>(resolve => (entered = resolve));
+    const slow = relayWith(async (url, body, attributes) => {
+      entered();
+      await hold.open;
+      return sqs.send(url, body, attributes);
+    });
+    const first = slow.relayOnce(10);
+    await inside; // relay A is inside SQS with 10 rows locked
+    expect(await relayWith().relayOnce(10)).toEqual({ published: 10 });
+    const secondIds = (
+      await q('SELECT event_id FROM outbox_events WHERE published_at IS NOT NULL')
+    ).map(r => r.event_id);
+    expect(secondIds.sort()).toEqual(
+      events
+        .slice(10)
+        .map(e => e.eventId)
+        .sort(),
+    );
+    hold.release();
+    expect(await first).toEqual({ published: 10 });
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toEqual([]);
+    const seen = (await drain(riskUrl)).map(e => e.eventId as string);
+    expect(seen).toHaveLength(20);
+    expect(new Set(seen)).toEqual(new Set(events.map(e => e.eventId)));
+    await drain(notificationUrl);
+  });
+
+  it('TC-90-04 messages are sent before any row is visible as published', async () => {
+    const events = [transferEvent(), transferEvent(), transferEvent()];
+    for (const event of events) await enqueue(event);
+    const hold = gate();
+    let entered!: () => void;
+    const inside = new Promise<void>(resolve => (entered = resolve));
+    let sent = 0;
+    let calls = 0;
+    const slow = relayWith(async (url, body, attributes) => {
+      calls += 1;
+      if (calls === 6) {
+        // The last send of the last event: everything before it is already in the queues.
+        entered();
+        await hold.open;
+      }
+      await sqs.send(url, body, attributes);
+      sent += 1;
+    });
+    const run = slow.relayOnce();
+    await inside;
+    expect(sent).toBe(5);
+    // From another connection: nothing is published yet although five messages are out.
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NOT NULL')).toEqual([]);
+    hold.release();
+    expect(await run).toEqual({ published: 3 });
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toEqual([]);
+    await drain(riskUrl);
+    await drain(notificationUrl);
+  });
+
+  it('TC-90-05 the poll interval is within one second and the batch is the 100 of ADR-03', () => {
+    expect(RELAY_IDLE_DELAY_MS).toBeLessThanOrEqual(1000);
+    expect(RELAY_BATCH_SIZE).toBe(100);
+  });
+
+  it('TC-90-09 a full batch is 100 events and the rest follow on the next run', async () => {
+    const events = Array.from({ length: 120 }, transferEvent);
+    for (const event of events) await enqueue(event);
+    expect(await relay.relayOnce()).toEqual({ published: 100 });
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toHaveLength(20);
+    expect(await relay.relayOnce()).toEqual({ published: 20 });
+    expect(await drain(riskUrl)).toHaveLength(120);
+    await drain(notificationUrl);
+  });
+
+  async function untilPublished(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if ((await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).length === 0) {
+        return true;
+      }
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return false;
+  }
+  async function inRole(role: string, run: () => Promise<void>): Promise<void> {
+    const previous = process.env.APP_ROLE;
+    process.env.APP_ROLE = role;
+    try {
+      await run();
+    } finally {
+      if (previous === undefined) delete process.env.APP_ROLE;
+      else process.env.APP_ROLE = previous;
+    }
+  }
+
+  it('TC-90-06 in the worker role the relay runs by itself and stops on shutdown', async () => {
+    const worker = relayWith();
+    const first = transferEvent();
+    await inRole('worker', async () => {
+      worker.onApplicationBootstrap();
+      try {
+        await enqueue(first);
+        expect(await untilPublished(3000)).toBe(true);
+      } finally {
+        await worker.onApplicationShutdown();
+      }
+    });
+    expect((await drain(riskUrl)).map(e => e.eventId)).toEqual([first.eventId]);
+    expect((await drain(notificationUrl)).map(e => e.eventId)).toEqual([first.eventId]);
+    // Stopped: a new event is not taken any more.
+    await enqueue(transferEvent());
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toHaveLength(1);
+  });
+
+  it('TC-90-07 in the api role the relay does not run', async () => {
+    const api = relayWith();
+    await inRole('api', async () => {
+      api.onApplicationBootstrap();
+      try {
+        await enqueue(transferEvent());
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toHaveLength(1);
+      } finally {
+        await api.onApplicationShutdown();
+      }
+    });
+  });
+
+  it('TC-90-08 a real deposit and transfer reach each queue exactly once', async () => {
+    const app = await startDepositApp(db.url);
+    try {
+      const sender = await seedDepositTarget(db.runner);
+      const receiver = await seedDepositTarget(db.runner);
+      const operator = await app.issuer.token('operator', { sub: randomUUID() });
+      const customer = await app.issuer.token('customer', { sub: sender.sub });
+      await request(app.url)
+        .post('/v1/operator/deposits')
+        .auth(operator, { type: 'bearer' })
+        .set('Idempotency-Key', randomUUID())
+        .send({ toAccountId: sender.accountId, amount: '1000000' })
+        .expect(201);
+      const transfer = await request(app.url)
+        .post('/v1/transfers')
+        .auth(customer, { type: 'bearer' })
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          fromAccountId: sender.accountId,
+          toAccountId: receiver.accountId,
+          amount: '300000',
+        })
+        .expect(201);
+      const events = await q(
+        `SELECT payload->>'type' AS type, payload->>'transferId' AS transfer_id,
+                payload->>'eventId' AS event_id FROM outbox_events ORDER BY id`,
+      );
+      expect(events.map(e => e.type)).toEqual(['DEPOSIT', 'TRANSFER']);
+      expect(events[1].transfer_id).toBe((transfer.body as { transferId: string }).transferId);
+
+      expect(await relay.relayOnce()).toEqual({ published: 2 });
+      expect(await relay.relayOnce()).toEqual({ published: 0 });
+      for (const url of [riskUrl, notificationUrl]) {
+        const bodies = await drain(url);
+        expect(bodies.map(b => b.eventId).sort()).toEqual(events.map(e => e.event_id).sort());
+        expect(bodies.map(b => b.type).sort()).toEqual(['DEPOSIT', 'TRANSFER']);
+      }
+      expect((await checkLedgerInvariants(db.runner)).status).toBe('PASS');
+    } finally {
+      await app.close();
+    }
   });
 
   it('TC-NTF-01 end to end: relayed event is handled once even when delivered twice', async () => {

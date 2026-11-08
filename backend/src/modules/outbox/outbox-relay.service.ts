@@ -15,14 +15,15 @@ import { PollingLoop } from '@common/utils/polling-loop';
 import { OUTBOX_ROUTES, ROUTED_EVENT_TYPES, type OutboxQueue } from './outbox-routing';
 import type { EventType } from '@common/events';
 
-const BATCH_SIZE = 50;
+/** ADR-03 and docs/03 §10: a batch is 100 events. */
+export const RELAY_BATCH_SIZE = 100;
 /** docs/03 §10: poll every 500 ms when idle, so an event waits well under the 1 s budget. */
-const IDLE_DELAY_MS = 500;
+export const RELAY_IDLE_DELAY_MS = 500;
 const CLEANUP_EVERY_MS = 60 * 60 * 1000;
 const RETENTION_DAYS = 7;
 /**
  * The transaction stays open while the relay talks to SQS, so Postgres' default idle limit (10 s)
- * must not cut it short. A batch of 50 events is a few round trips, not a minute.
+ * must not cut it short. A batch of 100 events is a few round trips, not a minute.
  */
 const RELAY_IDLE_IN_TRANSACTION_MS = 60_000;
 
@@ -62,7 +63,7 @@ export class OutboxRelayService implements OnApplicationBootstrap, OnApplication
       if (failure !== undefined) {
         throw failure instanceof Error ? failure : new Error('Outbox relay send failed');
       }
-      return published >= BATCH_SIZE ? 0 : IDLE_DELAY_MS;
+      return published >= RELAY_BATCH_SIZE ? 0 : RELAY_IDLE_DELAY_MS;
     },
     error => this.logger.error(safeErrorMetadata(error), 'Outbox relay failed'),
   );
@@ -93,7 +94,7 @@ export class OutboxRelayService implements OnApplicationBootstrap, OnApplication
   }
 
   /** One batch. Never throws for a failed send: it reports it in `failure` after committing. */
-  async relayOnce(limit = BATCH_SIZE): Promise<RelayResult> {
+  async relayOnce(limit = RELAY_BATCH_SIZE): Promise<RelayResult> {
     return this.tx.run(
       async manager => {
         const pending: PendingEvent[] = await manager.query(
