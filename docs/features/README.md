@@ -28,7 +28,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 
 | Task | Tóm tắt | Vai | Trạng thái |
 |---|---|---|---|
-| [DBS-72](DBS-72-p2-architecture-submission.md) | P2/OpenAPI từ app thật, đối chiếu nguồn và handoff rubric/nộp | Dev | Plan approved · đang kiểm chứng/bàn giao, chưa push/PR |
+| [DBS-72](DBS-72-p2-architecture-submission.md) | P2/OpenAPI từ app thật, đối chiếu nguồn và handoff rubric/nộp | Dev | Implemented · G4 đã duyệt kèm giới hạn; PR #83 chờ Dev review/merge |
 
 | Task | Tóm tắt | Vai | Trạng thái |
 |---|---|---|---|

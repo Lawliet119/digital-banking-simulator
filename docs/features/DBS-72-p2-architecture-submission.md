@@ -1,6 +1,6 @@
 # DBS-72 · Ghép và nộp P2: kiến trúc, API, data model, ADR
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `docs/DBS-72-p2-submission` · **PR:** [#83](https://github.com/Lawliet119/digital-banking-simulator/pull/83) · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `docs/DBS-72-p2-submission` · **PR:** [#83](https://github.com/Lawliet119/digital-banking-simulator/pull/83) · **Cập nhật:** 2026-11-08
 
 ## 1. Bối cảnh
 
@@ -160,6 +160,14 @@ DB 43 suites / 725 tests; E2E chính 15 suites / 153 tests; các bước Testcon
 CI Linux đã lấp khoảng trống full DB/E2E; không chứng minh lỗi launcher Windows hay legacy DBS-50 đã sửa. Rubric/deadline/link nộp P2 vẫn thiếu (BL-180); Dev review/merge, legacy smoke, Windows exit127 và hai PNG còn ở BL-181.
 
 Code không đổi sau manual; các commit sau run CI trên chỉ sửa hồ sơ/evidence và bổ sung đủ 2 PNG đã định ở §7. Các ghi chú thiếu PNG trước đó được thay bằng ảnh thật ở trên; không còn ảnh thiếu. Diff file vẫn khớp §7. Status giữ Plan approved để trình G4.
+
+### Quyết định G4 · 2026-11-08
+
+Người dùng trả lời «duyệt g4» trực tiếp cho đề nghị bàn giao kèm các giới hạn đã nêu. G4 được duyệt; trạng thái chuyển Implemented cho phạm vi đã bàn giao và cho phép chuyển PR #83 sang ready for review. Những ghi chú giữ Draft/Plan approved phía trên là lịch sử trước quyết định này. Không có quyền merge hoặc sửa board.
+
+Chấp nhận bàn giao phạm vi kỹ thuật P2; rubric/deadline/link nộp thật tiếp tục ở BL-180, không coi toàn bộ DoD DBS-72 đã hoàn tất. Windows exit127 và legacy DBS-50 smoke lỗi parse JSON M50-01 tiếp tục ở BL-181; không nhận CI Linux xanh là đã sửa các lỗi này. Chấp nhận diagram chưa visual-render QA; Dev review/merge vẫn chưa thực hiện.
+
+Trước G4, [CI run 42468360373](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42468360373) đã xác minh head `35ebc41bba084a8adc35977d8f38163e0749df06`: cả sáu job lint/typecheck/unit/e2e/db/build success, attempt 1. Lần ghi nhận G4 này chỉ sửa tài liệu; không thay code sau manual. Các giới hạn được chấp nhận không đồng nghĩa đã được khắc phục hoặc đã merge/nộp P2.
 
 ## 9. Tài liệu đã cập nhật
 
