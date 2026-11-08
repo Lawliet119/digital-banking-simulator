@@ -1,0 +1,5 @@
+b7ac6ef1efd007298581522c17e6cadfad4761d5
+M-109-01 PASS: txCount10m=7 newRecipients1h=3 reverse=2026-10-19T02:40:00.000Z (rejected transfer not counted)
+M-109-02 PASS: same event again and SQL-only give identical features
+M-109-03 PASS: Valkey paused -> exact features from SQL (R1 fallbacks=2); after unpause txCount1h=10 includes the transfers made during the outage
+cleanup done: temp database dropped
