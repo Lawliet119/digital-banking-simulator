@@ -120,7 +120,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     expect(await drain(riskUrl)).toHaveLength(20);
   });
 
-  it('TC-OBX-03 a failed send publishes what came before it and keeps the rest pending', async () => {
+  it('TC-OBX-03 a failed send keeps that event pending and the others still go out', async () => {
     const events = [transferEvent(), transferEvent(), transferEvent()];
     for (const event of events) await enqueue(event);
     let calls = 0;
@@ -144,14 +144,13 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
       notificationQueueUrl: notificationUrl,
     });
     const first = await broken.relayOnce();
-    expect(first.published).toBe(1);
+    // DBS-91: the failing event stays, the one behind it is not blocked by it.
+    expect(first.published).toBe(2);
     expect(first.failure).toBeInstanceOf(Error);
     const pending = await q('SELECT event_id FROM outbox_events WHERE published_at IS NULL');
-    expect(pending.map(r => r.event_id).sort()).toEqual(
-      [events[1].eventId, events[2].eventId].sort(),
-    );
-    // Nothing is lost: the healthy relay finishes the job, and event 1 is not sent again.
-    expect(await relay.relayOnce()).toEqual({ published: 2 });
+    expect(pending.map(r => r.event_id)).toEqual([events[1].eventId]);
+    // Nothing is lost: the healthy relay finishes the job, and the other events are not sent again.
+    expect(await relay.relayOnce()).toEqual({ published: 1 });
     const seen = (await drain(notificationUrl)).map(e => e.eventId as string);
     expect(seen.sort()).toEqual(events.map(e => e.eventId).sort());
   });
