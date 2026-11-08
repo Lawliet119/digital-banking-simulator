@@ -140,6 +140,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/notification-consumer-review.services-spec.ts
       - name: Online feature provider, Redis counters and SQL fallback (DBS-109)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/online-feature-provider.services-spec.ts
+      - name: Rule set repository, cached versions and PostgreSQL fallback (DBS-110)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/rule-set-repository.services-spec.ts
       - name: Redis adapter latency, outage and recovery (DBS-76)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/redis-adapter.services-spec.ts
       - name: Readiness with real PostgreSQL and Valkey failures (DBS-78)
