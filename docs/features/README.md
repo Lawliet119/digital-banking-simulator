@@ -100,3 +100,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-106](DBS-106-r5-fan-out.md) | Rule R5 số người nhận mới và miễn cùng chủ | #4 Fraud | Implemented (hàm thuần); SQL/provider ở DBS-109 |
 | [DBS-107](DBS-107-r6-drain.md) | Rule R6 tỉ lệ rút cạn từ snapshot | #4 Fraud | Implemented (hàm thuần); SQL/provider ở DBS-109 |
 | [DBS-108](DBS-108-scoring.md) | Chấm điểm R1–R6 và cộng AI assessment đã có | #4 Fraud | Implemented (hàm thuần); SQL/provider ở DBS-109 |
+| [DBS-109](DBS-109-online-feature-provider.md) | `OnlineFeatureProvider`: R1/R5 từ sorted set Redis có khóa phủ và `risk:gen`, dự phòng SQL cùng kết quả (lạnh, muộn, Redis lỗi/breaker mở); R2/R4/24h từ `v_transfer_facts`, mili giây, không Seq Scan | #4 Fraud | Implemented |

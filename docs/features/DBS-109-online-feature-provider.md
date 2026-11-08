@@ -116,8 +116,26 @@ Rủi ro: sai biên mili giây; Redis không đồng bộ SQL. Lùi: revert PR, 
 
 ## 8. Kết quả
 
-(điền khi bàn giao)
+- **Lệnh kiểm tra** (trên `829ba64`..`b7ac6ef`, sau rebase lên main có #104): `lint:check` và `typecheck` sạch; unit 82 suite / 1.608 test xanh (lần chạy đầu có 1 test đỏ không xác định được, hai lần sau xanh cả hai); e2e 15 suite / 153 test xanh; `test:db -- transfer-facts` 13/13; `test:services` `online-feature-provider` 5/5 trên Valkey + PostgreSQL thật. Suite `db` đầy đủ và `services` còn lại chạy ở CI. Không có `.skip`/`.only`.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-109-01 | `online-feature-provider.spec.ts` (6 test: nạp lạnh một lần, ấm không đọc SQL, trùng `transferId`, event muộn, lệnh này luôn được tính, dưới 5 lệnh không có median) | đạt |
+| TC-109-02 | `transfer-facts.db-spec.ts` › windowTransfers (2 test, biên 10 phút, `.123456` so với `.123`) | đạt |
+| TC-109-03 | `transfer-facts.db-spec.ts` › history, reverseTransfer, outflow24h (8 test) | đạt |
+| TC-109-04 | `transfer-facts.db-spec.ts` › R5 recipients (2 test) và `online-feature-provider.spec.ts` › TC-109-04 | đạt |
+| TC-109-05 | `transfer-facts.db-spec.ts` › plans: 6 truy vấn không Seq Scan, dùng hai index một phần, R2+R4+R5 ≤ 30 ms | đạt |
+| TC-109-06 | `online-feature-provider.services-spec.ts` (16 bước theo thứ tự đối chiếu SQL-only và `countTransfersInWindow`; 7 người nhận mới) | đạt |
+| TC-109-07 | `online-feature-provider.services-spec.ts` › TC-109-07 (Valkey pause/resume) và `online-feature-provider.spec.ts` › TC-109-07; mutation bỏ bước tăng `gen` làm test đỏ | đạt |
+| TC-109-08 | `online-feature-provider.services-spec.ts` › TC-109-08 (breaker mở thật, trả lời < 500 ms) | đạt |
+| TC-109-09 | `online-feature-provider.services-spec.ts` › TC-109-09 | đạt |
+
+- **Test thủ công** (commit `b7ac6ef`, output ở [manual-test.txt](screenshots/DBS-109/manual-test.txt)): M-109-01, M-109-02, M-109-03 đạt (Valkey của compose bị `docker pause` rồi `unpause`).
+- **Ảnh chụp:** không có PNG; bằng chứng là output text (Techlead waiver).
+- **Lệch so với kế hoạch:** (1) db-spec và code SQL cùng được viết trong một bước nên không có bước đỏ riêng cho `transfer-facts.db-spec.ts`; các test khác (outage) được kiểm bằng mutation. (2) Thêm `test/support/transfer-facts-fixture.ts` ngoài kế hoạch §7 vì cả db-spec lẫn services-spec dùng chung. (3) `risk.contract.spec.ts` bỏ phần khẳng định provider online ném lỗi vì provider đã thật.
+- **Bàn giao:** BL-185 giữ phần nối scoring vào consumer (DBS-111); BL-186 và BL-184 H2–H9 vẫn mở (H1 đã đóng ở đây). Thêm BL-187: dọn zset theo giờ tường cần `ZREMRANGEBYSCORE` trong `libs/redis`, và thứ tự xử lý đảo khi bộ đếm đang ấm (DBS-112).
 
 ## 9. Tài liệu đã cập nhật
 
-(điền khi bàn giao)
+`backend/src/modules/risk/README.md`, `docs/BACKLOG.md` (BL-185 thu hẹp, BL-184 H1 đóng, thêm BL-187), `docs/features/README.md`, `.github/workflows/ci.yml` (bước services mới).
