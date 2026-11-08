@@ -12,6 +12,9 @@ import {
 } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DataSource } from 'typeorm';
+import { appConfig } from '@config/app.config';
+import { authConfig } from '@config/auth.config';
+import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
 import { TransactionService } from '@database/transaction.service';
 import { ProblemDetailsFilter, type ProblemDetails } from '@common/filters/problem-details.filter';
 import { getErrorCode } from '@common/utils/pg-error.util';
@@ -75,10 +78,28 @@ export class OwnershipProbeDatabaseModule {
     return {
       module: OwnershipProbeDatabaseModule,
       providers: [
+        {
+          provide: appConfig.KEY,
+          useValue: {
+            role: 'api' as const,
+            logLevel: 'fatal',
+            trustProxyHops: 0,
+            corsOrigins: [],
+            isProduction: false,
+          },
+        },
+        {
+          provide: authConfig.KEY,
+          useValue: {
+            local: undefined,
+            cognito: { clientId: LOCAL_CLIENT_ID, issuer: LOCAL_ISSUER, jwksCooldownMs: 60000 },
+            accessTokenTtlSeconds: 900,
+          },
+        },
         { provide: DataSource, useValue: source },
         { provide: TransactionService, useValue: ownershipTransactions(source) },
       ],
-      exports: [DataSource, TransactionService],
+      exports: [appConfig.KEY, authConfig.KEY, DataSource, TransactionService],
     };
   }
 }

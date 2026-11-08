@@ -1,11 +1,25 @@
-import { Controller, Get, Header, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiServiceUnavailableResponse,
   ApiTags,
@@ -16,13 +30,21 @@ import type { RequestWithCorrelationId } from '@common/middleware/correlation-id
 import { OperatorAccountSearchDto } from './operator-account-search.dto';
 import { SearchQueryPipe, type ParsedSearch } from './operator-account-search.query';
 import { OperatorAccountSearchService } from './operator-account-search.service';
+import {
+  OperatorAccountStatusBodyDto,
+  OperatorAccountStatusResponseDto,
+} from './operator-account-status.dto';
+import { OperatorAccountStatusService } from './operator-account-status.service';
 
 @ApiTags('operator')
 @ApiBearerAuth('access-token')
 @Roles('operator')
 @Controller('operator/accounts')
 export class OperatorAccountsController {
-  constructor(private readonly search: OperatorAccountSearchService) {}
+  constructor(
+    private readonly search: OperatorAccountSearchService,
+    private readonly status: OperatorAccountStatusService,
+  ) {}
 
   @Get()
   @Header('Cache-Control', 'no-store')
@@ -53,5 +75,67 @@ export class OperatorAccountsController {
   ): Promise<OperatorAccountSearchDto> {
     if (!request.correlationId) throw new Error('Missing server correlation context');
     return this.search.search(user.userId, search, request.correlationId);
+  }
+
+  @Post(':id/lock')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Operator: lock a customer account with a mandatory reason (UC-11)',
+    description:
+      'Atomically locks a customer account (status = LOCKED), revokes the owner active sessions (users.sessions_revoked_at = clock_timestamp()), writes a fail-closed audit row, and emits AccountStatusChanged in one transaction. Never returns a balance and never exposes the lock reason in events or customer responses (BR-13).',
+  })
+  @ApiParam({ name: 'id', required: true, schema: { type: 'string', format: 'uuid' } })
+  @ApiBody({ type: OperatorAccountStatusBodyDto })
+  @ApiOkResponse({ type: OperatorAccountStatusResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid account UUID or invalid/missing reason' })
+  @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED' })
+  @ApiForbiddenResponse({ description: 'FORBIDDEN; the caller is not an operator' })
+  @ApiNotFoundResponse({ description: 'Account does not exist or is a SYSTEM account' })
+  @ApiInternalServerErrorResponse({
+    description: 'Internal server error; rolls back if audit or outbox fails',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds',
+  })
+  lock(
+    @Param('id') id: string,
+    @Body() body: OperatorAccountStatusBodyDto,
+    @CurrentUser() user: CurrentUserInfo,
+    @Req() request: RequestWithCorrelationId,
+  ): Promise<OperatorAccountStatusResponseDto> {
+    if (!request.correlationId) throw new Error('Missing server correlation context');
+    return this.status.lock(user.userId, id, body, request.correlationId);
+  }
+
+  @Post(':id/unlock')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Operator: unlock a customer account with a mandatory reason (UC-11)',
+    description:
+      'Atomically unlocks a customer account (status = ACTIVE), writes a fail-closed audit row, and emits AccountStatusChanged in one transaction without clearing prior session revocation timestamps.',
+  })
+  @ApiParam({ name: 'id', required: true, schema: { type: 'string', format: 'uuid' } })
+  @ApiBody({ type: OperatorAccountStatusBodyDto })
+  @ApiOkResponse({ type: OperatorAccountStatusResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid account UUID or invalid/missing reason' })
+  @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED' })
+  @ApiForbiddenResponse({ description: 'FORBIDDEN; the caller is not an operator' })
+  @ApiNotFoundResponse({ description: 'Account does not exist or is a SYSTEM account' })
+  @ApiInternalServerErrorResponse({
+    description: 'Internal server error; rolls back if audit or outbox fails',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds',
+  })
+  unlock(
+    @Param('id') id: string,
+    @Body() body: OperatorAccountStatusBodyDto,
+    @CurrentUser() user: CurrentUserInfo,
+    @Req() request: RequestWithCorrelationId,
+  ): Promise<OperatorAccountStatusResponseDto> {
+    if (!request.correlationId) throw new Error('Missing server correlation context');
+    return this.status.unlock(user.userId, id, body, request.correlationId);
   }
 }

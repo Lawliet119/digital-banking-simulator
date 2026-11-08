@@ -7,6 +7,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { type NestExpressApplication } from '@nestjs/platform-express';
 import { DataSource } from 'typeorm';
+import { appConfig } from '@config/app.config';
 import { authConfig } from '@config/auth.config';
 import { databaseConfig } from '@config/database.config';
 import { TransactionService } from '@database/transaction.service';
@@ -16,6 +17,14 @@ import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
 import { configureHttpApp } from '../../src/app.setup';
 import { createDevTokenIssuer } from './dev-tokens';
 
+const settings = {
+  role: 'api' as const,
+  logLevel: 'fatal',
+  trustProxyHops: 0,
+  corsOrigins: [],
+  isProduction: false,
+};
+
 @Global()
 @Module({})
 class OnboardingFixtureConfig {
@@ -23,6 +32,7 @@ class OnboardingFixtureConfig {
     return {
       module: OnboardingFixtureConfig,
       providers: [
+        { provide: appConfig.KEY, useValue: settings },
         { provide: authConfig.KEY, useValue: auth },
         {
           provide: databaseConfig.KEY,
@@ -34,7 +44,7 @@ class OnboardingFixtureConfig {
         },
         TransactionService,
       ],
-      exports: [authConfig.KEY, databaseConfig.KEY, TransactionService],
+      exports: [appConfig.KEY, authConfig.KEY, databaseConfig.KEY, TransactionService],
     };
   }
 }

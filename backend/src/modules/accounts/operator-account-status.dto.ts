@@ -113,4 +113,3 @@ export function resolveLockReason(normalizedReason: string): AuditReason {
 export function resolveUnlockReason(normalizedReason: string): AuditReason {
   return KNOWN_UNLOCK_REASONS.get(normalizedReason) ?? AuditReason.OPERATOR_UNLOCK;
 }
-

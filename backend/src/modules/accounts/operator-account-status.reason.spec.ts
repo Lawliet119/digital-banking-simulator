@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { BadRequestException } from '@nestjs/common';
-import { AuditReason } from '@modules/audit';
-import { assertValidMetadata } from '@modules/audit/audit-metadata.guard';
+import { AuditReason, AuditService } from '@modules/audit';
+import type { EntityManager } from 'typeorm';
+import type { TransactionService } from '@database/transaction.service';
 import {
   MAX_REASON_LENGTH,
   fingerprintReason,
@@ -92,26 +93,41 @@ describe('operator-account-status.dto (TC-113-12)', () => {
       );
     });
 
-    it('computes 32-hex SHA-256 over the exact NFC+trimmed reason and passes assertValidMetadata', () => {
+    it('computes 32-hex SHA-256 over the exact NFC+trimmed reason and passes AuditService.record metadata guard', async () => {
       const reason = 'Đã xác minh chính chủ tại quầy';
       const fp = fingerprintReason(reason);
       const expected = createHash('sha256').update(reason, 'utf8').digest('hex').slice(0, 32);
       expect(fp).toBe(expected);
       expect(fp).toMatch(/^[0-9a-f]{32}$/);
 
-      expect(() =>
-        assertValidMetadata({
-          id: fp,
-          reason: resolveLockReason(reason),
+      const query = jest.fn().mockResolvedValue([]);
+      const manager = { query } as unknown as EntityManager;
+      const audit = new AuditService({} as TransactionService);
+
+      await expect(
+        audit.record(manager, {
+          actor: '2e859a80-d4d0-471d-8cee-e9d0de9d4bc7',
+          role: 'operator',
+          action: 'account.lock',
+          outcome: 'SUCCESS',
+          target: { type: 'account', id: '2e859a80-d4d0-471d-8cee-e9d0de9d4bc7' },
+          correlationId: '2e859a80-d4d0-471d-8cee-e9d0de9d4bc7',
+          metadata: { id: fp, reason: resolveLockReason(reason) },
         }),
-      ).not.toThrow();
-      expect(() =>
-        assertValidMetadata({
-          id: fp,
-          reason: resolveUnlockReason(reason),
+      ).resolves.toBeUndefined();
+
+      await expect(
+        audit.record(manager, {
+          actor: '2e859a80-d4d0-471d-8cee-e9d0de9d4bc7',
+          role: 'operator',
+          action: 'account.unlock',
+          outcome: 'SUCCESS',
+          target: { type: 'account', id: '2e859a80-d4d0-471d-8cee-e9d0de9d4bc7' },
+          correlationId: '2e859a80-d4d0-471d-8cee-e9d0de9d4bc7',
+          metadata: { id: fp, reason: resolveUnlockReason(reason) },
         }),
-      ).not.toThrow();
+      ).resolves.toBeUndefined();
+      expect(query).toHaveBeenCalledTimes(2);
     });
   });
 });
-
