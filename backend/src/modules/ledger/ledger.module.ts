@@ -3,10 +3,13 @@ import { Clock, SystemClock } from '@common/clock';
 import { AccountsModule } from '@modules/accounts';
 import { AuditModule } from '@modules/audit';
 import { OutboxModule } from '@modules/outbox';
+import { AccountTransactionsController } from './account-transactions.controller';
 import { DepositService } from './deposit.service';
 import { LedgerPostingService } from './ledger-posting.service';
 import { OperatorDepositsController } from './operator-deposits.controller';
 import { SyncGuardService } from './sync-guard.service';
+import { TransactionHistoryService } from './transaction-history.service';
+import { TransferQueryService } from './transfer-query.service';
 import { TransferService } from './transfer.service';
 import { TransfersController } from './transfers.controller';
 
@@ -18,7 +21,9 @@ import { TransfersController } from './transfers.controller';
     DepositService,
     SyncGuardService,
     TransferService,
+    TransactionHistoryService,
+    TransferQueryService,
   ],
-  controllers: [OperatorDepositsController, TransfersController],
+  controllers: [OperatorDepositsController, TransfersController, AccountTransactionsController],
 })
 export class LedgerModule {}
