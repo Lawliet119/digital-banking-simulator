@@ -1,6 +1,6 @@
 # DBS-93 · Luật R1 velocity
 
-> **Status:** Implemented (R1 thuần; TC-93-04/05 còn chờ) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-93-r1-velocity` · **PR:** chưa có · **Cập nhật:** 2026-11-08
+> **Status:** Implemented (R1 thuần; TC-93-04/05 còn chờ) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-93-r1-velocity` · **PR:** [#87](https://github.com/Lawliet119/digital-banking-simulator/pull/87) · **Cập nhật:** 2026-11-08
 
 ## 1. Bối cảnh
 
