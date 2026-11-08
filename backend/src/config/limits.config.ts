@@ -13,6 +13,12 @@ export const limitsConfig = registerAs('limits', () => {
       perDay: parsePositiveMoney(env.TRANSFER_LIMIT_PER_DAY),
     },
     idempotencyKeyRetentionDays: env.IDEMPOTENCY_KEY_RETENTION_DAYS,
+    outbox: {
+      /** Published outbox rows older than this are deleted by the cleanup job (DBS-92). */
+      retentionDays: env.OUTBOX_RETENTION_DAYS,
+      /** Dedup marks of the consumers; never shorter than the dead-letter queue retention. */
+      processedEventsRetentionDays: env.PROCESSED_EVENTS_RETENTION_DAYS,
+    },
     rateLimit: {
       transfersPerMinute: env.RATE_LIMIT_TRANSFERS_PER_MINUTE,
       requestsPerIpPerMinute: env.RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE,

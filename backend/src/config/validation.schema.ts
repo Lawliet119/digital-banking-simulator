@@ -63,6 +63,8 @@ export interface Env {
   TRANSFER_LIMIT_PER_TX: string;
   TRANSFER_LIMIT_PER_DAY: string;
   IDEMPOTENCY_KEY_RETENTION_DAYS: number;
+  OUTBOX_RETENTION_DAYS: number;
+  PROCESSED_EVENTS_RETENTION_DAYS: number;
   RATE_LIMIT_TRANSFERS_PER_MINUTE: number;
   RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE: number;
 
@@ -196,6 +198,12 @@ export const validationSchema = Joi.object<Env>({
   TRANSFER_LIMIT_PER_TX: Joi.string().custom(validatePositiveMoneyString).default('50000000'),
   TRANSFER_LIMIT_PER_DAY: Joi.string().custom(validatePositiveMoneyString).default('200000000'),
   IDEMPOTENCY_KEY_RETENTION_DAYS: Joi.number().integer().min(1).default(7),
+  // DBS-92. Published outbox rows are deleted after this many days. 3650 stops make_interval from
+  // overflowing at run time.
+  OUTBOX_RETENTION_DAYS: Joi.number().integer().min(1).max(3650).default(7),
+  // The dedup marks must outlive the dead-letter queue (6 days, infra sqs.tf), or an event redriven
+  // from it would be handled twice: never below 7.
+  PROCESSED_EVENTS_RETENTION_DAYS: Joi.number().integer().min(7).max(3650).default(7),
   RATE_LIMIT_TRANSFERS_PER_MINUTE: Joi.number().integer().min(1).default(10),
   RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE: Joi.number().integer().min(1).default(100),
 
