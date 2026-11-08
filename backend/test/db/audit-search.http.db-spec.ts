@@ -316,6 +316,29 @@ describe('DBS-103 audit search through the real AppModule, JWT and PostgreSQL', 
     }
   });
 
+  it('TC-103-06R (BL-169) refuses a revoked auditor session with 401 SESSION_REVOKED and writes no audit.search row', async () => {
+    const sub = 'kiem-toan-bi-thu-hoi-phien';
+    const now = Math.floor(Date.now() / 1000);
+    const oldToken = await issuer.token('auditor', { sub, iat: now - 30, exp: now + 900 });
+    await get({ correlationId: SEARCH_FIXTURE.correlationId }, oldToken).expect(200);
+
+    await db.runner.query(
+      'UPDATE users SET sessions_revoked_at = clock_timestamp() WHERE cognito_sub = $1',
+      [sub],
+    );
+    const before = await searchCount();
+    const revoked = await get({ correlationId: SEARCH_FIXTURE.correlationId }, oldToken).expect(
+      401,
+    );
+    expect(revoked.body.errorCode).toBe('SESSION_REVOKED');
+    expect(revoked.body.entries).toBeUndefined();
+    expect(await searchCount()).toBe(before);
+
+    const freshToken = await issuer.token('auditor', { sub, iat: now + 5, exp: now + 900 });
+    await get({ correlationId: SEARCH_FIXTURE.correlationId }, freshToken).expect(200);
+    expect(await searchCount()).toBe(before + 1);
+  });
+
   it.each(['customer', 'operator', 'admin'] as const)(
     'TC-103-07 refuses %s even when query/header/body claim auditor',
     async role => {

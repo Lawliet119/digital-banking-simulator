@@ -53,10 +53,21 @@ function titleFor(status: number): string {
     .join(' ');
 }
 
+function isPayloadTooLargeError(exception: unknown): boolean {
+  if (!exception || typeof exception !== 'object') return false;
+  const candidate = exception as { type?: unknown; status?: unknown; statusCode?: unknown };
+  return (
+    candidate.type === 'entity.too.large' ||
+    candidate.status === HttpStatus.PAYLOAD_TOO_LARGE ||
+    candidate.statusCode === HttpStatus.PAYLOAD_TOO_LARGE
+  );
+}
+
 /**
  * Turns every thrown error into an RFC 7807 `application/problem+json` response.
  *
  *  - HttpException           → its own status; extra body keys (errorCode, …) pass through.
+ *  - PayloadTooLargeError    → 413 Payload Too Large (body-parser `entity.too.large`, BL-023).
  *  - transient database error → 503 + `Retry-After`; the request made no change, so the client
  *                               may retry with the same Idempotency-Key.
  *  - anything else            → 500 with a generic detail; only safe technical error metadata
@@ -85,6 +96,18 @@ export class ProblemDetailsFilter implements ExceptionFilter {
   ): { problem: ProblemDetails; retryAfterSeconds?: number } {
     if (exception instanceof HttpException) {
       return { problem: this.fromHttpException(exception, correlationId) };
+    }
+
+    if (isPayloadTooLargeError(exception)) {
+      return {
+        problem: {
+          type: 'about:blank',
+          title: titleFor(HttpStatus.PAYLOAD_TOO_LARGE),
+          status: HttpStatus.PAYLOAD_TOO_LARGE,
+          detail: 'Request entity too large',
+          correlationId,
+        },
+      };
     }
 
     if (isTransientDbError(exception)) {

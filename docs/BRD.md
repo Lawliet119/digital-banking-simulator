@@ -555,7 +555,7 @@ Sơ đồ người dùng tương tác với từng thành phần cho các use ca
 | FR-RSK-06 | Không để khách hàng thấy cờ của mình | — | BR-13 | Must |
 | FR-RSK-07 | Quản lý cấu hình luật và hạn mức theo phiên bản | UC-12 | — | Could |
 | **Kiểm toán** |||||
-| FR-AUD-01 | Ghi nhật ký cho mọi thao tác thay đổi dữ liệu; không ghi được thì hủy thao tác | Tất cả | BR-09 | Must |
+| FR-AUD-01 | Ghi nhật ký cho mọi thao tác nghiệp vụ thay đổi dữ liệu (onboarding khách `POST /v1/customers/me`, mở/khóa tài khoản, nạp/chuyển tiền, kết luận cờ); không ghi được thì hủy thao tác. Ngoại lệ kỹ thuật duy nhất (chốt ở G2 của [DBS-52](features/DBS-52-users-upsert-first-token.md), [`database-design.md` §4.1](components/_shared/database-design.md#41-users-customers)): việc ánh xạ idempotent `cognito_sub -> users.id` ở lần xác thực token hợp lệ đầu tiên chỉ tạo khóa nội bộ kỹ thuật nên được miễn ghi `audit_log` | Tất cả | BR-09 | Must |
 | FR-AUD-02 | Ghi nhật ký cho việc xem dữ liệu nhạy cảm và các lần bị từ chối quyền | UC-8, 10 | BR-10 | Must |
 | FR-AUD-03 | Cho kiểm toán viên tra cứu theo người, hành động, thời gian, mã liên kết | UC-8 | BR-09 | Must |
 | FR-AUD-04 | Không cho sửa hoặc xóa nhật ký | — | BR-09 | Must |

@@ -20,13 +20,14 @@ import type { AddressInfo } from 'node:net';
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { exportJWK, generateKeyPair, SignJWT, type KeyLike } from 'jose';
+import { generateKeyPair, SignJWT, type KeyLike } from 'jose';
 import { DataSource } from 'typeorm';
 import { configureHttpApp } from '../app.setup';
 import { appConfig, databaseConfig } from '../config';
 import { authConfig } from '../config/auth.config';
 import { DatabaseModule } from '../database/database.module';
 import { IdentityModule } from '../modules/identity';
+import { newDevKeyPair } from './dev-auth';
 
 const ISSUER = 'https://issuer.manual-smoke.test';
 const CLIENT_ID = 'manual-smoke-client';
@@ -132,10 +133,10 @@ async function main(): Promise<void> {
   }
   const databaseUrl = requireDatabaseUrl();
 
-  // A key generated per process: a token from an earlier run no longer verifies (M-52-07 signs a
-  // new token with the same sub for exactly that reason).
-  const { privateKey, publicKey } = await generateKeyPair('RS256');
-  const publicJwk = { ...(await exportJWK(publicKey)), kid: KID, alg: 'RS256', use: 'sig' };
+  // A key generated per process via dev-auth: a token from an earlier run no longer verifies
+  // (M-52-07 signs a new token with the same sub for exactly that reason).
+  const { privateKey, publicJwk: devPublicJwk } = await newDevKeyPair();
+  const publicJwk = { ...devPublicJwk, kid: KID };
   const jwks = await startJwks(publicJwk);
 
   // Counts and reads through a connection of its own, never through the app under test.

@@ -232,7 +232,7 @@ CREATE TABLE ledger_entries (
 
 - `UNIQUE (transfer_id, direction)` biến luật "**tối đa một Nợ và một Có** cho mỗi giao dịch" thành ràng buộc DB. Giao dịch `REJECTED` có 0 dòng vì code không `INSERT`, và DB cũng từ chối nếu có (xem dưới).
 - **Hai khóa ngoại tổng hợp (DBS-21)** ép ba điều ngay ở DB: dòng sổ có **đúng số tiền** của giao dịch, nằm **đúng tài khoản** (Nợ ở `from_account_id`, Có ở `to_account_id`), và chỉ tồn tại cho giao dịch `COMPLETED`. Mỗi dòng có đúng một trong `debit_account`/`credit_account` khác NULL, và với `MATCH SIMPLE` cột NULL tắt khóa ngoại kia, nên mỗi dòng chỉ tra một khóa. Khóa này đã bao luôn "giao dịch tồn tại" và "tài khoản tồn tại", vì vậy **không** có khóa ngoại đơn `transfer_id` hay `account_id`; hai `UNIQUE` ở §4.3 là đích bắt buộc của chúng. Ghi tường minh `transfer_status`, `debit_account` hay `credit_account` bị từ chối (`428C9`); entity phải đánh dấu ba cột không insert/update, và SQL tay liệt kê cột tường minh.
-- **Còn ngoài DB:** "`COMPLETED` có đúng 2 dòng" (một giao dịch chỉ có dòng Nợ vẫn commit được, nên Nợ = Có về số tiền chưa được DB bảo đảm) và `balance_after` khớp `accounts.balance`. Do code cùng transaction và job đối soát (§10) giữ; muốn DB ép "đủ cặp" cần constraint trigger `DEFERRABLE INITIALLY DEFERRED` (xem `docs/BACKLOG.md`).
+- **Còn ngoài DB:** "`COMPLETED` có đúng 2 dòng" (một giao dịch chỉ có dòng Nợ vẫn commit được ở mức DDL, nên Nợ = Có về số tiền không do constraint DB ép) và `balance_after` khớp `accounts.balance`. Theo quyết định tại [ADR-02](../../adr/0002-postgresql-ledger.md), phần này do transaction nguyên tử của tầng ứng dụng (`TransferService`, `DepositService`) thực thi và được công cụ đối soát định kỳ (§10) hậu kiểm thay vì cài constraint trigger `DEFERRABLE INITIALLY DEFERRED` trên đường nóng.
 - **`balance_after` là cột nên thêm** (spec chưa có). Chi phí 8 byte/dòng, lợi ích: (1) job đối soát kiểm tra được từng bước, không chỉ tổng; (2) dựng lại số dư tại bất kỳ thời điểm nào; (3) `fromBalanceBefore` của event bằng `balance_after + amount` của dòng Nợ; (4) debug nhanh khi đối soát lệch. Không cần khóa thêm vì tài khoản đã bị khóa lúc ghi.
 
 ### 4.5 `idempotency_keys`
@@ -275,6 +275,7 @@ CREATE TABLE processed_events (
   processed_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (consumer, event_id)
 );
+CREATE INDEX processed_events_processed_at_idx ON processed_events (processed_at); -- cho job dọn 7 ngày
 ```
 
 ### 4.7 `audit_log`
@@ -437,6 +438,7 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | **R4** có lệnh chuyển ngược trong 1 giờ (risk) | `transfers_pair_completed_idx`: `transfers (from_account_id, to_account_id, created_at) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Truy vấn theo cặp |
 | Relay lấy sự kiện chưa gửi (`outbox`) | `outbox_unpublished_idx`: `outbox_events (id) WHERE published_at IS NULL` | Chỉ chứa các dòng đang chờ: luôn nhỏ dù bảng lớn |
 | Dọn outbox cũ | `outbox_published_cleanup_idx`: `outbox_events (published_at) WHERE published_at IS NOT NULL` | Truy vấn tuổi dòng đã gửi |
+| Dọn processed_events cũ (7 ngày) | `processed_events_processed_at_idx`: `processed_events (processed_at)` | Truy vấn tuổi dòng dedup đã xử lý (`OutboxRelay.deleteOldRows`) |
 | Dọn idempotency cũ | `idempotency_keys_created_idx`: `idempotency_keys (created_at)` | |
 | Truy vết theo `correlationId` (UC-8, AC-8.2) | `audit_log (correlation_id)` | Truy vấn nóng nhất của kiểm toán viên |
 | Lọc audit theo người, theo hành động | `audit_log (actor_user_id, occurred_at DESC)`, `audit_log (action, occurred_at DESC)` | |

@@ -336,7 +336,7 @@ describe('outbox migration schema and safety', () => {
     expect(r.consumer).toBe(consumer);
     expect(await q("SELECT to_regclass('public.users') AS name")).toEqual([{ name: 'users' }]);
   });
-  it('TC-25-10 exactly two partial indexes plus primary/unique indexes', async () => {
+  it('TC-25-10 exact outbox partial indexes, processed_events cleanup index, and primary/unique indexes', async () => {
     const indexes = (await catalog()).indexes;
     expect(indexes.map((r: { indexname: string }) => r.indexname)).toEqual([
       'outbox_events_event_id_key',
@@ -344,6 +344,7 @@ describe('outbox migration schema and safety', () => {
       'outbox_published_cleanup_idx',
       'outbox_unpublished_idx',
       'processed_events_pkey',
+      'processed_events_processed_at_idx',
     ]);
     expect(
       indexes.find((r: { indexname: string }) => r.indexname === 'outbox_unpublished_idx').indexdef,
@@ -352,6 +353,11 @@ describe('outbox migration schema and safety', () => {
       indexes.find((r: { indexname: string }) => r.indexname === 'outbox_published_cleanup_idx')
         .indexdef,
     ).toContain('USING btree (published_at) WHERE (published_at IS NOT NULL)');
+    expect(
+      indexes.find(
+        (r: { indexname: string }) => r.indexname === 'processed_events_processed_at_idx',
+      ).indexdef,
+    ).toContain('USING btree (processed_at)');
   });
   it('TC-25-11 publish transitions and cleanup UPDATE/DELETE remain permitted', async () => {
     const [a] = await q(INSERT, event());

@@ -53,7 +53,7 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 
 Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db`. CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) giữ sáu job `lint`, `typecheck`, `unit`, `e2e`, `db`, `build`. Job `e2e` chạy thêm sample DBS-39 và migration run → revert → run qua Testcontainers với `DATABASE_URL` được gỡ bỏ; job `db` vẫn chạy toàn bộ DB suite trên PostgreSQL service. Lệnh này không revert database dùng chung: test tạo và xóa database `dbs_test_*` riêng. Cách đọc kết quả: [CONTRIBUTING mục 4b](../CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions).
 
-Helper DBS-40 ở `test/support/valkey.container.ts` và `elasticmq.container.ts` trả endpoint động và `pause()`, `resume()`, `stop()`. `pause()` làm dịch vụ không phản hồi để kiểm timeout/fallback; nó không mô phỏng được độ trễ hữu hạn tùy chỉnh. ElasticMQ quảng bá queue URL theo địa chỉ nội bộ trong config; helper lấy đường dẫn queue thật rồi ghép với endpoint Testcontainers. Job CI `e2e` chạy `test:services` cho `sqs-adapter` và `redis-adapter`; riêng `testcontainers.services-spec.ts` chưa chạy trong CI (BL-053).
+Helper DBS-40 ở `test/support/valkey.container.ts` và `elasticmq.container.ts` trả endpoint động và `pause()`, `resume()`, `stop()`. `pause()` làm dịch vụ không phản hồi để kiểm timeout/fallback; nó không mô phỏng được độ trễ hữu hạn tùy chỉnh. ElasticMQ quảng bá queue URL theo địa chỉ nội bộ trong config; helper lấy đường dẫn queue thật rồi ghép với endpoint Testcontainers. Job CI `e2e` chạy đầy đủ `test:services` cho `testcontainers.services-spec.ts` (DBS-40), `sqs-adapter` (DBS-77), `outbox-relay` (DBS-90), `redis-adapter` (DBS-76), `health-readiness` (DBS-78) và `rate-limit` (DBS-89).
 
 ## Cấu trúc
 
@@ -184,7 +184,7 @@ return { amount: formatMoney(amount) };
 - Bỏ `parsePositiveMoney` ở service vì "DTO đã kiểm": lệnh đi vào từ worker không qua DTO, và `0` rơi xuống `CHECK (amount > 0)` thành lỗi 500.
 - So `===` giữa `Money` và `Balance` (hai kiểu khác nhãn): dùng `<`, `>`, hoặc mở rộng trước `(a as bigint) === b`.
 
-`MoneyError` (`reason`: `INVALID`, `OVERFLOW`, `UNDERFLOW`, `NOT_POSITIVE`) không phải lỗi HTTP: bắt nó ở chỗ có ý nghĩa nghiệp vụ; lọt ra ngoài thì thành 500 chung chung, không lộ gì. Lỗi DTO là 400 với danh sách `errors`, **không có `errorCode`** (client chỉ cần sửa và gửi lại). `main.ts` và `configureHttpApp` gọi `installBigIntJson()` để `JSON.stringify` ra chuỗi cho `bigint` còn sót; đó là lưới an toàn, không thay cho `formatMoney`. Chưa có luật lint chặn `parseInt`/`Number` trên tiền (BL-008): review code phải bắt.
+`MoneyError` (`reason`: `INVALID`, `OVERFLOW`, `UNDERFLOW`, `NOT_POSITIVE`) không phải lỗi HTTP: bắt nó ở chỗ có ý nghĩa nghiệp vụ; lọt ra ngoài thì thành 500 chung chung, không lộ gì. Lỗi DTO là 400 với danh sách `errors`, **không có `errorCode`** (client chỉ cần sửa và gửi lại). `main.ts` và `configureHttpApp` gọi `installBigIntJson()` để `JSON.stringify` ra chuỗi cho `bigint` còn sót; đó là lưới an toàn, không thay cho `formatMoney`. Luật ESLint `no-restricted-syntax` trong `eslint.config.mjs` chặn trực tiếp `Number()`, `parseInt()`, `parseFloat()` trong `src/modules/ledger/**` và `src/modules/accounts/**`.
 
 ### 8. Log JSON
 
@@ -331,7 +331,13 @@ Staging và production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác 
 
 **Ghép `DATABASE_URL` từ secret (DBS-67).** ECS `secrets` không nối chuỗi được, nên task truyền `DB_HOST`, `DB_PORT`, `DB_NAME` (biến thường) và `DB_USER`, `DB_PASSWORD` (từ secret master do RDS quản lý). `env.bootstrap` ghép thành `DATABASE_URL` (user và mật khẩu được mã hóa URL). `DATABASE_URL` đã có giá trị thì được giữ nguyên. Giá trị `DB_*` sai chỉ làm log nêu **tên** biến, không in giá trị. CLI typeorm cũng đi qua `env.bootstrap` nên dùng được cách này.
 
-**Làm mới hash khi AWS đổi bundle.** Build đỏ ở dòng `ADD --checksum` nghĩa là AWS đã cập nhật bundle. Tải bản mới, kiểm nguồn, tính `sha256sum global-bundle.pem`, thay hash trong `backend/Dockerfile` và chạy `jest test/support/dockerfile.spec.ts`.
+**Làm mới hash khi AWS đổi bundle.** Build đỏ ở dòng `ADD --checksum` nghĩa là AWS đã cập nhật bundle. Tải bản mới từ nguồn chính thức của AWS RDS, kiểm tra nội dung PEM, tính SHA-256 rồi cập nhật hằng số trong `backend/Dockerfile`:
+```bash
+curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /tmp/global-bundle.pem
+sha256sum /tmp/global-bundle.pem
+# Thay giá trị --checksum=sha256:<hash_mới> ở dòng ADD trong backend/Dockerfile, sau đó kiểm tra:
+npm test -- test/support/dockerfile.spec.ts
+```
 
 Bước `docker build` và kết nối RDS thật **chưa chạy** (BL-106).
 

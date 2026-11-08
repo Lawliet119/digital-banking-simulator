@@ -46,6 +46,26 @@ export async function assertDockerAvailable(
 }
 
 /**
+ * Awaits a Testcontainers `.start()` promise under `OVERALL_START_TIMEOUT_MS` and stops any
+ * container that finishes starting after the timeout has already fired (shared by PostgreSQL and
+ * Valkey/ElasticMQ container helpers, BL-055).
+ */
+export async function awaitContainerStart<T extends { stop(): Promise<unknown> }>(
+  starting: Promise<T>,
+  timeoutMessage: string,
+): Promise<T> {
+  try {
+    return await withTimeout(starting, OVERALL_START_TIMEOUT_MS, timeoutMessage);
+  } catch (error) {
+    // Jest skips globalTeardown when globalSetup throws, so a start() that only finishes after we
+    // gave up would leak its container. Ryuk is the main cleanup; this is the fallback while the
+    // process is still alive.
+    void starting.then(late => late.stop()).catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
  * Starts a PostgreSQL 17 Alpine container configured with UTC timezone.
  * Enforces startup timeout <= 60 seconds (DoD #4).
  */
@@ -58,22 +78,12 @@ export async function startPostgresContainer(): Promise<StartedPostgres> {
     .withStartupTimeout(STARTUP_TIMEOUT_MS)
     .start();
 
-  let container: StartedPostgreSqlContainer;
-  try {
-    container = await withTimeout(
-      starting,
-      OVERALL_START_TIMEOUT_MS,
-      `[Testcontainers] PostgreSQL did not become ready within ${OVERALL_START_TIMEOUT_MS / 1000}s ` +
-        '(including the image pull of postgres:17-alpine). Check your network, or run ' +
-        '`docker pull postgres:17-alpine` first and retry.',
-    );
-  } catch (error) {
-    // Jest skips globalTeardown when globalSetup throws, so a start() that only finishes after we
-    // gave up would leak its container. Ryuk is the main cleanup; this is the fallback while the
-    // process is still alive.
-    void starting.then(late => late.stop()).catch(() => undefined);
-    throw error;
-  }
+  const container = await awaitContainerStart(
+    starting,
+    `[Testcontainers] PostgreSQL did not become ready within ${OVERALL_START_TIMEOUT_MS / 1000}s ` +
+      '(including the image pull of postgres:17-alpine). Check your network, or run ' +
+      '`docker pull postgres:17-alpine` first and retry.',
+  );
 
   // Held on globalThis (shared by Jest's globalSetup and globalTeardown); globalSetup alone
   // decides what to do with the URL, this function never touches process.env.

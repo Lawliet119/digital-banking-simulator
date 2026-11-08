@@ -118,7 +118,7 @@ describe('DBS-51 @CurrentUser userId against PostgreSQL', () => {
     }).compile();
     const nest = moduleRef.createNestApplication<NestExpressApplication>();
     configureHttpApp(nest, { trustProxyHops: 0, corsOrigins: [], isProduction: false });
-    await nest.init();
+    await nest.listen(0, '127.0.0.1');
     app = nest;
     server = app.getHttpServer() as Parameters<typeof request>[0];
   });

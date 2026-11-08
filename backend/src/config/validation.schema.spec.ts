@@ -368,15 +368,25 @@ describe('validateEnv', () => {
     });
   });
 
-  describe('business limits (BR-06)', () => {
-    it.each(['12.5', '-1', '0', '1e6', 'abc', '1234567890123456789'])(
-      'rejects %j as a money value (digits only, no decimals, no zero)',
+  describe('business limits (BR-06, BL-007)', () => {
+    it.each(['12.5', '-1', '0', '01', '1e6', 'abc', '9223372036854775808', '12345678901234567890'])(
+      'rejects %j as a money value through parsePositiveMoney (digits only, no decimals, no zero, <= 2^63-1)',
       value => {
         expect(() => validateEnv({ ...base, TRANSFER_LIMIT_PER_TX: value })).toThrow(
           /TRANSFER_LIMIT_PER_TX/,
         );
       },
     );
+
+    it('accepts a 19-digit money value up to 2^63 - 1 (MONEY_MAX)', () => {
+      expect(() =>
+        validateEnv({
+          ...base,
+          TRANSFER_LIMIT_PER_TX: '9223372036854775807',
+          TRANSFER_LIMIT_PER_DAY: '9223372036854775807',
+        }),
+      ).not.toThrow();
+    });
 
     it('rejects a per-transaction limit larger than the daily limit', () => {
       expect(() =>
