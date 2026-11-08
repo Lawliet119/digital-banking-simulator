@@ -42,6 +42,13 @@ describe('AI feature projection', () => {
     expect(() => projectFeatures(value)).toThrow('Invalid AI features');
   });
 
+  it('rejects unexpected own fields even when they are hidden or symbols', () => {
+    const hidden = Object.defineProperty({ ...valid }, 'email', { value: 'private@example.test' });
+    const withSymbol = { ...valid, [Symbol('private')]: 'sensitive' };
+    expect(() => projectFeatures(hidden)).toThrow(/^Invalid AI features$/);
+    expect(() => projectFeatures(withSymbol)).toThrow(/^Invalid AI features$/);
+  });
+
   it('allows no history with null median and preserves zero fields', () => {
     const input = { ...valid, historyCount30d: 0, medianAmount30d: null, accountAgeHours: 0 };
     expect(projectFeatures(input)).toEqual(input);
@@ -98,5 +105,71 @@ describe('AI feature projection', () => {
       newRecipients1h: 2,
       distinctRecipients24h: 3,
     });
+    expect(
+      toAiFeatureInput(event, { ...features, medianAmount30dTimes2: '18446744073709551614' })
+        .medianAmount30d,
+    ).toBe('9223372036854775807');
+    expect(
+      toAiFeatureInput(event, { ...features, medianAmount30dTimes2: '18446744073709551613' })
+        .medianAmount30d,
+    ).toBe('9223372036854775806.5');
+    for (const medianAmount30dTimes2 of [
+      '0',
+      '1',
+      '02',
+      '2e0',
+      '18446744073709551615',
+      '9'.repeat(1000),
+    ]) {
+      expect(() => toAiFeatureInput(event, { ...features, medianAmount30dTimes2 })).toThrow(
+        'Invalid AI features',
+      );
+    }
+
+    for (const badEvent of [
+      { ...event, occurredAt: ['2026-10-19T06:00:00.000Z'] },
+      { ...event, fromAccountCreatedAt: 0 },
+    ]) {
+      expect(() => toAiFeatureInput(badEvent as unknown as TransferEvent, features)).toThrow(
+        /^Invalid AI features$/,
+      );
+    }
+    expect(() =>
+      toAiFeatureInput(event, {
+        ...features,
+        reverseTransferOccurredAt: ['2026-10-19T05:45:00.000Z'],
+      } as unknown as Features),
+    ).toThrow(/^Invalid AI features$/);
+
+    let occurredReads = 0;
+    const changingEvent = {
+      ...event,
+      get occurredAt(): string {
+        occurredReads += 1;
+        return occurredReads === 1 ? '2026-10-19T06:00:00.000Z' : '2026-10-20T06:00:00.000Z';
+      },
+    };
+    expect(toAiFeatureInput(changingEvent, features).accountAgeHours).toBe(3);
+    expect(occurredReads).toBe(1);
+
+    const preciseEvent = {
+      ...event,
+      occurredAt: '2026-10-19T06:00:00.000000001Z',
+      fromAccountCreatedAt: '2026-10-19T06:00:00.000000000Z',
+    };
+    const precise = toAiFeatureInput(preciseEvent, {
+      ...features,
+      reverseTransferOccurredAt: '2026-10-19T06:00:00.000000000Z',
+    });
+    expect(precise.accountAgeHours).toBe(1 / 3_600_000_000_000);
+    expect(precise.minutesSinceReverse).toBe(1 / 60_000_000_000);
+    for (const reverseTransferOccurredAt of [
+      '2026-10-19T06:00:00.000000001Z',
+      '2026-10-19T06:00:00.000000002Z',
+    ]) {
+      expect(() =>
+        toAiFeatureInput(preciseEvent, { ...features, reverseTransferOccurredAt }),
+      ).toThrow(/^Invalid AI features$/);
+    }
   });
 });

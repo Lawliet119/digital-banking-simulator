@@ -1,9 +1,12 @@
-import { parseBalance, parseMoney, parsePositiveMoney } from '@common/money';
+import { MONEY_MAX, parseBalance, parseMoney, parsePositiveMoney } from '@common/money';
 import type { Features, TransferEvent } from '../features/feature-provider';
+import { riskTimeNanoseconds } from '../risk-time';
 import type { FeatureInput } from './ai-contract';
 
 const MIN_HISTORY_FOR_MEDIAN = 5;
 const MAX_ACCOUNT_AGE_HOURS = 720;
+const HOUR_NS = 3_600_000_000_000n;
+const MINUTE_NS = 60_000_000_000n;
 
 const KEYS: readonly (keyof FeatureInput)[] = [
   'amount',
@@ -24,7 +27,7 @@ export function projectFeatures(input: unknown): FeatureInput {
   try {
     if (typeof input !== 'object' || input === null || Array.isArray(input)) throw new Error();
     const record = input as Record<string, unknown>;
-    const keys = Object.keys(record);
+    const keys = Reflect.ownKeys(record);
     if (keys.length !== KEYS.length || KEYS.some(key => !Object.hasOwn(record, key)))
       throw new Error();
     const {
@@ -103,27 +106,36 @@ export function projectFeatures(input: unknown): FeatureInput {
  */
 export function toAiFeatureInput(event: TransferEvent, features: Features): FeatureInput {
   try {
-    const occurredMs = Date.parse(event.occurredAt);
-    const createdMs = Date.parse(event.fromAccountCreatedAt);
-    if (!Number.isFinite(occurredMs) || !Number.isFinite(createdMs)) throw new Error();
-    const accountAgeHours = Math.min(
-      MAX_ACCOUNT_AGE_HOURS,
-      Math.max(0, (occurredMs - createdMs) / 3_600_000),
-    );
+    const occurredAt = event.occurredAt;
+    const createdAt = event.fromAccountCreatedAt;
+    const occurredNs = riskTimeNanoseconds(occurredAt);
+    const createdNs = riskTimeNanoseconds(createdAt);
+    const ageNs = occurredNs - createdNs;
+    const accountAgeHours =
+      ageNs <= 0n
+        ? 0
+        : ageNs >= BigInt(MAX_ACCOUNT_AGE_HOURS) * HOUR_NS
+          ? MAX_ACCOUNT_AGE_HOURS
+          : Number(ageNs) / Number(HOUR_NS);
 
     let medianAmount30d: string | null = null;
-    if (features.medianAmount30dTimes2 !== null) {
-      const twice = parsePositiveMoney(features.medianAmount30dTimes2);
-      if (twice < 2n) throw new Error();
+    const raw = features.medianAmount30dTimes2;
+    if (raw !== null) {
+      if (typeof raw !== 'string' || raw.length > 20 || !/^[1-9][0-9]*$/.test(raw)) {
+        throw new Error();
+      }
+      const twice = BigInt(raw);
+      if (twice < 2n || twice > 2n * MONEY_MAX) throw new Error();
       const half = twice / 2n;
       medianAmount30d = twice % 2n === 0n ? half.toString() : `${half.toString()}.5`;
     }
 
     let minutesSinceReverse: number | null = null;
-    if (features.reverseTransferOccurredAt !== null) {
-      const reverseMs = Date.parse(features.reverseTransferOccurredAt);
-      if (!Number.isFinite(reverseMs)) throw new Error();
-      minutesSinceReverse = Math.max(0, (occurredMs - reverseMs) / 60_000);
+    const reverseAt = features.reverseTransferOccurredAt;
+    if (reverseAt !== null) {
+      const elapsed = occurredNs - riskTimeNanoseconds(reverseAt);
+      if (elapsed <= 0n) throw new Error();
+      minutesSinceReverse = Number(elapsed) / Number(MINUTE_NS);
     }
 
     return projectFeatures({

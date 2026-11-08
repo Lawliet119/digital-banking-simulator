@@ -53,6 +53,15 @@ describe('DBS-95 R3 new account, large transfer', () => {
     expect(atAge(24 * HOUR + 1)).toBeNull();
   });
 
+  it('preserves nanosecond precision at the exclusive age boundary', () => {
+    const occurredAt = '2026-10-19T12:00:00.000000001Z';
+    expect(
+      run({ occurredAt, fromAccountCreatedAt: '2026-10-18T12:00:00.000000002Z' }),
+    ).not.toBeNull();
+    expect(run({ occurredAt, fromAccountCreatedAt: '2026-10-18T12:00:00.000000001Z' })).toBeNull();
+    expect(run({ occurredAt, fromAccountCreatedAt: '2026-10-18T12:00:00.000000000Z' })).toBeNull();
+  });
+
   it('TC-95-01 counts exactly 24 hours across a daylight-saving date (UTC only)', () => {
     const occurredAt = '2026-03-29T12:00:00.000Z';
     expect(run({ occurredAt, fromAccountCreatedAt: '2026-03-28T12:00:00.000Z' })).toBeNull();
