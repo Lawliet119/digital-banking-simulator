@@ -1,0 +1,5 @@
+951d8de695fa94e52f74330e72127a4ae7a5a581
+M-110-01 PASS: current version 1 (R1 weight 30); cfg:risk:latest="1" and cfg:risk:v1 stored
+M-110-02 PASS: v2 added; still v1 inside the cache window, v2 (R1 weight 55) once cfg:risk:latest expired
+M-110-03 PASS: Valkey paused -> version 3 read from PostgreSQL at once (config fallbacks=2)
+cleanup done: temp database dropped, cfg:risk keys deleted
