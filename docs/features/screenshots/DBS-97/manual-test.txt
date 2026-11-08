@@ -1,0 +1,162 @@
+85617e68e54d8111c4c0669ce3bed3f831f951df
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand customer-transfers
+
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand customer-transfers
+
+  console.log
+    {"scenario":"DBS-97","round":1,"responses":10,"transferId":"f8d96796-ed5c-456d-b7e2-670fa8f045c9","invariants":{"status":"PASS","totals":{"debit":"18014398531006087","credit":"18014398531006087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":2,"responses":10,"transferId":"a836d0d7-c363-4fde-ae1b-f73f2a643ebe","invariants":{"status":"PASS","totals":{"debit":"18014398531007087","credit":"18014398531007087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":3,"responses":10,"transferId":"bf75a03e-6bc1-4307-9744-53c89cd3825d","invariants":{"status":"PASS","totals":{"debit":"18014398531008087","credit":"18014398531008087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":4,"responses":10,"transferId":"c339a03d-bba9-41b6-95d5-c4a8e5a4ce04","invariants":{"status":"PASS","totals":{"debit":"18014398531009087","credit":"18014398531009087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+Manual npm exit=127
+  console.log
+    {"scenario":"DBS-97","round":1,"responses":10,"transferId":"d6e69f7d-66d2-4051-9abb-52997b775c28","invariants":{"status":"PASS","totals":{"debit":"18014398531006087","credit":"18014398531006087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":2,"responses":10,"transferId":"5f7ae25e-ec51-4aad-a6e5-241d5d6caa84","invariants":{"status":"PASS","totals":{"debit":"18014398531007087","credit":"18014398531007087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":3,"responses":10,"transferId":"2a0d5010-8f6f-4fec-9e31-39d30751459c","invariants":{"status":"PASS","totals":{"debit":"18014398531008087","credit":"18014398531008087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":4,"responses":10,"transferId":"e2f2e24d-7e7f-474d-a2b8-550f7eb258e0","invariants":{"status":"PASS","totals":{"debit":"18014398531009087","credit":"18014398531009087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":5,"responses":10,"transferId":"c1515bb3-4422-4024-a5d7-c6c0eeff63e2","invariants":{"status":"PASS","totals":{"debit":"18014398531010087","credit":"18014398531010087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":6,"responses":10,"transferId":"cdb4c0c9-c3a0-4f42-9d18-c037d868c0db","invariants":{"status":"PASS","totals":{"debit":"18014398531011087","credit":"18014398531011087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":7,"responses":10,"transferId":"8daaaf47-edb8-4bbd-b495-4ce389d72681","invariants":{"status":"PASS","totals":{"debit":"18014398531012087","credit":"18014398531012087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":8,"responses":10,"transferId":"36cb365f-a3f8-43dd-b4cd-8b506d0736d5","invariants":{"status":"PASS","totals":{"debit":"18014398531013087","credit":"18014398531013087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":9,"responses":10,"transferId":"53008ea8-78c9-43be-9715-0769a88779d0","invariants":{"status":"PASS","totals":{"debit":"18014398531014087","credit":"18014398531014087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":10,"responses":10,"transferId":"06656eb7-c4a2-4447-86f8-42424c679b2f","invariants":{"status":"PASS","totals":{"debit":"18014398531015087","credit":"18014398531015087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+Test Suites: 1 passed, 1 total
+Tests:       36 passed, 36 total
+Snapshots:   0 total
+Time:        21.761 s
+Ran all test suites matching customer-transfers.
+Direct Jest diagnostic exit=0
+
+M-97-02 Docker Desktop stopped; expected nonzero
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand customer-transfers
+
+Error: Jest: Got error running globalSetup - D:\UET_PROJECT\dbs97-manual-final\backend\test\support\jest-global-setup.ts, reason: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Error details: Could not find a working container runtime strategy
+    at assertDockerAvailable (D:\UET_PROJECT\dbs97-manual-final\backend\test\support\postgres.container.ts:36:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startPostgresContainer (D:\UET_PROJECT\dbs97-manual-final\backend\test\support\postgres.container.ts:62:5)
+    at async globalSetup (D:\UET_PROJECT\dbs97-manual-final\backend\test\support\jest-global-setup.ts:9:33)
+    at async D:\UET_PROJECT\digital-banking-simulator-dbs97-concurrency\backend\node_modules\@jest\core\build\index.js:3190:11
+    at async waitForPromiseWithCleanup (D:\UET_PROJECT\digital-banking-simulator-dbs97-concurrency\backend\node_modules\@jest\transform\build\index.js:135:5)
+    at async ScriptTransformer.requireAndTranspileModule (D:\UET_PROJECT\digital-banking-simulator-dbs97-concurrency\backend\node_modules\@jest\transform\build\index.js:630:16)
+    at async runGlobalHook (D:\UET_PROJECT\digital-banking-simulator-dbs97-concurrency\backend\node_modules\@jest\core\build\index.js:3186:9)
+    at async runJest (D:\UET_PROJECT\digital-banking-simulator-dbs97-concurrency\backend\node_modules\@jest\core\build\index.js:3552:5)
+    at async _run10000 (D:\UET_PROJECT\digital-banking-simulator-dbs97-concurrency\backend\node_modules\@jest\core\build\index.js:1556:5)
+Docker-down exit=1
+
+M-97-03 Docker restarted; expected pass
+  console.log
+    {"scenario":"DBS-97","round":1,"responses":10,"transferId":"acfb3e8c-a8eb-46ea-b4c6-aa1296600a3a","invariants":{"status":"PASS","totals":{"debit":"18014398531006087","credit":"18014398531006087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":2,"responses":10,"transferId":"29248488-8f0c-48fb-8172-f69724a9dc6f","invariants":{"status":"PASS","totals":{"debit":"18014398531007087","credit":"18014398531007087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":3,"responses":10,"transferId":"aaee191b-3825-450d-b14a-6c0cb2776e12","invariants":{"status":"PASS","totals":{"debit":"18014398531008087","credit":"18014398531008087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":4,"responses":10,"transferId":"7a1ab073-21d4-4b0e-8096-2174824f0fea","invariants":{"status":"PASS","totals":{"debit":"18014398531009087","credit":"18014398531009087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":5,"responses":10,"transferId":"692d3d5c-b9d6-4e65-8266-0cdf931609ce","invariants":{"status":"PASS","totals":{"debit":"18014398531010087","credit":"18014398531010087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":6,"responses":10,"transferId":"895c427a-4e14-4c75-9ea2-f191e50413b0","invariants":{"status":"PASS","totals":{"debit":"18014398531011087","credit":"18014398531011087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":7,"responses":10,"transferId":"d625ade9-21f9-414c-b2ab-8baa2176f34a","invariants":{"status":"PASS","totals":{"debit":"18014398531012087","credit":"18014398531012087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":8,"responses":10,"transferId":"5bba8c25-d313-4719-b54e-16b1c4d5ab71","invariants":{"status":"PASS","totals":{"debit":"18014398531013087","credit":"18014398531013087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":9,"responses":10,"transferId":"d4a2e6a9-1d16-4e2f-ba20-db8411949c21","invariants":{"status":"PASS","totals":{"debit":"18014398531014087","credit":"18014398531014087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+  console.log
+    {"scenario":"DBS-97","round":10,"responses":10,"transferId":"c20be852-dce5-431f-a50b-95976067ace0","invariants":{"status":"PASS","totals":{"debit":"18014398531015087","credit":"18014398531015087","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:710:15)
+
+Test Suites: 1 passed, 1 total
+Tests:       36 passed, 36 total
+Snapshots:   0 total
+Time:        12.451 s, estimated 22 s
+Ran all test suites matching customer-transfers.
+Recovery exit=0

@@ -1,0 +1,6 @@
+| # | Severity (blocking / should-fix / minor) | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | should-fix | §5, M-97-02–03 | Dừng Docker không đảm bảo lệnh test thất bại như mô tả: nếu `DATABASE_URL` đã được đặt tới một PostgreSQL bên ngoài Docker, harness sẽ dùng URL đó và bỏ qua Testcontainers. Khi đó M-97-02 có thể xanh dù Docker đã dừng, và M-97-03 không chứng minh được đường khởi động lại Testcontainers. | `backend/test/support/jest-global-setup.ts:4–10`; `docs/features/DBS-97-duplicate-request-concurrency.md:99–101` | Ghi rõ phải chạy hai bước này khi `DATABASE_URL` không được đặt, hoặc thêm kiểm tra xác nhận test đang dùng PostgreSQL do Testcontainers khởi tạo. |
+| 2 | minor | §2.1, §4 TC-97-01 | Chưa chốt số tiền chuyển và số dư nạp ban đầu cho 10 batch dùng cùng một tài khoản nguồn. Theo BR-06, mỗi lần chuyển tối đa 50 triệu đồng và tổng chuyển trong ngày tối đa 200 triệu đồng; nếu dữ liệu vượt các giới hạn này, một batch có thể bị từ chối hợp lệ thay vì kiểm tra AC-5.4. | `docs/features/DBS-97-duplicate-request-concurrency.md` §2.1 và §4 TC-97-01; `docs/BRD.md` §3, BR-06; `backend/test/support/deposit-app.ts:100–104` | Chốt amount và tiền nạp ban đầu để cả 10 batch đều đủ số dư, mỗi lần dưới 50 triệu và tổng dưới 200 triệu đồng. |
+
+Verdict: REVISE

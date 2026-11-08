@@ -1,0 +1,2 @@
+85617e68e54d8111c4c0669ce3bed3f831f951df
+Execution summary (full outputs not all captured in this file): Unit:69 suites,1129/1129. Lint/typecheck/build exit0. Related PostgreSQL suite 36/36. Mutation intentionally failed as saved in red-green.txt. Manual Dockerdown expected exit1; recovery direct Jest exit0. No liveCI/PR/review/merge evidence.
