@@ -1,0 +1,48 @@
+a5e89bc7790ca1f000284717b23e3b6cb48ee45e
+SQL INPUT: users/customers/accounts at migration default ZERO, no SQL balance or ledger seed. ALL funding uses actual deposit HTTP.
+{"method":"POST","path":"/v1/operator/deposits","key":"aa3adb8c-52dc-403b-a0a2-91c9860daf30","request":{"toAccountId":"e20cddb9-1262-425b-845c-18fb652105ef","amount":"300000000"},"status":201,"correlationId":"0ccb0991-a1a0-47c1-b98d-ecde5ceb6e99","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"446c950f-c0dd-4e82-acab-6de5967ef892","status":"COMPLETED"}}
+{"method":"POST","path":"/v1/transfers","key":"b551a117-0e1e-40bd-8339-72c832a734e3","request":{"fromAccountId":"e20cddb9-1262-425b-845c-18fb652105ef","toAccountId":"34316da9-9927-452a-ba49-17a73413fe9c","amount":"50000000"},"status":201,"correlationId":"a9a7badd-45e8-4432-9f7e-260cf53ee129","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"89f65c41-3bd0-4da2-a019-06a3b27620d5","status":"COMPLETED"}}
+{"method":"POST","path":"/v1/transfers","key":"6dba25e9-caf7-445f-8f9f-6bde50545620","request":{"fromAccountId":"e20cddb9-1262-425b-845c-18fb652105ef","toAccountId":"34316da9-9927-452a-ba49-17a73413fe9c","amount":"50000000"},"status":201,"correlationId":"5bd320c8-2c3f-4923-903d-ec91c4597a4f","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"8014195f-8397-477d-aa5f-d6352ea093ec","status":"COMPLETED"}}
+{"method":"POST","path":"/v1/transfers","key":"5052fcad-51bc-4d83-a754-211f8c13242a","request":{"fromAccountId":"e20cddb9-1262-425b-845c-18fb652105ef","toAccountId":"34316da9-9927-452a-ba49-17a73413fe9c","amount":"50000000"},"status":201,"correlationId":"de271588-6497-4bea-b145-7a777406fcdd","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"ad0a1a98-8dcc-4ddc-9e79-42260922d62d","status":"COMPLETED"}}
+{"method":"POST","path":"/v1/transfers","key":"e220642c-05ab-403c-9947-b9bcacc0627c","request":{"fromAccountId":"e20cddb9-1262-425b-845c-18fb652105ef","toAccountId":"34316da9-9927-452a-ba49-17a73413fe9c","amount":"50000000"},"status":201,"correlationId":"e808ea9f-983c-49a5-9620-5fd1406925de","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"eff972df-c236-4303-a11c-aadc35d707e4","status":"COMPLETED"}}
+M-84-01 PASS: Vũ Thị Giang funded with 300,000,000 and sent 4 x 50,000,000 to Bùi Văn Hải
+{"method":"POST","path":"/v1/transfers","key":"99ae4b11-1d2b-4f0c-893f-58fbdb095ba1","request":{"fromAccountId":"e20cddb9-1262-425b-845c-18fb652105ef","toAccountId":"34316da9-9927-452a-ba49-17a73413fe9c","amount":"1"},"status":422,"correlationId":"887a7026-f03d-46ba-bbb7-6834cdca9504","retryAfter":null,"contentType":"application/problem+json; charset=utf-8","body":{"errorCode":"LIMIT_PER_DAY_EXCEEDED","transferId":"0a2ec540-dfec-4bd3-8c6c-d7159bb07896","type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"Transfer rejected","correlationId":"887a7026-f03d-46ba-bbb7-6834cdca9504"}}
+M-84-02 PASS: 1 dong more: 422 LIMIT_PER_DAY_EXCEEDED; Hải holds 200,000,000
+{"method":"POST","path":"/v1/operator/deposits","key":"96f2d8ec-c418-435a-b0c6-900c7bb5c97e","request":{"toAccountId":"e20cddb9-1262-425b-845c-18fb652105ef","amount":"500000000"},"status":201,"correlationId":"ebba5e1b-45a9-46a4-bc48-ae401bb79501","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"c7bd0740-629c-4879-8bf0-7727eea26ba5","status":"COMPLETED"}}
+{"method":"POST","path":"/v1/transfers","key":"81fd4d0e-c112-4d64-b0da-a85708f6fffc","request":{"fromAccountId":"34316da9-9927-452a-ba49-17a73413fe9c","toAccountId":"e20cddb9-1262-425b-845c-18fb652105ef","amount":"50000000"},"status":201,"correlationId":"1e6d4897-e68d-468b-9ad7-5f2b41e4eeec","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"2756bc89-37fd-48fa-8a4a-20206cdcb3ac","status":"COMPLETED"}}
+{"method":"POST","path":"/v1/transfers","key":"ba22d997-a629-4d4a-8bf3-4053f66d48cd","request":{"fromAccountId":"e20cddb9-1262-425b-845c-18fb652105ef","toAccountId":"34316da9-9927-452a-ba49-17a73413fe9c","amount":"1"},"status":422,"correlationId":"72c9cf66-8a4c-4313-b1c8-af58ab26b0d9","retryAfter":null,"contentType":"application/problem+json; charset=utf-8","body":{"errorCode":"LIMIT_PER_DAY_EXCEEDED","transferId":"c4f746c9-e2ca-4cd2-b6a6-aa5ec156c7d1","type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"Transfer rejected","correlationId":"72c9cf66-8a4c-4313-b1c8-af58ab26b0d9"}}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"1050000000","credit":"1050000000","balance":"0"},"violations":[]}}
+M-84-03 PASS: Hải (received 200,000,000 today) sent 50,000,000; Giang received 500,000,000 + 50,000,000 yet is still at her sending limit
+loading 1,000,000 debit lines of one account + 500,000 lines of 50,000 others ...
+loaded in 157.8 s; hot account: 1000400 debit lines
+SHOW timezone = UTC
+---- EXPLAIN (ANALYZE, BUFFERS), last of 7 runs ----
+Aggregate  (cost=41.41..41.43 rows=1 width=32) (actual time=0.133..0.133 rows=1 loops=1)
+  Buffers: shared hit=14
+  ->  Index Only Scan using ledger_entries_daily_debit_idx on ledger_entries  (cost=0.43..39.97 rows=577 width=8) (actual time=0.027..0.094 rows=968 loops=1)
+        Index Cond: ((account_id = 'b87af946-0c92-4349-8ef9-31b8576dd3fe'::uuid) AND (created_at >= '2026-11-07 17:00:00+00'::timestamp with time zone))
+        Heap Fetches: 0
+        Buffers: shared hit=14
+Planning Time: 0.057 ms
+Execution Time: 0.154 ms
+execution times (ms), sorted: 0.154, 0.157, 0.158, 0.163, 0.171, 0.176, 0.32; median 0.163
+M-84-04 PASS: Index Only Scan on ledger_entries_daily_debit_idx, Heap Fetches 0, median 0.163 ms (<= 5 ms) with 1000400 lines
+---- the same account, the query as it was before DBS-84 (clock_timestamp()) ----
+Finalize Aggregate  (cost=44408.64..44408.66 rows=1 width=32) (actual time=197.481..202.980 rows=1 loops=1)
+  Buffers: shared hit=1501 read=24369
+  ->  Gather  (cost=44408.42..44408.63 rows=2 width=32) (actual time=196.750..202.966 rows=3 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=1501 read=24369
+        ->  Partial Aggregate  (cost=43408.42..43408.43 rows=1 width=32) (actual time=186.109..186.110 rows=1 loops=3)
+              Buffers: shared hit=1501 read=24369
+              ->  Parallel Seq Scan on ledger_entries  (cost=0.00..43062.24 rows=138469 width=8) (actual time=120.638..186.079 rows=323 loops=3)
+                    Filter: ((account_id = 'b87af946-0c92-4349-8ef9-31b8576dd3fe'::uuid) AND (direction = 'DEBIT'::text) AND (created_at >= (date_trunc('day'::text, (clock_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh'::text)) AT TIME ZONE 'Asia/Ho_Chi_Minh'::text)))
+                    Rows Removed by Filter: 499815
+                    Buffers: shared hit=1501 read=24369
+Planning:
+  Buffers: shared hit=19 read=2
+Planning Time: 0.249 ms
+Execution Time: 203.041 ms
+M-84-05 PASS: the old query is a Seq Scan on the same data (control)
+DBS-84 cleanup PASS: app closed, JWKS directory gone, temporary database absent from pg_database, owned PG17 container removed
