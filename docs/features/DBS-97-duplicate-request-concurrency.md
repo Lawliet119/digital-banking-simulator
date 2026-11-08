@@ -149,7 +149,13 @@ Cả M-97-01/02/03 chạy trong Git Bash với `env -u DATABASE_URL npm run test
 
 **Manual:** checkout sạch detached tại code cuối (D:/UET_PROJECT/dbs97-manual-final); dependency dùng junction tới node_modules cùng lockfile. M-97-01 bằng npm/Git Bash hai lần thoát127, không đủ báo cáo (một lượt đến round4); chưa đạt theo đúng lệnh gốc. Chạy diagnostic gọi node/Jest trực tiếp trên cùng checkout đạt36/36, 10round checkerPASS, exit0; không nhận là đã giải thích hoặc sửa exit127. M-97-02/03 đang chờ cửa sổ dừng Docker sau các run đang chạy. [Raw manual](screenshots/DBS-97/manual-test.txt), [mutation](screenshots/DBS-97/red-green.txt).
 
-**Ảnh còn thiếu:** 01-bursts.png, 02-docker-down.png, 03-recovery.png. Browser local bị tắt; screenshot native có overlay ngoài phạm vi, không lưu vào repo. Diagram chưa có visual-render QA.
+**Ảnh manual:** đã chụp từ cửa sổ Notepad riêng đang mở raw `manual-test.txt` trên code cuối; không sửa nội dung transcript hoặc lấy dữ liệu cửa sổ khác. Đây là ảnh xem lại output thực đã lưu, không phải lượt chạy mới. Diagram chưa có visual-render QA.
+
+![10 batch bằng direct Jest diagnostic, không nhận là npm launcher đã sửa](screenshots/DBS-97/01-bursts.png)
+
+![M-97-02 Docker-down fail rõ](screenshots/DBS-97/02-docker-down.png)
+
+![M-97-03 recovery direct Jest](screenshots/DBS-97/03-recovery.png)
 
 **Bàn giao:** BL-182 theo dõi cả exit127 chưa rõ nguyên nhân, manual/CI thật/Dev review/merge/ảnh. Không xóa BL-125 harness chỉ vì có một run xanh. Chưa push/PR/board.
 
@@ -161,7 +167,7 @@ DB 42 suites / 724 tests; E2E chính 15 suites / 153 tests; các bước Testcon
 
 DoD 10 vòng liên tiếp trên CI đã có evidence. M-97-01 theo npm/Git Bash vẫn chưa hoàn tất; recovery direct node/Jest được giữ là khác launcher. BL-182 tiếp tục theo dõi Windows exit127, Dev review/merge và ba PNG; không coi CI xanh là đã sửa lỗi Windows.
 
-Code không đổi sau manual; lần cập nhật này chỉ sửa hồ sơ/evidence. Diff file vẫn khớp §7. Status giữ Plan approved để trình G4.
+Code không đổi sau manual; các commit sau run CI trên chỉ sửa hồ sơ/evidence và bổ sung đủ 3 PNG đã định ở §7. Các ghi chú thiếu PNG trước đó được thay bằng ảnh thật ở trên; không còn ảnh thiếu. Diff file vẫn khớp §7. Status giữ Plan approved để trình G4.
 
 ## 9. Tài liệu đã cập nhật
 
