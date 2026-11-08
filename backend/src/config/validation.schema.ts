@@ -1,7 +1,20 @@
 import * as Joi from 'joi';
+import { MoneyError, parsePositiveMoney } from '../common/money';
 
-/** Matches a positive integer written as digits (no sign, no decimals, no leading zero). */
-const MONEY_PATTERN = /^[1-9]\d{0,17}$/;
+function validatePositiveMoneyString(
+  value: string,
+  helpers: Joi.CustomHelpers,
+): string | Joi.ErrorReport {
+  try {
+    parsePositiveMoney(value);
+    return value;
+  } catch (error) {
+    if (error instanceof MoneyError) {
+      return helpers.error('any.invalid');
+    }
+    throw error;
+  }
+}
 
 /**
  * The validated shape of the environment. Money-like values stay strings here and become
@@ -180,8 +193,8 @@ export const validationSchema = Joi.object<Env>({
   // Minimum time between JWKS refetches triggered by an unknown `kid` (DBS-50: at most 1/min).
   JWKS_REFETCH_COOLDOWN_MS: Joi.number().integer().min(1_000).max(300_000).default(60_000),
 
-  TRANSFER_LIMIT_PER_TX: Joi.string().pattern(MONEY_PATTERN).default('50000000'),
-  TRANSFER_LIMIT_PER_DAY: Joi.string().pattern(MONEY_PATTERN).default('200000000'),
+  TRANSFER_LIMIT_PER_TX: Joi.string().custom(validatePositiveMoneyString).default('50000000'),
+  TRANSFER_LIMIT_PER_DAY: Joi.string().custom(validatePositiveMoneyString).default('200000000'),
   IDEMPOTENCY_KEY_RETENTION_DAYS: Joi.number().integer().min(1).default(7),
   RATE_LIMIT_TRANSFERS_PER_MINUTE: Joi.number().integer().min(1).default(10),
   RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE: Joi.number().integer().min(1).default(100),
@@ -190,10 +203,19 @@ export const validationSchema = Joi.object<Env>({
   // Baseline `rule_only` mode runs without it; whitespace-padded keys are rejected.
   OPENAI_API_KEY: Joi.string().allow('').pattern(/^\S+$/).optional(),
 }).custom((env: Env, helpers) => {
-  if (BigInt(env.TRANSFER_LIMIT_PER_TX) > BigInt(env.TRANSFER_LIMIT_PER_DAY)) {
-    return helpers.message({
-      custom: 'TRANSFER_LIMIT_PER_TX must not be greater than TRANSFER_LIMIT_PER_DAY',
-    });
+  try {
+    const perTx = parsePositiveMoney(env.TRANSFER_LIMIT_PER_TX);
+    const perDay = parsePositiveMoney(env.TRANSFER_LIMIT_PER_DAY);
+    if (perTx > perDay) {
+      return helpers.message({
+        custom: 'TRANSFER_LIMIT_PER_TX must not be greater than TRANSFER_LIMIT_PER_DAY',
+      });
+    }
+  } catch (error) {
+    if (error instanceof MoneyError) {
+      return env;
+    }
+    throw error;
   }
   return env;
 });

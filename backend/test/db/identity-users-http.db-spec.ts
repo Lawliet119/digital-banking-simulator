@@ -94,7 +94,9 @@ describe('DBS-52 users provisioning over HTTP (real AppModule pieces, PostgreSQL
     }).compile();
     const nest = moduleRef.createNestApplication<NestExpressApplication>();
     configureHttpApp(nest, { trustProxyHops: 0, corsOrigins: [], isProduction: false });
-    await nest.init();
+    // Listen once so 20–25 concurrent supertest calls share one bound listener instead of racing
+    // to call server.listen(0) and triggering MaxListenersExceededWarning (BL-172).
+    await nest.listen(0, '127.0.0.1');
     app = nest;
     server = app.getHttpServer() as Parameters<typeof request>[0];
   });
@@ -203,15 +205,25 @@ describe('DBS-52 users provisioning over HTTP (real AppModule pieces, PostgreSQL
     expect(after).toEqual(before);
   });
 
-  it('TC-52-20 20 parallel HTTP requests for a new sub all succeed with one userId and one row', async () => {
+  it('TC-52-20 20 parallel HTTP requests for a new sub all succeed with one userId and one row (and no MaxListenersExceededWarning, BL-172)', async () => {
     const subject = sub(20);
     const bearer = `Bearer ${await token(subject)}`;
+    const warnings: Error[] = [];
+    const onWarning = (warning: Error) => {
+      if (warning.name === 'MaxListenersExceededWarning') warnings.push(warning);
+    };
+    process.on('warning', onWarning);
 
-    const responses = await Promise.all(Array.from({ length: 20 }, () => call(bearer)));
+    try {
+      const responses = await Promise.all(Array.from({ length: 20 }, () => call(bearer)));
 
-    expect(responses.map(r => r.status)).toEqual(Array(20).fill(200));
-    expect(new Set(responses.map(r => r.body.userId)).size).toBe(1);
-    expect(await rows([subject])).toBe(1);
+      expect(responses.map(r => r.status)).toEqual(Array(20).fill(200));
+      expect(new Set(responses.map(r => r.body.userId)).size).toBe(1);
+      expect(await rows([subject])).toBe(1);
+      expect(warnings).toEqual([]);
+    } finally {
+      process.off('warning', onWarning);
+    }
   });
 
   it('TC-52-21 a transient database error is a 503 that is not cached: the next request succeeds', async () => {

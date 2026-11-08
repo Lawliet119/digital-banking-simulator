@@ -117,6 +117,8 @@ export function parseHistoryQuery(raw: unknown): ParsedHistoryQuery {
   }
   return {
     ...filters,
+    // Page size (1..100), not a money amount.
+    // eslint-disable-next-line no-restricted-syntax
     limit: Number(limit),
     cursor: values.cursor === undefined ? null : decodeCursor(values.cursor, filters),
   };

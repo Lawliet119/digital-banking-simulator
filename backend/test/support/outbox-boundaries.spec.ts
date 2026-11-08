@@ -38,4 +38,34 @@ describe('TC-57-12 imports to the outbox module obey the existing ESLint boundar
       expect(messages[0]).toMatchObject({ ruleId: 'no-restricted-imports', severity: 2 });
     },
   );
+
+  it.each(['parseInt(dto.amount)', 'parseFloat(dto.amount)', 'Number(dto.amount)'])(
+    'BL-008 rejects %s in src/modules/ledger/** and src/modules/accounts/**',
+    snippet => {
+      const result = execFileSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `import { ESLint, Linter } from 'eslint';
+           const eslint = new ESLint();
+           const config = await eslint.calculateConfigForFile('src/modules/ledger/transfer.service.ts');
+           const messages = new Linter().verify(process.argv[1], {
+             languageOptions: { ecmaVersion: 'latest', sourceType: 'module' },
+             rules: { 'no-restricted-syntax': config.rules['no-restricted-syntax'] },
+           });
+           process.stdout.write(JSON.stringify(messages));`,
+          `const amount = ${snippet};`,
+        ],
+        { cwd: resolve(__dirname, '../..'), encoding: 'utf8' },
+      );
+      const messages = JSON.parse(result) as Linter.LintMessage[];
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
+        ruleId: 'no-restricted-syntax',
+        severity: 2,
+        message: expect.stringMatching(/use @common\/money instead/i),
+      });
+    },
+  );
 });

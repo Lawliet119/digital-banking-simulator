@@ -30,6 +30,9 @@ export class CreateOutboxEventsProcessedEvents1792627200000 implements Migration
     // Cleanup only considers published rows older than the retention window.
     await queryRunner.query(`CREATE INDEX outbox_published_cleanup_idx
       ON outbox_events (published_at) WHERE published_at IS NOT NULL`);
+    // Cleanup of processed_events deletes rows older than the 7-day retention window (BL-018).
+    await queryRunner.query(`CREATE INDEX processed_events_processed_at_idx
+      ON processed_events (processed_at)`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

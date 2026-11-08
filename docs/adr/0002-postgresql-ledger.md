@@ -38,7 +38,7 @@ Chọn **PostgreSQL 17** trên Amazon RDS làm nguồn sự thật duy nhất ch
 ## Lý do
 
 - Ba bất biến khó nhất (không nhân đôi tiền, không vượt hạn mức khi đồng thời, không mất nhật ký) đều được giải bằng transaction và khóa hàng của PostgreSQL. Với DynamoDB, nhóm phải tự dựng lại các cơ chế này bằng điều kiện ghi và retry.
-- Ràng buộc trong DB là lớp phòng thủ thứ hai: code ledger có lỗi thì DB vẫn từ chối số dư khách âm, một dòng sổ sai số tiền hoặc sai tài khoản so với giao dịch của nó, bút toán cho giao dịch bị từ chối, và dòng Nợ hoặc Có thứ hai của cùng một giao dịch (database-design §4.3, §4.4). DB **chưa** ép "mỗi giao dịch `COMPLETED` có đủ cả dòng Nợ và dòng Có" và `balance_after` khớp số dư: phần đó do code cùng transaction và job đối soát giữ (`docs/BACKLOG.md`).
+- Ràng buộc trong DB là lớp phòng thủ thứ hai: code ledger có lỗi thì DB vẫn từ chối số dư khách âm, một dòng sổ sai số tiền hoặc sai tài khoản so với giao dịch của nó, bút toán cho giao dịch bị từ chối, và dòng Nợ hoặc Có thứ hai của cùng một giao dịch (database-design §4.3, §4.4). Nhóm chốt **không** cài `DEFERRABLE INITIALLY DEFERRED` constraint trigger cho bất biến "mỗi giao dịch `COMPLETED` có đủ cả dòng Nợ và dòng Có" và "`balance_after` khớp số dư tài khoản": phần này do transaction nguyên tử của tầng ứng dụng (`TransferService`, `DepositService`) thực thi và được công cụ đối soát định kỳ (`check:invariants`, bảng `reconciliation_runs`) hậu kiểm để tránh gánh chi phí trigger tại thời điểm `COMMIT` trên đường nóng.
 - Truy vấn đặc trưng gian lận và đối soát viết được bằng SQL có index, không cần thêm kho phân tích.
 - Lợi thế scale ngang của DynamoDB và MongoDB không cần ở 120 RPS.
 

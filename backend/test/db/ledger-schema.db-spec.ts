@@ -509,10 +509,11 @@ describe('migration 2: transfers, ledger_entries, idempotency_keys', () => {
       ).rejects.toMatchObject({ code: '23503', constraint: DEBIT_FKEY });
     });
 
-    it('TC-21-30 does not (yet) enforce a complete pair or the balance_after value', async () => {
-      // Recorded limitation (§2.8, BL-006): a COMPLETED transfer with only its DEBIT line commits,
-      // and balance_after is whatever the caller wrote. Whoever adds a deferred constraint trigger
-      // turns this test around on purpose.
+    it('TC-21-30 leaves pair completeness and balance_after to the service transaction and reconciliation (ADR-02)', async () => {
+      // Intentional schema boundary (§2.8, ADR-02): a COMPLETED transfer with only its DEBIT line
+      // commits at the DDL level, and balance_after is whatever the caller wrote. Atomic service
+      // transactions (TransferService / DepositService) and reconciliation (check:invariants)
+      // enforce the pair and balance_after without adding a deferred trigger on the hot path.
       const t = await completedTransfer();
 
       await insertEntry({
@@ -916,15 +917,27 @@ describe('migration 2: transfers, ledger_entries, idempotency_keys', () => {
     hash?: string | null;
     transferId?: string | null;
   }) {
-    return attempt<{ request_hash: string }>(
+    return attempt<{ request_hash: string; created_at: Date }>(
       runner,
       `INSERT INTO idempotency_keys (user_id, idem_key, request_hash, transfer_id)
-       VALUES ($1, $2, $3, $4) RETURNING request_hash`,
+       VALUES ($1, $2, $3, $4) RETURNING request_hash, created_at`,
       [row.userId, row.key, row.hash === undefined ? HASH : row.hash, row.transferId ?? null],
     );
   }
 
   describe('idempotency_keys', () => {
+    it('TC-21-11 (idempotency_keys) defaults created_at to PostgreSQL now() without comparing against host clock', async () => {
+      const u = await newUser();
+      const [{ now }] = await runner.query('SELECT now() AS now');
+
+      await runner.query('SELECT pg_sleep(0.01)');
+      const [first] = await insertKey({ userId: u, key: 'k-clock-1' });
+      const [second] = await insertKey({ userId: u, key: 'k-clock-2' });
+
+      expect(first.created_at.getTime()).toBe((now as Date).getTime());
+      expect(second.created_at.getTime()).toBe((now as Date).getTime());
+    });
+
     it('TC-21-16 is unique per user and key, and two users may use the same key', async () => {
       const u = await newUser();
       const v = await newUser();

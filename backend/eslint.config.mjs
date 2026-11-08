@@ -23,6 +23,21 @@ const leavesOwnModule = up => ({
     'This relative import leaves your module. For another module use "@modules/<name>" (its public index); for shared code use @common, @config, @database or @libs.',
 });
 
+const ioredisSyntaxRestrictions = [
+  { selector: "ImportDeclaration[source.value=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
+  { selector: "ImportExpression[source.value=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
+  // A template-literal source (e.g. import(`ioredis`)) has no Literal .value, so the
+  // selectors above don't match it; catch that bypass separately (DBS-76 code-review).
+  { selector: "ImportExpression > TemplateLiteral[quasis.0.value.raw=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
+  { selector: "CallExpression[callee.name='require'] > TemplateLiteral[quasis.0.value.raw=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
+];
+
+const moneyNumberSyntaxRestriction = {
+  selector: 'CallExpression[callee.name=/^(Number|parseInt|parseFloat)$/]',
+  message:
+    'Do not use Number/parseInt/parseFloat in ledger or accounts modules; use @common/money instead (BR-01, ADR-07).',
+};
+
 export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**', 'eslint.config.mjs'] },
   eslint.configs.recommended,
@@ -33,14 +48,14 @@ export default tseslint.config(
     ignores: ['src/libs/redis/**'],
     rules: {
       'no-restricted-modules': ['error', { paths: [{ name: 'ioredis', message: 'Use @libs/redis so timeout, breaker and fallback metric apply.' }] }],
-      'no-restricted-syntax': ['error',
-        { selector: "ImportDeclaration[source.value=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
-        { selector: "ImportExpression[source.value=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
-        // A template-literal source (e.g. import(`ioredis`)) has no Literal .value, so the
-        // selectors above don't match it; catch that bypass separately (DBS-76 code-review).
-        { selector: "ImportExpression > TemplateLiteral[quasis.0.value.raw=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
-        { selector: "CallExpression[callee.name='require'] > TemplateLiteral[quasis.0.value.raw=/^ioredis/]", message: 'Use @libs/redis instead of importing ioredis directly.' },
-      ],
+      'no-restricted-syntax': ['error', ...ioredisSyntaxRestrictions],
+    },
+  },
+  {
+    files: ['src/modules/ledger/**/*.ts', 'src/modules/accounts/**/*.ts'],
+    ignores: ['**/*.spec.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', ...ioredisSyntaxRestrictions, moneyNumberSyntaxRestriction],
     },
   },
   {

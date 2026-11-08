@@ -23,10 +23,11 @@ import { createInterface } from 'node:readline/promises';
 import { Controller, Get, Module, Post } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { exportJWK, generateKeyPair, SignJWT, type KeyLike } from 'jose';
+import { generateKeyPair, SignJWT, type KeyLike } from 'jose';
 import { DataSource } from 'typeorm';
 import { Public } from '../common/auth/public.decorator';
 import { CurrentUser, Roles, type CurrentUserInfo } from '../modules/identity';
+import { newDevKeyPair } from './dev-auth';
 
 const CLIENT_ID = 'manual-smoke-client';
 const KID = 'manual-smoke-dbs51';
@@ -123,8 +124,8 @@ async function main(): Promise<void> {
     );
   }
 
-  const { privateKey, publicKey } = await generateKeyPair('RS256');
-  const publicJwk = { ...(await exportJWK(publicKey)), kid: KID, alg: 'RS256', use: 'sig' };
+  const { privateKey, publicJwk: devPublicJwk } = await newDevKeyPair();
+  const publicJwk = { ...devPublicJwk, kid: KID };
   const jwks = await startJwks(publicJwk);
 
   // AppModule reads its configuration from the environment when it is first imported, so the

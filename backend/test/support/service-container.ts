@@ -1,5 +1,5 @@
 import { getContainerRuntimeClient, type StartedTestContainer } from 'testcontainers';
-import { OVERALL_START_TIMEOUT_MS, withTimeout } from './postgres.container';
+import { awaitContainerStart, OVERALL_START_TIMEOUT_MS, withTimeout } from './postgres.container';
 
 export interface ControlledService {
   containerId: string;
@@ -30,17 +30,10 @@ export async function startServiceContainer<T>(
   probe: (container: StartedTestContainer, signal: AbortSignal) => Promise<T>,
   probeTimeoutMs = 30_000,
 ): Promise<StartedServiceContainer<T>> {
-  let container: StartedTestContainer;
-  try {
-    container = await withTimeout(
-      starting,
-      OVERALL_START_TIMEOUT_MS,
-      `[Testcontainers] ${name} did not start within ${OVERALL_START_TIMEOUT_MS / 1000}s`,
-    );
-  } catch (error) {
-    void starting.then(late => late.stop()).catch(() => undefined);
-    throw error;
-  }
+  const container = await awaitContainerStart(
+    starting,
+    `[Testcontainers] ${name} did not start within ${OVERALL_START_TIMEOUT_MS / 1000}s`,
+  );
   const controller = new AbortController();
   try {
     const probeResult = await withTimeout(

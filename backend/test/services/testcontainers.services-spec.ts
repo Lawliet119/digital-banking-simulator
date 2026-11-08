@@ -7,6 +7,10 @@ import { localSqsClient } from '../support/elasticmq.container';
 import { withTimeout } from '../support/postgres.container';
 import { stillPendingAfter } from '../support/service-container';
 
+// Intentional sequential execution (BL-056): the Valkey and ElasticMQ lifecycle tests use `it`
+// rather than `it.concurrent` so that (1) their console.log verification lines stay grouped per
+// service in manual/CI transcripts instead of interleaving, and (2) Docker does not pull and boot
+// both Valkey and JVM-based ElasticMQ containers simultaneously on resource-constrained runners.
 describe('DBS-40 isolated service containers', () => {
   it('TC-40-01/03: starts Valkey on a dynamic port, reads a key, pauses and recovers', async () => {
     const service = await startValkeyContainer();

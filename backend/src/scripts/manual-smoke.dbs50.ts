@@ -18,11 +18,12 @@ import type { AddressInfo } from 'node:net';
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import { SignJWT } from 'jose';
 import { configureHttpApp, setupSwagger } from '../app.setup';
 import { authConfig } from '../config/auth.config';
 import { TransactionService } from '../database/transaction.service';
 import { IdentityModule } from '../modules/identity';
+import { newDevKeyPair } from './dev-auth';
 
 const ISSUER = 'https://issuer.manual-smoke.test';
 const CLIENT_ID = 'manual-smoke-client';
@@ -90,9 +91,8 @@ async function getJsonBody(res: Response): Promise<unknown> {
 
 async function main(): Promise<void> {
   const fixture = await startFixtureJwks();
-  const { privateKey, publicKey } = await generateKeyPair('RS256');
-  const kid = 'manual-smoke-kid';
-  const publicJwk: JwksKey = { ...(await exportJWK(publicKey)), kid, alg: 'RS256', use: 'sig' };
+  const { privateKey, publicJwk } = await newDevKeyPair();
+  const kid = publicJwk.kid;
 
   const rootModule: DynamicModule = {
     module: class ManualSmokeRootModule {},

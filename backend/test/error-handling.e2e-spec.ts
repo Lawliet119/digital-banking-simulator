@@ -146,6 +146,30 @@ describe('HTTP error handling (e2e, no database)', () => {
 
       expect(res.body).toEqual({ name: 'rent', amount: 5 });
     });
+
+    it('BL-023 maps an oversized JSON body (PayloadTooLargeError) to 413 with correlationId and without logging the body', async () => {
+      const body = JSON.stringify({
+        name: 'sensitive-oversize-fixture',
+        amount: 5,
+        padding: 'x'.repeat(110_000),
+      });
+      const res = await request(server)
+        .post('/v1/probe/things')
+        .set('Content-Type', 'application/json')
+        .send(body)
+        .expect(413);
+
+      expect(res.headers['content-type']).toMatch(/^application\/problem\+json/);
+      expect(res.body).toMatchObject({
+        type: 'about:blank',
+        title: 'Payload Too Large',
+        status: 413,
+        detail: 'Request entity too large',
+        correlationId: res.headers['x-correlation-id'],
+      });
+      expect(JSON.stringify(res.body)).not.toContain('sensitive-oversize-fixture');
+      expect(logError).not.toHaveBeenCalled();
+    });
   });
 
   describe('unexpected errors', () => {

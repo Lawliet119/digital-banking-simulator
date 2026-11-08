@@ -213,8 +213,7 @@ describe('DBS-42 logger HTTP integration (no database)', () => {
     [
       'oversized',
       JSON.stringify({ password: 'sensitive-oversize-fixture', padding: 'x'.repeat(110_000) }),
-      // Existing filter maps body-parser's PayloadTooLargeError to 500; DBS-42 preserves it.
-      500,
+      413,
     ],
   ])('TC-42-10 logs %s JSON rejection once without the body', async (_name, body, status) => {
     const res = await request(app.getHttpServer())
