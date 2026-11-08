@@ -1,0 +1,10 @@
+397624d3a94f3693bab260552cebdf1889a7e9b0
+$ cd backend && npx ts-node -r tsconfig-paths/register test/manual/r2-unusual-amount.manual.ts
+{"case":"M-94-01","exactlyFiveTimes":null,"aboveFiveTimes":{"id":"R2","weight":25,"explanation":"Số tiền 50000000 gấp 12,5× trung vị 30 ngày (4000000)"}}
+{"case":"M-94-02","historyCount30d":4,"result":null}
+{"case":"M-94-03","exactlyFiveTimes":null,"onePastIt":{"id":"R2","weight":25,"explanation":"Số tiền 9007199254740996 gấp hơn 5× trung vị 30 ngày (1801439850948199)"}}
+{"case":"M-94-04","tinyExcess":{"id":"R2","weight":25,"explanation":"Số tiền 5000001 gấp hơn 5× trung vị 30 ngày (1000000)"},"halfMedian":{"id":"R2","weight":25,"explanation":"Số tiền 5000003 gấp hơn 5× trung vị 30 ngày (1000000,5)"}}
+{"case":"M-94-05","result":null}
+{"case":"M-94-06","result":"CONFIG_ERROR"}
+{"case":"M-94-07","type":"DEPOSIT","result":null}
+exit: 0

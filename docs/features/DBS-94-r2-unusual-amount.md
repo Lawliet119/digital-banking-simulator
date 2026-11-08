@@ -1,6 +1,6 @@
 # DBS-94 · Luật R2 số tiền bất thường: > 5× trung vị 30 ngày, cần ≥ 5 lệnh lịch sử
 
-> **Status:** Plan approved · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-94-r2-amount` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-94-r2-amount` · **PR:** — · **Cập nhật:** 2026-11-08
 
 > **Ghi chú quy trình:** phiên chạy bởi techlead (`Techlead waiver`). Các gate do agent duyệt thay theo yêu cầu của techlead; mỗi gate có đoạn «Quyết định» riêng.
 
@@ -106,3 +106,61 @@ Chỉ dữ liệu tổng hợp trong bộ nhớ. Không chứng minh trung vị 
 **Rà soát DoD:** DoD 1 → TC-94-03, 06; DoD 2 → TC-94-01, 02, 03, 04; DoD 3 → TC-94-05; DoD 4 quy trình. Không file nào ngoài bảng. **Rủi ro và cách lùi:** hàm thuần chưa có caller, revert commit là đủ.
 
 **Quyết định ở G3** (agent duyệt thay techlead, 2026-11-08): duyệt kế hoạch.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (Node 24.22.2):
+
+```text
+npm run lint:check && npm run typecheck && npm run format:check && npm run build   -> đạt
+npm test                                         Test Suites: 74 passed | Tests: 1295 passed
+npm run test:e2e                                 Test Suites: 15 passed | Tests: 153 passed
+node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs   -> 0 link hỏng
+```
+
+  Không có `.skip`, `.only`, `.todo`. Lần chạy e2e đầu tiên báo 2 suite lỗi vì thiếu `DATABASE_URL` trỏ vào Postgres test (`password authentication failed`), không phải lỗi code; chạy lại với biến này đạt 15/15.
+
+- **Đối chiếu test case:** toàn bộ ở `src/modules/risk/rules/r2-unusual-amount.rule.spec.ts` (111 case sau khi bung `it.each`).
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-94-01 | `TC-94-01 triggers strictly above 5x…`. Đột biến `<=` thành `<`: 6 test đỏ | đạt |
+| TC-94-02 | `TC-94-02 keeps a half median exact…` | đạt |
+| TC-94-03 | ba test `TC-94-03` (bỏ qua dưới 5, `minHistory` 7, median `null` với 5 và 8 dòng là lỗi). Đột biến bỏ kiểm số dòng: 2 test đỏ | đạt |
+| TC-94-04 | hai test `TC-94-04` (5× đúng bằng và +1; M2 > 2^53; `MONEY_MAX`). Đột biến so sánh bằng `Number`: 1 test đỏ | đạt |
+| TC-94-05 | `TC-94-05 explains amount …` (8 chuỗi chính xác) và ca bội số cấu hình. Đột biến luôn hiện con số: 3 test đỏ | đạt |
+| TC-94-06 | ba test `TC-94-06` (tắt, bội số 3 và weight 12, bội số 3,5). Đột biến bỏ nhân 2 (200→100): 18 test đỏ | đạt |
+| TC-94-07 | các `TC-94-07` (weight, thresholds 24 ca × enabled true/false, `historyCount30d`, median 11 ca, amount 9 ca, không lặp lại giá trị đầu vào) | đạt |
+| TC-94-08 | `TC-94-08 never scores a DEPOSIT…`. Đột biến bỏ guard: 1 test đỏ | đạt |
+| Quy trình | DoD 4 | chờ PR; Dev khác review chưa có (BL-183) |
+
+  8/8 case đạt đủ độ sâu. Mọi đột biến đã khôi phục (`cp` bản sao, kiểm lại 111 xanh).
+
+- **Test thủ công** (driver chạy class rule thật bằng `ts-node`, trên commit `397624d`; SHA ở dòng đầu [manual-test.txt](screenshots/DBS-94/manual-test.txt)):
+
+| Bước | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-94-01 | 20 000 000 → `null`; 50 000 000 → hit R2 weight 25, `gấp 12,5× trung vị 30 ngày (4000000)` | đạt |
+| M-94-02 | `historyCount30d = 4`, median `null` → `null` | đạt |
+| M-94-03 | 9007199254740995 → `null`; 9007199254740996 → hit, `(1801439850948199)` | đạt |
+| M-94-04 | 5 000 001 → `gấp hơn 5×`; trung vị lẻ → `(1000000,5)` | đạt |
+| M-94-05 | rule tắt → `null` | đạt |
+| M-94-06 | `historyDays: 15` → `CONFIG_ERROR` | đạt |
+| M-94-07 | `DEPOSIT` → `null` | đạt |
+
+- **Phạm vi so với §7:** `git diff --stat main...HEAD` gồm `r2-unusual-amount.rule.ts` (+spec), driver manual, README risk, `docs/features/README.md`, `docs/BACKLOG.md`, feature doc và bằng chứng. Không file nào ngoài kế hoạch; không đổi `rule.ts`, `Features`, event, schema.
+- **Ảnh chụp:** dựng từ output thật của lần chạy cuối (không phải chụp màn hình terminal):
+
+![Kết quả test thủ công DBS-94](screenshots/DBS-94/01-r2-manual.png)
+
+- **Lệch so với kế hoạch:** (1) khi bung `it.each` spec có 111 case thay vì con số ước lượng ở §4; không đổi phạm vi. (2) Thêm quy tắc kiểm `thresholds` thiếu key riêng lẻ và `enabled` không phải boolean theo review #8. Không lệch phạm vi.
+- **Bàn giao cho vai khác:** **BL-184** (sáu mục H1–H6 từ review: provider phát median canonical, comment `Features`, consumer bắt lỗi từng luật, config ánh xạ key và kiểm lúc ghi, căn chỉnh `feature-projection`, sửa guide §4.2) và **BL-183** (Dev khác review PR luật fraud, đã cập nhật để gồm PR này). Provider tính trung vị đúng trên dữ liệu thật vẫn thuộc DBS-109/128: R2 chưa có bằng chứng end-to-end.
+
+## 9. Tài liệu đã cập nhật
+
+- `backend/src/modules/risk/README.md`: trạng thái R2.
+- `docs/features/README.md`: dòng DBS-94.
+- `docs/BACKLOG.md`: thêm **BL-184**, sửa **BL-183** (gồm PR R2, PR #87 đã merge).
+- Không đổi ADR, `_shared`, env, `ErrorCode`, event, schema. Guide §4.2 lệch định dạng explanation: ghi ở BL-184 (H6), chưa sửa vì ngoài phạm vi của rule.
+
+**Quyết định ở G4** (agent duyệt thay techlead, 2026-11-08): duyệt bàn giao; ảnh dựng từ output thật được chấp nhận thay cho ảnh chụp màn hình; không có bước «chưa chạy».
