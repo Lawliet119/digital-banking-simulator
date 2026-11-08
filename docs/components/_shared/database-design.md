@@ -438,7 +438,7 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | **R4** có lệnh chuyển ngược trong 1 giờ (risk) | `transfers_pair_completed_idx`: `transfers (from_account_id, to_account_id, created_at) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Truy vấn theo cặp |
 | Relay lấy sự kiện chưa gửi (`outbox`) | `outbox_unpublished_idx`: `outbox_events (id) WHERE published_at IS NULL` | Chỉ chứa các dòng đang chờ: luôn nhỏ dù bảng lớn |
 | Dọn outbox cũ | `outbox_published_cleanup_idx`: `outbox_events (published_at) WHERE published_at IS NOT NULL` | Truy vấn tuổi dòng đã gửi |
-| Dọn processed_events cũ (7 ngày) | `processed_events_processed_at_idx`: `processed_events (processed_at)` | Truy vấn tuổi dòng dedup đã xử lý (`OutboxRelay.deleteOldRows`) |
+| Dọn processed_events cũ (7 ngày) | `processed_events_processed_at_idx`: `processed_events (processed_at)` | Truy vấn tuổi dòng dedup đã xử lý (`OutboxCleanupService`, DBS-92; kế hoạch kiểm trong `outbox-cleanup.db-spec`) |
 | Dọn idempotency cũ | `idempotency_keys_created_idx`: `idempotency_keys (created_at)` | |
 | Truy vết theo `correlationId` (UC-8, AC-8.2) | `audit_log (correlation_id)` | Truy vấn nóng nhất của kiểm toán viên |
 | Lọc audit theo người, theo hành động | `audit_log (actor_user_id, occurred_at DESC)`, `audit_log (action, occurred_at DESC)` | |
@@ -611,8 +611,8 @@ Down của migration fraud phải DROP hai trigger của mình trước khi DROP
 | `ledger_entries`, `transfers`, `audit_log` | **Vĩnh viễn** | Không dọn | Dữ liệu tài chính và kiểm toán |
 | `accounts`, `customers`, `users`, `risk_rule_sets`, `fraud_*` | Vĩnh viễn | Không dọn | |
 | `idempotency_keys` | **7 ngày** (ADR-05) | Job `worker` xóa `created_at < now() - 7 days` | Gửi lại sau 7 ngày với cùng key sẽ bị coi là lệnh mới; chấp nhận và nêu trong tài liệu API |
-| `outbox_events` | Đã gửi + 7 ngày | Job `worker` xóa `published_at < now() - 7 days` | Dòng chưa gửi không bao giờ bị xóa |
-| `processed_events` | **≥ thời gian giữ message của SQS + dư** | Job `worker` | Giữ 7 ngày vì queue giữ message 4 ngày (ADR-03); ngắn hơn thì một message giao lại muộn sẽ bị xử lý hai lần |
+| `outbox_events` | Đã gửi + `OUTBOX_RETENTION_DAYS` (mặc định 7) | Job `worker` (`OutboxCleanupService`) xóa `published_at < now() - N days` theo lô 1000 dòng | Dòng chưa gửi không bao giờ bị xóa (`published_at IS NOT NULL`; chốt ở DB: BL-180) |
+| `processed_events` | **≥ thời gian giữ message của SQS + dư**; `PROCESSED_EVENTS_RETENTION_DAYS` (mặc định và tối thiểu 7) | Job `worker` (cùng `OutboxCleanupService`, khóa advisory chống hai job chạy chồng) | Giữ 7 ngày vì queue giữ message 4 ngày (ADR-03); ngắn hơn thì một message giao lại muộn sẽ bị xử lý hai lần |
 | `notification_log` | 30 ngày | Job `worker` | v1 chỉ để quan sát |
 | `reconciliation_runs` | 90 ngày | Job `worker` | |
 

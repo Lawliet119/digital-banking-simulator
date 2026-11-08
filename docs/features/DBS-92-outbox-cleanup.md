@@ -1,6 +1,6 @@
 # DBS-92 · Job dọn outbox sau 7 ngày, không bao giờ xóa dòng chưa gửi
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-92-outbox-cleanup` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-92-outbox-cleanup` · **PR:** (xem PR của nhánh) · **Cập nhật:** 2026-11-08
 
 > **Ghi chú quy trình:** phiên chạy bởi techlead (`Techlead waiver`). Các gate do agent duyệt thay theo yêu cầu của techlead; mỗi gate có đoạn «Quyết định» riêng ở §1, §6, §7 và §8.
 
@@ -62,17 +62,17 @@ WITH doomed AS (
   WHERE published_at IS NOT NULL AND published_at < now() - make_interval(days => $1)
   ORDER BY published_at LIMIT $2 FOR UPDATE SKIP LOCKED),
 gone AS (
-  DELETE FROM outbox_events o USING doomed d WHERE o.id = d.id RETURNING 1)
+  DELETE FROM outbox_events WHERE id = ANY(ARRAY(SELECT id FROM doomed)) RETURNING 1)
 SELECT count(*)::int AS count FROM gone
 
 -- processed_events (sau SELECT pg_try_advisory_xact_lock($3, $4) trong cùng transaction)
-WITH doomed AS (
-  SELECT consumer, event_id FROM processed_events
-  WHERE processed_at < now() - make_interval(days => $1)
-  ORDER BY processed_at LIMIT $2),
-gone AS (
-  DELETE FROM processed_events p USING doomed d
-  WHERE p.consumer = d.consumer AND p.event_id = d.event_id RETURNING 1)
+WITH gone AS (
+  DELETE FROM processed_events
+  WHERE ctid = ANY(ARRAY(
+    SELECT ctid FROM processed_events
+    WHERE processed_at < now() - make_interval(days => $1)
+    ORDER BY processed_at LIMIT $2))
+  RETURNING 1)
 SELECT count(*)::int AS count FROM gone
 ```
 
@@ -137,7 +137,7 @@ Lịch **mỗi giờ** và việc chia **nhiều lô** không quan sát được
 | 11 | minor | Autovacuum, WAL | đã sửa §3 (đoạn Autovacuum), nghỉ 25 ms giữa lô |
 | 12 | minor | Điều kiện `IS NOT NULL` ở DELETE không phải phòng thủ | đã sửa §2.3, TC-92-01; BL-180 giữ nguyên |
 | 13 | minor | Tùy chọn `now?` vô nghĩa | đã sửa: bỏ |
-| 14 | minor | Sàn 7 ngày là hằng trần trụi | đã sửa §3: `PROCESSED_EVENTS_MIN_DAYS` có ghi chú trỏ `sqs.tf` |
+| 14 | minor | Sàn 7 ngày là hằng trần trụi | đã sửa §3: sàn 7 nằm ở `Joi.min(7)` của `validation.schema.ts` kèm ghi chú trỏ `sqs.tf` (hằng riêng trong service bị bỏ vì thừa) |
 | 15 | minor | Tài liệu nói «7 ngày» cố định | đã sửa §3: `docs/03` §10, `database-design` §10; ADR-03 giữ nguyên vì mặc định vẫn 7 |
 | 16 | minor | M-92-01 và M-92-02 trộn | đã sửa §5; ghi rõ lô nhiều do TC-92-02 chứng minh |
 
@@ -152,3 +152,71 @@ Lịch **mỗi giờ** và việc chia **nhiều lô** không quan sát được
 | 3 | `ci.yml` (bước chạy spec mới), README outbox, `docs/03` §10, `database-design` §10, BACKLOG, features README, feature doc §8–§9, `manual-test.txt`, ảnh | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(outbox): record DBS-92 evidence` |
 
 **Rà soát DoD:** DoD 1 → TC-92-01, 02, 08, 09, 10, 13; DoD 2 → TC-92-03, 04, 13; DoD 3 → TC-92-05, 06, 07; DoD 4 quy trình. Mọi lỗ hổng ở §1 có hàng trong bảng; không file nào ngoài bảng. **Rủi ro và cách lùi:** hai env mới (mặc định giữ hành vi cũ); `git revert` bước 2 khôi phục job cũ. Đột biến dự kiến: bỏ điều kiện lô (một câu xóa tất cả) làm TC-92-02 đỏ; bỏ khóa advisory làm TC-92-09 đỏ (hoặc kết thúc sớm); bỏ kiểm cờ dừng làm TC-92-10 đỏ. **Quyết định ở G3** (agent duyệt thay techlead, 2026-11-08): duyệt kế hoạch.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (Node 24.22.2, PostgreSQL 17 và ElasticMQ thật):
+
+```text
+npm run lint:check && npm run typecheck && npm run format:check && npm run build   -> đạt
+npm test                                         Test Suites: 71 passed | Tests: 1151 passed
+npm run test:services (outbox-relay + faults)    Tests: 27 passed
+npm run test:db (outbox-cleanup + db-roles)      Tests: 15 passed (10 + 5)
+npm run test:e2e                                 Test Suites: 15 passed | Tests: 153 passed
+node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs   -> 0 link hỏng
+```
+
+  Không có `.skip`, `.only`, `.todo`.
+
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-92-01 | `outbox-cleanup.db-spec` › `TC-92-01` (ranh giới 7 ngày ± 1 phút, dòng chưa gửi 400 ngày tuổi còn). Đột biến: bỏ `published_at IS NOT NULL` (xóa theo `COALESCE(published_at, created_at)`) → đỏ; đã khôi phục | đạt |
+| TC-92-02 | `› TC-92-02` (lô 10, ngân sách 2 lô, ngân sách riêng từng bảng). Đột biến: lô nhân 1000 → đỏ; đã khôi phục | đạt |
+| TC-92-03 | `› TC-92-03` (khóa dòng bằng kết nối riêng: job bỏ qua dòng, không chờ `lock_timeout`, không phiên `idle in transaction` giữa hai lô) | đạt |
+| TC-92-04 | `› TC-92-04` (30 000 dòng mỗi bảng, `EXPLAIN (FORMAT JSON)` hai câu `DELETE`: có `outbox_published_cleanup_idx` / `processed_events_processed_at_idx`, không `Seq Scan`). Bắt được lỗi thật ở dạng `USING` cũ (xem §8, lệch kế hoạch) | đạt |
+| TC-92-05 | `› TC-92-05` (hai số ngày độc lập) | đạt |
+| TC-92-06 | `validation.schema.spec.ts`, `config.factories.spec.ts` (mặc định, từ chối `0`, `-1`, `1.5`, `abc`, `3651`; sàn 7 của `processed`) | đạt |
+| TC-92-07 | `outbox-cleanup.service.spec.ts` (DI thật qua `ConfigModule`: 30/14 và mặc định 7/7) | đạt |
+| TC-92-08 | `› TC-92-08` (role `worker` chạy ngay lúc khởi động, role `api` không) | đạt |
+| TC-92-09 | `› TC-92-09` (hai job song song, 3000 dòng mỗi bảng: tổng đúng, không lỗi) | đạt |
+| TC-92-10 | `› TC-92-10`. Đột biến: bỏ kiểm cờ dừng → đỏ; đã khôi phục | đạt |
+| TC-92-11 | `› TC-92-11` (lỗi ở lô thứ hai, lô đầu vẫn mất) | đạt |
+| TC-92-12 | `outbox-cleanup.service.spec.ts` (`CLEANUP_ERROR_DELAY_MS` ≥ 60 s) | đạt |
+| TC-92-13 | `db-roles.db-spec` › `TC-92-13` (chạy bằng `dbs_worker`, không `42501`) | đạt |
+| Quy trình | DoD 4 | chờ PR |
+
+  `TC-OBX-05` và `TC-ROLE-04` đã chuyển sang gọi service mới, vẫn đạt. 13/13 case đạt đủ độ sâu. **Giới hạn trung thực:** TC-92-12 chỉ kiểm hằng số độ trễ lỗi đưa vào vòng lặp, không chờ thật 60 s.
+
+- **Test thủ công** (api + worker là tiến trình `node dist/main.js` thật, PostgreSQL 17, ElasticMQ **riêng** cổng 9334; trên commit `4d057d5`, SHA ở dòng đầu [manual-test.txt](screenshots/DBS-92/manual-test.txt)):
+
+| Bước | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-92-01 | nạp 1 + 9 chuyển (201 cả 10), worker gửi hết: `10|0|0|10` (tổng, chưa gửi, quá 7 ngày, trong 7 ngày); `processed_events` 10 | đạt |
+| M-92-02 | seed: 4 dòng 8 ngày, 2 dòng 6 ngày 23 giờ, 2 dòng `Unknown` chưa gửi 400 ngày, 2 dấu `processed_events` 8 ngày: `12|2|4|6` và `10|2` | đạt |
+| M-92-03 | worker mặc định: sau 3 s log `Outbox cleanup removed old rows` (`outbox: 4, processed: 2, batches: 2`); sau job `8|2|0|6`, `processed_events` `8|0`, 2 dòng `Unknown` chưa gửi còn nguyên | đạt |
+| M-92-04 | `OUTBOX_RETENTION_DAYS=30`: 4 dòng 20 ngày còn 4 sau job, worker còn sống | đạt |
+| M-92-05 | `OUTBOX_RETENTION_DAYS=0`: exit 1, `invalidKeys: ["OUTBOX_RETENTION_DAYS"]` | đạt |
+| M-92-06 | `{"status":"PASS",…,"violations":[]}` | đạt |
+
+  Lưu ý: lô nhiều và lịch mỗi giờ không quan sát bằng tay với 10 dòng; bằng chứng là TC-92-02, 08 và hằng `CLEANUP_EVERY_MS`, như đã ghi ở §5.
+
+- **Phạm vi so với §7:** `git diff --stat main...HEAD` gồm `validation.schema.ts` (+spec), `limits.config.ts` (+spec), `.env.example`, `outbox-cleanup.service.ts` (+spec), `outbox-relay.module.ts`, `outbox-relay.service.ts` (bỏ job), `outbox-relay.services-spec.ts`, `db-roles.db-spec.ts`, `outbox-cleanup.db-spec.ts`, tài liệu và bằng chứng.
+- **Ảnh chụp:** dựng từ output thật của lần chạy cuối (không phải chụp màn hình terminal):
+
+![Kết quả test thủ công DBS-92](screenshots/DBS-92/01-manual-test-results.png)
+
+- **Lệch so với kế hoạch:** (1) Dạng `DELETE … USING doomed` của §3 làm planner đọc tuần tự cả bảng (TC-92-04 đỏ khi chạy thử); đổi sang `id = ANY(ARRAY(SELECT id FROM doomed))` cho outbox và chọn theo `ctid` cho `processed_events` (dòng này không bao giờ bị UPDATE, nên `ctid` ổn định trong một transaction), cả hai giờ là Index Scan + Tid/PK Scan. (2) Không có bước CI riêng: job `test:db` đầy đủ đã chạy mọi spec trong `test/db`, bước riêng chỉ trùng lặp. (3) Hằng `PROCESSED_EVENTS_MIN_DAYS` bị bỏ, sàn 7 nằm ở `Joi.min(7)`. Không lệch phạm vi.
+- **Bàn giao:** **BL-180** (bảo vệ ở tầng DB không cho `dbs_worker` xóa dòng chưa gửi) vẫn mở, không đổi; alarm kích thước bảng và tuổi outbox: BL-161, BL-182.
+
+## 9. Tài liệu đã cập nhật
+
+- `backend/src/modules/outbox/README.md`: job dọn riêng, lô, hai số ngày.
+- `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §10: hàng Relay nêu `OutboxCleanupService` và hai biến.
+- `docs/components/_shared/database-design.md`: bảng index (nguồn truy vấn) và §10 vòng đời dữ liệu.
+- `backend/env/.env.example`: `OUTBOX_RETENTION_DAYS`, `PROCESSED_EVENTS_RETENTION_DAYS`.
+- `docs/features/README.md`: dòng DBS-92.
+- Không đổi ADR-03 (mặc định vẫn 7 ngày), `ErrorCode`, event, schema. Không xóa dòng BACKLOG nào.
+
+**Quyết định ở G4** (agent duyệt thay techlead, 2026-11-08): duyệt bàn giao; ảnh dựng từ output thật được chấp nhận thay cho ảnh chụp màn hình; không có bước «chưa chạy».

@@ -1,0 +1,60 @@
+4d057d5e67a2611d6b689cd5303b139053c9e6f6
+
+=== Setup: private ElasticMQ on 9334, database dbs92_manual, migrations, keys, build
+DROP DATABASE
+CREATE DATABASE
+migrations ok
+build ok
+
+=== M-92-01 api only: 1 deposit + 9 transfers = 10 events; a worker sends them; worker stopped
+deposit: {"transferId":"ad6de497-b015-4761-bf96-42beb5d19ea6","status":"COMPLETED"} [201]
+transfers answered 201: 9 of 9
+SQL> SELECT count(*) AS total, count(*) FILTER (WHERE published_at IS NULL) AS unpublished, count(*) FILTER (WHERE published_at < now() - interval '7 days') AS published_over_7_days, count(*) FILTER (WHERE published_at >= now() - interval '7 days') AS published_within_7_days FROM outbox_events
+10|0|0|10
+SQL> SELECT count(*) AS total, count(*) FILTER (WHERE processed_at < now() - interval '7 days') AS over_7_days FROM processed_events
+10|0
+
+=== M-92-02 Seed SQL: age some rows; add two old unpublished rows
+SQL> UPDATE outbox_events SET published_at = now() - interval '8 days' WHERE id IN (SELECT id FROM outbox_events ORDER BY id LIMIT 4)
+UPDATE 4
+SQL> UPDATE outbox_events SET published_at = now() - interval '6 days 23 hours' WHERE id IN (SELECT id FROM outbox_events WHERE published_at > now() - interval '1 day' ORDER BY id LIMIT 2)
+UPDATE 2
+SQL> INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id,created_at) SELECT gen_random_uuid(),'Unknown',gen_random_uuid(),'{"eventType":"Unknown"}'::jsonb,gen_random_uuid(), now() - interval '400 days' FROM generate_series(1,2)
+INSERT 0 2
+SQL> UPDATE processed_events SET processed_at = now() - interval '8 days' WHERE ctid IN (SELECT ctid FROM processed_events LIMIT 2)
+UPDATE 2
+SQL> UPDATE processed_events SET processed_at = now() - interval '2 days' WHERE processed_at > now() - interval '1 day' AND ctid IN (SELECT ctid FROM processed_events WHERE processed_at > now() - interval '1 day' LIMIT 2)
+UPDATE 2
+--- state before the job:
+SQL> SELECT count(*) AS total, count(*) FILTER (WHERE published_at IS NULL) AS unpublished, count(*) FILTER (WHERE published_at < now() - interval '7 days') AS published_over_7_days, count(*) FILTER (WHERE published_at >= now() - interval '7 days') AS published_within_7_days FROM outbox_events
+12|2|4|6
+SQL> SELECT count(*) AS total, count(*) FILTER (WHERE processed_at < now() - interval '7 days') AS over_7_days FROM processed_events
+10|2
+
+=== M-92-03 Worker starts with the default 7 days: the job runs at start-up
+cleanup log line appeared after 3 s (the job is hourly, so this is the start-up run)
+{"level":30,"appRole":"worker","role":"worker","correlationId":null,"context":"OutboxCleanupService","outbox":4,"processed":2,"batches":2,"message":"Outbox cleanup removed old rows"}
+--- state after the job:
+SQL> SELECT count(*) AS total, count(*) FILTER (WHERE published_at IS NULL) AS unpublished, count(*) FILTER (WHERE published_at < now() - interval '7 days') AS published_over_7_days, count(*) FILTER (WHERE published_at >= now() - interval '7 days') AS published_within_7_days FROM outbox_events
+8|2|0|6
+SQL> SELECT count(*) AS total, count(*) FILTER (WHERE processed_at < now() - interval '7 days') AS over_7_days FROM processed_events
+8|0
+SQL> SELECT event_type, count(*) AS unpublished_old_rows_kept FROM outbox_events WHERE published_at IS NULL AND created_at < now() - interval '300 days' GROUP BY event_type
+Unknown|2
+
+=== M-92-04 OUTBOX_RETENTION_DAYS=30 keeps rows published 20 days ago
+SQL> UPDATE outbox_events SET published_at = now() - interval '20 days' WHERE id IN (SELECT id FROM outbox_events WHERE published_at IS NOT NULL ORDER BY id LIMIT 4)
+UPDATE 4
+SQL> SELECT count(*) AS published_20_days_ago FROM outbox_events WHERE published_at < now() - interval '19 days'
+4
+SQL> SELECT count(*) AS published_20_days_ago_after_the_job FROM outbox_events WHERE published_at < now() - interval '19 days'
+4
+worker w3 alive: 1
+
+=== M-92-05 OUTBOX_RETENTION_DAYS=0 is refused at start-up
+exit code: 1
+{"level":50,"appRole":"worker","role":"worker","correlationId":null,"context":"Bootstrap","errorType":"Error","invalidKeys":["OUTBOX_RETENTION_DAYS"],"message":"Application startup failed"}
+
+=== M-92-06 Ledger invariants
+{"status":"PASS","totals":{"debit":"40900000","credit":"40900000","balance":"0"},"violations":[]}
+MANUAL RUN FINISHED
