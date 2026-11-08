@@ -28,7 +28,7 @@ Input phải qua `assertEvent` của `@common/events`; writer chụp JSON đồn
 
 ## Phải giữ
 
-- Relay: `SELECT … WHERE published_at IS NULL ORDER BY id LIMIT n FOR UPDATE SKIP LOCKED` → gửi → set `published_at`. Nhiều task không lấy trùng; sự cố giữa chừng thì gửi lại. Relay là **ngoại lệ duy nhất** của quy tắc "không gọi SQS trong transaction" (chỉ khóa hàng `outbox_events`, gửi lặp vẫn đúng vì at-least-once); dùng timeout riêng, không dùng retry deadlock của `withTransaction`.
+- Relay: `SELECT … WHERE published_at IS NULL ORDER BY id LIMIT n FOR UPDATE SKIP LOCKED` → gửi → set `published_at`. Nhiều task không lấy trùng; sự cố giữa chừng thì gửi lại (at-least-once). Một sự kiện gửi lỗi ở lại hàng và **không chặn** các sự kiện sau nó; lỗi không tự khỏi (SQS 4xx trừ 429, queue chưa cấu hình) được gạt trong bộ nhớ 30 s rồi gấp đôi, tối đa 10 phút; ba lỗi tạm thời liên tiếp kết thúc lô; một lô không bắt đầu sự kiện mới sau 15 s, mỗi lần gửi quá 5 s bị bỏ (tổng ≤ 25 s), tắt êm dừng giữa hai sự kiện. Vòng lặp giữ nhịp 500 ms nếu có sự kiện đã gửi, chỉ chờ 5 s khi không gửi được gì vì lỗi tạm thời. Relay là **ngoại lệ duy nhất** của quy tắc "không gọi SQS trong transaction" (chỉ khóa hàng `outbox_events`, gửi lặp vẫn đúng vì at-least-once); dùng timeout riêng, không dùng retry deadlock của `withTransaction`.
 - **Mỗi consumer một queue + một DLQ riêng** (`risk-events`, `notification-events`). Relay gửi mỗi sự kiện tới **mọi** queue quan tâm theo bảng định tuyến; một queue chung chỉ giao mỗi message cho một consumer.
 - Gửi message **sau** commit, xóa message **sau** khi ghi DB xong.
 - Event contract (có ảnh chụp `fromBalanceBefore`, `fromAccountCreatedAt`, `sameOwner`) định nghĩa ở một nơi và dùng chung.

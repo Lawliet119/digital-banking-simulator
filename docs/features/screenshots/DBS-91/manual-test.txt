@@ -1,0 +1,69 @@
+ad165f9ba2213dd2f837e3f53af85b98d98dd333
+
+=== Setup: private ElasticMQ on 9334, database dbs91_manual, migrations, keys, build
+150d717c58cfd1e5d1d4eca8e14aa6d73e14d93d717582975e18d8c495da82b4
+risk-events-dlq</QueueUrl>
+risk-events</QueueUrl>
+notification-events-dlq</QueueUrl>
+notification-events</QueueUrl>
+DROP DATABASE
+CREATE DATABASE
+migrations ok
+build ok
+queues (visible, hidden): risk=0 0  notification=0 0 
+
+=== Start api only
+accounts: e692cb70-eb45-4aa2-9877-fcf4b3a2c58c a45845f3-4e78-4c04-a308-7c18442e0f10
+
+=== M-91-01 Workers off: 1 deposit + 20 transfers pile up, then one worker starts (Demo 3)
+deposit: {"transferId":"7fd7a85b-f30a-43bf-8d86-2aa0cd04e3a5","status":"COMPLETED"} [201]
+transfers answered 201: 20 of 20
+SQL> SELECT count(*) AS unpublished FROM outbox_events WHERE published_at IS NULL
+21
+queues before the worker (visible, hidden): risk=0 0  notification=0 0 
+SQL> SELECT count(*) AS unpublished FROM outbox_events WHERE published_at IS NULL
+0
+queues after the worker (visible, hidden): risk=0 21  notification=0 0  (notification is consumed at once)
+SQL> SELECT count(*) AS notification_log FROM notification_log
+21
+
+=== M-91-02 ElasticMQ paused while api and worker run: 5 transfers
+dbs91-mq
+transfers answered 201 while the queue is down: 5 of 5
+SQL> SELECT count(*) AS unpublished FROM outbox_events WHERE published_at IS NULL
+5
+worker warn lines so far: 3
+{"level":40,"appRole":"worker","role":"worker","correlationId":null,"context":"OutboxRelayService","errorType":"Error","outboxId":"22","kind":"transient","message":"Outbox event could not be sent"}
+
+=== M-91-03 ElasticMQ back
+dbs91-mq
+SQL> SELECT count(*) AS unpublished FROM outbox_events WHERE published_at IS NULL
+0
+queues (visible, hidden): risk=0 29  (expect at least 26)
+SQL> SELECT count(*) AS notification_log FROM notification_log
+26
+
+=== M-91-04 Worker killed while it is sending (queue paused), then a new worker
+3 transfers with no worker: 3 answered 201
+SQL> SELECT count(*) AS unpublished FROM outbox_events WHERE published_at IS NULL
+3
+dbs91-mq
+SQL> SELECT count(*) AS still_unpublished_worker_is_stuck_in_send FROM outbox_events WHERE published_at IS NULL
+3
+(worker w2 was killed above, while stuck in a send)
+dbs91-mq
+SQL> SELECT count(*) AS unpublished FROM outbox_events WHERE published_at IS NULL
+0
+notification_log reached 29 after 30 s (a message held by the killed worker comes back after its 30 s visibility timeout)
+SQL> SELECT count(*) AS notification_log FROM notification_log
+29
+SQL> SELECT count(*) AS processed FROM processed_events WHERE consumer='notification'
+29
+SQL> SELECT count(*) AS outbox_events_total FROM outbox_events
+29
+census of risk-events:
+{"queue":"risk-events","messages":34,"distinctEventIds":29,"duplicated":4}
+
+=== M-91-05 Ledger invariants
+{"status":"PASS","totals":{"debit":"42800000","credit":"42800000","balance":"0"},"violations":[]}
+MANUAL RUN FINISHED

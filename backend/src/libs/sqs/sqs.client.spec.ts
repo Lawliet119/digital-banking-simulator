@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { sqsConfig } from '@config/sqs.config';
 import { SqsModule } from './sqs.module';
 
-const send = jest.fn<Promise<unknown>, [unknown]>();
+const send = jest.fn<Promise<unknown>, [unknown, unknown?]>();
 const destroy = jest.fn();
 jest.mock('@aws-sdk/client-sqs', () => ({
   ...jest.requireActual<typeof import('@aws-sdk/client-sqs')>('@aws-sdk/client-sqs'),
@@ -18,6 +18,16 @@ describe('DBS-77 SQS transport', () => {
     destroy.mockClear();
     client = new SqsClient({ region: 'ap-southeast-1', endpoint: 'http://localhost:9324' });
   });
+  it('TC-91-14 a send has no abort signal unless a timeout is asked for, and then it has one', async () => {
+    send.mockResolvedValue({});
+    await client.send('queue', '{}');
+    expect(send.mock.calls[0][1]).toBeUndefined();
+    await client.send('queue', '{}', {}, { timeoutMs: 250 });
+    const options = send.mock.calls[1][1] as { abortSignal: AbortSignal };
+    expect(options.abortSignal).toBeInstanceOf(AbortSignal);
+    expect(options.abortSignal.aborted).toBe(false);
+  });
+
   it('TC-77-01 sends String attributes and requests long polling batch with receipt metadata', async () => {
     send.mockResolvedValue({ Messages: [] });
     await client.send('queue', '{}', { correlationId: 'server-id' });

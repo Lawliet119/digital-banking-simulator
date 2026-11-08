@@ -14,6 +14,10 @@ export interface ReceiveOptions {
   maxMessages?: number;
   visibilityTimeout?: number;
 }
+export interface SendOptions {
+  /** Gives up on the request after this many milliseconds (the message may still have arrived). */
+  timeoutMs?: number;
+}
 export type SqsMessage = Message;
 export interface BatchResult {
   messageId: string | undefined;
@@ -30,7 +34,12 @@ export class SqsClient implements OnModuleDestroy {
     this.sdk = new AwsClient({ region: config.region, endpoint: config.endpoint });
   }
 
-  async send(queue: string, body: string, attributes: Record<string, string> = {}): Promise<void> {
+  async send(
+    queue: string,
+    body: string,
+    attributes: Record<string, string> = {},
+    options: SendOptions = {},
+  ): Promise<void> {
     await this.sdk.send(
       new SendMessageCommand({
         QueueUrl: queue,
@@ -42,6 +51,9 @@ export class SqsClient implements OnModuleDestroy {
           ]),
         ),
       }),
+      options.timeoutMs === undefined
+        ? undefined
+        : { abortSignal: AbortSignal.timeout(options.timeoutMs) },
     );
   }
 
