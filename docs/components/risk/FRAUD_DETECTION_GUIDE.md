@@ -408,8 +408,8 @@ interface RiskRule {
 | Redis lỗi | Dự phòng SQL (mục 5.4) |
 | DB lỗi | Không xóa message → SQS giao lại; quá 5 lần → DLQ + alarm |
 | Message không đúng định dạng | Log + chuyển thẳng DLQ, không retry vô ích |
-| Một luật ném lỗi | Ghi lỗi luật đó, các luật khác vẫn chạy; metric `risk_rule_error_total{rule}` |
-| Mô hình ONNX lỗi, không nạp được hoặc sai `sha256` | Sự kiện đó chấm bằng 6 luật; `risk_rule_error_total{rule="ML"}`; tắt hẳn bằng phiên bản cấu hình mới có `ml.enabled = false` |
+| Một luật hoặc truy vấn feature lỗi | Theo ADR-14: rollback, không ack, retry và sau giới hạn thì DLQ; metric `risk_rule_error_total{rule}` khi lỗi luật. Chưa triển khai consumer/alarm, xem BL-046/051 |
+| Cấu hình AI không hợp lệ hoặc provider AI lỗi | Giữ điểm sáu luật, contribution AI bằng 0, ghi trạng thái tương ứng; không đẩy DLQ chỉ vì AI. `rule_only` là mặc định; không tự bật AI khi chưa đạt gate ADR-14 |
 | Worker chết | Giao dịch không bị ảnh hưởng; khi bật lại, message còn trong queue được xử lý tiếp |
 
 ### 5.7 Ngân sách hiệu năng
