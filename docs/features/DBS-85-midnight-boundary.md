@@ -1,6 +1,6 @@
 # DBS-85 · Review Focus 2: ranh giới nửa đêm giờ Việt Nam khi DB chạy UTC
 
-> **Status:** Implemented · **Vai:** Dev (ledger; #4 review theo ghi chú 12/10 trên board) · **Nhánh:** `feat/DBS-85-midnight-boundary` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev (ledger; #4 review theo ghi chú 12/10 trên board) · **Nhánh:** `feat/DBS-85-midnight-boundary` · **PR:** [#75](https://github.com/Lawliet119/digital-banking-simulator/pull/75) · **Cập nhật:** 2026-11-08
 >
 > Techlead waiver: G1–G4 do agent tự duyệt theo yêu cầu của techlead (`huyasuo1109@gmail.com`); không có Dev khác (kể cả #4) review trước merge; không có ảnh PNG, bằng chứng là output thô; domain review do chính agent làm, không dùng subagent (§6).
 
