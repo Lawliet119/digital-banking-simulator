@@ -1,2 +1,9 @@
 85617e68e54d8111c4c0669ce3bed3f831f951df
 Execution summary (full outputs not all captured in this file): Unit:69 suites,1129/1129. Lint/typecheck/build exit0. Related PostgreSQL suite 36/36. Mutation intentionally failed as saved in red-green.txt. Manual Dockerdown expected exit1; recovery direct Jest exit0. No liveCI/PR/review/merge evidence.
+CI Linux evidence summary, 2026-11-08:
+PR: https://github.com/Lawliet119/digital-banking-simulator/pull/84
+Run: https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42467336590
+Verified head: dae60059eee8c7bb43437de4dcc6660956e05f68
+lint/typecheck/unit/e2e/db/build: 6/6 success, initial workflow attempt, no retry.
+DB 42 suites / 724 tests; E2E chính 15 suites / 153 tests; các bước Testcontainers/service tiếp theo 5 + 2 + 5 + 8 + 3 + 4 + 9 tests; tất cả đạt, không skip. Log DB có đúng 10 vòng DBS-97, mỗi vòng 10 response, invariants PASS và violations [].
+This is a summary from actual Actions job logs/status; raw logs remain at the CI job URLs. Earlier Windows failures remain recorded and unexplained.

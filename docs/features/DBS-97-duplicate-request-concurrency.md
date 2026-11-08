@@ -1,6 +1,6 @@
 # DBS-97 · Test đồng thời: request trùng song song trên Postgres thật
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `test/DBS-97-duplicate-request-concurrency` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `test/DBS-97-duplicate-request-concurrency` · **PR:** [#84](https://github.com/Lawliet119/digital-banking-simulator/pull/84) · **Cập nhật:** 2026-11-08
 
 ## 1. Bối cảnh
 
@@ -136,7 +136,7 @@ Cả M-97-01/02/03 chạy trong Git Bash với `env -u DATABASE_URL npm run test
 
 **Đề xuất prerequisite xin duyệt cùng G3:** thêm duy nhất `backend/src/scripts/manual-smoke.dbs50.ts` vào allowlist trước bước0, đổi lời gọi `fixture.setKeys([publicJwk])` thành object copy `fixture.setKeys([{ ...publicJwk }])` để TypeScript suy luận object tương thích index signature. Không sửa guard hay logic xác thực. Test đỏ là typecheck TS2322 đã chạy; chứng minh xanh bằng typecheck và chạy script smoke hiện có. Chỉ thực hiện nếu G3 chấp nhận đề xuất này; nếu không, chờ baseline được sửa bởi task khác. Thay đổi tương đương ở ba nhánh được ghi rõ dependency baseline, không giả là tính năng của ticket.
 
-**Quyền git:** tên commit trong §7 là dự kiến. Chưa có quyền commit/push/PR; G3 sẽ xin phép lưu commit local để có SHA cho manual evidence và checkout sạch. Nếu chỉ duyệt kế hoạch mà không cấp quyền git, giữ thay đổi chưa commit, không tự push/tạo PR.
+**Quyền git hiện tại:** G3 đã chấp nhận commit local; sau đó người dùng trả lời «thực hiện đi» cho đề xuất push ba nhánh, mở ba Draft PR và kiểm chứng CI Linux. Quyền này đã được thực hiện ở PR #84; G4 chưa duyệt, PR giữ Draft, không merge hoặc đổi board.
 
 **Code cuối:** 85617e6. Targeted 10round×10request đạt; full customer-transfers đạt36/36 không skip khi chạy từ PowerShell. Unit toàn bộ 69suites/1129tests đạt, lint/typecheck/build xanh.
 
@@ -152,6 +152,16 @@ Cả M-97-01/02/03 chạy trong Git Bash với `env -u DATABASE_URL npm run test
 **Ảnh còn thiếu:** 01-bursts.png, 02-docker-down.png, 03-recovery.png. Browser local bị tắt; screenshot native có overlay ngoài phạm vi, không lưu vào repo. Diagram chưa có visual-render QA.
 
 **Bàn giao:** BL-182 theo dõi cả exit127 chưa rõ nguyên nhân, manual/CI thật/Dev review/merge/ảnh. Không xóa BL-125 harness chỉ vì có một run xanh. Chưa push/PR/board.
+
+### Kiểm chứng CI Linux sau khi mở Draft PR
+
+Các ghi chú “chưa push/PR/CI” ở trên là snapshot trước lần cho phép này. [PR #84](https://github.com/Lawliet119/digital-banking-simulator/pull/84) đã có [CI run 42467336590](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42467336590) trên head `dae60059eee8c7bb43437de4dcc6660956e05f68`: lint, typecheck, unit, e2e, db, build đều success (6/6), không rerun/retry workflow.
+
+DB 42 suites / 724 tests; E2E chính 15 suites / 153 tests; các bước Testcontainers/service tiếp theo 5 + 2 + 5 + 8 + 3 + 4 + 9 tests; tất cả đạt, không skip. Log DB có đúng 10 vòng DBS-97, mỗi vòng 10 response, invariants PASS và violations [].
+
+DoD 10 vòng liên tiếp trên CI đã có evidence. M-97-01 theo npm/Git Bash vẫn chưa hoàn tất; recovery direct node/Jest được giữ là khác launcher. BL-182 tiếp tục theo dõi Windows exit127, Dev review/merge và ba PNG; không coi CI xanh là đã sửa lỗi Windows.
+
+Code không đổi sau manual; lần cập nhật này chỉ sửa hồ sơ/evidence. Diff file vẫn khớp §7. Status giữ Plan approved để trình G4.
 
 ## 9. Tài liệu đã cập nhật
 
