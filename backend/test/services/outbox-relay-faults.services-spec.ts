@@ -1,14 +1,20 @@
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Logger } from '@nestjs/common';
+import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
 import { OutboxRelayService } from '@modules/outbox';
+import { NotificationConsumer } from '@modules/notification';
 import { TRANSFER_SAMPLE } from '../support/event-samples';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
+import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
+import { checkLedgerInvariants } from '../support/invariants';
+import { CHILD_APPLICATION_NAME } from '../support/relay-crash-name';
 
 /**
  * DBS-91: the outbox relay under failure, against real PostgreSQL and a real SQS protocol server.
@@ -71,6 +77,17 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
     let release!: () => void;
     const open = new Promise<void>(resolve => (release = resolve));
     return { open, release };
+  }
+
+  async function inRole(role: string, run: () => Promise<void>): Promise<void> {
+    const previous = process.env.APP_ROLE;
+    process.env.APP_ROLE = role;
+    try {
+      await run();
+    } finally {
+      if (previous === undefined) delete process.env.APP_ROLE;
+      else process.env.APP_ROLE = previous;
+    }
   }
 
   beforeAll(async () => {
@@ -293,6 +310,234 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
     expect(await pendingIds()).toHaveLength(4);
     await drain(riskUrl);
     await drain(notificationUrl);
+  });
+
+  /**
+   * Starts the crash child, waits for READY, kills it with SIGKILL and waits (by condition, no
+   * fixed sleep) until PostgreSQL has noticed the dead client and released its row locks.
+   */
+  async function crashChild(mode: 'before-send' | 'after-send', expectedSends = 0): Promise<void> {
+    const child = spawn(
+      process.execPath,
+      [
+        '-r',
+        'ts-node/register',
+        '-r',
+        'tsconfig-paths/register',
+        'test/support/relay-crash-child.ts',
+        mode,
+      ],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          TS_NODE_TRANSPILE_ONLY: 'true',
+          DATABASE_URL: db.url,
+          SQS_ENDPOINT: mq.endpoint,
+          SQS_RISK_QUEUE_URL: riskUrl,
+          SQS_NOTIFICATION_QUEUE_URL: notificationUrl,
+          EXPECT_SENDS: String(expectedSends),
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    let stderr = '';
+    child.stderr.on('data', chunk => (stderr += String(chunk)));
+    const exited = new Promise<void>(resolve => child.once('exit', () => resolve()));
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`child not READY: ${stderr}`)), 60_000);
+        let seen = '';
+        child.stdout.on('data', chunk => {
+          seen += String(chunk);
+          if (seen.includes('READY')) {
+            clearTimeout(timer);
+            resolve();
+          }
+        });
+        child.once('exit', code => {
+          clearTimeout(timer);
+          reject(new Error(`child exited (${code}) before READY: ${stderr}`));
+        });
+      });
+    } catch (error) {
+      child.kill('SIGKILL');
+      throw error;
+    }
+    child.kill('SIGKILL'); // TerminateProcess on Windows: the OS closes its sockets at once
+    await exited;
+    const deadline = Date.now() + 20_000;
+    for (;;) {
+      const alive = await q('SELECT 1 FROM pg_stat_activity WHERE application_name = $1', [
+        CHILD_APPLICATION_NAME,
+      ]);
+      if (alive.length === 0) return;
+      if (Date.now() > deadline) throw new Error('PostgreSQL still holds the dead relay session');
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  const countsById = (bodies: Record<string, unknown>[]) => {
+    const counts = new Map<string, number>();
+    for (const body of bodies) {
+      const id = body.eventId as string;
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return counts;
+  };
+
+  it('TC-91-01 killed after sending and before the commit: it sends again, same eventIds, consumer dedups', async () => {
+    const events = Array.from({ length: 5 }, transferEvent);
+    for (const event of events) await enqueue(event);
+    await crashChild('after-send', 10); // 5 events x 2 queues, all really sent
+    expect(await pendingIds()).toHaveLength(5); // nothing was committed
+    expect(await relayWith().relayOnce()).toEqual({ published: 5 });
+
+    const risk = countsById(await drain(riskUrl));
+    expect([...risk.keys()].sort()).toEqual(events.map(e => e.eventId).sort());
+    expect([...risk.values()]).toEqual([2, 2, 2, 2, 2]); // sent before the kill and again after
+
+    // The notification consumer does the work once per eventId.
+    const tx = new TransactionService(source, {
+      lockTimeoutMs: 2000,
+      statementTimeoutMs: 5000,
+      idleInTransactionTimeoutMs: 10000,
+    } as never);
+    const consumer = new NotificationConsumer(tx, sqs, {
+      region: 'us-east-1',
+      endpoint: mq.endpoint,
+      riskQueueUrl: riskUrl,
+      notificationQueueUrl: notificationUrl,
+    });
+    for (let i = 0; i < 8; i++) await consumer.consumeOnce(1);
+    expect(await q('SELECT 1 FROM processed_events')).toHaveLength(5);
+    expect(await q('SELECT 1 FROM notification_log')).toHaveLength(5);
+    expect(await drain(notificationUrl)).toEqual([]);
+  });
+
+  it('TC-91-02 killed before sending: nothing went out, and it sends everything once', async () => {
+    const events = Array.from({ length: 5 }, transferEvent);
+    for (const event of events) await enqueue(event);
+    await crashChild('before-send');
+    expect(await pendingIds()).toHaveLength(5);
+    expect(await drain(riskUrl)).toEqual([]);
+    expect(await drain(notificationUrl)).toEqual([]);
+    expect(await relayWith().relayOnce()).toEqual({ published: 5 });
+    for (const url of [riskUrl, notificationUrl]) {
+      const seen = countsById(await drain(url));
+      expect([...seen.keys()].sort()).toEqual(events.map(e => e.eventId).sort());
+      expect([...seen.values()]).toEqual([1, 1, 1, 1, 1]);
+    }
+  });
+
+  it('TC-91-03 with every worker off the events pile up, and all of them arrive when it is back', async () => {
+    const app = await startDepositApp(db.url);
+    try {
+      const sender = await seedDepositTarget(db.runner);
+      const receiver = await seedDepositTarget(db.runner);
+      const operator = await app.issuer.token('operator', { sub: randomUUID() });
+      const customer = await app.issuer.token('customer', { sub: sender.sub });
+      await request(app.url)
+        .post('/v1/operator/deposits')
+        .auth(operator, { type: 'bearer' })
+        .set('Idempotency-Key', randomUUID())
+        .send({ toAccountId: sender.accountId, amount: '5000000' })
+        .expect(201);
+      for (let i = 0; i < 24; i++) {
+        await request(app.url)
+          .post('/v1/transfers')
+          .auth(customer, { type: 'bearer' })
+          .set('Idempotency-Key', randomUUID())
+          .send({
+            fromAccountId: sender.accountId,
+            toAccountId: receiver.accountId,
+            amount: '100000',
+          })
+          .expect(201);
+      }
+      expect(await pendingIds()).toHaveLength(25); // no relay was running
+      const worker = relayWith();
+      await inRole('worker', async () => {
+        worker.onApplicationBootstrap();
+        try {
+          const deadline = Date.now() + 10_000;
+          while (Date.now() < deadline && (await pendingIds()).length > 0) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } finally {
+          await worker.onApplicationShutdown();
+        }
+      });
+      expect(await pendingIds()).toEqual([]);
+      for (const url of [riskUrl, notificationUrl]) {
+        const seen = countsById(await drain(url));
+        expect(seen.size).toBe(25);
+        expect(Math.max(...seen.values())).toBe(1);
+      }
+      expect((await checkLedgerInvariants(db.runner)).status).toBe('PASS');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('TC-91-11 the database drops the relay connection after the sends: the whole batch goes again', async () => {
+    const events = Array.from({ length: 3 }, transferEvent);
+    for (const event of events) await enqueue(event);
+    const victim = new DataSource({
+      type: 'postgres',
+      url: db.url,
+      extra: { application_name: 'dbs91-victim' },
+    });
+    await victim.initialize();
+    try {
+      const hold = gate();
+      let entered!: () => void;
+      const inside = new Promise<void>(resolve => (entered = resolve));
+      let calls = 0;
+      const tx = new TransactionService(victim, {
+        lockTimeoutMs: 2000,
+        statementTimeoutMs: 5000,
+        idleInTransactionTimeoutMs: 60000,
+      } as never);
+      const relay = new OutboxRelayService(
+        tx,
+        {
+          send: async (url: string, body: string, attributes: Record<string, string>) => {
+            calls += 1;
+            if (calls === 6) {
+              entered(); // all but the last message are out
+              await hold.open;
+            }
+            await sqs.send(url, body, attributes);
+          },
+        } as unknown as SqsClient,
+        {
+          region: 'us-east-1',
+          endpoint: mq.endpoint,
+          riskQueueUrl: riskUrl,
+          notificationQueueUrl: notificationUrl,
+        },
+      );
+      const run = relay.relayOnce();
+      const failed = run.then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      await inside;
+      await q(
+        `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'dbs91-victim'`,
+      );
+      hold.release();
+      expect(await failed).toBeDefined(); // the UPDATE or COMMIT could not happen
+      expect(await pendingIds()).toHaveLength(3);
+    } finally {
+      await victim.destroy().catch(() => undefined);
+    }
+    expect(await relayWith().relayOnce()).toEqual({ published: 3 });
+    for (const url of [riskUrl, notificationUrl]) {
+      const seen = countsById(await drain(url));
+      expect([...seen.keys()].sort()).toEqual(events.map(e => e.eventId).sort());
+      expect([...seen.values()]).toEqual([2, 2, 2]);
+    }
   });
 
   it('TC-91-13 a failed send is logged with the outbox id and without payload or error text', async () => {
