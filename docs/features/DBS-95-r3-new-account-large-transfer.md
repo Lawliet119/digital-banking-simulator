@@ -1,6 +1,6 @@
 # DBS-95 · Luật R3 tài khoản mới chuyển lớn: tuổi < 24 giờ và > 10.000.000đ
 
-> **Status:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-95-r3-new-account` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-95-r3-new-account` · **PR:** [#97](https://github.com/Lawliet119/digital-banking-simulator/pull/97) · **Cập nhật:** 2026-11-08
 
 > **Ghi chú quy trình:** phiên chạy bởi techlead (`Techlead waiver`). Các gate do agent duyệt thay theo yêu cầu của techlead; mỗi gate có đoạn «Quyết định» riêng.
 
