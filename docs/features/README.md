@@ -30,6 +30,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 |---|---|---|---|
 | [DBS-72](DBS-72-p2-architecture-submission.md) | P2/OpenAPI từ app thật, đối chiếu nguồn và handoff rubric/nộp | Dev | Implemented · G4 đã duyệt kèm giới hạn; PR #83 chờ Dev review/merge |
 | [DBS-97](DBS-97-duplicate-request-concurrency.md) | 10 round request trùng trên PostgreSQL thật, replay/mismatch và Demo2 | Dev | Plan approved · đang kiểm chứng/bàn giao, chưa push/PR |
+| [DBS-97](DBS-97-duplicate-request-concurrency.md) | 10 round request trùng trên PostgreSQL thật, replay/mismatch và Demo2 | Dev | Implemented · G4 đã duyệt kèm giới hạn; PR #84 chờ Dev review/merge |
 
 | Task | Tóm tắt | Vai | Trạng thái |
 |---|---|---|---|

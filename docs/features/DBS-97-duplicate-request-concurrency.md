@@ -1,6 +1,6 @@
 # DBS-97 · Test đồng thời: request trùng song song trên Postgres thật
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `test/DBS-97-duplicate-request-concurrency` · **PR:** [#84](https://github.com/Lawliet119/digital-banking-simulator/pull/84) · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `test/DBS-97-duplicate-request-concurrency` · **PR:** [#84](https://github.com/Lawliet119/digital-banking-simulator/pull/84) · **Cập nhật:** 2026-11-08
 
 ## 1. Bối cảnh
 
@@ -168,6 +168,14 @@ DB 42 suites / 724 tests; E2E chính 15 suites / 153 tests; các bước Testcon
 DoD 10 vòng liên tiếp trên CI đã có evidence. M-97-01 theo npm/Git Bash vẫn chưa hoàn tất; recovery direct node/Jest được giữ là khác launcher. BL-182 tiếp tục theo dõi Windows exit127, Dev review/merge và ba PNG; không coi CI xanh là đã sửa lỗi Windows.
 
 Code không đổi sau manual; các commit sau run CI trên chỉ sửa hồ sơ/evidence và bổ sung đủ 3 PNG đã định ở §7. Các ghi chú thiếu PNG trước đó được thay bằng ảnh thật ở trên; không còn ảnh thiếu. Diff file vẫn khớp §7. Status giữ Plan approved để trình G4.
+
+### Quyết định G4 · 2026-11-08
+
+Người dùng trả lời «duyệt g4» trực tiếp cho đề nghị bàn giao kèm các giới hạn đã nêu. G4 được duyệt; trạng thái chuyển Implemented cho phạm vi đã bàn giao và cho phép chuyển PR #84 sang ready for review. Những ghi chú giữ Draft/Plan approved phía trên là lịch sử trước quyết định này. Không có quyền merge hoặc sửa board.
+
+Chấp nhận M-97-01 chưa hoàn tất bằng npm/Git Bash và dùng diagnostic/recovery direct node/Jest ở M-97-03 làm evidence thay thế; lỗi launcher Windows exit127 chưa rõ nguyên nhân tiếp tục ở BL-182, không coi đã sửa. Chấp nhận diagram chưa visual-render QA; Dev review/merge vẫn chưa thực hiện.
+
+Trước G4, [CI run 42468365868](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42468365868) đã xác minh head `019eb3b466ea2e6a0dc5fcb04ce0191fffa7543a`: cả sáu job lint/typecheck/unit/e2e/db/build success, attempt 1. Lần ghi nhận G4 này chỉ sửa tài liệu; không thay code sau manual. Các giới hạn được chấp nhận không đồng nghĩa đã được khắc phục hoặc đã merge/nộp P2.
 
 ## 9. Tài liệu đã cập nhật
 
