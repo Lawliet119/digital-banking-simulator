@@ -2,7 +2,7 @@
 
 <!-- Tài liệu làm việc, không phải báo cáo: ưu tiên bảng hơn văn xuôi; không chép lại DoD hay danh sách case ở §8 ngoài ID. Task nhỏ nên trong khoảng 2.500 từ; nếu dài hơn thì cắt văn xuôi trước, không bao giờ cắt kết quả test thủ công. -->
 
-> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-113-lock-unlock-account` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-113-lock-unlock-account` · **PR:** [#80](https://github.com/Lawliet119/digital-banking-simulator/pull/80) · **Cập nhật:** 2026-11-08
 
 ## 1. Bối cảnh
 
