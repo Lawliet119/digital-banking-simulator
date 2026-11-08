@@ -33,7 +33,7 @@ const v1: RuleParams = {
 const rule = new R3NewAccountLargeTransferRule();
 const ageOf = (ms: number): string => new Date(Date.parse(OCCURRED_AT) - ms).toISOString();
 const run = (fields: Record<string, unknown>, params: RuleParams = v1) =>
-  rule.evaluate({ ...baseEvent, ...fields } as unknown as TransferEvent, features, params);
+  rule.evaluate({ ...baseEvent, ...fields }, features, params);
 
 // M-95-01: a 3-hour-old account moves 20,000,000
 const hit = run({});
