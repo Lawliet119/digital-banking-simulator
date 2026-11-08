@@ -1,96 +1,55 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  type OnApplicationBootstrap,
-  type OnApplicationShutdown,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
-import { TransactionService } from '@database/transaction.service';
+import { PinoLogger } from 'nestjs-pino';
+import type { EntityManager } from 'typeorm';
 import { sqsConfig } from '@config/sqs.config';
-import { type BatchResult, SqsClient } from '@libs/sqs';
-import { runsWorkers } from '@common/app-role/app-role';
-import { validateEvent } from '@common/events';
-import { safeErrorMetadata } from '@common/logging/logging.options';
-import { PollingLoop } from '@common/utils/polling-loop';
+import type { DomainEvent } from '@common/events';
+import { ConsumerBase, dlqUrlFor } from '@common/messaging';
+import { TransactionService } from '@database/transaction.service';
+import { SqsClient } from '@libs/sqs';
 
 /** `processed_events.consumer` of this module. */
 export const NOTIFICATION_CONSUMER = 'notification';
-const LONG_POLL_SECONDS = 20;
 
-/** `notification-events` -> `notification-events-dlq` (docs/03 §10: each queue has its own DLQ). */
-export function dlqUrlFor(queueUrl: string): string {
-  return `${queueUrl}-dlq`;
-}
+export { dlqUrlFor };
 
 /**
- * Consumer of `notification-events` (v1: the "notification" is a log line, docs/03 §6.3).
- *
- * Idempotent: it records `(consumer, eventId)` in `processed_events` first, and only the delivery
- * that inserted the row notifies, so a redelivered event is acknowledged and ignored. A message
- * that is not a valid event is not acknowledged: SQS redelivers it and, after `maxReceiveCount`
- * receives, moves it to the DLQ (a body that is not even JSON goes there at once). Nothing here
- * can affect the transfer, which was committed long before (D-4).
+ * Consumer of `notification-events` (v1: the "notification" is a log line, docs/03 §6.3). The frame
+ * (idempotency, DLQ, retry limit, worker-only polling) is `ConsumerBase`; this class only says what
+ * one event writes. Nothing here can affect the transfer, which was committed long before (D-4).
  */
 @Injectable()
-export class NotificationConsumer implements OnApplicationBootstrap, OnApplicationShutdown {
+export class NotificationConsumer extends ConsumerBase {
+  protected readonly consumerName = NOTIFICATION_CONSUMER;
   private readonly logger = new Logger(NotificationConsumer.name);
-  private readonly loop = new PollingLoop(
-    async () => {
-      await this.consumeOnce();
-      return 0;
-    },
-    error => this.logger.error(safeErrorMetadata(error), 'Notification consumer failed'),
-  );
 
   constructor(
-    private readonly tx: TransactionService,
-    private readonly sqs: SqsClient,
+    tx: TransactionService,
+    sqs: SqsClient,
+    pino: PinoLogger,
     @Inject(sqsConfig.KEY) private readonly config: ConfigType<typeof sqsConfig>,
-  ) {}
-
-  onApplicationBootstrap(): void {
-    if (runsWorkers()) this.loop.start();
+  ) {
+    super(tx, sqs, pino);
   }
 
-  async onApplicationShutdown(): Promise<void> {
-    await this.loop.stop();
+  protected queueUrl(): string | undefined {
+    return this.config.notificationQueueUrl;
   }
 
-  /** One receive and handle of a batch; failed messages stay on the queue. */
-  consumeOnce(waitTimeSeconds = LONG_POLL_SECONDS): Promise<BatchResult[]> {
-    const queue = this.config.notificationQueueUrl;
-    if (!queue) throw new Error('SQS_NOTIFICATION_QUEUE_URL is not configured');
-    return this.sqs.processBatch(queue, dlqUrlFor(queue), body => this.handle(body), {
-      waitTimeSeconds,
-    });
+  protected async apply(event: DomainEvent, manager: EntityManager): Promise<void> {
+    const kind =
+      event.eventType === 'TransferCompleted' ? 'transfer_completed' : 'account_status_changed';
+    const message =
+      event.eventType === 'TransferCompleted'
+        ? 'Giao dịch đã hoàn tất'
+        : 'Trạng thái tài khoản đã thay đổi';
+    await manager.query(
+      'INSERT INTO notification_log(event_id,kind,user_id,message) VALUES($1,$2,NULL,$3)',
+      [event.eventId, kind, message],
+    );
   }
 
-  /** Throws for an invalid event, so the message is not acknowledged. */
-  async handle(body: unknown): Promise<void> {
-    const checked = validateEvent(body);
-    if (!checked.ok) throw new Error('Invalid event on the notification queue');
-    const event = checked.event;
-    const first = await this.tx.run(async manager => {
-      const inserted: unknown[] = await manager.query(
-        `INSERT INTO processed_events(consumer,event_id) VALUES($1,$2)
-         ON CONFLICT(consumer,event_id) DO NOTHING RETURNING event_id`,
-        [NOTIFICATION_CONSUMER, event.eventId],
-      );
-      if (inserted.length === 0) return false;
-      const kind =
-        event.eventType === 'TransferCompleted' ? 'transfer_completed' : 'account_status_changed';
-      const message =
-        event.eventType === 'TransferCompleted'
-          ? 'Giao dịch đã hoàn tất'
-          : 'Trạng thái tài khoản đã thay đổi';
-      await manager.query(
-        'INSERT INTO notification_log(event_id,kind,user_id,message) VALUES($1,$2,NULL,$3)',
-        [event.eventId, kind, message],
-      );
-      return true;
-    });
-    if (!first) return;
+  protected override onCommitted(event: DomainEvent): void {
     // Ids and the type only: no amounts, no account numbers, and never a fraud reason (BR-13).
     this.logger.log(
       { eventId: event.eventId, eventType: event.eventType, correlationId: event.correlationId },

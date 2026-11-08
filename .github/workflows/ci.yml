@@ -134,6 +134,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/outbox-relay.services-spec.ts
       - name: Outbox relay under failure (kill, failing events, time bounds)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/outbox-relay-faults.services-spec.ts
+      - name: ConsumerBase on PostgreSQL + ElasticMQ (DBS-101)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/consumer-base.services-spec.ts
       - name: Redis adapter latency, outage and recovery (DBS-76)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/redis-adapter.services-spec.ts
       - name: Readiness with real PostgreSQL and Valkey failures (DBS-78)

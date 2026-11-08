@@ -116,7 +116,7 @@ describe('DBS-77 SQS transport', () => {
     send.mockResolvedValueOnce({});
     expect(await client.processBatch('queue', 'dlq', () => Promise.resolve())).toEqual([]);
   });
-it('TC-101-12 a handler that throws PoisonMessageError sends the raw body to the DLQ and deletes the source', async () => {
+  it('TC-101-12 a handler that throws PoisonMessageError sends the raw body to the DLQ and deletes the source', async () => {
     const body = '{"eventType":"TransferCompleted"}';
     send
       .mockResolvedValueOnce({
