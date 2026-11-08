@@ -19,9 +19,26 @@ function sharedCounter(): Counter<'rule' | 'reason'> {
   });
 }
 
+const CONFIG_NAME = 'risk_config_redis_fallback_total';
+const CONFIG_HELP =
+  'Rule configuration reads answered from PostgreSQL because Redis failed or held a bad value';
+
+function sharedConfigCounter(): Counter {
+  const existing = defaultRegister.getSingleMetric(CONFIG_NAME);
+  if (existing instanceof Counter) return existing;
+  return new Counter({ name: CONFIG_NAME, help: CONFIG_HELP, registers: [defaultRegister] });
+}
+
 @Injectable()
 export class RiskMetrics {
   private readonly registry = new Registry();
+  private readonly localConfig = new Counter({
+    name: CONFIG_NAME,
+    help: CONFIG_HELP,
+    registers: [this.registry],
+  });
+  private readonly sharedConfig = sharedConfigCounter();
+
   private readonly local = new Counter({
     name: NAME,
     help: HELP,
@@ -34,6 +51,15 @@ export class RiskMetrics {
   redisFallback(rule: FallbackRule, reason: 'error' | 'cold'): void {
     this.local.inc({ rule, reason });
     this.shared.inc({ rule, reason });
+  }
+
+  configFallback(): void {
+    this.localConfig.inc();
+    this.sharedConfig.inc();
+  }
+
+  async configFallbackCount(): Promise<number> {
+    return (await this.localConfig.get()).values[0]?.value ?? 0;
   }
 
   async count(rule: FallbackRule, reason: 'error' | 'cold'): Promise<number> {
