@@ -1,6 +1,6 @@
 # DBS-94 · Luật R2 số tiền bất thường: > 5× trung vị 30 ngày, cần ≥ 5 lệnh lịch sử
 
-> **Status:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-94-r2-amount` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-94-r2-amount` · **PR:** [#96](https://github.com/Lawliet119/digital-banking-simulator/pull/96) · **Cập nhật:** 2026-11-08
 
 > **Ghi chú quy trình:** phiên chạy bởi techlead (`Techlead waiver`). Các gate do agent duyệt thay theo yêu cầu của techlead; mỗi gate có đoạn «Quyết định» riêng.
 
