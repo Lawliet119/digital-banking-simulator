@@ -30,7 +30,7 @@ Ngoài 4 gate, agent dừng hỏi bất cứ lúc nào phải đổi ADR, schema
 | `references/task-kinds.md` | Phase thay đổi thế nào theo loại task: bug, migration, thư viện, hạ tầng, vận hành, chỉ sửa docs; khi bước test thủ công cần thứ chưa được build |
 | `references/docs-style.md` | Phase 5: văn phong tài liệu (trạng thái hiện tại, mermaid phải render, link) |
 | `references/fraud.md`, `references/platform.md` | Quy tắc riêng của #4 Fraud và #5 Platform & Ops |
-| `scripts/fetch-task.mjs` | Phase 1: `DBS-n` in mọi cột của task và trạng thái task phụ thuộc; `--next` (thêm Fraud hoặc Ops nếu cần) liệt kê task còn To Do đã gỡ hết phụ thuộc, theo thứ tự board |
+| `scripts/fetch-task.mjs` | Phase 1: `DBS-n` hoặc `RSK-n` in mọi cột của task và trạng thái task phụ thuộc; `--next` (thêm Fraud hoặc Ops nếu cần) liệt kê task còn To Do đã gỡ hết phụ thuộc, theo thứ tự board |
 | `scripts/check-doc-links.mjs` | Phase 5: kiểm link, anchor, ảnh trong mọi file .md |
 
 ## Dùng thế nào
