@@ -1,0 +1,5 @@
+2a590bd6ae3afddecb8ab5e882a943cdb7125745
+M-104-01 PASS: eventId x3 -> acknowledged,acknowledged,acknowledged; notification_log rows = 1
+M-104-02 PASS: dead-lettered,acknowledged,dead-lettered,acknowledged; DLQ holds both broken bodies after one receive; 2 good events processed
+M-104-03 PASS: forward and reversed order -> no error, identical notification_log (6 rows)
+cleanup done: temp database dropped, temp queues deleted

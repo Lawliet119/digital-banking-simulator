@@ -56,14 +56,14 @@ Agent tự phản biện (Techlead waiver: không dùng subagent). Điểm kiể
 
 | Bước | File | Test trước | Lệnh chứng minh | Commit |
 |---|---|---|---|---|
-| 1 | `notification-consumer-review.services-spec.ts`, CI | TC-104-01..03 | `npm run test:services -- --runInBand --runTestsByPath test/services/notification-consumer-review.services-spec.ts` | `test(notification): review focus 4 …` |
+| 1 | `notification-consumer-review.services-spec.ts`, CI | TC-104-01..03 | `npm run test:services -- --runInBand --runTestsByPath test/services/notification-consumer-review.services-spec.ts` | `test(notification): review focus 4 …` (đã vào main qua #102) |
 | 2 | manual, docs | M-104-01..03 | script manual | `docs(notification): DBS-104 handover` |
 
 Test này xanh ngay vì hành vi đã có từ DBS-101/102; chứng minh test có răng bằng mutation thay cho bước đỏ. Lùi: bỏ file test và bước CI.
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra:** ghi dưới đây khi bàn giao.
+- **Lệnh kiểm tra:** `test:services` `notification-consumer-review` 4/4 trên `2a590bd`; lint, typecheck, unit 76 suite / 1.427 test, e2e 15 suite / 153 test và CI đều xanh trên PR #102. Không có `.skip`/`.only`.
 - **Đối chiếu test case:**
 
 | ID | Test | Đạt? |
@@ -72,9 +72,9 @@ Test này xanh ngay vì hành vi đã có từ DBS-101/102; chứng minh test c�
 | TC-104-02 | `notification-consumer-review.services-spec.ts` | đạt |
 | TC-104-03 | `notification-consumer-review.services-spec.ts` | đạt |
 
-- **Test thủ công:** output ở [manual-test.txt](screenshots/DBS-104/manual-test.txt).
+- **Test thủ công** (commit `2a590bd`, output ở [manual-test.txt](screenshots/DBS-104/manual-test.txt)): M-104-01, M-104-02, M-104-03 đạt.
 - **Ảnh chụp:** không có PNG; bằng chứng là output text (Techlead waiver).
-- **Lệch so với kế hoạch:** không có.
+- **Lệch so với kế hoạch:** commit chứa spec, driver manual, bước CI và bản nháp doc này nằm nhầm trên nhánh DBS-102 nên đã vào `main` cùng PR #102 (CI xanh trên toàn bộ). PR này chỉ bổ sung phần còn thiếu: test thủ công thật, số liệu §8 và dòng index. Agent tự quyết không tách lại lịch sử vì nội dung không đổi và đã qua CI.
 - **Bàn giao:** không có.
 
 ## 9. Tài liệu đã cập nhật
