@@ -1,6 +1,6 @@
 # DBS-87 · UC-6 lịch sử giao dịch phân trang cursor và UC-7 trạng thái giao dịch
 
-> **Status:** Implemented · **Vai:** Dev (ledger) · **Nhánh:** `feat/DBS-87-history-and-status` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev (ledger) · **Nhánh:** `feat/DBS-87-history-and-status` · **PR:** [#76](https://github.com/Lawliet119/digital-banking-simulator/pull/76) · **Cập nhật:** 2026-11-08
 >
 > Techlead waiver: G1–G4 do agent tự duyệt theo yêu cầu của techlead (`huyasuo1109@gmail.com`); không có Dev khác review trước merge; không có ảnh PNG, bằng chứng là output thô; domain review do chính agent làm, không dùng subagent (§6).
 
