@@ -66,6 +66,17 @@ describe('SyncGuardService (what needs no database)', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('TC-85-05 the day boundary never reads the real time of the machine (only the Clock)', () => {
+    const code = readFileSync(join(SRC, 'modules/ledger/sync-guard.service.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '') // block comments
+      .replace(/^\s*\/\/.*$/gm, ''); // line comments
+    const wallClock = /new Date\(|Date\.now\(|clock_timestamp|statement_timestamp|[^.]\bnow\(\)/;
+    expect(code).not.toMatch(wallClock);
+    // The one allowed read is the injected clock, and the SQL takes it as a parameter.
+    expect(code).toMatch(/this\.clock\.now\(\)/);
+    expect(code).toMatch(/\$2::timestamptz AT TIME ZONE 'Asia\/Ho_Chi_Minh'/);
+  });
+
   it('TC-82-08 decides on the account state before it asks the database anything', async () => {
     const query = jest.fn();
     const guard = new SyncGuardService(accounts, new SystemClock(), limits as never);
