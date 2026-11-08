@@ -1,0 +1,316 @@
+0f3d2498946e44dbb75b58b542c762f2c0198643
+
+(Dòng "query:" của migration đã được lược bỏ: 72 dòng.)
+
+=== Setup: database dbs90_manual, migrations, dev keys, build, purge queues
+DROP DATABASE
+$ npm run --silent migration:run
+0 migrations are already loaded in the database.
+8 migrations were found in the source code.
+8 migrations are new migrations must be executed.
+        id                  uuid        NOT NULL DEFAULT gen_random_uuid(),
+        cognito_sub         text        NOT NULL,
+        sessions_revoked_at timestamptz,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT users_pkey PRIMARY KEY (id),
+        CONSTRAINT users_cognito_sub_key UNIQUE (cognito_sub)
+      )
+        id         uuid        NOT NULL DEFAULT gen_random_uuid(),
+        user_id    uuid        NOT NULL,
+        full_name  text        NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT customers_pkey PRIMARY KEY (id),
+        CONSTRAINT customers_user_id_key UNIQUE (user_id),
+        CONSTRAINT customers_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT
+      )
+        id          uuid        NOT NULL DEFAULT gen_random_uuid(),
+        customer_id uuid,
+        type        text        NOT NULL,
+        status      text        NOT NULL DEFAULT 'ACTIVE',
+        balance     bigint      NOT NULL DEFAULT 0,
+        created_at  timestamptz NOT NULL DEFAULT now(),
+        updated_at  timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT accounts_pkey PRIMARY KEY (id),
+        CONSTRAINT accounts_customer_id_fkey FOREIGN KEY (customer_id)
+          REFERENCES customers (id) ON DELETE RESTRICT,
+        CONSTRAINT accounts_type_check CHECK (type IN ('CHECKING', 'SAVINGS', 'SYSTEM')),
+        CONSTRAINT accounts_status_check CHECK (status IN ('ACTIVE', 'LOCKED')),
+        CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
+        CONSTRAINT accounts_owner_matches_type CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+      ) WITH (fillfactor = 80)
+      INSERT INTO accounts (id, customer_id, type, status, balance)
+      VALUES ('00000000-0000-4000-8000-000000000001', NULL, 'SYSTEM', 'ACTIVE', 0)
+Migration CreateUsersCustomersAccounts1791763200000 has been executed successfully.
+        id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+        type            text        NOT NULL,
+        from_account_id uuid        NOT NULL,
+        to_account_id   uuid,
+        amount          bigint      NOT NULL,
+        status          text        NOT NULL,
+        reject_reason   text,
+        initiated_by    uuid        NOT NULL,
+        correlation_id  uuid        NOT NULL,
+        created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
+        CONSTRAINT transfers_pkey PRIMARY KEY (id),
+        CONSTRAINT transfers_from_account_id_fkey FOREIGN KEY (from_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_to_account_id_fkey FOREIGN KEY (to_account_id)
+          REFERENCES accounts (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_initiated_by_fkey FOREIGN KEY (initiated_by)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT transfers_type_check CHECK (type IN ('TRANSFER', 'DEPOSIT')),
+        CONSTRAINT transfers_amount_check CHECK (amount > 0),
+        CONSTRAINT transfers_status_check CHECK (status IN ('COMPLETED', 'REJECTED')),
+        CONSTRAINT transfers_reject_reason_check CHECK (reject_reason IN
+          ('ACCOUNT_NOT_ACTIVE', 'LIMIT_PER_TX_EXCEEDED', 'LIMIT_PER_DAY_EXCEEDED', 'INSUFFICIENT_FUNDS')),
+        CONSTRAINT transfers_distinct_accounts
+          CHECK (to_account_id IS NULL OR from_account_id <> to_account_id),
+        CONSTRAINT transfers_reason_matches_status
+          CHECK ((status = 'REJECTED') = (reject_reason IS NOT NULL)),
+        CONSTRAINT transfers_completed_has_target
+          CHECK (status <> 'COMPLETED' OR to_account_id IS NOT NULL),
+        -- Targets of the composite foreign keys from ledger_entries (below, in a later step): a
+        -- ledger line can then only exist with the transfer's own amount, on the transfer's own
+        -- account, and only for a COMPLETED transfer. transfers is append-only, so none of these
+        -- columns changes after the row is written.
+        CONSTRAINT transfers_ledger_from_key UNIQUE (id, amount, status, from_account_id),
+        CONSTRAINT transfers_ledger_to_key UNIQUE (id, amount, status, to_account_id)
+      )
+        INCLUDE (amount, to_account_id)
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+        WHERE status = 'COMPLETED' AND type = 'TRANSFER'
+        id             bigint      GENERATED ALWAYS AS IDENTITY,
+        transfer_id    uuid        NOT NULL,
+        account_id     uuid        NOT NULL,
+        direction      text        NOT NULL,
+        amount         bigint      NOT NULL,
+        balance_after  bigint      NOT NULL,
+        created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
+        transfer_status text GENERATED ALWAYS AS ('COMPLETED') STORED,
+        debit_account  uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'DEBIT' THEN account_id END) STORED,
+        credit_account uuid GENERATED ALWAYS AS
+          (CASE WHEN direction = 'CREDIT' THEN account_id END) STORED,
+        CONSTRAINT ledger_entries_pkey PRIMARY KEY (id),
+        CONSTRAINT ledger_entries_direction_check CHECK (direction IN ('DEBIT', 'CREDIT')),
+        CONSTRAINT ledger_entries_amount_check CHECK (amount > 0),
+        CONSTRAINT ledger_entries_one_per_direction UNIQUE (transfer_id, direction),
+        CONSTRAINT ledger_entries_transfer_debit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, debit_account)
+          REFERENCES transfers (id, amount, status, from_account_id) ON DELETE RESTRICT,
+        CONSTRAINT ledger_entries_transfer_credit_fkey
+          FOREIGN KEY (transfer_id, amount, transfer_status, credit_account)
+          REFERENCES transfers (id, amount, status, to_account_id) ON DELETE RESTRICT
+      )
+        INCLUDE (amount)
+        WHERE direction = 'DEBIT'
+        ON ledger_entries (account_id, created_at DESC, id DESC)
+        user_id       uuid        NOT NULL,
+        idem_key      text        NOT NULL,
+        request_hash  char(64)    NOT NULL,
+        transfer_id   uuid,
+        response_code smallint,
+        response_body jsonb,
+        created_at    timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT idempotency_keys_pkey PRIMARY KEY (user_id, idem_key),
+        CONSTRAINT idempotency_keys_user_id_fkey FOREIGN KEY (user_id)
+          REFERENCES users (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_transfer_id_fkey FOREIGN KEY (transfer_id)
+          REFERENCES transfers (id) ON DELETE RESTRICT,
+        CONSTRAINT idempotency_keys_idem_key_check
+          CHECK (char_length(idem_key) BETWEEN 1 AND 128)
+      )
+        FROM transfers
+Migration CreateTransfersLedgerIdempotency1791849600000 has been executed successfully.
+        id bigint GENERATED ALWAYS AS IDENTITY,
+        event_id uuid NOT NULL DEFAULT gen_random_uuid(),
+        event_type text NOT NULL,
+        aggregate_id uuid NOT NULL,
+        payload jsonb NOT NULL,
+        correlation_id uuid NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+        published_at timestamptz,
+        CONSTRAINT outbox_events_pkey PRIMARY KEY (id),
+        CONSTRAINT outbox_events_event_id_key UNIQUE (event_id)
+      )
+        consumer text NOT NULL,
+        event_id uuid NOT NULL,
+        processed_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT processed_events_pkey PRIMARY KEY (consumer, event_id)
+      )
+      ON outbox_events (id) WHERE published_at IS NULL
+      ON outbox_events (published_at) WHERE published_at IS NOT NULL
+      ON processed_events (processed_at)
+Migration CreateOutboxEventsProcessedEvents1792627200000 has been executed successfully.
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      actor_user_id uuid,
+      actor_role text NOT NULL,
+      action text NOT NULL,
+      outcome text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      correlation_id uuid NOT NULL,
+      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+      CONSTRAINT audit_log_pkey PRIMARY KEY (id),
+      CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT audit_log_outcome_check CHECK (outcome IN ('SUCCESS','REJECTED','DENIED'))
+    )
+Migration CreateAuditLog1792627200001 has been executed successfully.
+      LANGUAGE plpgsql AS $$
+      BEGIN
+        RAISE EXCEPTION '% on % is not allowed (append-only)', TG_OP, TG_TABLE_NAME
+          USING ERRCODE = '42501';
+      END;
+      $$
+        BEFORE UPDATE OR DELETE ON public.ledger_entries
+        FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+        BEFORE TRUNCATE ON public.ledger_entries
+        FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+        BEFORE UPDATE OR DELETE ON public.transfers
+        FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+        BEFORE TRUNCATE ON public.transfers
+        FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+        BEFORE UPDATE OR DELETE ON public.audit_log
+        FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+        BEFORE TRUNCATE ON public.audit_log
+        FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+Migration AddAppendOnlyTriggers1792627200002 has been executed successfully.
+      version int NOT NULL,
+      config jsonb NOT NULL,
+      created_by uuid,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT risk_rule_sets_pkey PRIMARY KEY (version),
+      CONSTRAINT risk_rule_sets_created_by_fkey FOREIGN KEY (created_by)
+        REFERENCES users(id) ON DELETE RESTRICT
+    )
+      transfer_id uuid NOT NULL,
+      score int NOT NULL,
+      risk_level text NOT NULL,
+      rule_set_version int NOT NULL,
+      review_status text NOT NULL DEFAULT 'OPEN',
+      reviewed_by uuid,
+      reviewed_at timestamptz,
+      review_note text,
+      created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+      CONSTRAINT fraud_flags_pkey PRIMARY KEY (transfer_id),
+      CONSTRAINT fraud_flags_transfer_id_fkey FOREIGN KEY (transfer_id)
+        REFERENCES transfers(id) ON DELETE RESTRICT,
+      CONSTRAINT fraud_flags_rule_set_version_fkey FOREIGN KEY (rule_set_version)
+        REFERENCES risk_rule_sets(version) ON DELETE RESTRICT,
+      CONSTRAINT fraud_flags_reviewed_by_fkey FOREIGN KEY (reviewed_by)
+        REFERENCES users(id) ON DELETE RESTRICT,
+      CONSTRAINT fraud_flags_score_check CHECK (score >= 0),
+      CONSTRAINT fraud_flags_risk_level_check CHECK (risk_level IN ('MEDIUM','HIGH')),
+      CONSTRAINT fraud_flags_review_status_check CHECK
+        (review_status IN ('OPEN','CONFIRMED_FRAUD','FALSE_POSITIVE')),
+      CONSTRAINT fraud_flags_review_consistent CHECK (
+        (review_status = 'OPEN' AND reviewed_by IS NULL AND reviewed_at IS NULL)
+        OR
+        (review_status <> 'OPEN' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)
+      )
+    )
+      transfer_id uuid NOT NULL,
+      rule_id text NOT NULL,
+      weight int NOT NULL,
+      explanation text NOT NULL,
+      CONSTRAINT fraud_rule_hits_pkey PRIMARY KEY (transfer_id,rule_id),
+      CONSTRAINT fraud_rule_hits_transfer_id_fkey FOREIGN KEY (transfer_id)
+        REFERENCES fraud_flags(transfer_id) ON DELETE RESTRICT,
+      CONSTRAINT fraud_rule_hits_rule_id_check CHECK (rule_id IN ('R1','R2','R3','R4','R5','R6'))
+    )
+      ON fraud_flags (risk_level,created_at DESC) WHERE review_status = 'OPEN'
+      BEFORE UPDATE OR DELETE ON public.risk_rule_sets
+      FOR EACH ROW EXECUTE FUNCTION public.forbid_mutation()
+      BEFORE TRUNCATE ON public.risk_rule_sets
+      FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_mutation()
+Migration CreateFraudStorage1792713600000 has been executed successfully.
+      id bigint GENERATED ALWAYS AS IDENTITY CONSTRAINT notification_log_pkey PRIMARY KEY,
+      event_id uuid NOT NULL,
+      kind text NOT NULL CONSTRAINT notification_log_kind_check
+        CHECK (kind IN ('transfer_completed', 'account_status_changed')),
+      user_id uuid CONSTRAINT notification_log_user_id_fkey REFERENCES users(id) ON DELETE RESTRICT,
+      message text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+      'BR-13: Generic notification only; never disclose fraud reasons. Enforced by the notification writer.'
+Migration CreateNotificationLog1792886400000 has been executed successfully.
+      id bigint GENERATED ALWAYS AS IDENTITY,
+      started_at timestamptz NOT NULL,
+      finished_at timestamptz,
+      status text NOT NULL,
+      total_debit bigint,
+      total_credit bigint,
+      total_balance bigint,
+      mismatched_accounts int NOT NULL DEFAULT 0,
+      details jsonb,
+      CONSTRAINT reconciliation_runs_pkey PRIMARY KEY (id),
+      CONSTRAINT reconciliation_runs_status_check CHECK (status IN ('OK','MISMATCH','ERROR')),
+      CONSTRAINT reconciliation_runs_details_check CHECK (details IS NULL OR ((
+        jsonb_typeof(details) = 'array'
+        AND jsonb_path_query_array(details, 'strict $[*] ? (
+          @.type() == "object"
+          && exists (@.accountId ? (
+            @.type() == "string"
+            && @ like_regex "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))
+          && exists (@.balance ? (
+            @.type() == "string" && @ like_regex "^(0|-?[1-9][0-9]{0,18})$"
+            && @.bigint().string() == @))
+          && exists (@.ledgerBalance ? (
+            @.type() == "string" && @ like_regex "^(0|-?[1-9][0-9]{0,18})$"
+            && @.bigint().string() == @))
+          && !exists (@.keyvalue() ? (
+            @.key != "accountId" && @.key != "balance" && @.key != "ledgerBalance"))
+        )'::jsonpath, '{}'::jsonb, true) = details
+      ) IS TRUE))
+    )
+Migration CreateReconciliationRuns1793577600000 has been executed successfully.
+build ok
+risk-events=0 notification-events=0
+
+=== Start api only (no worker)
+{"status":"ok"}
+
+=== M-90-01 Only the api runs: 1 deposit + 100 transfers
+customer 1: {"id":"b8fd8bc1-932d-4fb2-9fba-e1b270434882","fullName":"Nguy?n Minh Anh","createdAt":"2026-11-08T12:39:17.890Z"} [200]
+customer 2: {"id":"0ce6fbdb-75b0-4ecf-a306-14c6e2f5753a","fullName":"Tr?n Thu H�","createdAt":"2026-11-08T12:39:18.243Z"} [200]
+accounts: 7201d572-a693-4157-b7eb-3a517719254a 12189c59-29d6-420a-b051-bd4bc89a4b7a
+deposit: {"transferId":"54991379-cbc7-49d8-803f-a05923d28508","status":"COMPLETED"} [201]
+transfers answered 201: 100 of 100
+SQL> SELECT count(*) AS unpublished FROM outbox_events WHERE published_at IS NULL
+101
+risk-events=0 notification-events=0 (api sends nothing)
+
+=== M-90-02 Start TWO workers at the same time
+SQL> SELECT count(*) AS unpublished FROM outbox_events WHERE published_at IS NULL
+0
+risk-events=101 (expect 101: consumed by nobody)
+SQL> SELECT count(*) AS notification_log FROM notification_log
+101
+SQL> SELECT count(*) AS processed FROM processed_events WHERE consumer='notification'
+101
+
+=== M-90-03 One more transfer while both workers run: latency published_at - created_at
+{"transferId":"e1a66439-0c6b-4719-b83c-22554111bf8b","status":"COMPLETED"} [201]
+SQL> SELECT round(extract(epoch FROM (o.published_at - t.created_at))::numeric, 3) AS seconds FROM outbox_events o JOIN transfers t ON t.id = (o.payload->>'transferId')::uuid ORDER BY o.id DESC LIMIT 1
+0.154
+SQL> SELECT round(max(extract(epoch FROM (o.published_at - o.created_at)))::numeric, 3) AS wait_seconds_of_the_slowest_row_incl_backlog_with_no_worker FROM outbox_events o
+36.961
+
+=== M-90-04 An event type with no route stays pending (seed SQL)
+SQL> INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id) VALUES (gen_random_uuid(),'Unknown',gen_random_uuid(),'{"eventType":"Unknown"}'::jsonb,gen_random_uuid())
+INSERT 0 1
+{"transferId":"f96fbdf4-462a-4077-8ee6-c8e218211a7c","status":"COMPLETED"} [201]
+SQL> SELECT event_type, published_at IS NULL AS pending FROM outbox_events WHERE published_at IS NULL
+Unknown|t
+risk-events=103 (expect 103 = 101 + 1 + 1; the Unknown row sends nothing)
+
+=== M-90-05 Ledger invariants
+$ npm run --silent check:invariants
+{"status":"PASS","totals":{"debit":"50200000","credit":"50200000","balance":"0"},"violations":[]}
+
+=== Worker logs (errors only)
+(end of worker error lines)
+MANUAL RUN FINISHED

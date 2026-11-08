@@ -1,6 +1,6 @@
 # DBS-90 · Outbox relay: lấy lô theo SKIP LOCKED, gửi theo bảng định tuyến, đánh dấu sau khi gửi
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-90-outbox-relay` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-90-outbox-relay` · **PR:** — · **Cập nhật:** 2026-11-08
 
 > **Ghi chú quy trình:** phiên chạy bởi techlead (`Techlead waiver`, xem cuối §8). Các gate G1–G4 do agent duyệt thay theo yêu cầu của techlead; mỗi gate vẫn có tin nhắn riêng ở cuối §6, §7 và §8. Relay đã có code từ PR #65 (commit `1d75e18`); task này kiểm lại DoD bằng test và đóng các chỗ lệch.
 
@@ -53,7 +53,7 @@ Message gửi đi: body là `payload` JSON của dòng; message attribute `event
 ## 3. Kiến trúc
 
 - **Vị trí:** module `outbox`, role `worker`; file chính `outbox-relay.service.ts`, `outbox-routing.ts`, `outbox-relay.module.ts`; `PollingLoop` ở `common/utils/polling-loop.ts`.
-- **Interface:** `OutboxRelayService.relayOnce(limit = RELAY_BATCH_SIZE): Promise<{ published: number; failure?: unknown }>`; hai hằng số mới xuất từ file service để test khẳng định NFR: `RELAY_BATCH_SIZE = 100` và `RELAY_IDLE_DELAY_MS = 500` (không xuất qua `index.ts`). `OUTBOX_ROUTES`, `SqsClient.send(queueUrl, body, attributes)` không đổi. Người gọi `relayOnce`: vòng lặp của service, `db-roles.db-spec.ts` (TC-ROLE-04), `outbox-relay.services-spec.ts`.
+- **Interface:** `OutboxRelayService.relayOnce(limit = RELAY_BATCH_SIZE): Promise<{ published: number; failure?: unknown }>`; hai hằng số mới xuất từ file service để test khẳng định NFR: `RELAY_BATCH_SIZE = 100` và `RELAY_IDLE_DELAY_MS = 500` (không xuất qua `index.ts`: TC-57-12 khóa API công khai của module; test import thẳng từ `outbox-relay.service`). `OUTBOX_ROUTES`, `SqsClient.send(queueUrl, body, attributes)` không đổi. Người gọi `relayOnce`: vòng lặp của service, `db-roles.db-spec.ts` (TC-ROLE-04), `outbox-relay.services-spec.ts`.
 - **Dữ liệu:** `outbox_events` (`id bigserial`, `event_type`, `payload jsonb`, `published_at`), index `outbox_unpublished_idx ON (id) WHERE published_at IS NULL` phục vụ câu chọn. Role `dbs_worker`: `SELECT, DELETE` và `UPDATE (published_at)` (`infra/scripts/db-roles.sql`).
 - **Ranh giới transaction:** đây là **ngoại lệ duy nhất** của quy tắc «không gọi SQS trong transaction» (CONTRIBUTING §5): transaction chỉ khóa hàng `outbox_events`, không đụng hàng tài khoản; `maxRetries: 0` (không dùng retry deadlock của `TransactionService`) và `idleInTransactionTimeoutMs = 60 s`. Hạn chế đã biết, xử lý ở DBS-91: không có giới hạn thời gian cho cả lô.
 - **Sơ đồ:** đã có ở `docs/03` (sequence «Relay: BEGIN, SELECT … SKIP LOCKED … COMMIT»); giữ nguyên.
@@ -126,3 +126,64 @@ Kịch bản sự cố (tắt ElasticMQ, kill worker) thuộc DBS-91.
 | 4 | `backend/src/modules/outbox/README.md`, `docs/BACKLOG.md` (BL-180), `docs/features/README.md`, feature doc §8–§9, `manual-test.txt`, ảnh | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(outbox): record DBS-90 evidence and hand-offs` |
 
 **Rà soát DoD và giới hạn:** DoD 1 → TC-90-01, 02, 04; DoD 2 → TC-90-03, 05, 06, 07; DoD 3 → TC-90-08, 09; DoD 4 quy trình. Mọi chỗ lệch nêu ở §1 có hàng trong bảng; không có file nào ngoài bảng. **Rủi ro và cách lùi:** đổi lô 50 → 100 làm transaction của relay giữ lâu hơn (xử lý ở DBS-91); lùi bằng `git revert` bước 1. **Quyết định ở G3** (agent duyệt thay techlead, 2026-11-08): duyệt kế hoạch. Trạng thái → Plan approved.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (Node 24.22.2, PostgreSQL 17 và ElasticMQ thật):
+
+```text
+npm run lint:check && npm run typecheck && npm run format:check && npm run build   -> đạt
+npm test                                         Test Suites: 69 passed | Tests: 1129 passed
+npm run test:services (outbox-relay)             Tests: 15 passed, 15 total (trước task: 8)
+npm run test:db (db-roles)                       Tests: 4 passed, 4 total
+npm run test:e2e                                 Test Suites: 15 passed | Tests: 153 passed
+node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs   -> 0 link hỏng
+```
+
+  Không có `.skip`, `.only`, `.todo`.
+
+- **Đối chiếu test case:**
+
+| ID | Test (`test/services/outbox-relay.services-spec.ts`) | Đạt? |
+|---|---|---|
+| TC-90-01 | `TC-OBX-01 routes each event to every queue…` | đạt |
+| TC-90-02 | `TC-OBX-04 an event type without a route stays pending…` | đạt |
+| TC-90-03 | `TC-90-03 two relays really overlap…`. Đột biến: bỏ `SKIP LOCKED` → đỏ (`lock timeout`); đã khôi phục | đạt |
+| TC-90-04 | `TC-90-04 messages are sent before any row is visible as published` | đạt (chứng minh không có dòng nào hiện là đã gửi khi 5 message đã ra; không tách được «UPDATE trước hay sau» trong cùng transaction vì chưa COMMIT thì phiên khác không thấy, nên đây là bằng chứng về thứ tự gửi và COMMIT) |
+| TC-90-05 | `TC-90-05 the poll interval is within one second…` | đạt |
+| TC-90-06 | `TC-90-06 in the worker role the relay runs by itself…` | đạt |
+| TC-90-07 | `TC-90-07 in the api role the relay does not run`. Đột biến: bỏ `runsWorkers()` → đỏ; đã khôi phục | đạt |
+| TC-90-08 | `TC-90-08 a real deposit and transfer reach each queue exactly once` | đạt |
+| TC-90-09 | `TC-90-09 a full batch is 100 events…` | đạt |
+| Quy trình | DoD 4 | chờ PR |
+
+  9/9 case đạt đủ độ sâu, 0 đơn giản hóa (ghi chú ở TC-90-04 là giới hạn của kỹ thuật, không phải rút gọn).
+
+- **Test thủ công** (api + **hai** worker là tiến trình `node dist/main.js` thật, PostgreSQL 17 và ElasticMQ của docker compose; chạy trên commit `0f3d249`, SHA ở dòng đầu [manual-test.txt](screenshots/DBS-90/manual-test.txt)):
+
+| Bước | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-90-01 | nạp 201; 100 lệnh chuyển: `transfers answered 201: 100 of 100`; `unpublished = 101`; `risk-events=0 notification-events=0` | đạt |
+| M-90-02 | bật hai worker: `unpublished = 0`; `risk-events=101`; `notification_log = 101`; `processed_events = 101` | đạt |
+| M-90-03 | lệnh thứ 101: `published_at − created_at = 0,154 s` (lần chạy trước 0,289 s); dòng chờ lâu nhất 36,9 s chính là số tồn đọng lúc chưa có worker | đạt |
+| M-90-04 | dòng `Unknown` (seed SQL) ở lại `pending = t`, lệnh chuyển kế tiếp vẫn đi: `risk-events=103` (101 + 1 + 1) | đạt |
+| M-90-05 | `{"status":"PASS",…,"violations":[]}` | đạt |
+
+  Lưu ý môi trường: tên khách tiếng Việt qua `curl` trên Windows bị hỏng ký tự trong output (`Nguy?n`); không liên quan DBS-90. Lần chạy đầu thất bại vì cấu hình của chính script (`LOG_LEVEL=info` không hợp lệ, worker không khởi động); đã sửa và chạy lại từ database mới; file chỉ chứa lần chạy cuối. Chưa chạy: kịch bản sự cố (tắt ElasticMQ, kill worker) thuộc DBS-91.
+
+- **Phạm vi so với §7:** `git diff --stat main...HEAD` gồm `outbox-relay.service.ts`, `outbox-relay.services-spec.ts`, README outbox, BACKLOG, features README, feature doc và thư mục `screenshots/DBS-90/`; không có file ngoài kế hoạch.
+- **Ảnh chụp:** ảnh dựng từ output thật của lần chạy cuối (không phải chụp màn hình terminal):
+
+![Kết quả test thủ công DBS-90](screenshots/DBS-90/01-manual-test-results.png)
+
+- **Lệch so với kế hoạch:** (1) `RELAY_*` không xuất qua `index.ts` như lúc đầu định xuất, vì TC-57-12 khóa API công khai; test import thẳng từ file service. Không đổi phạm vi. (2) TC-90-04 chứng minh thứ tự gửi–COMMIT chứ không thể phân biệt thứ tự UPDATE trong transaction (giải thích ở bảng trên).
+- **Bàn giao:** DBS-91 nhận các ca sự cố (lỗi ở queue thứ hai, `UPDATE`/`COMMIT` lỗi sau khi gửi, sự kiện lỗi ở đầu hàng, giới hạn thời gian của lô); **BL-180** (DB-level bảo vệ «không xóa dòng chưa gửi»).
+
+## 9. Tài liệu đã cập nhật
+
+- `backend/src/modules/outbox/README.md`: lô 100 sự kiện.
+- `docs/BACKLOG.md`: thêm **BL-180**.
+- `docs/features/README.md`: dòng DBS-90.
+- Không đổi ADR, `_shared`, env, `ErrorCode`, event, schema.
+
+**Quyết định ở G4** (agent duyệt thay techlead, 2026-11-08): duyệt bàn giao; không có bước «chưa chạy» ngoài kịch bản sự cố đã chuyển sang DBS-91. Ảnh là ảnh dựng từ output thật, được chấp nhận thay cho ảnh chụp màn hình.
