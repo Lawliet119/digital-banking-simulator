@@ -14,7 +14,7 @@
   6. PR đã merge vào main (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ.
 - **Phụ thuộc:**
   - DBS-79 — board Done; thực tế `main` đã có [TC-79-01/02/07/08](../../backend/test/db/customer-transfers.db-spec.ts) và feature doc [DBS-79](DBS-79-idempotency-replay.md). TC-79-07 đã dùng `Promise.all` cho 10 request một key, kiểm 1 transfer/2 bút toán/10 body giống nhau; TC-79-01/02 phủ replay và key dùng sai body.
-  - DBS-69 — board Done; [`checkLedgerInvariants`](../../backend/test/support/invariants.ts) được gọi trong `afterEach` của suite chuyển tiền và kiểm đủ các bất biến. 
+  - DBS-69 — board Done; [`checkLedgerInvariants`](../../backend/test/support/invariants.ts) được gọi trong `afterEach` của suite chuyển tiền và kiểm đủ các bất biến.
   - DBS-39 — board Done; [harness database tạm](../../backend/test/support/temp-database.ts) và Testcontainers/Postgres thật có trong repo, nhưng hiện không chạy được vì Docker daemon tắt.
 - **Đã có gì:**
   - Nội dung board “chưa có test đồng thời” đã lạc hậu so với source hiện tại: các assertion cốt lõi của DoD #1–3 có sẵn ở TC-79, không nên sao chép một test cùng hành vi chỉ để đổi mã ticket.
