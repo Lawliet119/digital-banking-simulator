@@ -21,10 +21,10 @@
 - **Ngoài phạm vi:** WAF (tuần 6–8, hạ tầng); rate limit cho đăng nhập (Cognito lo); cấu hình cảnh báo CloudWatch cho `redis_fallback_total` (Platform).
 - **Quyết định ở G1 (agent tự duyệt):**
   1. **Cửa sổ cố định theo phút.** Khóa `rl:{ip|user}:{id}:{phút epoch}`, `INCR` + `EXPIRE 60` (docs/03 R-1: «Counter theo cửa sổ, INCR + EXPIRE»). Lý do không dùng `RedisClient.incr` với một khóa duy nhất: `EXPIRE` chạy mỗi lần nên cửa sổ trượt mãi khi khách gửi đều đặn. Đánh đổi biết trước: cửa sổ cố định cho phép tối đa gấp đôi (cuối phút + đầu phút sau). Chấp nhận ở v1.
-  2. **Hai tầng.** (a) `IpRateLimitGuard` là guard toàn cục, đăng ký **trước** `JwtAuthGuard`: đếm mọi yêu cầu theo IP kể cả chưa xác thực (đỡ tốn chi phí xác minh JWT khi bị tràn). (b) `TransferRateLimitGuard` gắn ở `POST /v1/transfers`, chạy sau JWT/Roles nên biết `userId` nội bộ; chặn trước mọi truy vấn DB.
+  2. **Hai tầng.** (a) `IpRateLimitMiddleware` (trong `RateLimitModule`, áp cho mọi đường dẫn) đếm mọi yêu cầu theo IP, kể cả chưa xác thực và kể cả đường dẫn không tồn tại; nó là middleware chứ không phải guard vì guard chỉ chạy với route đã khớp (phát hiện khi chạy test, §8 Lệch 1), và chạy trước `JwtAuthGuard` nên lũ yêu cầu không token không tốn xác minh JWT. (b) `TransferRateLimitGuard` là guard toàn cục đăng ký **sau** `RolesGuard`, chỉ tác dụng với route gắn `@LimitTransfers()` (`POST /v1/transfers`), nên biết `userId` nội bộ; chặn trước mọi truy vấn DB.
   3. **Fail-open tuyệt đối.** Mọi lỗi từ Redis (`RedisUnavailableError`: `TIMEOUT`, `CIRCUIT_OPEN`, `UNAVAILABLE`, `COMMAND_FAILED`) hoặc lỗi bất ngờ trong bộ đếm → cho qua, ghi một dòng log cảnh báo chỉ có mã lý do (không khóa, không IP). `redis_fallback_total` đã tăng sẵn trong `RedisClient`. Redis chậm bị cắt ở 50 ms nên mỗi yêu cầu chỉ chậm thêm tối đa ~50 ms; breaker mở thì không chậm thêm.
   4. **IP lấy từ `request.ip`** (Express, theo `TRUST_PROXY_HOPS`); bỏ tiền tố `::ffff:`; `hops = 0` thì bỏ qua `X-Forwarded-For` (không giả mạo được). Khóa Redis chứa IP, TTL 60 giây; IP đã nằm trong log ALB nên không thêm dữ liệu mới, nhưng ghi ở §6.
-  5. **Bỏ qua health.** `HealthController` gắn `@SkipRateLimit()`: ALB và probe gọi dày từ ít IP.
+  5. **Bỏ qua health.** Middleware bỏ qua đường dẫn `/health` và `/health/*` (theo `originalUrl`): ALB và probe gọi dày từ ít IP.
   6. **429** là `HttpException` với `errorCode: RATE_LIMITED`, `Retry-After` = số giây đến hết cửa sổ (1–60), qua `ProblemDetailsFilter` (RFC 7807). Yêu cầu bị chặn vẫn tăng bộ đếm.
   7. Thêm counter `rate_limited_total{scope}` (docs/03 §15 liệt kê «số request bị rate limit»). Không đổi schema, `ErrorCode`, env, event.
 
@@ -48,7 +48,7 @@
 
 ## 3. Kiến trúc
 
-- **Vị trí:** `src/common/rate-limit/` (dùng bởi mọi module HTTP): `rate-limiter.ts` (`RateLimiter`), `rate-limit.metrics.ts`, `ip-rate-limit.guard.ts`, `transfer-rate-limit.guard.ts`, `skip-rate-limit.decorator.ts`, `rate-limit.module.ts` (`@Global`, nhập `RedisModule`), `client-ip.ts`. Sửa: `app.module.ts` (đăng ký `IpRateLimitGuard` trước `JwtAuthGuard` và nạp `RateLimitModule` khi `runsHttp()`), `health.controller.ts` (`@SkipRateLimit()`), `transfers.controller.ts` (`@UseGuards(TransferRateLimitGuard)` ở `POST`), `docs`.
+- **Vị trí:** `src/common/rate-limit/` (dùng bởi mọi module HTTP): `rate-limiter.ts` (`RateLimiter`), `rate-limit.metrics.ts`, `ip-rate-limit.middleware.ts`, `transfer-rate-limit.guard.ts`, `limit-transfers.decorator.ts`, `rate-limited.exception.ts`, `rate-limit.module.ts` (`@Global`, nhập `RedisModule`, gắn middleware cho mọi route), `client-ip.ts`. Sửa: `app.module.ts` (nạp `RateLimitModule` khi `runsHttp()` và đăng ký `TransferRateLimitGuard` sau `RolesGuard`), `transfers.controller.ts` (`@LimitTransfers()` ở `POST`), `docs`.
 - **Interface:**
 
 ```ts
@@ -65,7 +65,7 @@ class RateLimiter {
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant IP as IpRateLimitGuard
+    participant IP as IpRateLimitMiddleware
     participant J as JwtAuthGuard + RolesGuard
     participant T as TransferRateLimitGuard
     participant R as Redis
@@ -100,7 +100,7 @@ Unit không cần Redis; e2e dùng Valkey + PostgreSQL 17 thật (Testcontainers
 | TC-89-10 | DoD #2 | e2e Valkey | Redis **chậm** (proxy trễ 250 ms > timeout 50 ms): yêu cầu qua, `redis_fallback_total` tăng, mỗi yêu cầu chậm không quá ~1 giây | 200 |
 | TC-89-11 | DoD #2 | e2e Valkey | Redis phục hồi: giới hạn lại có hiệu lực (sau khi breaker đóng) | 429 |
 | TC-89-12 | thêm | e2e | `rate_limited_total{scope}` tăng đúng khi chặn; Swagger `POST /v1/transfers` có 429 | — |
-| TC-89-13 | thêm | unit | Mọi route HTTP trong `src/` chịu giới hạn IP: kiểm cấu hình `AppModule` có `IpRateLimitGuard` đứng trước `JwtAuthGuard` | — |
+| TC-89-13 | thêm | e2e | `AppModule` thật: guard toàn cục đúng thứ tự JWT, Roles, TransferRateLimit; `RateLimitModule` (có middleware IP) chỉ ở process HTTP; chỉ `POST /v1/transfers` mang `@LimitTransfers()` | — |
 | Quy trình | DoD #5 | — | Merge, CI, Dev review | waiver |
 
 ## 5. Test thủ công
@@ -124,9 +124,9 @@ Unit không cần Redis; e2e dùng Valkey + PostgreSQL 17 thật (Testcontainers
 | # | Mức | Phát hiện | Xử lý |
 |---|---|---|---|
 | 1 | blocking | `RedisClient.incr` đặt lại `EXPIRE` mỗi lần: dùng một khóa cố định thì cửa sổ trượt vô hạn, khách đều đặn 1 yêu cầu/10 giây sẽ bị chặn dù chỉ 6/phút | Khóa theo phút (quyết định 1); TC-89-01 |
-| 2 | should-fix | Guard IP chạy sau JWT thì lũ yêu cầu không token vẫn tốn xác minh JWKS | Đăng ký trước `JwtAuthGuard` (quyết định 2); TC-89-13 |
+| 2 | should-fix | Tầng IP chạy sau JWT thì lũ yêu cầu không token vẫn tốn xác minh JWKS; tầng IP là guard thì không đếm đường dẫn không tồn tại | Middleware chạy trước routing và JWT (quyết định 2); TC-89-05, TC-89-13 |
 | 3 | should-fix | `TRUST_PROXY_HOPS` sai làm mọi khách chung một IP (ALB) hoặc cho phép giả mạo IP | Dùng `request.ip` của Express; TC-89-08 |
-| 4 | should-fix | Health bị đếm: ALB khóa chính nó | `@SkipRateLimit()`; TC-89-07 |
+| 4 | should-fix | Health bị đếm: ALB khóa chính nó | Middleware bỏ qua `/health`; TC-89-07 |
 | 5 | should-fix | Một lỗi bất ngờ trong bộ đếm không được thành 500 | Bắt mọi lỗi, cho qua; TC-89-03 |
 | 6 | minor | Khóa chứa IP (dữ liệu cá nhân nhẹ) vào Redis | TTL 60 s; IP đã có ở log ALB; ghi nhận, không băm vì cần debug được |
 | 7 | minor | Cửa sổ cố định cho phép ~gấp đôi quanh ranh giới phút | Chấp nhận ở v1 (quyết định 1); WAF 1.000/5 phút ở biên bổ sung |
