@@ -1,6 +1,6 @@
 # DBS-89 · Rate limit: 10 lệnh chuyển/phút/khách và 100 yêu cầu/phút/IP bằng Redis
 
-> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-89-rate-limit` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-89-rate-limit` · **PR:** [#78](https://github.com/Lawliet119/digital-banking-simulator/pull/78) · **Cập nhật:** 2026-11-08
 >
 > Techlead waiver: G1–G4 do agent tự duyệt theo yêu cầu của techlead (`huyasuo1109@gmail.com`); không có Dev khác review trước merge; không có ảnh PNG, bằng chứng là output thô; domain review do chính agent làm, không dùng subagent (§6).
 
