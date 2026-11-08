@@ -1,6 +1,6 @@
 # DBS-84 · Sync guard bước 2: hạn mức ngày theo giờ Việt Nam, ≤ 5 ms
 
-> **Status:** Implemented · **Vai:** Dev (ledger; #4 review theo ghi chú 12/10 trên board) · **Nhánh:** `feat/DBS-84-daily-limit-vn-time` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev (ledger; #4 review theo ghi chú 12/10 trên board) · **Nhánh:** `feat/DBS-84-daily-limit-vn-time` · **PR:** [#74](https://github.com/Lawliet119/digital-banking-simulator/pull/74) · **Cập nhật:** 2026-11-08
 >
 > Techlead waiver: G1–G4 do agent tự duyệt theo yêu cầu của techlead (`huyasuo1109@gmail.com`); không có Dev khác (kể cả #4) review trước merge; không có ảnh PNG, bằng chứng là output thô; domain review do chính agent làm, không dùng subagent (§6).
 
