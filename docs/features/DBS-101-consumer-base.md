@@ -1,0 +1,124 @@
+# DBS-101 · ConsumerBase: idempotent, message hỏng vào DLQ ngay, lỗi tạm thời retry tối đa 5 lần
+
+> **Status:** Plan approved (G1–G3 agent tự duyệt) · **Vai:** Dev · **Nhánh:** `feat/DBS-101-consumer-base` · **PR:** — · **Cập nhật:** 2026-11-09
+
+## 1. Bối cảnh
+
+- **Task:** Story, Tuần 4, Highest, Demo 3. **Expect:** Mọi consumer dùng chung một khung xử lý đúng một lần về hiệu ứng.
+- **DoD:**
+  1. `ConsumerBase.handle(message)`: trong MỘT transaction ghi `processed_events(consumer, event_id)` và tác động nghiệp vụ; cùng eventId nhận 3 lần → 1 hiệu ứng (test).
+  2. Message sai schema/hỏng định dạng → sang DLQ ngay ở lần nhận đầu, không retry 5 lần; lỗi tạm thời → retry rồi sang DLQ sau 5 lần.
+  3. Consumer này lỗi hoặc chết không ảnh hưởng consumer kia (mỗi consumer một queue).
+  4. Chỉ khởi động khi `runsWorkers()`; `correlationId` lấy từ message đặt vào AsyncLocalStorage.
+  5. PR đã merge vào main (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ.
+- **Phụ thuộc:** DBS-90 (relay), DBS-77 (`libs/sqs`), DBS-24 (`@common/events`) đều có trên `main`.
+- **Đã có:** `NotificationConsumer` (DBS-96) tự viết khung riêng (poll, `validateEvent`, `processed_events`), nhưng sai schema chỉ "không ack" nên phải nhận 5 lần mới vào DLQ; chưa có test cho nó. `libs/sqs.processBatch` chỉ chuyển DLQ ngay khi body không phải JSON. **Baseline:** lint, typecheck sạch; unit 75 suite / 1.413 test xanh.
+- **Ngoài phạm vi:** backoff giữa các lần retry và việc ghi `notification_log` đúng người nhận (DBS-102); consumer risk (DBS-111). `NotificationConsumer` chuyển sang `ConsumerBase` nhưng giữ hành vi ghi bản ghi hiện tại.
+- **Backlog:** BL-010 (chính sách `UNKNOWN_EVENT_TYPE`) lấy vào phạm vi. BL-115 (biến URL DLQ trong config) giữ quy ước `<url queue>-dlq`, không đổi env.
+- **Quyết định ở G1 (agent tự quyết):** (1) đặt khung ở `src/common/messaging` vì dùng chung cho mọi module worker; (2) `UNKNOWN_EVENT_TYPE` mặc định đi DLQ ngay, consumer nào muốn bỏ qua phải khai báo `unknownEventPolicy = 'acknowledge'`.
+
+## 2. Hành vi
+
+| Tình huống | Kết quả |
+|---|---|
+| Event hợp lệ, lần đầu | Một transaction: `INSERT processed_events … ON CONFLICT DO NOTHING`, rồi `apply(event, manager)`; commit; xóa message |
+| Cùng `eventId` lần 2, 3 | Claim không chèn được dòng → không gọi `apply`, xóa message; còn đúng 1 hiệu ứng |
+| `apply` ném lỗi | Rollback cả claim; message không bị xóa, giao lại; lần sau xử lý lại từ đầu |
+| Body không phải JSON | `libs/sqs` chuyển nguyên vào DLQ ở lần nhận đầu (đã có từ DBS-77) |
+| JSON sai schema (thiếu field, sai kiểu, loại sự kiện lạ) | `PoisonMessageError` → chuyển vào DLQ ngay ở lần nhận đầu rồi xóa nguồn; consumer tiếp tục message sau |
+| Lỗi tạm thời ở lần nhận 1..4 | Không xóa; SQS giao lại sau visibility timeout |
+| Lỗi ở lần nhận thứ 5 (`ApproximateReceiveCount` ≥ 5) | Chuyển DLQ và xóa nguồn, không phụ thuộc cấu hình redrive của queue |
+| `APP_ROLE=api` | `onApplicationBootstrap` không bật vòng poll |
+
+`correlationId` của event được đặt vào `PinoLogger.runInContext` (AsyncLocalStorage) quanh `apply`, nên log và `OutboxWriter` bên trong thấy đúng id.
+
+## 3. Kiến trúc
+
+- **Vị trí:** `backend/src/common/messaging/consumer-base.ts` (chạy ở `worker`); `PoisonMessageError` và nhánh DLQ trong `libs/sqs/sqs.client.ts` (`processBatch`).
+- **Interface:** `abstract class ConsumerBase { consumerName; queueUrl(); apply(event, manager); onCommitted?(event); unknownEventPolicy; handle(body, message?); consumeOnce(wait?) }`. Người gọi `dlqUrlFor` (đang nằm ở notification): `outbox-relay.services-spec`, notification index; giữ re-export.
+- **Dữ liệu:** `processed_events(consumer, event_id)` (PK). Không đổi schema.
+- **Transaction:** claim và `apply` trong một `TransactionService.run`; không gọi SQS trong transaction (xóa message sau commit, do `processBatch`).
+
+```mermaid
+sequenceDiagram
+  participant Q as SQS queue
+  participant C as ConsumerBase
+  participant DB as PostgreSQL
+  participant D as DLQ
+  Q->>C: message (processBatch)
+  C->>C: validateEvent
+  alt sai schema
+    C-->>D: PoisonMessageError → forward + xóa nguồn
+  else hợp lệ
+    C->>DB: BEGIN; claim processed_events
+    alt đã có
+      C-->>Q: ack (không apply)
+    else mới
+      C->>DB: apply + COMMIT
+      C-->>Q: ack
+    end
+  end
+```
+
+- **Thay đổi cấp hệ thống:** README của `libs/sqs` và `notification`; không ADR, không env.
+
+## 4. Test cases tự động
+
+| ID | DoD | Lớp | Given · When · Then |
+|---|---|---|---|
+| TC-101-01 | 1 | db (PG thật) | Cùng eventId qua `handle` 3 lần → 1 dòng `processed_events`, `apply` chạy 1 lần |
+| TC-101-02 | 1 | db | Hai `handle` song song cùng eventId → đúng 1 hiệu ứng |
+| TC-101-03 | 1 | db | `apply` ném lỗi → không còn dòng `processed_events`; gọi lại thì xử lý thành công |
+| TC-101-04 | 2 | unit | Body sai schema / loại lạ → `PoisonMessageError`, không gọi transaction |
+| TC-101-05 | 2 | unit | `unknownEventPolicy='acknowledge'` → trả về, không ném, không `apply` |
+| TC-101-06 | 2 | unit | Lỗi tạm thời ở lần nhận 4 → ném lại lỗi gốc; ở lần nhận 5 → `PoisonMessageError` |
+| TC-101-07 | 2 | services (ElasticMQ) | Message JSON sai schema → vào DLQ ở lần nhận đầu, message hợp lệ sau đó vẫn được xử lý |
+| TC-101-08 | 2 | services | Handler luôn lỗi → sau đúng 5 lần nhận, message nằm trong DLQ và nguồn rỗng |
+| TC-101-09 | 3 | services | Hai consumer hai queue: consumer A luôn lỗi, consumer B xử lý hết message của nó |
+| TC-101-10 | 4 | unit | `APP_ROLE=api` không bật vòng poll; `worker` bật |
+| TC-101-11 | 4 | unit | Bên trong `apply`, `logger.logger.bindings().correlationId` bằng `correlationId` của event; ra ngoài thì không còn |
+| TC-101-12 | 2 | unit (libs/sqs) | `processBatch`: handler ném `PoisonMessageError` → DLQ có body gốc, nguồn bị xóa, `dead-lettered`; DLQ lỗi → `failed`, nguồn giữ |
+| Quy trình | 5 | — | CI, Dev review, merge |
+
+## 5. Test thủ công
+
+Cần `docker compose up -d` (PostgreSQL, ElasticMQ), `backend/` đã `npm ci`. Script `backend/test/manual/consumer-base.manual.ts`, chạy `npx ts-node -r tsconfig-paths/register test/manual/consumer-base.manual.ts`: tạo DB tạm + hai queue tạm (consumer, DLQ), dựng `ConsumerBase` thật.
+
+| Bước | Việc làm | Mong đợi |
+|---|---|---|
+| M-101-01 | Gửi 1 event hợp lệ 3 lần (cùng eventId), chạy `consumeOnce` | 3 message được xóa, `processed_events` 1 dòng, hiệu ứng 1 |
+| M-101-02 | Gửi `{"eventType":"TransferCompleted"}` (thiếu field) | DLQ có 1 message ở lần nhận đầu, nguồn rỗng |
+| M-101-03 | Gửi event hợp lệ nhưng `apply` ném lỗi | Sau 5 lần nhận message nằm trong DLQ, không có dòng `processed_events` |
+
+## 6. Domain review
+
+Không có subagent review riêng cho task này (task hạ tầng, không chạm tiền); agent tự phản biện bằng danh sách:
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | should-fix | Nếu claim và `apply` ở hai transaction, crash giữa chừng làm mất hiệu ứng | Một transaction (§3) |
+| 2 | should-fix | Phụ thuộc vào redrive của hạ tầng để "retry tối đa 5 lần" | Thêm chốt cứng ở `ApproximateReceiveCount` ≥ 5 (TC-101-06/08) |
+| 3 | minor | `UNKNOWN_EVENT_TYPE` khi triển khai cuốn chiếu (BL-010) | Mặc định DLQ, có chính sách `acknowledge` (TC-101-05) |
+| 4 | minor | Không log body/lỗi chứa dữ liệu | Chỉ log `safeErrorMetadata` và id |
+
+**Techlead waiver:** domain review bằng subagent riêng bỏ qua.
+
+## 7. Kế hoạch triển khai
+
+| Bước | File | Test trước | Đỏ | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `libs/sqs/sqs.client.ts` (+spec) | TC-101-12 | `PoisonMessageError` chưa tồn tại | `npm test -- sqs.client` | `feat(sqs): dead-letter a poison message at once` |
+| 2 | `common/messaging/consumer-base.ts` (+spec) | TC-101-04/05/06/10/11 | thiếu module | `npm test -- consumer-base` | `feat(messaging): ConsumerBase` |
+| 3 | `test/db/consumer-base.db-spec.ts` | TC-101-01/02/03 | — | `npm run test:db -- consumer-base` | cùng bước 2 |
+| 4 | `notification.consumer.ts` dùng khung; `test/services/consumer-base.services-spec.ts` + CI step | TC-101-07/08/09 | — | `npm run test:services -- --runInBand --runTestsByPath test/services/consumer-base.services-spec.ts` | `refactor(notification): build on ConsumerBase` |
+| 5 | manual, README, feature doc, index | M-101-01..03 | — | script manual | `docs(messaging): DBS-101 handover` |
+
+Rủi ro: đổi `NotificationConsumer` làm vỡ `outbox-relay.services-spec` → chạy lại spec đó. Lùi: revert PR, `NotificationConsumer` cũ vẫn chạy được.
+
+## 8. Kết quả
+
+(điền khi bàn giao)
+
+## 9. Tài liệu đã cập nhật
+
+(điền khi bàn giao)

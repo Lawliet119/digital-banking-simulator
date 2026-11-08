@@ -1,5 +1,5 @@
 import { SQSClient as AwsClient } from '@aws-sdk/client-sqs';
-import { SqsClient } from './sqs.client';
+import { PoisonMessageError, SqsClient } from './sqs.client';
 import { Test } from '@nestjs/testing';
 import { sqsConfig } from '@config/sqs.config';
 import { SqsModule } from './sqs.module';
@@ -115,5 +115,39 @@ describe('DBS-77 SQS transport', () => {
     ]);
     send.mockResolvedValueOnce({});
     expect(await client.processBatch('queue', 'dlq', () => Promise.resolve())).toEqual([]);
+  });
+it('TC-101-12 a handler that throws PoisonMessageError sends the raw body to the DLQ and deletes the source', async () => {
+    const body = '{"eventType":"TransferCompleted"}';
+    send
+      .mockResolvedValueOnce({
+        Messages: [{ MessageId: 'poison', Body: body, ReceiptHandle: 'receipt' }],
+      })
+      .mockResolvedValue({});
+    const results = await client.processBatch(
+      'source',
+      'dlq',
+      () => Promise.reject(new PoisonMessageError('invalid schema')),
+      { waitTimeSeconds: 0 },
+    );
+    expect(results).toEqual([{ messageId: 'poison', status: 'dead-lettered' }]);
+    expect(send.mock.calls[1][0]).toMatchObject({ input: { QueueUrl: 'dlq', MessageBody: body } });
+    expect(send.mock.calls[2][0]).toMatchObject({
+      input: { QueueUrl: 'source', ReceiptHandle: 'receipt' },
+    });
+  });
+  it('TC-101-12 keeps the source when the DLQ send fails for a poison message', async () => {
+    send
+      .mockResolvedValueOnce({
+        Messages: [{ MessageId: 'poison', Body: '{}', ReceiptHandle: 'receipt' }],
+      })
+      .mockRejectedValueOnce(new Error('down'));
+    const results = await client.processBatch(
+      'source',
+      'dlq',
+      () => Promise.reject(new PoisonMessageError('invalid schema')),
+      { waitTimeSeconds: 0 },
+    );
+    expect(results).toEqual([{ messageId: 'poison', status: 'failed' }]);
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });

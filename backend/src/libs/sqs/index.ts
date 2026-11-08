@@ -1,5 +1,6 @@
 export {
   SqsClient,
+  PoisonMessageError,
   type ReceiveOptions,
   type SendOptions,
   type BatchResult,

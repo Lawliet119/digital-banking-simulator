@@ -24,6 +24,18 @@ export interface BatchResult {
   status: 'acknowledged' | 'dead-lettered' | 'failed';
 }
 
+/**
+ * Thrown by a handler for a message that can never succeed (it breaks the schema, or it used up its
+ * retries): `processBatch` sends it to the DLQ at once instead of leaving it to be received again.
+ * The message text is a fixed sentence; it never carries the body.
+ */
+export class PoisonMessageError extends Error {
+  constructor(reason: string, options?: { cause?: unknown }) {
+    super(reason, options);
+    this.name = 'PoisonMessageError';
+  }
+}
+
 /** Transport only: consumers own transactions, event validation, dedup and worker lifecycle. */
 @Injectable()
 export class SqsClient implements OnModuleDestroy {
@@ -111,25 +123,16 @@ export class SqsClient implements OnModuleDestroy {
           try {
             body = JSON.parse(message.Body) as unknown;
           } catch {
-            // Preserve raw message attributes, including types unknown to this adapter.
-            await this.sdk.send(
-              new SendMessageCommand({
-                QueueUrl: dlq,
-                MessageBody: message.Body,
-                MessageAttributes: message.MessageAttributes,
-              }),
-            );
-            // Forwarding already succeeded; report dead-lettered even if this delete fails,
-            // so callers don't mistake a forwarded message for one nothing happened to.
-            try {
-              await this.acknowledge(queue, message);
-            } catch {
-              // Source stays visible and will redeliver; next attempt forwards to the DLQ
-              // again, which the DLQ consumer must tolerate (at-least-once, see README).
-            }
+            await this.deadLetter(queue, dlq, message);
             return result('dead-lettered');
           }
-          await handler(body, message);
+          try {
+            await handler(body, message);
+          } catch (error) {
+            if (!(error instanceof PoisonMessageError)) throw error;
+            await this.deadLetter(queue, dlq, message);
+            return result('dead-lettered');
+          }
           await this.acknowledge(queue, message);
           return result('acknowledged');
         } catch {
@@ -137,6 +140,26 @@ export class SqsClient implements OnModuleDestroy {
         }
       }),
     );
+  }
+
+  /** Copies the raw message to the DLQ, then deletes the source; a DLQ send failure propagates. */
+  private async deadLetter(queue: string, dlq: string, message: Message): Promise<void> {
+    // Preserve raw message attributes, including types unknown to this adapter.
+    await this.sdk.send(
+      new SendMessageCommand({
+        QueueUrl: dlq,
+        MessageBody: message.Body,
+        MessageAttributes: message.MessageAttributes,
+      }),
+    );
+    // Forwarding already succeeded; report dead-lettered even if this delete fails,
+    // so callers don't mistake a forwarded message for one nothing happened to.
+    try {
+      await this.acknowledge(queue, message);
+    } catch {
+      // Source stays visible and will redeliver; next attempt forwards to the DLQ
+      // again, which the DLQ consumer must tolerate (at-least-once, see README).
+    }
   }
 
   onModuleDestroy(): void {
