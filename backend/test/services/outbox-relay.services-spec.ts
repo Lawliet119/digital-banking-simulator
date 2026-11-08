@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
@@ -7,6 +8,8 @@ import { NotificationConsumer, dlqUrlFor } from '@modules/notification';
 import { ACCOUNT_LOCKED_SAMPLE, TRANSFER_SAMPLE } from '../support/event-samples';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
+import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
+import { checkLedgerInvariants } from '../support/invariants';
 
 /**
  * Outbox relay and notification consumer against real PostgreSQL and a real SQS protocol server
@@ -277,6 +280,104 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     expect(await relay.relayOnce()).toEqual({ published: 20 });
     expect(await drain(riskUrl)).toHaveLength(120);
     await drain(notificationUrl);
+  });
+
+  async function untilPublished(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if ((await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).length === 0) {
+        return true;
+      }
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return false;
+  }
+  async function inRole(role: string, run: () => Promise<void>): Promise<void> {
+    const previous = process.env.APP_ROLE;
+    process.env.APP_ROLE = role;
+    try {
+      await run();
+    } finally {
+      if (previous === undefined) delete process.env.APP_ROLE;
+      else process.env.APP_ROLE = previous;
+    }
+  }
+
+  it('TC-90-06 in the worker role the relay runs by itself and stops on shutdown', async () => {
+    const worker = relayWith();
+    const first = transferEvent();
+    await inRole('worker', async () => {
+      worker.onApplicationBootstrap();
+      try {
+        await enqueue(first);
+        expect(await untilPublished(3000)).toBe(true);
+      } finally {
+        await worker.onApplicationShutdown();
+      }
+    });
+    expect((await drain(riskUrl)).map(e => e.eventId)).toEqual([first.eventId]);
+    expect((await drain(notificationUrl)).map(e => e.eventId)).toEqual([first.eventId]);
+    // Stopped: a new event is not taken any more.
+    await enqueue(transferEvent());
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toHaveLength(1);
+  });
+
+  it('TC-90-07 in the api role the relay does not run', async () => {
+    const api = relayWith();
+    await inRole('api', async () => {
+      api.onApplicationBootstrap();
+      try {
+        await enqueue(transferEvent());
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toHaveLength(1);
+      } finally {
+        await api.onApplicationShutdown();
+      }
+    });
+  });
+
+  it('TC-90-08 a real deposit and transfer reach each queue exactly once', async () => {
+    const app = await startDepositApp(db.url);
+    try {
+      const sender = await seedDepositTarget(db.runner);
+      const receiver = await seedDepositTarget(db.runner);
+      const operator = await app.issuer.token('operator', { sub: randomUUID() });
+      const customer = await app.issuer.token('customer', { sub: sender.sub });
+      await request(app.url)
+        .post('/v1/operator/deposits')
+        .auth(operator, { type: 'bearer' })
+        .set('Idempotency-Key', randomUUID())
+        .send({ toAccountId: sender.accountId, amount: '1000000' })
+        .expect(201);
+      const transfer = await request(app.url)
+        .post('/v1/transfers')
+        .auth(customer, { type: 'bearer' })
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          fromAccountId: sender.accountId,
+          toAccountId: receiver.accountId,
+          amount: '300000',
+        })
+        .expect(201);
+      const events = await q(
+        `SELECT payload->>'type' AS type, payload->>'transferId' AS transfer_id,
+                payload->>'eventId' AS event_id FROM outbox_events ORDER BY id`,
+      );
+      expect(events.map(e => e.type)).toEqual(['DEPOSIT', 'TRANSFER']);
+      expect(events[1].transfer_id).toBe((transfer.body as { transferId: string }).transferId);
+
+      expect(await relay.relayOnce()).toEqual({ published: 2 });
+      expect(await relay.relayOnce()).toEqual({ published: 0 });
+      for (const url of [riskUrl, notificationUrl]) {
+        const bodies = await drain(url);
+        expect(bodies.map(b => b.eventId).sort()).toEqual(events.map(e => e.event_id).sort());
+        expect(bodies.map(b => b.type).sort()).toEqual(['DEPOSIT', 'TRANSFER']);
+      }
+      expect((await checkLedgerInvariants(db.runner)).status).toBe('PASS');
+    } finally {
+      await app.close();
+    }
   });
 
   it('TC-NTF-01 end to end: relayed event is handled once even when delivered twice', async () => {
