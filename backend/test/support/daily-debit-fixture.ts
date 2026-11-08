@@ -74,7 +74,8 @@ export async function loadDailyDebitLedger(
   await runner.query(
     `INSERT INTO ledger_entries(transfer_id,account_id,direction,amount,balance_after,created_at)
      SELECT t.id, t.from_account_id, 'DEBIT', t.amount, 0, t.created_at FROM transfers t
-     WHERE NOT EXISTS (SELECT 1 FROM ledger_entries e WHERE e.transfer_id = t.id)`,
+     WHERE t.status = 'COMPLETED'
+       AND NOT EXISTS (SELECT 1 FROM ledger_entries e WHERE e.transfer_id = t.id)`,
   );
   return { hotAccountId: refs.senderId, actorId: refs.actorId };
 }
