@@ -7,8 +7,8 @@ The five phases and four gates never change. What changes is the baseline, what 
 | **Endpoint or service** | `docker compose up -d`, then the four commands | Swagger or `curl` as the right role, the wrong role, bad input; then `psql` on the rows it wrote (balance, ledger, audit, outbox) | Swagger response, `psql` result |
 | **Migration** | same | `migration:run`, `migration:revert`, `migration:run` on an empty database; `\d` the tables; insert the bad rows by hand and read the refusal | terminal, `\d` |
 | **Consumer, relay or scheduled job** | same | run `APP_ROLE=worker`, produce the event, watch log and rows; kill and restart; send the same message twice | log, rows |
-| **Pure logic with no runtime yet** (a fraud rule, a parser) | same | a small driver script that feeds boundary values through the function and prints the result; if even that is pointless, say "unit only" at G1 and let the human agree to it | script output |
-| **CI workflow** (`.github/workflows/`) | same, plus `actionlint` if installed | a Draft PR after G3 (the human asks for it at G3) that turns CI red on purpose and then green; the run URLs are the evidence | run page |
+| **Pure logic with no runtime yet** (a fraud rule, a parser) | same | a small driver script that feeds boundary values through the function and prints the result; if even that is pointless, say "unit only" at G1 with the reason | script output |
+| **CI workflow** (`.github/workflows/`) | same, plus `actionlint` if installed | a Draft PR after G3 (CI cannot run otherwise, so this is the one case where the agent opens it without being asked) that turns CI red on purpose and then green; the run URLs are the evidence | run page |
 | **Library with no caller yet** (`libs/redis`, `libs/sqs`) | same | a small driver script (kept in the PR or the feature doc) that calls it; for Redis: `docker compose pause valkey` for slow, `docker compose stop valkey` for down, then unpause or start and watch it recover | script output |
 | **Bug fix** | same, **and reproduce the bug** | reproduce by hand **before** the fix and keep the output; repeat after the fix | before and after |
 | **Test or harness** | same | run the suite from a clean clone, then with Docker stopped (it must fail loudly, not pass) | terminal |
@@ -18,8 +18,8 @@ The five phases and four gates never change. What changes is the baseline, what 
 
 ## Bug fixes and board keys
 
-- **Cannot reproduce** (the endpoint does not exist yet, or the report is wrong): stop at G1 with the evidence you gathered and say what is missing; do not "fix" a guess.
-- **No board key:** ask for one; if none exists, the key is `BUG-YYYYMMDD-<slug>`. Use that whole key where the skill writes `DBS-<n>`: branch `fix/BUG-YYYYMMDD-<slug>`, doc `docs/features/BUG-YYYYMMDD-<slug>.md`, screenshots folder of the same name, gate headers. Case ids are `TC-BUG-NN` and `M-BUG-NN`.
+- **Cannot reproduce** (the endpoint does not exist yet, or the report is wrong): end the task at G1 with the evidence you gathered in the feature doc and the final message, and say what is missing; do not "fix" a guess.
+- **No board key:** use the one in the request; if none exists, the key is `BUG-YYYYMMDD-<slug>`. Use that whole key where the skill writes `DBS-<n>`: branch `fix/BUG-YYYYMMDD-<slug>`, doc `docs/features/BUG-YYYYMMDD-<slug>.md`, screenshots folder of the same name, gate headers. Case ids are `TC-BUG-NN` and `M-BUG-NN`.
 - The doc stays short: cause, the reproducing test, the fix, the manual before and after.
 
 ## Infrastructure and operations (#5)
@@ -30,4 +30,4 @@ The five phases and four gates never change. What changes is the baseline, what 
 
 ## When a manual step needs something not built yet
 
-Report it at G1 and give the human a choice: (a) do the missing task first (recommended), (b) mark the steps **chưa chạy (chờ DBS-x)**, which the human must accept by name at G4. A hand-written SQL seed is allowed for the **input row of the thing under test** (a bad row to prove a constraint, an `outbox_events` row for the relay), labelled "seed SQL" in §8. Never use SQL to create balances or ledger entries: those only come from the deposit and transfer flow.
+Decide at G1 between (a) doing the missing task first (the default) and (b) marking the steps **chưa chạy (chờ DBS-x)**, which are then named in the G4 message and the PR description for the reviewer. A hand-written SQL seed is allowed for the **input row of the thing under test** (a bad row to prove a constraint, an `outbox_events` row for the relay), labelled "seed SQL" in §8. Never use SQL to create balances or ledger entries: those only come from the deposit and transfer flow.

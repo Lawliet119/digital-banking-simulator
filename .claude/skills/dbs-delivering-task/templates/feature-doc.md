@@ -11,7 +11,7 @@
 - **Phụ thuộc:** từng task kèm trạng thái thật trong repo (không chỉ theo board).
 - **Đã có gì:** file code, tài liệu, task trước liên quan (link). **Baseline:** kết quả bốn lệnh kiểm tra, kèm số test.
 - **Ngoài phạm vi:** những gì task này cố ý không làm, và task nào làm.
-- **Câu hỏi mở:** đánh số, mỗi câu có đề xuất. **Quyết định ở G1:** ghi lại sau khi được duyệt.
+- **Câu hỏi mở:** đánh số, mỗi câu có đề xuất. **Quyết định ở G1:** ghi lại (agent tự quyết, kèm lý do).
 
 ## 2. Hành vi
 
@@ -53,7 +53,7 @@ Kịch bản chạy tay bằng ứng dụng thật, theo `references/manual-test
 |---|---|---|---|
 | 1 | should-fix | … | đã sửa §2 / không sửa vì … / chuyển sang §8 Bàn giao |
 
-**Quyết định ở G2:** ghi lại sau khi được duyệt.
+**Quyết định ở G2:** ghi lại (agent tự quyết, kèm lý do).
 
 ## 7. Kế hoạch triển khai
 
@@ -61,7 +61,7 @@ Kịch bản chạy tay bằng ứng dụng thật, theo `references/manual-test
 |---|---|---|---|---|---|
 | 1 | … | TC-<n>-01 | … | `npm run test:e2e -- <file>` | `type(module): …` |
 
-Rủi ro và cách lùi. **Quyết định ở G3:** ghi lại sau khi được duyệt.
+Rủi ro và cách lùi. **Quyết định ở G3:** ghi lại (agent tự quyết, kèm lý do).
 
 ## 8. Kết quả
 
@@ -78,7 +78,7 @@ Rủi ro và cách lùi. **Quyết định ở G3:** ghi lại sau khi được 
 
 ![Mô tả](screenshots/DBS-<n>/01-ten.png)
 
-- **Lệch so với kế hoạch:** nêu rõ từng chỗ, kèm lý do và **lần người duyệt đồng ý** (gate phụ). Chỗ lệch chưa được duyệt thì chưa qua G4.
+- **Lệch so với kế hoạch:** nêu rõ từng chỗ, kèm lý do và **quyết định agent tự duyệt** (gate phụ), ghi trước khi làm. Chỗ lệch chưa ghi lý do thì chưa qua G4.
 - **Bàn giao cho vai khác:** vai nào, việc gì, đề xuất, và **ID dòng `BL-NNN` đã thêm vào [`docs/BACKLOG.md`](../BACKLOG.md)** (gồm cả DoD chưa đạt); hoặc "không có".
 
 ## 9. Tài liệu đã cập nhật
@@ -88,9 +88,9 @@ Danh sách file docs khác đã sửa trong PR này (ghi cả `BL-NNN` đã thê
 ## Checklist G4 (dán vào tin nhắn G4, tick từng dòng)
 
 - [ ] N/M test case đạt đủ độ sâu, K đơn giản hóa (nêu lý do từng cái)
-- [ ] Test thủ công chạy trên commit cuối đổi code (SHA ở dòng đầu `manual-test.txt`): kết quả từng bước M-<n>-NN; đường thành công đã chạy (trừ khi G1 đã miễn); mọi bước "chưa chạy" nêu tên để người duyệt chấp nhận
+- [ ] Test thủ công chạy trên commit cuối đổi code (SHA ở dòng đầu `manual-test.txt`): kết quả từng bước M-<n>-NN; đường thành công đã chạy (trừ khi yêu cầu task đã miễn); mọi bước "chưa chạy" nêu tên và lý do trong tin nhắn G4 và mô tả PR
 - [ ] Ảnh chụp có đủ trong `screenshots/DBS-<n>/` (hoặc nêu từng ảnh còn thiếu); `manual-test.txt` đã xóa token, header `Authorization`, id tài khoản AWS và ARN
-- [ ] `git diff --stat main...HEAD` khớp danh sách file ở §7; mỗi file lạ có phê duyệt gate phụ ghi ở §8
+- [ ] `git diff --stat main...HEAD` khớp danh sách file ở §7; mỗi file lạ có quyết định gate phụ ghi ở §8
 - [ ] Bốn lệnh kiểm tra (hoặc baseline của loại task) chạy lúc bàn giao, có số đếm
-- [ ] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc đang là Plan approved (chuyển thành Implemented sau khi G4 được duyệt)
+- [ ] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc đang là Plan approved (chuyển thành Implemented sau khi G4 qua)
 - [ ] Việc bàn giao cho vai khác và mọi DoD chưa đạt đã ghi ở §8 **và** có dòng `BL-NNN` trong `docs/BACKLOG.md`; dòng backlog task này đã xử lý thì đã xóa
