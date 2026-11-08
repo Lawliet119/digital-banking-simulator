@@ -69,6 +69,20 @@ describe('DBS-93 R1 velocity', () => {
     });
   });
 
+  it('TC-93-04 scores only TRANSFER: a DEPOSIT that reaches the rule is never flagged', () => {
+    // The type forbids it; the consumer is meant to filter, but the rule must hold on its own
+    // when a DEPOSIT slips through at runtime (DoD 3).
+    const deposit = { ...event, type: 'DEPOSIT' } as unknown as TransferEvent;
+    expect(rule.evaluate(deposit, withCount(6), params)).toBeNull();
+    expect(rule.evaluate(deposit, withCount(100), params)).toBeNull();
+    expect(rule.evaluate(event, withCount(6), params)).not.toBeNull();
+  });
+
+  it('TC-93-04 a DEPOSIT is skipped before the count is read, so a bad count does not fail it', () => {
+    const deposit = { ...event, type: 'DEPOSIT' } as unknown as TransferEvent;
+    expect(rule.evaluate(deposit, withCount(0), params)).toBeNull();
+  });
+
   it('TC-93-03 accepts the valid zero threshold and a zero rule weight', () => {
     const configured: RuleParams = {
       enabled: true,

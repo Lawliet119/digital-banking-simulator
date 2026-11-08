@@ -8,7 +8,11 @@ const MAX_WEIGHT = 2147483647;
 export class R1VelocityRule implements RiskRule {
   readonly id = 'R1' as const;
 
-  evaluate(_event: TransferEvent, features: Features, params: RuleParams): RuleHit | null {
+  evaluate(event: TransferEvent, features: Features, params: RuleParams): RuleHit | null {
+    // The type says TRANSFER and the consumer filters, but a DEPOSIT must never be scored even if
+    // one slips through at runtime (DBS-93 DoD 3). Checked first: a deposit has no count to judge.
+    if ((event.type as string) !== 'TRANSFER') return null;
+
     const { maxTransfers, windowMinutes } = params.thresholds;
     const count = features.txCount10m;
     if (

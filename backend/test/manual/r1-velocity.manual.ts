@@ -62,3 +62,10 @@ assert.throws(
   Error,
 );
 console.log(JSON.stringify({ case: 'M-93-03', result: 'CONFIG_ERROR' }));
+
+const deposit = { ...event, type: 'DEPOSIT' } as unknown as TransferEvent;
+const depositResult = rule.evaluate(deposit, { ...features, txCount10m: 100 }, params);
+assert.equal(depositResult, null);
+console.log(
+  JSON.stringify({ case: 'M-93-04', type: 'DEPOSIT', txCount10m: 100, result: depositResult }),
+);
