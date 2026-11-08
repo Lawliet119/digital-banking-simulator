@@ -1,5 +1,9 @@
 import { parseBalance, parseMoney, parsePositiveMoney } from '@common/money';
+import type { Features, TransferEvent } from '../features/feature-provider';
 import type { FeatureInput } from './ai-contract';
+
+const MIN_HISTORY_FOR_MEDIAN = 5;
+const MAX_ACCOUNT_AGE_HOURS = 720;
 
 const KEYS: readonly (keyof FeatureInput)[] = [
   'amount',
@@ -58,13 +62,18 @@ export function projectFeatures(input: unknown): FeatureInput {
       counts.some(value => typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
     )
       throw new Error();
-    if (
-      typeof historyCount30d !== 'number' ||
-      (historyCount30d === 0) !== (medianAmount30d === null)
-    )
-      throw new Error();
+    if (typeof historyCount30d !== 'number') throw new Error();
+    // 0 history rows must have null median; >= 5 rows must have a median; 1..4 rows allow null
+    // (matching FeatureProvider, where R2 requires at least 5 historical transfers).
+    if (historyCount30d === 0 && medianAmount30d !== null) throw new Error();
+    if (historyCount30d >= MIN_HISTORY_FOR_MEDIAN && medianAmount30d === null) throw new Error();
     if (medianAmount30d !== null) {
-      if (typeof medianAmount30d !== 'string' || !/^(0|[1-9][0-9]*)(\.5)?$/.test(medianAmount30d))
+      if (
+        typeof medianAmount30d !== 'string' ||
+        !/^(0|[1-9][0-9]*)(\.5)?$/.test(medianAmount30d) ||
+        medianAmount30d === '0' ||
+        medianAmount30d === '0.5'
+      )
         throw new Error();
       const [whole] = medianAmount30d.split('.');
       const parsed = parseMoney(whole);
@@ -83,6 +92,53 @@ export function projectFeatures(input: unknown): FeatureInput {
       newRecipients1h: newRecipients1h as number,
       distinctRecipients24h: distinctRecipients24h as number,
     };
+  } catch {
+    throw new Error('Invalid AI features');
+  }
+}
+
+/**
+ * Projects a `TransferEvent` and point-in-time `Features` from `FeatureProvider` into the
+ * allowlisted `FeatureInput` shape expected by the external AI adapter.
+ */
+export function toAiFeatureInput(event: TransferEvent, features: Features): FeatureInput {
+  try {
+    const occurredMs = Date.parse(event.occurredAt);
+    const createdMs = Date.parse(event.fromAccountCreatedAt);
+    if (!Number.isFinite(occurredMs) || !Number.isFinite(createdMs)) throw new Error();
+    const accountAgeHours = Math.min(
+      MAX_ACCOUNT_AGE_HOURS,
+      Math.max(0, (occurredMs - createdMs) / 3_600_000),
+    );
+
+    let medianAmount30d: string | null = null;
+    if (features.medianAmount30dTimes2 !== null) {
+      const twice = parsePositiveMoney(features.medianAmount30dTimes2);
+      if (twice < 2n) throw new Error();
+      const half = twice / 2n;
+      medianAmount30d = twice % 2n === 0n ? half.toString() : `${half.toString()}.5`;
+    }
+
+    let minutesSinceReverse: number | null = null;
+    if (features.reverseTransferOccurredAt !== null) {
+      const reverseMs = Date.parse(features.reverseTransferOccurredAt);
+      if (!Number.isFinite(reverseMs)) throw new Error();
+      minutesSinceReverse = Math.max(0, (occurredMs - reverseMs) / 60_000);
+    }
+
+    return projectFeatures({
+      amount: event.amount,
+      fromBalanceBefore: event.fromBalanceBefore,
+      accountAgeHours,
+      sameOwner: event.sameOwner,
+      txCount10m: features.txCount10m,
+      txCount1h: features.txCount1h,
+      historyCount30d: features.historyCount30d,
+      medianAmount30d,
+      minutesSinceReverse,
+      newRecipients1h: features.newRecipients1h,
+      distinctRecipients24h: features.distinctRecipients24h,
+    });
   } catch {
     throw new Error('Invalid AI features');
   }

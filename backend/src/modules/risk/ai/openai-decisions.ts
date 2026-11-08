@@ -85,6 +85,7 @@ function createAdapter(endpoint: string) {
       return empty('CONFIG_INVALID');
     }
     if (!options.enabled || !options.apiKey) return empty('DISABLED');
+    const nowMonotonic = performance.now();
     if (
       typeof options.apiKey !== 'string' ||
       options.apiKey.trim() !== options.apiKey ||
@@ -97,6 +98,8 @@ function createAdapter(endpoint: string) {
       !Number.isSafeInteger(options.maxAdmissionDelayMs) ||
       options.maxAdmissionDelayMs <= 0 ||
       !Number.isFinite(options.selectedAtMonotonicMs) ||
+      options.selectedAtMonotonicMs < 0 ||
+      options.selectedAtMonotonicMs > nowMonotonic + 1 ||
       typeof options.tryAcquire !== 'function'
     ) {
       return empty('CONFIG_INVALID');
@@ -185,6 +188,19 @@ function createAdapter(endpoint: string) {
 }
 
 export const assess = createAdapter(ENDPOINT);
+
+/**
+ * Maps an adapter status to a value valid for `risk_decisions.ai_status`:
+ * in `rules_with_external_ai` mode, `DISABLED` (returned when `apiKey` is absent) is recorded
+ * as `CONFIG_INVALID` so the row never violates `risk_decisions_mode_metadata`.
+ */
+export function resolveDecisionAiStatus(
+  mode: 'rule_only' | 'rules_with_external_ai',
+  status: AiStatus,
+): AiStatus {
+  if (mode === 'rule_only') return 'DISABLED';
+  return status === 'DISABLED' ? 'CONFIG_INVALID' : status;
+}
 
 /** Internal test seam: never accepts remote endpoints or production configuration. */
 export function createLoopbackAdapter(endpoint: string): typeof assess {

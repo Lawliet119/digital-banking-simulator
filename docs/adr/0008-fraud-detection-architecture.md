@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Trạng thái | **Accepted** (2026-10-11). Kết quả cổng go/no-go cho `v3` sẽ được ghi bổ sung vào ADR này sau spike DBS-212 |
+| Trạng thái | **Accepted** (2026-10-11; phần `v2` học tham số và `v3` ONNX đã được thay thế bởi [ADR-14](0014-fraud-rules-external-ai.md) ngày 2026-11-08 — giữ nguyên 6 luật `R1–R6` làm baseline bắt buộc) |
 | Ngày | 2026-10-11 |
 | Người viết | #4 (Fraud) |
 | Người duyệt | #1 (Ledger); cả nhóm |

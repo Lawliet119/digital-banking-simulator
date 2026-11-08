@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Trạng thái | **Proposed** — chưa thay thế quyết định Accepted của nhóm, chưa có implementation hoặc benchmark API |
-| Ngày | 2026-10-23 (cập nhật 2026-10-25, vòng sửa 2 của FRAUD-API-01) |
+| Trạng thái | **Accepted** (chốt 2026-11-08; nhóm đã duyệt bỏ hướng tự train model / ONNX `v3` của ADR-08 và dùng R1–R6 + adapter API AI bổ sung có gate) |
+| Ngày | 2026-10-23 (cập nhật 2026-10-25, chốt Accepted 2026-11-08) |
 | Người viết | Fraud |
-| Người duyệt | Chờ một Dev và nhóm xác nhận |
-| Quan hệ | Đề xuất thay phần học tham số `v2` và ONNX `v3` của [ADR-08](0008-fraud-detection-architecture.md); ADR-08 vẫn Accepted cho tới khi nhóm chấp nhận thay thế |
+| Người duyệt | Techlead & cả nhóm |
+| Quan hệ | Thay thế phần học tham số `v2` và mô hình ONNX `v3` của [ADR-08](0008-fraud-detection-architecture.md); phần 6 luật giải thích được `R1–R6` (`rule_only`) của ADR-08 giữ nguyên |
 | Liên quan | D-4, UC-9/10/12, BR-11/13, AC-9.1/9.2/10.1/10.2, NFR-FRD-01…03; [ADR-03](0003-sync-transfer-async-outbox-sqs.md), [ADR-10](0010-fargate-egress-public-subnet.md), [ADR-13](0013-one-app-app-role.md) |
 
 ## Bối cảnh

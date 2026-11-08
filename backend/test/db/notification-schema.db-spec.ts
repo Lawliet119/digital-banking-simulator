@@ -147,8 +147,18 @@ describe('DBS-96 notification storage', () => {
     );
   });
 
-  it('TC-96-04 reverts and reruns without changing earlier tables/history', async () => {
+  it('TC-96-04 reverts and reruns without changing earlier tables/history, and refuses when rows exist', async () => {
     const history = await db.runner.query('SELECT name FROM migrations ORDER BY id');
+    await db.runner.query(insert, [
+      randomUUID(),
+      'transfer_completed',
+      null,
+      'Giao dich da hoan tat',
+    ]);
+    await expect(migrate(db.url, 'undoLast')).rejects.toThrow(
+      /Refusing to revert notification_log/,
+    );
+    await db.runner.query('DELETE FROM notification_log');
     await migrate(db.url, 'undoLast');
     expect(await db.runner.query("SELECT to_regclass('notification_log') AS name")).toEqual([
       { name: null },

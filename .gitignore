@@ -74,3 +74,7 @@ load-tests/fraud-dataset/holdout/
 # Backend config theo máy (chứa account id); giữ backend.hcl.example
 backend.hcl
 *.tfplan
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]

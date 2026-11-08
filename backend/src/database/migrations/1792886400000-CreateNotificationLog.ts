@@ -22,7 +22,22 @@ export class CreateNotificationLog1792886400000 implements MigrationInterface {
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
-    // Destructive rollback; operators must preserve required notification history first.
-    await queryRunner.query('DROP TABLE notification_log');
+    if (!queryRunner.isTransactionActive) {
+      throw Object.assign(new Error('Reverting notification_log requires a transaction'), {
+        code: '55000',
+      });
+    }
+    await queryRunner.query(`DO $$ BEGIN
+      IF current_setting('transaction_isolation') <> 'read committed' THEN
+        RAISE EXCEPTION 'Reverting notification_log requires READ COMMITTED' USING ERRCODE = '55000';
+      END IF;
+    END $$`);
+    await queryRunner.query('LOCK TABLE public.notification_log IN ACCESS EXCLUSIVE MODE');
+    await queryRunner.query(`DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM public.notification_log) THEN
+        RAISE EXCEPTION 'Refusing to revert notification_log: table holds data' USING ERRCODE = '55000';
+      END IF;
+    END $$`);
+    await queryRunner.query('DROP TABLE public.notification_log');
   }
 }
