@@ -1,6 +1,6 @@
 # DBS-72 · Ghép và nộp P2: kiến trúc, API, data model, ADR
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `docs/DBS-72-p2-submission` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `docs/DBS-72-p2-submission` · **PR:** [#83](https://github.com/Lawliet119/digital-banking-simulator/pull/83) · **Cập nhật:** 2026-11-08
 
 ## 1. Bối cảnh
 
@@ -130,7 +130,7 @@ Setup trong Git Bash: từ root chạy `npm --prefix backend ci`, bảo đảm `
 
 **Đề xuất prerequisite xin duyệt cùng G3:** thêm duy nhất `backend/src/scripts/manual-smoke.dbs50.ts` vào allowlist trước bước0, đổi lời gọi `fixture.setKeys([publicJwk])` thành object copy `fixture.setKeys([{ ...publicJwk }])` để TypeScript suy luận object tương thích index signature. Không sửa guard hay logic xác thực. Test đỏ là typecheck TS2322 đã chạy; chứng minh xanh bằng typecheck và chạy script smoke hiện có. Chỉ thực hiện nếu G3 chấp nhận đề xuất này; nếu không, chờ baseline được sửa bởi task khác. Thay đổi tương đương ở ba nhánh được ghi rõ dependency baseline, không giả là tính năng của ticket.
 
-**Quyền git:** tên commit trong §7 là dự kiến. Chưa có quyền commit/push/PR; G3 sẽ xin phép lưu commit local để có SHA cho manual evidence và checkout sạch. Nếu chỉ duyệt kế hoạch mà không cấp quyền git, giữ thay đổi chưa commit, không tự push/tạo PR.
+**Quyền git hiện tại:** G3 đã chấp nhận commit local; sau đó người dùng trả lời «thực hiện đi» cho đề xuất push ba nhánh, mở ba Draft PR và kiểm chứng CI Linux. Quyền này đã được thực hiện ở PR #83; G4 chưa duyệt, PR giữ Draft, không merge hoặc đổi board.
 
 **Code cuối:** 4e5446f. Đã sửa baseline JWK đúng đề xuất G3. Unit toàn bộ: 70 suites/1135 tests đạt; unit exporter 6/6; integration app thật 1/1. Lint/typecheck/build đã chạy xanh sau sửa lint. Full DB/E2E chưa xác nhận xanh: lượt wrapper Git Bash thoát127 không có Jest summary, đang chẩn đoán; không suy từ targeted sang full baseline.
 
@@ -146,6 +146,16 @@ Setup trong Git Bash: từ root chạy `npm --prefix backend ci`, bảo đảm `
 **Ảnh còn thiếu:** 01-export.png, 02-failure.png. Browser local bị tắt trong Work settings; viewer Notepad đã mở transcript nhưng screenshot có overlay Meet và tab ngoài phạm vi nên không lưu vào repo. Mermaid đã đọc/review nhưng chưa render bằng CLI/browser; chưa tuyên bố visual QA đạt.
 
 **Bàn giao:** BL-180 (rubric/deadline/nộp thật); BL-181 (CI/Dev review/merge và ảnh). Git chỉ commit local theo G3, chưa push/PR/board. Lượt verification thoát127 chưa được coi là lỗi đã sửa.
+
+### Kiểm chứng CI Linux sau khi mở Draft PR
+
+Các ghi chú “chưa push/PR/CI” ở trên là snapshot trước lần cho phép này. [PR #83](https://github.com/Lawliet119/digital-banking-simulator/pull/83) đã có [CI run 42467334333](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42467334333) trên head `b5e7e8fd64c2dbf1a363022ace02d4f1e4526d6e`: lint, typecheck, unit, e2e, db, build đều success (6/6), không rerun/retry workflow.
+
+DB 43 suites / 725 tests; E2E chính 15 suites / 153 tests; các bước Testcontainers/service tiếp theo 5 + 2 + 5 + 8 + 3 + 4 + 9 tests; tất cả đạt, không skip.
+
+CI Linux đã lấp khoảng trống full DB/E2E; không chứng minh lỗi launcher Windows hay legacy DBS-50 đã sửa. Rubric/deadline/link nộp P2 vẫn thiếu (BL-180); Dev review/merge, legacy smoke, Windows exit127 và hai PNG còn ở BL-181.
+
+Code không đổi sau manual; lần cập nhật này chỉ sửa hồ sơ/evidence. Diff file vẫn khớp §7. Status giữ Plan approved để trình G4.
 
 ## 9. Tài liệu đã cập nhật
 
