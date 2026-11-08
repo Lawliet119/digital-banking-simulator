@@ -22,7 +22,7 @@ const results = await sqs.processBatch(queueUrl, dlqUrl, async (body, message) =
 - `processBatch(queue, dlqUrl, handler, options?)`: nhận một batch, các handler chạy song song.
   `await` từng callback trước khi xóa message đó. Kết quả: acknowledged/dead-lettered/failed.
   Handler hoặc delete lỗi thì message đó không bị xóa, không chặn các message khác hoàn tất.
-  JSON hỏng được chuyển nguyên sang DLQ trước khi xóa nguồn; nếu gửi DLQ lỗi thì giữ nguyên
+  JSON hỏng, hoặc handler ném `PoisonMessageError` (message không bao giờ thành công, DBS-101), được chuyển nguyên sang DLQ trước khi xóa nguồn; nếu gửi DLQ lỗi thì giữ nguyên
   nguồn. Nếu gửi DLQ thành công nhưng xóa nguồn sau đó lỗi, kết quả vẫn là dead-lettered (không
   phải failed) — nguồn vẫn còn hiển thị và có thể bị chuyển DLQ lại lần nữa khi redeliver, DLQ
   consumer phải chịu được việc đó. Thiếu body/receipt thì trả failed. Lỗi `receive` lan nguyên lên.

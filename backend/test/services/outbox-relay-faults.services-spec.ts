@@ -1,3 +1,4 @@
+import { PinoLogger } from 'nestjs-pino';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
@@ -15,6 +16,8 @@ import { startElasticMqContainer, type StartedElasticMq } from '../support/elast
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { checkLedgerInvariants } from '../support/invariants';
 import { CHILD_APPLICATION_NAME } from '../support/relay-crash-name';
+
+const silentPino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
 
 /**
  * DBS-91: the outbox relay under failure, against real PostgreSQL and a real SQS protocol server.
@@ -402,7 +405,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
       statementTimeoutMs: 5000,
       idleInTransactionTimeoutMs: 10000,
     } as never);
-    const consumer = new NotificationConsumer(tx, sqs, {
+    const consumer = new NotificationConsumer(tx, sqs, silentPino, {
       region: 'us-east-1',
       endpoint: mq.endpoint,
       riskQueueUrl: riskUrl,

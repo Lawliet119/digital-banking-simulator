@@ -1,3 +1,4 @@
+import { PinoLogger } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
@@ -12,6 +13,8 @@ import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { checkLedgerInvariants } from '../support/invariants';
+
+const silentPino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
 
 /**
  * Outbox relay and notification consumer against real PostgreSQL and a real SQS protocol server
@@ -74,7 +77,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
       notificationQueueUrl: notificationUrl,
     };
     relay = new OutboxRelayService(tx, sqs, config);
-    consumer = new NotificationConsumer(tx, sqs, config);
+    consumer = new NotificationConsumer(tx, sqs, silentPino, config);
   });
   afterAll(async () => {
     sqs?.onModuleDestroy();
@@ -406,11 +409,12 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     expect(await drain(notificationUrl)).toEqual([]);
   });
 
-  it('TC-NTF-02 an invalid event is not acknowledged and leaves no mark', async () => {
+  it('TC-NTF-02 an invalid event goes to the dead-letter queue at once and leaves no mark (DBS-101)', async () => {
     await sqs.send(notificationUrl, JSON.stringify({ eventType: 'TransferCompleted' }));
     const [result] = await consumer.consumeOnce(1);
-    expect(result.status).toBe('failed');
+    expect(result.status).toBe('dead-lettered');
     expect(await q('SELECT 1 FROM processed_events')).toEqual([]);
+    expect(await drain(dlqUrlFor(notificationUrl))).toEqual([{ eventType: 'TransferCompleted' }]);
   });
 
   it('TC-NTF-03 a body that is not JSON goes straight to the dead-letter queue', async () => {
