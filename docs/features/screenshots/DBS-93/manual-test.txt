@@ -1,7 +1,8 @@
-30328ceed405ea11c8bcd4e2b7aafc31db4376ab
+f97e849f6bf9c12eb330f11f2e5202cedb280eeb
 $ cd backend && npx ts-node -r tsconfig-paths/register test/manual/r1-velocity.manual.ts
 {"case":"M-93-01","atThreshold":null,"aboveThreshold":{"id":"R1","weight":30,"explanation":"6 lệnh chuyển trong 10 phút (ngưỡng 5)"}}
 {"case":"M-93-02","result":null}
 {"case":"M-93-03","result":"CONFIG_ERROR"}
 {"case":"M-93-04","type":"DEPOSIT","txCount10m":100,"result":null}
+{"case":"M-93-05","five":{"txCount10m":5,"hit":false},"six":{"txCount10m":6,"hit":true},"duplicatesAndOutsideWindow":{"txCount10m":5,"hit":false}}
 exit: 0

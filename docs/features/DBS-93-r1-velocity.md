@@ -1,6 +1,6 @@
 # DBS-93 · Luật R1 velocity
 
-> **Status:** Implemented (R1 thuần; TC-93-05 còn chờ) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-93-r1-velocity` · **PR:** [#87](https://github.com/Lawliet119/digital-banking-simulator/pull/87) · **Cập nhật:** 2026-11-08
+> **Status:** Implemented (R1 thuần + hàm đếm chuẩn; TC-93-05b còn chờ) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-93-r1-velocity` · **PR:** [#87](https://github.com/Lawliet119/digital-banking-simulator/pull/87) · **Cập nhật:** 2026-11-08
 
 ## 1. Bối cảnh
 
@@ -76,7 +76,8 @@ Không có transaction hoặc gọi dịch vụ ngoài trong task này. Provider
 | TC-93-02 | DoD 1 | Unit | Tắt rule với count 6 → null; đổi maxTransfers và weight hợp lệ → ngưỡng/hit dùng cấu hình, không dùng hằng số v1 |
 | TC-93-03 | ADR-14 cấu hình nền và feature | Unit | Count không phải số nguyên an toàn dương; ngưỡng/weight sai kiểu hoặc ngoài miền; cửa sổ khác 10 phút → lỗi rõ ràng thay vì null/hit sai |
 | TC-93-04 | DoD 3 | Unit | Sự kiện `type: 'DEPOSIT'` lọt tới rule với count 6 hoặc 100 → `null`; `TRANSFER` cùng count vẫn có hit; `DEPOSIT` với count không hợp lệ (0) → `null`, không ném lỗi. Việc consumer lọc `DEPOSIT` do DBS-111 kiểm riêng |
-| TC-93-05 | DoD 2: cửa sổ và trùng | Tích hợp provider tương lai | DBS-109/128/112 chứng minh ngoài cửa sổ và trùng transferId trên nguồn feature thật; chưa thực hiện trong rule thuần |
+| TC-93-05a | DoD 2: cửa sổ và trùng | Unit | `countTransfersInWindow` (`features/velocity-count.ts`, hàm thuần định nghĩa nghĩa của `txCount10m`): cửa sổ `(occurredAt − 10 phút, occurredAt]`, cận dưới loại trừ; giao dịch đúng 10 phút trước và 11 phút trước không đếm; cùng `transferId` hai lần và việc giao lại chính lệnh hiện tại không đếm đôi; giao dịch sau `occurredAt` không đếm; đầu vào sai ném lỗi. Nối vào R1: 5 lệnh trong cửa sổ không cờ, lệnh thứ 6 có cờ, bản trùng và lệnh ngoài cửa sổ không đẩy qua ngưỡng |
+| TC-93-05b | DoD 2 trên nguồn thật | Tích hợp provider tương lai | DBS-109/128/112 chứng minh provider Redis/SQL/offline cho **cùng kết quả** với hàm chuẩn trên dữ liệu thật; chưa thực hiện |
 | TC-93-06 | DoD 4 | Quy trình | CI, Dev khác review và merge thực tế; không tính là đạt trước khi xảy ra |
 
 Không có `errorCode` HTTP hay thay đổi tiền/số dư trong rule thuần. Kiểm quyền endpoint, transaction và customer isolation thuộc task worker/API, không áp dụng vào rule độc lập.
@@ -95,8 +96,9 @@ npx ts-node -r tsconfig-paths/register test/manual/r1-velocity.manual.ts
 | M-93-02 | Tắt rule với count 6 | In null |
 | M-93-03 | Bật rule nhưng cấu hình cửa sổ 15 phút | In trạng thái lỗi rõ ràng, không tạo hit |
 | M-93-04 | Event `type: 'DEPOSIT'` với count 100 | In `null` |
+| M-93-05 | Đếm bằng `countTransfersInWindow`: 4 lệnh trong cửa sổ + lệnh hiện tại; thêm lệnh thứ 6; rồi thêm bản trùng, lệnh đúng 10 phút và 11 phút trước | `5 → hit=false`, `6 → hit=true`, `5 → hit=false` |
 
-Driver chỉ dùng dữ liệu tổng hợp trong bộ nhớ, không gọi OpenAI, không sửa DB hoặc ledger. Vì provider chưa tồn tại, script không chứng minh cửa sổ thực hay dedup; bằng chứng đó thuộc TC-93-05. M-93-04 chỉ chứng minh rule tự bỏ `DEPOSIT`, không chứng minh consumer lọc.
+Driver chỉ dùng dữ liệu tổng hợp trong bộ nhớ, không gọi OpenAI, không sửa DB hoặc ledger. Vì provider chưa tồn tại, M-93-05 chỉ chứng minh hàm đếm chuẩn và việc nối vào luật; chưa chứng minh Redis/SQL thật, đó là TC-93-05b. M-93-04 chỉ chứng minh rule tự bỏ `DEPOSIT`, không chứng minh consumer lọc.
 
 ## 6. Domain review
 
@@ -127,9 +129,9 @@ Reviewer độc lập `openai-codex/gpt-6.1-sol`: **0 blocking, 0 should-fix, 0 
 
 ## 8. Kết quả và bàn giao
 
-- Rule được commit ở `4651c3d`; commit cuối đổi driver kiểm thủ công là `290dd4e9443e0dd042dfa3bccc807ac1ff76c2b6` (giữ kiểm nội dung bắt buộc, không ghim câu chữ); commit code mới nhất là `30328ce` (guard `DEPOSIT`). Test trước implementation đỏ `TS2307` thiếu rule; sau implementation suite R1 đạt **21/21**; sau bổ sung DoD 3 (bên dưới) đạt **23/23**.
+- Rule được commit ở `4651c3d`; commit cuối đổi driver kiểm thủ công là `290dd4e9443e0dd042dfa3bccc807ac1ff76c2b6` (giữ kiểm nội dung bắt buộc, không ghim câu chữ); commit code mới nhất là `f97e849` (hàm đếm chuẩn, trên guard `DEPOSIT` ở `30328ce`). Test trước implementation đỏ `TS2307` thiếu rule; sau implementation suite R1 đạt **21/21**; sau hai bổ sung sau G4 (bên dưới) R1 đạt **23/23** và hàm đếm chuẩn **10/10**.
 - `lint:check`, `typecheck`, `build`: đạt. Unit toàn bộ: **70 suite, 1.150 test**; e2e: **15 suite, 153 test**; DB: **42 suite, 724 test** trên Docker project riêng; không có test bị skip trong output. E2e bắt đầu trước khi driver manual được chỉnh assertion, nhưng code rule không đổi; driver được chạy lại trên commit cuối.
-- M-93-01/02/03/04: đạt, chạy lại trên commit code cuối `30328ce`; [output thô](screenshots/DBS-93/manual-test.txt). Không có credential hoặc dữ liệu khách trong bằng chứng.
+- M-93-01..05: đạt, chạy lại trên commit code cuối `f97e849`; [output thô](screenshots/DBS-93/manual-test.txt). Không có credential hoặc dữ liệu khách trong bằng chứng.
 - Tự review code: đối chiếu ranh giới 5/6, rule tắt, ngưỡng/trọng số từ params, miền số nguyên và từ chối cửa sổ khác 10 phút; không có I/O trong `evaluate`. Review thiết kế độc lập ở §6 không thay thế Dev review PR.
 - Link: checker repo chạy với danh sách giới hạn 4 Markdown đã sửa, **4 file, 0 link lỗi**; kiểm riêng 173 link và anchor trong bốn file này cũng không thấy lỗi. Đây không phải kiểm toàn repo; không truy cập dataset niêm phong.
 - Đối chiếu phạm vi: diff code từ `origin/main` gồm đúng rule, unit spec và driver manual; tài liệu/evidence gồm các file đã liệt kê ở §7, không có thay đổi ledger/event/schema.
@@ -140,14 +142,17 @@ Reviewer độc lập `openai-codex/gpt-6.1-sol`: **0 blocking, 0 should-fix, 0 
 |---|---|
 | TC-93-01/02/03 | Đạt trên suite unit R1; kiểm so sánh ngưỡng, rule tắt, cấu hình, giá trị lỗi và explanation |
 | TC-93-04 | Đạt trên suite unit R1 (2 ca, đỏ trước khi thêm guard) và M-93-04. Phần consumer lọc `DEPOSIT` vẫn chưa có (DBS-111, BL-041) |
-| TC-93-05 | **Chưa kiểm cửa sổ và dedup bằng nguồn thật**: provider chưa triển khai; DBS-109/128/112, BL-041 |
+| TC-93-05a | Đạt: `velocity-count.spec.ts` 10/10 (ba đột biến: cận dưới đóng, bỏ cận trên, bỏ dedup, đều làm test đỏ) và M-93-05 |
+| TC-93-05b | **Chưa kiểm trên nguồn thật**: provider chưa triển khai; DBS-109/128/112, BL-041 |
 | TC-93-06 | CI remote, Dev khác review và merge chưa có; BL-183 |
 
 Không có bằng chứng fraud end-to-end, chất lượng phát hiện hay tích hợp OpenAI từ task R1. Các task còn lại của yêu cầu tổng thể và các phụ thuộc dữ liệu/Ops được giữ ở §1; không thay chúng bằng mock.
 
-**Bổ sung sau G4 (2026-11-08, techlead yêu cầu sửa mọi DoD sửa được):** thêm guard `type !== 'TRANSFER' → null` vào `R1VelocityRule` để đạt DoD 3, hai ca TC-93-04 viết trước (đỏ: 2 failed) rồi xanh, thêm M-93-04 vào driver và chạy lại cả bốn bước thủ công trên commit `30328ce`; unit toàn `src/modules/risk` 150/150, `lint:check`, `typecheck` đạt. Không đổi hợp đồng `RiskRule`, event, schema. DoD 2 (cửa sổ, dedup) không sửa được ở luật thuần: cần provider thật (TC-93-05). DoD 4 (Dev khác review) là quy trình, chưa đạt.
+**Bổ sung sau G4 (2026-11-08, techlead yêu cầu sửa mọi DoD sửa được):** thêm guard `type !== 'TRANSFER' → null` vào `R1VelocityRule` để đạt DoD 3, hai ca TC-93-04 viết trước (đỏ: 2 failed) rồi xanh, thêm M-93-04 vào driver và chạy lại cả bốn bước thủ công trên commit `30328ce`; unit toàn `src/modules/risk` 150/150, `lint:check`, `typecheck` đạt. Không đổi hợp đồng `RiskRule`, event, schema. DoD 2 (cửa sổ, dedup) không nằm trong luật nhận số đếm; xử lý ở bổ sung thứ hai bên dưới. DoD 4 (Dev khác review) là quy trình, chưa đạt.
 
-**Quyết định G4:** người dùng chọn “Duyệt G4”, chấp nhận nêu rõ TC-93-05 (cửa sổ/dedup qua provider thật; ban đầu cả TC-93-04 DEPOSIT runtime, đã đạt ở phần bổ sung trên) và việc chưa kiểm link toàn repo. PR chỉ bàn giao R1 thuần; các phần còn lại của yêu cầu fraud vẫn mở.
+**Bổ sung thứ hai sau G4 (cùng ngày, techlead hỏi vì sao DoD 2 không sửa được):** DoD 2 sửa được một phần. Thêm `features/velocity-count.ts` (`countTransfersInWindow`) định nghĩa chuẩn của số đếm: cửa sổ kết thúc ở `occurredAt`, cận dưới loại trừ, đếm theo `transferId` khác nhau, lệnh hiện tại đúng một lần. Test viết trước (đỏ `TS2307`), `src/modules/risk` 160/160, driver có thêm M-93-05, chạy lại 5 bước thủ công. **Hai lưu ý:** (1) đây là quyết định thiết kế mới: cận dưới loại trừ (đúng 10 phút trước thì ngoài cửa sổ) vì guide không nêu; nếu Redis `ZCOUNT` hay SQL của provider chọn khác thì sửa một nơi cho khớp. (2) Hàm chưa có nơi gọi trong production; nó là bản chuẩn để provider phải khớp (offline provider DBS-128 có thể dùng trực tiếp), không phải bằng chứng rằng Redis/SQL thật đếm đúng (TC-93-05b).
+
+**Quyết định G4:** người dùng chọn “Duyệt G4”, chấp nhận nêu rõ TC-93-05 (cửa sổ/dedup qua provider thật; ban đầu cả TC-93-04 DEPOSIT runtime và phần chuẩn của TC-93-05, đã đạt ở hai phần bổ sung trên) và việc chưa kiểm link toàn repo. PR chỉ bàn giao R1 thuần; các phần còn lại của yêu cầu fraud vẫn mở.
 
 ## 9. Tài liệu đã cập nhật
 
