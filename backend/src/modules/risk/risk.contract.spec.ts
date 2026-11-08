@@ -58,12 +58,11 @@ describe('DBS-59 risk contracts', () => {
     expect(fake.evaluate(event, features, { ...params, enabled: false })).toBeNull();
   });
 
-  it('TC-59-02 accepts a fake provider but placeholders fail explicitly', async () => {
+  it('TC-59-02 accepts a fake provider, and the offline placeholder fails explicitly', async () => {
     const fake: FeatureProvider = { extract: () => Promise.resolve(features) };
     await expect(fake.extract(event)).resolves.toEqual(features);
-    await expect(new OnlineFeatureProvider().extract(event)).rejects.toThrow(
-      'Online feature provider is not configured',
-    );
+    // The online provider is real since DBS-109 (online-feature-provider.spec.ts).
+    expect(OnlineFeatureProvider.prototype.extract).toEqual(expect.any(Function));
     await expect(new OfflineFeatureProvider().extract(event)).rejects.toThrow(
       'Offline feature provider is not configured',
     );
