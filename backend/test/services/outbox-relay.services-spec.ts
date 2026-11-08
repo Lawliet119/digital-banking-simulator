@@ -181,6 +181,89 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     expect(await q('SELECT 1 FROM processed_events')).toHaveLength(1);
   });
 
+  /** A relay on its own connection (like another worker task) whose `send` can be held open. */
+  function relayWith(send?: SqsClient['send']): OutboxRelayService {
+    const tx = new TransactionService(source, {
+      lockTimeoutMs: 2000,
+      statementTimeoutMs: 5000,
+      idleInTransactionTimeoutMs: 10000,
+    } as never);
+    const wrapped = (send ? { send } : sqs) as unknown as SqsClient;
+    return new OutboxRelayService(tx, wrapped, {
+      region: 'us-east-1',
+      endpoint: mq.endpoint,
+      riskQueueUrl: riskUrl,
+      notificationQueueUrl: notificationUrl,
+    });
+  }
+  function gate() {
+    let release!: () => void;
+    const open = new Promise<void>(resolve => (release = resolve));
+    return { open, release };
+  }
+
+  it('TC-90-03 two relays really overlap: the second skips the rows the first still holds', async () => {
+    const events = Array.from({ length: 20 }, transferEvent);
+    for (const event of events) await enqueue(event);
+    const hold = gate();
+    let entered!: () => void;
+    const inside = new Promise<void>(resolve => (entered = resolve));
+    const slow = relayWith(async (url, body, attributes) => {
+      entered();
+      await hold.open;
+      return sqs.send(url, body, attributes);
+    });
+    const first = slow.relayOnce(10);
+    await inside; // relay A is inside SQS with 10 rows locked
+    expect(await relayWith().relayOnce(10)).toEqual({ published: 10 });
+    const secondIds = (
+      await q('SELECT event_id FROM outbox_events WHERE published_at IS NOT NULL')
+    ).map(r => r.event_id);
+    expect(secondIds.sort()).toEqual(
+      events
+        .slice(10)
+        .map(e => e.eventId)
+        .sort(),
+    );
+    hold.release();
+    expect(await first).toEqual({ published: 10 });
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toEqual([]);
+    const seen = (await drain(riskUrl)).map(e => e.eventId as string);
+    expect(seen).toHaveLength(20);
+    expect(new Set(seen)).toEqual(new Set(events.map(e => e.eventId)));
+    await drain(notificationUrl);
+  });
+
+  it('TC-90-04 messages are sent before any row is visible as published', async () => {
+    const events = [transferEvent(), transferEvent(), transferEvent()];
+    for (const event of events) await enqueue(event);
+    const hold = gate();
+    let entered!: () => void;
+    const inside = new Promise<void>(resolve => (entered = resolve));
+    let sent = 0;
+    let calls = 0;
+    const slow = relayWith(async (url, body, attributes) => {
+      calls += 1;
+      if (calls === 6) {
+        // The last send of the last event: everything before it is already in the queues.
+        entered();
+        await hold.open;
+      }
+      await sqs.send(url, body, attributes);
+      sent += 1;
+    });
+    const run = slow.relayOnce();
+    await inside;
+    expect(sent).toBe(5);
+    // From another connection: nothing is published yet although five messages are out.
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NOT NULL')).toEqual([]);
+    hold.release();
+    expect(await run).toEqual({ published: 3 });
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toEqual([]);
+    await drain(riskUrl);
+    await drain(notificationUrl);
+  });
+
   it('TC-90-05 the poll interval is within one second and the batch is the 100 of ADR-03', () => {
     expect(RELAY_IDLE_DELAY_MS).toBeLessThanOrEqual(1000);
     expect(RELAY_BATCH_SIZE).toBe(100);
