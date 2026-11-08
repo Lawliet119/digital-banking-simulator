@@ -1,0 +1,11 @@
+e34f3461c30f2a52d937a5ad1f64e873aa468cbf
+$ cd backend && npx ts-node -r tsconfig-paths/register test/manual/r3-new-account-large-transfer.manual.ts
+{"case":"M-95-01","result":{"id":"R3","weight":35,"explanation":"Tài khoản mở 3 giờ trước, chuyển 20.000.000đ"}}
+{"case":"M-95-02","exactly24Hours":null,"exactly10000000":null}
+{"case":"M-95-03","oneMsYounger":{"id":"R3","weight":35,"explanation":"Tài khoản mở 23 giờ trước, chuyển 20.000.000đ"},"oneDongLarger":{"id":"R3","weight":35,"explanation":"Tài khoản mở 1 giờ trước, chuyển 10.000.001đ"}}
+{"case":"M-95-04","oldAccountBigAmount":null,"newAccountSmallAmount":null}
+{"case":"M-95-05","result":{"id":"R3","weight":35,"explanation":"Tài khoản mở 1 giờ trước, chuyển 9.223.372.036.854.775.807đ"}}
+{"case":"M-95-06","errors":["Invalid R3 snapshot field: fromAccountCreatedAt","Invalid R3 snapshot field: amount"]}
+{"case":"M-95-07","disabled":null,"deposit":null}
+{"case":"M-95-08","fortyFiveMinutes":{"id":"R3","weight":35,"explanation":"Tài khoản mở 45 phút trước, chuyển 20.000.000đ"},"createdAfterTransfer":{"id":"R3","weight":35,"explanation":"Tài khoản mở dưới 1 phút trước, chuyển 20.000.000đ"}}
+exit: 0
