@@ -86,8 +86,11 @@ describe('DBS-85 the daily limit resets at 00:00 Vietnam time while the database
 
   it('TC-85-01 the test database and the application sessions run on UTC', async () => {
     expect((await q('SHOW timezone'))[0].TimeZone).toBe('UTC');
-    const inApp = await tx().run(async manager => (await manager.query('SHOW timezone'))[0]);
-    expect(inApp.TimeZone).toBe('UTC');
+    const inApp = await tx().run<string>(async manager => {
+      const [row]: { TimeZone: string }[] = await manager.query('SHOW timezone');
+      return row.TimeZone;
+    });
+    expect(inApp).toBe('UTC');
   });
 
   // [debit written at, clock reads, counted today?]. 15 March 2026 starts at 14 March 17:00Z.
