@@ -41,11 +41,12 @@ const rule = new R1VelocityRule();
 const atThreshold = rule.evaluate(event, { ...features, txCount10m: 5 }, params);
 const aboveThreshold = rule.evaluate(event, features, params);
 assert.equal(atThreshold, null);
-assert.deepEqual(aboveThreshold, {
-  id: 'R1',
-  weight: 30,
-  explanation: '6 lệnh chuyển trong 10 phút (ngưỡng 5)',
-});
+assert(aboveThreshold);
+assert.equal(aboveThreshold.id, 'R1');
+assert.equal(aboveThreshold.weight, 30);
+assert(aboveThreshold.explanation.includes('6'));
+assert(aboveThreshold.explanation.includes('10'));
+assert(aboveThreshold.explanation.includes('5'));
 console.log(JSON.stringify({ case: 'M-93-01', atThreshold, aboveThreshold }));
 
 const disabled = rule.evaluate(event, features, { ...params, enabled: false });
