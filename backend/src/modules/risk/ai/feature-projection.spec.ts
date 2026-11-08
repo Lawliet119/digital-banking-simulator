@@ -151,5 +151,25 @@ describe('AI feature projection', () => {
     };
     expect(toAiFeatureInput(changingEvent, features).accountAgeHours).toBe(3);
     expect(occurredReads).toBe(1);
+
+    const preciseEvent = {
+      ...event,
+      occurredAt: '2026-10-19T06:00:00.000000001Z',
+      fromAccountCreatedAt: '2026-10-19T06:00:00.000000000Z',
+    };
+    const precise = toAiFeatureInput(preciseEvent, {
+      ...features,
+      reverseTransferOccurredAt: '2026-10-19T06:00:00.000000000Z',
+    });
+    expect(precise.accountAgeHours).toBe(1 / 3_600_000_000_000);
+    expect(precise.minutesSinceReverse).toBe(1 / 60_000_000_000);
+    for (const reverseTransferOccurredAt of [
+      '2026-10-19T06:00:00.000000001Z',
+      '2026-10-19T06:00:00.000000002Z',
+    ]) {
+      expect(() =>
+        toAiFeatureInput(preciseEvent, { ...features, reverseTransferOccurredAt }),
+      ).toThrow(/^Invalid AI features$/);
+    }
   });
 });
