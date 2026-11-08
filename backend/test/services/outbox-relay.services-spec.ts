@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
-import { OutboxRelayService } from '@modules/outbox';
+import { OutboxRelayService, RELAY_BATCH_SIZE, RELAY_IDLE_DELAY_MS } from '@modules/outbox';
 import { NotificationConsumer, dlqUrlFor } from '@modules/notification';
 import { ACCOUNT_LOCKED_SAMPLE, TRANSFER_SAMPLE } from '../support/event-samples';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
@@ -179,6 +179,21 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     const left = await q('SELECT event_id FROM outbox_events ORDER BY id');
     expect(left.map(r => r.event_id).sort()).toEqual([fresh.eventId, pending.eventId].sort());
     expect(await q('SELECT 1 FROM processed_events')).toHaveLength(1);
+  });
+
+  it('TC-90-05 the poll interval is within one second and the batch is the 100 of ADR-03', () => {
+    expect(RELAY_IDLE_DELAY_MS).toBeLessThanOrEqual(1000);
+    expect(RELAY_BATCH_SIZE).toBe(100);
+  });
+
+  it('TC-90-09 a full batch is 100 events and the rest follow on the next run', async () => {
+    const events = Array.from({ length: 120 }, transferEvent);
+    for (const event of events) await enqueue(event);
+    expect(await relay.relayOnce()).toEqual({ published: 100 });
+    expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toHaveLength(20);
+    expect(await relay.relayOnce()).toEqual({ published: 20 });
+    expect(await drain(riskUrl)).toHaveLength(120);
+    await drain(notificationUrl);
   });
 
   it('TC-NTF-01 end to end: relayed event is handled once even when delivered twice', async () => {
