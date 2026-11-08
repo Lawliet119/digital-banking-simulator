@@ -474,7 +474,7 @@ sequenceDiagram
 
 ## 7. API (tổng quan)
 
-Đặc tả đầy đủ sinh tự động bằng OpenAPI (Swagger) — đây là artifact "API Specification" của P2.
+Đặc tả đầy đủ sinh tự động bằng OpenAPI (Swagger) — đây là artifact "API Specification" của P2. Chi tiết headers, schema JSON request/response, query params và ví dụ payload của từng endpoint nằm tại [`components/_shared/api-design.md`](components/_shared/api-design.md).
 
 | Method | Path | Vai trò | UC | Ghi chú |
 |---|---|---|---|---|

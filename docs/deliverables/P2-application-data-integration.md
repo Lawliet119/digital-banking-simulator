@@ -30,7 +30,7 @@ Module bên trong ứng dụng và quy tắc phụ thuộc (eslint ép ranh gi�
 
 ## 2. API specification
 
-Đặc tả đầy đủ là **OpenAPI sinh từ code** (`/docs` ở môi trường không phải production). Bảng endpoint, quy ước tiền là chuỗi, lỗi `application/problem+json` kèm `errorCode`, 404 cho tài nguyên không thuộc mình, 503 + `Retry-After` cho lỗi DB tạm thời: [docs/03 §7](../03_HIGH_LEVEL_ARCHITECTURE.md). Danh sách `errorCode`: [docs/03 §7.1](../03_HIGH_LEVEL_ARCHITECTURE.md).
+Đặc tả đầy đủ là **OpenAPI sinh từ code** (`/docs` ở môi trường không phải production) và tài liệu hợp đồng chi tiết tại [`api-design`](../components/_shared/api-design.md). Bảng endpoint, quy ước tiền là chuỗi, lỗi `application/problem+json` kèm `errorCode`, 404 cho tài nguyên không thuộc mình, 503 + `Retry-After` cho lỗi DB tạm thời: [docs/03 §7](../03_HIGH_LEVEL_ARCHITECTURE.md). Danh sách `errorCode`: [docs/03 §7.1](../03_HIGH_LEVEL_ARCHITECTURE.md).
 
 - [ ] Xuất file `openapi.json` từ commit nộp bài và đính vào bản nộp (việc còn lại của DBS-72).
 
