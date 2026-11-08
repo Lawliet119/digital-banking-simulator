@@ -3,4 +3,3 @@ Execution summary (full outputs not all captured in this file): Unit:70 suites,1
 
 > digital-banking-simulator-backend@0.1.0 test:db
 > jest --config ./test/jest-db.js --runInBand
-
