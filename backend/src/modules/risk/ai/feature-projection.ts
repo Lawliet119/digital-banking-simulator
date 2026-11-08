@@ -1,4 +1,4 @@
-import { parseBalance, parseMoney, parsePositiveMoney } from '@common/money';
+import { MONEY_MAX, parseBalance, parseMoney, parsePositiveMoney } from '@common/money';
 import type { Features, TransferEvent } from '../features/feature-provider';
 import type { FeatureInput } from './ai-contract';
 
@@ -24,7 +24,7 @@ export function projectFeatures(input: unknown): FeatureInput {
   try {
     if (typeof input !== 'object' || input === null || Array.isArray(input)) throw new Error();
     const record = input as Record<string, unknown>;
-    const keys = Object.keys(record);
+    const keys = Reflect.ownKeys(record);
     if (keys.length !== KEYS.length || KEYS.some(key => !Object.hasOwn(record, key)))
       throw new Error();
     const {
@@ -103,8 +103,11 @@ export function projectFeatures(input: unknown): FeatureInput {
  */
 export function toAiFeatureInput(event: TransferEvent, features: Features): FeatureInput {
   try {
-    const occurredMs = Date.parse(event.occurredAt);
-    const createdMs = Date.parse(event.fromAccountCreatedAt);
+    const occurredAt = event.occurredAt;
+    const createdAt = event.fromAccountCreatedAt;
+    if (typeof occurredAt !== 'string' || typeof createdAt !== 'string') throw new Error();
+    const occurredMs = Date.parse(occurredAt);
+    const createdMs = Date.parse(createdAt);
     if (!Number.isFinite(occurredMs) || !Number.isFinite(createdMs)) throw new Error();
     const accountAgeHours = Math.min(
       MAX_ACCOUNT_AGE_HOURS,
@@ -112,16 +115,22 @@ export function toAiFeatureInput(event: TransferEvent, features: Features): Feat
     );
 
     let medianAmount30d: string | null = null;
-    if (features.medianAmount30dTimes2 !== null) {
-      const twice = parsePositiveMoney(features.medianAmount30dTimes2);
-      if (twice < 2n) throw new Error();
+    const raw = features.medianAmount30dTimes2;
+    if (raw !== null) {
+      if (typeof raw !== 'string' || raw.length > 20 || !/^[1-9][0-9]*$/.test(raw)) {
+        throw new Error();
+      }
+      const twice = BigInt(raw);
+      if (twice < 2n || twice > 2n * MONEY_MAX) throw new Error();
       const half = twice / 2n;
       medianAmount30d = twice % 2n === 0n ? half.toString() : `${half.toString()}.5`;
     }
 
     let minutesSinceReverse: number | null = null;
-    if (features.reverseTransferOccurredAt !== null) {
-      const reverseMs = Date.parse(features.reverseTransferOccurredAt);
+    const reverseAt = features.reverseTransferOccurredAt;
+    if (reverseAt !== null) {
+      if (typeof reverseAt !== 'string') throw new Error();
+      const reverseMs = Date.parse(reverseAt);
       if (!Number.isFinite(reverseMs)) throw new Error();
       minutesSinceReverse = Math.max(0, (occurredMs - reverseMs) / 60_000);
     }
