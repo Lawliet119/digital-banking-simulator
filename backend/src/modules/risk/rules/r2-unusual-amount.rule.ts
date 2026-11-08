@@ -75,7 +75,8 @@ export class R2UnusualAmountRule implements RiskRule {
     if (count < thresholds.minHistory) return null; // not enough history: skip, do not read the median
 
     const raw: unknown = features.medianAmount30dTimes2;
-    if (typeof raw !== 'string' || !MEDIAN_TIMES2_PATTERN.test(raw)) return invalid();
+    if (typeof raw !== 'string' || raw.length > 20 || !MEDIAN_TIMES2_PATTERN.test(raw))
+      return invalid();
     const medianTimes2 = BigInt(raw);
     if (medianTimes2 < 2n || medianTimes2 > MEDIAN_TIMES2_MAX) return invalid();
 

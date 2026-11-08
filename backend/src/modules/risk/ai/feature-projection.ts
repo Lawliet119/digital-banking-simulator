@@ -1,9 +1,12 @@
 import { MONEY_MAX, parseBalance, parseMoney, parsePositiveMoney } from '@common/money';
 import type { Features, TransferEvent } from '../features/feature-provider';
+import { riskTimeNanoseconds } from '../risk-time';
 import type { FeatureInput } from './ai-contract';
 
 const MIN_HISTORY_FOR_MEDIAN = 5;
 const MAX_ACCOUNT_AGE_HOURS = 720;
+const HOUR_NS = 3_600_000_000_000n;
+const MINUTE_NS = 60_000_000_000n;
 
 const KEYS: readonly (keyof FeatureInput)[] = [
   'amount',
@@ -105,14 +108,15 @@ export function toAiFeatureInput(event: TransferEvent, features: Features): Feat
   try {
     const occurredAt = event.occurredAt;
     const createdAt = event.fromAccountCreatedAt;
-    if (typeof occurredAt !== 'string' || typeof createdAt !== 'string') throw new Error();
-    const occurredMs = Date.parse(occurredAt);
-    const createdMs = Date.parse(createdAt);
-    if (!Number.isFinite(occurredMs) || !Number.isFinite(createdMs)) throw new Error();
-    const accountAgeHours = Math.min(
-      MAX_ACCOUNT_AGE_HOURS,
-      Math.max(0, (occurredMs - createdMs) / 3_600_000),
-    );
+    const occurredNs = riskTimeNanoseconds(occurredAt);
+    const createdNs = riskTimeNanoseconds(createdAt);
+    const ageNs = occurredNs - createdNs;
+    const accountAgeHours =
+      ageNs <= 0n
+        ? 0
+        : ageNs >= BigInt(MAX_ACCOUNT_AGE_HOURS) * HOUR_NS
+          ? MAX_ACCOUNT_AGE_HOURS
+          : Number(ageNs) / Number(HOUR_NS);
 
     let medianAmount30d: string | null = null;
     const raw = features.medianAmount30dTimes2;
@@ -129,10 +133,9 @@ export function toAiFeatureInput(event: TransferEvent, features: Features): Feat
     let minutesSinceReverse: number | null = null;
     const reverseAt = features.reverseTransferOccurredAt;
     if (reverseAt !== null) {
-      if (typeof reverseAt !== 'string') throw new Error();
-      const reverseMs = Date.parse(reverseAt);
-      if (!Number.isFinite(reverseMs)) throw new Error();
-      minutesSinceReverse = Math.max(0, (occurredMs - reverseMs) / 60_000);
+      const elapsed = occurredNs - riskTimeNanoseconds(reverseAt);
+      if (elapsed <= 0n) throw new Error();
+      minutesSinceReverse = Number(elapsed) / Number(MINUTE_NS);
     }
 
     return projectFeatures({
