@@ -32,8 +32,6 @@ export const RELAY_MAX_TRANSIENT_FAILURES = 3;
 export const RELAY_PARK_BASE_MS = 30_000;
 const RELAY_PARK_MAX_MS = 10 * 60_000;
 const MAX_PARKED = 1000;
-const CLEANUP_EVERY_MS = 60 * 60 * 1000;
-const RETENTION_DAYS = 7;
 /**
  * The transaction stays open while the relay talks to SQS, so Postgres' default idle limit (10 s)
  * must not cut it short. A batch of 100 events is a few round trips, not a minute.
@@ -128,15 +126,6 @@ export class OutboxRelayService implements OnApplicationBootstrap, OnApplication
     async () => relayDelayMs(await this.relayOnce()),
     error => this.logger.error(safeErrorMetadata(error), 'Outbox relay failed'),
   );
-  private readonly cleanupLoop = new PollingLoop(
-    async () => {
-      await this.deleteOldRows();
-      return CLEANUP_EVERY_MS;
-    },
-    error => this.logger.error(safeErrorMetadata(error), 'Outbox cleanup failed'),
-    CLEANUP_EVERY_MS,
-  );
-
   constructor(
     private readonly tx: TransactionService,
     private readonly sqs: SqsClient,
@@ -148,13 +137,12 @@ export class OutboxRelayService implements OnApplicationBootstrap, OnApplication
     if (!runsWorkers()) return;
     this.stopping = false;
     this.relayLoop.start();
-    this.cleanupLoop.start();
   }
 
   async onApplicationShutdown(): Promise<void> {
     // The batch in flight finishes the event it is on, commits, and starts no other.
     this.stopping = true;
-    await Promise.all([this.relayLoop.stop(), this.cleanupLoop.stop()]);
+    await this.relayLoop.stop();
   }
 
   /** One batch. Never throws for a failed send: it reports it in `failure` after committing. */
@@ -234,25 +222,6 @@ export class OutboxRelayService implements OnApplicationBootstrap, OnApplication
     const attempts = (known?.attempts ?? 0) + 1;
     const wait = Math.min(RELAY_PARK_BASE_MS * 2 ** (attempts - 1), RELAY_PARK_MAX_MS);
     this.parked.set(id, { retryAt: at + wait, attempts });
-  }
-
-  /** Published events and processed-event marks older than the retention window (docs/03 §10). */
-  async deleteOldRows(): Promise<number> {
-    return this.tx.run(async manager => {
-      const [outbox]: { count: number }[] = await manager.query(
-        `WITH gone AS (
-           DELETE FROM outbox_events
-           WHERE published_at IS NOT NULL AND published_at < now() - make_interval(days => $1)
-           RETURNING 1)
-         SELECT count(*)::int AS count FROM gone`,
-        [RETENTION_DAYS],
-      );
-      await manager.query(
-        'DELETE FROM processed_events WHERE processed_at < now() - make_interval(days => $1)',
-        [RETENTION_DAYS],
-      );
-      return outbox.count;
-    });
   }
 
   private queueUrl(queue: OutboxQueue): string {

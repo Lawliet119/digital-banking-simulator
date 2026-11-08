@@ -7,6 +7,7 @@ import { TransactionService } from '@database/transaction.service';
 import type { SqsClient } from '@libs/sqs';
 import { IdentityService } from '@modules/identity';
 import { OutboxRelayService } from '@modules/outbox';
+import { OutboxCleanupService } from '@modules/outbox/outbox-cleanup.service';
 import { TRANSFER_SAMPLE } from '../support/event-samples';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
@@ -190,11 +191,40 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
     expect(pending).toBeGreaterThanOrEqual(1);
     expect(await relay.relayOnce()).toEqual({ published: pending });
     expect(sent).toHaveLength(pending * 2);
-    expect(await relay.deleteOldRows()).toBe(0);
     const rows = (await db.runner.query(
       'SELECT published_at FROM outbox_events WHERE event_id=$1',
       [event.eventId],
     )) as { published_at: Date | null }[];
     expect(rows[0].published_at).not.toBeNull();
+  });
+
+  it('TC-92-13 the cleanup job runs as dbs_worker: old rows go, unpublished ones stay, no 42501', async () => {
+    await db.runner.query('DELETE FROM outbox_events');
+    await db.runner.query('DELETE FROM processed_events');
+    await db.runner.query(
+      `INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id,created_at,published_at)
+       VALUES (gen_random_uuid(),'TransferCompleted',gen_random_uuid(),'{}'::jsonb,gen_random_uuid(),now() - interval '9 days', now() - interval '9 days'),
+              (gen_random_uuid(),'TransferCompleted',gen_random_uuid(),'{}'::jsonb,gen_random_uuid(),now() - interval '400 days', NULL),
+              (gen_random_uuid(),'TransferCompleted',gen_random_uuid(),'{}'::jsonb,gen_random_uuid(),now(), now())`,
+    );
+    await db.runner.query(
+      `INSERT INTO processed_events(consumer,event_id,processed_at)
+       VALUES ('notification', gen_random_uuid(), now() - interval '9 days'),
+              ('notification', gen_random_uuid(), now())`,
+    );
+    const tx = new TransactionService(workerSource, {
+      lockTimeoutMs: 2000,
+      statementTimeoutMs: 5000,
+      idleInTransactionTimeoutMs: 10000,
+    } as never);
+    const cleanup = new OutboxCleanupService(tx, {
+      outbox: { retentionDays: 7, processedEventsRetentionDays: 7 },
+    } as never);
+    expect(await cleanup.cleanOnce({ pauseMs: 0 })).toMatchObject({ outbox: 1, processed: 1 });
+    const left = (await db.runner.query(
+      'SELECT published_at IS NULL AS unpublished FROM outbox_events ORDER BY created_at',
+    )) as { unpublished: boolean }[];
+    expect(left.map(r => r.unpublished)).toEqual([true, false]);
+    expect(await db.runner.query('SELECT 1 FROM processed_events')).toHaveLength(1);
   });
 });

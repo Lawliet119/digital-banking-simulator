@@ -5,6 +5,7 @@ import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
 import { OutboxRelayService } from '@modules/outbox';
 import { RELAY_BATCH_SIZE, RELAY_IDLE_DELAY_MS } from '@modules/outbox/outbox-relay.service';
+import { OutboxCleanupService } from '@modules/outbox/outbox-cleanup.service';
 import { NotificationConsumer, dlqUrlFor } from '@modules/notification';
 import { ACCOUNT_LOCKED_SAMPLE, TRANSFER_SAMPLE } from '../support/event-samples';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
@@ -178,7 +179,15 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
        VALUES('notification',$1,now() - interval '8 days'),('notification',$2,now())`,
       [randomUUID(), randomUUID()],
     );
-    expect(await relay.deleteOldRows()).toBe(1);
+    const cleanup = new OutboxCleanupService(
+      new TransactionService(source, {
+        lockTimeoutMs: 2000,
+        statementTimeoutMs: 5000,
+        idleInTransactionTimeoutMs: 10000,
+      } as never),
+      { outbox: { retentionDays: 7, processedEventsRetentionDays: 7 } } as never,
+    );
+    expect(await cleanup.cleanOnce({ pauseMs: 0 })).toMatchObject({ outbox: 1, processed: 1 });
     const left = await q('SELECT event_id FROM outbox_events ORDER BY id');
     expect(left.map(r => r.event_id).sort()).toEqual([fresh.eventId, pending.eventId].sort());
     expect(await q('SELECT 1 FROM processed_events')).toHaveLength(1);
