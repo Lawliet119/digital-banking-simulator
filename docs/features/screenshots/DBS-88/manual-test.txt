@@ -1,0 +1,41 @@
+b643691be3c1b46b77dbee319a773a1f9b95c4b5
+SQL INPUT: users/customers/accounts at migration default ZERO, no SQL balance or ledger seed. ALL funding uses actual deposit HTTP.
+{"method":"POST","path":"/v1/operator/deposits","key":"454f2984-d35d-4764-8841-1f0effcd2fcc","request":{"toAccountId":"feda6719-1351-4ce2-93b3-17e51c891479","amount":"5000000"},"status":201,"correlationId":"d1c6f276-d74e-4bb5-a0eb-af93eef2a50a","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"84c63092-74cf-4efc-aa30-c43aa27049ab","status":"COMPLETED"}}
+{"method":"GET","q":"nguyễn","status":200,"body":{"items":[{"id":"feda6719-1351-4ce2-93b3-17e51c891479","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Minh Anh"},{"id":"297eacca-8f29-4caa-a45a-c098e95c5a4b","type":"SAVINGS","status":"ACTIVE","ownerName":"Nguyễn Minh Anh"},{"id":"c31d1714-1910-4b07-8a3d-c9c57f90305d","type":"CHECKING","status":"LOCKED","ownerName":"Nguyễn Văn Bình"}]}}
+M-88-01 PASS: q=nguyễn: 3 accounts (one LOCKED, one SAVINGS), 4 fields each, no balance although Minh Anh holds 5,000,000
+{"method":"GET","q":"18a7520d-6a66-4ccc-be5a-c2d3613c016a","status":200,"body":{"items":[{"id":"18a7520d-6a66-4ccc-be5a-c2d3613c016a","type":"CHECKING","status":"ACTIVE","ownerName":"Trần Thu Hà"}]}}
+M-88-02 PASS: the account id of Trần Thu Hà finds exactly her account
+{"method":"GET","q":"%","status":200,"body":{"items":[]}}
+M-88-03 PASS: q=% matches no name (not a wildcard)
+{"method":"GET","q":"nguyễn","status":403,"body":{"errorCode":"FORBIDDEN","type":"about:blank","title":"Forbidden","status":403,"detail":"The caller's role is not allowed to use this endpoint.","correlationId":"daadfe68-6353-4733-98f4-cd8481ad5b47"}}
+{"method":"GET","q":"nguyễn","status":403,"body":{"errorCode":"FORBIDDEN","type":"about:blank","title":"Forbidden","status":403,"detail":"The caller's role is not allowed to use this endpoint.","correlationId":"75a83805-de93-441e-aab3-819e608c2cf2"}}
+M-88-04 PASS: customer and auditor get 403 and no data
+[{"actor_role":"operator","outcome":"SUCCESS","target_type":"account_search","target_id":"828b95a54a436bf4427d64fd9afe64ec","metadata":{"count":3}},{"actor_role":"operator","outcome":"SUCCESS","target_type":"account","target_id":"18a7520d-6a66-4ccc-be5a-c2d3613c016a","metadata":{"count":1}},{"actor_role":"operator","outcome":"SUCCESS","target_type":"account_search","target_id":"bbf3f11cb5b43e700273a78d12de55e4","metadata":{"count":0}}]
+M-88-05 PASS: 3 audit rows (counts 3, 1, 0), the id of Hà, fingerprints for the names, no name stored; the two refused calls left no row
+loading 50,000 customers ...
+---- EXPLAIN (ANALYZE, BUFFERS) of q=Nguyễn on 50,000 customers, last of 5 ----
+Limit  (cost=2768.92..2768.97 rows=20 width=55) (actual time=25.493..25.497 rows=20 loops=1)
+  Buffers: shared hit=1315
+  ->  Sort  (cost=2768.92..2781.54 rows=5051 width=55) (actual time=25.492..25.494 rows=20 loops=1)
+        Sort Key: c.full_name, a.created_at, a.id
+        Sort Method: top-N heapsort  Memory: 28kB
+        Buffers: shared hit=1315
+        ->  Hash Join  (cost=1233.17..2634.51 rows=5051 width=55) (actual time=18.238..24.522 rows=5004 loops=1)
+              Hash Cond: (a.customer_id = c.id)
+              Buffers: shared hit=1315
+              ->  Seq Scan on accounts a  (cost=0.00..1270.06 rows=50006 width=55) (actual time=0.004..2.140 rows=50006 loops=1)
+                    Buffers: shared hit=770
+              ->  Hash  (cost=1170.04..1170.04 rows=5051 width=32) (actual time=18.211..18.211 rows=5002 loops=1)
+                    Buckets: 8192  Batches: 1  Memory Usage: 396kB
+                    Buffers: shared hit=545
+                    ->  Seq Scan on customers c  (cost=0.00..1170.04 rows=5051 width=32) (actual time=0.004..17.415 rows=5002 loops=1)
+                          Filter: (full_name ~~* '%Nguyễn%'::text)
+                          Rows Removed by Filter: 45001
+                          Buffers: shared hit=545
+Planning:
+  Buffers: shared hit=6
+Planning Time: 0.212 ms
+Execution Time: 25.722 ms
+{"method":"GET","q":"Nguyễn","status":200,"body":{"items":[{"id":"feda6719-1351-4ce2-93b3-17e51c891479","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Minh Anh"},{"id":"297eacca-8f29-4caa-a45a-c098e95c5a4b","type":"SAVINGS","status":"ACTIVE","ownerName":"Nguyễn Minh Anh"},{"id":"30f6bfa5-a95a-4495-baf9-13c006a1a108","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10"},{"id":"edbf7f47-785b-4125-995c-b1366da94da1","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 100"},{"id":"b3214cc6-dbdd-4152-9d1c-1166a1d12ef3","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 1000"},{"id":"c23a9055-b101-4384-b048-4db6ab37f56c","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10000"},{"id":"c8b69a45-925a-47d9-b22f-3a8c049b5635","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10010"},{"id":"1f2212db-3e9c-4bb1-9f9e-ecdd38c7e384","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10020"},{"id":"b0920793-60e4-4816-95ec-b9506f91f780","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10030"},{"id":"2d73c8de-9a62-4dba-8feb-13a16e301e75","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10040"},{"id":"d0b93e85-96c3-4da3-80de-c1ae1adaf322","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10050"},{"id":"d34d4171-b3c2-4c73-a19d-40bb9797b725","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10060"},{"id":"fba7b0fb-2547-4c95-b2de-36213aa79612","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10070"},{"id":"1a20e2b0-1894-4988-9a2b-a2da30e05f4d","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10080"},{"id":"a4c7d70e-d794-458b-833d-2446f8fd2ba9","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10090"},{"id":"6c36f3ec-a2ca-479a-8cd5-04fd461b8c44","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 1010"},{"id":"eca3f0ff-77aa-40be-a690-9adbc8494659","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10100"},{"id":"4bd794d6-0c7b-40d3-ae20-e56073b9757e","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10110"},{"id":"82ed63f7-c5d3-4cc3-9763-dcd258b642b2","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10120"},{"id":"a7cc481c-aabe-4acc-905b-652395c8a747","type":"CHECKING","status":"ACTIVE","ownerName":"Nguyễn Văn 10130"}]}}
+M-88-06 PASS: 50003 customers: 20 results; the plan is a Seq Scan on customers (no index, as decided), execution 22.515, 23.604, 23.643, 24.642, 25.722 ms
+DBS-88 cleanup PASS: app closed, JWKS directory gone, temporary database absent from pg_database, owned PG17 container removed
