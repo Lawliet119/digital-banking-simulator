@@ -27,6 +27,31 @@ describe('DBS-93 DoD 2 reference count behind txCount10m', () => {
     expect(countTransfersInWindow(current, history, 10)).toBe(3); // current, a, edge-in
   });
 
+  it('preserves nanosecond order at both ends of the event-contract window', () => {
+    const precise = { transferId: 'cur', occurredAt: '2026-10-19T12:00:00.000000001Z' };
+    expect(
+      countTransfersInWindow(
+        precise,
+        [{ transferId: 'edge', occurredAt: '2026-10-19T11:50:00.000000001Z' }],
+        10,
+      ),
+    ).toBe(1);
+    expect(
+      countTransfersInWindow(
+        precise,
+        [{ transferId: 'inside', occurredAt: '2026-10-19T11:50:00.000000002Z' }],
+        10,
+      ),
+    ).toBe(2);
+    expect(
+      countTransfersInWindow(
+        precise,
+        [{ transferId: 'future', occurredAt: '2026-10-19T12:00:00.000000002Z' }],
+        10,
+      ),
+    ).toBe(1);
+  });
+
   it('TC-93-05a does not count the same transferId twice, nor the current one again', () => {
     const history = [ago(MIN, 'a'), ago(MIN, 'a'), ago(2 * MIN, 'a'), { ...current }];
     expect(countTransfersInWindow(current, history, 10)).toBe(2); // current, a

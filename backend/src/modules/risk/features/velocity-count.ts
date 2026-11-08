@@ -1,3 +1,5 @@
+import { riskTimeNanoseconds } from '../risk-time';
+
 export interface TransferStamp {
   readonly transferId: string;
   /** ISO-8601 instant of the transfer (the event's `occurredAt`). */
@@ -21,21 +23,15 @@ export function countTransfersInWindow(
   history: readonly TransferStamp[],
   windowMinutes: number,
 ): number {
-  if (!Number.isInteger(windowMinutes) || windowMinutes < 1) {
-    throw new Error('windowMinutes must be a positive integer');
+  if (!Number.isSafeInteger(windowMinutes) || windowMinutes < 1) {
+    throw new Error('windowMinutes must be a positive safe integer');
   }
-  const until = instant(current.occurredAt);
-  const from = until - windowMinutes * 60_000;
+  const until = riskTimeNanoseconds(current.occurredAt);
+  const from = until - BigInt(windowMinutes) * 60_000_000_000n;
   const ids = new Set<string>([current.transferId]);
   for (const past of history) {
-    const at = instant(past.occurredAt);
+    const at = riskTimeNanoseconds(past.occurredAt);
     if (at > from && at <= until) ids.add(past.transferId);
   }
   return ids.size;
-}
-
-function instant(value: string): number {
-  const ms = Date.parse(value);
-  if (Number.isNaN(ms)) throw new Error('Invalid transfer timestamp');
-  return ms;
 }

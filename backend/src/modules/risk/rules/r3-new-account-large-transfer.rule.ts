@@ -1,14 +1,12 @@
 import { parseMoney, parsePositiveMoney } from '@common/money';
 import type { Features, TransferEvent } from '../features/feature-provider';
+import { riskTimeNanoseconds } from '../risk-time';
 import type { RiskRule, RuleHit, RuleParams } from './rule';
 
 const MAX_WEIGHT = 2147483647;
 const MAX_AGE_HOURS_LIMIT = 87600; // ten years: anything larger is a configuration mistake
 const HOUR_MS = 3_600_000;
 const MINUTE_MS = 60_000;
-
-/** ISO-8601 UTC with `Z`, seconds, 1 to 9 fraction digits when present (the event contract). */
-const UTC_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 
 function invalidConfig(): never {
   // The messages never repeat the offending value.
@@ -19,18 +17,13 @@ function invalidField(field: string): never {
   throw new Error(`Invalid R3 snapshot field: ${field}`);
 }
 
-/**
- * The instant of a real UTC timestamp, in milliseconds (sub-millisecond digits are dropped; the
- * producer uses `Date#toISOString()`, so there are none in practice). `Date.parse` alone rolls
- * `2026-02-30` over and accepts hour 24, so the result must print back to the same date and time.
- */
-function utcInstant(value: unknown, field: string): number {
-  if (typeof value !== 'string' || !UTC_TIME.test(value)) return invalidField(field);
-  const ms = Date.parse(value);
-  if (Number.isNaN(ms) || new Date(ms).toISOString().slice(0, 19) !== value.slice(0, 19)) {
+/** Parse a real UTC timestamp without losing its fractional seconds. */
+function utcInstant(value: unknown, field: string): bigint {
+  try {
+    return riskTimeNanoseconds(value);
+  } catch {
     return invalidField(field);
   }
-  return ms;
 }
 
 /** Whole-dong amount with dot-grouped thousands, as in the guide's sample (`20.000.000đ`). */
@@ -97,9 +90,11 @@ export class R3NewAccountLargeTransferRule implements RiskRule {
     }
     const occurredAt = utcInstant(event.occurredAt, 'occurredAt');
     const createdAt = utcInstant(event.fromAccountCreatedAt, 'fromAccountCreatedAt');
-    const ageMs = Math.max(0, occurredAt - createdAt);
+    const elapsed = occurredAt - createdAt;
+    const age = elapsed > 0n ? elapsed : 0n;
 
-    if (ageMs >= maxAgeHours * HOUR_MS || amount <= minAmount) return null;
+    if (age >= BigInt(maxAgeHours) * 3_600_000_000_000n || amount <= minAmount) return null;
+    const ageMs = Number(age / 1_000_000n);
     return {
       id: this.id,
       weight: params.weight,
