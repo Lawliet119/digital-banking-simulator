@@ -1,6 +1,6 @@
 # DBS-93 · Luật R1 velocity
 
-> **Status:** Implemented (R1 thuần; TC-93-04/05 còn chờ) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-93-r1-velocity` · **PR:** [#87](https://github.com/Lawliet119/digital-banking-simulator/pull/87) · **Cập nhật:** 2026-11-08
+> **Status:** Implemented (R1 thuần; TC-93-05 còn chờ) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-93-r1-velocity` · **PR:** [#87](https://github.com/Lawliet119/digital-banking-simulator/pull/87) · **Cập nhật:** 2026-11-08
 
 ## 1. Bối cảnh
 
@@ -23,7 +23,7 @@ DoD DBS-93 trên board:
 - `Features.txCount10m` là số do provider cung cấp, gồm giao dịch hiện tại. [OnlineFeatureProvider](../../backend/src/modules/risk/features/online-feature-provider.ts) và [OfflineFeatureProvider](../../backend/src/modules/risk/features/offline-feature-provider.ts) hiện chủ động báo lỗi chưa cấu hình; chạy thử trong snapshot `main` đều bị từ chối như vậy.
 - [Guide §4.2](../components/risk/FRAUD_DETECTION_GUIDE.md#42-sáu-luật), [BRD FR-RSK-01/02](../BRD.md) và seed DBS-58 quy định đếm theo `occurredAt`, bao gồm giao dịch hiện tại, R1 kích hoạt khi `count > 5` với trọng số v1 là 30. Tham số phiên bản phải lấy từ cấu hình; không hardcode v1 làm cấu hình duy nhất.
 - Chưa có luật R1, consumer hay scoring runtime. Adapter OpenAI Decisions chỉ là thành phần độc lập; [ADR-14](../adr/0014-fraud-rules-external-ai.md) được ghi Accepted, không tự bật AI cho dữ liệu thật.
-- Chứng minh đúng cửa sổ và chống đếm trùng là trách nhiệm của các nguồn đặc trưng, không thể chứng minh bằng cách giả sẵn `txCount10m`: DBS-109/128 và DBS-112 phải có test tương ứng. Lọc `DEPOSIT` tại runtime được xác minh ở consumer DBS-111. Các phần này chưa được coi là đạt trong DBS-93.
+- Chứng minh đúng cửa sổ và chống đếm trùng là trách nhiệm của các nguồn đặc trưng, không thể chứng minh bằng cách giả sẵn `txCount10m`: DBS-109/128 và DBS-112 phải có test tương ứng. Rule tự bỏ `DEPOSIT` (TC-93-04); việc consumer lọc trước khi gọi được xác minh ở DBS-111. Các phần này chưa được coi là đạt trong DBS-93.
 - BL-041 theo dõi rule/scoring/provider/consumer và việc chưa có fraud end-to-end. BL-043/044/046/048/049/050/051 về provider, đánh giá, xử lý lỗi, migration và vận hành vẫn mở; không nhận chúng là đã xong bằng luật thuần.
 - Script board `--next` chỉ nhận diện dependency dạng `DBS-*`; với DBS-111 phải tự kiểm RSK-01 và trạng thái thật, không coi script là bằng chứng migration đã hoàn tất.
 
@@ -60,7 +60,7 @@ Không đọc generator hoặc holdout bị niêm phong. Bộ tune theo DBS-127 
 - `RuleParams` cho R1 nhận `enabled`, `weight` và `thresholds` gồm `maxTransfers`, `windowMinutes`. Seed DBS-58 tương ứng `{ enabled: true, weight: 30, thresholds: { maxTransfers: 5, windowMinutes: 10 } }`; task repository cấu hình phải ánh xạ chính xác từ các key cùng tên trong seed.
 - Vì contract hiện chỉ có `txCount10m`, R1 chỉ hỗ trợ cửa sổ đúng **10 phút**. Cấu hình cửa sổ khác không được diễn giải như dữ liệu 10 phút. `maxTransfers` phải là số nguyên không âm; `weight` nguyên không âm trong miền PostgreSQL `int`; `txCount10m` phải là số nguyên an toàn dương vì đã gồm lệnh hiện tại. Dữ liệu/cấu hình sai ném lỗi, không âm thầm thành không có cờ; xử lý rollback/DLQ là trách nhiệm consumer theo ADR-14.
 - Với tham số hợp lệ: tắt rule → `null`; bật và `txCount10m <= maxTransfers` → `null`; bật và lớn hơn ngưỡng → `{ id: 'R1', weight, explanation }`. Giải thích tiếng Việt chứa số lệnh, cửa sổ 10 phút và ngưỡng, không chứa ID hoặc dữ liệu khách.
-- Không dùng thời gian hệ thống, SQL, Redis, mạng, event ID hoặc đầu vào AI. Rule không tự lọc `DEPOSIT` ở runtime: kiểu `TransferEvent` là hợp đồng đầu vào; DBS-111 phải lọc trước khi gọi.
+- Không dùng thời gian hệ thống, SQL, Redis, mạng, event ID hoặc đầu vào AI. Rule chỉ chấm `TRANSFER`: sự kiện có `type` khác (`DEPOSIT`) trả `null` ngay từ đầu, **trước** khi đọc số đếm hay kiểm tra cấu hình, vì kiểu `TransferEvent` chỉ bảo vệ lúc biên dịch. Consumer DBS-111 vẫn phải lọc `DEPOSIT` trước khi gọi để khỏi đọc feature không cần; guard trong rule là lớp chặn thứ hai (bổ sung sau G4, xem §8).
 
 ## 3. Kiến trúc
 
@@ -75,7 +75,7 @@ Không có transaction hoặc gọi dịch vụ ngoài trong task này. Provider
 | TC-93-01 | DoD 1–2 | Unit | Ngưỡng 5 và cửa sổ 10 phút: 5 → null; 6 → hit R1 đúng weight, giải thích có count, cửa sổ và ngưỡng |
 | TC-93-02 | DoD 1 | Unit | Tắt rule với count 6 → null; đổi maxTransfers và weight hợp lệ → ngưỡng/hit dùng cấu hình, không dùng hằng số v1 |
 | TC-93-03 | ADR-14 cấu hình nền và feature | Unit | Count không phải số nguyên an toàn dương; ngưỡng/weight sai kiểu hoặc ngoài miền; cửa sổ khác 10 phút → lỗi rõ ràng thay vì null/hit sai |
-| TC-93-04 | DoD 3 | Quy trình/consumer | Kiểu sẵn có giới hạn `TransferEvent` ở `TRANSFER`; test runtime `DEPOSIT` do DBS-111, chưa có consumer trong task này |
+| TC-93-04 | DoD 3 | Unit | Sự kiện `type: 'DEPOSIT'` lọt tới rule với count 6 hoặc 100 → `null`; `TRANSFER` cùng count vẫn có hit; `DEPOSIT` với count không hợp lệ (0) → `null`, không ném lỗi. Việc consumer lọc `DEPOSIT` do DBS-111 kiểm riêng |
 | TC-93-05 | DoD 2: cửa sổ và trùng | Tích hợp provider tương lai | DBS-109/128/112 chứng minh ngoài cửa sổ và trùng transferId trên nguồn feature thật; chưa thực hiện trong rule thuần |
 | TC-93-06 | DoD 4 | Quy trình | CI, Dev khác review và merge thực tế; không tính là đạt trước khi xảy ra |
 
@@ -94,8 +94,9 @@ npx ts-node -r tsconfig-paths/register test/manual/r1-velocity.manual.ts
 | M-93-01 | Cấu hình v1, count 5 và 6 | In null cho 5; hit R1 cho 6, weight 30 và explanation nêu số, cửa sổ, ngưỡng |
 | M-93-02 | Tắt rule với count 6 | In null |
 | M-93-03 | Bật rule nhưng cấu hình cửa sổ 15 phút | In trạng thái lỗi rõ ràng, không tạo hit |
+| M-93-04 | Event `type: 'DEPOSIT'` với count 100 | In `null` |
 
-Driver chỉ dùng dữ liệu tổng hợp trong bộ nhớ, không gọi OpenAI, không sửa DB hoặc ledger. Vì provider/consumer chưa tồn tại, script không chứng minh cửa sổ thực, dedup hoặc lọc `DEPOSIT`; các bằng chứng đó thuộc TC-93-04/05.
+Driver chỉ dùng dữ liệu tổng hợp trong bộ nhớ, không gọi OpenAI, không sửa DB hoặc ledger. Vì provider chưa tồn tại, script không chứng minh cửa sổ thực hay dedup; bằng chứng đó thuộc TC-93-05. M-93-04 chỉ chứng minh rule tự bỏ `DEPOSIT`, không chứng minh consumer lọc.
 
 ## 6. Domain review
 
@@ -126,9 +127,9 @@ Reviewer độc lập `openai-codex/gpt-6.1-sol`: **0 blocking, 0 should-fix, 0 
 
 ## 8. Kết quả và bàn giao
 
-- Rule được commit ở `4651c3d`; commit cuối đổi driver kiểm thủ công là `290dd4e9443e0dd042dfa3bccc807ac1ff76c2b6` (giữ kiểm nội dung bắt buộc, không ghim câu chữ). Test trước implementation đỏ `TS2307` thiếu rule; sau implementation suite R1 đạt **21/21**.
+- Rule được commit ở `4651c3d`; commit cuối đổi driver kiểm thủ công là `290dd4e9443e0dd042dfa3bccc807ac1ff76c2b6` (giữ kiểm nội dung bắt buộc, không ghim câu chữ); commit code mới nhất là `30328ce` (guard `DEPOSIT`). Test trước implementation đỏ `TS2307` thiếu rule; sau implementation suite R1 đạt **21/21**; sau bổ sung DoD 3 (bên dưới) đạt **23/23**.
 - `lint:check`, `typecheck`, `build`: đạt. Unit toàn bộ: **70 suite, 1.150 test**; e2e: **15 suite, 153 test**; DB: **42 suite, 724 test** trên Docker project riêng; không có test bị skip trong output. E2e bắt đầu trước khi driver manual được chỉnh assertion, nhưng code rule không đổi; driver được chạy lại trên commit cuối.
-- M-93-01/02/03: đạt trên commit code trên; [output thô](screenshots/DBS-93/manual-test.txt). Không có credential hoặc dữ liệu khách trong bằng chứng.
+- M-93-01/02/03/04: đạt, chạy lại trên commit code cuối `30328ce`; [output thô](screenshots/DBS-93/manual-test.txt). Không có credential hoặc dữ liệu khách trong bằng chứng.
 - Tự review code: đối chiếu ranh giới 5/6, rule tắt, ngưỡng/trọng số từ params, miền số nguyên và từ chối cửa sổ khác 10 phút; không có I/O trong `evaluate`. Review thiết kế độc lập ở §6 không thay thế Dev review PR.
 - Link: checker repo chạy với danh sách giới hạn 4 Markdown đã sửa, **4 file, 0 link lỗi**; kiểm riêng 173 link và anchor trong bốn file này cũng không thấy lỗi. Đây không phải kiểm toàn repo; không truy cập dataset niêm phong.
 - Đối chiếu phạm vi: diff code từ `origin/main` gồm đúng rule, unit spec và driver manual; tài liệu/evidence gồm các file đã liệt kê ở §7, không có thay đổi ledger/event/schema.
@@ -138,13 +139,15 @@ Reviewer độc lập `openai-codex/gpt-6.1-sol`: **0 blocking, 0 should-fix, 0 
 | Case | Kết quả / giới hạn |
 |---|---|
 | TC-93-01/02/03 | Đạt trên suite unit R1; kiểm so sánh ngưỡng, rule tắt, cấu hình, giá trị lỗi và explanation |
-| TC-93-04 | Compile-time contract chỉ cho `TRANSFER`; **chưa kiểm runtime DEPOSIT** khi chưa có consumer DBS-111; BL-041 |
+| TC-93-04 | Đạt trên suite unit R1 (2 ca, đỏ trước khi thêm guard) và M-93-04. Phần consumer lọc `DEPOSIT` vẫn chưa có (DBS-111, BL-041) |
 | TC-93-05 | **Chưa kiểm cửa sổ và dedup bằng nguồn thật**: provider chưa triển khai; DBS-109/128/112, BL-041 |
 | TC-93-06 | CI remote, Dev khác review và merge chưa có; BL-183 |
 
 Không có bằng chứng fraud end-to-end, chất lượng phát hiện hay tích hợp OpenAI từ task R1. Các task còn lại của yêu cầu tổng thể và các phụ thuộc dữ liệu/Ops được giữ ở §1; không thay chúng bằng mock.
 
-**Quyết định G4:** người dùng chọn “Duyệt G4”, chấp nhận nêu rõ TC-93-04 (DEPOSIT runtime), TC-93-05 (cửa sổ/dedup qua provider thật) và việc chưa kiểm link toàn repo. PR chỉ bàn giao R1 thuần; các phần còn lại của yêu cầu fraud vẫn mở.
+**Bổ sung sau G4 (2026-11-08, techlead yêu cầu sửa mọi DoD sửa được):** thêm guard `type !== 'TRANSFER' → null` vào `R1VelocityRule` để đạt DoD 3, hai ca TC-93-04 viết trước (đỏ: 2 failed) rồi xanh, thêm M-93-04 vào driver và chạy lại cả bốn bước thủ công trên commit `30328ce`; unit toàn `src/modules/risk` 150/150, `lint:check`, `typecheck` đạt. Không đổi hợp đồng `RiskRule`, event, schema. DoD 2 (cửa sổ, dedup) không sửa được ở luật thuần: cần provider thật (TC-93-05). DoD 4 (Dev khác review) là quy trình, chưa đạt.
+
+**Quyết định G4:** người dùng chọn “Duyệt G4”, chấp nhận nêu rõ TC-93-05 (cửa sổ/dedup qua provider thật; ban đầu cả TC-93-04 DEPOSIT runtime, đã đạt ở phần bổ sung trên) và việc chưa kiểm link toàn repo. PR chỉ bàn giao R1 thuần; các phần còn lại của yêu cầu fraud vẫn mở.
 
 ## 9. Tài liệu đã cập nhật
 
