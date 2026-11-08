@@ -1,4 +1,4 @@
-2523cc255cdb1bfb9396779ce682c76a3821a9b2
+5df0f0f05960223f5aed38861f0550339a73c7f9
 $ cd backend && npx ts-node -r tsconfig-paths/register test/manual/scoring.manual.ts
 M-108-01: {"mode":"rule_only","hits":[{"id":"R3","weight":35,"explanation":"Tài khoản mở 3 giờ trước, chuyển 20.000.000đ"},{"id":"R6","weight":30,"explanation":"Chuyển xấp xỉ 96.15% số dư (20000000/20800000đ)."}],"ruleScore":65,"aiAppliedWeight":0,"score":65,"level":"MEDIUM","aiStatus":"DISABLED"}
 M-108-02: {"mode":"rules_with_external_ai","hits":[],"ruleScore":0,"aiAppliedWeight":40,"score":40,"level":"MEDIUM","aiStatus":"SUCCEEDED"}

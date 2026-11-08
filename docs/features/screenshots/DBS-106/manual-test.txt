@@ -1,4 +1,4 @@
-2523cc255cdb1bfb9396779ce682c76a3821a9b2
+5df0f0f05960223f5aed38861f0550339a73c7f9
 $ cd backend && npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts
 M-95-01: {"young":{"id":"R3","weight":35,"explanation":"Tài khoản mở 3 giờ trước, chuyển 20.000.000đ"},"exactAge":null,"exactAmount":null}
 M-105-01: {"atHour":{"id":"R4","weight":20,"explanation":"Tài khoản đích đã chuyển ngược lại khoảng 60.00 phút trước."},"older":null}
