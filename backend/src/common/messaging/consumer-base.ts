@@ -11,6 +11,8 @@ import { PoisonMessageError, SqsClient, type BatchResult, type SqsMessage } from
 /** Receives a message may get before it is dead-lettered: 4 retries after the first (ADR-03). */
 export const MAX_ATTEMPTS = 5;
 const LONG_POLL_SECONDS = 20;
+/** The backoff before a retry never exceeds this (the visibility timeout the queue starts from is 30 s). */
+const MAX_BACKOFF_SECONDS = 300;
 
 /** `notification-events` -> `notification-events-dlq` (docs/03 §10: each queue has its own DLQ). */
 export function dlqUrlFor(queueUrl: string): string {
@@ -79,6 +81,15 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, OnApplicat
     // Nothing by default.
   }
 
+  /**
+   * Seconds the first failed message stays hidden before it is delivered again; each further
+   * failure doubles it, up to 300 s. 0 turns the backoff off (the queue's own visibility
+   * timeout applies). A consumer of a slow dependency raises it, a test sets 0.
+   */
+  protected get retryBackoffSeconds(): number {
+    return 5;
+  }
+
   protected get unknownEventPolicy(): UnknownEventPolicy {
     return 'dead-letter';
   }
@@ -126,12 +137,27 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, OnApplicat
       });
     } catch (error) {
       if (error instanceof PoisonMessageError) throw error;
-      if (receiveCountOf(message) >= MAX_ATTEMPTS) {
+      const attempt = receiveCountOf(message);
+      if (attempt >= MAX_ATTEMPTS) {
         throw new PoisonMessageError('Event kept failing and used up its attempts', {
           cause: error,
         });
       }
+      await this.backOff(message, attempt);
       throw error;
+    }
+  }
+
+  /** Never hides the real error: if the queue refuses the new timeout, the default one applies. */
+  private async backOff(message: SqsMessage | undefined, attempt: number): Promise<void> {
+    const queue = this.queueUrl();
+    const base = this.retryBackoffSeconds;
+    if (!message || !queue || base <= 0) return;
+    const seconds = Math.min(base * 2 ** (attempt - 1), MAX_BACKOFF_SECONDS);
+    try {
+      await this.sqs.changeVisibility(queue, message, seconds);
+    } catch (error) {
+      this.baseLogger.warn(safeErrorMetadata(error), `${this.consumerName} backoff not applied`);
     }
   }
 
