@@ -808,6 +808,40 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     expect(rejected[0].body.errorCode).toBe('LIMIT_PER_DAY_EXCEEDED');
     expect(await balance(b.accountId)).toBe('195000000');
   });
+  it('TC-84-06 AC-5.6 with five parallel 10m transfers: exactly two complete, never above the day limit', async () => {
+    const a = await target('300000000'),
+      b = await target();
+    for (let i = 0; i < 3; i++) await transfer(a, b.accountId, '50000000').expect(201);
+    await transfer(a, b.accountId, '30000000').expect(201); // 180,000,000 sent
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => transfer(a, b.accountId, '10000000')),
+    );
+    expect(results.filter(r => r.status === 201)).toHaveLength(2);
+    const rejected = results.filter(r => r.status === 422);
+    expect(rejected).toHaveLength(3);
+    for (const r of rejected) expect(r.body.errorCode).toBe('LIMIT_PER_DAY_EXCEEDED');
+    expect(await balance(b.accountId)).toBe('200000000');
+    const [{ sent }] = await q(
+      "SELECT sum(amount)::text AS sent FROM ledger_entries WHERE account_id=$1 AND direction='DEBIT'",
+      [a.accountId],
+    );
+    expect(sent).toBe('200000000');
+  });
+  it('TC-84-07 deposits received do not count against the daily limit of the receiver', async () => {
+    const a = await target(),
+      b = await target();
+    for (let i = 0; i < 3; i++)
+      await request(app.url)
+        .post('/v1/operator/deposits')
+        .auth(operator, { type: 'bearer' })
+        .set('Idempotency-Key', randomUUID())
+        .send({ toAccountId: a.accountId, amount: '100000000' })
+        .expect(201); // 300,000,000 received, above the 200,000,000 day limit
+    for (let i = 0; i < 4; i++) await transfer(a, b.accountId, '50000000').expect(201);
+    const res = await transfer(a, b.accountId, '1').expect(422);
+    expect(res.body.errorCode).toBe('LIMIT_PER_DAY_EXCEEDED');
+    expect(await balance(a.accountId)).toBe('100000000');
+  });
   it('TC-54-05 money received today does not count against the account sending limit', async () => {
     const a = await target('250000000'),
       b = await target();

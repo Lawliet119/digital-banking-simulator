@@ -1,3 +1,4 @@
+import { SystemClock } from '@common/clock';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { EntityManager } from 'typeorm';
@@ -33,7 +34,7 @@ const manager = {
 
 describe('SyncGuardService (what needs no database)', () => {
   it('TC-82-07 returns a Promise, so a caller that forgets to await holds a Promise, never a verdict', async () => {
-    const guard = new SyncGuardService(accounts, limits as never);
+    const guard = new SyncGuardService(accounts, new SystemClock(), limits as never);
     const result = guard.checkGuards(
       manager,
       account(),
@@ -67,7 +68,7 @@ describe('SyncGuardService (what needs no database)', () => {
 
   it('TC-82-08 decides on the account state before it asks the database anything', async () => {
     const query = jest.fn();
-    const guard = new SyncGuardService(accounts, limits as never);
+    const guard = new SyncGuardService(accounts, new SystemClock(), limits as never);
     const verdict = await guard.checkGuards(
       { query } as unknown as EntityManager,
       account({ status: 'LOCKED' }),

@@ -479,6 +479,17 @@ Tải thiết kế ≈ 10.000 lệnh chuyển/ngày (docs/BRD.md Phần 2 §5.3)
 
 Mọi `Seq Scan` xuất hiện trên bảng lớn trong các truy vấn trên là lỗi cần sửa.
 
+### 7.1 Đã đo: hạn mức ngày (DBS-84, 2026-11-08)
+
+PostgreSQL 17, `timezone = UTC`, 1.000.400 dòng ghi nợ của một tài khoản (730 ngày, 968 dòng hôm nay) + 500.000 dòng của 50.000 tài khoản khác, `VACUUM (ANALYZE)`; nạp và chạy bằng `node backend/scripts/manual-dbs84.cjs` (output thô: [manual-test.txt](../../features/screenshots/DBS-84/manual-test.txt)).
+
+| Truy vấn | Plan | Thời gian (trung vị 7 lần) |
+|---|---|---|
+| `SENT_TODAY_SQL` (mốc ngày từ tham số `$2` của `Clock`) | `Index Only Scan` trên `ledger_entries_daily_debit_idx`, `Index Cond: created_at >= '2026-11-07 17:00:00+00'`, `Heap Fetches: 0`, 14 buffer | **0,163 ms** (ngưỡng 5 ms) |
+| Bản cũ, mốc ngày từ `clock_timestamp()` trong SQL | `Parallel Seq Scan`, 24.369 buffer đọc đĩa | 203 ms |
+
+**Quy tắc rút ra:** điều kiện trên cột có index không được chứa hàm `VOLATILE` (`clock_timestamp()`, `random()`): nó chỉ thành `Filter`, không thành `Index Cond`. Đưa "bây giờ" vào dưới dạng tham số (PostgreSQL gấp `date_trunc(… $2 AT TIME ZONE …)` thành hằng khi lập plan) hoặc dùng hàm `STABLE` như `statement_timestamp()`. Test tự động giữ quy tắc này: `backend/test/db/daily-limit.db-spec.ts` › `TC-84-01`.
+
 Query audit được kiểm bằng đúng projection/order/limit+1 của service trên DB tạm ít nhất 50.000 dòng, correlation target khớp một dòng. EXPLAIN tự chọn plan, không ép `enable_seqscan`; assertion yêu cầu cùng node có `Node Type = Index Scan` và `Index Name = audit_log_correlation_idx`, không chấp nhận Bitmap Index Scan. [DBS-103 §8](../../features/DBS-103-audit-search.md#8-kết-quả) giữ các lượt đo warm và giới hạn môi trường local; đây chưa phải benchmark RDS hoặc latency endpoint dưới tải.
 
 ---
