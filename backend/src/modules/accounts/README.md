@@ -1,6 +1,6 @@
 # accounts 🟡 Supporting
 
-> **Status:** Accepted · **Owner:** Dev · **Verified against code:** public service, ownership và audit denial; các API nghiệp vụ còn chờ task endpoint.
+> **Status:** Accepted · **Owner:** Dev · **Verified against code:** public service, ownership, audit denial và toàn bộ API khách/nhân viên (UC-1, UC-2, UC-4, FR-ACC-04, UC-11).
 
 Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 
@@ -83,4 +83,10 @@ Primitive cho ledger được chứng minh trong [DBS-55](../../../../docs/featu
 
 `GET /v1/operator/accounts?q=` (`@Roles('operator')`, chỉ operator): `q` là một UUID đầy đủ thì tìm `accountId`, còn lại tìm một phần, không phân biệt hoa thường, theo `customers.full_name` (`ILIKE … ESCAPE ''`, `%`/`_` là chữ thường). Tối đa 20 dòng; mỗi dòng chỉ `id`, `type`, `status`, `ownerName` (DTO chép từng trường, SQL không chọn `balance`). `JOIN customers` nên không bao giờ trả tài khoản `funding`. Không có index trên `full_name` (database-design §6.2): với 50.000 khách và từ khóa trùng 10% tên, Seq Scan mất khoảng 25 ms ([DBS-88](../../../../docs/features/DBS-88-operator-account-search.md) M-88-06).
 
-Mỗi lần tra cứu hợp lệ ghi audit `operator.account.search` trong cùng transaction với việc đọc (audit lỗi thì không trả dữ liệu). Audit không lưu tên khách vì bộ khóa metadata là danh sách đóng: `target` là `accountId` (tìm theo id) hoặc `account_search` + 32 ký tự đầu SHA-256 của từ khóa (tìm theo tên), `metadata.count` là số kết quả. Muốn tra ngược, băm từ khóa đã biết và tìm `target_id`.
+- Mỗi lần tra cứu hợp lệ ghi audit `operator.account.search` trong cùng transaction với việc đọc (audit lỗi thì không trả dữ liệu). Audit không lưu tên khách vì bộ khóa metadata là danh sách đóng: `target` là `accountId` (tìm theo id) hoặc `account_search` + 32 ký tự đầu SHA-256 của từ khóa (tìm theo tên), `metadata.count` là số kết quả. Muốn tra ngược, băm từ khóa đã biết và tìm `target_id`.
+
+## Operator khóa và mở khóa tài khoản của khách (DBS-113)
+
+`POST /v1/operator/accounts/{id}/lock` và `POST /v1/operator/accounts/{id}/unlock` (`@Roles('operator')`, chỉ operator): nhận `:id` UUID tài khoản khách hàng (sai UUID → 400; không tồn tại hoặc là tài khoản `SYSTEM` `funding` → 404) và body `{ reason }` (NFC + trim, 1–200 ký tự, không có ký tự điều khiển hay surrogate lẻ; sai/thiếu → 400). Trả 200 `{id,type,status,updatedAt}` (`Cache-Control: no-store`), không trả `balance`.
+
+`OperatorAccountStatusService` thực hiện toàn bộ trong một `TransactionService.run` (`READ COMMITTED`): khóa dòng bằng `SELECT … FROM accounts a JOIN customers c ON c.id = a.customer_id WHERE a.id = $1::uuid FOR UPDATE OF a`; khi chuyển trạng thái thì cập nhật `accounts.status` và `updated_at = clock_timestamp()`, gọi `IdentityService.revokeSessions(manager, ownerUserId)` khi khóa (`users.sessions_revoked_at = clock_timestamp()`), ghi `audit_log` (`account.lock` / `account.unlock`, `outcome = 'SUCCESS'`, `metadata.reason` thuộc `AuditReason`, `metadata.id` là 32 ký tự hex đầu của SHA-256 chuỗi lý do) và phát sự kiện `AccountStatusChanged` qua `OutboxWriter.add` (không có trường `reason`, giữ BR-13). Nếu tài khoản đã ở sẵn trạng thái đích thì không cập nhật lại `accounts`/`users` và không phát sự kiện trùng, nhưng vẫn ghi dòng `audit_log`. Chi tiết và bằng chứng tại [DBS-113](../../../../docs/features/DBS-113-lock-unlock-account.md).
