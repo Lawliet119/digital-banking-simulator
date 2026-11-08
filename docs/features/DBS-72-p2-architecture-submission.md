@@ -143,7 +143,11 @@ Setup trong Git Bash: từ root chạy `npm --prefix backend ci`, bảo đảm `
 
 **Manual:** M-72-01/02 đã chạy trên code cuối, cả API snapshot và CLI subprocess thật: artifact 12 paths khớp /docs-json; failure giữ file cũ. Lần driver đầu lỗi cleanup vì kết nối drop nhầm URL quản trị; đã sửa lệnh driver (không sửa code ứng dụng), chạy lại hoàn tất exit0; raw giữ cả lần lỗi. M-72-03 link checker đạt 256files/0broken ở lượt đã lưu. [Raw manual](screenshots/DBS-72/manual-test.txt), [đối chiếu nguồn](screenshots/DBS-72/definition-check.txt).
 
-**Ảnh còn thiếu:** 01-export.png, 02-failure.png. Browser local bị tắt trong Work settings; viewer Notepad đã mở transcript nhưng screenshot có overlay Meet và tab ngoài phạm vi nên không lưu vào repo. Mermaid đã đọc/review nhưng chưa render bằng CLI/browser; chưa tuyên bố visual QA đạt.
+**Ảnh manual:** đã chụp từ cửa sổ Notepad riêng đang mở raw `manual-test.txt` trên code cuối; không sửa nội dung transcript hoặc lấy dữ liệu cửa sổ khác. Đây là ảnh xem lại output thực đã lưu, không phải lượt chạy mới. Diagram chưa có visual-render QA.
+
+![M-72-01 export thật](screenshots/DBS-72/01-export.png)
+
+![M-72-02 giữ nguyên artifact khi lỗi](screenshots/DBS-72/02-failure.png)
 
 **Bàn giao:** BL-180 (rubric/deadline/nộp thật); BL-181 (CI/Dev review/merge và ảnh). Git chỉ commit local theo G3, chưa push/PR/board. Lượt verification thoát127 chưa được coi là lỗi đã sửa.
 
@@ -155,7 +159,7 @@ DB 43 suites / 725 tests; E2E chính 15 suites / 153 tests; các bước Testcon
 
 CI Linux đã lấp khoảng trống full DB/E2E; không chứng minh lỗi launcher Windows hay legacy DBS-50 đã sửa. Rubric/deadline/link nộp P2 vẫn thiếu (BL-180); Dev review/merge, legacy smoke, Windows exit127 và hai PNG còn ở BL-181.
 
-Code không đổi sau manual; lần cập nhật này chỉ sửa hồ sơ/evidence. Diff file vẫn khớp §7. Status giữ Plan approved để trình G4.
+Code không đổi sau manual; các commit sau run CI trên chỉ sửa hồ sơ/evidence và bổ sung đủ 2 PNG đã định ở §7. Các ghi chú thiếu PNG trước đó được thay bằng ảnh thật ở trên; không còn ảnh thiếu. Diff file vẫn khớp §7. Status giữ Plan approved để trình G4.
 
 ## 9. Tài liệu đã cập nhật
 
