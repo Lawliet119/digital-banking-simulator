@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { limitsConfig } from '@config/limits.config';
 import { sqsConfig } from '@config/sqs.config';
 import { SqsModule } from '@libs/sqs';
+import { OutboxAgeGauge } from './outbox-age.gauge';
 import { OutboxCleanupService } from './outbox-cleanup.service';
 import { OutboxRelayService } from './outbox-relay.service';
 
@@ -14,7 +15,7 @@ import { OutboxRelayService } from './outbox-relay.service';
  */
 @Module({
   imports: [ConfigModule.forFeature(sqsConfig), ConfigModule.forFeature(limitsConfig), SqsModule],
-  providers: [OutboxRelayService, OutboxCleanupService],
+  providers: [OutboxRelayService, OutboxCleanupService, OutboxAgeGauge],
   exports: [OutboxRelayService],
 })
 export class OutboxRelayModule {}

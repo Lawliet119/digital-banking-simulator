@@ -7,6 +7,7 @@ import { JwtAuthGuard, RolesGuard } from '@modules/identity';
 import { RateLimitModule, TransferRateLimitGuard } from './common/rate-limit';
 import { modulesForRole } from './modules';
 import { LoggingModule } from './common/logging/logging.module';
+import { MetricsModule } from './common/metrics';
 
 // JwtAuthGuard (DBS-50) is the default guard for every HTTP route — opt out with @Public(), never
 // by omitting @UseGuards(). Only registered when this process serves HTTP: a `worker`-role
@@ -40,6 +41,7 @@ const httpGuardProviders: Provider[] = runsHttp()
   imports: [
     ConfigModule,
     LoggingModule,
+    MetricsModule,
     DatabaseModule,
     ...(runsHttp() ? [RateLimitModule] : []),
     ...modulesForRole(),

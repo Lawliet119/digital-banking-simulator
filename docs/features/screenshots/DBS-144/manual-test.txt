@@ -1,0 +1,87 @@
+c3dff10
+DBS-144 manual test, 2026-11-09. App: `APP_ROLE=both METRICS_EMF=true METRICS_FLUSH_MS=5000 npm run start` (from backend/, Windows, Git Bash), local Postgres 17 (throwaway container dbs63-fix-pg, DB banking_manual, port 55433), Valkey and ElasticMQ from docker compose. Tokens from `npm run auth:dev-token` (not printed). Ids withheld.
+Output below is raw from the driver; EMF lines are the lines of the app log that contain "_aws", printed compactly by a small helper (timestamp = start of the interval, dimension sets, dimensions, metrics; an array of samples is shown as "N samples: distinct values").
+
+== M-144-01 idle: expect the outbox gauge at 0 every 5 s
+2026-11-09T11:41:20.281Z sets=[[]]  outbox_oldest_unpublished_age_seconds=0
+2026-11-09T11:41:25.296Z sets=[[]]  outbox_oldest_unpublished_age_seconds=0
+-- 2 EMF line(s) (total log lines 68)
+RESULT: đạt
+
+== M-144-02 onboarding, account, deposit, two reads
+onboard: 200
+account opened (id withheld)
+deposit: 201
+read 1: 200
+read 2: 200
+2026-11-09T11:41:40.317Z sets=[["Route","Method"],["Method"],[]] Route=/v1/accounts Method=POST http_requests_total=1 http_5xx_total=0 http_aborted_total=0
+2026-11-09T11:41:40.317Z sets=[["Route","Method"],["Method"],[]] Route=/v1/accounts Method=POST http_request_duration_ms=[1 samples: 20]
+2026-11-09T11:41:40.317Z sets=[["Route","Method"],["Method"],[]] Route=/v1/operator/deposits Method=POST http_requests_total=1 http_5xx_total=0 http_aborted_total=0
+2026-11-09T11:41:40.317Z sets=[["Route","Method"],["Method"],[]] Route=/v1/operator/deposits Method=POST http_request_duration_ms=[1 samples: 50]
+2026-11-09T11:41:40.317Z sets=[["Route","Method"],["Method"],[]] Route=/v1/accounts/:id Method=GET http_requests_total=2 http_5xx_total=0 http_aborted_total=0
+2026-11-09T11:41:40.317Z sets=[["Route","Method"],["Method"],[]] Route=/v1/accounts/:id Method=GET http_request_duration_ms=[2 samples: 10,20]
+-- 6 EMF line(s) (total log lines 87)
+RESULT: đạt (deposit 1 request, GET /v1/accounts/:id 2 requests under one template, no 5xx, no id in a label)
+
+== M-144-03 unknown path, no token, deposit into a locked account (422)
+unknown path: 404
+no token: 401
+lock: 200
+deposit into locked: 422
+2026-11-09T11:41:55.337Z sets=[["Route","Method"],["Method"],[]] Route=unmatched Method=GET http_requests_total=1 http_5xx_total=0 http_aborted_total=0
+2026-11-09T11:41:55.337Z sets=[["Route","Method"],["Method"],[]] Route=/v1/identity/me Method=GET http_requests_total=1 http_5xx_total=0 http_aborted_total=0
+2026-11-09T11:41:55.337Z sets=[["Route","Method"],["Method"],[]] Route=/v1/accounts Method=POST http_requests_total=1 http_5xx_total=0 http_aborted_total=0
+2026-11-09T11:41:55.337Z sets=[["Route","Method"],["Method"],[]] Route=/v1/operator/accounts/:id/lock Method=POST http_requests_total=1 http_5xx_total=0 http_aborted_total=0
+2026-11-09T11:41:55.337Z sets=[["Route","Method"],["Method"],[]] Route=/v1/operator/deposits Method=POST http_requests_total=1 http_5xx_total=0 http_aborted_total=0
+-- 5 EMF line(s) (total log lines 105)
+RESULT: đạt (404 unknown path is `unmatched` and the path is not in any label; 401 and 422 are not 5xx)
+
+== M-144-04 database paused: /health/ready answers 503, the gauge times out, HTTP lines keep coming
+ready while paused: 503
+-- EMF lines:
+2026-11-09T11:42:15.382Z sets=[["Route","Method"]] Route=/health/ready Method=GET http_requests_total=1 http_5xx_total=1 http_aborted_total=0
+2026-11-09T11:42:15.382Z sets=[["Route","Method"]] Route=/health/ready Method=GET http_request_duration_ms=[1 samples: 2000]
+2026-11-09T11:42:30.407Z sets=[[]]  outbox_oldest_unpublished_age_seconds=0
+-- 3 EMF line(s) (total log lines 115)
+-- warnings about the gauge:
+{"level":40,"time":"2026-11-09T11:42:23.407Z","appRole":"both","role":"api","correlationId":null,"context":"MetricsService","gauge":"outbox_oldest_unpublished_age_seconds","reason":"timeout","errorName":"GaugeTimeout","message":"Metric gauge not read"}
+{"level":40,"time":"2026-11-09T11:42:25.399Z","appRole":"both","role":"api","correlationId":null,"context":"MetricsService","gauge":"outbox_oldest_unpublished_age_seconds","reason":"still reading","message":"Metric gauge skipped"}
+RESULT: đạt (5xx counted once for /health/ready with per-route dimension set only; the gauge timed out after 3 s, was not read again while it hung, and came back after `docker unpause`; the warnings hold no error text)
+
+== M-144-05 Valkey stopped: requests still answered, fallback counted
+deposit 1: 201
+deposit 2: 201
+deposit 3: 201
+2026-11-09T11:42:45.446Z sets=[["Role"]] Role=both redis_fallback_total=3
+-- 1 EMF line(s) (total log lines 131)
+RESULT: đạt
+
+== M-144-06 ElasticMQ stopped: the outbox row waits, its age grows; back to 0 after the restart
+deposit: 201
+-- while stopped:
+2026-11-09T11:43:05.474Z sets=[[]]  outbox_oldest_unpublished_age_seconds=0
+2026-11-09T11:43:10.487Z sets=[[]]  outbox_oldest_unpublished_age_seconds=2.739052
+2026-11-09T11:43:15.491Z sets=[[]]  outbox_oldest_unpublished_age_seconds=7.741132
+2026-11-09T11:43:20.505Z sets=[[]]  outbox_oldest_unpublished_age_seconds=12.755869
+-- 4 EMF line(s) (total log lines 152)
+-- after the restart:
+2026-11-09T11:43:25.519Z sets=[[]]  outbox_oldest_unpublished_age_seconds=17.770194
+2026-11-09T11:43:30.534Z sets=[[]]  outbox_oldest_unpublished_age_seconds=0
+2026-11-09T11:43:35.535Z sets=[[]]  outbox_oldest_unpublished_age_seconds=0
+2026-11-09T11:43:40.542Z sets=[[]]  outbox_oldest_unpublished_age_seconds=0
+-- 4 EMF line(s) (total log lines 157)
+RESULT: đạt
+
+== M-144-07 no id, subject or token in any EMF line of the whole run
+EMF lines: 55 lines with a uuid, token or user name: 0
+distinct dimension values: Method=GET | Method=POST | Role=both | Route=/health/ready | Route=/v1/accounts | Route=/v1/accounts/:id | Route=/v1/customers/me | Route=/v1/identity/me | Route=/v1/operator/accounts/:id/lock | Route=/v1/operator/deposits | Route=unmatched
+RESULT: đạt
+
+== M-144-08 METRICS_EMF=false: requests answered, no EMF line
+unknown path: 404
+no token: 401
+live: 200
+-- 0 EMF line(s) (total log lines 68)
+RESULT: đạt
+
+NOT RUN: sending a real EMF line to CloudWatch and reading the metric back (no AWS credentials in this session; BL-203). The worker gauge on ECS needs DBS-121.

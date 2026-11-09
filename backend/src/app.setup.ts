@@ -28,6 +28,7 @@ export function configureHttpApp(
   app: NestExpressApplication,
   settings: HttpSettings,
   requestLogger?: RequestHandler,
+  requestMetrics?: RequestHandler,
 ): void {
   // A bigint left in a response body becomes a string instead of a 500. main.ts also installs it
   // for the worker, which has no HTTP; calling it again changes nothing, and having it here means
@@ -40,6 +41,9 @@ export function configureHttpApp(
   }
 
   app.use(correlationIdMiddleware);
+  // Right after the correlation id and before everything else, so the time of a request covers
+  // CORS, body parsing, guards and the handler (DBS-144).
+  if (requestMetrics) app.use(requestMetrics);
   if (requestLogger) app.use(requestLogger);
   app.use(helmet());
   app.use(compression());

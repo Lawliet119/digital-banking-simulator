@@ -7,6 +7,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import type { RequestHandler } from 'express';
 import { DataSource, type QueryRunner } from 'typeorm';
 import { PinoLogger } from 'nestjs-pino';
 import { appConfig } from '@config/app.config';
@@ -91,7 +92,13 @@ class DepositFixtureConfig {
 /** Actual modules, JWT/identity and Pino context. Only test configuration supplied. */
 export async function startDepositApp(
   databaseUrl: string,
-  options: { timeouts?: Partial<DbTimeouts>; rateLimit?: RateLimitFixture; poolMax?: number } = {},
+  options: {
+    timeouts?: Partial<DbTimeouts>;
+    rateLimit?: RateLimitFixture;
+    poolMax?: number;
+    /** DBS-144: the HTTP metrics middleware, mounted as `main.ts` mounts it. */
+    metrics?: RequestHandler;
+  } = {},
 ) {
   const issuer = await createDevTokenIssuer(),
     tempRoot = resolve(tmpdir());
@@ -165,6 +172,7 @@ export async function startDepositApp(
       app,
       appSettings,
       createHttpLogging(await app.resolve(PinoLogger), appSettings),
+      options.metrics,
     );
     await app.listen(0, '127.0.0.1');
     return { app, url: await app.getUrl(), source: app.get(DataSource), issuer, limits, close };
