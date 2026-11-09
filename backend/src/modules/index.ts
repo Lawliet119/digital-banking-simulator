@@ -7,7 +7,7 @@ import { OutboxModule, OutboxRelayModule } from './outbox';
 import { NotificationModule } from './notification';
 import { AccountsModule } from './accounts';
 import { RiskModule } from './risk';
-import { LedgerModule } from './ledger';
+import { LedgerModule, LedgerReconciliationModule } from './ledger';
 
 type ModuleRef = Type<unknown> | DynamicModule;
 
@@ -36,7 +36,11 @@ const apiModules: ModuleRef[] = [
   AuditHttpModule,
 ];
 
-const workerModules: ModuleRef[] = [OutboxRelayModule, NotificationModule];
+const workerModules: ModuleRef[] = [
+  OutboxRelayModule,
+  NotificationModule,
+  LedgerReconciliationModule,
+];
 
 /** The module list for the given role (defaults to the current process's `APP_ROLE`). */
 export function modulesForRole(role?: AppRole): ModuleRef[] {

@@ -69,6 +69,7 @@ export interface Env {
   RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE: number;
 
   OPENAI_API_KEY?: string;
+  RECONCILIATION_INTERVAL_MS: number;
 }
 
 const isDeployed = Joi.valid('staging', 'production');
@@ -210,6 +211,7 @@ export const validationSchema = Joi.object<Env>({
   // Optional API key for the external AI fraud evaluation adapter (ADR-14, FRAUD-API-02).
   // Baseline `rule_only` mode runs without it; whitespace-padded keys are rejected.
   OPENAI_API_KEY: Joi.string().allow('').pattern(/^\S+$/).optional(),
+  RECONCILIATION_INTERVAL_MS: Joi.number().integer().min(1000).max(86_400_000).default(300_000),
 }).custom((env: Env, helpers) => {
   try {
     const perTx = parsePositiveMoney(env.TRANSFER_LIMIT_PER_TX);

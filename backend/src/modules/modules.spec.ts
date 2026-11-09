@@ -2,6 +2,7 @@ import { AppRole } from '@common/app-role/app-role';
 import { AuditHttpModule, AuditModule } from './audit';
 import { HealthModule } from './health';
 import { AccountsModule } from '@modules/accounts';
+import { LedgerReconciliationModule } from './ledger';
 import { modulesForRole } from './index';
 import { OutboxModule } from './outbox';
 import { RiskModule } from './risk';
@@ -55,4 +56,10 @@ describe('modulesForRole', () => {
       expect(modulesForRole(role).filter(module => module === RiskModule)).toHaveLength(1);
     },
   );
+
+  it('TC-117-01 loads LedgerReconciliationModule only for worker/both and never for api', () => {
+    expect(modulesForRole(AppRole.Api)).not.toContain(LedgerReconciliationModule);
+    expect(modulesForRole(AppRole.Worker)).toContain(LedgerReconciliationModule);
+    expect(modulesForRole(AppRole.Both)).toContain(LedgerReconciliationModule);
+  });
 });

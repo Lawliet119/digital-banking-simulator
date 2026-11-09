@@ -23,5 +23,6 @@ export const limitsConfig = registerAs('limits', () => {
       transfersPerMinute: env.RATE_LIMIT_TRANSFERS_PER_MINUTE,
       requestsPerIpPerMinute: env.RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE,
     },
+    reconciliationIntervalMs: env.RECONCILIATION_INTERVAL_MS,
   };
 });

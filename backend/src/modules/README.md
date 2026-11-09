@@ -4,7 +4,7 @@ Mỗi thư mục là một module nghiệp vụ (một bounded context ở `docs
 
 | Module | Loại | Use case | Role chạy |
 |---|---|---|---|
-| [`ledger`](ledger/README.md) | 🔴 Core | UC-3, 5, 6, 7 | api |
+| [`ledger`](ledger/README.md) | 🔴 Core | UC-3, 5, 6, 7 | api; job đối soát (`LedgerReconciliationModule`): worker |
 | [`accounts`](accounts/README.md) | 🟡 Supporting | UC-1, 2, 4, 11 | api |
 | [`identity`](identity/README.md) | ⚪ Generic | UC-1, 11 | api |
 | [`risk`](risk/README.md) | 🟠 Supporting | UC-9, 10, 12 | api + worker |

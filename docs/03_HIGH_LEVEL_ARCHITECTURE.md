@@ -1,6 +1,6 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Accepted v1.12 (chốt 2026-10-11, bổ sung 2026-11-08) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding, mở tài khoản, lịch sử giao dịch, tra cứu operator, khóa/mở khóa tài khoản UC-11), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày, tra cứu lệnh), rate limit (IP + user), audit (ghi + tìm kiếm), outbox writer, outbox relay và consumer thông báo (`notification_log`), health, khung risk và adapter AI độc lập (`ADR-14`); kiểm thu hồi phiên ở `JwtAuthGuard`; script role `dbs_api` / `dbs_worker` đã có và được kiểm (chưa áp dụng cho task ECS); chưa có consumer và scoring đầy đủ của risk, cache Redis `revoked_at`, job đối soát, hạ tầng worker/SQS/alarm · **Cập nhật:** 2026-11-08
+> **Status:** Accepted v1.12 (chốt 2026-10-11, bổ sung 2026-11-08) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding, mở tài khoản, lịch sử giao dịch, tra cứu operator, khóa/mở khóa tài khoản UC-11), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày, tra cứu lệnh), rate limit (IP + user), audit (ghi + tìm kiếm), outbox writer, outbox relay và consumer thông báo (`notification_log`), health, khung risk và adapter AI độc lập (`ADR-14`); kiểm thu hồi phiên ở `JwtAuthGuard`; script role `dbs_api` / `dbs_worker` đã có và được kiểm (chưa áp dụng cho task ECS); chưa có consumer và scoring đầy đủ của risk, cache Redis `revoked_at`, hạ tầng worker/SQS/alarm; job đối soát ledger (4 kiểm tra, lưu `reconciliation_runs`) đã chạy ở role worker (DBS-117) · **Cập nhật:** 2026-11-08
 
 > **Cập nhật ADR-14 (Accepted 2026-11-08):** Phương án rules `R1–R6` + API AI ngoài tiến trình ([ADR-14](adr/0014-fraud-rules-external-ai.md), [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md), [FRAUD-API-02](features/FRAUD-API-02-standalone-risk.md)) đã được nhóm chấp nhận để thay thế hướng học tham số (`v2`) và mô hình ONNX in-process (`v3`) của [ADR-08](adr/0008-fraud-detection-architecture.md). Baseline `rule_only` (`R1–R6`) vẫn là bắt buộc.
 
@@ -155,7 +155,7 @@ flowchart TB
     WRKM -.-> COMMON
 ```
 
-Sơ đồ trên là kiến trúc đích. Trên nhánh này có hai chỗ khác: `workerModules` mới có `OutboxRelayModule` và `NotificationModule` (chưa có consumer và scoring của risk); `notification` mới ghi log, chưa gửi gì ra ngoài. Danh sách module theo role nằm ở `backend/src/modules/index.ts`.
+Sơ đồ trên là kiến trúc đích. Trên nhánh này có hai chỗ khác: `workerModules` mới có `OutboxRelayModule`, `NotificationModule` và `LedgerReconciliationModule` (job đối soát, DBS-117; chưa có consumer và scoring của risk); `notification` mới ghi log, chưa gửi gì ra ngoài. Danh sách module theo role nằm ở `backend/src/modules/index.ts`.
 
 **Quy tắc phụ thuộc giữa module:**
 - `ledger` **không** đọc hay ghi bảng `accounts` trực tiếp. Nó gọi các hàm được `accounts` export (`lockForUpdate`, `applyBalanceChange`) và **truyền transaction hiện tại** vào. Nhờ vậy chuyển tiền vẫn là một transaction mà quyền sở hữu dữ liệu không bị phá (P-4).

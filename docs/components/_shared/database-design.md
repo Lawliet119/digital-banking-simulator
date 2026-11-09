@@ -532,7 +532,7 @@ Ma trận quyền (S = SELECT, I = INSERT, U = UPDATE, D = DELETE):
 | `notification_log` | — | S I D |
 | `reconciliation_runs` | S | S I D |
 
-Ma trận này được cài thành migration bước 7 TypeORM `1793664000000-CreateDbRolesAndGrants.ts` ([DBS-119](../../features/DBS-119-db-roles-grant-matrix.md)) và script SQL đồng bộ ở [`infra/scripts/db-roles.sql`](../../../infra/scripts/db-roles.sql) (idempotent, chạy bằng tài khoản quản trị/master; bao gồm tạo `dbs_migrator`, `dbs_api`, `dbs_worker`, chuyển quyền sở hữu view `v_transfer_facts` sang `dbs_migrator`, cấp quyền sequences, `notification_log` và `reconciliation_runs`). Toàn bộ ma trận được kiểm chứng tự động bằng `backend/test/db/db-roles.db-spec.ts` (TC-119-01..05): luồng nạp tiền, chuyển tiền, replay và thu hồi phiên chạy được chỉ với quyền đã cấp; thao tác ngoài ma trận bị PostgreSQL từ chối với `42501`; `dbs_worker` đọc `v_transfer_facts` thành công dù không có quyền trên `transfers` (BL-005); ứng dụng bị guard `assertNotMigratorUser` chặn kết nối bằng `dbs_migrator` (DoD #2); và trigger `forbid_mutation()` chặn sửa/xóa các bảng chỉ-thêm kể cả khi kết nối bằng `dbs_migrator` (AC-8.1, §8.3).
+Ma trận này được cài thành migration bước 7 TypeORM `1793664000000-CreateDbRolesAndGrants.ts` ([DBS-119](../../features/DBS-119-db-roles-grant-matrix.md)) và script SQL đồng bộ ở [`infra/scripts/db-roles.sql`](../../../infra/scripts/db-roles.sql) (idempotent, chạy bằng tài khoản quản trị/master; bao gồm tạo `dbs_migrator`, `dbs_api`, `dbs_worker`, chuyển quyền sở hữu view `v_transfer_facts` sang `dbs_migrator`, cấp quyền sequences, `notification_log` và `reconciliation_runs`). Toàn bộ ma trận được kiểm chứng tự động bằng `backend/test/db/db-roles.db-spec.ts` (TC-119-01..05): luồng nạp tiền, chuyển tiền, replay và thu hồi phiên chạy được chỉ với quyền đã cấp; job đối soát (DBS-117) chạy được bằng `dbs_worker` (TC-117-10); thao tác ngoài ma trận bị PostgreSQL từ chối với `42501`; `dbs_worker` đọc `v_transfer_facts` thành công dù không có quyền trên `transfers` (BL-005); ứng dụng bị guard `assertNotMigratorUser` chặn kết nối bằng `dbs_migrator` (DoD #2); và trigger `forbid_mutation()` chặn sửa/xóa các bảng chỉ-thêm kể cả khi kết nối bằng `dbs_migrator` (AC-8.1, §8.3).
 
 Nhìn bảng này thấy ngay: **không role nào có `UPDATE` hay `DELETE` trên `ledger_entries`, `transfers`, `audit_log`**. Với `accounts`, nên cấp `UPDATE` theo cột (`GRANT UPDATE (balance, status, updated_at)`), tương tự `fraud_flags` chỉ cho sửa các cột `review_*`.
 
@@ -620,7 +620,7 @@ Job dọn **xóa theo lô nhỏ** (ví dụ 5.000 dòng mỗi lần, lặp), kh�
 
 **Đối soát:** job đọc toàn bộ `ledger_entries` nên chạy với `statement_timeout` nâng riêng (đã hỗ trợ: `tx.run(fn, { statementTimeoutMs: 60000 })`). Khi bảng lớn, đối soát *gia tăng* (chỉ các tài khoản có dòng mới từ lần chạy trước) mỗi giờ và đối soát *toàn bộ* mỗi ngày là đủ.
 
-Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoản `balance` = `SUM(Có) − SUM(Nợ)` và bằng `balance_after` của dòng cuối; (3) `SUM(balance)` mọi tài khoản = 0.
+Bốn kiểm tra của job (DBS-117, `ReconciliationService`): (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoản `balance` = `SUM(Có) − SUM(Nợ)` (chuỗi `balance_after` chưa được kiểm, xem BL-006); (3) `SUM(balance)` mọi tài khoản = 0; (4) mỗi giao dịch `COMPLETED` (đọc qua `v_transfer_facts`) có đúng một dòng Nợ và một dòng Có khớp số tiền và tài khoản. Cả bốn chạy trong một câu `SELECT` (một snapshot, không khóa hàng), `statement_timeout` 60 s; một instance tại một thời điểm nhờ `pg_try_advisory_xact_lock(20261108, 117)`. Đo 100.000 dòng `ledger_entries`: 197 ms cả lượt, 230 ms thời gian thực thi SQL (local, [manual-test.txt](../../features/screenshots/DBS-117/manual-test.txt)).
 
 ---
 
@@ -702,7 +702,7 @@ Bảng giữ lại làm lịch sử: 18 điểm từng khác các tài liệu kh
 | 1 | Đặt tên cột **`from_account_id`, `to_account_id`** (nhất quán hậu tố `_id`) | docs/03 §8.2, FRAUD guide §4.2 và roadmap Task 3 dùng `from_account`, `to_account` | Migration tuần 1; sửa SQL ví dụ trong FRAUD guide khi tách docs |
 | 2 | **`transfers.to_account_id` cho phép NULL** để lưu lệnh REJECTED tới tài khoản không tồn tại | docs/03 ERD để ngầm là bắt buộc | Task 3 (UC-5 bước 6a) |
 | 3 | Thêm **`ledger_entries.balance_after`** | Chưa có trong docs | Task 3, đối soát |
-| 4 | Thêm bảng **`reconciliation_runs`** | Schema, CHECK details và revert đã triển khai ở [§4.9](#49-notificationlog-reconciliationruns); job vẫn chưa có | DBS-116 (lưu trữ), DBS-117 (job) |
+| 4 | Thêm bảng **`reconciliation_runs`** | Schema, CHECK details và revert đã triển khai ở [§4.9](#49-notificationlog-reconciliationruns); job đã có ở DBS-117 | DBS-116 (lưu trữ), DBS-117 (job) |
 | 5 | Bỏ `fraud_rule_hits.rule_version`, dùng `fraud_flags.rule_set_version`; thêm `weight` | docs/03 ERD có `rule_version` | Task 6 (đã ghi ở roadmap) |
 | 6 | Cho `risk` đọc qua **view `v_transfer_facts`**, không `SELECT` bảng `transfers` | FRAUD guide §5.3 "chỉ SELECT trên `transfers`" | Task 6; hợp P-4 |
 | 7 | **`outbox_events` thuộc module `outbox`**, không thuộc `ledger` | `ledger/README.md` ghi ledger sở hữu; `accounts` cũng ghi vào outbox | Task 4 |

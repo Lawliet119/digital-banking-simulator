@@ -1,3 +1,4 @@
+import { parsePositiveMoney } from '@common/money';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -5,8 +6,10 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { CreateDbRolesAndGrants1793664000000 } from '@database/migrations/1793664000000-CreateDbRolesAndGrants';
 import { TransactionService } from '@database/transaction.service';
+import { SystemClock } from '@common/clock';
 import type { SqsClient } from '@libs/sqs';
 import { IdentityService } from '@modules/identity';
+import { ReconciliationService } from '@modules/ledger';
 import { OutboxRelayService } from '@modules/outbox';
 import { OutboxCleanupService } from '@modules/outbox/outbox-cleanup.service';
 import { TRANSFER_SAMPLE } from '../support/event-samples';
@@ -338,5 +341,54 @@ describe('least-privilege roles dbs_api, dbs_worker, dbs_migrator (DBS-119)', ()
     await triggerBlocked(migratorSource.query('DELETE FROM public.audit_log'));
     await triggerBlocked(migratorSource.query('UPDATE public.risk_rule_sets SET config = config'));
     await triggerBlocked(migratorSource.query('DELETE FROM public.risk_rule_sets'));
+  });
+
+  it('TC-117-10 the real reconciliation job runs as dbs_worker and enforces reconciliation_runs grants', async () => {
+    const tx = new TransactionService(workerSource, {
+      lockTimeoutMs: 2000,
+      statementTimeoutMs: 5000,
+      idleInTransactionTimeoutMs: 10000,
+    } as never);
+    const reconciliation = new ReconciliationService(tx, new SystemClock(), {
+      transfer: { perTx: parsePositiveMoney('50000000'), perDay: parsePositiveMoney('200000000') },
+      idempotencyKeyRetentionDays: 7,
+      outbox: { retentionDays: 7, processedEventsRetentionDays: 7 },
+      rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100 },
+      reconciliationIntervalMs: 300_000,
+    });
+
+    const outcome = await reconciliation.reconcileOnce();
+    expect(outcome).toMatchObject({
+      executed: true,
+      status: 'OK',
+      totalDebit: '1300000',
+      totalCredit: '1300000',
+      totalBalance: '0',
+      mismatchedAccounts: 0,
+      details: [],
+    });
+
+    // dbs_api can SELECT reconciliation_runs, but cannot INSERT/UPDATE/DELETE
+    const runs = await apiSource.query<Array<{ status: string }>>(
+      'SELECT status FROM reconciliation_runs ORDER BY id DESC LIMIT 1',
+    );
+    expect(runs).toEqual([{ status: 'OK' }]);
+    await denied(
+      apiSource.query(
+        "INSERT INTO reconciliation_runs (finished_at, status) VALUES (now(), 'ERROR')",
+      ),
+    );
+    await denied(apiSource.query("UPDATE reconciliation_runs SET status = 'ERROR'"));
+    await denied(apiSource.query('DELETE FROM reconciliation_runs'));
+
+    // dbs_worker matrix (database-design §8.1): S I D on reconciliation_runs (D is for the 90-day
+    // retention job), but never UPDATE: a stored run is history. INSERT was exercised by reconcileOnce above.
+    await expect(
+      workerSource.query('SELECT 1 FROM reconciliation_runs LIMIT 1'),
+    ).resolves.toBeDefined();
+    await expect(
+      workerSource.query('DELETE FROM reconciliation_runs WHERE false'),
+    ).resolves.toBeDefined();
+    await denied(workerSource.query("UPDATE reconciliation_runs SET status = 'ERROR'"));
   });
 });
