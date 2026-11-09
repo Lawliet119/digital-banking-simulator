@@ -70,6 +70,8 @@ export interface Env {
 
   OPENAI_API_KEY?: string;
   RECONCILIATION_INTERVAL_MS: number;
+  METRICS_EMF?: boolean;
+  METRICS_FLUSH_MS: number;
 }
 
 const isDeployed = Joi.valid('staging', 'production');
@@ -212,6 +214,9 @@ export const validationSchema = Joi.object<Env>({
   // Baseline `rule_only` mode runs without it; whitespace-padded keys are rejected.
   OPENAI_API_KEY: Joi.string().allow('').pattern(/^\S+$/).optional(),
   RECONCILIATION_INTERVAL_MS: Joi.number().integer().min(1000).max(86_400_000).default(300_000),
+  // DBS-144. Unset = on in staging and production, off elsewhere (config/metrics.config.ts).
+  METRICS_EMF: Joi.boolean().optional(),
+  METRICS_FLUSH_MS: Joi.number().integer().min(1000).max(600_000).default(60_000),
 }).custom((env: Env, helpers) => {
   try {
     const perTx = parsePositiveMoney(env.TRANSFER_LIMIT_PER_TX);
