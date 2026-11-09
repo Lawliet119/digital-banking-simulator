@@ -673,27 +673,50 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
       ])
     )[0].n,
   });
-  it('TC-79-07 AC-5.4: ten parallel requests with one key make one transfer, two lines, ten equal answers', async () => {
+  it('TC-79-07 / TC-97-01..03: ten consecutive duplicate bursts, exact replay and mismatched key', async () => {
     const a = await target('1000000'),
-      b = await target(),
-      key = randomUUID();
-    const results = await Promise.all(
-      Array.from({ length: 10 }, () => transfer(a, b.accountId, '1000', key)),
-    );
-    expect(results.map(r => r.status)).toEqual(Array(10).fill(201));
-    for (const r of results) expect(r.body).toEqual(results[0].body);
-    const transferId = results[0].body.transferId as string;
-    expect(
-      await q('SELECT count(*)::int AS n FROM transfers WHERE from_account_id=$1', [a.accountId]),
-    ).toEqual([{ n: 1 }]);
-    expect(await footprint(transferId, key, a.userId)).toEqual({
-      lines: 2,
-      audits: 1,
-      events: 1,
-      keys: 1,
-    });
-    expect(await balance(a.accountId)).toBe('999000');
-    expect(await balance(b.accountId)).toBe('1000');
+      b = await target();
+    for (let round = 1; round <= 10; round++) {
+      const key = randomUUID();
+      const results = await Promise.all(
+        Array.from({ length: 10 }, () =>
+          transfer(a, b.accountId, '1000', key).timeout({ response: 15000, deadline: 20000 }),
+        ),
+      );
+      expect(results.map(r => r.status)).toEqual(Array(10).fill(201));
+      for (const r of results) expect(r.body).toEqual(results[0].body);
+      const transferId = results[0].body.transferId as string;
+      expect(
+        await q('SELECT count(*)::int AS n FROM transfers WHERE from_account_id=$1', [a.accountId]),
+      ).toEqual([{ n: round }]);
+      expect(await footprint(transferId, key, a.userId)).toEqual({
+        lines: 2,
+        audits: 1,
+        events: 1,
+        keys: 1,
+      });
+      expect(await balance(a.accountId)).toBe(String(1000000n - BigInt(round) * 1000n));
+      expect(await balance(b.accountId)).toBe(String(BigInt(round) * 1000n));
+      const before = await totals();
+      const replay = await transfer(a, b.accountId, '1000', key).expect(201);
+      expect(replay.body).toEqual(results[0].body);
+      expect(await totals()).toEqual(before);
+      const mismatch = await transfer(a, b.accountId, '2000', key).expect(422);
+      expect(mismatch.body.errorCode).toBe('IDEMPOTENCY_KEY_REUSED');
+      expect(await totals()).toEqual(before);
+      const report = await checkLedgerInvariants(db.runner);
+      expect(report.status).toBe('PASS');
+      expect(report.violations).toEqual([]);
+      console.log(
+        JSON.stringify({
+          scenario: 'DBS-97',
+          round,
+          responses: 10,
+          transferId,
+          invariants: report,
+        }),
+      );
+    }
   });
   it('TC-79-08 AC-5.4: ten parallel requests that are refused share one rejection and one transferId', async () => {
     const a = await target('1000'),

@@ -1,0 +1,32 @@
+Mutation sensitivity test; intentional failure, then fixture mutation removed.
+FAIL test/db/customer-transfers.db-spec.ts (5.861 s)
+  ● DBS-61 customer transfers: actual JWT/HTTP/PG double entry › TC-79-07 / TC-97-01..03: ten consecutive duplicate bursts, exact replay and mismatched key
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "status": "COMPLETED",
+    -   "transferId": "48cd5ddb-eb63-46d4-b098-f7f216416007",
+    +   "transferId": "37929649-3f32-46be-966d-cc89c7df52f9",
+      }
+
+      685 |       );
+      686 |       expect(results.map(r => r.status)).toEqual(Array(10).fill(201));
+    > 687 |       for (const r of results) expect(r.body).toEqual(results[0].body);
+          |                                               ^
+      688 |       const transferId = results[0].body.transferId as string;
+      689 |       expect(
+      690 |         await q('SELECT count(*)::int AS n FROM transfers WHERE from_account_id=$1', [a.accountId]),
+
+      at Object.<anonymous> (test/db/customer-transfers.db-spec.ts:687:47)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 35 skipped, 36 total
+Snapshots:   0 total
+Time:        6.093 s, estimated 14 s
+Ran all test suites matching customer-transfers with tests matching "TC-97".
+
+Exit=1
