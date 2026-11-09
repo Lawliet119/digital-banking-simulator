@@ -96,7 +96,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 | `ACCOUNT_LIMIT_REACHED` | `409` | Khách hàng đã có đủ 3 tài khoản (tính cả `ACTIVE` và `LOCKED`) khi gọi `POST /v1/accounts`. | Không |
 | `UNAUTHENTICATED` | `401` | Thiếu header `Authorization: Bearer`, JWT sai cấu trúc, sai chữ ký, sai `iss`/`client_id`/`token_use`, hoặc lỗi kết nối khi tra cứu `users`. | Không |
 | `TOKEN_EXPIRED` | `401` | Access token có chữ ký đúng nhưng đã quá hạn `exp` (cho phép client dùng refresh token lấy token mới). | Không |
-| `SESSION_REVOKED` | `401` | Access token có `iat <= floor(epoch(users.sessions_revoked_at))`; Redis ưu tiên từ chối, còn lại xác nhận SQL (phiên bị thu hồi ngay khi khóa). | Không |
+| `SESSION_REVOKED` | `401` | Access token có `iat <= floor(epoch_seconds(users.sessions_revoked_at))`: token cùng giây cũng bị từ chối; Redis chỉ được dùng để từ chối sớm (không bao giờ cho qua), còn lại xác nhận SQL. Token giây sau chỉ qua bước kiểm phiên; quy tắc vai trò/sở hữu/trạng thái vẫn áp dụng ([công thức](../../03_HIGH_LEVEL_ARCHITECTURE.md#62-khóa-tài-khoản-và-thu-hồi-phiên-uc-11)). | Không |
 | `FORBIDDEN` | `403` | Người gọi đã xác thực nhưng không thuộc nhóm vai trò mà `@Roles(...)` yêu cầu. | Không |
 | `RATE_LIMITED` | `429` | Vượt ngưỡng `100 req/phút/IP` hoặc `10 lệnh chuyển/phút/khách`. Luôn kèm header `Retry-After`. | Không |
 | `SERVICE_TEMPORARILY_UNAVAILABLE` | `503` | Lỗi cơ sở dữ liệu tạm thời (deadlock sau khi đã retry, lock timeout `55P03`, hết kết nối pool). Luôn kèm header `Retry-After`. | Không |
