@@ -34,6 +34,7 @@ Sự cố sau commit không được làm mất sự kiện, và ghi sự kiện
 
 - Thiết kế cấp hệ thống: [docs/03](../../03_HIGH_LEVEL_ARCHITECTURE.md) — §10 Bất đồng bộ: outbox và event; §11 Xử lý sự cố.
 - Nghiệp vụ, yêu cầu và mô hình miền: [docs/BRD.md](../../BRD.md).
-- Demo 3 (failure / recovery: relay và worker chết, gửi bù, không trùng): [docs/demos/demo-3-failure-recovery.md](../../demos/demo-3-failure-recovery.md).
+- Demo 3 (failure / recovery: relay và worker chết, gửi bù, không trùng; consumer lỗi → DLQ): [docs/demos/demo-3-failure-recovery.md](../../demos/demo-3-failure-recovery.md).
+- Đọc và redrive DLQ: [docs/runbooks/dlq-redrive.md](../../runbooks/dlq-redrive.md).
 - Quy tắc code và những điều phải giữ: [`backend/src/modules/outbox/README.md`](../../../backend/src/modules/outbox/README.md).
 - Giao diện và mốc: Task 4 của roadmap cũ (đã xóa); việc đang làm xem bảng task trên board và [docs/features](../../features/README.md). Thiết kế chi tiết nằm ở các mục docs/03 nêu trên (không có file 02 riêng).
