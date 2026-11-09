@@ -2,8 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { MetricsService } from '@common/metrics';
-import { OUTBOX_AGE_METRIC, OutboxAgeGauge } from '@modules/outbox';
-import { OUTBOX_AGE_SQL } from '@modules/outbox/outbox-age.gauge';
+import {
+  OUTBOX_AGE_METRIC,
+  OUTBOX_AGE_SQL,
+  OutboxAgeGauge,
+} from '@modules/outbox/outbox-age.gauge';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 
 /** TC-144-07: the age of the oldest unpublished outbox row, on real PostgreSQL. */

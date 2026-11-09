@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { TransactionService } from '@database/transaction.service';
+import { MetricsService } from '@common/metrics';
 import {
   CLEANUP_ERROR_DELAY_MS,
   CLEANUP_EVERY_MS,
@@ -14,6 +15,14 @@ import { OutboxRelayModule } from './outbox-relay.module';
   exports: [TransactionService],
 })
 class StubDatabase {}
+
+// OutboxRelayModule registers a gauge with the global MetricsService (DBS-144).
+@Global()
+@Module({
+  providers: [{ provide: MetricsService, useValue: { registerGauge: () => undefined } }],
+  exports: [MetricsService],
+})
+class StubMetrics {}
 
 describe('DBS-92 outbox cleanup wiring', () => {
   const originalEnv = process.env;
@@ -37,7 +46,7 @@ describe('DBS-92 outbox cleanup wiring', () => {
     };
     const { ConfigModule } = await import('../../config/config.module');
     moduleRef = await Test.createTestingModule({
-      imports: [ConfigModule, StubDatabase, OutboxRelayModule],
+      imports: [ConfigModule, StubDatabase, StubMetrics, OutboxRelayModule],
     }).compile();
     return moduleRef.get(OutboxCleanupService, { strict: false });
   }
