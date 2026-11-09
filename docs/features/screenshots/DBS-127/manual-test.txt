@@ -1,0 +1,12 @@
+c3c6ffbb4765295b55dfc676468063a5ffdad697
+M-127-01 generate tune twice, compare bytes (default 4000 customers, split 2800/1200)
+{"version":1,"columns":["tx_id","occurred_at","from_account","to_account","from_customer","to_customer","amount","from_balance_before","from_account_created_at","to_account_created_at","is_fraud","scenario"],"sha256":"6366f108b9f19ca976a64ba52210f62f79ed244040aac02f4b104b70f8b122c0","customers":2800,"transactions":101551,"holdoutCustomers":1200,"holdoutPersisted":false}
+{"version":1,"columns":["tx_id","occurred_at","from_account","to_account","from_customer","to_customer","amount","from_balance_before","from_account_created_at","to_account_created_at","is_fraud","scenario"],"sha256":"6366f108b9f19ca976a64ba52210f62f79ed244040aac02f4b104b70f8b122c0","customers":2800,"transactions":101551,"holdoutCustomers":1200,"holdoutPersisted":false}
+M-127-01 PASS byte identical, no holdout persisted
+M-127-02 node load-tests/verify-tune.mjs <outputs>/DBS-127-tune-20261109/tune.csv
+{"transactions":101551,"activeCustomers":2485,"sha256":"6366f108b9f19ca976a64ba52210f62f79ed244040aac02f4b104b70f8b122c0"}
+M-127-02 PASS standalone offline CSV verifier (Dev compatibility, not recipient confirmation)
+Split failed: check arguments, new output directories and private path policy.
+M-127-03 PASS private checkout rejected
+M-127-04 CHUA CHAY: user has no private store; real evaluation holdout remains unpersisted
+M-127-05 CHUA CHAY: no delivery channel or independent #4 offline confirmation

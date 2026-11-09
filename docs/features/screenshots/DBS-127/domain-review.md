@@ -1,0 +1,7 @@
+| # | Severity (blocking / should-fix / minor) | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| — | — | §1–§5; README; BACKLOG | Không phát hiện vấn đề cần sửa trong phạm vi tái review. Thiết kế đã nhất quán với lựa chọn hai cohort độc lập: chia theo số khách, tách cả hai đầu giao dịch, giữ nguyên lịch sử mỗi cohort và không nhận CSV mixed cũ để chia lại. | `docs/features/DBS-127-customer-split.md` §1–§4; `FRAUD_DETECTION_GUIDE.md` §6.1–§6.2; `load-tests/README.md`, đoạn DBS-127. | Không cần sửa thiết kế. |
+| — | — | §2, §5; bàn giao | Cam kết riêng tư và giới hạn nghiệm thu nhất quán: tune-only không persist holdout thật; quyền Windows cần kiểm riêng; chưa nhận thay xác nhận offline của #4. Phần lưu nhãn/giao tune và phần CI/review/merge vẫn được ghi là chưa hoàn tất. | Feature doc §2, M-127-04/M-127-05; `docs/BACKLOG.md` BL-171, BL-202; `docs/features/README.md`, dòng DBS-127. | Giữ các mục bàn giao mở cho tới khi có bằng chứng tương ứng. |
+| — | — | §3, §5 M-127-02 | Hai finding trước đã được xử lý cả ở tài liệu và các file ngoài vùng niêm phong: workflow giữ ba suite cũ và thêm suite split; verifier độc lập chỉ dùng Node stdlib, kiểm CSV và xuất count/hash. | `.github/workflows/ci.yml:79`; `load-tests/verify-tune.mjs`; feature doc §3 và M-127-02. | Không còn yêu cầu sửa từ hai finding trước. Review này xác nhận tính nhất quán thiết kế, không thay nghiệm thu code generator, CI thực chạy hoặc Dev review PR. |
+
+Verdict: APPROVE

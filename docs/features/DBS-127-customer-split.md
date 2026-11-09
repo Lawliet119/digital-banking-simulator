@@ -1,6 +1,6 @@
 # DBS-127 · Chia tune/holdout theo khách hàng
 
-> **Status:** Draft · **Vai:** Dev dataset · **Nhánh:** `codex/dbs-127-dataset-split` · **PR:** — · **Cập nhật:** 2026-11-08
+> **Status:** Implemented · **Vai:** Dev dataset · **Nhánh:** `codex/dbs-127-dataset-split` · **PR:** — · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
@@ -12,17 +12,15 @@ Task tuần 4, High, P5; board In Progress; DBS-126 Done và code trên main. **
 3. #4 xác nhận chạy được offline trên tập tune
 4. PR đã merge vào main (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ
 
-Thực trạng chạy thật: mixed mặc định DBS-126 có 2.000 khách; thành phần liên thông lớn nhất gồm 1.500 khách. Giữ mọi giao dịch và không để cả người gửi lẫn người nhận ở hai tập thì không thể chia thành 1.400/600. Chia theo sender đơn thuần sẽ lộ khách nhận; bỏ giao dịch xuyên tập làm sai lịch sử và số dư. Vì vậy công cụ phải từ chối input không chia được, không làm tròn ngầm hay cắt dòng.
+Thực trạng chạy thật: mixed mặc định DBS-126 có 2.000 khách; thành phần liên thông lớn nhất gồm 1.500 khách. Giữ mọi giao dịch và không để cả người gửi lẫn người nhận ở hai tập thì không thể chia thành 1.400/600. Chia theo sender đơn thuần sẽ lộ khách nhận; bỏ giao dịch xuyên tập làm sai lịch sử và số dư. User đã chọn sinh hai cohort độc lập trước khi sinh giao dịch; CLI không nhận CSV mixed cũ làm input.
 
 Baseline: Node tests dataset 60/60, không skip; backend chung lint/typecheck/unit 1184/E2E153 xanh. Không sửa backend runtime. Nhận phần split của BL-171; giao tune, ACL nơi giữ nhãn và xác nhận của #4 chưa có bằng chứng, giữ bàn giao. BL-044/050 đánh giá và provenance AI, BL-162 tích hợp risk nằm ngoài phạm vi. Không sửa board, không phát sinh số đo recall hoặc xác nhận thay người nhận.
 
-**Quyết định G1 (agent tự quyết):** cung cấp splitter chặt theo thành phần liên thông, cộng lối sinh hai cohort độc lập trước giao dịch bằng seed cố định. Mặc định tổng 4.000 khách (2.800/1.200) vì generator mixed đã hỗ trợ tối thiểu 1.000 khách mỗi lần; không giảm validation của DBS-126 hoặc sửa nguồn generator. Tỉ lệ 70/30 là số khách, không hứa số giao dịch đúng 70/30. Chưa có nơi giữ holdout riêng được user xác nhận: chỉ chuẩn bị code/test và CSV tune; không lưu nhãn holdout vào workspace hoặc repo chia sẻ.
+**Quyết định G1 (agent tự quyết, phạm vi cuối theo user):** sinh hai cohort độc lập trước giao dịch bằng seed cố định. Mặc định tổng 4.000 khách (2.800/1.200) vì generator mixed hỗ trợ tối thiểu 1.000 khách mỗi lần; không giảm validation của DBS-126 hoặc sửa nguồn generator. Tỉ lệ 70/30 là số khách, không hứa số giao dịch đúng 70/30. User chưa có nơi giữ holdout riêng: chỉ chuẩn bị code/test và CSV tune; không lưu nhãn holdout thật vào workspace hoặc repo chia sẻ.
 
 ## 2. Hành vi
 
-`splitDataset(csv, simulation, seed)` xác thực đầy đủ bằng inspector hiện có; gom connected components theo cả from_customer và to_customer, kể cả registry khách không có giao dịch. Thứ tự nhóm shuffle tất định bằng SHA256(seed, customerId chuẩn hóa); subset-sum tìm đúng `floor(0.7*N)` khách cho tune, còn lại holdout. Không có nghiệm thì lỗi trước ghi file. Mỗi giao dịch giữ nguyên bytes, thứ tự và nhãn; mỗi tài khoản/credit ở đúng nhóm, số dư funding được tính lại từ registry khách của nhóm; inspector replay độc lập cả hai đầu ra.
-
-`generateSplitDataset({ seed, customers=4000, days=60 })`: tính tune=floor(0.7*N), holdout=N-tune; cả hai phải >=1000. Gọi generator hiện có với seed domain-separated, merge hai cohort thành source hợp lệ; splitter nhận phân bổ cohort đó để không giải bài toán subset-sum trên dữ liệu lớn không cần thiết. ID hai tập không trùng. Không đổi seed mặc định/bytes của generator cũ. Cùng seed/tham số cho byte-identical output, không phụ thuộc timezone/output path. Giữ đủ scenario, fraud prevalence được generator và inspector chứng minh riêng từng cohort.
+`generateSplitDataset({ seed, customers=4000, days=60 })`: tính tune=`floor(7*N/10)`, holdout=N-tune; cả hai >=1000, tổng 3334–100000, ngày30–90, seed1–128 ký tự. Gọi generator hiện có hai lần với SHA256 của `[seed, tên cohort]`. Hai registry khách/tài khoản và cả người gửi/người nhận không giao nhau, nên không cắt bỏ giao dịch hoặc lịch sử nào. Generator gọi inspector để replay từng bộ, giữ số dư và tiền BigInt đúng, đủ scenario và prevalence theo contract DBS-126. Không đổi seed mặc định/bytes của generator cũ. Cùng seed/tham số cho byte-identical output, không phụ thuộc timezone/output path.
 
 CLI `node load-tests/fraud-dataset/split.mjs --tune-dir <new-dir>` xuất `tune.csv` và manifest chỉ của tune. Có thể truyền `--seed`, `--customers`, `--days`. `--private-dir <new-dir>` là opt-in để lưu holdout có nhãn và manifest đầy đủ trong nơi Dev đã kiểm quyền. Từ chối private-dir trong checkout, bên trong tune-dir hoặc ngược lại; kiểm realpath của parent để không lách symlink. Từ chối output directory đã tồn tại, tránh ghi đè. Tạo private dir mode 0700 và file 0600 trên POSIX; Windows phải kiểm ACL ngoài công cụ. Không khẳng định chmod đảm bảo ACL Windows. Không in seed/labels/scenario stats hoặc path nhãn vào summary công khai; stdout chỉ thông tin tune và số khách của hai nhóm.
 
@@ -40,9 +38,9 @@ Thuật toán tổng khách tối đa100000; cần test hiệu năng và bộ nh
 |---|---|---|---|
 | TC-127-01 | 1 | Node | Fixed seed → byte-identical tune/holdout cả CSV, manifest và stats |
 | TC-127-02 | 1 | Node | 4.000 khách → 2.800/1.200; giao cả hai đầu giao dịch/registry/accounts không trùng |
-| TC-127-03 | 1 | Node | Union hai tập bằng source, không mất/trùng dòng; inspector replay riêng mỗi tập |
-| TC-127-04 | 1 | Node | Split connected graph nhỏ có nghiệm; khách nhận chung phải cùng tập; khách không hoạt động vẫn được tính |
-| TC-127-05 | 1 | Node | Mixed 2.000 khách hiện có không có nghiệm → lỗi rõ, không cắt dòng |
+| TC-127-03 | 1 | Node | Tx IDs không trùng và inspector replay riêng mỗi cohort, không mất lịch sử trong cohort |
+| TC-127-04 | 1 | Node | Cả from/to_customer cùng registry của tập, kể cả khách không hoạt động được tính vào 70/30 |
+| TC-127-05 | 1 | Node | Tổng/seed/ngày sai bị từ chối; 3335 khách chia2334/1001 đúng floor70% |
 | TC-127-06 | 2 | CLI | Tune-only không tạo holdout; manifest không leak seed/nhãn holdout, CSV hợp đồng 12 cột |
 | TC-127-07 | 2 | CLI | Private path trong repo/nested/symlink/existing bị từ chối trước output; private hợp lệ chỉ được ghi opt-in |
 | TC-127-08 | 1,2 | CLI | Invalid args/duplicate/noninteger/I/O fail → exit1, không success manifest; tiền trên 2^53 và schema do inspector kiểm |
@@ -63,6 +61,8 @@ Thuật toán tổng khách tối đa100000; cần test hiệu năng và bộ nh
 
 Reviewer độc lập GPT-6 Astra (high). Vòng 1: 0 blocking, 2 should-fix (nối test vào CI và định danh CLI kiểm offline). Đã sửa §3/§5; tái review: `Verdict: APPROVE`. Review chỉ thiết kế, không phải Dev review PR.
 
+[Trả lời nguyên văn của lần tái review cuối](screenshots/DBS-127/domain-review.md); sau lựa chọn của user và rebase main, reviewer xác nhận không có finding mới.
+
 **Quyết định G2 (agent tự quyết):** qua; giữ giao thức CSV12 cột, hai cohort độc lập và không persist holdout khi chưa có nơi riêng.
 
 ## 7. Kế hoạch triển khai
@@ -78,6 +78,45 @@ Sweep: không thay generator/scenarios/inspector hiện có; không thêm depend
 
 **Gate phụ trước code (2026-11-09):** user chọn “Tạo hai nhóm khách độc lập 70/30” và xác nhận chưa có thư mục riêng. Thu hẹp §2–4: không cung cấp generic splitter cho CSV có sẵn; chỉ `generateSplitDataset` tạo cohort trước giao dịch, tránh phần subset-sum không cần cho lựa chọn đã chốt. TC04/05 trở thành kiểm biên count/seed và chứng minh không trùng cả hai đầu; không bỏ assertion disjoint/replay. Không persist holdout thật trong manual. Các kiểm CLI private dùng fixture tổng hợp nhỏ ở temp và xóa sau test, không phải artifact holdout dùng nghiệm thu. Không train/tune/scoring hay xác nhận thay #4.
 
+**Đồng bộ main:** rebase lên `9520b8b`; không sửa code backend/DBS-101 đã merge. Commit code cuối `c3c6ffbb4765295b55dfc676468063a5ffdad697`. Test đầu đỏ vì module split chưa tồn tại; sau triển khai9/9 xanh; thêm I/O boundary thành10/10, cùng60 test cũ thành70/70. Chạy lại đầy đủ sau rebase:70/70 xanh, skipped0. [Kết quả tự động](screenshots/DBS-127/automated-tests.txt) giữ command/summary; output verbose cũ giữ cục bộ để không công bố chi tiết oracle của generator.
+
+| ID | Test thực tế trong `split.test.mjs` | Kết quả |
+|---|---|---|
+| TC-127-01 | same seed produces byte-identical independent cohorts | đạt |
+| TC-127-02/03/04 | both endpoints, accounts and all registry customers are disjoint2800/1200; inspector replay | đạt |
+| TC-127-05 | invalid options; odd totals2334/1001 | đạt |
+| TC-127-06 | tune-only writes no holdout/source/seed/simulation artifact | đạt |
+| TC-127-07 | nested/checkout/existing/symlink paths reject; private transport fixture separate | đạt; fixture không chứng minh ACL thực tế |
+| TC-127-08 | CLI args, I/O failure, CSV corruption và tiền trên2^53 | đạt |
+| TC-127-09 | CLI hai timezone/output path và CSV-only verifier | đạt |
+| DoD2/3/4 quy trình | BL-171, BL-202 | chưa hoàn tất |
+
+**Manual trên commit code cuối:** [output thô Git Bash](screenshots/DBS-127/manual-test.txt).
+
+| Bước | Lệnh/phản hồi thật | Kết quả |
+|---|---|---|
+| M-127-01 | CLI hai directory mới, `cmp` hai CSV và artifact bàn giao; registry2800/1200,101551 dòng, hash6366f108…b122c0, holdoutPersisted=false | đạt |
+| M-127-02 | `node load-tests/verify-tune.mjs <tune.csv>` →101551 dòng,2485 khách hoạt động, cùng hash | đạt kiểm Dev; không thay xác nhận #4 |
+| M-127-03 | private-dir trong checkout →exit1; output public chưa được tạo | đạt |
+| M-127-04 | User chưa có private store; chưa ghi nhãn holdout thật hoặc kiểm ACL | **chưa chạy**, BL-171 |
+| M-127-05 | Chưa có kênh giao #4 hoặc xác nhận độc lập; ngày tạo/giao artifact cho user2026-11-09 không ghi thành ngày giao #4 | **chưa chạy**, BL-171 |
+
+Artifact giao user: tune.csv + manifest, không simulation hoặc holdout. Không có PNG: thiếu `01-cli.png`, `02-offline.png` vì lệnh chạy bằng terminal không có bề mặt UI chụp; không tạo ảnh giả từ output. Output text thực đã giữ. PR nêu hai ảnh thiếu này. Diff gồm đúng các file §7; >400 dòng vì hai CLI mới, test biên/filesystem/offline và bằng chứng cùng một thay đổi dữ liệu, tách PR sẽ làm implementation không có test/contract đi kèm. Không thêm dependency, không sửa env/secrets/board hoặc merge.
+
+**Bàn giao:** BL-171 (private store/ACL, ngày giao #4, xác nhận offline), BL-202 (CI/review/merge); BL-173 giữ benchmark lớn và giới hạn tổng hợp, không nhận là đã nghiệm thu100000 khách. Không xóa BL-171 vì DoD còn thiếu.
+
 ## 9. Tài liệu đã cập nhật
 
-Feature doc; README dataset, load-tests/README, feature index và BL-171 sẽ cập nhật trong PR.
+`load-tests/fraud-dataset/README.md`, `load-tests/README.md`, `docs/features/README.md`; sửa BL-171, thêm BL-202 ở `docs/BACKLOG.md`; raw manual và domain review; summary tự động. Không sửa fact/schema/contract của backend.
+
+## Checklist G4
+
+- [x]9/9 case ID tự động đạt (10 test mới), không case tự động đơn giản hóa;70/70 toàn bộ dataset, skip0.
+- [x]Manual M01–03 trên commit code cuối; M04/M05 chưa chạy và lý do/BL-171 nêu rõ.
+- [x]Transcript UTF8 không token/credential/ARN; thiếu01-cli.png và02-offline.png được nêu rõ, không dùng ảnh giả.
+- [x]Diff khớp §7 và gate phụ; không backend hoặc production dependency.
+- [x]Baseline standalone dataset, CLI/verifier, doc-link check lúc bàn giao được chạy; không dùng test backend cũ làm bằng chứng cho generator mới.
+- [x]Docs cập nhật, review APPROVE; chỉ chuyển Implemented sau G4. CI/review/merge chưa hoàn tất →BL-202.
+- [x]Mọi việc bàn giao/DoD chưa đạt đã có BL-171/BL-202; benchmark lớn còn BL-173.
+
+**Quyết định G4 (agent tự quyết, 2026-11-09):** qua với phần code/local đã kiểm; các tiêu chí thực địa và quy trình chưa đạt được giữ ở BL-171/202. Không ghi task Done. Không yêu cầu approval lại cho phạm vi user đã chọn.
