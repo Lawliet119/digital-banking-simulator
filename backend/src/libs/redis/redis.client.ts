@@ -24,6 +24,46 @@ const INCR =
 const ZADD =
   "local n=redis.call('ZADD',KEYS[1],ARGV[1],ARGV[2]); redis.call('EXPIRE',KEYS[1],ARGV[3]); return n";
 
+const MAX_CACHE_TIME_MS = 253_402_300_799_999;
+const VERSION_CACHE_LUA = `
+local function now_ms()
+  local time = redis.call('TIME')
+  return tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
+end
+local function valid(key, now)
+  local kind = redis.call('TYPE', key).ok
+  if kind ~= 'string' then return nil end
+  local ttl = redis.call('PTTL', key)
+  if ttl <= 0 or ttl > 60000 then return nil end
+  local value = redis.call('GET', key)
+  local version, deadline = string.match(value, '^([1-9]%d*):([1-9]%d*)$')
+  if not version or #version > 10 or #deadline > 15 then return nil end
+  local nversion, ndeadline = tonumber(version), tonumber(deadline)
+  if nversion > 2147483647 or ndeadline > 253402300799999 or ndeadline <= now
+    or ndeadline - now > 60000 or ttl > ndeadline - now + 1 then return nil end
+  return {version, deadline}
+end
+`;
+const READ_VERSION = `${VERSION_CACHE_LUA}
+local result = valid(KEYS[1], now_ms())
+if result then return result end
+return nil
+`;
+const SET_VERSION = `${VERSION_CACHE_LUA}
+local now = now_ms()
+local deadline = tonumber(ARGV[2])
+if deadline <= now or deadline - now > 60000 then return 0 end
+local old = valid(KEYS[1], now)
+if old and tonumber(old[1]) > tonumber(ARGV[1]) then return 0 end
+redis.call('SET', KEYS[1], ARGV[1] .. ':' .. ARGV[2], 'PXAT', ARGV[2])
+return 1
+`;
+
+export interface ExpiringVersion {
+  readonly version: number;
+  readonly deadlineMs: number;
+}
+
 const REDIS_CLIENT_OPTIONS = Symbol('REDIS_CLIENT_OPTIONS');
 
 @Injectable()
@@ -124,6 +164,61 @@ export class RedisClient implements OnModuleDestroy, OnModuleInit {
   async set(key: string, value: string, ttlSeconds: number): Promise<string> {
     this.ttl(ttlSeconds);
     return this.run(() => this.driver.set(key, value, 'EX', ttlSeconds));
+  }
+
+  /** Redis server time bounds publication independently of application clock skew. */
+  serverTimeMs(): Promise<number> {
+    return this.run(async () => {
+      const [seconds, micros] = await this.driver.time();
+      const time = Number(seconds) * 1000 + Math.floor(Number(micros) / 1000);
+      if (!Number.isSafeInteger(time) || time < 0 || time > MAX_CACHE_TIME_MS) {
+        throw new Error('Invalid Redis server time');
+      }
+      return time;
+    });
+  }
+  async readExpiringVersion(key: string): Promise<ExpiringVersion | null> {
+    const result = await this.run(
+      () => this.driver.eval(READ_VERSION, 1, key) as Promise<string[] | null>,
+    );
+    if (result === null) return null;
+    const version = Number(result[0]);
+    const deadlineMs = Number(result[1]);
+    if (
+      !Number.isSafeInteger(version) ||
+      version < 1 ||
+      version > 2_147_483_647 ||
+      !Number.isSafeInteger(deadlineMs) ||
+      deadlineMs < 1 ||
+      deadlineMs > MAX_CACHE_TIME_MS
+    ) {
+      throw new RedisUnavailableError('COMMAND_FAILED');
+    }
+    return { version, deadlineMs };
+  }
+  async setVersionBefore(key: string, version: number, deadlineMs: number): Promise<boolean> {
+    if (!Number.isInteger(version) || version < 1 || version > 2_147_483_647) {
+      throw new TypeError('Invalid cache version');
+    }
+    if (!Number.isSafeInteger(deadlineMs) || deadlineMs < 0 || deadlineMs > MAX_CACHE_TIME_MS) {
+      throw new TypeError('Invalid cache deadline');
+    }
+    return (
+      (await this.run(
+        () =>
+          this.driver.eval(
+            SET_VERSION,
+            1,
+            key,
+            String(version),
+            String(deadlineMs),
+          ) as Promise<number>,
+      )) === 1
+    );
+  }
+  async setIfAbsent(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    this.ttl(ttlSeconds);
+    return (await this.run(() => this.driver.set(key, value, 'EX', ttlSeconds, 'NX'))) === 'OK';
   }
   async incr(key: string, ttlSeconds: number): Promise<string> {
     this.ttl(ttlSeconds);

@@ -88,7 +88,6 @@ describe('RuleSetRepository (real PostgreSQL + Valkey)', () => {
   it('TC-110-01 keys: latest lives at most 60 s, the version content for days', async () => {
     const set = await repository.current();
     expect(set.version).toBe(1);
-    expect(await admin.get(LATEST_KEY)).toBe('1');
     const latestTtl = await admin.ttl(LATEST_KEY);
     expect(latestTtl).toBeGreaterThan(0);
     expect(latestTtl).toBeLessThanOrEqual(60);
@@ -109,7 +108,6 @@ describe('RuleSetRepository (real PostgreSQL + Valkey)', () => {
     const fresh = await new RuleSetRepository({ redis: client, db: source, metrics }).current();
     expect(fresh.version).toBe(2);
     expect(fresh.rules.R1.weight).toBe(55);
-    expect(await admin.get(LATEST_KEY)).toBe('2');
   });
 
   it('TC-110-03 with Redis paused the right version is read from PostgreSQL, immediately', async () => {
@@ -131,14 +129,55 @@ describe('RuleSetRepository (real PostgreSQL + Valkey)', () => {
     expect(
       (await new RuleSetRepository({ redis: client, db: source, metrics }).current()).version,
     ).toBe(3);
-    expect(await admin.get(LATEST_KEY)).toBe('3');
   });
 
   it('TC-110-03 a cached value that is garbage never reaches the scorer', async () => {
-    await admin.set(LATEST_KEY, '3');
-    await admin.set(versionKey(3), '{"thresholds":');
+    const deadline = (await client.serverTimeMs()) + 5000;
+    await client.setVersionBefore(LATEST_KEY, 3, deadline);
+    await admin.set(versionKey(3), '{"thresholds":', { EX: 60 });
     const set = await new RuleSetRepository({ redis: client, db: source, metrics }).current();
     expect(set.version).toBe(3);
     expect(set.rules.R1.weight).toBe(61);
+  });
+
+  it('does not let an older SQL read or a legacy writer replace a newer cached version', async () => {
+    const [{ version: current }] = await q('SELECT max(version) AS version FROM risk_rule_sets');
+    const newVersion = Number(current) + 1;
+    let release: (() => void) | undefined;
+    let selected: (() => void) | undefined;
+    const held = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const snapshotSelected = new Promise<void>(resolve => {
+      selected = resolve;
+    });
+    const slowDb = {
+      query: async (sql: string, params?: unknown[]): Promise<unknown> => {
+        const result = await source.query<unknown[]>(sql, params);
+        if (sql.includes('ORDER BY')) {
+          selected?.();
+          await held;
+        }
+        return result;
+      },
+    };
+    const oldRead = new RuleSetRepository({ redis: client, db: slowDb, metrics }).current();
+    try {
+      await snapshotSelected;
+      await addVersion(newVersion, 67);
+      expect(
+        (await new RuleSetRepository({ redis: client, db: source, metrics }).current()).version,
+      ).toBe(newVersion);
+      // A legacy worker can still publish an obsolete bare version on the original key.
+      await admin.set('cfg:risk:latest', String(current), { EX: 60 });
+      release?.();
+      expect((await oldRead).version).toBe(Number(current));
+      expect(
+        (await new RuleSetRepository({ redis: client, db: source, metrics }).current()).version,
+      ).toBe(newVersion);
+    } finally {
+      release?.();
+      await oldRead.catch(() => undefined);
+    }
   });
 });

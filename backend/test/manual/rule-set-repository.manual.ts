@@ -59,10 +59,10 @@ async function main(): Promise<void> {
     // M-110-01: seed v1 from PostgreSQL, then cached.
     const first = await fresh().current();
     assert.equal(first.version, 1);
-    assert.equal(await client.get(LATEST_KEY), '1');
+    assert.equal((await client.readExpiringVersion(LATEST_KEY))?.version, 1);
     assert.ok(await client.get(versionKey(1)));
     console.log(
-      `M-110-01 PASS: current version ${first.version} (R1 weight ${first.rules.R1.weight}); ${LATEST_KEY}="1" and ${versionKey(1)} stored`,
+      `M-110-01 PASS: current version ${first.version} (R1 weight ${first.rules.R1.weight}); ${LATEST_KEY} and ${versionKey(1)} stored`,
     );
 
     // M-110-02: version 2 appears; the cache keeps v1 until latest expires.

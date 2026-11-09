@@ -10,8 +10,11 @@ import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-
 
 /** A cache that never holds anything: every read goes to PostgreSQL. */
 const noCache = {
+  readExpiringVersion: () => Promise.resolve(null),
+  serverTimeMs: () => Promise.reject(new Error('cache unavailable')),
   get: () => Promise.resolve(null),
-  set: () => Promise.resolve('OK'),
+  setIfAbsent: () => Promise.resolve(false),
+  setVersionBefore: () => Promise.resolve(false),
 };
 
 const features: Features = {
