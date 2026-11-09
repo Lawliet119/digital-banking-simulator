@@ -1,0 +1,57 @@
+fd61a8bcca0bcbdabf90c3550408cc4acac17cb1
+SQL INPUT: users/customers/accounts at migration default ZERO, no SQL balance or ledger seed. ALL funding uses actual deposit HTTP.
+{"method":"POST","path":"/v1/accounts","key":null,"request":{"type":"SAVINGS"},"status":201,"correlationId":"8d3495cc-25f9-4833-a0cf-3435dd931dfd","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"id":"7b436bdd-ccf0-4253-bb76-786c2492bb5f","type":"SAVINGS","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T06:37:31.855Z","updatedAt":"2026-11-09T06:37:31.855Z"}}
+{"method":"POST","path":"/v1/operator/deposits","key":"d62c6aa4-a2a9-4912-b29a-5df7400106bd","request":{"toAccountId":"7b436bdd-ccf0-4253-bb76-786c2492bb5f","amount":"1000000"},"status":201,"correlationId":"f3ea77e2-3bb4-4204-ae95-dea417289e27","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"578cef2a-55ff-49f7-b48d-7b6375a8b10a","status":"COMPLETED"}}
+{"method":"GET","path":"/v1/accounts/7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":200,"correlationId":"00d7f33e-6f37-440a-923b-c0c7c1cb6304","body":{"id":"7b436bdd-ccf0-4253-bb76-786c2492bb5f","type":"SAVINGS","status":"ACTIVE","balance":"1000000","createdAt":"2026-11-09T06:37:31.855Z","updatedAt":"2026-11-09T06:37:31.926Z"}}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"1000000","credit":"1000000","balance":"0"},"violations":[]}}
+M-115-01 PASS: Same owner has A=c222763c-8202-4897-8fac-b0cfce866c1a, B=7b436bdd-ccf0-4253-bb76-786c2492bb5f; B ACTIVE funded1000000 via HTTP, GET200
+{"method":"POST","path":"/v1/operator/accounts/c222763c-8202-4897-8fac-b0cfce866c1a/lock","key":null,"request":{"reason":"CONFIRMED_FRAUD"},"status":200,"correlationId":"f2cbd073-8b5e-417a-9d29-d124615db472","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"id":"c222763c-8202-4897-8fac-b0cfce866c1a","type":"CHECKING","status":"LOCKED","updatedAt":"2026-11-09T06:37:31.972Z"}}
+{"method":"GET","path":"/v1/accounts/7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":401,"correlationId":"15430ed7-9f01-4fbc-b19a-831dd900fc5e","body":{"errorCode":"SESSION_REVOKED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Session has been revoked","correlationId":"15430ed7-9f01-4fbc-b19a-831dd900fc5e"}}
+{"method":"GET","path":"/v1/identity/me","status":401,"correlationId":"55b38a79-ae0e-4dd9-aacf-5e06b5d4879d","body":{"errorCode":"SESSION_REVOKED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Session has been revoked","correlationId":"55b38a79-ae0e-4dd9-aacf-5e06b5d4879d"}}
+{"committedRevocation":{"mark":"2026-11-09 06:37:31.973555+00","seconds":"1794206251"},"effects":{"audits":1,"events":1},"controlledIat":1794206251}
+M-115-02 PASS: Committed lock; same-second signed token401 SESSION_REVOKED on ACTIVE B and identity/me, not expired
+{"method":"GET","path":"/v1/accounts/7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":200,"correlationId":"e0acb95e-7d8d-421b-be80-ef577c5e3adf","body":{"id":"7b436bdd-ccf0-4253-bb76-786c2492bb5f","type":"SAVINGS","status":"ACTIVE","balance":"1000000","createdAt":"2026-11-09T06:37:31.855Z","updatedAt":"2026-11-09T06:37:31.926Z"}}
+{"method":"GET","path":"/v1/accounts/7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":401,"correlationId":"49c5c26c-6575-4ac6-9aaa-2ec257686a44","body":{"errorCode":"SESSION_REVOKED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Session has been revoked","correlationId":"49c5c26c-6575-4ac6-9aaa-2ec257686a44"}}
+{"controlledNextIat":1794206252,"accountStates":[{"id":"7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":"ACTIVE","balance":"1000000"},{"id":"c222763c-8202-4897-8fac-b0cfce866c1a","status":"LOCKED","balance":"0"}]}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"1000000","credit":"1000000","balance":"0"},"violations":[]}}
+M-115-03 PASS: Next-second signed token GET B200 ACTIVE; A remains LOCKED, mark and money unchanged, old token still401
+{"method":"GET","path":"/v1/accounts/7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":401,"correlationId":"af88cea0-76e2-44a6-97fb-2f3cd4ab30ff","body":{"errorCode":"SESSION_REVOKED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Session has been revoked","correlationId":"af88cea0-76e2-44a6-97fb-2f3cd4ab30ff"}}
+{"method":"GET","path":"/v1/accounts/7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":200,"correlationId":"8a74074b-b4f4-43db-9205-7512664368cd","body":{"id":"7b436bdd-ccf0-4253-bb76-786c2492bb5f","type":"SAVINGS","status":"ACTIVE","balance":"1000000","createdAt":"2026-11-09T06:37:31.855Z","updatedAt":"2026-11-09T06:37:31.926Z"}}
+{"sqlAuthInput":"2026-11-09T06:37:22.000000Z","storedMicros":"000000","sameIat":1794206242,"nextIat":1794206243,"sameStatus":401,"nextStatus":200}
+{"method":"GET","path":"/v1/accounts/7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":401,"correlationId":"646aab7e-ed2d-45df-8a59-6087be985849","body":{"errorCode":"SESSION_REVOKED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Session has been revoked","correlationId":"646aab7e-ed2d-45df-8a59-6087be985849"}}
+{"method":"GET","path":"/v1/accounts/7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":200,"correlationId":"df601f4c-e717-4e46-9bdc-5df6af08531a","body":{"id":"7b436bdd-ccf0-4253-bb76-786c2492bb5f","type":"SAVINGS","status":"ACTIVE","balance":"1000000","createdAt":"2026-11-09T06:37:31.855Z","updatedAt":"2026-11-09T06:37:31.926Z"}}
+{"sqlAuthInput":"2026-11-09T06:37:22.001000Z","storedMicros":"001000","sameIat":1794206242,"nextIat":1794206243,"sameStatus":401,"nextStatus":200}
+{"method":"GET","path":"/v1/accounts/7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":401,"correlationId":"85ae92d0-29a3-4374-b4c1-57ed019ac96f","body":{"errorCode":"SESSION_REVOKED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Session has been revoked","correlationId":"85ae92d0-29a3-4374-b4c1-57ed019ac96f"}}
+{"method":"GET","path":"/v1/accounts/7b436bdd-ccf0-4253-bb76-786c2492bb5f","status":200,"correlationId":"265361ae-7997-4197-991c-cdab6dc6fcc0","body":{"id":"7b436bdd-ccf0-4253-bb76-786c2492bb5f","type":"SAVINGS","status":"ACTIVE","balance":"1000000","createdAt":"2026-11-09T06:37:31.855Z","updatedAt":"2026-11-09T06:37:31.926Z"}}
+{"sqlAuthInput":"2026-11-09T06:37:22.999999Z","storedMicros":"999999","sameIat":1794206242,"nextIat":1794206243,"sameStatus":401,"nextStatus":200}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"1000000","credit":"1000000","balance":"0"},"violations":[]}}
+M-115-04 PASS: All .000000/.001000/.999999 SQL auth inputs: same401, next200; no clock change or sleeps; invariantsPASS
+DBS-115 cleanup PASS: app closed, JWKS directory gone, temporary database absent from pg_database, owned PG17 container removed
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/session-revocation-boundary.db-spec.ts
+
+● Validation Error:
+
+  Module ts-jest in the transform option was not found.
+         <rootDir> is: /workspace/backend
+
+  Configuration Documentation:
+  https://jestjs.io/docs/configuration
+
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/session-revocation-boundary.db-spec.ts
+
+Error: Jest: Got error running globalSetup - /workspace/backend/test/support/jest-global-setup.ts, reason: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Error details: Could not find a working container runtime strategy
+    at assertDockerAvailable (/workspace/backend/test/support/postgres.container.ts:36:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startPostgresContainer (/workspace/backend/test/support/postgres.container.ts:62:5)
+    at async globalSetup (/workspace/backend/test/support/jest-global-setup.ts:9:33)
+    at async /workspace/backend/node_modules/@jest/core/build/index.js:3190:11
+    at async waitForPromiseWithCleanup (/workspace/backend/node_modules/@jest/transform/build/index.js:135:5)
+    at async ScriptTransformer.requireAndTranspileModule (/workspace/backend/node_modules/@jest/transform/build/index.js:630:16)
+    at async runGlobalHook (/workspace/backend/node_modules/@jest/core/build/index.js:3186:9)
+    at async runJest (/workspace/backend/node_modules/@jest/core/build/index.js:3552:5)
+    at async _run10000 (/workspace/backend/node_modules/@jest/core/build/index.js:1556:5)
+M-115-05 PASS: clean source clone fd61a8b, Windows npm ci exit0 and boundary4/4; Linux npm ci in private volume exit0; isolated Linux network none without Docker socket failed loudly exit 1 at Docker-unreachable check; volume cleanup in trap, shared Docker untouched

@@ -1,0 +1,39 @@
+DBS-115 verification on source fd61a8bcca0bcbdabf90c3550408cc4acac17cb1
+Local final:
+ npm run lint:check: exit0
+ npm run typecheck: exit0
+ npm run build: exit0
+ npm test -- --runInBand: exit0; 88 suites / 1652 tests; 152.075s
+ npm run test:e2e -- --runInBand: exit0; 15 suites / 153 tests; 156.225s
+ npm run test:db -- --runInBand: exit0; 53 suites / 806 tests; 848.752s
+Task characterization:
+ npm run test:db -- --runInBand --runTestsByPath test/db/session-revocation-boundary.db-spec.ts
+ 4/4 pass; 7.506s. Runtime comparison already correct; no invented production bug.
+Task plus preserved regression:
+ npm run test:db -- --runInBand --runTestsByPath test/db/session-revocation-boundary.db-spec.ts test/db/session-revocation.db-spec.ts test/db/operator-account-status.db-spec.ts
+ 21/21 pass; 13.698s
+Mutation sensitivity, never committed:
+ issuedAt <= Math.floor -> issuedAt < Math.floor: exit1; 4failed / 0passed / 0pending
+ Error: expected 401 Unauthorized, got 200 OK at boundary() line42.
+ Math.floor -> Math.ceil: exit1; 3failed / 1passed / 0pending
+ Error: expected 200 OK, got 401 Unauthorized at boundary() line46.
+ Exact original guard bytes restored in finally after each mutant; git diff guard exit0.
+Clean clone:
+ git clone --local --no-hardlinks --single-branch --branch test/DBS-115-same-second-revocation <repo> <temp-owned-clone>
+ source fd61a8b; git status clean before and after npm ci/test
+ npm ci: exit0; existing package warnings retained, no package/lock changed
+ task suite: 4/4 pass,13.139s
+Manual:
+ Git Bash: node scripts/manual-dbs115.cjs 2>&1 | tee ../docs/features/screenshots/DBS-115/manual-test.txt
+ M01..04 and cleanup PASS on SHA first line. HTTP funding1000000, real JWT/JWKS/PG17; all invariantsPASS.
+ M05 initial Linux container + Windows dependencies: Module ts-jest not found. NOT a Docker failure proof.
+ M05 correction: npm ci inside private Docker volume on Linux: exit0,958 packages installed.
+ Isolated Linux node24 networknone, clone/dependencies readonly, no Docker socket/named pipe/DATABASE_URL, DOCKER_HOST=tcp://127.0.0.1:1:
+ task Jest exit1 at globalSetup: [Testcontainers] Docker is not running or unreachable. Error details: Could not find a working container runtime strategy
+ This expected failure is PASS for negative environment check, not a passing DB run. No tests skipped into green.
+ Owned dependency volume removed in trap; checked volume absent. Shared Compose3 services still running.
+ G2 review: gpt-6-astra R1 REVISE1should-fix (Windows Docker strategy fallback); R2 and environment followup APPROVE, no open findings.
+ No production/helper/schema/env/dependency/workflow diff. New tests no .skip/.only/.todo.
+ All full outputs read. Reconciliation/JWT/cache/rate-limit fault injection warnings are expected; final process exits0.
+ Docs: check-doc-links322 files / 0 broken. No Mermaid added or changed.
+ Handoffs BL-208 review/merge/CI; BL-209 Redis114 + AWS/Cognito/cloud boundary not run. Never merged or edited board.

@@ -276,6 +276,8 @@ sequenceDiagram
 - Khách đăng nhập lại thì nhận token mới (phát hành sau mốc) và dùng được các tài khoản khác; tài khoản bị khóa vẫn bị chặn bởi kiểm tra `ACTIVE` trong transaction.
 - Thu hồi phiên làm **đồng bộ trong lệnh khóa**, không chờ sự kiện, để đạt AC-11.1 ("yêu cầu kế tiếp bị từ chối").
 
+**Độ chính xác thời gian của JWT:** đặt `R = floor(epoch_seconds(users.sessions_revoked_at))`. Khi có mốc thu hồi, từ chối token nếu **`iat <= R`**; chỉ token có `iat > R` mới qua bước kiểm phiên. JWT có độ chính xác giây nên cả token cùng giây với mốc (kể cả mốc có microsecond) đều bị `401 SESSION_REVOKED`. Ví dụ mốc `2026-11-09T06:00:00.999999Z`: `iat=1794204000` bị từ chối, `iat=1794204001` qua bước này. Không dùng `<`, `ceil`, `round` hoặc trộn giây với mili giây. Token giây sau dùng được tài khoản **khác còn ACTIVE của cùng chủ**; không mở khóa tài khoản đã LOCKED, không xóa mốc, và mọi kiểm tra vai trò/sở hữu/trạng thái giao dịch vẫn áp dụng. [Bằng chứng biên HTTP/PostgreSQL](features/DBS-115-same-second-revocation.md).
+
 ### 6.3 Chuyển tiền (UC-5) — khách hàng đi qua từng thành phần
 
 Cùng use case với 6.1 nhưng nhìn từ phía khách, từ lúc bấm nút đến lúc cờ gian lận và thông báo được tạo. Phần trong `BEGIN … COMMIT` được giải thích ở 6.1.
