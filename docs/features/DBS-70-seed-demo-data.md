@@ -1,6 +1,6 @@
 # DBS-70 · scripts/seed.ts: tạo dữ liệu demo hoàn toàn qua API
 
-> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-70-seed-demo-data` · **PR:** — · **Cập nhật:** 2026-11-09
+> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-70-seed-demo-data` · **PR:** [#111](https://github.com/Lawliet119/digital-banking-simulator/pull/111) · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
