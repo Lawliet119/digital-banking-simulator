@@ -2,17 +2,18 @@ import { Logger } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 import type { TransactionService } from '@database/transaction.service';
 import type { SqsClient } from '@libs/sqs';
-import { TRANSFER_SAMPLE } from '../../../test/support/event-samples';
 import { OutboxRelayService } from './outbox-relay.service';
 
 /** DBS-134: a failed send is logged with the correlationId of the event, not null. */
+const PAYLOAD = { correlationId: '9b4e7c21-5a0d-4f83-b6e9-1d2c8a7f3045' };
+
 describe('OutboxRelayService logging (unit)', () => {
   it('TC-134-08 the warning for an event that could not be sent carries its correlationId', async () => {
     const manager = {
       query: (sql: string) =>
         Promise.resolve(
           sql.startsWith('SELECT')
-            ? [{ id: '7', event_type: 'TransferCompleted', payload: TRANSFER_SAMPLE }]
+            ? [{ id: '7', event_type: 'TransferCompleted', payload: PAYLOAD }]
             : [],
         ),
     } as unknown as EntityManager;
@@ -33,7 +34,7 @@ describe('OutboxRelayService logging (unit)', () => {
       expect(warn).toHaveBeenCalledWith(
         expect.objectContaining({
           outboxId: '7',
-          correlationId: TRANSFER_SAMPLE.correlationId,
+          correlationId: PAYLOAD.correlationId,
         }),
         'Outbox event could not be sent',
       );
