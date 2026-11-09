@@ -117,3 +117,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-100](DBS-100-redis-slow-transfer.md) | Review Focus 5: Redis chậm/chết giữa luồng chuyển tiền; fail-open, p95 <= 250ms, /health/ready 200 degraded, bất biến sạch | Dev | Implemented · [PR #113](https://github.com/Lawliet119/digital-banking-simulator/pull/113) |
 
 | [DBS-136](DBS-136-dedup-cleanup.md) | Job worker dọn idempotency_keys và processed_events theo retention tối thiểu7ngày, Clock giả, lô nhỏ/index/timeout/advisory, replay HTTP thật | Dev | Implemented · DB812/unit1660/e2e153/services15/manual6; CI xem PR, Dev review/merge BL-204 |
+| [DBS-127](DBS-127-customer-split.md) | Hai cohort khách độc lập70/30, tune CSV và verifier offline; giữ nhãn holdout riêng | Dev dataset | Implemented (code/local70/70); bàn giao dữ liệu BL-171 còn mở; PR #115 đã review và merge |
