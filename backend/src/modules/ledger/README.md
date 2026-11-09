@@ -2,7 +2,7 @@
 
 Mọi đồng tiền vào, ra, di chuyển. Nơi duy nhất được phép thay đổi số dư.
 
-> **Status:** Schema, trigger, công cụ kiểm bất biến, nạp/chuyển tiền, sync guard implemented · **Owner:** Dev (Ledger) · **Verified against code:** migration/DB tests, DBS-60/61; replay idempotency, hạn mức lần/ngày đã có; scheduler đối soát còn chờ.
+> **Status:** Schema, trigger, công cụ kiểm bất biến, nạp/chuyển tiền, sync guard implemented · **Owner:** Dev (Ledger) · **Verified against code:** migration/DB tests, DBS-60/61; replay idempotency, hạn mức lần/ngày đã có; job đối soát ở worker (DBS-117) đã có.
 
 Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bảng `transfers`, `ledger_entries`: BEFORE UPDATE/DELETE theo hàng và BEFORE TRUNCATE theo statement, cùng hàm `public.forbid_mutation()` của [DBS-27](../../../../docs/features/DBS-27-append-only-triggers.md). INSERT vẫn được phép; mutation có hàng và TRUNCATE kể cả bảng rỗng trả SQLSTATE `42501` từ RAISE của hàm. UPDATE/DELETE không khớp hàng trả 0 hàng. Test dùng owner NOSUPERUSER và đối chứng quyền sau down; quyền production và chủ view `v_transfer_facts` còn chờ task roles (BL-005). Revert chỉ gỡ trigger/hàm, giữ dữ liệu và sequence nhưng làm mất lớp bảo vệ này; không dùng revert như cách sửa dữ liệu nghiệp vụ.
 
@@ -57,4 +57,14 @@ Sync guard (DBS-82): `SyncGuardService.checkGuards(manager, lockedFrom, lockedTo
 
 `reconciliation_runs` có trong [migration](../../database/migrations/1793577600000-CreateReconciliationRuns.ts), với status `OK`, `MISMATCH`, `ERROR`, các tổng bigint nullable và details không chứa văn bản tự do. Hợp đồng JSON chỉ gồm `accountId`, `balance`, `ledgerBalance`; tiền trong JSON là chuỗi nguyên signed bigint. [Schema chuẩn](../../../../docs/components/_shared/database-design.md#49-notificationlog-reconciliationruns) và [DBS-116](../../../../docs/features/DBS-116-reconciliation-runs.md) mô tả các ràng buộc và kiểm thử.
 
-Bảng không tự chạy hoặc tính đối soát. Job/producer thuộc DBS-117; quyền production và cleanup90 ngày thuộc DBS-119/job cleanup. Revert chỉ được khi rỗng, trong transaction READ COMMITTED; writer đồng thời được khóa/kiểm lại trước DROP. Không xóa kết quả đã ghi để ép revert.
+Bảng không tự chạy hoặc tính đối soát; job nằm ở mục dưới (DBS-117). Quyền production và cleanup 90 ngày thuộc DBS-119/job cleanup. Revert chỉ được khi rỗng, trong transaction READ COMMITTED; writer đồng thời được khóa/kiểm lại trước DROP. Không xóa kết quả đã ghi để ép revert.
+
+## Job đối soát ở role worker (DBS-117)
+
+`LedgerReconciliationModule` (chỉ trong `workerModules`; `ReconciliationService` còn kiểm `runsWorkers()`) chạy `reconcileOnce()` mỗi `RECONCILIATION_INTERVAL_MS` (mặc định 300000 ms, miền 1000..86400000).
+
+- **Một instance:** `pg_try_advisory_xact_lock(20261108, 117)` ở câu đầu transaction; không lấy được khóa thì trả `{ executed: false }`, không đọc sổ, không ghi dòng. Khóa tự nhả khi COMMIT/ROLLBACK.
+- **Bốn kiểm tra** trong **một** câu `WITH … SELECT` (một snapshot, không khóa hàng `accounts`): tổng Nợ = tổng Có; `accounts.balance` = Σ(Có) − Σ(Nợ) từng tài khoản; Σ balance = 0; mỗi `COMPLETED` (đọc qua `v_transfer_facts`, không đọc `transfers`) có đúng một Nợ và một Có khớp. `statement_timeout` 60 s, truyền được `reconcileOnce({ statementTimeoutMs })`.
+- **Lưu `reconciliation_runs`:** `OK` / `MISMATCH` (details `{accountId, balance, ledgerBalance}` theo `accountId`) / `ERROR` khi tổng hoặc `ledgerBalance` vượt miền signed bigint (cột vượt = NULL, `details` NULL; đóng BL-165) hoặc truy vấn lỗi runtime. Job chỉ `INSERT` (không `RETURNING`); `dbs_worker` không có `UPDATE` trên bảng này.
+- **Chưa làm:** quyền production trên ECS (DBS-119), cleanup 90 ngày (BL-166), đối soát gia tăng, metric/alarm khi `MISMATCH`/`ERROR` (BL-127).
+- Bằng chứng: [DBS-117](../../../../docs/features/DBS-117-reconciliation-worker-job.md).
