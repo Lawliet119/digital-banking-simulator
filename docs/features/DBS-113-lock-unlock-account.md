@@ -349,7 +349,7 @@ Thứ tự: `AuditReason` & DTO/hàm thuần kiểm tra đầu vào → `Operato
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (chạy lúc bàn giao từ `backend/`, commit cuối đổi code `bfd312e6dd1bee9c524fc43c5027d2a657f63af9` — SHA ở dòng đầu [`manual-test.txt`](screenshots/DBS-113/manual-test.txt)):
+- **Lệnh kiểm tra** (chạy lúc bàn giao từ `backend/`, commit cuối đổi code `f9a9ea87f51a5afea995e846b7ff0c132d7d3745` — SHA ở dòng đầu [`manual-test.txt`](screenshots/DBS-113/manual-test.txt)):
 
 | Lệnh | Kết quả |
 |---|---|
@@ -383,7 +383,7 @@ Thứ tự: `AuditReason` & DTO/hàm thuần kiểm tra đầu vào → `Operato
 
   **13/13 test case tự động đạt đủ độ sâu**, **0 đơn giản hóa**.
 
-- **Test thủ công** (chạy bằng `node backend/scripts/manual-dbs113.cjs` trên commit cuối đổi code `bfd312e6dd1bee9c524fc43c5027d2a657f63af9`; output nguyên văn tại [`docs/features/screenshots/DBS-113/manual-test.txt`](screenshots/DBS-113/manual-test.txt); bước khởi tạo khách hàng dùng **seed SQL** tạo `users`/`customers`/`accounts` với số dư `0`, toàn bộ tiền mặt đi vào qua `POST /v1/operator/deposits`):
+- **Test thủ công** (chạy bằng `node backend/scripts/manual-dbs113.cjs` trên commit cuối đổi code `f9a9ea87f51a5afea995e846b7ff0c132d7d3745`; output nguyên văn tại [`docs/features/screenshots/DBS-113/manual-test.txt`](screenshots/DBS-113/manual-test.txt); bước khởi tạo khách hàng dùng **seed SQL** tạo `users`/`customers`/`accounts` với số dư `0`, toàn bộ tiền mặt đi vào qua `POST /v1/operator/deposits`):
 
 | Bước | Lệnh / thao tác thực tế | Phản hồi thật (rút gọn) | Kết quả |
 |---|---|---|---|
@@ -424,7 +424,7 @@ Thứ tự: `AuditReason` & DTO/hàm thuần kiểm tra đầu vào → `Operato
 ## Checklist G4 (dán vào tin nhắn G4, tick từng dòng)
 
 - [x] 13/13 test case đạt đủ độ sâu, 0 đơn giản hóa
-- [x] Test thủ công chạy trên commit cuối đổi code (`bfd312e6dd1bee9c524fc43c5027d2a657f63af9` ở dòng đầu `manual-test.txt`): kết quả từng bước `M-113-01`..`M-113-08` đều đạt; đường thành công đã chạy; 0 bước "chưa chạy"
+- [x] Test thủ công chạy trên commit cuối đổi code (`f9a9ea87f51a5afea995e846b7ff0c132d7d3745` ở dòng đầu `manual-test.txt`): kết quả từng bước `M-113-01`..`M-113-08` đều đạt; đường thành công đã chạy; 0 bước "chưa chạy"
 - [x] Ảnh chụp có đủ trong `screenshots/DBS-113/` (`01-manual-lock-unlock-account.png`); `manual-test.txt` đã xóa token, header `Authorization`, id tài khoản AWS và ARN
 - [x] `git diff --stat main...HEAD` khớp danh sách 19 file ở §7; không có file lạ ngoài kế hoạch
 - [x] Bốn lệnh kiểm tra (`lint:check`, `typecheck`, `npm test`, `npm run test:e2e`) cộng với `npm run test:db` chạy lúc bàn giao, có số đếm đầy đủ
