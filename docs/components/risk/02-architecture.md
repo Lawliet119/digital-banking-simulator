@@ -117,10 +117,11 @@ sequenceDiagram
         S-->>W: { score, riskLevel, hits[] }
         W->>DB: BEGIN (TransactionService.run)
         W->>DB: INSERT INTO processed_events('risk', eventId) ON CONFLICT DO NOTHING, nếu 0 dòng thì ROLLBACK và xóa message
+        W->>DB: INSERT INTO risk_decisions (mọi TRANSFER, kể cả LOW) ON CONFLICT DO NOTHING (không target), 0 dòng thì dừng
         opt riskLevel IN ('MEDIUM', 'HIGH')
             W->>DB: INSERT INTO fraud_flags (transfer_id, score, risk_level, rule_set_version)
             W->>DB: INSERT INTO fraud_rule_hits (transfer_id, rule_id, weight, explanation)
-            W->>DB: AuditService.record(tx, { action: 'fraud_flag.create', ... })
+            W->>DB: AuditService.record(tx, { action: 'fraud.flagged', role: 'worker', correlationId: event.correlationId, metadata: { count } })
         end
         W->>DB: COMMIT
         W->>Q: Xóa message
