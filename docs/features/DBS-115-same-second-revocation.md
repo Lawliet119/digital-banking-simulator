@@ -91,7 +91,7 @@ Review bổ sung sau khi chuẩn bị dependency Linux ở volume riêng (gate p
 
 Rủi ro: so sánh khác đơn vị hoặc mất phần lẻ, test dương do tokenexpiry, mutation sót, seedtiền, Dockerstrategyfallback, đánh đồng token mới với unlock. Chặn bằng SQLfloor/to_char6digit, exp900/iatđiềukhiển, restorefinally+gitdiffguard, HTTPfunding/checker, isolatedDocker, SQLhậukiểmA/B. Backout chỉ revert test/manual/docs của115; production guard chưađổi, khôngxóamốcSQL hoặc đổi trạng tháitài khoản.
 
-Quyết định ở G3 (agent tự quyết): sweep DoD/AC/ADR/limitations xong, mỗi bullet cóTC hoặc bàn giao. Suite mới được CI test:db tựkhámphá; không sửa requiredchecks, không chạm suite cũ/114. Fileguard chỉ mutationthử nghiệm và restorebyteexact, không thay production cuối. ReserveBL-208 (review/merge/CI) vàBL-209 (cache/Cognito/cloudboundary chưa chạy); BL202–207 đã dànhcho cácPR trước, không dùngtrùng. G3 qua.
+Quyết định ở G3 (agent tự quyết): sweep DoD/AC/ADR/limitations xong, mỗi bullet cóTC hoặc bàn giao. Suite mới được CI test:db tựkhámphá; không sửa requiredchecks, không chạm suite cũ/114. Fileguard chỉ mutationthử nghiệm và restorebyteexact, không thay production cuối. ReservePR #117 (review và merge 2026-11-09; dòng BL-208 cũ đã xóa) (review/merge/CI) vàBL-222 (cache/Cognito/cloudboundary chưa chạy); BL202–207 đã dànhcho cácPR trước, không dùngtrùng. G3 qua.
 
 ## 8. Kết quả
 
@@ -111,7 +111,7 @@ Unit cuối **88 suites1652/1652(152.075s)**, e2e **15 suites153/153(156.225s)**
 | TC-115-04 | Mutantceil,3failed tại200expected/401actual, `.000000` vẫnpass, guard restorebyteexact | Đạt độ nhạy |
 | TC-115-05 | Công thức docs03/sharedAPI, threatmodelT2 đúng phạm vi; linkcheck322file0broken | Đạt |
 | TC-115-06 | Clone fd61a8b sạch, npmci,4/4; Linuxdeps riêng + networknone/noDocker socket, exit1 tại assertDockerAvailable | Đạt |
-| DoD4 quy trình | Chờ CIexactHEAD/Devreview/merge sauG4 | BL-208 |
+| DoD4 quy trình | Chờ CIexactHEAD/Devreview/merge sauG4 | PR #117 (review và merge 2026-11-09; dòng BL-208 cũ đã xóa) |
 
 Manual trên **`fd61a8bcca0bcbdabf90c3550408cc4acac17cb1`**, chưa thay code sau manual: [raw manual-test.txt](screenshots/DBS-115/manual-test.txt). **M01–05 và cleanup đạt6/6**, không đơn giản hóa:
 
@@ -127,20 +127,20 @@ Hai ảnh trích từ output thật, đã xem bằng view_image để kiểm ch�
 ![Mốc commit và biên cùng giây/giây sau](screenshots/DBS-115/01-committed-lock-boundary.png)
 ![Microsecond và Docker cô lập](screenshots/DBS-115/02-microseconds-isolated-docker.png)
 
-Diff cuối chỉ hai file test/manual mới và docs đã nêu§7; guard, helper, dependency, schema, workflow giữ nguyên main. Khônggiảm assertion đểxanh. Bàn giao **BL-208** cho Devreview/CIexactHEAD/merge; **BL-209** cho Dev114/186 vàPlatform kiểmcachehit/miss/fallback vàCognito thật/clockcloud. **Chưa chạy Redis114 hoặcAWS/Cognito thật**, do sourcecache chưamerge vàtask115 chỉ kiểmSQLcomparison; controlled signediat khôngthay issuanceCognito. Agent không sửa board hoặcmerge.
+Diff cuối chỉ hai file test/manual mới và docs đã nêu§7; guard, helper, dependency, schema, workflow giữ nguyên main. Khônggiảm assertion đểxanh. Bàn giao **PR #117 (review và merge 2026-11-09; dòng BL-208 cũ đã xóa)** cho Devreview/CIexactHEAD/merge; **BL-222** cho Dev114/186 vàPlatform kiểmcachehit/miss/fallback vàCognito thật/clockcloud. **Chưa chạy Redis114 hoặcAWS/Cognito thật**, do sourcecache chưamerge vàtask115 chỉ kiểmSQLcomparison; controlled signediat khôngthay issuanceCognito. Agent không sửa board hoặcmerge.
 
 ## 9. Tài liệu đã cập nhật
 
-Đã ghi công thức chuẩn ở docs03§6.2, đồng bộ mô tả SESSION_REVOKED trong sharedapi-design, threatmodelT2 chỉ ghi phần SQL/boundary đã kiểm. Featureindex thêm115. BACKLOG thêm BL-208 quy trình review/merge/CI và BL-209 cache/Cognito/cloudboundary chưa chạy; giữ nguyên BL-155, không nhận đã đóng cache từ testSQL. Không dựng lại02-architecture đã bỏ; không đổiADR hoặc thêm Mermaid.
+Đã ghi công thức chuẩn ở docs03§6.2, đồng bộ mô tả SESSION_REVOKED trong sharedapi-design, threatmodelT2 chỉ ghi phần SQL/boundary đã kiểm. Featureindex thêm115. BACKLOG thêm PR #117 (review và merge 2026-11-09; dòng BL-208 cũ đã xóa) quy trình review/merge/CI và BL-222 cache/Cognito/cloudboundary chưa chạy; giữ nguyên BL-155, không nhận đã đóng cache từ testSQL. Không dựng lại02-architecture đã bỏ; không đổiADR hoặc thêm Mermaid.
 
 ## Checklist G4
 
-- [x] 8/8 nhómTC đạt đủ độ sâu (TC02a/b/c tính3),0 đơn giản hóa; DoD4 quy trình ghiBL-208.
-- [x] ManualM01–05+cleanup6/6 trên sourceSHAfd61a8b ở dòng đầu raw; đường thành công thật đã chạy. Chưa chạy Redis114/Cognito/cloud, lý do vàBL-209 ghi rõ.
+- [x] 8/8 nhómTC đạt đủ độ sâu (TC02a/b/c tính3),0 đơn giản hóa; DoD4 quy trình ghiPR #117 (review và merge 2026-11-09; dòng BL-208 cũ đã xóa).
+- [x] ManualM01–05+cleanup6/6 trên sourceSHAfd61a8b ở dòng đầu raw; đường thành công thật đã chạy. Chưa chạy Redis114/Cognito/cloud, lý do vàBL-222 ghi rõ.
 - [x] Hai PNG đủ và đã xem; manual-test.txt không JWT/Authorization/AWS accountID/ARN. NegativeDocker đúng lỗi, không nhận runtimefailure trước đó làPASS.
 - [x] Diff origin/main khớp§7; chỉtest/manual vàdocs; guard/helper/schema/env/package/workflow khôngđổi. Gate phụ Linuxdeps đã ghi trước thay đổi môi trường.
 - [x] Lint/typecheck/build exit0; unit1652, e2e153, DB806; target4/4 và regression21/21; cleanclone4/4.
 - [x] Docs fact đã đồng bộ, checklinks322file0broken; statusPlanapproved tại tựkiểm, chuyểnImplemented sauG4.
-- [x] Mọi giới hạn/DoD chưa hoàn tất cóBL-208/209; khôngxóa BL-155 do115 khônghoànthiệncache.
+- [x] Mọi giới hạn/DoD chưa hoàn tất cóBL-222; khôngxóa BL-155 do115 khônghoànthiệncache.
 
 **Quyết định ở G4 (agent tự quyết):** tất cả điều kiện bàn giao local đã cóoutput/file thực tế và domainreview APPROVE; không có câu hỏi mở. G4 qua. Commitdocs, push và mởPR sau đây; CI chỉ ghi xanh khi đủ6check đúnghead. Khôngmerge và khôngđổi sheet; user đưaInReview, Devkhácreview/merge.
