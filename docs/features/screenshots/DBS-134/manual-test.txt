@@ -1,0 +1,41 @@
+code-sha: 9062f2d
+== M-134-01 onboarding
+{"id":"164f544d-3fe9-474e-a69d-7c0272645d47","fullName":"Tr?n Th? Lan","createdAt":"2026-11-09T08:50:10.102Z"}
+accountId=0fcfdd8a-697a-4cd6-8c6d-2709e5bd2554
+== M-134-02 deposit with client-chosen X-Correlation-Id=15f5966a-de23-453a-beb4-e91f895e24c0 X-Request-Id=172db3cd-68f6-4f88-a97d-903463bd99bb
+HTTP/1.1 201 Created
+X-Correlation-Id: c7bf3b01-96a0-43f6-9e02-7f3467bc6b1e
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+{"transferId":"67f2a59a-df17-4b2b-8d0e-d360ca77452e","status":"COMPLETED"}
+serverCorrelationId=c7bf3b01-96a0-43f6-9e02-7f3467bc6b1e
+== M-134-03 rows by server id (expect 1 each) and by client ids (expect 0)
+audit_log.correlation_id server=1 clientA=0 clientB=0
+outbox_events.correlation_id server=1 clientA=0 clientB=0
+outbox_events.payload->>'correlationId' server=1 clientA=0 clientB=0
+transfers.correlation_id server=1 clientA=0 clientB=0
+== M-134-04 notification_log by server id
+819b48bf-6350-4d13-8dd5-258961166da5|transfer_completed|c7bf3b01-96a0-43f6-9e02-7f3467bc6b1e
+{"level":30,"time":"2026-11-09T08:50:11.201Z","appRole":"both","role":"worker","correlationId":"c7bf3b01-96a0-43f6-9e02-7f3467bc6b1e","context":"NotificationConsumer","eventId":"54ae6531-8569-443c-afd5-c5d6c63c74d8","eventType":"TransferCompleted","message":"Notification sent (simulated)"}
+== M-134-05 lock with another client id
+HTTP/1.1 200 OK
+X-Correlation-Id: 00a7331d-c43d-43ff-8468-f3115692ca66
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+lockId=00a7331d-c43d-43ff-8468-f3115692ca66 (client sent 18752080-490c-4419-913d-847eee2e9006)
+audit_log server=1 client=0
+outbox_events server=1 client=0
+notification_log server=1 client=0
+Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ ngân hàng để được hỗ trợ
+== M-134-06 replay same Idempotency-Key
+HTTP/1.1 201 Created
+X-Correlation-Id: 6f446b73-893d-47c0-8c94-7fd1d922fd82
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+replayId=6f446b73-893d-47c0-8c94-7fd1d922fd82 audit=0 outbox=0
+== M-134-07 deposit into the locked account
+HTTP/1.1 422 Unprocessable Entity
+X-Correlation-Id: 8a05ec36-041d-46c0-976f-e75017e75e58
+Access-Control-Expose-Headers: X-Correlation-Id,X-Request-Id,Retry-After
+{"errorCode":"ACCOUNT_NOT_ACTIVE","transferId":"a452e2e1-a550-4b4a-a783-3b830d88a3ed","type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"Destination account is not active","correlationId":"8a05ec36-041d-46c0-976f-e75017e75e58"}
+refusedId=8a05ec36-041d-46c0-976f-e75017e75e58 audit=1 REJECTED outbox=0 notice=0
+== M-134-08 poison message with correlationId 'abc' on notification-events
+dlq messages with correlationId abc: 1
+notification_log rows before=2 after=2

@@ -4,6 +4,7 @@ import { DataSource, type EntityManager } from 'typeorm';
 import { ConsumerBase } from '@common/messaging';
 import type { DomainEvent } from '@common/events';
 import { TransactionService } from '@database/transaction.service';
+import { OutboxWriter } from '@modules/outbox';
 import type { SqsClient } from '@libs/sqs';
 import { TRANSFER_SAMPLE } from '../support/event-samples';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
@@ -27,6 +28,22 @@ class LogConsumer extends ConsumerBase {
       this.failures--;
       throw new Error('boom after the effect');
     }
+  }
+}
+
+/** DBS-134: a consumer whose effect is a new outbox event, written by the real OutboxWriter. */
+class WritingConsumer extends ConsumerBase {
+  protected readonly consumerName = 'dbs134';
+  private readonly writer: OutboxWriter;
+  constructor(tx: TransactionService, pino: PinoLogger) {
+    super(tx, {} as SqsClient, pino);
+    this.writer = new OutboxWriter(pino);
+  }
+  protected queueUrl(): string {
+    return 'http://localhost:9324/000000000000/dbs134';
+  }
+  protected async apply(event: DomainEvent, manager: EntityManager): Promise<void> {
+    await this.writer.add(manager, { ...event, eventId: randomUUID() });
   }
 }
 
@@ -91,5 +108,25 @@ describe('ConsumerBase (real PostgreSQL)', () => {
     await consumer.handle(e);
     await consumer.handle(e);
     expect(await rows(e.eventId)).toEqual({ processed: 1, effects: 1 });
+  });
+  it('TC-134-10 the real OutboxWriter accepts the event id inside apply even when the caller context has another id', async () => {
+    const pino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
+    const writing = new WritingConsumer(
+      new TransactionService(source, {
+        lockTimeoutMs: 2000,
+        statementTimeoutMs: 5000,
+        idleInTransactionTimeoutMs: 10000,
+      } as never),
+      pino,
+    );
+    const e = event();
+    await pino.runInContext(() => writing.handle(e), {
+      bindings: { correlationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff' },
+    });
+    const written = await q(
+      `SELECT correlation_id FROM outbox_events WHERE payload->>'transferId' = $1`,
+      [e.transferId],
+    );
+    expect(written).toEqual([{ correlation_id: e.correlationId }]);
   });
 });

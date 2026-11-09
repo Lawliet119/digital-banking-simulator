@@ -192,7 +192,15 @@ export class OutboxRelayService implements OnApplicationBootstrap, OnApplication
             failure = error;
             const kind = classifySendError(error);
             this.logger.warn(
-              { ...safeErrorMetadata(error), outboxId: event.id, kind },
+              {
+                ...safeErrorMetadata(error),
+                outboxId: event.id,
+                kind,
+                // The relay runs outside any request, so name the event's chain explicitly.
+                ...(typeof event.payload.correlationId === 'string'
+                  ? { correlationId: event.payload.correlationId }
+                  : {}),
+              },
               'Outbox event could not be sent',
             );
             if (kind === 'permanent') this.park(event.id, now());

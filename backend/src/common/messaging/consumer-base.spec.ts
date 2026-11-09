@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import type { EntityManager } from 'typeorm';
 import type { TransactionService } from '@database/transaction.service';
@@ -153,6 +154,37 @@ describe('DBS-101 ConsumerBase (unit)', () => {
     await consumer.handle(TRANSFER_SAMPLE, message(1));
     expect(consumer.seenCorrelationId).toBe(TRANSFER_SAMPLE.correlationId);
     expect(pino.logger.bindings().correlationId).toBeUndefined();
+  });
+
+  it('TC-134-10 an outer context with another id never leaks into apply, and is restored after', async () => {
+    const outer = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    let after: unknown;
+    await pino.runInContext(
+      async () => {
+        await consumer.handle(TRANSFER_SAMPLE, message(1));
+        after = pino.logger.bindings().correlationId;
+      },
+      { bindings: { correlationId: outer } },
+    );
+    expect(consumer.seenCorrelationId).toBe(TRANSFER_SAMPLE.correlationId);
+    expect(after).toBe(outer);
+  });
+
+  it('TC-134-09 the backoff warning of a failed event carries that event correlationId', async () => {
+    const seenIds: unknown[] = [];
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {
+      seenIds.push(pino.logger.bindings().correlationId);
+    });
+    try {
+      consumer.failure = new Error('database unavailable');
+      changeVisibility.mockRejectedValue(new Error('queue refused'));
+      await expect(consumer.handle(TRANSFER_SAMPLE, message(1))).rejects.toThrow(
+        'database unavailable',
+      );
+      expect(seenIds).toEqual([TRANSFER_SAMPLE.correlationId]);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('consumeOnce hands the queue and its dead-letter queue to processBatch', async () => {

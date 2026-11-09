@@ -13,7 +13,12 @@ import { ReconciliationService } from '@modules/ledger';
 import { OutboxRelayService } from '@modules/outbox';
 import { OutboxCleanupService } from '@modules/outbox/outbox-cleanup.service';
 import { TRANSFER_SAMPLE } from '../support/event-samples';
-import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+import {
+  createTempDatabase,
+  migrate,
+  migrateThrough,
+  type TempDatabase,
+} from '../support/temp-database';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { checkLedgerInvariants } from '../support/invariants';
 
@@ -78,8 +83,9 @@ describe('least-privilege roles dbs_api, dbs_worker, dbs_migrator (DBS-119)', ()
   it('TC-119-01 migration step 7 creates dbs_migrator, dbs_api, dbs_worker, is idempotent, and reverts/re-applies cleanly', async () => {
     const lifecycleDb = await createTempDatabase();
     try {
-      // 1. Initial migrate applies migration 7
-      await migrate(lifecycleDb.url);
+      // 1. Initial migrate applies migration 7. Pinned to it: a later migration (DBS-134) must not
+      // become the "last" one that undoLast reverts below.
+      await migrateThrough(lifecycleDb.url, 'CreateDbRolesAndGrants1793664000000');
 
       // Verify 3 roles exist
       const roles = (await lifecycleDb.runner.query(

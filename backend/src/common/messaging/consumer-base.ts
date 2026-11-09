@@ -131,21 +131,26 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, OnApplicat
       );
     }
     const event = checked.event;
-    try {
-      await this.pino.runInContext(() => this.process(event), {
-        bindings: { role: 'worker', correlationId: event.correlationId },
-      });
-    } catch (error) {
-      if (error instanceof PoisonMessageError) throw error;
-      const attempt = receiveCountOf(message);
-      if (attempt >= MAX_ATTEMPTS) {
-        throw new PoisonMessageError('Event kept failing and used up its attempts', {
-          cause: error,
-        });
-      }
-      await this.backOff(message, attempt);
-      throw error;
-    }
+    // The whole attempt, failure handling included, runs in the event's context, so the logs of a
+    // failed attempt (backoff, DLQ decision) carry its correlationId too.
+    await this.pino.runInContext(
+      async () => {
+        try {
+          await this.process(event);
+        } catch (error) {
+          if (error instanceof PoisonMessageError) throw error;
+          const attempt = receiveCountOf(message);
+          if (attempt >= MAX_ATTEMPTS) {
+            throw new PoisonMessageError('Event kept failing and used up its attempts', {
+              cause: error,
+            });
+          }
+          await this.backOff(message, attempt);
+          throw error;
+        }
+      },
+      { bindings: { role: 'worker', correlationId: event.correlationId } },
+    );
   }
 
   /** Never hides the real error: if the queue refuses the new timeout, the default one applies. */

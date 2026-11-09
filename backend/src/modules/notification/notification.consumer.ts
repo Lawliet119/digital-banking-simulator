@@ -80,8 +80,9 @@ export class NotificationConsumer extends ConsumerBase {
   protected async apply(event: DomainEvent, manager: EntityManager): Promise<void> {
     for (const notice of noticesFor(event)) {
       await manager.query(
-        'INSERT INTO notification_log(event_id,kind,user_id,message) VALUES($1,$2,$3,$4)',
-        [event.eventId, notice.kind, notice.userId, notice.message],
+        `INSERT INTO notification_log(event_id,kind,user_id,message,correlation_id)
+         VALUES($1,$2,$3,$4,$5)`,
+        [event.eventId, notice.kind, notice.userId, notice.message, event.correlationId],
       );
     }
   }
