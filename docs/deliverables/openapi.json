@@ -508,6 +508,144 @@
         ]
       }
     },
+    "/v1/operator/accounts/{id}/lock": {
+      "post": {
+        "description": "Atomically locks a customer account (status = LOCKED), revokes the owner active sessions (users.sessions_revoked_at = clock_timestamp()), writes a fail-closed audit row, and emits AccountStatusChanged in one transaction. Never returns a balance and never exposes the lock reason in events or customer responses (BR-13).",
+        "operationId": "OperatorAccountsController_lock_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorAccountStatusBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorAccountStatusResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid account UUID or invalid/missing reason"
+          },
+          "401": {
+            "description": "UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED"
+          },
+          "403": {
+            "description": "FORBIDDEN; the caller is not an operator"
+          },
+          "404": {
+            "description": "Account does not exist or is a SYSTEM account"
+          },
+          "500": {
+            "description": "Internal server error; rolls back if audit or outbox fails"
+          },
+          "503": {
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Operator: lock a customer account with a mandatory reason (UC-11)",
+        "tags": [
+          "operator"
+        ],
+        "x-roles": [
+          "operator"
+        ]
+      }
+    },
+    "/v1/operator/accounts/{id}/unlock": {
+      "post": {
+        "description": "Atomically unlocks a customer account (status = ACTIVE), writes a fail-closed audit row, and emits AccountStatusChanged in one transaction without clearing prior session revocation timestamps.",
+        "operationId": "OperatorAccountsController_unlock_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorAccountStatusBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorAccountStatusResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid account UUID or invalid/missing reason"
+          },
+          "401": {
+            "description": "UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED"
+          },
+          "403": {
+            "description": "FORBIDDEN; the caller is not an operator"
+          },
+          "404": {
+            "description": "Account does not exist or is a SYSTEM account"
+          },
+          "500": {
+            "description": "Internal server error; rolls back if audit or outbox fails"
+          },
+          "503": {
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Operator: unlock a customer account with a mandatory reason (UC-11)",
+        "tags": [
+          "operator"
+        ],
+        "x-roles": [
+          "operator"
+        ]
+      }
+    },
     "/v1/operator/deposits": {
       "post": {
         "description": "Idempotent: the same key with the same body returns the first answer without a second deposit; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.",
@@ -1206,6 +1344,58 @@
         },
         "required": [
           "items"
+        ]
+      },
+      "OperatorAccountStatusBodyDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "example": "CONFIRMED_FRAUD",
+            "description": "Reason code (CONFIRMED_FRAUD, SUSPICIOUS_ACTIVITY, CUSTOMER_REQUEST, COMPLIANCE_HOLD, OPERATOR_LOCK, OPERATOR_UNLOCK) or operator note (1..200 chars after NFC+trim, no control characters). Never exposed in outbox events or customer responses (BR-13)."
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "OperatorAccountStatusResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "2e859a80-d4d0-471d-8cee-e9d0de9d4bc7"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "CHECKING",
+              "SAVINGS"
+            ],
+            "example": "CHECKING"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "LOCKED"
+            ],
+            "example": "LOCKED"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-08T05:10:00.123Z"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "updatedAt"
         ]
       },
       "DepositDto": {

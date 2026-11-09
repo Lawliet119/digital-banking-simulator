@@ -32,7 +32,7 @@ Module bên trong ứng dụng và quy tắc phụ thuộc (eslint ép ranh gi�
 
 Đặc tả đầy đủ là **OpenAPI sinh từ code** (`/docs` ở môi trường không phải production) và tài liệu hợp đồng chi tiết tại [`api-design`](../components/_shared/api-design.md). Bảng endpoint, quy ước tiền là chuỗi, lỗi `application/problem+json` kèm `errorCode`, 404 cho tài nguyên không thuộc mình, 503 + `Retry-After` cho lỗi DB tạm thời: [docs/03 §7](../03_HIGH_LEVEL_ARCHITECTURE.md). Danh sách `errorCode`: [docs/03 §7.1](../03_HIGH_LEVEL_ARCHITECTURE.md).
 
-- [OpenAPI JSON sinh từ app thật](openapi.json), source code commit `4e5446f`. Tái tạo: từ `backend/`, khi API non-production chạy, dùng `npm run openapi:export -- --url http://127.0.0.1:3000/docs-json`. Artifact phản ánh 12 path hiện hữu; các endpoint chỉ ở kiến trúc đích trong docs/03 chưa tự xuất hiện trong Swagger.
+- [OpenAPI JSON sinh từ app thật](openapi.json), sinh lại sau rebase từ app trên `main` `18f93dc` cùng exporter của PR này (code exporter: commit `4e5446f` trước rebase). Tái tạo: từ `backend/`, khi API non-production chạy, dùng `npm run openapi:export -- --url http://127.0.0.1:3000/docs-json`. Artifact phản ánh 14 path hiện hữu (gồm `/v1/operator/accounts/{id}/lock` và `/unlock` của DBS-113); các endpoint chỉ ở kiến trúc đích trong docs/03 chưa tự xuất hiện trong Swagger.
 
 ## 3. Data model
 

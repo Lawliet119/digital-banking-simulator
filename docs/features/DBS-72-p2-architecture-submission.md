@@ -139,9 +139,11 @@ Setup trong Git Bash: từ root chạy `npm --prefix backend ci`, bảo đảm `
 | TC-72-01/02 | export-openapi.spec.ts | Đạt: export JSON; HTTP/schema/JSON lỗi; rename lỗi giữ artifact và dọn temp |
 | TC-72-03 | openapi-export.db-spec.ts | Đạt với CLI thật, AppModule/PG thật, Swagger equality/roles/Bearer/string money |
 | TC-72-04/06 | definition-check.txt và link checker | Đã đối chiếu schema/mã lỗi/module/ADR; link checker sạch |
-| TC-72-05 / quy trình | P2 §6, backlog | Chưa đạt rubric/nộp, CI/review/merge; BL-180/181 |
+| TC-72-05 / quy trình | P2 §6, backlog | Chưa đạt rubric/nộp, CI/review/merge; BL-190/191 |
 
 **Manual:** M-72-01/02 đã chạy trên code cuối, cả API snapshot và CLI subprocess thật: artifact 12 paths khớp /docs-json; failure giữ file cũ. Lần driver đầu lỗi cleanup vì kết nối drop nhầm URL quản trị; đã sửa lệnh driver (không sửa code ứng dụng), chạy lại hoàn tất exit0; raw giữ cả lần lỗi. M-72-03 link checker đạt 256files/0broken ở lượt đã lưu. [Raw manual](screenshots/DBS-72/manual-test.txt), [đối chiếu nguồn](screenshots/DBS-72/definition-check.txt).
+
+**Sau rebase (techlead review PR #83, 2026-11-09):** rebase lên `main` `18f93dc` (đã có DBS-113); `docs/deliverables/openapi.json` được xuất lại từ AppModule + PostgreSQL 17 thật bằng chính test `openapi-export.db-spec.ts` (14 path, thêm `/lock` và `/unlock`). Bằng chứng M-72-01/02 và hai ảnh ở dưới là của lượt trước rebase (12 path); `BL-180/181` của PR bị đánh lại thành `BL-190/191` vì main đã dùng số cũ.
 
 **Ảnh manual:** đã chụp từ cửa sổ Notepad riêng đang mở raw `manual-test.txt` trên code cuối; không sửa nội dung transcript hoặc lấy dữ liệu cửa sổ khác. Đây là ảnh xem lại output thực đã lưu, không phải lượt chạy mới. Diagram chưa có visual-render QA.
 
@@ -149,7 +151,7 @@ Setup trong Git Bash: từ root chạy `npm --prefix backend ci`, bảo đảm `
 
 ![M-72-02 giữ nguyên artifact khi lỗi](screenshots/DBS-72/02-failure.png)
 
-**Bàn giao:** BL-180 (rubric/deadline/nộp thật); BL-181 (CI/Dev review/merge và ảnh). Git chỉ commit local theo G3, chưa push/PR/board. Lượt verification thoát127 chưa được coi là lỗi đã sửa.
+**Bàn giao:** BL-190 (rubric/deadline/nộp thật); BL-191 (CI/Dev review/merge và ảnh). Git chỉ commit local theo G3, chưa push/PR/board. Lượt verification thoát127 chưa được coi là lỗi đã sửa.
 
 ### Kiểm chứng CI Linux sau khi mở Draft PR
 
@@ -157,7 +159,7 @@ Các ghi chú “chưa push/PR/CI” ở trên là snapshot trước lần cho p
 
 DB 43 suites / 725 tests; E2E chính 15 suites / 153 tests; các bước Testcontainers/service tiếp theo 5 + 2 + 5 + 8 + 3 + 4 + 9 tests; tất cả đạt, không skip.
 
-CI Linux đã lấp khoảng trống full DB/E2E; không chứng minh lỗi launcher Windows hay legacy DBS-50 đã sửa. Rubric/deadline/link nộp P2 vẫn thiếu (BL-180); Dev review/merge, legacy smoke, Windows exit127 và hai PNG còn ở BL-181.
+CI Linux đã lấp khoảng trống full DB/E2E; không chứng minh lỗi launcher Windows hay legacy DBS-50 đã sửa. Rubric/deadline/link nộp P2 vẫn thiếu (BL-190); Dev review/merge, legacy smoke, Windows exit127 và hai PNG còn ở BL-191.
 
 Code không đổi sau manual; các commit sau run CI trên chỉ sửa hồ sơ/evidence và bổ sung đủ 2 PNG đã định ở §7. Các ghi chú thiếu PNG trước đó được thay bằng ảnh thật ở trên; không còn ảnh thiếu. Diff file vẫn khớp §7. Status giữ Plan approved để trình G4.
 
@@ -165,7 +167,7 @@ Code không đổi sau manual; các commit sau run CI trên chỉ sửa hồ sơ
 
 Người dùng trả lời «duyệt g4» trực tiếp cho đề nghị bàn giao kèm các giới hạn đã nêu. G4 được duyệt; trạng thái chuyển Implemented cho phạm vi đã bàn giao và cho phép chuyển PR #83 sang ready for review. Những ghi chú giữ Draft/Plan approved phía trên là lịch sử trước quyết định này. Không có quyền merge hoặc sửa board.
 
-Chấp nhận bàn giao phạm vi kỹ thuật P2; rubric/deadline/link nộp thật tiếp tục ở BL-180, không coi toàn bộ DoD DBS-72 đã hoàn tất. Windows exit127 và legacy DBS-50 smoke lỗi parse JSON M50-01 tiếp tục ở BL-181; không nhận CI Linux xanh là đã sửa các lỗi này. Chấp nhận diagram chưa visual-render QA; Dev review/merge vẫn chưa thực hiện.
+Chấp nhận bàn giao phạm vi kỹ thuật P2; rubric/deadline/link nộp thật tiếp tục ở BL-190, không coi toàn bộ DoD DBS-72 đã hoàn tất. Windows exit127 và legacy DBS-50 smoke lỗi parse JSON M50-01 tiếp tục ở BL-191; không nhận CI Linux xanh là đã sửa các lỗi này. Chấp nhận diagram chưa visual-render QA; Dev review/merge vẫn chưa thực hiện.
 
 Trước G4, [CI run 42468360373](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42468360373) đã xác minh head `35ebc41bba084a8adc35977d8f38163e0749df06`: cả sáu job lint/typecheck/unit/e2e/db/build success, attempt 1. Lần ghi nhận G4 này chỉ sửa tài liệu; không thay code sau manual. Các giới hạn được chấp nhận không đồng nghĩa đã được khắc phục hoặc đã merge/nộp P2.
 
@@ -173,4 +175,4 @@ Trước G4, [CI run 42468360373](https://github.com/Lawliet119/digital-banking-
 
 **Cập nhật cuối lượt:** E2E toàn bộ trên nhánh DBS-72 đạt 15 suites/153 tests, không skip, process cha ghi processExit=0/signal=null. Script legacy manual-smoke.dbs50.ts sau sửa type boot được nhưng M50-01 lỗi SyntaxError Unexpected end of JSON input; đã dừng process treo, không sửa runtime ngoài phạm vi. Typecheck xanh không đồng nghĩa smoke legacy xanh. Full DB toàn repo chưa có summary xanh (wrapper thoát127); cần CI/Linux để kiểm chứng trước G4. M72-01/02 đã chạy lại bằng CLI subprocess thật, export12paths và giữ artifact khi lỗi; M72-03 link check256/0broken.
 
-Đã cập nhật feature doc/index/BACKLOG và evidence theo §7; P2, deliverables README và OpenAPI artifact; thêm BL-180/181.
+Đã cập nhật feature doc/index/BACKLOG và evidence theo §7; P2, deliverables README và OpenAPI artifact; thêm BL-190/191.
