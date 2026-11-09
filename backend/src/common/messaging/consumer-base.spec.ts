@@ -95,6 +95,42 @@ describe('DBS-101 ConsumerBase (unit)', () => {
     expect(consumer.committed).toHaveLength(1);
   });
 
+  it('TC-111-14 prepare runs before the transaction, and its result reaches apply and onCommitted', async () => {
+    const steps: string[] = [];
+    class PreparingConsumer extends TestConsumer {
+      readonly seen: unknown[] = [];
+      protected override prepare(event: DomainEvent): Promise<unknown> {
+        steps.push(`prepare (transactions so far: ${run.mock.calls.length})`);
+        return Promise.resolve({ for: event.eventId });
+      }
+      protected override apply(
+        event: DomainEvent,
+        _manager?: EntityManager,
+        prepared?: unknown,
+      ): Promise<void> {
+        steps.push('apply');
+        this.seen.push(prepared);
+        return super.apply(event);
+      }
+      protected override onCommitted(event: DomainEvent, prepared?: unknown): void {
+        steps.push('committed');
+        this.seen.push(prepared);
+        super.onCommitted(event);
+      }
+    }
+    const preparing = new PreparingConsumer(tx, sqs, pino);
+    await preparing.handle(TRANSFER_SAMPLE, message(1));
+    expect(steps).toEqual(['prepare (transactions so far: 0)', 'apply', 'committed']);
+    const expected = { for: TRANSFER_SAMPLE.eventId };
+    expect(preparing.seen).toEqual([expected, expected]);
+    // A consumer that does not override prepare gets undefined, as before.
+    await consumer.handle(
+      { ...TRANSFER_SAMPLE, eventId: '7d9b0b5e-1c1a-4f3e-9a51-5f0b2a0c0f11' },
+      message(1),
+    );
+    expect(consumer.applied).toHaveLength(1);
+  });
+
   it('TC-101-04 a body that breaks the schema is poison, and no transaction is opened', async () => {
     for (const body of [
       { eventType: 'TransferCompleted' },

@@ -49,7 +49,10 @@ function receiveCountOf(message: SqsMessage | undefined): number {
  * - **Correlation.** The event's `correlationId` is bound in the logging context (AsyncLocalStorage)
  *   around `apply`, so logs and `OutboxWriter` inside see it.
  *
- * `apply` must not call SQS, Redis or any slow service: it holds the transaction open.
+ * `apply` must not call SQS, Redis or any slow service: it holds the transaction open. Work of that
+ * kind goes in `prepare` (DBS-111), which runs before the transaction and hands its result to
+ * `apply` and `onCommitted`. The result travels as an argument because a batch is handled
+ * concurrently: an instance field would mix up two messages.
  */
 export abstract class ConsumerBase implements OnApplicationBootstrap, OnApplicationShutdown {
   /** `processed_events.consumer`: stable, one per consumer. */
@@ -73,11 +76,24 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, OnApplicat
   /** URL of this consumer's queue; `undefined` when the environment does not configure it. */
   protected abstract queueUrl(): string | undefined;
 
+  /**
+   * Reads that must not run inside the transaction (Redis, slow queries), before it opens. Throwing
+   * here is the same as throwing in `apply`: nothing is written and the message is retried, or
+   * dead-lettered for a `PoisonMessageError`. Runs again on every redelivery.
+   */
+  protected prepare(_event: DomainEvent): Promise<unknown> {
+    return Promise.resolve(undefined);
+  }
+
   /** The business effect of one event, inside the transaction that claimed it. */
-  protected abstract apply(event: DomainEvent, manager: EntityManager): Promise<void>;
+  protected abstract apply(
+    event: DomainEvent,
+    manager: EntityManager,
+    prepared?: unknown,
+  ): Promise<void>;
 
   /** Runs after the commit, only for the delivery that applied the event (never for a duplicate). */
-  protected onCommitted(_event: DomainEvent): void {
+  protected onCommitted(_event: DomainEvent, _prepared?: unknown): void {
     // Nothing by default.
   }
 
@@ -167,6 +183,7 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, OnApplicat
   }
 
   private async process(event: DomainEvent): Promise<void> {
+    const prepared = await this.prepare(event);
     const first = await this.tx.run(async manager => {
       const claimed: unknown[] = await manager.query(
         `INSERT INTO processed_events(consumer,event_id) VALUES($1,$2)
@@ -174,9 +191,9 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, OnApplicat
         [this.consumerName, event.eventId],
       );
       if (claimed.length === 0) return false;
-      await this.apply(event, manager);
+      await this.apply(event, manager, prepared);
       return true;
     });
-    if (first) this.onCommitted(event);
+    if (first) this.onCommitted(event, prepared);
   }
 }
