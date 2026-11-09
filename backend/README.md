@@ -193,6 +193,12 @@ return { amount: formatMoney(amount) };
 
 `MoneyError` (`reason`: `INVALID`, `OVERFLOW`, `UNDERFLOW`, `NOT_POSITIVE`) không phải lỗi HTTP: bắt nó ở chỗ có ý nghĩa nghiệp vụ; lọt ra ngoài thì thành 500 chung chung, không lộ gì. Lỗi DTO là 400 với danh sách `errors`, **không có `errorCode`** (client chỉ cần sửa và gửi lại). `main.ts` và `configureHttpApp` gọi `installBigIntJson()` để `JSON.stringify` ra chuỗi cho `bigint` còn sót; đó là lưới an toàn, không thay cho `formatMoney`. Luật ESLint `no-restricted-syntax` trong `eslint.config.mjs` chặn trực tiếp `Number()`, `parseInt()`, `parseFloat()` trong `src/modules/ledger/**` và `src/modules/accounts/**`.
 
+### Job dọn dữ liệu chống trùng
+
+Worker/both chạy `OutboxCleanupService` khi khởi động và mỗi giờ: dọn key theo `IDEMPOTENCY_KEY_RETENTION_DAYS` (7–3650, mặc định7), marker theo `PROCESSED_EVENTS_RETENTION_DAYS` (7–3650, mặc định7). Giữ dòng bằng cutoff; khóa advisory riêng,1000dòng/lô,200lô mỗi bảng, transaction giới hạn500ms chờ khóa/2s statement/2s idle. Envkey dưới7ngày bị từ chối khi boot. Queue4ngày/DLQ6ngày; tăng cửa sổ queue/redrive phải nâng retention marker trước.
+
+Test riêng: `npm run test:db -- --runInBand --runTestsByPath test/db/dedup-cleanup.db-spec.ts`. Test tay: `node scripts/manual-dbs136.cjs`; fixture tự tạo PG17 riêng, actual LOGIN worker và API/JWT thật, không đổi credential Compose. Key còn tồn tại thì replay; sau khi hết hạn và đã bị dọn, cùng key được coi là lệnh mới. [Thiết kế và bằng chứng DBS-136](../docs/features/DBS-136-dedup-cleanup.md).
+
 ### 8. Log JSON
 
 Log ứng dụng dùng `nestjs-pino`, mỗi dòng là một JSON object trên stdout, áp dụng cả API, worker và bootstrap. Thông báo npm/compiler/Docker không thuộc log ứng dụng.

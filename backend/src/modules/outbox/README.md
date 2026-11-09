@@ -14,6 +14,12 @@ Hai bảng có migration và test PostgreSQL thật. `published_at` được UPD
 | Sở hữu bảng | `outbox_events` (mọi module ghi qua `OutboxWriter.add`, trong transaction của mình), `processed_events` (khung chống xử lý trùng cho mọi consumer) |
 | Thiết kế    | `docs/03` §10                                                                                                                                      |
 
+## Dọn dữ liệu chống trùng
+
+`OutboxCleanupService` còn dọn `idempotency_keys` theo `IDEMPOTENCY_KEY_RETENTION_DAYS` (mặc định7, phạm vi7–3650), cùng lịch và budget riêng mỗi bảng như trên. Hai bảng dedup dùng cutoff UTC từ `Clock` đọc một lần mỗi lượt; timestamp bằng cutoff hoặc mới hơn được giữ. `created_at`/`processed_at` có index riêng; DELETE chọn lô theo timestamp và ctid, mỗi bảng có advisory lock riêng nên không cần cấp UPDATE cho worker. Mỗi transaction cleanup giới hạn chờ khóa500ms, statement2s và idle2s; batch lỗi rollback, batch trước đã commit giữ nguyên, vòng job thử lại sau60s. Sau khi key hết hạn **và đã bị dọn**, request cùng key có thể trở thành lệnh mới; khi key còn tồn tại, replay vẫn trả kết quả cũ.
+
+Kiểm chứng [DBS-136](../../../../docs/features/DBS-136-dedup-cleanup.md): `test/db/dedup-cleanup.db-spec.ts` và `node scripts/manual-dbs136.cjs`, PostgreSQL17 riêng, actual LOGIN `dbs_worker`, Clock giả, HTTP replay thật và checker bất biến. Không thay role/credential của Compose. Queue4ngày và DLQ6ngày theo ADR-03/DBS-73; nếu Ops nới retention/redrive thì phải nâng dedup retention trước (BL-051).
+
 ## Ghi sự kiện
 
 Import `OutboxModule` vào module producer, inject `OutboxWriter` qua `@modules/outbox` rồi gọi `add(manager, event): Promise<void>` bằng manager của `TransactionService.run`. Manager phải có transaction đang hoạt động. Writer chỉ INSERT, không gọi SQS/Redis/HTTP, không tự commit hoặc retry. Trùng `eventId` bị unique constraint từ chối; writer không upsert.

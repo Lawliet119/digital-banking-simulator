@@ -24,7 +24,10 @@ describe('outbox cleanup job (real PostgreSQL)', () => {
       idleInTransactionTimeoutMs: 10000,
     } as never);
   const config = (retentionDays = 7, processedEventsRetentionDays = 7) =>
-    ({ outbox: { retentionDays, processedEventsRetentionDays } }) as never;
+    ({
+      idempotencyKeyRetentionDays: 7,
+      outbox: { retentionDays, processedEventsRetentionDays },
+    }) as never;
   const cleaner = (days = 7, processedDays = 7, via: DataSource = source) =>
     new OutboxCleanupService(tx(via), config(days, processedDays));
 
@@ -172,7 +175,10 @@ describe('outbox cleanup job (real PostgreSQL)', () => {
       [OUTBOX_BATCH_SQL, 'outbox_events', 'outbox_published_cleanup_idx'],
       [PROCESSED_BATCH_SQL, 'processed_events', 'processed_events_processed_at_idx'],
     ] as const) {
-      const [row] = await q(`EXPLAIN (FORMAT JSON) ${sql}`, [7, 1000]);
+      const [row] = await q(`EXPLAIN (FORMAT JSON) ${sql}`, [
+        sql === OUTBOX_BATCH_SQL ? 7 : new Date(Date.now() - 7 * 86400000),
+        1000,
+      ]);
       const all = nodes(row['QUERY PLAN']);
       expect(all.some(n => n['Index Name'] === index)).toBe(true);
       expect(all.some(n => n['Node Type'] === 'Seq Scan' && n['Relation Name'] === table)).toBe(

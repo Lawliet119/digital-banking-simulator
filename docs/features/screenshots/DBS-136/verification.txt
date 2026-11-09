@@ -1,0 +1,37 @@
+DBS-136 source commit: f5b5c94ebd8df6e6c394a012d1e6ee5399458cfe
+Recorded results of executed commands; exact Git Bash manual output is manual-test.txt.
+
+Red before production change:
+unit schema: retention1,6,3651 accepted unexpectedly:3 failed,84 passed.
+DB test: TS2305 missing IDEMPOTENCY_BATCH_SQL / TS2307 missing helper;0 cases ran.
+
+Green:
+lint:check, typecheck, build: exit0
+target DB92/119/136:29/29,26.982s
+target DB136 after final helper/test refinements:10/10,16.413s
+unit schema/wiring:90/90,6.417s
+services PostgreSQL+ElasticMQ:15/15,83.507s
+First services command lacked DATABASE_URL and could not enter setup; corrected command uses local Compose URL without printing it, suite creates its own throwaway DB. No test skip or assertion reduction.
+manual Git Bash:exit0,M01..M06 PASS on source commit above
+No skip/only/todo in the new test suite.
+
+test actual Jest summary:
+Test Suites: 88 passed, 88 total
+Tests:       1660 passed, 1660 total
+Snapshots:   0 total
+Time:        85.839 s, estimated 123 s
+Ran all test suites.
+
+test-e2e actual Jest summary:
+Test Suites: 15 passed, 15 total
+Tests:       153 passed, 153 total
+Snapshots:   0 total
+Time:        105.911 s, estimated 112 s
+Ran all test suites.
+
+test:db actual Jest summary:
+Test Suites: 53 passed, 53 total
+Tests:       812 passed, 812 total
+Snapshots:   0 total
+Time:        668.259 s, estimated 775 s
+Ran all test suites.
