@@ -358,6 +358,8 @@ export DBS_CUSTOMER_3_TOKEN="ey..."
 npm run seed
 ```
 
+**Giới hạn khi chạy lại.** Chạy lại seed không nhân đôi tiền nhờ `Idempotency-Key` cố định, nhưng bản ghi `idempotency_keys` bị job dọn xóa sau `IDEMPOTENCY_KEY_RETENTION_DAYS` ngày (mặc định 7, DBS-136). Quá hạn đó, chạy lại seed sẽ nạp và chuyển thêm một lần nữa (sổ cái vẫn cân, số dư tăng): muốn dữ liệu demo sạch thì dựng lại cơ sở dữ liệu thay vì chạy lại seed sau hạn đó (BL-213).
+
 ## Docker
 
 ```bash
