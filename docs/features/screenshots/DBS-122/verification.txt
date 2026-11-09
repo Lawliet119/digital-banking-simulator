@@ -1,0 +1,38 @@
+DBS-122 source commit: 953ac54fbfc93ecc49260a12cc88f0eaba2ad72c
+Recorded execution summary; exact manual output is in manual-test.txt.
+
+Red, before helper existed:
+npm run test:db -- --runInBand --runTestsByPath test/db/db-role-permissions.db-spec.ts
+FAIL TS2307 Cannot find module '../support/db-role-permissions'. 0 tests executed.
+This is a missing test harness, not a reproduced production ACL bug.
+
+Green:
+npm run lint:check: exit 0
+npm run typecheck: exit 0
+npm run build: exit 0
+Target PostgreSQL17 suite: 13/13 passed, 14.305 s
+Clean clone at source SHA, existing node_modules junction, no copied env:
+13/13 passed, 16.810 s
+Git Bash node scripts/manual-dbs122.cjs: exit 0, M01..M06 PASS
+No skip/only/todo in added test/helper.
+
+test actual Jest summary:
+Test Suites: 88 passed, 88 total
+Tests:       1657 passed, 1657 total
+Snapshots:   0 total
+Time:        108.375 s
+Ran all test suites.
+
+test-e2e actual Jest summary:
+Test Suites: 15 passed, 15 total
+Tests:       153 passed, 153 total
+Snapshots:   0 total
+Time:        115.768 s
+Ran all test suites.
+
+test:db actual Jest summary:
+Test Suites: 53 passed, 53 total
+Tests:       815 passed, 815 total
+Snapshots:   0 total
+Time:        767.45 s
+Ran all test suites.
