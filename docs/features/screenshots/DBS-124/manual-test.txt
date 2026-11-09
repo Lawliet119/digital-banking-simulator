@@ -1,0 +1,161 @@
+d78585955e9620ca2a86342ac1fa27178c7a3975
+== DBS-124 manual test / Demo 3 (worker) 2026-11-09T22:56:10Z
+stray dist/main processes before start: 0
+dedicated ElasticMQ dbs124-mq on :9334 ready
+migration:run OK (11 migrations)
+build OK
+api ready: {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+-- M-124-01 healthy system: one AC-9.1 transfer
+POST /v1/customers/me -> 200 {"id":"707acb78-8940-4631-b105-d1ba6dbe74b9","fullName":"Tr?n Van An","createdAt":"2026-11-09T22:56:31.346Z"}
+POST /v1/accounts -> 201 {"id":"54b789dd-227e-4ec6-9394-02fcb7f5bcc4","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:56:31.675Z","updatedAt":"2026-11-09T22:56:31.675Z"}
+POST /v1/customers/me -> 200 {"id":"9172e404-d739-41e7-97e0-3185740037b2","fullName":"Ngu?i nh?n c?a Tr?n Van An","createdAt":"2026-11-09T22:56:35.206Z"}
+POST /v1/accounts -> 201 {"id":"29560b2f-8b26-4a18-86be-ddfb0f95034e","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:56:35.542Z","updatedAt":"2026-11-09T22:56:35.542Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"c04a27f1-f374-4dc7-8359-498ddc0e82ee","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"32069e15-7045-4483-9afe-0f936782f3c2","status":"COMPLETED"}
+flag for T1 present: 65 MEDIUM
+-- M-124-02 worker killed, 3 flaggable + 3 LOW transfers
+POST /v1/customers/me -> 200 {"id":"a8bf53cd-c329-4bc1-882f-ad450fa7e771","fullName":"Nguy?n Th? B�nh 1","createdAt":"2026-11-09T22:56:40.880Z"}
+POST /v1/accounts -> 201 {"id":"a4233fb1-051e-4974-ad85-b7722dc962e8","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:56:41.214Z","updatedAt":"2026-11-09T22:56:41.214Z"}
+POST /v1/customers/me -> 200 {"id":"a90a315c-aa82-4d70-985c-2515d09d976b","fullName":"Ngu?i nh?n c?a Nguy?n Th? B�nh 1","createdAt":"2026-11-09T22:56:44.811Z"}
+POST /v1/accounts -> 201 {"id":"bd8439ab-cb69-48e5-93d9-01221fd394d8","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:56:45.133Z","updatedAt":"2026-11-09T22:56:45.133Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"4b3e4d89-bb44-4cf4-a067-ae0f54a95d72","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"40be5dc1-3616-4df6-8bbe-5b39f2e2c5af","fullName":"L� Th? Mai 1","createdAt":"2026-11-09T22:56:49.040Z"}
+POST /v1/accounts -> 201 {"id":"3a17cd5f-82e6-4aa7-9cb3-9acc936e4819","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:56:49.362Z","updatedAt":"2026-11-09T22:56:49.362Z"}
+POST /v1/customers/me -> 200 {"id":"2a21ab06-6f03-4250-82b3-13f974eeed3c","fullName":"Ngu?i nh?n c?a L� Th? Mai 1","createdAt":"2026-11-09T22:56:52.899Z"}
+POST /v1/accounts -> 201 {"id":"a4272540-3552-4226-a05f-32aebd0eca4a","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:56:53.236Z","updatedAt":"2026-11-09T22:56:53.236Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"baba2ea4-de39-4cff-94a1-a2760e605cf7","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"3d1214cf-6eb9-41d2-9609-8f6343c19040","fullName":"Nguy?n Th? B�nh 2","createdAt":"2026-11-09T22:56:57.195Z"}
+POST /v1/accounts -> 201 {"id":"958e2699-1a67-4a25-8191-7a2aab773cac","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:56:57.530Z","updatedAt":"2026-11-09T22:56:57.530Z"}
+POST /v1/customers/me -> 200 {"id":"d1a02001-3105-4aab-85b4-16187bebe41a","fullName":"Ngu?i nh?n c?a Nguy?n Th? B�nh 2","createdAt":"2026-11-09T22:57:00.999Z"}
+POST /v1/accounts -> 201 {"id":"8e527448-b108-4711-aba5-561c49d83692","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:57:01.320Z","updatedAt":"2026-11-09T22:57:01.320Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"0e80d97a-32aa-46d7-8a5e-f8638ac92539","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"37809ed5-1b6a-4f64-b897-1c238a2eac44","fullName":"L� Th? Mai 2","createdAt":"2026-11-09T22:57:05.317Z"}
+POST /v1/accounts -> 201 {"id":"77c64f2f-868d-45c9-9f6b-78335311af3d","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:57:05.639Z","updatedAt":"2026-11-09T22:57:05.639Z"}
+POST /v1/customers/me -> 200 {"id":"dcde21a2-c8d4-438f-b40a-7f5833f2ca7d","fullName":"Ngu?i nh?n c?a L� Th? Mai 2","createdAt":"2026-11-09T22:57:09.164Z"}
+POST /v1/accounts -> 201 {"id":"7acdbb06-f661-4b2f-a019-fa97b6e59e81","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:57:09.484Z","updatedAt":"2026-11-09T22:57:09.484Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"fcee6e8b-b5b5-490b-98d5-d7fb078f0c6b","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"d9b9d3ee-1e56-4c39-8f92-fe6f5d19f91e","fullName":"Nguy?n Th? B�nh 3","createdAt":"2026-11-09T22:57:13.386Z"}
+POST /v1/accounts -> 201 {"id":"596a680e-1187-4751-8568-4cbd598be72b","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:57:13.706Z","updatedAt":"2026-11-09T22:57:13.706Z"}
+POST /v1/customers/me -> 200 {"id":"66dc481f-ad3e-4431-9b6a-52d9af7e1189","fullName":"Ngu?i nh?n c?a Nguy?n Th? B�nh 3","createdAt":"2026-11-09T22:57:17.333Z"}
+POST /v1/accounts -> 201 {"id":"adcf96d1-73a4-406b-90bc-9d8cdd17cb7f","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:57:17.651Z","updatedAt":"2026-11-09T22:57:17.651Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"a9738a79-7366-4974-acc4-81daa966fd9a","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"55ab95f3-539e-4a6f-b687-6cdd347a4c25","fullName":"L� Th? Mai 3","createdAt":"2026-11-09T22:57:21.509Z"}
+POST /v1/accounts -> 201 {"id":"c236d4f3-cce2-4832-91d6-a4f1eda01fbe","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:57:21.829Z","updatedAt":"2026-11-09T22:57:21.829Z"}
+POST /v1/customers/me -> 200 {"id":"d19bc592-9d98-41e1-b49f-cd92794d4809","fullName":"Ngu?i nh?n c?a L� Th? Mai 3","createdAt":"2026-11-09T22:57:25.372Z"}
+POST /v1/accounts -> 201 {"id":"b422c906-c00b-4f4b-a4f1-95baaf53f947","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:57:25.707Z","updatedAt":"2026-11-09T22:57:25.707Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"b1e27006-251d-447d-8f23-f0534afec061","status":"COMPLETED"}
+deposits consumed (outbox 0, risk-events 0/0/0)
+taskkill //F //PID 42208 (worker); still running: 0
+POST /v1/transfers -> 201 {"transferId":"ca286740-8de9-43b4-a77a-04348ccbaa7f","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"9aa02f6d-28bc-42ad-9973-ac468afe72df","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"ce5a7d4f-94f5-4d28-8b16-cfb14c410e6f","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"7b44e1f7-b67e-43da-b27b-dda632ae6594","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"dea59cd1-af6f-4345-84bc-bfd57e5d0cbf","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"5fa4c3f2-0df2-4d7a-a231-1230df8a07bd","status":"COMPLETED"}
+while down: unpublished=6 decisions for the 6=0
+-- M-124-03 worker started again
+caught up in 32 s (process start included)
+psql> SELECT f.score, f.risk_level, (SELECT count(*) FROM fraud_rule_hits h WHERE h.transfer_id=f.transfer_id) AS hits, (SELECT count(*) FROM audit_log a WHERE a.action='fraud.flagged' AND a.target_id=f.transfer_id::text) AS audits FROM fraud_flags f WHERE f.transfer_id IN ('ca286740-8de9-43b4-a77a-04348ccbaa7f','9aa02f6d-28bc-42ad-9973-ac468afe72df','ce5a7d4f-94f5-4d28-8b16-cfb14c410e6f','7b44e1f7-b67e-43da-b27b-dda632ae6594','dea59cd1-af6f-4345-84bc-bfd57e5d0cbf','5fa4c3f2-0df2-4d7a-a231-1230df8a07bd')
+ score | risk_level | hits | audits 
+-------+------------+------+--------
+    65 | MEDIUM     |    2 |      1
+    65 | MEDIUM     |    2 |      1
+    65 | MEDIUM     |    2 |      1
+(3 rows)
+
+decisions=6 LOW without flag=3 unpublished=0 risk-events=0/0/0 risk-events-dlq=0/0/0
+-- M-124-04 worker killed in the middle of a run of 10 flaggable transfers
+POST /v1/customers/me -> 200 {"id":"2946ac6e-93dd-40f4-a3c4-e7d6f097bd57","fullName":"Ph?m Van Cu?ng 1.1","createdAt":"2026-11-09T22:58:11.698Z"}
+POST /v1/accounts -> 201 {"id":"b648546e-8a17-4cb2-ad8f-26c680dd2b2c","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:12.028Z","updatedAt":"2026-11-09T22:58:12.028Z"}
+POST /v1/customers/me -> 200 {"id":"3354d02c-e530-4a04-951a-a2ce79614015","fullName":"Ngu?i nh?n c?a Ph?m Van Cu?ng 1.1","createdAt":"2026-11-09T22:58:15.589Z"}
+POST /v1/accounts -> 201 {"id":"735fec6b-14cc-4b00-acaf-3f75b9aecbbb","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:15.894Z","updatedAt":"2026-11-09T22:58:15.894Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"eda25bed-8fae-406f-bbf1-c0eaffa225ce","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"39fc28f6-22a4-4629-ba59-63ddc311cf3d","fullName":"Ph?m Van Cu?ng 1.2","createdAt":"2026-11-09T22:58:19.892Z"}
+POST /v1/accounts -> 201 {"id":"8aaadb33-8311-4656-bc5e-49eed60df3d4","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:20.212Z","updatedAt":"2026-11-09T22:58:20.212Z"}
+POST /v1/customers/me -> 200 {"id":"7b918eec-dafc-4204-90b7-4cb42c8d3c74","fullName":"Ngu?i nh?n c?a Ph?m Van Cu?ng 1.2","createdAt":"2026-11-09T22:58:23.735Z"}
+POST /v1/accounts -> 201 {"id":"10f63ef7-494a-4649-a105-c8e2dd74bcfc","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:24.055Z","updatedAt":"2026-11-09T22:58:24.055Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"2cf973b9-3b72-4571-b3bd-c6c19aea0c7c","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"c02d7b9f-e95b-4e24-a1b5-5dd8b3b57aa0","fullName":"Ph?m Van Cu?ng 1.3","createdAt":"2026-11-09T22:58:28.014Z"}
+POST /v1/accounts -> 201 {"id":"5b93baad-5883-4d53-9bad-e32958ac6a88","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:28.319Z","updatedAt":"2026-11-09T22:58:28.319Z"}
+POST /v1/customers/me -> 200 {"id":"9387fa60-8882-4181-b736-72189342ca01","fullName":"Ngu?i nh?n c?a Ph?m Van Cu?ng 1.3","createdAt":"2026-11-09T22:58:31.784Z"}
+POST /v1/accounts -> 201 {"id":"6694a752-c0fa-4053-8c06-d3df7606dd84","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:32.092Z","updatedAt":"2026-11-09T22:58:32.092Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"e445a203-a98d-4069-ab20-13115e786def","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"47638446-fcf1-4765-ae25-b4ff576cf9cf","fullName":"Ph?m Van Cu?ng 1.4","createdAt":"2026-11-09T22:58:36.041Z"}
+POST /v1/accounts -> 201 {"id":"45601d38-c300-4ce4-a25c-c6bfa66478a8","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:36.361Z","updatedAt":"2026-11-09T22:58:36.361Z"}
+POST /v1/customers/me -> 200 {"id":"1e7486b8-e3c9-4cae-9c79-044a3ac99fc2","fullName":"Ngu?i nh?n c?a Ph?m Van Cu?ng 1.4","createdAt":"2026-11-09T22:58:39.907Z"}
+POST /v1/accounts -> 201 {"id":"3b036bca-08f0-4e64-a878-d20c4fee0986","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:40.214Z","updatedAt":"2026-11-09T22:58:40.214Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"8c7a8c2e-ad72-43ef-957b-118c453fd8cf","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"98409a09-632d-4a3c-8b2f-8e8246fdd260","fullName":"Ph?m Van Cu?ng 1.5","createdAt":"2026-11-09T22:58:44.130Z"}
+POST /v1/accounts -> 201 {"id":"de65319b-8248-4266-ada0-565d08ad5534","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:44.435Z","updatedAt":"2026-11-09T22:58:44.435Z"}
+POST /v1/customers/me -> 200 {"id":"277b2d94-b1b7-45a9-8531-bfe89c2dd1b0","fullName":"Ngu?i nh?n c?a Ph?m Van Cu?ng 1.5","createdAt":"2026-11-09T22:58:47.963Z"}
+POST /v1/accounts -> 201 {"id":"20487cea-6552-49cb-9103-b464a21cba36","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:48.270Z","updatedAt":"2026-11-09T22:58:48.270Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"27d68ce1-d680-426c-bc58-4b246f2e7276","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"59b15aa5-ec8a-4de1-85bb-8bf77dc7613b","fullName":"Ph?m Van Cu?ng 1.6","createdAt":"2026-11-09T22:58:52.235Z"}
+POST /v1/accounts -> 201 {"id":"685f0ea8-0b9a-45c9-970b-58fc68e69549","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:52.538Z","updatedAt":"2026-11-09T22:58:52.538Z"}
+POST /v1/customers/me -> 200 {"id":"bcc07f12-e84c-4277-adc3-333a0f8ff670","fullName":"Ngu?i nh?n c?a Ph?m Van Cu?ng 1.6","createdAt":"2026-11-09T22:58:56.046Z"}
+POST /v1/accounts -> 201 {"id":"74b20dbf-b9d1-416a-bc88-cd8c3d4aa32d","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:58:56.368Z","updatedAt":"2026-11-09T22:58:56.368Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"503f1ad0-3d68-41d7-8d90-595aeb338fa1","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"2379cb06-3dd6-4163-89c8-f9c2e65a7a7b","fullName":"Ph?m Van Cu?ng 1.7","createdAt":"2026-11-09T22:59:00.239Z"}
+POST /v1/accounts -> 201 {"id":"5ccae5f1-338c-4b54-8712-20d481bf66e8","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:59:00.546Z","updatedAt":"2026-11-09T22:59:00.546Z"}
+POST /v1/customers/me -> 200 {"id":"1a441c1e-e60d-4478-9077-7dea9410c2fa","fullName":"Ngu?i nh?n c?a Ph?m Van Cu?ng 1.7","createdAt":"2026-11-09T22:59:04.095Z"}
+POST /v1/accounts -> 201 {"id":"2d91f71d-65bc-442e-a6d4-6c610463f3ef","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:59:04.417Z","updatedAt":"2026-11-09T22:59:04.417Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"1e21c2c2-e6b2-4ac0-9fd4-8b5fe4f469b2","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"0180db2c-a1f3-4a03-b05b-60c045085043","fullName":"Ph?m Van Cu?ng 1.8","createdAt":"2026-11-09T22:59:08.364Z"}
+POST /v1/accounts -> 201 {"id":"a06b8df4-17a1-47e6-8fbb-52d678068a2c","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:59:08.683Z","updatedAt":"2026-11-09T22:59:08.683Z"}
+POST /v1/customers/me -> 200 {"id":"514ebb5d-a3f2-45ec-9ccf-b2b3bc0b89d1","fullName":"Ngu?i nh?n c?a Ph?m Van Cu?ng 1.8","createdAt":"2026-11-09T22:59:12.273Z"}
+POST /v1/accounts -> 201 {"id":"7d21b0b0-f93a-426f-a5a1-b12276cb3b19","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:59:12.581Z","updatedAt":"2026-11-09T22:59:12.581Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"7e29c343-ea20-46ad-8654-ef0bd456caba","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"762d1ab0-6072-4094-97ff-f5ad706054ae","fullName":"Ph?m Van Cu?ng 1.9","createdAt":"2026-11-09T22:59:16.544Z"}
+POST /v1/accounts -> 201 {"id":"03bcff60-c4d1-447c-a2da-783ca3b1dcd5","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:59:16.864Z","updatedAt":"2026-11-09T22:59:16.864Z"}
+POST /v1/customers/me -> 200 {"id":"3270d290-0f9a-42db-90ec-3b7dde19c5f5","fullName":"Ngu?i nh?n c?a Ph?m Van Cu?ng 1.9","createdAt":"2026-11-09T22:59:20.354Z"}
+POST /v1/accounts -> 201 {"id":"dbe52cb9-fdf5-4d67-95e1-9eba469f2f27","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:59:20.671Z","updatedAt":"2026-11-09T22:59:20.671Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"6a23bc72-be9f-442a-9ac1-26743cb8a256","status":"COMPLETED"}
+POST /v1/customers/me -> 200 {"id":"03440e8b-010d-4fa2-a4a9-1b6f648888ae","fullName":"Ph?m Van Cu?ng 1.10","createdAt":"2026-11-09T22:59:24.688Z"}
+POST /v1/accounts -> 201 {"id":"593f470e-7990-4922-a08a-275648074642","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:59:24.995Z","updatedAt":"2026-11-09T22:59:24.995Z"}
+POST /v1/customers/me -> 200 {"id":"ae0d3acc-88a5-47f1-9207-2769a517362d","fullName":"Ngu?i nh?n c?a Ph?m Van Cu?ng 1.10","createdAt":"2026-11-09T22:59:28.531Z"}
+POST /v1/accounts -> 201 {"id":"22fd83b4-5b11-4dd0-b59c-9715cb98dbe3","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T22:59:28.840Z","updatedAt":"2026-11-09T22:59:28.840Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"701e887f-f62e-4b1b-9fdf-7156ef19e941","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"33b17a5f-18f3-423e-9f5b-33b9bf102d08","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"e749630c-663f-4b21-a43c-fe2556f58776","status":"COMPLETED"}
+taskkill //F //PID 16712 (worker); still running: 0
+attempt 1: killed at decisions=1 unpublished=0 risk-events(visible/notVisible/delayed)=0/0/0
+POST /v1/transfers -> 201 {"transferId":"4cc314c0-94f8-453c-8e7f-de2ae5dcd01c","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"7b7f4117-28d9-4712-8fc5-2714bd38108a","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"73932edd-cdd3-475d-9fb2-846080f252f5","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"a7e5cf9d-08f8-4102-a208-05bca0171e9c","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"234b1ffd-d588-4c88-bd74-7c895e303b5e","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"113853aa-e19b-4b11-ba6e-7c2ac7abc358","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"d9a58b95-9299-41fd-b2ab-c01e66702ff6","status":"COMPLETED"}
+POST /v1/transfers -> 201 {"transferId":"b721086c-a962-4b7f-b126-e11ed78d4b1f","status":"COMPLETED"}
+after the kill, sender finished: transfers=10 decisions=1 unpublished=9 risk-events=0/0/0
+all 10 decided 33 s after the restart
+flags=10 audits=10 transfers with audits<>1: 0 risk-events=0/0/0 risk-events-dlq=0/0/0
+-- M-124-05 ledger invariants
+{"status":"PASS","totals":{"debit":"592000000","credit":"592000000","balance":"0"},"violations":[]}
+exit=0
+taskkill //F //PID 45688 (api); still running: 0
+taskkill //F //PID 29588 (worker); still running: 0
+recheck M-124-02 ids at the end: decisions=6 claims=6
+cleanup: processes killed, dbs124-mq removed, banking_dbs124 dropped; stray dist/main processes: 0
+-- timeline of 'Risk decision recorded' from the worker log (UTC; '=== start' lines are local time)
+=== start worker 05:56:20
+22:56:36.657 32069e15-7045-4483-9afe-0f936782f3c2 MEDIUM
+=== start worker 05:57:33
+22:57:34.759 9aa02f6d-28bc-42ad-9973-ac468afe72df LOW
+22:57:34.806 7b44e1f7-b67e-43da-b27b-dda632ae6594 LOW
+22:57:34.814 5fa4c3f2-0df2-4d7a-a231-1230df8a07bd LOW
+22:57:34.819 dea59cd1-af6f-4345-84bc-bfd57e5d0cbf MEDIUM
+22:57:34.820 ce5a7d4f-94f5-4d28-8b16-cfb14c410e6f MEDIUM
+22:58:04.740 ca286740-8de9-43b4-a77a-04348ccbaa7f MEDIUM
+22:59:31.161 33b17a5f-18f3-423e-9f5b-33b9bf102d08 MEDIUM
+=== start worker 05:59:45
+22:59:47.312 4cc314c0-94f8-453c-8e7f-de2ae5dcd01c MEDIUM
+22:59:47.367 a7e5cf9d-08f8-4102-a208-05bca0171e9c MEDIUM
+22:59:47.369 113853aa-e19b-4b11-ba6e-7c2ac7abc358 MEDIUM
+22:59:47.370 7b7f4117-28d9-4712-8fc5-2714bd38108a MEDIUM
+22:59:47.371 73932edd-cdd3-475d-9fb2-846080f252f5 MEDIUM
+22:59:47.379 234b1ffd-d588-4c88-bd74-7c895e303b5e MEDIUM
+22:59:47.384 b721086c-a962-4b7f-b126-e11ed78d4b1f MEDIUM
+22:59:47.385 d9a58b95-9299-41fd-b2ab-c01e66702ff6 MEDIUM
+23:00:17.272 e749630c-663f-4b21-a43c-fe2556f58776 MEDIUM
+Reading: after each restart most decisions land within ~1 s; one lands 30 s later. The killed worker had a 20 s long poll open on ElasticMQ; the first message published after the restart was handed to that dead connection and stayed invisible for the 30 s visibility timeout, then was redelivered (at-least-once, nothing lost).
