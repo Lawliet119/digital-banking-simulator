@@ -145,7 +145,7 @@ Cả M-97-01/02/03 chạy trong Git Bash với `env -u DATABASE_URL npm run test
 | TC-97-01/02/03 | TC-79-07 mở rộng; manual-test.txt | Đạt trên PG thật ở lượt chạy thành công: mỗi batch 10response đồng nhất, footprint1/2/1/1/1, replay/mismatch không ghi thêm, checkerPASS |
 | TC-97-04 | red-green.txt | Đột biến 10key khác nhau làm fail body/transferId, sau đó hoàn đúng hunk |
 | TC-97-05 | load-tests/README.md | Demo2 có lệnh/data/result và scope CI/local |
-| DoD CI/review/merge | BL-182 | Chưa có CI run thật/PR |
+| DoD CI/review/merge | BL-192 | Chưa có CI run thật/PR |
 
 **Manual:** checkout sạch detached tại code cuối (D:/UET_PROJECT/dbs97-manual-final); dependency dùng junction tới node_modules cùng lockfile. M-97-01 bằng npm/Git Bash hai lần thoát127, không đủ báo cáo (một lượt đến round4); chưa đạt theo đúng lệnh gốc. Chạy diagnostic gọi node/Jest trực tiếp trên cùng checkout đạt36/36, 10round checkerPASS, exit0; không nhận là đã giải thích hoặc sửa exit127. M-97-02/03 đang chờ cửa sổ dừng Docker sau các run đang chạy. [Raw manual](screenshots/DBS-97/manual-test.txt), [mutation](screenshots/DBS-97/red-green.txt).
 
@@ -157,7 +157,7 @@ Cả M-97-01/02/03 chạy trong Git Bash với `env -u DATABASE_URL npm run test
 
 ![M-97-03 recovery direct Jest](screenshots/DBS-97/03-recovery.png)
 
-**Bàn giao:** BL-182 theo dõi cả exit127 chưa rõ nguyên nhân, manual/CI thật/Dev review/merge/ảnh. Không xóa BL-125 harness chỉ vì có một run xanh. Chưa push/PR/board.
+**Bàn giao:** BL-192 theo dõi cả exit127 chưa rõ nguyên nhân, manual/CI thật/Dev review/merge/ảnh. Không xóa BL-125 harness chỉ vì có một run xanh. Chưa push/PR/board.
 
 ### Kiểm chứng CI Linux sau khi mở Draft PR
 
@@ -165,15 +165,17 @@ Các ghi chú “chưa push/PR/CI” ở trên là snapshot trước lần cho p
 
 DB 42 suites / 724 tests; E2E chính 15 suites / 153 tests; các bước Testcontainers/service tiếp theo 5 + 2 + 5 + 8 + 3 + 4 + 9 tests; tất cả đạt, không skip. Log DB có đúng 10 vòng DBS-97, mỗi vòng 10 response, invariants PASS và violations [].
 
-DoD 10 vòng liên tiếp trên CI đã có evidence. M-97-01 theo npm/Git Bash vẫn chưa hoàn tất; recovery direct node/Jest được giữ là khác launcher. BL-182 tiếp tục theo dõi Windows exit127, Dev review/merge và ba PNG; không coi CI xanh là đã sửa lỗi Windows.
+DoD 10 vòng liên tiếp trên CI đã có evidence. M-97-01 theo npm/Git Bash vẫn chưa hoàn tất; recovery direct node/Jest được giữ là khác launcher. BL-192 tiếp tục theo dõi Windows exit127, Dev review/merge và ba PNG; không coi CI xanh là đã sửa lỗi Windows.
 
 Code không đổi sau manual; các commit sau run CI trên chỉ sửa hồ sơ/evidence và bổ sung đủ 3 PNG đã định ở §7. Các ghi chú thiếu PNG trước đó được thay bằng ảnh thật ở trên; không còn ảnh thiếu. Diff file vẫn khớp §7. Status giữ Plan approved để trình G4.
+
+**Sau rebase (techlead review PR #84, 2026-11-09):** rebase lên `main` `18f93dc`; `customer-transfers.db-spec` chạy lại trên PostgreSQL 17 thật: 36/36 test đạt (gồm TC-79-07/TC-97-01..03), lint và typecheck sạch. `BL-182` của PR bị đánh lại thành `BL-192` vì main đã dùng `BL-182`; dòng DBS-97 trong `docs/features/README.md` được gộp vào bảng chính (trước đó nằm trong bảng thứ hai có header riêng). Bằng chứng `manual-test.txt` và ba ảnh là của lượt trước rebase (code test không đổi).
 
 ### Quyết định G4 · 2026-11-08
 
 Người dùng trả lời «duyệt g4» trực tiếp cho đề nghị bàn giao kèm các giới hạn đã nêu. G4 được duyệt; trạng thái chuyển Implemented cho phạm vi đã bàn giao và cho phép chuyển PR #84 sang ready for review. Những ghi chú giữ Draft/Plan approved phía trên là lịch sử trước quyết định này. Không có quyền merge hoặc sửa board.
 
-Chấp nhận M-97-01 chưa hoàn tất bằng npm/Git Bash và dùng diagnostic/recovery direct node/Jest ở M-97-03 làm evidence thay thế; lỗi launcher Windows exit127 chưa rõ nguyên nhân tiếp tục ở BL-182, không coi đã sửa. Chấp nhận diagram chưa visual-render QA; Dev review/merge vẫn chưa thực hiện.
+Chấp nhận M-97-01 chưa hoàn tất bằng npm/Git Bash và dùng diagnostic/recovery direct node/Jest ở M-97-03 làm evidence thay thế; lỗi launcher Windows exit127 chưa rõ nguyên nhân tiếp tục ở BL-192, không coi đã sửa. Chấp nhận diagram chưa visual-render QA; Dev review/merge vẫn chưa thực hiện.
 
 Trước G4, [CI run 42468365868](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42468365868) đã xác minh head `019eb3b466ea2e6a0dc5fcb04ce0191fffa7543a`: cả sáu job lint/typecheck/unit/e2e/db/build success, attempt 1. Lần ghi nhận G4 này chỉ sửa tài liệu; không thay code sau manual. Các giới hạn được chấp nhận không đồng nghĩa đã được khắc phục hoặc đã merge/nộp P2.
 
@@ -181,4 +183,4 @@ Trước G4, [CI run 42468365868](https://github.com/Lawliet119/digital-banking-
 
 **Cập nhật manual cuối:** người dùng đã cho phép dừng/bật Docker Desktop. M97-02 chạy qua npm ở checkout sạch, Docker thực sự dừng → lỗi globalSetup Testcontainers và exit1 (đúng mong đợi). Sau restart/daemon29.5.2, M97-03 gọi cùng Jest trực tiếp qua node (đã ghi khác launcher) đạt36/36, 10round/checkerPASS, exit0. Lỗi127 trước đó chưa được giải thích; không nhận recovery xanh là đã sửa. E2E nhánh97 thử nhưng wrapper thoát127 không summary; unit/lint/typecheck/build xanh. Bước M01 theo đúng npm launcher vẫn chưa coi hoàn tất.
 
-Đã cập nhật feature doc/index/BACKLOG và evidence theo §7; load-tests README; thêm BL-182.
+Đã cập nhật feature doc/index/BACKLOG và evidence theo §7; load-tests README; thêm BL-192.
