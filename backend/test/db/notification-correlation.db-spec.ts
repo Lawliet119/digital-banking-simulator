@@ -8,6 +8,8 @@ import {
 
 // The migration before DBS-134, so "up" below applies exactly the new one.
 const BEFORE = 'CreateDbRolesAndGrants1793664000000';
+// Pinned for RSK-01: a later migration exists, so "up" and undoLast must stop at this one.
+const THIS = 'AddNotificationLogCorrelationId1793750400000';
 
 /** DBS-134: notification_log carries the correlationId of the event that caused each notice. */
 describe('DBS-134 notification_log.correlation_id migration (real PostgreSQL)', () => {
@@ -41,7 +43,7 @@ describe('DBS-134 notification_log.correlation_id migration (real PostgreSQL)', 
     await insertNotice(linked);
     await insertNotice(orphan);
 
-    await migrate(db.url);
+    await migrateThrough(db.url, THIS);
 
     const [column] = await q(
       `SELECT data_type,is_nullable FROM information_schema.columns
@@ -56,7 +58,7 @@ describe('DBS-134 notification_log.correlation_id migration (real PostgreSQL)', 
   });
 
   it('TC-134-02 down keeps the notices and drops the column; up applies again; dbs_worker can write it', async () => {
-    await migrate(db.url);
+    await migrateThrough(db.url, THIS);
     const correlationId = randomUUID();
     await q(
       `INSERT INTO notification_log(event_id,kind,user_id,message,correlation_id)
@@ -77,7 +79,7 @@ describe('DBS-134 notification_log.correlation_id migration (real PostgreSQL)', 
     expect(columns).toEqual([]);
     expect(await q('SELECT count(*)::int AS n FROM notification_log')).toEqual([{ n: 1 }]);
 
-    await migrate(db.url);
+    await migrateThrough(db.url, THIS);
     const [after] = await q('SELECT correlation_id FROM notification_log');
     expect(after).toEqual({ correlation_id: null });
   });

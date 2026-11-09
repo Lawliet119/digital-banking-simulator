@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { migrate } from './temp-database';
 import { startDepositApp } from './deposit-app';
 import { checkLedgerInvariants } from './invariants';
+import { insertRuleOnlyDecision } from './risk-decisions';
 import {
   assertDockerAvailable,
   awaitContainerStart,
@@ -295,6 +296,10 @@ export async function createRolePermissionsFixture(): Promise<RolePermissionsFix
         initiatedBy: row.initiated_by,
       });
     }
+    // RSK-01: a flag needs a committed decision of the same rule-set version. The owner commits one
+    // per fixture transfer here (permanent: append-only, private container), so the probes below
+    // that write a flag as dbs_worker or dbs_api fail only on their grants, never on the key.
+    for (const transfer of transfers) await insertRuleOnlyDecision(owner, transfer.id);
     const fixture = {
       owner,
       api,

@@ -2,7 +2,7 @@
 
 > **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) ; §4.6 và hai partial indexes outbox (DBS-25); §4.7 và ba index audit (DBS-26), writer (DBS-56) và query API (DBS-103); §8.3 trigger ba bảng `transfers`, `ledger_entries`, `audit_log` bằng owner local (DBS-27); §4.8 nhóm fraud (migration `CreateFraudStorage1792713600000`, DBS-58); §4.9 `notification_log` (migration `CreateNotificationLog1792886400000`, DBS-96) và `reconciliation_runs`, CHECK details và revert (DBS-116); §8.1 ba role `dbs_migrator`, `dbs_api`, `dbs_worker` và GRANT ma trận quyền tối thiểu (migration 7, `CreateDbRolesAndGrants1793664000000`, DBS-119, 2026-11-08); guard cấm `dbs_migrator` ở runtime và trigger append-only §8.3; các phần còn lại là thiết kế · **Cập nhật:** 2026-11-08
 
-> **ADR-14 (Accepted 2026-11-08):** Giữ rules R1–R6 và thêm tùy chọn API AI bổ sung theo [ADR-14](../../adr/0014-fraud-rules-external-ai.md), mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md). Bảng `risk_decisions` chưa có migration; schema đích ở FRAUD-API-01 §3.8.
+> **ADR-14 (Accepted 2026-11-08):** Giữ rules R1–R6 và thêm tùy chọn API AI bổ sung theo [ADR-14](../../adr/0014-fraud-rules-external-ai.md), mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md). Bảng `risk_decisions` có migration từ [RSK-01](../../features/RSK-01-risk-decisions-migration.md) (`1793836800000-CreateRiskDecisions`); schema gốc ở FRAUD-API-01 §3.8.
 
 Tài liệu này chốt **hình dạng cơ sở dữ liệu** của cả hệ thống: bảng nào, cột nào, ràng buộc nào, index nào, ai được ghi, dọn dữ liệu ra sao. Nó phục vụ ba người: #1 viết migration đầu tiên (tuần 1), mọi người review migration của nhau, và P2 (Data Architecture).
 
@@ -346,7 +346,15 @@ CREATE TABLE fraud_rule_hits (
 - `fraud_flags_review_consistent` dùng hai nhánh tường minh để PostgreSQL không nhận `UNKNOWN` khi thiếu riêng `reviewed_by` hoặc `reviewed_at` ở trạng thái đã review (DBS-58, BL-047).
 - `risk_rule_sets` phải có **phiên bản 1 từ migration**, nếu không worker khởi động mà chưa có luật nào để chấm.
 - Bỏ `rule_version` ở `fraud_rule_hits` (docs/03 ERD có) vì thừa so với `fraud_flags.rule_set_version`.
-- Mỗi nhóm luật một dòng (khóa chính `(transfer_id, rule_id)`). Nếu sau này bật chế độ `v3` (ADR-08), điểm của mô hình được cộng vào dòng của nhóm được quy kết hoặc tạo dòng mới có `explanation` bắt đầu bằng `[AI-Rn]`; tổng `weight` luôn bằng `score` của cờ. Không đổi cột.
+- Mỗi nhóm luật một dòng (khóa chính `(transfer_id, rule_id)`). Nếu sau này bật chế độ `v3` (ADR-08), điểm của mô hình được cộng vào dòng của nhóm được quy kết hoặc tạo dòng mới có `explanation` bắt đầu bằng `[AI-Rn]`. Không đổi cột. Theo ADR-14 (Accepted), bất biến là `risk_decisions.rule_score = sum(fraud_rule_hits.weight)` và `fraud_flags.score = rule_score + ai_applied_weight`: cờ do AI cộng điểm có thể có tổng `weight` nhỏ hơn `score`, và cờ AI-only có 0 hit. DB chưa ép bất biến liên bảng này (constraint trigger: BL-223).
+
+**`risk_decisions`** ([RSK-01](../../features/RSK-01-risk-decisions-migration.md), ADR-14): một dòng bất biến cho mỗi TRANSFER đã chấm, mọi mode, kể cả LOW. Schema đúng [FRAUD-API-01 §3.8](../../features/FRAUD-API-01-external-ai-decision.md#38-phụ-lục-schema-đề-xuất-bảng-quyết-định-risk-proposed-chưa-có-migration), mọi ràng buộc đặt tên `risk_decisions_<quy tắc>`.
+
+- PK `transfer_id`; `UNIQUE (transfer_id, rule_set_version)` là đích của `fraud_flags_decision_fkey`: cờ chỉ tồn tại khi có decision cùng phiên bản luật (lỗi `23503` nếu thiếu).
+- **Claim:** `INSERT … ON CONFLICT DO NOTHING RETURNING transfer_id`, **không chỉ định conflict target**, để cả hai unique index đều là arbiter: bên thua nhận 0 dòng, không bao giờ `23505`. Bên thắng commit trước giữ `event_id`; bên thắng rollback thì bên chờ thắng.
+- `feature_snapshot` chỉ bị ép là object; allowlist FRAUD-API-01 §2.3 (không ID, tên, email, ghi chú, nhãn) do writer DBS-111 kiểm.
+- `probability` `NaN`/`Infinity`/`-Infinity` bị `risk_decisions_status_probability` từ chối; `fraud_rule_hits_weight_check` ép `weight >= 0`.
+- Migration từ chối (`55000`) khi `fraud_flags` có cờ chưa có decision; revert từ chối khi `risk_decisions` có dòng.
 
 ### 4.9 `notification_log`, `reconciliation_runs`
 
@@ -534,6 +542,7 @@ Ma trận quyền (S = SELECT, I = INSERT, U = UPDATE, D = DELETE):
 | `audit_log` | S I | I |
 | `fraud_flags` | S U (cột `review_*`) | S I |
 | `fraud_rule_hits` | S | S I |
+| `risk_decisions` ([RSK-01](../../features/RSK-01-risk-decisions-migration.md)) | S | S I |
 | `risk_rule_sets` | S I | S |
 | `notification_log` | — | S I D |
 | `reconciliation_runs` | S | S I D |
@@ -618,6 +627,7 @@ Down của migration fraud phải DROP hai trigger của mình trước khi DROP
 |---|---|---|---|
 | `ledger_entries`, `transfers`, `audit_log` | **Vĩnh viễn** | Không dọn | Dữ liệu tài chính và kiểm toán |
 | `accounts`, `customers`, `users`, `risk_rule_sets`, `fraud_*` | Vĩnh viễn | Không dọn | |
+| `risk_decisions` | **Vĩnh viễn**, không phân vùng ([RSK-01](../../features/RSK-01-risk-decisions-migration.md)) | Không dọn (append-only, là bằng chứng của quyết định) | Đo 2026-11-10 trên PostgreSQL 17: dòng `rule_only` 480 B, dòng AI 696 B; 10.000 dòng = 616 B/dòng gồm PK và UNIQUE. Ở 120 RPS **liên tục** là ≈ 6,4 GB/ngày; ở tải demo (≤ 50.000 TRANSFER/ngày) ≈ 31 MB/ngày. Xem lại hướng (hash partition theo `transfer_id` hoặc bảng claim hẹp + snapshot lưu trữ) khi bảng vượt 100 GB hoặc lưu lượng thật vượt 1 triệu TRANSFER/ngày kéo dài; ghi ở ADR-14 |
 | `idempotency_keys` | **Ít nhất7 ngày** (ADR-05), `IDEMPOTENCY_KEY_RETENTION_DAYS` mặc định7,7–3650 | `OutboxCleanupService` ở worker xóa `created_at < cutoff`, Clock UTC chốt đầu lượt | Khi key hết hạn và đã bị dọn, cùng key có thể trở thành lệnh mới; khi key còn tồn tại vẫn replay. Không hứa xóa đúng giây hết hạn |
 | `outbox_events` | Đã gửi + `OUTBOX_RETENTION_DAYS` (mặc định 7) | Job `worker` (`OutboxCleanupService`) xóa `published_at < now() - N days` theo lô 1000 dòng | Dòng chưa gửi không bao giờ bị xóa (`published_at IS NOT NULL`; chốt ở DB: BL-180) |
 | `processed_events` | **≥ thời gian giữ message của SQS + dư**; `PROCESSED_EVENTS_RETENTION_DAYS` (mặc định/min7,max3650) | Cùng job worker, `processed_at < cutoff`; advisory riêng theo bảng | Queue4ngày, DLQ6ngày, marker7ngày; Ops phải nâng retention trước khi nới cửa sổ queue/redrive (BL-051) |
@@ -658,6 +668,8 @@ Bốn kiểm tra của job (DBS-117, `ReconciliationService`): (1) `SUM` Nợ = 
 5. `notification_log` (migration `1792886400000-CreateNotificationLog`, DBS-96); `reconciliation_runs` (migration `1793577600000-CreateReconciliationRuns`, DBS-116), độc lập job DBS-117 và quyền DBS-119
 6. Hàm `public.forbid_mutation()` và sáu trigger trên ledger_entries/transfers/audit_log (`1792627200002-AddAppendOnlyTriggers`, DBS-27); task fraud thêm cặp trigger risk_rule_sets khi bảng tồn tại
 7. Role và `GRANT` (migration `1793664000000-CreateDbRolesAndGrants`, [DBS-119](../../features/DBS-119-db-roles-grant-matrix.md); tạo `dbs_migrator`, `dbs_api`, `dbs_worker`, đổi owner view `v_transfer_facts` sang `dbs_migrator`, cấp quyền sequences, idempotent, có revert `down()` hoàn tác view owner về `CURRENT_USER`; chạy bằng tài khoản đủ quyền master/pipeline)
+8. `notification_log.correlation_id` (migration `1793750400000-AddNotificationLogCorrelationId`, [DBS-134](../../features/DBS-134-correlation-propagation.md))
+9. `risk_decisions`, `fraud_flags_decision_fkey`, `fraud_rule_hits_weight_check`, trigger append-only và quyền S/S I (migration `1793836800000-CreateRiskDecisions`, [RSK-01](../../features/RSK-01-risk-decisions-migration.md)). Bảng tạo sau bước 7 tự cấp quyền trong migration của nó và trong `infra/scripts/db-roles.sql` (khối có `to_regclass`); chạy lại riêng bước 7 (`REVOKE ALL ON ALL TABLES`) sẽ xóa các quyền này, nên sau đó phải chạy lại `db-roles.sql`.
 
 ### Dữ liệu khởi tạo (seed trong migration, không phải script rời)
 

@@ -5,6 +5,7 @@ import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { postBackdatedTransfer } from '../support/backdated-transfer';
 import { checkLedgerInvariants } from '../support/invariants';
+import { insertRuleOnlyDecision } from '../support/risk-decisions';
 
 type App = Awaited<ReturnType<typeof startDepositApp>>;
 type Row = Awaited<ReturnType<typeof seedDepositTarget>>;
@@ -250,6 +251,8 @@ describe('DBS-87 transaction history (UC-6)', () => {
       at: '2026-03-05T03:00:00Z',
       actorId: giang.userId,
     });
+    // RSK-01: a flag needs a decision of the same rule-set version.
+    await insertRuleOnlyDecision(db.runner, transferId);
     await q(
       "INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version) VALUES($1,85,'HIGH',1)",
       [transferId],

@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { checkLedgerInvariants } from '../support/invariants';
+import { insertRuleOnlyDecision } from '../support/risk-decisions';
 
 type App = Awaited<ReturnType<typeof startDepositApp>>;
 type Row = Awaited<ReturnType<typeof seedDepositTarget>>;
@@ -173,6 +174,8 @@ describe('DBS-87 transfer status (UC-7)', () => {
       hai = await seedDepositTarget(db.runner);
     const sent = await send(giang, hai.accountId, '9000000');
     const transferId = sent.body.transferId as string;
+    // RSK-01: a flag needs a decision of the same rule-set version.
+    await insertRuleOnlyDecision(db.runner, transferId);
     await q(
       "INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version) VALUES($1,85,'HIGH',1)",
       [transferId],
