@@ -1,0 +1,5 @@
+| # | Severity (blocking / should-fix / minor) | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | should-fix | §4 TC-115-06; §5 M-115-05 | Chỉ đặt `DOCKER_HOST` tới endpoint không tồn tại chưa tạo được tình huống Docker unreachable. Testcontainers tiếp tục thử các strategy khác; trên Windows có thể kết nối Docker Desktop qua named pipe và chạy xanh. Vì vậy bước manual chưa bảo đảm kết quả âm đã ghi. | `backend/node_modules/testcontainers/build/container-runtime/clients/client.js`, `getContainerRuntimeClient()`: bắt lỗi mỗi strategy rồi thử tiếp; `strategies/npipe-socket-strategy.js`: Windows luôn thử `//./pipe/docker_engine`, độc lập `DOCKER_HOST`. `backend/test/support/postgres.container.ts`, `assertDockerAvailable()`: dùng chính cơ chế này. | Chạy negative case trong môi trường cô lập thật, không tiếp cận named pipe/socket Docker hoặc runtime cấu hình khác, rồi kiểm exit khác 0 và thông báo lỗi. Ghi lệnh tái lập cụ thể; không tắt daemon chung. |
+
+Verdict: REVISE
