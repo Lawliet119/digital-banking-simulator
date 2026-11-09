@@ -153,7 +153,7 @@ Lint, typecheck, build đều exit0. Full unit **89 suites, 1678/1678** (125.687
 | 09 | `session-revocation-cache.spec.ts`: transaction context, read/write errors; DB02–04 bổ trợ committed read/fill | Đạt |
 | 10 | `modules.spec.ts` role wiring và toàn bộ DB mới import production SessionRevocationModule | Đạt |
 | Regression | Full unit/e2e/DB, SQL revocation cũ giữ nguyên 5 test; rate-limit services 9/9 | Đạt |
-| DoD4 quy trình | PR/CI exact head sau push; Dev review và merge do nhóm thực hiện | Chưa hoàn tất trước G4, BL-206 |
+| DoD4 quy trình | PR/CI exact head sau push; Dev review và merge do nhóm thực hiện | Chưa hoàn tất trước G4; xong ở PR #116 (review và merge ngày 2026-11-09) |
 
 Manual `node scripts/manual-dbs114.cjs` qua Git Bash trên SHA trên: **6/6 đạt**, output thật tại [manual-test.txt](screenshots/DBS-114/manual-test.txt). M01 actual current_user/session_user=dbs_api; onboarding/open/deposit 1000000 qua HTTP, GET200, không negative cache. M02 lock200, marker epoch giây, TTL900, request tiếp401 SESSION_REVOKED có correlationId, unlock không hồi sinh token; user khác vẫn200. M03 flush/miss401 qua SQL, proxy delay250ms vẫn401 trong **114ms**, phục hồi client thành công. M04 stop Valkey thật: lock vẫn commit200, token cũ401, restart đọc lại mapped port rồi client mới phục hồi. M05 lỗi audit500 rollback cả SQL/cache/audit/event; retry SQLSTATE40001 chỉ SET một lần sau attempt2 commit (outside transaction, SQL visible); hai API với stale cache và ACL cấm SET vẫn từ chối401. M06 đóng app/pool/proxy/admin/container riêng, không động Compose chung. Invariant checker đạt sau các bước có tiền. SQL INPUT chỉ auth-state cũ hoặc trigger lỗi, không seed money.
 
@@ -166,20 +166,20 @@ Manual `node scripts/manual-dbs114.cjs` qua Git Bash trên SHA trên: **6/6 đ�
 
 Phạm vi diff so origin/main khớp §7; giữ nguyên suite SQL cũ. Không dependency/env/schema/ADR/workflow thay đổi. Gate phụ và lỗi fixture đã ghi phía trên; không giảm assertion để xanh. Lint từng báo async không await ở fixture Docker, đã sửa dùng execFile promisified, rồi chạy lại toàn bộ baseline xanh.
 
-Bàn giao: **BL-206** cho Dev review, CI exact head và merge; **BL-207** cho Platform/Dev kiểm chứng AWS/Cognito/ElastiCache/ECS/RDS, TLS/failover (DBS-186). **Chưa chạy cloud** vì đây là phạm vi local, không có triển khai cloud trong task; local JWT/JWKS thật không thay thế Cognito thật. Không tự merge hoặc đổi sheet. Giới hạn được chấp nhận: phiên có thể hợp lệ vẫn đọc SQL; cache chỉ giúp từ chối nhanh token đã revoked để stale cache không làm mất an toàn.
+Bàn giao: Dev review, CI exact head và merge đã xong ở PR #116 (dòng BL-206 cũ đã xóa); **BL-220** cho Platform/Dev kiểm chứng AWS/Cognito/ElastiCache/ECS/RDS, TLS/failover (DBS-186). **Chưa chạy cloud** vì đây là phạm vi local, không có triển khai cloud trong task; local JWT/JWKS thật không thay thế Cognito thật. Không tự merge hoặc đổi sheet. Giới hạn được chấp nhận: phiên có thể hợp lệ vẫn đọc SQL; cache chỉ giúp từ chối nhanh token đã revoked để stale cache không làm mất an toàn.
 
 ## 9. Tài liệu
 
-Đồng bộ README backend, Identity, Accounts; docs/03 §6.2 và bảng Redis; shared database-design và api-design (whole-second comparison, publish sau commit, SQL fallback); feature index và feature này. BACKLOG xóa **BL-155** sau đủ cả cache và rate-limit proof, thêm **BL-206/207** cho quy trình và cloud chưa chạy. Domain review hai vòng, manual raw, verification và bốn PNG ở screenshots/DBS-114.
+Đồng bộ README backend, Identity, Accounts; docs/03 §6.2 và bảng Redis; shared database-design và api-design (whole-second comparison, publish sau commit, SQL fallback); feature index và feature này. BACKLOG xóa **BL-155** sau đủ cả cache và rate-limit proof, thêm **BL-220** (BL-207 cũ, đánh lại số khi rebase) cho cloud chưa chạy; dòng BL-206 về quy trình đã xóa khi PR được review và merge. Domain review hai vòng, manual raw, verification và bốn PNG ở screenshots/DBS-114.
 
 ## Checklist G4
 
-- [x] 12/12 nhóm TC đạt đúng độ sâu; 0 đơn giản hóa; DoD4 quy trình bàn giao BL-206.
+- [x] 12/12 nhóm TC đạt đúng độ sâu; 0 đơn giản hóa; DoD4 quy trình xong ở PR #116.
 - [x] Manual 6/6 trên source SHA1a4b08d, đường thành công đã chạy, cloud chưa chạy và lý do ghi rõ.
 - [x] Đủ bốn PNG và manual-test.txt; không token, Authorization, AWS account ID hoặc ARN trong bằng chứng.
 - [x] Diff so main khớp §7; gate phụ tên suite và lựa chọn cache an toàn ghi §8.
 - [x] Lint/typecheck/build, unit1678, e2e153, DB812 và services9 đều đạt.
 - [x] Docs fact đã đồng bộ; check-doc-links sạch322 file; status Plan approved tại tự kiểm, đổi Implemented sau G4.
-- [x] Bàn giao/DoD chưa đạt có BL-206/207; backlog đã giải quyết BL-155 đã xóa.
+- [x] Bàn giao/DoD chưa đạt có BL-220; backlog đã giải quyết BL-155 đã xóa.
 
 **G4 qua — agent tự quyết:** bằng chứng local và domain review đủ, không có câu hỏi chưa giải quyết. Mở PR sau commit docs; kiểm CI exact head và ghi kết quả thật trong PR. Review/merge thuộc Dev khác, trạng thái sheet do user cập nhật.
