@@ -21,6 +21,7 @@ import {
 } from '../support/temp-database';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { checkLedgerInvariants } from '../support/invariants';
+import { insertRuleOnlyDecision } from '../support/risk-decisions';
 
 /**
  * The application never runs as the table owner (database-design §8). Migration step 7
@@ -348,6 +349,70 @@ describe('least-privilege roles dbs_api, dbs_worker, dbs_migrator (DBS-119)', ()
     await triggerBlocked(migratorSource.query('DELETE FROM public.audit_log'));
     await triggerBlocked(migratorSource.query('UPDATE public.risk_rule_sets SET config = config'));
     await triggerBlocked(migratorSource.query('DELETE FROM public.risk_rule_sets'));
+  });
+
+  it('TC-RSK01-11b dbs_migrator gets ALL on risk_decisions by default privileges, and the trigger still refuses', async () => {
+    // A private database: the committed transfer and decision must not reach the reconciliation and
+    // invariant checks of this file's shared database.
+    const own = await createTempDatabase();
+    let migrator: DataSource | undefined;
+    try {
+      await migrate(own.url);
+      const [user] = await own.runner.query(
+        'INSERT INTO users(cognito_sub) VALUES($1) RETURNING id',
+        [randomUUID()],
+      );
+      const [customer] = await own.runner.query(
+        "INSERT INTO customers(user_id,full_name) VALUES($1,'Trần Văn An') RETURNING id",
+        [user.id],
+      );
+      const accounts: { id: string }[] = await own.runner.query(
+        "INSERT INTO accounts(customer_id,type) VALUES($1,'CHECKING'),($1,'SAVINGS') RETURNING id",
+        [customer.id],
+      );
+      const [transfer] = await own.runner.query(
+        `INSERT INTO transfers(type,from_account_id,to_account_id,amount,status,initiated_by,correlation_id)
+         VALUES('TRANSFER',$1,$2,'1000000','COMPLETED',$3,$4) RETURNING id`,
+        [accounts[0].id, accounts[1].id, user.id, randomUUID()],
+      );
+      await insertRuleOnlyDecision(own.runner, transfer.id);
+      const url = new URL(own.url);
+      url.username = 'dbs_migrator';
+      url.password = PASSWORD;
+      migrator = await new DataSource({ type: 'postgres', url: url.toString() }).initialize();
+      const blocked = (promise: Promise<unknown>) =>
+        expect(promise).rejects.toMatchObject({
+          driverError: { code: '42501', where: expect.stringMatching(/forbid_mutation/) },
+          message: expect.stringMatching(/append-only/),
+        });
+      // CASCADE gets past the FK check (fraud_flags references this table) to the TRUNCATE trigger.
+      await blocked(migrator.query('UPDATE public.risk_decisions SET rule_score = 0'));
+      await blocked(migrator.query('DELETE FROM public.risk_decisions'));
+      await blocked(migrator.query('TRUNCATE public.risk_decisions CASCADE'));
+      expect(await own.runner.query('SELECT count(*)::int AS n FROM risk_decisions')).toEqual([
+        { n: 1 },
+      ]);
+    } finally {
+      await migrator?.destroy();
+      await own.drop();
+    }
+  });
+
+  it('TC-RSK01-11a db-roles.sql on a fully migrated database grants risk_decisions S to dbs_api and S I to dbs_worker, nothing more', async () => {
+    await expect(db.runner.query(sql)).resolves.not.toThrow();
+    const privileges = await db.runner.query(
+      `SELECT r AS role, p AS privilege, has_table_privilege(r, 'public.risk_decisions', p) AS granted
+         FROM unnest(ARRAY['dbs_api','dbs_worker']) AS r,
+              unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) AS p
+        ORDER BY r, p`,
+    );
+    const granted = (privileges as { role: string; privilege: string; granted: boolean }[])
+      .filter(row => row.granted)
+      .map(row => `${row.role}:${row.privilege}`);
+    expect(granted).toEqual(['dbs_api:SELECT', 'dbs_worker:INSERT', 'dbs_worker:SELECT']);
+    await expect(apiSource.query('SELECT count(*) FROM risk_decisions')).resolves.toBeDefined();
+    await denied(apiSource.query('UPDATE risk_decisions SET rule_score = 0'));
+    await denied(workerSource.query('DELETE FROM risk_decisions'));
   });
 
   it('TC-117-10 the real reconciliation job runs as dbs_worker and enforces reconciliation_runs grants', async () => {

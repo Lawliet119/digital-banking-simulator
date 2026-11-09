@@ -85,3 +85,13 @@ GRANT SELECT ON risk_rule_sets TO dbs_worker;
 GRANT SELECT, INSERT, DELETE ON notification_log TO dbs_worker;
 GRANT SELECT, INSERT, DELETE ON reconciliation_runs TO dbs_worker;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO dbs_worker;
+
+-- RSK-01: risk_decisions exists only from migration 1793836800000 on. The guard lets this file run
+-- on a database migrated only up to step 7 (TC-119-01) as well as on a full one.
+DO $$
+BEGIN
+  IF to_regclass('public.risk_decisions') IS NOT NULL THEN
+    GRANT SELECT ON public.risk_decisions TO dbs_api;
+    GRANT SELECT, INSERT ON public.risk_decisions TO dbs_worker;
+  END IF;
+END $$;
