@@ -73,6 +73,21 @@ describe('NotificationConsumer (real PostgreSQL)', () => {
     expect(receiver.message).toBe('Tài khoản của bạn vừa nhận tiền');
   });
 
+  it('TC-134-03 every notice carries the correlationId of its event', async () => {
+    const transfer = { ...TRANSFER_SAMPLE, eventId: randomUUID(), correlationId: randomUUID() };
+    const status = { ...ACCOUNT_LOCKED_SAMPLE, eventId: randomUUID(), correlationId: randomUUID() };
+    await consumer.handle(transfer);
+    await consumer.handle(status);
+    const ids = async (eventId: string) =>
+      (
+        (await q('SELECT correlation_id FROM notification_log WHERE event_id=$1', [eventId])) as {
+          correlation_id: string | null;
+        }[]
+      ).map(r => r.correlation_id);
+    expect(await ids(transfer.eventId)).toEqual([transfer.correlationId, transfer.correlationId]);
+    expect(await ids(status.eventId)).toEqual([status.correlationId]);
+  });
+
   it('TC-102-01 a transfer between two accounts of one owner writes one row', async () => {
     const event = {
       ...TRANSFER_SAMPLE,
