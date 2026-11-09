@@ -144,7 +144,7 @@ Rủi ro: lẫn admin với runtime, input constraint che lỗi permission, test
 | TC-122-06 |`worker cannot SELECT transfers; view returns exact ...` |đạt;3dòng đúng toàn bộ7cột |
 | TC-122-07 |`negative control detects excess GRANT` |đạt; phát hiện được phép, rollback/revoke/deny lại |
 | TC-122-08 |`injected unavailable Docker fails clearly` |đạt; chỉ mô phỏng runtime getter |
-| DoD3/4 quy trình |CI trên HEAD, Dev review/merge |kết quả CI cập nhật trực tiếp trong PR; Dev review/merge BL-202 |
+| DoD3/4 quy trình |CI trên HEAD, Dev review/merge |kết quả CI cập nhật trực tiếp trong PR; Dev review/merge: PR #112, đã review và merge ngày 2026-11-09 |
 
 **Test tay:** lệnh `node scripts/manual-dbs122.cjs`, raw [manual-test.txt](screenshots/DBS-122/manual-test.txt), dòng đầu SHA source ở trên. Không SQL seed tiền. Flag/audit INSERT là INPUT của phép thử ACL, không nhận là RiskConsumer output.
 
@@ -168,7 +168,7 @@ Sơ đồ §3 đã render bằng mermaid-cli và mở kiểm [ảnh render](scre
 
 **Kiểm lại quy tắc shell trước G4:** lượt manual đầu chạy Node từ PowerShell và ghi UTF8 bằng .NET, không UTF16. `manual-testing.md` yêu cầu Git Bash; agent tự quyết chạy lại đủ6bước từ Git Bash trên cùng sourceSHA, thay raw/ảnh bằng lượt đó trước bàn giao. Không đổi source hoặc giảm case. PR sau G4 mở ở trạng thái sẵn sàng review theo Phase5 của skill; không mở sớm trong giai đoạn code.
 
-**Bàn giao/chưa chạy:** BL-202 cho CI/Dev review/merge; BL-203 cho Docker daemon thật unavailable (không tắt daemon dùng chung). RDS thật/provisioning/rotation giữ BL-103/107/195. Không nhận kiểm localhost thay thế quyền AWS/RDS. Không có waiver Techlead.
+**Bàn giao/chưa chạy:** Dev review/merge đã xong ở PR #112 (dòng BL-202 cũ về review/merge đã xóa); BL-215 cho Docker daemon thật unavailable (không tắt daemon dùng chung). RDS thật/provisioning/rotation giữ BL-103/107/195. Không nhận kiểm localhost thay thế quyền AWS/RDS. Không có waiver Techlead.
 
 ### Tự kiểm G4
 
@@ -178,10 +178,10 @@ Sơ đồ §3 đã render bằng mermaid-cli và mở kiểm [ảnh render](scre
 - [x]Diff nguồn từ main và diff toàn bộ working tree khớp §7; không file lạ, không sửa production/workflow.
 - [x]Lint/typecheck/build/unit/e2e/DB đã chạy và đọc output;0skip trong suite mới.
 - [x]Docs fact cập nhật,319file/0link hỏng; trạng thái Plan approved tại thời điểm tự kiểm, đổi Implemented sau G4 qua.
-- [x]Bàn giao/giới hạn BL-202/203 và BL-103/107/195 nêu rõ; không tự merge hoặc sửa sheet.
+- [x]Bàn giao/giới hạn BL-215 và BL-103/107/195 nêu rõ; không tự merge hoặc sửa sheet.
 
 **Quyết định G4 (agent tự quyết):** local đầy đủ đã xanh, không còn finding thiết kế hoặc lỗi kiểm chứng. G4 qua; mở PR để CI chứng minh trên Linux exactHEAD và Dev review độc lập. Không nhận merge/review đã hoàn tất. Chưa chạy outage Docker daemon thật hoặc RDS thật; không ảnh manual nào còn thiếu. Kết quả CI động ghi trong PR để không tạo vòng commit tài liệu làm đổi HEAD đang kiểm.
 
 ## 9. Tài liệu
 
-Đã cập nhật [database-design8](../components/_shared/database-design.md#81-ba-role-postgres), [backend README](../../backend/README.md), [feature index](README.md), [BACKLOG](../BACKLOG.md) thêm BL-202/203; không xóa backlog task khác. Feature doc và evidence122 lưu trong PR.
+Đã cập nhật [database-design8](../components/_shared/database-design.md#81-ba-role-postgres), [backend README](../../backend/README.md), [feature index](README.md), [BACKLOG](../BACKLOG.md) thêm BL-215 (BL-202 cũ về review/merge đã xóa khi PR được review và merge); không xóa backlog task khác. Feature doc và evidence122 lưu trong PR.
