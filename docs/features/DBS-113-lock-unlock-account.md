@@ -288,7 +288,7 @@ Chạy ứng dụng thật (`startDepositApp` / HTTP thật + JWT local thật) 
 | **M-113-05** | Nhân viên gọi `POST /v1/operator/accounts/{id}/unlock` mở khóa tài khoản của Minh Anh với `{ "reason": "Đã xác minh chính chủ tại quầy giao dịch" }`, sau đó Minh Anh (với token mới `iat: revokedSec + 1`) chuyển `300.000` đồng cho Trần Thu Hà | `/unlock` trả HTTP `200` `status: "ACTIVE"`, có dòng `audit_log` `account.unlock` và dòng `outbox_events` `AccountStatusChanged` (`newStatus = 'ACTIVE'`); lệnh chuyển `300.000` đồng kế tiếp thành công `201 COMPLETED` (số dư Minh Anh = `1.700.000`, Hà = `300.000`) |
 | **M-113-06** | Gài trigger tạm trên `audit_log` làm lỗi ghi audit rồi gọi `/lock` trên tài khoản của Trần Thu Hà; sau đó gỡ trigger và gọi lại `/lock` | Khi trigger chặn: HTTP `500`, transaction rollback hoàn toàn (`accounts.status` của Hà vẫn `ACTIVE`, `sessions_revoked_at` vẫn `NULL`, không có `outbox_events` mới). Sau khi gỡ trigger: gọi lại `/lock` trả `200` `status: "LOCKED"` |
 | **M-113-07** | Chạy `checkLedgerInvariants` kiểm tra 5 bất biến sổ cái sau toàn bộ kịch bản | `checkLedgerInvariants` trả `PASS` (tổng Nợ = tổng Có, tổng số dư toàn hệ thống = 0, không có vi phạm) |
-| **M-113-08** | Đóng ứng dụng, xóa thư mục JWKS tạm và drop database tạm | Dọn dẹp hoàn tất sạch sẽ (`ALL MANUAL TEST SCENARIOS PASSED`) |
+| **M-113-08** | Đóng ứng dụng, xóa thư mục JWKS tạm và drop database tạm | Dọn dẹp hoàn tất sạch sẽ (harness in `DBS-113 cleanup PASS: app closed, JWKS directory gone, temporary database absent from pg_database, owned PG17 container removed`; đây là bước `M-113-08`, do harness `runManual` in, không phải bước trong script) |
 
 ---
 
@@ -355,8 +355,8 @@ Thứ tự: `AuditReason` & DTO/hàm thuần kiểm tra đầu vào → `Operato
 |---|---|
 | `npm run lint:check` | `PASS` (0 lỗi, mã thoát 0) |
 | `npm run typecheck` | `PASS` (0 lỗi, mã thoát 0) |
-| `npm test` | `PASS` — **69/69 suite**, **1.100/1.100 test** (`0 skipped`), trong đó `operator-account-status.reason.spec.ts` **12/12 test** và `audit-metadata.guard.spec.ts` **33/33 test** |
-| `npm run test:e2e -- --runInBand` (PostgreSQL 17 thật qua `DATABASE_URL`) | `PASS` — **14/14 suite**, **148/148 test** (`0 skipped`) |
+| `npm test` | `PASS` — **85/85 suite**, **1.639/1.639 test** (`0 skipped`) sau rebase lên main `77a5cac` (lúc bàn giao: 69 suite, 1.100 test) |
+| `npm run test:e2e` (PostgreSQL 17 thật qua `DATABASE_URL`) | `PASS` — **15/15 suite**, **153/153 test** (`0 skipped`) sau rebase (lúc bàn giao: 14 suite, 148 test) |
 | `npm run test:db -- --runInBand operator-account-status customer-onboarding account-opening accounts-service resource-ownership` | `PASS` — **5/5 suite**, **110/110 test** (`0 skipped`), trong đó `test/db/operator-account-status.db-spec.ts` **12/12 test** |
 | `node backend/scripts/manual-dbs113.cjs` | `PASS` — **8/8 bước** (`M-113-01`..`M-113-07` + `DBS-113 cleanup PASS`) |
 
@@ -393,8 +393,8 @@ Thứ tự: `AuditReason` & DTO/hàm thuần kiểm tra đầu vào → `Operato
 | **M-113-04** | Nhân viên gọi lặp `POST /v1/operator/accounts/{id}/lock` lần 2 trên tài khoản đã `LOCKED`; thử gọi `/lock` bằng token `customer` và `auditor`; thử gọi `/lock` với `reason: ""` và trên tài khoản `funding` | Gọi lặp: `repeatStatus=200`, `outboxTotalForAccount=1` (không nhân đôi event), `lockAuditCount=2`; RBAC: `customerStatus=403`, `auditorStatus=403`; `emptyReasonStatus=400`; `fundingStatus=404` | đạt |
 | **M-113-05** | Nhân viên gọi `POST /v1/operator/accounts/{id}/unlock` mở khóa tài khoản Minh Anh với `{ "reason": "Đã xác minh chính chủ tại quầy giao dịch" }`, sau đó Minh Anh gọi `POST /v1/transfers` chuyển `300.000` đồng cho Trần Thu Hà | `/unlock`: `unlockStatus=200`, `accountStatus="ACTIVE"`, `unlockAuditReason="OPERATOR_UNLOCK"`, `outboxNewStatus="ACTIVE"`; chuyển tiền: `transferStatus=201`, `transferBodyStatus="COMPLETED"`, `minhAnhBalance="1700000"`, `haBalance="300000"` | đạt |
 | **M-113-06** | Gài trigger tạm chặn `INSERT ON audit_log` rồi gọi `/lock` trên tài khoản của Trần Thu Hà; sau đó gỡ trigger và gọi lại `/lock` | Khi trigger chặn: `failedStatus=500`, `haStatusAfterFail="ACTIVE"`, `haRevokedAtAfterFail=null`, `haOutboxAfterFail=0` (rollback nguyên vẹn); sau khi gỡ trigger: `recoveredStatus=200`, `haStatusAfterRecover="LOCKED"` | đạt |
-| **M-113-07** | Gọi `checkLedgerInvariants(dataSource)` kiểm tra 5 bất biến sổ cái sau toàn bộ kịch bản | `ok=true`, `checkedAt="2026-11-08T06:28:11.832Z"`, `violations=0` | đạt |
-| **M-113-08** | Đóng ứng dụng NestJS, xóa thư mục JWKS tạm và drop database tạm (`cleanup`) | `DBS-113 cleanup PASS` — `ALL MANUAL TEST SCENARIOS PASSED` | đạt |
+| **M-113-07** | Gọi `checkLedgerInvariants(dataSource)` kiểm tra 5 bất biến sổ cái sau toàn bộ kịch bản | `{"ledgerInvariants":{"status":"PASS","totals":{"debit":"3300000","credit":"3300000","balance":"0"},"violations":[]}}` | đạt |
+| **M-113-08** | Đóng ứng dụng NestJS, xóa thư mục JWKS tạm và drop database tạm (`cleanup`) | `DBS-113 cleanup PASS: app closed, JWKS directory gone, temporary database absent from pg_database, owned PG17 container removed` (harness in) | đạt |
 
 - **Phạm vi so với §7:** kết quả `git diff --stat main...HEAD` khớp đúng **19 file** đã liệt kê trong bảng Bước 1–4 của §7 (không có file lạ ngoài kế hoạch):
   - Bước 1 (3 file): `backend/src/modules/audit/audit.types.ts`, `backend/src/modules/accounts/operator-account-status.dto.ts`, `backend/src/modules/accounts/operator-account-status.reason.spec.ts`
@@ -405,6 +405,8 @@ Thứ tự: `AuditReason` & DTO/hàm thuần kiểm tra đầu vào → `Operato
 - **Ảnh chụp** (`docs/features/screenshots/DBS-113/`):
 
 ![Kết quả chạy manual test DBS-113](screenshots/DBS-113/01-manual-lock-unlock-account.png)
+
+> **Lưu ý:** ảnh trên chụp từ lần chạy trước rebase (commit `bfd312e`). `manual-test.txt` đã chạy lại sau rebase và 7/7 bước đều đạt; ảnh chưa chụp lại, nên chỉ có `manual-test.txt` là bằng chứng của commit hiện tại.
 
 - **Lệch so với kế hoạch:** Không có.
 - **Bàn giao cho vai khác:**
@@ -428,5 +430,5 @@ Thứ tự: `AuditReason` & DTO/hàm thuần kiểm tra đầu vào → `Operato
 - [x] Ảnh chụp có đủ trong `screenshots/DBS-113/` (`01-manual-lock-unlock-account.png`); `manual-test.txt` đã xóa token, header `Authorization`, id tài khoản AWS và ARN
 - [x] `git diff --stat main...HEAD` khớp danh sách 19 file ở §7; không có file lạ ngoài kế hoạch
 - [x] Bốn lệnh kiểm tra (`lint:check`, `typecheck`, `npm test`, `npm run test:e2e`) cộng với `npm run test:db` chạy lúc bàn giao, có số đếm đầy đủ
-- [x] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc đang là `Plan approved` (chuyển thành `Implemented` sau khi G4 được duyệt)
+- [x] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc là `Implemented`
 - [x] Việc bàn giao cho vai khác và mọi DoD chưa đạt (`BL-189` cho DoD #4, thu hẹp `BL-155` & `BL-019`, tham chiếu `BL-163`) đã ghi ở §8 **và** có dòng `BL-NNN` trong `docs/BACKLOG.md`
