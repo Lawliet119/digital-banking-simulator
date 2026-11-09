@@ -1,6 +1,6 @@
 # DBS-144 · Metric SLI: độ trễ, lỗi, tuổi outbox, redis_fallback_total (xuất bằng CloudWatch EMF)
 
-> **Status:** Design approved · **Vai:** Dev · **Cặp đôi review:** Dev khác (theo team.md) · **Nhánh:** `feat/DBS-144-sli-metrics` · **PR:** — · **Cập nhật:** 2026-11-09
+> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev khác (theo team.md) · **Nhánh:** `feat/DBS-144-sli-metrics` · **PR:** — · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
@@ -179,12 +179,12 @@ Vòng 2:
 
 | Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
-| 1 | `config/metrics.config.ts` (mới), `config/validation.schema.ts`, `config/index.ts`, `config/config.module.ts`, `config/metrics.config.spec.ts`, `config/validation.schema.spec.ts`, `env/.env.example` | TC-144-08 | _(điền)_ | `npx jest src/config` | `feat(config): METRICS_EMF and METRICS_FLUSH_MS (DBS-144)` |
-| 2 | `common/metrics/emf.ts`, `latency-histogram.ts`, `http-stats.ts` (+ `.spec.ts`) | TC-144-01, 01b, 02, 03, 04 | _(điền)_ | `npx jest src/common/metrics` | `feat(metrics): EMF builder, latency histogram and HTTP stats (DBS-144)` |
-| 3 | `common/metrics/http-metrics.middleware.ts`, `metrics.service.ts`, `metrics.module.ts`, `index.ts`, `app.module.ts` (+ specs) | TC-144-05b, 06, 09, 10, 11 | _(điền)_ | `npx jest src/common/metrics` | `feat(metrics): MetricsService flushes HTTP, counters and gauges as EMF (DBS-144)` |
-| 4 | `app.setup.ts`, `main.ts`, `common/metrics/metrics-wiring.spec.ts`, `test/metrics.e2e-spec.ts` | TC-144-05, 05c | _(điền)_ | `npx jest src/common/metrics/metrics-wiring.spec.ts && npm run test:e2e -- metrics` | `feat(metrics): measure every HTTP request (DBS-144)` |
-| 5 | `modules/outbox/outbox-age.gauge.ts`, `outbox-relay.module.ts`, `test/db/outbox-age-gauge.db-spec.ts` | TC-144-07 | _(điền)_ | `DATABASE_URL= npm run test:db -- outbox-age-gauge` | `feat(outbox): oldest unpublished age gauge for the worker (DBS-144)` |
-| 6 | `test/services/metrics-chain.services-spec.ts`, `.github/workflows/ci.yml` | TC-144-12 | _(điền)_ | `npm run test:services -- metrics-chain` | `test(metrics): API and worker emit EMF end to end (DBS-144)` |
+| 1 | `config/metrics.config.ts` (mới), `config/validation.schema.ts`, `config/index.ts`, `config/config.module.ts`, `config/metrics.config.spec.ts`, `config/validation.schema.spec.ts`, `env/.env.example` | TC-144-08 | TS2307: Cannot find module `./metrics.config` (6 test chưa chạy được) | `npx jest src/config` | `feat(config): METRICS_EMF and METRICS_FLUSH_MS (DBS-144)` |
+| 2 | `common/metrics/emf.ts`, `latency-histogram.ts`, `http-stats.ts` (+ `.spec.ts`) | TC-144-01, 01b, 02, 03, 04 | TS2307: Cannot find module `./emf`, `./latency-histogram`, `./http-stats` (3 suite đỏ) | `npx jest src/common/metrics` | `feat(metrics): EMF builder, latency histogram and HTTP stats (DBS-144)` |
+| 3 | `common/metrics/http-metrics.middleware.ts`, `metrics.service.ts`, `metrics.module.ts`, `index.ts`, `app.module.ts` (+ specs) | TC-144-05b, 06, 09, 10, 11 | Spec viết trước khi có `metrics.service.ts`, `http-metrics.middleware.ts`; không chạy riêng lượt đỏ (module chưa tồn tại) | `npx jest src/common/metrics` | `feat(metrics): MetricsService flushes HTTP, counters and gauges as EMF (DBS-144)` |
+| 4 | `app.setup.ts`, `main.ts`, `common/metrics/metrics-wiring.spec.ts`, `test/metrics.e2e-spec.ts` | TC-144-05, 05c | `metrics-wiring.spec` 2/2 đỏ (main.ts chưa có dòng); e2e «Test suite failed to run» (TS: `configureHttpApp` chưa nhận tham số thứ tư) | `npx jest src/common/metrics/metrics-wiring.spec.ts && npm run test:e2e -- metrics` | `feat(metrics): measure every HTTP request (DBS-144)` |
+| 5 | `modules/outbox/outbox-age.gauge.ts`, `outbox-relay.module.ts`, `test/db/outbox-age-gauge.db-spec.ts` | TC-144-07 | TS2307: Cannot find module `@modules/outbox/outbox-age.gauge` | `DATABASE_URL= npm run test:db -- outbox-age-gauge` | `feat(outbox): oldest unpublished age gauge for the worker (DBS-144)` |
+| 6 | `test/services/metrics-chain.services-spec.ts`, `.github/workflows/ci.yml` | TC-144-12 | Không có lượt đỏ riêng (test tích hợp của các phần đã có); lần chạy đầu sai kỳ vọng `published: 2` (thực tế 1), đã sửa test | `npm run test:services -- metrics-chain` | `test(metrics): API and worker emit EMF end to end (DBS-144)` |
 | 7 | docs: `components/observability/01-concept-brief.md`, `docs/03` §14, `modules/outbox/README.md`, `docs/BACKLOG.md`, `docs/features/README.md`, §8–§9 của doc này, `screenshots/DBS-144/manual-test.txt` | M-144-01..08; TC-144-14 | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(metrics): EMF export, SLI list and hand-offs (DBS-144)` |
 
 **Quét kế hoạch (plan sweep):** DoD 1 → bước 2–6 (HTTP, counter, outbox) + TC-144-14 (DLQ gốc AWS) + BL (giao dịch→cờ); DoD 2 → bước 1, 7; DoD 3 → TC-144-02, 05, 12 và allowlist; DoD 5 → BL cho #4. Giới hạn trong tài liệu: BL-152 (nối counter Redis) → bước 3; BL-179/BL-051 (alarm) → bàn giao #5; BL-127 → ghi `registerGauge` dùng được. Mọi mục có dòng kế hoạch hoặc dòng «ngoài phạm vi».
@@ -195,8 +195,71 @@ Vòng 2:
 
 ## 8. Kết quả
 
-(điền ở Phase 4–5)
+- **Lệnh kiểm tra** (2026-11-09, trên nhánh, sau commit `c3dff10`; `DATABASE_URL` Postgres 17 tạm cổng 55433 cho e2e/services, bỏ đặt cho `test:db`):
+  - `npm run lint:check` sạch; `npm run typecheck` sạch.
+  - `npm test`: **1733 test / 97 suite đạt** (baseline 1655 / 89).
+  - `npm run test:e2e`: **157 test / 16 suite đạt** (baseline 153 / 15; thêm `metrics.e2e-spec.ts`).
+  - `npm run test:db -- --maxWorkers=2`: **812 test / 54 suite đạt**.
+  - `test:services`, mỗi spec riêng như CI: 14 spec đạt, gồm `metrics-chain.services-spec.ts` 2/2 và mọi spec dùng consumer/relay (`outbox-relay`, `outbox-relay-faults`, `correlation-chain`, `consumer-base`, `notification-consumer-review`).
+  - Không có `.skip`, `.only`, `.todo` trong test của task (đã đếm bằng grep trên các file mới).
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-144-01 | `common/metrics/emf.spec.ts` › buildEmf, splitSamples | đạt |
+| TC-144-01b | `common/metrics/emf-logging.spec.ts` | đạt |
+| TC-144-02 | `emf.spec.ts` › sanitizeDimensionValue, normalizeMethod, dimension ngoài allowlist | đạt |
+| TC-144-03 | `latency-histogram.spec.ts` | đạt |
+| TC-144-04 | `http-stats.spec.ts`, `metrics.service.spec.ts` › HTTP lines | đạt |
+| TC-144-05 | `test/metrics.e2e-spec.ts` (4 test, AppModule thật) | đạt |
+| TC-144-05b | `http-metrics.middleware.spec.ts` | đạt |
+| TC-144-05c | `metrics-wiring.spec.ts` | đạt |
+| TC-144-06 | `metrics.service.spec.ts` › counters, roles | đạt |
+| TC-144-07 | `test/db/outbox-age-gauge.db-spec.ts` (6 test, PostgreSQL thật) | đạt |
+| TC-144-08 | `config/metrics.config.spec.ts` (miền `METRICS_FLUSH_MS` kiểm qua `validateEnv` trong chính spec này, không thêm vào `validation.schema.spec.ts`) | đạt |
+| TC-144-09 | `metrics.service.spec.ts` › switched off | đạt |
+| TC-144-10 | `metrics.service.spec.ts` › gauges, output | đạt |
+| TC-144-11 | `metrics.service.spec.ts` › lifecycle | đạt |
+| TC-144-12 | `test/services/metrics-chain.services-spec.ts` | **đơn giản hóa**: dùng app của `startDepositApp` (controller, guard và middleware thật, PostgreSQL và ElasticMQ thật, relay dựng tay) chứ không phải `AppModule` đầy đủ; `AppModule` thật được phủ ở TC-144-05 và bước M-144-01..08 |
+| TC-144-13 | PR, CI, Dev review | quy trình, chờ PR |
+| TC-144-14 | `docs/components/observability/01-concept-brief.md` mục «Xuất metric» | đạt |
+
+- **Test thủ công** trên commit `c3dff10` (output thô: [manual-test.txt](screenshots/DBS-144/manual-test.txt)):
+
+| Bước | Kết quả |
+|---|---|
+| M-144-01 | **đạt**: hai dòng cách 5 s, `outbox_oldest_unpublished_age_seconds = 0` |
+| M-144-02 | **đạt**: `POST /v1/operator/deposits` 1 request, `GET /v1/accounts/:id` 2 request dưới một mẫu, `http_5xx_total = 0`, không id trong nhãn |
+| M-144-03 | **đạt**: `unmatched` cho đường dẫn lạ, 401 và 422 không là 5xx |
+| M-144-04 | **đạt**: `/health/ready` 503 → `http_5xx_total = 1` (chỉ bộ `[Route,Method]`); gauge hết hạn sau 3 s, lượt sau bỏ qua (`still reading`), sau `unpause` ra lại; hai cảnh báo không kèm nội dung lỗi |
+| M-144-05 | **đạt**: Valkey dừng, 3 lần nạp tiền đều 201, `redis_fallback_total = 3` với `Role=both` |
+| M-144-06 | **đạt**: ElasticMQ dừng, tuổi outbox 2,7 → 7,7 → 12,8 → 17,8 giây, về 0 sau khi relay gửi |
+| M-144-07 | **đạt**: 55 dòng EMF, 0 dòng có UUID, token hoặc tên người dùng; chỉ các giá trị dimension hợp lệ |
+| M-144-08 | **đạt**: `METRICS_EMF=false`, 3 request, 0 dòng EMF |
+
+  **Chưa chạy:** gửi một dòng EMF thật lên CloudWatch rồi đọc `get-metric-statistics` (phiên không có thông tin AWS; BL-203), và gauge của worker trên ECS (cần DBS-121). Đây là điều kiện nêu trong mô tả PR.
+- **Ảnh chụp:** không có (chỉ có output terminal); output thô nằm ở `manual-test.txt`. Thiếu ảnh được nêu ở G4 và mô tả PR.
+- **Phạm vi so với §7** (`git diff --stat origin/main...HEAD`: 39 file, +2621/−9). File ngoài danh sách §7, mỗi file một quyết định gate phụ (agent tự quyết, ghi sau khi làm vì là hệ quả của thiết kế):
+  - `modules/outbox/outbox-cleanup.service.spec.ts`: test DI dựng `OutboxRelayModule` nên phải có `MetricsService` giả (global stub), vì module giờ đăng ký gauge. Một commit (`66a25f6`) đã vào nhánh khi 4 test outbox này đỏ do tôi nối bằng `;`; sửa ở `ee9ad8b` trước khi push, bộ test đầy đủ chạy sau đó.
+  - `test/support/deposit-app.ts`: thêm tùy chọn `metrics` (middleware) để services-spec đo đúng như `main.ts`.
+  - `common/metrics/emf-logging.spec.ts`, `http-metrics.middleware.spec.ts`: có trong §4 (TC-144-01b, 05b) nhưng bảng §7 gộp vào bước 2–3.
+  - `modules/outbox/index.ts` không đổi (tôi đã hoàn lại việc export gauge vì `outbox.module.spec` ghim API công khai nhỏ).
+- **Lệch so với kế hoạch / quyết định gate phụ:** (1) thiết kế histogram đổi từ object `{Values,Counts,...}` sang mảng số ≤ 100 chia nhiều dòng sau khi vòng review 2 và đặc tả AWS cho thấy object lồng không hợp lệ (§1 G1.2, §6); (2) đã làm ở Phase 2, trước khi code. Không đổi ADR, hợp đồng event, `ErrorCode`, schema DB, quyền DB, money rule; hai biến môi trường mới đã quyết ở G1.
+- **DoD so với kết quả:**
+
+| DoD | Kết quả |
+|---|---|
+| 1 | **Một phần.** Có: độ trễ (p50/p95/p99 tính ở CloudWatch) và tỉ lệ 5xx theo route, `redis_fallback_total`, tuổi outbox chưa gửi; DLQ và tuổi message dùng metric gốc `AWS/SQS` (ghi ở observability, alarm là việc #5, BL-051/203). **Chưa có:** thời gian giao dịch → cờ (BL-204) |
+| 2 | Đạt: EMF, ghi ở `components/observability` |
+| 3 | Đạt: allowlist nhãn, `redacted`, test TC-144-02/05/12 và M-144-07 |
+| 4 | Quy trình: PR mở sau G4, chờ CI và Dev review |
+| 5 | **Chưa làm** (BL-204): chưa có consumer chấm điểm hay adapter AI chạy trong app |
+
+- **Bàn giao cho vai khác (đã có dòng `docs/BACKLOG.md`):**
+  - **BL-203** (#5): kiểm EMF thật trên CloudWatch, dựng alarm và dashboard (quy tắc `Maximum`/`breaching`/`GreaterThanThreshold`/`notBreaching`, chi phí ≈ 115 metric), metric của worker sau DBS-121.
+  - **BL-204** (#4): metric thời gian giao dịch → cờ, `ai_status`, độ trễ AI, fallback baseline, `risk_rule_error_total`; `RiskMetrics` chưa là provider; cần API mẫu phân phối ở `MetricsService`.
+  - Cập nhật tại chỗ: BL-127 (`registerGauge` dùng được cho metric đối soát), BL-152 (counter Redis đã xuất bằng EMF; còn dashboard và kiểm `opossum`), BL-179 (metric đã có, còn cảnh báo).
 
 ## 9. Tài liệu đã cập nhật
 
-(điền ở Phase 5)
+`docs/components/observability/01-concept-brief.md` (mục «Xuất metric»: cách xuất, biến, danh sách metric, nhãn, DLQ gốc, quy tắc alarm, chi phí), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §14 (đoạn «Xuất metric»), `backend/src/modules/outbox/README.md` (gauge tuổi outbox), `backend/env/.env.example` (`METRICS_FLUSH_MS`, `METRICS_EMF` ghi chú), `docs/features/README.md` (dòng DBS-144), `docs/BACKLOG.md` (thêm BL-203, BL-204; sửa BL-127, BL-152, BL-179; không xóa dòng nào). `check-doc-links.mjs`: 323 file, 0 liên kết hỏng.
