@@ -5,7 +5,6 @@ import type { TransactionService } from '@database/transaction.service';
 import type { DomainEvent } from '@common/events';
 import { PoisonMessageError, type SqsClient, type SqsMessage } from '@libs/sqs';
 import { TRANSFER_SAMPLE } from '../../../test/support/event-samples';
-import { OutboxWriter } from '@modules/outbox';
 import { ConsumerBase, MAX_ATTEMPTS, dlqUrlFor, type UnknownEventPolicy } from './consumer-base';
 
 class TestConsumer extends ConsumerBase {
@@ -14,7 +13,6 @@ class TestConsumer extends ConsumerBase {
   readonly committed: DomainEvent[] = [];
   seenCorrelationId: unknown = 'not-run';
   failure: Error | undefined;
-  onApply: (() => Promise<void>) | undefined;
   backoff = 5;
   policy: UnknownEventPolicy = 'dead-letter';
 
@@ -39,7 +37,7 @@ class TestConsumer extends ConsumerBase {
     this.seenCorrelationId = this.pino.logger.bindings().correlationId;
     if (this.failure) return Promise.reject(this.failure);
     this.applied.push(event);
-    return this.onApply?.() ?? Promise.resolve();
+    return Promise.resolve();
   }
   protected override onCommitted(event: DomainEvent): void {
     this.committed.push(event);
@@ -158,24 +156,18 @@ describe('DBS-101 ConsumerBase (unit)', () => {
     expect(pino.logger.bindings().correlationId).toBeUndefined();
   });
 
-  it('TC-134-10 an outer context with another id never leaks into apply, and the writer accepts the event id', async () => {
-    const writer = new OutboxWriter(pino);
-    const insert = jest.fn().mockResolvedValue([]);
-    const manager = {
-      queryRunner: { isTransactionActive: true, isReleased: false },
-      query: insert,
-    } as unknown as EntityManager;
-    let accepted: unknown;
-    consumer.onApply = async () => {
-      await writer.add(manager, TRANSFER_SAMPLE);
-      accepted = insert.mock.calls[0]?.[1]?.[4];
-    };
+  it('TC-134-10 an outer context with another id never leaks into apply, and is restored after', async () => {
     const outer = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
-    await pino.runInContext(() => consumer.handle(TRANSFER_SAMPLE, message(1)), {
-      bindings: { correlationId: outer },
-    });
+    let after: unknown;
+    await pino.runInContext(
+      async () => {
+        await consumer.handle(TRANSFER_SAMPLE, message(1));
+        after = pino.logger.bindings().correlationId;
+      },
+      { bindings: { correlationId: outer } },
+    );
     expect(consumer.seenCorrelationId).toBe(TRANSFER_SAMPLE.correlationId);
-    expect(accepted).toBe(TRANSFER_SAMPLE.correlationId);
+    expect(after).toBe(outer);
   });
 
   it('TC-134-09 the backoff warning of a failed event carries that event correlationId', async () => {
