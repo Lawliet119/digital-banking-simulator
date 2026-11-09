@@ -47,6 +47,15 @@ export class OnlineFeatureProvider implements FeatureProvider {
     this.metrics = deps.metrics;
   }
 
+  /**
+   * Treats every counter as untrusted until the shared generation has been raised once. A worker
+   * calls it when it starts (DBS-111, BL-205 item 8): the worker that ran before may have died
+   * between answering from SQL and writing the entry, so no set it left can prove it is complete.
+   */
+  invalidateCounters(): void {
+    this.generationStale = true;
+  }
+
   async extract(event: TransferEvent): Promise<Features> {
     const occMs = Number(riskTimeNanoseconds(event.occurredAt) / 1_000_000n);
     const [velocity, newRecipients1h, history, reverseTransferOccurredAt, outflow] =

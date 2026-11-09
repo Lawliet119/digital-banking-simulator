@@ -209,4 +209,27 @@ describe('DBS-109 OnlineFeatureProvider (orchestration)', () => {
     facts.history.mockRejectedValue(new Error('database unavailable'));
     await expect(provider.extract(eventAt('t1', 0))).rejects.toThrow('database unavailable');
   });
+  it('TC-111-12 after invalidateCounters the first extract raises risk:gen before trusting any set', async () => {
+    commit('t1', 0);
+    await provider.extract(eventAt('t1', 0)); // warms the R1 and R5 sets at the current generation
+    const gen = redis.strings.get('risk:gen') ?? null;
+    const calls: string[] = [];
+    const incr = redis.incr;
+    const zadd = redis.zadd;
+    redis.incr = (key: string) => {
+      calls.push(`incr ${key}`);
+      return incr(key);
+    };
+    redis.zadd = (key: string, score: number, member: string) => {
+      calls.push('zadd');
+      return zadd(key, score, member);
+    };
+    provider.invalidateCounters();
+    commit('t2', MIN);
+    await provider.extract(eventAt('t2', MIN));
+    expect(calls[0]).toBe('incr risk:gen');
+    expect(redis.strings.get('risk:gen')).not.toBe(gen);
+    // The old coverage is retired, so R1 is answered from SQL again.
+    expect(facts.windowTransfers).toHaveBeenCalledTimes(2);
+  });
 });
