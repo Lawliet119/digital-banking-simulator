@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { QueryRunner } from 'typeorm';
 
-type Runner = Pick<QueryRunner, 'query'>;
+type Runner = { query(sql: string, args?: unknown[]): Promise<unknown> };
 
 /**
  * RSK-01: a flag needs a decision for the same (transfer_id, rule_set_version). Tests that write
