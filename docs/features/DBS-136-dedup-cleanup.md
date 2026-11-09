@@ -174,13 +174,13 @@ Lệnh Git Bash `node scripts/manual-dbs136.cjs 2>&1 | tee ../docs/features/scre
 
 ### Checklist G4
 
-- [x]10/10nhóm TC đủ độ sâu (10DBcase mới,8unit mới),0đơn giản hóa/skip; fullDB812/unit1660/e2e153 và services15 xanh. [Bản ghi kiểm tra](screenshots/DBS-136/verification.txt).
-- [x]Manual6/6 qua Git Bash trên commit cuối đổi codef5b5c94, SHA dòng đầu raw; đủ thành công/từ chối/phục hồi.
-- [x]Đủ2ảnh output và rawUTF8; không token/Authorization/password/AWSid/ARN; ảnh kiến trúc đã render và mở kiểm.
-- [x]Diff từmain và working tree khớp danh sách §7, không file lạ; mọi thay đổi env/interface đã quyết định trước production.
-- [x]Lint/typecheck/build/unit/e2e/DB/services đã chạy, đọc đủ output và có số đếm.
-- [x]Docs fact cập nhật,321file/0link hỏng và diffcheck sạch; trạng thái Plan approved tại tự kiểm, đổi Implemented sau G4 qua.
-- [x]Bàn giao/DoD quy trình/giới hạn có BL-204/205 và các BL hiện hữu được nêu, BL-201 chỉ giải quyết phần retention; không tự merge/board.
+- [x] 10/10nhóm TC đủ độ sâu (10DBcase mới,8unit mới),0đơn giản hóa/skip; fullDB812/unit1660/e2e153 và services15 xanh. [Bản ghi kiểm tra](screenshots/DBS-136/verification.txt).
+- [x] Manual6/6 qua Git Bash trên commit cuối đổi codef5b5c94, SHA dòng đầu raw; đủ thành công/từ chối/phục hồi.
+- [x] Đủ2ảnh output và rawUTF8; không token/Authorization/password/AWSid/ARN; ảnh kiến trúc đã render và mở kiểm.
+- [x] Diff từmain và working tree khớp danh sách §7, không file lạ; mọi thay đổi env/interface đã quyết định trước production.
+- [x] Lint/typecheck/build/unit/e2e/DB/services đã chạy, đọc đủ output và có số đếm.
+- [x] Docs fact cập nhật,321file/0link hỏng và diffcheck sạch; trạng thái Plan approved tại tự kiểm, đổi Implemented sau G4 qua.
+- [x] Bàn giao/DoD quy trình/giới hạn có BL-204/205 và các BL hiện hữu được nêu, BL-201 chỉ giải quyết phần retention; không tự merge/board.
 
 **G4 qua — agent tự quyết:** local và manual đều xanh, reviewer thiết kế APPROVE không finding. Chọn mở PR sẵn sàng review sau G4; ghi CI exactHEAD trực tiếp vào mô tả PR, không commit CI URL gây đổi HEAD. Công khai chưa full worker process/ECS/hardkill hoặc SQS redrive/AWS thật; không nhận Dev review/merge đã hoàn tất. Không còn ảnh thiếu, không có waiver Techlead.
 
