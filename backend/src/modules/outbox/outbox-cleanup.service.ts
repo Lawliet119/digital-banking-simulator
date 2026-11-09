@@ -11,6 +11,7 @@ import { limitsConfig } from '@config/limits.config';
 import { runsWorkers } from '@common/app-role/app-role';
 import { safeErrorMetadata } from '@common/logging/logging.options';
 import { PollingLoop } from '@common/utils/polling-loop';
+import { Clock, SystemClock } from '@common/clock';
 
 /** The job runs once an hour; a run that left rows behind is continued after a second. */
 export const CLEANUP_EVERY_MS = 60 * 60 * 1000;
@@ -48,18 +49,33 @@ WITH gone AS (
   DELETE FROM processed_events
   WHERE ctid = ANY(ARRAY(
     SELECT ctid FROM processed_events
-    WHERE processed_at < now() - make_interval(days => $1)
+    WHERE processed_at < $1::timestamptz
     ORDER BY processed_at LIMIT $2))
   RETURNING 1)
 SELECT count(*)::int AS count FROM gone`;
 const ADVISORY_LOCK_KEY = [92, 1] as const;
+
+/** The timestamp index selects a bounded batch; ctid avoids scanning the composite primary key. */
+export const IDEMPOTENCY_BATCH_SQL = `
+WITH gone AS (
+  DELETE FROM idempotency_keys
+  WHERE ctid = ANY(ARRAY(
+    SELECT ctid FROM idempotency_keys
+    WHERE created_at < $1::timestamptz
+    ORDER BY created_at LIMIT $2))
+  RETURNING 1)
+SELECT count(*)::int AS count FROM gone`;
+const IDEMPOTENCY_LOCK_KEY = [136, 1] as const;
+const DAY_MS = 86_400_000;
 
 export interface CleanupResult {
   /** Outbox rows deleted. */
   outbox: number;
   /** processed_events rows deleted. */
   processed: number;
-  /** Batches run, over both tables. */
+  /** Expired payment retry keys deleted (DBS-136). */
+  idempotency: number;
+  /** Batches run, over all three tables. */
   batches: number;
   /** True when a table still had rows when the run had to stop (budget or shutdown). */
   truncated?: true;
@@ -75,7 +91,8 @@ export interface CleanOptions {
 
 /**
  * Deletes old rows of `outbox_events` (published, past OUTBOX_RETENTION_DAYS) and of
- * `processed_events` (past PROCESSED_EVENTS_RETENTION_DAYS) in small batches, so the table does not
+ * `processed_events` and `idempotency_keys` past their separate retention windows in small batches,
+ * so no table
  * grow for ever and no statement holds locks for long. It runs in the worker role, at start-up and
  * then every hour (docs/03 §10). An unpublished outbox row is never deleted: it has no
  * `published_at`, and BL-180 tracks the database-level guard.
@@ -86,15 +103,20 @@ export class OutboxCleanupService implements OnApplicationBootstrap, OnApplicati
   private stopping = false;
   /** Called after every run of the loop, with its result or its error (a test waits on it). */
   afterRun?: (outcome: CleanupResult | Error) => void;
-  readonly retention: { outboxDays: number; processedEventsDays: number };
+  readonly retention: { outboxDays: number; processedEventsDays: number; idempotencyDays: number };
   private readonly loop = new PollingLoop(
     async () => {
       try {
         const result = await this.cleanOnce();
         this.afterRun?.(result);
-        if (result.outbox + result.processed > 0) {
+        if (result.outbox + result.processed + result.idempotency > 0) {
           this.logger.log(
-            { outbox: result.outbox, processed: result.processed, batches: result.batches },
+            {
+              outbox: result.outbox,
+              processed: result.processed,
+              idempotency: result.idempotency,
+              batches: result.batches,
+            },
             'Outbox cleanup removed old rows',
           );
         }
@@ -111,10 +133,12 @@ export class OutboxCleanupService implements OnApplicationBootstrap, OnApplicati
   constructor(
     private readonly tx: TransactionService,
     @Inject(limitsConfig.KEY) limits: ConfigType<typeof limitsConfig>,
+    private readonly clock: Clock = new SystemClock(),
   ) {
     this.retention = {
       outboxDays: limits.outbox.retentionDays,
       processedEventsDays: limits.outbox.processedEventsRetentionDays,
+      idempotencyDays: limits.idempotencyKeyRetentionDays,
     };
   }
 
@@ -138,14 +162,25 @@ export class OutboxCleanupService implements OnApplicationBootstrap, OnApplicati
     let batches = 0;
     let truncated = false;
 
-    const sweep = async (table: 'outbox' | 'processed'): Promise<number> => {
+    // One cutoff per run: a long sweep cannot progressively eat into the protected window.
+    const now = this.clock.now().getTime();
+    const cutoffs = {
+      processed: new Date(now - this.retention.processedEventsDays * DAY_MS),
+      idempotency: new Date(now - this.retention.idempotencyDays * DAY_MS),
+    };
+
+    const sweep = async (table: 'outbox' | 'processed' | 'idempotency'): Promise<number> => {
       let total = 0;
       for (let i = 0; i < maxBatches; i++) {
         if (this.stopping) {
           truncated = true;
           return total;
         }
-        const deleted = await this.deleteBatch(table, batchSize);
+        const deleted = await this.deleteBatch(
+          table,
+          batchSize,
+          table === 'outbox' ? undefined : cutoffs[table],
+        );
         if (deleted === undefined) return total; // another job is cleaning this table
         batches += 1;
         total += deleted;
@@ -162,24 +197,42 @@ export class OutboxCleanupService implements OnApplicationBootstrap, OnApplicati
 
     const outbox = await sweep('outbox');
     const processed = await sweep('processed');
-    return { outbox, processed, batches, ...(truncated ? { truncated: true as const } : {}) };
+    const idempotency = await sweep('idempotency');
+    return {
+      outbox,
+      processed,
+      idempotency,
+      batches,
+      ...(truncated ? { truncated: true as const } : {}),
+    };
   }
 
   /** Rows deleted by one batch, or undefined when the table is being cleaned by another job. */
-  private deleteBatch(table: 'outbox' | 'processed', size: number): Promise<number | undefined> {
-    return this.tx.run(async manager => {
-      if (table === 'processed') {
-        const [lock]: { locked: boolean }[] = await manager.query(
-          'SELECT pg_try_advisory_xact_lock($1::int, $2::int) AS locked',
-          [...ADVISORY_LOCK_KEY],
+  private deleteBatch(
+    table: 'outbox' | 'processed' | 'idempotency',
+    size: number,
+    cutoff?: Date,
+  ): Promise<number | undefined> {
+    return this.tx.run(
+      async manager => {
+        if (table !== 'outbox') {
+          const [lock]: { locked: boolean }[] = await manager.query(
+            'SELECT pg_try_advisory_xact_lock($1::int, $2::int) AS locked',
+            [...(table === 'processed' ? ADVISORY_LOCK_KEY : IDEMPOTENCY_LOCK_KEY)],
+          );
+          if (!lock.locked) return undefined;
+        }
+        const [row]: { count: number }[] = await manager.query(
+          table === 'outbox'
+            ? OUTBOX_BATCH_SQL
+            : table === 'processed'
+              ? PROCESSED_BATCH_SQL
+              : IDEMPOTENCY_BATCH_SQL,
+          [table === 'outbox' ? this.retention.outboxDays : cutoff, size],
         );
-        if (!lock.locked) return undefined;
-      }
-      const [row]: { count: number }[] = await manager.query(
-        table === 'outbox' ? OUTBOX_BATCH_SQL : PROCESSED_BATCH_SQL,
-        [table === 'outbox' ? this.retention.outboxDays : this.retention.processedEventsDays, size],
-      );
-      return row.count;
-    });
+        return row.count;
+      },
+      { lockTimeoutMs: 500, statementTimeoutMs: 2000, idleInTransactionTimeoutMs: 2000 },
+    );
   }
 }

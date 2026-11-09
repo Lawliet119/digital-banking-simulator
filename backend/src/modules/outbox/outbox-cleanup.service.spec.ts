@@ -55,13 +55,22 @@ describe('DBS-92 outbox cleanup wiring', () => {
     const service = await build({
       OUTBOX_RETENTION_DAYS: '30',
       PROCESSED_EVENTS_RETENTION_DAYS: '14',
+      IDEMPOTENCY_KEY_RETENTION_DAYS: '30',
     });
-    expect(service.retention).toEqual({ outboxDays: 30, processedEventsDays: 14 });
+    expect(service.retention).toEqual({
+      outboxDays: 30,
+      processedEventsDays: 14,
+      idempotencyDays: 30,
+    });
   });
 
   it('TC-92-07 without the variables it uses 7 and 7', async () => {
     const service = await build({});
-    expect(service.retention).toEqual({ outboxDays: 7, processedEventsDays: 7 });
+    expect(service.retention).toEqual({
+      outboxDays: 7,
+      processedEventsDays: 7,
+      idempotencyDays: 7,
+    });
   });
 
   it('TC-92-12 a failing run is retried after a minute, not every 5 seconds', async () => {

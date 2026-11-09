@@ -153,6 +153,30 @@ describe('validateEnv', () => {
     });
   });
 
+  describe('TC-136-08 idempotency retention cannot shorten the seven-day guarantee', () => {
+    it.each(['0', '1', '6', '-1', '1.5', 'abc', '3651'])(
+      'rejects IDEMPOTENCY_KEY_RETENTION_DAYS=%s with the exact invalid key',
+      value => {
+        try {
+          validateEnv({ ...base, IDEMPOTENCY_KEY_RETENTION_DAYS: value });
+          throw new Error('Expected invalid retention');
+        } catch (error) {
+          expect(error).toBeInstanceOf(ConfigValidationError);
+          expect((error as ConfigValidationError).invalidKeys).toEqual([
+            'IDEMPOTENCY_KEY_RETENTION_DAYS',
+          ]);
+        }
+      },
+    );
+    it('defaults to seven and accepts a longer thirty-day window', () => {
+      expect(validateEnv(base).IDEMPOTENCY_KEY_RETENTION_DAYS).toBe(7);
+      expect(
+        validateEnv({ ...base, IDEMPOTENCY_KEY_RETENTION_DAYS: '30' })
+          .IDEMPOTENCY_KEY_RETENTION_DAYS,
+      ).toBe(30);
+    });
+  });
+
   describe('required values', () => {
     it('refuses to boot without DATABASE_URL or REDIS_URL, listing every problem at once', () => {
       const run = () => validateEnv({});

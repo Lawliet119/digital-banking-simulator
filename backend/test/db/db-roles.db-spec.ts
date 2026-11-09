@@ -281,6 +281,7 @@ describe('least-privilege roles dbs_api, dbs_worker, dbs_migrator (DBS-119)', ()
       idleInTransactionTimeoutMs: 10000,
     } as never);
     const cleanup = new OutboxCleanupService(tx, {
+      idempotencyKeyRetentionDays: 7,
       outbox: { retentionDays: 7, processedEventsRetentionDays: 7 },
     } as never);
     expect(await cleanup.cleanOnce({ pauseMs: 0 })).toMatchObject({ outbox: 1, processed: 1 });

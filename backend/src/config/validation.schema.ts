@@ -200,7 +200,8 @@ export const validationSchema = Joi.object<Env>({
 
   TRANSFER_LIMIT_PER_TX: Joi.string().custom(validatePositiveMoneyString).default('50000000'),
   TRANSFER_LIMIT_PER_DAY: Joi.string().custom(validatePositiveMoneyString).default('200000000'),
-  IDEMPOTENCY_KEY_RETENTION_DAYS: Joi.number().integer().min(1).default(7),
+  // ADR-05 guarantees at least seven days of payment retry protection.
+  IDEMPOTENCY_KEY_RETENTION_DAYS: Joi.number().integer().min(7).max(3650).default(7),
   // DBS-92. Published outbox rows are deleted after this many days. 3650 stops make_interval from
   // overflowing at run time.
   OUTBOX_RETENTION_DAYS: Joi.number().integer().min(1).max(3650).default(7),

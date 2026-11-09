@@ -194,7 +194,10 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
         statementTimeoutMs: 5000,
         idleInTransactionTimeoutMs: 10000,
       } as never),
-      { outbox: { retentionDays: 7, processedEventsRetentionDays: 7 } } as never,
+      {
+        idempotencyKeyRetentionDays: 7,
+        outbox: { retentionDays: 7, processedEventsRetentionDays: 7 },
+      } as never,
     );
     expect(await cleanup.cleanOnce({ pauseMs: 0 })).toMatchObject({ outbox: 1, processed: 1 });
     const left = await q('SELECT event_id FROM outbox_events ORDER BY id');
