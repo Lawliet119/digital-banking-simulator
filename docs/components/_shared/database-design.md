@@ -356,9 +356,13 @@ CREATE TABLE notification_log (
                CHECK (kind IN ('transfer_completed', 'account_status_changed')),
   user_id    uuid CONSTRAINT notification_log_user_id_fkey REFERENCES users(id) ON DELETE RESTRICT,
   message    text NOT NULL,                  -- không nêu lý do gian lận (BR-13)
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  correlation_id uuid                        -- DBS-134: correlationId của event gây ra thông báo
 );
 CREATE INDEX notification_log_event_id_idx ON notification_log(event_id);
+-- correlation_id nullable: dòng sinh trước DBS-134 được backfill từ outbox_events theo event_id khi
+-- dòng outbox còn (cleanup DBS-92 xóa dòng cũ), worker bản cũ trong lúc deploy cuốn chiếu có thể
+-- vẫn INSERT không có cột. Code mới luôn điền. Không index: kiểm toán tra theo audit_log.
 -- BR-13: writer chỉ ghi thông báo chung, không nêu lý do gian lận.
 -- Index không UNIQUE: một event có thể có nhiều người nhận. DBS-96.
 

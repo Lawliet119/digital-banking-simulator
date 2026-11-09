@@ -18,6 +18,9 @@ CHECK hai kind và index event_id không unique. Một sự kiện có thể có
 Writer dùng thông báo chung và kiểm BR-13; COMMENT trong schema không kiểm
 được ngữ nghĩa văn bản. Migration `down` khóa bảng `ACCESS EXCLUSIVE` ở `READ COMMITTED` và từ chối (`55000`) nếu bảng đã có dữ liệu.
 - Consumer idempotent như mọi consumer khác.
+- Mỗi dòng `notification_log` mang `correlation_id` của event (DBS-134, migration
+  `1793750400000`): cùng một mã nối audit, `outbox_events`, message SQS và thông báo. Cột cho phép
+  NULL cho dòng cũ hoặc do worker bản cũ ghi lúc deploy; `down` bỏ cột, không xóa thông báo.
 
 ## Đã triển khai
 

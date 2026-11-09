@@ -1,6 +1,6 @@
 # DBS-134 · correlationId đi qua outbox → message SQS → consumer
 
-> **Status:** Plan approved · **Vai:** Dev · **Cặp đôi review:** Dev khác (theo team.md) · **Nhánh:** `feat/DBS-134-correlation-id-propagation` · **PR:** — · **Cập nhật:** 2026-11-09
+> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev khác (theo team.md) · **Nhánh:** `feat/DBS-134-correlation-id-propagation` · **PR:** — · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
@@ -164,3 +164,64 @@ Vòng 2: các mục đã sửa chỉ thêm hành vi/test, không đổi hợp đ
 | 7 | docs: database-design, outbox/notification README, BACKLOG (xóa phần (1) BL-123, thêm BL cho #4, tiêu chí BL-195), feature doc, README features | — | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(correlation): … (DBS-134)` |
 
 Rủi ro và lùi: migration `ADD COLUMN` nullable không khóa lâu (PG17, không default) và lùi được bằng `down`; đổi `ConsumerBase` chạy lại toàn bộ `test:services` (mọi spec dùng consumer) trước khi mở PR (bài học CI). **Quyết định ở G3 (agent tự quyết):** gộp TC chuỗi vào một file services-spec mới để tránh phình `outbox-relay.services-spec`.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (từ `backend/`, 2026-11-09, trên nhánh sau commit `9062f2d`):
+  - `npm run lint:check` sạch; `npm run typecheck` sạch.
+  - `npm test`: 1655 test (89 suite); đạt khi chạy lại. Lần chạy đầu cùng lúc với `test:db` có 1 test lỗi do tải máy, chạy riêng đạt.
+  - `npm run test:e2e` (`DATABASE_URL` Postgres 17 tạm): 153 đạt / 15 suite.
+  - `npm run test:services` (toàn bộ): 81 đạt / 13 suite.
+  - `npm run test:db -- --maxWorkers=2` (toàn bộ): **806 đạt / 53 suite**. Lần chạy đầu với worker mặc định có 10 suite lỗi do hết tài nguyên Docker; từng suite chạy riêng đều đạt, chạy lại toàn bộ với 2 worker đạt hết.
+  - Không có `.skip/.only/.todo` trong test của task; số test bỏ qua: 0.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-134-01 | `test/db/notification-correlation.db-spec.ts` › TC-134-01 | đạt |
+| TC-134-02 | `test/db/notification-correlation.db-spec.ts` › TC-134-02 | đạt |
+| TC-134-03 | `test/db/notification-consumer.db-spec.ts` › TC-134-03 | đạt |
+| TC-134-04/05 | `test/services/correlation-chain.services-spec.ts` › TC-134-04/05/06 | đạt |
+| TC-134-06 | cùng test trên: bắt `Logger.log` của consumer và context pino tại thời điểm gọi | đơn giản hóa: không đọc dòng JSON đã render; dòng JSON thật nằm ở M-134-04 |
+| TC-134-07 | `correlation-chain.services-spec.ts` › TC-134-07 | đạt |
+| TC-134-08 | `src/modules/outbox/outbox-relay-logging.spec.ts` | đơn giản hóa: unit với tx/SQS giả, không chạy relay thật (lỗi gửi thật cần queue hỏng) |
+| TC-134-09 | `src/common/messaging/consumer-base.spec.ts` › TC-134-09 | đạt |
+| TC-134-10 | `consumer-base.spec.ts` › TC-134-10 (context) + `test/db/consumer-base.db-spec.ts` › TC-134-10 (writer thật) | đạt (tách hai nơi vì lint cấm `common` import `modules`) |
+| TC-134-11 | `correlation-chain.services-spec.ts` › TC-134-11 | đạt |
+| TC-134-12 | `correlation-chain.services-spec.ts` › TC-134-12 | đạt |
+| TC-134-13 | `correlation-chain.services-spec.ts` › TC-134-13 | đạt |
+| TC-134-14 | `validate-event.spec.ts` và `consumer-base.spec.ts` TC-101-04 (có sẵn) | đạt |
+| TC-134-15 | `test/db/db-roles.db-spec.ts` TC-119-01 + toàn bộ `test:db` | đạt |
+| TC-134-16 | quy trình | chờ PR |
+
+- **Test thủ công** (app thật `APP_ROLE=both`, ElasticMQ compose, Postgres 17; output thô ở [manual-test.txt](screenshots/DBS-134/manual-test.txt), dòng đầu là SHA code `9062f2d`). Chạy bằng Postgres tạm cổng 55433 thay cho Postgres compose vì kết nối từ host tới cổng 5432 báo lỗi xác thực mật khẩu; migration `1793750400000` đã chạy qua `npm run migration:run`.
+
+| Bước | Kết quả thật | |
+|---|---|---|
+| M-134-01 | tạo hồ sơ và tài khoản `0fcfdd8a-…` | đạt |
+| M-134-02 | 201; header `c7bf3b01-…` khác hai UUID client gửi | đạt |
+| M-134-03 | audit/outbox (cột và payload)/transfers: 1 dòng theo id server, 0 dòng theo hai id client | đạt |
+| M-134-04 | `notification_log` 1 dòng `correlation_id = c7bf3b01-…`; log JSON worker `"role":"worker","correlationId":"c7bf3b01-…"` | đạt |
+| M-134-05 | lock: audit/outbox/notification cùng `00a7331d-…`, 0 dòng theo id client; thông báo không nêu lý do | đạt |
+| M-134-06 | replay 201, id mới `6f446b73-…` không có audit/outbox | đạt |
+| M-134-07 | 422 `ACCOUNT_NOT_ACTIVE`; audit `REJECTED` 1 dòng, outbox 0, notice 0 | đạt |
+| M-134-08 | message `correlationId:"abc"` vào DLQ (1), `notification_log` vẫn 2 dòng | đạt |
+
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` ở đầu PR: 14 file (workflow CI, `consumer-base(.spec).ts`, migration mới, `notification.consumer.ts`, relay + spec log, 4 db-spec, 1 services-spec, feature doc, review). Đúng §7 cộng bước docs; README/BACKLOG/database-design ở §9.
+- **Ảnh chụp:** không chụp ảnh (chạy bằng terminal, output thô đầy đủ ở `manual-test.txt`; token và header `Authorization` không có trong file). Thiếu ảnh được nêu trong mô tả PR.
+- **Lệch so với kế hoạch (agent tự duyệt):** (1) TC-134-10 tách unit/db như bảng trên; (2) thêm `retryBackoffSeconds=0` trong consumer thử để redelivery tất định (chỉ ở test); (3) `down` của migration cho phép khi có dữ liệu (đã chốt ở G2).
+- **Bàn giao:** BL-202 (#4: consumer risk ghi `fraud_flags` + audit bằng `event.correlationId`; DoD #2 vì vậy mới đạt **một phần**: audit API, `outbox_events`, `notification_log`, log worker đạt, `fraud_flags` chưa có consumer trong `main`); tiêu chí mới trong BL-195 (#5: migration `ALTER TABLE` chạy bằng role chủ bảng); BL-123 mục (1) đóng, còn mục (2) giới hạn kích thước payload.
+
+## 9. Tài liệu đã cập nhật
+
+`docs/components/_shared/database-design.md` (cột `correlation_id` của `notification_log`); `backend/src/modules/notification/README.md`; `backend/src/modules/outbox/README.md`; `docs/BACKLOG.md` (BL-123 bỏ mục (1), BL-195 thêm tiêu chí, thêm BL-202); `docs/features/README.md` (dòng DBS-134); `.github/workflows/ci.yml` (bước services mới).
+
+## Checklist G4
+
+- [x] 14/16 test case đạt đủ độ sâu (TC-134-16 chờ PR), 2 đơn giản hóa (TC-134-06, TC-134-08) có lý do ở §8
+- [x] Test thủ công chạy trên commit cuối đổi code (`9062f2d`), 8/8 bước đạt; không bước nào «chưa chạy»; bước M-134-08 gửi message bằng script node
+- [ ] Ảnh chụp: không có (nêu trong mô tả PR); `manual-test.txt` không chứa token, `Authorization`, id tài khoản AWS hay ARN
+- [x] `git diff --stat` khớp §7
+- [x] Lệnh kiểm tra chạy lúc bàn giao, có số đếm (§8)
+- [x] Doc có fact bị đổi đã sửa; `check-doc-links.mjs` (chạy bên dưới)
+- [x] BL-202 mới, BL-195 và BL-123 đã sửa
