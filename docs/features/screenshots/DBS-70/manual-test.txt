@@ -1,0 +1,81 @@
+DBS-70 manual smoke test starting at commit: c8f2f5760686eb388146814e067210cf2eb72d4f
+M-70-01: Running seed script (first time)...
+============================================================
+Digital Banking Simulator — Demo Seed Complete (DBS-70)
+API Base URL: http://127.0.0.1:61939
+============================================================
+
+CUSTOMERS & ACCOUNTS:
+• Nguyễn Minh Anh (demo-customer-minh-anh)
+  Customer ID: 5f556250-5f51-4000-85c4-ea1a6f547dcd
+  - [CHECKING] 3c8bec61-3ed8-4b11-87ee-959fea46de3e (Created, Balance: 48.000.000 VND)
+  - [SAVINGS] 859c5fb2-ad90-4c3a-a86d-20b7d1def15b (Created, Balance: 20.000.000 VND)
+• Trần Thu Hà (demo-customer-thu-ha)
+  Customer ID: ae5314a2-0fbc-450c-8bad-702dd5805d0e
+  - [CHECKING] 4f0d71c3-d60f-472f-a19a-f891455eb349 (Created, Balance: 11.500.000 VND)
+• Nguyễn Văn Bình (demo-customer-van-binh)
+  Customer ID: 97da1915-92ce-489f-b09d-f76e6e8c7df8
+  - [CHECKING] e1c6970b-72ec-44b1-8f83-fda0eadf91f6 (Created, Balance: 5.500.000 VND)
+
+OPERATOR DEPOSITS (4 transactions):
+• Target: 3c8bec61-3ed8-4b11-87ee-959fea46de3e | Amount: 50.000.000 VND | Tx: 5698d2af-c24d-42c1-aa83-1a79912fba0a
+• Target: 859c5fb2-ad90-4c3a-a86d-20b7d1def15b | Amount: 20.000.000 VND | Tx: e7e218bc-c553-42f0-9325-8adaabf30be2
+• Target: 4f0d71c3-d60f-472f-a19a-f891455eb349 | Amount: 10.000.000 VND | Tx: d4ec35da-c0bd-4202-82dc-00fbadfa94c3
+• Target: e1c6970b-72ec-44b1-8f83-fda0eadf91f6 | Amount: 5.000.000 VND | Tx: 428e3625-d905-4191-8049-ad39dd7738a2
+
+CUSTOMER TRANSFERS (2 transactions):
+• From: 3c8bec61-3ed8-4b11-87ee-959fea46de3e -> To: 4f0d71c3-d60f-472f-a19a-f891455eb349 | Amount: 2.000.000 VND
+• From: 4f0d71c3-d60f-472f-a19a-f891455eb349 -> To: e1c6970b-72ec-44b1-8f83-fda0eadf91f6 | Amount: 500.000 VND
+
+Idempotency verified: Re-running seed replays transactions without duplicate funds.
+Ledger invariant: System funding covers all deposits; total ledger balance = 0.
+============================================================
+M-70-01 PASS: First seed run completed, accounts and balances match specification.
+
+M-70-02: Re-running seed script (second time, idempotency test)...
+============================================================
+Digital Banking Simulator — Demo Seed Complete (DBS-70)
+API Base URL: http://127.0.0.1:61939
+============================================================
+
+CUSTOMERS & ACCOUNTS:
+• Nguyễn Minh Anh (demo-customer-minh-anh)
+  Customer ID: 5f556250-5f51-4000-85c4-ea1a6f547dcd
+  - [CHECKING] 3c8bec61-3ed8-4b11-87ee-959fea46de3e (Reused, Balance: 48.000.000 VND)
+  - [SAVINGS] 859c5fb2-ad90-4c3a-a86d-20b7d1def15b (Reused, Balance: 20.000.000 VND)
+• Trần Thu Hà (demo-customer-thu-ha)
+  Customer ID: ae5314a2-0fbc-450c-8bad-702dd5805d0e
+  - [CHECKING] 4f0d71c3-d60f-472f-a19a-f891455eb349 (Reused, Balance: 11.500.000 VND)
+• Nguyễn Văn Bình (demo-customer-van-binh)
+  Customer ID: 97da1915-92ce-489f-b09d-f76e6e8c7df8
+  - [CHECKING] e1c6970b-72ec-44b1-8f83-fda0eadf91f6 (Reused, Balance: 5.500.000 VND)
+
+OPERATOR DEPOSITS (4 transactions):
+• Target: 3c8bec61-3ed8-4b11-87ee-959fea46de3e | Amount: 50.000.000 VND | Tx: 5698d2af-c24d-42c1-aa83-1a79912fba0a
+• Target: 859c5fb2-ad90-4c3a-a86d-20b7d1def15b | Amount: 20.000.000 VND | Tx: e7e218bc-c553-42f0-9325-8adaabf30be2
+• Target: 4f0d71c3-d60f-472f-a19a-f891455eb349 | Amount: 10.000.000 VND | Tx: d4ec35da-c0bd-4202-82dc-00fbadfa94c3
+• Target: e1c6970b-72ec-44b1-8f83-fda0eadf91f6 | Amount: 5.000.000 VND | Tx: 428e3625-d905-4191-8049-ad39dd7738a2
+
+CUSTOMER TRANSFERS (2 transactions):
+• From: 3c8bec61-3ed8-4b11-87ee-959fea46de3e -> To: 4f0d71c3-d60f-472f-a19a-f891455eb349 | Amount: 2.000.000 VND
+• From: 4f0d71c3-d60f-472f-a19a-f891455eb349 -> To: e1c6970b-72ec-44b1-8f83-fda0eadf91f6 | Amount: 500.000 VND
+
+Idempotency verified: Re-running seed replays transactions without duplicate funds.
+Ledger invariant: System funding covers all deposits; total ledger balance = 0.
+============================================================
+M-70-02 PASS: Second seed run idempotent, no duplicate funds created.
+
+M-70-03: Running checkLedgerInvariants...
+{
+  "status": "PASS",
+  "totals": {
+    "debit": "87500000",
+    "credit": "87500000",
+    "balance": "0"
+  },
+  "violations": []
+}
+M-70-03 PASS: All 5 ledger invariants verified clean.
+
+ALL MANUAL CHECKS PASSED (M-70-01, M-70-02, M-70-03).
+Cleanup completed.
