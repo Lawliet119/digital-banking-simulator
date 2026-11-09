@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import type { Socket } from 'node:net';
 import { performance } from 'node:perf_hooks';
 import { createLoopbackAdapter } from '../../src/modules/risk/ai/openai-decisions';
+import { REVIEW_RUBRIC } from '../../src/modules/risk/ai/rubric';
 
 async function runTimeoutFixture() {
   assert.deepEqual(process.argv.slice(2), ['--timeout']);
@@ -50,6 +51,7 @@ async function runTimeoutFixture() {
         enabled: true,
         apiKey: 'synthetic-loopback-only-not-a-credential',
         model: 'gpt-6-luna',
+        rubric: REVIEW_RUBRIC,
         requestTimeoutMs: 200,
         maxAdmissionDelayMs: 1000,
         selectedAtMonotonicMs: performance.now(),

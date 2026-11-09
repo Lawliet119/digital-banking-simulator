@@ -40,8 +40,9 @@ export interface DecisionOptions {
   enabled: boolean;
   apiKey: string | null;
   model: string;
+  rubric: string;
   requestTimeoutMs: number;
   maxAdmissionDelayMs: number;
   selectedAtMonotonicMs: number;
-  tryAcquire: () => PermitResult;
+  tryAcquire: () => PermitResult | Promise<PermitResult>;
 }
