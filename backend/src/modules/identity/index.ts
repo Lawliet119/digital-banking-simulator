@@ -1,4 +1,5 @@
 export { IdentityModule } from './identity.module';
+export { SessionRevocationModule } from './session-revocation.module';
 export { JwtAuthGuard } from './jwt-auth.guard';
 export type { RequestWithUser } from './jwt-auth.guard';
 export { JwksVerifierService } from './jwks-verifier.service';

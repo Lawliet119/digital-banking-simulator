@@ -6,8 +6,14 @@ import { LedgerReconciliationModule } from './ledger';
 import { modulesForRole } from './index';
 import { OutboxModule } from './outbox';
 import { RiskModule } from './risk';
+import { SessionRevocationModule } from './identity';
 
 describe('modulesForRole', () => {
+  it('TC-114-10 installs the real revocation cache module in api/both, not worker-only', () => {
+    expect(modulesForRole(AppRole.Api)).toContain(SessionRevocationModule);
+    expect(modulesForRole(AppRole.Both)).toContain(SessionRevocationModule);
+    expect(modulesForRole(AppRole.Worker)).not.toContain(SessionRevocationModule);
+  });
   it('TC-103-19 loads the audit query API only for api/both while preserving the writer', () => {
     expect(modulesForRole(AppRole.Api)).toContain(AuditHttpModule);
     expect(modulesForRole(AppRole.Both)).toContain(AuditHttpModule);

@@ -24,6 +24,11 @@ interface LockedCustomerAccountRow {
   ownerUserId: string;
 }
 
+interface AccountStatusChangeOutcome {
+  response: OperatorAccountStatusResponseDto;
+  revocation?: { userId: string; revokedAt: Date };
+}
+
 const SELECT_CUSTOMER_ACCOUNT_FOR_UPDATE_SQL = `
 SELECT
   a.id,
@@ -104,7 +109,7 @@ export class OperatorAccountStatusService {
     });
   }
 
-  private changeStatus(params: {
+  private async changeStatus(params: {
     operatorId: string;
     normalizedAccountId: string;
     normalizedReason: string;
@@ -125,7 +130,7 @@ export class OperatorAccountStatusService {
       revokeOwnerSessions,
     } = params;
 
-    return this.tx.run(async manager => {
+    const outcome = await this.tx.run<AccountStatusChangeOutcome>(async manager => {
       const rows = await manager.query<LockedCustomerAccountRow[]>(
         SELECT_CUSTOMER_ACCOUNT_FOR_UPDATE_SQL,
         [normalizedAccountId],
@@ -155,10 +160,12 @@ export class OperatorAccountStatusService {
           },
         });
         return {
-          id: canonicalAccountId,
-          type: row.type,
-          status: row.status,
-          updatedAt: row.updatedAt.toISOString(),
+          response: {
+            id: canonicalAccountId,
+            type: row.type,
+            status: row.status,
+            updatedAt: row.updatedAt.toISOString(),
+          },
         };
       }
 
@@ -169,9 +176,9 @@ export class OperatorAccountStatusService {
       );
       const updatedAtIso = updatedRows[0].updatedAt.toISOString();
 
-      if (revokeOwnerSessions) {
-        await this.identity.revokeSessions(manager, canonicalOwnerUserId);
-      }
+      const revokedAt = revokeOwnerSessions
+        ? await this.identity.revokeSessions(manager, canonicalOwnerUserId)
+        : undefined;
 
       await this.audit.record(manager, {
         actor: canonicalOperatorId,
@@ -198,11 +205,22 @@ export class OperatorAccountStatusService {
       });
 
       return {
-        id: canonicalAccountId,
-        type: row.type,
-        status: targetStatus,
-        updatedAt: updatedAtIso,
+        response: {
+          id: canonicalAccountId,
+          type: row.type,
+          status: targetStatus,
+          updatedAt: updatedAtIso,
+        },
+        ...(revokedAt ? { revocation: { userId: canonicalOwnerUserId, revokedAt } } : {}),
       };
     });
+    // Publish only the outcome of the attempt that committed. No Redis I/O survives a retry.
+    if (outcome.revocation) {
+      await this.identity.publishRevocation(
+        outcome.revocation.userId,
+        outcome.revocation.revokedAt,
+      );
+    }
+    return outcome.response;
   }
 }

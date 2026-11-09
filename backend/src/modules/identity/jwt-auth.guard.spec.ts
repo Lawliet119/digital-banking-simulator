@@ -142,6 +142,15 @@ describe('JwtAuthGuard', () => {
       await expectUnauthenticated(result, ErrorCode.SESSION_REVOKED);
     });
 
+    it.each([Infinity, NaN, -1, 1000.5, Number.MAX_SAFE_INTEGER + 1])(
+      'TC-114-08 invalid issued-at %s cannot bypass revocation',
+      async iat => {
+        const { result } = run(iat, revokedAtSecond);
+        await expectUnauthenticated(result, ErrorCode.SESSION_REVOKED);
+        expect(identity.sessionsRevokedAt).toHaveBeenCalledWith(USER_ID, 0);
+      },
+    );
+
     it('lets a token issued after the mark through', async () => {
       const { result, request } = run(revokedAtSecond + 1, revokedAtSecond);
       await expect(result).resolves.toBe(true);

@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
+import { SessionRevocationCache } from './session-revocation-cache';
 
 /** Most subs kept in the per-process cache. A constant, not an env var: it only bounds memory. */
 const USER_ID_CACHE_MAX = 10_000;
@@ -38,6 +39,7 @@ export class IdentityService {
   constructor(
     private readonly tx: TransactionService,
     @Optional() @InjectDataSource() private readonly dataSource?: DataSource,
+    @Optional() private readonly revocationCache?: SessionRevocationCache,
   ) {}
 
   /** `users.id` of an already-verified `sub`. Never call it with a claim that was not verified. */
@@ -69,11 +71,26 @@ export class IdentityService {
 
   /**
    * When this user's sessions were last revoked, or null if never (docs/03 §6.2). A token issued at
-   * or before that moment is refused. Read from PostgreSQL on every authenticated request: it is
-   * the source of truth, so a lock takes effect on the very next request (AC-11.1) with or without
-   * a Redis cache in front (a cache would only save this primary-key read).
+   * or before that moment is refused. A cached marker can reject, but cannot admit a token:
+   * a later lock may have committed while its cache SET failed or an older fill arrived late.
    */
-  async sessionsRevokedAt(userId: string): Promise<Date | null> {
+  async sessionsRevokedAt(userId: string, issuedAt?: number): Promise<Date | null> {
+    const cached = await this.revocationCache?.read(userId);
+    if (cached && issuedAt !== undefined && issuedAt <= Math.floor(cached.getTime() / 1000)) {
+      return cached;
+    }
+    const revokedAt = await this.readRevocation(userId);
+    // The SELECT (or its fallback transaction) has finished before this cache fill.
+    if (revokedAt) await this.publishRevocation(userId, revokedAt);
+    return revokedAt;
+  }
+
+  /** Called after the caller's COMMIT, never from its retryable transaction callback. */
+  async publishRevocation(userId: string, revokedAt: Date): Promise<void> {
+    await this.revocationCache?.publish(userId, revokedAt);
+  }
+
+  private async readRevocation(userId: string): Promise<Date | null> {
     if (this.dataSource) {
       const rows = await this.dataSource.query<{ sessions_revoked_at: Date | null }[]>(
         'SELECT sessions_revoked_at FROM users WHERE id = $1',

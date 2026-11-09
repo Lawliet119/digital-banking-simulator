@@ -76,8 +76,11 @@ export class JwtAuthGuard implements CanActivate {
     // seconds, because `iat` has no finer resolution: a token minted in the same second as the lock
     // is refused too, which is the safe side. Like the lookup above, a database failure here is a
     // 503, not a 401.
-    const revokedAt = await this.identity.sessionsRevokedAt(userId);
-    const issuedAt = typeof claims.iat === 'number' ? claims.iat : 0;
+    const issuedAt =
+      typeof claims.iat === 'number' && Number.isSafeInteger(claims.iat) && claims.iat >= 0
+        ? claims.iat
+        : 0;
+    const revokedAt = await this.identity.sessionsRevokedAt(userId, issuedAt);
     if (revokedAt && issuedAt <= Math.floor(revokedAt.getTime() / 1000)) {
       unauthenticated(ErrorCode.SESSION_REVOKED, 'Session has been revoked');
     }
