@@ -89,7 +89,7 @@ Sweep: không thay generator/scenarios/inspector hiện có; không thêm depend
 | TC-127-07 | nested/checkout/existing/symlink paths reject; private transport fixture separate | đạt; fixture không chứng minh ACL thực tế |
 | TC-127-08 | CLI args, I/O failure, CSV corruption và tiền trên2^53 | đạt |
 | TC-127-09 | CLI hai timezone/output path và CSV-only verifier | đạt |
-| DoD2/3/4 quy trình | BL-171, BL-202 | chưa hoàn tất |
+| DoD2/3/4 quy trình | BL-171; PR #115 review và merge ngày 2026-11-09 | BL-171 còn mở |
 
 **Manual trên commit code cuối:** [output thô Git Bash](screenshots/DBS-127/manual-test.txt).
 
@@ -103,11 +103,11 @@ Sweep: không thay generator/scenarios/inspector hiện có; không thêm depend
 
 Artifact giao user: tune.csv + manifest, không simulation hoặc holdout. Không có PNG: thiếu `01-cli.png`, `02-offline.png` vì lệnh chạy bằng terminal không có bề mặt UI chụp; không tạo ảnh giả từ output. Output text thực đã giữ. PR nêu hai ảnh thiếu này. Diff gồm đúng các file §7; >400 dòng vì hai CLI mới, test biên/filesystem/offline và bằng chứng cùng một thay đổi dữ liệu, tách PR sẽ làm implementation không có test/contract đi kèm. Không thêm dependency, không sửa env/secrets/board hoặc merge.
 
-**Bàn giao:** BL-171 (private store/ACL, ngày giao #4, xác nhận offline), BL-202 (CI/review/merge); BL-173 giữ benchmark lớn và giới hạn tổng hợp, không nhận là đã nghiệm thu100000 khách. Không xóa BL-171 vì DoD còn thiếu.
+**Bàn giao:** BL-171 (private store/ACL, ngày giao #4, xác nhận offline); CI/review/merge xong ở PR #115 (dòng BL-202 cũ đã xóa); BL-173 giữ benchmark lớn và giới hạn tổng hợp, không nhận là đã nghiệm thu100000 khách. Không xóa BL-171 vì DoD còn thiếu.
 
 ## 9. Tài liệu đã cập nhật
 
-`load-tests/fraud-dataset/README.md`, `load-tests/README.md`, `docs/features/README.md`; sửa BL-171, thêm BL-202 ở `docs/BACKLOG.md`; raw manual và domain review; summary tự động. Không sửa fact/schema/contract của backend.
+`load-tests/fraud-dataset/README.md`, `load-tests/README.md`, `docs/features/README.md`; sửa BL-171 ở `docs/BACKLOG.md`; raw manual và domain review; summary tự động. Không sửa fact/schema/contract của backend.
 
 ## Checklist G4
 
@@ -116,7 +116,7 @@ Artifact giao user: tune.csv + manifest, không simulation hoặc holdout. Khôn
 - [x]Transcript UTF8 không token/credential/ARN; thiếu01-cli.png và02-offline.png được nêu rõ, không dùng ảnh giả.
 - [x]Diff khớp §7 và gate phụ; không backend hoặc production dependency.
 - [x]Baseline standalone dataset, CLI/verifier, doc-link check lúc bàn giao được chạy; không dùng test backend cũ làm bằng chứng cho generator mới.
-- [x]Docs cập nhật, review APPROVE; chỉ chuyển Implemented sau G4. CI/review/merge chưa hoàn tất →BL-202.
-- [x]Mọi việc bàn giao/DoD chưa đạt đã có BL-171/BL-202; benchmark lớn còn BL-173.
+- [x]Docs cập nhật, review APPROVE; chỉ chuyển Implemented sau G4. CI/review/merge xong ở PR #115.
+- [x]Mọi việc bàn giao/DoD chưa đạt đã có BL-171; benchmark lớn còn BL-173.
 
 **Quyết định G4 (agent tự quyết, 2026-11-09):** qua với phần code/local đã kiểm; các tiêu chí thực địa và quy trình chưa đạt được giữ ở BL-171/202. Không ghi task Done. Không yêu cầu approval lại cho phạm vi user đã chọn.
