@@ -1,0 +1,11 @@
+Phase 3 plan sweep - DBS-99
+Base: 00941f2e2f0fbe665a609f44fd2485f91fa1ed7a
+G2: approved by user (duyệt g2)
+Compared feature doc sections 1-6 against ordered file/TC/manual/command rows in section 7.
+All ticket DoD bullets have implementation, verification, or explicit process/handoff coverage.
+No money-rule/schema/event/ErrorCode/env/dependency changes planned.
+CI evidence/review/merge/submission are not claimed complete by local testing.
+Open prerequisite: TS2322 baseline reproduced in manual-smoke.dbs50.ts:147.
+Proposed narrow object-copy fix requires G3 acceptance; no fix applied.
+Git commits/push/PR not authorized; commit labels in plan are proposals only.
+Result: coverage complete; baseline prerequisite and external handoffs named explicitly.

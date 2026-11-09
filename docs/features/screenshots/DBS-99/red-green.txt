@@ -1,0 +1,35 @@
+Mutation sensitivity test; intentional failure, then fixture mutation removed.
+FAIL test/db/transfer-concurrency.db-spec.ts (7.379 s)
+  ● DBS-80 cross transfers, deadlock retry and database timeouts on the real transfer flow › TC-99-01..03: ten fifty-request cross-transfer and hot-account bursts
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 0
+
+    @@ -46,7 +46,6 @@
+        201,
+        201,
+        201,
+        201,
+        201,
+    -   201,
+      ]
+
+      138 |           ),
+      139 |         );
+    > 140 |         expect(responses.map(r => r.status)).toEqual(Array(50).fill(201));
+          |                                              ^
+      141 |         expect(new Set(responses.map(r => r.body.transferId as string)).size).toBe(50);
+      142 |         const after = await counts();
+      143 |         for (const [field, delta] of Object.entries({
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:140:46)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 10 skipped, 11 total
+Snapshots:   0 total
+Time:        7.503 s, estimated 17 s
+Ran all test suites matching transfer-concurrency with tests matching "TC-99".
+
+Exit=1

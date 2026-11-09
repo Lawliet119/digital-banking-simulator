@@ -114,6 +114,60 @@ describe('DBS-80 cross transfers, deadlock retry and database timeouts on the re
     }
   });
 
+  it('TC-99-01..03: ten fifty-request cross-transfer and hot-account bursts', async () => {
+    const hotApp = await startDepositApp(db.url, { poolMax: 60 });
+    try {
+      const peers: Target[] = [];
+      for (let i = 0; i < 5; i++) peers.push(await target(hotApp, '100000'));
+      const hot = await target(hotApp);
+      for (let round = 1; round <= 10; round++) {
+        const before = await counts();
+        const jobs: { from: Target; to: Target; key: string }[] = [];
+        for (let r = 0; r < 5; r++)
+          for (let i = 0; i < 5; i++) {
+            jobs.push({ from: peers[i], to: peers[(i + 1) % 5], key: randomUUID() });
+            jobs.push({ from: peers[i], to: hot, key: randomUUID() });
+          }
+        const responses = await Promise.all(
+          jobs.map(j =>
+            send(hotApp, j.from, j.to.accountId, '1000', j.key).timeout({
+              response: 15000,
+              deadline: 20000,
+            }),
+          ),
+        );
+        expect(responses.map(r => r.status)).toEqual(Array(50).fill(201));
+        expect(new Set(responses.map(r => r.body.transferId as string)).size).toBe(50);
+        const after = await counts();
+        for (const [field, delta] of Object.entries({
+          transfers: 50,
+          lines: 100,
+          audits: 50,
+          events: 50,
+          keys: 50,
+        }))
+          expect(after[field]).toBe((before[field] as number) + delta);
+        for (const peer of peers)
+          expect(await balance(peer.accountId)).toBe(String(100000n - BigInt(round) * 5000n));
+        expect(await balance(hot.accountId)).toBe(String(BigInt(round) * 25000n));
+        const report = await checkLedgerInvariants(db.runner);
+        expect(report.status).toBe('PASS');
+        expect(report.violations).toEqual([]);
+        console.log(
+          JSON.stringify({
+            scenario: 'DBS-99',
+            round,
+            responses: 50,
+            hotBalance: await balance(hot.accountId),
+            invariants: report,
+          }),
+        );
+      }
+    } finally {
+      await hotApp.close();
+    }
+  });
+
   it('TC-80-01 100 A→B and 100 B→A, 20 at a time: all 201, balances back, nothing hangs', async () => {
     const a = await target(app, '10000000'),
       b = await target(app, '10000000');

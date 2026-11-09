@@ -1,0 +1,136 @@
+0f0e0cb17198a3ccee3640572c2254fa1d88af5e
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand transfer-concurrency
+
+  console.log
+    {"scenario":"DBS-99","round":1,"responses":50,"hotBalance":"25000","invariants":{"status":"PASS","totals":{"debit":"550000","credit":"550000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":2,"responses":50,"hotBalance":"50000","invariants":{"status":"PASS","totals":{"debit":"600000","credit":"600000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":3,"responses":50,"hotBalance":"75000","invariants":{"status":"PASS","totals":{"debit":"650000","credit":"650000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":4,"responses":50,"hotBalance":"100000","invariants":{"status":"PASS","totals":{"debit":"700000","credit":"700000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":5,"responses":50,"hotBalance":"125000","invariants":{"status":"PASS","totals":{"debit":"750000","credit":"750000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":6,"responses":50,"hotBalance":"150000","invariants":{"status":"PASS","totals":{"debit":"800000","credit":"800000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":7,"responses":50,"hotBalance":"175000","invariants":{"status":"PASS","totals":{"debit":"850000","credit":"850000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":8,"responses":50,"hotBalance":"200000","invariants":{"status":"PASS","totals":{"debit":"900000","credit":"900000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":9,"responses":50,"hotBalance":"225000","invariants":{"status":"PASS","totals":{"debit":"950000","credit":"950000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":10,"responses":50,"hotBalance":"250000","invariants":{"status":"PASS","totals":{"debit":"1000000","credit":"1000000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+Test Suites: 1 passed, 1 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        26.63 s
+Ran all test suites matching transfer-concurrency.
+
+M-99-02 Docker Desktop stopped; expected nonzero
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand transfer-concurrency
+
+Error: Jest: Got error running globalSetup - D:\UET_PROJECT\dbs99-manual-final\backend\test\support\jest-global-setup.ts, reason: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Error details: Could not find a working container runtime strategy
+    at assertDockerAvailable (D:\UET_PROJECT\dbs99-manual-final\backend\test\support\postgres.container.ts:36:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startPostgresContainer (D:\UET_PROJECT\dbs99-manual-final\backend\test\support\postgres.container.ts:62:5)
+    at async globalSetup (D:\UET_PROJECT\dbs99-manual-final\backend\test\support\jest-global-setup.ts:9:33)
+    at async D:\UET_PROJECT\digital-banking-simulator-dbs99-concurrency\backend\node_modules\@jest\core\build\index.js:3190:11
+    at async waitForPromiseWithCleanup (D:\UET_PROJECT\digital-banking-simulator-dbs99-concurrency\backend\node_modules\@jest\transform\build\index.js:135:5)
+    at async ScriptTransformer.requireAndTranspileModule (D:\UET_PROJECT\digital-banking-simulator-dbs99-concurrency\backend\node_modules\@jest\transform\build\index.js:630:16)
+    at async runGlobalHook (D:\UET_PROJECT\digital-banking-simulator-dbs99-concurrency\backend\node_modules\@jest\core\build\index.js:3186:9)
+    at async runJest (D:\UET_PROJECT\digital-banking-simulator-dbs99-concurrency\backend\node_modules\@jest\core\build\index.js:3552:5)
+    at async _run10000 (D:\UET_PROJECT\digital-banking-simulator-dbs99-concurrency\backend\node_modules\@jest\core\build\index.js:1556:5)
+Docker-down exit=1
+
+M-99-03 Docker restarted; expected pass
+  console.log
+    {"scenario":"DBS-99","round":1,"responses":50,"hotBalance":"25000","invariants":{"status":"PASS","totals":{"debit":"550000","credit":"550000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":2,"responses":50,"hotBalance":"50000","invariants":{"status":"PASS","totals":{"debit":"600000","credit":"600000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":3,"responses":50,"hotBalance":"75000","invariants":{"status":"PASS","totals":{"debit":"650000","credit":"650000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":4,"responses":50,"hotBalance":"100000","invariants":{"status":"PASS","totals":{"debit":"700000","credit":"700000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":5,"responses":50,"hotBalance":"125000","invariants":{"status":"PASS","totals":{"debit":"750000","credit":"750000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":6,"responses":50,"hotBalance":"150000","invariants":{"status":"PASS","totals":{"debit":"800000","credit":"800000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":7,"responses":50,"hotBalance":"175000","invariants":{"status":"PASS","totals":{"debit":"850000","credit":"850000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":8,"responses":50,"hotBalance":"200000","invariants":{"status":"PASS","totals":{"debit":"900000","credit":"900000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":9,"responses":50,"hotBalance":"225000","invariants":{"status":"PASS","totals":{"debit":"950000","credit":"950000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":10,"responses":50,"hotBalance":"250000","invariants":{"status":"PASS","totals":{"debit":"1000000","credit":"1000000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+Test Suites: 1 passed, 1 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        17.821 s, estimated 27 s
+Ran all test suites matching transfer-concurrency.
+Recovery exit=0

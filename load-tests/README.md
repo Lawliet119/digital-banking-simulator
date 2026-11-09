@@ -1,5 +1,19 @@
 # load-tests
 
+## Demo 1 — chuyển chéo nhiều khách và tài khoản nóng
+
+Cần Node 24, Docker Desktop đang chạy, dependency cài qua `npm --prefix backend ci`. Trong Git Bash từ `backend/`:
+
+```bash
+env -u DATABASE_URL npm run test:db -- --runInBand transfer-concurrency
+```
+
+TC-99-01…03 dùng 5 khách P1…P5 (mỗi người nạp 100.000 đồng qua deposit API) và khách H có 0 đồng. Mỗi round gửi một Promise.all thật gồm 25 chuyển chéo vòng P1→P2→…→P5→P1 và 25 chuyển từ P vào H, mỗi lệnh 1.000 đồng, key riêng. Chạy 10 round liên tiếp, không sleep và không retry response lỗi.
+
+Mong đợi mỗi round đủ 50×201, 50 transferId khác nhau; delta transfer/ledger/audit/outbox/key là 50/100/50/50/50. Mỗi P giảm 5.000 và H tăng 25.000 đồng/round. Sau round10 mỗi P còn 50.000, H có 250.000. Checker sau từng round phải PASS, tổng Nợ=Có, balance toàn hệ thống 0, không khách âm và đủ cặp bút toán. Bất cứ 500/503, treo, số dư/count lệch đều là failure cần điều tra.
+
+Test fixture dùng pool60, không thay cấu hình production. Unset DATABASE_URL chỉ trong process con ép Testcontainers PostgreSQL 17. Suite chạy trong job db CI sẵn, chứa đủ 10 round; chỉ ghi nhận CI đạt khi có run URL thật. Demo correctness không thay benchmark k6/NFR hay nghiệm thu AWS.
+
 ## Demo 2 — request trùng song song
 
 Từ checkout sạch, Node 24 và Docker Desktop đang chạy, cài dependency bằng `npm --prefix backend ci`. Trong Git Bash, từ `backend/` chạy:

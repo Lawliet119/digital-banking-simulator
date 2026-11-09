@@ -90,7 +90,7 @@ class DepositFixtureConfig {
 /** Actual modules, JWT/identity and Pino context. Only test configuration supplied. */
 export async function startDepositApp(
   databaseUrl: string,
-  options: { timeouts?: Partial<DbTimeouts>; rateLimit?: RateLimitFixture } = {},
+  options: { timeouts?: Partial<DbTimeouts>; rateLimit?: RateLimitFixture; poolMax?: number } = {},
 ) {
   const issuer = await createDevTokenIssuer(),
     tempRoot = resolve(tmpdir());
@@ -126,7 +126,7 @@ export async function startDepositApp(
           entities: [],
           synchronize: false,
           retryAttempts: 0,
-          extra: { max: 30, connectionTimeoutMillis: 1000 },
+          extra: { max: options.poolMax ?? 30, connectionTimeoutMillis: 1000 },
         }),
         DepositFixtureConfig.forRoot(
           {
