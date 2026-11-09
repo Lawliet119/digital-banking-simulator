@@ -157,6 +157,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/redis-slow-transfer.services-spec.ts
       - name: Risk consumer, transfer to flag through the real relay and consumer loops (DBS-111)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/risk-scoring.services-spec.ts
+      - name: Worker stop, crash and restart lose no flag (DBS-124)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/worker-recovery.services-spec.ts
 
   db:
     name: db
