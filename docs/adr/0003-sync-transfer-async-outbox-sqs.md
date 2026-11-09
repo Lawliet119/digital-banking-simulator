@@ -62,6 +62,7 @@ Tham số chốt cho v1:
 ## Cách kiểm chứng
 
 - Kill relay giữa chừng rồi bật lại: sự kiện vẫn tới đủ queue (DBS-91, Demo 3).
+- Kill worker rồi bật lại: mọi cờ cần có vẫn xuất hiện, không trùng ([DBS-124](../features/DBS-124-worker-down-recovery.md)); kịch bản Demo 3 ở [docs/demos](../demos/demo-3-failure-recovery.md).
 - Gửi cùng `eventId` 3 lần thì chỉ có 1 hiệu ứng; message sai schema vào DLQ ngay (DBS-101, DBS-104).
 - Notification lỗi liên tục không ảnh hưởng risk và chuyển tiền (DBS-125, DBS-183).
 - Đo thời gian từ giao dịch tới cờ ở 12, 60 và 120 RPS (DBS-174): p95 < 5 giây.
