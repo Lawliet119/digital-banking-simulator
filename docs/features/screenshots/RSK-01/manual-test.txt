@@ -1,0 +1,198 @@
+e688e1018eb73a2e245c769463c9609faa7b1d34
+== RSK-01 manual test 2026-11-09T18:49:47Z on dbs63-fix-pg:55433/banking_rsk01 (seed SQL for users/customers/accounts/transfers)
+-- M-RSK01-01 migration:run, then look at the tables
+$ npm run migration:run
+          GRANT SELECT, INSERT ON public.risk_decisions TO dbs_worker;
+        END IF;
+      END $$
+Migration CreateRiskDecisions1793836800000 has been executed successfully.
+psql> SELECT name FROM migrations ORDER BY timestamp DESC LIMIT 2
+                     name                     
+----------------------------------------------
+ CreateRiskDecisions1793836800000
+ AddNotificationLogCorrelationId1793750400000
+(2 rows)
+
+psql> \d risk_decisions
+                               Table "public.risk_decisions"
+       Column        |           Type           | Collation | Nullable |      Default      
+---------------------+--------------------------+-----------+----------+-------------------
+ transfer_id         | uuid                     |           | not null | 
+ event_id            | uuid                     |           | not null | 
+ rule_set_version    | integer                  |           | not null | 
+ mode                | text                     |           | not null | 
+ rule_score          | integer                  |           | not null | 
+ feature_snapshot    | jsonb                    |           | not null | 
+ ai_status           | text                     |           | not null | 
+ ai_applied_weight   | integer                  |           | not null | 
+ probability         | double precision         |           |          | 
+ provider            | text                     |           |          | 
+ requested_model     | text                     |           |          | 
+ response_model      | text                     |           |          | 
+ rubric_sha256       | text                     |           |          | 
+ input_sha256        | text                     |           |          | 
+ provider_request_id | text                     |           |          | 
+ decided_at          | timestamp with time zone |           | not null | clock_timestamp()
+Indexes:
+    "risk_decisions_pkey" PRIMARY KEY, btree (transfer_id)
+    "risk_decisions_transfer_version" UNIQUE CONSTRAINT, btree (transfer_id, rule_set_version)
+Check constraints:
+    "risk_decisions_ai_applied_weight_check" CHECK (ai_applied_weight >= 0)
+    "risk_decisions_ai_status_check" CHECK (ai_status = ANY (ARRAY['DISABLED'::text, 'SUCCEEDED'::text, 'UNAVAILABLE'::text, 'REFUSED'::text, 'INVALID_RESPONSE'::text, 'BUDGET_EXHAUSTED'::text, 'CONFIG_INVALID'::text]))
+    "risk_decisions_feature_snapshot_check" CHECK (jsonb_typeof(feature_snapshot) = 'object'::text)
+    "risk_decisions_input_sha256_check" CHECK (input_sha256 ~ '^[0-9a-f]{64}$'::text)
+    "risk_decisions_mode_check" CHECK (mode = ANY (ARRAY['rule_only'::text, 'rules_with_external_ai'::text]))
+    "risk_decisions_mode_metadata" CHECK (mode = 'rule_only'::text AND ai_status = 'DISABLED'::text AND probability IS NULL AND ai_applied_weight = 0 AND provider IS NULL AND requested_model IS NULL AND response_model IS NULL AND rubric_sha256 IS NULL AND input_sha256 IS NULL AND provider_request_id IS NULL OR mode = 'rules_with_external_ai'::text AND (ai_status <> ALL (ARRAY['DISABLED'::text, 'CONFIG_INVALID'::text])) AND provider IS NOT NULL AND requested_model IS NOT NULL AND rubric_sha256 IS NOT NULL AND input_sha256 IS NOT NULL OR mode = 'rules_with_external_ai'::text AND ai_status = 'CONFIG_INVALID'::text AND probability IS NULL AND ai_applied_weight = 0 AND response_model IS NULL AND provider_request_id IS NULL)
+    "risk_decisions_rubric_sha256_check" CHECK (rubric_sha256 ~ '^[0-9a-f]{64}$'::text)
+    "risk_decisions_rule_score_check" CHECK (rule_score >= 0)
+    "risk_decisions_status_probability" CHECK (ai_status = 'SUCCEEDED'::text AND probability IS NOT NULL AND probability >= 0::double precision AND probability <= 1::double precision OR ai_status <> 'SUCCEEDED'::text AND probability IS NULL AND ai_applied_weight = 0)
+    "risk_decisions_total_fits_int" CHECK ((rule_score::bigint + ai_applied_weight::bigint) <= 2147483647)
+Foreign-key constraints:
+    "risk_decisions_rule_set_version_fkey" FOREIGN KEY (rule_set_version) REFERENCES risk_rule_sets(version) ON DELETE RESTRICT
+    "risk_decisions_transfer_id_fkey" FOREIGN KEY (transfer_id) REFERENCES transfers(id) ON DELETE RESTRICT
+Referenced by:
+    TABLE "fraud_flags" CONSTRAINT "fraud_flags_decision_fkey" FOREIGN KEY (transfer_id, rule_set_version) REFERENCES risk_decisions(transfer_id, rule_set_version) ON DELETE RESTRICT
+Triggers:
+    risk_decisions_append_only BEFORE DELETE OR UPDATE ON risk_decisions FOR EACH ROW EXECUTE FUNCTION forbid_mutation()
+    risk_decisions_no_truncate BEFORE TRUNCATE ON risk_decisions FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation()
+
+psql> SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conname IN ('fraud_flags_decision_fkey','fraud_rule_hits_weight_check')
+           conname            |                                                  pg_get_constraintdef                                                   
+------------------------------+-------------------------------------------------------------------------------------------------------------------------
+ fraud_flags_decision_fkey    | FOREIGN KEY (transfer_id, rule_set_version) REFERENCES risk_decisions(transfer_id, rule_set_version) ON DELETE RESTRICT
+ fraud_rule_hits_weight_check | CHECK ((weight >= 0))
+(2 rows)
+
+-- M-RSK01-02 two sessions claim the same transfer
+transfer T=47a26f62-a956-424d-96c3-4037bb9f2c2b
+session 2 starts at 01:49:54.425 while session 1 holds its claim
+session 2 returned at 01:49:56.621
+session 1 output:
+BEGIN
+             transfer_id              |   who    
+--------------------------------------+----------
+ 47a26f62-a956-424d-96c3-4037bb9f2c2b | session1
+(1 row)
+
+INSERT 0 1
+ pg_sleep 
+----------
+ 
+(1 row)
+
+COMMIT
+session 2 output:
+ transfer_id | who 
+-------------+-----
+(0 rows)
+
+INSERT 0 0
+psql> SELECT transfer_id, event_id FROM risk_decisions
+             transfer_id              |               event_id               
+--------------------------------------+--------------------------------------
+ 47a26f62-a956-424d-96c3-4037bb9f2c2b | 11111111-1111-4111-8111-111111111111
+(1 row)
+
+-- M-RSK01-03 a flag without a decision
+psql> INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version) VALUES('4d26d264-a56d-4b72-bb33-ddcc1ec74bb7',45,'MEDIUM',1)
+ERROR:  insert or update on table "fraud_flags" violates foreign key constraint "fraud_flags_decision_fkey"
+DETAIL:  Key (transfer_id, rule_set_version)=(4d26d264-a56d-4b72-bb33-ddcc1ec74bb7, 1) is not present in table "risk_decisions".
+psql> INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version) VALUES('47a26f62-a956-424d-96c3-4037bb9f2c2b',45,'MEDIUM',1)
+INSERT 0 1
+-- M-RSK01-04 owner tries to change history
+psql> UPDATE risk_decisions SET rule_score = 0
+ERROR:  UPDATE on risk_decisions is not allowed (append-only)
+CONTEXT:  PL/pgSQL function forbid_mutation() line 3 at RAISE
+psql> DELETE FROM risk_decisions
+ERROR:  DELETE on risk_decisions is not allowed (append-only)
+CONTEXT:  PL/pgSQL function forbid_mutation() line 3 at RAISE
+psql> TRUNCATE risk_decisions CASCADE
+NOTICE:  truncate cascades to table "fraud_flags"
+NOTICE:  truncate cascades to table "fraud_rule_hits"
+ERROR:  TRUNCATE on risk_decisions is not allowed (append-only)
+CONTEXT:  PL/pgSQL function forbid_mutation() line 3 at RAISE
+psql> TRUNCATE risk_decisions
+ERROR:  cannot truncate a table referenced in a foreign key constraint
+DETAIL:  Table "fraud_flags" references "risk_decisions".
+HINT:  Truncate table "fraud_flags" at the same time, or use TRUNCATE ... CASCADE.
+-- M-RSK01-05 application roles
+psql> BEGIN; SET LOCAL ROLE dbs_worker; INSERT INTO risk_decisions(transfer_id,event_id,rule_set_version,mode,rule_score,feature_snapshot,ai_status,ai_applied_weight) VALUES('4d26d264-a56d-4b72-bb33-ddcc1ec74bb7','33333333-3333-4333-8333-333333333333',1,'rule_only',0,'{}','DISABLED',0) RETURNING transfer_id; ROLLBACK;
+BEGIN
+SET
+             transfer_id              
+--------------------------------------
+ 4d26d264-a56d-4b72-bb33-ddcc1ec74bb7
+(1 row)
+
+INSERT 0 1
+ROLLBACK
+psql> BEGIN; SET LOCAL ROLE dbs_api; INSERT INTO risk_decisions(transfer_id,event_id,rule_set_version,mode,rule_score,feature_snapshot,ai_status,ai_applied_weight) VALUES('4d26d264-a56d-4b72-bb33-ddcc1ec74bb7','44444444-4444-4444-8444-444444444444',1,'rule_only',0,'{}','DISABLED',0); ROLLBACK;
+BEGIN
+SET
+ERROR:  permission denied for table risk_decisions
+psql> BEGIN; SET LOCAL ROLE dbs_api; SELECT count(*) FROM risk_decisions; ROLLBACK;
+BEGIN
+SET
+ count 
+-------
+     1
+(1 row)
+
+ROLLBACK
+-- M-RSK01-06 revert with a decision present, then on an empty database
+$ npm run migration:revert
+    at async DataSource.undoLastMigration (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\main\backend\node_modules\src\data-source\DataSource.ts:424:9)
+    at async Object.handler (C:\Users\ADMIN\orca\workspaces\digital-banking-simulator\main\backend\node_modules\src\commands\MigrationRevertCommand.ts:74:13) {
+  code: '55000'
+}
+psql> SELECT name FROM migrations ORDER BY timestamp DESC LIMIT 1
+               name               
+----------------------------------
+ CreateRiskDecisions1793836800000
+(1 row)
+
+psql> SELECT count(*) FROM risk_decisions
+ count 
+-------
+     1
+(1 row)
+
+$ npm run migration:run
+          GRANT SELECT, INSERT ON public.risk_decisions TO dbs_worker;
+        END IF;
+      END $$
+Migration CreateRiskDecisions1793836800000 has been executed successfully.
+$ npm run migration:revert
+11 migrations are already loaded in the database.
+CreateRiskDecisions1793836800000 is the last executed migration. It was executed on Thu Nov 05 2026 07:00:00 GMT+0700 (Indochina Time).
+Now reverting it...
+Migration CreateRiskDecisions1793836800000 has been reverted successfully.
+psql> SELECT to_regclass('public.risk_decisions') AS table_left, (SELECT count(*) FROM pg_constraint WHERE conname='fraud_flags_decision_fkey') AS fk_left
+ table_left | fk_left 
+------------+---------
+            |       0
+(1 row)
+
+$ npm run migration:run
+          GRANT SELECT, INSERT ON public.risk_decisions TO dbs_worker;
+        END IF;
+      END $$
+Migration CreateRiskDecisions1793836800000 has been executed successfully.
+psql> SELECT name FROM migrations ORDER BY timestamp DESC LIMIT 1
+               name               
+----------------------------------
+ CreateRiskDecisions1793836800000
+(1 row)
+
+-- M-RSK01-07 size of 10 000 decisions with the allowlisted snapshot
+psql> INSERT INTO risk_decisions(transfer_id,event_id,rule_set_version,mode,rule_score,feature_snapshot,ai_status,ai_applied_weight) SELECT id, gen_random_uuid(), 1, 'rule_only', 30, '{"amount":"50000000","fromBalanceBefore":"123456789012","fromAccountAgeHours":1234,"toAccountAgeHours":5678,"sameOwner":false,"transfers10m":3,"transfers1h":7,"historyCount30d":42,"historyMedian30d":"2500000","minutesSinceReverse":null,"newRecipients1h":2,"distinctRecipients24h":5}'::jsonb, 'DISABLED', 0 FROM transfers
+INSERT 0 10000
+psql> VACUUM ANALYZE risk_decisions
+VACUUM
+psql> SELECT count(*) AS rows, avg(pg_column_size(d.*))::int AS avg_row_bytes, pg_size_pretty(pg_relation_size('risk_decisions')) AS heap, pg_size_pretty(pg_indexes_size('risk_decisions')) AS indexes, pg_total_relation_size('risk_decisions') / count(*) AS bytes_per_row_total FROM risk_decisions d
+ rows  | avg_row_bytes |  heap   | indexes | bytes_per_row_total 
+-------+---------------+---------+---------+---------------------
+ 10000 |           480 | 5000 kB | 984 kB  |                 616
+(1 row)
+
+cleanup: banking_rsk01 dropped
