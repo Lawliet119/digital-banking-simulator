@@ -153,6 +153,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/health-readiness.services-spec.ts
       - name: Rate limit with real PostgreSQL and Valkey, slow and dead Redis (DBS-89)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/rate-limit.services-spec.ts
+      - name: Review Focus 5 - Transfer under slow and dead Redis (DBS-100)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/redis-slow-transfer.services-spec.ts
 
   db:
     name: db
