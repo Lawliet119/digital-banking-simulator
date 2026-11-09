@@ -329,7 +329,7 @@ Chỉ nhóm auditor được phép; admin-only cũng nhận 403. Thêm `actorUse
 
 `test/manual/audit-search-session.ts` cung cấp session kiểm thủ công trên **DB tạm riêng**, AppModule thật và dữ liệu audit SQL fixture. Chạy với `NODE_ENV=test`, `APP_ROLE=api`, local JWT keys và `DATABASE_URL` quản trị được cấp ngoài transcript; helper nhận `--port` và `--db-name-file`, chỉ bind loopback và in database name/fixture metadata, không in URL hoặc token. Giữ stdin mở rồi gửi `quit` hoặc Ctrl+C để đóng app, khôi phục admin URL và drop đúng DB tạm. Kịch bản Git Bash/curl/psql, đường dẫn Windows và bằng chứng nằm tại [DBS-103](../docs/features/DBS-103-audit-search.md#5-test-thủ-công).
 
-Session helper và dev signing tools chỉ có trong checkout dev/test, không đóng gói vào `dist/`. PostgreSQL role grants/full AC-8.1 vẫn chờ DBS-119; thu hồi phiên chờ DBS-114/186. Local/mock/targeted evidence không thay cho production ACL, CI hoặc kiểm trên AWS.
+Session helper và dev signing tools chỉ có trong checkout dev/test, không đóng gói vào `dist/`. Role grants có trong code/test DBS-119, triển khai RDS/ECS thật còn BL-103/195; thu hồi phiên Redis/SQL local có trong DBS-114, bằng chứng cloud còn DBS-186. Local/mock/targeted evidence không thay cho production ACL, CI hoặc kiểm trên AWS.
 
 ### 12. Dữ liệu demo (scripts/seed.ts, DBS-70)
 
@@ -399,3 +399,10 @@ Bước `docker build` và kết nối RDS thật **chưa chạy** (BL-106).
 Staging và production bắt buộc `TRUST_PROXY_HOPS` (≥ 1; ALB = 1). Để 0 thì mọi khách chung địa chỉ IP của ALB và rate limit theo IP sẽ chặn nhầm tất cả.
 
 Image không có `HEALTHCHECK`: service `api` được load balancer kiểm tra qua `/health/ready`, service `worker` không có cổng HTTP: ECS thay task khi tiến trình thoát, còn worker treo được phát hiện qua alarm tuổi outbox và tuổi message (docs/03 §14).
+
+
+### Thu hồi phiên ngay khi khóa tài khoản
+
+Guard ưu tiên marker epoch giây trong Redis để từ chối token cũ; miss/lỗi/chậm hoặc marker chưa đủ kết luận thì đọc PostgreSQL. Không cacheNULL, không cho phép từ cache cũ. Endpoint khóa publish cache chỉ sau COMMIT của attempt cuối; Redis SET lỗi vẫn giữ kết quả SQL. TTL dùng ACCESS_TOKEN_TTL_SECONDS, mặc định900. Unlock không hồi sinh token cũ.
+
+Chạy riêng: npm run test:db -- --runInBand --runTestsByPath test/db/session-revocation-cache.db-spec.ts (PG17/Valkey/proxy riêng, actual API role). Manual Git Bash: node scripts/manual-dbs114.cjs; có rollback, retry40001, stop/start/slow Redis và haiAPI dùng stale cache khi SET bị ACL từ chối. [Thiết kế/bằng chứng DBS-114](../docs/features/DBS-114-session-revocation.md).

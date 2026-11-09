@@ -1,0 +1,31 @@
+DBS-114 verification, 2026-11-09
+Final source commit: 1a4b08d30300b84ef87bc5c0014fd3bfbbd462da
+Commands from backend, exit 0 each:
+ npm run lint:check
+ npm run typecheck
+ npm run build
+ npm test -- --runInBand
+ npm run test:e2e -- --runInBand
+ npm run test:db -- --runInBand
+Final summaries:
+ unit: 89 passed suites; 1678 passed tests; 125.687s
+ e2e: 15 passed suites; 153 passed tests; 138.435s
+ db: 53 passed suites; 812 passed tests; 744.98s
+Targeted commands:
+ npm test -- --runInBand --runTestsByPath src/modules/identity/session-revocation-cache.spec.ts src/modules/identity/identity.service.spec.ts src/modules/identity/jwt-auth.guard.spec.ts src/modules/modules.spec.ts
+ 78 passed tests; 23.111s
+ npm run test:db -- --runInBand --runTestsByPath test/db/session-revocation-cache.db-spec.ts
+ 10 passed tests; 21.807s
+ npm run test:db -- --runInBand --runTestsByPath test/db/session-revocation-cache.db-spec.ts test/db/session-revocation.db-spec.ts
+ 15 passed tests; 27.396s
+ npm run test:services -- --runInBand --runTestsByPath test/services/rate-limit.services-spec.ts
+ 9 passed tests; 28.709s
+No skipped new tests. Existing 5 SQL revocation tests preserved unchanged.
+Manual: node scripts/manual-dbs114.cjs through Git Bash, tee raw manual-test.txt
+6/6 PASS on source commit above, private PostgreSQL17 and Valkey, actual dbs_api role.
+Red phase: missing cache/module TS2307/2305; missing DB helper => zero DB cases executed (not a SQL behavior failure).
+Guard red phase: invalid iat 4 bypass failures and 1 normalization failure before safe-integer implementation.
+Fixture diagnosis: Docker Desktop remaps host port after stop/start; recovery now reads docker port and rebuilds proxy/admin/client.
+Lint fixture async-without-await failure fixed by promisified Docker execFile, no dummy await.
+Full output read: expected injected reconciliation, JWT, cache and rate-limit warnings/errors, all summaries PASS and commands exit0.
+Cloud Cognito/ElastiCache/ECS/RDS TLS/failover NOT RUN; handoff BL-207. Review/merge and exact-head CI handoff BL-206.

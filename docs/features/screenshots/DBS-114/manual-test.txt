@@ -1,0 +1,11 @@
+1a4b08d30300b84ef87bc5c0014fd3bfbbd462da
+DBS-114 real PG17 / Valkey / local JWT / operator lock / cache failures
+M01 PASS: actual role= {"current_user":"dbs_api","session_user":"dbs_api"} customer/account= 4f02cca3-ac7c-488c-b94c-d86c0a8f8577 63d2afaa-e995-4677-a162-48069383eaa2 funded via HTTP1000000; GET200; no negative marker; invariants=PASS
+M02 PASS: lock200, epochSeconds=1794198197, TTL=900; next request401 SESSION_REVOKED, correlationId=9c8a4355-1de8-427f-a7eb-082433a16b2e; unlock does not revive old token; other user200; invariants=PASS
+M03 PASS: flush/miss401 via SQL and positive fill; real TCP delay250ms ->401 in 114ms; reset delay/new client ->401; invariants=PASS
+M04 PASS: stopped real Valkey; lock still COMMIT200; next request401 via SQL; restart with refreshed mapped port/proxy/client ->401; invariants=PASS
+M05 rollback PASS: forced audit failure500, status ACTIVE, SQL/cache marker absent, no lock audit/event; invariants=PASS
+M05 retry PASS: real SQLSTATE40001 attempt1 rolled back; attempt2 committed; exactly one SET observed= [{"attempt":2,"inside":false,"visible":1794198200,"value":"1794198200"}] one audit/event; invariants=PASS
+M05 stale-cache PASS: SQL INPUT old committed auth mark/cache=1794198140; real ACL denies SET; lockA200, SQLmark=1794198200, API-B401 SESSION_REVOKED correlationId=c55655ee-c87c-4d33-88d1-7ab235f887fa
+M06 PASS: apps/pools/proxy/admin closed; owned PG/Valkey containers removed; shared Compose untouched
+RESULT PASS:6/6 manual steps; no token/password output; money only via HTTP; no AWS

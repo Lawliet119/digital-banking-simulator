@@ -2,6 +2,8 @@
 
 Ai đang gọi và họ được làm gì. Dùng Cognito, không tự quản mật khẩu.
 
+> **Status:** Draft · **Owner:** Dev · **Verified against code:** JWT/roles, users và thu hồi phiên PostgreSQL/Valkey local; Cognito/HA cloud chưa kiểm.
+
 |             |                                                                                                       |
 | ----------- | ----------------------------------------------------------------------------------------------------- |
 | Use case    | UC-1 (liên kết user Cognito với customer) · UC-11 (thu hồi phiên)                                     |
@@ -12,7 +14,9 @@ Ai đang gọi và họ được làm gì. Dùng Cognito, không tự quản m�
 ## Phải giữ
 
 - Xác minh JWT bằng JWKS của Cognito; guard theo nhóm `customer` / `operator` / `auditor` / `admin`.
-- **Mốc thu hồi phiên:** token phát hành trước `users.sessions_revoked_at` bị từ chối với `ErrorCode.SESSION_REVOKED`. Nguồn sự thật là cột trong Postgres; Redis chỉ cache (`revoked_at:{userId}`, TTL = `ACCESS_TOKEN_TTL_SECONDS`). Redis lỗi → đọc Postgres. Hiện chỉ có phần Postgres: `JwtAuthGuard` đọc `sessions_revoked_at` mỗi request (so theo giây, `iat <= mốc` thì từ chối) và `IdentityService.revokeSessions(manager, userId)` đặt mốc trong transaction của người gọi; cache Redis và endpoint khóa tài khoản chưa có (BL-155).
+- **Mốc thu hồi phiên:** `users.sessions_revoked_at` là nguồn sự thật. `JwtAuthGuard` đọc `revoked_at:{userId}` qua libs/redis trước, chuỗi epoch giây/TTL=`ACCESS_TOKEN_TTL_SECONDS` (mặc định900). `iat <= marker` bị401 `SESSION_REVOKED`, kể cả cùng giây. Cache miss, lỗi/chậm, malformed hoặc marker chưa đủ để từ chối đều đọc SQL; không cacheNULL, không cho phép chỉ dựa trên cache cũ. SQL lỗi vẫn thất bại theo filter, không đổi thành401 hoặc cho qua. Cache giảm query cho token chắc chắn đã bị thu hồi; phiên có thể hợp lệ vẫn xác nhận nguồn SQL để tránh stale cache sau SET lỗi.
+- **Ghi cache:** `IdentityService.revokeSessions(manager,userId)` chỉ UPDATE trong transaction khóa tài khoản. Sau COMMIT, caller gọi `publishRevocation(userId,revokedAt)`; callback retry trả outcome, không ghi Redis/giữ mốc ngoài attempt. Publish trong `activeTransactionContext` bị TypeError trướcI/O; Redis SET lỗi saucommit không rollback thao tác. Cache fill từ SQL chỉ sau khi SELECT/transaction đọc kết thúc. Unlock không xóa mốc để hồi sinh token cũ. [DBS-114](../../../../docs/features/DBS-114-session-revocation.md) có proof PG/Valkey thật, rollback/retry, stale-cache và haiAPI.
+- **Wiring:** `SessionRevocationModule` global trong api/both dùng RedisModule, cung cấp một cache cho guard và accounts; SQL-only fixture hoặc worker không nạp module vẫn dùng đường SQL qua optional injection. Test runtime module và fixture114 dùng đúng module production, không fake Identity/guard.
 - Rate limit toàn cục theo user và IP (Redis); Redis lỗi → fail-open, WAF vẫn chặn ở biên.
 - Kiểm tra **sở hữu** ở service, không chỉ vai trò.
 - Dòng `users` được tạo bằng upsert theo `cognito_sub` ở token hợp lệ đầu tiên của mọi vai trò; không bao giờ đổi `sub → users.id` (DBS-52). `JwtAuthGuard` gọi `IdentityService.resolveUserId(sub)` **sau** khi verify xong và gán `request.user.userId` (luôn có giá trị khi request qua guard; lỗi DB thì 503, không phải 401). Hai câu SQL chạy trong một `TransactionService.run` để có `lock_timeout`/`statement_timeout`; cache `sub → userId` trong tiến trình giới hạn 10.000 mục (LRU, gộp request song song, không cache lỗi). Tính đúng đắn dựa vào `ON CONFLICT`, không dựa vào cache.

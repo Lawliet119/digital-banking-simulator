@@ -154,6 +154,8 @@ Dòng `users` được tạo bằng `INSERT … ON CONFLICT (cognito_sub) DO NOT
 
 ### 4.2 `accounts`
 
+Thu hồi phiên dùng `users.sessions_revoked_at` là nguồn sự thật: UPDATE trong transaction khóa tài khoản, chỉ publish `revoked_at:{userId}` epoch giây sang Redis sau COMMIT. TTL=`ACCESS_TOKEN_TTL_SECONDS`; không cacheNULL. Cache chỉ đủ để từ chối token có iat≤marker; mọi nhánh chưa đủ bằng chứng/lỗi/miss xác nhận SQL, tránh cache cũ cho qua lần thu hồi mới. Unlock không xóa mốc. [DBS-114](../../features/DBS-114-session-revocation.md) kiểm actual API role, commit/rollback/retry và Redis lỗi thật; [docs/03 §6.2](../../03_HIGH_LEVEL_ARCHITECTURE.md#62-khóa-tài-khoản-và-thu-hồi-phiên-uc-11) mô tả luồng.
+
 ```sql
 CREATE TABLE accounts (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),

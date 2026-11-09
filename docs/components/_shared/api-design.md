@@ -96,7 +96,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 | `ACCOUNT_LIMIT_REACHED` | `409` | Khách hàng đã có đủ 3 tài khoản (tính cả `ACTIVE` và `LOCKED`) khi gọi `POST /v1/accounts`. | Không |
 | `UNAUTHENTICATED` | `401` | Thiếu header `Authorization: Bearer`, JWT sai cấu trúc, sai chữ ký, sai `iss`/`client_id`/`token_use`, hoặc lỗi kết nối khi tra cứu `users`. | Không |
 | `TOKEN_EXPIRED` | `401` | Access token có chữ ký đúng nhưng đã quá hạn `exp` (cho phép client dùng refresh token lấy token mới). | Không |
-| `SESSION_REVOKED` | `401` | Access token có `iat * 1000 <= users.sessions_revoked_at` (phiên đã bị thu hồi khi khoá tài khoản). | Không |
+| `SESSION_REVOKED` | `401` | Access token có `iat <= floor(epoch(users.sessions_revoked_at))`; Redis ưu tiên từ chối, còn lại xác nhận SQL (phiên bị thu hồi ngay khi khóa). | Không |
 | `FORBIDDEN` | `403` | Người gọi đã xác thực nhưng không thuộc nhóm vai trò mà `@Roles(...)` yêu cầu. | Không |
 | `RATE_LIMITED` | `429` | Vượt ngưỡng `100 req/phút/IP` hoặc `10 lệnh chuyển/phút/khách`. Luôn kèm header `Retry-After`. | Không |
 | `SERVICE_TEMPORARILY_UNAVAILABLE` | `503` | Lỗi cơ sở dữ liệu tạm thời (deadlock sau khi đã retry, lock timeout `55P03`, hết kết nối pool). Luôn kèm header `Retry-After`. | Không |
@@ -162,7 +162,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 
 #### `GET /v1/identity/me`
 - **Auth:** Mọi người dùng có Bearer Access Token hợp lệ (`customer`, `operator`, `auditor`, `admin`).
-- **Hành vi:** [`JwtAuthGuard`](../../../backend/src/modules/identity/jwt-auth.guard.ts) xác thực chữ ký RS256 qua JWKS, tự động upsert dòng `users` ở lần gọi đầu tiên ([DBS-52](../../features/DBS-52-users-upsert-first-token.md)), đối chiếu `users.sessions_revoked_at` ([DBS-85](../../features/DBS-85-midnight-boundary.md)), rồi trả về thông tin định danh đã gắn trên `req.user`.
+- **Hành vi:** [`JwtAuthGuard`](../../../backend/src/modules/identity/jwt-auth.guard.ts) xác thực chữ ký RS256 qua JWKS, tự động upsert dòng `users` ở lần gọi đầu tiên ([DBS-52](../../features/DBS-52-users-upsert-first-token.md)), đối chiếu mốc thu hồi Redis/SQL ([DBS-114](../../features/DBS-114-session-revocation.md)), rồi trả về thông tin định danh đã gắn trên `req.user`.
 - **Response `200 OK` ([`AuthenticatedUser`](../../../backend/src/modules/identity/jwt-claims.ts)):**
   ```json
   {
@@ -448,7 +448,7 @@ Các endpoint dưới đây đã được chốt hợp đồng trong [`docs/03_H
 
 | Endpoint | Hành vi Transaction & Bảo mật | Response |
 |---|---|---|
-| `POST /v1/operator/accounts/:id/lock` | `@Roles('operator')`. Khoá dòng `accounts` (`FOR UPDATE`), đổi `status = 'LOCKED'`, gọi `IdentityService.revokeSessions(manager, ownerUserId)` để cập nhật `users.sessions_revoked_at = clock_timestamp()`, ghi `outbox_events (AccountStatusChanged)` và `audit_log (action = 'account.lock')` trong **cùng một transaction**. Mọi access token phát hành trước mốc này sẽ nhận `401 SESSION_REVOKED` ngay lập tức. Tài khoản `SYSTEM` hoặc không tồn tại trả `404`. | `200 OK` `{ "id": "<uuid>", "status": "LOCKED", "updatedAt": "<iso>" }` |
+| `POST /v1/operator/accounts/:id/lock` | `@Roles('operator')`. Khoá dòng `accounts` (`FOR UPDATE`), đổi `status = 'LOCKED'`, gọi `IdentityService.revokeSessions(manager, ownerUserId)` để cập nhật `users.sessions_revoked_at = clock_timestamp()`, ghi `outbox_events (AccountStatusChanged)` và `audit_log (action = 'account.lock')` trong **cùng một transaction**. Sau COMMIT mới SET cache marker; Redis lỗi không rollback thao tác, guard vẫn xác nhận SQL. Mọi access token phát hành trước mốc này sẽ nhận `401 SESSION_REVOKED` ngay lập tức. Tài khoản `SYSTEM` hoặc không tồn tại trả `404`. | `200 OK` `{ "id": "<uuid>", "status": "LOCKED", "updatedAt": "<iso>" }` |
 | `POST /v1/operator/accounts/:id/unlock` | `@Roles('operator')`. Khoá dòng `accounts`, đổi `status = 'ACTIVE'`, ghi `outbox_events (AccountStatusChanged)` và `audit_log (action = 'account.unlock')` cùng transaction. | `200 OK` `{ "id": "<uuid>", "status": "ACTIVE", "updatedAt": "<iso>" }` |
 
 ### 5.2. Tra cứu & Duyệt Cờ Gian lận (UC-10 — `operator`)

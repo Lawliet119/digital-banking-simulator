@@ -1,6 +1,6 @@
 # DBS-114 · Thu hồi phiên qua Redis và PostgreSQL
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-114-session-revocation` · **PR:** chưa mở · **Cập nhật:** 2026-11-09
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-114-session-revocation` · **PR:** [tra cứu theo nhánh](https://github.com/Lawliet119/digital-banking-simulator/pulls?q=is%3Apr+head%3Afeat%2FDBS-114-session-revocation) · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
@@ -53,6 +53,7 @@ PG17 và Valkey riêng, proxy latency thật, actual LOGIN dbs_api (credential n
 ```mermaid
 sequenceDiagram
  participant O as Operator
+ participant K as Khách hàng
  participant A as API
  participant P as PostgreSQL
  participant R as Redis
@@ -61,13 +62,13 @@ sequenceDiagram
  P-->>A: COMMIT thành công
  A->>R: SET marker epoch giây và TTL
  A-->>O: 200 LOCKED
- O->>A: Request khách với token cũ
+ K->>A: Request khách với token cũ
  A->>R: GET revoked_at
  alt marker đủ để từ chối
- A-->>O: 401 SESSION_REVOKED
+ A-->>K: 401 SESSION_REVOKED
  else miss hoặc lỗi hoặc chưa đủ bằng chứng
  A->>P: SELECT sessions_revoked_at
- A-->>O: Kết quả theo SQL
+ A-->>K: Kết quả theo SQL
  end
 ```
 
@@ -132,7 +133,7 @@ Rủi ro: stale cache cho qua token, fillNULL che revocation, SETtrướccommit,
 
 **Gate phụ thiết kế (agent tự quyết, trước sửa):** chọn cache chỉ đủđể từchối thay vìcho phép chỉ từcachehit, vì staleRedis+SETfail cóthểbỏquathu hồi mới; đánhđổiphiên hợp lệ vẫn đọcSQL, khônghứa loại mọiSQLread. Đây là cụthểhóa PGnguồnsựthật/AC-11.1, khôngđảoquyếtđịnhADR-06/12; giữepochgiây/TTL900 và khôngcachedữliệugốc. Docs03P-1được ghiđúnggiới hạn. Globalcachemodule chỉHTTP (nhưRateLimitModule), Identityserviceoptionalcache đểfixturesSQL vàworker khôngmởsocketRedis mới; integration/wiringphải chứng minh productionAPIcache thực sự được nạp. Không thêmgói,env,ErrorCode,publicpayload hay schema.
 
-Chưa implement/pushPR cho114.
+Đã implement trong source commit `1a4b08d30300b84ef87bc5c0014fd3bfbbd462da`; chưa push trước G4. Không đổi code sau manual.
 
 Kiểm TDD: unit cache/module ban đầu đỏ TS2307/2305 vì chưa có API, DB đỏ missinghelper0case chạy, không nhận là lỗiSQL. Bổ sung testiat lỗi trước khi giữ phiên bản guard phòng vệ: Infinity/NaN/1000.5/quáMAXSAFE từng cho qua mốc thu hồi (4failure),iat−1 không chuẩn hóa0(1failure); sau đó đưa guard về rule iat nguyên không âm đã thiết kế. Đây là test đơn vị claims đã được verifier chuyển vào, không nhận Cognito thực tế đã phát token lỗi.
 
@@ -142,6 +143,43 @@ Chẩn đoán fixture recovery: run đầu5case đạt,4case chưa đạt do adm
 
 **G3 qua — agent tự quyết:** đã sweep DoD/AC/ADR/BL và caller, mọi bullet cóTC hoặc bàn giao. Chọn đặt suite PG+Valkey mới trong test/db để CI test:db tự khám phá, như suite money-flow đã dùng Valkey; CI services hiện chạy từng file explicit nên tên services mới sẽ không tự chạy. Không sửa workflow hoặc requiredcheck. Lệnh proving: unit cache/guard/module; test:db session-revocation + operator-account-status + audit-searchHTTP; test:services rate-limit hiện có; fullbaseline/unit/e2e/DB; manual GitBash trên sourceSHA cuối. Commit source xanh, sauđó docs/evidence; rủi ro/backout ở§7. Không câu hỏi chưa giải quyết.
 
+### Kết quả thực thi cuối
+
+Lint, typecheck, build đều exit0. Full unit **89 suites, 1678/1678** (125.687s); full e2e **15 suites, 153/153** (138.435s); full DB **53 suites, 812/812** (744.98s). Không skip/only/todo trong test mới. Đã đọc toàn bộ output; WARN/ERROR trong các case fault injection là dự kiến, tất cả suite pass. Target mới 10/10 DB (21.807s); suite mới cùng SQL cũ 15/15 (27.396s); rate-limit services 9/9 (28.709s), đủ đóng BL-155. Bằng chứng lệnh và tổng kết: [verification.txt](screenshots/DBS-114/verification.txt).
+
+| TC | Test chứng minh | Độ sâu |
+|---|---|---|
+| 01–08,11,12 | `backend/test/db/session-revocation-cache.db-spec.ts`, 10 case có ID tương ứng | Đạt: PG17, Valkey, HTTP, actual dbs_api; proxy/down/ACL/rollback/retry thật |
+| 09 | `session-revocation-cache.spec.ts`: transaction context, read/write errors; DB02–04 bổ trợ committed read/fill | Đạt |
+| 10 | `modules.spec.ts` role wiring và toàn bộ DB mới import production SessionRevocationModule | Đạt |
+| Regression | Full unit/e2e/DB, SQL revocation cũ giữ nguyên 5 test; rate-limit services 9/9 | Đạt |
+| DoD4 quy trình | PR/CI exact head sau push; Dev review và merge do nhóm thực hiện | Chưa hoàn tất trước G4, BL-206 |
+
+Manual `node scripts/manual-dbs114.cjs` qua Git Bash trên SHA trên: **6/6 đạt**, output thật tại [manual-test.txt](screenshots/DBS-114/manual-test.txt). M01 actual current_user/session_user=dbs_api; onboarding/open/deposit 1000000 qua HTTP, GET200, không negative cache. M02 lock200, marker epoch giây, TTL900, request tiếp401 SESSION_REVOKED có correlationId, unlock không hồi sinh token; user khác vẫn200. M03 flush/miss401 qua SQL, proxy delay250ms vẫn401 trong **114ms**, phục hồi client thành công. M04 stop Valkey thật: lock vẫn commit200, token cũ401, restart đọc lại mapped port rồi client mới phục hồi. M05 lỗi audit500 rollback cả SQL/cache/audit/event; retry SQLSTATE40001 chỉ SET một lần sau attempt2 commit (outside transaction, SQL visible); hai API với stale cache và ACL cấm SET vẫn từ chối401. M06 đóng app/pool/proxy/admin/container riêng, không động Compose chung. Invariant checker đạt sau các bước có tiền. SQL INPUT chỉ auth-state cũ hoặc trigger lỗi, không seed money.
+
+Ảnh lấy từ output thật, không dựng lại giao diện; đã xem đủ bốn ảnh để kiểm chữ và luồng:
+
+![Lock, fallback và recovery](screenshots/DBS-114/01-lock-fallback-recovery.png)
+![Rollback, retry và stale cache](screenshots/DBS-114/02-rollback-retry-stale.png)
+![Kiến trúc feature](screenshots/DBS-114/03-architecture.png)
+![Luồng kiến trúc tổng thể đã đồng bộ](screenshots/DBS-114/04-root-revocation.png)
+
+Phạm vi diff so origin/main khớp §7; giữ nguyên suite SQL cũ. Không dependency/env/schema/ADR/workflow thay đổi. Gate phụ và lỗi fixture đã ghi phía trên; không giảm assertion để xanh. Lint từng báo async không await ở fixture Docker, đã sửa dùng execFile promisified, rồi chạy lại toàn bộ baseline xanh.
+
+Bàn giao: **BL-206** cho Dev review, CI exact head và merge; **BL-207** cho Platform/Dev kiểm chứng AWS/Cognito/ElastiCache/ECS/RDS, TLS/failover (DBS-186). **Chưa chạy cloud** vì đây là phạm vi local, không có triển khai cloud trong task; local JWT/JWKS thật không thay thế Cognito thật. Không tự merge hoặc đổi sheet. Giới hạn được chấp nhận: phiên có thể hợp lệ vẫn đọc SQL; cache chỉ giúp từ chối nhanh token đã revoked để stale cache không làm mất an toàn.
+
 ## 9. Tài liệu
 
-Chờ kết quả thực thi.
+Đồng bộ README backend, Identity, Accounts; docs/03 §6.2 và bảng Redis; shared database-design và api-design (whole-second comparison, publish sau commit, SQL fallback); feature index và feature này. BACKLOG xóa **BL-155** sau đủ cả cache và rate-limit proof, thêm **BL-206/207** cho quy trình và cloud chưa chạy. Domain review hai vòng, manual raw, verification và bốn PNG ở screenshots/DBS-114.
+
+## Checklist G4
+
+- [x] 12/12 nhóm TC đạt đúng độ sâu; 0 đơn giản hóa; DoD4 quy trình bàn giao BL-206.
+- [x] Manual 6/6 trên source SHA1a4b08d, đường thành công đã chạy, cloud chưa chạy và lý do ghi rõ.
+- [x] Đủ bốn PNG và manual-test.txt; không token, Authorization, AWS account ID hoặc ARN trong bằng chứng.
+- [x] Diff so main khớp §7; gate phụ tên suite và lựa chọn cache an toàn ghi §8.
+- [x] Lint/typecheck/build, unit1678, e2e153, DB812 và services9 đều đạt.
+- [x] Docs fact đã đồng bộ; check-doc-links sạch322 file; status Plan approved tại tự kiểm, đổi Implemented sau G4.
+- [x] Bàn giao/DoD chưa đạt có BL-206/207; backlog đã giải quyết BL-155 đã xóa.
+
+**G4 qua — agent tự quyết:** bằng chứng local và domain review đủ, không có câu hỏi chưa giải quyết. Mở PR sau commit docs; kiểm CI exact head và ghi kết quả thật trong PR. Review/merge thuộc Dev khác, trạng thái sheet do user cập nhật.

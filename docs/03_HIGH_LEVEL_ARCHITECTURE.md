@@ -1,6 +1,6 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Accepted v1.12 (chốt 2026-10-11, bổ sung 2026-11-08) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding, mở tài khoản, lịch sử giao dịch, tra cứu operator, khóa/mở khóa tài khoản UC-11), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày, tra cứu lệnh), rate limit (IP + user), audit (ghi + tìm kiếm), outbox writer, outbox relay và consumer thông báo (`notification_log`), health, khung risk và adapter AI độc lập (`ADR-14`); kiểm thu hồi phiên ở `JwtAuthGuard`; script role `dbs_api` / `dbs_worker` đã có và được kiểm (chưa áp dụng cho task ECS); chưa có consumer và scoring đầy đủ của risk, cache Redis `revoked_at`, hạ tầng worker/SQS/alarm; job đối soát ledger (4 kiểm tra, lưu `reconciliation_runs`) đã chạy ở role worker (DBS-117) · **Cập nhật:** 2026-11-08
+> **Status:** Accepted v1.12 (chốt 2026-10-11, bổ sung 2026-11-08) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding, mở tài khoản, lịch sử giao dịch, tra cứu operator, khóa/mở khóa tài khoản UC-11), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày, tra cứu lệnh), rate limit (IP + user), audit (ghi + tìm kiếm), outbox writer, outbox relay và consumer thông báo (`notification_log`), health, khung risk và adapter AI độc lập (`ADR-14`); thu hồi phiên SQL + cache Redis sau COMMIT ở `JwtAuthGuard`/IdentityService; script role `dbs_api` / `dbs_worker` đã có và được kiểm (chưa áp dụng cho task ECS); chưa có consumer và scoring đầy đủ của risk, hạ tầng worker/SQS/alarm; job đối soát ledger (4 kiểm tra, lưu `reconciliation_runs`) đã chạy ở role worker (DBS-117) · **Cập nhật:** 2026-11-08
 
 > **Cập nhật ADR-14 (Accepted 2026-11-08):** Phương án rules `R1–R6` + API AI ngoài tiến trình ([ADR-14](adr/0014-fraud-rules-external-ai.md), [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md), [FRAUD-API-02](features/FRAUD-API-02-standalone-risk.md)) đã được nhóm chấp nhận để thay thế hướng học tham số (`v2`) và mô hình ONNX in-process (`v3`) của [ADR-08](adr/0008-fraud-detection-architecture.md). Baseline `rule_only` (`R1–R6`) vẫn là bắt buộc.
 
@@ -258,17 +258,21 @@ sequenceDiagram
     A->>DB: UPDATE users SET sessions_revoked_at = now() (chủ tài khoản)
     A->>DB: INSERT audit_log + outbox(AccountStatusChanged)
     A->>DB: COMMIT
-    A->>R: SET revoked_at:{userId} = now (TTL = thời gian sống tối đa của token)
+    A->>R: SET revoked_at:{userId} = epoch giây của mốc DB đã commit (TTL token)
     A-->>O: 200 LOCKED
     K->>A: Bất kỳ request nào với token cũ
     A->>R: GET revoked_at:{userId}
-    alt token phát hành trước mốc thu hồi
+    alt marker cache đủ để từ chối token
         A-->>K: 401 — phiên đã bị thu hồi
+    else miss hoặc lỗi hoặc marker chưa đủ kết luận
+        A->>DB: SELECT users.sessions_revoked_at
+        DB-->>A: Mốc đã commit hoặc NULL
+        A-->>K: Từ chối hoặc cho phép theo SQL
     end
-    Note over A,DB: Redis lỗi → đọc users.sessions_revoked_at từ Postgres. Kết quả như nhau, chỉ chậm hơn
+    Note over A,DB: Miss hoặc lỗi hoặc chưa đủ bằng chứng từ chối thì đọc users.sessions_revoked_at. Cache không cấp quyền.
 ```
 
-- **Nguồn sự thật là cột `users.sessions_revoked_at` trong Postgres.** Redis chỉ là bản cache để không phải đọc DB ở mọi request (P-1).
+- **Nguồn sự thật là cột `users.sessions_revoked_at` trong Postgres.** Cache epoch giây chỉ đủ để từ chối iat≤marker. Mọi nhánh còn có thể hợp lệ đều xác nhận SQL, kể cả cachehit nhưng marker cũ hơn token: SET sauCOMMIT có thể lỗi hoặc cachefill cũ về muộn. Không cacheNULL. P-1 ở đây giảm query cho phiên chắc chắn đã bị thu hồi, không hứa bỏ SQL trên mọi request. Cache fill chỉ sau SELECT/transaction đọc kết thúc; lỗi SQL không cho qua phiên. Xem [DBS-114](features/DBS-114-session-revocation.md).
 - Khách đăng nhập lại thì nhận token mới (phát hành sau mốc) và dùng được các tài khoản khác; tài khoản bị khóa vẫn bị chặn bởi kiểm tra `ACTIVE` trong transaction.
 - Thu hồi phiên làm **đồng bộ trong lệnh khóa**, không chờ sự kiện, để đạt AC-11.1 ("yêu cầu kế tiếp bị từ chối").
 
@@ -646,7 +650,7 @@ Theo P2 (slide 30–31), câu hỏi không phải "có dùng Redis không?" mà 
 | # | Mục đích | Không có Redis thì | Cấu trúc | TTL / invalidate | Phục vụ |
 |---|---|---|---|---|---|
 | **R-1** | **Rate limit toàn cục** theo user và IP | Mỗi task đếm riêng: 2 task → giới hạn thực tế gấp đôi | Counter theo cửa sổ cố định một phút, `INCR` + `EXPIRE`. Khóa `rl:ip:{ip}:{phút}` (100/phút, **middleware** `IpRateLimitMiddleware`, đếm cả đường dẫn không tồn tại, chạy trước JWT, bỏ qua `/health`) và `rl:user:{users.id}:{phút}` (10/phút, guard toàn cục `TransferRateLimitGuard` sau `RolesGuard`, bật bằng `@LimitTransfers()` ở `POST /v1/transfers`). IP lấy từ `request.ip` theo `TRUST_PROXY_HOPS` (0 bỏ qua `X-Forwarded-For`; 1 sau ALB). Vượt → `429 RATE_LIMITED` + `Retry-After` (giây đến hết phút). Cửa sổ cố định cho phép tối đa gấp đôi quanh ranh giới phút; metric `rate_limited_total{scope}` | Hết hạn theo cửa sổ (60 giây) | NFR-SEC-05 |
-| **R-2** | **Cache mốc thu hồi phiên** | Mọi request phải đọc `users` từ DB để biết token còn hợp lệ không | `revoked_at:{userId}` | TTL = thời gian sống tối đa của access token; ghi đè khi khóa | NFR-SEC-02 |
+| **R-2** | **Cache mốc thu hồi phiên** | Token chắc chắn bị thu hồi không cần đọc SQL; token có thể hợp lệ xác nhận SQL để tránh stale cache cho qua | `revoked_at:{userId}` (epoch giây) | TTL = thời gian sống tối đa access token; SET sau COMMIT, không cacheNULL | NFR-SEC-02 |
 | **R-3** | **Bộ đếm đặc trưng gian lận** cho R1 (velocity) và R5 (fan-out) | Mỗi sự kiện phải quét lịch sử bằng SQL; ở 120 RPS là tải phụ đáng kể lên RDS | Sorted set `risk:vel:{accountId}` (member = `transferId`, score = `occurredAt`); sorted set người nhận `risk:fan:{accountId}` (member = tài khoản nhận, score = `occurredAt`) | Cửa sổ trượt bằng `ZREMRANGEBYSCORE`; TTL 2 giờ | NFR-FRD-01 |
 | **R-4** | **Cache cấu hình** luật và hạn mức | Mỗi lệnh và mỗi sự kiện đọc lại cấu hình từ DB | Hai key: `cfg:risk:latest` (số phiên bản hiện hành) và `cfg:risk:v{n}` (nội dung bất biến của phiên bản n) | `latest` TTL 60 giây, miss hoặc lỗi thì `SELECT max(version)` từ `risk_rule_sets`; `v{n}` TTL dài vì không bao giờ đổi. Đổi cấu hình = version mới, có hiệu lực sau tối đa 60 giây | UC-12 |
 
