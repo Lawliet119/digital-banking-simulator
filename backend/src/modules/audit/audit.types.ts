@@ -8,12 +8,19 @@ export interface AuditTarget {
 }
 
 /**
- * Audit-only reason codes for denials that have no matching `ErrorCode` (a transfer/deposit
- * business rejection). Extend only when a caller needs to branch on it, same rule as `ErrorCode`.
+ * Audit-only reason codes for denials and operator administrative actions that have no matching
+ * `ErrorCode` (a transfer/deposit business rejection). Extend only when a caller needs to branch on
+ * it, same rule as `ErrorCode`.
  */
 export enum AuditReason {
   NOT_OWNER = 'NOT_OWNER',
   NO_PERMISSION = 'NO_PERMISSION',
+  OPERATOR_LOCK = 'OPERATOR_LOCK',
+  OPERATOR_UNLOCK = 'OPERATOR_UNLOCK',
+  SUSPICIOUS_ACTIVITY = 'SUSPICIOUS_ACTIVITY',
+  CONFIRMED_FRAUD = 'CONFIRMED_FRAUD',
+  CUSTOMER_REQUEST = 'CUSTOMER_REQUEST',
+  COMPLIANCE_HOLD = 'COMPLIANCE_HOLD',
 }
 
 /**
