@@ -2,6 +2,9 @@
 
 > **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-100-redis-slow-transfer` · **PR:** [#113](https://github.com/Lawliet119/digital-banking-simulator/pull/113) · **Cập nhật:** 2026-11-09
 
+
+> **Cập nhật sau merge (PR sửa test, 2026-11-09):** ngưỡng tuyệt đối p95 ≤ 250 ms của TC-100-01 đỏ ngẫu nhiên trên runner dùng chung của CI (đo được 305,8 ms với 20 lệnh tuần tự). Test nay đo thêm 5 lệnh chuyển tiền cơ sở khi Redis khỏe trong cùng lần chạy và yêu cầu p95 khi Redis chậm ≤ p95 cơ sở + 250 ms (hai lần gọi Redis, mỗi lần cắt ở 50 ms, tối đa khoảng 100 ms; 150 ms dư cho runner bận) và < 1 s (p99 chuyển tiền, docs/03 §14). Số dư kỳ vọng ở TC-100-02 đổi theo: 97.000.000 và 3.000.000. Số 250 ms ở các mục trên là ngưỡng lúc viết, giờ chỉ còn ý nghĩa tham khảo; M-100-02 (script thủ công) giữ nguyên.
+
 ## 1. Bối cảnh
 
 - **Task trên board:** Task · Tuần 3 · Ưu tiên: High · Assignee: `Dev` · Status: `To Do` · Deliverable/Demo: `Demo 3`.
