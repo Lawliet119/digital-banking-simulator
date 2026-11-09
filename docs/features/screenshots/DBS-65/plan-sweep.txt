@@ -1,0 +1,13 @@
+{
+  "task": "DBS-65",
+  "phase": "G3 plan validation",
+  "sourceFiles": 7,
+  "automatedCases": 9,
+  "manualSteps": 10,
+  "dodBullets": 4,
+  "checkedTokens": 42,
+  "missing": [],
+  "implementationStarted": false,
+  "executionEvidence": "not yet run",
+  "result": "PASS"
+}

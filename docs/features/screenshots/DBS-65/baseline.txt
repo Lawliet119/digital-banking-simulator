@@ -1,0 +1,22 @@
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+BASE a10dad4; unit 1135/1135. Initial e2e failed ECONNREFUSED because Docker was down; docker desktop start + docker compose up -d restored services. Recovered run follows.
+Test Suites: 70 passed, 70 total
+Tests:       1135 passed, 1135 total
+Snapshots:   0 total
+Time:        110.592 s, estimated 111 s
+Ran all test suites.
+Test results written to: ..\..\baseline-new-unit.json
+
+Test Suites: 15 passed, 15 total
+Tests:       153 passed, 153 total
+Snapshots:   0 total
+Time:        129.951 s
+Ran all test suites.
+Test results written to: ..\..\baseline-new-e2e.json
