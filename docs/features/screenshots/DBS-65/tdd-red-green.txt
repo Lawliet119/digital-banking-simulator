@@ -1,0 +1,62 @@
+DBS-65 test-only verification. No production code modified.
+Node24.15 native exit -1073740791 (0xC0000409), no assertion output; root cause unresolved.
+Diagnostic --jitless failed in ssh2 because WebAssembly is disabled; not an acceptance run.
+Node24.22.1 exposed a test oracle that incorrectly rejected the fixed phrase Authorization header. Corrected to detect leaked values; no guard or production change.
+Portable Node24.22.2 downloaded from nodejs.org, SHA256 ca1bff5d8ead13c9f2ea404a176db46bd430704d5b5113734049fa365e7799e2 verified.
+Local negative control changes ONLY expected A700000 to A700001, then restores exact original file in finally. Diagnostic name-filter runs have skipped unselected cases; acceptance suite runs all8 with zero skips.
+LOCAL NEGATIVE CONTROL (not GitHub CI):
+FAIL test/db/money-flow.db-spec.ts (11.366 s)
+  ● DBS-65 full HTTP/JWT money flow on real PostgreSQL and Valkey › TC-65-01 onboard → open → deposit → transfer → both balances, audit and outbox
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+    @@ -1,10 +1,10 @@
+      Object {
+        "balances": Object {
+          "00000000-0000-4000-8000-000000000001": "-1000000",
+          "3576ba16-834e-44c0-ad24-af94c08a6493": "300000",
+    -     "8d15e99b-8b8a-445e-8d6a-29359b898786": "700001",
+    +     "8d15e99b-8b8a-445e-8d6a-29359b898786": "700000",
+        },
+        "events": 2,
+        "keys": 2,
+        "lines": 4,
+        "transfers": 2,
+
+      323 |   it('TC-65-01 onboard → open → deposit → transfer → both balances, audit and outbox', async () => {
+      324 |     const { a, b } = await flow();
+    > 325 |     expect(await snapshot()).toMatchObject({
+          |                              ^
+      326 |       transfers: 2,
+      327 |       lines: 4,
+      328 |       keys: 2,
+
+      at Object.<anonymous> (test/db/money-flow.db-spec.ts:325:30)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 7 skipped, 8 total
+Snapshots:   0 total
+Time:        11.47 s
+Ran all test suites within paths "test/db/money-flow.db-spec.ts".
+
+PROCESS_EXIT=1
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        11.176 s
+Ran all test suites within paths "test/db/money-flow.db-spec.ts".
+Test results written to: ..\..\dbs65-suite.json
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/testcontainers-sample.db-spec.ts test/db/migration-revert.db-spec.ts test/db/money-flow.db-spec.ts --json --outputFile=../../dbs65-ci-smoke-final.json
+
+
+Test Suites: 3 passed, 3 total
+Tests:       13 passed, 13 total
+Snapshots:   0 total
+Time:        51.207 s
+Ran all test suites within paths "test/db/testcontainers-sample.db-spec.ts", "test/db/migration-revert.db-spec.ts", "test/db/money-flow.db-spec.ts".
+Test results written to: ..\..\dbs65-ci-smoke-final.json

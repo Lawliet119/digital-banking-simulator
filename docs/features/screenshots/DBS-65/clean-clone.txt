@@ -1,0 +1,11 @@
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/money-flow.db-spec.ts --json --outputFile=../dbs65-clean-results.json
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        65.354 s
+Ran all test suites within paths "test/db/money-flow.db-spec.ts".
+Test results written to: ..\dbs65-clean-results.json
+CODE_SHA=dff4013d9ca1c07840b58d2a429d4c635353f0f3; git diff --exit-code: 0; npm ci: 956 packages; no node_modules/config copied from source checkout; logs are untracked evidence only.

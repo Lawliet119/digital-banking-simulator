@@ -1,0 +1,54 @@
+DBS-65 LOCAL verification
+Code SHA dff4013d9ca1c07840b58d2a429d4c635353f0f3; main base a10dad4
+Runtime Node v24.22.2 portable; archive SHA256 ca1bff5d8ead13c9f2ea404a176db46bd430704d5b5113734049fa365e7799e2 verified against nodejs.org SHASUMS256.txt
+No production dependency/lockfile changes; DATABASE_URL absent for full DB/CI-subset runs.
+Command exit0: lint:check,typecheck,build. All test JSON reports failed=0,pending=0.
+Output follows:
+
+COMMAND lint
+
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+
+COMMAND typecheck
+
+> digital-banking-simulator-backend@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+COMMAND unit
+Test Suites: 70 passed, 70 total
+Tests:       1135 passed, 1135 total
+Snapshots:   0 total
+Time:        95.704 s, estimated 110 s
+Ran all test suites.
+Test results written to: ..\..\final-unit.json
+
+COMMAND e2e
+Test Suites: 15 passed, 15 total
+Tests:       153 passed, 153 total
+Snapshots:   0 total
+Time:        142.138 s
+Ran all test suites.
+Test results written to: ..\..\final-e2e.json
+
+COMMAND db
+Test Suites: 43 passed, 43 total
+Tests:       732 passed, 732 total
+Snapshots:   0 total
+Time:        580.576 s
+Ran all test suites.
+Test results written to: ..\..\final-db.json
+
+COMMAND build
+
+> digital-banking-simulator-backend@0.1.0 build
+> nest build
+
+Mermaid CLI render: exit0 using existing Edge headless (scratch artifact outside repository).
+actionlint: not installed, not run. CI workflow validated by existing-step diff and local selected3suites13/13; remote GitHub CI not run.
+Sensitive-value scan: no JWT/AWS access key/private key/ARN matches in task source/evidence. Manual names redacted; no Authorization headers/token values logged.
+G3 plan sweep:42 checks,0missing. Final source/docs7files; no production source or helpers modified.
+Local clean-clone8/8; Docker-unavailable process exit1 as expected; local negative control wrong700001 assertion exit1 and exact file restored.
+GitHub CI/PR/Dev review/merge and cloud: NOT RUN; BL183/184. Native24.15crash root cause unresolved,BL185.

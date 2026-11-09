@@ -1,0 +1,16 @@
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/money-flow.db-spec.ts
+
+Error: Jest: Got error running globalSetup - D:\VSF\cai-workspace\2026-11-08\th-c-hi-n-dbs\work\dbs\backend\test\support\jest-global-setup.ts, reason: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Error details: Could not find a working container runtime strategy
+    at assertDockerAvailable (D:\VSF\cai-workspace\2026-11-08\th-c-hi-n-dbs\work\dbs\backend\test\support\postgres.container.ts:36:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startPostgresContainer (D:\VSF\cai-workspace\2026-11-08\th-c-hi-n-dbs\work\dbs\backend\test\support\postgres.container.ts:62:5)
+    at async globalSetup (D:\VSF\cai-workspace\2026-11-08\th-c-hi-n-dbs\work\dbs\backend\test\support\jest-global-setup.ts:9:33)
+    at async D:\VSF\cai-workspace\2026-11-08\th-c-hi-n-dbs\work\dbs\backend\node_modules\@jest\core\build\index.js:3190:11
+    at async waitForPromiseWithCleanup (D:\VSF\cai-workspace\2026-11-08\th-c-hi-n-dbs\work\dbs\backend\node_modules\@jest\transform\build\index.js:135:5)
+    at async ScriptTransformer.requireAndTranspileModule (D:\VSF\cai-workspace\2026-11-08\th-c-hi-n-dbs\work\dbs\backend\node_modules\@jest\transform\build\index.js:630:16)
+    at async runGlobalHook (D:\VSF\cai-workspace\2026-11-08\th-c-hi-n-dbs\work\dbs\backend\node_modules\@jest\core\build\index.js:3186:9)
+    at async runJest (D:\VSF\cai-workspace\2026-11-08\th-c-hi-n-dbs\work\dbs\backend\node_modules\@jest\core\build\index.js:3552:5)
+    at async _run10000 (D:\VSF\cai-workspace\2026-11-08\th-c-hi-n-dbs\work\dbs\backend\node_modules\@jest\core\build\index.js:1556:5)
+PROCESS_EXIT=1
