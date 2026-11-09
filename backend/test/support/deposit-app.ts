@@ -24,7 +24,12 @@ import { AccountsModule } from '@modules/accounts';
 import { AuditModule } from '@modules/audit';
 import { OutboxModule } from '@modules/outbox';
 import { LedgerModule } from '@modules/ledger';
-import { IdentityModule, JwtAuthGuard, RolesGuard } from '@modules/identity';
+import {
+  IdentityModule,
+  JwtAuthGuard,
+  RolesGuard,
+  SessionRevocationModule,
+} from '@modules/identity';
 import { configureHttpApp } from '../../src/app.setup';
 import { createHttpLogging } from '@common/logging/http-logging';
 import { createDevTokenIssuer } from './dev-tokens';
@@ -98,6 +103,7 @@ export async function startDepositApp(
     poolMax?: number;
     /** DBS-144: the HTTP metrics middleware, mounted as `main.ts` mounts it. */
     metrics?: RequestHandler;
+    revocation?: { redisUrl: string };
   } = {},
 ) {
   const issuer = await createDevTokenIssuer(),
@@ -147,6 +153,7 @@ export async function startDepositApp(
           { ...DEFAULT_TIMEOUTS, ...options.timeouts },
         ),
         IdentityModule,
+        ...(options.revocation ? [SessionRevocationModule] : []),
         AccountsModule,
         AuditModule,
         OutboxModule,
@@ -161,10 +168,9 @@ export async function startDepositApp(
         ...(rateLimit ? [{ provide: APP_GUARD, useClass: TransferRateLimitGuard }] : []),
       ],
     });
-    if (rateLimit) {
-      builder
-        .overrideProvider(redisConfig.KEY)
-        .useValue({ url: rateLimit.redisUrl, commandTimeoutMs: 50 });
+    const redisUrl = options.revocation?.redisUrl ?? rateLimit?.redisUrl;
+    if (redisUrl) {
+      builder.overrideProvider(redisConfig.KEY).useValue({ url: redisUrl, commandTimeoutMs: 50 });
     }
     module = await builder.compile();
     app = module.createNestApplication<NestExpressApplication>({ logger: false });

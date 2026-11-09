@@ -2,7 +2,7 @@ import type { DynamicModule, Type } from '@nestjs/common';
 import { AppRole, runsHttp, runsWorkers } from '@common/app-role/app-role';
 import { AuditHttpModule, AuditModule } from './audit';
 import { HealthModule } from './health';
-import { IdentityModule } from './identity';
+import { IdentityModule, SessionRevocationModule } from './identity';
 import { OutboxModule, OutboxRelayModule } from './outbox';
 import { NotificationModule } from './notification';
 import { AccountsModule } from './accounts';
@@ -29,6 +29,7 @@ const sharedModules: ModuleRef[] = [
 ];
 
 const apiModules: ModuleRef[] = [
+  SessionRevocationModule,
   HealthModule,
   IdentityModule,
   AccountsModule,
