@@ -1,6 +1,6 @@
 # DBS-100 · Review Focus 5: Redis chậm giữa luồng chuyển tiền thì giao dịch vẫn đúng và nhanh
 
-> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-100-redis-slow-transfer` · **PR:** — · **Cập nhật:** 2026-11-09
+> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-100-redis-slow-transfer` · **PR:** [#113](https://github.com/Lawliet119/digital-banking-simulator/pull/113) · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
