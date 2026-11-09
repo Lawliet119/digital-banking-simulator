@@ -147,7 +147,7 @@ Source cuối đổi code: `f5b5c94ebd8df6e6c394a012d1e6ee5399458cfe`. Không s�
 | TC08 |7giá trị env không hợp lệ đúnginvalidKeys, mặc định7/custom30, DI retention đến job |đạt8testmới + regressionwiring |
 | TC09 |shutdown giữa lô giữ25keys/15marks; API không chạy; worker restart dọn phần dư |đạt |
 | TC10 |marker còn hạn giữ ON CONFLICT no-op; hết hạn+dọn cho claim lại |đạt |
-| DoD4 |CI exactHEAD trong PR, Dev review/merge |BL-204; chưa nhận review/merge |
+| DoD4 |CI exactHEAD trong PR, Dev review/merge |PR #114, đã review và merge ngày 2026-11-09 |
 
 Mọi case đạt đủ độ sâu đã mô tả; không mock DB, không đơn giản hóa hoặc skip. Marker test là claim SQL thật, không nhận là full SQS consumer. HTTP key timestamp PG có microsecond, JavaScript Date đọc với độ chính xácms nên TC06 đứng trong cửa sổ tới mốc7ngày rồi+1ms vượt mốc; exact-boundary microsecond được chứng minh riêng ở TC01.
 
@@ -170,7 +170,7 @@ Lệnh Git Bash `node scripts/manual-dbs136.cjs 2>&1 | tee ../docs/features/scre
 ![Replay, restart, cleanup](screenshots/DBS-136/02-replay-restart-cleanup.png)
 ![Kiến trúc đã render](screenshots/DBS-136/03-architecture.png)
 
-**Bàn giao/chưa chạy:** BL-204 Dev review/merge và xác minh CI trên exactHEAD tại PR; BL-205 full worker process/ECS/hardkill chưa chạy, manual là lifecycle thật trong cùng process. Queue redrive/AWS thật theo BL-051, không nhận local thay cloud. RDS role provisioning giữ BL-103/195. Không tắt daemon Docker chung. Các ID202/203 đã dùng ở nhánh DBS-122 nên task136 chọn204/205, không dùng lại.
+**Bàn giao/chưa chạy:** Dev review/merge đã xong ở PR #114 (dòng BL-204 cũ đã xóa); BL-218 full worker process/ECS/hardkill chưa chạy, manual là lifecycle thật trong cùng process. Queue redrive/AWS thật theo BL-051, không nhận local thay cloud. RDS role provisioning giữ BL-103/195. Không tắt daemon Docker chung. Các ID202/203 đã dùng ở nhánh DBS-122 nên task136 chọn204/205, không dùng lại.
 
 ### Checklist G4
 
@@ -180,10 +180,10 @@ Lệnh Git Bash `node scripts/manual-dbs136.cjs 2>&1 | tee ../docs/features/scre
 - [x] Diff từmain và working tree khớp danh sách §7, không file lạ; mọi thay đổi env/interface đã quyết định trước production.
 - [x] Lint/typecheck/build/unit/e2e/DB/services đã chạy, đọc đủ output và có số đếm.
 - [x] Docs fact cập nhật,321file/0link hỏng và diffcheck sạch; trạng thái Plan approved tại tự kiểm, đổi Implemented sau G4 qua.
-- [x] Bàn giao/DoD quy trình/giới hạn có BL-204/205 và các BL hiện hữu được nêu, BL-201 chỉ giải quyết phần retention; không tự merge/board.
+- [x] Bàn giao/DoD quy trình/giới hạn có BL-218 và các BL hiện hữu được nêu, BL-201 chỉ giải quyết phần retention; không tự merge/board.
 
 **G4 qua — agent tự quyết:** local và manual đều xanh, reviewer thiết kế APPROVE không finding. Chọn mở PR sẵn sàng review sau G4; ghi CI exactHEAD trực tiếp vào mô tả PR, không commit CI URL gây đổi HEAD. Công khai chưa full worker process/ECS/hardkill hoặc SQS redrive/AWS thật; không nhận Dev review/merge đã hoàn tất. Không còn ảnh thiếu, không có waiver Techlead.
 
 ## 9. Tài liệu
 
-Đã cập nhật backend README, module outbox README, env example, database-design retention/index, API design retention, feature index. BACKLOG thêm BL-204/205 và xử lý phần retention của BL-201, không xóa phần onboarding chưa giải quyết. Feature/evidence136 lưu raw,2ảnh manual,ảnh kiến trúc,domain review và kết quả kiểm tra. Kết quả CI động cập nhật ở PR để không tạo commit mới đổi HEAD đang xác minh.
+Đã cập nhật backend README, module outbox README, env example, database-design retention/index, API design retention, feature index. BACKLOG thêm BL-218 (BL-205 cũ, đánh lại số khi rebase) và xử lý phần retention của BL-201, không xóa phần onboarding chưa giải quyết. Feature/evidence136 lưu raw,2ảnh manual,ảnh kiến trúc,domain review và kết quả kiểm tra. Kết quả CI động cập nhật ở PR để không tạo commit mới đổi HEAD đang xác minh.
