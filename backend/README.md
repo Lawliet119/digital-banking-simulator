@@ -47,6 +47,7 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm run check:invariants` | kiểm năm bất biến sổ cái trên `DATABASE_URL` (hoặc bộ `DB_*` như ECS): exit 0 sạch, 1 có vi phạm, 2 không nhận là sạch; mã thoát là thẩm quyền cuối cùng |
 | `npm run auth:dev-keys` | sinh khóa ký thử nghiệm và JWKS vào `backend/.auth-local/` (bị gitignore); chỉ chạy được khi `NODE_ENV` là `development`, `test` hoặc để trống. Xem [mục 10](#10-token-thử-ở-local) |
 | `npm run --silent auth:dev-token -- --role <vai>` | in một access token mẫu của `customer`, `operator`, `auditor` hoặc `admin` (stdout chỉ có token); tùy chọn `--sub`, `--iat`, `--exp`, `--dir` |
+| `npm run seed` | tạo dữ liệu demo qua API (3 khách hàng, 4 tài khoản, 85tr nạp, 2 chuyển tiền mẫu); an toàn, idempotent, bảo toàn bất biến sổ cái (DBS-70). Xem [mục 12](#12-dữ-liệu-demo-scriptsseedts-dbs-70) |
 | `npm run migration:run` · `migration:revert` · `migration:show` | migration trên DB local |
 | `npm run migration:generate -- src/database/migrations/<Tên>` | sinh migration từ thay đổi entity |
 | `npm run migration:create -- src/database/migrations/<Tên>` | tạo migration rỗng |
@@ -321,6 +322,41 @@ Chỉ nhóm auditor được phép; admin-only cũng nhận 403. Thêm `actorUse
 `test/manual/audit-search-session.ts` cung cấp session kiểm thủ công trên **DB tạm riêng**, AppModule thật và dữ liệu audit SQL fixture. Chạy với `NODE_ENV=test`, `APP_ROLE=api`, local JWT keys và `DATABASE_URL` quản trị được cấp ngoài transcript; helper nhận `--port` và `--db-name-file`, chỉ bind loopback và in database name/fixture metadata, không in URL hoặc token. Giữ stdin mở rồi gửi `quit` hoặc Ctrl+C để đóng app, khôi phục admin URL và drop đúng DB tạm. Kịch bản Git Bash/curl/psql, đường dẫn Windows và bằng chứng nằm tại [DBS-103](../docs/features/DBS-103-audit-search.md#5-test-thủ-công).
 
 Session helper và dev signing tools chỉ có trong checkout dev/test, không đóng gói vào `dist/`. PostgreSQL role grants/full AC-8.1 vẫn chờ DBS-119; thu hồi phiên chờ DBS-114/186. Local/mock/targeted evidence không thay cho production ACL, CI hoặc kiểm trên AWS.
+
+### 12. Dữ liệu demo (scripts/seed.ts, DBS-70)
+
+Script seed tạo dữ liệu mẫu phục vụ trình diễn và kiểm thử hoàn toàn qua HTTP REST API (onboarding khách hàng `POST /v1/customers/me`, mở tài khoản `POST /v1/accounts`, operator nạp tiền `POST /v1/operator/deposits`, chuyển tiền mẫu `POST /v1/transfers`). Script tuyệt đối **không** ghi trực tiếp vào cơ sở dữ liệu (`UPDATE balance` hay `INSERT accounts`), đảm bảo tính toàn vẹn của sổ kép và kiểm tra bất biến sổ cái (`npm run check:invariants`) luôn sạch (`PASS`).
+
+Tính **idempotent**: Khi chạy lại nhiều lần, script tái sử dụng các tài khoản đã tồn tại và replay các lệnh nạp/chuyển tiền bằng các `Idempotency-Key` cố định tất định, không tạo tài khoản trùng và không nhân đôi số dư.
+
+#### Chạy ở local (`AUTH_MODE=local`):
+Trước tiên sinh khóa ký và khởi động ứng dụng (hoặc đã có sẵn `.auth-local/private.pem`):
+```bash
+# Trong thư mục backend/:
+npm run seed
+# Hoặc chỉ định rõ URL và đường dẫn khóa nếu khác mặc định:
+npm run seed -- --url http://127.0.0.1:3000 --key-dir .auth-local
+```
+
+#### Chạy trên Cloud / Staging (`AUTH_MODE=cognito`):
+Trên môi trường cloud, `dev-auth` bị vô hiệu hóa vì lý do bảo mật. Cần truyền token tương ứng cho 4 vai trò demo thông qua cờ dòng lệnh hoặc biến môi trường:
+```bash
+# Cách 1: Truyền qua CLI flags
+npm run seed -- --auth cloud --url https://api-dev.dbs.internal \
+  --operator-token "$DBS_OPERATOR_TOKEN" \
+  --customer1-token "$DBS_CUSTOMER_1_TOKEN" \
+  --customer2-token "$DBS_CUSTOMER_2_TOKEN" \
+  --customer3-token "$DBS_CUSTOMER_3_TOKEN"
+
+# Cách 2: Thiết lập biến môi trường
+export AUTH_MODE=cognito
+export DBS_API_URL=https://api-dev.dbs.internal
+export DBS_OPERATOR_TOKEN="ey..."
+export DBS_CUSTOMER_1_TOKEN="ey..."
+export DBS_CUSTOMER_2_TOKEN="ey..."
+export DBS_CUSTOMER_3_TOKEN="ey..."
+npm run seed
+```
 
 ## Docker
 
