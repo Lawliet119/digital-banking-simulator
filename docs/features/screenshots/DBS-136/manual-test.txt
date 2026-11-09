@@ -1,0 +1,12 @@
+f5b5c94ebd8df6e6c394a012d1e6ee5399458cfe
+DBS-136 real PostgreSQL17 / actual worker LOGIN / cleanup lifecycle / HTTP replay
+M01 SQL INPUT: dedup metadata only; no financial SQL seed. role= {"current_user":"dbs_worker","session_user":"dbs_worker"}
+M01 PASS: before-cutoff 1us deleted; exact cutoff and +1us retained: {"keys":["boundary","fresh"],"marks":["boundary","fresh"]}
+M02 budget PASS: {"outbox":0,"processed":20,"idempotency":20,"batches":5,"truncated":true} remaining= {"keys":5,"marks":5} no idle transaction between batches
+M02 resume PASS: removed final five from each table
+M03 PASS: SQLSTATE=55P03, elapsed=523ms, locked batch rolled back two keys; release/retry removed two
+M04 replay PASS: retained key, identical response, transferId= 206684b9-404f-41be-a75c-7a709746b19e invariants=PASS
+M04 expiry PASS: after removal a new command is allowed, transferId= 997a458d-e6b8-40ab-964e-3934b042507e balance= 2000000 invariants=PASS
+M05 PASS: shutdown leaves25 keys/15 marks; API does not clean; restarted worker drains remainder; invariants=PASS
+M06 PASS: application/pools closed; owned PostgreSQL removed; shared Compose untouched
+RESULT PASS: 6/6 manual steps; no AWS and no shared role changes

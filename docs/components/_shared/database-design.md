@@ -442,8 +442,8 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | **R4** có lệnh chuyển ngược trong 1 giờ (risk) | `transfers_pair_completed_idx`: `transfers (from_account_id, to_account_id, created_at) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Truy vấn theo cặp |
 | Relay lấy sự kiện chưa gửi (`outbox`) | `outbox_unpublished_idx`: `outbox_events (id) WHERE published_at IS NULL` | Chỉ chứa các dòng đang chờ: luôn nhỏ dù bảng lớn |
 | Dọn outbox cũ | `outbox_published_cleanup_idx`: `outbox_events (published_at) WHERE published_at IS NOT NULL` | Truy vấn tuổi dòng đã gửi |
-| Dọn processed_events cũ (7 ngày) | `processed_events_processed_at_idx`: `processed_events (processed_at)` | Truy vấn tuổi dòng dedup đã xử lý (`OutboxCleanupService`, DBS-92; kế hoạch kiểm trong `outbox-cleanup.db-spec`) |
-| Dọn idempotency cũ | `idempotency_keys_created_idx`: `idempotency_keys (created_at)` | |
+| Dọn processed_events cũ (ít nhất7 ngày) | `processed_events_processed_at_idx`: `processed_events (processed_at)` | `OutboxCleanupService`: cutoff Clock, ORDER BY processed_at LIMIT; EXPLAIN thật trong `dedup-cleanup.db-spec.ts` |
+| Dọn idempotency cũ (ít nhất7 ngày) | `idempotency_keys_created_idx`: `idempotency_keys (created_at)` | Cùng job, cutoff Clock và ORDER BY created_at LIMIT; EXPLAIN thật, không ép planner |
 | Truy vết theo `correlationId` (UC-8, AC-8.2) | `audit_log (correlation_id)` | Truy vấn nóng nhất của kiểm toán viên |
 | Lọc audit theo người, theo hành động | `audit_log (actor_user_id, occurred_at DESC)`, `audit_log (action, occurred_at DESC)` | |
 | Hàng đợi cờ chưa review, HIGH lên trước (UC-10) | `fraud_flags (risk_level, created_at DESC) WHERE review_status = 'OPEN'` | Chỉ chứa cờ OPEN, cỡ nhỏ và đúng truy vấn |
@@ -616,13 +616,15 @@ Down của migration fraud phải DROP hai trigger của mình trước khi DROP
 |---|---|---|---|
 | `ledger_entries`, `transfers`, `audit_log` | **Vĩnh viễn** | Không dọn | Dữ liệu tài chính và kiểm toán |
 | `accounts`, `customers`, `users`, `risk_rule_sets`, `fraud_*` | Vĩnh viễn | Không dọn | |
-| `idempotency_keys` | **7 ngày** (ADR-05) | Job `worker` xóa `created_at < now() - 7 days` | Gửi lại sau 7 ngày với cùng key sẽ bị coi là lệnh mới; chấp nhận và nêu trong tài liệu API |
+| `idempotency_keys` | **Ít nhất7 ngày** (ADR-05), `IDEMPOTENCY_KEY_RETENTION_DAYS` mặc định7,7–3650 | `OutboxCleanupService` ở worker xóa `created_at < cutoff`, Clock UTC chốt đầu lượt | Khi key hết hạn và đã bị dọn, cùng key có thể trở thành lệnh mới; khi key còn tồn tại vẫn replay. Không hứa xóa đúng giây hết hạn |
 | `outbox_events` | Đã gửi + `OUTBOX_RETENTION_DAYS` (mặc định 7) | Job `worker` (`OutboxCleanupService`) xóa `published_at < now() - N days` theo lô 1000 dòng | Dòng chưa gửi không bao giờ bị xóa (`published_at IS NOT NULL`; chốt ở DB: BL-180) |
-| `processed_events` | **≥ thời gian giữ message của SQS + dư**; `PROCESSED_EVENTS_RETENTION_DAYS` (mặc định và tối thiểu 7) | Job `worker` (cùng `OutboxCleanupService`, khóa advisory chống hai job chạy chồng) | Giữ 7 ngày vì queue giữ message 4 ngày (ADR-03); ngắn hơn thì một message giao lại muộn sẽ bị xử lý hai lần |
+| `processed_events` | **≥ thời gian giữ message của SQS + dư**; `PROCESSED_EVENTS_RETENTION_DAYS` (mặc định/min7,max3650) | Cùng job worker, `processed_at < cutoff`; advisory riêng theo bảng | Queue4ngày, DLQ6ngày, marker7ngày; Ops phải nâng retention trước khi nới cửa sổ queue/redrive (BL-051) |
 | `notification_log` | 30 ngày | Job `worker` | v1 chỉ để quan sát |
 | `reconciliation_runs` | 90 ngày | Job `worker` | |
 
 Job dọn **xóa theo lô nhỏ** (ví dụ 5.000 dòng mỗi lần, lặp), không `DELETE` một phát cả triệu dòng: một câu `DELETE` lớn giữ khóa và sinh bloat. Chúng dùng đúng các index dọn ở [§6.1](#6-index).
+
+`OutboxCleanupService` chạy khi worker khởi động và mỗi giờ:1000dòng/lô,200lô mỗi bảng mỗi lượt; đầy budget chạy tiếp sau1s, nghỉ25ms sau commit. Hai bảng dedup dùng cùng instant Clock đọc đầu lượt, giữ timestamp bằng cutoff; mỗi bảng có advisory xact lock riêng, không cần thêm UPDATE grant. Mỗi batch có lock_timeout500ms/statement_timeout2s/idle2s; row bị giữ làm batch rollback55P03 rồi thử lại trong lượt sau, không giữ transaction khi nghỉ. [DBS-136](../../features/DBS-136-dedup-cleanup.md) kiểm boundary, actual role, index, concurrency và replay tiền thật.
 
 **Đối soát:** job đọc toàn bộ `ledger_entries` nên chạy với `statement_timeout` nâng riêng (đã hỗ trợ: `tx.run(fn, { statementTimeoutMs: 60000 })`). Khi bảng lớn, đối soát *gia tăng* (chỉ các tài khoản có dòng mới từ lần chạy trước) mỗi giờ và đối soát *toàn bộ* mỗi ngày là đủ.
 

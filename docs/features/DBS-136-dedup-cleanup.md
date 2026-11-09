@@ -1,6 +1,6 @@
 # DBS-136 · Dọn khóa idempotency và dấu chống trùng
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `feat/DBS-136-dedup-cleanup` · **PR:** chưa mở · **Cập nhật:** 2026-11-09
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `feat/DBS-136-dedup-cleanup` · **PR:** [tra theo nhánh](https://github.com/Lawliet119/digital-banking-simulator/pulls?q=is%3Apr+head%3Afeat%2FDBS-136-dedup-cleanup) · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
@@ -42,6 +42,23 @@ Interface `CleanupResult` thêm `idempotency:number`, retention thêm idempotenc
 
 Test/manual fixture mới giữ PG17 **riêng**, migrations thật, chỉ bật LOGIN/password ngẫu nhiên cho dbs_api/worker trong cluster đó; app thật qua startDepositApp và JWT local, worker nguồn DB thật. Close app/pools/container cả setup lỗi. Seed SQL chỉ INPUT metadata dedup (user FK hợp lệ), không seed balance/ledger. Tiền trong replay test chỉ qua deposit HTTP. Không đọc sealed fraud dataset.
 
+```mermaid
+sequenceDiagram
+ participant T as Driver hoặc test
+ participant A as API thật
+ participant W as Cleanup worker
+ participant C as Clock
+ participant P as PostgreSQL17
+ T->>A: deposit và replay qua HTTP
+ A->>P: transaction tiền và idempotency key
+ T->>W: cleanOnce hoặc worker lifecycle
+ W->>C: now một lần đầu lượt
+ W->>P: advisory lock và DELETE lô có cutoff
+ P-->>W: count hoặc SQLSTATE55P03
+ W-->>T: kết quả sau commit hoặc rollback
+ T->>P: kiểm metadata và bất biến sổ cái
+```
+
 ## 4. Test tự động
 
 | ID | Truy vết | Lớp và Given–When–Then |
@@ -66,7 +83,7 @@ Driver `node scripts/manual-dbs136.cjs` qua Git Bash, SHA source dòng đầu ra
 
 | Bước | Thao tác | Quan sát |
 |---|---|---|
-| M01 |PG17riêng+migrations, actual LOGIN, INPUT SQL metadata ở ba phía cutoff; worker lifecycle start và stop |expired xóa; bằng/mới hơn giữ; worker log counts |
+| M01 |PG17riêng+migrations, actual LOGIN, INPUT SQL metadata ở ba phía cutoff; worker lifecycle start và stop |expired xóa; bằng/mới hơn giữ; worker result counts |
 | M02 |25row/bảng, batch10,budget2, xem count/state giữa batches |20/bảng rồi5lượt sau; không transaction mở giữa lô |
 | M03 |giữ row expired bằng owner, worker cleanOnce; release và retry |55P03, không partial batch; khôi phục xóa thành công |
 | M04 |deposit API thật; clock+7ngày, cleanup rồi replay; clock+1ms cleanup và gửi lại |cùng response trong hạn, lệnh mới sau xóa; checkerPASS mỗi lần |
@@ -98,6 +115,75 @@ Rủi ro: rút ngắn bảo vệ duplicate, hai job cùng xóa, lock gây nghẽ
 
 **G3 qua — agent tự quyết:** plan sweep DoD/ADRs/docs limitations/BL liên quan đều có TC hoặc dòng ngoài scope; không mục bỏ trống. Commands: target unit schema+cleanup wiring; `npm run test:db -- --runInBand --runTestsByPath test/db/dedup-cleanup.db-spec.ts test/db/outbox-cleanup.db-spec.ts test/db/db-roles.db-spec.ts`; services `outbox-relay.services-spec.ts`; baseline lint/typecheck/build/unit/e2e; manual Git Bash `node scripts/manual-dbs136.cjs`. Mỗi bước test trước, commit source khi xanh rồi manual trên sourceSHA cuối; commit docs sau G4. Giữ rủi ro/backout ở §7. Chưa implement, chưa PR/CI cho136.
 
+### Kết quả thực thi
+
+Source cuối đổi code: `f5b5c94ebd8df6e6c394a012d1e6ee5399458cfe`. Không sửa source sau manual. Diff code/docs nằm trong danh sách §7; không đổi dependency/schema/quyền/ADR/workflow. API docs sửa hai chỗ24h thành tối thiểu7ngày, BL-201 còn gap action onboarding.
+
+| Lệnh | Kết quả đã chạy |
+|---|---|
+| lint:check/typecheck/build |đạt |
+| Unit full |88suites1660/1660,85.839s |
+| E2E full |15suites153/153,105.911s |
+| DB target92/119/136 |3suites29/29,26.982s |
+| DB136 sau bổ sung kiểm timeout/rollback hai row |10/10,16.413s |
+| Unit schema/wiring |90/90,6.417s |
+| Services outbox PostgreSQL+ElasticMQ |15/15,83.507s |
+| DB full |53suites812/812,668.259s;0skip |
+| Docs linkcheck/diffcheck |321file,0link hỏng; diffcheck sạch |
+
+**Đỏ trước sửa:** unit schema có3failure: retention1,6,3651 chưa bị từ chối;84test khác đạt. DB mới ban đầu thiếu IDEMPOTENCY_BATCH_SQL/helper nên TS2305/2307,0test chạy (harness thiếu, không nhận là DB chứng minh lỗi). Sau implementation test DB boundary/index/roles/replay thực thi thật. Unit đỏ này khớp lỗ hổng validateEnv đã chạy ở G1.
+
+**Lỗi lệnh đã xử lý:** services gọi lần đầu thiếu DATABASE_URL,15case không vào setup. Đọc jest-services và helper xác định suite cần DB ngoài (CI có PostgreSQL service); cấp URL Compose local trong môi trường của đúng command, không in credentials, mỗi suite vẫn create/drop DB dbs_test_* riêng. Chạy lại15/15; không skip/hạ assertion/sửa harness. Không nhận lỗi thiết lập này là bug cleanup.
+
+| ID | Test chứng minh | Đạt? |
+|---|---|---|
+| TC01 |fake-clock boundary±1microsecond hai bảng |đạt |
+| TC02 |30/14ngày, clock tiến40ngày giữa batches, cutoff vẫn cố định |đạt |
+| TC03 |actual current_user=session_user=dbs_worker,20/bảng+5vòng sau, pg_stat_activity không idle-in-tx |đạt |
+| TC04 |hai key expired, một row bị giữ;55P03 dưới3s, hai key còn nguyên; release/retry xóa2 |đạt |
+| TC05 |Promise.all hai job, tổng deleted chính xác25/bảng, fresh còn |đạt |
+| TC06 |HTTPdeposit/replay, giữ response, sau dọn mới tạo transferID khác, balance2000000, checkerPASS |đạt |
+| TC07 |2EXPLAIN với30000row mỗi bảng, đúng index và không Seq Scan, không ép planner |đạt2/2 |
+| TC08 |7giá trị env không hợp lệ đúnginvalidKeys, mặc định7/custom30, DI retention đến job |đạt8testmới + regressionwiring |
+| TC09 |shutdown giữa lô giữ25keys/15marks; API không chạy; worker restart dọn phần dư |đạt |
+| TC10 |marker còn hạn giữ ON CONFLICT no-op; hết hạn+dọn cho claim lại |đạt |
+| DoD4 |CI exactHEAD trong PR, Dev review/merge |BL-204; chưa nhận review/merge |
+
+Mọi case đạt đủ độ sâu đã mô tả; không mock DB, không đơn giản hóa hoặc skip. Marker test là claim SQL thật, không nhận là full SQS consumer. HTTP key timestamp PG có microsecond, JavaScript Date đọc với độ chính xácms nên TC06 đứng trong cửa sổ tới mốc7ngày rồi+1ms vượt mốc; exact-boundary microsecond được chứng minh riêng ở TC01.
+
+### Manual và ảnh
+
+Lệnh Git Bash `node scripts/manual-dbs136.cjs 2>&1 | tee ../docs/features/screenshots/DBS-136/manual-test.txt` từ backend, pipefail bật; exit0. [Raw UTF8](screenshots/DBS-136/manual-test.txt) có sourceSHA dòng đầu. SQL seed chỉ INPUT metadata dedup, không balance/ledger/transfers.
+
+| Bước | Kết quả thật | Đạt? |
+|---|---|---|
+| M01 |worker actual LOGIN; old−1us xóa, boundary/+1us còn cả hai bảng |đạt |
+| M02 |budget20mỗi bảng,5còn lại; không idle transaction; lượt sau dọn5 |đạt |
+| M03 |55P03 sau523ms; rollback2key rồirelease/retry dọn2 |đạt |
+| M04 |response replay giữ nguyên transferID206684b9…; sau hết hạn+dọn ID997a458d…; balance2000000,checkerPASS |đạt |
+| M05 |shutdown còn25keys/15marks;api giữ nguyên;worker mới dọn hết;checkerPASS |đạt |
+| M06 |app/pools đóng, docker ps filtercontainerId rỗng;Compose chung giữ nguyên |đạt |
+
+Ảnh là đoạn output Git Bash thực tế, đã mở kiểm hình; sơ đồ §3 render bằng mermaid-cli và visual QA:
+
+![Retention, batches, lock](screenshots/DBS-136/01-retention-batches-lock.png)
+![Replay, restart, cleanup](screenshots/DBS-136/02-replay-restart-cleanup.png)
+![Kiến trúc đã render](screenshots/DBS-136/03-architecture.png)
+
+**Bàn giao/chưa chạy:** BL-204 Dev review/merge và xác minh CI trên exactHEAD tại PR; BL-205 full worker process/ECS/hardkill chưa chạy, manual là lifecycle thật trong cùng process. Queue redrive/AWS thật theo BL-051, không nhận local thay cloud. RDS role provisioning giữ BL-103/195. Không tắt daemon Docker chung. Các ID202/203 đã dùng ở nhánh DBS-122 nên task136 chọn204/205, không dùng lại.
+
+### Checklist G4
+
+- [x]10/10nhóm TC đủ độ sâu (10DBcase mới,8unit mới),0đơn giản hóa/skip; fullDB812/unit1660/e2e153 và services15 xanh. [Bản ghi kiểm tra](screenshots/DBS-136/verification.txt).
+- [x]Manual6/6 qua Git Bash trên commit cuối đổi codef5b5c94, SHA dòng đầu raw; đủ thành công/từ chối/phục hồi.
+- [x]Đủ2ảnh output và rawUTF8; không token/Authorization/password/AWSid/ARN; ảnh kiến trúc đã render và mở kiểm.
+- [x]Diff từmain và working tree khớp danh sách §7, không file lạ; mọi thay đổi env/interface đã quyết định trước production.
+- [x]Lint/typecheck/build/unit/e2e/DB/services đã chạy, đọc đủ output và có số đếm.
+- [x]Docs fact cập nhật,321file/0link hỏng và diffcheck sạch; trạng thái Plan approved tại tự kiểm, đổi Implemented sau G4 qua.
+- [x]Bàn giao/DoD quy trình/giới hạn có BL-204/205 và các BL hiện hữu được nêu, BL-201 chỉ giải quyết phần retention; không tự merge/board.
+
+**G4 qua — agent tự quyết:** local và manual đều xanh, reviewer thiết kế APPROVE không finding. Chọn mở PR sẵn sàng review sau G4; ghi CI exactHEAD trực tiếp vào mô tả PR, không commit CI URL gây đổi HEAD. Công khai chưa full worker process/ECS/hardkill hoặc SQS redrive/AWS thật; không nhận Dev review/merge đã hoàn tất. Không còn ảnh thiếu, không có waiver Techlead.
+
 ## 9. Tài liệu
 
-Chờ kết quả thực thi.
+Đã cập nhật backend README, module outbox README, env example, database-design retention/index, API design retention, feature index. BACKLOG thêm BL-204/205 và xử lý phần retention của BL-201, không xóa phần onboarding chưa giải quyết. Feature/evidence136 lưu raw,2ảnh manual,ảnh kiến trúc,domain review và kết quả kiểm tra. Kết quả CI động cập nhật ở PR để không tạo commit mới đổi HEAD đang xác minh.
