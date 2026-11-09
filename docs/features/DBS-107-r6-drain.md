@@ -29,7 +29,7 @@ Chỉ TRANSFER; sameOwner bắt buộc boolean. Đọc `fromBalanceBefore` qua `
 |---|---|---|
 | TC-107-01 | unit | Đúng 90% và đúng balance tối thiểu → hit; kém 1 đồng hoặc balance dưới ngưỡng → null. |
 | TC-107-02 | unit | Bigint lớn/nửa đồng ngưỡng, sameOwner, cấu hình, snapshot sai, rule tắt và DEPOSIT. |
-| TC-107-03 | quy trình | CI, Dev review, merge: chưa xảy ra. |
+| TC-107-03 | quy trình | CI xanh và merge qua [#104](https://github.com/Lawliet119/digital-banking-simulator/pull/104); Dev review chưa có. |
 
 ## 5. Manual
 
@@ -59,10 +59,22 @@ Sweep sau implementation: test và giải thích rule được kiểm, CI/Dev re
 ## 8. Kết quả và bàn giao
 
 - Xác minh trên code cuối `5df0f0f`: `lint:check`, `typecheck`, `build` đạt; unit toàn backend **80 suite / 1.584 test**, e2e **15 suite / 153 test** đạt trên PostgreSQL/Valkey cô lập. E2e này không chứng minh fraud runtime; DB suite **43 / 735** chạy trong quá trình, trước fix projection/R2 cuối, không đổi schema.
-- TC-107-01/02: **đạt** qua `r6-drain.rule.spec.ts` và `transfer-only.spec.ts`; TC-107-03: **chưa đạt**, CI/Dev review/merge chưa xảy ra. Theo dõi [BL-185](../BACKLOG.md).
+- TC-107-01/02: **đạt** qua `r6-drain.rule.spec.ts` và `transfer-only.spec.ts`; TC-107-03: CI xanh và merge qua [#104](https://github.com/Lawliet119/digital-banking-simulator/pull/104), **Dev review chưa có**. Theo dõi [BL-185](../BACKLOG.md).
 - Manual trên commit code cuối: `npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts`; M-107-01 đúng 90% → hit, dưới 1 đồng và sameOwner → null; M-95/105/106/107-02 DEPOSIT → null. [Output thật](screenshots/DBS-107/manual-test.txt), [ảnh terminal](screenshots/DBS-107/01-rules.png). Dùng snapshot tổng hợp, không chạm ledger.
 - Độ lệch: code/test được viết trước feature doc và review thiết kế; review được thực hiện sau, không coi là đã hoàn thành theo đúng thứ tự G2/G3. Quyết định sau đó: giữ PR ở Draft, bàn giao rõ review quy trình và các phần chưa chứng minh; không tuyên bố hoàn thành DoD.
 
 ## 9. Tài liệu
 
 Đã cập nhật `backend/src/modules/risk/README.md`, `docs/features/README.md`, `docs/BACKLOG.md` (BL-185) và guide lỗi theo ADR-14.
+
+### Domain review bằng subagent (bù sau merge, 2026-11-09)
+
+Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/domain-review.md` chỉnh cho code đã merge, đọc `main` ở `18f93dc`. [Phản hồi nguyên văn](screenshots/DBS-107/domain-review.md). Bước này lẽ ra chạy ở Phase 2; agent đã bỏ qua khi làm một mạch, vì suy diễn Techlead waiver rộng hơn lời dặn «không qua humangate» (chỉ miễn người duyệt gate). Chạy bù sau merge. Phần review có sẵn ở trên được giữ nguyên.
+
+**Verdict: APPROVE** (5 minor).
+
+| # | Mức | Xử lý |
+|---|---|---|
+| 1, 2, 3 | minor | Không sửa: R6 tắt vẫn kiểm snapshot; làm tròn 99,996% thành «100.00%»; định dạng tiền trong explanation → BL-207 (định dạng tiền cũng là H7 của BL-184) |
+| 4 | minor | **Đã sửa:** §8 «chưa merge». Ca số gần 2^63 trong manual và đường lỗi → BL-212 |
+| 5 | minor | Bàn giao UC-12: `parseRuleSet` chưa chặn `minBalancePercent` không nguyên hoặc ngoài 1–100 → BL-188 |

@@ -60,10 +60,22 @@ Sweep sau implementation: test người nhận cũ/cửa sổ thật phụ thu�
 ## 8. Kết quả và bàn giao
 
 - Xác minh trên code cuối `5df0f0f`: `lint:check`, `typecheck`, `build` đạt; unit toàn backend **80 suite / 1.584 test**, e2e **15 suite / 153 test** đạt trên PostgreSQL/Valkey cô lập. E2e này không chứng minh fraud runtime; DB suite **43 / 735** chạy trong quá trình, trước fix projection/R2 cuối, không đổi schema.
-- TC-106-01/02: **đạt** qua `r5-fan-out.rule.spec.ts` và `transfer-only.spec.ts`; TC-106-03: **chưa làm**, chưa có provider tính người nhận cũ/cửa sổ; TC-106-04: **chưa đạt**, CI/Dev review/merge chưa xảy ra. Theo dõi [BL-185](../BACKLOG.md).
+- TC-106-01/02: **đạt** qua `r5-fan-out.rule.spec.ts` và `transfer-only.spec.ts`; TC-106-03: **đạt** ở DBS-109 (`transfer-facts.db-spec.ts`, TC-109-04: người nhận cũ và cửa sổ); TC-106-04: CI xanh và merge qua [#104](https://github.com/Lawliet119/digital-banking-simulator/pull/104), **Dev review chưa có**. Theo dõi [BL-185](../BACKLOG.md).
 - Manual trên commit code cuối: `npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts`; M-106-01 count 4 → null, 5 → hit, sameOwner → null; M-95/105/106/107-02 DEPOSIT → null. [Output thật](screenshots/DBS-106/manual-test.txt), [ảnh terminal](screenshots/DBS-106/01-rules.png). Count là input tổng hợp, không chứng minh lịch sử thực.
 - Độ lệch: code/test được viết trước feature doc và review thiết kế; review được thực hiện sau, không coi là đã hoàn thành theo đúng thứ tự G2/G3. Quyết định sau đó: giữ PR ở Draft, bàn giao rõ review quy trình và các phần chưa chứng minh; không tuyên bố hoàn thành DoD.
 
 ## 9. Tài liệu
 
 Đã cập nhật `backend/src/modules/risk/README.md`, `docs/features/README.md`, `docs/BACKLOG.md` (BL-185) và guide lỗi theo ADR-14.
+
+### Domain review bằng subagent (bù sau merge, 2026-11-09)
+
+Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/domain-review.md` chỉnh cho code đã merge, đọc `main` ở `18f93dc`. [Phản hồi nguyên văn](screenshots/DBS-106/domain-review.md). Bước này lẽ ra chạy ở Phase 2; agent đã bỏ qua khi làm một mạch, vì suy diễn Techlead waiver rộng hơn lời dặn «không qua humangate» (chỉ miễn người duyệt gate). Chạy bù sau merge. Phần review có sẵn ở trên được giữ nguyên.
+
+**Verdict: REVISE** (1 should-fix, 2 minor).
+
+| # | Mức | Xử lý |
+|---|---|---|
+| 1 | should-fix | Không sửa: R5 tắt vẫn kiểm dữ liệu provider trước `enabled` → BL-207 |
+| 2 | minor | **Đã sửa:** §8 trỏ sang DBS-109 |
+| 3 | minor | Không sửa: manual thiếu đường lỗi → BL-212 |

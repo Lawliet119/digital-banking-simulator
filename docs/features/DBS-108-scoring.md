@@ -13,7 +13,7 @@ DBS-108 là Story, tuần 4, ưu tiên High, Deliverable P5, trạng thái board
 5. ScoringService đọc mode từ cấu hình: `rule_only` (mặc định) hoặc `rules_with_external_ai`; chế độ chưa hỗ trợ thì rơi về rule_only và ghi metric; `score = tổng weight các hit R1–R6 + ai_applied_weight`, trong đó `ai_applied_weight = ai.weight` nếu typed predicate hợp lệ và `p ≥ ai.threshold`, ngược lại 0 (không dùng `100·p`).
 6. Bất biến: `score = rule_score + ai_applied_weight`; `fraud_rule_hits` chỉ chứa R1–R6 nên cờ chỉ do AI tạo có thể không có hit (có test).
 
-DBS-93, DBS-94 và DBS-95 đã merge vào `main`. DBS-105/106/107 có code thuần và test trong cùng nhánh; chưa có PR/Dev review/merge. `FeatureProvider` online/offline, repository cấu hình, consumer và `risk_decisions` chưa hoàn thành. DBS-101 thuộc Dev đang `In Progress`; không thay thế ConsumerBase hoặc sửa luồng tiền. ADR-14 đặt `rule_only` làm mặc định, lỗi luật/feature fail-closed và lỗi AI fallback về luật. Bằng chứng chất lượng, quyền dữ liệu và vận hành AI vẫn cần BL-043/044/051; không bật AI production bằng task này.
+DBS-93, DBS-94 và DBS-95 đã merge vào `main`. DBS-105/106/107 có code thuần và test trong cùng nhánh; đã vào `main` qua [#104](https://github.com/Lawliet119/digital-banking-simulator/pull/104), chưa có Dev review. `OnlineFeatureProvider` (DBS-109) và `RuleSetRepository` (DBS-110) đã có; `OfflineFeatureProvider`, consumer (DBS-111) và `risk_decisions` chưa hoàn thành. DBS-101 thuộc Dev đang `In Progress`; không thay thế ConsumerBase hoặc sửa luồng tiền. ADR-14 đặt `rule_only` làm mặc định, lỗi luật/feature fail-closed và lỗi AI fallback về luật. Bằng chứng chất lượng, quyền dữ liệu và vận hành AI vẫn cần BL-043/044/051; không bật AI production bằng task này.
 
 **G1 (agent tự quyết):** phạm vi là hàm chấm thuần kết hợp sáu class rule và kết quả AI đã nhận, không tự gọi mạng/DB hoặc đăng ký worker. Đây không chứng minh tạo cờ, dedup, feature thật, customer isolation hay độ chính xác AI. Chuẩn hóa config dưới dạng `RuleParams` hiện có; repository DBS-110 chịu trách nhiệm ánh xạ seed JSON phẳng sang `thresholds`. CI/Dev review/merge là việc chưa xảy ra, không đánh dấu board Done.
 
@@ -105,3 +105,18 @@ Sweep hậu triển khai: không có migration/schema, worker, egress hoặc d�
 ## 9. Tài liệu
 
 Đã cập nhật README risk, guide policy lỗi, `docs/features/README.md`, feature doc DBS-94/95 và `docs/BACKLOG.md` (BL-041/184/185); không thay ADR-14 hay hợp đồng event.
+
+### Domain review bằng subagent (bù sau merge, 2026-11-09)
+
+Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/domain-review.md` chỉnh cho code đã merge, đọc `main` ở `18f93dc`. [Phản hồi nguyên văn](screenshots/DBS-108/domain-review.md). Bước này lẽ ra chạy ở Phase 2; agent đã bỏ qua khi làm một mạch, vì suy diễn Techlead waiver rộng hơn lời dặn «không qua humangate» (chỉ miễn người duyệt gate). Chạy bù sau merge. Các vòng review có sẵn ở trên được giữ nguyên.
+
+**Verdict: REVISE** (1 should-fix, 5 minor). Không có phát hiện về tiền hay bảo mật.
+
+| # | Mức | Xử lý |
+|---|---|---|
+| 1 | should-fix | Không sửa: scorer ném lại lỗi thô nên consumer không gắn được nhãn `rule` cho `risk_rule_error_total` → BL-207 |
+| 2 | minor | **Đã sửa:** `02-architecture.md` §7 theo ADR-14 (fail-closed) |
+| 3 | minor | Không sửa: dùng nguyên văn ví dụ guide §4.3 và AC-9.1 làm test → BL-212 |
+| 4 | minor | **Đã sửa:** §1 cập nhật trạng thái |
+| 5 | minor | Bàn giao DBS-111/API: AC-9.1, AC-9.2, AC-10.2 chỉ chứng minh được khi nối consumer → BL-188 |
+| 6 | minor | Bàn giao UC-12: bộ kiểm khi ghi phiên bản phải phủ R1–R6 → BL-188 |

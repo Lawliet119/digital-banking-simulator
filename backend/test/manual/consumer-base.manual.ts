@@ -29,6 +29,11 @@ class DemoConsumer extends ConsumerBase {
   protected queueUrl(): string {
     return this.url;
   }
+  // The default backoff (5/10/20/40 s, DBS-102) would hide the message for longer than this script
+  // waits; M-101-03 is about the fifth receive, not about the delay, so it turns the backoff off.
+  protected override get retryBackoffSeconds(): number {
+    return 0;
+  }
   protected async apply(event: DomainEvent, manager: EntityManager): Promise<void> {
     if (this.failing) throw new Error('downstream unavailable');
     await manager.query(
