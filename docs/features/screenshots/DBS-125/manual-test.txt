@@ -1,0 +1,37 @@
+6a96d170003b6e154f98eeebeea7fc3b212eb6b6
+== DBS-125 manual test / Demo 3 part C + DLQ runbook 2026-11-09T23:38:22Z
+dedicated ElasticMQ dbs125-mq ready (softwaremill/elasticmq-native@sha256:e4580ab9ad1bd5cd37b4ba04911bc5ccc8cd2d9ab4de56ece65acee71c24e05c)
+migrated and built
+-- M-125-01 notification store blocked; AC-9.1 transfer
+POST /v1/customers/me -> 200 {"id":"65ed8fca-fa73-4545-a637-9485d238b294","fullName":"Tr?n Van An","createdAt":"2026-11-09T23:39:04.417Z"}
+POST /v1/accounts -> 201 {"id":"2a60aad2-3055-4439-b02c-d05da8547706","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T23:39:04.793Z","updatedAt":"2026-11-09T23:39:04.793Z"}
+POST /v1/customers/me -> 200 {"id":"fa9ab442-cb71-411c-83c9-4d10b913fc5f","fullName":"Nguy?n Th? B�nh","createdAt":"2026-11-09T23:39:09.581Z"}
+POST /v1/accounts -> 201 {"id":"72e3bc3b-af26-4454-8bc7-026a14ec3ce4","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T23:39:09.932Z","updatedAt":"2026-11-09T23:39:09.932Z"}
+POST /v1/operator/deposits -> 201 {"transferId":"edf9d814-1c4c-47f8-8521-85cd5a7b9e75","status":"COMPLETED"}
+deposit consumed by both queues
+psql> ALTER TABLE notification_log ADD CONSTRAINT dbs125_block CHECK (false) NOT VALID
+POST /v1/transfers -> 201 {"transferId":"c070c163-a941-48d0-997c-d0ef6c292ec2","status":"COMPLETED"}
+T=c070c163-a941-48d0-997c-d0ef6c292ec2 eventId=ab597b78-ece3-4287-b119-b733a6fbd50e
+risk not held up: flag 65 MEDIUM after 494 ms
+notification-events-dlq has 1 message after 75 s
+runbook step 2 (peek the DLQ):
+f6ad27c9-f773-4971-a3fe-9049d73b02dc	1794267628592	{"type":"TRANSFER","amount":"20000000","eventId":"ab597b78-ece3-4287-b119-b733a6fbd50e","toUserId":"72dae9a8-f564-49cf-a003-4d41c5528788","eventType":"TransferCompleted"
+DLQ SentTimestamp - transfers.created_at = 75.6 s (5 receives with backoff 5+10+20+40 s ≈ 75 s; 4 would be ≈ 35 s)
+notification_log for eventId=0 processed_events(notification)=0 notification-events=0/0/0 risk-events-dlq=0/0/0
+-- M-125-02 broken message on risk-events
+risk-events-dlq=1/0/0 risk-events=0/0/0
+-- M-125-03 runbook: scan both DLQs, remove poison, return valid, heal, redrive
+risk-events-dlq: poison saved and deleted: 298b5a47-58e8-45b4-a12f-0bf831f6b4ed body={not json
+risk-events-dlq after scan: 0/0/0
+notification-events-dlq: keep valid message f6ad27c9-f773-4971-a3fe-9049d73b02dc (eventId ab597b78-ece3-4287-b119-b733a6fbd50e)
+notification-events-dlq after scan: 0/1/0
+psql> ALTER TABLE notification_log DROP CONSTRAINT dbs125_block (cause fixed)
+valid messages returned (change-message-visibility 0): 1/0/0
+$ start-message-move-task --source-arn arn:aws:sqs:elasticmq:000000000000:notification-events-dlq --destination-arn arn:aws:sqs:elasticmq:000000000000:notification-events
+{"TaskHandle":"8b81b148-2536-4f6a-9756-3a19e228e1f1"}
+redriven and processed in 1 s
+after redrive: notification_log for eventId=2 processed_events(notification)=1 notification-events=0/0/0 notification-events-dlq=0/0/0 risk-events-dlq=0/0/0
+-- M-125-04 ledger invariants
+{"status":"PASS","totals":{"debit":"41000000","credit":"41000000","balance":"0"},"violations":[]}
+exit=0
+cleanup: processes killed, dbs125-mq removed, banking_dbs125 dropped

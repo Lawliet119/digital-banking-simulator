@@ -26,6 +26,7 @@ docs/
 │   └── ledger/  accounts/  identity/  risk/  audit/  outbox/  notification/  health/
 │       platform-infra/  ci-cd/  observability/  fraud-dataset/  load-tests/
 ├── demos/                                 Kịch bản demo bắt buộc chạy được từng bước (Demo 3: failure / recovery)
+├── runbooks/                              Quy trình vận hành từng bước (đọc và redrive DLQ)
 └── deliverables/                          Năm bản nộp P1–P5 (bản ghép trỏ về nguồn)
 ```
 

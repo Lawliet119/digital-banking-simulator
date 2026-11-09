@@ -159,6 +159,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/risk-scoring.services-spec.ts
       - name: Worker stop, crash and restart lose no flag (DBS-124)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/worker-recovery.services-spec.ts
+      - name: Failing notification dead-letters alone, broken messages, redrive (DBS-125)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/dlq-isolation.services-spec.ts
 
   db:
     name: db

@@ -1,6 +1,6 @@
 # Demo 3 · Failure / recovery
 
-> **Status:** Active (phần relay, worker và Redis đã chạy; phần DLQ chờ DBS-125) · **Owner:** Dev · **Cập nhật:** 2026-11-10
+> **Status:** Active (phần A–D đã chạy; kill API giữa lệnh chờ DBS-185) · **Owner:** Dev · **Cập nhật:** 2026-11-10
 
 Demo bắt buộc "Failure / recovery" ([docs/03 §17](../03_HIGH_LEVEL_ARCHITECTURE.md#17-demo-bắt-buộc)): chứng minh khi một phần hệ thống chết, tiền vẫn đúng và sự kiện không mất. Mỗi phần dưới đây đã được chạy thật, kèm output thô trong feature doc của task tương ứng.
 
@@ -8,7 +8,7 @@ Demo bắt buộc "Failure / recovery" ([docs/03 §17](../03_HIGH_LEVEL_ARCHITEC
 |---|---|---|---|
 | A | Relay chết hoặc queue treo: outbox gửi bù, không mất sự kiện | [DBS-91](../features/DBS-91-relay-fault-tolerance.md) | đã chạy (M-91-01..04) |
 | B | Worker chết rồi bật lại: mọi cờ cần có vẫn xuất hiện, không trùng | [DBS-124](../features/DBS-124-worker-down-recovery.md) | đã chạy (M-124-01..05) |
-| C | Consumer lỗi 5 lần → DLQ, consumer khác không bị chặn; đọc và redrive DLQ | DBS-125 | chưa làm |
+| C | Consumer lỗi 5 lần → DLQ, consumer khác không bị chặn; đọc và redrive DLQ | [DBS-125](../features/DBS-125-dlq-isolation-runbook.md) | đã chạy (M-125-01..04) |
 | D | Redis chậm hoặc chết giữa luồng chuyển tiền: fail-open, bất biến đúng | [DBS-100](../features/DBS-100-redis-slow-transfer.md) | đã chạy (test services) |
 | — | Kill API giữa lệnh (AC-5.10) | DBS-185 | chưa làm |
 
@@ -68,9 +68,18 @@ Kịch bản và kết quả ở [DBS-91 §5 và §8](../features/DBS-91-relay-f
 
 Lần chạy thật: [DBS-124 manual-test.txt](../features/screenshots/DBS-124/manual-test.txt), có dòng thời gian từ log worker. Dừng worker bằng SIGTERM (ECS) thì không có độ trễ này, vì vòng lặp kết thúc long poll trước khi thoát.
 
-## C. Consumer lỗi → DLQ (chờ DBS-125)
+## C. Consumer lỗi → DLQ (DBS-125)
 
-Phần này do DBS-125 viết: ép consumer notification lỗi liên tục, message vào DLQ sau đúng 5 lần nhận trong khi risk vẫn chạy; message hỏng vào DLQ ngay; runbook đọc và redrive DLQ.
+Đọc và redrive theo [runbook DLQ](../runbooks/dlq-redrive.md).
+
+**Ép notification lỗi mà không đổi code:** `ALTER TABLE notification_log ADD CONSTRAINT demo3_block CHECK (false) NOT VALID`. Mọi INSERT mới vi phạm CHECK nên bị rollback; gỡ bằng `DROP CONSTRAINT`.
+
+| Bước | Làm | Kết quả mong đợi |
+|---|---|---|
+| C1 | Nạp tiền cho một nguồn mới, đợi hai queue cạn; thêm constraint; chuyển theo AC-9.1 (21M, chuyển 20M) | Cờ 65 MEDIUM có ngay (risk không bị chặn). ≈ 75–80 s sau (backoff 5+10+20+40 s), `notification-events-dlq` có 1 message mang `eventId` của lệnh; `notification_log` của `eventId` = 0 |
+| C2 | Gửi `{not json` vào `risk-events` | `risk-events-dlq` có 1 message ngay |
+| C3 | Gỡ constraint; làm theo runbook: quét DLQ, xóa message hỏng, trả message hợp lệ về, rồi `start-message-move-task` với đích ghi rõ | DLQ về 0; `notification_log` của `eventId` có đúng 2 dòng; queue chính cạn |
+| C4 | `npm run --silent check:invariants` | PASS |
 
 ## D. Redis chậm hoặc chết (DBS-100)
 
