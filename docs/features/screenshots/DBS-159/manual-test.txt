@@ -1,0 +1,58 @@
+9d90d51e7eed5274dc3c77fa17b5eed6c03fdc9d
+== DBS-159 manual test, 2026-11-09T17:58:48Z, DATABASE_URL=banking_manual159, app: npm run start:dev (APP_ROLE=both, AUTH_MODE=local)
+tokens issued for subs tran-an, nguyen-binh, operator-chi, operator-dung (values not logged)
+-- M-159-01 setup through HTTP only
+POST /v1/customers/me key=none body={"fullName":"Trần Văn An"} -> 200 {"id":"606584a2-8228-4794-8797-fbc9fa6d60b0","fullName":"Tr?n Van An","createdAt":"2026-11-09T17:59:04.421Z"}
+POST /v1/accounts key=none body={"type":"CHECKING"} -> 201 {"id":"88675179-9607-434e-80ac-577a2d704d63","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T17:59:04.755Z","updatedAt":"2026-11-09T17:59:04.755Z"}
+POST /v1/accounts key=none body={"type":"SAVINGS"} -> 201 {"id":"1dd3bcd0-ce7d-4c42-822d-5979d2f2b194","type":"SAVINGS","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T17:59:05.112Z","updatedAt":"2026-11-09T17:59:05.112Z"}
+POST /v1/customers/me key=none body={"fullName":"Nguyễn Thị Bình"} -> 200 {"id":"afc0b645-a478-4619-920e-a78ceaf23061","fullName":"Nguy?n Th? B�nh","createdAt":"2026-11-09T17:59:05.442Z"}
+POST /v1/accounts key=none body={"type":"CHECKING"} -> 201 {"id":"8a5575c8-37ca-45f2-9f76-32076c538c34","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T17:59:05.759Z","updatedAt":"2026-11-09T17:59:05.759Z"}
+POST /v1/operator/deposits key=e05baad7-cf2d-45d3-afbc-6a302e624a05 body={"toAccountId":"88675179-9607-434e-80ac-577a2d704d63","amount":"5000000"} -> 201 {"transferId":"ed43a3b3-f184-4656-891d-b78fd85e0331","status":"COMPLETED"}
+POST /v1/operator/deposits key=870a3bbd-0b34-4a2d-ac44-da143503a459 body={"toAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","amount":"1000000"} -> 201 {"transferId":"07f35f12-7fc3-4140-8c6d-030929b378f0","status":"COMPLETED"}
+POST /v1/transfers key=b9052b82-6dbc-4b79-833b-97acecf49a17 body={"fromAccountId":"88675179-9607-434e-80ac-577a2d704d63","toAccountId":"1dd3bcd0-ce7d-4c42-822d-5979d2f2b194","amount":"200000"} -> 201 {"transferId":"00404339-5df8-47d4-8e0b-1e528bb39005","status":"COMPLETED"}
+A1=88675179-9607-434e-80ac-577a2d704d63 A2=1dd3bcd0-ce7d-4c42-822d-5979d2f2b194 B1=8a5575c8-37ca-45f2-9f76-32076c538c34 K=b9052b82-6dbc-4b79-833b-97acecf49a17 T=00404339-5df8-47d4-8e0b-1e528bb39005 status=201
+balances: CHECKING=4800000 SAVINGS=200000
+-- M-159-02 Bình replays An's key with An's body, then reads T
+POST /v1/transfers key=b9052b82-6dbc-4b79-833b-97acecf49a17 body={"fromAccountId":"88675179-9607-434e-80ac-577a2d704d63","toAccountId":"1dd3bcd0-ce7d-4c42-822d-5979d2f2b194","amount":"200000"} -> 404 {"type":"about:blank","title":"Not Found","status":404,"detail":"Account not found","correlationId":"37ab87b3-5f80-4a5c-8599-f431c5ad4f10"}
+GET /v1/transfers/00404339-5df8-47d4-8e0b-1e528bb39005 key=none body=none -> 404 {"type":"about:blank","title":"Not Found","status":404,"detail":"Transfer not found","correlationId":"9f533089-58d3-49b1-bfaa-5e941e414ff9"}
+replay status=404 contains T? 0; read status=404 contains T? 0
+counts before: transfers=3 keys=3 ledger=6 outbox=3 audit=8
+counts after : transfers=3 keys=3 ledger=6 outbox=3 audit=10
+idempotency_keys for K: tran-an
+audit DENIED of nguyen-binh: ledger.transfer:DENIED, transfer.read:DENIED
+-- M-159-03 Bình uses the same key for his own transfer; An replays K
+POST /v1/transfers key=b9052b82-6dbc-4b79-833b-97acecf49a17 body={"fromAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","toAccountId":"88675179-9607-434e-80ac-577a2d704d63","amount":"100000"} -> 201 {"transferId":"ff804a39-23b4-4d46-a673-dfb782650d85","status":"COMPLETED"}
+POST /v1/transfers key=b9052b82-6dbc-4b79-833b-97acecf49a17 body={"fromAccountId":"88675179-9607-434e-80ac-577a2d704d63","toAccountId":"1dd3bcd0-ce7d-4c42-822d-5979d2f2b194","amount":"200000"} -> 201 {"status":"COMPLETED","transferId":"00404339-5df8-47d4-8e0b-1e528bb39005"}
+Bình status=201 transferId=ff804a39-23b4-4d46-a673-dfb782650d85 (T=00404339-5df8-47d4-8e0b-1e528bb39005); An replay status=201 transferId=00404339-5df8-47d4-8e0b-1e528bb39005
+-- M-159-04 two operators share K2
+POST /v1/operator/deposits key=7ba2e555-c5b0-4a16-8262-0fd024a84da0 body={"toAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","amount":"300000"} -> 201 {"transferId":"8772c902-663a-427b-8e93-b4e56ab7a60b","status":"COMPLETED"}
+POST /v1/operator/deposits key=7ba2e555-c5b0-4a16-8262-0fd024a84da0 body={"toAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","amount":"300000"} -> 201 {"transferId":"8198577a-ef10-46e9-94a1-8793bf86b559","status":"COMPLETED"}
+POST /v1/operator/deposits key=7ba2e555-c5b0-4a16-8262-0fd024a84da0 body={"toAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","amount":"300000"} -> 201 {"status":"COMPLETED","transferId":"8772c902-663a-427b-8e93-b4e56ab7a60b"}
+Chi D1=8772c902-663a-427b-8e93-b4e56ab7a60b, Dũng D2=8198577a-ef10-46e9-94a1-8793bf86b559, Chi replay=8772c902-663a-427b-8e93-b4e56ab7a60b; B1 balance=1500000
+-- M-159-05 missing, edited and expired tokens on POST /v1/transfers
+POST /v1/transfers key=4e525bab-1610-4219-8c79-7a5788fedeaa body={"fromAccountId":"88675179-9607-434e-80ac-577a2d704d63","toAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","amount":"50000"} -> 401 {"errorCode":"UNAUTHENTICATED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Missing or malformed Authorization header","correlationId":"2aa1bc7c-33d8-4c53-95c2-c34abbbfd47c"}
+none token: status=401 errorCode=UNAUTHENTICATED
+POST /v1/transfers key=131406d2-da8d-49a7-a588-cc874ab4b662 body={"fromAccountId":"88675179-9607-434e-80ac-577a2d704d63","toAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","amount":"50000"} -> 401 {"errorCode":"UNAUTHENTICATED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Access token failed verification","correlationId":"4e507383-7602-4ae4-9fd9-79c10892b639"}
+edited token: status=401 errorCode=UNAUTHENTICATED
+POST /v1/transfers key=2db418b5-0740-46a7-8a42-a00541e98ed3 body={"fromAccountId":"88675179-9607-434e-80ac-577a2d704d63","toAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","amount":"50000"} -> 401 {"errorCode":"TOKEN_EXPIRED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Access token expired","correlationId":"97dd81ea-a4a2-45d3-a018-5e9f8d4f3679"}
+expired token: status=401 errorCode=TOKEN_EXPIRED
+counts before: transfers=6 keys=6 ledger=12 outbox=6 audit=13
+counts after : transfers=6 keys=6 ledger=12 outbox=6 audit=13
+-- M-159-06 customer dressed as operator
+POST /v1/operator/deposits?role=operator key=d9025972-51b5-4174-91a9-0530fbbe951f body={"toAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","amount":"9000000","role":"operator"} -> 403 {"errorCode":"FORBIDDEN","type":"about:blank","title":"Forbidden","status":403,"detail":"The caller's role is not allowed to use this endpoint.","correlationId":"64439e9e-6aca-4ed2-a531-f474c43bd003"}
+deposit: status=403 errorCode=FORBIDDEN
+POST /v1/operator/accounts/88675179-9607-434e-80ac-577a2d704d63/lock key=none body={"reason":"CONFIRMED_FRAUD","role":"operator"} -> 403 {"errorCode":"FORBIDDEN","type":"about:blank","title":"Forbidden","status":403,"detail":"The caller's role is not allowed to use this endpoint.","correlationId":"47c2835e-4093-4397-96d9-3e54650d4bbd"}
+lock: status=403 errorCode=FORBIDDEN
+counts before: transfers=6 keys=6 ledger=12 outbox=6 audit=13
+counts after : transfers=6 keys=6 ledger=12 outbox=6 audit=13
+A1 status=ACTIVE, B1 balance=1500000, tran-an sessions_revoked_at=NULL
+-- M-159-07 lock A2, old token refused, a new token works
+POST /v1/operator/accounts/1dd3bcd0-ce7d-4c42-822d-5979d2f2b194/lock key=none body={"reason":"CONFIRMED_FRAUD"} -> 200 {"id":"1dd3bcd0-ce7d-4c42-822d-5979d2f2b194","type":"SAVINGS","status":"LOCKED","updatedAt":"2026-11-09T17:59:21.485Z"}
+lock A2: status=200
+POST /v1/transfers key=9d491b8d-ec92-4d57-8b39-c8748d9d8516 body={"fromAccountId":"88675179-9607-434e-80ac-577a2d704d63","toAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","amount":"50000"} -> 401 {"errorCode":"SESSION_REVOKED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Session has been revoked","correlationId":"ace3399e-85b6-4da9-a66c-6f25e67344af"}
+old token: status=401 errorCode=SESSION_REVOKED; counts before=transfers=6 keys=6 ledger=12 outbox=7 audit=14 after=transfers=6 keys=6 ledger=12 outbox=7 audit=14
+POST /v1/transfers key=0b1193a0-f8c1-407c-99b5-9f775efae507 body={"fromAccountId":"88675179-9607-434e-80ac-577a2d704d63","toAccountId":"8a5575c8-37ca-45f2-9f76-32076c538c34","amount":"50000"} -> 201 {"transferId":"b8906e91-6c10-4144-8f5d-ec62c3f7db90","status":"COMPLETED"}
+new token (iat=mark+1): status=201 status=COMPLETED
+-- M-159-08 ledger invariants
+{"status":"PASS","totals":{"debit":"6950000","credit":"6950000","balance":"0"},"violations":[]}
+exit=0
