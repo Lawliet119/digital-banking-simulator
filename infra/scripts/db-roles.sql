@@ -2,8 +2,9 @@
 -- database owner (dbs_migrator, or the master user on RDS) AFTER every `migration:run`, because a
 -- new table has no grants until it is listed here.
 --
---   dbs_api     the ECS service `api`
---   dbs_worker  the ECS service `worker` (relay, consumers, cleanup)
+--   dbs_migrator the migration execution runner (DDL owner)
+--   dbs_api      the ECS service `api`
+--   dbs_worker   the ECS service `worker` (relay, consumers, cleanup)
 --
 -- The roles are created NOLOGIN. Whoever provisions the database gives them a login and a password
 -- from Secrets Manager (BL-103, DBS-119): `ALTER ROLE dbs_api LOGIN PASSWORD '...'`. The
@@ -15,6 +16,9 @@
 
 DO $$
 BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_migrator') THEN
+    CREATE ROLE dbs_migrator NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
+  END IF;
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_api') THEN
     CREATE ROLE dbs_api NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
   END IF;
@@ -23,8 +27,24 @@ BEGIN
   END IF;
 END $$;
 
+-- dbs_migrator grants & default privileges
+GRANT USAGE, CREATE ON SCHEMA public TO dbs_migrator;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO dbs_migrator;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO dbs_migrator;
+GRANT ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA public TO dbs_migrator;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO dbs_migrator;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO dbs_migrator;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO dbs_migrator;
+
+-- Transfer view ownership of v_transfer_facts to dbs_migrator (BL-005)
+-- The view runs with its owner's rights (no security_invoker on purpose), so dbs_worker
+-- can query the contract columns without requiring SELECT privilege on transfers.
+ALTER VIEW public.v_transfer_facts OWNER TO dbs_migrator;
+
 -- Start from nothing so that a grant removed from this file is removed from the database too.
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM dbs_api, dbs_worker;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM dbs_api, dbs_worker;
+REVOKE ALL ON ALL ROUTINES IN SCHEMA public FROM dbs_api, dbs_worker;
 GRANT USAGE ON SCHEMA public TO dbs_api, dbs_worker;
 
 -- dbs_api
@@ -48,6 +68,7 @@ GRANT UPDATE (review_status, reviewed_by, reviewed_at, review_note) ON fraud_fla
 GRANT SELECT ON fraud_rule_hits TO dbs_api;
 GRANT SELECT, INSERT ON risk_rule_sets TO dbs_api;
 GRANT SELECT ON reconciliation_runs TO dbs_api;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO dbs_api;
 
 -- dbs_worker
 GRANT SELECT ON accounts TO dbs_worker;
@@ -63,3 +84,4 @@ GRANT SELECT, INSERT ON fraud_rule_hits TO dbs_worker;
 GRANT SELECT ON risk_rule_sets TO dbs_worker;
 GRANT SELECT, INSERT, DELETE ON notification_log TO dbs_worker;
 GRANT SELECT, INSERT, DELETE ON reconciliation_runs TO dbs_worker;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO dbs_worker;

@@ -1,0 +1,8 @@
+0109155011d61db406cc06b2dc001371711aa975
+DBS-119 manual verification: PostgreSQL 17 least-privilege roles, migrator guard and append-only trigger enforcement
+M-119-01 PASS: 3 roles exist, v_transfer_facts owned by dbs_migrator, migration step 7 is idempotent and lifecycle down/up is clean
+M-119-02 PASS: API flows run as dbs_api (deposit 5M, transfer 1.5M, replay 201), unauthorized mutations denied (42501), ledger invariants PASS
+M-119-03 PASS: dbs_worker reads transfer facts via v_transfer_facts without SELECT permissions on transfers table (BL-005)
+M-119-04 PASS: dbs_migrator has DDL privileges but append-only tables guarded by forbid_mutation (AC-8.1); app startup with dbs_migrator blocked (DoD #2)
+M-119-cleanup PASS: app closed, database connections released, temporary database dropped, container stopped
+

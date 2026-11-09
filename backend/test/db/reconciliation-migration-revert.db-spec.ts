@@ -2,7 +2,12 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { type DataSource, type MigrationInterface } from 'typeorm';
 import { createMigrationDataSource } from '@database/data-source';
-import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+import {
+  createTempDatabase,
+  migrate,
+  migrateThrough,
+  type TempDatabase,
+} from '../support/temp-database';
 
 const TARGET = 'CreateReconciliationRuns1793577600000';
 const INSERT =
@@ -19,6 +24,15 @@ describe('reconciliation migration lifecycle and concurrent revert', () => {
     q<{ name: string; timestamp: string }>(
       'SELECT name,timestamp FROM migrations ORDER BY timestamp,id',
     );
+  async function revertSuccessors() {
+    const applied = await history();
+    const position = applied.findIndex(row => row.name === TARGET);
+    expect(position).toBeGreaterThanOrEqual(0);
+    for (let index = applied.length - 1; index > position; index--) {
+      cli('migration:revert');
+      expect(await history()).toEqual(applied.slice(0, index));
+    }
+  }
   function target(): MigrationInterface {
     const result = source.migrations.find(m => m.name === TARGET);
     expect(result).toBeDefined();
@@ -74,6 +88,7 @@ describe('reconciliation migration lifecycle and concurrent revert', () => {
   beforeEach(async () => {
     db = await createTempDatabase();
     await migrate(db.url);
+    await revertSuccessors();
     source = await createMigrationDataSource(db.url).initialize();
     initialHistory = await history();
   });
@@ -87,7 +102,9 @@ describe('reconciliation migration lifecycle and concurrent revert', () => {
     expect(initialHistory.at(-1)?.name).toBe(TARGET);
     const before = await catalog();
     cli('migration:run');
+    await revertSuccessors();
     cli('migration:run');
+    await revertSuccessors();
     expect(await catalog()).toEqual(before);
     cli('migration:revert');
     expect(
@@ -109,6 +126,7 @@ describe('reconciliation migration lifecycle and concurrent revert', () => {
       expect(await q('SELECT to_regclass($1) AS name', [`public.${name}`])).toEqual([{ name }]);
     }
     cli('migration:run');
+    await revertSuccessors();
     expect(await catalog()).toEqual(before);
   });
   it('TC-116-19 committed rows make CLI and migration down fail without losing data or history', async () => {
@@ -158,7 +176,7 @@ describe('reconciliation migration lifecycle and concurrent revert', () => {
           { name: null },
         ]);
         expect(await history()).toEqual(initialHistory.slice(0, -1));
-        await migrate(db.url);
+        await migrateThrough(db.url, TARGET);
         expect(await q('SELECT * FROM reconciliation_runs')).toEqual([]);
         expect(await history()).toEqual(initialHistory);
       }
@@ -236,7 +254,7 @@ describe('reconciliation migration lifecycle and concurrent revert', () => {
     expect(await q('SELECT * FROM public.reconciliation_runs')).toEqual([{ sentinel: 'keep' }]);
     expect(await q('SELECT id,type,balance FROM accounts ORDER BY id')).toEqual(beforeFunding);
     await q('DROP TABLE public.reconciliation_runs');
-    await migrate(db.url);
+    await migrateThrough(db.url, TARGET);
     expect(await history()).toEqual(initialHistory);
     expect((await catalog()).columns).toHaveLength(9);
   });

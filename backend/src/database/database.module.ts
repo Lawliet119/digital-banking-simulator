@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import { TypeOrmModule, type TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { appConfig, databaseConfig } from '../config';
+import { assertNotMigratorUser } from './database-url.guard';
 import { buildSslOptions } from './pg-ssl';
 import { SnakeNamingStrategy } from './snake-naming.strategy';
 import { TransactionService } from './transaction.service';
@@ -10,6 +11,7 @@ export function buildTypeOrmOptions(
   db: ConfigType<typeof databaseConfig>,
   app: ConfigType<typeof appConfig>,
 ): TypeOrmModuleOptions {
+  assertNotMigratorUser(db.url);
   return {
     type: 'postgres' as const,
     url: db.url,

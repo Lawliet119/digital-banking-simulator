@@ -1,6 +1,6 @@
 # Database Design
 
-> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) ; §4.6 và hai partial indexes outbox (DBS-25); §4.7 và ba index audit (DBS-26), writer (DBS-56) và query API (DBS-103); §8.3 trigger ba bảng `transfers`, `ledger_entries`, `audit_log` bằng owner local (DBS-27); §4.8 nhóm fraud (migration `CreateFraudStorage1792713600000`, DBS-58); §4.9 `notification_log` (migration `CreateNotificationLog1792886400000`, DBS-96) và `reconciliation_runs`, CHECK details và revert (DBS-116); production roles và các phần còn lại là thiết kế · **Cập nhật:** 2026-11-07
+> **Status:** Accepted (chốt 2026-10-11) · **Owner:** #1 (schema và migration) · **Cặp đôi:** #3 (outbox, audit), #4 (fraud), #5 (role, RDS) · **Verified against code:** §4.1, §4.2 (migration 1, DBS-20, 2026-10-12); §4.3, §4.4, §4.5, §8.2 và các index §6.1 của ba bảng đó (migration 2, DBS-21, 2026-10-17) ; §4.6 và hai partial indexes outbox (DBS-25); §4.7 và ba index audit (DBS-26), writer (DBS-56) và query API (DBS-103); §8.3 trigger ba bảng `transfers`, `ledger_entries`, `audit_log` bằng owner local (DBS-27); §4.8 nhóm fraud (migration `CreateFraudStorage1792713600000`, DBS-58); §4.9 `notification_log` (migration `CreateNotificationLog1792886400000`, DBS-96) và `reconciliation_runs`, CHECK details và revert (DBS-116); §8.1 ba role `dbs_migrator`, `dbs_api`, `dbs_worker` và GRANT ma trận quyền tối thiểu (migration 7, `CreateDbRolesAndGrants1793664000000`, DBS-119, 2026-11-08); guard cấm `dbs_migrator` ở runtime và trigger append-only §8.3; các phần còn lại là thiết kế · **Cập nhật:** 2026-11-08
 
 > **ADR-14 (Accepted 2026-11-08):** Giữ rules R1–R6 và thêm tùy chọn API AI bổ sung theo [ADR-14](../../adr/0014-fraud-rules-external-ai.md), mô tả ở [FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md). Bảng `risk_decisions` chưa có migration; schema đích ở FRAUD-API-01 §3.8.
 
@@ -532,7 +532,7 @@ Ma trận quyền (S = SELECT, I = INSERT, U = UPDATE, D = DELETE):
 | `notification_log` | — | S I D |
 | `reconciliation_runs` | S | S I D |
 
-Ma trận này được cài thành SQL ở [`infra/scripts/db-roles.sql`](../../../infra/scripts/db-roles.sql) (idempotent, chạy sau mỗi lần migration; bao gồm cả `notification_log` và `reconciliation_runs` cùng sequence identity) và được kiểm bằng `backend/test/db/db-roles.db-spec.ts`: luồng nạp tiền, chuyển tiền, replay và thu hồi phiên chạy được chỉ với quyền đã cấp, và mọi thao tác ngoài ma trận bị PostgreSQL từ chối.
+Ma trận này được cài thành migration bước 7 TypeORM `1793664000000-CreateDbRolesAndGrants.ts` ([DBS-119](../../features/DBS-119-db-roles-grant-matrix.md)) và script SQL đồng bộ ở [`infra/scripts/db-roles.sql`](../../../infra/scripts/db-roles.sql) (idempotent, chạy bằng tài khoản quản trị/master; bao gồm tạo `dbs_migrator`, `dbs_api`, `dbs_worker`, chuyển quyền sở hữu view `v_transfer_facts` sang `dbs_migrator`, cấp quyền sequences, `notification_log` và `reconciliation_runs`). Toàn bộ ma trận được kiểm chứng tự động bằng `backend/test/db/db-roles.db-spec.ts` (TC-119-01..05): luồng nạp tiền, chuyển tiền, replay và thu hồi phiên chạy được chỉ với quyền đã cấp; thao tác ngoài ma trận bị PostgreSQL từ chối với `42501`; `dbs_worker` đọc `v_transfer_facts` thành công dù không có quyền trên `transfers` (BL-005); ứng dụng bị guard `assertNotMigratorUser` chặn kết nối bằng `dbs_migrator` (DoD #2); và trigger `forbid_mutation()` chặn sửa/xóa các bảng chỉ-thêm kể cả khi kết nối bằng `dbs_migrator` (AC-8.1, §8.3).
 
 Nhìn bảng này thấy ngay: **không role nào có `UPDATE` hay `DELETE` trên `ledger_entries`, `transfers`, `audit_log`**. Với `accounts`, nên cấp `UPDATE` theo cột (`GRANT UPDATE (balance, status, updated_at)`), tương tự `fraud_flags` chỉ cho sửa các cột `review_*`.
 
@@ -647,7 +647,7 @@ Ba kiểm tra của job: (1) `SUM` Nợ = `SUM` Có; (2) với mỗi tài khoả
 4. `risk_rule_sets` (+ **seed phiên bản 1**), `fraud_flags`, `fraud_rule_hits` (migration DBS-58 chạy sau bước 6 để dùng hàm trigger)
 5. `notification_log` (migration `1792886400000-CreateNotificationLog`, DBS-96); `reconciliation_runs` (migration `1793577600000-CreateReconciliationRuns`, DBS-116), độc lập job DBS-117 và quyền DBS-119
 6. Hàm `public.forbid_mutation()` và sáu trigger trên ledger_entries/transfers/audit_log (`1792627200002-AddAppendOnlyTriggers`, DBS-27); task fraud thêm cặp trigger risk_rule_sets khi bảng tồn tại
-7. Role và `GRANT` (có thể idempotent; chạy bằng tài khoản đủ quyền)
+7. Role và `GRANT` (migration `1793664000000-CreateDbRolesAndGrants`, [DBS-119](../../features/DBS-119-db-roles-grant-matrix.md); tạo `dbs_migrator`, `dbs_api`, `dbs_worker`, đổi owner view `v_transfer_facts` sang `dbs_migrator`, cấp quyền sequences, idempotent, có revert `down()` hoàn tác view owner về `CURRENT_USER`; chạy bằng tài khoản đủ quyền master/pipeline)
 
 ### Dữ liệu khởi tạo (seed trong migration, không phải script rời)
 
