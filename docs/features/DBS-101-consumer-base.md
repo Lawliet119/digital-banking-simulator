@@ -1,6 +1,6 @@
 # DBS-101 · ConsumerBase: idempotent, message hỏng vào DLQ ngay, lỗi tạm thời retry tối đa 5 lần
 
-> **Status:** Implemented (G1–G4 agent tự duyệt) · **Vai:** Dev · **Nhánh:** `feat/DBS-101-consumer-base` · **PR:** — · **Cập nhật:** 2026-11-09
+> **Status:** Implemented (G1–G4 agent tự duyệt) · **Vai:** Dev · **Nhánh:** `feat/DBS-101-consumer-base` · **PR:** [#101](https://github.com/Lawliet119/digital-banking-simulator/pull/101) · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
@@ -26,7 +26,7 @@
 | `apply` ném lỗi | Rollback cả claim; message không bị xóa, giao lại; lần sau xử lý lại từ đầu |
 | Body không phải JSON | `libs/sqs` chuyển nguyên vào DLQ ở lần nhận đầu (đã có từ DBS-77) |
 | JSON sai schema (thiếu field, sai kiểu, loại sự kiện lạ) | `PoisonMessageError` → chuyển vào DLQ ngay ở lần nhận đầu rồi xóa nguồn; consumer tiếp tục message sau |
-| Lỗi tạm thời ở lần nhận 1..4 | Không xóa; SQS giao lại sau visibility timeout |
+| Lỗi tạm thời ở lần nhận 1..4 | Không xóa; message bị ẩn theo backoff 5/10/20/40 giây (`retryBackoffSeconds`, làm ở DBS-102; mặc định 5, đặt 0 để tắt) rồi SQS giao lại |
 | Lỗi ở lần nhận thứ 5 (`ApproximateReceiveCount` ≥ 5) | Chuyển DLQ và xóa nguồn, không phụ thuộc cấu hình redrive của queue |
 | `APP_ROLE=api` | `onApplicationBootstrap` không bật vòng poll |
 
@@ -35,7 +35,7 @@
 ## 3. Kiến trúc
 
 - **Vị trí:** `backend/src/common/messaging/consumer-base.ts` (chạy ở `worker`); `PoisonMessageError` và nhánh DLQ trong `libs/sqs/sqs.client.ts` (`processBatch`).
-- **Interface:** `abstract class ConsumerBase { consumerName; queueUrl(); apply(event, manager); onCommitted?(event); unknownEventPolicy; handle(body, message?); consumeOnce(wait?) }`. Người gọi `dlqUrlFor` (đang nằm ở notification): `outbox-relay.services-spec`, notification index; giữ re-export.
+- **Interface:** `abstract class ConsumerBase { consumerName; queueUrl(); apply(event, manager); onCommitted?(event); unknownEventPolicy; retryBackoffSeconds; handle(body, message?); consumeOnce(wait?, visibility?) }`. Người gọi `dlqUrlFor` (đang nằm ở notification): `outbox-relay.services-spec`, notification index; giữ re-export.
 - **Dữ liệu:** `processed_events(consumer, event_id)` (PK). Không đổi schema.
 - **Transaction:** claim và `apply` trong một `TransactionService.run`; không gọi SQS trong transaction (xóa message sau commit, do `processBatch`).
 
@@ -82,7 +82,7 @@ sequenceDiagram
 
 ## 5. Test thủ công
 
-Cần `docker compose up -d` (PostgreSQL, ElasticMQ), `backend/` đã `npm ci`. Script `backend/test/manual/consumer-base.manual.ts`, chạy `npx ts-node -r tsconfig-paths/register test/manual/consumer-base.manual.ts`: tạo DB tạm + hai queue tạm (consumer, DLQ), dựng `ConsumerBase` thật.
+Cần `docker compose up -d` (PostgreSQL, ElasticMQ), `backend/` đã `npm ci`. Script `backend/test/manual/consumer-base.manual.ts`, chạy `DATABASE_URL=<postgres server> npx ts-node -r tsconfig-paths/register test/manual/consumer-base.manual.ts`: tạo DB tạm + hai queue tạm (consumer, DLQ), dựng `ConsumerBase` thật.
 
 | Bước | Việc làm | Mong đợi |
 |---|---|---|
@@ -144,3 +144,20 @@ Rủi ro: đổi `NotificationConsumer` làm vỡ `outbox-relay.services-spec` �
 ## 9. Tài liệu đã cập nhật
 
 `backend/src/libs/sqs/README.md`, `backend/src/modules/notification/README.md`, `docs/BACKLOG.md` (BL-010 thêm nguồn và phần đã đóng), `docs/features/README.md`.
+
+### Domain review bằng subagent (bù sau merge, 2026-11-09)
+
+Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/domain-review.md` chỉnh cho code đã merge, đọc `main` ở `18f93dc`. [Phản hồi nguyên văn](screenshots/DBS-101/domain-review.md). Bước này lẽ ra chạy ở Phase 2; agent đã bỏ qua khi làm một mạch, vì suy diễn Techlead waiver rộng hơn lời dặn «không qua humangate» (chỉ miễn người duyệt gate). Chạy bù sau merge.
+
+**Verdict: REVISE** (1 blocking, 4 should-fix, 4 minor).
+
+| # | Mức | Xử lý |
+|---|---|---|
+| 1 | blocking | **Đã sửa.** Script manual M-101-03 đỏ trên `main` vì backoff 5/10/20/40 giây của DBS-102. Đã tái hiện (assert lệch), `DemoConsumer` đặt `retryBackoffSeconds` = 0, chạy lại M-101-01..03 đạt, `manual-test.txt` ghi lại với SHA mới |
+| 2 | should-fix | **Đã sửa:** §5 có `DATABASE_URL` |
+| 3 | should-fix | **Đã sửa:** §2 và §3 nêu backoff và tham số `visibility`; TC của backoff nằm ở TC-102-03 |
+| 4 | should-fix | Không sửa ở đây: cửa sổ retry 75 giây so với ADR-03/14 là quyết định ADR → BL-210 |
+| 5 | should-fix | Không sửa ở đây: DLQ retention khi chuyển bằng `SendMessage` là việc hạ tầng/ADR → BL-210 |
+| 6 | minor | Không sửa: test đồng thời thật → BL-212 |
+| 7, 8 | minor | Không sửa: log/metric dead-letter và tắt máy khi long poll → BL-209 |
+| 9 | minor | **Đã sửa:** header có PR [#101](https://github.com/Lawliet119/digital-banking-simulator/pull/101); Dev review chưa có (Techlead waiver) |

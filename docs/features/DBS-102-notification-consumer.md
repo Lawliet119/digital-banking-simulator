@@ -1,6 +1,6 @@
 # DBS-102 · Notification consumer: ghi notification_log cho đúng người, không bao giờ làm hỏng chuyển tiền
 
-> **Status:** Implemented (G1–G4 agent tự duyệt) · **Vai:** Dev · **Nhánh:** `feat/DBS-102-notification-consumer` · **PR:** — · **Cập nhật:** 2026-11-09
+> **Status:** Implemented (G1–G4 agent tự duyệt) · **Vai:** Dev · **Nhánh:** `feat/DBS-102-notification-consumer` · **PR:** [#102](https://github.com/Lawliet119/digital-banking-simulator/pull/102) · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
@@ -98,8 +98,25 @@ Rủi ro: backoff làm chậm retry trong test, nên test đặt `backoff = 0`. 
 - **Test thủ công** (commit `114cde7`, output ở [manual-test.txt](screenshots/DBS-102/manual-test.txt)): M-102-01, M-102-02, M-102-03 đạt.
 - **Ảnh chụp:** không có PNG; bằng chứng là output text (Techlead waiver).
 - **Lệch so với kế hoạch:** không có.
-- **Bàn giao:** `dbs_worker` cần quyền INSERT `notification_log` (DBS-119); chưa có API đọc thông báo. Không thêm dòng BL mới.
+- **Bàn giao:** quyền INSERT `notification_log` cho `dbs_worker` đã có trong `infra/scripts/db-roles.sql` (DBS-119, kiểm bằng TC-ROLE-03); phần còn lại là áp script cho task ECS; chưa có API đọc thông báo. Không thêm dòng BL mới.
 
 ## 9. Tài liệu đã cập nhật
 
 `backend/src/modules/notification/README.md`, `backend/src/libs/sqs/README.md`, `docs/features/README.md`.
+
+### Domain review bằng subagent (bù sau merge, 2026-11-09)
+
+Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/domain-review.md` chỉnh cho code đã merge, đọc `main` ở `18f93dc`. [Phản hồi nguyên văn](screenshots/DBS-102/domain-review.md). Bước này lẽ ra chạy ở Phase 2; agent đã bỏ qua khi làm một mạch, vì suy diễn Techlead waiver rộng hơn lời dặn «không qua humangate» (chỉ miễn người duyệt gate). Chạy bù sau merge.
+
+**Verdict: REVISE** (5 should-fix, 4 minor). Không có lỗi tiền hoặc idempotency trong code đã merge.
+
+| # | Mức | Xử lý |
+|---|---|---|
+| 1 | should-fix | Không sửa ở đây: `notification_log` thiếu `occurred_at` nên thông báo đảo thứ tự → BL-211 |
+| 2 | should-fix | Không sửa: manual thiếu đường recovery/DLQ/duplicate → BL-212 |
+| 3 | should-fix | Không sửa: lỗi không được log → BL-209 |
+| 4 | should-fix | **Đã sửa:** bàn giao DBS-119 ở §8 đã cũ, đã cập nhật |
+| 5 | should-fix | Không sửa: TC-102-07 thiếu test với `NotificationConsumer` thật → BL-212 |
+| 6, 7 | minor | Không sửa: test phụ thuộc thứ tự, `rejects.toThrow()` quá rộng → BL-212 |
+| 8 | minor | Không sửa: backoff trong ADR-03/14 → BL-210 |
+| 9 | minor | **Đã sửa:** header có PR [#102](https://github.com/Lawliet119/digital-banking-simulator/pull/102) |

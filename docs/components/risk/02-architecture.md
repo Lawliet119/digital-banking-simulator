@@ -26,7 +26,7 @@ Module `risk` nằm trọn trong `backend/src/modules/risk/` (đăng ký ở `sh
 | `features/feature-provider.ts` | `worker` + script | Interface `FeatureProvider.extract(event): Promise<Features>` |
 | `features/online-feature-provider.ts` | `worker` | Trích xuất đặc trưng từ Redis (`risk:vel:{accountId}`, `risk:fan:{accountId}`) + truy vấn view `v_transfer_facts` trên PostgreSQL; tự động rơi về SQL khi Redis lỗi/chậm |
 | `features/offline-feature-provider.ts` | script | Trích xuất cùng tập đặc trưng từ dữ liệu CSV trong bộ nhớ để đánh giá offline tốc độ cao |
-| `config/rule-set.repository.ts` | `api` + `worker` | Đọc/ghi `risk_rule_sets`, quản lý cache Redis `cfg:risk:latest` (TTL 60s) và `cfg:risk:v{n}` (bất biến) |
+| `config/rule-set.repository.ts` | `worker` (đọc, DBS-110); `api` ghi phiên bản khi có UC-12 | Đọc `risk_rule_sets`, quản lý cache Redis `cfg:risk:latest` (TTL 60s) và `cfg:risk:v{n}` (bất biến) |
 | `entities/*.entity.ts` | `api` + `worker` | `RiskRuleSetEntity`, `FraudFlagEntity`, `FraudRuleHitEntity` |
 | `dto/*.dto.ts` | `api` | DTO validate query/body cho review cờ và tạo phiên bản cấu hình |
 | `index.ts` | `api` + `worker` | Chỉ export `RiskModule` (không module nào khác gọi trực tiếp vào `risk`) |
@@ -63,7 +63,7 @@ Schema chính thức nằm tại [`_shared/database-design.md` §4.8](../_shared
 - **Key Redis (R-3, R-4):**
   - `risk:vel:{accountId}`: Sorted Set (`member = transferId`, `score = occurredAtMs`, TTL 7200s).
   - `risk:fan:{accountId}`: Sorted Set (`member = toAccountId` mới, `score = occurredAtMs`, TTL 7200s).
-  - `cfg:risk:latest`: lưu số phiên bản hiện hành (TTL 60s); `cfg:risk:v{n}`: lưu JSON cấu hình của phiên bản `n` (TTL 24h, bất biến).
+  - `cfg:risk:latest`: lưu số phiên bản hiện hành (TTL 60s); `cfg:risk:v{n}`: lưu JSON cấu hình của phiên bản `n` (TTL 7 ngày theo ADR-12, bất biến).
 
 ---
 
@@ -167,7 +167,8 @@ Xem sơ đồ tuần tự tại [`docs/03` §6.5](../../03_HIGH_LEVEL_ARCHITECTU
 | Sự kiện `TransferCompleted` bị SQS giao trùng (≥ 2 lần) | Member của Redis sorted set là `transferId` nên không đếm đôi R1; `processed_events('risk', event_id)` và khóa chính `fraud_flags(transfer_id)` chặn tạo cờ trùng (AC-9.2) |
 | Sự kiện đến trễ hoặc đảo thứ tự | Mọi cửa sổ thời gian (10 phút, 1 giờ, 24 giờ, 30 ngày) tính theo `event.occurredAt`, kết quả chấm điểm bất biến theo thời điểm xử lý |
 | Redis chết hoặc chậm vượt timeout | Circuit breaker mở → `OnlineFeatureProvider` tự động chạy truy vấn dự phòng trên `v_transfer_facts` và đọc `risk_rule_sets` từ PostgreSQL; ghi metric `risk_redis_fallback_total`; kết quả chấm điểm không đổi |
-| Một luật hoặc mô hình ONNX ném lỗi | Bắt lỗi tại chỗ, tăng `risk_rule_error_total{rule}`, các luật còn lại vẫn chạy bình thường để không chặn hàng đợi |
+| Một luật ném lỗi (cấu hình hoặc dữ liệu feature không hợp lệ) | Theo ADR-14: fail-closed. `ScoringService` ném lại lỗi, transaction rollback, không commit decision, không ack; SQS retry rồi chuyển DLQ; tăng `risk_rule_error_total{rule}`. Lỗi tất định làm mọi event vào DLQ nên cần alarm DLQ (BL-051) |
+| Mô hình ONNX ném lỗi | Bắt lỗi tại chỗ, tăng `risk_rule_error_total{rule="ML"}`; sự kiện chấm bằng 6 luật |
 | File mô hình sai `sha256` hoặc không nạp được | Sự kiện chấm bằng 6 luật, `risk_rule_error_total{rule="ML"}`; tắt hẳn bằng phiên bản cấu hình mới có `ml.enabled = false` |
 | Message sai schema JSON | Ghi log cảnh báo kèm `correlationId` và chuyển thẳng sang `risk-events-dlq` (không retry) |
 | PostgreSQL lỗi tạm thời khi worker ghi cờ | Transaction rollback, không xóa message khỏi SQS → SQS giao lại sau visibility timeout; quá 5 lần thất bại → chuyển sang `risk-events-dlq` và bật alarm |

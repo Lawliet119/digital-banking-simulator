@@ -131,3 +131,20 @@ Rủi ro: cấu hình hỏng chặn scoring (lỗi được nêu rõ trường, 
 ## 9. Tài liệu đã cập nhật
 
 `backend/src/modules/risk/README.md`, `docs/BACKLOG.md` (BL-184 H4 phần ánh xạ và H9 đóng, thêm BL-188), `docs/features/README.md`, `.github/workflows/ci.yml`.
+
+### Domain review bằng subagent (bù sau merge, 2026-11-09)
+
+Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/domain-review.md` chỉnh cho code đã merge, đọc `main` ở `18f93dc`. [Phản hồi nguyên văn](screenshots/DBS-110/domain-review.md). Bước này lẽ ra chạy ở Phase 2; agent đã bỏ qua khi làm một mạch, vì suy diễn Techlead waiver rộng hơn lời dặn «không qua humangate» (chỉ miễn người duyệt gate). Chạy bù sau merge. Mục tự phản biện ở trên chưa thấy các điểm should-fix dưới đây.
+
+**Verdict: REVISE** (4 should-fix, 4 minor, 2 bàn giao).
+
+| # | Mức | Xử lý |
+|---|---|---|
+| 1 | should-fix | `SET cfg:risk:latest n` vô điều kiện có thể làm lùi phiên bản → BL-208 |
+| 2 | should-fix | `latest` 10 chữ số vượt int4 làm `current()` ném lỗi thay vì quay về PostgreSQL; §6 #5 «mọi giá trị cache hỏng quay về PostgreSQL» chưa đúng → BL-208 |
+| 3 | should-fix | Entry `cfg:risk:v{n}` hợp lệ nhưng sai được tin và ghim trong bộ nhớ → BL-208 |
+| 4 | should-fix | `parseRuleSet` vẫn nhận `minAmountExclusive` kiểu số và cấu hình thiếu khóa; H9 «đã đóng» chỉ đúng một phần → BL-208 |
+| 5, 6 | minor | ID TC lệch giữa doc và spec, test phụ thuộc thứ tự, manual ghi vào Valkey dùng chung và không có đường lỗi → BL-212 |
+| 7 | minor | **Đã sửa:** `02-architecture.md` (TTL `v{n}` 7 ngày, vai trò repository) |
+| 8 | minor | Nhãn `reason` cho metric fallback → BL-208 |
+| 9, 10 | bàn giao | DBS-111 và UC-12 → BL-188 |

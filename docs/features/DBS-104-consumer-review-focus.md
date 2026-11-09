@@ -1,6 +1,6 @@
 # DBS-104 · Review Focus 4 (consumer): cùng eventId nhiều lần, message hỏng, thứ tự đảo
 
-> **Status:** Implemented (G1–G4 agent tự duyệt) · **Vai:** Dev · **Nhánh:** `test/DBS-104-consumer-review-focus` · **PR:** — · **Cập nhật:** 2026-11-09
+> **Status:** Implemented (G1–G4 agent tự duyệt) · **Vai:** Dev · **Nhánh:** `test/DBS-104-consumer-review-focus` · **PR:** [#102](https://github.com/Lawliet119/digital-banking-simulator/pull/102) (code và test) và [#103](https://github.com/Lawliet119/digital-banking-simulator/pull/103) (bằng chứng manual, tài liệu) · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh
 
@@ -80,3 +80,17 @@ Test này xanh ngay vì hành vi đã có từ DBS-101/102; chứng minh test c�
 ## 9. Tài liệu đã cập nhật
 
 `docs/features/README.md`.
+
+### Domain review bằng subagent (bù sau merge, 2026-11-09)
+
+Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/domain-review.md` chỉnh cho code đã merge, đọc `main` ở `18f93dc`. [Phản hồi nguyên văn](screenshots/DBS-104/domain-review.md). Bước này lẽ ra chạy ở Phase 2; agent đã bỏ qua khi làm một mạch, vì suy diễn Techlead waiver rộng hơn lời dặn «không qua humangate» (chỉ miễn người duyệt gate). Chạy bù sau merge.
+
+**Verdict: REVISE** (4 should-fix, 3 minor).
+
+| # | Mức | Xử lý |
+|---|---|---|
+| 1 | should-fix | Không sửa ở đây: TC-104-03 không kiểm soát thứ tự xử lý thật (cả 4 message chạy song song) và không so `event_id` → BL-212. **Cho tới khi sửa, kết luận «đảo thứ tự không đổi kết quả» chưa được test chứng minh** |
+| 2, 3 | should-fix | Không sửa: assertion thiếu (`failed`, 1 `processed_events`, queue rỗng) → BL-212 |
+| 4, 5 | should-fix, minor | Không sửa: manual thiếu đường recovery, DLQ đọc một lần → BL-212 |
+| 6 | minor | **Đã sửa:** header có PR |
+| 7 | minor | Không sửa: `notification_log` thiếu `occurred_at` → BL-211 |

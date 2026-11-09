@@ -60,10 +60,23 @@ Sweep sau implementation: DoD SQL/REJECTED, provider và quy trình chưa đư�
 ## 8. Kết quả và bàn giao
 
 - Xác minh trên code cuối `5df0f0f`: `lint:check`, `typecheck`, `build` đạt; unit toàn backend **80 suite / 1.584 test**, e2e **15 suite / 153 test** đạt trên PostgreSQL/Valkey cô lập. E2e này không chứng minh fraud runtime; DB suite **43 / 735** chạy trong quá trình, trước fix projection/R2 cuối, không đổi schema.
-- TC-105-01/02: **đạt** qua `r4-round-trip.rule.spec.ts` và `transfer-only.spec.ts`; TC-105-03: **chưa làm**, provider/SQL chưa có; TC-105-04: **chưa đạt**, CI/Dev review/merge chưa xảy ra. Theo dõi [BL-185](../BACKLOG.md).
+- TC-105-01/02: **đạt** qua `r4-round-trip.rule.spec.ts` và `transfer-only.spec.ts`; TC-105-03: **đạt** ở DBS-109 (`transfer-facts.db-spec.ts`: lọc REJECTED, mốc 1 giờ, EXPLAIN không Seq Scan); TC-105-04: CI xanh và merge qua [#104](https://github.com/Lawliet119/digital-banking-simulator/pull/104), **Dev review chưa có**. Theo dõi [BL-185](../BACKLOG.md).
 - Manual trên commit code cuối: `npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts`; M-105-01 đúng 60 phút → hit, quá 1 ns → null; M-95/105/106/107-02 DEPOSIT → null và R3 từ chối timestamp sai. [Output thật](screenshots/DBS-105/manual-test.txt), [ảnh terminal](screenshots/DBS-105/01-rules.png). Input tổng hợp, không chạy provider hay SQL.
 - Độ lệch: code/test được viết trước feature doc và review thiết kế; review được thực hiện sau, không coi là đã hoàn thành theo đúng thứ tự G2/G3. Quyết định sau đó: giữ PR ở Draft, bàn giao rõ review quy trình và các phần chưa chứng minh; không tuyên bố hoàn thành DoD.
 
 ## 9. Tài liệu
 
 Đã cập nhật `backend/src/modules/risk/README.md`, `docs/features/README.md`, `docs/BACKLOG.md` (BL-185) và guide lỗi theo ADR-14.
+
+### Domain review bằng subagent (bù sau merge, 2026-11-09)
+
+Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/domain-review.md` chỉnh cho code đã merge, đọc `main` ở `18f93dc`. [Phản hồi nguyên văn](screenshots/DBS-105/domain-review.md). Bước này lẽ ra chạy ở Phase 2; agent đã bỏ qua khi làm một mạch, vì suy diễn Techlead waiver rộng hơn lời dặn «không qua humangate» (chỉ miễn người duyệt gate). Chạy bù sau merge. Phần review có sẵn ở trên (từ PR #100) được giữ nguyên; phản hồi mới nối vào cùng file.
+
+**Verdict: REVISE** (1 should-fix, 6 minor).
+
+| # | Mức | Xử lý |
+|---|---|---|
+| 1, 2, 3 | should-fix, minor | Không sửa: R4 tắt vẫn parse dữ liệu provider; chính sách `elapsed <= 0` khác projection AI; độ phân giải thật là mili giây → BL-207 |
+| 4, 6 | minor | Không sửa: thiếu ca biên 61 phút, manual thiếu đường lỗi → BL-212 |
+| 5 | minor | **Đã sửa:** bảng truy vết ở §8 |
+| 7 | minor | Bàn giao UC-12: `parseRuleSet` chưa chặn `reverseWindowMinutes` ngoài 1–60 → BL-188 |

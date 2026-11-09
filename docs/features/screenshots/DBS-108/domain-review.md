@@ -45,3 +45,25 @@ Predicate probability đã nói rõ không ép kiểu, nhưng shape của `asses
 ### Phạm vi kết luận
 
 Thiết kế đã nêu đúng các bất biến quan trọng: AI không được xóa điểm luật, baseline overflow phải fail-closed, AI overflow phải fallback, và event ngoài whitelist bị bỏ qua sớm. Tuy nhiên, các điểm trên cần được chốt và chuyển thành test trước khi approve. Ngoài ra, review này không xác nhận được hành vi thực tế của sáu rule, mapping config, caller trước egress hay CI/merge vì implementation và bằng chứng tương ứng chưa được cung cấp.
+
+---
+
+## Review bổ sung (backfill sau khi merge, subagent riêng, đọc code trên main)
+
+Review ở trên đã có sẵn từ PR #100/#104. Phần dưới là reply nguyên văn của subagent chạy bổ sung.
+
+| # | Severity (blocking / should-fix / minor) | Section of the doc or file | Finding | Evidence (file and section/line) | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | should-fix | `scoring.service.ts` | ADR-14 yêu cầu metric `risk_rule_error_total{rule}`, nhưng scorer ném lại lỗi thô không mang mã luật, nên consumer không gắn được nhãn `rule`. Ví dụ: «Not a valid money value» từ R6, «Invalid risk rule configuration» khi thiếu entry, «Invalid risk rule result». | scoring.service.ts:91-108; ADR-14 dòng 64; BL-051 | Bọc `rule.evaluate` trong try/catch, ném `RiskRuleError{ruleId}` (giữ `cause`, không kèm giá trị); thêm test |
+| 2 | minor | Nguồn tham chiếu | `02-architecture.md` §7 vẫn ghi «bắt lỗi tại chỗ, các luật còn lại vẫn chạy», trái với hành vi fail-closed của scorer theo ADR-14. BL-186 chỉ nhắc guide, không nhắc file này. | docs/components/risk/02-architecture.md:170 | Sửa §7 theo ADR-14 |
+| 3 | minor | TC-108-01 | DoD 2 yêu cầu «các ví dụ guide §4.3 thành unit test», nhưng test dùng giá trị biên (5 người nhận, 6 lệnh, tài khoản 3 giờ, số dư 20,8 triệu) chứ không dùng đúng ví dụ (6 người nhận, 8 lệnh/10 phút). Fixture AC-9.1 (tài khoản 1 giờ, số dư 21 triệu, chuyển 20 triệu → 65 MEDIUM) cũng không có nguyên văn. | scoring.service.spec.ts:78-105; guide §4.3 dòng 195-200; BRD AC-9.1 | Thêm các hàng đúng nguyên văn guide và AC-9.1 |
+| 4 | minor | doc §1, §8 | Tài liệu đã cũ: vẫn ghi DBS-105–107 chưa merge, provider và repository chưa có, trong khi DBS-109/110 đã ở `main`. | DBS-108 §1 đoạn 2; git log `77a5cac`, `32367ab` | Cập nhật trạng thái |
+| 5 | minor (hand-off: DBS-111/consumer, Dev API) | Tích hợp | `ScoringService` chưa được nối vào module hay consumer nào. Vì vậy FR-RSK-03/04, AC-9.1, AC-9.2 (event trùng hoặc đảo thứ tự) và AC-10.2 (ẩn cờ và explanation chứa số tiền khỏi khách hàng) chưa được chứng minh. | risk.module.ts:3; grep không tìm thấy nơi dùng `ScoringService` | Consumer test e2e AC-9.1/9.2; API test AC-10.2 |
+| 6 | minor (hand-off: UC-12/DBS-110) | BL-188 | `parseRuleSet` nhận các giá trị mà luật sẽ ném lỗi, nên một phiên bản hỏng làm mọi TRANSFER vào DLQ. Đã chạy thử với R4=90, R5 `windowMinutes`=30, R6=90.5. BL-188 thiếu R4 và R6. | rule-set.ts:61-63; BL-188 | Bộ kiểm khi ghi phiên bản phải phủ đủ miền giá trị R1–R6 |
+
+Không có phát hiện về tiền hay bảo mật: điểm được giới hạn trong int, mức LOW/MEDIUM/HIGH khớp 40/70, AI chỉ được cộng điểm, projection gửi đúng danh sách trường cho phép (không UUID, không timestamp tuyệt đối).
+
+Verdict: REVISE
+
+---
+**Ghi chú chung của reviewer (một reply cho DBS-105..108):** Đã xác minh bằng chạy thực tế: hai script manual (`r3-r6.manual.ts`, `scoring.manual.ts`) chạy được và ra đúng kết quả như doc mô tả (chạy bằng ts-node `-T`, `node_modules` mượn từ worktree `main`). Chưa chạy được bộ unit Jest vì Jest không nhận cấu hình transform với `node_modules` mượn; khi đánh giá test chỉ đọc code test. Reviewer không sửa file nào trong repo.

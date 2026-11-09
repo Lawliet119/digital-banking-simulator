@@ -38,14 +38,14 @@
 - `gen` là bộ đếm chung `risk:gen`. Khi một lần gọi Redis lỗi, event đó được trả lời từ SQL và **không ghi** vào bộ đếm, nên bộ đếm có thể thiếu lệnh. Lần đầu Redis sống lại, process tăng `risk:gen`: mọi khóa phủ cũ mất hiệu lực trên mọi worker, nên các bộ đếm được nạp lại từ SQL trước khi tin tiếp.
 - Cùng `transferId` (hoặc cùng người nhận mới) hai lần chỉ là một member nên không đếm đôi.
 - Nạp lại tối đa 500 dòng mỗi bộ đếm; nhiều hơn thì không cache cho tài khoản đó (luôn SQL).
-- Mọi lỗi Redis (`RedisUnavailableError`: timeout, breaker mở, mất kết nối) → SQL và tăng `risk_redis_fallback_total{rule}`. Lỗi không phải Redis (SQL lỗi) được ném ra, không nuốt.
+- Mọi lỗi Redis (`RedisUnavailableError`: timeout, breaker mở, mất kết nối) → SQL và tăng `risk_redis_fallback_total{rule,reason}`. Lỗi không phải Redis (SQL lỗi) được ném ra, không nuốt.
 
 Giới hạn đã biết (ghi vào BACKLOG): thứ tự xử lý đảo khi bộ đếm đang ấm có thể thiếu lệnh chưa được xử lý (BL-184/DBS-112); không dọn zset theo giờ tường (cần `ZREMRANGEBYSCORE` trong `libs/redis`).
 
 ## 3. Kiến trúc
 
 - **Vị trí:** `modules/risk/features/` — `transfer-facts.ts` (SQL), `window-counter.ts` (cache Redis + khóa phủ), `online-feature-provider.ts` (ghép), `risk.metrics.ts`. Chạy ở `worker`, gọi **trước** `BEGIN` của consumer, không trong transaction.
-- **Interface cung cấp:** `new OnlineFeatureProvider({ facts, counters, perTxLimit, metrics })` implements `FeatureProvider.extract(event): Promise<Features>`. Người gọi `OnlineFeatureProvider` hiện tại: chỉ test hợp đồng DBS-59.
+- **Interface cung cấp:** `new OnlineFeatureProvider({ facts, redis, perTxLimit, metrics })` implements `FeatureProvider.extract(event): Promise<Features>`. Người gọi `OnlineFeatureProvider` hiện tại: chỉ test hợp đồng DBS-59.
 - **Dữ liệu:** chỉ `SELECT` từ `v_transfer_facts` (role `dbs_worker` đọc view). Không đổi schema, index, env.
 
 ```mermaid
@@ -139,3 +139,22 @@ Rủi ro: sai biên mili giây; Redis không đồng bộ SQL. Lùi: revert PR, 
 ## 9. Tài liệu đã cập nhật
 
 `backend/src/modules/risk/README.md`, `docs/BACKLOG.md` (BL-185 thu hẹp, BL-184 H1 đóng, thêm BL-187), `docs/features/README.md`, `.github/workflows/ci.yml` (bước services mới).
+
+### Domain review bằng subagent (bù sau merge, 2026-11-09)
+
+Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/domain-review.md` chỉnh cho code đã merge, đọc `main` ở `18f93dc`. [Phản hồi nguyên văn](screenshots/DBS-109/domain-review.md). Bước này lẽ ra chạy ở Phase 2; agent đã bỏ qua khi làm một mạch, vì suy diễn Techlead waiver rộng hơn lời dặn «không qua humangate» (chỉ miễn người duyệt gate). Chạy bù sau merge. Mục tự phản biện ở trên không phát hiện hai lỗi blocking dưới đây.
+
+**Verdict: REVISE** (2 blocking, 5 should-fix, 4 minor).
+
+| # | Mức | Xử lý |
+|---|---|---|
+| 1 | blocking | Cờ vô hiệu hóa bộ đếm chỉ nằm trong bộ nhớ một process: khi nhiều worker, hoặc worker restart sau khi bỏ ghi, `risk:gen` không tăng và R1/R5 đếm thiếu → BL-205 (sửa ở PR tiếp theo) |
+| 2 | blocking | `seed` event muộn ghi lùi khóa phủ qua khoảng chưa nạp → đếm thiếu → BL-205 |
+| 3 | should-fix | Đảo thứ tự khi cache ấm xếp lại là should-fix, đưa vào DoD DBS-112 → BL-187 |
+| 4 | should-fix | Race của cờ stale khi concurrency > 1 → BL-205 |
+| 5, 6, 7 | should-fix | Round-trip tuần tự, test thiếu (đồng thời, Redis chậm, nhiều worker), ngân sách R2+R4+R5 thiếu `isNew` → BL-206 |
+| 8 | minor | `attempt` nuốt cả lỗi lập trình → BL-205 |
+| 9 | minor | Doc §5 lệch script manual, vòng chờ không hạn → BL-212 |
+| 10 | minor | **Đã sửa:** tên `redis` và nhãn `reason` trong §2, §3 |
+| 11 | minor | **Đã sửa:** §6 trỏ sang review này |
+| H1, H2, H3 | bàn giao | DBS-111: BL-205; DBS-112: BL-187; Dev #3 `libs/redis`: BL-206 |
