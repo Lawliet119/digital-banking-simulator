@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
+import { CreateDbRolesAndGrants1793664000000 } from '@database/migrations/1793664000000-CreateDbRolesAndGrants';
 import { TransactionService } from '@database/transaction.service';
 import type { SqsClient } from '@libs/sqs';
 import { IdentityService } from '@modules/identity';
@@ -14,17 +15,27 @@ import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { checkLedgerInvariants } from '../support/invariants';
 
 /**
- * The application never runs as the table owner (database-design §8). This applies
- * infra/scripts/db-roles.sql to a migrated database and proves, as `dbs_api` and `dbs_worker`
- * themselves: the real HTTP flows work with only the granted privileges, and everything outside
- * the matrix is refused by PostgreSQL (BL-017: the other DB specs run as a superuser).
+ * The application never runs as the table owner (database-design §8). Migration step 7
+ * (1793664000000-CreateDbRolesAndGrants.ts) and infra/scripts/db-roles.sql create dbs_migrator,
+ * dbs_api and dbs_worker with the exact least-privilege matrix (§8.1).
+ *
+ * This test proves:
+ * - TC-119-01: Migration step 7 creates 3 roles, is idempotent, reverts cleanly and re-applies.
+ * - TC-119-02: Real API flows run as dbs_api, ledger invariants pass, and operations outside the
+ *   matrix are refused by PostgreSQL with 42501 (BL-017).
+ * - TC-119-03: Real worker flows run as dbs_worker, transfers are accessed only via view v_transfer_facts
+ *   (BL-005), and direct table access is refused with 42501.
+ * - TC-119-04: Runtime applications are blocked from connecting as dbs_migrator (DoD #2).
+ * - TC-119-05: dbs_migrator has DDL/DML privileges, but append-only tables are guarded against
+ *   UPDATE/DELETE by the forbid_mutation() trigger (AC-8.1, database-design §8.3).
  */
-describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.sql)', () => {
+describe('least-privilege roles dbs_api, dbs_worker, dbs_migrator (DBS-119)', () => {
   const PASSWORD = 'role-test-only';
   let db: TempDatabase;
   let app: Awaited<ReturnType<typeof startDepositApp>>;
   let apiSource: DataSource;
   let workerSource: DataSource;
+  let migratorSource: DataSource;
   const sql = readFileSync(resolve(__dirname, '../../../infra/scripts/db-roles.sql'), 'utf8');
 
   const urlFor = (role: string): string => {
@@ -41,29 +52,72 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
   beforeAll(async () => {
     db = await createTempDatabase();
     await migrate(db.url);
-    await db.runner.query(sql);
-    // Running it twice must change nothing: it is applied after every migration.
-    await db.runner.query(sql);
-    for (const role of ['dbs_api', 'dbs_worker']) {
+    for (const role of ['dbs_api', 'dbs_worker', 'dbs_migrator']) {
       await db.runner.query(`ALTER ROLE ${role} LOGIN PASSWORD '${PASSWORD}'`);
     }
     apiSource = await connect('dbs_api');
     workerSource = await connect('dbs_worker');
+    migratorSource = await connect('dbs_migrator');
     app = await startDepositApp(urlFor('dbs_api'));
   });
+
   afterAll(async () => {
     try {
       await app?.close();
       await apiSource?.destroy();
       await workerSource?.destroy();
+      await migratorSource?.destroy();
     } finally {
       await db?.drop();
     }
   });
 
-  it('TC-ROLE-01 the real flows run as dbs_api: users row, deposit, transfer, replay, open account, revocation', async () => {
-    const a = await seedDepositTarget(db.runner),
-      b = await seedDepositTarget(db.runner);
+  it('TC-119-01 migration step 7 creates dbs_migrator, dbs_api, dbs_worker, is idempotent, and reverts/re-applies cleanly', async () => {
+    const lifecycleDb = await createTempDatabase();
+    try {
+      // 1. Initial migrate applies migration 7
+      await migrate(lifecycleDb.url);
+
+      // Verify 3 roles exist
+      const roles = (await lifecycleDb.runner.query(
+        "SELECT rolname FROM pg_roles WHERE rolname IN ('dbs_migrator', 'dbs_api', 'dbs_worker') ORDER BY rolname",
+      )) as { rolname: string }[];
+      expect(roles.map(r => r.rolname)).toEqual(['dbs_api', 'dbs_migrator', 'dbs_worker']);
+
+      // Verify v_transfer_facts owner is dbs_migrator
+      const [{ viewowner: initialOwner }] = (await lifecycleDb.runner.query(
+        "SELECT viewowner FROM pg_views WHERE schemaname = 'public' AND viewname = 'v_transfer_facts'",
+      )) as { viewowner: string }[];
+      expect(initialOwner).toBe('dbs_migrator');
+
+      // 2. Idempotency: Running migration 7 up() a second time directly succeeds without errors
+      const step7 = new CreateDbRolesAndGrants1793664000000();
+      await expect(step7.up(lifecycleDb.runner)).resolves.not.toThrow();
+
+      // Idempotency: Running standalone infra/scripts/db-roles.sql also succeeds cleanly
+      await expect(lifecycleDb.runner.query(sql)).resolves.not.toThrow();
+
+      // 3. Revert: down() reassigns v_transfer_facts owner to CURRENT_USER and revokes privileges
+      await migrate(lifecycleDb.url, 'undoLast');
+      const [{ viewowner: revertedOwner }] = (await lifecycleDb.runner.query(
+        "SELECT viewowner FROM pg_views WHERE schemaname = 'public' AND viewname = 'v_transfer_facts'",
+      )) as { viewowner: string }[];
+      expect(revertedOwner).not.toBe('dbs_migrator');
+
+      // 4. Re-apply: up() succeeds again and re-assigns view ownership to dbs_migrator
+      await migrate(lifecycleDb.url, 'up');
+      const [{ viewowner: reappliedOwner }] = (await lifecycleDb.runner.query(
+        "SELECT viewowner FROM pg_views WHERE schemaname = 'public' AND viewname = 'v_transfer_facts'",
+      )) as { viewowner: string }[];
+      expect(reappliedOwner).toBe('dbs_migrator');
+    } finally {
+      await lifecycleDb.drop();
+    }
+  });
+
+  it('TC-119-02 real API flows run as dbs_api: users row, deposit, transfer, replay, open account, revocation', async () => {
+    const a = await seedDepositTarget(db.runner);
+    const b = await seedDepositTarget(db.runner);
     const operator = await app.issuer.token('operator', { sub: randomUUID() });
     const customer = await app.issuer.token('customer', { sub: a.sub });
     // First token of a new subject creates its users row (INSERT on users).
@@ -106,7 +160,7 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
     expect(result.status).toBe('PASS');
   });
 
-  it('TC-ROLE-02 dbs_api cannot change history, other columns, or read the outbox', async () => {
+  it('TC-119-02 dbs_api cannot change history, other columns, or read worker tables (BL-017)', async () => {
     await denied(apiSource.query('UPDATE ledger_entries SET amount = amount'));
     await denied(apiSource.query('DELETE FROM ledger_entries'));
     await denied(apiSource.query('UPDATE transfers SET amount = amount'));
@@ -138,7 +192,7 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
     await denied(apiSource.query('TRUNCATE ledger_entries'));
   });
 
-  it('TC-ROLE-03 dbs_worker reads transfers only through the view, manages notification_log and reconciliation_runs, and cannot touch money', async () => {
+  it('TC-119-03 dbs_worker reads transfers only through view v_transfer_facts, manages worker tables, and cannot touch money (BL-005)', async () => {
     await workerSource.query('SELECT 1 FROM v_transfer_facts');
     await workerSource.query(
       "INSERT INTO notification_log(event_id,kind,message) VALUES(gen_random_uuid(),'transfer_completed','Giao dich da hoan tat')",
@@ -159,7 +213,7 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
     await denied(workerSource.query('DELETE FROM transfers'));
   });
 
-  it('TC-ROLE-04 the real outbox relay runs as dbs_worker with only its grants', async () => {
+  it('TC-119-03 the real outbox relay runs as dbs_worker with only its grants', async () => {
     const event = { ...TRANSFER_SAMPLE, eventId: randomUUID() };
     await db.runner.query(
       `INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id)
@@ -184,7 +238,7 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
       riskQueueUrl: 'http://queue/risk-events',
       notificationQueueUrl: 'http://queue/notification-events',
     });
-    // The deposit and the transfer of TC-ROLE-01 left their own events in the outbox as well.
+    // The deposit and the transfer of TC-119-02 left their own events in the outbox as well.
     const [{ pending }] = (await db.runner.query(
       'SELECT count(*)::int AS pending FROM outbox_events WHERE published_at IS NULL',
     )) as { pending: number }[];
@@ -226,5 +280,63 @@ describe('least-privilege roles dbs_api and dbs_worker (infra/scripts/db-roles.s
     )) as { unpublished: boolean }[];
     expect(left.map(r => r.unpublished)).toEqual([true, false]);
     expect(await db.runner.query('SELECT 1 FROM processed_events')).toHaveLength(1);
+  });
+
+  it('TC-119-04 assertNotMigratorUser guard blocks applications from connecting as dbs_migrator (DoD #2)', async () => {
+    await expect(startDepositApp(urlFor('dbs_migrator'))).rejects.toThrow(/dbs_migrator/);
+    const upperUrl = new URL(urlFor('dbs_migrator'));
+    upperUrl.username = 'DBS_MIGRATOR';
+    await expect(startDepositApp(upperUrl.toString())).rejects.toThrow(/dbs_migrator/);
+    const encodedUrl = urlFor('dbs_migrator').replace('dbs_migrator', 'dbs%5Fmigrator');
+    await expect(startDepositApp(encodedUrl)).rejects.toThrow(/dbs_migrator/);
+  });
+
+  it('TC-119-05 dbs_migrator owns public DDL/DML but append-only tables are protected by forbid_mutation trigger (AC-8.1)', async () => {
+    // 1. DDL: dbs_migrator can create and drop tables in schema public
+    await migratorSource.query(
+      'CREATE TABLE public.dbs_migrator_ddl_test (id serial PRIMARY KEY, label text)',
+    );
+    await migratorSource.query(
+      "INSERT INTO public.dbs_migrator_ddl_test (label) VALUES ('ddl-ok')",
+    );
+    const rows = await migratorSource.query<{ label: string }[]>(
+      'SELECT label FROM public.dbs_migrator_ddl_test',
+    );
+    expect(rows).toEqual([{ label: 'ddl-ok' }]);
+    await migratorSource.query('DROP TABLE public.dbs_migrator_ddl_test');
+
+    // 2. Read access: dbs_migrator has SELECT on all tables
+    await expect(
+      migratorSource.query('SELECT 1 FROM public.transfers LIMIT 1'),
+    ).resolves.toBeDefined();
+    await expect(
+      migratorSource.query('SELECT 1 FROM public.ledger_entries LIMIT 1'),
+    ).resolves.toBeDefined();
+    await expect(
+      migratorSource.query('SELECT 1 FROM public.audit_log LIMIT 1'),
+    ).resolves.toBeDefined();
+    await expect(
+      migratorSource.query('SELECT 1 FROM public.risk_rule_sets LIMIT 1'),
+    ).resolves.toBeDefined();
+
+    // 3. Defense in depth (AC-8.1 & §8.3): Despite ALL PRIVILEGES, UPDATE/DELETE on append-only tables
+    // are rejected by the forbid_mutation() trigger with SQLSTATE 42501 and message containing 'append-only'
+    const triggerBlocked = (promise: Promise<unknown>) =>
+      expect(promise).rejects.toMatchObject({
+        driverError: {
+          code: '42501',
+          where: expect.stringMatching(/forbid_mutation/),
+        },
+        message: expect.stringMatching(/append-only/),
+      });
+
+    await triggerBlocked(migratorSource.query('UPDATE public.transfers SET amount = amount'));
+    await triggerBlocked(migratorSource.query('DELETE FROM public.transfers'));
+    await triggerBlocked(migratorSource.query('UPDATE public.ledger_entries SET amount = amount'));
+    await triggerBlocked(migratorSource.query('DELETE FROM public.ledger_entries'));
+    await triggerBlocked(migratorSource.query('UPDATE public.audit_log SET action = action'));
+    await triggerBlocked(migratorSource.query('DELETE FROM public.audit_log'));
+    await triggerBlocked(migratorSource.query('UPDATE public.risk_rule_sets SET config = config'));
+    await triggerBlocked(migratorSource.query('DELETE FROM public.risk_rule_sets'));
   });
 });

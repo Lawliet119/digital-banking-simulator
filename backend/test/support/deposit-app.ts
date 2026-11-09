@@ -18,6 +18,7 @@ import { RateLimitModule, TransferRateLimitGuard } from '@common/rate-limit';
 import { HealthModule } from '@modules/health';
 import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
 import { TransactionService } from '@database/transaction.service';
+import { assertNotMigratorUser } from '@database/database-url.guard';
 import { AccountsModule } from '@modules/accounts';
 import { AuditModule } from '@modules/audit';
 import { OutboxModule } from '@modules/outbox';
@@ -117,6 +118,7 @@ export async function startDepositApp(
     }
   };
   try {
+    assertNotMigratorUser(databaseUrl);
     const rateLimit = options.rateLimit;
     const builder = Test.createTestingModule({
       imports: [
