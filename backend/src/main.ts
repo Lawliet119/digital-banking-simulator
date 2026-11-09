@@ -15,6 +15,7 @@ import { Logger, PinoLogger } from 'nestjs-pino';
 import { configureHttpApp, setupSwagger } from './app.setup';
 import { getAppRole, runsHttp } from './common/app-role/app-role';
 import { createHttpLogging } from './common/logging/http-logging';
+import { MetricsService } from './common/metrics';
 import { safeErrorMetadata } from './common/logging/logging.options';
 import { SafeLogger } from './common/logging/safe-logger';
 import { appConfig } from './config/app.config';
@@ -50,7 +51,12 @@ async function bootstrap(): Promise<void> {
     context = app;
     const config: ConfigType<typeof appConfig> = app.get(appConfig.KEY);
     app.enableShutdownHooks();
-    configureHttpApp(app, config, createHttpLogging(await app.resolve(PinoLogger), config));
+    configureHttpApp(
+      app,
+      config,
+      createHttpLogging(await app.resolve(PinoLogger), config),
+      app.get(MetricsService).httpMiddleware(),
+    );
     if (!config.isProduction) setupSwagger(app);
     await app.listen(config.port, '0.0.0.0');
     logger.log({ port: config.port }, 'HTTP listener started', 'Bootstrap');
