@@ -2,6 +2,10 @@
 
 > **Status:** Implemented (G1–G4 agent tự duyệt) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-110-rule-set-repository` · **PR:** — · **Cập nhật:** 2026-11-09
 
+> **Cập nhật sau merge:** sửa race xuất bản cấu hình và tách key cho rollout tại
+> [BUG-20261109](BUG-20261109-risk-config-freshness.md). Bằng chứng §8 bên dưới ghi lại lần chạy
+> của PR #106 trước sửa; worker cũ chưa được bảo đảm freshness mới cho tới khi thay hết.
+
 ## 1. Bối cảnh
 
 - **Task:** Task, Tuần 4, High, P5. **Expect:** Đổi cấu hình luật có hiệu lực sau tối đa 60 giây, không phụ thuộc Redis sống.
@@ -27,11 +31,11 @@
 
 | Tình huống | Kết quả |
 |---|---|
-| Cache nguội | `SELECT version, config … ORDER BY version DESC LIMIT 1`, ghi `cfg:risk:v{n}` (7 ngày) và `cfg:risk:latest = n` (60 giây) |
+| Cache nguội | Lấy Redis TIME, `SELECT version, config … ORDER BY version DESC LIMIT 1`, ghi `cfg:risk:v{n}` (NX, 7 ngày) và publish `cfg:risk:latest:v2` trước deadline tuyệt đối |
 | `latest` còn, nội dung còn | Trả từ cache, không chạm PostgreSQL |
-| Có phiên bản mới | Dùng được khi `latest` hết hạn: tối đa 60 giây sau khi ghi (đó là hợp đồng) |
-| `latest` còn nhưng nội dung mất hoặc hỏng | Đọc phiên bản đó từ PostgreSQL, ghi lại |
-| `latest` không phải số phiên bản hợp lệ | Bỏ qua, đọc PostgreSQL |
+| Có phiên bản mới | Dùng được trong vòng 60 giây sau commit theo các giả định clock/primary/writer tại [bugfix](BUG-20261109-risk-config-freshness.md); một publisher cũ không ghi đè version mới |
+| `latest` còn nhưng nội dung mất hoặc hỏng | Đọc phiên bản đó từ PostgreSQL; key nội dung hỏng không tự ghi đè, chờ hết hạn hoặc Ops sửa |
+| `latest` sai định dạng, không TTL hoặc hết hạn | Bỏ qua, đọc PostgreSQL |
 | Redis lỗi, timeout, breaker mở | Mọi lần đọc từ PostgreSQL, tức thì và đúng; tăng `risk_config_redis_fallback_total` |
 | Phiên bản lưu không dùng được (thiếu luật, ngưỡng sai…) | `InvalidRuleSetError` nêu **tên trường**, không nêu giá trị |
 | Không có phiên bản nào | `InvalidRuleSetError` |
@@ -39,14 +43,14 @@
 
 `RuleSet` = `ScoringConfig` + `version` + `aiConfigInvalid`; mỗi luật là `{enabled, weight, thresholds}` với mọi khóa số/chuỗi còn lại của JSON phẳng nằm trong `thresholds`. `ai` chỉ có khi `mode = rules_with_external_ai` và khối hợp lệ: provider `openai`, model `^[A-Za-z0-9_.:-]{1,128}$`, rubric không rỗng, `threshold` ∈ (0,1], `weight` nguyên ≥ 0 và tổng với trọng số luật vừa `int`, `maxAdmissionDelayMs` và `requestTimeoutMs` nguyên dương.
 
-**Thời gian hiệu lực khi chuyển về `rule_only`:** phiên bản mới được dùng sau tối đa 60 giây; một lời gọi AI đã chọn cấu hình cũ còn bị giới hạn thêm bởi `ai.maxAdmissionDelayMs` trước khi gửi, và nếu đã gửi thì chạy tới `ai.requestTimeoutMs`. Đây **không** phải ngắt egress tức thì (ADR-14 §2.7).
+**Thời gian hiệu lực khi chuyển về `rule_only`:** worker mới chọn phiên bản trong tối đa 60 giây theo giả định [bugfix](BUG-20261109-risk-config-freshness.md); một lời gọi AI đã chọn cấu hình cũ còn bị giới hạn thêm bởi `ai.maxAdmissionDelayMs` trước khi gửi, và nếu đã gửi thì chạy tới `ai.requestTimeoutMs`. Đây **không** phải ngắt egress tức thì (ADR-14 §2.7); worker cũ cần được thay hết.
 
 ## 3. Kiến trúc
 
 - **Vị trí:** `modules/risk/config/` (`rule-set.ts` thuần, `rule-set.repository.ts`), `risk.metrics.ts` thêm counter. Chạy ở `worker`.
-- **Interface cung cấp:** `new RuleSetRepository({ redis, db, metrics }).current()`; `parseRuleSet(version, raw)`; `InvalidRuleSetError`. `redis` chỉ cần `get`/`set`; `db` chỉ cần `query`.
+- **Interface cung cấp:** `new RuleSetRepository({ redis, db, metrics }).current()`; `parseRuleSet(version, raw)`; `InvalidRuleSetError`. Redis cung cấp `get`, server TIME, đọc/ghi latest có deadline nguyên tử và ghi nội dung NX; `db` chỉ cần `query`.
 - **Dữ liệu:** chỉ `SELECT` từ `risk_rule_sets`. Không đổi schema, env, dependency.
-- **Redis:** `cfg:risk:latest` (TTL 60), `cfg:risk:v{n}` (TTL 604800, mức tối đa của `RedisClient`). Ghi cache chỉ là cố gắng, lỗi chỉ làm lần đọc sau chậm hơn.
+- **Redis:** `cfg:risk:latest:v2` có deadline không quá 60 giây tính từ trước SQL, `cfg:risk:v{n}` dùng NX và TTL 604800 giây. Key `cfg:risk:latest` cũ tách riêng để worker cũ không phá thứ tự worker mới. Redis hỏng → SQL primary; snapshot quá hạn bị thử lại rồi báo lỗi.
 
 ```mermaid
 flowchart TD
@@ -78,8 +82,8 @@ flowchart TD
 
 | Bước | Việc làm | Mong đợi |
 |---|---|---|
-| M-110-01 | `current()` lần đầu | Phiên bản 1 từ PostgreSQL; `cfg:risk:latest = "1"` và `cfg:risk:v1` có trong Valkey |
-| M-110-02 | Thêm v2 (R1 weight 55); đọc lại; `PEXPIRE cfg:risk:latest 1`; đọc lại | Lần đầu vẫn v1 (trong cửa sổ cache), sau khi `latest` hết hạn là v2 |
+| M-110-01 | `current()` lần đầu | Phiên bản 1 từ PostgreSQL; latest có deadline và `cfg:risk:v1` có trong Valkey |
+| M-110-02 | Thêm v2 (R1 weight 55); đọc lại; rút TTL `LATEST_KEY`; đọc lại | Lần đầu vẫn v1 (trong cửa sổ cache), sau khi `latest` hết hạn là v2 |
 | M-110-03 | `docker pause` Valkey, thêm v3, đọc | Đọc v3 từ PostgreSQL ngay |
 
 ## 6. Domain review

@@ -1,0 +1,8 @@
+7c575ff887c330c4d7b3b08bb3592de783011d44
+Command: cd backend && npx ts-node -r tsconfig-paths/register test/manual/risk-config-freshness.manual.ts
+M-CACHE-01 PASS: seed v1 selected from isolated PostgreSQL
+M-CACHE-02 PASS: delayed v1 cannot replace published v2
+M-CACHE-03 PASS: v3 selected after shortened cache expiry
+M-CACHE-04 PASS: PostgreSQL returns v3 with Valkey stopped
+
+Isolated PostgreSQL 17 and Valkey 8. M-CACHE-03 shortens TTL to 100 ms; it does not observe 60 seconds in real time. No external AI or customer data used.

@@ -15,6 +15,13 @@ thành công trước đó. TTL sai bị từ chối trước khi mutate bất c
 định dạng key và loại dữ liệu được phép cache (ADR-12); **không bao giờ** cache số dư, trạng thái
 giao dịch hay dữ liệu cá nhân.
 
+Kho cấu hình risk dùng thêm `serverTimeMs()`, `readExpiringVersion(key)`,
+`setVersionBefore(key,version,deadlineMs)` và `setIfAbsent(key,value,ttlSeconds)`.
+Lua giới hạn thời hạn và so sánh version atomically; lệnh cũ/quá hạn không ghi đè version mới,
+`SET NX` không thay nội dung version có sẵn. Các lệnh vẫn qua breaker như những method khác.
+Caller phải lấy Redis TIME trước khi đọc primary và tự kiểm deadline lúc chọn snapshot; xem
+[bugfix freshness](../../../../docs/features/BUG-20261109-risk-config-freshness.md).
+
 Mọi lệnh đi qua `opossum`: timeout `min(config,50ms)`, ngưỡng lỗi 50%, volume 10, rolling 10s,
 reset 5s. Một listener `failure` tự viết bù khoảng hở `opossum` dùng `>` strict thành `>=50` theo
 đúng rolling stats, không đổi hằng số đã chốt. Deadline chỉ từ chối sau khi timer của nó chạy hết;

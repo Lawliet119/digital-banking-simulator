@@ -1,25 +1,36 @@
+import { performance } from 'node:perf_hooks';
 import type { RedisClient } from '@libs/redis';
 import type { RiskMetrics } from '../risk.metrics';
 import { InvalidRuleSetError, parseRuleSet, type RuleSet } from './rule-set';
 
-/** Which version is current. Short, so a new version reaches every worker within a minute. */
-export const LATEST_KEY = 'cfg:risk:latest';
+/** The current version has a strict 60-second freshness budget. */
+export const LATEST_KEY = 'cfg:risk:latest:v2';
 export const LATEST_TTL_SECONDS = 60;
-/** What a version says never changes, so it stays long (the largest TTL `RedisClient` accepts). */
+const MAX_AGE_MS = LATEST_TTL_SECONDS * 1000;
 const CONTENT_TTL_SECONDS = 604_800;
+const MAX_CACHE_TIME_MS = 253_402_300_799_999;
 
 export const versionKey = (version: number): string => `cfg:risk:v${version}`;
 
-export type RuleSetRedis = Pick<RedisClient, 'get' | 'set'>;
+export type RuleSetRedis = Pick<
+  RedisClient,
+  'get' | 'serverTimeMs' | 'readExpiringVersion' | 'setVersionBefore' | 'setIfAbsent'
+>;
 
 export interface RuleSetDb {
   query(sql: string, params?: unknown[]): Promise<unknown>;
+}
+
+interface RuleSetClock {
+  monotonicMs(): number;
+  wallMs(): number;
 }
 
 export interface RuleSetRepositoryDeps {
   readonly redis: RuleSetRedis;
   readonly db: RuleSetDb;
   readonly metrics: RiskMetrics;
+  readonly clock?: RuleSetClock;
 }
 
 interface Row {
@@ -27,23 +38,18 @@ interface Row {
   readonly config: unknown;
 }
 
-const VERSION_NUMBER = /^[1-9]\d{0,9}$/;
+const systemClock: RuleSetClock = {
+  monotonicMs: () => performance.now(),
+  wallMs: () => Date.now(),
+};
+class FreshnessExpired extends Error {}
 
-/**
- * The rule configuration a worker scores with (UC-12, guide §4.6). Versions are immutable rows of
- * `risk_rule_sets`. Redis only caches them:
- *
- * - `cfg:risk:latest` (TTL 60 s) names the current version, so a new version is in use everywhere
- *   at most 60 s after it is written;
- * - `cfg:risk:v{n}` (TTL 7 days) holds that version's JSON.
- *
- * A miss, a corrupt value or any Redis failure reads PostgreSQL instead: the configuration is
- * exact whether Redis is up, slow or gone. Call it before the consumer's transaction opens.
- */
+/** Reads immutable rule sets outside the consumer transaction; PostgreSQL is authoritative. */
 export class RuleSetRepository {
   private readonly redis: RuleSetRedis;
   private readonly db: RuleSetDb;
   private readonly metrics: RiskMetrics;
+  private readonly clock: RuleSetClock;
   /** Parsed versions, by number: a version cannot change, so parsing it once is enough. */
   private readonly parsed = new Map<number, RuleSet>();
 
@@ -51,24 +57,33 @@ export class RuleSetRepository {
     this.redis = deps.redis;
     this.db = deps.db;
     this.metrics = deps.metrics;
+    this.clock = deps.clock ?? systemClock;
   }
 
-  /** The current rule set. Throws `InvalidRuleSetError` when the stored version is unusable. */
+  private stamp(): readonly [number, number] {
+    return [this.clock.monotonicMs(), this.clock.wallMs()];
+  }
+
+  private elapsed(start: readonly [number, number]): number {
+    const mono = this.clock.monotonicMs() - start[0];
+    const wall = this.clock.wallMs() - start[1];
+    if (!Number.isFinite(mono) || !Number.isFinite(wall) || mono < 0 || wall < 0) return Infinity;
+    // Redis TIME is truncated to milliseconds; reserve one millisecond for rounding.
+    return Math.ceil(Math.max(mono, wall)) + 1;
+  }
+
+  /** The current rule set, selected before its cache or SQL freshness deadline. */
   async current(): Promise<RuleSet> {
-    const cachedVersion = await this.cachedLatest();
-    if (cachedVersion !== undefined) {
-      const cached = await this.cachedContent(cachedVersion);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const cached = await this.selectCached();
       if (cached) return cached;
-      const row = await this.rowByVersion(cachedVersion);
-      if (row) return this.useRow(row);
+      try {
+        return await this.selectFromDatabase();
+      } catch (error) {
+        if (!(error instanceof FreshnessExpired)) throw error;
+      }
     }
-    const [row] = (await this.db.query(
-      'SELECT version, config FROM risk_rule_sets ORDER BY version DESC LIMIT 1',
-    )) as Row[];
-    if (!row) throw new InvalidRuleSetError('no version stored');
-    const set = this.parse(row);
-    await this.remember(row, true);
-    return set;
+    throw new Error('Risk rule set freshness bound exceeded');
   }
 
   private parse(row: Row): RuleSet {
@@ -80,53 +95,76 @@ export class RuleSetRepository {
     return set;
   }
 
-  private async useRow(row: Row): Promise<RuleSet> {
-    const set = this.parse(row);
-    await this.remember(row, false);
-    return set;
-  }
-
-  private async rowByVersion(version: number): Promise<Row | undefined> {
-    const [row] = (await this.db.query(
-      'SELECT version, config FROM risk_rule_sets WHERE version = $1',
-      [version],
-    )) as Row[];
-    return row;
-  }
-
-  private async cachedLatest(): Promise<number | undefined> {
+  private async selectCached(): Promise<RuleSet | undefined> {
     try {
-      const value = await this.redis.get(LATEST_KEY);
-      return value !== null && VERSION_NUMBER.test(value) ? Number(value) : undefined;
+      const marker = await this.redis.readExpiringVersion(LATEST_KEY);
+      if (!marker) return undefined;
+      let set = await this.cachedContent(marker.version);
+      if (!set) {
+        const [row] = (await this.db.query(
+          'SELECT version, config FROM risk_rule_sets WHERE version = $1',
+          [marker.version],
+        )) as Row[];
+        if (!row) return undefined;
+        set = this.parse(row);
+        await this.rememberContent(row);
+      }
+      const start = this.stamp();
+      const serverTime = await this.redis.serverTimeMs();
+      return serverTime + this.elapsed(start) < marker.deadlineMs ? set : undefined;
     } catch {
       this.metrics.configFallback();
       return undefined;
     }
   }
 
+  private async selectFromDatabase(): Promise<RuleSet> {
+    let serverTime: number | undefined;
+    try {
+      serverTime = await this.redis.serverTimeMs();
+    } catch {
+      this.metrics.configFallback();
+    }
+    const start = this.stamp();
+    const [row] = (await this.db.query(
+      'SELECT version, config FROM risk_rule_sets ORDER BY version DESC LIMIT 1',
+    )) as Row[];
+    if (!row) throw new InvalidRuleSetError('no version stored');
+    const set = this.parse(row);
+    if (this.elapsed(start) >= MAX_AGE_MS) throw new FreshnessExpired();
+    if (serverTime !== undefined && serverTime <= MAX_CACHE_TIME_MS - MAX_AGE_MS) {
+      await this.rememberContent(row);
+      try {
+        await this.redis.setVersionBefore(LATEST_KEY, row.version, serverTime + MAX_AGE_MS);
+      } catch {
+        this.metrics.configFallback();
+      }
+    }
+    if (this.elapsed(start) >= MAX_AGE_MS) throw new FreshnessExpired();
+    return set;
+  }
+
   private async cachedContent(version: number): Promise<RuleSet | undefined> {
     const known = this.parsed.get(version);
-    if (known) return known; // immutable: no need to read it again
+    if (known) return known;
     try {
       const text = await this.redis.get(versionKey(version));
       if (text === null) return undefined;
       return this.parse({ version, config: JSON.parse(text) as unknown });
     } catch {
-      // Redis down, or the cached text is not a usable version: PostgreSQL decides.
       this.metrics.configFallback();
       return undefined;
     }
   }
 
-  /** Best effort: a cache that cannot be written is only a slower next read. */
-  private async remember(row: Row, alsoLatest: boolean): Promise<void> {
+  /** A delayed cache write must never replace another writer's immutable content. */
+  private async rememberContent(row: Row): Promise<void> {
     try {
-      await this.redis.set(
+      await this.redis.setIfAbsent(
         versionKey(row.version),
         JSON.stringify(row.config),
         CONTENT_TTL_SECONDS,
       );
-      if (alsoLatest) await this.redis.set(LATEST_KEY, String(row.version), LATEST_TTL_SECONDS);
     } catch {
       this.metrics.configFallback();
     }
