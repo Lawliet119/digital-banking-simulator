@@ -540,6 +540,8 @@ Ma trận này được cài thành migration bước 7 TypeORM `1793664000000-C
 
 Nhìn bảng này thấy ngay: **không role nào có `UPDATE` hay `DELETE` trên `ledger_entries`, `transfers`, `audit_log`**. Với `accounts`, nên cấp `UPDATE` theo cột (`GRANT UPDATE (balance, status, updated_at)`), tương tự `fraud_flags` chỉ cho sửa các cột `review_*`.
 
+Suite [`db-role-permissions.db-spec.ts`](../../../backend/test/db/db-role-permissions.db-spec.ts) kiểm riêng các ranh giới API/worker bằng actual LOGIN trong PostgreSQL17 container riêng: sáu UPDATE/DELETE lịch sử bị ACL từ chối (`42501`, phân biệt với trigger), worker không INSERT transfers, API không INSERT fraud_flags; worker commit được fraud_flags/audit_log và chỉ đọc transfers qua view với dữ liệu thực. Setup tiền qua HTTP thật; mọi phép thử cấm luôn rollback, so snapshot tiền và kiểm bất biến. Negative control cấp thừa quyền trong container riêng chứng minh assertion phát hiện được sai lệch và khôi phục GRANT. Cách chạy và bằng chứng: [DBS-122](../../features/DBS-122-db-role-permissions.md).
+
 **Giới hạn cần nói thật:** FRAUD guide muốn "DB role riêng cho risk consumer, chỉ đọc `transfers` và chỉ ghi bảng fraud". Với một process `worker` chứa cả relay, risk, notification, role đó phải là **hợp** các quyền trên. Muốn tách đúng nghĩa thì `risk` phải mở một kết nối riêng với role riêng; đó là hướng mở rộng, không làm ở v1 (đã ghi ở mục rủi ro chấp nhận của [threat model](../../security/threat-model.md)).
 
 ### 8.2 View `v_transfer_facts`

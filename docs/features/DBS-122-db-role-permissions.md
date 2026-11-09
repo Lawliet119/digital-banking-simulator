@@ -1,6 +1,6 @@
 # DBS-122 · Kiểm chứng quyền DB của API và worker
 
-> **Status:** Plan approved · **Vai:** Dev · **Nhánh:** `test/DBS-122-db-role-permissions` · **PR:** chưa mở · **Cập nhật:** 2026-11-09
+> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `test/DBS-122-db-role-permissions` · **PR:** [tra theo nhánh](https://github.com/Lawliet119/digital-banking-simulator/pulls?q=is%3Apr+head%3Atest%2FDBS-122-db-role-permissions) · **Cập nhật:** 2026-11-09
 
 ## 1. Bối cảnh và G1
 
@@ -108,7 +108,9 @@ Reviewer độc lập `dbs122_design_review`, model kế thừa GPT-6, 2026-11-0
 2. Thêm support fixture/ACL assertion tối thiểu, chạy xanh trên quyền migration thật. Negative control trong container riêng chứng minh assertion báo sai khi cấp thừa quyền, không sửa migration để ép đỏ.
 3. Thêm manual driver6bước, lint/typecheck và bộ test liên quan119/122; chạy unit/e2e appropriate sau thay đổi. Commit green `test(database): verify runtime DB role boundaries (DBS-122)`.
 4. Sau commit, chạy clean clone target suite; manual6bước trên final codeSHA; raw/screenshot. Cập nhật database-design8 dòng evidence, backend README, feature index, backlog process, PR mapping/verification.
-5. Tự kiểm G4, push và Draft PR theo authorization đã có; CI exactHEAD và Dev review/merge pending công khai. Không merge hoặc sửaboard.
+5. Tự kiểm G4, push và PR sẵn sàng review sau G4; CI exactHEAD và Dev review/merge pending công khai. Không merge hoặc sửaboard.
+
+Red đã chạy trước helper: TS2307 `Cannot find module '../support/db-role-permissions'`,0 test thực thi. Đây là harness chưa tồn tại, không phải lỗi ACL production. Sau helper:13/13 xanh,14.305s. Có sửa lỗi TypeScript ở adapter checker (DataSource.query khác overload QueryRunner); dùng QueryRunner riêng và release ở finally, không đổi checker. TC03 thêm positive control cùng INSERT bằng API trong rollback để loại trừ FK/check failure; cùng phạm vi valid-input control ở §2, không seed dữ liệu tiền.
 
 Files: `backend/test/db/db-role-permissions.db-spec.ts`, `backend/test/support/db-role-permissions.ts`, `backend/scripts/manual-dbs122.cjs`, feature doc/screenshots122, `docs/components/_shared/database-design.md`, `backend/README.md`, `docs/features/README.md`, `docs/BACKLOG.md`. Không thay production source hoặc workflow; nếu assertion phát hiện lỗi thật phải ghi gate phụ trước sửa grant/schema.
 
@@ -118,8 +120,68 @@ Rủi ro: lẫn admin với runtime, input constraint che lỗi permission, test
 
 **G3 qua — agent tự quyết:** đã sweep DoD, giới hạn docs/BACKLOG và danh sách file §7; không có yêu cầu chưa được gán test hoặc ghi ngoài phạm vi. Lệnh chứng minh bước1/2: `npm run test:db -- --runInBand --runTestsByPath test/db/db-role-permissions.db-spec.ts`; bước3: lint:check/typecheck/build/unit/e2e và hai suite119/122; bước4: cùng target suite từ clone sạch và `node scripts/manual-dbs122.cjs`. Commit source xanh rồi commit docs/evidence. Không có thay đổi dependency, env, contract hoặc quyền production.
 
-Chưa thực thi test122; chưa có PR/CI/review/merge cho122.
+**Source commit cuối:** `953ac54fbfc93ecc49260a12cc88f0eaba2ad72c`. Không đổi source sau test tay.
+
+| Kiểm tra | Kết quả thật |
+|---|---|
+| Target suite122 |13/13,14.305s, PostgreSQL17 thật |
+| Clone sạch của source commit, junction dependencies đã cài |13/13,16.810s; không chép env hoặc thay dependency |
+| lint:check/typecheck/build |đạt |
+| Unit toàn bộ |88suites1657/1657,108.375s |
+| E2E toàn bộ |15suites153/153,115.768s |
+| DB toàn bộ |53suites815/815,767.450s;0skip |
+| Liên kết docs |319files,0link hỏng; `git diff --check` sạch |
+
+**Đối chiếu test case:** mọi case ở lớp integration/security, DB thật; không đơn giản hóa.
+
+| ID | Test trong `db-role-permissions.db-spec.ts` | Kết quả |
+|---|---|---|
+| TC-122-01 |actual LOGIN không đặc quyền; HTTP tạo dữ liệu thật |đạt |
+| TC-122-02 |6 `API UPDATE/DELETE ... denied by ACL` |đạt6/6;42501/aclcheck_error, rows không đổi |
+| TC-122-03 |`worker cannot INSERT transfers` |đạt; positive control API rollback |
+| TC-122-04 |`API cannot INSERT fraud_flags` |đạt; positive control worker rollback |
+| TC-122-05 |`worker can commit fraud_flags and audit_log` |đạt; owner đọc persistence/CID |
+| TC-122-06 |`worker cannot SELECT transfers; view returns exact ...` |đạt;3dòng đúng toàn bộ7cột |
+| TC-122-07 |`negative control detects excess GRANT` |đạt; phát hiện được phép, rollback/revoke/deny lại |
+| TC-122-08 |`injected unavailable Docker fails clearly` |đạt; chỉ mô phỏng runtime getter |
+| DoD3/4 quy trình |CI trên HEAD, Dev review/merge |kết quả CI cập nhật trực tiếp trong PR; Dev review/merge BL-202 |
+
+**Test tay:** lệnh `node scripts/manual-dbs122.cjs`, raw [manual-test.txt](screenshots/DBS-122/manual-test.txt), dòng đầu SHA source ở trên. Không SQL seed tiền. Flag/audit INSERT là INPUT của phép thử ACL, không nhận là RiskConsumer output.
+
+| Bước | Phản hồi thật | Kết quả |
+|---|---|---|
+| M01 |current_user=session_user đúng api/worker; mọi flag đặc quyền/owner/membership false;4transfers,8ledger,8audit;debit=credit1006000 |đạt |
+| M02 |6SQLSTATE42501 routine=aclcheck_error; dữ liệu nonempty không đổi |đạt |
+| M03 |worker INSERT transfer/API INSERT flag42501, cùng input positive controls rollback |đạt |
+| M04 |flag75/HIGH/OPEN và worker audit SUCCESS commit đúng CID; view3facts, SELECT transfers42501; connection phục hồi |đạt |
+| M05 |cấp thừa INSERT bị assertion phát hiện, data rollback, REVOKE rồi42501; money PASS |đạt |
+| M06 |app/pools đóng, docker ps -aq đúng containerID trả rỗng; Compose chung giữ nguyên |đạt |
+
+Ảnh từ raw đã chạy (đã mở kiểm hình, không tái dựng kết quả):
+
+![Vai trò và quyền bị cấm](screenshots/DBS-122/01-roles-and-denials.png)
+![Worker và khôi phục](screenshots/DBS-122/02-worker-and-recovery.png)
+
+Sơ đồ §3 đã render bằng mermaid-cli và mở kiểm [ảnh render](screenshots/DBS-122/03-architecture.png).
+
+**Phạm vi:** chỉ các file trong §7. Không đổi production/migration/workflow/grant. Lệnh build ban đầu bị gọi nhầm cờ Jest `--runInBand`, báo unknown option; đã chạy lại đúng `npm run build` và đạt. Đây là lỗi lệnh kiểm, không phải app/build hỏng.
+
+**Kiểm lại quy tắc shell trước G4:** lượt manual đầu chạy Node từ PowerShell và ghi UTF8 bằng .NET, không UTF16. `manual-testing.md` yêu cầu Git Bash; agent tự quyết chạy lại đủ6bước từ Git Bash trên cùng sourceSHA, thay raw/ảnh bằng lượt đó trước bàn giao. Không đổi source hoặc giảm case. PR sau G4 mở ở trạng thái sẵn sàng review theo Phase5 của skill; không mở sớm trong giai đoạn code.
+
+**Bàn giao/chưa chạy:** BL-202 cho CI/Dev review/merge; BL-203 cho Docker daemon thật unavailable (không tắt daemon dùng chung). RDS thật/provisioning/rotation giữ BL-103/107/195. Không nhận kiểm localhost thay thế quyền AWS/RDS. Không có waiver Techlead.
+
+### Tự kiểm G4
+
+- [x]13/13 case đạt đủ độ sâu,0 đơn giản hóa; toàn bộ DB815/unit1657/e2e153 xanh. [Bản ghi kiểm tra](screenshots/DBS-122/verification.txt).
+- [x]Manual6/6 từ Git Bash trên commit cuối đổi code953ac54, SHA dòng đầu raw; đủ thành công/từ chối/phục hồi.
+- [x]Đủ2ảnh output và raw UTF8; đã quét, không token/Authorization/password/AWS id/ARN. Ảnh sơ đồ bổ sung đã render/visual QA.
+- [x]Diff nguồn từ main và diff toàn bộ working tree khớp §7; không file lạ, không sửa production/workflow.
+- [x]Lint/typecheck/build/unit/e2e/DB đã chạy và đọc output;0skip trong suite mới.
+- [x]Docs fact cập nhật,319file/0link hỏng; trạng thái Plan approved tại thời điểm tự kiểm, đổi Implemented sau G4 qua.
+- [x]Bàn giao/giới hạn BL-202/203 và BL-103/107/195 nêu rõ; không tự merge hoặc sửa sheet.
+
+**Quyết định G4 (agent tự quyết):** local đầy đủ đã xanh, không còn finding thiết kế hoặc lỗi kiểm chứng. G4 qua; mở PR để CI chứng minh trên Linux exactHEAD và Dev review độc lập. Không nhận merge/review đã hoàn tất. Chưa chạy outage Docker daemon thật hoặc RDS thật; không ảnh manual nào còn thiếu. Kết quả CI động ghi trong PR để không tạo vòng commit tài liệu làm đổi HEAD đang kiểm.
 
 ## 9. Tài liệu
 
-Sẽ cập nhật bảng chứng minh trong database-design8, backend README, feature index/BACKLOG và evidence122 theo kết quả thật.
+Đã cập nhật [database-design8](../components/_shared/database-design.md#81-ba-role-postgres), [backend README](../../backend/README.md), [feature index](README.md), [BACKLOG](../BACKLOG.md) thêm BL-202/203; không xóa backlog task khác. Feature doc và evidence122 lưu trong PR.

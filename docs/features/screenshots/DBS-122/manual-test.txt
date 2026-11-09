@@ -1,0 +1,17 @@
+953ac54fbfc93ecc49260a12cc88f0eaba2ad72c
+DBS-122 actual LOGIN / PostgreSQL 17 / independent manual driver
+M01 role: {"current_user":"dbs_api","session_user":"dbs_api","rolsuper":false,"rolcreatedb":false,"rolcreaterole":false,"rolbypassrls":false,"owns_tables":false,"inherits_role":false}
+M01 role: {"current_user":"dbs_worker","session_user":"dbs_worker","rolsuper":false,"rolcreatedb":false,"rolcreaterole":false,"rolbypassrls":false,"owns_tables":false,"inherits_role":false}
+M01 PASS: HTTP onboarding/accounts/deposit/3 transfers; counts= [{"transfers":4,"ledger_entries":8,"audit_log":8}] invariants=PASS debit=credit=1006000
+M02 PASS: dbs_api UPDATE ledger_entries; SQLSTATE=42501 routine=aclcheck_error; nonempty rows unchanged
+M02 PASS: dbs_api DELETE ledger_entries; SQLSTATE=42501 routine=aclcheck_error; nonempty rows unchanged
+M02 PASS: dbs_api UPDATE transfers; SQLSTATE=42501 routine=aclcheck_error; nonempty rows unchanged
+M02 PASS: dbs_api DELETE transfers; SQLSTATE=42501 routine=aclcheck_error; nonempty rows unchanged
+M02 PASS: dbs_api UPDATE audit_log; SQLSTATE=42501 routine=aclcheck_error; nonempty rows unchanged
+M02 PASS: dbs_api DELETE audit_log; SQLSTATE=42501 routine=aclcheck_error; nonempty rows unchanged
+M03 PASS: worker INSERT transfers=42501; API INSERT fraud_flags=42501; identical valid-input controls roll back
+M04 PASS: worker COMMIT flag= [{"score":75,"risk_level":"HIGH","review_status":"OPEN"}] audit= [{"actor_role":"worker","outcome":"SUCCESS","correlation_id":"3603b2fa-a9f0-4be8-a571-eebae1910beb"}]
+M04 PASS: worker SELECT transfers=42501; view returns exact 3 committed facts; connection recovered
+M05 PASS: excess GRANT detected; accidental allowed write rolled back; REVOKE restores 42501; money unchanged
+M06 PASS: app/pools closed; owned PostgreSQL container removed; shared Compose untouched
+RESULT PASS: 6/6 manual steps; no SQL financial seed, no AWS, no shared role mutation
