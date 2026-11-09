@@ -1,9 +1,11 @@
+import { Logger } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import type { EntityManager } from 'typeorm';
 import type { TransactionService } from '@database/transaction.service';
 import type { DomainEvent } from '@common/events';
 import { PoisonMessageError, type SqsClient, type SqsMessage } from '@libs/sqs';
 import { TRANSFER_SAMPLE } from '../../../test/support/event-samples';
+import { OutboxWriter } from '@modules/outbox';
 import { ConsumerBase, MAX_ATTEMPTS, dlqUrlFor, type UnknownEventPolicy } from './consumer-base';
 
 class TestConsumer extends ConsumerBase {
@@ -12,6 +14,7 @@ class TestConsumer extends ConsumerBase {
   readonly committed: DomainEvent[] = [];
   seenCorrelationId: unknown = 'not-run';
   failure: Error | undefined;
+  onApply: (() => Promise<void>) | undefined;
   backoff = 5;
   policy: UnknownEventPolicy = 'dead-letter';
 
@@ -36,7 +39,7 @@ class TestConsumer extends ConsumerBase {
     this.seenCorrelationId = this.pino.logger.bindings().correlationId;
     if (this.failure) return Promise.reject(this.failure);
     this.applied.push(event);
-    return Promise.resolve();
+    return this.onApply?.() ?? Promise.resolve();
   }
   protected override onCommitted(event: DomainEvent): void {
     this.committed.push(event);
@@ -153,6 +156,43 @@ describe('DBS-101 ConsumerBase (unit)', () => {
     await consumer.handle(TRANSFER_SAMPLE, message(1));
     expect(consumer.seenCorrelationId).toBe(TRANSFER_SAMPLE.correlationId);
     expect(pino.logger.bindings().correlationId).toBeUndefined();
+  });
+
+  it('TC-134-10 an outer context with another id never leaks into apply, and the writer accepts the event id', async () => {
+    const writer = new OutboxWriter(pino);
+    const insert = jest.fn().mockResolvedValue([]);
+    const manager = {
+      queryRunner: { isTransactionActive: true, isReleased: false },
+      query: insert,
+    } as unknown as EntityManager;
+    let accepted: unknown;
+    consumer.onApply = async () => {
+      await writer.add(manager, TRANSFER_SAMPLE);
+      accepted = insert.mock.calls[0]?.[1]?.[4];
+    };
+    const outer = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    await pino.runInContext(() => consumer.handle(TRANSFER_SAMPLE, message(1)), {
+      bindings: { correlationId: outer },
+    });
+    expect(consumer.seenCorrelationId).toBe(TRANSFER_SAMPLE.correlationId);
+    expect(accepted).toBe(TRANSFER_SAMPLE.correlationId);
+  });
+
+  it('TC-134-09 the backoff warning of a failed event carries that event correlationId', async () => {
+    const seenIds: unknown[] = [];
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {
+      seenIds.push(pino.logger.bindings().correlationId);
+    });
+    try {
+      consumer.failure = new Error('database unavailable');
+      changeVisibility.mockRejectedValue(new Error('queue refused'));
+      await expect(consumer.handle(TRANSFER_SAMPLE, message(1))).rejects.toThrow(
+        'database unavailable',
+      );
+      expect(seenIds).toEqual([TRANSFER_SAMPLE.correlationId]);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('consumeOnce hands the queue and its dead-letter queue to processBatch', async () => {
