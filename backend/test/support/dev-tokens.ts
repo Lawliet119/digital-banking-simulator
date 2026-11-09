@@ -1,5 +1,5 @@
-import { calculateJwkThumbprint, exportJWK, generateKeyPair, type JWK } from 'jose';
-import { signDevToken } from '../../src/scripts/dev-auth';
+import { calculateJwkThumbprint, exportJWK, generateKeyPair, SignJWT, type JWK } from 'jose';
+import { buildAccessTokenClaims, signDevToken } from '../../src/scripts/dev-auth';
 import type { Role } from '../../src/modules/identity';
 
 export interface DevTokenOptions {
@@ -18,6 +18,16 @@ export interface DevTokenIssuer {
   jwks: { keys: JWK[] };
   /** A signed access token for exactly one of the four roles. Same rules as the CLI. */
   token(role: Role, options?: DevTokenOptions): Promise<string>;
+  /**
+   * The same access token plus `extra` claims, signed with the same key (DBS-159). For attack tests
+   * only: `extra` may add claims (`role`, `scope`) or override one (`token_use`), so the signature is
+   * valid and only the claim decides.
+   */
+  signClaims(
+    role: Role,
+    extra: Record<string, unknown>,
+    options?: DevTokenOptions,
+  ): Promise<string>;
 }
 
 /**
@@ -39,5 +49,13 @@ export async function createDevTokenIssuer(
     kid,
     jwks: { keys: [{ ...jwk, kid, alg: 'RS256', use: 'sig' }] },
     token: (role, tokenOptions = {}) => signDevToken(privateKey, kid, { role, ...tokenOptions }),
+    signClaims: (role, extra, tokenOptions = {}) => {
+      const { iat, exp, ...claims } = buildAccessTokenClaims({ role, ...tokenOptions });
+      return new SignJWT({ ...claims, ...extra })
+        .setProtectedHeader({ alg: 'RS256', typ: 'JWT', kid })
+        .setIssuedAt(iat as number)
+        .setExpirationTime(exp as number)
+        .sign(privateKey);
+    },
   };
 }
