@@ -1,0 +1,33 @@
+DBS-100 manual test starting at commit: 8c59f8dd2f1db1b7927738c8de7fb9da671009c5
+M-100-01: Baseline transfer latency (delay = 0ms)...
+M-100-01 PASS: 5 baseline transfers COMPLETED, avg latency: 20.31 ms
+
+M-100-02: Transfer under slow Redis (proxy delay = 75ms > 50ms timeout)...
+20 transfers completed under slow Redis:
+  Min: 14.39 ms | Max: 142.29 ms | p95: 142.29 ms
+  redis_fallback_total: 0 -> 40
+M-100-02 PASS: All 20 transfers COMPLETED, rate limit failed open, p95 within SLA threshold.
+
+M-100-03: Transfer under complete Redis outage (proxy stopped)...
+Transfer under outage completed in 15.47 ms (fail-fast)
+PostgreSQL balances verified: Source=97250000 VND, Destination=2750000 VND
+M-100-03 PASS: Transfer succeeded without delay during Redis outage.
+
+M-100-04: Checking /health/ready when Redis is down...
+Health response: {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"degraded"}
+M-100-04 PASS: /health/ready returns 200 OK with redis: degraded.
+
+M-100-05: Running checkLedgerInvariants...
+{
+  "status": "PASS",
+  "totals": {
+    "debit": "102750000",
+    "credit": "102750000",
+    "balance": "0"
+  },
+  "violations": []
+}
+M-100-05 PASS: All 5 ledger invariants verified clean.
+
+ALL MANUAL CHECKS PASSED (M-100-01 to M-100-05).
+Cleanup completed.
