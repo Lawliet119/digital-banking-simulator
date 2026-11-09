@@ -84,4 +84,36 @@ live: 200
 -- 0 EMF line(s) (total log lines 68)
 RESULT: đạt
 
-NOT RUN: sending a real EMF line to CloudWatch and reading the metric back (no AWS credentials in this session; BL-203). The worker gauge on ECS needs DBS-121.
+== M-144-09 (after the merge of PR #119, 2026-11-09 ~12:05-12:08 UTC) real CloudWatch check
+Account: dev (profile `dbs`, user dev1), region ap-southeast-1, log group /dbs/dev/api (7-day retention), account id withheld.
+Lines: built with the compiled code of this task (HttpStats -> toEmfSpecs -> buildEmf), 20 samples: 10 x 15 ms, 5 x 75 ms, 3 x 240 ms, 1 x 800 ms, 1 x 850 ms (the last one a 503).
+They were sent with `aws logs create-log-stream` + `aws logs put-log-events` (stream emf-check-dbs144), then read back with `aws cloudwatch get-metric-statistics`.
+
+Line 1 (counters): {"_aws":{"Timestamp":1794225915024,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Route","Method"],["Method"],[]],"Metrics":[{"Name":"http_requests_total","Unit":"Count"},{"Name":"http_5xx_total","Unit":"Count"},{"Name":"http_aborted_total","Unit":"Count"}]}]},"Route":"/v1/check-dbs144","Method":"POST","http_requests_total":20,"http_5xx_total":1,"http_aborted_total":0}
+Line 2 (latency): {"_aws":{"Timestamp":1794225915024,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Route","Method"],["Method"],[]],"Metrics":[{"Name":"http_request_duration_ms","Unit":"Milliseconds"}]}]},"Route":"/v1/check-dbs144","Method":"POST","http_request_duration_ms":[20,20,20,20,20,20,20,20,20,20,100,100,100,100,100,300,300,300,1000,1000]}
+
+put-log-events -> accepted (nextSequenceToken returned).
+list-metrics --namespace DBS/Backend after ~1 minute: 12 metrics = {http_requests_total, http_5xx_total, http_aborted_total, http_request_duration_ms} x {Method,Route | Method | no dimension}.
+
+== duration, Route+Method, percentiles
+[["2026-11-09T19:01:00+07:00","Milliseconds",null,null,null,null,{"p99":995.4680670332152,"p50":21.113776745352602,"p95":977.5447906501906}]]
+== duration, Route+Method, basic
+[["2026-11-09T19:01:00+07:00","Milliseconds",3600.0,20.0,1000.0,20.0,null]]      (Sum, SampleCount, Maximum, Minimum)
+== requests Route+Method
+[["2026-11-09T19:01:00+07:00","Count",20.0,null,null,null,null]]
+== 5xx Route+Method
+[["2026-11-09T19:01:00+07:00","Count",1.0,null,null,null,null]]
+== 5xx rollup Method=POST
+[["2026-11-09T19:01:00+07:00","Count",1.0,null,null,null,null]]
+== requests rollup no dimension
+[["2026-11-09T19:01:00+07:00","Count",20.0,null,null,null,null]]
+== duration rollup no dimension p95
+[["2026-11-09T19:01:00+07:00","Milliseconds",null,null,null,null,{"p95":977.5447906501906}]]
+== AWS/Logs EMF errors
+(empty: no EMF parsing/validation error metric exists)
+
+RESULT: đạt. Sum 3600 = 10*20 + 5*100 + 3*300 + 2*1000; SampleCount 20; requests 20; 5xx 1; all three dimension sets work.
+FINDING: CloudWatch percentiles are estimates (p50 21.1 for 20, p95 977.5 and p99 995.5 for 1000), not the exact bucket bound.
+Cleanup: `aws logs delete-log-stream` for emf-check-dbs144 (done). The test metrics (Route=/v1/check-dbs144) expire by themselves after 15 days.
+
+NOT RUN: the worker gauge on ECS (needs DBS-121).
