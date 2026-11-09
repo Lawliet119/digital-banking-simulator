@@ -5,7 +5,7 @@ import { AccountsModule } from '@modules/accounts';
 import { LedgerReconciliationModule } from './ledger';
 import { modulesForRole } from './index';
 import { OutboxModule } from './outbox';
-import { RiskModule } from './risk';
+import { RiskModule, RiskWorkerModule } from './risk';
 import { SessionRevocationModule } from './identity';
 
 describe('modulesForRole', () => {
@@ -67,5 +67,11 @@ describe('modulesForRole', () => {
     expect(modulesForRole(AppRole.Api)).not.toContain(LedgerReconciliationModule);
     expect(modulesForRole(AppRole.Worker)).toContain(LedgerReconciliationModule);
     expect(modulesForRole(AppRole.Both)).toContain(LedgerReconciliationModule);
+  });
+
+  it('TC-111-16 loads the risk-events consumer only for worker/both, never for api', () => {
+    expect(modulesForRole(AppRole.Api)).not.toContain(RiskWorkerModule);
+    expect(modulesForRole(AppRole.Worker)).toContain(RiskWorkerModule);
+    expect(modulesForRole(AppRole.Both)).toContain(RiskWorkerModule);
   });
 });

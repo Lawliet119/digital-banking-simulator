@@ -6,7 +6,7 @@ import { IdentityModule, SessionRevocationModule } from './identity';
 import { OutboxModule, OutboxRelayModule } from './outbox';
 import { NotificationModule } from './notification';
 import { AccountsModule } from './accounts';
-import { RiskModule } from './risk';
+import { RiskModule, RiskWorkerModule } from './risk';
 import { LedgerModule, LedgerReconciliationModule } from './ledger';
 
 type ModuleRef = Type<unknown> | DynamicModule;
@@ -41,6 +41,7 @@ const workerModules: ModuleRef[] = [
   OutboxRelayModule,
   NotificationModule,
   LedgerReconciliationModule,
+  RiskWorkerModule,
 ];
 
 /** The module list for the given role (defaults to the current process's `APP_ROLE`). */

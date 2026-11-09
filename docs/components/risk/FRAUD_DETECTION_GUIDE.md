@@ -305,7 +305,8 @@ sequenceDiagram
         W->>W: Đọc snapshot cho R3, R6 · chạy 6 luật · tính điểm
         W->>DB: BEGIN
         W->>DB: INSERT processed_events
-        W->>DB: INSERT fraud_flags + fraud_rule_hits (nếu ≥ MEDIUM) + audit_log
+        W->>DB: INSERT risk_decisions (mọi TRANSFER) ON CONFLICT DO NOTHING
+        W->>DB: INSERT fraud_flags + fraud_rule_hits (nếu ≥ MEDIUM) + audit_log (fraud.flagged)
         W->>DB: COMMIT
         W->>Q: Xóa message
     end
@@ -408,7 +409,7 @@ interface RiskRule {
 | Redis lỗi | Dự phòng SQL (mục 5.4) |
 | DB lỗi | Không xóa message → SQS giao lại; quá 5 lần → DLQ + alarm |
 | Message không đúng định dạng | Log + chuyển thẳng DLQ, không retry vô ích |
-| Một luật hoặc truy vấn feature lỗi | Theo ADR-14: rollback, không ack, retry và sau giới hạn thì DLQ; metric `risk_rule_error_total{rule}` khi lỗi luật. Chưa triển khai consumer/alarm, xem BL-046/051 |
+| Một luật hoặc truy vấn feature lỗi | Theo ADR-14: rollback, không ack, retry và sau giới hạn thì DLQ; metric `risk_rule_error_total{rule}` khi lỗi luật. Consumer đã có ([DBS-111](../../features/DBS-111-risk-scoring-consumer.md)); metric và alarm còn ở BL-046/051 |
 | Cấu hình AI không hợp lệ hoặc provider AI lỗi | Giữ điểm sáu luật, contribution AI bằng 0, ghi trạng thái tương ứng; không đẩy DLQ chỉ vì AI. `rule_only` là mặc định; không tự bật AI khi chưa đạt gate ADR-14 |
 | Worker chết | Giao dịch không bị ảnh hưởng; khi bật lại, message còn trong queue được xử lý tiếp |
 

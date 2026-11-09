@@ -1,0 +1,89 @@
+5b5a03c2e97dcde890affb93e74a3c98c4989106
+== DBS-111 manual test 2026-11-09T19:38:12Z: node dist/main as two processes (APP_ROLE=api, APP_ROLE=worker), DB banking_dbs111, Valkey :6379, ElasticMQ :9324
+queues purged (shared local ElasticMQ)
+migration:run OK: CreateRiskDecisions1793836800000
+build OK
+api /health/ready: {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+worker log: 
+-- M-111-01 AC-9.1: new account, 21,000,000 deposited, 20,000,000 to another owner
+POST /v1/customers/me body={"fullName":"Trần Văn An"} -> 200 {"id":"9546a041-f2ba-4a2a-8e66-85229b6306bc","fullName":"Tr?n Van An","createdAt":"2026-11-09T19:38:49.570Z"}
+POST /v1/accounts body={"type":"CHECKING"} -> 201 {"id":"bc8736ff-f487-4629-9d80-f1e991c7029b","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T19:38:49.947Z","updatedAt":"2026-11-09T19:38:49.947Z"}
+POST /v1/customers/me body={"fullName":"Nguyễn Thị Bình"} -> 200 {"id":"1f79ad95-d701-4f32-8c31-c1658578853f","fullName":"Nguy?n Th? B�nh","createdAt":"2026-11-09T19:38:54.209Z"}
+POST /v1/accounts body={"type":"CHECKING"} -> 201 {"id":"94ce9906-587f-456d-9926-41a6a1465840","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T19:38:54.579Z","updatedAt":"2026-11-09T19:38:54.579Z"}
+POST /v1/operator/deposits body={"toAccountId":"bc8736ff-f487-4629-9d80-f1e991c7029b","amount":"21000000"} -> 201 {"transferId":"cce14730-4672-4377-8b3d-05e598523fb6","status":"COMPLETED"}
+POST /v1/transfers body={"fromAccountId":"bc8736ff-f487-4629-9d80-f1e991c7029b","toAccountId":"94ce9906-587f-456d-9926-41a6a1465840","amount":"20000000"} -> 201 {"transferId":"39ee2dd6-991e-431e-a5f8-57e996332922","status":"COMPLETED"}
+transfer status=201 T=39ee2dd6-991e-431e-a5f8-57e996332922
+-- M-111-02 the flag appears by itself
+flag present
+psql> SELECT rule_set_version, mode, rule_score, ai_status, feature_snapshot FROM risk_decisions WHERE transfer_id='39ee2dd6-991e-431e-a5f8-57e996332922'
+ rule_set_version |   mode    | rule_score | ai_status |                                                                                                                                   feature_snapshot                                                                                                                                   
+------------------+-----------+------------+-----------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                1 | rule_only |         65 | DISABLED  | {"amount": "20000000", "sameOwner": false, "txCount1h": 1, "txCount10m": 1, "accountAgeHours": 0.0015177777777777778, "historyCount30d": 0, "medianAmount30d": null, "newRecipients1h": 1, "fromBalanceBefore": "21000000", "minutesSinceReverse": null, "distinctRecipients24h": 1}
+(1 row)
+
+psql> SELECT score, risk_level, rule_set_version, review_status FROM fraud_flags WHERE transfer_id='39ee2dd6-991e-431e-a5f8-57e996332922'
+ score | risk_level | rule_set_version | review_status 
+-------+------------+------------------+---------------
+    65 | MEDIUM     |                1 | OPEN
+(1 row)
+
+psql> SELECT rule_id, weight, explanation FROM fraud_rule_hits WHERE transfer_id='39ee2dd6-991e-431e-a5f8-57e996332922' ORDER BY rule_id
+ rule_id | weight |                    explanation                     
+---------+--------+----------------------------------------------------
+ R3      |     35 | Tài khoản mở dưới 1 phút trước, chuyển 20.000.000đ
+ R6      |     30 | Chuyển xấp xỉ 95.24% số dư (20000000/21000000đ).
+(2 rows)
+
+psql> SELECT a.action, a.actor_role, a.metadata, a.correlation_id = t.correlation_id AS same_correlation FROM audit_log a JOIN transfers t ON t.id::text = a.target_id WHERE a.action='fraud.flagged' AND a.target_id='39ee2dd6-991e-431e-a5f8-57e996332922'
+    action     | actor_role |   metadata   | same_correlation 
+---------------+------------+--------------+------------------
+ fraud.flagged | worker     | {"count": 2} | t
+(1 row)
+
+-- M-111-03 Bình sends 1,000,000 back to An (LOW: R4 only)
+POST /v1/transfers body={"fromAccountId":"94ce9906-587f-456d-9926-41a6a1465840","toAccountId":"bc8736ff-f487-4629-9d80-f1e991c7029b","amount":"1000000"} -> 201 {"transferId":"8f66e5a8-df09-46a6-856b-5e31971d5d97","status":"COMPLETED"}
+psql> SELECT rule_score, mode, (SELECT count(*) FROM fraud_flags WHERE transfer_id='8f66e5a8-df09-46a6-856b-5e31971d5d97') AS flags FROM risk_decisions WHERE transfer_id='8f66e5a8-df09-46a6-856b-5e31971d5d97'
+ rule_score |   mode    | flags 
+------------+-----------+-------
+         20 | rule_only |     0
+(1 row)
+
+-- M-111-04 time from transfer to flag
+psql> SELECT round(extract(epoch FROM f.created_at - t.created_at)::numeric * 1000) AS ms FROM fraud_flags f JOIN transfers t ON t.id=f.transfer_id WHERE f.transfer_id='39ee2dd6-991e-431e-a5f8-57e996332922'
+ ms  
+-----
+ 201
+(1 row)
+
+-- M-111-05 the same TransferCompleted sent again by hand
+sent eventId=7a2afdf0-f90a-4e9a-86be-79ab56aa4479 again
+decisions/flags/risk-claims before=2/1/3 after=2/1/3
+-- M-111-06 a message that is not an event
+sent {"eventType":"Bogus"}
+risk-events-dlq: {"eventType":"Bogus"}
+-- M-111-07 worker down, transfer, worker up again
+worker stopped
+POST /v1/customers/me body={"fullName":"Phạm Văn Cường"} -> 200 {"id":"f7d4ed8f-9bb8-425e-bd33-66abbe29b23d","fullName":"Ph?m Van Cu?ng","createdAt":"2026-11-09T19:39:15.637Z"}
+POST /v1/accounts body={"type":"CHECKING"} -> 201 {"id":"0bd212f3-8b5a-4769-ae4f-9c2d43cb1a70","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T19:39:15.972Z","updatedAt":"2026-11-09T19:39:15.972Z"}
+POST /v1/customers/me body={"fullName":"Lê Thị Dung"} -> 200 {"id":"9d9471fb-08de-42b4-8e45-3425578cdfae","fullName":"L� Th? Dung","createdAt":"2026-11-09T19:39:20.207Z"}
+POST /v1/accounts body={"type":"CHECKING"} -> 201 {"id":"c80ad152-e405-4cd2-9e8b-f27099753823","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-09T19:39:20.543Z","updatedAt":"2026-11-09T19:39:20.543Z"}
+POST /v1/operator/deposits body={"toAccountId":"0bd212f3-8b5a-4769-ae4f-9c2d43cb1a70","amount":"21000000"} -> 201 {"transferId":"63425f6c-a93e-4186-920f-1c5515b19451","status":"COMPLETED"}
+POST /v1/transfers body={"fromAccountId":"0bd212f3-8b5a-4769-ae4f-9c2d43cb1a70","toAccountId":"c80ad152-e405-4cd2-9e8b-f27099753823","amount":"20000000"} -> 201 {"transferId":"6db3b29f-f90b-4419-944c-1a36ded2053f","status":"COMPLETED"}
+while the worker is down: decisions for T7=0, outbox unpublished=2
+worker started again
+flag for T7 present after restart
+psql> SELECT score, risk_level FROM fraud_flags WHERE transfer_id='6db3b29f-f90b-4419-944c-1a36ded2053f'
+ score | risk_level 
+-------+------------
+    65 | MEDIUM
+(1 row)
+
+-- M-111-08 what the customer sees
+GET /v1/transfers/39ee2dd6-991e-431e-a5f8-57e996332922 body=none -> 200 {"transferId":"39ee2dd6-991e-431e-a5f8-57e996332922","type":"TRANSFER","status":"COMPLETED","amount":"20000000","createdAt":"2026-11-09T19:38:55.411224Z","fromAccountId":"bc8736ff-f487-4629-9d80-f1e991c7029b","toAccountId":"94ce9906-587f-456d-9926-41a6a1465840"}
+GET /v1/transfers/T: {"transferId":"39ee2dd6-991e-431e-a5f8-57e996332922","type":"TRANSFER","status":"COMPLETED","amount":"20000000","createdAt":"2026-11-09T19:38:55.411224Z","fromAccountId":"bc8736ff-f487-4629-9d80-f1e991c7029b","toAccountId":"94ce9906-587f-456d-9926-41a6a1465840"}
+GET /v1/accounts/bc8736ff-f487-4629-9d80-f1e991c7029b/transactions body=none -> 200 {"items":[{"entryId":"6","transferId":"8f66e5a8-df09-46a6-856b-5e31971d5d97","type":"TRANSFER","direction":"CREDIT","amount":"1000000","balanceAfter":"2000000","counterpartyAccountId":"94ce9906-587f-456d-9926-41a6a1465840","createdAt":"2026-11-09T19:38:57.573906Z"},{"entryId":"3","transferId":"39ee2dd6-991e-431e-a5f8-57e996332922","type":"TRANSFER","direction":"DEBIT","amount":"20000000","balanceAfter":"1000000","counterpartyAccountId":"94ce9906-587f-456d-9926-41a6a1465840","createdAt":"2026-11-09T19:38:55.412493Z"},{"entryId":"2","transferId":"cce14730-4672-4377-8b3d-05e598523fb6","type":"DEPOSIT","direction":"CREDIT","amount":"21000000","balanceAfter":"21000000","counterpartyAccountId":null,"createdAt":"2026-11-09T19:38:54.994540Z"}],"nextCursor":null}
+history fields: ["entryId","transferId","type","direction","amount","balanceAfter","counterpartyAccountId","createdAt"]
+-- M-111-09 ledger invariants
+{"status":"PASS","totals":{"debit":"83000000","credit":"83000000","balance":"0"},"violations":[]}
+exit=0
+processes stopped
