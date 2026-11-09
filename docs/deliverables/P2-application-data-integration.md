@@ -1,6 +1,6 @@
 # P2 — Application, Data & Integration Architecture: Digital Banking Simulator
 
-> **Status:** Bản ghép sẵn, còn thiếu OpenAPI xuất từ code (DBS-72) · **Dẫn dắt:** #1 · **Cập nhật:** 2026-10-11
+> **Status:** Draft — đã có OpenAPI từ code, chờ rubric và nộp · **Dẫn dắt:** #1 · **Verified against code:** API artifact và module registration · **Cập nhật:** 2026-11-08
 > Bản này **tóm tắt và trỏ về nguồn**. Nguồn: [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §4–10, [database-design](../components/_shared/database-design.md), [event-contract](../components/_shared/event-contract.md), [ADR](../adr/README.md).
 
 ## 1. Component (C4 mức 2 và 3)
@@ -8,7 +8,7 @@
 | Container | Trách nhiệm | Công nghệ |
 |---|---|---|
 | API (`APP_ROLE=api`) | Mọi use case đồng bộ; ghi DB trong transaction | NestJS 11 trên ECS Fargate |
-| Worker (`APP_ROLE=worker`) | Outbox relay, chấm điểm gian lận, thông báo, đối soát, dọn dữ liệu | Cùng image với API |
+| Worker (`APP_ROLE=worker`) | **Đang chạy:** outbox relay và notification consumer. **Kiến trúc đích:** risk scoring, job đối soát và dọn dữ liệu; các job/chấm điểm chưa có consumer hoặc scheduler đầy đủ trong code | Cùng image với API |
 | PostgreSQL 17 | Nguồn sự thật: sổ cái, mã yêu cầu, nhật ký, outbox | Amazon RDS |
 | Valkey | Rate limit, mốc thu hồi phiên, bộ đếm gian lận, cache cấu hình | ElastiCache, node cố định |
 | SQS + DLQ | `risk-events`, `notification-events`, mỗi queue một DLQ | Amazon SQS standard |
@@ -20,19 +20,19 @@ Module bên trong ứng dụng và quy tắc phụ thuộc (eslint ép ranh gi�
 |---|---|---|
 | `identity` | api | `users` |
 | `accounts` | api | `customers`, `accounts` |
-| `ledger` | api (đối soát ở worker) | `transfers`, `ledger_entries`, `idempotency_keys`, `reconciliation_runs` |
+| `ledger` | api; job đối soát ở worker là kiến trúc đích, **chưa có code** (hiện đã có schema `reconciliation_runs`) | `transfers`, `ledger_entries`, `idempotency_keys`, `reconciliation_runs` |
 | `audit` | api và worker | `audit_log` |
 | `outbox` | ghi ở mọi role; relay ở worker | `outbox_events`, `processed_events` |
-| `risk` | api (review, cấu hình) và worker (chấm điểm) | `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits` |
-| `risk` (ADR-14, Accepted) | như trên | thêm `risk_decisions`, chưa có migration |
-| `notification` | worker | `notification_log` |
+| `risk` | api (khung/review, cấu hình); worker scoring là kiến trúc đích, **chưa có consumer/scoring đầy đủ** | `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits` |
+| `risk` (ADR-14 Accepted, schema đích) | như trên; adapter AI độc lập đã có, chưa nối consumer | `risk_decisions` là schema đích chưa có migration |
+| `notification` | worker (đã có consumer) | `notification_log` |
 | `health` | api | — |
 
 ## 2. API specification
 
 Đặc tả đầy đủ là **OpenAPI sinh từ code** (`/docs` ở môi trường không phải production) và tài liệu hợp đồng chi tiết tại [`api-design`](../components/_shared/api-design.md). Bảng endpoint, quy ước tiền là chuỗi, lỗi `application/problem+json` kèm `errorCode`, 404 cho tài nguyên không thuộc mình, 503 + `Retry-After` cho lỗi DB tạm thời: [docs/03 §7](../03_HIGH_LEVEL_ARCHITECTURE.md). Danh sách `errorCode`: [docs/03 §7.1](../03_HIGH_LEVEL_ARCHITECTURE.md).
 
-- [ ] Xuất file `openapi.json` từ commit nộp bài và đính vào bản nộp (việc còn lại của DBS-72).
+- [OpenAPI JSON sinh từ app thật](openapi.json), sinh lại sau rebase từ app trên `main` `18f93dc` cùng exporter của PR này (code exporter: commit `4e5446f` trước rebase). Tái tạo: từ `backend/`, khi API non-production chạy, dùng `npm run openapi:export -- --url http://127.0.0.1:3000/docs-json`. Artifact phản ánh 14 path hiện hữu (gồm `/v1/operator/accounts/{id}/lock` và `/unlock` của DBS-113); các endpoint chỉ ở kiến trúc đích trong docs/03 chưa tự xuất hiện trong Swagger.
 
 ## 3. Data model
 
@@ -40,7 +40,7 @@ Module bên trong ứng dụng và quy tắc phụ thuộc (eslint ép ranh gi�
 - Bất biến do DB bảo vệ: số dư khách không âm; mỗi giao dịch tối đa một dòng Nợ và một dòng Có, mỗi dòng đúng số tiền và đúng tài khoản của giao dịch (đủ cặp do code và đối soát giữ); `PRIMARY KEY (user_id, idem_key)`; bảng chỉ-thêm (`ledger_entries`, `transfers`, `audit_log`, `risk_rule_sets`) bị chặn sửa/xóa bằng quyền **và** trigger.
 - Tiền là `bigint` (đồng); thời gian `timestamptz`, DB chạy UTC; ranh giới ngày theo `Asia/Ho_Chi_Minh`.
 - Hai DB role cho ứng dụng (`dbs_api`, `dbs_worker`) và một role migration (`dbs_migrator`), quyền theo ma trận ở database-design §8.
-- ADR-14 (Accepted, chưa triển khai): thêm bảng `risk_decisions` (15 bảng khi triển khai); schema ở [FRAUD-API-01 §3.8](../features/FRAUD-API-01-external-ai-decision.md#38-phụ-lục-schema-đề-xuất-bảng-quyết-định-risk-proposed-chưa-có-migration).
+- ADR-14 đã Accepted; schema `risk_decisions` vẫn là thiết kế chưa có migration. Chi tiết ở [FRAUD-API-01](../features/FRAUD-API-01-external-ai-decision.md). Không coi adapter AI độc lập là consumer/scoring đầy đủ đã chạy.
 
 ## 4. Luồng đồng bộ và bất đồng bộ
 
@@ -51,13 +51,13 @@ Module bên trong ứng dụng và quy tắc phụ thuộc (eslint ép ranh gi�
 | Khóa tài khoản, thu hồi phiên (UC-11) | Đồng bộ | [§6.2](../03_HIGH_LEVEL_ARCHITECTURE.md) |
 | Outbox → SQS → risk consumer (cờ) và notification consumer | Bất đồng bộ, at-least-once, consumer idempotent | [§10](../03_HIGH_LEVEL_ARCHITECTURE.md) |
 | Review cờ (UC-10), tra cứu nhật ký (UC-8) | Đồng bộ | [§6.5, §6.6](../03_HIGH_LEVEL_ARCHITECTURE.md) |
-| Risk worker → dịch vụ AI bên ngoài (ADR-14, Accepted) | Gọi ngoài SQL transaction, timeout hữu hạn, lỗi thì fallback về R1–R6; chưa tích hợp | [ADR-14](../adr/0014-fraud-rules-external-ai.md) |
+| Risk worker → dịch vụ AI bên ngoài (ADR-14 Accepted) | Gọi ngoài SQL transaction, timeout hữu hạn, lỗi thì fallback về R1–R6; adapter độc lập đã có, chưa tích hợp consumer | [ADR-14](../adr/0014-fraud-rules-external-ai.md) |
 
 **Integration:** sự kiện `TransferCompleted` (mang ảnh chụp số dư và tuổi tài khoản tại thời điểm giao dịch) và `AccountStatusChanged`; bảng định tuyến tới từng queue; `TransferRejected` không phát ở v1. Hình dạng sự kiện: [event-contract](../components/_shared/event-contract.md). Xử lý sự cố (relay chết, consumer lỗi, message hỏng, Redis chết): [docs/03 §11](../03_HIGH_LEVEL_ARCHITECTURE.md).
 
 ## 5. Architecture Decision Records
 
-Đề bài yêu cầu tối thiểu 3 ADR; nhóm có 13, đều Accepted. Ba ADR trọng tâm của P2:
+Đề bài yêu cầu tối thiểu 3 ADR; nhóm có 14 ADR Accepted. Ba ADR trọng tâm của P2:
 
 | ADR | Quyết định |
 |---|---|
@@ -65,9 +65,21 @@ Module bên trong ứng dụng và quy tắc phụ thuộc (eslint ép ranh gi�
 | [ADR-02](../adr/0002-postgresql-ledger.md) | PostgreSQL làm sổ cái và nguồn sự thật |
 | [ADR-03](../adr/0003-sync-transfer-async-outbox-sqs.md) | Chuyển tiền đồng bộ, tác vụ phụ bất đồng bộ qua outbox + SQS |
 
-Liên quan trực tiếp: [ADR-04](../adr/0004-row-locking-read-committed.md) (khóa), [ADR-05](../adr/0005-idempotency-in-postgres.md) (idempotency), [ADR-07](../adr/0007-nestjs-typeorm-explicit-sql.md) (tầng truy cập dữ liệu), [ADR-09](../adr/0009-funding-system-account.md) (nạp tiền), [ADR-13](../adr/0013-one-app-app-role.md) (một image).
+Liên quan trực tiếp: [ADR-04](../adr/0004-row-locking-read-committed.md) (khóa), [ADR-05](../adr/0005-idempotency-in-postgres.md) (idempotency), [ADR-07](../adr/0007-nestjs-typeorm-explicit-sql.md) (tầng truy cập dữ liệu), [ADR-09](../adr/0009-funding-system-account.md) (nạp tiền), [ADR-13](../adr/0013-one-app-app-role.md) (một image) và [ADR-14](../adr/0014-fraud-rules-external-ai.md) (risk rules + external AI).
 
 ## 6. Checklist trước khi nộp
+
+Đối chiếu dưới đây theo yêu cầu DBS-72; **chưa thay cho rubric giảng viên**, vì rubric/deadline/link nộp chưa có nguồn trong repo.
+
+| Hạng mục | Nguồn trong bản ghép | Kết quả / người nhận phần thiếu |
+|---|---|---|
+| Component C4/module | §1 → docs/03 §4–5 | Có nguồn; phân biệt hiện hữu và kiến trúc đích |
+| API specification | §2 và openapi.json | Có artifact code thật |
+| Data model | §3 → database-design/ERD | Có nguồn; schema đích được ghi rõ |
+| Luồng đồng bộ/bất đồng bộ | §4 → docs/03/event-contract | Có nguồn và ranh giới transaction |
+| Ít nhất 3 ADR Accepted | §5 → ADR-01/02/03, liên quan ADR-13 | Có nguồn |
+| Rubric/mẫu chính thức | Chưa được cung cấp | Owner ghép/nộp P2 (#1/#2) cần xác nhận từng mục |
+| Deadline và link nộp | README còn chờ xác nhận | Owner ghép/nộp P2 xác nhận và nộp; không nhận đã đúng hạn |
 
 - [ ] Xuất OpenAPI từ code đã merge (tuần 2 đã có identity, accounts, nạp và chuyển tiền bản thô).
 - [ ] Đối chiếu với mẫu hoặc rubric của giảng viên; mục thiếu có người nhận.

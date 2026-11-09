@@ -28,6 +28,10 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 
 | Task | Tóm tắt | Vai | Trạng thái |
 |---|---|---|---|
+| [DBS-72](DBS-72-p2-architecture-submission.md) | P2/OpenAPI từ app thật, đối chiếu nguồn và handoff rubric/nộp | Dev | Implemented · G4 đã duyệt kèm giới hạn; PR #83 chờ Dev review/merge |
+
+| Task | Tóm tắt | Vai | Trạng thái |
+|---|---|---|---|
 | [DBS-64](DBS-64-read-accounts.md) | UC-4 own list/detail, exact PostgreSQL balances, audited reads and measured p95 | Dev | Implemented · [PR #66](https://github.com/Lawliet119/digital-banking-simulator/pull/66); chưa có Dev review (BL-160) |
 | [DBS-60](DBS-60-operator-deposits.md) | UC-3 nạp tiền bản thô: operator nạp từ tài khoản SYSTEM funding, bút toán kép/audit/outbox/key atomic | Dev | Implemented · [PR #57](https://github.com/Lawliet119/digital-banking-simulator/pull/57) đã merge; chưa có Dev review (BL-160); replay DBS-79 còn BL-148 |
 | [DBS-62](DBS-62-customer-onboarding.md) | UC-1 onboarding: tạo hồ sơ customers, create-or-return, GET của chính mình, audit cùng transaction, test HTTP/PostgreSQL đồng thời | Dev | Implemented · [PR #56](https://github.com/Lawliet119/digital-banking-simulator/pull/56) đã merge; chưa có Dev review (BL-160) |
