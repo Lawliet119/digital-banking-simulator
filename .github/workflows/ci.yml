@@ -155,6 +155,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/rate-limit.services-spec.ts
       - name: Review Focus 5 - Transfer under slow and dead Redis (DBS-100)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/redis-slow-transfer.services-spec.ts
+      - name: Risk consumer, transfer to flag through the real relay and consumer loops (DBS-111)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/risk-scoring.services-spec.ts
 
   db:
     name: db
