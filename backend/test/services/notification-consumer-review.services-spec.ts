@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
 import { NotificationConsumer } from '@modules/notification';
+import { AuditService } from '@modules/audit';
 import {
   ACCOUNT_ACTIVE_SAMPLE,
   ACCOUNT_LOCKED_SAMPLE,
@@ -53,6 +54,7 @@ describe('notification consumer review focus (real PostgreSQL + ElasticMQ)', () 
       sqs,
       new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
       { notificationQueueUrl: url } as never,
+      new AuditService(tx),
     );
     return { url, dlq, consumer };
   }

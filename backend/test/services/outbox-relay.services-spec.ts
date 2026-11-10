@@ -8,6 +8,7 @@ import { OutboxRelayService } from '@modules/outbox';
 import { RELAY_BATCH_SIZE, RELAY_IDLE_DELAY_MS } from '@modules/outbox/outbox-relay.service';
 import { OutboxCleanupService } from '@modules/outbox/outbox-cleanup.service';
 import { NotificationConsumer, dlqUrlFor } from '@modules/notification';
+import { AuditService } from '@modules/audit';
 import { ACCOUNT_LOCKED_SAMPLE, TRANSFER_SAMPLE } from '../support/event-samples';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
@@ -83,7 +84,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
       notificationQueueUrl: notificationUrl,
     };
     relay = new OutboxRelayService(tx, sqs, config);
-    consumer = new NotificationConsumer(tx, sqs, silentPino, config);
+    consumer = new NotificationConsumer(tx, sqs, silentPino, config, new AuditService(tx));
   });
   afterAll(async () => {
     sqs?.onModuleDestroy();

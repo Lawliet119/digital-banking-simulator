@@ -8,6 +8,7 @@ import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
 import { OutboxRelayService } from '@modules/outbox';
 import { NotificationConsumer, dlqUrlFor } from '@modules/notification';
+import { AuditService } from '@modules/audit';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
@@ -118,7 +119,7 @@ describe('correlationId across API → outbox → SQS → consumer (real Postgre
       notificationQueueUrl: notificationUrl,
     };
     relay = new OutboxRelayService(tx, sqs, config);
-    consumer = new FlakyNotificationConsumer(tx, sqs, pino, config);
+    consumer = new FlakyNotificationConsumer(tx, sqs, pino, config, new AuditService(tx));
     app = await startDepositApp(db.url);
     operatorToken = await app.issuer.token('operator', { sub: randomUUID() });
   });
