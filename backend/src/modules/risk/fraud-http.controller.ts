@@ -117,7 +117,26 @@ export class FraudHttpController {
     },
   })
   @ApiNotFoundResponse({ content: problemContent, description: 'No flag exists; no errorCode' })
-  @ApiConflictResponse({ content: problemContent, description: 'FLAG_ALREADY_REVIEWED' })
+  @ApiConflictResponse({
+    description: 'FLAG_ALREADY_REVIEWED',
+    content: {
+      'application/problem+json': {
+        schema: { $ref: getSchemaPath(FraudProblemDto) },
+        examples: {
+          alreadyReviewed: {
+            value: {
+              type: 'about:blank',
+              title: 'Conflict',
+              status: 409,
+              detail: 'Fraud flag already reviewed',
+              errorCode: 'FLAG_ALREADY_REVIEWED',
+              correlationId: '44444444-4444-4444-8444-444444444444',
+            },
+          },
+        },
+      },
+    },
+  })
   review(
     @Param('transferId', new ParseUUIDPipe()) id: string,
     @Body() body: ReviewFraudDto,

@@ -57,12 +57,12 @@ export class FraudListDto {
 
 export class FraudProblemDto {
   @ApiProperty({ example: 'about:blank' }) type!: string;
-  @ApiProperty({ example: 'Conflict' }) title!: string;
-  @ApiProperty({ example: 409 }) status!: number;
-  @ApiProperty({ example: 'Fraud flag already reviewed' }) detail!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty() status!: number;
+  @ApiProperty() detail!: string;
   @ApiProperty({ format: 'uuid' }) correlationId!: string;
   @ApiPropertyOptional({
-    example: 'FLAG_ALREADY_REVIEWED',
+    type: String,
     description: 'Mã lỗi khi có; lỗi validation và not found không có errorCode',
   })
   errorCode?: string;

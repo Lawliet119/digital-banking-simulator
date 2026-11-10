@@ -125,7 +125,11 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
     expect(schemas.ReviewFraudDto.properties.decision.example).toBe('FALSE_POSITIVE');
     expect(schemas.FraudAiDto.properties.probability.example).toBe(0.95);
     expect(schemas.FraudFlagDto.properties.score.example).toBe(45);
-    expect(schemas.FraudProblemDto.properties.errorCode.example).toBe('FLAG_ALREADY_REVIEWED');
+    expect(schemas.FraudProblemDto.properties.status.example).toBeUndefined();
+    expect(schemas.FraudProblemDto.properties.errorCode.example).toBeUndefined();
+    expect(conflict.content?.['application/problem+json'].examples).toMatchObject({
+      alreadyReviewed: { value: { status: 409, errorCode: 'FLAG_ALREADY_REVIEWED' } },
+    });
   });
   it('enforces actual signed token roles and does not expose existence', async () => {
     const id = await seed('2026-10-19T03:15:42.000001Z');
