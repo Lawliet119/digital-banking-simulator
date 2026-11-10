@@ -165,6 +165,9 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
       '2026-10-20T00:00:00.123452Z',
     ])
       ids.push(await seed(at));
+    const high = await seed('2026-10-19T00:00:00.000000Z');
+    await q("UPDATE fraud_flags SET risk_level='HIGH',score=80 WHERE transfer_id=$1", [high]);
+    ids.push(high);
     const expected = await q(
       `SELECT transfer_id FROM fraud_flags WHERE review_status='OPEN' ORDER BY CASE risk_level WHEN 'HIGH' THEN 0 ELSE 1 END,created_at DESC,transfer_id DESC`,
     );

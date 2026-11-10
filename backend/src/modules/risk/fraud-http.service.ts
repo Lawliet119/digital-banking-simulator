@@ -6,7 +6,6 @@ import { ErrorCode } from '@common/errors/error-code.enum';
 import { FraudDetailDto, FraudFlagDto, FraudListDto, ReviewFraudDto } from './fraud-http.dto';
 import { cursorFor, type FraudQuery } from './fraud-http.query';
 
-const RANK = `CASE f.risk_level WHEN 'HIGH' THEN 0 ELSE 1 END`;
 const PROJECTION = `f.transfer_id AS "transferId", t.from_account_id AS "fromAccountId",
  t.to_account_id AS "toAccountId", f.score, f.risk_level AS "riskLevel",
  f.review_status AS "reviewStatus", f.rule_set_version AS "ruleSetVersion",
@@ -25,13 +24,13 @@ export class FraudHttpService {
         `SELECT ${PROJECTION}
         FROM fraud_flags f JOIN v_transfer_facts t ON t.id = f.transfer_id
         WHERE f.review_status = $1 AND ($2::text IS NULL OR f.risk_level = $2)
-        AND ($3::int IS NULL OR ${RANK} > $3 OR
-          (${RANK} = $3 AND (f.created_at, f.transfer_id) < ($4::timestamptz, $5::uuid)))
-        ORDER BY ${RANK}, f.created_at DESC, f.transfer_id DESC LIMIT $6`,
+        AND ($3::text IS NULL OR f.risk_level > $3 OR
+          (f.risk_level = $3 AND (f.created_at, f.transfer_id) < ($4::timestamptz, $5::uuid)))
+        ORDER BY f.risk_level, f.created_at DESC, f.transfer_id DESC LIMIT $6`,
         [
           query.status,
           query.level,
-          query.after?.rank ?? null,
+          query.after ? (query.after.rank === 0 ? 'HIGH' : 'MEDIUM') : null,
           query.after?.time ?? null,
           query.after?.id ?? null,
           query.limit + 1,
