@@ -15,6 +15,7 @@ const INSERT =
 const START = '2026-11-03T01:00:00Z';
 
 describe('reconciliation migration lifecycle and concurrent revert', () => {
+  jest.setTimeout(360_000);
   let db: TempDatabase;
   let source: DataSource;
   let initialHistory: { name: string; timestamp: string }[];

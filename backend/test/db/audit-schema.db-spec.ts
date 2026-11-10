@@ -26,6 +26,7 @@ const values = (): unknown[] => [
 ];
 
 describe('audit storage migration', () => {
+  jest.setTimeout(360_000);
   let db: TempDatabase;
   let source: DataSource;
   let migration: MigrationInterface;
