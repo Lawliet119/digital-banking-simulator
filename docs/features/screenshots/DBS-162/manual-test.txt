@@ -1,0 +1,4 @@
+d5bf3a8047900b98eb9e67ca08a735c05c74fc95
+$ DATABASE_URL=postgres://... npx ts-node -r tsconfig-paths/register test/manual/provider-parity.manual.ts
+M-162 PASS: Verified 30/30 transfers with 100% parity
+M-162 PASS: OnlineFeatureProvider and OfflineFeatureProvider agree on Features, Rule Scoring and FeatureInput
