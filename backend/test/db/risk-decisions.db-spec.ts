@@ -554,14 +554,14 @@ describe('RSK-01 revert and refusal', () => {
     const db = await createTempDatabase();
     const q = (sql: string, args: unknown[] = []) => db.runner.query(sql, args);
     try {
-      await migrate(db.url);
+      await migrateThrough(db.url, 'CreateRiskDecisions1793836800000');
       await migrate(db.url, 'undoLast');
       expect(
         await q(`SELECT to_regclass('public.risk_decisions') AS t,
           (SELECT count(*)::int FROM pg_constraint WHERE conname IN ('fraud_flags_decision_fkey','fraud_rule_hits_weight_check')) AS c,
           (SELECT count(*)::int FROM pg_trigger WHERE tgname LIKE 'risk_decisions_%') AS g`),
       ).toEqual([{ t: null, c: 0, g: 0 }]);
-      await migrate(db.url);
+      await migrateThrough(db.url, 'CreateRiskDecisions1793836800000');
       const [transfer] = await seedTransfers(db.runner, 1);
       await insertRuleOnlyDecision(db.runner, transfer);
       await expect(migrate(db.url, 'undoLast')).rejects.toMatchObject({ code: '55000' });
