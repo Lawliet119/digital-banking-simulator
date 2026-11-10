@@ -31,6 +31,8 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | Task | Tóm tắt | Vai | Trạng thái |
 |---|---|---|---|
 | [DBS-186](DBS-186-redis-revocation-drill.md) | Khóa trước flush/down Redis; SQL fallback và boundary hit/miss/down; [P4](../deliverables/P4-incident-table.md) | Dev | Implemented local; [PR #127](https://github.com/Lawliet119/digital-banking-simulator/pull/127), cloud BL-220/222, review/merge BL-226 |
+| [DBS-165](DBS-165-k6-scenarios.md) | Năm script k6, seed qua API, thresholds theo plateau/route, runner kiểm bất biến và cardinality duplicate; smoke AppModule/PostgreSQL/Valkey thật từ clone sạch | Dev | Implemented; smoke local đạt, chờ Dev review/merge và cloud BL-228/229 |
+
 | [DBS-72](DBS-72-p2-architecture-submission.md) | P2/OpenAPI từ app thật, đối chiếu nguồn và handoff rubric/nộp | Dev | Implemented · G4 đã duyệt kèm giới hạn; PR #83 chờ Dev review/merge |
 | [DBS-97](DBS-97-duplicate-request-concurrency.md) | 10 round request trùng trên PostgreSQL thật, replay/mismatch và Demo2 | Dev | Implemented · G4 đã duyệt kèm giới hạn; PR #84 chờ Dev review/merge |
 | [DBS-99](DBS-99-concurrent-transfers.md) | 10×50 chuyển chéo&tài khoản nóng, checker từng round và Demo1 | Dev | Implemented · G4 đã duyệt kèm giới hạn; PR #85 chờ Dev review&merge |

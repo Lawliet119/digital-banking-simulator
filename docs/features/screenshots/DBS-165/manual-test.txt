@@ -1,0 +1,1173 @@
+32208dd60d4bf6ca3fbe0bc38b7e0c640c91ec52
+Seed API complete: 3 customers, CHECKING budget >=50000000 VND; fixture stored privately
+{"scenario":"baseline","profile":"smoke","runId":"d0769c31-b682-4ede-9539-9dc3ea9491e0","dedicated":true,"cloudAcceptance":false}
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\baseline.js
+        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\baseline-d0769c31-b682-4ede-9539-9dc3ea9491e0\raw.json)
+
+     scenarios: (100.00%) 2 scenarios, 40 max VUs, 15s max duration (incl. graceful stop):
+              * read_5: 4.00 iterations/s for 5s (maxVUs: 10-20, exec: read, gracefulStop: 10s)
+              * write_5: 1.00 iterations/s for 5s (maxVUs: 10-20, exec: write, gracefulStop: 10s)
+
+
+running (01.0s), 00/20 VUs, 5 complete and 0 interrupted iterations
+read_5    [  20% ] 00/10 VUs  1.0s/5s  4.00 iters/s
+write_5   [  20% ] 00/10 VUs  1.0s/5s  1.00 iters/s
+
+running (02.0s), 00/20 VUs, 10 complete and 0 interrupted iterations
+read_5    [  40% ] 00/10 VUs  2.0s/5s  4.00 iters/s
+write_5   [  40% ] 00/10 VUs  2.0s/5s  1.00 iters/s
+
+running (03.0s), 00/20 VUs, 15 complete and 0 interrupted iterations
+read_5    [  60% ] 00/10 VUs  3.0s/5s  4.00 iters/s
+write_5   [  60% ] 00/10 VUs  3.0s/5s  1.00 iters/s
+
+running (04.0s), 00/20 VUs, 20 complete and 0 interrupted iterations
+read_5    [  80% ] 00/10 VUs  4.0s/5s  4.00 iters/s
+write_5   [  80% ] 00/10 VUs  4.0s/5s  1.00 iters/s
+
+running (05.0s), 00/20 VUs, 25 complete and 0 interrupted iterations
+read_5    [ 100% ] 00/10 VUs  5.0s/5s  4.00 iters/s
+write_5   [ 100% ] 00/10 VUs  5.0s/5s  1.00 iters/s
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate==1' rate=100.00%
+
+    dropped_iterations
+    ✓ 'count==0' count=0
+
+    read_latency{plateau:5,operation:balance}
+    ✓ 'p(95)<150' p(95)=21.82ms
+
+    read_latency{plateau:5,operation:history}
+    ✓ 'p(95)<150' p(95)=24.07ms
+
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+
+    transfer_latency{plateau:5}
+    ✓ 'p(95)<300' p(95)=54.07ms
+    ✓ 'p(99)<1000' p(99)=58.69ms
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 25      4.999253/s
+    checks_succeeded...: 100.00% 25 out of 25
+    checks_failed......: 0.00%   0 out of 25
+
+
+    CUSTOM
+    read_latency........................: avg=19.36ms min=15.63ms med=19.14ms max=25.04ms p(90)=22.9ms  p(95)=23.09ms
+      { plateau:5,operation:balance }...: avg=18.04ms min=15.63ms med=17.66ms max=22.99ms p(90)=20.65ms p(95)=21.82ms
+      { plateau:5,operation:history }...: avg=20.69ms min=16.63ms med=20.83ms max=25.04ms p(90)=23.1ms  p(95)=24.07ms
+    system_errors.......................: 0.00% 0 out of 25
+    transfer_latency....................: avg=35.83ms min=28.44ms med=30.1ms  max=59.84ms p(90)=48.31ms p(95)=54.07ms
+      { plateau:5 }.....................: avg=35.83ms min=28.44ms med=30.1ms  max=59.84ms p(90)=48.31ms p(95)=54.07ms
+
+    HTTP
+    http_req_duration...................: avg=22.66ms min=15.63ms med=20.39ms max=59.84ms p(90)=29.95ms p(95)=30.83ms
+      { expected_response:true }........: avg=22.66ms min=15.63ms med=20.39ms max=59.84ms p(90)=29.95ms p(95)=30.83ms
+    http_req_failed.....................: 0.00% 0 out of 25
+    http_reqs...........................: 25    4.999253/s
+
+    EXECUTION
+    dropped_iterations..................: 0     0/s
+    iteration_duration..................: avg=23.26ms min=15.63ms med=20.99ms max=62.6ms  p(90)=30.19ms p(95)=31.49ms
+    iterations..........................: 25    4.999253/s
+    vus.................................: 0     min=0       max=0 
+    vus_max.............................: 20    min=20      max=20
+
+    NETWORK
+    data_received.......................: 43 kB 8.7 kB/s
+    data_sent...........................: 24 kB 4.8 kB/s
+
+
+
+
+running (05.0s), 00/20 VUs, 25 complete and 0 interrupted iterations
+read_5  ✓ [ 100% ] 00/10 VUs  5s  4.00 iters/s
+write_5 ✓ [ 100% ] 00/10 VUs  5s  1.00 iters/s
+{"status":"PASS","totals":{"debit":"172505000","credit":"172505000","balance":"0"},"violations":[]}
+invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\baseline-d0769c31-b682-4ede-9539-9dc3ea9491e0
+M-165 baseline exit=0; expected=0
+{"scenario":"hot-account","profile":"smoke","runId":"7a43fb0d-cbe9-4666-bcbc-72e5d68d1e6a","dedicated":true,"cloudAcceptance":false}
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\hot-account.js
+        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\hot-account-7a43fb0d-cbe9-4666-bcbc-72e5d68d1e6a\raw.json)
+
+     scenarios: (100.00%) 1 scenario, 20 max VUs, 15s max duration (incl. graceful stop):
+              * hot: 2.00 iterations/s for 5s (maxVUs: 10-20, exec: default, gracefulStop: 10s)
+
+
+running (01.0s), 00/10 VUs, 2 complete and 0 interrupted iterations
+hot    [  20% ] 00/10 VUs  1.0s/5s  2.00 iters/s
+
+running (02.0s), 00/10 VUs, 4 complete and 0 interrupted iterations
+hot    [  40% ] 00/10 VUs  2.0s/5s  2.00 iters/s
+
+running (03.0s), 00/10 VUs, 6 complete and 0 interrupted iterations
+hot    [  60% ] 00/10 VUs  3.0s/5s  2.00 iters/s
+
+running (04.0s), 00/10 VUs, 8 complete and 0 interrupted iterations
+hot    [  80% ] 00/10 VUs  4.0s/5s  2.00 iters/s
+
+running (05.0s), 00/10 VUs, 10 complete and 0 interrupted iterations
+hot    [ 100% ] 00/10 VUs  5.0s/5s  2.00 iters/s
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate==1' rate=100.00%
+
+    dropped_iterations
+    ✓ 'count==0' count=0
+
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+
+    transfer_latency
+    ✓ 'p(95)<1000' p(95)=26.87ms
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 10      1.999779/s
+    checks_succeeded...: 100.00% 10 out of 10
+    checks_failed......: 0.00%   0 out of 10
+
+
+    CUSTOM
+    system_errors..................: 0.00% 0 out of 10
+    transfer_latency...............: avg=23.52ms min=18.75ms med=23.89ms max=26.9ms p(90)=26.84ms p(95)=26.87ms
+
+    HTTP
+    http_req_duration..............: avg=23.52ms min=18.75ms med=23.89ms max=26.9ms p(90)=26.84ms p(95)=26.87ms
+      { expected_response:true }...: avg=23.52ms min=18.75ms med=23.89ms max=26.9ms p(90)=26.84ms p(95)=26.87ms
+    http_req_failed................: 0.00% 0 out of 10
+    http_reqs......................: 10    1.999779/s
+
+    EXECUTION
+    dropped_iterations.............: 0     0/s
+    iteration_duration.............: avg=24.25ms min=19.38ms med=24.51ms max=27.9ms p(90)=27.29ms p(95)=27.6ms 
+    iterations.....................: 10    1.999779/s
+    vus............................: 0     min=0       max=0 
+    vus_max........................: 10    min=10      max=10
+
+    NETWORK
+    data_received..................: 12 kB 2.3 kB/s
+    data_sent......................: 11 kB 2.2 kB/s
+
+
+
+
+running (05.0s), 00/10 VUs, 10 complete and 0 interrupted iterations
+hot  ✓ [ 100% ] 00/10 VUs  5s  2.00 iters/s
+{"status":"PASS","totals":{"debit":"172515000","credit":"172515000","balance":"0"},"violations":[]}
+invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\hot-account-7a43fb0d-cbe9-4666-bcbc-72e5d68d1e6a
+M-165 hot-account exit=0; expected=0
+{"scenario":"duplicate","profile":"smoke","runId":"84f4622e-e6ee-484f-88b6-fc51f58f39cf","dedicated":true,"cloudAcceptance":false}
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\duplicate.js
+        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\duplicate-84f4622e-e6ee-484f-88b6-fc51f58f39cf\raw.json)
+
+     scenarios: (100.00%) 1 scenario, 20 max VUs, 13s max duration (incl. graceful stop):
+              * duplicates: 1.00 iterations/s for 3s (maxVUs: 10-20, exec: default, gracefulStop: 10s)
+
+
+running (01.0s), 00/10 VUs, 1 complete and 0 interrupted iterations
+duplicates   [  33% ] 00/10 VUs  1.0s/3s  1.00 iters/s
+
+running (02.0s), 00/10 VUs, 2 complete and 0 interrupted iterations
+duplicates   [  67% ] 00/10 VUs  2.0s/3s  1.00 iters/s
+
+running (03.0s), 00/10 VUs, 3 complete and 0 interrupted iterations
+duplicates   [ 100% ] 00/10 VUs  3.0s/3s  1.00 iters/s
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate==1' rate=100.00%
+
+    dropped_iterations
+    ✓ 'count==0' count=0
+
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+
+    transfer_latency
+    ✓ 'p(95)<300' p(95)=60.27ms
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 6       1.999797/s
+    checks_succeeded...: 100.00% 6 out of 6
+    checks_failed......: 0.00%   0 out of 6
+
+
+    CUSTOM
+    duplicate_bursts...............: 3     0.999898/s
+    system_errors..................: 0.00% 0 out of 33
+    transfer_latency...............: avg=52.74ms min=10.56ms med=57.04ms max=63.73ms p(90)=59.58ms p(95)=60.27ms
+
+    HTTP
+    http_req_duration..............: avg=52.74ms min=10.56ms med=57.04ms max=63.73ms p(90)=59.58ms p(95)=60.27ms
+      { expected_response:true }...: avg=52.74ms min=10.56ms med=57.04ms max=63.73ms p(90)=59.58ms p(95)=60.27ms
+    http_req_failed................: 0.00% 0 out of 33
+    http_reqs......................: 33    10.998881/s
+
+    EXECUTION
+    dropped_iterations.............: 0     0/s
+    iteration_duration.............: avg=72.68ms min=67.68ms med=73.24ms max=77.12ms p(90)=76.34ms p(95)=76.73ms
+    iterations.....................: 3     0.999898/s
+    vus............................: 0     min=0       max=0 
+    vus_max........................: 10    min=10      max=10
+
+    NETWORK
+    data_received..................: 39 kB 13 kB/s
+    data_sent......................: 36 kB 12 kB/s
+
+
+
+
+running (03.0s), 00/10 VUs, 3 complete and 0 interrupted iterations
+duplicates ✓ [ 100% ] 00/10 VUs  3s  1.00 iters/s
+{"duplicateCardinality":"PASS","transfers":3,"entries":6,"keys":3,"badKeys":0,"bursts":3}
+{"status":"PASS","totals":{"debit":"172518000","credit":"172518000","balance":"0"},"violations":[]}
+invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\duplicate-84f4622e-e6ee-484f-88b6-fc51f58f39cf
+M-165 duplicate exit=0; expected=0
+{"scenario":"stress","profile":"smoke","runId":"4e7ffea8-cf50-406a-a5c6-b9dbce1b62d1","dedicated":true,"cloudAcceptance":false}
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\stress.js
+        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\stress-4e7ffea8-cf50-406a-a5c6-b9dbce1b62d1\raw.json)
+
+     scenarios: (100.00%) 2 scenarios, 40 max VUs, 15s max duration (incl. graceful stop):
+              * read_5: 4.00 iterations/s for 5s (maxVUs: 10-20, exec: read, gracefulStop: 10s)
+              * write_5: 1.00 iterations/s for 5s (maxVUs: 10-20, exec: write, gracefulStop: 10s)
+
+
+running (01.0s), 00/20 VUs, 5 complete and 0 interrupted iterations
+read_5    [  20% ] 00/10 VUs  1.0s/5s  4.00 iters/s
+write_5   [  20% ] 00/10 VUs  1.0s/5s  1.00 iters/s
+
+running (02.0s), 00/20 VUs, 10 complete and 0 interrupted iterations
+read_5    [  40% ] 00/10 VUs  2.0s/5s  4.00 iters/s
+write_5   [  40% ] 00/10 VUs  2.0s/5s  1.00 iters/s
+
+running (03.0s), 00/20 VUs, 15 complete and 0 interrupted iterations
+read_5    [  60% ] 00/10 VUs  3.0s/5s  4.00 iters/s
+write_5   [  60% ] 00/10 VUs  3.0s/5s  1.00 iters/s
+
+running (04.0s), 00/20 VUs, 20 complete and 0 interrupted iterations
+read_5    [  80% ] 00/10 VUs  4.0s/5s  4.00 iters/s
+write_5   [  80% ] 00/10 VUs  4.0s/5s  1.00 iters/s
+
+running (05.0s), 00/20 VUs, 25 complete and 0 interrupted iterations
+read_5    [ 100% ] 00/10 VUs  5.0s/5s  4.00 iters/s
+write_5   [ 100% ] 00/10 VUs  5.0s/5s  1.00 iters/s
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate==1' rate=100.00%
+
+    dropped_iterations
+    ✓ 'count==0' count=0
+
+    read_latency{plateau:5,operation:balance}
+    ✓ 'p(95)<150' p(95)=17.86ms
+
+    read_latency{plateau:5,operation:history}
+    ✓ 'p(95)<150' p(95)=19.96ms
+
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+
+    transfer_latency{plateau:5}
+    ✓ 'p(95)<300' p(95)=40.66ms
+    ✓ 'p(99)<1000' p(99)=41.85ms
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 26      5.155585/s
+    checks_succeeded...: 100.00% 26 out of 26
+    checks_failed......: 0.00%   0 out of 26
+
+
+    CUSTOM
+    read_latency........................: avg=15.37ms min=10.01ms med=15.16ms max=20.16ms p(90)=19.13ms p(95)=19.74ms
+      { plateau:5,operation:balance }...: avg=14.06ms min=10.01ms med=14.28ms max=19.06ms p(90)=16.66ms p(95)=17.86ms
+      { plateau:5,operation:history }...: avg=16.68ms min=13.39ms med=16.86ms max=20.16ms p(90)=19.76ms p(95)=19.96ms
+    system_errors.......................: 0.00% 0 out of 26
+    transfer_latency....................: avg=31.14ms min=20.68ms med=33.05ms max=42.15ms p(90)=39.16ms p(95)=40.66ms
+      { plateau:5 }.....................: avg=31.14ms min=20.68ms med=33.05ms max=42.15ms p(90)=39.16ms p(95)=40.66ms
+
+    HTTP
+    http_req_duration...................: avg=19.01ms min=10.01ms med=16.52ms max=42.15ms p(90)=33.05ms p(95)=35.41ms
+      { expected_response:true }........: avg=19.01ms min=10.01ms med=16.52ms max=42.15ms p(90)=33.05ms p(95)=35.41ms
+    http_req_failed.....................: 0.00% 0 out of 26
+    http_reqs...........................: 26    5.155585/s
+
+    EXECUTION
+    dropped_iterations..................: 0     0/s
+    iteration_duration..................: avg=19.63ms min=11.05ms med=16.52ms max=42.82ms p(90)=34.7ms  p(95)=36.36ms
+    iterations..........................: 26    5.155585/s
+    vus.................................: 0     min=0       max=0 
+    vus_max.............................: 20    min=20      max=20
+
+    NETWORK
+    data_received.......................: 73 kB 15 kB/s
+    data_sent...........................: 25 kB 5.0 kB/s
+
+
+
+
+running (05.0s), 00/20 VUs, 26 complete and 0 interrupted iterations
+read_5  ✓ [ 100% ] 00/10 VUs  5s  4.00 iters/s
+write_5 ✓ [ 100% ] 00/10 VUs  5s  1.00 iters/s
+{"status":"PASS","totals":{"debit":"172524000","credit":"172524000","balance":"0"},"violations":[]}
+invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\stress-4e7ffea8-cf50-406a-a5c6-b9dbce1b62d1
+M-165 stress exit=0; expected=0
+{"scenario":"baseline","profile":"smoke","runId":"b3399c9d-6b69-4031-b882-57af4c2f3c79","dedicated":true,"cloudAcceptance":false}
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\baseline.js
+        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\baseline-b3399c9d-6b69-4031-b882-57af4c2f3c79\raw.json)
+
+     scenarios: (100.00%) 2 scenarios, 40 max VUs, 15s max duration (incl. graceful stop):
+              * read_5: 4.00 iterations/s for 5s (maxVUs: 10-20, exec: read, gracefulStop: 10s)
+              * write_5: 1.00 iterations/s for 5s (maxVUs: 10-20, exec: write, gracefulStop: 10s)
+
+
+running (01.0s), 00/20 VUs, 5 complete and 0 interrupted iterations
+read_5    [  20% ] 00/10 VUs  1.0s/5s  4.00 iters/s
+write_5   [  20% ] 00/10 VUs  1.0s/5s  1.00 iters/s
+
+running (02.0s), 00/20 VUs, 10 complete and 0 interrupted iterations
+read_5    [  40% ] 00/10 VUs  2.0s/5s  4.00 iters/s
+write_5   [  40% ] 00/10 VUs  2.0s/5s  1.00 iters/s
+
+running (03.0s), 00/20 VUs, 15 complete and 0 interrupted iterations
+read_5    [  60% ] 00/10 VUs  3.0s/5s  4.00 iters/s
+write_5   [  60% ] 00/10 VUs  3.0s/5s  1.00 iters/s
+
+running (04.0s), 00/20 VUs, 20 complete and 0 interrupted iterations
+read_5    [  80% ] 00/10 VUs  4.0s/5s  4.00 iters/s
+write_5   [  80% ] 00/10 VUs  4.0s/5s  1.00 iters/s
+
+running (05.0s), 00/20 VUs, 25 complete and 0 interrupted iterations
+read_5    [ 100% ] 00/10 VUs  5.0s/5s  4.00 iters/s
+write_5   [ 100% ] 00/10 VUs  5.0s/5s  1.00 iters/s
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✗ 'rate==1' rate=0.00%
+
+    dropped_iterations
+    ✓ 'count==0' count=0
+
+    read_latency{plateau:5,operation:balance}
+    ✓ 'p(95)<150' p(95)=0s
+
+    read_latency{plateau:5,operation:history}
+    ✓ 'p(95)<150' p(95)=0s
+
+    system_errors
+    ✗ 'rate<0.001' rate=100.00%
+
+    transfer_latency{plateau:5}
+    ✓ 'p(95)<300' p(95)=0s
+    ✓ 'p(99)<1000' p(99)=0s
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 25      4.999637/s
+    checks_succeeded...: 0.00%   0 out of 25
+    checks_failed......: 100.00% 25 out of 25
+
+
+    CUSTOM
+    read_latency........................: avg=0s       min=0s med=0s      max=0s     p(90)=0s  p(95)=0s    
+      { plateau:5,operation:balance }...: avg=0s       min=0s med=0s      max=0s     p(90)=0s  p(95)=0s    
+      { plateau:5,operation:history }...: avg=0s       min=0s med=0s      max=0s     p(90)=0s  p(95)=0s    
+    system_errors.......................: 100.00% 25 out of 25
+    transfer_latency....................: avg=0s       min=0s med=0s      max=0s     p(90)=0s  p(95)=0s    
+      { plateau:5 }.....................: avg=0s       min=0s med=0s      max=0s     p(90)=0s  p(95)=0s    
+
+    HTTP
+    http_req_duration...................: avg=0s       min=0s med=0s      max=0s     p(90)=0s  p(95)=0s    
+    http_req_failed.....................: 100.00% 25 out of 25
+    http_reqs...........................: 25      4.999637/s
+
+    EXECUTION
+    dropped_iterations..................: 0       0/s
+    iteration_duration..................: avg=824.12µs min=0s med=681.9µs max=2.77ms p(90)=1ms p(95)=2.42ms
+    iterations..........................: 25      4.999637/s
+    vus.................................: 0       min=0        max=0 
+    vus_max.............................: 20      min=20       max=20
+
+    NETWORK
+    data_received.......................: 0 B     0 B/s
+    data_sent...........................: 0 B     0 B/s
+
+
+
+
+running (05.0s), 00/20 VUs, 25 complete and 0 interrupted iterations
+read_5  ✓ [ 100% ] 00/10 VUs  5s  4.00 iters/s
+write_5 ✓ [ 100% ] 00/10 VUs  5s  1.00 iters/s
+{"status":"PASS","totals":{"debit":"172524000","credit":"172524000","balance":"0"},"violations":[]}
+invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\baseline-b3399c9d-6b69-4031-b882-57af4c2f3c79
+time="2026-11-10T12:19:33+07:00" level=warning msg="Request Failed" error="Post \"http://127.0.0.1:54164/v1/transfers\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:33+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/0a19e6a2-dce3-428d-9f42-9124d1e66a4e\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:34+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/3e9811f7-4325-4a2e-a626-151f71008df7/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:34+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/91097705-1deb-45c3-808a-2f46b4fade28\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:34+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/0a19e6a2-dce3-428d-9f42-9124d1e66a4e/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:34+07:00" level=warning msg="Request Failed" error="Post \"http://127.0.0.1:54164/v1/transfers\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:34+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/3e9811f7-4325-4a2e-a626-151f71008df7\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:35+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/91097705-1deb-45c3-808a-2f46b4fade28/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:35+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/0a19e6a2-dce3-428d-9f42-9124d1e66a4e\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:35+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/3e9811f7-4325-4a2e-a626-151f71008df7/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:35+07:00" level=warning msg="Request Failed" error="Post \"http://127.0.0.1:54164/v1/transfers\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:35+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/91097705-1deb-45c3-808a-2f46b4fade28\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:36+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/0a19e6a2-dce3-428d-9f42-9124d1e66a4e/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:36+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/3e9811f7-4325-4a2e-a626-151f71008df7\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:36+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/91097705-1deb-45c3-808a-2f46b4fade28/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:36+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/0a19e6a2-dce3-428d-9f42-9124d1e66a4e\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:36+07:00" level=warning msg="Request Failed" error="Post \"http://127.0.0.1:54164/v1/transfers\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:37+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/3e9811f7-4325-4a2e-a626-151f71008df7/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:37+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/91097705-1deb-45c3-808a-2f46b4fade28\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:37+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/0a19e6a2-dce3-428d-9f42-9124d1e66a4e/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:37+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/3e9811f7-4325-4a2e-a626-151f71008df7\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:37+07:00" level=warning msg="Request Failed" error="Post \"http://127.0.0.1:54164/v1/transfers\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:38+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/91097705-1deb-45c3-808a-2f46b4fade28/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:38+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/0a19e6a2-dce3-428d-9f42-9124d1e66a4e\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:38+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/3e9811f7-4325-4a2e-a626-151f71008df7/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
+time="2026-11-10T12:19:39+07:00" level=error msg="thresholds on metrics 'checks, system_errors' have been crossed"
+Load run FAILED; inspect k6 summary, fixture expiry/budget and invariant report
+M-165 baseline exit=99; expected=nonzero
+{"scenario":"rate-limit","profile":"smoke","runId":"c536570f-f766-4da5-9829-0c8049aca001","dedicated":true,"cloudAcceptance":false}
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\rate-limit.js
+        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\rate-limit-c536570f-f766-4da5-9829-0c8049aca001\raw.json)
+
+     scenarios: (100.00%) 1 scenario, 1 max VUs, 3m30s max duration (incl. graceful stop):
+              * boundary: 1 iterations shared among 1 VUs (maxDuration: 3m0s, gracefulStop: 30s)
+
+
+running (0m01.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m01.0s/3m0s  0/1 shared iters
+
+running (0m02.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m02.0s/3m0s  0/1 shared iters
+
+running (0m03.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m03.0s/3m0s  0/1 shared iters
+
+running (0m04.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m04.0s/3m0s  0/1 shared iters
+
+running (0m05.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m05.0s/3m0s  0/1 shared iters
+
+running (0m06.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m06.0s/3m0s  0/1 shared iters
+
+running (0m07.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m07.0s/3m0s  0/1 shared iters
+
+running (0m08.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m08.0s/3m0s  0/1 shared iters
+
+running (0m09.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m09.0s/3m0s  0/1 shared iters
+
+running (0m10.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m10.0s/3m0s  0/1 shared iters
+
+running (0m11.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m11.0s/3m0s  0/1 shared iters
+
+running (0m12.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m12.0s/3m0s  0/1 shared iters
+
+running (0m13.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m13.0s/3m0s  0/1 shared iters
+
+running (0m14.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m14.0s/3m0s  0/1 shared iters
+
+running (0m15.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m15.0s/3m0s  0/1 shared iters
+
+running (0m16.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m16.0s/3m0s  0/1 shared iters
+
+running (0m17.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m17.0s/3m0s  0/1 shared iters
+
+running (0m18.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m18.0s/3m0s  0/1 shared iters
+
+running (0m19.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m19.0s/3m0s  0/1 shared iters
+
+running (0m20.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m20.0s/3m0s  0/1 shared iters
+
+running (0m21.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m21.0s/3m0s  0/1 shared iters
+
+running (0m22.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m22.0s/3m0s  0/1 shared iters
+
+running (0m23.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m23.0s/3m0s  0/1 shared iters
+
+running (0m24.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m24.0s/3m0s  0/1 shared iters
+
+running (0m25.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m25.0s/3m0s  0/1 shared iters
+
+running (0m26.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m26.0s/3m0s  0/1 shared iters
+
+running (0m27.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m27.0s/3m0s  0/1 shared iters
+
+running (0m28.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m28.0s/3m0s  0/1 shared iters
+
+running (0m29.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m29.0s/3m0s  0/1 shared iters
+
+running (0m30.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m30.0s/3m0s  0/1 shared iters
+
+running (0m31.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m31.0s/3m0s  0/1 shared iters
+
+running (0m32.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m32.0s/3m0s  0/1 shared iters
+
+running (0m33.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m33.0s/3m0s  0/1 shared iters
+
+running (0m34.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m34.0s/3m0s  0/1 shared iters
+
+running (0m35.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m35.0s/3m0s  0/1 shared iters
+
+running (0m36.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m36.0s/3m0s  0/1 shared iters
+
+running (0m37.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m37.0s/3m0s  0/1 shared iters
+
+running (0m38.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m38.0s/3m0s  0/1 shared iters
+
+running (0m39.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m39.0s/3m0s  0/1 shared iters
+
+running (0m40.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m40.0s/3m0s  0/1 shared iters
+
+running (0m41.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m41.0s/3m0s  0/1 shared iters
+
+running (0m42.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m42.0s/3m0s  0/1 shared iters
+
+running (0m43.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m43.0s/3m0s  0/1 shared iters
+
+running (0m44.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m44.0s/3m0s  0/1 shared iters
+
+running (0m45.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m45.0s/3m0s  0/1 shared iters
+
+running (0m46.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m46.0s/3m0s  0/1 shared iters
+
+running (0m47.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m47.0s/3m0s  0/1 shared iters
+
+running (0m48.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m48.0s/3m0s  0/1 shared iters
+
+running (0m49.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m49.0s/3m0s  0/1 shared iters
+
+running (0m50.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m50.0s/3m0s  0/1 shared iters
+
+running (0m51.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m51.0s/3m0s  0/1 shared iters
+
+running (0m52.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m52.0s/3m0s  0/1 shared iters
+
+running (0m53.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m53.0s/3m0s  0/1 shared iters
+
+running (0m54.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m54.0s/3m0s  0/1 shared iters
+
+running (0m55.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m55.0s/3m0s  0/1 shared iters
+
+running (0m56.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m56.0s/3m0s  0/1 shared iters
+
+running (0m57.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m57.0s/3m0s  0/1 shared iters
+
+running (0m58.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m58.0s/3m0s  0/1 shared iters
+
+running (0m59.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m59.0s/3m0s  0/1 shared iters
+
+running (1m00.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m00.0s/3m0s  0/1 shared iters
+
+running (1m01.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m01.0s/3m0s  0/1 shared iters
+
+running (1m02.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m02.0s/3m0s  0/1 shared iters
+
+running (1m03.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m03.0s/3m0s  0/1 shared iters
+
+running (1m04.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m04.0s/3m0s  0/1 shared iters
+
+running (1m05.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m05.0s/3m0s  0/1 shared iters
+
+running (1m06.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m06.0s/3m0s  0/1 shared iters
+
+running (1m07.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m07.0s/3m0s  0/1 shared iters
+
+running (1m08.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m08.0s/3m0s  0/1 shared iters
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate==1' rate=100.00%
+
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 114     1.666591/s
+    checks_succeeded...: 100.00% 114 out of 114
+    checks_failed......: 0.00%   0 out of 114
+
+
+    CUSTOM
+    system_errors..................: 0.00%  0 out of 112
+    transfer_latency...............: avg=32.82ms min=6.92ms med=24.75ms max=85.5ms p(90)=75.63ms p(95)=80.56ms
+
+    HTTP
+    http_req_duration..............: avg=14.19ms min=2.61ms med=11.51ms max=85.5ms p(90)=21.31ms p(95)=26.87ms
+      { expected_response:true }...: avg=14.19ms min=2.61ms med=11.51ms max=85.5ms p(90)=21.31ms p(95)=26.87ms
+    http_req_failed................: 0.00%  0 out of 112
+    http_reqs......................: 112    1.637353/s
+
+    EXECUTION
+    iteration_duration.............: avg=1m8s    min=1m8s   med=1m8s    max=1m8s   p(90)=1m8s    p(95)=1m8s   
+    iterations.....................: 1      0.014619/s
+    vus............................: 1      min=1        max=1
+    vus_max........................: 1      min=1        max=1
+
+    NETWORK
+    data_received..................: 140 kB 2.0 kB/s
+    data_sent......................: 106 kB 1.5 kB/s
+
+
+
+
+running (1m08.4s), 0/1 VUs, 1 complete and 0 interrupted iterations
+boundary ✓ [ 100% ] 1 VUs  1m08.4s/3m0s  1/1 shared iters
+{"status":"PASS","totals":{"debit":"172534000","credit":"172534000","balance":"0"},"violations":[]}
+invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\rate-limit-c536570f-f766-4da5-9829-0c8049aca001
+M-165 rate-limit exit=0; expected=0
+{"scenario":"rate-limit","profile":"smoke","runId":"0860f259-6f53-441c-924a-18d2a2c1e471","dedicated":true,"cloudAcceptance":false}
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\rate-limit.js
+        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\rate-limit-0860f259-6f53-441c-924a-18d2a2c1e471\raw.json)
+
+     scenarios: (100.00%) 1 scenario, 1 max VUs, 3m30s max duration (incl. graceful stop):
+              * boundary: 1 iterations shared among 1 VUs (maxDuration: 3m0s, gracefulStop: 30s)
+
+
+running (0m01.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m01.0s/3m0s  0/1 shared iters
+
+running (0m02.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m02.0s/3m0s  0/1 shared iters
+
+running (0m03.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m03.0s/3m0s  0/1 shared iters
+
+running (0m04.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m04.0s/3m0s  0/1 shared iters
+
+running (0m05.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m05.0s/3m0s  0/1 shared iters
+
+running (0m06.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m06.0s/3m0s  0/1 shared iters
+
+running (0m07.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m07.0s/3m0s  0/1 shared iters
+
+running (0m08.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m08.0s/3m0s  0/1 shared iters
+
+running (0m09.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m09.0s/3m0s  0/1 shared iters
+
+running (0m10.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m10.0s/3m0s  0/1 shared iters
+
+running (0m11.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m11.0s/3m0s  0/1 shared iters
+
+running (0m12.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m12.0s/3m0s  0/1 shared iters
+
+running (0m13.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m13.0s/3m0s  0/1 shared iters
+
+running (0m14.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m14.0s/3m0s  0/1 shared iters
+
+running (0m15.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m15.0s/3m0s  0/1 shared iters
+
+running (0m16.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m16.0s/3m0s  0/1 shared iters
+
+running (0m17.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m17.0s/3m0s  0/1 shared iters
+
+running (0m18.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m18.0s/3m0s  0/1 shared iters
+
+running (0m19.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m19.0s/3m0s  0/1 shared iters
+
+running (0m20.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m20.0s/3m0s  0/1 shared iters
+
+running (0m21.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m21.0s/3m0s  0/1 shared iters
+
+running (0m22.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m22.0s/3m0s  0/1 shared iters
+
+running (0m23.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m23.0s/3m0s  0/1 shared iters
+
+running (0m24.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m24.0s/3m0s  0/1 shared iters
+
+running (0m25.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m25.0s/3m0s  0/1 shared iters
+
+running (0m26.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m26.0s/3m0s  0/1 shared iters
+
+running (0m27.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m27.0s/3m0s  0/1 shared iters
+
+running (0m28.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m28.0s/3m0s  0/1 shared iters
+
+running (0m29.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m29.0s/3m0s  0/1 shared iters
+
+running (0m30.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m30.0s/3m0s  0/1 shared iters
+
+running (0m31.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m31.0s/3m0s  0/1 shared iters
+
+running (0m32.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m32.0s/3m0s  0/1 shared iters
+
+running (0m33.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m33.0s/3m0s  0/1 shared iters
+
+running (0m34.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m34.0s/3m0s  0/1 shared iters
+
+running (0m35.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m35.0s/3m0s  0/1 shared iters
+
+running (0m36.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m36.0s/3m0s  0/1 shared iters
+
+running (0m37.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m37.0s/3m0s  0/1 shared iters
+
+running (0m38.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m38.0s/3m0s  0/1 shared iters
+
+running (0m39.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m39.0s/3m0s  0/1 shared iters
+
+running (0m40.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m40.0s/3m0s  0/1 shared iters
+
+running (0m41.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m41.0s/3m0s  0/1 shared iters
+
+running (0m42.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m42.0s/3m0s  0/1 shared iters
+
+running (0m43.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m43.0s/3m0s  0/1 shared iters
+
+running (0m44.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m44.0s/3m0s  0/1 shared iters
+
+running (0m45.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m45.0s/3m0s  0/1 shared iters
+
+running (0m46.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m46.0s/3m0s  0/1 shared iters
+
+running (0m47.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m47.0s/3m0s  0/1 shared iters
+
+running (0m48.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m48.0s/3m0s  0/1 shared iters
+
+running (0m49.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m49.0s/3m0s  0/1 shared iters
+
+running (0m50.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m50.0s/3m0s  0/1 shared iters
+
+running (0m51.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m51.0s/3m0s  0/1 shared iters
+
+running (0m52.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m52.0s/3m0s  0/1 shared iters
+
+running (0m53.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m53.0s/3m0s  0/1 shared iters
+
+running (0m54.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m54.0s/3m0s  0/1 shared iters
+
+running (0m55.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m55.0s/3m0s  0/1 shared iters
+
+running (0m56.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m56.0s/3m0s  0/1 shared iters
+
+running (0m57.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m57.0s/3m0s  0/1 shared iters
+
+running (0m58.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m58.0s/3m0s  0/1 shared iters
+
+running (0m59.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  0m59.0s/3m0s  0/1 shared iters
+
+running (1m00.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m00.0s/3m0s  0/1 shared iters
+
+running (1m01.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m01.0s/3m0s  0/1 shared iters
+
+running (1m02.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m02.0s/3m0s  0/1 shared iters
+
+running (1m03.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m03.0s/3m0s  0/1 shared iters
+
+running (1m04.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m04.0s/3m0s  0/1 shared iters
+
+running (1m05.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m05.0s/3m0s  0/1 shared iters
+
+running (1m06.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m06.0s/3m0s  0/1 shared iters
+
+running (1m07.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m07.0s/3m0s  0/1 shared iters
+
+running (1m08.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m08.0s/3m0s  0/1 shared iters
+
+running (1m09.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m09.0s/3m0s  0/1 shared iters
+
+running (1m10.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m10.0s/3m0s  0/1 shared iters
+
+running (1m11.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m11.0s/3m0s  0/1 shared iters
+
+running (1m12.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m12.0s/3m0s  0/1 shared iters
+
+running (1m13.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m13.0s/3m0s  0/1 shared iters
+
+running (1m14.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m14.0s/3m0s  0/1 shared iters
+
+running (1m15.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m15.0s/3m0s  0/1 shared iters
+
+running (1m16.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m16.0s/3m0s  0/1 shared iters
+
+running (1m17.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m17.0s/3m0s  0/1 shared iters
+
+running (1m18.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m18.0s/3m0s  0/1 shared iters
+
+running (1m19.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m19.0s/3m0s  0/1 shared iters
+
+running (1m20.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m20.0s/3m0s  0/1 shared iters
+
+running (1m21.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m21.0s/3m0s  0/1 shared iters
+
+running (1m22.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m22.0s/3m0s  0/1 shared iters
+
+running (1m23.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m23.0s/3m0s  0/1 shared iters
+
+running (1m24.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m24.0s/3m0s  0/1 shared iters
+
+running (1m25.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m25.0s/3m0s  0/1 shared iters
+
+running (1m26.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m26.0s/3m0s  0/1 shared iters
+
+running (1m27.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m27.0s/3m0s  0/1 shared iters
+
+running (1m28.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m28.0s/3m0s  0/1 shared iters
+
+running (1m29.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m29.0s/3m0s  0/1 shared iters
+
+running (1m30.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m30.0s/3m0s  0/1 shared iters
+
+running (1m31.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m31.0s/3m0s  0/1 shared iters
+
+running (1m32.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m32.0s/3m0s  0/1 shared iters
+
+running (1m33.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m33.0s/3m0s  0/1 shared iters
+
+running (1m34.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m34.0s/3m0s  0/1 shared iters
+
+running (1m35.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m35.0s/3m0s  0/1 shared iters
+
+running (1m36.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m36.0s/3m0s  0/1 shared iters
+
+running (1m37.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m37.0s/3m0s  0/1 shared iters
+
+running (1m38.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m38.0s/3m0s  0/1 shared iters
+
+running (1m39.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m39.0s/3m0s  0/1 shared iters
+
+running (1m40.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m40.0s/3m0s  0/1 shared iters
+
+running (1m41.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m41.0s/3m0s  0/1 shared iters
+
+running (1m42.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m42.0s/3m0s  0/1 shared iters
+
+running (1m43.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m43.0s/3m0s  0/1 shared iters
+
+running (1m44.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m44.0s/3m0s  0/1 shared iters
+
+running (1m45.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m45.0s/3m0s  0/1 shared iters
+
+running (1m46.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m46.0s/3m0s  0/1 shared iters
+
+running (1m47.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m47.0s/3m0s  0/1 shared iters
+
+running (1m48.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m48.0s/3m0s  0/1 shared iters
+
+running (1m49.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m49.0s/3m0s  0/1 shared iters
+
+running (1m50.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m50.0s/3m0s  0/1 shared iters
+
+running (1m51.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m51.0s/3m0s  0/1 shared iters
+
+running (1m52.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m52.0s/3m0s  0/1 shared iters
+
+running (1m53.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m53.0s/3m0s  0/1 shared iters
+
+running (1m54.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+boundary   [   0% ] 1 VUs  1m54.0s/3m0s  0/1 shared iters
+
+
+  █ THRESHOLDS 
+
+    checks
+    ✗ 'rate==1' rate=98.24%
+
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 114    0.996827/s
+    checks_succeeded...: 98.24% 112 out of 114
+    checks_failed......: 1.75%  2 out of 114
+
+
+    CUSTOM
+    system_errors..................: 0.00%  0 out of 112
+    transfer_latency...............: avg=23.9ms  min=15.65ms med=18.78ms max=47.74ms p(90)=42.74ms p(95)=45.24ms
+
+    HTTP
+    http_req_duration..............: avg=11.97ms min=7.46ms  med=9.76ms  max=47.74ms p(90)=18.07ms p(95)=21.19ms
+      { expected_response:true }...: avg=11.97ms min=7.46ms  med=9.76ms  max=47.74ms p(90)=18.07ms p(95)=21.19ms
+    http_req_failed................: 0.00%  0 out of 112
+    http_reqs......................: 112    0.979339/s
+
+    EXECUTION
+    iteration_duration.............: avg=1m54s   min=1m54s   med=1m54s   max=1m54s   p(90)=1m54s   p(95)=1m54s  
+    iterations.....................: 1      0.008744/s
+    vus............................: 1      min=1        max=1
+    vus_max........................: 1      min=1        max=1
+
+    NETWORK
+    data_received..................: 140 kB 1.2 kB/s
+    data_sent......................: 106 kB 922 B/s
+
+
+
+
+running (1m54.4s), 0/1 VUs, 1 complete and 0 interrupted iterations
+boundary ✓ [ 100% ] 1 VUs  1m54.4s/3m0s  1/1 shared iters
+{"status":"PASS","totals":{"debit":"172545000","credit":"172545000","balance":"0"},"violations":[]}
+invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\rate-limit-0860f259-6f53-441c-924a-18d2a2c1e471
+time="2026-11-10T12:23:02+07:00" level=error msg="thresholds on metrics 'checks' have been crossed"
+Load run FAILED; inspect k6 summary, fixture expiry/budget and invariant report
+M-165 rate-limit exit=99; expected=nonzero
+M-165-05 isolated Redis stopped: negative control failed as expected; shared Docker untouched
+M-165-06 isolated PostgreSQL stopped: runner nonzero, invariantExit=2
+TC-165-03/04 manual smoke and negative controls PASS; local only, no AWS acceptance

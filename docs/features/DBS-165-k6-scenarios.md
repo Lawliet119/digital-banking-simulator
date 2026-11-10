@@ -1,6 +1,6 @@
 # DBS-165 · Năm kịch bản k6 và cổng kiểm bất biến
 
-> **Status:** Plan approved · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `codex/DBS-165-k6-scenarios` · **PR:** — · **Cập nhật:** 2026-11-10
+> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `codex/DBS-165-k6-scenarios` · **PR:** — · **Cập nhật:** 2026-11-10
 
 ## 1. Bối cảnh
 
@@ -48,6 +48,19 @@ Runner Node một lệnh chuẩn bị seed (hoặc fixture có sẵn), chạy k6
 
 Node `run.cjs` → `prepare.cjs` (DBS-70/53) → fixture riêng → k6 scripts → HTTP API → ledger PostgreSQL. Sau k6, Node gọi checker thật → report PASS/FAIL. Không thay exported symbol backend, bảng, transaction, contract, quy tắc tiền hay ADR. Các URL đọc là `/v1/accounts/:id` và `/v1/accounts/:id/transactions?limit=20`.
 
+```mermaid
+flowchart LR
+  Runner --> SeedAPI
+  SeedAPI --> Fixture
+  Fixture --> K6
+  K6 --> BankingAPI
+  BankingAPI --> PostgreSQL
+  Runner --> Postflight
+  Postflight --> PostgreSQL
+  Runner --> InvariantChecker
+  InvariantChecker --> PostgreSQL
+```
+
 File chính: năm entrypoint, `lib/config.js` (cấu hình thuần), `lib/client.js` (HTTP/checks/metrics), `prepare.cjs`, `run.cjs`; unit Node kiểm plan, thresholds và fail-closed runner; smoke driver chạy AppModule thật trên DB tạm. Không thêm production dependency. Giới hạn hiệu năng nâng bằng env có sẵn ở ứng dụng chạy tải theo docs/03 §12; rate-limit chạy instance khác với mặc định 10/100.
 
 ## 4. Test cases tự động
@@ -59,7 +72,7 @@ File chính: năm entrypoint, `lib/config.js` (cấu hình thuần), `lib/client
 | TC-165-03 | DoD1,2; SEC05 | k6/HTTP/PG thật | biên10/11 và100/101; 429 RATE_LIMITED + Retry-After; cùng phút và luân phiên URL |
 | TC-165-04 | DoD3 | smoke HTTP/PG thật | đủ5 script chạy local; không retry/SQL seed tiền; checker PASS sau mỗi run |
 | TC-165-05 | DoD4 | Node unit/manual | runner giữ exit lỗi, vẫn checker khi k6 lỗi; raw/summary JSON; thiếu config/fixture sai/target down phải đỏ |
-| TC-165-06 | DoD1,4 | Node unit | fixture/URL/token/amount không hợp lệ bị từ chối; không dùng tag URL hay token trong raw output |
+| TC-165-06 | DoD1,4 | Node unit và kiểm output | fixture thiếu bị từ chối; không dùng tag URL hay token trong raw output. Validator URL/token được đọc đối chiếu, chưa có unit riêng cho từng biến thể sai |
 | Quy trình | DoD5 | review/CI | CI xanh, Dev khác review, merge do người quản lý repo |
 
 ## 5. Test thủ công
@@ -79,7 +92,7 @@ Thiết kế hậu kiểm bổ sung: fixture/DB phải dành riêng cho đợt t
 
 ## 6. Domain review (AI)
 
-**Reviewer:** subagent kế thừa model của phiên (không cung cấp model ID), ngày2026-11-10. Lượt1 REVISE: blocking1, should-fix2, minor0; lưu nguyên văn ở screenshots/DBS-165/domain-review.md. Đã sửa: hậu kiểm duplicate exact delta+keys, thresholds từng plateau/operation, nạp bù qua API và preflight ngân sách. Review lại0 phát hiện, Verdict: APPROVE; phản hồi nguyên văn ở screenshots/DBS-165/domain-review-r2.md.
+**Reviewer:** subagent kế thừa model của phiên (không cung cấp model ID), ngày2026-11-10. Lượt1 REVISE: blocking1, should-fix2, minor0; [nguyên văn](screenshots/DBS-165/domain-review.md). Đã sửa: hậu kiểm duplicate exact delta+keys, thresholds từng plateau/operation, nạp bù qua API và preflight ngân sách. Review lại0 phát hiện, Verdict: APPROVE; [nguyên văn lượt2](screenshots/DBS-165/domain-review-r2.md).
 
 Quyết định ở G2 (agent tự quyết): giữ kiểm cân sổ và kiểm cardinality là hai oracle độc lập; chọn fixture/DB riêng để delta có ý nghĩa; không thay đổi hạn mức nghiệp vụ.
 
@@ -87,17 +100,56 @@ Quyết định ở G2 (agent tự quyết): giữ kiểm cân sổ và kiểm c
 
 | Bước | File | Test viết trước | Đỏ | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
-| 1 | load-tests/package.json, lib/config.js, test/config.test.mjs | TC-165-01/02/06: rates, thresholds, fixture, budget | điền khi chạy | node --test load-tests/test/config.test.mjs | test(load): define k6 workload contracts |
-| 2 | load-tests/lib/client.js, năm entrypoint, prepare.cjs, run.cjs, postflight.cjs, test/runner.test.mjs | TC-165-05: fail exit, always checker, duplicate overcount | điền khi chạy | node --test load-tests/test/*.test.mjs; k6 inspect | feat(load): add five k6 scenarios and invariant runner |
-| 3 | load-tests/test/smoke.cjs, backend build hiện hữu | TC-165-03/04 và manual5 bài qua AppModule thật, PG/Valkey riêng | điền khi chạy | node load-tests/test/smoke.cjs | test(load): verify scenarios against real banking API |
+| 1 | load-tests/package.json, lib/config.js, test/config.test.mjs | TC-165-01/02/06: rates, thresholds, fixture, budget | ERR_MODULE_NOT_FOUND lib/config.js | node --test load-tests/test/config.test.mjs | test(load): define k6 workload contracts |
+| 2 | load-tests/lib/client.js, năm entrypoint, prepare.cjs, run.cjs, postflight.cjs, test/runner.test.mjs | TC-165-05: fail exit, always checker, duplicate overcount | Cannot find module run.cjs | node --test load-tests/test/*.test.mjs; k6 inspect | feat(load): add five k6 scenarios and invariant runner |
+| 3 | load-tests/test/smoke.cjs, backend build hiện hữu | TC-165-03/04 và manual5 bài qua AppModule thật, PG/Valkey riêng | duplicate checks62,5% do thứ tự khóa JSON, thêm regression rồi sửa | node load-tests/test/smoke.cjs | test(load): verify scenarios against real banking API |
 | 4 | load-tests/README.md, docs/features/README.md, docs/BACKLOG.md, feature doc và screenshots/DBS-165/* | DoD4/5, links, evidence | không áp dụng | check-doc-links.mjs; baseline4 lệnh | docs(load): document k6 operation and evidence |
 
 Plan sweep: đủ5 script, seedAPI/DBS53/Cognito, thresholdsNFR, local smoke, rawJSON, README và quy trình review/merge. Ngoài phạm vi: cloud provisioning139, load acceptance166, AI latency174, multi-instanceALB+Redis down thực tếBL179. Không sửa backend/CI, không thêm dependency. Rủi ro: DB không riêng làm delta vô nghĩa; bắt buộc môi trường riêng. Token hết hạn hoặc không đủ ngân sách thì fail trước tải. Cách lùi: revert các commit chỉ thêm load harness/docs; không có migration hoặc backend change. G2 APPROVE; G3 qua sau khi sweep từng DoD/limitation. Quyết định agent tự duyệt giữ phạm vi này.
 
 ## 8. Kết quả
 
-Chưa triển khai.
+Code cuối: `32208dd60d4bf6ca3fbe0bc38b7e0c640c91ec52`; clone sạch ở `D:/UET_PROJECT/dbs165-clean-validation`, npm ci từ lockfile, Node24.15.0, k6v2.3.0. AppModule thật role api, PostgreSQL17/Valkey8 riêng bằng Testcontainers, hai process API cho limiter; không mock DB, không seed SQL tiền. Output [manual-test.txt](screenshots/DBS-165/manual-test.txt) ghi SHA dòng đầu, chạy bằng Git Bash. Raw/summary/invariants của từng run còn ở thư mục load-tests/results của clone sạch, không commit.
+
+Kiểm tra bàn giao: lint đạt, typecheck đạt; unit98 suites/1770 tests đạt; e2e17 suites/163 tests đạt; Node load tests9/9 đạt, skipped0; build đạt; cả5 entrypoint qua k6 inspect với cấu hình full. Mermaid render SVG qua mermaid.ink đạt. Không chạy full test:db vì không đổi backend; smoke đã chạy logic tiền thật với checker sau mọi bài. Output baseline ở [verification.txt](screenshots/DBS-165/verification.txt).
+
+| ID | Test chứng minh | Kết quả |
+|---|---|---|
+| TC-165-01 | config.test.mjs; k6 inspect full; baseline smoke | đạt cấu hình, smoke chỉ5RPS, không chứng minh NFR120RPS |
+| TC-165-02 | config.test.mjs, runner.test.mjs; hot/duplicate/stress smoke; exact DB postflight | đạt; negative control unit phát hiện giao dịch cân sổ dư; JSON replay so theo giá trị, không theo thứ tự khóa jsonb |
+| TC-165-03 | rate-limit.js qua2AppModule dùng chung Valkey | đạt local10/11 và100/101; cloud/ALB chưa chạy BL-228 |
+| TC-165-04 | smoke.cjs từ clone sạch | đủ5bài, checkerPASS sau mỗi bài |
+| TC-165-05 | runner.test.mjs và API unreachable | đạt: k6 exit99, checker vẫnPASS; checker lỗi thì runner đỏ |
+| TC-165-06 | unitfixture thiếu, đọc validator, kiểm raw output | đơn giản hóa: chưa unit từng biến thể URL/token sai; không đổi chính sách auth backend; raw không token/Authorization/DB URL/ARN |
+| DoD5 quy trình | PR/CI/Dev review | CI sẽ đối chiếu exact head sau push; Dev review/merge còn BL-229 |
+
+| Bước | Lệnh/kết quả thật | Kết luận |
+|---|---|---|
+| M-165-01 | `cd backend; node -r ts-node/register -r tsconfig-paths/register ../load-tests/test/smoke.cjs`; seedAPI tạo3customer, nạp bù, checkerPASS | đạt |
+| M-165-02 | runner baseline/hot-account/duplicate/stress --smoke; baseline25HTTP, hot10, duplicate3burst/33HTTP →3transfer/6entries/3keys; stress26HTTP; tất cả checks100%, errors0, invariantExit0 | đạt local |
+| M-165-03 | runner rate-limit --smoke,112HTTP, checks100%, 2process dùng chung Redis; invariantExit0 | đạt local |
+| M-165-04 | fixture trỏ port không có listener; baseline exit99, checks0%, system_errors100%, invariantExit0 | đạt ca âm |
+| M-165-05 | dừng Valkey riêng rồi chạy rate-limit | đạt ca âm: clone sạch exit99 vì checks không đạt, invariantExit0 |
+| M-165-06 | dừng PostgreSQL riêng rồi chạy runner; tắt Docker daemon thật | PostgreSQL riêng: runner khác0, invariantExit2; đạt ca âm. Docker daemon thật chưa chạy để không dừng dịch vụ dùng chung, BL-229 |
+
+Số p95 smoke (ms, không dùng làm benchmark cloud): baseline chuyển54,08/đọc23,10; hot26,87; duplicate60,28; stress chuyển40,66/đọc19,75. Raw output giữ số chính xác, không suy ra120RPS từ smoke.
+
+Lệch/điều chỉnh trong phạm vi §7: lượt đầu duplicate đỏ vì JSON.stringify phân biệt thứ tự khóa của response mới/replay jsonb; thêm unit đỏ rồi so đúng2field theo giá trị, giữ oracle cardinality. Arrival executor có thể phát iteration đúng cuối duration; preflight cộng biên. Không đổi contract/backend/dependency. Unit TC-165-06 hẹp hơn mô tả ban đầu: ghi đơn giản hóa, không nhận là coverage đầy đủ.
+
+Ảnh chưa có: `01-k6-summary.png`, `02-rate-limit.png`, `03-negative-controls.png`. Computer Use đã dừng vì không xác định được URL trình duyệt đủ chắc chắn để thực thi chính sách; không dùng cách khác vượt kiểm tra. Output thô được giữ, không tạo ảnh giả. Chưa tắt cả Docker daemon; chỉ dừng PostgreSQL và Valkey thuộc test. Các giới hạn này ghi ở BL-229.
+
+Bàn giao: BL-228 cho Ops (DBS-139/166, tải/cloud/Cognito/TLS/ALB/Redis), BL-229 cho Dev review/merge và ảnh/daemon thật. Giữ BL-127 (còn các money test khác và metric/alarm) và BL-128 (checker production image). Không đóng backlog chỉ vì runner đã có.
 
 ## 9. Tài liệu đã cập nhật
 
-Feature doc này; khi bàn giao cập nhật load-tests/README.md, docs/features/README.md và docs/BACKLOG.md.
+load-tests/README.md, docs/features/README.md, docs/BACKLOG.md (thêm BL-228/229; BL-226/227 dành cho nhánh DBS-186 đang mở). Không thay ADR/API schema hoặc tài liệu backend.
+
+## Checklist G4
+
+- [x] TC01–05 đạt theo phạm vi local; TC06 đơn giản hóa có ghi rõ;9 unit/harness tests, skipped0.
+- [x] Test thủ công clone sạch trên SHA code cuối: đủ5bài thành công và ca âm API/Redis/PostgreSQL; daemon thật chưa chạy, BL-229.
+- [x] Raw output quét không token/Authorization/DB URL/ARN;3ảnh còn thiếu được nêu tên/lý do và BL-229.
+- [x] Diff chỉ load-tests và docs đã có trong §7; không sửa code backend, CI, dependency.
+- [x] Bốn baseline command bàn giao đạt:1770unit,163e2e, lint/typecheck; build đạt.
+- [x] Link checker cuối:367files/0broken; G4 qua theo phạm vi local.
+- [x] DoD/handoff chưa đạt có BL-228/229 và được nêu trong §8; cloud không nhận là localPASS.
