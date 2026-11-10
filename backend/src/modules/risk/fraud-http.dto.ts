@@ -52,7 +52,8 @@ export class FraudDetailDto extends FraudFlagDto {
 }
 export class FraudListDto {
   @ApiProperty({ type: [FraudFlagDto] }) items!: FraudFlagDto[];
-  @ApiProperty({ type: String, nullable: true }) nextCursor!: string | null;
+  @ApiProperty({ type: String, nullable: true, example: 'bmV4dC1wYWdlLWN1cnNvcg' })
+  nextCursor!: string | null;
 }
 
 export class FraudProblemDto {

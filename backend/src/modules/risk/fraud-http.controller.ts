@@ -26,6 +26,8 @@ import {
   ApiUnauthorizedResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
+import { ErrorCode } from '@common/errors/error-code.enum';
+import { ApiErrorCodes } from '@common/openapi/api-error-codes.decorator';
 import { CurrentUser, type CurrentUserInfo, Roles } from '@modules/identity';
 import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
 import { FraudDetailDto, FraudListDto, FraudProblemDto, ReviewFraudDto } from './fraud-http.dto';
@@ -103,6 +105,7 @@ export class FraudHttpController {
   }
 
   @Post(':transferId/review')
+  @ApiErrorCodes({ 409: [ErrorCode.FLAG_ALREADY_REVIEWED] })
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Review an OPEN flag exactly once; no account lock or outbox event' })
@@ -113,6 +116,10 @@ export class FraudHttpController {
       properties: {
         transferId: { type: 'string', format: 'uuid' },
         reviewStatus: { type: 'string', enum: ['CONFIRMED_FRAUD', 'FALSE_POSITIVE'] },
+      },
+      example: {
+        transferId: '3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44',
+        reviewStatus: 'CONFIRMED_FRAUD',
       },
     },
   })
