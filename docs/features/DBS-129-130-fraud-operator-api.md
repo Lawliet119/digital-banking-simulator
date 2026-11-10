@@ -15,7 +15,7 @@ List, detail và review ghi audit trong cùng transaction. Audit lỗi thì khô
 ## Tự review quyết định
 
 - Sắp xếp trực tiếp `risk_level` (HIGH trước MEDIUM) để mở đường dùng index hàng đợi hiện có; cursor vẫn giữ microsecond/UUID. Chưa có index phủ đủ mọi status và tie-breaker UUID, chưa benchmark backlog lớn. Tạo index mới trên bảng đang dùng phải làm `CONCURRENTLY` theo kế hoạch triển khai riêng; migration hiện chạy gộp trong transaction.
-- Mở rộng không phá tương thích `AuditReason` với `FRAUD_CONFIRMED` và `FRAUD_FALSE_POSITIVE`. Review giữ action `fraud_flag.review`, actor operator thật và map kết luận vào `metadata.reason`; không mở thêm key metadata hay ghi note. Cần bàn giao mở rộng enum cho owner audit.
+- Mở rộng không phá tương thích `AuditReason` với `FRAUD_FALSE_POSITIVE` (xác nhận gian lận dùng lại `CONFIRMED_FRAUD` đã có). Review giữ action `fraud_flag.review`, actor operator thật và map kết luận vào `metadata.reason`; không mở thêm key metadata hay ghi note. Cần bàn giao mở rộng enum cho owner audit.
 - Reuse truy vấn lịch sử ledger qua export chính thức, không sao chép hay sửa quy tắc sổ cái. Không cấp quyền sửa score, xóa flag hoặc xóa decision cho API.
 - Một lệnh UPDATE có điều kiện và audit cùng transaction bảo đảm chỉ một review thành công. Không hứa snapshot toàn trang khi dữ liệu đang đổi.
 

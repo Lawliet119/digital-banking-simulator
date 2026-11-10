@@ -325,7 +325,7 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
         actor_role: 'operator',
         metadata: {
           reason:
-            row.review_status === 'CONFIRMED_FRAUD' ? 'FRAUD_CONFIRMED' : 'FRAUD_FALSE_POSITIVE',
+            row.review_status === 'CONFIRMED_FRAUD' ? 'CONFIRMED_FRAUD' : 'FRAUD_FALSE_POSITIVE',
         },
       },
     ]);
@@ -345,7 +345,7 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
     );
   });
   it.each([
-    ['CONFIRMED_FRAUD', 'FRAUD_CONFIRMED'],
+    ['CONFIRMED_FRAUD', 'CONFIRMED_FRAUD'],
     ['FALSE_POSITIVE', 'FRAUD_FALSE_POSITIVE'],
   ])(
     'audits actor and exact conclusion for %s without the private note',

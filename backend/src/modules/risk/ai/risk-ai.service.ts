@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { databaseConfig } from '@config/database.config';
 import { riskAiConfig } from '@config/risk-ai.config';
@@ -35,6 +36,13 @@ export class RiskAiService {
           }
         : undefined,
     );
+    // An approved egress whose gate can never open would silently record UNAVAILABLE for every transfer.
+    const problem = config?.approved ? this.gate.configurationProblem() : undefined;
+    if (problem) {
+      new Logger(RiskAiService.name).error(
+        `RISK_AI_EGRESS_APPROVED is true but the AI gate cannot open: ${problem}. Every AI-scored transfer will record UNAVAILABLE.`,
+      );
+    }
   }
 
   async evaluate(

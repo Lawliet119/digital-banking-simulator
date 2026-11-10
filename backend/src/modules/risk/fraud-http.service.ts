@@ -134,7 +134,7 @@ export class FraudHttpService {
         metadata: {
           reason:
             body.decision === 'CONFIRMED_FRAUD'
-              ? AuditReason.FRAUD_CONFIRMED
+              ? AuditReason.CONFIRMED_FRAUD
               : AuditReason.FRAUD_FALSE_POSITIVE,
         },
       });

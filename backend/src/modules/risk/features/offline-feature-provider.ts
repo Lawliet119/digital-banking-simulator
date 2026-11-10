@@ -1,6 +1,6 @@
 import { toAiFeatureInput } from '../ai/feature-projection';
 import type { FeatureInput } from '../ai/ai-contract';
-import { riskTimeNanoseconds } from '../risk-time';
+import { riskTimeMilliseconds, riskTimeNanoseconds } from '../risk-time';
 import type { FeatureProvider, Features, TransferEvent } from './feature-provider';
 
 const HOUR = 3_600_000;
@@ -19,11 +19,7 @@ export interface OfflineTransferFact {
 
 type Fact = Readonly<OfflineTransferFact & { ms: number; money: bigint }>;
 type Base = Omit<Features, 'reverseTransferOccurredAt'>;
-const millis = (at: string): number => {
-  const nanos = riskTimeNanoseconds(at);
-  // BigInt division truncates toward zero; SQL/Date truncate the timestamp to the prior millisecond.
-  return Number(nanos / 1_000_000n - (nanos < 0n && nanos % 1_000_000n !== 0n ? 1n : 0n));
-};
+const millis = (at: string): number => riskTimeMilliseconds(at);
 const pairKey = (from: string, to: string): string => JSON.stringify([from, to]);
 
 function lower(rows: readonly Fact[], ms: number): number {

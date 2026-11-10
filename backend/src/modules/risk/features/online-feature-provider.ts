@@ -1,4 +1,4 @@
-import { riskTimeNanoseconds } from '../risk-time';
+import { riskTimeMilliseconds } from '../risk-time';
 import type { FeatureProvider, Features, TransferEvent } from './feature-provider';
 import { TransferFacts } from './transfer-facts';
 
@@ -27,8 +27,7 @@ export class OnlineFeatureProvider implements FeatureProvider {
   }
 
   async extract(event: TransferEvent): Promise<Features> {
-    const nanos = riskTimeNanoseconds(event.occurredAt);
-    const occMs = Number(nanos / 1_000_000n - (nanos < 0n && nanos % 1_000_000n !== 0n ? 1n : 0n));
+    const occMs = riskTimeMilliseconds(event.occurredAt);
     const [transfers, recipients, history, reverseTransferOccurredAt, outflow] = await Promise.all([
       this.facts.velocity(event.fromAccountId, event.transferId, occMs),
       this.facts.newRecipientCount(event.fromAccountId, occMs),

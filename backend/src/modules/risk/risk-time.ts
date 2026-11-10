@@ -15,3 +15,12 @@ export function riskTimeNanoseconds(value: unknown): bigint {
   }
   return BigInt(timestamp) * 1_000_000n + BigInt(fraction.padEnd(9, '0'));
 }
+
+/**
+ * Epoch milliseconds of a risk timestamp, floored like SQL `date_trunc('milliseconds', ...)`.
+ * BigInt division truncates toward zero, so a sub-millisecond instant before the epoch needs one more.
+ */
+export function riskTimeMilliseconds(value: unknown): number {
+  const nanos = riskTimeNanoseconds(value);
+  return Number(nanos / 1_000_000n - (nanos < 0n && nanos % 1_000_000n !== 0n ? 1n : 0n));
+}

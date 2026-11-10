@@ -68,6 +68,23 @@ export class AiGate {
     }
   }
 
+  /**
+   * Why this gate can never grant a permit, or `undefined` when it is usable. Meant to be logged
+   * once at start-up: a rejected `DATABASE_URL` otherwise turns every AI call into UNAVAILABLE
+   * with nothing to point at the cause. Never includes the connection string.
+   */
+  configurationProblem(): string | undefined {
+    const options = this.options;
+    if (!options) return 'gate options are missing';
+    if (typeof options.connectionString !== 'string' || options.connectionString.length === 0) {
+      return 'DATABASE_URL is empty';
+    }
+    if (!this.safeConnectionString(options.connectionString)) {
+      return 'DATABASE_URL is not a postgres URL or carries ssl*/uselibpqcompat query parameters; configure TLS with DATABASE_SSL and DATABASE_SSL_CA_PATH instead';
+    }
+    return this.valid(options) ? undefined : 'gate deadline or policy values are out of range';
+  }
+
   private valid(options: AiGateOptions | undefined): options is AiGateOptions {
     const positive = (n: unknown): n is number =>
       typeof n === 'number' && Number.isSafeInteger(n) && n > 0 && n <= 2147483647;

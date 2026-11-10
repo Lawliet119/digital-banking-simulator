@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { CreateAiGate1795000001000 } from '../../src/database/migrations/1795000001000-CreateAiGate';
+import { AiGatePermitExpiry1795000003000 } from '../../src/database/migrations/1795000003000-AiGatePermitExpiry';
 import { AiGate, type AiGatePolicy } from '../../src/modules/risk/ai/ai-gate';
 import { createTempDatabase, type TempDatabase } from '../support/temp-database';
 
@@ -24,6 +25,7 @@ describe('RSK-02 durable PostgreSQL gate', () => {
   beforeEach(async () => {
     db = await createTempDatabase();
     await new CreateAiGate1795000001000().up(db.runner);
+    await new AiGatePermitExpiry1795000003000().up(db.runner);
     await q(
       'INSERT INTO public.ai_gate_policy(revision,daily_limit,concurrent_limit) VALUES($1,$2,$3)',
       [policy.revision, policy.dailyRequestLimit, policy.concurrentLimit],
@@ -116,6 +118,38 @@ describe('RSK-02 durable PostgreSQL gate', () => {
     expect((await q('SELECT requests::int AS used FROM ai_gate_days'))[0].used).toBe(1);
   });
 
+  it('expires a stranded permit after the policy TTL but never refunds the daily request', async () => {
+    for (let i = 0; i < policy.concurrentLimit; i++) {
+      expect((await gate().tryAcquire()).kind).toBe('granted');
+    }
+    expect(await gate().tryAcquire()).toEqual({ kind: 'unavailable' }); // all three slots busy
+    // Two permits were lost long ago (killed worker); one is still inside its TTL.
+    await q(
+      `UPDATE ai_gate_permits SET reserved_at = clock_timestamp() - interval '1 hour'
+       WHERE token IN (SELECT token FROM ai_gate_permits ORDER BY token LIMIT 2)`,
+    );
+    expect((await gate().tryAcquire()).kind).toBe('granted');
+    expect((await gate().tryAcquire()).kind).toBe('granted');
+    expect(await gate().tryAcquire()).toEqual({ kind: 'unavailable' }); // back at 3 live permits
+    expect((await q('SELECT requests::int AS used FROM ai_gate_days'))[0].used).toBe(5);
+  });
+
+  it('keeps a permit that is still inside its TTL', async () => {
+    await q('UPDATE ai_gate_policy SET permit_ttl_seconds = 60');
+    for (let i = 0; i < policy.concurrentLimit; i++) await gate().tryAcquire();
+    await q("UPDATE ai_gate_permits SET reserved_at = clock_timestamp() - interval '30 seconds'");
+    expect(await gate().tryAcquire()).toEqual({ kind: 'unavailable' });
+    await q("UPDATE ai_gate_permits SET reserved_at = clock_timestamp() - interval '61 seconds'");
+    expect((await gate().tryAcquire()).kind).toBe('granted');
+  });
+
+  it('reverts the expiry migration back to the unbounded count', async () => {
+    await new AiGatePermitExpiry1795000003000().down(db.runner);
+    for (let i = 0; i < policy.concurrentLimit; i++) await gate().tryAcquire();
+    await q("UPDATE ai_gate_permits SET reserved_at = clock_timestamp() - interval '1 day'");
+    expect(await gate().tryAcquire()).toEqual({ kind: 'unavailable' });
+  });
+
   it('serializes independent clients and never exceeds either limit', async () => {
     let granted = 0;
     for (let wave = 0; wave < 4; wave++) {
@@ -160,11 +194,11 @@ describe('RSK-02 durable PostgreSQL gate', () => {
     expect((await q('SELECT requests::int AS used FROM ai_gate_days'))[0].used).toBe(1);
   });
 
-  it('new UTC day resets only request accounting, retaining prior-day active permits', async () => {
+  it('new UTC day resets only request accounting, retaining permits still inside their TTL', async () => {
     // Operator-owned fixture models persisted state immediately after midnight; never mock DB time.
     await q(`INSERT INTO ai_gate_days VALUES ((clock_timestamp() AT TIME ZONE 'UTC')::date - 1, 7);
       INSERT INTO ai_gate_permits(token,reserved_at)
-      SELECT gen_random_uuid(), clock_timestamp() - interval '1 day' FROM generate_series(1,3)`);
+      SELECT gen_random_uuid(), clock_timestamp() - interval '1 minute' FROM generate_series(1,3)`);
     expect(await gate().tryAcquire()).toEqual({ kind: 'unavailable' });
     await q('UPDATE ai_gate_permits SET released_at = clock_timestamp()');
     expect((await gate().tryAcquire()).kind).toBe('granted');

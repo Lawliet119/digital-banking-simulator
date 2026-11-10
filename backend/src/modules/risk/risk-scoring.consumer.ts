@@ -10,6 +10,8 @@ import { TransactionService } from '@database/transaction.service';
 import { PoisonMessageError, SqsClient } from '@libs/sqs';
 import { AuditService } from '@modules/audit';
 import type { AiAssessment, FeatureInput } from './ai/ai-contract';
+import { AssessmentMemo } from './ai/assessment-memo';
+import { persistedAssessment } from './ai/persisted-assessment';
 import { RiskAiService } from './ai/risk-ai.service';
 import { toAiFeatureInput } from './ai/feature-projection';
 import { RuleSetRepository } from './config/rule-set.repository';
@@ -52,6 +54,8 @@ const CLAIM_DECISION = `
 export class RiskScoringConsumer extends ConsumerBase {
   protected readonly consumerName = RISK_CONSUMER;
   private readonly logger = new Logger(RiskScoringConsumer.name);
+  /** A retry of the same event reuses the AI answer already paid for (see AssessmentMemo). */
+  private readonly paidAssessments = new AssessmentMemo();
 
   constructor(
     tx: TransactionService,
@@ -105,10 +109,14 @@ export class RiskScoringConsumer extends ConsumerBase {
     const snapshot = toAiFeatureInput(transfer, features);
     const baseline = this.scoring.score(transfer, features, ruleSet);
     if (!baseline) return null;
-    const assessment =
-      baseline.mode === 'rules_with_external_ai' && baseline.aiStatus !== 'CONFIG_INVALID'
-        ? await this.ai.evaluate(snapshot, ruleSet, selectedAtMonotonicMs)
-        : undefined;
+    let assessment: AiAssessment | undefined;
+    if (baseline.mode === 'rules_with_external_ai' && baseline.aiStatus !== 'CONFIG_INVALID') {
+      assessment = this.paidAssessments.get(event.eventId);
+      if (!assessment) {
+        assessment = await this.ai.evaluate(snapshot, ruleSet, selectedAtMonotonicMs);
+        this.paidAssessments.remember(event.eventId, assessment);
+      }
+    }
     const result = assessment
       ? this.scoring.applyAssessment(baseline, ruleSet, assessment)
       : baseline;
@@ -132,6 +140,7 @@ export class RiskScoringConsumer extends ConsumerBase {
     if (!decision) return;
     decision.won = false; // a deadlock retry runs this again from the start
     const { result } = decision;
+    const ai = persistedAssessment(result.aiStatus, decision.assessment);
     const claimed: unknown[] = await manager.query(CLAIM_DECISION, [
       decision.transferId,
       event.eventId,
@@ -141,13 +150,13 @@ export class RiskScoringConsumer extends ConsumerBase {
       JSON.stringify(decision.snapshot),
       result.aiStatus,
       result.aiAppliedWeight,
-      decision.assessment?.probability ?? null,
-      decision.assessment?.provider ?? null,
-      decision.assessment?.requestedModel ?? null,
-      decision.assessment?.responseModel ?? null,
-      decision.assessment?.rubricSha256 ?? null,
-      decision.assessment?.inputSha256 ?? null,
-      decision.assessment?.requestId ?? null,
+      ai.probability,
+      ai.provider,
+      ai.requestedModel,
+      ai.responseModel,
+      ai.rubricSha256,
+      ai.inputSha256,
+      ai.requestId,
     ]);
     if (claimed.length === 0) return; // another event of this transfer decided first
     decision.won = true;
@@ -175,6 +184,7 @@ export class RiskScoringConsumer extends ConsumerBase {
 
   protected override onCommitted(event: DomainEvent, prepared?: unknown): void {
     const decision = prepared as Prepared | null | undefined;
+    this.paidAssessments.forget(event.eventId);
     if (!decision?.won) return;
     // Ids, the level and the rule ids only: no amount and no explanation in the logs.
     this.logger.log(
