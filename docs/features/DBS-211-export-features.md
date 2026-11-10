@@ -1,6 +1,6 @@
 # DBS-211 · Xuất CSV FeatureInput (11 trường) từ OfflineFeatureProvider (lệnh export-features)
 
-> **Trạng thái:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-211-export-features` · **PR:** chưa tạo · **Nền:** `98cdb3017a54a72d73f4e3c92ff2439a3b6d0800`.
+> **Trạng thái:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-211-export-features` · **PR:** [#133](https://github.com/Lawliet119/digital-banking-simulator/pull/133) · **Nền:** `98cdb3017a54a72d73f4e3c92ff2439a3b6d0800`.
 
 ## 1. Bối cảnh và G1
 
