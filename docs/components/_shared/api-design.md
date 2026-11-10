@@ -1,6 +1,6 @@
 # Thiết kế REST API & Hợp đồng HTTP (`api-design`)
 
-> **Status:** Implemented (12/18 endpoints trên `main`; 6 endpoints UC-10/11/12 ở trạng thái thiết kế đã chốt) · **Owner:** cả nhóm · **Verified against code:** `2026-11-08` · **Cập nhật:** `2026-11-08`
+> **Status:** Implemented (17/18 endpoints trên `main`; endpoint UC-12 ở trạng thái thiết kế đã chốt) · **Owner:** cả nhóm · **Verified against code:** `2026-11-10` · **Cập nhật:** `2026-11-10`
 >
 > Tài liệu này là nơi tập trung đặc tả hợp đồng HTTP/REST API của toàn hệ thống Digital Banking Simulator (`APP_ROLE=api`), đồng bộ với [`docs/03_HIGH_LEVEL_ARCHITECTURE.md` §7](../../03_HIGH_LEVEL_ARCHITECTURE.md#7-api-tổng-quan), [`database-design.md`](database-design.md), [`event-contract.md`](event-contract.md) và cấu hình runtime trong [`backend/src/app.setup.ts`](../../../backend/src/app.setup.ts).
 

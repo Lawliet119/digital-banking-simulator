@@ -1,0 +1,74 @@
+commit b7a8442c9da8085df46f56172551cf9b710777fa
+=== BẮT ĐẦU TEST THỦ CÔNG DBS-137 ===
+Thời gian: 2026-11-10T18:14:57.473Z
+
+[M-137-01 & M-137-02] Khởi tạo AppModule, kiểm tra /docs-json và xuất docs/deliverables/openapi.json:
+PASS test/db/openapi-spec.db-spec.ts
+  DBS-137 Clean OpenAPI specification and error codes
+    √ TC-137-01 covers exact 17 paths / 19 operations, each with summary and role info (9 ms)
+    √ TC-137-02 verifies every request body has schema & example, and 200/201 has schema/properties (3 ms)
+    √ TC-137-03 verifies error responses use application/problem+json and all 14 ErrorCodes appear (4 ms)
+    √ TC-137-04 verifies bearerAuth on all 17 business operations, and Idempotency-Key on transfers & deposits (2 ms)
+    √ TC-137-05 reconciles paths with docs/03 §7: exact 1:1 match with 17 Implemented paths (1 ms)
+    √ TC-137-06 exports updated OpenAPI artifact and verifies file integrity (48 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        3.715 s, estimated 5 s
+Ran all test suites matching openapi-spec.db-spec.ts.
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js openapi-spec.db-spec.ts
+
+[M-137-03] Kiểm tra nội dung docs/deliverables/openapi.json:
+OpenAPI Version: 3.0.0
+Title: Digital Banking Simulator API
+API Description: Educational simulation — no real money moves. Full API specification adhering to RFC 7807 problem details.
+Tổng số paths: 17
+  01. GET /health/live
+  02. GET /health/ready
+  03. GET, POST /v1/accounts
+  04. GET /v1/accounts/{id}
+  05. GET /v1/accounts/{id}/transactions
+  06. GET /v1/audit/entries
+  07. POST, GET /v1/customers/me
+  08. GET /v1/identity/me
+  09. GET /v1/operator/accounts
+  10. POST /v1/operator/accounts/{id}/lock
+  11. POST /v1/operator/accounts/{id}/unlock
+  12. POST /v1/operator/deposits
+  13. GET /v1/operator/fraud-flags
+  14. GET /v1/operator/fraud-flags/{transferId}
+  15. POST /v1/operator/fraud-flags/{transferId}/review
+  16. POST /v1/transfers
+  17. GET /v1/transfers/{id}
+
+Security Scheme 'access-token': {"scheme":"bearer","bearerFormat":"JWT","type":"http"}
+Idempotency-Key trên POST /v1/transfers: in=header, required=true
+Idempotency-Key trên POST /v1/operator/deposits: in=header, required=true
+
+Kiểm tra 14 mã ErrorCode trong các problem+json examples:
+  - [PASS] ACCOUNT_NOT_ACTIVE
+  - [PASS] LIMIT_PER_TX_EXCEEDED
+  - [PASS] LIMIT_PER_DAY_EXCEEDED
+  - [PASS] INSUFFICIENT_FUNDS
+  - [PASS] IDEMPOTENCY_KEY_REQUIRED
+  - [PASS] IDEMPOTENCY_KEY_REUSED
+  - [PASS] ACCOUNT_LIMIT_REACHED
+  - [PASS] UNAUTHENTICATED
+  - [PASS] TOKEN_EXPIRED
+  - [PASS] FORBIDDEN
+  - [PASS] SESSION_REVOKED
+  - [PASS] FLAG_ALREADY_REVIEWED
+  - [PASS] RATE_LIMITED
+  - [PASS] SERVICE_TEMPORARILY_UNAVAILABLE
+
+[M-137-04] Kiểm tra các schema quan trọng:
+Tổng số schemas: 30
+  - ProblemDetailsDto: CÓ
+  - AuthenticatedUserDto: CÓ
+  - TransferDto: CÓ
+  - DepositDto: CÓ
+
+=== KẾT THÚC TEST THỦ CÔNG DBS-137: TẤT CẢ ĐẠT (PASS) ===
+

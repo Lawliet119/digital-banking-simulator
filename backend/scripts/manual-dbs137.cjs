@@ -14,7 +14,7 @@ async function main() {
   const testOutput = execFileSync(
     'npm',
     ['--prefix', 'backend', 'run', 'test:db', '--', 'openapi-spec.db-spec.ts'],
-    { cwd: rootDir, encoding: 'utf8', timeout: 90000 }
+    { cwd: rootDir, encoding: 'utf8', timeout: 90000, shell: true }
   );
   console.log(testOutput.trim());
 

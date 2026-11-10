@@ -282,4 +282,3 @@ describe('DBS-137 Clean OpenAPI specification and error codes', () => {
     expect(exportedDoc.components?.schemas?.AuthenticatedUserDto).toBeDefined();
   });
 });
-
