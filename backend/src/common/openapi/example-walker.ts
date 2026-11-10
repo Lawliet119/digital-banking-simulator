@@ -36,7 +36,7 @@ const hasExample = (schema: SchemaObject): boolean =>
   schema.example !== undefined ||
   (schema.examples !== undefined &&
     schema.examples !== null &&
-    Object.keys(schema.examples as object).length > 0);
+    Object.keys(schema.examples).length > 0);
 
 const isLeafCovered = (schema: SchemaObject): boolean =>
   schema.example !== undefined ||
@@ -82,7 +82,7 @@ export function findExampleGaps(
 /** Gaps of a media type: its own example is enough, otherwise the schema is walked. */
 export function mediaExampleGaps(media: MediaObject | undefined, components: SchemaMap): string[] {
   if (media === undefined) return ['(no content)'];
-  if (hasExample(media as SchemaObject)) return [];
+  if (hasExample(media)) return [];
   if (media.schema === undefined) return ['(no schema)'];
   return findExampleGaps(media.schema, components);
 }

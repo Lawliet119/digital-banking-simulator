@@ -5,6 +5,7 @@ import compression from 'compression';
 import helmet from 'helmet';
 import type { RequestHandler } from 'express';
 import { installBigIntJson } from '@common/money';
+import { enrichOpenApi } from '@common/openapi/enrich-openapi';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import {
   CORRELATION_ID_HEADER,
@@ -69,17 +70,24 @@ export function configureHttpApp(
 
 /** Swagger UI at /docs. Not mounted in production. */
 export function setupSwagger(app: INestApplication): void {
-  const document = SwaggerModule.createDocument(
-    app,
-    new DocumentBuilder()
-      .setTitle('Digital Banking Simulator API')
-      .setDescription('Educational simulation — no real money moves.')
-      .setVersion('1.0')
-      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
-      .build(),
+  const document = enrichOpenApi(
+    SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder()
+        .setTitle('Digital Banking Simulator API')
+        .setDescription('Educational simulation — no real money moves.')
+        .setVersion('1.0')
+        .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
+        .build(),
+    ),
   );
   SwaggerModule.setup('docs', app, document, {
     jsonDocumentUrl: 'docs-json',
-    swaggerOptions: { persistAuthorization: true, displayRequestDuration: true },
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      // DBS-137: show x-roles and x-error-codes in the UI.
+      showExtensions: true,
+    },
   });
 }
