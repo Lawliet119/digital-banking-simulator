@@ -33,13 +33,32 @@ export class HealthController {
 
   /** The process is up. Used as the liveness probe: a failure restarts the task. */
   @Get('live')
-  @ApiOperation({ summary: 'Liveness probe' })
+  @ApiOperation({
+    summary: 'Liveness probe',
+    description:
+      '[Public] The process is up. Used as the liveness probe: a failure restarts the task.',
+  })
+  @ApiOkResponse({
+    description: 'Process is healthy and running.',
+    schema: {
+      type: 'object',
+      required: ['status'],
+      properties: {
+        status: { type: 'string', enum: ['ok'], example: 'ok' },
+      },
+    },
+  })
   live(): { status: 'ok' } {
     return { status: 'ok' };
   }
 
   /** The process can reach PostgreSQL. A failure removes the task from the load balancer. */
   @Get('ready')
+  @ApiOperation({
+    summary: 'Readiness: PostgreSQL required, Redis informational (up/degraded)',
+    description:
+      '[Public] The process can reach PostgreSQL. A failure removes the task from the load balancer. Redis is informational.',
+  })
   @ApiOkResponse({
     description:
       'PostgreSQL ready. Redis is informational and may be degraded without draining the task.',
@@ -47,16 +66,23 @@ export class HealthController {
       type: 'object',
       required: ['status', 'info', 'error', 'details', 'redis'],
       properties: {
-        status: { type: 'string', enum: ['ok'] },
-        redis: { type: 'string', enum: ['up', 'degraded'] },
-        info: { type: 'object', additionalProperties: true },
-        error: { type: 'object', additionalProperties: true },
-        details: { type: 'object', additionalProperties: true },
+        status: { type: 'string', enum: ['ok'], example: 'ok' },
+        redis: { type: 'string', enum: ['up', 'degraded'], example: 'up' },
+        info: {
+          type: 'object',
+          additionalProperties: true,
+          example: { database: { status: 'up' } },
+        },
+        error: { type: 'object', additionalProperties: true, example: {} },
+        details: {
+          type: 'object',
+          additionalProperties: true,
+          example: { database: { status: 'up' } },
+        },
       },
     },
   })
   @HealthCheck()
-  @ApiOperation({ summary: 'Readiness: PostgreSQL required, Redis informational (up/degraded)' })
   async ready(): Promise<ReadinessResult> {
     const database = await this.health.check([
       () => this.db.pingCheck('database', { timeout: 1500 }),
