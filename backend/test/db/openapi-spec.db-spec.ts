@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { parse } from 'dotenv';
@@ -9,6 +9,7 @@ import { configureHttpApp, setupSwagger } from '../../src/app.setup';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { createDevTokenIssuer } from '../support/dev-tokens';
 import { ErrorCode } from '../../src/common/errors/error-code.enum';
+import { exportOpenApi } from '../../src/scripts/export-openapi';
 
 interface OpenApiSchema {
   type?: string;
@@ -88,6 +89,7 @@ describe('DBS-137 Clean OpenAPI specification and error codes', () => {
   let db: TempDatabase;
   let app: NestExpressApplication;
   let dir: string;
+  let url: string;
   let doc: OpenApiDocument;
 
   beforeAll(async () => {
@@ -116,6 +118,7 @@ describe('DBS-137 Clean OpenAPI specification and error codes', () => {
     configureHttpApp(app, { trustProxyHops: 0, corsOrigins: [], isProduction: false });
     setupSwagger(app);
     await app.listen(0, '127.0.0.1');
+    url = await app.getUrl();
 
     const res = await request(app.getHttpServer()).get('/docs-json').expect(200);
     doc = res.body as OpenApiDocument;
@@ -266,6 +269,17 @@ describe('DBS-137 Clean OpenAPI specification and error codes', () => {
   it('TC-137-05 reconciles paths with docs/03 §7: exact 1:1 match with 17 Implemented paths', () => {
     const actualPaths = Object.keys(doc.paths).sort();
     expect(actualPaths).toEqual(EXPECTED_IMPLEMENTED_PATHS);
+  });
+
+  it('TC-137-06 exports updated OpenAPI artifact and verifies file integrity', async () => {
+    const destination = resolve(__dirname, '../../../docs/deliverables/openapi.json');
+    await exportOpenApi({ url: url + '/docs-json', destination });
+    const text = await fs.readFile(destination, 'utf8');
+    const exportedDoc = JSON.parse(text);
+    expect(exportedDoc.openapi).toBe('3.0.0');
+    expect(Object.keys(exportedDoc.paths).sort()).toEqual(EXPECTED_IMPLEMENTED_PATHS);
+    expect(exportedDoc.components?.schemas?.ProblemDetailsDto).toBeDefined();
+    expect(exportedDoc.components?.schemas?.AuthenticatedUserDto).toBeDefined();
   });
 });
 
