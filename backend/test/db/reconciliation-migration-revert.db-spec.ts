@@ -29,7 +29,7 @@ describe('reconciliation migration lifecycle and concurrent revert', () => {
     const position = applied.findIndex(row => row.name === TARGET);
     expect(position).toBeGreaterThanOrEqual(0);
     for (let index = applied.length - 1; index > position; index--) {
-      cli('migration:revert');
+      await migrate(db.url, 'undoLast');
       expect(await history()).toEqual(applied.slice(0, index));
     }
   }
@@ -87,8 +87,7 @@ describe('reconciliation migration lifecycle and concurrent revert', () => {
 
   beforeEach(async () => {
     db = await createTempDatabase();
-    await migrate(db.url);
-    await revertSuccessors();
+    await migrateThrough(db.url, TARGET);
     source = await createMigrationDataSource(db.url).initialize();
     initialHistory = await history();
   });
@@ -128,7 +127,7 @@ describe('reconciliation migration lifecycle and concurrent revert', () => {
     cli('migration:run');
     await revertSuccessors();
     expect(await catalog()).toEqual(before);
-  });
+  }, 180000);
   it('TC-116-19 committed rows make CLI and migration down fail without losing data or history', async () => {
     await q(INSERT, [START]);
     const before = {

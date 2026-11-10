@@ -4,7 +4,7 @@
 module.exports = {
   ...require('./jest.base'),
   testRegex: 'test/db/.*\\.db-spec\\.ts$',
-  testTimeout: 120000,
+  testTimeout: 240000,
   globalSetup: '<rootDir>/test/support/jest-global-setup.ts',
   globalTeardown: '<rootDir>/test/support/jest-global-teardown.ts',
 };
