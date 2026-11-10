@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { Writable } from 'node:stream';
+import { Logger as NestLogger } from '@nestjs/common';
+import { Logger as PinoNestLogger, PinoLogger } from 'nestjs-pino';
+import pinoHttp from 'pino-http';
+import { SafeLogger } from '@common/logging/safe-logger';
+import { createLoggingOptions } from '@common/logging/logging.options';
 import { RiskAiService } from '@modules/risk/ai/risk-ai.service';
 import { createLoopbackAdapter } from '@modules/risk/ai/openai-decisions';
 import { projectFeatures } from '@modules/risk/ai/feature-projection';
@@ -21,7 +27,7 @@ import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-
  */
 const VALID_AI = {
   provider: 'openai',
-  model: 'gpt-5-mini',
+  model: 'gpt-6-luna',
   rubric:
     'needs_operator_review: đánh giá mẫu giao dịch đã hoàn tất có dấu hiệu cần nhân viên xem xét',
   threshold: 0.8,
@@ -207,6 +213,40 @@ describe('DBS-111 decisions while the rule set asks for AI (PostgreSQL)', () => 
     ).toEqual([{ ai_status: 'UNAVAILABLE' }]);
   });
 
+  it('keeps request, credential and rubric out of real SafeLogger output', async () => {
+    await newVersion(VALID_AI);
+    const { event } = await ac91();
+    const fields = event as { amount: string; fromBalanceBefore: string };
+    let output = '';
+    const stream = new Writable({
+      write(chunk: Buffer, _encoding, done) {
+        output += chunk.toString();
+        done();
+      },
+    });
+    const settings = createLoggingOptions({ role: 'worker', logLevel: 'debug' });
+    const actual = pinoHttp(settings, stream).logger;
+    const descriptor = Object.getOwnPropertyDescriptor(PinoLogger.prototype, 'logger');
+    if (!descriptor) throw new Error('Pino logger getter missing');
+    Object.defineProperty(PinoLogger.prototype, 'logger', {
+      configurable: true,
+      get: () => actual,
+    });
+    const pino = new PinoLogger({ pinoHttp: settings });
+    NestLogger.overrideLogger(new SafeLogger(new PinoNestLogger(pino, {})));
+    try {
+      await buildRiskConsumer(source, { ai: runtime() }).consumer.handle(event);
+    } finally {
+      NestLogger.overrideLogger(false);
+      Object.defineProperty(PinoLogger.prototype, 'logger', descriptor);
+    }
+    expect(output).toContain('Risk decision recorded');
+    expect(output).not.toContain('synthetic-test-only');
+    expect(output).not.toContain('Authorization');
+    expect(output).not.toContain(fields.amount);
+    expect(output).not.toContain(fields.fromBalanceBefore);
+    expect(output).not.toContain(VALID_AI.rubric);
+  });
   it.each([false, true])(
     'RSK-02 success, rule hits=%s: persists model/SHA and dedups before network',
     async withRules => {
