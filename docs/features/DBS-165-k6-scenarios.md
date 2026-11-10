@@ -1,6 +1,6 @@
 # DBS-165 · Năm kịch bản k6 và cổng kiểm bất biến
 
-> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `codex/DBS-165-k6-scenarios` · **PR:** — · **Cập nhật:** 2026-11-10
+> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `codex/DBS-165-k6-scenarios` · **PR:** [#128](https://github.com/Lawliet119/digital-banking-simulator/pull/128) · **Cập nhật:** 2026-11-10
 
 ## 1. Bối cảnh
 
