@@ -3,6 +3,9 @@ import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { limitsConfig } from '@config/limits.config';
 import { sqsConfig } from '@config/sqs.config';
+import { databaseConfig } from '@config/database.config';
+import { riskAiConfig } from '@config/risk-ai.config';
+import { RiskAiService } from './ai/risk-ai.service';
 import { RedisClient, RedisModule } from '@libs/redis';
 import { SqsModule } from '@libs/sqs';
 import { AuditModule } from '@modules/audit';
@@ -22,6 +25,8 @@ import { ScoringService } from './scoring.service';
   imports: [
     ConfigModule.forFeature(sqsConfig),
     ConfigModule.forFeature(limitsConfig),
+    ConfigModule.forFeature(databaseConfig),
+    ConfigModule.forFeature(riskAiConfig),
     SqsModule,
     RedisModule,
     AuditModule,
@@ -29,6 +34,14 @@ import { ScoringService } from './scoring.service';
   providers: [
     RiskMetrics,
     ScoringService,
+    {
+      provide: RiskAiService,
+      inject: [riskAiConfig.KEY, databaseConfig.KEY],
+      useFactory: (
+        ai: ConfigType<typeof riskAiConfig>,
+        database: ConfigType<typeof databaseConfig>,
+      ) => new RiskAiService(ai, database),
+    },
     {
       provide: TransferFacts,
       inject: [DataSource],

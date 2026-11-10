@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
+import type { PgSsl } from '@database/pg-ssl';
 import type { PermitResult } from './ai-contract';
 
 export interface AiGatePolicy {
@@ -10,6 +11,7 @@ export interface AiGatePolicy {
 
 export interface AiGateOptions {
   connectionString: string;
+  ssl?: PgSsl;
   policy: AiGatePolicy;
   /** Explicit database admission deadline; asynchronous cleanup never extends this deadline. */
   deadlineMs: number;
@@ -71,6 +73,7 @@ export class AiGate {
       typeof n === 'number' && Number.isSafeInteger(n) && n > 0 && n <= 2147483647;
     return (
       !!options &&
+      this.safeConnectionString(options.connectionString) &&
       typeof options.connectionString === 'string' &&
       options.connectionString.length > 0 &&
       positive(options.deadlineMs) &&
@@ -83,10 +86,24 @@ export class AiGate {
     );
   }
 
+  private safeConnectionString(value: string): boolean {
+    try {
+      const url = new URL(value);
+      return (
+        ['postgres:', 'postgresql:'].includes(url.protocol) &&
+        ![...url.searchParams.keys()].some(key => /^ssl/i.test(key) || key === 'uselibpqcompat')
+      );
+    } catch {
+      return false;
+    }
+  }
+
   private async execute(options: AiGateOptions, sql: string, values: unknown[]): Promise<string> {
     const ms = options.deadlineMs;
     const client = new Client({
       connectionString: options.connectionString,
+      // URL TLS parameters are rejected above: pg must not replace the verified CA options.
+      ssl: options.ssl ?? false,
       connectionTimeoutMillis: ms,
       query_timeout: ms,
       statement_timeout: ms,

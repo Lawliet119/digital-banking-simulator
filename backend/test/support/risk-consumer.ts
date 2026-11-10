@@ -12,6 +12,7 @@ import { TransferFacts } from '@modules/risk/features/transfer-facts';
 import { RiskMetrics } from '@modules/risk/risk.metrics';
 import { RiskScoringConsumer } from '@modules/risk/risk-scoring.consumer';
 import { ScoringService } from '@modules/risk/scoring.service';
+import { RiskAiService } from '@modules/risk/ai/risk-ai.service';
 import type { startDepositApp } from './deposit-app';
 
 type App = Awaited<ReturnType<typeof startDepositApp>>;
@@ -45,6 +46,7 @@ export function buildRiskConsumer(
     redis?: RuleSetRedis;
     queueUrl?: string;
     sqs?: SqsClient;
+    ai?: RiskAiService;
     make?: (...args: ConstructorParameters<typeof RiskScoringConsumer>) => RiskScoringConsumer;
   } = {},
 ): RiskConsumerParts {
@@ -75,6 +77,7 @@ export function buildRiskConsumer(
     scoring,
     audit,
     source,
+    options.ai ?? new RiskAiService(),
   ];
   const consumer = options.make ? options.make(...args) : new RiskScoringConsumer(...args);
   return { consumer, provider, scoring, audit, tx };

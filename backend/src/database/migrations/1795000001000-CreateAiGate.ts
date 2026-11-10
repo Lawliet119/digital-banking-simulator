@@ -22,7 +22,7 @@ export class CreateAiGate1795000001000 implements MigrationInterface {
     CREATE INDEX ai_gate_active_permits ON public.ai_gate_permits(token) WHERE released_at IS NULL;
     REVOKE ALL ON public.ai_gate_policy, public.ai_gate_days, public.ai_gate_permits FROM PUBLIC;
     CREATE FUNCTION public.ai_gate_acquire(p_token uuid, p_revision text, p_daily integer, p_concurrent integer)
-    RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+    RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     DECLARE policy public.ai_gate_policy%ROWTYPE; today date; used bigint;
     BEGIN
       SELECT * INTO policy FROM public.ai_gate_policy WHERE singleton FOR UPDATE;
@@ -43,16 +43,28 @@ export class CreateAiGate1795000001000 implements MigrationInterface {
       RETURN 'granted';
     END $$;
     CREATE FUNCTION public.ai_gate_release(p_token uuid) RETURNS void
-    LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+    LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
       UPDATE public.ai_gate_permits SET released_at = clock_timestamp()
       WHERE token = p_token AND released_at IS NULL;
     $$;
     REVOKE ALL ON FUNCTION public.ai_gate_acquire(uuid,text,integer,integer) FROM PUBLIC;
     REVOKE ALL ON FUNCTION public.ai_gate_release(uuid) FROM PUBLIC;`);
+    await q.query(`DO $$ BEGIN
+      IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_worker') THEN
+        GRANT EXECUTE ON FUNCTION public.ai_gate_acquire(uuid,text,integer,integer) TO dbs_worker;
+        GRANT EXECUTE ON FUNCTION public.ai_gate_release(uuid) TO dbs_worker;
+      END IF;
+    END $$`);
   }
 
   async down(q: QueryRunner): Promise<void> {
     if (!q.isTransactionActive) throw new Error('AI gate rollback requires a transaction');
+    const [{ isolation }] = (await q.query(
+      "SELECT current_setting('transaction_isolation') AS isolation",
+    )) as { isolation: string }[];
+    if (isolation !== 'read committed') {
+      throw new Error('AI gate rollback requires READ COMMITTED');
+    }
     // The lock closes the race between checking for reservations and dropping the gate.
     await q.query(
       'LOCK TABLE public.ai_gate_policy, public.ai_gate_days, public.ai_gate_permits IN ACCESS EXCLUSIVE MODE',

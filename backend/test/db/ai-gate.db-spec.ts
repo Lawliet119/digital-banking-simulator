@@ -86,6 +86,17 @@ describe('RSK-02 durable PostgreSQL gate', () => {
     expect((await q('SELECT count(*)::int AS active FROM ai_gate_permits'))[0].active).toBe(1);
   });
 
+  it('refuses stale-snapshot rollback after another session reserves a permit', async () => {
+    await db.runner.startTransaction('REPEATABLE READ');
+    expect((await q('SELECT count(*)::int AS n FROM public.ai_gate_permits'))[0].n).toBe(0);
+    expect((await gate().tryAcquire()).kind).toBe('granted');
+    await expect(new CreateAiGate1795000001000().down(db.runner)).rejects.toThrow(
+      'AI gate rollback requires READ COMMITTED',
+    );
+    await db.runner.rollbackTransaction();
+    expect((await q('SELECT count(*)::int AS n FROM public.ai_gate_permits'))[0].n).toBe(1);
+  });
+
   it('bounds failed cleanup and conservatively retains the stranded permit', async () => {
     const permit = await gate(policy, 100).tryAcquire();
     expect(permit.kind).toBe('granted');

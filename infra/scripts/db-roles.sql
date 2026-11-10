@@ -96,3 +96,14 @@ BEGIN
     GRANT SELECT, INSERT ON public.risk_decisions TO dbs_worker;
   END IF;
 END $$;
+
+-- RSK-02: gate functions only; no gate-table privileges and no API execution.
+DO $$
+BEGIN
+  IF to_regprocedure('public.ai_gate_acquire(uuid,text,integer,integer)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.ai_gate_acquire(uuid,text,integer,integer) TO dbs_worker;
+  END IF;
+  IF to_regprocedure('public.ai_gate_release(uuid)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.ai_gate_release(uuid) TO dbs_worker;
+  END IF;
+END $$;

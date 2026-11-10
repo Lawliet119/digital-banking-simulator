@@ -69,6 +69,11 @@ export interface Env {
   RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE: number;
 
   OPENAI_API_KEY?: string;
+  RISK_AI_EGRESS_APPROVED: boolean;
+  RISK_AI_POLICY_REVISION?: string;
+  RISK_AI_DAILY_REQUEST_CAP?: number;
+  RISK_AI_CONCURRENCY?: number;
+  RISK_AI_GATE_TIMEOUT_MS?: number;
   RECONCILIATION_INTERVAL_MS: number;
   METRICS_EMF?: boolean;
   METRICS_FLUSH_MS: number;
@@ -214,6 +219,14 @@ export const validationSchema = Joi.object<Env>({
   // Optional API key for the external AI fraud evaluation adapter (ADR-14, FRAUD-API-02).
   // Baseline `rule_only` mode runs without it; whitespace-padded keys are rejected.
   OPENAI_API_KEY: Joi.string().allow('').pattern(/^\S+$/).optional(),
+  // Owner + Ops must explicitly approve egress. No budget/policy production defaults.
+  RISK_AI_EGRESS_APPROVED: Joi.boolean().default(false),
+  RISK_AI_POLICY_REVISION: Joi.string()
+    .pattern(/^[A-Za-z0-9_.:-]{1,128}$/)
+    .optional(),
+  RISK_AI_DAILY_REQUEST_CAP: Joi.number().integer().min(1).max(2147483647).optional(),
+  RISK_AI_CONCURRENCY: Joi.number().integer().min(1).max(2147483647).optional(),
+  RISK_AI_GATE_TIMEOUT_MS: Joi.number().integer().min(1).max(2147483647).optional(),
   RECONCILIATION_INTERVAL_MS: Joi.number().integer().min(1000).max(86_400_000).default(300_000),
   // DBS-144. Unset = on in staging and production, off elsewhere (config/metrics.config.ts).
   METRICS_EMF: Joi.boolean().optional(),
