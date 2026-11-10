@@ -344,7 +344,8 @@ describe('audit storage migration', () => {
     cli('migration:run');
     await revertSuccessors();
     expect(await catalog()).toEqual(before);
-  });
+    // Every later migration adds two CLI starts here; 120 s (the default) was exceeded on a loaded CI runner.
+  }, 300_000);
   it.each([false, true])(
     'TC-26-14 committed audit actor=%s makes revert preserve every row and catalog',
     async withUser => {
