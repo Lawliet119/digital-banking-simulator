@@ -1,6 +1,6 @@
 # DBS-137 · Làm sạch OpenAPI: ví dụ request/response và errorCode cho mọi endpoint
 
-> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-137-clean-openapi` · **PR:** — · **Cập nhật:** 2026-11-11
+> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-137-clean-openapi` · **PR:** [#144](https://github.com/Lawliet119/digital-banking-simulator/pull/144) · **Cập nhật:** 2026-11-11
 
 ## 1. Bối cảnh
 
@@ -230,7 +230,7 @@ Kế hoạch triển khai gồm 5 bước cụ thể, có file, test viết trư
 | TC-137-04 | `test/db/openapi-spec.db-spec.ts` › verifies bearerAuth on all 17 business operations, and Idempotency-Key on transfers & deposits | Đạt |
 | TC-137-05 | `test/db/openapi-spec.db-spec.ts` › reconciles paths with docs/03 §7: exact 1:1 match with 17 Implemented paths | Đạt |
 | TC-137-06 | `test/db/openapi-spec.db-spec.ts` › exports updated OpenAPI artifact and verifies file integrity | Đạt |
-| TC-137-07 | Quy trình: PR mở và merge vào main; Dev review; bảng đối chiếu test case điền đủ | Đang thực hiện (PR mở sau G4) |
+| TC-137-07 | Quy trình: PR mở và merge vào main; Dev review; bảng đối chiếu test case điền đủ | Đã tạo [PR #144](https://github.com/Lawliet119/digital-banking-simulator/pull/144) đầy đủ thông tin, chờ CI và Dev review |
 
 - **Test thủ công:**
   - Script thực thi tự động: `node backend/scripts/manual-dbs137.cjs`.
