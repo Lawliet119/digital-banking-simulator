@@ -481,6 +481,22 @@ PostgreSQL **không tự đánh index cho cột khóa ngoại**. Các cột khó
 
 Tải thiết kế ≈ 10.000 lệnh chuyển/ngày (docs/BRD.md Phần 2 §5.3) → ~20.000 dòng `ledger_entries`/ngày ≈ **7,3 triệu dòng/năm**, mỗi dòng cộng index khoảng 100–250 byte → ước lượng **~1–2 GB/năm**, khớp "< 10 GB/năm" trong docs/BRD.md. **Không cần phân vùng (partition)** ở quy mô này; ngưỡng cân nhắc là hàng trăm triệu dòng.
 
+### 6.4 Tính toán Connection Pool và giới hạn max_connections (DBS-172)
+
+Công thức tính tổng số kết nối DB:
+$$\text{Total Connections} = (N_{\text{api}} \times \text{poolMax}_{\text{api}}) + (N_{\text{worker}} \times \text{poolMax}_{\text{worker}}) + \text{Safety Buffer} \le \text{max\_connections}$$
+
+Công thức tính `max_connections` mặc định trên AWS RDS PostgreSQL:
+$$\text{max\_connections} = \text{LEAST}\left(\frac{\text{DBInstanceClassMemory}}{9531392}, 5000\right)$$
+
+| Lớp Instance RDS | RAM | max_connections | Cấu hình triển khai | Tổng kết nối dùng | Dự phòng an toàn (Headroom) | Đánh giá |
+|---|:---:|:---:|---|:---:|:---:|:---:|
+| `db.t4g.micro` (Dev/Test) | 1 GiB | 112 | 2 API tasks ($\times 10$) + 2 Worker tasks ($\times 10$) + 15 buffer admin | 55 | **57 kết nối (50.9%)** | **AN TOÀN TUYỆT ĐỐI** |
+| `db.t4g.small` (Staging) | 2 GiB | 225 | 4 API tasks ($\times 15$) + 3 Worker tasks ($\times 15$) + 20 buffer admin | 125 | **100 kết nối (44.4%)** | **AN TOÀN** |
+| `db.t4g.medium` (Production) | 4 GiB | 450 | 8 API tasks ($\times 20$) + 4 Worker tasks ($\times 20$) + 30 buffer admin | 270 | **180 kết nối (40.0%)** | **AN TOÀN** |
+
+*Quy tắc vận hành:* Mặc định `DATABASE_POOL_MAX` đặt là 10 kết nối/task (`validation.schema.ts`), kết hợp timeout `DATABASE_LOCK_TIMEOUT_MS = 2000`, `DATABASE_STATEMENT_TIMEOUT_MS = 5000` và `DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS = 10000` đảm bảo không bao giờ bị nghẽn connection leak hoặc cạn kiệt pool kết nối.
+
 ---
 
 ## 7. Truy vấn nóng phải được kiểm chứng bằng `EXPLAIN`
