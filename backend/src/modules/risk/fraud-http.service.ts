@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { TransactionService } from '@database/transaction.service';
 import { AuditReason, AuditService } from '@modules/audit';
-import { buildHistorySql, type TransactionItemDto } from '@modules/ledger';
+import { buildHistorySql, transferCorrelationId, type TransactionItemDto } from '@modules/ledger';
 import { ErrorCode } from '@common/errors/error-code.enum';
 import { FraudDetailDto, FraudFlagDto, FraudListDto, ReviewFraudDto } from './fraud-http.dto';
 import { cursorFor, type FraudQuery } from './fraud-http.query';
@@ -124,18 +124,26 @@ export class FraudHttpService {
           message: 'Fraud flag already reviewed',
         });
       }
+      // DBS-135 (AC-8.2): the review is a step of the transfer's chain, so its audit line carries
+      // the code of the transfer, not the code of this request. The request's own code stays in
+      // metadata.id, which keeps the line linked to this request's log lines and response header.
+      // No fallback to the request code: a missing transfer cannot happen after the UPDATE above
+      // (foreign key), so fail the transaction rather than file the line under the wrong chain.
+      const chainCode = await transferCorrelationId(manager, id);
+      if (!chainCode) throw new Error('Transfer of a reviewed flag has no correlationId');
       await this.audit.record(manager, {
         actor,
         role: 'operator',
         action: 'fraud_flag.review',
         outcome: 'SUCCESS',
         target: { type: 'fraud_flag', id },
-        correlationId,
+        correlationId: chainCode,
         metadata: {
           reason:
             body.decision === 'CONFIRMED_FRAUD'
               ? AuditReason.CONFIRMED_FRAUD
               : AuditReason.FRAUD_FALSE_POSITIVE,
+          id: correlationId,
         },
       });
       return { transferId: id, reviewStatus: body.decision };

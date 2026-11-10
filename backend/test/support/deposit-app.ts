@@ -21,7 +21,7 @@ import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
 import { TransactionService } from '@database/transaction.service';
 import { assertNotMigratorUser } from '@database/database-url.guard';
 import { AccountsModule } from '@modules/accounts';
-import { AuditModule } from '@modules/audit';
+import { AuditHttpModule, AuditModule } from '@modules/audit';
 import { OutboxModule } from '@modules/outbox';
 import { LedgerModule } from '@modules/ledger';
 import { FraudHttpModule } from '@modules/risk/fraud-http.module';
@@ -116,6 +116,8 @@ export async function startDepositApp(
     revocation?: { redisUrl: string };
     /** Opt-in to keep unrelated HTTP fixtures independent of fraud schema. */
     fraud?: boolean;
+    /** DBS-135: mount `GET /v1/audit/entries` (the auditor lookup), as `AppModule` does on the API. */
+    audit?: boolean;
   } = {},
 ): Promise<DepositApp> {
   const issuer = await createDevTokenIssuer(),
@@ -171,6 +173,7 @@ export async function startDepositApp(
         OutboxModule,
         LedgerModule,
         ...(options.fraud ? [FraudHttpModule] : []),
+        ...(options.audit ? [AuditHttpModule] : []),
         ...(rateLimit ? [RateLimitModule, HealthModule] : []),
       ],
       // The same order as AppModule: JWT, roles, per-customer transfer limit (the IP limit is the

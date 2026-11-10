@@ -17,4 +17,5 @@ export {
 } from './reconciliation.types';
 export { SENT_TODAY_SQL, SyncGuardService } from './sync-guard.service';
 export { buildHistorySql } from './transaction-history.query';
+export { transferCorrelationId } from './transfer-correlation';
 export { TransactionItemDto } from './transaction-history.dto';
