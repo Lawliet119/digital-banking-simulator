@@ -1,6 +1,6 @@
 # RSK-02 · Tích hợp fraud worker với OpenAI Decisions
 
-> **Trạng thái:** đã triển khai, kiểm tra synthetic cục bộ và smoke OpenAI thật với dữ liệu tổng hợp; chờ CI trên commit mới, Dev review và merge. **Vai:** #4 Fraud. Không có phê duyệt gửi dữ liệu thật hoặc triển khai egress trong task này.
+> **Trạng thái:** đã triển khai, smoke OpenAI thật với dữ liệu tổng hợp; CI 6/6 đạt tại `d5cb48e`, chờ Dev review và merge. Kiểm tra CI trên HEAD hiện tại tại PR #129. **Vai:** #4 Fraud. Không có phê duyệt gửi dữ liệu thật hoặc triển khai egress trong task này.
 
 ## 1. Bối cảnh và phạm vi
 
@@ -53,7 +53,7 @@ Nếu cần khôi phục permit: tắt egress/admission và dừng mọi worker,
 | TC-RSK02-03 | 3 | `risk-scoring-ai-mode.db-spec.ts`, `risk-scoring.services-spec.ts` và manual §5 | Đạt loopback và OpenAI thật với synthetic; không hứa exactly-once billing |
 | TC-RSK02-04 | 4 | `risk-scoring-ai-mode.db-spec.ts`: rule-only, config invalid, 429, refusal, timeout, quota | Các lỗi đạt synthetic loopback; success đã smoke provider thật, không ép lỗi thật |
 | TC-RSK02-05 | 5 | `openai-decisions.spec.ts`, `risk-scoring-ai-mode.db-spec.ts`: request, body và key không vào log, dùng SafeLogger | Đạt |
-| TC-RSK02-06 | 6 | CI, Dev review, merge | Chưa làm: PR chưa hoàn tất quy trình |
+| TC-RSK02-06 | 6 | [CI PR #129 tại `d5cb48e`](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42830471495), Dev review, merge | CI 6/6 đạt tại SHA nêu trên; Dev review và merge chưa có |
 
 ## 5. Test thủ công
 
@@ -92,7 +92,7 @@ Một reviewer AI kiểm adapter/gate/consumer phát hiện rollback `REPEATABLE
 - Trước bổ sung manual live và sửa test CI: lint, typecheck, build đạt; unit 100 suite/1.807 test; PostgreSQL 66 suite/938 test; e2e 17 suite/163 test. Không có test skipped trong các lần chạy đầy đủ này.
 - Service fraud: 5 suite/12 test đạt; sau đó suite risk-scoring mở rộng có 2 test đạt, bao gồm luồng AI synthetic đầy đủ. Test operator PostgreSQL 14/14 đạt, gồm OpenAPI.
 - Đợt test DB tích hợp đầu phát hiện migration mới thiếu `name` và test revert mặc định giả định migration cuối; đã sửa và chạy DB đầy đủ đạt. Manual và ảnh theo SHA ở §5.
-- CI cũ: lint/typecheck/unit/e2e/build đạt, DB có 2 test lỗi và job bị hủy ở giới hạn 10 phút. Sau sửa, `ai-gate.db-spec.ts` đạt 12/12; `outbox-schema.db-spec.ts` đạt toàn suite; lint/typecheck đạt. Cần CI trên commit mới để kết luận, không lấy kết quả local thay CI.
+- CI cũ: lint/typecheck/unit/e2e/build đạt, DB có 2 test lỗi và job bị hủy ở giới hạn 10 phút. Sau sửa, `ai-gate.db-spec.ts` đạt 12/12; `outbox-schema.db-spec.ts` đạt toàn suite; lint/typecheck đạt. [CI GitHub](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/42830471495) tại `d5cb48e` đạt đủ 6 job, gồm DB và E2E; kiểm trạng thái HEAD hiện tại trên PR.
 - Chưa chạy: đánh giá B0/B1/B2 trên tune/holdout, benchmark 120 TPS/hot-account, alarm chi phí, cloud egress/secret và xác nhận điều khoản/ZDR; không dùng smoke hoặc mock thay chứng cứ này. Phần đánh giá dữ liệu bàn giao Dev dataset (BL-171/044), hạ tầng và quyền bàn giao Ops/data owner (BL-043/050/051), UI contract bàn giao Dev nhận API (BL-042).
 - Cần xem khi triển khai: năm SELECT feature không cùng snapshot và tăng tải DB; duplicate delivery đồng thời có thể trả phí hai lần; không tạo index mới khóa bảng trong migration (BL-187).
 
@@ -105,12 +105,12 @@ Một reviewer AI kiểm adapter/gate/consumer phát hiện rollback `REPEATABLE
 
 **G4 — tự kiểm:**
 
-- [x] Năm nhóm hành vi ở §4 được test; điều kiện Dev xác nhận median và PR/CI/merge chưa đạt, ghi BL-042 và trong PR.
+- [x] Năm nhóm hành vi ở §4 được test; CI 6/6 đạt tại `d5cb48e`, còn Dev xác nhận median và review/merge, ghi BL-042 và trong PR.
 - [x] Manual loopback và OpenAI thật trên commit code cuối, SHA/output đã lưu; đường thành công, từ chối và giao lại đã chạy bằng dữ liệu synthetic.
 - [x] Ảnh Swagger và output manual đã có; output không chứa token, mật khẩu hay Authorization.
 - [x] Đối chiếu các file thuộc phạm vi §7; thay đổi hỗ trợ ngoài risk gồm export truy vấn ledger, AuditReason, grants, fixture test và OpenAPI sinh từ ứng dụng; lý do ở §3/§6.
 - [x] Lint/typecheck/build, unit, e2e và PostgreSQL đã chạy, số lượng ở trên; links được kiểm riêng.
-- [x] Bàn giao dataset, hạ tầng, quyền, đánh giá và UI nêu ở §8 và BL tương ứng. CI GitHub, Dev review và merge chưa được xác nhận; không đánh dấu hoàn tất.
+- [x] Bàn giao dataset, hạ tầng, quyền, đánh giá và UI nêu ở §8 và BL tương ứng. Dev review và merge chưa được xác nhận; không đánh dấu hoàn tất.
 
 ## 9. Tài liệu cập nhật
 
