@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import request from 'supertest';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startDepositApp, type DepositApp } from '../support/deposit-app';
@@ -91,6 +92,40 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
     expect(modulesForRole(AppRole.Api)).toContain(FraudHttpModule);
     expect(modulesForRole(AppRole.Both)).toContain(FraudHttpModule);
     expect(modulesForRole(AppRole.Worker)).not.toContain(FraudHttpModule);
+  });
+
+  it('documents operator examples and problem response types in OpenAPI', () => {
+    const doc = SwaggerModule.createDocument(
+      app.app,
+      new DocumentBuilder()
+        .addBearerAuth({ type: 'http', scheme: 'bearer' }, 'access-token')
+        .build(),
+    );
+    for (const [path, method] of [
+      ['/v1/operator/fraud-flags', 'get'],
+      ['/v1/operator/fraud-flags/{transferId}', 'get'],
+      ['/v1/operator/fraud-flags/{transferId}/review', 'post'],
+    ] as const) {
+      const operation = doc.paths[path][method]!;
+      expect(operation.security).toContainEqual({ 'access-token': [] });
+      for (const status of ['400', '401', '403', '500', '503']) {
+        const response = operation.responses[status];
+        if (!response || '$ref' in response) throw new Error(`Missing ${status} response`);
+        expect(response.content?.['application/problem+json']).toBeDefined();
+      }
+    }
+    const review = doc.paths['/v1/operator/fraud-flags/{transferId}/review'].post!;
+    const conflict = review.responses['409'];
+    if (!conflict || '$ref' in conflict) throw new Error('Missing conflict response');
+    expect(conflict.description).toContain('FLAG_ALREADY_REVIEWED');
+    const schemas = doc.components!.schemas! as Record<
+      string,
+      { properties: Record<string, { example?: unknown }> }
+    >;
+    expect(schemas.ReviewFraudDto.properties.decision.example).toBe('FALSE_POSITIVE');
+    expect(schemas.FraudAiDto.properties.probability.example).toBe(0.95);
+    expect(schemas.FraudFlagDto.properties.score.example).toBe(45);
+    expect(schemas.FraudProblemDto.properties.errorCode.example).toBe('FLAG_ALREADY_REVIEWED');
   });
   it('enforces actual signed token roles and does not expose existence', async () => {
     const id = await seed('2026-10-19T03:15:42.000001Z');

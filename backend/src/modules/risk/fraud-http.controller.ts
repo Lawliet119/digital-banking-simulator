@@ -13,6 +13,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiExtraModels,
   ApiConflictResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
@@ -23,22 +24,38 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import { CurrentUser, type CurrentUserInfo, Roles } from '@modules/identity';
 import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
-import { FraudDetailDto, FraudListDto, ReviewFraudDto } from './fraud-http.dto';
+import { FraudDetailDto, FraudListDto, FraudProblemDto, ReviewFraudDto } from './fraud-http.dto';
 import { FraudQueryPipe, type FraudQuery } from './fraud-http.query';
 import { FraudHttpService } from './fraud-http.service';
 
+const problemContent = {
+  'application/problem+json': { schema: { $ref: getSchemaPath(FraudProblemDto) } },
+};
+
 @ApiTags('operator fraud')
 @ApiBearerAuth('access-token')
-@ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED or TOKEN_EXPIRED' })
-@ApiForbiddenResponse({ description: 'FORBIDDEN; operator role required' })
-@ApiBadRequestResponse({ description: 'VALIDATION_ERROR; malformed query, UUID or body' })
+@ApiExtraModels(FraudProblemDto)
+@ApiUnauthorizedResponse({
+  content: problemContent,
+  description: 'UNAUTHENTICATED or TOKEN_EXPIRED',
+})
+@ApiForbiddenResponse({ content: problemContent, description: 'FORBIDDEN; operator role required' })
+@ApiBadRequestResponse({
+  content: problemContent,
+  description: 'Malformed query, UUID or body; no errorCode',
+})
 @ApiInternalServerErrorResponse({
+  content: problemContent,
   description: 'Internal server error; audit failure returns no data and rolls back review',
 })
-@ApiServiceUnavailableResponse({ description: 'SERVICE_TEMPORARILY_UNAVAILABLE' })
+@ApiServiceUnavailableResponse({
+  content: problemContent,
+  description: 'SERVICE_TEMPORARILY_UNAVAILABLE',
+})
 @Roles('operator')
 @Controller('operator/fraud-flags')
 export class FraudHttpController {
@@ -75,7 +92,7 @@ export class FraudHttpController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Read canonical flag detail and record mandatory access audit' })
   @ApiOkResponse({ type: FraudDetailDto })
-  @ApiNotFoundResponse({ description: 'NOT_FOUND' })
+  @ApiNotFoundResponse({ content: problemContent, description: 'No flag exists; no errorCode' })
   detail(
     @Param('transferId', new ParseUUIDPipe()) id: string,
     @CurrentUser() user: CurrentUserInfo,
@@ -99,8 +116,8 @@ export class FraudHttpController {
       },
     },
   })
-  @ApiNotFoundResponse({ description: 'NOT_FOUND' })
-  @ApiConflictResponse({ description: 'FLAG_ALREADY_REVIEWED' })
+  @ApiNotFoundResponse({ content: problemContent, description: 'No flag exists; no errorCode' })
+  @ApiConflictResponse({ content: problemContent, description: 'FLAG_ALREADY_REVIEWED' })
   review(
     @Param('transferId', new ParseUUIDPipe()) id: string,
     @Body() body: ReviewFraudDto,
