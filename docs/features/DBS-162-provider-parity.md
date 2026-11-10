@@ -1,6 +1,6 @@
 # DBS-162 · Test so khớp OnlineFeatureProvider và OfflineFeatureProvider
 
-> **Trạng thái:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-162-provider-parity` · **PR:** chưa tạo · **Nền:** `98cdb3017a54a72d73f4e3c92ff2439a3b6d0800`.
+> **Trạng thái:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-162-provider-parity` · **PR:** [#142](https://github.com/Lawliet119/digital-banking-simulator/pull/142) · **Nền:** `98cdb3017a54a72d73f4e3c92ff2439a3b6d0800`.
 
 ## 1. Bối cảnh và G1
 
