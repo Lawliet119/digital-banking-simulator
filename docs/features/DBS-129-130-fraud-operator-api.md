@@ -25,7 +25,7 @@ List, detail và review ghi audit trong cùng transaction. Audit lỗi thì khô
 |---|---|
 | Lint toàn backend và typecheck | Đạt |
 | Unit audit metadata/types | 2 suite, 39 test đạt |
-| PostgreSQL + HTTP + JWT thực, kể cả role `dbs_api` hạn chế | 1 suite, 13 test đạt |
+| PostgreSQL + HTTP + JWT thực, kể cả role `dbs_api` hạn chế | 1 suite, 14 test đạt, gồm OpenAPI ví dụ và mã lỗi |
 | Manual với dữ liệu tổng hợp | Operator detail 200; customer 403; review 200 rồi 409; audit được commit |
 
 Suite kiểm tra phân quyền, token hết hạn, cursor/microsecond, lọc trạng thái và mức rủi ro, lịch sử 10 movement, baseline/AI-only, lỗi audit rollback, review đồng thời và quyền DB. Fixture role tạo PostgreSQL riêng với mật khẩu ngẫu nhiên trong bộ nhớ, kiểm tra không thể UPDATE score hay DELETE flag/decision. Test và manual không gọi provider.

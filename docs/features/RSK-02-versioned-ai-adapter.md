@@ -1,13 +1,13 @@
-# RSK-02: versioned AI adapter safety
+# RSK-02 · Adapter AI theo version và admission có deadline
 
-Scope: standalone Decisions adapter, explicit caller configuration, loopback behavioral tests. Consumer/ledger and schema integration are owned separately.
+## Phạm vi và thiết kế
 
-Design: `DecisionOptions.rubric` is required; preserve its exact UTF-8 content and SHA-256 in provenance. Reject absent, whitespace-only, over-16,384-byte, or credential-reflecting instructions before admission/network. No request/raw-response/credential logging. The predicate and projected feature allowlist remain fixed.
+Adapter Decisions nhận cấu hình model/rubric tường minh từ version rule set. Rubric UTF-8 được giữ nguyên và ghi SHA-256; rubric rỗng, quá 16.384 byte hoặc phản chiếu credential bị từ chối trước admission/network. Không log request, phản hồi gốc hay credential. Predicate và allowlist feature cố định.
 
-Admission may be asynchronous. Its deadline is measured from selection, not acquisition start. Race acquisition against remaining admission time, observe rejected promises, and release late grants exactly once. Recheck the deadline immediately before fetch. Cleanup is best-effort, nonblocking, and observes asynchronous release rejection. A denied budget maps to BUDGET_EXHAUSTED; timeout/fault maps to UNAVAILABLE. Provider timeout remains separate.
+Admission có thể bất đồng bộ; deadline tính từ lúc chọn version, không phải lúc bắt đầu xin permit. Permit đến muộn được nhả đúng một lần; từ chối quota → `BUDGET_EXHAUSTED`, lỗi/timeout → `UNAVAILABLE`. Kiểm deadline lại ngay trước fetch; cleanup best-effort không chặn. Timeout provider riêng với deadline admission.
 
-Test-first plan: add loopback cases for selected Unicode rubric/hash, invalid rubrics, asynchronous grants/denials/rejections, never-resolving admission, late grants and late rejection, nonblocking release. Then update adapter, explicit CLI/manual fixture options and existing documentation. Existing timeout/refusal/provenance tests remain intact.
+## Kiểm thử và giới hạn
 
-Safety limits: local admission is not a monetary cap, provider cancellation guarantee, or exactly-once paid-call guarantee. Rule-only remains the integration default. No real provider quality claim follows from loopback fixtures.
+Trước khi tích hợp worker, typecheck/lint mục tiêu đạt, 121 test adapter và 7 test CLI đạt; fixture loopback trả `UNAVAILABLE` khi response body bị treo, với một lần admission, một request và một release. Đây là kiểm thử synthetic, không phải provider thật hay bằng chứng chất lượng.
 
-Verification on 2026-11-09: typecheck and targeted lint passed; adapter unit tests passed 121/121 and fraud AI CLI end-to-end tests passed 7/7. The isolated loopback manual fixture returned UNAVAILABLE after a stalled response body, with one acquisition, one request and one release. These are synthetic local checks, not a live OpenAI call or consumer integration.
+Tích hợp worker, quota bền vững, quyền và test liên quan ở [RSK-02](RSK-02-durable-ai-gate.md). Quota request không phải trần tiền; abort không chứng minh provider ngừng tính phí; không bảo đảm exactly-once billing. `rule_only` vẫn mặc định. Theo [tài liệu OpenAI Decisions](https://developers.openai.com/api/docs/guides/decisions), model hiện được hỗ trợ là `gpt-6-luna`; model phải do rule set chỉ định và còn cần kiểm tra quyền tài khoản thực tế.

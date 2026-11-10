@@ -1,12 +1,14 @@
 # Fraud Detection — Hướng dẫn chi tiết
 
-> **Status:** Accepted (chốt 2026-10-11, cập nhật ADR-14 ngày 2026-11-08) · **Owner:** #4 · **Verified against code:** một phần: bảng fraud (DBS-58), khung module `risk` (DBS-59), generator dữ liệu bình thường & gian lận (DBS-71, DBS-126), adapter AI độc lập (FRAUD-API-02); luật và consumer đang triển khai · **Cập nhật:** 2026-11-08
+> **Status:** ADR-14 Accepted · **Owner:** #4 · Bản này giữ lịch sử hướng dẫn cũ; trạng thái code và kiến trúc hiện hành xem [risk architecture](02-architecture.md), [DBS-128](../../features/DBS-128-offline-features.md), [DBS-129/130](../../features/DBS-129-130-fraud-operator-api.md) và [RSK-02](../../features/RSK-02-durable-ai-gate.md).
 
 > **Cập nhật ADR-14 (Accepted, 2026-11-08):** Phương án rules + API AI ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) ([FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md), [FRAUD-API-02](../../features/FRAUD-API-02-standalone-risk.md)) đã được nhóm chấp nhận để bỏ hướng tự train / ONNX `v3` của ADR-08; 6 luật `R1–R6` (`rule_only`) giữ nguyên làm mặc định.
+>
+> **Đọc trước:** Các mục còn nói `ml_tuned_rules`, `hybrid_onnx`, train model, candidate gate, Redis counter hoặc không tốn token là **lịch sử, không phải triển khai hiện hành**. Hiện có `rule_only` và `rules_with_external_ai`; mọi TRANSFER mới ở mode AI hợp lệ được admission, không lọc trước theo điểm luật. Đặc trưng online đọc SQL, Redis chỉ cache cấu hình. Chưa có đo chất lượng, tải production, hay phê duyệt dữ liệu/egress thật. Chỉ dùng synthetic cho phát triển/test.
 
 > Tài liệu làm việc nội bộ cho mảng **Fraud** (#4) và người làm bộ dữ liệu (#6).
 > Dựa trên: `docs/BRD.md` (BR-06, BR-11, BR-13, UC-9, UC-10, UC-12, FR-RSK-*, NFR-FRD-*), `docs/03` (mục 9, 10, 15).
-> Tham số ở bảng 4.2 là phiên bản `v1` đã chốt (seed trong migration). `v2` học lại tham số trên tập tune và lưu thành phiên bản cấu hình mới; không sửa `v1`.
+> Tham số ở bảng 4.2 là seed `rule_only`; thay đổi phải được đánh giá và tạo version mới, không sửa version cũ.
 
 ---
 
@@ -14,7 +16,7 @@
 
 ### 1.1 Một câu
 
-> Sau mỗi giao dịch, **trong vòng vài giây**, chấm điểm rủi ro bằng 6 luật có giải thích (`R1–R6`); giao dịch đáng ngờ được **gắn cờ** để nhân viên xem và quyết định. Luật có thể được học tham số từ dữ liệu (`v2`) và, nếu qua cổng go/no-go, bổ sung một mô hình nhẹ chạy in-process qua ONNX (`v3`) theo [ADR-08](../../adr/0008-fraud-detection-architecture.md). Kèm theo là **bằng chứng định lượng** rằng các luật thực sự bắt được gian lận mà không làm nhân viên ngập trong báo nhầm.
+> Sau mỗi giao dịch hoàn tất, worker chấm 6 luật có giải thích; có thể bổ sung tín hiệu API AI qua admission đã được phép, sau đó gắn cờ để nhân viên review. Mục tiêu đánh giá định lượng chưa được xem là đạt khi chưa có dữ liệu và bằng chứng.
 
 ### 1.2 Làm và không làm
 
@@ -24,7 +26,7 @@
 | Chấm điểm mọi lệnh chuyển tiền sau khi hoàn tất (**async detection**) | Tự động khóa tài khoản |
 | Gắn cờ kèm danh sách luật và lời giải thích | Đảo giao dịch, giữ tiền chờ duyệt |
 | Cho nhân viên review: Gian lận thật / Báo nhầm | Cho khách hàng thấy cờ (BR-13) |
-| Cấu hình luật có phiên bản (`v1` luật → `v2` luật học tham số → `v3` thêm ONNX in-process, có điều kiện) | Tách microservice Python riêng cho inference (trái ADR-13) |
+| Cấu hình luật và AI có phiên bản (`rule_only`, `rules_with_external_ai`) | Tự train/ONNX hoặc tách microservice Python cho inference |
 | Bộ dữ liệu tổng hợp + báo cáo đánh giá P5 | Dữ liệu thiết bị, IP, vị trí |
 
 ### 1.3 Thế nào là thành công

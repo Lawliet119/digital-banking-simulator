@@ -24,7 +24,7 @@ Index theo tài khoản/cặp, cửa sổ trượt và Fenwick tree cho phép kh
 |---|---|
 | Unit: biên R1/R2/R4/R5, bigint, trùng ID, trước epoch, hợp đồng risk | 2 suite / 8 test đạt |
 | PostgreSQL: 80 fact tổng hợp, đảo thứ tự, cùng mili giây và ranh giới thời gian | 1 suite / 1 test đạt |
-| Chạy tay: 100.000 giao dịch tổng hợp, xuất 11 trường | Tạo index 708 ms; trích xuất 1.114 ms; heap 262.030.520 byte, một lần trên máy hiện tại |
+| Chạy tay: 100.000 giao dịch tổng hợp, xuất 11 trường | Tạo index 713 ms; trích xuất 1.096 ms; heap 262.415.472 byte, một lần trên máy hiện tại |
 
 Lệnh từ `backend/`: `npm test -- --runInBand --runTestsByPath src/modules/risk/features/offline-feature-provider.spec.ts src/modules/risk/risk.contract.spec.ts`, `npm run test:db -- --runInBand --runTestsByPath test/db/offline-features.db-spec.ts`, `npx ts-node -r tsconfig-paths/register test/manual/offline-features.manual.ts`. Typecheck và lint có mục tiêu cũng đạt. [Output thủ công](screenshots/DBS-128/manual-test.txt).
 

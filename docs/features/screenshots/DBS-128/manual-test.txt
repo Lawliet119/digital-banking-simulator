@@ -1,4 +1,2 @@
-29667e5320ab66d023442350449b74d278951624
-Lệnh: cd backend && npx ts-node -r tsconfig-paths/register test/manual/offline-features.manual.ts
-{"transactions":100000,"indexMs":708.2059829999998,"extractAndProjectMs":1113.9062760000002,"checksum":3098180,"heapBytes":262030520}
-Dữ liệu tổng hợp, không có nhãn; không gửi mạng.
+5746767204e34d9af09c7fa51cfb960c243db53e
+{"transactions":100000,"indexMs":712.5252159999998,"extractAndProjectMs":1096.264416,"checksum":3098180,"heapBytes":262415472}
