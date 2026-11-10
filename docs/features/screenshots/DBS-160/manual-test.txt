@@ -1,0 +1,6 @@
+11cd982705e9dcd5927cc0a72a48b0f5a0d8861c
+$ DATABASE_URL=postgres://... REDIS_URL=redis://... npx ts-node -r tsconfig-paths/register test/manual/risk-config.manual.ts
+M-160 correlationId=c7804765-85ff-4bb8-b8ca-9cd8b338ffcf
+M-160 PASS: admin GET v1, create v2, GET detail v2; operator 403, invalid AI 400
+M-160 PASS: concurrent versions 3/4; four committed versions have four audit rows
+M-160 PASS: cache latest TTL <=60s, miss and Redis outage read PostgreSQL v5
