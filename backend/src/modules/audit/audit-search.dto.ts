@@ -26,7 +26,13 @@ export class AuditEntryDto implements AuditEntry {
   })
   occurredAt!: string;
 
-  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    example: '3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44',
+    description: 'users.id of the actor; null for a system or worker action',
+  })
   actorUserId!: string | null;
 
   @ApiProperty({ type: String, example: 'customer' })
@@ -41,7 +47,7 @@ export class AuditEntryDto implements AuditEntry {
   @ApiProperty({ type: AuditTargetDto })
   target!: AuditTargetDto;
 
-  @ApiProperty({ type: String, format: 'uuid' })
+  @ApiProperty({ type: String, format: 'uuid', example: '2722de31-246c-4814-88aa-e94cbda72de6' })
   correlationId!: string;
 
   @ApiProperty({
@@ -62,6 +68,7 @@ export class AuditEntriesPageDto implements AuditEntriesPage {
     nullable: true,
     maxLength: 512,
     description: 'Filter-bound keyset cursor; null when there is no next page',
+    example: 'bmV4dC1wYWdlLWN1cnNvcg',
   })
   nextCursor!: string | null;
 }
