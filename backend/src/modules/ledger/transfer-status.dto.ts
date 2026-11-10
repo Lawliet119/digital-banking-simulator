@@ -7,7 +7,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
  * LOCKED" cannot be told apart (BL-175).
  */
 export class TransferStatusDto {
-  @ApiProperty({ format: 'uuid' })
+  @ApiProperty({ format: 'uuid', example: '3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44' })
   transferId!: string;
 
   @ApiProperty({ enum: ['TRANSFER', 'DEPOSIT'] })
@@ -33,12 +33,14 @@ export class TransferStatusDto {
   @ApiPropertyOptional({
     format: 'uuid',
     description: 'Source account; absent for a DEPOSIT (the funding account is never shown)',
+    example: '8b3609fb-96a7-434b-a7ba-2ba171955e6d',
   })
   fromAccountId?: string;
 
   @ApiPropertyOptional({
     format: 'uuid',
     description: 'Destination account; only for a COMPLETED transfer, never for a REJECTED one',
+    example: 'bf9c3419-51ff-4e55-b03c-3296f0419c03',
   })
   toAccountId?: string;
 

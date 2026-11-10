@@ -28,6 +28,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser, type CurrentUserInfo, Roles } from '@modules/identity';
 import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
+import { ApiErrorCodes } from '@common/openapi/api-error-codes.decorator';
 import { ErrorCode } from '@common/errors/error-code.enum';
 import { LimitTransfers } from '@common/rate-limit/limit-transfers.decorator';
 import { TransferDto, TransferResultDto } from './transfer.dto';
@@ -46,6 +47,16 @@ export class TransfersController {
   ) {}
 
   @Post()
+  @ApiErrorCodes({
+    400: [ErrorCode.IDEMPOTENCY_KEY_REQUIRED],
+    422: [
+      ErrorCode.ACCOUNT_NOT_ACTIVE,
+      ErrorCode.LIMIT_PER_TX_EXCEEDED,
+      ErrorCode.LIMIT_PER_DAY_EXCEEDED,
+      ErrorCode.INSUFFICIENT_FUNDS,
+      ErrorCode.IDEMPOTENCY_KEY_REUSED,
+    ],
+  })
   @LimitTransfers()
   @ApiOperation({
     summary: 'Customer: transfer between distinct customer accounts with atomic double entry',
