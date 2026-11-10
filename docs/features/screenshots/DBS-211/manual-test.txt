@@ -1,0 +1,7 @@
+4dd461a46cf59074a35606e3e57eafe183bb55c4
+$ node load-tests/fraud-dataset/generate-fraud.mjs --customers 1000 --days 30 --output load-tests/results/dbs211-input.csv
+18773 transactions generated, sha256=7bfa28603315f304ac4da606fbed62443c63e38ca79b1d3f8a230830f2d43baa
+$ npm run export-features -- --input ../load-tests/results/dbs211-input.csv --output ../load-tests/results/dbs211-output1.csv
+M-211-01 PASS: 18773 feature rows exported, exactly 13 columns, no scenario column
+$ sha256sum load-tests/results/dbs211-output1.csv load-tests/results/dbs211-output2.csv
+M-211-02 PASS: ed22db5aaeb8199ca78e513aaeadfa31a7ee819a6f6368532829f36b82f502e7 (byte-identical across runs)

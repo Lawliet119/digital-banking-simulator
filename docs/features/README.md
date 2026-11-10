@@ -140,3 +140,5 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-129/130](DBS-129-130-fraud-operator-api.md) | Operator list/detail/review có audit, cursor microsecond, lịch sử ledger; test PostgreSQL, role và HTTP | #4 Fraud | Kiểm chứng cục bộ; chờ CI và Dev review |
 | [RSK-02](RSK-02-durable-ai-gate.md) | Nối Decisions vào worker qua gate quota, fallback, provenance và quyền; không bật dữ liệu thật mặc định | #4 Fraud | Kiểm chứng synthetic cục bộ; chờ smoke provider, CI và Dev review |
 | [RSK-05](RSK-05-ai-data-governance.md) | Văn bản phê duyệt quyền gửi dữ liệu AI, chính sách allowlist 11 trường FeatureInput, cấm PII và timestamp, chính sách ZDR và cập nhật Threat Model T25 | #4 Fraud | Proposed (chờ duyệt của techlead và chủ dữ liệu, CI và Dev review) |
+| [DBS-211](DBS-211-export-features.md) | Lệnh export-features đọc CSV giao dịch và xuất CSV gồm 11 trường FeatureInput và nhãn is_fraud từ OfflineFeatureProvider; loại bỏ scenario, bảo đảm tính nhân quả và tất định | #4 Fraud | Implemented |
+
