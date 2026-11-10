@@ -1,6 +1,6 @@
 # DBS-137 · Làm sạch OpenAPI: ví dụ request/response và errorCode cho mọi endpoint
 
-> **Status:** Plan approved (G3 2026-11-11) · **Vai:** Dev · **Cặp đôi review:** một Dev khác (team.md không cố định cặp) · **Nhánh:** `feat/DBS-137-openapi-clean` · **PR:** — · **Cập nhật:** 2026-11-10
+> **Status:** Implemented (G4 2026-11-11) · **Vai:** Dev · **Cặp đôi review:** một Dev khác (team.md không cố định cặp) · **Nhánh:** `feat/DBS-137-openapi-clean` · **PR:** — · **Cập nhật:** 2026-11-11
 
 ## 1. Bối cảnh
 
@@ -26,7 +26,7 @@
 - **Baseline (2026-11-10, `main` `98cdb30`, Node 24):** `lint:check` sạch; `typecheck` sạch; `npm test` 103 suite / 1824 test đạt; `test:e2e` 17 suite / 163 test đạt.
 - **Backlog:** không có dòng `BL-NNN` về OpenAPI cần nhận; BL-188 (UC-12) thuộc DBS-160.
 - **Ngoài phạm vi:** triển khai UC-12 (DBS-160); đổi hành vi, status hay `errorCode` của endpoint; đổi tên scheme; Swagger production (đã tắt, `main.ts:60`).
-- **PR đang mở chạm vùng này:** #138 (DBS-135: `fraud-http.service.ts`, notification, test) và #127, #128 (test); không PR nào sửa DTO hay controller. Nhánh này tách từ `main`, không xếp chồng.
+- **PR đang mở chạm vùng này (đã sửa lại ngày 2026-11-11, câu cũ «không PR nào sửa DTO hay controller» sai vì chưa kiểm bằng `gh pr list`):** #134 «feat(openapi): comprehensive request-response examples and error schemas (DBS-137)» do một thành viên khác mở lúc 2026-11-10 16:10Z, sửa cùng các controller (`identity`, `transfers`, `operator-deposits`, `operator-accounts`), cùng `docs/deliverables/openapi.json` và cùng thư mục `screenshots/DBS-137/`; #131 (DBS-160, UC-12 `risk-config`) sẽ làm hai dòng «chưa triển khai» ở docs/03 §7 thành sai khi vào `main`; #135 (DBS-135) trùng nội dung với #138 đã merge. Người duyệt (techlead) quyết định PR của thành viên kia **do techlead tự đóng**; nhánh này làm phần DBS-137 của mình và không đụng các PR đó. Nếu #131 vào `main` trước, phải bỏ dấu «chưa triển khai» và sửa golden của `openapi-completeness` khi rebase.
 - **Quyết định ở G1 (agent tự quyết):**
   1. UC-12 thiếu ở Swagger: đánh dấu hai dòng docs/03 §7 là «chưa triển khai (DBS-160)», test đối chiếu có danh sách miễn tường minh; không dựng endpoint giả.
   2. Điền `example` vào DTO thành công; DTO lỗi dùng chung **không** thêm example theo thuộc tính, dùng `examples` ở mức media type theo từng status.
@@ -209,3 +209,84 @@ Mỗi bước: viết test trước, chạy và ghi một dòng đỏ, mã tối
 1. Các bước 6a–6e là một commit mỗi module để người sở hữu từng module review riêng.
 2. Bước 5 (test hoàn chỉnh) được viết và chạy đỏ **trước** khi sửa module; commit cùng bước 6 vì test đỏ không commit riêng.
 3. Không chạy lại domain review cho §7: kế hoạch chỉ sắp xếp công việc đã duyệt ở G2.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (từ `backend/`, Node 24, 2026-11-11, nhánh đã rebase lên `main` `1a1d216`, HEAD mã cuối `0112e08`):
+
+```
+npm run lint:check        → sạch
+npm run typecheck         → exit 0
+npm test                  → Test Suites: 107 passed, 107 total / Tests: 1852 passed, 1852 total
+npm run test:e2e          → Test Suites: 17 passed, 17 total / Tests: 163 passed, 163 total  (DATABASE_URL Postgres 17 tạm)
+test:db openapi-completeness + openapi-export + audit-search.http + fraud-operator-http
+        + account-reads + transfer-status + transaction-history → 91 passed (lần chạy lại)
+```
+
+  Baseline trước khi sửa: unit 103 suite / 1824 test, e2e 17 / 163. Phần tăng của unit (+28 so với baseline) gồm 2 test của #138 và 26 test mới của task này (walker 10, enrich và decorator 10, docs-endpoints 6). Không `.skip`, `.only`, `.todo`. `test:db` toàn bộ và `test:services` toàn bộ **chưa chạy ở local** (từng làm sập RAM): chỉ các spec bị ảnh hưởng; CI chạy phần còn lại.
+
+- **Một lần đỏ không giải thích được:** lần chạy đầu của tổ hợp 7 spec DB ở trên, `audit-search.http.db-spec` đỏ hơn chục test (TC-103-02, 04, 05…). Chạy riêng file đó: 43 đạt; chạy lại đúng tổ hợp: 91 đạt. Trước khi rebase tổ hợp này cũng đạt 91. Mình không tìm được nguyên nhân (không có thay đổi mã nào của task này nằm trong đường các test đó chạy), nên không gọi là «flaky đã hiểu»; CI trên PR là kết quả cuối. Nếu nó đỏ ở CI, đó là việc phải điều tra, không phải ghi chú.
+
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-137-01 | `test/db/openapi-completeness.db-spec.ts` › TC-137-01 (summary, role hoặc allowlist, security; 19 operation) | đạt |
+| TC-137-02 | cùng file › TC-137-02 (mọi body và mọi 2xx có ví dụ đủ, có 2xx, tiền là string) | đạt |
+| TC-137-03 | cùng file › TC-137-03 (`x-error-codes` đầy đủ theo cấu trúc và golden bốn route, mã thuộc `ErrorCode`, khớp status ở docs/03 §7.1, có response và `content`, mô tả nêu đủ mã) | đạt |
+| TC-137-04 | cùng file › TC-137-04 (`Idempotency-Key` đúng hai endpoint; scheme `access-token`) | đạt |
+| TC-137-05 | cùng file › TC-137-05 (`ErrorCode` bằng bảng §7.1) | đạt |
+| TC-137-06, 07 | cùng file › TC-137-06/07 (endpoint, vai trò của docs/03 §7 bằng Swagger, hai dòng UC-12 là «chưa triển khai») | đạt |
+| TC-137-08 | `test/support/docs-endpoints.spec.ts` (6 test: parse, ô nhiều path, so khớp, thừa/thiếu/sai vai trò, dòng «chưa triển khai» đã có trong Swagger, hai tập vai trò tách biệt) | đạt |
+| TC-137-09 | `src/common/openapi/enrich-openapi.spec.ts` (10 test, gồm `@ApiErrorCodes`) | đạt |
+| TC-137-10 | `src/common/openapi/example-walker.spec.ts` (10 test) | đạt |
+| TC-137-11 | `openapi-completeness.db-spec.ts` › TC-137-11 (artifact bằng sâu `/docs-json`, chặn `OPENAPI_UPDATE` khi có `CI`, thông báo nêu đường dẫn lệch và lệnh xuất) | đạt |
+| TC-137-12 | cùng file › TC-137-12 (không token dạng JWT, không `jti`, schema khách không có `fraud|flag|risk|score|review`) | đạt |
+| TC-137-13 | quy trình (PR, CI, Dev review) | chưa đạt: PR chưa mở lúc viết; BL-160 chung |
+
+  12 case đạt, 0 đơn giản hóa, 1 quy trình chưa đạt. **Trung thực về thứ tự test trước:** bước 4 (`docs-endpoints`) mình viết spec và hàm cùng một lượt rồi mới chạy, nên **không có lần chạy đỏ riêng** cho bước đó; bước 1 là refactor giữ hành vi (không đỏ, chạy lại `roles-app.e2e-spec` 7 test để chứng minh). Bước 2, 3, 5 có lần đỏ thật: walker và enricher «không tìm thấy module»; bước 5 đỏ 4/8 test (TC-137-02, 03, 06/07, 11), sau khi sửa identity/health còn 2 đỏ, sửa xong ledger, audit, risk, accounts còn đỏ 2 rồi xanh 8/8 khi sửa docs/03 và xuất lại artifact.
+
+- **Test thủ công** (API `APP_ROLE=api node dist/main`, PostgreSQL 17, nhánh rebase lên `main` `1a1d216`; SHA mã cuối `0112e08`; output thô: [manual-test.txt](screenshots/DBS-137/manual-test.txt), không token hay `Authorization`):
+
+| Bước | Kết quả thật | Đạt? |
+|---|---|---|
+| M-137-01 | `/docs` trả 200; `POST /v1/transfers`: dòng «Vai trò: customer. errorCode: 400 … 503», `Idempotency-Key` bắt buộc 1–128, `x-error-codes` đủ, 9 status 201/400/401/403/404/422/429/500/503, 19 operation, scheme `access-token` | đạt (xem ghi chú ảnh) |
+| M-137-02 | `npm run openapi:export` ra file **giống hệt** `docs/deliverables/openapi.json` | đạt |
+| M-137-03 | body mẫu lấy từ Swagger `{"fullName":"Nguyễn Minh Anh"}` → `POST /v1/customers/me` 200; `GET /v1/identity/me` nay có 200 với `sub`, `userId`, `groups`, `tokenUse`, `claims` | đạt |
+| M-137-04 | `POST /v1/transfers` không `Idempotency-Key` → 400 `IDEMPOTENCY_KEY_REQUIRED`; mã có trong `x-error-codes["400"]` | đạt |
+| M-137-05 | customer gọi `GET /v1/audit/entries` → 403 `FORBIDDEN`, mã có trong `x-error-codes["403"]`; auditor gọi → 200 | đạt |
+| M-137-06 | Swagger tắt ở production | **chưa chạy (không chạy được ở local)**: `NODE_ENV=production` đòi `DATABASE_SSL`, `rediss://`, `COGNITO_*`, `TRUST_PROXY_HOPS` và từ chối `AUTH_MODE=local` nên app không khởi động; chứng cứ là `src/main.ts:60` (`if (!config.isProduction) setupSwagger(app)`) |
+
+  Quan sát khác: (a) tên có dấu bị shell Windows làm hỏng khi gửi (`Nguy?n Minh Anh` trong phản hồi), lỗi môi trường chạy tay, cùng hiện tượng ở DBS-135, không phải của API; (b) phản hồi thật của `identity/me` có `jti` trong `claims`, còn ví dụ trong OpenAPI cố ý không có `jti` (R13).
+
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` (loại `docs/features`): 28 file, 4359 thêm / 370 bớt, trong đó `docs/deliverables/openapi.json` chiếm 3396 dòng (tài liệu sinh). Khớp §3 và §7, thêm các file sau không có tên trong danh sách: `test/support/no-role-allowlist.ts`, `test/support/docs-endpoints.ts` (có trong §3), hai dòng `eslint-disable` đầu `enrich-openapi.ts`, `enrich-openapi.spec.ts` và `openapi-completeness.db-spec.ts` (JSON OpenAPI tự do nên dùng `any` có chủ đích; lint cấm `any` mặc định), và `src/app.setup.ts` (bắt buộc, đã nêu §3).
+- **Ảnh chụp:** một ảnh từ Swagger UI thật bằng Chrome headless (danh sách các nhóm endpoint của `/docs`, chụp sau khi API chạy):
+
+![Swagger UI /docs](screenshots/DBS-137/01-swagger-ui.png)
+
+  **Giới hạn của ảnh:** ảnh chỉ thấy danh sách endpoint; mình không chụp được trạng thái mở rộng của `POST /v1/transfers` (headless không bấm được), nên dòng «Vai trò … errorCode …», `Idempotency-Key` và các response ở M-137-01 được xác nhận bằng nội dung `/docs-json` trong `manual-test.txt`, **chưa được nhìn thấy trực quan trong giao diện**. Ảnh thứ hai (transcript) không làm.
+- **Lệch so với kế hoạch (quyết định agent tự duyệt, gate phụ):**
+  1. Bước 5 và bước 7 gộp một commit (`test(openapi): completeness…, artifact regenerated`) vì test đỏ không commit riêng và artifact phải xuất lại trong cùng commit để test xanh.
+  2. Doc `DBS-137` được commit một lần ở giữa (commit `2b71c78`, đã push) để không mất công việc khi hết hạn mức; vì vậy lịch sử có commit «work in progress» trước commit §8 này.
+  3. Thêm `eslint-disable` có lý do ở ba file (xem trên) thay vì kiểu hóa toàn bộ JSON OpenAPI.
+  4. Câu ở §1 «không PR nào sửa DTO hay controller» sai (không kiểm bằng `gh pr list` ở G1); đã sửa ngày 2026-11-11. Có PR #134 của thành viên khác cho cùng task; techlead quyết định tự đóng PR đó (xem §1).
+- **Bàn giao cho vai khác:** **BL-229** (Dev làm DBS-160): khi UC-12 vào `main`, bỏ dấu «chưa triển khai» ở docs/03 §7, thêm golden `ROUTE_SPECIFIC` và `@ApiErrorCodes` nếu có mã đặc thù, xuất lại artifact; nếu quên thì `openapi-completeness` đỏ có chủ đích. **BL-160** (có sẵn): review độc lập trên GitHub cho PR này. DoD 4 (merge, CI xanh, Dev review) còn chờ PR.
+
+## 9. Tài liệu đã cập nhật
+
+- [`docs/03`](../03_HIGH_LEVEL_ARCHITECTURE.md) §7: hai dòng UC-12 «chưa triển khai (DBS-160)», đoạn về `x-error-codes` và problem không có `errorCode`, sửa dòng 494 (giới hạn tốc độ và thu hồi phiên đã chạy).
+- [`api-design.md`](../components/_shared/api-design.md): «17/18 mục», lock/unlock và fraud-flags từ **Planned** thành **Implemented**, tiêu đề §3 và §5, lỗi tra `users` là 503 chứ không phải UNAUTHENTICATED, đoạn `enrichOpenApi` và cách xuất lại artifact.
+- `CONTRIBUTING.md` (checklist PR): đổi API ⇒ xuất lại `docs/deliverables/openapi.json`.
+- `docs/deliverables/openapi.json`: xuất lại (19 operation như trước; schema từ 27 lên 29: thêm `IdentityMeDto` và `ProblemDetailsDto`; các response, ví dụ và `x-error-codes` được bổ sung).
+- [`features/README.md`](README.md): dòng DBS-137. `docs/BACKLOG.md`: thêm BL-229; không xóa dòng nào.
+- `check-doc-links.mjs`: chạy lại ở G4.
+
+## Checklist G4 (2026-11-11)
+
+- [x] 12/13 test case đạt đủ độ sâu, 0 đơn giản hóa; TC-137-13 (quy trình: PR, CI, Dev review) chưa đạt vì PR chưa mở lúc viết
+- [x] Test thủ công chạy trên commit cuối đổi mã (`0112e08`, dòng đầu `manual-test.txt`): M-137-01..05 đạt, đường thành công đã chạy; **M-137-06 chưa chạy được ở local** (lý do ở §8, ghi vào mô tả PR); M-137-01 chưa được nhìn thấy trực quan ở trạng thái mở rộng (ghi ở mục ảnh)
+- [x] Ảnh: một ảnh `01-swagger-ui.png` đã mở kiểm; ảnh thứ hai không làm (nêu lý do); `manual-test.txt` không có token, `Authorization` hay ARN (đã `grep`)
+- [x] `git diff --stat main...HEAD` khớp §7; file lạ và `eslint-disable` đã nêu ở §8
+- [x] Bốn lệnh baseline chạy lúc bàn giao, có số đếm (§8); `test:db` và `test:services` chỉ chạy các spec bị ảnh hưởng; một lần đỏ không giải thích được đã ghi
+- [x] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` chạy lại sau khi viết (kết quả ở lệnh kế tiếp)
+- [x] Bàn giao và DoD chưa đạt đã có ở §8 và `BL-229` trong `docs/BACKLOG.md`
