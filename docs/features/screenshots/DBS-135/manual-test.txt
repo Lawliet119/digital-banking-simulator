@@ -1,0 +1,21 @@
+98cdb309c51d0384ffbf21b2714eca586c30a087
+
+# Manual Test Execution Output - DBS-135 CorrelationId E2E Trace
+# Date: 2026-11-10
+
+$ npm run test:db -- correlation-trace.db-spec.ts
+
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js correlation-trace.db-spec.ts
+
+  console.log
+    {"scenario":"DBS-135-AC-8.2","transferId":"b9bdb532-7d3f-4975-ab7f-26d84263678a","correlationId":"aa213147-674e-49c5-8383-2d31c1ba46c2","traceDurationMs":2,"linkedRecords":{"audit":"transfer","outbox":"TransferCompleted","consumer":"risk-events","notification":"aa213147-674e-49c5-8383-2d31c1ba46c2","risk":45,"reviewStatus":"FALSE_POSITIVE"}}
+
+      at Object.<anonymous> (test/db/correlation-trace.db-spec.ts:175:13)
+
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        1.448 s, estimated 2 s
+Ran all test suites matching correlation-trace.db-spec.ts.

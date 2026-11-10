@@ -21,7 +21,7 @@ import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
 import { TransactionService } from '@database/transaction.service';
 import { assertNotMigratorUser } from '@database/database-url.guard';
 import { AccountsModule } from '@modules/accounts';
-import { AuditModule } from '@modules/audit';
+import { AuditHttpModule, AuditModule } from '@modules/audit';
 import { OutboxModule } from '@modules/outbox';
 import { LedgerModule } from '@modules/ledger';
 import { FraudHttpModule } from '@modules/risk/fraud-http.module';
@@ -116,6 +116,7 @@ export async function startDepositApp(
     revocation?: { redisUrl: string };
     /** Opt-in to keep unrelated HTTP fixtures independent of fraud schema. */
     fraud?: boolean;
+    auditHttp?: boolean;
   } = {},
 ): Promise<DepositApp> {
   const issuer = await createDevTokenIssuer(),
@@ -167,7 +168,7 @@ export async function startDepositApp(
         IdentityModule,
         ...(options.revocation ? [SessionRevocationModule] : []),
         AccountsModule,
-        AuditModule,
+        ...(options.auditHttp ? [AuditHttpModule] : [AuditModule]),
         OutboxModule,
         LedgerModule,
         ...(options.fraud ? [FraudHttpModule] : []),
