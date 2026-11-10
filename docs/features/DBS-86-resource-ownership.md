@@ -1,6 +1,6 @@
 # DBS-86 · Kiểm tra sở hữu tài nguyên và audit DENIED
 
-> **Status:** Implemented — G4 đã duyệt phạm vi service; HTTP integration và process DoD còn mở · **Vai:** Dev · **Dev review:** chưa phân công · **Nhánh:** `codex/DBS-86-resource-ownership` · **PR:** [#60](https://github.com/Lawliet119/digital-banking-simulator/pull/60) (Draft) · **Cập nhật:** 2026-11-06
+> **Status:** Done — phạm vi service đã merge ở [#60](https://github.com/Lawliet119/digital-banking-simulator/pull/60) (2026-11-07); ownership trên từng endpoint có id đã vào `main` qua DBS-61/64/87 và có test HTTP (xem «Đóng gap HTTP»); còn thiếu duy nhất review độc lập trên GitHub (BL-160) · **Vai:** Dev · **Nhánh:** `codex/DBS-86-resource-ownership` · **Cập nhật:** 2026-11-10
 
 ## 1. Bối cảnh
 
@@ -494,8 +494,8 @@ Các TC-86-01…14 dưới đây nằm trong [resource-ownership.db-spec.ts](../
 | TC-86-13 | `ten parallel denials keep exact per-invocation attribution`: 10 invocation cùng barrier, pool16, đúng10 lỗi404/10 DENIED với đủ mapping actor/action/correlation/target | Đạt |
 | TC-86-14 | `resolves AccountsModule with real public Audit and Transaction providers`: Nest resolve class thật và denial insert thật; unit boundary giữ public import/deep import bị cấm | Đạt |
 | TC-86-15 | Toàn [accounts-service.db-spec.ts](../../backend/test/db/accounts-service.db-spec.ts): giữ45 tests lock/apply/concurrency/invariant/committed-state read; actor malformed/Cognito sub port sang TypeError/FK theo contract hiện tại | Đạt |
-| Handoff-86-HTTP | Từng endpoint account/history/status và nguồn transfer chưa có tại base; không dựng endpoint/transfer giả để nhận AC-5.8 | Chưa làm; DBS-64/87 theo BL-170, DBS-60/61 theo BL-122 |
-| Quy trình DoD5 | Chưa push/PR/CI/Dev khác review/merge | Chưa đạt; BL-160 |
+| Handoff-86-HTTP | Từng endpoint account/history/status và nguồn transfer chưa có tại base; không dựng endpoint/transfer giả để nhận AC-5.8 | Đã đóng sau khi DBS-61/64/87 merge, xem «Đóng gap HTTP» cuối tài liệu (lúc G4 ghi: chưa làm) |
+| Quy trình DoD5 | Chưa push/PR/CI/Dev khác review/merge | PR #60 đã merge, CI xanh 6/6, bảng TC có trong PR; **chưa có review độc lập trên GitHub** (BL-160) |
 
 ### 8.4 Manual và ảnh trên final SHA
 
@@ -523,9 +523,9 @@ Mọi bước M01…09 được thực hiện bởi invocation `all` trên; mỗ
 | M-86-07 · context/FK | Thiếu context, sai role/action đều TypeError/sqlCount0. Actor không có users →23503/auditCount0 | Đạt |
 | M-86-08 · ALS/rollback | Cả owned/foreign trong callback transaction đều TypeError trước SELECT; accountSelects0, scratchCount0, auditCount0 | Đạt |
 | M-86-09 · invariant/cleanup | Bốn account balance `"0"`; transfers0/ledgerEntries0; shared checker PASS, totals debit/credit/balance `"0"`, violations[]; catalog databases0/roles0 và owned container đã stop | Đạt |
-| M-86-HTTP-TRANSFER | Chưa có POST transfer thật/dữ liệu nạp thật; chờ DBS-61/60, BL-122 | **Chưa chạy**, cần chấp nhận đích danh ở G4 |
-| M-86-HTTP-ACCOUNT | Chưa có GET account thật; chờ DBS-64, BL-170 | **Chưa chạy**, cần chấp nhận đích danh ở G4 |
-| M-86-HTTP-HISTORY | Chưa có account history/transfer status thật; chờ DBS-87/61, BL-170/122 | **Chưa chạy**, cần chấp nhận đích danh ở G4 |
+| M-86-HTTP-TRANSFER | Chưa có POST transfer thật/dữ liệu nạp thật; chờ DBS-61/60, BL-122 | Lúc G4 chưa chạy. Nay thay bằng test HTTP tự động TC-61-03/13, TC-159-01 (xem «Đóng gap HTTP»); không có transcript manual riêng |
+| M-86-HTTP-ACCOUNT | Chưa có GET account thật; chờ DBS-64, BL-170 | Lúc G4 chưa chạy. Nay thay bằng TC-64-03, TC-65-05 |
+| M-86-HTTP-HISTORY | Chưa có account history/transfer status thật; chờ DBS-87/61, BL-170/122 | Lúc G4 chưa chạy. Nay thay bằng TC-87-06, TC-87-07, TC-159-03 |
 
 [Driver DBS-55](../../backend/test/manual/accounts-service.manual.ts) đã chạy lại `all` trên cùng final source SHA, **exit 0**, với PostgreSQL17 tạm riêng: khóa theo thứ tự, hai transaction chéo, amount300000 và9007199254740993 giữ string/bigint, rollback về0, lỗi invariant/type/lock đúng contract, `updated_at` theo thứ tự commit và cleanup container thành công. Git Bash chạy wrapper `manual-55-regression.mjs`; wrapper truyền URL qua child environment, startPostgresContainer → spawn `node -r ts-node/register -r tsconfig-paths/register test/manual/accounts-service.manual.ts all` → stop trong finally. Exact launcher, source wrapper và raw output được giữ trong verification. M-55-06 vẫn in PENDING cho full ledger flow; việc còn thiếu thuộc DBS-60/61, không nhận là primitive tiền đã hoàn tất E2E.
 
@@ -588,3 +588,19 @@ Fetch trước công bố xác nhận `origin/main` đã tới `2df7d0a` (thêm 
 ## Tích hợp khi merge vào `main` (2026-11-08)
 
 `TransferService` (DBS-61) đã chuyển sang `getOwnedAccount(fromId, {userId, role: 'customer', action: 'ledger.transfer', correlationId})`: nguồn của người khác, không tồn tại hoặc SYSTEM nhận một dòng audit `DENIED` do `getOwnedAccount` ghi, `TransferService` không ghi lần hai. Nhánh đổi chủ giữa lúc chờ khóa (`SourceOwnershipChangedError`) vẫn ghi `DENIED` qua `deny()` với cùng action `ledger.transfer`. TC-61-03 đổi action kỳ vọng từ `transfer` sang `ledger.transfer`; BL-122 phần nguồn chuyển tiền do DBS-61 đã đóng. Kiểm: unit 1053/1053, `accounts-service`, `resource-ownership`, `customer-transfers` 110/110 trên PostgreSQL thật.
+
+## Đóng gap HTTP (2026-11-10)
+
+Rà lại trên `main` sau khi DBS-61/64/87 merge. Mỗi endpoint nhận `accountId`/`transferId` của khách kiểm sở hữu ở tầng service, trả cùng 404 cho foreign/missing/SYSTEM/id sai dạng, và ghi `DENIED` ngoài transaction đọc để sống qua 404. Test là HTTP (supertest) trên PostgreSQL thật, nằm trong `backend/test/db`.
+
+| Endpoint | Task | Nơi kiểm | Test |
+|---|---|---|---|
+| `GET /v1/accounts/:id` | DBS-64 | `account-query.service.ts` | TC-64-03 (`account-reads`), TC-65-05 (`money-flow`) |
+| `POST /v1/transfers` (nguồn) | DBS-61 | `transfer.service.ts` → `getOwnedAccount` (`ledger.transfer`) | TC-61-03, TC-61-13 (`customer-transfers`), TC-159-01 (`auth-attacks`), TC-65-05 |
+| `GET /v1/accounts/:id/transactions` | DBS-87 | `transaction-history.service.ts` → `getOwnedAccount` (`account.transactions`) | TC-87-06 (`transaction-history`) |
+| `GET /v1/transfers/:id` | DBS-87 | `transfer-query.service.ts`: người gửi mọi trạng thái, người nhận khi COMPLETED | TC-87-07 (`transfer-status`), TC-159-03 (`auth-attacks`) |
+| `POST /v1/operator/accounts/:id/lock`, `unlock` | DBS-113 | không áp: quyền operator, không phải sở hữu của khách | — |
+
+**Đối chiếu DoD:** #1, #2, #3, #4 đạt theo bảng trên (AC-5.8 qua TC-61-03/TC-159-01). #5: PR #60 đã merge, CI xanh, bảng TC có trong PR; thiếu review độc lập trên GitHub, theo dõi ở BL-160 chung cho các PR đã merge.
+
+**Chưa làm:** không có transcript manual HTTP riêng cho ba bước M-86-HTTP-*; bằng chứng là test tự động ở bảng trên. BL-170 và BL-122 không còn dòng riêng trong BACKLOG trên `main` nên không có gì để đóng ở đó.
