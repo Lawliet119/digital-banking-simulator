@@ -1,11 +1,17 @@
 import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { setTimeout as wait } from 'node:timers/promises';
 import { DataSource } from 'typeorm';
+import request from 'supertest';
 import { TransactionService } from '@database/transaction.service';
 import { RedisClient, RedisMetrics } from '@libs/redis';
 import { SqsClient, type BatchResult } from '@libs/sqs';
 import { OutboxRelayService } from '@modules/outbox';
 import { RiskScoringConsumer } from '@modules/risk/risk-scoring.consumer';
+import { createLoopbackAdapter } from '@modules/risk/ai/openai-decisions';
+import { RiskAiService } from '@modules/risk/ai/risk-ai.service';
+import { checkLedgerInvariants } from '../support/invariants';
 import { startDepositApp } from '../support/deposit-app';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
 import {
@@ -100,7 +106,7 @@ describe('DBS-111 transfer → flag through the real relay and consumer loops', 
       queueUrl: riskUrl,
       make: (...args) => new FastPollConsumer(...args),
     });
-    app = await startDepositApp(db.url);
+    app = await startDepositApp(db.url, { fraud: true });
     fx = riskFixtures(app, await app.issuer.token('operator', { sub: randomUUID() }));
     relay.onApplicationBootstrap();
     parts.consumer.onApplicationBootstrap();
@@ -208,5 +214,151 @@ describe('DBS-111 transfer → flag through the real relay and consumer loops', 
         )
       )[0].n,
     ).toBe(1);
+  });
+
+  it('transfer → real queue → gated synthetic AI → operator review, without a duplicate decision', async () => {
+    await parts.consumer.onApplicationShutdown();
+    const calls: unknown[] = [];
+    const provider = createServer((req, res) => {
+      let body = '';
+      req.setEncoding('utf8');
+      req.on('data', chunk => {
+        body += String(chunk);
+      });
+      req.on('end', () => {
+        calls.push(JSON.parse(body));
+        res.writeHead(200, { 'content-type': 'application/json', 'x-request-id': 'synthetic-e2e' });
+        res.end(
+          JSON.stringify({
+            model: 'synthetic-response',
+            answers: [{ name: 'needs_operator_review', type: 'predicate', probability: 0.95 }],
+          }),
+        );
+      });
+    });
+    await new Promise<void>(resolve => provider.listen(0, '127.0.0.1', resolve));
+    try {
+      const aiConfig = {
+        provider: 'openai',
+        model: 'synthetic-model',
+        rubric: 'needs_operator_review: evaluate synthetic transfer',
+        threshold: 0.8,
+        weight: 45,
+        maxAdmissionDelayMs: 5000,
+        requestTimeoutMs: 3000,
+      };
+      await q(
+        `INSERT INTO risk_rule_sets(version,config)
+         SELECT 2,config || jsonb_build_object('mode','rules_with_external_ai','ai',$1::jsonb)
+         FROM risk_rule_sets WHERE version=1`,
+        [JSON.stringify(aiConfig)],
+      );
+      await q(
+        `INSERT INTO ai_gate_policy(singleton,revision,daily_limit,concurrent_limit)
+         VALUES(true,'synthetic-e2e',10,2)`,
+      );
+      const ai = new RiskAiService(
+        {
+          approved: true,
+          policyRevision: 'synthetic-e2e',
+          dailyRequestLimit: 10,
+          concurrentLimit: 2,
+          gateTimeoutMs: 1000,
+          apiKey: 'synthetic-test-only',
+        },
+        {
+          url: db.url,
+          ssl: false,
+          sslCaPath: undefined,
+          poolMax: 5,
+          lockTimeoutMs: 2000,
+          statementTimeoutMs: 5000,
+          idleInTransactionTimeoutMs: 10000,
+        },
+        createLoopbackAdapter(
+          `http://127.0.0.1:${(provider.address() as AddressInfo).port}/v1/decisions`,
+        ),
+      );
+      parts = buildRiskConsumer(source, {
+        ai,
+        sqs,
+        queueUrl: riskUrl,
+        make: (...args) => new FastPollConsumer(...args),
+      });
+      parts.consumer.onApplicationBootstrap();
+
+      const sender = await fx.customer('Khách tổng hợp A');
+      const recipient = await fx.customer('Khách tổng hợp B');
+      await fx.deposit(sender.accounts[0], '1000000');
+      const id = await fx.transfer(sender.token, sender.accounts[0], recipient.accounts[0], '1000');
+      await until(
+        async () => (await q('SELECT 1 FROM fraud_flags WHERE transfer_id=$1', [id])).length === 1,
+        'AI-only flag',
+      );
+      expect(
+        await q(
+          'SELECT rule_score,ai_applied_weight,ai_status FROM risk_decisions WHERE transfer_id=$1',
+          [id],
+        ),
+      ).toEqual([{ rule_score: 0, ai_applied_weight: 45, ai_status: 'SUCCEEDED' }]);
+      expect(calls).toHaveLength(1);
+      const body = calls[0] as { input: { content: { data: Record<string, unknown> }[] }[] };
+      expect(Object.keys(body.input[0].content[0].data)).toHaveLength(11);
+      expect(JSON.stringify(body)).not.toContain(id);
+      expect(JSON.stringify(body)).not.toContain(sender.accounts[0]);
+
+      const operator = await app.issuer.token('operator', { sub: randomUUID() });
+      const detail = await request(app.url)
+        .get(`/v1/operator/fraud-flags/${id}`)
+        .auth(operator, { type: 'bearer' })
+        .expect(200);
+      expect(detail.body).toMatchObject({
+        score: 45,
+        hits: [],
+        aiAssessment: { status: 'SUCCEEDED', probability: 0.95, model: 'synthetic-response' },
+      });
+      await request(app.url)
+        .get(`/v1/operator/fraud-flags/${id}`)
+        .auth(sender.token, { type: 'bearer' })
+        .expect(403);
+      await request(app.url)
+        .post(`/v1/operator/fraud-flags/${id}/review`)
+        .auth(operator, { type: 'bearer' })
+        .send({ decision: 'FALSE_POSITIVE' })
+        .expect(200);
+      await request(app.url)
+        .post(`/v1/operator/fraud-flags/${id}/review`)
+        .auth(operator, { type: 'bearer' })
+        .send({ decision: 'CONFIRMED_FRAUD' })
+        .expect(409);
+
+      const event = await eventFor(db.runner, id);
+      const copy = { ...event, eventId: randomUUID() };
+      await sqs.send(riskUrl, JSON.stringify(copy));
+      await until(
+        async () =>
+          (
+            await q("SELECT 1 FROM processed_events WHERE consumer='risk' AND event_id=$1", [
+              copy.eventId,
+            ])
+          ).length === 1,
+        'AI redelivery',
+      );
+      expect(calls).toHaveLength(1);
+      expect(
+        await q('SELECT count(*)::int AS n FROM risk_decisions WHERE transfer_id=$1', [id]),
+      ).toEqual([{ n: 1 }]);
+      expect(
+        await q(
+          "SELECT count(*)::int AS n FROM audit_log WHERE action='fraud_flag.review' AND target_id=$1",
+          [id],
+        ),
+      ).toEqual([{ n: 1 }]);
+      expect((await checkLedgerInvariants(db.runner)).violations).toEqual([]);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        provider.close(error => (error ? reject(error) : resolve())),
+      );
+    }
   });
 });
