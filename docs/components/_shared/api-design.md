@@ -1,6 +1,6 @@
 # Thiết kế REST API & Hợp đồng HTTP (`api-design`)
 
-> **Status:** Implemented (12/18 endpoints trên `main`; 6 endpoints UC-10/11/12 ở trạng thái thiết kế đã chốt) · **Owner:** cả nhóm · **Verified against code:** `2026-11-08` · **Cập nhật:** `2026-11-08`
+> **Status:** Implemented (17/18 mục của bảng §3 trên `main`; mục 18, UC-12, ở trạng thái thiết kế đã chốt, thuộc DBS-160) · **Owner:** cả nhóm · **Verified against code:** `2026-11-08` · **Cập nhật:** `2026-11-08`
 >
 > Tài liệu này là nơi tập trung đặc tả hợp đồng HTTP/REST API của toàn hệ thống Digital Banking Simulator (`APP_ROLE=api`), đồng bộ với [`docs/03_HIGH_LEVEL_ARCHITECTURE.md` §7](../../03_HIGH_LEVEL_ARCHITECTURE.md#7-api-tổng-quan), [`database-design.md`](database-design.md), [`event-contract.md`](event-contract.md) và cấu hình runtime trong [`backend/src/app.setup.ts`](../../../backend/src/app.setup.ts).
 
@@ -11,7 +11,7 @@
 ### 1.1. Phiên bản URI & Cổng giao tiếp
 - **URI Versioning:** Mọi endpoint nghiệp vụ đều mang tiền tố `/v1/...` (`VersioningType.URI, defaultVersion: '1'`).
 - **Ngoại lệ duy nhất (`VERSION_NEUTRAL`):** Hai probe sức khỏe cho Load Balancer là `GET /health/live` và `GET /health/ready` không mang tiền tố `/v1` để giữ đường dẫn cố định xuyên suốt các phiên bản API.
-- **OpenAPI / Swagger:** Khi chạy ở môi trường khác `production`, tài liệu Swagger UI được phục vụ tại `/docs` và JSON OpenAPI 3.0 tại `/docs-json` ([`setupSwagger`](../../../backend/src/app.setup.ts)).
+- **OpenAPI / Swagger:** Khi chạy ở môi trường khác `production`, tài liệu Swagger UI được phục vụ tại `/docs` và JSON OpenAPI 3.0 tại `/docs-json` ([`setupSwagger`](../../../backend/src/app.setup.ts)). Tài liệu được làm giàu bởi `enrichOpenApi` (DBS-137): response 401/403/429/503 dùng chung, extension `x-error-codes`, dòng «Vai trò … errorCode …» trong mô tả. Artifact `docs/deliverables/openapi.json` được test `openapi-completeness` so với `/docs-json`; sau khi đổi controller hoặc DTO, xuất lại bằng `OPENAPI_UPDATE=1 npm run test:db -- test/db/openapi-completeness.db-spec.ts` (hoặc `npm run openapi:export` khi API đang chạy). Không đặt `OPENAPI_UPDATE` trong CI.
 
 ### 1.2. Headers Chuẩn
 
@@ -94,7 +94,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 | `IDEMPOTENCY_KEY_REQUIRED` | `400` | Thiếu hoặc rỗng header `Idempotency-Key` trên `POST /v1/transfers` hoặc `POST /v1/operator/deposits`. | Không |
 | `IDEMPOTENCY_KEY_REUSED` | `422` | Gửi lại cùng `(userId, Idempotency-Key)` khi key còn được giữ (tối thiểu 7 ngày) nhưng khác endpoint hoặc khác nội dung body (`request_hash`). | Không |
 | `ACCOUNT_LIMIT_REACHED` | `409` | Khách hàng đã có đủ 3 tài khoản (tính cả `ACTIVE` và `LOCKED`) khi gọi `POST /v1/accounts`. | Không |
-| `UNAUTHENTICATED` | `401` | Thiếu header `Authorization: Bearer`, JWT sai cấu trúc, sai chữ ký, sai `iss`/`client_id`/`token_use`, hoặc lỗi kết nối khi tra cứu `users`. | Không |
+| `UNAUTHENTICATED` | `401` | Thiếu header `Authorization: Bearer`, JWT sai cấu trúc, sai chữ ký, sai `iss`/`client_id`/`token_use`. Lỗi kết nối khi tra cứu `users` **không** phải 401: trả `503 SERVICE_TEMPORARILY_UNAVAILABLE`. | Không |
 | `TOKEN_EXPIRED` | `401` | Access token có chữ ký đúng nhưng đã quá hạn `exp` (cho phép client dùng refresh token lấy token mới). | Không |
 | `SESSION_REVOKED` | `401` | Access token có `iat <= floor(epoch_seconds(users.sessions_revoked_at))`: token cùng giây cũng bị từ chối; Redis chỉ được dùng để từ chối sớm (không bao giờ cho qua), còn lại xác nhận SQL. Token giây sau chỉ qua bước kiểm phiên; quy tắc vai trò/sở hữu/trạng thái vẫn áp dụng ([công thức](../../03_HIGH_LEVEL_ARCHITECTURE.md#62-khóa-tài-khoản-và-thu-hồi-phiên-uc-11)). | Không |
 | `FORBIDDEN` | `403` | Người gọi đã xác thực nhưng không thuộc nhóm vai trò mà `@Roles(...)` yêu cầu. | Không |
@@ -104,7 +104,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 
 ---
 
-## 3. Ma trận Tổng hợp 18 Endpoints
+## 3. Ma trận Tổng hợp các Endpoint (18 mục)
 
 | # | Method & Path | Vai trò (`@Roles`) | UC | Rate Limit | Idempotency | Audit Action | Trạng thái trên `main` |
 |---|---|---|---|---|---|---|---|
@@ -122,10 +122,10 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 | 12 | `POST /v1/operator/deposits` | `operator` | UC-3 | `100/phút/IP` | Bắt buộc (`Idempotency-Key`) | `deposit.create` | **Implemented** ([DBS-60](../../features/DBS-60-operator-deposits.md)) |
 | 13 | `GET /v1/operator/accounts` | `operator` | UC-3, UC-11 | `100/phút/IP` | — | `operator.account.search` | **Implemented** ([DBS-88](../../features/DBS-88-operator-account-search.md)) |
 | 14 | `GET /v1/audit/entries` | `auditor` | UC-8 | `100/phút/IP` | — | `audit.search` | **Implemented** ([DBS-103](../../features/DBS-103-audit-search.md)) |
-| 15 | `POST /v1/operator/accounts/:id/lock` | `operator` | UC-11 | `100/phút/IP` | Idempotent theo trạng thái | `account.lock` | **Planned** (`docs/03` §6.2, §7) |
-| 16 | `POST /v1/operator/accounts/:id/unlock` | `operator` | UC-11 | `100/phút/IP` | Idempotent theo trạng thái | `account.unlock` | **Planned** (`docs/03` §6.2, §7) |
-| 17 | `GET /v1/operator/fraud-flags` (`+:transferId`, `POST .../review`) | `operator` | UC-10 | `100/phút/IP` | Chặn review lần 2 (`409`) | `fraud_flag.view` / `fraud_flag.review` | **Planned** ([`risk/02-architecture.md`](../risk/02-architecture.md)) |
-| 18 | `GET /v1/admin/risk-config` (`+POST .../versions`) | `admin` | UC-12 | `100/phút/IP` | Version tăng đơn điệu | `risk_config.create` | **Planned** ([`risk/02-architecture.md`](../risk/02-architecture.md)) |
+| 15 | `POST /v1/operator/accounts/:id/lock` | `operator` | UC-11 | `100/phút/IP` | Idempotent theo trạng thái | `account.lock` | **Implemented** (DBS-113, `docs/03` §6.2, §7) |
+| 16 | `POST /v1/operator/accounts/:id/unlock` | `operator` | UC-11 | `100/phút/IP` | Idempotent theo trạng thái | `account.unlock` | **Implemented** (DBS-113, `docs/03` §6.2, §7) |
+| 17 | `GET /v1/operator/fraud-flags` (`+:transferId`, `POST .../review`) | `operator` | UC-10 | `100/phút/IP` | Chặn review lần 2 (`409`) | `fraud_flag.view` / `fraud_flag.review` | **Implemented** (DBS-129/130) |
+| 18 | `GET /v1/admin/risk-config` (`+POST .../versions`) | `admin` | UC-12 | `100/phút/IP` | Version tăng đơn điệu | `risk_config.create` | **Planned**, DBS-160 ([`risk/02-architecture.md`](../risk/02-architecture.md)) |
 
 ---
 
@@ -440,7 +440,9 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 
 ---
 
-## 5. Đặc tả 6 Endpoints Đã Chốt Thiết kế (`Planned` — UC-10, UC-11, UC-12)
+## 5. Đặc tả endpoint UC-10, UC-11, UC-12 (UC-10 và UC-11 đã triển khai, UC-12 `Planned`)
+
+> Cập nhật DBS-137: lock/unlock (DBS-113) và fraud-flags (DBS-129/130) đã có trong `main`; chỉ UC-12 chưa triển khai (DBS-160). Đặc tả chính xác của phần đã triển khai là OpenAPI sinh từ app (`/docs-json`, `docs/deliverables/openapi.json`); phần dưới là thiết kế ban đầu.
 
 Các endpoint dưới đây đã được chốt hợp đồng trong [`docs/03_HIGH_LEVEL_ARCHITECTURE.md` §6.2, §6.5, §7](../../03_HIGH_LEVEL_ARCHITECTURE.md), [`docs/components/risk/02-architecture.md` §3.3](../risk/02-architecture.md#33-endpoint-http-chạy-ở-role-api) và [`FRAUD-API-01`](../../features/FRAUD-API-01-external-ai-decision.md):
 
