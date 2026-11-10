@@ -1,6 +1,6 @@
 # DBS-160 · API quản trị cấu hình fraud có phiên bản
 
-> **Trạng thái:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-160-risk-config-api` · **PR:** chưa tạo · **Nền:** `bd17728e24879e28280656926c208da872da8b9e`.
+> **Trạng thái:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-160-risk-config-api` · **PR:** [#131](https://github.com/Lawliet119/digital-banking-simulator/pull/131) · **Nền:** `bd17728e24879e28280656926c208da872da8b9e`.
 
 ## 1. Bối cảnh và G1
 
