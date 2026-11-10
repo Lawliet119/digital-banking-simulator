@@ -455,6 +455,8 @@ sequenceDiagram
 
 Trong một `TransactionService.run`, service INSERT audit.search (actor users.id, role auditor, server correlation, metadata{}) trước SELECT bằng cùng manager; chỉ trả page sau COMMIT. Lỗi không công bố entries. Response có Cache-Control no-store; không ghi raw filters/cursor vào audit hoặc log. Permission production và kiểm auditor trên endpoint ghi nghiệp vụ thật còn chờ DBS-119 và các task endpoint, xem BL-019; guard thu hồi phiên còn DBS-114/186 (BL-169).
 
+**Truy vết một giao dịch bằng một mã (AC-8.2, DBS-135).** Mã `correlationId` do server sinh ở request chuyển tiền; tra `?correlationId=<mã>` trả đúng các dòng `transfer` (yêu cầu và ghi sổ, cùng transaction với hai bút toán), `notification.sent` (thông báo, worker), `fraud.flagged` (cờ, worker) và `fraud_flag.review` (review của operator, ghi dưới mã của giao dịch gốc; mã của request review nằm ở `metadata.id`). Chuỗi chỉ gồm dòng audit nên kiểm toán viên không cần quyền đọc bảng nào khác. Index `audit_log_correlation_idx`; chứng cứ [DBS-135](features/DBS-135-trace-by-correlation-id.md) và TC-103-18.
+
 ```mermaid
 sequenceDiagram
     autonumber

@@ -1,0 +1,116 @@
+SHA: f974236  (last commit that changes code; branch feat/DBS-135-trace-by-correlation-id)
+Run: 2026-11-10T16:11:38Z  API=APP_ROLE=api node dist/main  worker=APP_ROLE=worker node dist/main  DB=PostgreSQL 17 (dbs135_manual)  queues=ElasticMQ  Valkey=compose
+
+## M-135-00 rule set in force
+ version | has_ai_block |                                        config_head                                         
+---------+--------------+--------------------------------------------------------------------------------------------
+       1 | f            | {"ml": {"enabled": false}, "mode": "rule_only", "rules": {"R1": {"weight": 30, "enabled": 
+(1 row)
+
+
+## M-135-01 onboard An and Binh, open CHECKING, operator deposits 21.000.000
+  -> HTTP 200  X-Correlation-Id: 33cf91c0-4c76-4d43-acf6-654a4a116a6d
+  -> {"id":"543f39d4-488a-4d9d-b5b4-6d5f98ce146d","fullName":"Tr?n Van An","createdAt":"2026-11-10T16:11:53.923Z"}
+  -> HTTP 200  X-Correlation-Id: 95e0b760-84e6-4c1c-8b0f-8b5a0c20661e
+  -> {"id":"bae7db82-80bc-4805-9aee-956ac0061250","fullName":"Nguy?n Th? B�nh","createdAt":"2026-11-10T16:11:54.314Z"}
+  -> HTTP 201  X-Correlation-Id: 8f560516-847b-466d-8cf0-093065dcfcda
+  -> {"id":"bf9c3419-51ff-4e55-b03c-3296f0419c03","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-10T16:11:54.697Z","updatedAt":"2026-11-10T16:11:54.697Z"}
+  -> HTTP 201  X-Correlation-Id: 19d714ce-a369-4d8f-b071-1269be62be38
+  -> {"id":"8b3609fb-96a7-434b-a7ba-2ba171955e6d","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-10T16:11:55.116Z","updatedAt":"2026-11-10T16:11:55.116Z"}
+  -> HTTP 201  X-Correlation-Id: 0a166036-54b3-4e29-a651-a712c72059c6
+  -> {"transferId":"6b39c5ae-0706-4fcd-bc4c-60898fb4b233","status":"COMPLETED"}
+
+## M-135-02 An transfers 20.000.000 to Binh, sending a client X-Correlation-Id of his own
+  -> HTTP 201  X-Correlation-Id: 2722de31-246c-4814-88aa-e94cbda72de6
+  -> {"transferId":"23a8b1bd-05c0-46b9-9984-6ddbd24558ed","status":"COMPLETED"}
+  client sent aaaaaaaa-0000-4000-8000-000000000001, server chose C=2722de31-246c-4814-88aa-e94cbda72de6 (different: yes)  transferId=23a8b1bd-05c0-46b9-9984-6ddbd24558ed
+
+## M-135-03 wait for the relay and both consumers, then psql by C
+ id |      action       | actor_role | outcome | target_type |                    metadata                    
+----+-------------------+------------+---------+-------------+------------------------------------------------
+  7 | transfer          | customer   | SUCCESS | transfer    | {"id": "8b3609fb-96a7-434b-a7ba-2ba171955e6d"}
+  8 | notification.sent | worker     | SUCCESS | transfer    | {"count": 2}
+  9 | fraud.flagged     | worker     | SUCCESS | transfer    | {"count": 2}
+(3 rows)
+
+
+## M-135-04 operator reviews the flag CONFIRMED_FRAUD
+  -> HTTP 200  X-Correlation-Id: 1767d2be-f777-4357-b275-1dbd7f785a31
+  -> {"transferId":"23a8b1bd-05c0-46b9-9984-6ddbd24558ed","reviewStatus":"CONFIRMED_FRAUD"}
+  review request id differs from C: yes
+
+## M-135-05 TIMED: the auditor receives C and looks the chain up
+  T0 (auditor has C) = 1794327117364 ms
+  -> HTTP 200  X-Correlation-Id: 8ac7e298-c622-480a-90d2-e4951c352b53
+  -> {"entries":[{"id":"10","occurredAt":"2026-11-10T16:11:57.131759Z","actorUserId":"d48d64e4-0d21-4c44-9bec-fab304538447","actorRole":"operator","action":"fraud_flag.review","outcome":"SUCCESS","target":{"type":"fraud_flag","id":"23a8b1bd-05c0-46b9-9984-6ddbd24558ed"},"correlationId":"2722de31-246c-4814-88aa-e94cbda72de6","metadata":{"id":"1767d2be-f777-4357-b275-1dbd7f785a31","reason":"CONFIRMED_FRAUD"}},{"id":"9","occurredAt":"2026-11-10T16:11:56.595626Z","actorUserId":null,"actorRole":"worker","action":"fraud.flagged","outcome":"SUCCESS","target":{"type":"transfer","id":"23a8b1bd-05c0-46b9-9984-6ddbd24558ed"},"correlationId":"2722de31-246c-4814-88aa-e94cbda72de6","metadata":{"count":2}},{"id":"8","occurredAt":"2026-11-10T16:11:56.563170Z","actorUserId":null,"actorRole":"worker","action":"notification.sent","outcome":"SUCCESS","target":{"type":"transfer","id":"23a8b1bd-05c0-46b9-9984
+  chain (newest first): fraud_flag.review | fraud.flagged | notification.sent | transfer   [4 lines]
+  T1 (full chain on screen) = 1794327117916 ms   elapsed T1-T0 = 552 ms   (target < 300000 ms = 5 min)
+  review line metadata.id == review request id? yes {"id":"1767d2be-f777-4357-b275-1dbd7f785a31","reason":"CONFIRMED_FRAUD"}
+
+## M-135-06 boundary: unknown code; customer and operator on the same endpoint
+  -> HTTP 200  X-Correlation-Id: 49985752-1c6a-4d0a-ae79-6c81faa6f7c1
+  -> {"entries":[],"nextCursor":null}
+  -> HTTP 403  X-Correlation-Id: d7a56215-eb69-4242-8235-c05dbad8983f
+  -> {"errorCode":"FORBIDDEN","type":"about:blank","title":"Forbidden","status":403,"detail":"The caller's role is not allowed to use this endpoint.","correlationId":"d7a56215-eb69-4242-8235-c05dbad8983f"}
+  -> HTTP 403  X-Correlation-Id: d2f595f6-ef58-4ce5-be37-8a27860f8351
+  -> {"errorCode":"FORBIDDEN","type":"about:blank","title":"Forbidden","status":403,"detail":"The caller's role is not allowed to use this endpoint.","correlationId":"d2f595f6-ef58-4ce5-be37-8a27860f8351"}
+
+## M-135-07 boundary: second review
+  -> HTTP 409  X-Correlation-Id: 03c5068b-33aa-47ed-886d-c7f10853207c
+  -> {"errorCode":"FLAG_ALREADY_REVIEWED","type":"about:blank","title":"Conflict","status":409,"detail":"Fraud flag already reviewed","correlationId":"03c5068b-33aa-47ed-886d-c7f10853207c"}
+  -> HTTP 200  X-Correlation-Id: ae2f14d5-2fc8-4728-a6ac-a57f846aa170
+  -> {"entries":[{"id":"10","occurredAt":"2026-11-10T16:11:57.131759Z","actorUserId":"d48d64e4-0d21-4c44-9bec-fab304538447","actorRole":"operator","action":"fraud_flag.review","outcome":"SUCCESS","target":{"type":"fraud_flag","id":"23a8b1bd-05c0-46b9-9984-6ddbd24558ed"},"correlationId":"2722de31-246c-4814-88aa-e94cbda72de6","metadata":{"id":"1767d2be-f777-4357-b275-1dbd7f785a31","reason":"CONFIRMED_FRAUD"}},{"id":"9","occurredAt":"2026-11-10T16:11:56.595626Z","actorUserId":null,"actorRole":"worker","action":"fraud.flagged","outcome":"SUCCESS","target":{"type":"transfer","id":"23a8b1bd-05c0-46b9-9984-6ddbd24558ed"},"correlationId":"2722de31-246c-4814-88aa-e94cbda72de6","metadata":{"count":2}},{"id":"8","occurredAt":"2026-11-10T16:11:56.563170Z","actorUserId":null,"actorRole":"worker","action":"notification.sent","outcome":"SUCCESS","target":{"type":"transfer","id":"23a8b1bd-05c0-46b9-9984
+  chain (newest first): fraud_flag.review | fraud.flagged | notification.sent | transfer   [4 lines]
+
+## index plan for the lookup SQL (DBS-103 TC-103-18 covers 50k rows; here the live table)
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
+ Limit  (cost=9.51..9.52 rows=2 width=16)
+   ->  Sort  (cost=9.51..9.52 rows=2 width=16)
+         Sort Key: occurred_at DESC, id DESC
+         ->  Bitmap Heap Scan on audit_log a  (cost=4.16..9.50 rows=2 width=16)
+               Recheck Cond: (correlation_id = '2722de31-246c-4814-88aa-e94cbda72de6'::uuid)
+               ->  Bitmap Index Scan on audit_log_correlation_idx  (cost=0.00..4.16 rows=2 width=0)
+
+## M-135-08a worker process stopped (API still up): deposit 21.000.000 more, An transfers 20.000.000 again
+  -> HTTP 201  X-Correlation-Id: 2e06368e-138e-453d-8623-4b9d01650b3b
+  -> {"transferId":"1335095d-4d8e-4c24-bab1-e0a05bc3fc24","status":"COMPLETED"}
+  -> HTTP 201  X-Correlation-Id: b5d33ada-fb57-4660-be1c-532ca0d129a2
+  -> {"transferId":"f44b5dd9-5b88-4666-b189-73f67913cf8f","status":"COMPLETED"}
+  second transfer: C2=b5d33ada-fb57-4660-be1c-532ca0d129a2 transferId=f44b5dd9-5b88-4666-b189-73f67913cf8f
+  lookup while the worker is down:
+  chain (newest first): transfer   [1 lines]
+ unpublished_outbox_events 
+---------------------------
+                         2
+(1 row)
+
+
+## M-135-08b worker restarted: the chain completes, nothing doubled
+  lookup after the restart:
+  chain (newest first): fraud.flagged | notification.sent | transfer   [3 lines]
+      action       | count 
+-------------------+-------
+ fraud.flagged     |     1
+ notification.sent |     1
+ transfer          |     1
+(3 rows)
+
+ notification_log_rows 
+-----------------------
+                     2
+(1 row)
+
+ unpublished_outbox_events 
+---------------------------
+                         0
+(1 row)
+
+
+## customers stored names (encoding check of the Windows shell)
+    full_name    
+-----------------
+ Tr?n Van An
+ Nguy?n Th? B�nh
+(2 rows)
+
