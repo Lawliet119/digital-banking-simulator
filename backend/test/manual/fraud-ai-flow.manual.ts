@@ -200,6 +200,9 @@ async function main(): Promise<void> {
     );
     assert.deepEqual((await checkLedgerInvariants(runner)).violations, []);
     console.log(
+      `M-RSK-02 IDs (synthetic): transferId=${id}; correlationId=${String(original.correlationId)}`,
+    );
+    console.log(
       'M-RSK-02 PASS: HTTP transfer → outbox → ElasticMQ → worker → synthetic AI → durable decision and AI-only flag',
     );
     console.log(
