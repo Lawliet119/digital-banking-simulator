@@ -55,10 +55,9 @@ const DAY = 24 * HOUR;
 export function factQueries(
   fromId: string,
   toId: string,
-  transferId: string,
   occMs: number,
   options: { windowMs?: number; perTxLimit?: bigint } = {},
-): Record<'window' | 'history' | 'reverse' | 'outflow' | 'newRecipients' | 'isNew', Query> {
+): Record<'window' | 'history' | 'reverse' | 'outflow' | 'newRecipients', Query> {
   const windowMs = options.windowMs ?? HOUR;
   const until = iso(occMs + 1); // created_at < occ + 1 ms  <=>  created_at, in ms, <= occ
   return {
@@ -113,14 +112,6 @@ export function factQueries(
                 AND p.created_at < date_trunc('milliseconds', w.first_at))`,
       params: [fromId, iso(occMs - windowMs + 1), until],
     },
-    isNew: {
-      sql: `SELECT NOT EXISTS (
-              SELECT 1 FROM v_transfer_facts
-              WHERE from_account_id = $1 AND to_account_id = $2 AND ${COMPLETED}
-                AND created_at >= $3::timestamptz AND created_at < $4::timestamptz AND id <> $5
-            ) AS is_new`,
-      params: [fromId, toId, iso(occMs - 30 * DAY), iso(occMs), transferId],
-    },
   };
 }
 
@@ -132,6 +123,47 @@ export class TransferFacts {
   private async rows(query: Query): Promise<Row[]> {
     return (await this.db.query(query.sql, query.params)) as Row[];
   }
+  /** Aggregate R1 without materializing a busy account's full hour in the worker. */
+  async velocity(
+    accountId: string,
+    transferId: string,
+    occMs: number,
+  ): Promise<{
+    tenMinutes: number;
+    hour: number;
+    includesCurrent: boolean;
+  }> {
+    const [row] = await this.rows({
+      sql: `SELECT count(*)::int AS hour,
+                   (count(*) FILTER (WHERE created_at >= $4::timestamptz))::int AS ten,
+                   COALESCE(bool_or(id = $5::uuid), false) AS current
+            FROM v_transfer_facts
+            WHERE from_account_id = $1 AND ${COMPLETED}
+              AND created_at >= $2::timestamptz AND created_at < $3::timestamptz`,
+      params: [
+        accountId,
+        iso(occMs - HOUR + 1),
+        iso(occMs + 1),
+        iso(occMs - 600_000 + 1),
+        transferId,
+      ],
+    });
+    return {
+      tenMinutes: Number(row.ten),
+      hour: Number(row.hour),
+      includesCurrent: row.current === true,
+    };
+  }
+
+  /** Aggregate the exact R5 novelty query; no recipient array crosses the connection. */
+  async newRecipientCount(accountId: string, occMs: number): Promise<number> {
+    const recipients = factQueries(accountId, accountId, occMs).newRecipients;
+    const [row] = await this.rows({
+      sql: `SELECT count(*)::int AS n FROM (${recipients.sql}) recipients`,
+      params: recipients.params,
+    });
+    return Number(row.n);
+  }
 
   /** Completed transfers from `accountId` in `(occ - windowMs, occ]`. */
   async windowTransfers(
@@ -139,7 +171,7 @@ export class TransferFacts {
     occMs: number,
     windowMs: number,
   ): Promise<TransferStamp[]> {
-    const q = factQueries(accountId, accountId, accountId, occMs, { windowMs }).window;
+    const q = factQueries(accountId, accountId, occMs, { windowMs }).window;
     return (await this.rows(q)).map(r => ({ id: r.id as string, atMs: Number(r.at_ms) }));
   }
 
@@ -149,27 +181,16 @@ export class TransferFacts {
     occMs: number,
     windowMs: number,
   ): Promise<RecipientStamp[]> {
-    const q = factQueries(accountId, accountId, accountId, occMs, { windowMs }).newRecipients;
+    const q = factQueries(accountId, accountId, occMs, { windowMs }).newRecipients;
     return (await this.rows(q)).map(r => ({
       recipientId: r.recipient as string,
       atMs: Number(r.at_ms),
     }));
   }
 
-  /** True when `fromId` did not pay `toId` in the 30 days before `occ` (the current transfer aside). */
-  async isNewRecipient(
-    fromId: string,
-    toId: string,
-    transferId: string,
-    occMs: number,
-  ): Promise<boolean> {
-    const [row] = await this.rows(factQueries(fromId, toId, transferId, occMs).isNew);
-    return row.is_new === true;
-  }
-
   /** Completed transfers strictly before `occ`, in the 30 days before it. */
   async history(accountId: string, occMs: number): Promise<History> {
-    const [row] = await this.rows(factQueries(accountId, accountId, accountId, occMs).history);
+    const [row] = await this.rows(factQueries(accountId, accountId, occMs).history);
     return {
       count: row.n === null || row.n === undefined ? 0 : Number(row.n),
       median2: (row.median2 as string | null | undefined) ?? null,
@@ -178,15 +199,13 @@ export class TransferFacts {
 
   /** ISO time (ms) of the latest completed `toId -> fromId` transfer in `[occ - 1h, occ)`. */
   async reverseTransfer(fromId: string, toId: string, occMs: number): Promise<string | null> {
-    const [row] = await this.rows(factQueries(fromId, toId, fromId, occMs).reverse);
+    const [row] = await this.rows(factQueries(fromId, toId, occMs).reverse);
     return (row.at as string | null | undefined) ?? null;
   }
 
   /** Recipients, total and small transfers sent in `(occ - 24h, occ]`, the current one included. */
   async outflow24h(accountId: string, occMs: number, perTxLimit: bigint): Promise<Outflow> {
-    const [row] = await this.rows(
-      factQueries(accountId, accountId, accountId, occMs, { perTxLimit }).outflow,
-    );
+    const [row] = await this.rows(factQueries(accountId, accountId, occMs, { perTxLimit }).outflow);
     return {
       distinctRecipients: Number(row.recipients),
       sum: row.total as string,

@@ -73,7 +73,7 @@
    - `type = 'DEPOSIT'` → `null` (không chấm).
    - **Dedup sớm** (tối ưu, không phải bảo đảm): đã có `processed_events('risk', eventId)` hoặc `risk_decisions(transferId)` thì trả `null`, không đọc Redis hay feature.
    - `ruleSet = RuleSetRepository.current()`: Redis `cfg:risk:latest:v2`, rồi SQL.
-   - `features = OnlineFeatureProvider.extract(event)`: Redis R1/R5 và SQL `v_transfer_facts`.
+   - `features = OnlineFeatureProvider.extract(event)`: 5 SELECT SQL qua `v_transfer_facts`; R1/R5 aggregate không phụ thuộc thứ tự giao event.
    - Chấm bằng `ScoringService.score(event, features, config)` theo quyết định G1-2. `config` được chọn như sau:
      - `ruleSet.aiConfigInvalid`: truyền `ruleSet` nguyên vẹn; kết quả là `rules_with_external_ai` / `CONFIG_INVALID`.
      - Mode AI với khối `ai` hợp lệ: truyền `{ ...ruleSet, mode: 'rule_only' }`; nếu truyền mode thật mà không có assessment, kết quả `UNAVAILABLE` sẽ vi phạm CHECK `mode_metadata` (23514).
@@ -82,7 +82,7 @@
      Cột `mode` và `ai_status` của decision **lấy từ kết quả** (`result.mode`, `result.aiStatus`).
    - `snapshot = toAiFeatureInput(event, features)` (allowlist FRAUD-API-01 §2.3).
    - Lỗi ở đây (luật ném lỗi, SQL feature lỗi, cấu hình hỏng ngoài khối `ai.*`) làm message không được ack. `ConsumerBase` retry có backoff rồi đẩy DLQ ở lần nhận thứ 5 (ADR-14, BL-046).
-   - **Ghi Redis trong `prepare`:** provider `ZADD` member là `transferId` (R1) hoặc tài khoản nhận (R5). Nếu event sau đó thua claim hoặc rollback, member vẫn còn. Điều này không sai: cùng member không đếm hai lần, và transfer đó đã commit thật trong `v_transfer_facts`.
+   - Provider không ghi Redis; SQL/luật lỗi propagate để consumer retry, không trả feature thiếu.
 3. **`apply`, trong một transaction.** `ConsumerBase` đã claim `processed_events('risk', eventId)` ngay trước.
    - `prepared = null` → không làm gì, chỉ commit claim dedup.
    - **Claim decision**, không chỉ định target (BL-224):
@@ -118,7 +118,7 @@
 - Hai `eventId` khác nhau cho cùng transfer chạy song song: bên thua claim `risk_decisions` nhận 0 dòng và chỉ commit dòng dedup.
 - PK `fraud_flags` là lớp chặn cuối.
 
-**Khởi động (BL-205 mục 8):** `RiskWorkerModule` gọi `provider.invalidateCounters()` ngay khi dựng provider, tức trước khi bất kỳ vòng lặp nào chạy. Lần `extract` đầu tăng `risk:gen`, nên mọi bộ đếm Redis cũ phải nạp lại từ SQL.
+**Khởi động:** `RiskWorkerModule` dựng `OnlineFeatureProvider({ facts, perTxLimit })`; không còn cache counter hay `invalidateCounters()`. Redis vẫn dùng cho `RuleSetRepository`.
 
 **Khách không thấy cờ (AC-10.2):** không API khách nào đọc các bảng này; log không mang lời giải thích.
 
@@ -134,7 +134,6 @@
     - Đổi chữ ký `apply(event, manager, prepared?: unknown)` và `onCommitted(event, prepared?: unknown)`.
     - `process()` gọi `prepare` trước `tx.run`.
     - Người gọi (grep): `NotificationConsumer` và các subclass trong test (`correlation-chain`, `consumer-base.*`). Tham số thêm là tùy chọn nên chữ ký cũ vẫn hợp lệ.
-  - `OnlineFeatureProvider.invalidateCounters(): void` (mới).
   - `RiskScoringConsumer` có `protected earlyDedup(event): Promise<boolean>`, để test thay bằng stub và chạm nhánh thua claim.
 - **DI (`RiskWorkerModule`):**
   - imports: `ConfigModule.forFeature(sqsConfig)`, `ConfigModule.forFeature(limitsConfig)`, `SqsModule`, `RedisModule`, `AuditModule`.
@@ -142,7 +141,7 @@
     - `RiskMetrics`;
     - `TransferFacts` (`DataSource`);
     - `RuleSetRepository` (`{ redis, db: DataSource, metrics }`);
-    - `OnlineFeatureProvider` (`{ facts, redis, perTxLimit: limits.transfer.perTx, metrics }`, kèm `invalidateCounters()`);
+    - `OnlineFeatureProvider` (`{ facts, perTxLimit: limits.transfer.perTx }`);
     - `ScoringService`;
     - `RiskScoringConsumer`.
 - **Ranh giới transaction:**
@@ -161,7 +160,7 @@ sequenceDiagram
   Q->>C: TransferCompleted
   C->>DB: dedup sớm (processed_events / risk_decisions)
   C->>R: cfg:risk:latest:v2 (miss/lỗi → SQL)
-  C->>R: R1/R5 (lỗi/lạnh → SQL v_transfer_facts)
+  C->>DB: 5 SELECT feature qua v_transfer_facts
   C->>C: ScoringService.score + snapshot allowlist
   C->>DB: BEGIN
   C->>DB: INSERT processed_events ON CONFLICT DO NOTHING
@@ -195,7 +194,7 @@ Lớp db: PG thật. Dữ liệu tạo bằng HTTP thật (`startDepositApp`: m�
 | TC-111-10 | DoD #1 | db | Audit ném lỗi (spy) → rollback toàn bộ: không decision, cờ, hit hay `processed_events` |
 | TC-111-11a | QĐ G1-2, BL-188 | db, **file riêng** `risk-scoring-ai-mode.db-spec.ts` (`risk_rule_sets` append-only: phiên bản mới sẽ ảnh hưởng các test khác cùng database) | Phiên bản luật mode AI với khối `ai` hỏng → decision `rules_with_external_ai` / `CONFIG_INVALID`, weight 0; cờ vẫn tạo theo điểm luật |
 | TC-111-11b | QĐ G1-2, DoD #9 | db, cùng file riêng | Phiên bản luật mode AI với khối `ai` hợp lệ → decision `rule_only` / `DISABLED` được chèn (không `23514`); `warn` được log |
-| TC-111-12 | BL-205 (8) | unit | `invalidateCounters()` rồi `extract` → `incr('risk:gen')` được gọi trước mọi `zadd`/`lookup`; module dựng provider ở trạng thái đã invalidate |
+| TC-111-12 | thay BL-205 (8) | unit + PG services | Mỗi extract đọc SQL aggregate; warm R1/R5 vẫn tính commit chưa giao event; replay lịch sử không làm mất recipient |
 | TC-111-13 | DoD #3, BL-202 | services (PG + ElasticMQ + Valkey thật; HTTP thật bằng `startDepositApp`; **vòng lặp thật** của `OutboxRelayService` và `RiskScoringConsumer` khởi động bằng `onApplicationBootstrap()` với `APP_ROLE=both`; consumer là subclass test override `consumeOnce(waitTimeSeconds = 1)` (vòng lặp gọi `consumeOnce()` không đối số) nên long poll 1 giây, để `stop()` trong teardown chờ tối đa ~1 giây; chạy như một bước riêng trong job `e2e` của `ci.yml`) | 10 nguồn theo fixture AC-9.1, chuyển cách nhau ~300 ms trong khi relay và consumer đang chạy vòng lặp của chúng → 10 cờ. In p50/p95/max của `fraud_flags.created_at − transfers.created_at`; assert p95 < 5 s. `audit_log.correlation_id` = `transfers.correlation_id`. Gửi lại payload của một transfer vào `risk-events` → không thêm cờ |
 | TC-111-14 | DoD #1 | unit | `ConsumerBase`: `prepare` chạy trước `tx.run` và ngoài transaction context; kết quả tới `apply` và `onCommitted`; subclass không override vẫn chạy như cũ |
 | TC-111-15 | DoD #4, #8 | db (LOGIN `dbs_worker` thật) | Consumer với `TransactionService` và `DataSource` của `dbs_worker` xử lý fixture AC-9.1 → ghi đủ, không `42501`. `dbs_worker` UPDATE/DELETE `fraud_flags`, `risk_decisions` → `42501` |

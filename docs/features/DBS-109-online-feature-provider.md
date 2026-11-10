@@ -1,3 +1,5 @@
+> **Cập nhật 2026-11-10:** Thiết kế Redis bên dưới là lịch sử, đã thay bằng SQL-authoritative. `OnlineFeatureProvider({ facts, perTxLimit })` chạy 5 SELECT qua `v_transfer_facts` cho mỗi extract; R1/R5 là aggregate, không tải toàn bộ hàng vào worker. Không còn `WindowCounter`, coverage/generation hay `invalidateCounters()`. Redis và metric cấu hình luật vẫn giữ nguyên. Xem [bản sửa thứ tự giao event](BUG-20261110-fraud-feature-order.md).
+
 # DBS-109 · OnlineFeatureProvider: bộ đếm Redis cho R1/R5 và đường dự phòng SQL
 
 > **Status:** Implemented (G1–G4 agent tự duyệt) · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-109-online-feature-provider` · **PR:** — · **Cập nhật:** 2026-11-09

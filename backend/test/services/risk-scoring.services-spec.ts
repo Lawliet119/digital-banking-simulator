@@ -100,7 +100,6 @@ describe('DBS-111 transfer → flag through the real relay and consumer loops', 
       queueUrl: riskUrl,
       make: (...args) => new FastPollConsumer(...args),
     });
-    parts.provider.invalidateCounters(); // as RiskWorkerModule does when it builds the provider
     app = await startDepositApp(db.url);
     fx = riskFixtures(app, await app.issuer.token('operator', { sub: randomUUID() }));
     relay.onApplicationBootstrap();

@@ -125,7 +125,6 @@ describe('DBS-124 worker stop, crash and restart (real PostgreSQL, Valkey, Elast
       notificationQueueUrl: notificationUrl,
     });
     const parts = buildRiskConsumer(source, { redis, sqs, queueUrl: riskUrl, make });
-    parts.provider.invalidateCounters(); // what RiskWorkerModule does when a process starts
     relay.onApplicationBootstrap();
     parts.consumer.onApplicationBootstrap();
     const worker = { relay, parts };

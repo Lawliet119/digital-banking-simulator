@@ -2,6 +2,8 @@
 
 > **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-11-07
 
+Sửa lỗi [feature fraud theo commit/event-time](BUG-20261110-fraud-feature-order.md): R1/R5 SQL-authoritative, regression giao event đảo thứ tự; chưa chạy xác minh worktree tích hợp, chưa đo 120 TPS.
+
 Mỗi task implement trên board (tính năng, sửa lỗi, hạ tầng, test) có **một file** ở đây: `DBS-<n>-<slug>.md`. File được viết trước khi code và hoàn tất khi bàn giao, theo skill [`dbs-delivering-task`](../../.claude/skills/dbs-delivering-task/SKILL.md) và mẫu [`feature-doc.md`](../../.claude/skills/dbs-delivering-task/templates/feature-doc.md).
 
 | Mục | Nội dung | Viết ở phase |
