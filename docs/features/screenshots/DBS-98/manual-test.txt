@@ -1,0 +1,166 @@
+98cdb309c51d0384ffbf21b2714eca586c30a087
+
+# Manual Test Execution Output - DBS-98 Concurrency
+# Date: 2026-11-10
+
+$ npm run test:db -- transfer-concurrency.db-spec.ts
+
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js transfer-concurrency.db-spec.ts
+
+  console.log
+    {"scenario":"DBS-99","round":1,"responses":50,"hotBalance":"25000","invariants":{"status":"PASS","totals":{"debit":"550000","credit":"550000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":2,"responses":50,"hotBalance":"50000","invariants":{"status":"PASS","totals":{"debit":"600000","credit":"600000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":3,"responses":50,"hotBalance":"75000","invariants":{"status":"PASS","totals":{"debit":"650000","credit":"650000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":4,"responses":50,"hotBalance":"100000","invariants":{"status":"PASS","totals":{"debit":"700000","credit":"700000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":5,"responses":50,"hotBalance":"125000","invariants":{"status":"PASS","totals":{"debit":"750000","credit":"750000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":6,"responses":50,"hotBalance":"150000","invariants":{"status":"PASS","totals":{"debit":"800000","credit":"800000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":7,"responses":50,"hotBalance":"175000","invariants":{"status":"PASS","totals":{"debit":"850000","credit":"850000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":8,"responses":50,"hotBalance":"200000","invariants":{"status":"PASS","totals":{"debit":"900000","credit":"900000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":9,"responses":50,"hotBalance":"225000","invariants":{"status":"PASS","totals":{"debit":"950000","credit":"950000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-99","round":10,"responses":50,"hotBalance":"250000","invariants":{"status":"PASS","totals":{"debit":"1000000","credit":"1000000","balance":"0"},"violations":[]}}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:156:17)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.6","round":1,"dailySent":"195000000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:206:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.6","round":2,"dailySent":"195000000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:206:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.6","round":3,"dailySent":"195000000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:206:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.6","round":4,"dailySent":"195000000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:206:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.6","round":5,"dailySent":"195000000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:206:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.6","round":6,"dailySent":"195000000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:206:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.6","round":7,"dailySent":"195000000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:206:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.6","round":8,"dailySent":"195000000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:206:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.6","round":9,"dailySent":"195000000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:206:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.6","round":10,"dailySent":"195000000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:206:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.2","round":1,"srcBalance":"0","destBalance":"50000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:250:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.2","round":2,"srcBalance":"0","destBalance":"50000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:250:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.2","round":3,"srcBalance":"0","destBalance":"50000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:250:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.2","round":4,"srcBalance":"0","destBalance":"50000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:250:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.2","round":5,"srcBalance":"0","destBalance":"50000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:250:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.2","round":6,"srcBalance":"0","destBalance":"50000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:250:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.2","round":7,"srcBalance":"0","destBalance":"50000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:250:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.2","round":8,"srcBalance":"0","destBalance":"50000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:250:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.2","round":9,"srcBalance":"0","destBalance":"50000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:250:15)
+
+  console.log
+    {"scenario":"DBS-98-AC-5.2","round":10,"srcBalance":"0","destBalance":"50000","invariants":"PASS"}
+
+      at Object.<anonymous> (test/db/transfer-concurrency.db-spec.ts:250:15)
+
+Test Suites: 1 passed, 1 total
+Tests:       13 passed, 13 total
+Snapshots:   0 total
+Time:        9.614 s, estimated 10 s
+Ran all test suites matching transfer-concurrency.db-spec.ts.
