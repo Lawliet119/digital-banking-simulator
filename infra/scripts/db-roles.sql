@@ -66,6 +66,7 @@ GRANT SELECT, INSERT ON audit_log TO dbs_api;
 GRANT SELECT ON fraud_flags TO dbs_api;
 GRANT UPDATE (review_status, reviewed_by, reviewed_at, review_note) ON fraud_flags TO dbs_api;
 GRANT SELECT ON fraud_rule_hits TO dbs_api;
+GRANT SELECT ON v_transfer_facts TO dbs_api;
 GRANT SELECT, INSERT ON risk_rule_sets TO dbs_api;
 GRANT SELECT ON reconciliation_runs TO dbs_api;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO dbs_api;

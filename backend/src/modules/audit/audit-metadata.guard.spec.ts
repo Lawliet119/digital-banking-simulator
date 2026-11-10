@@ -10,6 +10,8 @@ describe('assertValidMetadata (DBS-56)', () => {
       ['id only', { id: '11111111-1111-1111-1111-111111111111' }],
       ['reason from ErrorCode', { reason: ErrorCode.ACCOUNT_NOT_ACTIVE }],
       ['reason from AuditReason', { reason: AuditReason.NOT_OWNER }],
+      ['fraud confirmed', { reason: AuditReason.FRAUD_CONFIRMED }],
+      ['fraud false positive', { reason: AuditReason.FRAUD_FALSE_POSITIVE }],
       ['count zero', { count: 0 }],
       ['all three valid fields', { id: 'abc123', reason: AuditReason.NO_PERMISSION, count: 3 }],
     ])('%s', (_label, metadata) => {

@@ -173,7 +173,9 @@ export function auditInsert(transfer: TransferFact) {
 }
 
 /** Own cluster: no role credential/GRANT mutation can affect Compose or Jest's global server. */
-export async function createRolePermissionsFixture(): Promise<RolePermissionsFixture> {
+export async function createRolePermissionsFixture(
+  options: { fraud?: boolean } = {},
+): Promise<RolePermissionsFixture> {
   let container: StartedPostgreSqlContainer | undefined;
   let app: Awaited<ReturnType<typeof startDepositApp>> | undefined;
   const sources: DataSource[] = [];
@@ -230,7 +232,7 @@ export async function createRolePermissionsFixture(): Promise<RolePermissionsFix
       worker = await connect(urls.dbs_worker);
     await assertRuntimeRole(api, 'dbs_api');
     await assertRuntimeRole(worker, 'dbs_worker');
-    app = await startDepositApp(urls.dbs_api);
+    app = await startDepositApp(urls.dbs_api, { fraud: options.fraud });
     const httpApp = app;
     const post = async (
       path: string,
