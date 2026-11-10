@@ -8,7 +8,8 @@ import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { SqsClient, type BatchResult } from '@libs/sqs';
 import { OutboxRelayService } from '@modules/outbox';
-import { createLoopbackAdapter } from '@modules/risk/ai/openai-decisions';
+import { assess, createLoopbackAdapter } from '@modules/risk/ai/openai-decisions';
+import { REVIEW_RUBRIC } from '@modules/risk/ai/rubric';
 import { RiskAiService } from '@modules/risk/ai/risk-ai.service';
 import { RiskScoringConsumer } from '@modules/risk/risk-scoring.consumer';
 import { startDepositApp, type DepositApp } from '../support/deposit-app';
@@ -38,6 +39,9 @@ async function until(check: () => Promise<boolean>, label: string): Promise<void
 }
 
 async function main(): Promise<void> {
+  const live = process.argv.includes('--live-openai');
+  const apiKey = live ? process.env.OPENAI_API_KEY : 'synthetic-test-only';
+  if (!apiKey) throw new Error('OPENAI_API_KEY is required for the live synthetic test');
   const saved = {
     APP_ROLE: process.env.APP_ROLE,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
@@ -78,32 +82,36 @@ async function main(): Promise<void> {
     });
     app = await startDepositApp(db.url, { fraud: true });
     const fx = riskFixtures(app, await app.issuer.token('operator', { sub: randomUUID() }));
-    provider = createServer((req, res) => {
-      req.resume();
-      req.on('end', () => {
-        calls++;
-        res.writeHead(200, {
-          'content-type': 'application/json',
-          'x-request-id': 'synthetic-manual',
+    let assessor = assess;
+    if (!live) {
+      provider = createServer((req, res) => {
+        req.resume();
+        req.on('end', () => {
+          calls++;
+          res.writeHead(200, {
+            'content-type': 'application/json',
+            'x-request-id': 'synthetic-manual',
+          });
+          res.end(
+            JSON.stringify({
+              model: 'synthetic-response',
+              answers: [{ name: 'needs_operator_review', type: 'predicate', probability: 0.95 }],
+            }),
+          );
         });
-        res.end(
-          JSON.stringify({
-            model: 'synthetic-response',
-            answers: [{ name: 'needs_operator_review', type: 'predicate', probability: 0.95 }],
-          }),
-        );
       });
-    });
-    await new Promise<void>(resolve => provider!.listen(0, '127.0.0.1', resolve));
-    const port = (provider.address() as AddressInfo).port;
+      await new Promise<void>(resolve => provider!.listen(0, '127.0.0.1', resolve));
+      const port = (provider.address() as AddressInfo).port;
+      assessor = createLoopbackAdapter(`http://127.0.0.1:${port}/v1/decisions`);
+    }
     const aiConfig = {
       provider: 'openai',
-      model: 'synthetic-model',
-      rubric: 'needs_operator_review: evaluate synthetic transfer',
-      threshold: 0.8,
+      model: live ? 'gpt-6-luna' : 'synthetic-model',
+      rubric: live ? REVIEW_RUBRIC : 'needs_operator_review: evaluate synthetic transfer',
+      threshold: live ? 0.5 : 0.8,
       weight: 45,
       maxAdmissionDelayMs: 5000,
-      requestTimeoutMs: 3000,
+      requestTimeoutMs: live ? 30000 : 3000,
     };
     await q(
       `INSERT INTO risk_rule_sets(version,config)
@@ -119,8 +127,8 @@ async function main(): Promise<void> {
         policyRevision: 'synthetic-manual',
         dailyRequestLimit: 10,
         concurrentLimit: 2,
-        gateTimeoutMs: 1000,
-        apiKey: 'synthetic-test-only',
+        gateTimeoutMs: live ? 3000 : 1000,
+        apiKey,
       },
       {
         url: db.url,
@@ -131,7 +139,7 @@ async function main(): Promise<void> {
         statementTimeoutMs: 5000,
         idleInTransactionTimeoutMs: 10000,
       },
-      createLoopbackAdapter(`http://127.0.0.1:${port}/v1/decisions`),
+      assessor,
     );
     parts = buildRiskConsumer(source, {
       ai,
@@ -143,25 +151,40 @@ async function main(): Promise<void> {
     parts.consumer.onApplicationBootstrap();
     const sender = await fx.customer('Khách tổng hợp A');
     const recipient = await fx.customer('Khách tổng hợp B');
-    await fx.deposit(sender.accounts[0], '1000000');
-    const id = await fx.transfer(sender.token, sender.accounts[0], recipient.accounts[0], '1000');
+    await fx.deposit(sender.accounts[0], live ? '12000000' : '1000000');
+    const id = await fx.transfer(
+      sender.token,
+      sender.accounts[0],
+      recipient.accounts[0],
+      live ? '11000000' : '1000',
+    );
     await until(
       async () => (await q('SELECT 1 FROM fraud_flags WHERE transfer_id=$1', [id])).length === 1,
       'flag',
     );
-    assert.deepEqual(
-      await q(
-        'SELECT rule_score,ai_applied_weight,ai_status FROM risk_decisions WHERE transfer_id=$1',
-        [id],
-      ),
-      [{ rule_score: 0, ai_applied_weight: 45, ai_status: 'SUCCEEDED' }],
+    const [decision] = await q(
+      `SELECT rule_score,ai_applied_weight,ai_status,probability,requested_model,response_model
+       FROM risk_decisions WHERE transfer_id=$1`,
+      [id],
     );
-    assert.equal(calls, 1);
+    assert.equal(decision.ai_status, 'SUCCEEDED');
+    if (live) {
+      assert.equal(decision.rule_score, 65);
+      assert.equal(decision.requested_model, 'gpt-6-luna');
+      assert.equal(decision.response_model, 'gpt-6-luna');
+      assert.ok(Number.isFinite(decision.probability));
+      assert.ok(decision.probability >= 0 && decision.probability <= 1);
+      assert.equal(decision.ai_applied_weight, decision.probability >= aiConfig.threshold ? 45 : 0);
+    } else {
+      assert.equal(decision.rule_score, 0);
+      assert.equal(decision.ai_applied_weight, 45);
+      assert.equal(calls, 1);
+    }
     const operator = await app.issuer.token('operator', { sub: randomUUID() });
     const root = `/v1/operator/fraud-flags/${id}`;
     const detail = await request(app.url).get(root).auth(operator, { type: 'bearer' }).expect(200);
-    assert.equal(detail.body.score, 45);
-    assert.deepEqual(detail.body.hits, []);
+    assert.equal(detail.body.score, decision.rule_score + decision.ai_applied_weight);
+    if (!live) assert.deepEqual(detail.body.hits, []);
     assert.equal(detail.body.aiAssessment.status, 'SUCCEEDED');
     await request(app.url).get(root).auth(sender.token, { type: 'bearer' }).expect(403);
     await request(app.url)
@@ -186,7 +209,14 @@ async function main(): Promise<void> {
         ).length === 1,
       'duplicate',
     );
-    assert.equal(calls, 1);
+    if (!live) assert.equal(calls, 1);
+    await until(async () => {
+      const [{ n }] = await q(
+        'SELECT count(*)::int AS n FROM ai_gate_permits WHERE released_at IS NULL',
+      );
+      return n === 0;
+    }, 'gate release');
+    assert.equal((await q('SELECT requests::int AS n FROM ai_gate_days'))[0].n, 1);
     assert.deepEqual(
       await q('SELECT count(*)::int AS n FROM risk_decisions WHERE transfer_id=$1', [id]),
       [{ n: 1 }],
@@ -203,13 +233,17 @@ async function main(): Promise<void> {
       `M-RSK-02 IDs (synthetic): transferId=${id}; correlationId=${String(original.correlationId)}`,
     );
     console.log(
-      'M-RSK-02 PASS: HTTP transfer → outbox → ElasticMQ → worker → synthetic AI → durable decision and AI-only flag',
+      `M-RSK-02 PASS: HTTP transfer → outbox → ElasticMQ → worker → ${live ? 'OpenAI thật' : 'synthetic AI'} → durable decision and flag`,
     );
+    if (live)
+      console.log(
+        `M-RSK-02 OpenAI: model=${decision.response_model}; probability=${decision.probability}; ruleScore=${decision.rule_score}; aiWeight=${decision.ai_applied_weight}`,
+      );
     console.log(
       'M-RSK-02 PASS: operator detail 200; customer 403; review 200 then 409; redelivery one decision/one provider call',
     );
     console.log(
-      'M-RSK-02 PASS: review audit committed; ledger invariants unchanged; no external provider request',
+      `M-RSK-02 PASS: gate one request/released; review audit committed; ledger invariants unchanged${live ? '' : '; no external provider request'}`,
     );
   } finally {
     await parts?.consumer.onApplicationShutdown();

@@ -215,6 +215,19 @@ describe('RSK-02 durable PostgreSQL gate', () => {
     const start = performance.now();
     expect(await gate(policy, 100).tryAcquire()).toEqual({ kind: 'unavailable' });
     expect(performance.now() - start).toBeLessThan(2000);
+    // A client deadline can precede PostgreSQL observing the closed socket. Keep the policy lock
+    // until the server session has finished, or unlocking can let the abandoned query commit.
+    const closeDeadline = Date.now() + 5000;
+    for (;;) {
+      await q('SELECT pg_stat_clear_snapshot()');
+      const [{ active }] = await q(
+        `SELECT count(*)::int AS active FROM pg_stat_activity
+         WHERE datname = current_database() AND application_name = 'fraud-ai-gate'`,
+      );
+      if (active === 0) break;
+      if (Date.now() >= closeDeadline) throw new Error('AI gate session did not close');
+      await delay(25);
+    }
     await db.runner.rollbackTransaction();
     const bad = new URL(db.url);
     bad.port = '1';

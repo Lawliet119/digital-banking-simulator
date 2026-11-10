@@ -100,7 +100,7 @@ describe('outbox migration schema and safety', () => {
     const position = applied.findIndex(row => row.name === OUTBOX);
     expect(position).toBeGreaterThanOrEqual(0);
     for (let index = applied.length - 1; index > position; index--) {
-      cli('migration:revert', db.url);
+      await source.undoLastMigration({ transaction: 'all' });
       expect(await history()).toEqual(applied.slice(0, index));
     }
   }

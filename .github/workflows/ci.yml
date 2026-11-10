@@ -167,7 +167,8 @@ jobs:
   db:
     name: db
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # Trọn bộ DB và thiết lập service cần dư địa; không hủy giữa chừng sau khi thêm migration.
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17
