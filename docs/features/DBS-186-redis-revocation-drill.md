@@ -1,6 +1,6 @@
 # DBS-186 · Thu hồi phiên khi Redis mất dữ liệu hoặc dừng
 
-> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `codex/DBS-186-redis-revocation-drill` · **PR:** — · **Cập nhật:** 2026-11-10
+> **Status:** Implemented · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `codex/DBS-186-redis-revocation-drill` · **PR:** [#127](https://github.com/Lawliet119/digital-banking-simulator/pull/127) · **Cập nhật:** 2026-11-10
 
 ## 1. Bối cảnh
 
