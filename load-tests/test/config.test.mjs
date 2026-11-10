@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { workload, validateFixture, requireBudget } from '../lib/config.js';
+import { workload, validateFixture, requireBudget, sameCompletedBodies } from '../lib/config.js';
 
 test('TC-165-01 baseline measures each plateau and each read route at 80/20 for 15 minutes', () => {
   const plan = workload('baseline');
@@ -46,4 +46,10 @@ test('TC-165-02 preflight refuses insufficient balance or remaining daily limit'
   assert.doesNotThrow(() => requireBudget(row, 18000));
   assert.throws(() => requireBudget({ ...row, balance: '17999999' }, 18000), /budget/i);
   assert.throws(() => requireBudget({ ...row, spent: '182000001' }, 18000), /budget/i);
+});
+
+test('TC-165-02 duplicate compares JSON semantics despite jsonb key order', () => {
+  assert(sameCompletedBodies([{ transferId: 'a', status: 'COMPLETED' }, { status: 'COMPLETED', transferId: 'a' }]));
+  assert(!sameCompletedBodies([{ transferId: 'a', status: 'COMPLETED' }, { status: 'COMPLETED', transferId: 'b' }]));
+  assert(!sameCompletedBodies([{ transferId: 'a', status: 'COMPLETED' }, { status: 'COMPLETED', transferId: 'a', leaked: true }]));
 });

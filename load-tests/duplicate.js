@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { workload } from './lib/config.js';
+import { workload, sameCompletedBodies } from './lib/config.js';
 import { fixture, transferRequest, transfer, key, record, json, bursts } from './lib/client.js';
 export const options = workload('duplicate', __ENV.SMOKE === '1');
 export default function () {
@@ -9,8 +9,7 @@ export default function () {
   // batchPerHost=10 releases all duplicates together, including when only one VU is active.
   const responses = http.batch(Array.from({ length: 10 }, () => transferRequest(from, to, idem)));
   for (const response of responses) record(response, true);
-  const expected = JSON.stringify(json(responses[0]));
-  check(responses, { '10 parallel copies same201 body': rs => rs.length === 10 && rs.every(r => r.status === 201 && json(r).status === 'COMPLETED' && typeof json(r).transferId === 'string' && JSON.stringify(json(r)) === expected) });
+  check(responses, { '10 parallel copies same201 body': rs => rs.length === 10 && rs.every(r => r.status === 201) && sameCompletedBodies(rs.map(json)) });
   const changed = transfer(from, to, idem, '2000');
   check(changed, { 'changed amount422 IDEMPOTENCY_KEY_REUSED': r => r.status === 422 && json(r).errorCode === 'IDEMPOTENCY_KEY_REUSED' });
 }

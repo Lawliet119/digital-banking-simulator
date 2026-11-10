@@ -2,6 +2,12 @@ export const SCENARIOS = ['baseline', 'hot-account', 'duplicate', 'stress', 'rat
 export const AMOUNT = '1000';
 export const SYSTEM_TAGS = ['status', 'method', 'name', 'scenario', 'expected_response'];
 
+export function sameCompletedBodies(bodies) {
+  const first = bodies[0];
+  return bodies.length > 0 && bodies.every(b => b && Object.keys(b).length === 2 &&
+    typeof b.transferId === 'string' && b.transferId === first.transferId && b.status === 'COMPLETED');
+}
+
 export function workload(kind, smoke = false) {
   if (!SCENARIOS.includes(kind)) throw new Error('Unknown load scenario');
   const thresholds = { checks: ['rate==1'], system_errors: ['rate<0.001'] };
@@ -45,8 +51,9 @@ export function durationSeconds(kind, smoke = false) {
 }
 
 export function maxTransfers(kind, smoke = false) {
-  if (smoke) return kind === 'duplicate' ? 3 : kind === 'rate-limit' ? 10 : 12;
-  return ({ baseline: 34560, stress: 32400, 'hot-account': 18000, duplicate: 60, 'rate-limit': 10 })[kind];
+  if (smoke) return kind === 'rate-limit' ? 10 : 12;
+  // Arrival executors may release a final iteration on the duration boundary.
+  return ({ baseline: 34563, stress: 32403, 'hot-account': 18001, duplicate: 61, 'rate-limit': 10 })[kind];
 }
 
 export function requireBudget(row, transfers) {
