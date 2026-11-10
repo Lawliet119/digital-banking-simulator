@@ -1,165 +1,21 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/health/live": {
-      "get": {
-        "operationId": "HealthController_live",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Liveness probe",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/ready": {
-      "get": {
-        "operationId": "HealthController_ready",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "The Health Check is successful\n\nPostgreSQL ready. Redis is informational and may be degraded without draining the task.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "status",
-                    "info",
-                    "error",
-                    "details",
-                    "redis"
-                  ],
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "ok"
-                      ]
-                    },
-                    "redis": {
-                      "type": "string",
-                      "enum": [
-                        "up",
-                        "degraded"
-                      ]
-                    },
-                    "info": {
-                      "type": "object",
-                      "additionalProperties": true
-                    },
-                    "error": {
-                      "type": "object",
-                      "additionalProperties": true
-                    },
-                    "details": {
-                      "type": "object",
-                      "additionalProperties": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The Health Check is not successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "example": "error"
-                    },
-                    "info": {
-                      "type": "object",
-                      "example": {
-                        "database": {
-                          "status": "up"
-                        }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string"
-                          }
-                        },
-                        "additionalProperties": true
-                      },
-                      "nullable": true
-                    },
-                    "error": {
-                      "type": "object",
-                      "example": {
-                        "redis": {
-                          "status": "down",
-                          "message": "Could not connect"
-                        }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string"
-                          }
-                        },
-                        "additionalProperties": true
-                      },
-                      "nullable": true
-                    },
-                    "details": {
-                      "type": "object",
-                      "example": {
-                        "database": {
-                          "status": "up"
-                        },
-                        "redis": {
-                          "status": "down",
-                          "message": "Could not connect"
-                        }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string"
-                          }
-                        },
-                        "additionalProperties": true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "summary": "Readiness: PostgreSQL required, Redis informational (up/degraded)",
-        "tags": [
-          "health"
-        ]
-      }
-    },
     "/v1/identity/me": {
       "get": {
         "operationId": "IdentityController_me_v1",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "Verified claims and resolved internal userId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticatedUserDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Missing/invalid token (errorCode UNAUTHENTICATED) or expired (TOKEN_EXPIRED)"
           }
@@ -545,7 +401,23 @@
             }
           },
           "400": {
-            "description": "Invalid account UUID or invalid/missing reason"
+            "description": "Invalid account UUID or invalid/missing reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Bad Request",
+                    "status": 400,
+                    "detail": "Invalid status reason",
+                    "errors": [
+                      "Reason must not be blank"
+                    ],
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED"
@@ -554,7 +426,20 @@
             "description": "FORBIDDEN; the caller is not an operator"
           },
           "404": {
-            "description": "Account does not exist or is a SYSTEM account"
+            "description": "Account does not exist or is a SYSTEM account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Not Found",
+                    "status": 404,
+                    "detail": "Account not found",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
           },
           "500": {
             "description": "Internal server error; rolls back if audit or outbox fails"
@@ -614,7 +499,23 @@
             }
           },
           "400": {
-            "description": "Invalid account UUID or invalid/missing reason"
+            "description": "Invalid account UUID or invalid/missing reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Bad Request",
+                    "status": 400,
+                    "detail": "Invalid status reason",
+                    "errors": [
+                      "Reason must not be blank"
+                    ],
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED"
@@ -623,7 +524,20 @@
             "description": "FORBIDDEN; the caller is not an operator"
           },
           "404": {
-            "description": "Account does not exist or is a SYSTEM account"
+            "description": "Account does not exist or is a SYSTEM account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Not Found",
+                    "status": 404,
+                    "detail": "Account not found",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
           },
           "500": {
             "description": "Internal server error; rolls back if audit or outbox fails"
@@ -643,310 +557,6 @@
         ],
         "x-roles": [
           "operator"
-        ]
-      }
-    },
-    "/v1/operator/deposits": {
-      "post": {
-        "description": "Idempotent: the same key with the same body returns the first answer without a second deposit; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.",
-        "operationId": "OperatorDepositsController_deposit_v1",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DepositDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DepositResultDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "IDEMPOTENCY_KEY_REQUIRED or invalid DTO/key length"
-          },
-          "401": {
-            "description": "UNAUTHENTICATED / TOKEN_EXPIRED"
-          },
-          "403": {
-            "description": "FORBIDDEN"
-          },
-          "422": {
-            "description": "ACCOUNT_NOT_ACTIVE with persisted transferId, or IDEMPOTENCY_KEY_REUSED"
-          },
-          "500": {
-            "description": "Internal server error; entire transaction rolled back"
-          },
-          "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; retry same key after Retry-After"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Operator: deposit from SYSTEM funding with atomic double entry",
-        "tags": [
-          "operator deposits"
-        ],
-        "x-roles": [
-          "operator"
-        ]
-      }
-    },
-    "/v1/transfers": {
-      "post": {
-        "description": "Source must belong to caller. Checks, in order under the account lock: both accounts ACTIVE, per-transfer limit, per-day limit (Vietnam time), enough money; the first rule broken is the reason. Idempotent: the same key with the same body returns the first answer without a second transfer; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.",
-        "operationId": "TransfersController_transfer_v1",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TransferDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TransferResultDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "IDEMPOTENCY_KEY_REQUIRED or invalid DTO/key length/same account"
-          },
-          "401": {
-            "description": "UNAUTHENTICATED / TOKEN_EXPIRED"
-          },
-          "403": {
-            "description": "FORBIDDEN"
-          },
-          "404": {
-            "description": "Source account not found; includes foreign and SYSTEM sources"
-          },
-          "422": {
-            "description": "ACCOUNT_NOT_ACTIVE / INSUFFICIENT_FUNDS / LIMIT_PER_TX_EXCEEDED / LIMIT_PER_DAY_EXCEEDED with persisted transferId, or IDEMPOTENCY_KEY_REUSED"
-          },
-          "429": {
-            "description": "RATE_LIMITED: more than RATE_LIMIT_TRANSFERS_PER_MINUTE (10) transfer requests this minute; Retry-After seconds. Nothing was written"
-          },
-          "500": {
-            "description": "Internal server error; all business writes rolled back"
-          },
-          "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; retry same key after Retry-After"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Customer: transfer between distinct customer accounts with atomic double entry",
-        "tags": [
-          "transfers"
-        ],
-        "x-roles": [
-          "customer"
-        ]
-      }
-    },
-    "/v1/transfers/{id}": {
-      "get": {
-        "description": "The sender sees any status; the recipient only a COMPLETED transfer. Anyone else, a transfer that does not exist and a malformed id are the same 404. A REJECTED transfer shows its reason but never a destination account.",
-        "operationId": "TransfersController_status_v1",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "transferId returned by POST /v1/transfers",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TransferStatusDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "UNAUTHENTICATED / TOKEN_EXPIRED"
-          },
-          "403": {
-            "description": "FORBIDDEN; the caller is not a customer"
-          },
-          "404": {
-            "description": "Transfer not found, or the caller is not a party to it"
-          },
-          "500": {
-            "description": "Internal server error; no data if audit fails"
-          },
-          "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Customer: status of a transfer the caller sent or received",
-        "tags": [
-          "transfers"
-        ],
-        "x-roles": [
-          "customer"
-        ]
-      }
-    },
-    "/v1/accounts/{id}/transactions": {
-      "get": {
-        "description": "Completed transfers and deposits that moved money in or out of the account (one ledger line each). Rejected transfers are not part of the history: read them by transferId. No OFFSET: pass nextCursor back as cursor. A cursor only works with the filters it was issued for.",
-        "operationId": "AccountTransactionsController_transactions_v1",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Account UUID; an invalid, missing, foreign or SYSTEM account is the same 404",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "name": "to",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "description": "Exclusive UTC Z upper bound; must be later than from"
-          },
-          {
-            "name": "from",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "description": "Inclusive UTC Z lower bound"
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "maxLength": 512,
-              "pattern": "^[A-Za-z0-9_-]+$"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TransactionPageDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid limit, cursor, from or to; unknown parameter"
-          },
-          "401": {
-            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
-          },
-          "403": {
-            "description": "FORBIDDEN; the caller is not a customer"
-          },
-          "404": {
-            "description": "Account not found (includes foreign and SYSTEM accounts)"
-          },
-          "500": {
-            "description": "Internal server error; no data if audit fails"
-          },
-          "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Customer: transaction history of an owned account, newest first, keyset pagination",
-        "tags": [
-          "accounts"
-        ],
-        "x-roles": [
-          "customer"
         ]
       }
     },
@@ -1123,6 +733,541 @@
         ],
         "x-roles": [
           "auditor"
+        ]
+      }
+    },
+    "/v1/operator/deposits": {
+      "post": {
+        "description": "Idempotent: the same key with the same body returns the first answer without a second deposit; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.",
+        "operationId": "OperatorDepositsController_deposit_v1",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepositDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepositResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "IDEMPOTENCY_KEY_REQUIRED or invalid DTO/key length",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Bad Request",
+                    "status": 400,
+                    "errorCode": "IDEMPOTENCY_KEY_REQUIRED",
+                    "detail": "Idempotency-Key is required",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED / TOKEN_EXPIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Unauthorized",
+                    "status": 401,
+                    "errorCode": "UNAUTHENTICATED",
+                    "detail": "Authentication is required",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN; the caller is not an operator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Forbidden",
+                    "status": 403,
+                    "errorCode": "FORBIDDEN",
+                    "detail": "The caller's role is not allowed to use this endpoint.",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ACCOUNT_NOT_ACTIVE with persisted transferId, or IDEMPOTENCY_KEY_REUSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "examples": {
+                    "ACCOUNT_NOT_ACTIVE": {
+                      "summary": "Target account is not active (BR-12)",
+                      "value": {
+                        "type": "about:blank",
+                        "title": "Unprocessable Entity",
+                        "status": 422,
+                        "errorCode": "ACCOUNT_NOT_ACTIVE",
+                        "detail": "Target account is locked or inactive",
+                        "transferId": "33333333-3333-4333-8333-333333333333",
+                        "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                      }
+                    },
+                    "IDEMPOTENCY_KEY_REUSED": {
+                      "summary": "Key reused with different body (BR-07)",
+                      "value": {
+                        "type": "about:blank",
+                        "title": "Unprocessable Entity",
+                        "status": 422,
+                        "errorCode": "IDEMPOTENCY_KEY_REUSED",
+                        "detail": "Idempotency key reused with different request payload",
+                        "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error; entire transaction rolled back"
+          },
+          "503": {
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; retry same key after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds before retry",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Service Unavailable",
+                    "status": 503,
+                    "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                    "detail": "Service temporarily unavailable — please retry.",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Operator: deposit from SYSTEM funding with atomic double entry",
+        "tags": [
+          "operator deposits"
+        ],
+        "x-roles": [
+          "operator"
+        ]
+      }
+    },
+    "/v1/transfers": {
+      "post": {
+        "description": "Source must belong to caller. Checks, in order under the account lock: both accounts ACTIVE, per-transfer limit, per-day limit (Vietnam time), enough money; the first rule broken is the reason. Idempotent: the same key with the same body returns the first answer without a second transfer; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.",
+        "operationId": "TransfersController_transfer_v1",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "IDEMPOTENCY_KEY_REQUIRED or invalid DTO/key length/same account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Bad Request",
+                    "status": 400,
+                    "errorCode": "IDEMPOTENCY_KEY_REQUIRED",
+                    "detail": "Idempotency-Key is required",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED / TOKEN_EXPIRED / SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Unauthorized",
+                    "status": 401,
+                    "errorCode": "UNAUTHENTICATED",
+                    "detail": "Authentication is required",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Forbidden",
+                    "status": 403,
+                    "errorCode": "FORBIDDEN",
+                    "detail": "The caller's role is not allowed to use this endpoint.",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source account not found; includes foreign and SYSTEM sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Not Found",
+                    "status": 404,
+                    "detail": "Account not found",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ACCOUNT_NOT_ACTIVE / INSUFFICIENT_FUNDS / LIMIT_PER_TX_EXCEEDED / LIMIT_PER_DAY_EXCEEDED with persisted transferId, or IDEMPOTENCY_KEY_REUSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "examples": {
+                    "LIMIT_PER_DAY_EXCEEDED": {
+                      "summary": "Daily limit exceeded (BR-06)",
+                      "value": {
+                        "type": "about:blank",
+                        "title": "Unprocessable Entity",
+                        "status": 422,
+                        "errorCode": "LIMIT_PER_DAY_EXCEEDED",
+                        "detail": "Daily transfer limit exceeded",
+                        "transferId": "11111111-1111-4111-8111-111111111111",
+                        "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                      }
+                    },
+                    "INSUFFICIENT_FUNDS": {
+                      "summary": "Insufficient funds (BR-03)",
+                      "value": {
+                        "type": "about:blank",
+                        "title": "Unprocessable Entity",
+                        "status": 422,
+                        "errorCode": "INSUFFICIENT_FUNDS",
+                        "detail": "Insufficient funds for transfer",
+                        "transferId": "22222222-2222-4222-8222-222222222222",
+                        "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                      }
+                    },
+                    "IDEMPOTENCY_KEY_REUSED": {
+                      "summary": "Key reused with different body (BR-07)",
+                      "value": {
+                        "type": "about:blank",
+                        "title": "Unprocessable Entity",
+                        "status": 422,
+                        "errorCode": "IDEMPOTENCY_KEY_REUSED",
+                        "detail": "Idempotency key reused with different request payload",
+                        "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: more than RATE_LIMIT_TRANSFERS_PER_MINUTE (10) transfer requests this minute; Retry-After seconds. Nothing was written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Too Many Requests",
+                    "status": 429,
+                    "errorCode": "RATE_LIMITED",
+                    "detail": "Too many requests",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error; all business writes rolled back"
+          },
+          "503": {
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; retry same key after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds before retry",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "type": "about:blank",
+                    "title": "Service Unavailable",
+                    "status": 503,
+                    "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                    "detail": "Service temporarily unavailable — please retry.",
+                    "correlationId": "d461b1d0-dba2-4e40-8304-d91f7b7132c9"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Customer: transfer between distinct customer accounts with atomic double entry",
+        "tags": [
+          "transfers"
+        ],
+        "x-roles": [
+          "customer"
+        ]
+      }
+    },
+    "/v1/transfers/{id}": {
+      "get": {
+        "description": "The sender sees any status; the recipient only a COMPLETED transfer. Anyone else, a transfer that does not exist and a malformed id are the same 404. A REJECTED transfer shows its reason but never a destination account.",
+        "operationId": "TransfersController_status_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "transferId returned by POST /v1/transfers",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferStatusDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED / TOKEN_EXPIRED"
+          },
+          "403": {
+            "description": "FORBIDDEN; the caller is not a customer"
+          },
+          "404": {
+            "description": "Transfer not found, or the caller is not a party to it"
+          },
+          "500": {
+            "description": "Internal server error; no data if audit fails"
+          },
+          "503": {
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Customer: status of a transfer the caller sent or received",
+        "tags": [
+          "transfers"
+        ],
+        "x-roles": [
+          "customer"
+        ]
+      }
+    },
+    "/v1/accounts/{id}/transactions": {
+      "get": {
+        "description": "Completed transfers and deposits that moved money in or out of the account (one ledger line each). Rejected transfers are not part of the history: read them by transferId. No OFFSET: pass nextCursor back as cursor. A cursor only works with the filters it was issued for.",
+        "operationId": "AccountTransactionsController_transactions_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Account UUID; an invalid, missing, foreign or SYSTEM account is the same 404",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Exclusive UTC Z upper bound; must be later than from"
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Inclusive UTC Z lower bound"
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionPageDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid limit, cursor, from or to; unknown parameter"
+          },
+          "401": {
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+          },
+          "403": {
+            "description": "FORBIDDEN; the caller is not a customer"
+          },
+          "404": {
+            "description": "Account not found (includes foreign and SYSTEM accounts)"
+          },
+          "500": {
+            "description": "Internal server error; no data if audit fails"
+          },
+          "503": {
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Customer: transaction history of an owned account, newest first, keyset pagination",
+        "tags": [
+          "accounts"
+        ],
+        "x-roles": [
+          "customer"
         ]
       }
     },
@@ -1516,6 +1661,97 @@
       }
     },
     "schemas": {
+      "CognitoClaimsDto": {
+        "type": "object",
+        "properties": {
+          "sub": {
+            "type": "string",
+            "example": "cognito-sub-12345"
+          },
+          "iss": {
+            "type": "string",
+            "example": "https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_xxxx"
+          },
+          "client_id": {
+            "type": "string",
+            "example": "app-client-id-xxxx"
+          },
+          "token_use": {
+            "type": "string",
+            "enum": [
+              "access",
+              "id"
+            ],
+            "example": "access"
+          },
+          "exp": {
+            "type": "number",
+            "example": 1731250000
+          },
+          "iat": {
+            "type": "number",
+            "example": 1731246400
+          },
+          "cognito:groups": {
+            "example": [
+              "customer"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "sub",
+          "iss",
+          "client_id",
+          "token_use",
+          "exp",
+          "iat",
+          "cognito:groups"
+        ]
+      },
+      "AuthenticatedUserDto": {
+        "type": "object",
+        "properties": {
+          "sub": {
+            "type": "string",
+            "example": "cognito-sub-12345"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "11111111-1111-4111-8111-111111111111"
+          },
+          "groups": {
+            "example": [
+              "customer"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tokenUse": {
+            "type": "string",
+            "enum": [
+              "access"
+            ],
+            "example": "access"
+          },
+          "claims": {
+            "$ref": "#/components/schemas/CognitoClaimsDto"
+          }
+        },
+        "required": [
+          "sub",
+          "userId",
+          "groups",
+          "tokenUse",
+          "claims"
+        ]
+      },
       "CreateCustomerProfileDto": {
         "type": "object",
         "properties": {
@@ -1770,6 +2006,145 @@
           "updatedAt"
         ]
       },
+      "AuditSearchProblemDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "about:blank"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "number"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "errorCode": {
+            "type": "string",
+            "description": "Present for guard/transient errors; absent for validation and unexpected errors"
+          },
+          "errors": {
+            "description": "Fixed validation messages; rejected values are never echoed",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "correlationId"
+        ]
+      },
+      "AuditTargetDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "transfer"
+          },
+          "id": {
+            "type": "string",
+            "example": "22222222-2222-4222-8222-222222222222"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ]
+      },
+      "AuditEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Exact positive PostgreSQL bigint as a decimal string",
+            "example": "9007199254740994"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC with exactly six fractional digits; microseconds are preserved",
+            "example": "2026-11-04T08:10:00.123456Z"
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "actorRole": {
+            "type": "string",
+            "example": "customer"
+          },
+          "action": {
+            "type": "string",
+            "example": "transfer.create"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "SUCCESS",
+              "REJECTED",
+              "DENIED"
+            ]
+          },
+          "target": {
+            "$ref": "#/components/schemas/AuditTargetDto"
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Stored audit metadata; never expanded with user/customer profile data",
+            "example": {}
+          }
+        },
+        "required": [
+          "id",
+          "occurredAt",
+          "actorUserId",
+          "actorRole",
+          "action",
+          "outcome",
+          "target",
+          "correlationId",
+          "metadata"
+        ]
+      },
+      "AuditEntriesPageDto": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEntryDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 512,
+            "description": "Filter-bound keyset cursor; null when there is no next page"
+          }
+        },
+        "required": [
+          "entries",
+          "nextCursor"
+        ]
+      },
       "DepositDto": {
         "type": "object",
         "properties": {
@@ -1994,145 +2369,6 @@
         },
         "required": [
           "items",
-          "nextCursor"
-        ]
-      },
-      "AuditSearchProblemDto": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "example": "about:blank"
-          },
-          "title": {
-            "type": "string"
-          },
-          "status": {
-            "type": "number"
-          },
-          "detail": {
-            "type": "string"
-          },
-          "correlationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "errorCode": {
-            "type": "string",
-            "description": "Present for guard/transient errors; absent for validation and unexpected errors"
-          },
-          "errors": {
-            "description": "Fixed validation messages; rejected values are never echoed",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "type",
-          "title",
-          "status",
-          "detail",
-          "correlationId"
-        ]
-      },
-      "AuditTargetDto": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "example": "transfer"
-          },
-          "id": {
-            "type": "string",
-            "example": "22222222-2222-4222-8222-222222222222"
-          }
-        },
-        "required": [
-          "type",
-          "id"
-        ]
-      },
-      "AuditEntryDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Exact positive PostgreSQL bigint as a decimal string",
-            "example": "9007199254740994"
-          },
-          "occurredAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "UTC with exactly six fractional digits; microseconds are preserved",
-            "example": "2026-11-04T08:10:00.123456Z"
-          },
-          "actorUserId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
-          },
-          "actorRole": {
-            "type": "string",
-            "example": "customer"
-          },
-          "action": {
-            "type": "string",
-            "example": "transfer.create"
-          },
-          "outcome": {
-            "type": "string",
-            "enum": [
-              "SUCCESS",
-              "REJECTED",
-              "DENIED"
-            ]
-          },
-          "target": {
-            "$ref": "#/components/schemas/AuditTargetDto"
-          },
-          "correlationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "metadata": {
-            "type": "object",
-            "additionalProperties": true,
-            "description": "Stored audit metadata; never expanded with user/customer profile data",
-            "example": {}
-          }
-        },
-        "required": [
-          "id",
-          "occurredAt",
-          "actorUserId",
-          "actorRole",
-          "action",
-          "outcome",
-          "target",
-          "correlationId",
-          "metadata"
-        ]
-      },
-      "AuditEntriesPageDto": {
-        "type": "object",
-        "properties": {
-          "entries": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AuditEntryDto"
-            }
-          },
-          "nextCursor": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 512,
-            "description": "Filter-bound keyset cursor; null when there is no next page"
-          }
-        },
-        "required": [
-          "entries",
           "nextCursor"
         ]
       },

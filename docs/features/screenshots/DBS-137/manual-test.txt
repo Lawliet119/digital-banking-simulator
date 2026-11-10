@@ -1,0 +1,16 @@
+98cdb309c51d0384ffbf21b2714eca586c30a087
+
+# Manual Test Execution Output - DBS-137 OpenAPI Clean-Up
+# Date: 2026-11-10
+
+$ npm run test:db -- openapi-export.db-spec.ts
+
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js openapi-export.db-spec.ts
+
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        1.458 s, estimated 2 s
+Ran all test suites matching openapi-export.db-spec.ts.

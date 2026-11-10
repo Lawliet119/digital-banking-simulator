@@ -88,10 +88,33 @@ export class OperatorAccountsController {
   @ApiParam({ name: 'id', required: true, schema: { type: 'string', format: 'uuid' } })
   @ApiBody({ type: OperatorAccountStatusBodyDto })
   @ApiOkResponse({ type: OperatorAccountStatusResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid account UUID or invalid/missing reason' })
+  @ApiBadRequestResponse({
+    description: 'Invalid account UUID or invalid/missing reason',
+    schema: {
+      example: {
+        type: 'about:blank',
+        title: 'Bad Request',
+        status: 400,
+        detail: 'Invalid status reason',
+        errors: ['Reason must not be blank'],
+        correlationId: 'd461b1d0-dba2-4e40-8304-d91f7b7132c9',
+      },
+    },
+  })
   @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED' })
   @ApiForbiddenResponse({ description: 'FORBIDDEN; the caller is not an operator' })
-  @ApiNotFoundResponse({ description: 'Account does not exist or is a SYSTEM account' })
+  @ApiNotFoundResponse({
+    description: 'Account does not exist or is a SYSTEM account',
+    schema: {
+      example: {
+        type: 'about:blank',
+        title: 'Not Found',
+        status: 404,
+        detail: 'Account not found',
+        correlationId: 'd461b1d0-dba2-4e40-8304-d91f7b7132c9',
+      },
+    },
+  })
   @ApiInternalServerErrorResponse({
     description: 'Internal server error; rolls back if audit or outbox fails',
   })
@@ -119,10 +142,33 @@ export class OperatorAccountsController {
   @ApiParam({ name: 'id', required: true, schema: { type: 'string', format: 'uuid' } })
   @ApiBody({ type: OperatorAccountStatusBodyDto })
   @ApiOkResponse({ type: OperatorAccountStatusResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid account UUID or invalid/missing reason' })
+  @ApiBadRequestResponse({
+    description: 'Invalid account UUID or invalid/missing reason',
+    schema: {
+      example: {
+        type: 'about:blank',
+        title: 'Bad Request',
+        status: 400,
+        detail: 'Invalid status reason',
+        errors: ['Reason must not be blank'],
+        correlationId: 'd461b1d0-dba2-4e40-8304-d91f7b7132c9',
+      },
+    },
+  })
   @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED' })
   @ApiForbiddenResponse({ description: 'FORBIDDEN; the caller is not an operator' })
-  @ApiNotFoundResponse({ description: 'Account does not exist or is a SYSTEM account' })
+  @ApiNotFoundResponse({
+    description: 'Account does not exist or is a SYSTEM account',
+    schema: {
+      example: {
+        type: 'about:blank',
+        title: 'Not Found',
+        status: 404,
+        detail: 'Account not found',
+        correlationId: 'd461b1d0-dba2-4e40-8304-d91f7b7132c9',
+      },
+    },
+  })
   @ApiInternalServerErrorResponse({
     description: 'Internal server error; rolls back if audit or outbox fails',
   })

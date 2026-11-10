@@ -21,7 +21,7 @@ import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
 import { TransactionService } from '@database/transaction.service';
 import { assertNotMigratorUser } from '@database/database-url.guard';
 import { AccountsModule } from '@modules/accounts';
-import { AuditModule } from '@modules/audit';
+import { AuditHttpModule, AuditModule } from '@modules/audit';
 import { OutboxModule } from '@modules/outbox';
 import { LedgerModule } from '@modules/ledger';
 import { FraudHttpModule } from '@modules/risk/fraud-http.module';
@@ -31,7 +31,7 @@ import {
   RolesGuard,
   SessionRevocationModule,
 } from '@modules/identity';
-import { configureHttpApp } from '../../src/app.setup';
+import { configureHttpApp, setupSwagger } from '../../src/app.setup';
 import { createHttpLogging } from '@common/logging/http-logging';
 import { createDevTokenIssuer, type DevTokenIssuer } from './dev-tokens';
 
@@ -116,6 +116,8 @@ export async function startDepositApp(
     revocation?: { redisUrl: string };
     /** Opt-in to keep unrelated HTTP fixtures independent of fraud schema. */
     fraud?: boolean;
+    auditHttp?: boolean;
+    withSwagger?: boolean;
   } = {},
 ): Promise<DepositApp> {
   const issuer = await createDevTokenIssuer(),
@@ -167,7 +169,7 @@ export async function startDepositApp(
         IdentityModule,
         ...(options.revocation ? [SessionRevocationModule] : []),
         AccountsModule,
-        AuditModule,
+        ...(options.auditHttp ? [AuditHttpModule] : [AuditModule]),
         OutboxModule,
         LedgerModule,
         ...(options.fraud ? [FraudHttpModule] : []),
@@ -193,6 +195,7 @@ export async function startDepositApp(
       createHttpLogging(await app.resolve(PinoLogger), appSettings),
       options.metrics,
     );
+    if (options.withSwagger) setupSwagger(app);
     await app.listen(0, '127.0.0.1');
     return { app, url: await app.getUrl(), source: app.get(DataSource), issuer, limits, close };
   } catch (error) {
