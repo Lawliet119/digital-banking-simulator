@@ -7,6 +7,7 @@ import { OutboxModule, OutboxRelayModule } from './outbox';
 import { NotificationModule } from './notification';
 import { AccountsModule } from './accounts';
 import { RiskModule, RiskWorkerModule } from './risk';
+import { FraudHttpModule } from './risk/fraud-http.module';
 import { LedgerModule, LedgerReconciliationModule } from './ledger';
 
 type ModuleRef = Type<unknown> | DynamicModule;
@@ -35,6 +36,7 @@ const apiModules: ModuleRef[] = [
   AccountsModule,
   LedgerModule,
   AuditHttpModule,
+  FraudHttpModule,
 ];
 
 const workerModules: ModuleRef[] = [

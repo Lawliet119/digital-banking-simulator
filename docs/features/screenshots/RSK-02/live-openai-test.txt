@@ -1,0 +1,6 @@
+bbaf789251e9d3e21c45211e69a67c05e23683b3
+M-RSK-02 IDs (synthetic): transferId=af3def58-08c8-42e3-a36f-bf786a326382; correlationId=bb6e0aff-d1f1-4f4a-b1d5-930916a8a26e
+M-RSK-02 PASS: HTTP transfer → outbox → ElasticMQ → worker → OpenAI thật → durable decision and flag
+M-RSK-02 OpenAI: model=gpt-6-luna; probability=0.9; ruleScore=65; aiWeight=45
+M-RSK-02 PASS: operator detail 200; customer 403; review 200 then 409; redelivery one decision/one provider call
+M-RSK-02 PASS: gate one request/released; review audit committed; ledger invariants unchanged

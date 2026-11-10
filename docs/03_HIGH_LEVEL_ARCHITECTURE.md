@@ -643,20 +643,20 @@ DBS-96: `notification_log.message` chỉ chứa thông báo chung, không chứa
 
 ## 9. Cache & Redis strategy
 
-Theo P2 (slide 30–31), câu hỏi không phải "có dùng Redis không?" mà là **data nào cache được, TTL bao nhiêu, khi nào invalidate, và Redis hỏng thì sao**. Nhóm dùng Redis cho 4 việc, mỗi việc giải quyết một vấn đề cụ thể mà Postgres hoặc bộ nhớ trong từng task không làm tốt.
+Theo P2 (slide 30–31), câu hỏi không phải "có dùng Redis không?" mà là **data nào cache được, TTL bao nhiêu, khi nào invalidate, và Redis hỏng thì sao**. Redis phục vụ R-1, R-2 và R-4; phương án bộ đếm R-3 đã bỏ vì không bảo đảm đủ giao dịch theo thứ tự commit.
 
 **Engine:** Valkey trên Amazon ElastiCache (tương thích Redis, mã nguồn mở). Dev local dùng container Valkey. Dùng node cố định, cluster mode tắt, TLS và AUTH token ([ADR-12](adr/0012-redis-valkey-node.md)).
 
-### 9.1 Bốn mục đích sử dụng
+### 9.1 Các mục đích sử dụng
 
 | # | Mục đích | Không có Redis thì | Cấu trúc | TTL / invalidate | Phục vụ |
 |---|---|---|---|---|---|
 | **R-1** | **Rate limit toàn cục** theo user và IP | Mỗi task đếm riêng: 2 task → giới hạn thực tế gấp đôi | Counter theo cửa sổ cố định một phút, `INCR` + `EXPIRE`. Khóa `rl:ip:{ip}:{phút}` (100/phút, **middleware** `IpRateLimitMiddleware`, đếm cả đường dẫn không tồn tại, chạy trước JWT, bỏ qua `/health`) và `rl:user:{users.id}:{phút}` (10/phút, guard toàn cục `TransferRateLimitGuard` sau `RolesGuard`, bật bằng `@LimitTransfers()` ở `POST /v1/transfers`). IP lấy từ `request.ip` theo `TRUST_PROXY_HOPS` (0 bỏ qua `X-Forwarded-For`; 1 sau ALB). Vượt → `429 RATE_LIMITED` + `Retry-After` (giây đến hết phút). Cửa sổ cố định cho phép tối đa gấp đôi quanh ranh giới phút; metric `rate_limited_total{scope}` | Hết hạn theo cửa sổ (60 giây) | NFR-SEC-05 |
 | **R-2** | **Cache mốc thu hồi phiên** | Token chắc chắn bị thu hồi không cần đọc SQL; token có thể hợp lệ xác nhận SQL để tránh stale cache cho qua | `revoked_at:{userId}` (epoch giây) | TTL = thời gian sống tối đa access token; SET sau COMMIT, không cacheNULL | NFR-SEC-02 |
-| **R-3** | **Bộ đếm đặc trưng gian lận** cho R1 (velocity) và R5 (fan-out) | Mỗi sự kiện phải quét lịch sử bằng SQL; ở 120 RPS là tải phụ đáng kể lên RDS | Sorted set `risk:vel:{accountId}` (member = `transferId`, score = `occurredAt`); sorted set người nhận `risk:fan:{accountId}` (member = tài khoản nhận, score = `occurredAt`) | Cửa sổ trượt bằng `ZREMRANGEBYSCORE`; TTL 2 giờ | NFR-FRD-01 |
-| **R-4** | **Cache cấu hình** luật và hạn mức | Mỗi lệnh và mỗi sự kiện đọc lại cấu hình từ DB | Hai key: `cfg:risk:latest` (số phiên bản hiện hành) và `cfg:risk:v{n}` (nội dung bất biến của phiên bản n) | `latest` TTL 60 giây, miss hoặc lỗi thì `SELECT max(version)` từ `risk_rule_sets`; `v{n}` TTL dài vì không bao giờ đổi. Đổi cấu hình = version mới, có hiệu lực sau tối đa 60 giây | UC-12 |
+| **R-3** | **Đã bỏ bộ đếm feature** R1/R5 | Mọi extraction đọc fact đã commit bằng SQL | Không còn `risk:vel:*` hoặc `risk:fan:*` trong provider hiện hành | Không áp dụng; cần đo tải RDS khi 120 RPS | NFR-FRD-01 |
+| **R-4** | **Cache cấu hình** luật | Mỗi sự kiện đọc lại cấu hình từ DB | `cfg:risk:latest:v2` và `cfg:risk:v{n}` bất biến | `latest` tối đa 60 giây, miss/lỗi đọc `risk_rule_sets`; cấu hình mới là version mới | UC-12 |
 
-R-3 an toàn với sự kiện trùng: member của sorted set là `transferId`, nhận cùng sự kiện hai lần vẫn chỉ có một phần tử.
+R-3 trước đây dùng sorted set theo event đã nhận; event đến đảo thứ tự có thể thiếu fact đã commit. [Sửa lỗi](features/BUG-20261110-fraud-feature-order.md) chuyển sang SQL authoritative; chưa benchmark tải production.
 
 ### 9.2 Những gì **không** đưa vào Redis
 
@@ -676,7 +676,7 @@ R-3 an toàn với sự kiện trùng: member của sorted set là `transferId`,
 |---|---|---|
 | R-1 Rate limit | **Fail-open** + alarm; WAF vẫn giới hạn theo IP ở biên | Không để một lớp bảo vệ phụ làm sập API |
 | R-2 Mốc thu hồi | **Đọc `users.sessions_revoked_at` từ Postgres** | Kết quả như nhau, chậm hơn vài ms |
-| R-3 Bộ đếm | **Truy vấn SQL** trên `transfers` | Kết quả như nhau, tốn tải DB hơn |
+| R-3 Feature fraud | **Luôn truy vấn view SQL** | Không phụ thuộc Redis; cần đo tải DB |
 | R-4 Cấu hình | **Đọc thẳng Postgres** | Bảng nhỏ |
 
 Client Redis đặt timeout 50 ms mỗi lệnh và circuit breaker (mở khi ≥ 50% của ít nhất 10 lệnh lỗi trong 10 giây, thử lại sau 5 giây) để Redis chậm không kéo latency API vượt SLO (ADR-12). Số lần rơi về đường dự phòng là một metric (mục 14).
@@ -687,7 +687,7 @@ Client Redis đặt timeout 50 ms mỗi lệnh và circuit breaker (mở khi ≥
 |---|---|
 | R-1 | Load test vượt giới hạn với 2 task API: có Redis → số request được chấp nhận đúng bằng giới hạn; không Redis → gấp đôi |
 | R-2 | Thời gian từ lúc khóa tài khoản đến lúc request kế tiếp bị từ chối |
-| R-3 | CPU và số truy vấn RDS, p95 thời gian gắn cờ ở 120 RPS, khi bật và tắt bộ đếm Redis |
+| R-3 | CPU, số truy vấn RDS và p95 gắn cờ ở 120 RPS/hot-account với SQL authoritative |
 
 ---
 
@@ -762,7 +762,7 @@ flowchart LR
 | Lệnh bị REJECTED rồi gửi lại cùng mã | Trả lại REJECTED cũ | AC-5.3 |
 | Ghi nhật ký lỗi | Cả transaction rollback (fail-closed) | Test tự động |
 | Sự cố sau commit, trước khi gửi sự kiện | Outbox: relay gửi lại | Kill worker rồi bật lại |
-| Consumer nhận sự kiện trùng | `processed_events`; bộ đếm Redis dùng `transferId` làm member | AC-9.2 |
+| Consumer nhận sự kiện trùng | `processed_events` và claim duy nhất `risk_decisions.transfer_id`; event trùng không ghi thêm cờ | AC-9.2 |
 | Consumer lỗi liên tục | Retry + backoff → DLQ sau 5 lần nhận + alarm | Inject lỗi consumer |
 | Hai lệnh đồng thời trên cùng tài khoản | Khóa hàng theo thứ tự id; deadlock (`40P01`) thì `withTransaction` chạy lại cả transaction tối đa 3 lần với backoff; còn sót thì trả 503 + `Retry-After` | AC-5.9 |
 | **Redis down hoặc chậm** | Timeout ngắn + circuit breaker; chế độ dự phòng mục 9.3 | Tắt Redis giữa load test |
@@ -876,7 +876,7 @@ SLO chính thức (chốt 2026-10-11). Đo trong các đợt bật cấu hình p
 | Latency Redis, số lần rơi về đường dự phòng (`redis_fallback_total`), số request bị rate limit | API, Worker | Theo dõi | — | Redis không truy cập được > 1 phút |
 
 - **Log:** `nestjs-pino` xuất JSON với `level`, `time` ISO UTC, `message`, `role` (`api|worker`) và `correlationId` (UUID của request, `null` ngoài context). HTTP logger dùng ID do server sinh, gắn trước CORS/body parser; không ghi URL/query, headers hoặc body. Cấu hình sai khi khởi động ghi tên biến sai (`invalidKeys`) mà không kèm giá trị, và lỗi lọt cấp tiến trình ra đúng một dòng JSON `fatal` thay vì stack text. Chi tiết redaction và log level: [backend — Log JSON](../backend/README.md#8-log-json). Mã truy vết được thiết kế đi từ API → outbox → sự kiện → consumer → nhật ký kiểm toán; context xuyên worker/message còn thuộc DBS-43.
-- **Xuất metric (DBS-144):** CloudWatch EMF: một dòng JSON ra log, `awslogs` biến thành metric trong namespace `DBS/Backend`, không cần IAM hay cổng mới. Có: độ trễ và 5xx theo `Route`/`Method` (p50/p95/p99 tính ở CloudWatch), `redis_fallback_total`, `rate_limited_total`, `outbox_oldest_unpublished_age_seconds`; DLQ và tuổi message dùng metric gốc `AWS/SQS`. Chưa có: thời gian giao dịch → cờ và metric AI (chưa có consumer chấm điểm trong `main`). Chi tiết, tên, nhãn và quy tắc alarm: [observability](components/observability/01-concept-brief.md#xuất-metric-dbs-144).
+- **Xuất metric (DBS-144):** CloudWatch EMF: một dòng JSON ra log, `awslogs` biến thành metric trong namespace `DBS/Backend`, không cần IAM hay cổng mới. Có: độ trễ và 5xx theo `Route`/`Method` (p50/p95/p99 tính ở CloudWatch), `redis_fallback_total`, `rate_limited_total`, `outbox_oldest_unpublished_age_seconds`; DLQ và tuổi message dùng metric gốc `AWS/SQS`. Đã có consumer fraud, nhưng chưa có metric thời gian giao dịch → cờ và metric AI. Chi tiết: [observability](components/observability/01-concept-brief.md#xuất-metric-dbs-144).
 - **Dashboard:** CloudWatch (hoặc Grafana) theo các SLI trên.
 - **Alarm:** theo cột cuối của bảng trên, gửi SNS email; tạo bằng Terraform.
 - **Health check:** `/health/ready` báo Redis ở trạng thái *degraded* chứ không *down*, vì hệ thống vẫn chạy được khi không có Redis.
@@ -902,11 +902,11 @@ Sync guard phải rẻ (chỉ đọc tài khoản đang khóa và tổng tiền 
 
 | Luật | Nguồn dữ liệu | Vì sao |
 |---|---|---|
-| R1 Velocity | Bộ đếm Redis (R-3), dự phòng SQL | Truy vấn lặp lại nhiều nhất |
+| R1 Velocity | SQL aggregate trên `v_transfer_facts` | Đếm các fact đã commit, không phụ thuộc thứ tự giao event |
 | R2 Số tiền bất thường | SQL lịch sử 30 ngày + `amount` trong sự kiện | Cần thống kê trên lịch sử dài |
 | R3 Tài khoản mới chuyển lớn | Ảnh chụp `fromAccountCreatedAt` trong sự kiện | Phải đúng tại thời điểm giao dịch |
 | R4 Chuyển vòng | SQL lịch sử 1 giờ | Truy vấn theo cặp tài khoản |
-| R5 Fan-out | Bộ đếm Redis (R-3), dự phòng SQL | Truy vấn lặp lại nhiều |
+| R5 Fan-out | SQL aggregate người nhận mới trong 30 ngày | Không mất recipient khi replay event cũ hoặc đảo thứ tự |
 | R6 Rút cạn | Ảnh chụp `fromBalanceBefore` trong sự kiện | Số dư hiện tại đã thay đổi khi consumer chạy |
 
 ### 15.3 Luồng dữ liệu
@@ -914,14 +914,15 @@ Sync guard phải rẻ (chỉ đọc tài khoản đang khóa và tổng tiền 
 ```mermaid
 flowchart LR
     E[TransferCompleted] --> C[risk consumer]
-    C --> F1[Cập nhật bộ đếm Redis]
-    C --> F2[Truy vấn đặc trưng Postgres]
-    C --> F3[Đọc ảnh chụp trong sự kiện]
-    F1 & F2 & F3 --> S[Tính điểm theo<br/>RiskRuleSet phiên bản hiện hành]
-    S -->|≥ Trung bình| FL[fraud_flags + rule_hits<br/>+ audit]
+    C --> F[Đọc fact SQL và snapshot event]
+    C --> V[Đọc version cấu hình]
+    F & V --> S[Chấm R1–R6]
+    S -->|mode AI và được phép| A[Admission + OpenAI Decisions]
+    A --> T[Tổng điểm và trạng thái AI]
+    S -->|rule_only hoặc AI lỗi| T
+    T --> D[Lưu risk_decisions]
+    D -->|MEDIUM / HIGH| FL[fraud_flags + rule_hits + audit]
     FL --> OP[UC-10 nhân viên review]
-    OP -->|gian lận thật| LK[UC-11 khóa tài khoản]
-    OP -->|kết luận = nhãn| EV[Dữ liệu chỉnh ngưỡng]
 ```
 
 ### 15.4 Đánh giá
@@ -930,7 +931,7 @@ flowchart LR
 |---|---|
 | **Bộ dữ liệu** | Generator sinh ~100k giao dịch bình thường (số tiền log-normal, mỗi user có thói quen riêng, có nhiễu) và chèn ~1% gian lận theo kịch bản (velocity, mule, rút cạn, chuyển vòng…) kèm nhãn. Chia tập tune và tập giữ lại |
 | **Chỉ số chất lượng** | Precision, recall, F1, tỉ lệ báo nhầm, **số cảnh báo / 1.000 giao dịch**, đóng góp từng luật, đường precision–recall khi quét ngưỡng |
-| **Chỉ số vận hành** | p95 thời gian chấm điểm, p95 thời gian tới khi có cờ, tải RDS khi bật/tắt bộ đếm Redis |
+| **Chỉ số vận hành** | p95 thời gian chấm điểm, p95 thời gian tới khi có cờ, tải RDS do các truy vấn feature và chi phí/fallback AI; chưa có benchmark production |
 | **Chống tự chấm bài** | Người viết generator khác người viết luật; có kịch bản luật không cố ý phủ; có giao dịch hợp lệ trông giống gian lận; nêu rõ giới hạn của dữ liệu tổng hợp. Có thể bổ sung bộ dữ liệu công khai (ví dụ PaySim — cần kiểm tra giấy phép) |
 
 ### 15.5 Guardrails và chi phí
@@ -939,7 +940,7 @@ flowchart LR
 - **Quyền:** nhân viên xem/kết luận cờ, kiểm toán viên chỉ đọc, khách không thấy cờ (BR-13).
 - **Dữ liệu:** không ghi số tài khoản đầy đủ hay thông tin cá nhân vào log của consumer hay vào Redis.
 - **Xử lý tiền khi gian lận thật:** ngoài phạm vi v1; hướng mở rộng là giao dịch `REVERSAL` mới qua sổ cái.
-- **Chi phí:** ở chế độ `rule_only` (`R1–R6`), không gọi LLM nên không tốn token; chi phí là CPU worker, truy vấn DB và Redis. Khi bật chế độ `rules_with_external_ai` ([ADR-14](adr/0014-fraud-rules-external-ai.md), thay thế hướng ONNX `v3` của ADR-08), chỉ các giao dịch lọt candidate gate mới gọi API AI ngoài tiến trình với admission control, timeout cứng và fail-open về `R1–R6`.
+- **Chi phí:** `rule_only` không gọi AI; chi phí là CPU worker, truy vấn DB và Redis cache cấu hình. Khi bật `rules_with_external_ai` theo [ADR-14](adr/0014-fraud-rules-external-ai.md), mọi TRANSFER mới được admission (không lọc theo điểm rule); quota request, concurrency và timeout kiểm soát rủi ro, lỗi AI giữ baseline. Chưa có số đo chi phí hoặc trần thanh toán; dữ liệu thật/egress cần owner và Ops phê duyệt.
 
 ---
 
@@ -960,7 +961,7 @@ flowchart LR
 | NFR-SEC-03…06 | TLS, KMS, Secrets Manager, IAM role riêng, rate limit Redis + WAF | 12 |
 | NFR-AUD-01, 02 | Nhật ký trong transaction; chỉ INSERT; `correlationId` xuyên suốt | 8, 14 |
 | NFR-OBS-01, 02 | Log JSON có `correlationId`; dashboard; alarm | 14 |
-| NFR-FRD-01…03 | Outbox poll ≤ 1 giây; SQS; bộ đếm Redis; bộ đánh giá riêng | 10, 15 |
+| NFR-FRD-01…03 | Outbox poll ≤ 1 giây; SQS; feature SQL và bộ đánh giá riêng; chỉ tiêu vẫn cần đo thực tế | 10, 15 |
 | NFR-MNT-01, 02 | CI/CD tự động; ECS rolling update; rollback bằng task definition | 13.3 |
 | NFR-COST-01 | Cấu hình dev/production; dựng/xóa theo giờ; tránh NAT | 13.2 |
 
@@ -972,7 +973,7 @@ flowchart LR
 | **Duplicate request** | Gửi cùng mã yêu cầu nhiều lần, **song song** | AC-5.3, 5.4, 5.5 |
 | **Failure / recovery** | Kill task giữa lệnh; kill worker rồi bật lại, outbox xử lý bù; consumer lỗi → DLQ; **tắt Redis giữa load test, bất biến vẫn đúng** (kịch bản từng bước: [demo-3-failure-recovery.md](demos/demo-3-failure-recovery.md); đọc và redrive DLQ: [runbook](runbooks/dlq-redrive.md)) | AC-5.10 |
 | **Security & audit review** | A truy cập dữ liệu B → 404 và có nhật ký; dùng lại mã yêu cầu của B không lộ gì; **khóa tài khoản → request kế tiếp bị từ chối**; kiểm toán viên chỉ đọc; truy vết một giao dịch theo `correlationId` | AC-5.8, 8.1, 8.2, 11.1 |
-| **Load test** | k6 ở 12 → 60 → 120 RPS + tài khoản nóng; stress vượt 120 RPS tìm điểm gãy; so sánh tải RDS khi bật/tắt bộ đếm Redis | NFR-PERF, SCAL |
+| **Load test** | k6 ở 12 → 60 → 120 RPS + tài khoản nóng; stress vượt 120 RPS tìm điểm gãy; đo tải SQL feature và chi phí/fallback AI khi được phép | NFR-PERF, SCAL |
 
 ## 18. Architecture Decision Records
 

@@ -66,6 +66,7 @@ GRANT SELECT, INSERT ON audit_log TO dbs_api;
 GRANT SELECT ON fraud_flags TO dbs_api;
 GRANT UPDATE (review_status, reviewed_by, reviewed_at, review_note) ON fraud_flags TO dbs_api;
 GRANT SELECT ON fraud_rule_hits TO dbs_api;
+GRANT SELECT ON v_transfer_facts TO dbs_api;
 GRANT SELECT, INSERT ON risk_rule_sets TO dbs_api;
 GRANT SELECT ON reconciliation_runs TO dbs_api;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO dbs_api;
@@ -93,5 +94,16 @@ BEGIN
   IF to_regclass('public.risk_decisions') IS NOT NULL THEN
     GRANT SELECT ON public.risk_decisions TO dbs_api;
     GRANT SELECT, INSERT ON public.risk_decisions TO dbs_worker;
+  END IF;
+END $$;
+
+-- RSK-02: gate functions only; no gate-table privileges and no API execution.
+DO $$
+BEGIN
+  IF to_regprocedure('public.ai_gate_acquire(uuid,text,integer,integer)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.ai_gate_acquire(uuid,text,integer,integer) TO dbs_worker;
+  END IF;
+  IF to_regprocedure('public.ai_gate_release(uuid)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.ai_gate_release(uuid) TO dbs_worker;
   END IF;
 END $$;

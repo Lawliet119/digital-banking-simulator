@@ -24,6 +24,7 @@ import { AccountsModule } from '@modules/accounts';
 import { AuditModule } from '@modules/audit';
 import { OutboxModule } from '@modules/outbox';
 import { LedgerModule } from '@modules/ledger';
+import { FraudHttpModule } from '@modules/risk/fraud-http.module';
 import {
   IdentityModule,
   JwtAuthGuard,
@@ -32,7 +33,7 @@ import {
 } from '@modules/identity';
 import { configureHttpApp } from '../../src/app.setup';
 import { createHttpLogging } from '@common/logging/http-logging';
-import { createDevTokenIssuer } from './dev-tokens';
+import { createDevTokenIssuer, type DevTokenIssuer } from './dev-tokens';
 
 const settings = {
   role: 'api' as const,
@@ -45,6 +46,15 @@ const settings = {
 export interface FixtureLimits {
   transfer: { perTx: bigint; perDay: bigint };
   rateLimit: { transfersPerMinute: number; requestsPerIpPerMinute: number };
+}
+
+export interface DepositApp {
+  app: NestExpressApplication;
+  url: string;
+  source: DataSource;
+  issuer: DevTokenIssuer;
+  limits: FixtureLimits;
+  close(): Promise<void>;
 }
 /** DBS-89: run the app with the real rate-limit guards against a real Redis (Valkey). */
 export interface RateLimitFixture {
@@ -104,8 +114,10 @@ export async function startDepositApp(
     /** DBS-144: the HTTP metrics middleware, mounted as `main.ts` mounts it. */
     metrics?: RequestHandler;
     revocation?: { redisUrl: string };
+    /** Opt-in to keep unrelated HTTP fixtures independent of fraud schema. */
+    fraud?: boolean;
   } = {},
-) {
+): Promise<DepositApp> {
   const issuer = await createDevTokenIssuer(),
     tempRoot = resolve(tmpdir());
   const dir = mkdtempSync(join(tempRoot, 'dbs60-jwks-')),
@@ -158,6 +170,7 @@ export async function startDepositApp(
         AuditModule,
         OutboxModule,
         LedgerModule,
+        ...(options.fraud ? [FraudHttpModule] : []),
         ...(rateLimit ? [RateLimitModule, HealthModule] : []),
       ],
       // The same order as AppModule: JWT, roles, per-customer transfer limit (the IP limit is the

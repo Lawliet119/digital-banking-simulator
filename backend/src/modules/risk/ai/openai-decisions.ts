@@ -1,13 +1,23 @@
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import type { AiAssessment, AiStatus, DecisionOptions } from './ai-contract';
+import type { AiAssessment, AiStatus, DecisionOptions, PermitResult } from './ai-contract';
 import { projectFeatures } from './feature-projection';
-import { REVIEW_QUESTION, REVIEW_RUBRIC } from './rubric';
+import { REVIEW_QUESTION } from './rubric';
 
 const ENDPOINT = 'https://api.openai.com/v1/decisions';
 const RESPONSE_LIMIT = 65536;
 const hash = (value: string): string => createHash('sha256').update(value, 'utf8').digest('hex');
-const RUBRIC_HASH = hash(REVIEW_RUBRIC);
+const RUBRIC_BYTE_LIMIT = 16384;
+
+function releasePermit(permit: PermitResult): void {
+  if (permit.kind !== 'granted') return;
+  try {
+    // Cleanup must never delay a decision, including a late grant.
+    void Promise.resolve(permit.release()).catch(() => undefined);
+  } catch {
+    // Cleanup faults must not expose credentials or override the assessment.
+  }
+}
 
 function empty(status: AiStatus): AiAssessment {
   return {
@@ -76,8 +86,10 @@ async function readBody(response: Response, controller: AbortController): Promis
 function createAdapter(endpoint: string) {
   return async function evaluate(
     features: unknown,
-    options: DecisionOptions,
+    suppliedOptions: DecisionOptions,
   ): Promise<AiAssessment> {
+    // Capture all selected primitives before admission can yield to the caller.
+    const options = { ...suppliedOptions };
     let projected;
     try {
       projected = projectFeatures(features);
@@ -92,11 +104,16 @@ function createAdapter(endpoint: string) {
       typeof options.model !== 'string' ||
       !/^[A-Za-z0-9_.:-]{1,128}$/.test(options.model) ||
       options.model.includes(options.apiKey) ||
+      typeof options.rubric !== 'string' ||
+      options.rubric.trim().length === 0 ||
+      Buffer.byteLength(options.rubric, 'utf8') > RUBRIC_BYTE_LIMIT ||
+      options.rubric.includes(options.apiKey) ||
       !Number.isSafeInteger(options.requestTimeoutMs) ||
       options.requestTimeoutMs <= 0 ||
       options.requestTimeoutMs > 2147483647 ||
       !Number.isSafeInteger(options.maxAdmissionDelayMs) ||
       options.maxAdmissionDelayMs <= 0 ||
+      options.maxAdmissionDelayMs > 2147483647 ||
       !Number.isFinite(options.selectedAtMonotonicMs) ||
       options.selectedAtMonotonicMs < 0 ||
       options.selectedAtMonotonicMs > nowMonotonic + 1 ||
@@ -104,22 +121,53 @@ function createAdapter(endpoint: string) {
     ) {
       return empty('CONFIG_INVALID');
     }
+    const rubric = options.rubric;
     const result: AiAssessment = {
       ...empty('UNAVAILABLE'),
       provider: 'openai',
       requestedModel: options.model,
-      rubricSha256: RUBRIC_HASH,
+      rubricSha256: hash(rubric),
       inputSha256: hash(JSON.stringify(projected)),
     };
     const expired = (): boolean =>
-      performance.now() - options.selectedAtMonotonicMs > options.maxAdmissionDelayMs;
+      performance.now() - options.selectedAtMonotonicMs >= options.maxAdmissionDelayMs;
     if (expired()) return result;
-    let permit;
+    let admissionClosed = false;
+    let admissionTimer: NodeJS.Timeout | undefined;
+    let resolveDeadline!: (value: null) => void;
+    const deadline = new Promise<null>(resolve => {
+      resolveDeadline = resolve;
+    });
+    let permit: PermitResult | null;
     try {
-      permit = options.tryAcquire();
+      admissionTimer = setTimeout(
+        () => {
+          admissionClosed = true;
+          resolveDeadline(null);
+        },
+        Math.max(
+          0,
+          options.maxAdmissionDelayMs - (performance.now() - options.selectedAtMonotonicMs),
+        ),
+      );
+      const acquisition = Promise.resolve(options.tryAcquire()).then(
+        acquired => {
+          if (admissionClosed || expired()) {
+            releasePermit(acquired);
+            return null;
+          }
+          return acquired;
+        },
+        () => null,
+      );
+      permit = await Promise.race([acquisition, deadline]);
     } catch {
       return result;
+    } finally {
+      admissionClosed = true;
+      clearTimeout(admissionTimer);
     }
+    if (!permit) return result;
     if (permit.kind === 'budget_exhausted') return { ...result, status: 'BUDGET_EXHAUSTED' };
     if (permit.kind !== 'granted') return result;
     try {
@@ -127,6 +175,7 @@ function createAdapter(endpoint: string) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), options.requestTimeoutMs);
       try {
+        if (expired()) return result;
         const response = await fetch(endpoint, {
           method: 'POST',
           redirect: 'error',
@@ -138,7 +187,7 @@ function createAdapter(endpoint: string) {
           body: JSON.stringify({
             model: options.model,
             input: [{ role: 'user', content: [{ type: 'input_json', data: projected }] }],
-            questions: [{ type: 'predicate', name: REVIEW_QUESTION, instructions: REVIEW_RUBRIC }],
+            questions: [{ type: 'predicate', name: REVIEW_QUESTION, instructions: rubric }],
           }),
         });
         if (!response.ok) {
@@ -182,7 +231,7 @@ function createAdapter(endpoint: string) {
         clearTimeout(timeout);
       }
     } finally {
-      permit.release();
+      releasePermit(permit);
     }
   };
 }

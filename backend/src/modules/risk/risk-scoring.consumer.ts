@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
@@ -8,12 +9,14 @@ import { ConsumerBase, type UnknownEventPolicy } from '@common/messaging';
 import { TransactionService } from '@database/transaction.service';
 import { PoisonMessageError, SqsClient } from '@libs/sqs';
 import { AuditService } from '@modules/audit';
-import type { FeatureInput } from './ai/ai-contract';
+import type { AiAssessment, FeatureInput } from './ai/ai-contract';
+import { AssessmentMemo } from './ai/assessment-memo';
+import { persistedAssessment } from './ai/persisted-assessment';
+import { RiskAiService } from './ai/risk-ai.service';
 import { toAiFeatureInput } from './ai/feature-projection';
 import { RuleSetRepository } from './config/rule-set.repository';
-import type { RuleSet } from './config/rule-set';
 import { OnlineFeatureProvider } from './features/online-feature-provider';
-import { ScoringService, type ScoringConfig, type ScoringResult } from './scoring.service';
+import { ScoringService, type ScoringResult } from './scoring.service';
 
 /** `processed_events.consumer` of this module. */
 export const RISK_CONSUMER = 'risk';
@@ -24,14 +27,16 @@ interface Prepared {
   readonly ruleSetVersion: number;
   readonly result: ScoringResult;
   readonly snapshot: FeatureInput;
+  readonly assessment?: AiAssessment;
   won: boolean;
 }
 
 /** No conflict target: both unique indexes of risk_decisions are arbiters, so a loser gets 0 rows, never 23505 (RSK-01). */
 const CLAIM_DECISION = `
   INSERT INTO risk_decisions
-    (transfer_id, event_id, rule_set_version, mode, rule_score, feature_snapshot, ai_status, ai_applied_weight)
-  VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+    (transfer_id, event_id, rule_set_version, mode, rule_score, feature_snapshot, ai_status, ai_applied_weight,
+     probability, provider, requested_model, response_model, rubric_sha256, input_sha256, provider_request_id)
+  VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14, $15)
   ON CONFLICT DO NOTHING
   RETURNING transfer_id`;
 
@@ -49,8 +54,8 @@ const CLAIM_DECISION = `
 export class RiskScoringConsumer extends ConsumerBase {
   protected readonly consumerName = RISK_CONSUMER;
   private readonly logger = new Logger(RiskScoringConsumer.name);
-  /** Versions already warned about: their AI call is not wired yet (one warning each). */
-  private readonly warnedVersions = new Set<number>();
+  /** A retry of the same event reuses the AI answer already paid for (see AssessmentMemo). */
+  private readonly paidAssessments = new AssessmentMemo();
 
   constructor(
     tx: TransactionService,
@@ -62,6 +67,7 @@ export class RiskScoringConsumer extends ConsumerBase {
     private readonly scoring: ScoringService,
     private readonly audit: AuditService,
     private readonly db: DataSource,
+    private readonly ai: RiskAiService,
   ) {
     super(tx, sqs, pino);
   }
@@ -98,34 +104,31 @@ export class RiskScoringConsumer extends ConsumerBase {
     // The narrowing above makes this a TRANSFER event (the rules' `TransferEvent`).
     const transfer = event;
     const ruleSet = await this.ruleSets.current();
+    const selectedAtMonotonicMs = performance.now();
     const features = await this.features.extract(transfer);
-    const result = this.scoring.score(transfer, features, this.scoringConfig(ruleSet));
-    if (!result) return null;
+    const snapshot = toAiFeatureInput(transfer, features);
+    const baseline = this.scoring.score(transfer, features, ruleSet);
+    if (!baseline) return null;
+    let assessment: AiAssessment | undefined;
+    if (baseline.mode === 'rules_with_external_ai' && baseline.aiStatus !== 'CONFIG_INVALID') {
+      assessment = this.paidAssessments.get(event.eventId);
+      if (!assessment) {
+        assessment = await this.ai.evaluate(snapshot, ruleSet, selectedAtMonotonicMs);
+        this.paidAssessments.remember(event.eventId, assessment);
+      }
+    }
+    const result = assessment
+      ? this.scoring.applyAssessment(baseline, ruleSet, assessment)
+      : baseline;
     const decision: Prepared = {
       transferId: transfer.transferId,
       ruleSetVersion: ruleSet.version,
       result,
-      snapshot: toAiFeatureInput(transfer, features),
+      snapshot,
+      assessment,
       won: false,
     };
     return decision;
-  }
-
-  /**
-   * ADR-14 (b): a broken `ai.*` block is scored with the version's own mode, which records
-   * `CONFIG_INVALID` with no AI weight. A valid block cannot be honoured until the AI call is wired
-   * (DoD #9), so the rules alone score it and the decision says `rule_only`: what was really done.
-   */
-  private scoringConfig(ruleSet: RuleSet): ScoringConfig {
-    if (ruleSet.mode !== 'rules_with_external_ai' || ruleSet.aiConfigInvalid) return ruleSet;
-    if (!this.warnedVersions.has(ruleSet.version)) {
-      this.warnedVersions.add(ruleSet.version);
-      this.logger.warn(
-        { ruleSetVersion: ruleSet.version },
-        'Rule set asks for AI, which is not wired yet: scoring rule_only',
-      );
-    }
-    return { ...ruleSet, mode: 'rule_only' };
   }
 
   protected async apply(
@@ -137,6 +140,7 @@ export class RiskScoringConsumer extends ConsumerBase {
     if (!decision) return;
     decision.won = false; // a deadlock retry runs this again from the start
     const { result } = decision;
+    const ai = persistedAssessment(result.aiStatus, decision.assessment);
     const claimed: unknown[] = await manager.query(CLAIM_DECISION, [
       decision.transferId,
       event.eventId,
@@ -146,6 +150,13 @@ export class RiskScoringConsumer extends ConsumerBase {
       JSON.stringify(decision.snapshot),
       result.aiStatus,
       result.aiAppliedWeight,
+      ai.probability,
+      ai.provider,
+      ai.requestedModel,
+      ai.responseModel,
+      ai.rubricSha256,
+      ai.inputSha256,
+      ai.requestId,
     ]);
     if (claimed.length === 0) return; // another event of this transfer decided first
     decision.won = true;
@@ -173,6 +184,7 @@ export class RiskScoringConsumer extends ConsumerBase {
 
   protected override onCommitted(event: DomainEvent, prepared?: unknown): void {
     const decision = prepared as Prepared | null | undefined;
+    this.paidAssessments.forget(event.eventId);
     if (!decision?.won) return;
     // Ids, the level and the rule ids only: no amount and no explanation in the logs.
     this.logger.log(

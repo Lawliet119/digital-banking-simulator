@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import type { AiAssessment } from '../modules/risk/ai/ai-contract';
 import { assess } from '../modules/risk/ai/openai-decisions';
+import { REVIEW_RUBRIC } from '../modules/risk/ai/rubric';
 
 const invalid: AiAssessment = {
   status: 'CONFIG_INVALID',
@@ -43,6 +44,7 @@ async function run(): Promise<void> {
     enabled: args[0] === '--live',
     apiKey: process.env.OPENAI_API_KEY ?? null,
     model: 'gpt-6-luna',
+    rubric: REVIEW_RUBRIC,
     requestTimeoutMs: 10000,
     maxAdmissionDelayMs: 1000,
     selectedAtMonotonicMs,

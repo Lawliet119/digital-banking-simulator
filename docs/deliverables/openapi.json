@@ -1125,6 +1125,378 @@
           "auditor"
         ]
       }
+    },
+    "/v1/operator/fraud-flags": {
+      "get": {
+        "operationId": "FraudHttpController_list_v1",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "level",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "MEDIUM",
+                "HIGH"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "review_status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "OPEN",
+                "CONFIRMED_FRAUD",
+                "FALSE_POSITIVE"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudListDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "Malformed query, UUID or body; no errorCode"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+          },
+          "403": {
+            "description": "The caller has none of the allowed roles (errorCode FORBIDDEN)\n\nFORBIDDEN; operator role required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "Internal server error; audit failure returns no data and rolls back review"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List flags, HIGH first then creation time and transfer UUID descending",
+        "tags": [
+          "operator fraud"
+        ],
+        "x-roles": [
+          "operator"
+        ]
+      }
+    },
+    "/v1/operator/fraud-flags/{transferId}": {
+      "get": {
+        "operationId": "FraudHttpController_detail_v1",
+        "parameters": [
+          {
+            "name": "transferId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "Malformed query, UUID or body; no errorCode"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+          },
+          "403": {
+            "description": "The caller has none of the allowed roles (errorCode FORBIDDEN)\n\nFORBIDDEN; operator role required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "No flag exists; no errorCode"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "Internal server error; audit failure returns no data and rolls back review"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Read canonical flag detail and record mandatory access audit",
+        "tags": [
+          "operator fraud"
+        ],
+        "x-roles": [
+          "operator"
+        ]
+      }
+    },
+    "/v1/operator/fraud-flags/{transferId}/review": {
+      "post": {
+        "operationId": "FraudHttpController_review_v1",
+        "parameters": [
+          {
+            "name": "transferId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewFraudDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "transferId",
+                    "reviewStatus"
+                  ],
+                  "properties": {
+                    "transferId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "reviewStatus": {
+                      "type": "string",
+                      "enum": [
+                        "CONFIRMED_FRAUD",
+                        "FALSE_POSITIVE"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "Malformed query, UUID or body; no errorCode"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+          },
+          "403": {
+            "description": "The caller has none of the allowed roles (errorCode FORBIDDEN)\n\nFORBIDDEN; operator role required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "No flag exists; no errorCode"
+          },
+          "409": {
+            "description": "FLAG_ALREADY_REVIEWED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                },
+                "examples": {
+                  "alreadyReviewed": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Conflict",
+                      "status": 409,
+                      "detail": "Fraud flag already reviewed",
+                      "errorCode": "FLAG_ALREADY_REVIEWED",
+                      "correlationId": "44444444-4444-4444-8444-444444444444"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "Internal server error; audit failure returns no data and rolls back review"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE"
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Review an OPEN flag exactly once; no account lock or outbox event",
+        "tags": [
+          "operator fraud"
+        ],
+        "x-roles": [
+          "operator"
+        ]
+      }
     }
   },
   "info": {
@@ -1762,6 +2134,292 @@
         "required": [
           "entries",
           "nextCursor"
+        ]
+      },
+      "FraudProblemDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "about:blank"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "number"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "errorCode": {
+            "type": "string",
+            "description": "Mã lỗi khi có; lỗi validation và not found không có errorCode"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "correlationId"
+        ]
+      },
+      "FraudFlagDto": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "11111111-1111-4111-8111-111111111111"
+          },
+          "fromAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "22222222-2222-4222-8222-222222222222"
+          },
+          "toAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "33333333-3333-4333-8333-333333333333"
+          },
+          "score": {
+            "type": "number",
+            "example": 45,
+            "description": "Tổng điểm rule và AI; không tự cộng hits"
+          },
+          "riskLevel": {
+            "type": "string",
+            "enum": [
+              "MEDIUM",
+              "HIGH"
+            ],
+            "example": "MEDIUM"
+          },
+          "reviewStatus": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CONFIRMED_FRAUD",
+              "FALSE_POSITIVE"
+            ],
+            "example": "OPEN"
+          },
+          "ruleSetVersion": {
+            "type": "number",
+            "example": 2
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-10T10:00:00.123456Z"
+          }
+        },
+        "required": [
+          "transferId",
+          "fromAccountId",
+          "toAccountId",
+          "score",
+          "riskLevel",
+          "reviewStatus",
+          "ruleSetVersion",
+          "createdAt"
+        ]
+      },
+      "FraudListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FraudFlagDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "FraudHitDto": {
+        "type": "object",
+        "properties": {
+          "ruleId": {
+            "type": "string",
+            "enum": [
+              "R1",
+              "R2",
+              "R3",
+              "R4",
+              "R5",
+              "R6"
+            ],
+            "example": "R1"
+          },
+          "weight": {
+            "type": "number",
+            "example": 30
+          },
+          "explanation": {
+            "type": "string",
+            "example": "6 giao dịch trong 10 phút"
+          }
+        },
+        "required": [
+          "ruleId",
+          "weight",
+          "explanation"
+        ]
+      },
+      "FraudAiDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "SUCCEEDED"
+          },
+          "probability": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.95
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "example": "gpt-6-luna"
+          },
+          "rubricSha256": {
+            "type": "string",
+            "nullable": true,
+            "example": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        },
+        "required": [
+          "status",
+          "probability",
+          "model",
+          "rubricSha256"
+        ]
+      },
+      "FraudDetailDto": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "11111111-1111-4111-8111-111111111111"
+          },
+          "fromAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "22222222-2222-4222-8222-222222222222"
+          },
+          "toAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "33333333-3333-4333-8333-333333333333"
+          },
+          "score": {
+            "type": "number",
+            "example": 45,
+            "description": "Tổng điểm rule và AI; không tự cộng hits"
+          },
+          "riskLevel": {
+            "type": "string",
+            "enum": [
+              "MEDIUM",
+              "HIGH"
+            ],
+            "example": "MEDIUM"
+          },
+          "reviewStatus": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CONFIRMED_FRAUD",
+              "FALSE_POSITIVE"
+            ],
+            "example": "OPEN"
+          },
+          "ruleSetVersion": {
+            "type": "number",
+            "example": 2
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-10T10:00:00.123456Z"
+          },
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FraudHitDto"
+            }
+          },
+          "recentTransactions": {
+            "description": "Latest 10 movements of the sender account",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionItemDto"
+            }
+          },
+          "aiAssessment": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FraudAiDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "transferId",
+          "fromAccountId",
+          "toAccountId",
+          "score",
+          "riskLevel",
+          "reviewStatus",
+          "ruleSetVersion",
+          "createdAt",
+          "hits",
+          "recentTransactions",
+          "aiAssessment"
+        ]
+      },
+      "ReviewFraudDto": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "CONFIRMED_FRAUD",
+              "FALSE_POSITIVE"
+            ],
+            "example": "FALSE_POSITIVE"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "example": "Đã xác minh với khách hàng"
+          }
+        },
+        "required": [
+          "decision"
         ]
       }
     }

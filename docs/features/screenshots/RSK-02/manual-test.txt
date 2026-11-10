@@ -1,0 +1,5 @@
+bbaf789251e9d3e21c45211e69a67c05e23683b3
+M-RSK-02 IDs (synthetic): transferId=3b15dd1c-09f9-4ce7-bb42-abe7512429b8; correlationId=bd0355fa-fb03-49e9-bad9-269c28d18d84
+M-RSK-02 PASS: HTTP transfer → outbox → ElasticMQ → worker → synthetic AI → durable decision and flag
+M-RSK-02 PASS: operator detail 200; customer 403; review 200 then 409; redelivery one decision/one provider call
+M-RSK-02 PASS: gate one request/released; review audit committed; ledger invariants unchanged; no external provider request

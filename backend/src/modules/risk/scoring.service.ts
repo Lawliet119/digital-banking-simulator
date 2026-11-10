@@ -109,6 +109,17 @@ export class ScoringService {
       hits.push(hit);
     }
 
+    return this.applyAssessment({ mode, hits, ruleScore }, config, assessment);
+  }
+
+  /** Reuses the rule baseline; applying an AI answer never evaluates R1–R6 again. */
+  applyAssessment(
+    baseline: Pick<ScoringResult, 'mode' | 'hits' | 'ruleScore'>,
+    config: ScoringConfig,
+    assessment?: AiAssessment | null,
+  ): ScoringResult {
+    const { mode, hits, ruleScore } = baseline;
+    const { medium, high } = config.thresholds;
     let aiStatus: AiStatus = 'DISABLED';
     let aiAppliedWeight = 0;
     if (mode === 'rules_with_external_ai') {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { register as defaultRegister } from 'prom-client';
 import { DataSource } from 'typeorm';
 import type { DomainEvent } from '@common/events';
 import { PoisonMessageError, type SqsMessage } from '@libs/sqs';
@@ -299,6 +300,20 @@ describe('DBS-111 risk scoring consumer on PostgreSQL', () => {
       await count("processed_events WHERE consumer = 'risk' AND event_id = $1", [event.eventId]),
     ).toBe(0);
     expect(await count('risk_decisions WHERE transfer_id = $1', [transferId])).toBe(0);
+  });
+
+  it('TC-111-11 Redis configuration fallback still increments, but SQL features are not Redis fallbacks', async () => {
+    const total = async (name: string) =>
+      (await defaultRegister.getSingleMetric(name)?.get())?.values.reduce(
+        (sum, value) => sum + value.value,
+        0,
+      ) ?? 0;
+    const configBefore = await total('risk_config_redis_fallback_total');
+    const featureBefore = await total('risk_redis_fallback_total');
+    const { event } = await ac91();
+    await parts.consumer.handle(event, message(1));
+    expect(await total('risk_config_redis_fallback_total')).toBeGreaterThan(configBefore);
+    expect(await total('risk_redis_fallback_total')).toBe(featureBefore);
   });
 
   it('TC-111-10 an audit failure rolls back the claim, the decision and the flag', async () => {

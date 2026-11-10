@@ -1,12 +1,12 @@
 import {
   createTempDatabase,
-  migrate,
   migrateThrough,
   attempt,
   type TempDatabase,
 } from '../support/temp-database';
 
 const BASE = 'AddAppendOnlyTriggers1792627200002';
+const TARGET = 'CreateReconciliationRuns1793577600000';
 const ACCOUNT = '11111111-1111-4111-8111-111111111111';
 const DETAIL = { accountId: ACCOUNT, balance: '9007199254740993', ledgerBalance: '600000' };
 const INSERT = `INSERT INTO reconciliation_runs
@@ -98,7 +98,8 @@ describe('reconciliation storage schema on PostgreSQL', () => {
     await migrateThrough(db.url, BASE);
     baseFunctions = await functions();
     baseFunding = await funding();
-    await migrate(db.url);
+    // This suite compares the reconciliation migration with its prior schema, not later features.
+    await migrateThrough(db.url, TARGET);
   });
   beforeEach(async () => db.runner.startTransaction());
   afterEach(async () => {

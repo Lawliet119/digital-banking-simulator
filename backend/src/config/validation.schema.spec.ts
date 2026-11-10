@@ -25,6 +25,28 @@ const production = {
 };
 
 describe('validateEnv', () => {
+  it('RSK-02 never approves egress or chooses a production quota implicitly', () => {
+    const env = validateEnv(production);
+    expect(env.RISK_AI_EGRESS_APPROVED).toBe(false);
+    expect(env.RISK_AI_POLICY_REVISION).toBeUndefined();
+    expect(env.RISK_AI_DAILY_REQUEST_CAP).toBeUndefined();
+    expect(env.RISK_AI_CONCURRENCY).toBeUndefined();
+    expect(env.RISK_AI_GATE_TIMEOUT_MS).toBeUndefined();
+    expect(validateEnv({ ...base, RISK_AI_EGRESS_APPROVED: 'true' }).RISK_AI_EGRESS_APPROVED).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    ['RISK_AI_EGRESS_APPROVED', 'yes'],
+    ['RISK_AI_POLICY_REVISION', 'invalid policy'],
+    ['RISK_AI_DAILY_REQUEST_CAP', '0'],
+    ['RISK_AI_CONCURRENCY', '-1'],
+    ['RISK_AI_GATE_TIMEOUT_MS', '2147483648'],
+  ])('RSK-02 rejects invalid %s without silently choosing a default', (key, value) => {
+    expect(() => validateEnv({ ...base, [key]: value })).toThrow(ConfigValidationError);
+  });
+
   describe('the shipped example file', () => {
     it('env/.env.example always passes the schema, so a new developer can copy it as-is', () => {
       const example = parse(readFileSync(resolve(__dirname, '../../env/.env.example')));

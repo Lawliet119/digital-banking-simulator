@@ -186,7 +186,6 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
       queueUrl: riskUrl,
       make: (...args) => new CountingRisk(...args),
     });
-    parts.provider.invalidateCounters();
     return start(parts.consumer as CountingRisk);
   }
   /** AC-9.1 source: new account, 21M deposited, consumed by both queues before the test acts. */

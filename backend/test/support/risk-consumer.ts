@@ -9,27 +9,24 @@ import { AuditService } from '@modules/audit/audit.service';
 import { RuleSetRepository, type RuleSetRedis } from '@modules/risk/config/rule-set.repository';
 import { OnlineFeatureProvider } from '@modules/risk/features/online-feature-provider';
 import { TransferFacts } from '@modules/risk/features/transfer-facts';
-import type { CounterRedis } from '@modules/risk/features/window-counter';
 import { RiskMetrics } from '@modules/risk/risk.metrics';
 import { RiskScoringConsumer } from '@modules/risk/risk-scoring.consumer';
 import { ScoringService } from '@modules/risk/scoring.service';
+import { RiskAiService } from '@modules/risk/ai/risk-ai.service';
 import type { startDepositApp } from './deposit-app';
 
 type App = Awaited<ReturnType<typeof startDepositApp>>;
 const unavailable = () => Promise.reject(new RedisUnavailableError('UNAVAILABLE'));
 
-/** A Redis that is always down: every rule set and every R1/R5 count comes from PostgreSQL. */
+/** Redis configuration cache is down; feature aggregates always come from PostgreSQL. */
 export const downRedis = {
   get: unavailable,
   set: unavailable,
-  incr: unavailable,
-  zadd: unavailable,
-  zrangebyscore: unavailable,
   serverTimeMs: unavailable,
   readExpiringVersion: unavailable,
   setVersionBefore: unavailable,
   setIfAbsent: unavailable,
-} as unknown as CounterRedis & RuleSetRedis;
+} as unknown as RuleSetRedis;
 
 export interface RiskConsumerParts {
   consumer: RiskScoringConsumer;
@@ -46,9 +43,10 @@ export interface RiskConsumerParts {
 export function buildRiskConsumer(
   source: DataSource,
   options: {
-    redis?: CounterRedis & RuleSetRedis;
+    redis?: RuleSetRedis;
     queueUrl?: string;
     sqs?: SqsClient;
+    ai?: RiskAiService;
     make?: (...args: ConstructorParameters<typeof RiskScoringConsumer>) => RiskScoringConsumer;
   } = {},
 ): RiskConsumerParts {
@@ -61,9 +59,7 @@ export function buildRiskConsumer(
   const redis = options.redis ?? downRedis;
   const provider = new OnlineFeatureProvider({
     facts: new TransferFacts(source),
-    redis,
     perTxLimit: 50_000_000n,
-    metrics,
   });
   const ruleSets = new RuleSetRepository({ redis, db: source, metrics });
   const scoring = new ScoringService();
@@ -81,6 +77,7 @@ export function buildRiskConsumer(
     scoring,
     audit,
     source,
+    options.ai ?? new RiskAiService(),
   ];
   const consumer = options.make ? options.make(...args) : new RiskScoringConsumer(...args);
   return { consumer, provider, scoring, audit, tx };

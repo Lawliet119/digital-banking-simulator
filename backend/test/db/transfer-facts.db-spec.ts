@@ -53,6 +53,16 @@ describe('TransferFacts (real PostgreSQL)', () => {
       const hour = await facts.windowTransfers(a, OCC, HOUR);
       expect(hour.map(r => r.id)).toContain(edge.id);
       expect(hour.find(r => r.id === current.id)?.atMs).toBe(OCC);
+      expect(await facts.velocity(a, current.id, OCC)).toEqual({
+        tenMinutes: ten.length,
+        hour: hour.length,
+        includesCurrent: true,
+      });
+      expect(await facts.velocity(a, later.id, OCC)).toEqual({
+        tenMinutes: ten.length,
+        hour: hour.length,
+        includesCurrent: false,
+      });
     });
 
     it('TC-109-02 another account is not counted', async () => {
@@ -60,6 +70,11 @@ describe('TransferFacts (real PostgreSQL)', () => {
       await fixture.transfer({ from: c, to: b, at: at(-1000) });
       const mine = await fixture.transfer({ from: a, to: b, at: at(0) });
       expect((await facts.windowTransfers(a, OCC, 10 * MIN)).map(r => r.id)).toEqual([mine.id]);
+      expect(await facts.velocity(a, mine.id, OCC)).toEqual({
+        tenMinutes: 1,
+        hour: 1,
+        includesCurrent: true,
+      });
     });
   });
 
@@ -158,20 +173,6 @@ describe('TransferFacts (real PostgreSQL)', () => {
   });
 
   describe('R5 recipients', () => {
-    it('TC-109-04 isNewRecipient: not new when the sender paid them in the 30 days before, ignoring the current transfer', async () => {
-      const [a, b, c] = await fixture.accounts(3);
-      const current = await fixture.transfer({ from: a, to: b, at: at(0, 10) });
-      expect(await facts.isNewRecipient(a, b, current.id, OCC)).toBe(true);
-      await fixture.transfer({ from: a, to: b, at: at(-29 * DAY) });
-      expect(await facts.isNewRecipient(a, b, current.id, OCC)).toBe(false);
-      // Older than 30 days, rejected, or from somebody else: still new.
-      await fixture.transfer({ from: a, to: c, at: at(-30 * DAY - 1) });
-      await fixture.transfer({ from: a, to: c, at: at(-DAY), status: 'REJECTED' });
-      await fixture.transfer({ from: b, to: c, at: at(-DAY) });
-      const toC = await fixture.transfer({ from: a, to: c, at: at(0, 11) });
-      expect(await facts.isNewRecipient(a, c, toC.id, OCC)).toBe(true);
-    });
-
     it('TC-109-04 newRecipientsInWindow: one entry per new recipient, old recipients and outsiders excluded', async () => {
       const [a, ...others] = await fixture.accounts(8);
       const [r1, r2, r3, old, outside, rejected] = others;
@@ -186,6 +187,7 @@ describe('TransferFacts (real PostgreSQL)', () => {
       const found = await facts.newRecipientsInWindow(a, OCC, HOUR);
       expect(found.map(r => r.recipientId).sort()).toEqual([r1, r2, r3].sort());
       expect(found.find(r => r.recipientId === r1)?.atMs).toBe(OCC - 50 * MIN);
+      expect(await facts.newRecipientCount(a, OCC)).toBe(found.length);
     });
   });
 
@@ -222,8 +224,21 @@ describe('TransferFacts (real PostgreSQL)', () => {
         `SELECT to_account_id AS id FROM transfers WHERE from_account_id=$1 LIMIT 1`,
         [sender],
       )) as { id: string }[];
-      const queries = factQueries(sender, other, '00000000-0000-4000-8000-000000000009', OCC);
-      let r2r4r5 = 0;
+      const queries = factQueries(sender, other, OCC);
+      let aggregateMs = 0;
+      // Capture the production aggregate SQL while still executing every read on real PG.
+      const aggregates = new TransferFacts({
+        query: async (sql, params) => {
+          const plan = await explain(sql, params ?? []);
+          expect(/"Node Type":"Seq Scan"/.test(plan.text)).toBe(false);
+          expect(/transfers_(account|pair)_completed_idx/.test(plan.text)).toBe(true);
+          aggregateMs += plan.ms;
+          return source.query<unknown[]>(sql, params);
+        },
+      });
+      await aggregates.velocity(sender, '00000000-0000-4000-8000-000000000009', OCC);
+      await aggregates.newRecipientCount(sender, OCC);
+      let r2r4 = 0;
       for (const [name, query] of Object.entries(queries)) {
         const plan = await explain(query.sql, query.params);
         expect([name, /"Node Type":"Seq Scan"/.test(plan.text)]).toEqual([name, false]);
@@ -231,9 +246,9 @@ describe('TransferFacts (real PostgreSQL)', () => {
           name,
           true,
         ]);
-        if (name === 'history' || name === 'reverse' || name === 'newRecipients') r2r4r5 += plan.ms;
+        if (name === 'history' || name === 'reverse') r2r4 += plan.ms;
       }
-      expect(r2r4r5).toBeLessThanOrEqual(30);
+      expect(r2r4 + aggregateMs).toBeLessThanOrEqual(30);
     });
   });
 });

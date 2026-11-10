@@ -36,6 +36,8 @@ describe('audit types (DBS-56)', () => {
       // reason accepts the two closed registries, nothing else.
       const _r1: AuditMetadata = { reason: ErrorCode.ACCOUNT_NOT_ACTIVE };
       const _r2: AuditMetadata = { reason: AuditReason.NOT_OWNER };
+      const _fraudConfirmed: AuditMetadata = { reason: AuditReason.CONFIRMED_FRAUD };
+      const _fraudFalsePositive: AuditMetadata = { reason: AuditReason.FRAUD_FALSE_POSITIVE };
       // @ts-expect-error -- a free sentence is not a member of either registry
       const _r3: AuditMetadata = { reason: 'khach khong phai chu tai khoan' };
     };

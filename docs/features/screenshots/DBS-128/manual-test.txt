@@ -1,0 +1,2 @@
+5746767204e34d9af09c7fa51cfb960c243db53e
+{"transactions":100000,"indexMs":712.5252159999998,"extractAndProjectMs":1096.264416,"checksum":3098180,"heapBytes":262415472}

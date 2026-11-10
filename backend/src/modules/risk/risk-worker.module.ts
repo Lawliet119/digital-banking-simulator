@@ -3,6 +3,9 @@ import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { limitsConfig } from '@config/limits.config';
 import { sqsConfig } from '@config/sqs.config';
+import { databaseConfig } from '@config/database.config';
+import { riskAiConfig } from '@config/risk-ai.config';
+import { RiskAiService } from './ai/risk-ai.service';
 import { RedisClient, RedisModule } from '@libs/redis';
 import { SqsModule } from '@libs/sqs';
 import { AuditModule } from '@modules/audit';
@@ -22,6 +25,8 @@ import { ScoringService } from './scoring.service';
   imports: [
     ConfigModule.forFeature(sqsConfig),
     ConfigModule.forFeature(limitsConfig),
+    ConfigModule.forFeature(databaseConfig),
+    ConfigModule.forFeature(riskAiConfig),
     SqsModule,
     RedisModule,
     AuditModule,
@@ -29,6 +34,14 @@ import { ScoringService } from './scoring.service';
   providers: [
     RiskMetrics,
     ScoringService,
+    {
+      provide: RiskAiService,
+      inject: [riskAiConfig.KEY, databaseConfig.KEY],
+      useFactory: (
+        ai: ConfigType<typeof riskAiConfig>,
+        database: ConfigType<typeof databaseConfig>,
+      ) => new RiskAiService(ai, database),
+    },
     {
       provide: TransferFacts,
       inject: [DataSource],
@@ -42,24 +55,12 @@ import { ScoringService } from './scoring.service';
     },
     {
       provide: OnlineFeatureProvider,
-      inject: [TransferFacts, RedisClient, limitsConfig.KEY, RiskMetrics],
-      useFactory: (
-        facts: TransferFacts,
-        redis: RedisClient,
-        limits: ConfigType<typeof limitsConfig>,
-        metrics: RiskMetrics,
-      ) => {
-        const provider = new OnlineFeatureProvider({
+      inject: [TransferFacts, limitsConfig.KEY],
+      useFactory: (facts: TransferFacts, limits: ConfigType<typeof limitsConfig>) =>
+        new OnlineFeatureProvider({
           facts,
-          redis,
           perTxLimit: limits.transfer.perTx,
-          metrics,
-        });
-        // BL-205 item 8: a starting worker trusts no counter left by the one before it. Done
-        // here, before any consumer loop can start, so the first event already sees it.
-        provider.invalidateCounters();
-        return provider;
-      },
+        }),
     },
     RiskScoringConsumer,
   ],

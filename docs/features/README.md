@@ -2,6 +2,8 @@
 
 > **Status:** Active · **Owner:** cả nhóm · **Cập nhật:** 2026-11-07
 
+Sửa lỗi [feature fraud theo commit/event-time](BUG-20261110-fraud-feature-order.md): R1/R5 SQL-authoritative, regression giao event đảo thứ tự đã kiểm chứng; chưa đo 120 TPS.
+
 Mỗi task implement trên board (tính năng, sửa lỗi, hạ tầng, test) có **một file** ở đây: `DBS-<n>-<slug>.md`. File được viết trước khi code và hoàn tất khi bàn giao, theo skill [`dbs-delivering-task`](../../.claude/skills/dbs-delivering-task/SKILL.md) và mẫu [`feature-doc.md`](../../.claude/skills/dbs-delivering-task/templates/feature-doc.md).
 
 | Mục | Nội dung | Viết ở phase |
@@ -104,7 +106,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-106](DBS-106-r5-fan-out.md) | Rule R5 số người nhận mới và miễn cùng chủ | #4 Fraud | Implemented (hàm thuần); SQL/provider ở DBS-109 |
 | [DBS-107](DBS-107-r6-drain.md) | Rule R6 tỉ lệ rút cạn từ snapshot | #4 Fraud | Implemented (hàm thuần); SQL/provider ở DBS-109 |
 | [DBS-108](DBS-108-scoring.md) | Chấm điểm R1–R6 và cộng AI assessment đã có | #4 Fraud | Implemented (hàm thuần); SQL/provider ở DBS-109 |
-| [DBS-109](DBS-109-online-feature-provider.md) | `OnlineFeatureProvider`: R1/R5 từ sorted set Redis có khóa phủ và `risk:gen`, dự phòng SQL cùng kết quả (lạnh, muộn, Redis lỗi/breaker mở); R2/R4/24h từ `v_transfer_facts`, mili giây, không Seq Scan | #4 Fraud | Implemented |
+| [DBS-109](DBS-109-online-feature-provider.md) | `OnlineFeatureProvider`: SQL theo fact đã commit cho R1/R5 và các cửa sổ khác, tránh sai lệch do thứ tự event | #4 Fraud | Đã kiểm chứng cục bộ; xem [sửa lỗi thứ tự](BUG-20261110-fraud-feature-order.md) |
 | [DBS-110](DBS-110-rule-set-repository.md) | `RuleSetRepository`: phiên bản hiện hành qua `cfg:risk:latest:v2` và nội dung `cfg:risk:v{n}`, PostgreSQL khi miss/Redis lỗi; `parseRuleSet` chuẩn hóa seed phẳng, `ai.*` hỏng chỉ đánh dấu `CONFIG_INVALID` | #4 Fraud | Implemented · [bugfix freshness](BUG-20261109-risk-config-freshness.md) |
 | [DBS-113](DBS-113-lock-unlock-account.md) | UC-11: `POST /v1/operator/accounts/{id}/lock` & `/unlock` trong một transaction: đổi trạng thái, thu hồi phiên (`users.sessions_revoked_at`), audit fail-closed, outbox `AccountStatusChanged` không lộ lý do khóa (BR-13) | Dev | Implemented · [PR #80](https://github.com/Lawliet119/digital-banking-simulator/pull/80) (G4 đã duyệt; chờ CI xanh và Dev review — BL-189) |
 | [DBS-114](DBS-114-session-revocation.md) | Thu hồi phiên: cache epoch giây/TTLtoken, SET sau COMMIT, fallback SQL an toàn trước stale cache; PG/Valkey/proxy và hai API thật | Dev | Implemented; local xanh, Dev review/merge PR #116 đã review và merge |
@@ -124,3 +126,5 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-111](DBS-111-risk-scoring-consumer.md) | Consumer `risk-events` (worker): đọc rule set và feature ngoài transaction (hook `prepare` của `ConsumerBase`), claim `processed_events` → `risk_decisions` (mọi TRANSFER) → cờ, hit và audit `fraud.flagged` ở MEDIUM/HIGH; AC-9.1, AC-9.2; độ trễ giao dịch → cờ p95 542 ms trong test với vòng lặp thật | #4 Fraud | Implemented |
 | [DBS-124](DBS-124-worker-down-recovery.md) | Worker tắt, chết sau commit hoặc bị kill giữa chừng: sự kiện không mất, mọi cờ cần có xuất hiện đúng một lần (audit 1, queue cạn, DLQ 0), bất biến PASS; kịch bản [Demo 3](../demos/demo-3-failure-recovery.md) | Dev | Implemented |
 | [DBS-125](DBS-125-dlq-isolation-runbook.md) | Notification thật lỗi liên tục → DLQ sau đúng 5 lần nhận (bản sao của `ConsumerBase`) trong khi risk vẫn gắn cờ; message hỏng → DLQ ngay; [runbook đọc và redrive DLQ](../runbooks/dlq-redrive.md) chạy thật trên ElasticMQ; Demo 3 phần C | Dev | Implemented |
+| [DBS-129/130](DBS-129-130-fraud-operator-api.md) | Operator list/detail/review có audit, cursor microsecond, lịch sử ledger; test PostgreSQL, role và HTTP | #4 Fraud | Kiểm chứng cục bộ; chờ CI và Dev review |
+| [RSK-02](RSK-02-durable-ai-gate.md) | Nối Decisions vào worker qua gate quota, fallback, provenance và quyền; không bật dữ liệu thật mặc định | #4 Fraud | Kiểm chứng synthetic cục bộ; chờ smoke provider, CI và Dev review |

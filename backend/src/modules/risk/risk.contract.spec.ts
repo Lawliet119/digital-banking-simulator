@@ -1,6 +1,5 @@
 import type { TransferCompleted } from '@common/events';
 import type { FeatureProvider, Features } from './features/feature-provider';
-import { OfflineFeatureProvider } from './features/offline-feature-provider';
 import { OnlineFeatureProvider } from './features/online-feature-provider';
 import type { RiskRule, RuleParams, TransferEvent } from './rules/rule';
 
@@ -58,14 +57,11 @@ describe('DBS-59 risk contracts', () => {
     expect(fake.evaluate(event, features, { ...params, enabled: false })).toBeNull();
   });
 
-  it('TC-59-02 accepts a fake provider, and the offline placeholder fails explicitly', async () => {
+  it('TC-59-02 accepts a provider implementing the shared contract', async () => {
     const fake: FeatureProvider = { extract: () => Promise.resolve(features) };
     await expect(fake.extract(event)).resolves.toEqual(features);
     // The online provider is real since DBS-109 (online-feature-provider.spec.ts).
     expect(OnlineFeatureProvider.prototype.extract).toEqual(expect.any(Function));
-    await expect(new OfflineFeatureProvider().extract(event)).rejects.toThrow(
-      'Offline feature provider is not configured',
-    );
   });
 
   it('TC-59-01 narrows rule input to transfers at compile time', () => {

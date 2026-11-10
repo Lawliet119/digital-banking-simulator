@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http';
 import { Socket } from 'node:net';
 import { performance } from 'node:perf_hooks';
-import type { AiAssessment, DecisionOptions } from './ai-contract';
+import type { AiAssessment, DecisionOptions, PermitResult } from './ai-contract';
 import { assess, createLoopbackAdapter, resolveDecisionAiStatus } from './openai-decisions';
 
 const FEATURES = {
@@ -56,6 +56,23 @@ function deferred() {
   return { promise, resolve };
 }
 
+// ES2022's Promise constructor keeps fixtures compatible with the project lib.
+function deferredValue<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
+
+async function nextTurn() {
+  const { promise, resolve } = deferred();
+  setImmediate(resolve);
+  await promise;
+}
+
 async function within<T>(promise: Promise<T>, milliseconds = 2000): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   try {
@@ -90,6 +107,7 @@ describe('OpenAI Decisions HTTP behavior (TC-AI-01/03/04/05/10)', () => {
       enabled: true,
       apiKey: SECRET,
       model: 'gpt-6-luna',
+      rubric: RUBRIC,
       requestTimeoutMs: 1000,
       maxAdmissionDelayMs: 1000,
       selectedAtMonotonicMs: performance.now(),
@@ -192,6 +210,127 @@ describe('OpenAI Decisions HTTP behavior (TC-AI-01/03/04/05/10)', () => {
       requestId: null,
       usage: null,
     });
+    expectOneRequestAndRelease();
+  });
+
+  it('sends and hashes the exact selected UTF-8 rubric', async () => {
+    const rubric = '  Chỉ đánh giá giao dịch — không khóa tài khoản.  ';
+    const result = await evaluate(FEATURES, options({ rubric }));
+    expect(result.status).toBe('SUCCEEDED');
+    expect(result.rubricSha256).toBe(sha256(rubric));
+    expect(JSON.parse(requests[0].body).questions[0].instructions).toBe(rubric);
+    expectOneRequestAndRelease();
+  });
+
+  it.each([undefined, null, '', ' \n ', 'é'.repeat(8193), `Do not reveal ${SECRET}`])(
+    'rejects invalid rubric without admission or transport (%s)',
+    async rubric => {
+      const result = await evaluate(FEATURES, options({ rubric: rubric as string }));
+      expect(result.status).toBe('CONFIG_INVALID');
+      expect(tryAcquire).not.toHaveBeenCalled();
+      expect(requests).toHaveLength(0);
+    },
+  );
+
+  it('accepts an asynchronous permit before the selection deadline', async () => {
+    tryAcquire.mockImplementation(() => {
+      const { promise, resolve } = deferredValue<PermitResult>();
+      setTimeout(() => resolve({ kind: 'granted', release }), 10);
+      return promise;
+    });
+    const result = await within(evaluate(FEATURES, options()));
+    expectOutcome(result, 'SUCCEEDED', 0.42);
+    expectOneRequestAndRelease();
+  });
+
+  it('binds sent instructions and hash to the selection before asynchronous admission', async () => {
+    const { promise, resolve } = deferredValue<PermitResult>();
+    tryAcquire.mockReturnValue(promise);
+    const selected = options({ rubric: 'Selected version — exact instructions.' });
+    const pending = evaluate(FEATURES, selected);
+    selected.rubric = 'Later mutable caller value';
+    resolve({ kind: 'granted', release });
+    const result = await pending;
+    expect(result.status).toBe('SUCCEEDED');
+    expect(result.rubricSha256).toBe(sha256('Selected version — exact instructions.'));
+    expect(JSON.parse(requests[0].body).questions[0].instructions).toBe(
+      'Selected version — exact instructions.',
+    );
+    expectOneRequestAndRelease();
+  });
+
+  it('sends the selected model and credential if caller options change during admission', async () => {
+    const { promise, resolve } = deferredValue<PermitResult>();
+    tryAcquire.mockReturnValue(promise);
+    const selected = options({ model: 'selected-model' });
+    const pending = evaluate(FEATURES, selected);
+    selected.model = 'later-model';
+    selected.apiKey = 'different-synthetic-key';
+    resolve({ kind: 'granted', release });
+    const result = await pending;
+    expect(result.requestedModel).toBe('selected-model');
+    expect(JSON.parse(requests[0].body).model).toBe('selected-model');
+    expect(requests[0].headers.authorization).toBe(`Bearer ${SECRET}`);
+  });
+
+  it.each(['budget_exhausted', 'unavailable'] as const)(
+    'handles asynchronous %s without transport',
+    async kind => {
+      tryAcquire.mockResolvedValue({ kind });
+      const result = await evaluate(FEATURES, options());
+      expectOutcome(result, kind === 'budget_exhausted' ? 'BUDGET_EXHAUSTED' : 'UNAVAILABLE');
+      expect(requests).toHaveLength(0);
+      expect(release).not.toHaveBeenCalled();
+    },
+  );
+
+  it('bounds never-resolving admission from the selected time', async () => {
+    tryAcquire.mockReturnValue(deferredValue<PermitResult>().promise);
+    const result = await within(
+      evaluate(
+        FEATURES,
+        options({
+          selectedAtMonotonicMs: performance.now() - 80,
+          maxAdmissionDelayMs: 100,
+        }),
+      ),
+      500,
+    );
+    expectOutcome(result, 'UNAVAILABLE');
+    expect(requests).toHaveLength(0);
+    expect(release).not.toHaveBeenCalled();
+  });
+
+  it('releases a late grant exactly once and never sends', async () => {
+    const { promise, resolve: grant } = deferredValue<PermitResult>();
+    tryAcquire.mockReturnValue(promise);
+    const result = await within(evaluate(FEATURES, options({ maxAdmissionDelayMs: 20 })));
+    expectOutcome(result, 'UNAVAILABLE');
+    grant({ kind: 'granted', release });
+    await nextTurn();
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(requests).toHaveLength(0);
+  });
+
+  it.each([false, true])('observes admission rejection, late=%s', async late => {
+    const { promise, reject } = deferredValue<PermitResult>();
+    tryAcquire.mockReturnValue(promise);
+    const pending = evaluate(FEATURES, options({ maxAdmissionDelayMs: 20 }));
+    if (!late) reject(new Error('private admission failure'));
+    expectOutcome(await within(pending), 'UNAVAILABLE');
+    if (late) reject(new Error('private late admission failure'));
+    await nextTurn();
+    expect(requests).toHaveLength(0);
+    expect(release).not.toHaveBeenCalled();
+  });
+
+  it.each(['hung', 'rejected', 'thrown'])('does not wait for %s release', async kind => {
+    release.mockImplementation(() => {
+      if (kind === 'thrown') throw new Error('private release failure');
+      return kind === 'hung' ? deferred().promise : Promise.reject(new Error('private'));
+    });
+    const result = await within(evaluate(FEATURES, options()));
+    expectOutcome(result, 'SUCCEEDED', 0.42);
     expectOneRequestAndRelease();
   });
 
