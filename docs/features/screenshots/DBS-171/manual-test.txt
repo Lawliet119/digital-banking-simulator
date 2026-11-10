@@ -1,0 +1,36 @@
+98cdb309c51d0384ffbf21b2714eca586c30a087
+
+# Manual Test Execution Output - DBS-171 EXPLAIN Hot Queries
+# Date: 2026-11-10
+
+$ npm run test:db -- hot-queries-explain.db-spec.ts
+
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js hot-queries-explain.db-spec.ts
+
+  console.log
+    {"query":"daily_limit","execMs":0.058,"plan":"Index Only Scan"}
+
+      at Object.<anonymous> (test/db/hot-queries-explain.db-spec.ts:164:13)
+
+  console.log
+    {"query":"keyset_history","execMs":0.079}
+
+      at Object.<anonymous> (test/db/hot-queries-explain.db-spec.ts:188:13)
+
+  console.log
+    {"query":"outbox_poll","execMs":0.195,"index":"outbox_unpublished_idx"}
+
+      at Object.<anonymous> (test/db/hot-queries-explain.db-spec.ts:210:13)
+
+  console.log
+    {"query":"audit_lookup","execMs":0.036,"index":"audit_log_correlation_idx"}
+
+      at Object.<anonymous> (test/db/hot-queries-explain.db-spec.ts:231:13)
+
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        5.525 s, estimated 6 s
+Ran all test suites matching hot-queries-explain.db-spec.ts.
