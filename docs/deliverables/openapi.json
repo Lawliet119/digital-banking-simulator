@@ -7,13 +7,35 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "The process is up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ]
+                    }
+                  },
+                  "example": {
+                    "status": "ok"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Liveness probe",
         "tags": [
           "health"
-        ]
+        ],
+        "description": "\n\nVai trò: công khai."
       }
     },
     "/health/ready": {
@@ -60,6 +82,21 @@
                       "type": "object",
                       "additionalProperties": true
                     }
+                  },
+                  "example": {
+                    "status": "ok",
+                    "info": {
+                      "database": {
+                        "status": "up"
+                      }
+                    },
+                    "error": {},
+                    "details": {
+                      "database": {
+                        "status": "up"
+                      }
+                    },
+                    "redis": "up"
                   }
                 }
               }
@@ -146,13 +183,23 @@
                   }
                 }
               }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
             }
           }
         },
         "summary": "Readiness: PostgreSQL required, Redis informational (up/degraded)",
         "tags": [
           "health"
-        ]
+        ],
+        "description": "\n\nVai trò: công khai."
       }
     },
     "/v1/identity/me": {
@@ -160,8 +207,119 @@
         "operationId": "IdentityController_me_v1",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityMeDto"
+                }
+              }
+            }
+          },
           "401": {
-            "description": "Missing/invalid token (errorCode UNAUTHENTICATED) or expired (TOKEN_EXPIRED)"
+            "description": "Missing/invalid token (errorCode UNAUTHENTICATED) or expired (TOKEN_EXPIRED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable (errorCode SERVICE_TEMPORARILY_UNAVAILABLE)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -172,7 +330,21 @@
         "summary": "Verified caller claims (smoke-test endpoint for JwtAuthGuard)",
         "tags": [
           "identity"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
+        "description": "\n\nVai trò: mọi vai trò đã đăng nhập. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
     },
     "/v1/customers/me": {
@@ -201,16 +373,172 @@
             }
           },
           "400": {
-            "description": "Invalid fullName or additional body fields"
+            "description": "Invalid fullName or additional body fields",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
-            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "The caller has none of the allowed roles (errorCode FORBIDDEN)\n\nFORBIDDEN: customer role required"
+            "description": "The caller has none of the allowed roles (errorCode FORBIDDEN)\n\nFORBIDDEN: customer role required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; audit failure returns no profile"
+            "description": "Internal server error; audit failure returns no profile",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable (errorCode SERVICE_TEMPORARILY_UNAVAILABLE)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -224,7 +552,24 @@
         ],
         "x-roles": [
           "customer"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
+        "description": "\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       },
       "get": {
         "operationId": "CustomersController_get_v1",
@@ -241,16 +586,172 @@
             }
           },
           "401": {
-            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "The caller has none of the allowed roles (errorCode FORBIDDEN)\n\nFORBIDDEN: customer role required"
+            "description": "The caller has none of the allowed roles (errorCode FORBIDDEN)\n\nFORBIDDEN: customer role required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
-            "description": "Customer profile not created yet"
+            "description": "Customer profile not created yet",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Not Found",
+                      "status": 404,
+                      "detail": "The resource was not found",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; audit failure returns no profile"
+            "description": "Internal server error; audit failure returns no profile",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable (errorCode SERVICE_TEMPORARILY_UNAVAILABLE)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -264,7 +765,24 @@
         ],
         "x-roles": [
           "customer"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
+        "description": "\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
     },
     "/v1/accounts": {
@@ -286,16 +804,151 @@
             }
           },
           "401": {
-            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "FORBIDDEN"
+            "description": "FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; no data if audit fails"
+            "description": "Internal server error; no data if audit fails",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -309,7 +962,24 @@
         ],
         "x-roles": [
           "customer"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
+        "description": "\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       },
       "post": {
         "operationId": "AccountsController_open_v1",
@@ -336,16 +1006,110 @@
             }
           },
           "400": {
-            "description": "Invalid account type or extra body fields"
+            "description": "Invalid account type or extra body fields",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
-            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "FORBIDDEN"
+            "description": "FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
-            "description": "Customer profile not created yet"
+            "description": "Customer profile not created yet",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Not Found",
+                      "status": 404,
+                      "detail": "The resource was not found",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "409": {
             "description": "ACCOUNT_LIMIT_REACHED",
@@ -364,8 +1128,57 @@
               }
             }
           },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
           "500": {
-            "description": "Unexpected failure; no account created without audit"
+            "description": "Unexpected failure; no account created without audit",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
             "description": "SERVICE_TEMPORARILY_UNAVAILABLE; retry after transient DB failure",
@@ -375,6 +1188,25 @@
                 "schema": {
                   "type": "integer",
                   "example": 1
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
                 }
               }
             }
@@ -389,9 +1221,29 @@
         "tags": [
           "accounts"
         ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "409": [
+            "ACCOUNT_LIMIT_REACHED"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
         "x-roles": [
           "customer"
-        ]
+        ],
+        "description": "\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 409 ACCOUNT_LIMIT_REACHED; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
     },
     "/v1/accounts/{id}": {
@@ -421,19 +1273,172 @@
             }
           },
           "401": {
-            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "FORBIDDEN"
+            "description": "FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
-            "description": "Account not found (includes invalid, foreign and SYSTEM)"
+            "description": "Account not found (includes invalid, foreign and SYSTEM)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Not Found",
+                      "status": 404,
+                      "detail": "The resource was not found",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; no data if audit fails"
+            "description": "Internal server error; no data if audit fails",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -447,12 +1452,29 @@
         ],
         "x-roles": [
           "customer"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
+        "description": "\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
     },
     "/v1/operator/accounts": {
       "get": {
-        "description": "Returns at most 20 accounts (id, type, status, owner name) and never a balance. A whole UUID finds that account; anything else is a case-insensitive partial match on the owner name (% and _ are plain characters). Every valid lookup, even an empty one, is audited before the answer is returned; the audit row keeps the operator, the number of results and an account id or a SHA-256 fingerprint of the name, never the name.",
+        "description": "Returns at most 20 accounts (id, type, status, owner name) and never a balance. A whole UUID finds that account; anything else is a case-insensitive partial match on the owner name (% and _ are plain characters). Every valid lookup, even an empty one, is audited before the answer is returned; the audit row keeps the operator, the number of results and an account id or a SHA-256 fingerprint of the name, never the name.\n\nVai trò: operator. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.",
         "operationId": "OperatorAccountsController_find_v1",
         "parameters": [
           {
@@ -479,19 +1501,172 @@
             }
           },
           "400": {
-            "description": "q missing, blank, too long, with control characters"
+            "description": "q missing, blank, too long, with control characters",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
-            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "FORBIDDEN; the caller is not an operator"
+            "description": "FORBIDDEN; the caller is not an operator",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; no data if audit fails"
+            "description": "Internal server error; no data if audit fails",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -505,12 +1680,28 @@
         ],
         "x-roles": [
           "operator"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        }
       }
     },
     "/v1/operator/accounts/{id}/lock": {
       "post": {
-        "description": "Atomically locks a customer account (status = LOCKED), revokes the owner active sessions (users.sessions_revoked_at = clock_timestamp()), writes a fail-closed audit row, and emits AccountStatusChanged in one transaction. Never returns a balance and never exposes the lock reason in events or customer responses (BR-13).",
+        "description": "Atomically locks a customer account (status = LOCKED), revokes the owner active sessions (users.sessions_revoked_at = clock_timestamp()), writes a fail-closed audit row, and emits AccountStatusChanged in one transaction. Never returns a balance and never exposes the lock reason in events or customer responses (BR-13).\n\nVai trò: operator. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.",
         "operationId": "OperatorAccountsController_lock_v1",
         "parameters": [
           {
@@ -545,22 +1736,193 @@
             }
           },
           "400": {
-            "description": "Invalid account UUID or invalid/missing reason"
+            "description": "Invalid account UUID or invalid/missing reason",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
-            "description": "UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED"
+            "description": "UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "FORBIDDEN; the caller is not an operator"
+            "description": "FORBIDDEN; the caller is not an operator",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
-            "description": "Account does not exist or is a SYSTEM account"
+            "description": "Account does not exist or is a SYSTEM account",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Not Found",
+                      "status": 404,
+                      "detail": "The resource was not found",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; rolls back if audit or outbox fails"
+            "description": "Internal server error; rolls back if audit or outbox fails",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -574,12 +1936,28 @@
         ],
         "x-roles": [
           "operator"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        }
       }
     },
     "/v1/operator/accounts/{id}/unlock": {
       "post": {
-        "description": "Atomically unlocks a customer account (status = ACTIVE), writes a fail-closed audit row, and emits AccountStatusChanged in one transaction without clearing prior session revocation timestamps.",
+        "description": "Atomically unlocks a customer account (status = ACTIVE), writes a fail-closed audit row, and emits AccountStatusChanged in one transaction without clearing prior session revocation timestamps.\n\nVai trò: operator. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.",
         "operationId": "OperatorAccountsController_unlock_v1",
         "parameters": [
           {
@@ -614,22 +1992,193 @@
             }
           },
           "400": {
-            "description": "Invalid account UUID or invalid/missing reason"
+            "description": "Invalid account UUID or invalid/missing reason",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
-            "description": "UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED"
+            "description": "UNAUTHENTICATED, TOKEN_EXPIRED, or SESSION_REVOKED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "FORBIDDEN; the caller is not an operator"
+            "description": "FORBIDDEN; the caller is not an operator",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
-            "description": "Account does not exist or is a SYSTEM account"
+            "description": "Account does not exist or is a SYSTEM account",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Not Found",
+                      "status": 404,
+                      "detail": "The resource was not found",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; rolls back if audit or outbox fails"
+            "description": "Internal server error; rolls back if audit or outbox fails",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -643,12 +2192,28 @@
         ],
         "x-roles": [
           "operator"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        }
       }
     },
     "/v1/operator/deposits": {
       "post": {
-        "description": "Idempotent: the same key with the same body returns the first answer without a second deposit; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.",
+        "description": "Idempotent: the same key with the same body returns the first answer without a second deposit; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.\n\nVai trò: operator. errorCode: 400 IDEMPOTENCY_KEY_REQUIRED; 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 422 ACCOUNT_NOT_ACTIVE | IDEMPOTENCY_KEY_REUSED; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.",
         "operationId": "OperatorDepositsController_deposit_v1",
         "parameters": [
           {
@@ -684,22 +2249,205 @@
             }
           },
           "400": {
-            "description": "IDEMPOTENCY_KEY_REQUIRED or invalid DTO/key length"
+            "description": "IDEMPOTENCY_KEY_REQUIRED or invalid DTO/key length",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "IDEMPOTENCY_KEY_REQUIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "errorCode": "IDEMPOTENCY_KEY_REQUIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
-            "description": "UNAUTHENTICATED / TOKEN_EXPIRED"
+            "description": "UNAUTHENTICATED / TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "FORBIDDEN"
+            "description": "FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "422": {
-            "description": "ACCOUNT_NOT_ACTIVE with persisted transferId, or IDEMPOTENCY_KEY_REUSED"
+            "description": "ACCOUNT_NOT_ACTIVE with persisted transferId, or IDEMPOTENCY_KEY_REUSED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "ACCOUNT_NOT_ACTIVE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unprocessable Entity",
+                      "status": 422,
+                      "detail": "The request was understood but refused",
+                      "errorCode": "ACCOUNT_NOT_ACTIVE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "IDEMPOTENCY_KEY_REUSED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unprocessable Entity",
+                      "status": 422,
+                      "detail": "The request was understood but refused",
+                      "errorCode": "IDEMPOTENCY_KEY_REUSED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; entire transaction rolled back"
+            "description": "Internal server error; entire transaction rolled back",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; retry same key after Retry-After"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; retry same key after Retry-After",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -711,6 +2459,29 @@
         "tags": [
           "operator deposits"
         ],
+        "x-error-codes": {
+          "400": [
+            "IDEMPOTENCY_KEY_REQUIRED"
+          ],
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "422": [
+            "ACCOUNT_NOT_ACTIVE",
+            "IDEMPOTENCY_KEY_REUSED"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
         "x-roles": [
           "operator"
         ]
@@ -718,7 +2489,7 @@
     },
     "/v1/transfers": {
       "post": {
-        "description": "Source must belong to caller. Checks, in order under the account lock: both accounts ACTIVE, per-transfer limit, per-day limit (Vietnam time), enough money; the first rule broken is the reason. Idempotent: the same key with the same body returns the first answer without a second transfer; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.",
+        "description": "Source must belong to caller. Checks, in order under the account lock: both accounts ACTIVE, per-transfer limit, per-day limit (Vietnam time), enough money; the first rule broken is the reason. Idempotent: the same key with the same body returns the first answer without a second transfer; the same key with another body is 422 IDEMPOTENCY_KEY_REUSED.\n\nVai trò: customer. errorCode: 400 IDEMPOTENCY_KEY_REQUIRED; 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 422 ACCOUNT_NOT_ACTIVE | LIMIT_PER_TX_EXCEEDED | LIMIT_PER_DAY_EXCEEDED | INSUFFICIENT_FUNDS | IDEMPOTENCY_KEY_REUSED; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.",
         "operationId": "TransfersController_transfer_v1",
         "parameters": [
           {
@@ -754,28 +2525,256 @@
             }
           },
           "400": {
-            "description": "IDEMPOTENCY_KEY_REQUIRED or invalid DTO/key length/same account"
+            "description": "IDEMPOTENCY_KEY_REQUIRED or invalid DTO/key length/same account",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "IDEMPOTENCY_KEY_REQUIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "errorCode": "IDEMPOTENCY_KEY_REQUIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
-            "description": "UNAUTHENTICATED / TOKEN_EXPIRED"
+            "description": "UNAUTHENTICATED / TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "FORBIDDEN"
+            "description": "FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
-            "description": "Source account not found; includes foreign and SYSTEM sources"
+            "description": "Source account not found; includes foreign and SYSTEM sources",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Not Found",
+                      "status": 404,
+                      "detail": "The resource was not found",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "422": {
-            "description": "ACCOUNT_NOT_ACTIVE / INSUFFICIENT_FUNDS / LIMIT_PER_TX_EXCEEDED / LIMIT_PER_DAY_EXCEEDED with persisted transferId, or IDEMPOTENCY_KEY_REUSED"
+            "description": "ACCOUNT_NOT_ACTIVE / INSUFFICIENT_FUNDS / LIMIT_PER_TX_EXCEEDED / LIMIT_PER_DAY_EXCEEDED with persisted transferId, or IDEMPOTENCY_KEY_REUSED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "ACCOUNT_NOT_ACTIVE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unprocessable Entity",
+                      "status": 422,
+                      "detail": "The request was understood but refused",
+                      "errorCode": "ACCOUNT_NOT_ACTIVE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "LIMIT_PER_TX_EXCEEDED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unprocessable Entity",
+                      "status": 422,
+                      "detail": "The request was understood but refused",
+                      "errorCode": "LIMIT_PER_TX_EXCEEDED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "LIMIT_PER_DAY_EXCEEDED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unprocessable Entity",
+                      "status": 422,
+                      "detail": "The request was understood but refused",
+                      "errorCode": "LIMIT_PER_DAY_EXCEEDED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "INSUFFICIENT_FUNDS": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unprocessable Entity",
+                      "status": 422,
+                      "detail": "The request was understood but refused",
+                      "errorCode": "INSUFFICIENT_FUNDS",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "IDEMPOTENCY_KEY_REUSED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unprocessable Entity",
+                      "status": 422,
+                      "detail": "The request was understood but refused",
+                      "errorCode": "IDEMPOTENCY_KEY_REUSED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: more than RATE_LIMIT_TRANSFERS_PER_MINUTE (10) transfer requests this minute; Retry-After seconds. Nothing was written"
+            "description": "RATE_LIMITED: more than RATE_LIMIT_TRANSFERS_PER_MINUTE (10) transfer requests this minute; Retry-After seconds. Nothing was written",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; all business writes rolled back"
+            "description": "Internal server error; all business writes rolled back",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; retry same key after Retry-After"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; retry same key after Retry-After",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -787,6 +2786,32 @@
         "tags": [
           "transfers"
         ],
+        "x-error-codes": {
+          "400": [
+            "IDEMPOTENCY_KEY_REQUIRED"
+          ],
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "422": [
+            "ACCOUNT_NOT_ACTIVE",
+            "LIMIT_PER_TX_EXCEEDED",
+            "LIMIT_PER_DAY_EXCEEDED",
+            "INSUFFICIENT_FUNDS",
+            "IDEMPOTENCY_KEY_REUSED"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
         "x-roles": [
           "customer"
         ]
@@ -794,7 +2819,7 @@
     },
     "/v1/transfers/{id}": {
       "get": {
-        "description": "The sender sees any status; the recipient only a COMPLETED transfer. Anyone else, a transfer that does not exist and a malformed id are the same 404. A REJECTED transfer shows its reason but never a destination account.",
+        "description": "The sender sees any status; the recipient only a COMPLETED transfer. Anyone else, a transfer that does not exist and a malformed id are the same 404. A REJECTED transfer shows its reason but never a destination account.\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.",
         "operationId": "TransfersController_status_v1",
         "parameters": [
           {
@@ -820,19 +2845,172 @@
             }
           },
           "401": {
-            "description": "UNAUTHENTICATED / TOKEN_EXPIRED"
+            "description": "UNAUTHENTICATED / TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "FORBIDDEN; the caller is not a customer"
+            "description": "FORBIDDEN; the caller is not a customer",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
-            "description": "Transfer not found, or the caller is not a party to it"
+            "description": "Transfer not found, or the caller is not a party to it",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Not Found",
+                      "status": 404,
+                      "detail": "The resource was not found",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; no data if audit fails"
+            "description": "Internal server error; no data if audit fails",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -846,12 +3024,28 @@
         ],
         "x-roles": [
           "customer"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        }
       }
     },
     "/v1/accounts/{id}/transactions": {
       "get": {
-        "description": "Completed transfers and deposits that moved money in or out of the account (one ledger line each). Rejected transfers are not part of the history: read them by transferId. No OFFSET: pass nextCursor back as cursor. A cursor only works with the filters it was issued for.",
+        "description": "Completed transfers and deposits that moved money in or out of the account (one ledger line each). Rejected transfers are not part of the history: read them by transferId. No OFFSET: pass nextCursor back as cursor. A cursor only works with the filters it was issued for.\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.",
         "operationId": "AccountTransactionsController_transactions_v1",
         "parameters": [
           {
@@ -918,22 +3112,193 @@
             }
           },
           "400": {
-            "description": "Invalid limit, cursor, from or to; unknown parameter"
+            "description": "Invalid limit, cursor, from or to; unknown parameter",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
-            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "403": {
-            "description": "FORBIDDEN; the caller is not a customer"
+            "description": "FORBIDDEN; the caller is not a customer",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "404": {
-            "description": "Account not found (includes foreign and SYSTEM accounts)"
+            "description": "Account not found (includes foreign and SYSTEM accounts)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Not Found",
+                      "status": 404,
+                      "detail": "The resource was not found",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error; no data if audit fails"
+            "description": "Internal server error; no data if audit fails",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -947,12 +3312,28 @@
         ],
         "x-roles": [
           "customer"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        }
       }
     },
     "/v1/audit/entries": {
       "get": {
-        "description": "Auditor only, including a caller with the auditor group alongside other groups. Live keyset pagination; no cross-request snapshot. Every valid lookup, even an empty page, records audit.search before returning.",
+        "description": "Auditor only, including a caller with the auditor group alongside other groups. Live keyset pagination; no cross-request snapshot. Every valid lookup, even an empty page, records audit.search before returning.\n\nVai trò: auditor. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.",
         "operationId": "AuditController_entries_v1",
         "parameters": [
           {
@@ -1081,6 +3462,37 @@
             },
             "description": "FORBIDDEN; the caller has no auditor group"
           },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -1123,7 +3535,23 @@
         ],
         "x-roles": [
           "auditor"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        }
       }
     },
     "/v1/operator/fraud-flags": {
@@ -1216,6 +3644,37 @@
               }
             }
           },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -1234,7 +3693,16 @@
                 }
               }
             },
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1248,7 +3716,24 @@
         ],
         "x-roles": [
           "operator"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
+        "description": "\n\nVai trò: operator. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
     },
     "/v1/operator/fraud-flags/{transferId}": {
@@ -1315,6 +3800,37 @@
             },
             "description": "No flag exists; no errorCode"
           },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -1333,7 +3849,16 @@
                 }
               }
             },
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1347,7 +3872,24 @@
         ],
         "x-roles": [
           "operator"
-        ]
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
+        "description": "\n\nVai trò: operator. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
     },
     "/v1/operator/fraud-flags/{transferId}/review": {
@@ -1396,6 +3938,10 @@
                         "FALSE_POSITIVE"
                       ]
                     }
+                  },
+                  "example": {
+                    "transferId": "3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44",
+                    "reviewStatus": "CONFIRMED_FRAUD"
                   }
                 }
               }
@@ -1463,6 +4009,37 @@
               }
             }
           },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -1481,7 +4058,16 @@
                 }
               }
             },
-            "description": "SERVICE_TEMPORARILY_UNAVAILABLE"
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1493,9 +4079,29 @@
         "tags": [
           "operator fraud"
         ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "409": [
+            "FLAG_ALREADY_REVIEWED"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
         "x-roles": [
           "operator"
-        ]
+        ],
+        "description": "\n\nVai trò: operator. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 409 FLAG_ALREADY_REVIEWED; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
     }
   },
@@ -1516,6 +4122,60 @@
       }
     },
     "schemas": {
+      "IdentityMeDto": {
+        "type": "object",
+        "properties": {
+          "sub": {
+            "type": "string",
+            "description": "Cognito subject of the token",
+            "example": "a3f1c2d4-5b6e-4f80-9a1b-2c3d4e5f6a7b"
+          },
+          "userId": {
+            "type": "string",
+            "description": "Internal users.id the guard resolved from the subject",
+            "format": "uuid",
+            "example": "3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44"
+          },
+          "groups": {
+            "description": "Cognito groups; empty means customer",
+            "example": [
+              "customer"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tokenUse": {
+            "type": "string",
+            "enum": [
+              "access"
+            ],
+            "example": "access"
+          },
+          "claims": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Verified token claims",
+            "example": {
+              "sub": "a3f1c2d4-5b6e-4f80-9a1b-2c3d4e5f6a7b",
+              "token_use": "access",
+              "cognito:groups": [
+                "customer"
+              ],
+              "iat": 1794300000,
+              "exp": 1794300900
+            }
+          }
+        },
+        "required": [
+          "sub",
+          "userId",
+          "groups",
+          "tokenUse",
+          "claims"
+        ]
+      },
       "CreateCustomerProfileDto": {
         "type": "object",
         "properties": {
@@ -1794,7 +4454,8 @@
         "properties": {
           "transferId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "example": "3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44"
           },
           "status": {
             "type": "string",
@@ -1815,12 +4476,14 @@
           "fromAccountId": {
             "type": "string",
             "format": "uuid",
-            "description": "Source account owned by the authenticated customer"
+            "description": "Source account owned by the authenticated customer",
+            "example": "8b3609fb-96a7-434b-a7ba-2ba171955e6d"
           },
           "toAccountId": {
             "type": "string",
             "format": "uuid",
-            "description": "Distinct destination customer account"
+            "description": "Distinct destination customer account",
+            "example": "bf9c3419-51ff-4e55-b03c-3296f0419c03"
           },
           "amount": {
             "type": "string",
@@ -1839,7 +4502,8 @@
         "properties": {
           "transferId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "example": "3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44"
           },
           "status": {
             "type": "string",
@@ -1859,7 +4523,8 @@
         "properties": {
           "transferId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "example": "3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44"
           },
           "type": {
             "type": "string",
@@ -1893,12 +4558,14 @@
           "fromAccountId": {
             "type": "string",
             "format": "uuid",
-            "description": "Source account; absent for a DEPOSIT (the funding account is never shown)"
+            "description": "Source account; absent for a DEPOSIT (the funding account is never shown)",
+            "example": "8b3609fb-96a7-434b-a7ba-2ba171955e6d"
           },
           "toAccountId": {
             "type": "string",
             "format": "uuid",
-            "description": "Destination account; only for a COMPLETED transfer, never for a REJECTED one"
+            "description": "Destination account; only for a COMPLETED transfer, never for a REJECTED one",
+            "example": "bf9c3419-51ff-4e55-b03c-3296f0419c03"
           },
           "createdAt": {
             "type": "string",
@@ -1925,7 +4592,8 @@
           },
           "transferId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "example": "3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44"
           },
           "type": {
             "type": "string",
@@ -1956,7 +4624,8 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "The other account of a TRANSFER; null for a DEPOSIT (the funding account is never shown)"
+            "description": "The other account of a TRANSFER; null for a DEPOSIT (the funding account is never shown)",
+            "example": "bf9c3419-51ff-4e55-b03c-3296f0419c03"
           },
           "createdAt": {
             "type": "string",
@@ -1989,7 +4658,8 @@
           "nextCursor": {
             "type": "string",
             "nullable": true,
-            "description": "Opaque cursor for the next page; null on the last page"
+            "description": "Opaque cursor for the next page; null on the last page",
+            "example": "bmV4dC1wYWdlLWN1cnNvcg"
           }
         },
         "required": [
@@ -2071,7 +4741,9 @@
           "actorUserId": {
             "type": "string",
             "format": "uuid",
-            "nullable": true
+            "nullable": true,
+            "example": "3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44",
+            "description": "users.id of the actor; null for a system or worker action"
           },
           "actorRole": {
             "type": "string",
@@ -2094,7 +4766,8 @@
           },
           "correlationId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "example": "2722de31-246c-4814-88aa-e94cbda72de6"
           },
           "metadata": {
             "type": "object",
@@ -2128,7 +4801,8 @@
             "type": "string",
             "nullable": true,
             "maxLength": 512,
-            "description": "Filter-bound keyset cursor; null when there is no next page"
+            "description": "Filter-bound keyset cursor; null when there is no next page",
+            "example": "bmV4dC1wYWdlLWN1cnNvcg"
           }
         },
         "required": [
@@ -2247,7 +4921,8 @@
           },
           "nextCursor": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": "bmV4dC1wYWdlLWN1cnNvcg"
           }
         },
         "required": [
@@ -2421,6 +5096,59 @@
         "required": [
           "decision"
         ]
+      },
+      "ProblemDetailsDto": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "correlationId"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string",
+            "enum": [
+              "ACCOUNT_NOT_ACTIVE",
+              "LIMIT_PER_TX_EXCEEDED",
+              "LIMIT_PER_DAY_EXCEEDED",
+              "INSUFFICIENT_FUNDS",
+              "IDEMPOTENCY_KEY_REQUIRED",
+              "IDEMPOTENCY_KEY_REUSED",
+              "ACCOUNT_LIMIT_REACHED",
+              "UNAUTHENTICATED",
+              "TOKEN_EXPIRED",
+              "FORBIDDEN",
+              "SESSION_REVOKED",
+              "FLAG_ALREADY_REVIEWED",
+              "RATE_LIMITED",
+              "SERVICE_TEMPORARILY_UNAVAILABLE"
+            ]
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
       }
     }
   }
