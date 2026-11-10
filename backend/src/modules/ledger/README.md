@@ -26,6 +26,8 @@ Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bản
 
 `LedgerModule` phục vụ operator deposit và customer transfer ở api/both; không nạp HTTP ledger trong worker. Query lịch sử/trạng thái sẽ có ở task riêng, chưa export service chưa tồn tại.
 
+`transferCorrelationId(manager, transferId)` (DBS-135) trả `transfers.correlation_id` trên `manager` của người gọi (`undefined` nếu không có giao dịch). Module khác (hiện là `risk`, khi ghi audit của review) gọi hàm này thay vì đọc bảng `transfers`.
+
 ## Nạp tiền bản thô (DBS-60)
 
 `POST /v1/operator/deposits` chỉ operator; body `{toAccountId,amount}` với amount là chuỗi VND dương chuẩn, header `Idempotency-Key` bắt buộc1–128 ký tự. Transaction reserve key → `AccountsService.lockForUpdate` theo id → kiểm đích ACTIVE → transfer DEPOSIT +hai ledger lines +hai cập nhật số dư qua AccountsService → audit → TransferCompleted qua OutboxWriter → lưu response key → commit. SYSTEM funding được âm và bỏ qua hạn mức/số dư nguồn.

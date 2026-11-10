@@ -10,6 +10,7 @@ import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
 import { OutboxRelayService } from '@modules/outbox';
 import { NotificationConsumer } from '@modules/notification';
+import { AuditService } from '@modules/audit';
 import { TRANSFER_SAMPLE } from '../support/event-samples';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
@@ -411,12 +412,18 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
       statementTimeoutMs: 5000,
       idleInTransactionTimeoutMs: 10000,
     } as never);
-    const consumer = new NotificationConsumer(tx, sqs, silentPino, {
-      region: 'us-east-1',
-      endpoint: mq.endpoint,
-      riskQueueUrl: riskUrl,
-      notificationQueueUrl: notificationUrl,
-    });
+    const consumer = new NotificationConsumer(
+      tx,
+      sqs,
+      silentPino,
+      {
+        region: 'us-east-1',
+        endpoint: mq.endpoint,
+        riskQueueUrl: riskUrl,
+        notificationQueueUrl: notificationUrl,
+      },
+      new AuditService(tx),
+    );
     for (let i = 0; i < 8; i++) await consumer.consumeOnce(1);
     expect(await q('SELECT 1 FROM processed_events')).toHaveLength(5);
     expect(await q('SELECT 1 FROM notification_log')).toHaveLength(10); // sender and recipient of 5 events

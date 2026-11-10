@@ -8,6 +8,7 @@ import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
 import { NotificationConsumer } from '@modules/notification';
+import { AuditService } from '@modules/audit';
 import { ACCOUNT_LOCKED_SAMPLE, TRANSFER_SAMPLE } from '../support/event-samples';
 import { createTempDatabase, migrate } from '../support/temp-database';
 
@@ -44,15 +45,17 @@ async function main(): Promise<void> {
     const name = `dbs102-manual-${randomUUID()}`;
     const url = await create(name);
     await create(`${name}-dlq`);
+    const tx = new TransactionService(source, {
+      lockTimeoutMs: 2000,
+      statementTimeoutMs: 5000,
+      idleInTransactionTimeoutMs: 10000,
+    } as never);
     const consumer = new NotificationConsumer(
-      new TransactionService(source, {
-        lockTimeoutMs: 2000,
-        statementTimeoutMs: 5000,
-        idleInTransactionTimeoutMs: 10000,
-      } as never),
+      tx,
       sqs,
       new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
       { notificationQueueUrl: url } as never,
+      new AuditService(tx),
     );
     const drain = async (): Promise<string[]> => {
       const statuses: string[] = [];

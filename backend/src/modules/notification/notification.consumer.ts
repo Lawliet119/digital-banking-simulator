@@ -7,6 +7,7 @@ import type { DomainEvent } from '@common/events';
 import { ConsumerBase, dlqUrlFor } from '@common/messaging';
 import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
+import { AuditService } from '@modules/audit';
 
 /** `processed_events.consumer` of this module. */
 export const NOTIFICATION_CONSUMER = 'notification';
@@ -69,6 +70,7 @@ export class NotificationConsumer extends ConsumerBase {
     sqs: SqsClient,
     pino: PinoLogger,
     @Inject(sqsConfig.KEY) private readonly config: ConfigType<typeof sqsConfig>,
+    private readonly audit: AuditService,
   ) {
     super(tx, sqs, pino);
   }
@@ -78,13 +80,29 @@ export class NotificationConsumer extends ConsumerBase {
   }
 
   protected async apply(event: DomainEvent, manager: EntityManager): Promise<void> {
-    for (const notice of noticesFor(event)) {
+    const notices = noticesFor(event);
+    for (const notice of notices) {
       await manager.query(
         `INSERT INTO notification_log(event_id,kind,user_id,message,correlation_id)
          VALUES($1,$2,$3,$4,$5)`,
         [event.eventId, notice.kind, notice.userId, notice.message, event.correlationId],
       );
     }
+    // DBS-135 (AC-8.2): the auditor reads audit_log only, so the notification step of a chain is
+    // one audit line under the event's correlationId, in the same transaction as the notices. Only
+    // the count: never a reason or a text (BR-13). A failing INSERT rolls back the notices too.
+    await this.audit.record(manager, {
+      actor: null,
+      role: 'worker',
+      action: 'notification.sent',
+      outcome: 'SUCCESS',
+      target:
+        event.eventType === 'AccountStatusChanged'
+          ? { type: 'account', id: event.accountId }
+          : { type: 'transfer', id: event.transferId },
+      correlationId: event.correlationId,
+      metadata: { count: notices.length },
+    });
   }
 
   protected override onCommitted(event: DomainEvent): void {

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
 import { DataSource } from 'typeorm';
 import { NotificationConsumer } from '@modules/notification';
+import { AuditService } from '@modules/audit';
 import { TransactionService } from '@database/transaction.service';
 import type { SqsClient } from '@libs/sqs';
 import {
@@ -42,15 +43,17 @@ describe('NotificationConsumer (real PostgreSQL)', () => {
       ]);
     }
     source = await new DataSource({ type: 'postgres', url: db.url }).initialize();
+    const tx = new TransactionService(source, {
+      lockTimeoutMs: 2000,
+      statementTimeoutMs: 5000,
+      idleInTransactionTimeoutMs: 10000,
+    } as never);
     consumer = new NotificationConsumer(
-      new TransactionService(source, {
-        lockTimeoutMs: 2000,
-        statementTimeoutMs: 5000,
-        idleInTransactionTimeoutMs: 10000,
-      } as never),
+      tx,
       {} as SqsClient,
       new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
       { notificationQueueUrl: 'http://localhost:9324/000000000000/notification-events' } as never,
+      new AuditService(tx),
     );
   });
   afterAll(async () => {
@@ -166,5 +169,82 @@ describe('NotificationConsumer (real PostgreSQL)', () => {
     expect(await q('SELECT 1 FROM processed_events WHERE event_id=$1', [event.eventId])).toEqual(
       [],
     );
+  });
+
+  /** DBS-135: the audit line of one notification event, found by the event's correlationId. */
+  const auditLines = async (correlationId: string) =>
+    q(
+      `SELECT actor_user_id, actor_role, action, outcome, target_type, target_id, metadata
+         FROM audit_log WHERE correlation_id = $1 AND action = 'notification.sent'`,
+      [correlationId],
+    );
+
+  it('TC-135-06 a transfer between two owners writes one notification.sent audit line with the count only', async () => {
+    const event = { ...TRANSFER_SAMPLE, eventId: randomUUID(), correlationId: randomUUID() };
+    await consumer.handle(event);
+    expect(await rows(event.eventId)).toHaveLength(2);
+    expect(await auditLines(event.correlationId)).toEqual([
+      {
+        actor_user_id: null,
+        actor_role: 'worker',
+        action: 'notification.sent',
+        outcome: 'SUCCESS',
+        target_type: 'transfer',
+        target_id: event.transferId,
+        metadata: { count: 2 },
+      },
+    ]);
+  });
+
+  it('TC-135-07 an account status change, a deposit and a transfer to oneself each write one line with the right target', async () => {
+    const status = { ...ACCOUNT_LOCKED_SAMPLE, eventId: randomUUID(), correlationId: randomUUID() };
+    const deposit = { ...DEPOSIT_SAMPLE, eventId: randomUUID(), correlationId: randomUUID() };
+    const own = {
+      ...TRANSFER_SAMPLE,
+      eventId: randomUUID(),
+      correlationId: randomUUID(),
+      sameOwner: true,
+      toUserId: TRANSFER_SAMPLE.fromUserId,
+    };
+    for (const event of [status, deposit, own]) await consumer.handle(event);
+    const brief = async (id: string) =>
+      (await auditLines(id)).map(r => [r.target_type, r.target_id, r.metadata]);
+    expect(await brief(status.correlationId)).toEqual([
+      ['account', status.accountId, { count: 1 }],
+    ]);
+    expect(await brief(deposit.correlationId)).toEqual([
+      ['transfer', deposit.transferId, { count: 1 }],
+    ]);
+    expect(await brief(own.correlationId)).toEqual([['transfer', own.transferId, { count: 1 }]]);
+  });
+
+  it('TC-135-08 the same event handled twice leaves one audit line and one set of notices', async () => {
+    const event = { ...TRANSFER_SAMPLE, eventId: randomUUID(), correlationId: randomUUID() };
+    await consumer.handle(event);
+    await consumer.handle(event); // SQS redelivery, or a relay that sent it twice
+    expect(await auditLines(event.correlationId)).toHaveLength(1);
+    expect(await rows(event.eventId)).toHaveLength(2);
+  });
+
+  it('TC-135-09 an audit INSERT that fails rolls back the notices and the claim, and the retry succeeds', async () => {
+    const event = { ...TRANSFER_SAMPLE, eventId: randomUUID(), correlationId: randomUUID() };
+    await q(`CREATE FUNCTION public.refuse_notification_audit() RETURNS trigger LANGUAGE plpgsql AS
+      $$ BEGIN RAISE EXCEPTION 'audit refused'; END $$`);
+    await q(`CREATE TRIGGER refuse_notification_audit BEFORE INSERT ON audit_log
+      FOR EACH ROW WHEN (NEW.action = 'notification.sent')
+      EXECUTE FUNCTION public.refuse_notification_audit()`);
+    try {
+      await expect(consumer.handle(event)).rejects.toThrow();
+      expect(await rows(event.eventId)).toEqual([]);
+      expect(await q('SELECT 1 FROM processed_events WHERE event_id=$1', [event.eventId])).toEqual(
+        [],
+      );
+    } finally {
+      await q('DROP TRIGGER refuse_notification_audit ON audit_log');
+      await q('DROP FUNCTION public.refuse_notification_audit()');
+    }
+    await consumer.handle(event);
+    expect(await rows(event.eventId)).toHaveLength(2);
+    expect(await auditLines(event.correlationId)).toHaveLength(1);
   });
 });

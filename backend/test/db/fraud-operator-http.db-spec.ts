@@ -316,19 +316,25 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
     expect(row.reviewed_at).toBeTruthy();
     expect(row.review_note).toBe('operator private note');
     const audit = await q(
-      `SELECT actor_user_id,actor_role,metadata FROM audit_log WHERE action='fraud_flag.review' AND target_id=$1`,
+      `SELECT actor_user_id,actor_role,metadata,correlation_id FROM audit_log WHERE action='fraud_flag.review' AND target_id=$1`,
       [id],
     );
+    const winner = results.find(r => r.status === 200)!;
+    const [transfer] = await q('SELECT correlation_id FROM transfers WHERE id=$1', [id]);
+    // DBS-135: the line is under the transfer's code; the winning request's own code is in metadata.id.
     expect(audit).toEqual([
       {
         actor_user_id: row.reviewed_by,
         actor_role: 'operator',
+        correlation_id: transfer.correlation_id,
         metadata: {
           reason:
             row.review_status === 'CONFIRMED_FRAUD' ? 'CONFIRMED_FRAUD' : 'FRAUD_FALSE_POSITIVE',
+          id: winner.headers['x-correlation-id'],
         },
       },
     ]);
+    expect(winner.headers['x-correlation-id']).not.toBe(transfer.correlation_id);
     const [after] = await q('SELECT count(*)::int AS n FROM outbox_events');
     expect(after.n).toBe(before.n);
   });
@@ -351,19 +357,21 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
     'audits actor and exact conclusion for %s without the private note',
     async (decision, reason) => {
       const id = await seed('2026-10-25T00:00:00.000001Z');
-      await review(id, decision).expect(200);
+      const res = await review(id, decision).expect(200);
       const rows = await q(
-        `SELECT a.actor_user_id,a.actor_role,a.metadata,f.reviewed_by
+        `SELECT a.actor_user_id,a.actor_role,a.metadata,a.correlation_id,f.reviewed_by
        FROM audit_log a JOIN fraud_flags f ON f.transfer_id=$1
        WHERE a.target_id=$1::text AND a.action='fraud_flag.review'`,
         [id],
       );
       expect(rows).toHaveLength(1);
+      const [transfer] = await q('SELECT correlation_id FROM transfers WHERE id=$1', [id]);
       expect(rows[0]).toEqual({
         actor_user_id: rows[0].reviewed_by,
         reviewed_by: rows[0].reviewed_by,
         actor_role: 'operator',
-        metadata: { reason },
+        correlation_id: transfer.correlation_id,
+        metadata: { reason, id: res.headers['x-correlation-id'] },
       });
       expect(rows[0].actor_user_id).toBeTruthy();
     },
@@ -400,6 +408,13 @@ describe('DBS-129/130 restricted dbs_api HTTP', () => {
         [id],
       );
       expect(audit).toHaveLength(2);
+      // DBS-135: under dbs_api's real grants the review still lands under the transfer's code.
+      const [chain] = await fixture.owner.query(
+        `SELECT (SELECT correlation_id FROM transfers WHERE id=$1::uuid) AS transfer_code, a.correlation_id AS review_code
+           FROM audit_log a WHERE a.target_id=$1::text AND a.action='fraud_flag.review'`,
+        [id],
+      );
+      expect(chain.review_code).toBe(chain.transfer_code);
     } finally {
       await fixture.close();
     }

@@ -16,6 +16,7 @@ import { RedisClient, RedisMetrics } from '@libs/redis';
 import { SqsClient, type BatchResult, type SqsMessage } from '@libs/sqs';
 import { NotificationConsumer } from '@modules/notification';
 import { OutboxRelayService } from '@modules/outbox';
+import { AuditService } from '@modules/audit';
 import { RiskScoringConsumer } from '@modules/risk/risk-scoring.consumer';
 import { checkLedgerInvariants } from '../support/invariants';
 import { startDepositApp } from '../support/deposit-app';
@@ -178,7 +179,8 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
       notificationQueueUrl: notificationUrl,
     }) as never;
   const relay = () => start(new OutboxRelayService(tx, sqs, config()));
-  const notification = () => start(new TestNotification(tx, sqs, pino, config()));
+  const notification = () =>
+    start(new TestNotification(tx, sqs, pino, config(), new AuditService(tx)));
   function risk(): CountingRisk {
     const parts = buildRiskConsumer(source, {
       redis,
