@@ -5,6 +5,7 @@ import compression from 'compression';
 import helmet from 'helmet';
 import type { RequestHandler } from 'express';
 import { installBigIntJson } from '@common/money';
+import { ProblemDetailsDto } from './common/errors/problem-details.dto';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import {
   CORRELATION_ID_HEADER,
@@ -73,10 +74,15 @@ export function setupSwagger(app: INestApplication): void {
     app,
     new DocumentBuilder()
       .setTitle('Digital Banking Simulator API')
-      .setDescription('Educational simulation — no real money moves.')
+      .setDescription(
+        'Educational simulation — no real money moves. Full API specification adhering to RFC 7807 problem details.',
+      )
       .setVersion('1.0')
       .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
       .build(),
+    {
+      extraModels: [ProblemDetailsDto],
+    },
   );
   SwaggerModule.setup('docs', app, document, {
     jsonDocumentUrl: 'docs-json',

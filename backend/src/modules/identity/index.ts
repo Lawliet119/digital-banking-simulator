@@ -5,6 +5,7 @@ export type { RequestWithUser } from './jwt-auth.guard';
 export { JwksVerifierService } from './jwks-verifier.service';
 export { IdentityService } from './identity.service';
 export type { AuthenticatedUser, CognitoAccessTokenClaims } from './jwt-claims';
+export { AuthenticatedUserDto, CognitoAccessTokenClaimsDto } from './authenticated-user.dto';
 export { ROLES, rolesFromGroups } from './roles';
 export type { Role } from './roles';
 export { Roles, ROLES_KEY } from './roles.decorator';
