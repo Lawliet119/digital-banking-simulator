@@ -1,0 +1,5 @@
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        24.54 s
+Ran all test suites within paths "test/db/redis-revocation-drill.db-spec.ts".

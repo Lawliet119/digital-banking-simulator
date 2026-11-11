@@ -1,0 +1,653 @@
+DBS-186 verification; code SHA a6535dd753dc65af58389edd45d89e24c30354f3
+Final local checks on 2026-11-10; no cloud (user limited to local).
+Node 24.15.0 for lint/typecheck/unit/e2e/build and focused suite.
+Focused DB suite: 5/5 pass (17.105s) after restoring mutation; clean clone: 5/5 pass (24.54s).
+Docker unavailable fixture preflight: exit 1 with explicit Docker runtime error; no skip.
+
+
+COMMAND: node node_modules/eslint/bin/eslint.js "{src,test}/**/*.ts"
+EXIT: 0
+
+
+COMMAND: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+EXIT: 0
+
+
+COMMAND: node node_modules/jest/bin/jest.js --config test/jest-unit.js --runInBand
+EXIT: 0
+[Nest] 21852  - 11:03:42 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:03:42 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:03:42 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:03:42 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:03:42 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:03:42 10/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 21852  - 11:04:29 10/11/2026    WARN [ConsumerBase] Object(1) {
+  errorType: 'Error'
+}
+[Nest] 21852  - 11:04:29 10/11/2026    WARN [ConsumerBase] unit backoff not applied
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Object(3) {
+  errorType: 'Error',
+  outboxId: '1',
+  kind: 'transient'
+}
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Outbox event could not be sent
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Object(3) {
+  errorType: 'Error',
+  outboxId: '3',
+  kind: 'transient'
+}
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Outbox event could not be sent
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Object(3) {
+  errorType: 'Error',
+  outboxId: '4',
+  kind: 'transient'
+}
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Outbox event could not be sent
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Object(3) {
+  errorType: 'Error',
+  outboxId: '6',
+  kind: 'transient'
+}
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Outbox event could not be sent
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Object(3) {
+  errorType: 'Error',
+  outboxId: '7',
+  kind: 'transient'
+}
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Outbox event could not be sent
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Object(3) {
+  errorType: 'Error',
+  outboxId: '2',
+  kind: 'transient'
+}
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Outbox event could not be sent
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Object(3) {
+  errorType: 'Error',
+  outboxId: '3',
+  kind: 'transient'
+}
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Outbox event could not be sent
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Object(3) {
+  errorType: 'Error',
+  outboxId: '4',
+  kind: 'transient'
+}
+[Nest] 21852  - 11:04:31 10/11/2026    WARN [OutboxRelayService] Outbox event could not be sent
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] access token failed verification: JWSSignatureVerificationFailed
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] access token expired
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] access token failed verification: JWTClaimValidationFailed
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] access token failed verification: JOSEAlgNotAllowed
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] AUTH_MODE=local: tokens signed by the local development key are accepted
+[Nest] 21852  - 11:04:39 10/11/2026    WARN [JwksVerifierService] access token failed verification: JWKSNoMatchingKey
+[Nest] 21852  - 11:04:45 10/11/2026    WARN [MetricsService] Object(3) {
+  gauge: 'broken',
+  reason: 'error',
+  errorName: 'Error'
+}
+[Nest] 21852  - 11:04:45 10/11/2026    WARN [MetricsService] Metric gauge not read
+[Nest] 21852  - 11:04:45 10/11/2026    WARN [MetricsService] Object(2) {
+  metric: [
+    'bad'
+  ],
+  errorName: 'Error'
+}
+[Nest] 21852  - 11:04:45 10/11/2026    WARN [MetricsService] Metric line not written
+[Nest] 21852  - 11:04:47 10/11/2026    WARN [SessionRevocationCache] Object(1) {
+  errorType: 'Error'
+}
+[Nest] 21852  - 11:04:47 10/11/2026    WARN [SessionRevocationCache] Session revocation cache unavailable
+[Nest] 21852  - 11:04:48 10/11/2026    WARN [MetricsService] Object(3) {
+  gauge: 'slow',
+  reason: 'timeout',
+  errorName: 'GaugeTimeout'
+}
+[Nest] 21852  - 11:04:48 10/11/2026    WARN [MetricsService] Metric gauge not read
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (TIMEOUT)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (TIMEOUT)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (CIRCUIT_OPEN)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (CIRCUIT_OPEN)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (UNAVAILABLE)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (UNAVAILABLE)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (COMMAND_FAILED)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (COMMAND_FAILED)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (SHUTDOWN)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (SHUTDOWN)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (UNEXPECTED)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (UNEXPECTED)
+[Nest] 21852  - 11:04:54 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (TIMEOUT)
+DB_* variables are incomplete or malformed, DATABASE_URL not composed: DB_PASSWORD
+
+Test Suites: 98 passed, 98 total
+Tests:       1770 passed, 1770 total
+Snapshots:   0 total
+Time:        161.728 s
+Ran all test suites.
+
+
+COMMAND: node node_modules/jest/bin/jest.js --config test/jest-e2e.js --runInBand
+EXIT: 0
+[Nest] 30536  - 11:07:42 10/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+[Nest] 30536  - 11:07:43 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (UNAVAILABLE)
+[Nest] 30536  - 11:07:43 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (UNAVAILABLE)
+[Nest] 30536  - 11:07:43 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (UNAVAILABLE)
+[Nest] 30536  - 11:08:09 10/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+[Nest] 30536  - 11:08:09 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (UNAVAILABLE)
+[Nest] 30536  - 11:08:17 10/11/2026    WARN [JwksVerifierService] auth.cognito.jwksUri is not configured (COGNITO_ISSUER missing) — every call to verifyAccessToken will fail
+[Nest] 30536  - 11:08:17 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (UNAVAILABLE)
+
+Test Suites: 17 passed, 17 total
+Tests:       163 passed, 163 total
+Snapshots:   0 total
+Time:        171.953 s
+Ran all test suites.
+
+
+COMMAND: node node_modules/@nestjs/cli/bin/nest.js build
+EXIT: 0
+
+
+FAILED ATTEMPT: direct Jest full DB on Node24.15.0
+EXIT: -1073740791 (0xC0000409); empty output, no test summary. Root cause unresolved, BL-227.
+
+
+INVALID INVOCATION (not acceptance): direct Jest full DB on Node24.22.1
+Stopped own process after CLI tests required npm_execpath; exit -1; incomplete suite.
+[Nest] 29212  - 11:08:29 10/11/2026    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 2,
+  totalDebit: '1250000',
+  totalCredit: '1250000',
+  totalBalance: '9007199254090993'
+}
+[Nest] 29212  - 11:08:29 10/11/2026    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 29212  - 11:08:29 10/11/2026    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 0,
+  totalDebit: '1650000',
+  totalCredit: '1250000',
+  totalBalance: '0'
+}
+[Nest] 29212  - 11:08:29 10/11/2026    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 29212  - 11:08:30 10/11/2026    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 0,
+  totalDebit: '1550000',
+  totalCredit: '1550000',
+  totalBalance: '300000'
+}
+[Nest] 29212  - 11:08:30 10/11/2026    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 29212  - 11:08:30 10/11/2026    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 0,
+  totalDebit: '1250000',
+  totalCredit: '1250000',
+  totalBalance: '0'
+}
+[Nest] 29212  - 11:08:30 10/11/2026    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 29212  - 11:08:30 10/11/2026    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 0,
+  totalDebit: '1450000',
+  totalCredit: '1450000',
+  totalBalance: '0'
+}
+[Nest] 29212  - 11:08:30 10/11/2026    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 29212  - 11:08:31 10/11/2026   ERROR [ReconciliationService] Object(1) {
+  status: 'ERROR'
+}
+Ledger reconciliation aggregate overflowed signed bigint range
+[Nest] 29212  - 11:08:31 10/11/2026   ERROR [ReconciliationService] Object(2) {
+  errorType: 'Error',
+  code: '57014'
+}
+Ledger reconciliation query failed; recording ERROR run
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '279aa871-a578-40b1-8b60-75f12a642cf0',
+  eventType: 'TransferCompleted',
+  correlationId: '9b4e7c21-5a0d-4f83-b6e9-1d2c8a7f3045'
+}
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '40fabae4-3aa6-4f06-8b94-2b8eb3f22cf6',
+  eventType: 'TransferCompleted',
+  correlationId: '029b4878-9290-4e46-bca9-13c85577b381'
+}
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '29f1376d-edd6-4e61-b97f-063036c7c0a2',
+  eventType: 'AccountStatusChanged',
+  correlationId: 'a8e9e3ec-7882-4816-9cd0-b03c9f0fd8bc'
+}
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '95904a20-30a0-4204-8082-c38d264a3847',
+  eventType: 'TransferCompleted',
+  correlationId: '9b4e7c21-5a0d-4f83-b6e9-1d2c8a7f3045'
+}
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '2629a6ec-adca-4027-b9f8-627f7690a11a',
+  eventType: 'TransferCompleted',
+  correlationId: 'c0a8f3d2-5b61-4e0a-9f27-7d1b3a6c8e55'
+}
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '2e09050d-15f7-4cad-ab1e-42c752bf1a36',
+  eventType: 'AccountStatusChanged',
+  correlationId: 'e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836'
+}
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '93b7ad14-c884-4483-a29c-57220a246bbd',
+  eventType: 'AccountStatusChanged',
+  correlationId: 'e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836'
+}
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '6ceb70a9-b419-4c1a-9d3e-eac1e716a2e0',
+  eventType: 'TransferCompleted',
+  correlationId: '9b4e7c21-5a0d-4f83-b6e9-1d2c8a7f3045'
+}
+[Nest] 29212  - 11:09:17 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+FAIL test/db/invariants.db-spec.ts (126.989 s)
+  ● DBS-69 ledger invariant checks (real PostgreSQL) › TC-69-15n the npm script check:invariants runs the same CLI
+
+    TC-69-15n needs npm_execpath: run the suite through npm (npm run test:db), not jest directly
+
+      499 |     const npmFile = process.env.npm_execpath;
+      500 |     if (!npmFile) {
+    > 501 |       throw new Error(
+          |             ^
+      502 |         'TC-69-15n needs npm_execpath: run the suite through npm (npm run test:db), not jest directly',
+      503 |       );
+      504 |     }
+
+      at Object.<anonymous> (test/db/invariants.db-spec.ts:501:13)
+
+FAIL test/db/outbox-schema.db-spec.ts (13.955 s)
+  ● Console
+
+    console.log
+      Migration "CreateOutboxEventsProcessedEvents1792627200000" failed, error: relation "processed_events" already exists
+
+      at PlatformTools.log (src/platform/PlatformTools.ts:274:17)
+
+  ● outbox migration schema and safety › TC-25-13 production CLI run/revert/run preserves base objects
+
+    Run these tests through `npm run test:db`.
+
+      70 | function cli(script: string, url: string) {
+      71 |   const npmCli = process.env.npm_execpath;
+    > 72 |   if (!npmCli) throw new Error('Run these tests through `npm run test:db`.');
+         |                      ^
+      73 |   execFileSync(process.execPath, [npmCli, 'run', script], {
+      74 |     cwd: resolve(__dirname, '../..'),
+      75 |     env: { ...process.env, DATABASE_URL: url },
+
+      at cli (test/db/outbox-schema.db-spec.ts:72:22)
+      at Object.<anonymous> (test/db/outbox-schema.db-spec.ts:389:5)
+
+FAIL test/db/audit-schema.db-spec.ts (12.27 s)
+  ● Console
+
+    console.log
+      Migration "CreateAuditLog1792627200001" failed, error: relation "audit_log_actor_occurred_idx" already exists
+
+      at PlatformTools.log (src/platform/PlatformTools.ts:274:17)
+
+  ● audit storage migration › TC-26-13 CLI run/revert/run removes only audit storage and restores it
+
+    Command failed: C:\Program Files\WindowsApps\OpenAI.CodexPrimaryRuntime.v26-1105-1297-0_26.1105.1297.0_x64__3k8sg7r9htsxt\dependencies\node\bin\node.exe  run migration:run
+    node:internal/modules/cjs/loader:1568
+      throw err;
+      ^
+
+    Error: Cannot find module 'D:\UET_PROJECT\digital-banking-simulator\backend\undefined'
+
+      at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+      at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+      at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1142:10)
+      at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+      at Module._load (node:internal/modules/cjs/loader:1341:5)
+      at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+      at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+      at node:internal/main/run_main_module:33:47 {
+        code: 'MODULE_NOT_FOUND',
+        requireStack: []
+      }
+      
+      Node.js v24.22.1
+      at cli (test/db/audit-schema.db-spec.ts:91:17)
+      at Object.<anonymous> (test/db/audit-schema.db-spec.ts:335:5)
+
+FAIL test/db/reconciliation-migration-revert.db-spec.ts
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-18 CLI run/run/revert/run is idempotent and preserves the earlier schema
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-19 committed rows make CLI and migration down fail without losing data or history
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-20 a writer commit=true while revert waits is respected
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-21 a writer commit=false while revert waits is respected
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-22 a writer blocked behind down cannot insert after DROP commits
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-23 down without a transaction refuses before DDL
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-23 isolation REPEATABLE READ cannot use an older snapshot to hide a committed result
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-23 isolation SERIALIZABLE cannot use an older snapshot to hide a committed result
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-23 isolation READ UNCOMMITTED cannot use an older snapshot to hide a committed result
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-24 direct down/up in READ COMMITTED works on an empty table
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+  ● reconciliation migration lifecycle and concurrent revert › TC-116-25 conflicting pre-existing table makes up atomic and recovers when the fixture is removed
+
+    expect(received).toBeDefined()
+
+    Received: undefined
+
+      55 |   }
+      56 |   function cli(script: string, expectedFailure = false) {
+    > 57 |     expect(process.env.npm_execpath).toBeDefined();
+         |                                      ^
+      58 |     let status = 0;
+      59 |     try {
+      60 |       execFileSync(process.execPath, [process.env.npm_execpath!, 'run', script], {
+
+      at cli (test/db/reconciliation-migration-revert.db-spec.ts:57:38)
+      at revertSuccessors (test/db/reconciliation-migration-revert.db-spec.ts:32:7)
+      at Object.<anonymous> (test/db/reconciliation-migration-revert.db-spec.ts:91:5)
+
+
+FINAL ACCEPTANCE COMMAND: Node24.22.1 npm-cli.js run test:db -- --runInBand; PATH uses same Node for child CLI
+EXIT: 0
+
+> digital-banking-simulator-backend@0.1.0 test:db
+> jest --config ./test/jest-db.js --runInBand
+
+[Nest] 7616  - 11:13:09 10/11/2026    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 2,
+  totalDebit: '1250000',
+  totalCredit: '1250000',
+  totalBalance: '9007199254090993'
+}
+[Nest] 7616  - 11:13:09 10/11/2026    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 7616  - 11:13:09 10/11/2026    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 0,
+  totalDebit: '1650000',
+  totalCredit: '1250000',
+  totalBalance: '0'
+}
+[Nest] 7616  - 11:13:09 10/11/2026    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 7616  - 11:13:10 10/11/2026    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 0,
+  totalDebit: '1550000',
+  totalCredit: '1550000',
+  totalBalance: '300000'
+}
+[Nest] 7616  - 11:13:10 10/11/2026    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 7616  - 11:13:10 10/11/2026    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 0,
+  totalDebit: '1250000',
+  totalCredit: '1250000',
+  totalBalance: '0'
+}
+[Nest] 7616  - 11:13:10 10/11/2026    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 7616  - 11:13:10 10/11/2026    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 0,
+  totalDebit: '1450000',
+  totalCredit: '1450000',
+  totalBalance: '0'
+}
+[Nest] 7616  - 11:13:10 10/11/2026    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 7616  - 11:13:11 10/11/2026   ERROR [ReconciliationService] Object(1) {
+  status: 'ERROR'
+}
+Ledger reconciliation aggregate overflowed signed bigint range
+[Nest] 7616  - 11:13:11 10/11/2026   ERROR [ReconciliationService] Object(2) {
+  errorType: 'Error',
+  code: '57014'
+}
+Ledger reconciliation query failed; recording ERROR run
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '6a1bb8c1-2270-4ef4-897c-bd2ba02664bf',
+  eventType: 'TransferCompleted',
+  correlationId: '9b4e7c21-5a0d-4f83-b6e9-1d2c8a7f3045'
+}
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: 'e72cbf06-5a53-4329-be92-e5bd1d1d59ec',
+  eventType: 'TransferCompleted',
+  correlationId: 'e79882d7-1a65-4e80-9802-2e2e72003767'
+}
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: 'bbddfdf3-8ecc-4e22-8862-a2c64e8e2bc7',
+  eventType: 'AccountStatusChanged',
+  correlationId: '8925a6f2-0270-418d-a40f-7475b0c9696a'
+}
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '340f49c2-009a-46f6-89e0-f48aa8457300',
+  eventType: 'TransferCompleted',
+  correlationId: '9b4e7c21-5a0d-4f83-b6e9-1d2c8a7f3045'
+}
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: 'a2d264e9-c4d2-47f5-89c5-93e25cacb898',
+  eventType: 'TransferCompleted',
+  correlationId: 'c0a8f3d2-5b61-4e0a-9f27-7d1b3a6c8e55'
+}
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: '6ad7a533-019b-4503-86ee-7b059dbc97c0',
+  eventType: 'AccountStatusChanged',
+  correlationId: 'e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836'
+}
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: 'a40f4a22-97fc-4fe5-bef0-76b3aa03af63',
+  eventType: 'AccountStatusChanged',
+  correlationId: 'e8f2a6d0-1c47-4b95-a3e1-9d5b7c0f2836'
+}
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Object(3) {
+  eventId: 'e19e7c10-e6a8-42dd-8dcb-fbffab741835',
+  eventType: 'TransferCompleted',
+  correlationId: '9b4e7c21-5a0d-4f83-b6e9-1d2c8a7f3045'
+}
+[Nest] 7616  - 11:13:49 10/11/2026     LOG [NotificationConsumer] Notification sent (simulated)
+[Nest] 7616  - 11:27:52 10/11/2026     LOG [OutboxCleanupService] Object(4) {
+  outbox: 4,
+  processed: 0,
+  idempotency: 0,
+  batches: 3
+}
+[Nest] 7616  - 11:27:52 10/11/2026     LOG [OutboxCleanupService] Outbox cleanup removed old rows
+
+Test Suites: 64 passed, 64 total
+Tests:       897 passed, 897 total
+Snapshots:   0 total
+Time:        1005.207 s, estimated 1690 s
+Ran all test suites.
+
+Doc links: 369 files, 0 broken; final command recorded in feature doc.

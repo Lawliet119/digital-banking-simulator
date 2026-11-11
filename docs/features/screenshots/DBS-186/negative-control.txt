@@ -1,0 +1,56 @@
+FAIL test/db/redis-revocation-drill.db-spec.ts (23.513 s)
+  ● DBS-186 committed lock survives Redis data loss and outage › TC-186-01/02 lock commits before Redis flush; the very next request reads SQL and refuses the session
+
+    assert.strictEqual(received, expected)
+
+    Expected value to strictly be equal to:
+      401
+    Received:
+      200
+
+    Message:
+      [{"id":"35282055-a234-4cf1-aa78-e263d3443805","type":"CHECKING","status":"LOCKED","balance":"1000000","createdAt":"2026-11-10T04:00:20.014Z","updatedAt":"2026-11-10T04:00:20.197Z"}]
+
+    200 !== 401
+
+      361 |       },
+      362 |       assertRevoked(response: RevocationHttpResult) {
+    > 363 |         assert.equal(response.status, 401, JSON.stringify(response.body));
+          |                ^
+      364 |         assert.equal(response.body.errorCode, 'SESSION_REVOKED');
+      365 |         assert.match(response.correlationId ?? '', /^[0-9a-f-]{36}$/);
+      366 |         assert.equal(response.body.correlationId, response.correlationId);
+
+      at Object.assertRevoked (test/support/session-revocation.ts:363:16)
+      at test/db/redis-revocation-drill.db-spec.ts:62:9
+
+  ● DBS-186 committed lock survives Redis data loss and outage › TC-186-01/02 lock commits before Redis down; the very next request reads SQL and refuses the session
+
+    assert.strictEqual(received, expected)
+
+    Expected value to strictly be equal to:
+      401
+    Received:
+      200
+
+    Message:
+      [{"id":"2ac8493b-62d3-4aed-8fee-0275c56afd47","type":"CHECKING","status":"LOCKED","balance":"1000000","createdAt":"2026-11-10T04:00:20.518Z","updatedAt":"2026-11-10T04:00:20.673Z"}]
+
+    200 !== 401
+
+      361 |       },
+      362 |       assertRevoked(response: RevocationHttpResult) {
+    > 363 |         assert.equal(response.status, 401, JSON.stringify(response.body));
+          |                ^
+      364 |         assert.equal(response.body.errorCode, 'SESSION_REVOKED');
+      365 |         assert.match(response.correlationId ?? '', /^[0-9a-f-]{36}$/);
+      366 |         assert.equal(response.body.correlationId, response.correlationId);
+
+      at Object.assertRevoked (test/support/session-revocation.ts:363:16)
+      at test/db/redis-revocation-drill.db-spec.ts:62:9
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 3 skipped, 5 total
+Snapshots:   0 total
+Time:        23.76 s
+Ran all test suites within paths "test/db/redis-revocation-drill.db-spec.ts".
