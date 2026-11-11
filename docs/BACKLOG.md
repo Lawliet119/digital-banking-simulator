@@ -129,4 +129,3 @@ Quy tắc:
 | BL-238 | DBS-162 DoD 1 «Postgres/Redis thật»: parity chỉ chạy trên PostgreSQL thật vì `OnlineFeatureProvider` không đọc Redis cho đặc trưng; chưa so trên tập tune của #4 (chưa có trong `main`). | [DBS-162](features/DBS-162-provider-parity.md) §1, §8 | #4 Fraud và Dev | Nếu Online dùng Redis cho đặc trưng nào, thêm Redis thật vào test; chạy parity trên tập tune khi được giao |
 
 
-

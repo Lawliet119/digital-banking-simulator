@@ -142,4 +142,3 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-160](DBS-160-risk-config-api.md) | API quản trị cấu hình fraud có phiên bản: GET phiên bản hiện hành/lịch sử/chi tiết, POST tạo phiên bản mới có advisory lock `(20261110, 160)` tuần tự hóa và `audit_log` nguyên tử; validate tham số sáu luật và khối AI; chỉ vai `admin` | #4 Fraud | Implemented |
 | [DBS-162](DBS-162-provider-parity.md) | Test so khớp OnlineFeatureProvider và OfflineFeatureProvider trên chuỗi giao dịch với PostgreSQL thật: đồng nhất Features, Rule Scoring và FeatureInput | #4 Fraud | Implemented |
 | [DBS-162](DBS-162-provider-parity.md) | Test so khớp OnlineFeatureProvider và OfflineFeatureProvider trên chuỗi giao dịch với PostgreSQL thật: đồng nhất Features, Rule Scoring và FeatureInput | #4 Fraud | Kiểm chứng cục bộ; chờ CI và Dev review |
-
