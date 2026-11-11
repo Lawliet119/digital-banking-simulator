@@ -1,10 +1,10 @@
 # Quy định Quản trị Dữ liệu AI và Phê duyệt Egress (RSK-05)
 
-> **Status:** Approved (2026-11-10) · **Vai:** #4 Fraud, Techlead & Chủ sở hữu dữ liệu · **Cập nhật:** 2026-11-10 · **Liên quan:** [ADR-14](../../adr/0014-fraud-rules-external-ai.md), [Threat Model T25](../../security/threat-model.md), [FRAUD_DETECTION_GUIDE](FRAUD_DETECTION_GUIDE.md)
+> **Status:** Proposed, chờ techlead và chủ sở hữu dữ liệu duyệt (chưa có văn bản duyệt; tác giả của PR không có thẩm quyền tự duyệt) · **Vai soạn:** #4 Fraud · **Người duyệt:** techlead, chủ sở hữu dữ liệu (chưa duyệt) · **Cập nhật:** 2026-11-11 · **Liên quan:** [ADR-14](../../adr/0014-fraud-rules-external-ai.md), [Threat Model T25](../../security/threat-model.md), [FRAUD_DETECTION_GUIDE](FRAUD_DETECTION_GUIDE.md)
 
 ---
 
-## 1. Quyết định phê duyệt quyền gửi dữ liệu (Egress Approval)
+## 1. Đề xuất quyết định về quyền gửi dữ liệu (Egress Approval), chờ phê duyệt
 
 Căn cứ theo quyết định kiến trúc [ADR-14](../../adr/0014-fraud-rules-external-ai.md), nhóm phát hiện gian lận sử dụng dịch vụ pretrained **OpenAI Decisions API** làm tín hiệu bổ sung cho 6 luật nghiệp vụ giải thích được (`R1–R6`).
 
@@ -18,8 +18,8 @@ Văn bản này thiết lập ranh giới quản trị dữ liệu bắt buộc 
    - **Cấm mốc thời gian tuyệt đối:** Không gửi `occurredAt`, `createdAt`, `fromAccountCreatedAt`. Mọi yếu tố thời gian bắt buộc phải chuyển đổi thành đại lượng tương đối (`accountAgeHours`, `minutesSinceReverse`).
 
 3. **Nguyên tắc môi trường và dữ liệu thực:**
-   - **Môi trường Dev, Test, CI:** Tuyệt đối chỉ sử dụng dữ liệu tổng hợp (`synthetic dataset` từ `generate-fraud.mjs` hoặc mock/loopback adapter).
-   - **Môi trường Production (dữ liệu giao dịch thật):** Chỉ được phép kích hoạt biến môi trường `RISK_AI_EGRESS_APPROVED=true` sau khi văn bản phê duyệt này có hiệu lực và tài khoản dịch vụ OpenAI đạt điều kiện ZDR. Nếu thiếu phê duyệt, worker tự động giữ mode `rule_only` và ghi trạng thái `UNAVAILABLE`, không chặn luồng tiền.
+   - **Môi trường Dev, Test, CI:** Tuyệt đối chỉ sử dụng dữ liệu tổng hợp (dữ liệu tổng hợp hoặc adapter loopback).
+   - **Môi trường Production (dữ liệu giao dịch thật):** Chỉ được phép kích hoạt biến môi trường `RISK_AI_EGRESS_APPROVED=true` sau khi văn bản phê duyệt này có hiệu lực và tài khoản dịch vụ OpenAI đạt điều kiện ZDR. Khi chưa bật (`RISK_AI_EGRESS_APPROVED=false`, mặc định) không có lời gọi AI nào và consumer chấm bằng luật thuần (`risk-ai.service.ts`). Chỉ khi đã bật mà cổng `ai-gate` hỏng hoặc cấu hình sai thì quyết định ghi `ai_status` `UNAVAILABLE` hoặc `CONFIG_INVALID`; không chặn luồng tiền.
 
 ---
 
@@ -44,18 +44,18 @@ Văn bản này thiết lập ranh giới quản trị dữ liệu bắt buộc 
 ## 3. Điều khoản Dịch vụ Nhà cung cấp & Chính sách Zero Data Retention (ZDR)
 
 1. **Điều khoản dịch vụ và API Data Controls:**
-   - OpenAI cam kết theo chính sách API Data Privacy: Dữ liệu gửi qua API thương mại (`/v1/*`) mặc định **không được sử dụng để huấn luyện (train/fine-tune)** các mô hình của OpenAI.
+   - **Chưa xác minh trong repo** (ADR-14 yêu cầu người có thẩm quyền xác nhận lại trên trang điều khoản chính thức; cần dẫn URL, ngày đọc và người xác nhận trước khi duyệt). Nội dung đề xuất: OpenAI cam kết theo chính sách API Data Privacy: Dữ liệu gửi qua API thương mại (`/v1/*`) mặc định **không được sử dụng để huấn luyện (train/fine-tune)** các mô hình của OpenAI.
    - Endpoint sử dụng: `POST https://api.openai.com/v1/decisions` với model `gpt-6-luna`.
 
 2. **Chính sách lưu giữ dữ liệu (Retention Policy):**
-   - Mặc định của OpenAI API: Lưu giữ dữ liệu request tối đa 30 ngày phục vụ rà soát lạm dụng (abuse monitoring), sau đó bị xóa vĩnh viễn.
+   - (Chưa xác minh, như trên.) Mặc định của OpenAI API: lưu giữ dữ liệu request tối đa 30 ngày phục vụ rà soát lạm dụng (abuse monitoring), sau đó bị xóa.
    - **Zero Data Retention (ZDR):** Chỉ được áp dụng đối với các tổ chức đủ điều kiện và được OpenAI xác nhận bằng văn bản phê duyệt (ZDR approval). Khi ZDR có hiệu lực, OpenAI không lưu giữ request/response payload trên đĩa sau khi hoàn tất xử lý.
-   - **Quy định của dự án:** Trước khi có xác nhận ZDR chính thức từ OpenAI, hệ thống coi thời gian lưu giữ tối đa là 30 ngày; vì 11 trường đã được loại bỏ PII hoàn toàn nên rủi ro lộ lọt thông tin cá nhân khách hàng được triệt tiêu.
+   - **Quyết định còn mở (chờ chủ sở hữu dữ liệu chọn một):** (a) với dữ liệu giao dịch thật bắt buộc có xác nhận ZDR như §1.3, hoặc (b) chủ sở hữu dữ liệu chấp nhận bằng văn bản mức lưu giữ tối đa 30 ngày vì 11 trường đã bỏ định danh (giảm rủi ro, không triệt tiêu: số tiền và số dư vẫn là dữ liệu tài chính). Tài liệu này không chọn thay họ; khi chưa chọn thì §1.3 áp dụng (không bật egress cho dữ liệu thật).
 
 3. **Quản lý khóa bí mật (Secrets Management):**
-   - Khóa API `OPENAI_API_KEY` được lưu trữ tập trung tại **AWS Secrets Manager**, mã hóa bằng AWS KMS.
+   - **Yêu cầu cho Ops (BL-043):** khóa API `OPENAI_API_KEY` được lưu tại **AWS Secrets Manager**, mã hóa bằng AWS KMS. Hiện `infra/` chưa có secret OpenAI nào; mục này chưa được triển khai.
    - Tuyệt đối cấm commit khóa API vào git, file cấu hình, container image hoặc in ra console/log.
-   - Bộ lọc logger (`backend/src/common/logging/`) và `PinoLogger` được cấu hình redact tự động các header `Authorization`, `cookie` và các trường nhạy cảm.
+   - Logger pino của repo (`backend/src/common/logging/logging.options.ts`, kiểm bởi `logging.options.spec.ts` và `safe-logger.spec.ts`) được cấu hình redact tự động các header `Authorization`, `cookie` và các trường nhạy cảm.
 
 ---
 
@@ -65,4 +65,4 @@ Văn bản này thiết lập ranh giới quản trị dữ liệu bắt buộc 
 
 - **Hạn mức ngày (`daily_limit`):** Giới hạn số lượng request tối đa trong 1 ngày theo giờ UTC. Vượt hạn mức lập tức trả về `budget_exhausted` và worker tự động fallback về 6 luật thuần (`rule_only`), không làm gián đoạn hệ thống.
 - **Giới hạn đồng thời (`concurrent_limit`):** Giới hạn số lượng request API đang bay đồng thời.
-- **Timeout nghiêm ngặt:** Timeout gọi API tối đa 2.000 ms; nếu dịch vụ bên ngoài chậm hoặc không phản hồi, worker tự ngắt kết nối và giữ điểm luật baseline, bảo đảm thời gian xử lý sự kiện trong ngưỡng cam kết SLO.
+- **Timeout nghiêm ngặt:** Timeout gọi API hữu hạn, lấy từ `ai.requestTimeoutMs` của phiên bản rule set (`rule-set.ts`, không có mặc định cố định); nếu dịch vụ bên ngoài chậm hoặc không phản hồi, adapter ngắt kết nối và quyết định giữ điểm luật baseline.

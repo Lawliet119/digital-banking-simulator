@@ -1,6 +1,6 @@
 # RSK-05 · Duyệt quyền gửi dữ liệu giao dịch cho API AI và điều khoản nhà cung cấp
 
-> **Trạng thái:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/RSK-05-ai-data-governance` · **PR:** [#137](https://github.com/Lawliet119/digital-banking-simulator/pull/137) · **Nền:** `98cdb3017a54a72d73f4e3c92ff2439a3b6d0800`.
+> **Trạng thái:** Proposed (DoD 1 chưa đạt: chưa có văn bản duyệt của techlead và chủ dữ liệu; chờ CI và Dev review) · **Vai:** #4 Fraud · **Nhánh:** `feat/RSK-05-ai-data-governance` · **PR:** [#137](https://github.com/Lawliet119/digital-banking-simulator/pull/137) · **Nền:** `98cdb3017a54a72d73f4e3c92ff2439a3b6d0800`.
 
 ## 1. Bối cảnh và G1
 
@@ -54,7 +54,7 @@
 |---|---|---|---|
 | TC-RSK05-01 | Kiểm tra allowlist 11 trường loại bỏ hoàn toàn PII và mốc thời gian tuyệt đối | `src/modules/risk/ai/feature-projection.spec.ts` | Đạt |
 | TC-RSK05-02 | Biến môi trường `RISK_AI_EGRESS_APPROVED` mặc định là `false` | `src/config/validation.schema.spec.ts` › RSK-02 never approves egress | Đạt |
-| TC-RSK05-03 | Redaction tự động header `Authorization` và secrets trong logging | `src/common/logging/pino-logger.spec.ts` | Đạt |
+| TC-RSK05-03 | Redaction tự động header `Authorization` và secrets trong logging | `src/common/logging/logging.options.spec.ts`, `src/common/logging/safe-logger.spec.ts` | Đạt (đường dẫn sửa 2026-11-11; file `pino-logger.spec.ts` không tồn tại) |
 | TC-RSK05-04 | CI GitHub Actions và Dev review trên PR | Quy trình mở PR | Chờ review |
 
 ## 5. Test thủ công
@@ -66,7 +66,7 @@
 
 ## 6. Domain review
 
-- **Reviewer:** Self-review theo chuẩn an toàn thông tin và chính sách ADR-14.
+- **Reviewer:** self-review của tác giả, **không** phải domain review độc lập của skill (chưa có `screenshots/RSK-05/domain-review.md`). Một review độc lập ngày 2026-11-11 (subagent opus) tìm ba vấn đề blocking (tự ghi Approved, trạng thái T25 ngoài bộ trạng thái, điều khoản OpenAI không có nguồn) và sáu should-fix; tất cả đã được sửa trong tài liệu này; quyết định duyệt thật thuộc techlead và chủ dữ liệu.
 - **Kết quả:** Đạt yêu cầu quản trị dữ liệu, loại bỏ PII hoàn toàn, phân định rạch ròi giữa môi trường dev/test (chỉ synthetic) và production (cần ZDR/approval).
 
 ## 7. Kế hoạch triển khai
@@ -86,11 +86,11 @@
 - **Đối chiếu test case:**
   - TC-RSK05-01: Đạt qua `feature-projection.spec.ts`.
   - TC-RSK05-02: Đạt qua `validation.schema.spec.ts`.
-  - TC-RSK05-03: Đạt qua `pino-logger.spec.ts`.
+  - TC-RSK05-03: Đạt qua `logging.options.spec.ts` và `safe-logger.spec.ts`.
   - TC-RSK05-04: Chờ Dev review trên PR.
 
 - **Bàn giao cho vai khác:**
-  - Đóng hoàn toàn mục tiêu của task RSK-05 trên board.
+  - **Không đóng task RSK-05:** DoD 1 (văn bản duyệt của techlead và chủ dữ liệu) và DoD 4 (merge, Dev review) chưa đạt; chính sách này là đề xuất. Nguồn bổ sung cho BL-043 (phê duyệt dữ liệu/điều khoản/egress) và BL-050.
   - Cung cấp văn bản pháp lý kỹ thuật làm tiền đề cho các task vận hành AI tiếp theo (RSK-03, RSK-07).
 
 ## 9. Tài liệu đã cập nhật
@@ -106,5 +106,5 @@
 - [x] N/M test case đạt đủ độ sâu, K đơn giản hóa (nêu lý do từng cái)
 - [x] Test thủ công chạy trên commit cuối đổi code/doc: không có token, header `Authorization`, id tài khoản AWS và ARN
 - [x] `git diff --stat main...HEAD` khớp danh sách file ở §7
-- [x] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc là Implemented
+- [x] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc là Proposed
 - [x] Việc bàn giao cho vai khác và mọi DoD chưa đạt đã ghi ở §8
