@@ -1,0 +1,5 @@
+f444d78eff2801078da3acbaab3deefc23ffa7e8  (last commit that changes code; branch fix/pr136, rebased on main d9d6388)
+Run: 2026-11-11T10:32:32Z
+$ cd backend && npm run test:db -- test/security/security-boundaries.db-spec.ts
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
