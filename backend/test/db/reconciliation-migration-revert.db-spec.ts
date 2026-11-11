@@ -128,7 +128,9 @@ describe('reconciliation migration lifecycle and concurrent revert', () => {
     cli('migration:run');
     await revertSuccessors();
     expect(await catalog()).toEqual(before);
-  });
+    // Each later migration adds CLI starts here (revertSuccessors twice); 120 s (the default) was exceeded
+    // on a loaded CI runner as migrations accumulated (same cause as TC-26-13).
+  }, 360_000);
   it('TC-116-19 committed rows make CLI and migration down fail without losing data or history', async () => {
     await q(INSERT, [START]);
     const before = {
