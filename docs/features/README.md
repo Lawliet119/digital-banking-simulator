@@ -32,7 +32,6 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 |---|---|---|---|
 | [DBS-186](DBS-186-redis-revocation-drill.md) | Khóa trước flush/down Redis; SQL fallback và boundary hit/miss/down; [P4](../deliverables/P4-incident-table.md) | Dev | Implemented local; [PR #127](https://github.com/Lawliet119/digital-banking-simulator/pull/127), cloud BL-220/222, review/merge BL-226 |
 | [DBS-165](DBS-165-k6-scenarios.md) | Năm script k6, seed qua API, thresholds theo plateau/route, runner kiểm bất biến và cardinality duplicate; smoke AppModule/PostgreSQL/Valkey thật từ clone sạch | Dev | Implemented; smoke local đạt, chờ Dev review/merge và cloud BL-228/229 |
-| [DBS-165](DBS-165-k6-scenarios.md) | Năm script k6, seed qua API, thresholds theo plateau/route, runner kiểm bất biến và cardinality duplicate; smoke AppModule/PostgreSQL/Valkey thật từ clone sạch | Dev | Implemented; smoke local đạt, chờ Dev review/merge và cloud BL-232/229 |
 
 | [DBS-72](DBS-72-p2-architecture-submission.md) | P2/OpenAPI từ app thật, đối chiếu nguồn và handoff rubric/nộp | Dev | Implemented · G4 đã duyệt kèm giới hạn; PR #83 chờ Dev review/merge |
 | [DBS-97](DBS-97-duplicate-request-concurrency.md) | 10 round request trùng trên PostgreSQL thật, replay/mismatch và Demo2 | Dev | Implemented · G4 đã duyệt kèm giới hạn; PR #84 chờ Dev review/merge |
@@ -131,7 +130,6 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-159](DBS-159-auth-attack-tests.md) | Test bảo mật trên endpoint tiền thật và PostgreSQL thật: Idempotency-Key của người khác không lộ response (T13), token thiếu/sai chữ ký/`alg none`/HS256/ID token/hết hạn/bị thu hồi (T1, T2), vai trò chỉ từ `cognito:groups` (T21); mọi lần từ chối không ghi DB | Dev | Implemented |
 | [DBS-172](DBS-172-connection-pool-capacity.md) | Tính pool kết nối × số task không vượt max_connections của RDS PostgreSQL | Dev | Kiểm chứng cục bộ; chờ CI và Dev review |
 | [DBS-158](DBS-158-security-suite.md) | Test bảo mật tập trung: truy cập chéo (AC-5.8), auditor chỉ đọc (AC-8.1), khách không thấy cờ (AC-10.2) trên PostgreSQL thật | Dev | Implemented |
-| [DBS-158](DBS-158-security-suite.md) | Test bảo mật tập trung: truy cập chéo (AC-5.8), auditor chỉ đọc (AC-8.1), khách không thấy cờ (AC-10.2) trên PostgreSQL thật | Dev | Kiểm chứng cục bộ; chờ CI và Dev review |
 
 | [RSK-01](RSK-01-risk-decisions-migration.md) | Migration `risk_decisions` (ADR-14): một decision bất biến cho mỗi TRANSFER, ràng buộc đặt tên, FK ghép từ `fraud_flags`, `fraud_rule_hits.weight >= 0`, append-only, quyền S/S I; claim `ON CONFLICT DO NOTHING` không target; retention: không phân vùng (616 B/dòng) | #4 Fraud | Implemented |
 | [DBS-111](DBS-111-risk-scoring-consumer.md) | Consumer `risk-events` (worker): đọc rule set và feature ngoài transaction (hook `prepare` của `ConsumerBase`), claim `processed_events` → `risk_decisions` (mọi TRANSFER) → cờ, hit và audit `fraud.flagged` ở MEDIUM/HIGH; AC-9.1, AC-9.2; độ trễ giao dịch → cờ p95 542 ms trong test với vòng lặp thật | #4 Fraud | Implemented |
@@ -140,3 +138,4 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [DBS-129/130](DBS-129-130-fraud-operator-api.md) | Operator list/detail/review có audit, cursor microsecond, lịch sử ledger; test PostgreSQL, role và HTTP | #4 Fraud | Kiểm chứng cục bộ; chờ CI và Dev review |
 | [RSK-02](RSK-02-durable-ai-gate.md) | Nối Decisions vào worker qua gate quota, fallback, provenance và quyền; không bật dữ liệu thật mặc định | #4 Fraud | Kiểm chứng synthetic cục bộ; chờ smoke provider, CI và Dev review |
 | [RSK-05](RSK-05-ai-data-governance.md) | Văn bản phê duyệt quyền gửi dữ liệu AI, chính sách allowlist 11 trường FeatureInput, cấm PII và timestamp, chính sách ZDR và cập nhật Threat Model T25 | #4 Fraud | Proposed (chờ duyệt của techlead và chủ dữ liệu, CI và Dev review) |
+| [DBS-211](DBS-211-export-features.md) | Lệnh export-features đọc CSV giao dịch và xuất CSV gồm 11 trường FeatureInput và nhãn is_fraud từ OfflineFeatureProvider; loại bỏ scenario, bảo đảm tính nhân quả và tất định | #4 Fraud | Implemented |
