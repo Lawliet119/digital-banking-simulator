@@ -127,4 +127,3 @@ Quy tắc:
 | BL-236 | DBS-211: `export-features` mới được chạy trên CSV tự viết (14 giao dịch); chưa chạy trên tập tune thật của #4 vì chưa có `backend/data/fraud/` trong `main` (Dev giữ dataset giao theo DBS-127). | [DBS-211](features/DBS-211-export-features.md) §8 | Dev giữ dataset và #4 Fraud | Chạy `npm run export-features` trên tập tune khi được giao; kiểm số cột, số dòng và hai lần chạy giống hệt |
 
 
-

@@ -142,4 +142,3 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | [RSK-05](RSK-05-ai-data-governance.md) | Văn bản phê duyệt quyền gửi dữ liệu AI, chính sách allowlist 11 trường FeatureInput, cấm PII và timestamp, chính sách ZDR và cập nhật Threat Model T25 | #4 Fraud | Proposed (chờ duyệt của techlead và chủ dữ liệu, CI và Dev review) |
 | [DBS-211](DBS-211-export-features.md) | Lệnh export-features đọc CSV giao dịch và xuất CSV gồm 11 trường FeatureInput và nhãn is_fraud từ OfflineFeatureProvider; loại bỏ scenario, bảo đảm tính nhân quả và tất định | #4 Fraud | Implemented |
 | [DBS-211](DBS-211-export-features.md) | Lệnh export-features đọc CSV giao dịch và xuất CSV gồm 11 trường FeatureInput và nhãn is_fraud từ OfflineFeatureProvider; loại bỏ scenario, bảo đảm tính nhân quả và tất định | #4 Fraud | Kiểm chứng cục bộ; chờ CI và Dev review |
-
