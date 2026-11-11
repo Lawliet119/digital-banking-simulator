@@ -1,0 +1,5 @@
+e0bd80a7f520e547bd76892c09f930c810c82681  (commit that changes code and docs; branch fix/pr140, rebased on main 0c46bbd)
+Run: 2026-11-11T10:13:16Z
+$ cd backend && npm test -- connection-pool
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
