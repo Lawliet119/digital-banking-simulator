@@ -1,16 +1,10 @@
-98cdb309c51d0384ffbf21b2714eca586c30a087
-
-# Manual Test Execution Output - RSK-06 AI Risk Runtime Gating
-# Date: 2026-11-10
-
-$ npm run test:db -- risk-runtime-gating.db-spec.ts
-
-
-> digital-banking-simulator-backend@0.1.0 test:db
-> jest --config ./test/jest-db.js risk-runtime-gating.db-spec.ts
-
+1956edff0d527172b6b8bc7130a9063cdc863e66  (last commit that changes code; branch fix/pr141, rebased on main baf4231)
+Run: 2026-11-11T12:04:08Z
+$ cd backend && npm run test:db -- test/db/risk-runtime-gating.db-spec.ts   (run 1)
 Test Suites: 1 passed, 1 total
-Tests:       4 passed, 4 total
-Snapshots:   0 total
-Time:        1.358 s, estimated 2 s
-Ran all test suites matching risk-runtime-gating.db-spec.ts.
+Tests:       3 passed, 3 total
+Time:        5.037 s, estimated 6 s
+$ cd backend && npm run test:db -- test/db/risk-runtime-gating.db-spec.ts   (run 2)
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+Time:        4.756 s, estimated 5 s
