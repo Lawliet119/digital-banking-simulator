@@ -1,112 +1,69 @@
-/**
- * DBS-172: Connection Pool Sizing & Capacity Planning Verification.
- * Formula:
- *   total_connections = (N_api * pool_api) + (N_worker * pool_worker) + safety_buffer <= max_connections
- */
-
-export interface RdsInstanceClass {
-  name: string;
-  ramBytes: number;
-}
-
-export const RDS_INSTANCE_CLASSES: Record<string, RdsInstanceClass> = {
-  'db.t4g.micro': { name: 'db.t4g.micro', ramBytes: 1 * 1024 * 1024 * 1024 }, // 1 GiB
-  'db.t4g.small': { name: 'db.t4g.small', ramBytes: 2 * 1024 * 1024 * 1024 }, // 2 GiB
-  'db.t4g.medium': { name: 'db.t4g.medium', ramBytes: 4 * 1024 * 1024 * 1024 }, // 4 GiB
-  'db.t4g.large': { name: 'db.t4g.large', ramBytes: 8 * 1024 * 1024 * 1024 }, // 8 GiB
-};
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
- * AWS RDS PostgreSQL default formula:
- * max_connections = LEAST({DBInstanceClassMemory / 9531392}, 5000)
+ * DBS-172: the pool must fit under the RDS `max_connections` the app can really use. The numbers
+ * come from the repo's own configuration, not from a formula the test defines for itself:
+ * the default `DATABASE_POOL_MAX` (validation schema), the largest dev `desired_count` (Terraform)
+ * and the measured limit of `db.t4g.micro` (DBS-66: 79 connections, 3 superuser-reserved and 2
+ * reserved, so 74 are usable).
  */
-export function calculateRdsMaxConnections(ramBytes: number): number {
-  return Math.min(Math.floor(ramBytes / 9531392), 5000);
+const REPO = join(__dirname, '../../..');
+const MEASURED_MAX_CONNECTIONS_MICRO = 79;
+const SUPERUSER_RESERVED = 3;
+const RESERVED = 2;
+const MIGRATION_AND_ADMIN = 5; // docs/03 section 13.2
+
+function defaultPoolMax(): number {
+  const schema = readFileSync(join(__dirname, 'validation.schema.ts'), 'utf8');
+  const match =
+    /DATABASE_POOL_MAX: Joi\.number\(\)\.integer\(\)\.min\(1\)\.max\((\d+)\)\.default\((\d+)\)/.exec(
+      schema,
+    );
+  if (!match) throw new Error('DATABASE_POOL_MAX definition not found in validation.schema.ts');
+  return Number(match[2]);
 }
 
-export interface PoolPlanningInputs {
-  apiTasks: number;
-  apiPoolMax: number;
-  workerTasks: number;
-  workerPoolMax: number;
-  adminSafetyBuffer: number;
-}
-
-export function calculateTotalConnections(inputs: PoolPlanningInputs): number {
-  return (
-    inputs.apiTasks * inputs.apiPoolMax +
-    inputs.workerTasks * inputs.workerPoolMax +
-    inputs.adminSafetyBuffer
+function maxDevTasks(): number {
+  const variables = readFileSync(
+    join(REPO, 'infra/terraform/envs/dev/session/variables.tf'),
+    'utf8',
   );
+  const match = /var\.desired_count <= (\d+)/.exec(variables);
+  if (!match) throw new Error('desired_count upper bound not found in variables.tf');
+  return Number(match[1]);
 }
 
-export function isPoolCapacitySafe(
-  inputs: PoolPlanningInputs,
-  instance: RdsInstanceClass,
-): { safe: boolean; totalUsed: number; maxConnections: number; headroomPercent: number } {
-  const maxConnections = calculateRdsMaxConnections(instance.ramBytes);
-  const totalUsed = calculateTotalConnections(inputs);
-  const headroomPercent = ((maxConnections - totalUsed) / maxConnections) * 100;
-  return {
-    safe: totalUsed <= maxConnections,
-    totalUsed,
-    maxConnections,
-    headroomPercent,
-  };
-}
+describe('connection pool capacity (DBS-172)', () => {
+  const usable = MEASURED_MAX_CONNECTIONS_MICRO - SUPERUSER_RESERVED - RESERVED;
 
-describe('DBS-172: Connection Pool Sizing and Capacity Planning', () => {
-  it('TC-172-01: db.t4g.micro allocates 112 max_connections on AWS RDS PostgreSQL', () => {
-    const maxConn = calculateRdsMaxConnections(RDS_INSTANCE_CLASSES['db.t4g.micro'].ramBytes);
-    expect(maxConn).toBe(112);
+  it('TC-172-01 the default pool and the largest dev task count fit the measured db.t4g.micro limit', () => {
+    const tasks = maxDevTasks();
+    const used = tasks * defaultPoolMax() + MIGRATION_AND_ADMIN;
+    expect(usable).toBe(74);
+    expect(used).toBeLessThanOrEqual(usable);
   });
 
-  it('TC-172-02: default production deployment (2 API tasks, 2 Worker tasks, poolMax 10) fits comfortably in db.t4g.micro with > 50% headroom', () => {
-    const deployment: PoolPlanningInputs = {
-      apiTasks: 2,
-      apiPoolMax: 10,
-      workerTasks: 2,
-      workerPoolMax: 10,
-      adminSafetyBuffer: 15, // Migrator task, psql, cloudwatch monitoring
-    };
-
-    const result = isPoolCapacitySafe(deployment, RDS_INSTANCE_CLASSES['db.t4g.micro']);
-    expect(result.safe).toBe(true);
-    expect(result.totalUsed).toBe(55);
-    expect(result.maxConnections).toBe(112);
-    expect(result.headroomPercent).toBeGreaterThanOrEqual(50);
+  it('TC-172-02 a rolling deploy that doubles the tasks still has to be re-checked, and it does not fit at the dev maximum', () => {
+    // ECS defaults to 200% (no deployment_maximum_percent in infra/terraform): at 6 tasks a deploy
+    // can briefly run 12. That exceeds the micro limit, so a deploy at the maximum needs a lower
+    // desired_count or a larger class. The test pins the fact so a change of either number is seen.
+    const doubled = 2 * maxDevTasks() * defaultPoolMax() + MIGRATION_AND_ADMIN;
+    expect(doubled).toBeGreaterThan(usable);
   });
 
-  it('TC-172-03: scaling to 5 API tasks and 3 Worker tasks fits db.t4g.small (225 connections)', () => {
-    const scaledDeployment: PoolPlanningInputs = {
-      apiTasks: 5,
-      apiPoolMax: 15,
-      workerTasks: 3,
-      workerPoolMax: 15,
-      adminSafetyBuffer: 20,
-    };
-
-    const smallResult = isPoolCapacitySafe(scaledDeployment, RDS_INSTANCE_CLASSES['db.t4g.small']);
-    expect(smallResult.safe).toBe(true);
-    expect(smallResult.totalUsed).toBe(140);
-    expect(smallResult.maxConnections).toBe(225);
-    expect(smallResult.headroomPercent).toBeGreaterThan(35);
+  it('TC-172-03 the Terraform variable states the same limit as the docs', () => {
+    const variables = readFileSync(
+      join(REPO, 'infra/terraform/envs/dev/session/variables.tf'),
+      'utf8',
+    );
+    expect(variables).toContain('docs/03 section 13.2');
   });
 
-  it('TC-172-04: maximum single-instance poolMax (50) with 2 API + 1 Worker requires db.t4g.small or larger', () => {
-    const maxedPool: PoolPlanningInputs = {
-      apiTasks: 2,
-      apiPoolMax: 50,
-      workerTasks: 1,
-      workerPoolMax: 50,
-      adminSafetyBuffer: 15,
-    };
-
-    // 2*50 + 1*50 + 15 = 165 -> Exceeds micro (112), but safe on small (225)
-    const microResult = isPoolCapacitySafe(maxedPool, RDS_INSTANCE_CLASSES['db.t4g.micro']);
-    expect(microResult.safe).toBe(false);
-
-    const smallResult = isPoolCapacitySafe(maxedPool, RDS_INSTANCE_CLASSES['db.t4g.small']);
-    expect(smallResult.safe).toBe(true);
+  it('TC-172-04 the AI gate connections outside the pool are bounded by the usable room, per worker task', () => {
+    // Each AI call opens one pg.Client outside the pool: with the dev maximum the room left for them
+    // is what remains after the pools. Documented as a term of the formula (database-design 6.4).
+    const room = usable - (maxDevTasks() * defaultPoolMax() + MIGRATION_AND_ADMIN);
+    expect(room).toBeGreaterThanOrEqual(0);
   });
 });

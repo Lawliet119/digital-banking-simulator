@@ -1,13 +1,3 @@
-# Domain Review — DBS-172: Connection Pool Sizing & Capacity Planning
+# Domain review DBS-172
 
-- **Reviewer:** Adversarial Self-Review (Gemini 3.8 Flash)
-- **Target:** Capacity limits between TypeORM poolMax and AWS RDS max_connections
-- **Verdict:** PASS
-
-## Findings
-
-1. **[RESOLVED] Formula accuracy:**
-   - Evaluated default RDS formula: LEAST(RAM/9531392, 5000) yielding 112 for db.t4g.micro.
-   - 2 API + 2 Worker tasks @ 10 poolMax + 15 buffer = 55 connections, leaving 50.9% headroom.
-2. **[RESOLVED] Multi-tier scaling:**
-   - db.t4g.small (225 max) and db.t4g.medium (450 max) plans verified against scaled container scenarios.
+File cũ là self-review của tác giả (không phải domain review độc lập theo skill) và bị loại bỏ. Review độc lập bằng subagent (opus, 2026-11-11) và cách xử lý từng phát hiện được ghi ở [§6 của feature doc](../../DBS-172-connection-pool-capacity.md#6-domain-review-ai); nguyên văn trả lời không được lưu.

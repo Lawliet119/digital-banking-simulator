@@ -481,21 +481,19 @@ PostgreSQL **không tự đánh index cho cột khóa ngoại**. Các cột khó
 
 Tải thiết kế ≈ 10.000 lệnh chuyển/ngày (docs/BRD.md Phần 2 §5.3) → ~20.000 dòng `ledger_entries`/ngày ≈ **7,3 triệu dòng/năm**, mỗi dòng cộng index khoảng 100–250 byte → ước lượng **~1–2 GB/năm**, khớp "< 10 GB/năm" trong docs/BRD.md. **Không cần phân vùng (partition)** ở quy mô này; ngưỡng cân nhắc là hàng trăm triệu dòng.
 
-### 6.4 Tính toán Connection Pool và giới hạn max_connections (DBS-172)
+### 6.4 Pool kết nối và giới hạn `max_connections` (DBS-172)
 
-Công thức tính tổng số kết nối DB:
-$$\text{Total Connections} = (N_{\text{api}} \times \text{poolMax}_{\text{api}}) + (N_{\text{worker}} \times \text{poolMax}_{\text{worker}}) + \text{Safety Buffer} \le \text{max\_connections}$$
+Công thức chuẩn nằm ở [docs/03 §13.2](../../03_HIGH_LEVEL_ARCHITECTURE.md): `số task × DATABASE_POOL_MAX + 5 (migration, quản trị) ≤ max_connections`, với `DATABASE_POOL_MAX = 10` mặc định (`validation.schema.ts`, 1 đến 50). Mục này chỉ thêm những gì công thức đó chưa tính:
 
-Công thức tính `max_connections` mặc định trên AWS RDS PostgreSQL:
-$$\text{max\_connections} = \text{LEAST}\left(\frac{\text{DBInstanceClassMemory}}{9531392}, 5000\right)$$
+| Hạng mục | Giá trị / quy tắc | Nguồn |
+|---|---|---|
+| `max_connections` của `db.t4g.micro` (dev) | **79 (đo thật)**; `superuser_reserved_connections` 3 và `reserved_connections` 2, nên ứng dụng dùng được 79 − 3 − 2 = **74**; `6 × 10 + 5 = 65 ≤ 74` (dev tối đa 6 task, `desired_count` ≤ 6 ở `infra/terraform/envs/dev/session/variables.tf`) | [DBS-66](../../features/DBS-66-terraform-rds.md) M-66-04..06 |
+| Lớp khác (`db.t4g.small` của production, …) | **chưa đo**: công thức mặc định của AWS là `LEAST({DBInstanceClassMemory/9531392}, 5000)`, trong đó `DBInstanceClassMemory` nhỏ hơn RAM danh định (micro 1 GiB danh định cho 79, không phải 112). Kiểm bằng `SHOW max_connections;` trên instance thật trước khi dựa vào con số nào | tài liệu AWS RDS (tham số `max_connections`) |
+| Kết nối ngoài pool của worker | mỗi lần gọi AI mở thêm một `pg.Client` ngoài pool (`AiGate.execute`, `ai-gate.ts`): cộng `số task worker × RISK_AI_CONCURRENCY` khi bật AI (`RISK_AI_CONCURRENCY` chỉ bị chặn trên ở 2147483647, nên đặt giá trị nhỏ) | `ai-gate.ts`, `validation.schema.ts` |
+| Rolling deploy | ECS không đặt `deployment_maximum_percent` trong `infra/terraform`, mặc định 200%: lúc triển khai số task có thể tạm gấp đôi, tính `2 × số task` khi kiểm | `infra/terraform` (không có `maximum_percent`) |
+| Số task worker | **giả định** cho tới khi DBS-121 (worker trên ECS) xong: docs/03 §13.1 ghi 1 task ở dev và 1 đến 2 task ở production; production có ít nhất 2 task api | docs/03 §13.1 |
 
-| Lớp Instance RDS | RAM | max_connections | Cấu hình triển khai | Tổng kết nối dùng | Dự phòng an toàn (Headroom) | Đánh giá |
-|---|:---:|:---:|---|:---:|:---:|:---:|
-| `db.t4g.micro` (Dev/Test) | 1 GiB | 112 | 2 API tasks ($\times 10$) + 2 Worker tasks ($\times 10$) + 15 buffer admin | 55 | **57 kết nối (50.9%)** | **AN TOÀN TUYỆT ĐỐI** |
-| `db.t4g.small` (Staging) | 2 GiB | 225 | 4 API tasks ($\times 15$) + 3 Worker tasks ($\times 15$) + 20 buffer admin | 125 | **100 kết nối (44.4%)** | **AN TOÀN** |
-| `db.t4g.medium` (Production) | 4 GiB | 450 | 8 API tasks ($\times 20$) + 4 Worker tasks ($\times 20$) + 30 buffer admin | 270 | **180 kết nối (40.0%)** | **AN TOÀN** |
-
-*Quy tắc vận hành:* Mặc định `DATABASE_POOL_MAX` đặt là 10 kết nối/task (`validation.schema.ts`), kết hợp timeout `DATABASE_LOCK_TIMEOUT_MS = 2000`, `DATABASE_STATEMENT_TIMEOUT_MS = 5000` và `DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS = 10000` đảm bảo không bao giờ bị nghẽn connection leak hoặc cạn kiệt pool kết nối.
+Timeout `DATABASE_LOCK_TIMEOUT_MS` (2000), `DATABASE_STATEMENT_TIMEOUT_MS` (5000) và `DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS` (10000) giới hạn **thời gian** một kết nối bị giữ, không giới hạn **số** kết nối; chúng giảm nguy cơ cạn pool khi có truy vấn treo nhưng không loại trừ nó (rủi ro đã ghi ở [DBS-56](../../features/DBS-56-audit-service-record.md) §3). Test `backend/src/config/connection-pool.spec.ts` giữ công thức với giá trị thật của cấu hình (pool mặc định, `desired_count` tối đa của dev, số đo 74), không tự định nghĩa công thức.
 
 ---
 
