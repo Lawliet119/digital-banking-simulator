@@ -1,36 +1,15 @@
-98cdb309c51d0384ffbf21b2714eca586c30a087
-
-# Manual Test Execution Output - DBS-171 EXPLAIN Hot Queries
-# Date: 2026-11-10
-
-$ npm run test:db -- hot-queries-explain.db-spec.ts
-
-
-> digital-banking-simulator-backend@0.1.0 test:db
-> jest --config ./test/jest-db.js hot-queries-explain.db-spec.ts
-
-  console.log
-    {"query":"daily_limit","execMs":0.058,"plan":"Index Only Scan"}
-
-      at Object.<anonymous> (test/db/hot-queries-explain.db-spec.ts:164:13)
-
-  console.log
-    {"query":"keyset_history","execMs":0.079}
-
-      at Object.<anonymous> (test/db/hot-queries-explain.db-spec.ts:188:13)
-
-  console.log
-    {"query":"outbox_poll","execMs":0.195,"index":"outbox_unpublished_idx"}
-
-      at Object.<anonymous> (test/db/hot-queries-explain.db-spec.ts:210:13)
-
-  console.log
-    {"query":"audit_lookup","execMs":0.036,"index":"audit_log_correlation_idx"}
-
-      at Object.<anonymous> (test/db/hot-queries-explain.db-spec.ts:231:13)
-
+24026d2b4eb722dc8ddfbafc115701a0bd8a6fbe  (last commit that changes code; branch fix/pr139, rebased on main baf4231)
+Run: 2026-11-11T12:12:29Z
+$ cd backend && npm run test:db -- test/db/outbox-relay-plan.db-spec.ts   (with logging on)
+{"query":"relay_poll","parked":0,"medianMs":0.093,"index":"outbox_unpublished_idx","blocks":5,"published":400000}
+{"query":"relay_poll","parked":50,"medianMs":0.098,"index":"outbox_unpublished_idx","blocks":5,"published":400000}
 Test Suites: 1 passed, 1 total
-Tests:       4 passed, 4 total
-Snapshots:   0 total
-Time:        5.525 s, estimated 6 s
-Ran all test suites matching hot-queries-explain.db-spec.ts.
+Tests:       2 passed, 2 total
+
+$ npm run test:db -- the four existing EXPLAIN specs (daily-limit, transaction-history-plan, transfer-facts, audit-search)
+Test Suites: 4 passed, 4 total
+Tests:       29 passed, 29 total
+
+$ npm run test -- outbox-relay (unit tests of the relay after extracting the constant)
+Test Suites: 2 passed, 2 total
+Tests:       6 passed, 6 total

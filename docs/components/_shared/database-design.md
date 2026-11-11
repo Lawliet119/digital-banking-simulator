@@ -530,7 +530,7 @@ Query audit được kiểm bằng đúng projection/order/limit+1 của service
 
 ### 7.3 Đã đo: relay lấy lô sự kiện chưa gửi (DBS-171, 2026-11-11)
 
-PostgreSQL 17, 400.000 dòng `outbox_events` đã gửi + 1.000 dòng chưa gửi, `VACUUM (ANALYZE)`, `limit = 100`; câu SQL là hằng số `PENDING_BATCH_SQL` của `OutboxRelayService`, chạy bằng `backend/test/db/outbox-relay-plan.db-spec.ts`. Plan: `Limit` → `Index Scan` trên `outbox_unpublished_idx`, không `Seq Scan`, không `Sort`; trung vị 5 lần **0,096 ms** (không có id parked) và **0,110 ms** (50 id parked), 5 block. Tổng hợp cả năm truy vấn nóng và test của từng cái: [docs/components/ledger/query-plans.md](../ledger/query-plans.md).
+PostgreSQL 17, 400.000 dòng `outbox_events` đã gửi + 1.000 dòng chưa gửi, `VACUUM (ANALYZE)`, `limit = 100`; câu SQL là hằng số `PENDING_BATCH_SQL` của `OutboxRelayService`, chạy bằng `backend/test/db/outbox-relay-plan.db-spec.ts`. Plan: `Limit` → `Index Scan` trên `outbox_unpublished_idx`, không `Seq Scan`, không `Sort`; trung vị 5 lần **0,093 ms** (không có id parked) và **0,098 ms** (50 id parked), 5 block. Tổng hợp cả năm truy vấn nóng và test của từng cái: [docs/components/ledger/query-plans.md](../ledger/query-plans.md).
 
 ---
 

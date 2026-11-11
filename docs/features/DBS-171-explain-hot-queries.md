@@ -56,7 +56,7 @@ Một commit mã (tách hằng số, test, xóa test chép tay), một commit do
 
 ## 8. Kết quả
 
-- `outbox-relay-plan.db-spec.ts` đạt: **0,096 ms** (0 parked) và **0,110 ms** (50 parked), 5 block, `outbox_unpublished_idx`, trên 400.000 dòng đã gửi; lint và typecheck sạch.
+- `outbox-relay-plan.db-spec.ts` đạt: **0,093 ms** (0 parked) và **0,098 ms** (50 parked), 5 block, `outbox_unpublished_idx`, trên 400.000 dòng đã gửi; lint và typecheck sạch.
 - **Chưa làm:** dữ liệu generator fraud và RDS thật (BL-240); số đo 1 triệu dòng trong CI (CI dùng 100 đến 400 nghìn dòng, 1 triệu dòng là lần đo tay §7.1 và §7.2); ảnh chụp (đầu ra là log test); review độc lập thứ hai; DoD 4.
 - **Bàn giao:** BL-240.
 
