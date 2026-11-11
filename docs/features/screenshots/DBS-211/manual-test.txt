@@ -4,10 +4,10 @@ Input: docs/features/screenshots/DBS-211/sample-input.csv (14 hand-written trans
 
 $ npm run export-features -- --input ../docs/features/screenshots/DBS-211/sample-input.csv --output out1.csv
 [export-features] Processed 14 transactions in 0.00s
-[export-features] Output written to: C:\Users\ADMIN\AppData\Local\Temp\tmp.IG34ezbkja\out1.csv
+[export-features] Output written to: <tmp>\out1.csv
 $ npm run export-features -- --input ../docs/features/screenshots/DBS-211/sample-input.csv --output out2.csv
 [export-features] Processed 14 transactions in 0.00s
-[export-features] Output written to: C:\Users\ADMIN\AppData\Local\Temp\tmp.IG34ezbkja\out2.csv
+[export-features] Output written to: <tmp>\out2.csv
 $ sha256sum out1.csv out2.csv
 8dd6596a9419b44a059cd02ec2b28441fc41e0a70873049ca0e132cd25a7a71e *out1.csv
 8dd6596a9419b44a059cd02ec2b28441fc41e0a70873049ca0e132cd25a7a71e *out2.csv
