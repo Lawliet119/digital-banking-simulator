@@ -61,3 +61,13 @@ output "redis_replication_group_id" {
   description = "Cho alarm Redis không truy cập được (docs/03 §14)."
   value       = aws_elasticache_replication_group.main.id
 }
+
+# DBS-120 → DBS-121: role của service worker (task role có policy SQS của base; execution role đọc secret DB và
+# Redis, ghi log vào /dbs/dev/worker).
+output "worker_task_role_arn" {
+  value = aws_iam_role.worker_task.arn
+}
+
+output "worker_execution_role_arn" {
+  value = aws_iam_role.worker_execution.arn
+}
