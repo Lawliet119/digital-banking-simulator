@@ -117,11 +117,11 @@ Kiểm tra bàn giao: lint đạt, typecheck đạt; unit98 suites/1770 tests đ
 |---|---|---|
 | TC-165-01 | config.test.mjs; k6 inspect full; baseline smoke | đạt cấu hình, smoke chỉ5RPS, không chứng minh NFR120RPS |
 | TC-165-02 | config.test.mjs, runner.test.mjs; hot/duplicate/stress smoke; exact DB postflight | đạt; negative control unit phát hiện giao dịch cân sổ dư; JSON replay so theo giá trị, không theo thứ tự khóa jsonb |
-| TC-165-03 | rate-limit.js qua2AppModule dùng chung Valkey | đạt local10/11 và100/101; cloud/ALB chưa chạy BL-228 |
+| TC-165-03 | rate-limit.js qua2AppModule dùng chung Valkey | đạt local10/11 và100/101; cloud/ALB chưa chạy BL-232 |
 | TC-165-04 | smoke.cjs từ clone sạch | đủ5bài, checkerPASS sau mỗi bài |
 | TC-165-05 | runner.test.mjs và API unreachable | đạt: k6 exit99, checker vẫnPASS; checker lỗi thì runner đỏ |
 | TC-165-06 | unitfixture thiếu, đọc validator, kiểm raw output | đơn giản hóa: chưa unit từng biến thể URL/token sai; không đổi chính sách auth backend; raw không token/Authorization/DB URL/ARN |
-| DoD5 quy trình | PR/CI/Dev review | CI sẽ đối chiếu exact head sau push; Dev review/merge còn BL-229 |
+| DoD5 quy trình | PR/CI/Dev review | CI sẽ đối chiếu exact head sau push; Dev review/merge còn BL-233 |
 
 | Bước | Lệnh/kết quả thật | Kết luận |
 |---|---|---|
@@ -130,26 +130,26 @@ Kiểm tra bàn giao: lint đạt, typecheck đạt; unit98 suites/1770 tests đ
 | M-165-03 | runner rate-limit --smoke,112HTTP, checks100%, 2process dùng chung Redis; invariantExit0 | đạt local |
 | M-165-04 | fixture trỏ port không có listener; baseline exit99, checks0%, system_errors100%, invariantExit0 | đạt ca âm |
 | M-165-05 | dừng Valkey riêng rồi chạy rate-limit | đạt ca âm: clone sạch exit99 vì checks không đạt, invariantExit0 |
-| M-165-06 | dừng PostgreSQL riêng rồi chạy runner; tắt Docker daemon thật | PostgreSQL riêng: runner khác0, invariantExit2; đạt ca âm. Docker daemon thật chưa chạy để không dừng dịch vụ dùng chung, BL-229 |
+| M-165-06 | dừng PostgreSQL riêng rồi chạy runner; tắt Docker daemon thật | PostgreSQL riêng: runner khác0, invariantExit2; đạt ca âm. Docker daemon thật chưa chạy để không dừng dịch vụ dùng chung, BL-233 |
 
 Số p95 smoke (ms, không dùng làm benchmark cloud): baseline chuyển54,08/đọc23,10; hot26,87; duplicate60,28; stress chuyển40,66/đọc19,75. Raw output giữ số chính xác, không suy ra120RPS từ smoke.
 
 Lệch/điều chỉnh trong phạm vi §7: lượt đầu duplicate đỏ vì JSON.stringify phân biệt thứ tự khóa của response mới/replay jsonb; thêm unit đỏ rồi so đúng2field theo giá trị, giữ oracle cardinality. Arrival executor có thể phát iteration đúng cuối duration; preflight cộng biên. Không đổi contract/backend/dependency. Unit TC-165-06 hẹp hơn mô tả ban đầu: ghi đơn giản hóa, không nhận là coverage đầy đủ.
 
-Ảnh chưa có: `01-k6-summary.png`, `02-rate-limit.png`, `03-negative-controls.png`. Computer Use đã dừng vì không xác định được URL trình duyệt đủ chắc chắn để thực thi chính sách; không dùng cách khác vượt kiểm tra. Output thô được giữ, không tạo ảnh giả. Chưa tắt cả Docker daemon; chỉ dừng PostgreSQL và Valkey thuộc test. Các giới hạn này ghi ở BL-229.
+Ảnh chưa có: `01-k6-summary.png`, `02-rate-limit.png`, `03-negative-controls.png`. Computer Use đã dừng vì không xác định được URL trình duyệt đủ chắc chắn để thực thi chính sách; không dùng cách khác vượt kiểm tra. Output thô được giữ, không tạo ảnh giả. Chưa tắt cả Docker daemon; chỉ dừng PostgreSQL và Valkey thuộc test. Các giới hạn này ghi ở BL-233.
 
-Bàn giao: BL-228 cho Ops (DBS-139/166, tải/cloud/Cognito/TLS/ALB/Redis), BL-229 cho Dev review/merge và ảnh/daemon thật. Giữ BL-127 (còn các money test khác và metric/alarm) và BL-128 (checker production image). Không đóng backlog chỉ vì runner đã có.
+Bàn giao: BL-232 cho Ops (DBS-139/166, tải/cloud/Cognito/TLS/ALB/Redis), BL-233 cho Dev review/merge và ảnh/daemon thật. Giữ BL-127 (còn các money test khác và metric/alarm) và BL-128 (checker production image). Không đóng backlog chỉ vì runner đã có.
 
 ## 9. Tài liệu đã cập nhật
 
-load-tests/README.md, docs/features/README.md, docs/BACKLOG.md (thêm BL-228/229; BL-226/227 dành cho nhánh DBS-186 đang mở). Không thay ADR/API schema hoặc tài liệu backend.
+load-tests/README.md, docs/features/README.md, docs/BACKLOG.md (thêm BL-232 và BL-233; số BL-226 đến BL-231 đã thuộc DBS-135, DBS-137 và DBS-186). Không thay ADR/API schema hoặc tài liệu backend.
 
 ## Checklist G4
 
 - [x] TC01–05 đạt theo phạm vi local; TC06 đơn giản hóa có ghi rõ;9 unit/harness tests, skipped0.
-- [x] Test thủ công clone sạch trên SHA code cuối: đủ5bài thành công và ca âm API/Redis/PostgreSQL; daemon thật chưa chạy, BL-229.
-- [x] Raw output quét không token/Authorization/DB URL/ARN;3ảnh còn thiếu được nêu tên/lý do và BL-229.
+- [x] Test thủ công clone sạch trên SHA code cuối: đủ5bài thành công và ca âm API/Redis/PostgreSQL; daemon thật chưa chạy, BL-233.
+- [x] Raw output quét không token/Authorization/DB URL/ARN;3ảnh còn thiếu được nêu tên/lý do và BL-233.
 - [x] Diff chỉ load-tests và docs đã có trong §7; không sửa code backend, CI, dependency.
 - [x] Bốn baseline command bàn giao đạt:1770unit,163e2e, lint/typecheck; build đạt.
 - [x] Link checker cuối:367files/0broken; G4 qua theo phạm vi local.
-- [x] DoD/handoff chưa đạt có BL-228/229 và được nêu trong §8; cloud không nhận là localPASS.
+- [x] DoD/handoff chưa đạt có BL-232 và BL-233 và được nêu trong §8; cloud không nhận là localPASS.

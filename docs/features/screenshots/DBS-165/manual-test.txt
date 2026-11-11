@@ -10,8 +10,8 @@ Seed API complete: 3 customers, CHECKING budget >=50000000 VND; fixture stored p
 
 
      execution: local
-        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\baseline.js
-        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\baseline-d0769c31-b682-4ede-9539-9dc3ea9491e0\raw.json)
+        script: <clone>\load-tests\baseline.js
+        output: json (<clone>\load-tests\results\baseline-d0769c31-b682-4ede-9539-9dc3ea9491e0\raw.json)
 
      scenarios: (100.00%) 2 scenarios, 40 max VUs, 15s max duration (incl. graceful stop):
               * read_5: 4.00 iterations/s for 5s (maxVUs: 10-20, exec: read, gracefulStop: 10s)
@@ -100,7 +100,7 @@ running (05.0s), 00/20 VUs, 25 complete and 0 interrupted iterations
 read_5  ✓ [ 100% ] 00/10 VUs  5s  4.00 iters/s
 write_5 ✓ [ 100% ] 00/10 VUs  5s  1.00 iters/s
 {"status":"PASS","totals":{"debit":"172505000","credit":"172505000","balance":"0"},"violations":[]}
-invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\baseline-d0769c31-b682-4ede-9539-9dc3ea9491e0
+invariantExit=0; results=<clone>\load-tests\results\baseline-d0769c31-b682-4ede-9539-9dc3ea9491e0
 M-165 baseline exit=0; expected=0
 {"scenario":"hot-account","profile":"smoke","runId":"7a43fb0d-cbe9-4666-bcbc-72e5d68d1e6a","dedicated":true,"cloudAcceptance":false}
 
@@ -112,8 +112,8 @@ M-165 baseline exit=0; expected=0
 
 
      execution: local
-        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\hot-account.js
-        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\hot-account-7a43fb0d-cbe9-4666-bcbc-72e5d68d1e6a\raw.json)
+        script: <clone>\load-tests\hot-account.js
+        output: json (<clone>\load-tests\results\hot-account-7a43fb0d-cbe9-4666-bcbc-72e5d68d1e6a\raw.json)
 
      scenarios: (100.00%) 1 scenario, 20 max VUs, 15s max duration (incl. graceful stop):
               * hot: 2.00 iterations/s for 5s (maxVUs: 10-20, exec: default, gracefulStop: 10s)
@@ -184,7 +184,7 @@ hot    [ 100% ] 00/10 VUs  5.0s/5s  2.00 iters/s
 running (05.0s), 00/10 VUs, 10 complete and 0 interrupted iterations
 hot  ✓ [ 100% ] 00/10 VUs  5s  2.00 iters/s
 {"status":"PASS","totals":{"debit":"172515000","credit":"172515000","balance":"0"},"violations":[]}
-invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\hot-account-7a43fb0d-cbe9-4666-bcbc-72e5d68d1e6a
+invariantExit=0; results=<clone>\load-tests\results\hot-account-7a43fb0d-cbe9-4666-bcbc-72e5d68d1e6a
 M-165 hot-account exit=0; expected=0
 {"scenario":"duplicate","profile":"smoke","runId":"84f4622e-e6ee-484f-88b6-fc51f58f39cf","dedicated":true,"cloudAcceptance":false}
 
@@ -196,8 +196,8 @@ M-165 hot-account exit=0; expected=0
 
 
      execution: local
-        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\duplicate.js
-        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\duplicate-84f4622e-e6ee-484f-88b6-fc51f58f39cf\raw.json)
+        script: <clone>\load-tests\duplicate.js
+        output: json (<clone>\load-tests\results\duplicate-84f4622e-e6ee-484f-88b6-fc51f58f39cf\raw.json)
 
      scenarios: (100.00%) 1 scenario, 20 max VUs, 13s max duration (incl. graceful stop):
               * duplicates: 1.00 iterations/s for 3s (maxVUs: 10-20, exec: default, gracefulStop: 10s)
@@ -264,7 +264,7 @@ running (03.0s), 00/10 VUs, 3 complete and 0 interrupted iterations
 duplicates ✓ [ 100% ] 00/10 VUs  3s  1.00 iters/s
 {"duplicateCardinality":"PASS","transfers":3,"entries":6,"keys":3,"badKeys":0,"bursts":3}
 {"status":"PASS","totals":{"debit":"172518000","credit":"172518000","balance":"0"},"violations":[]}
-invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\duplicate-84f4622e-e6ee-484f-88b6-fc51f58f39cf
+invariantExit=0; results=<clone>\load-tests\results\duplicate-84f4622e-e6ee-484f-88b6-fc51f58f39cf
 M-165 duplicate exit=0; expected=0
 {"scenario":"stress","profile":"smoke","runId":"4e7ffea8-cf50-406a-a5c6-b9dbce1b62d1","dedicated":true,"cloudAcceptance":false}
 
@@ -276,8 +276,8 @@ M-165 duplicate exit=0; expected=0
 
 
      execution: local
-        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\stress.js
-        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\stress-4e7ffea8-cf50-406a-a5c6-b9dbce1b62d1\raw.json)
+        script: <clone>\load-tests\stress.js
+        output: json (<clone>\load-tests\results\stress-4e7ffea8-cf50-406a-a5c6-b9dbce1b62d1\raw.json)
 
      scenarios: (100.00%) 2 scenarios, 40 max VUs, 15s max duration (incl. graceful stop):
               * read_5: 4.00 iterations/s for 5s (maxVUs: 10-20, exec: read, gracefulStop: 10s)
@@ -366,7 +366,7 @@ running (05.0s), 00/20 VUs, 26 complete and 0 interrupted iterations
 read_5  ✓ [ 100% ] 00/10 VUs  5s  4.00 iters/s
 write_5 ✓ [ 100% ] 00/10 VUs  5s  1.00 iters/s
 {"status":"PASS","totals":{"debit":"172524000","credit":"172524000","balance":"0"},"violations":[]}
-invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\stress-4e7ffea8-cf50-406a-a5c6-b9dbce1b62d1
+invariantExit=0; results=<clone>\load-tests\results\stress-4e7ffea8-cf50-406a-a5c6-b9dbce1b62d1
 M-165 stress exit=0; expected=0
 {"scenario":"baseline","profile":"smoke","runId":"b3399c9d-6b69-4031-b882-57af4c2f3c79","dedicated":true,"cloudAcceptance":false}
 
@@ -378,8 +378,8 @@ M-165 stress exit=0; expected=0
 
 
      execution: local
-        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\baseline.js
-        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\baseline-b3399c9d-6b69-4031-b882-57af4c2f3c79\raw.json)
+        script: <clone>\load-tests\baseline.js
+        output: json (<clone>\load-tests\results\baseline-b3399c9d-6b69-4031-b882-57af4c2f3c79\raw.json)
 
      scenarios: (100.00%) 2 scenarios, 40 max VUs, 15s max duration (incl. graceful stop):
               * read_5: 4.00 iterations/s for 5s (maxVUs: 10-20, exec: read, gracefulStop: 10s)
@@ -467,7 +467,7 @@ running (05.0s), 00/20 VUs, 25 complete and 0 interrupted iterations
 read_5  ✓ [ 100% ] 00/10 VUs  5s  4.00 iters/s
 write_5 ✓ [ 100% ] 00/10 VUs  5s  1.00 iters/s
 {"status":"PASS","totals":{"debit":"172524000","credit":"172524000","balance":"0"},"violations":[]}
-invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\baseline-b3399c9d-6b69-4031-b882-57af4c2f3c79
+invariantExit=0; results=<clone>\load-tests\results\baseline-b3399c9d-6b69-4031-b882-57af4c2f3c79
 time="2026-11-10T12:19:33+07:00" level=warning msg="Request Failed" error="Post \"http://127.0.0.1:54164/v1/transfers\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
 time="2026-11-10T12:19:33+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/0a19e6a2-dce3-428d-9f42-9124d1e66a4e\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
 time="2026-11-10T12:19:34+07:00" level=warning msg="Request Failed" error="Get \"http://127.0.0.1:54164/v1/accounts/3e9811f7-4325-4a2e-a626-151f71008df7/transactions?limit=20\": dial tcp 127.0.0.1:54164: connectex: No connection could be made because the target machine actively refused it."
@@ -506,8 +506,8 @@ M-165 baseline exit=99; expected=nonzero
 
 
      execution: local
-        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\rate-limit.js
-        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\rate-limit-c536570f-f766-4da5-9829-0c8049aca001\raw.json)
+        script: <clone>\load-tests\rate-limit.js
+        output: json (<clone>\load-tests\results\rate-limit-c536570f-f766-4da5-9829-0c8049aca001\raw.json)
 
      scenarios: (100.00%) 1 scenario, 1 max VUs, 3m30s max duration (incl. graceful stop):
               * boundary: 1 iterations shared among 1 VUs (maxDuration: 3m0s, gracefulStop: 30s)
@@ -760,7 +760,7 @@ boundary   [   0% ] 1 VUs  1m08.0s/3m0s  0/1 shared iters
 running (1m08.4s), 0/1 VUs, 1 complete and 0 interrupted iterations
 boundary ✓ [ 100% ] 1 VUs  1m08.4s/3m0s  1/1 shared iters
 {"status":"PASS","totals":{"debit":"172534000","credit":"172534000","balance":"0"},"violations":[]}
-invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\rate-limit-c536570f-f766-4da5-9829-0c8049aca001
+invariantExit=0; results=<clone>\load-tests\results\rate-limit-c536570f-f766-4da5-9829-0c8049aca001
 M-165 rate-limit exit=0; expected=0
 {"scenario":"rate-limit","profile":"smoke","runId":"0860f259-6f53-441c-924a-18d2a2c1e471","dedicated":true,"cloudAcceptance":false}
 
@@ -772,8 +772,8 @@ M-165 rate-limit exit=0; expected=0
 
 
      execution: local
-        script: D:\UET_PROJECT\dbs165-clean-validation\load-tests\rate-limit.js
-        output: json (D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\rate-limit-0860f259-6f53-441c-924a-18d2a2c1e471\raw.json)
+        script: <clone>\load-tests\rate-limit.js
+        output: json (<clone>\load-tests\results\rate-limit-0860f259-6f53-441c-924a-18d2a2c1e471\raw.json)
 
      scenarios: (100.00%) 1 scenario, 1 max VUs, 3m30s max duration (incl. graceful stop):
               * boundary: 1 iterations shared among 1 VUs (maxDuration: 3m0s, gracefulStop: 30s)
@@ -1164,7 +1164,7 @@ boundary   [   0% ] 1 VUs  1m54.0s/3m0s  0/1 shared iters
 running (1m54.4s), 0/1 VUs, 1 complete and 0 interrupted iterations
 boundary ✓ [ 100% ] 1 VUs  1m54.4s/3m0s  1/1 shared iters
 {"status":"PASS","totals":{"debit":"172545000","credit":"172545000","balance":"0"},"violations":[]}
-invariantExit=0; results=D:\UET_PROJECT\dbs165-clean-validation\load-tests\results\rate-limit-0860f259-6f53-441c-924a-18d2a2c1e471
+invariantExit=0; results=<clone>\load-tests\results\rate-limit-0860f259-6f53-441c-924a-18d2a2c1e471
 time="2026-11-10T12:23:02+07:00" level=error msg="thresholds on metrics 'checks' have been crossed"
 Load run FAILED; inspect k6 summary, fixture expiry/budget and invariant report
 M-165 rate-limit exit=99; expected=nonzero

@@ -4,6 +4,7 @@ import {
   workload,
   validateFixture,
   requireBudget,
+  dailyLimit,
   sameCompletedBodies,
 } from "../lib/config.js";
 
@@ -53,7 +54,7 @@ test("TC-165-02 hot is 20/s; stress exceeds120; duplicate uses10 simultaneous ca
   assert.equal(workload("rate-limit").scenarios.boundary.iterations, 1);
 });
 
-test("TC-165-06 malformed fixture/target/token is rejected before load", () => {
+test("TC-165-06 an empty fixture and an unknown scenario are rejected before load", () => {
   assert.throws(() => validateFixture({}, "http://localhost:3000"), /fixture/i);
   assert.throws(() => workload("unknown"), /scenario/i);
 });
@@ -90,4 +91,13 @@ test("TC-165-02 duplicate compares JSON semantics despite jsonb key order", () =
       { status: "COMPLETED", transferId: "a", leaked: true },
     ]),
   );
+});
+
+test("TC-165-02 preflight uses the target's TRANSFER_LIMIT_PER_DAY when it is lower than the default", () => {
+  const row = { balance: "18000000", spent: "0" };
+  assert.equal(dailyLimit({}), 200000000n);
+  assert.equal(dailyLimit({ TRANSFER_LIMIT_PER_DAY: "10000000" }), 10000000n);
+  assert.throws(() => dailyLimit({ TRANSFER_LIMIT_PER_DAY: "abc" }), /TRANSFER_LIMIT_PER_DAY/);
+  assert.doesNotThrow(() => requireBudget(row, 18000, 200000000n));
+  assert.throws(() => requireBudget(row, 18000, 10000000n), /budget/i);
 });

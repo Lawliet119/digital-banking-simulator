@@ -150,12 +150,21 @@ export function maxTransfers(kind, smoke = false) {
   }[kind];
 }
 
-export function requireBudget(row, transfers) {
+/**
+ * The per-customer daily limit of the target. The backend default is 200000000
+ * (TRANSFER_LIMIT_PER_DAY); a load environment that lowers it must export the same value to the
+ * runner, otherwise the preflight would pass and the run would receive 422s.
+ */
+export function dailyLimit(env = process.env) {
+  const raw = env.TRANSFER_LIMIT_PER_DAY ?? "200000000";
+  if (!/^[1-9][0-9]{0,18}$/.test(raw))
+    throw new Error("Invalid TRANSFER_LIMIT_PER_DAY");
+  return BigInt(raw);
+}
+
+export function requireBudget(row, transfers, limit = dailyLimit()) {
   const required = BigInt(transfers) * BigInt(AMOUNT);
-  if (
-    BigInt(row.balance) < required ||
-    BigInt(row.spent) + required > 200000000n
-  ) {
+  if (BigInt(row.balance) < required || BigInt(row.spent) + required > limit) {
     throw new Error(
       "Insufficient balance or remaining daily budget; use a fresh dedicated database",
     );

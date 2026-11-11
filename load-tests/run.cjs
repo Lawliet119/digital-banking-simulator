@@ -23,7 +23,8 @@ async function runChecked({ load, check }) {
   }
   try {
     const checked = await check();
-    if (checked) code = checked;
+    // Keep the load tool's own failure code; the checker code only replaces a clean 0.
+    if (checked && code === 0) code = checked;
   } catch {
     code = 2;
   }
