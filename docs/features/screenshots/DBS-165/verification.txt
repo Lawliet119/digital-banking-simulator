@@ -1,0 +1,31 @@
+Code SHA: 32208dd60d4bf6ca3fbe0bc38b7e0c640c91ec52
+Node v24.15.0; k6 v2.3.0
+
+FINAL lint
+
+
+FINAL typecheck
+
+
+FINAL unit
+DB_* variables are incomplete or malformed, DATABASE_URL not composed: DB_PASSWORD
+
+Test Suites: 98 passed, 98 total
+Tests:       1770 passed, 1770 total
+Snapshots:   0 total
+Time:        154.983 s
+Ran all test suites.
+
+FINAL e2e
+[Nest] 22148  - 12:19:33 10/11/2026    WARN [RateLimiter] rate limit skipped, request allowed (UNAVAILABLE)
+
+Test Suites: 17 passed, 17 total
+Tests:       163 passed, 163 total
+Snapshots:   0 total
+Time:        186.089 s
+Ran all test suites.
+
+node --test load-tests/test/*.test.mjs: 9 passed, 0 skipped
+All five full k6 inspect commands: PASS
+Mermaid SVG rendered successfully
+check-doc-links: 367 files checked, 0 broken (before final documentation)
