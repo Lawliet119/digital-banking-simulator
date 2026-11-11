@@ -1,6 +1,6 @@
 # DBS-160 · API quản trị cấu hình fraud có phiên bản
 
-> **Trạng thái:** Implemented · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-160-risk-config-api` · **PR:** [#131](https://github.com/Lawliet119/digital-banking-simulator/pull/131) · **Nền:** `bd17728e24879e28280656926c208da872da8b9e`.
+> **Trạng thái:** Kiểm chứng cục bộ; chờ CI và Dev review · **Vai:** #4 Fraud · **Nhánh:** `feat/DBS-160-risk-config-api` · **PR:** [#131](https://github.com/Lawliet119/digital-banking-simulator/pull/131) · **Nền:** `bd17728e24879e28280656926c208da872da8b9e`.
 
 ## 1. Bối cảnh và G1
 
@@ -87,18 +87,18 @@ Reviewer độc lập (runtime không cung cấp tên model): vòng đầu **REV
   - `npm run lint:check`: 0 problems
   - `npm run typecheck`: 0 errors
   - `npm test -- --runInBand src/modules/risk/`: 15 test suites passed, 586 tests passed
-  - `DATABASE_URL=postgres://... REDIS_URL=redis://... npm run test:db -- --runInBand test/db/risk-config-http.db-spec.ts`: 1 test suite passed, 8 tests passed
+  - `DATABASE_URL=postgres://... REDIS_URL=redis://... npm run test:db -- --runInBand test/db/risk-config-http.db-spec.ts`: 1 test suite passed, 7 tests passed (đếm lại 2026-11-11)
   - `DATABASE_URL=postgres://... REDIS_URL=redis://... npx ts-node -r tsconfig-paths/register test/manual/risk-config.manual.ts`: tất cả assertions PASS
 
 - **Đối chiếu test case:**
 
 | ID | Test | Đạt? |
 |---|---|---|
-| TC-160-01 | `test/db/risk-config-http.db-spec.ts` › admin reads the seeded current version and immutable history | đạt |
-| TC-160-02 | `test/db/risk-config-http.db-spec.ts` › only admin can read or create configurations | đạt |
-| TC-160-03 | `test/db/risk-config-http.db-spec.ts` › creates immutable versions with the authenticated actor and atomic audit | đạt |
-| TC-160-04 | `test/db/risk-config-http.db-spec.ts` › rejects malformed versions, pagination and every invalid rule without writing | đạt |
-| TC-160-05 | `test/db/risk-config-http.db-spec.ts` › serializes concurrent creates and rolls back a version when audit fails | đạt |
+| TC-160-01 | `risk-config-http.db-spec.ts` › admin reads the seeded current version and immutable history; › only admin can read or create configurations (customer/operator 403, không token 401) | đạt |
+| TC-160-02 | › rejects malformed versions, pagination and every invalid rule without writing; › accepts a valid AI block in both modes but preserves the requested mode | đạt |
+| TC-160-03 | › serializes concurrent creates and rolls back a version when audit fails; › holds a transaction-scoped writer lock until commit before choosing the next version | đạt |
+| TC-160-04 | › creates immutable versions with the authenticated actor and atomic audit (PUT/DELETE trên version trả 404) | **đơn giản hóa**: không có test nào bắt `dbs_api` UPDATE/DELETE `risk_rule_sets` rồi bị trigger/quyền từ chối; phần đó chỉ dựa vào migration `risk_rule_sets` append-only (RSK-01) |
+| TC-160-05 | chỉ có trong test thủ công `test/manual/risk-config.manual.ts` | **đơn giản hóa**: không có test tự động cho cache latest không quá TTL; chỉ kiểm thủ công |
 | TC-160-06 | CI GitHub Actions và Dev review trên PR | chưa làm (quy trình: cần đẩy nhánh và mở PR) |
 
 - **Test thủ công:**
@@ -123,14 +123,17 @@ Reviewer độc lập (runtime không cung cấp tên model): vòng đầu **REV
   - Sử dụng khóa `pg_advisory_xact_lock(20261110, 160)` đảm bảo an toàn tuần tự hóa phiên bản trong cùng transaction của TypeORM `TransactionService`; quyết định agent tự duyệt ở G2.
 
 - **Bàn giao cho vai khác:**
-  - Đã xử lý xong và đóng dòng `BL-188` (API tạo phiên bản có validation chặn giá trị lỗi trước khi ghi và tuần tự hóa phiên bản).
-  - Thêm dòng `BL-226` vào [`docs/BACKLOG.md`](../BACKLOG.md): Giao diện web UI dashboard quản trị cấu hình fraud (UC-12) cho vai Dev frontend, và alarm CloudWatch cho metric fallback.
+  - `BL-188` **được giữ nguyên** (không đóng): API tạo phiên bản đã có validation trước khi ghi và tuần tự hóa phiên bản, nhưng các điều kiện còn lại của dòng (alarm `aiConfigInvalid`, worker mới triển khai hết, giám sát clock/Redis) chưa làm.
+  - Thêm dòng `BL-235` vào [`docs/BACKLOG.md`](../BACKLOG.md): giao diện web quản trị cấu hình fraud (UC-12) và alarm CloudWatch cho metric `risk_config_redis_fallback_total` (số `BL-226` ban đầu trùng với DBS-135 trên `main`).
 
 ## 9. Tài liệu đã cập nhật
 
 - `backend/src/modules/risk/README.md`: Cập nhật tài liệu API quản trị cấu hình fraud và module `RiskConfigHttpModule`.
 - `docs/features/README.md`: Thêm mục DBS-160 vào danh sách tính năng.
-- `docs/BACKLOG.md`: Xóa dòng `BL-188` (đã hoàn thành); thêm dòng `BL-226`.
+- `docs/BACKLOG.md`: thêm dòng `BL-235` (không xóa `BL-188`).
+- `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §7: bốn dòng UC-12 (thêm `GET /v1/admin/risk-config/versions` và `/versions/{version}`), bỏ dấu «chưa triển khai (DBS-160)»; `docs/components/_shared/api-design.md`: UC-12 **Implemented**.
+- `docs/deliverables/openapi.json`: xuất lại (có ba path `risk-config`); `risk-config-http.dto.ts`: thêm `example` theo quy tắc của `openapi-completeness` (DBS-137); `backend/test/db/openapi-completeness.db-spec.ts`: không còn dòng «chưa triển khai» nào.
+- `backend/test/support/risk-config-app.ts`: nạp `env/.env.example` (suite trước đây chỉ chạy được khi tự truyền `REDIS_URL`, nên đỏ trên CI nơi chỉ có `DATABASE_URL`) và `abortOnError: false` để lỗi khởi động hiện ra.
 - `docs/features/DBS-160-risk-config-api.md`: Hoàn thiện feature doc.
 
 ## Checklist G4 (dán vào tin nhắn G4, tick từng dòng)
@@ -140,5 +143,5 @@ Reviewer độc lập (runtime không cung cấp tên model): vòng đầu **REV
 - [x] Ảnh chụp có đủ trong `screenshots/DBS-160/`; `manual-test.txt` đã xóa token, header `Authorization`, id tài khoản AWS và ARN
 - [x] `git diff --stat main...HEAD` khớp danh sách file ở §7; mỗi file lạ có quyết định gate phụ ghi ở §8
 - [x] Bốn lệnh kiểm tra (hoặc baseline của loại task) chạy lúc bàn giao, có số đếm
-- [x] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc đang là Plan approved (chuyển thành Implemented sau khi G4 qua)
+- [x] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc là «Kiểm chứng cục bộ; chờ CI và Dev review»
 - [x] Việc bàn giao cho vai khác và mọi DoD chưa đạt đã ghi ở §8 **và** có dòng `BL-NNN` trong `docs/BACKLOG.md`; dòng backlog task này đã xử lý thì đã xóa

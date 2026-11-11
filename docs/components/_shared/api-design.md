@@ -1,6 +1,6 @@
 # Thiết kế REST API & Hợp đồng HTTP (`api-design`)
 
-> **Status:** Implemented (17/18 mục của bảng §3 trên `main`; mục 18, UC-12, ở trạng thái thiết kế đã chốt, thuộc DBS-160) · **Owner:** cả nhóm · **Verified against code:** `2026-11-08` · **Cập nhật:** `2026-11-08`
+> **Status:** Implemented (18/18 mục của bảng §3 trên `main`; UC-12 do DBS-160) · **Owner:** cả nhóm · **Verified against code:** `2026-11-08` · **Cập nhật:** `2026-11-08`
 >
 > Tài liệu này là nơi tập trung đặc tả hợp đồng HTTP/REST API của toàn hệ thống Digital Banking Simulator (`APP_ROLE=api`), đồng bộ với [`docs/03_HIGH_LEVEL_ARCHITECTURE.md` §7](../../03_HIGH_LEVEL_ARCHITECTURE.md#7-api-tổng-quan), [`database-design.md`](database-design.md), [`event-contract.md`](event-contract.md) và cấu hình runtime trong [`backend/src/app.setup.ts`](../../../backend/src/app.setup.ts).
 
@@ -125,7 +125,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 | 15 | `POST /v1/operator/accounts/:id/lock` | `operator` | UC-11 | `100/phút/IP` | Idempotent theo trạng thái | `account.lock` | **Implemented** (DBS-113, `docs/03` §6.2, §7) |
 | 16 | `POST /v1/operator/accounts/:id/unlock` | `operator` | UC-11 | `100/phút/IP` | Idempotent theo trạng thái | `account.unlock` | **Implemented** (DBS-113, `docs/03` §6.2, §7) |
 | 17 | `GET /v1/operator/fraud-flags` (`+:transferId`, `POST .../review`) | `operator` | UC-10 | `100/phút/IP` | Chặn review lần 2 (`409`) | `fraud_flag.view` / `fraud_flag.review` | **Implemented** (DBS-129/130) |
-| 18 | `GET /v1/admin/risk-config` (`+POST .../versions`) | `admin` | UC-12 | `100/phút/IP` | Version tăng đơn điệu | `risk_config.create` | **Planned**, DBS-160 ([`risk/02-architecture.md`](../risk/02-architecture.md)) |
+| 18 | `GET /v1/admin/risk-config` (`+POST .../versions`) | `admin` | UC-12 | `100/phút/IP` | Version tăng đơn điệu | `risk_config.create` | **Implemented** (DBS-160) |
 
 ---
 

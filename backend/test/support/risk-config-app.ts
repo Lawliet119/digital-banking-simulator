@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { parse } from 'dotenv';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { configureHttpApp } from '../../src/app.setup';
@@ -52,6 +53,9 @@ export async function startRiskConfigApp(): Promise<RiskConfigApp> {
     writeFileSync(jwksPath, JSON.stringify(issuer.jwks));
     process.env = {
       ...original,
+      // validation.schema.ts requires more than DATABASE_URL (REDIS_URL, queue URLs, ...): take the
+      // documented defaults so the fixture also boots on CI, where only DATABASE_URL is set.
+      ...parse(readFileSync(join(__dirname, '../../env/.env.example'), 'utf8')),
       NODE_ENV: 'test',
       APP_ROLE: 'api',
       DATABASE_URL: apiUrl.toString(),
@@ -60,7 +64,10 @@ export async function startRiskConfigApp(): Promise<RiskConfigApp> {
     };
     // AppModule selects role-specific modules at import time; set APP_ROLE before loading it.
     const { AppModule } = await import('../../src/app.module');
-    app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: false });
+    app = await NestFactory.create<NestExpressApplication>(AppModule, {
+      logger: false,
+      abortOnError: false, // a boot failure must throw here, not exit the Jest worker silently
+    });
     configureHttpApp(app, { trustProxyHops: 0, corsOrigins: [], isProduction: false });
     await app.listen(0, '127.0.0.1');
     return { app, url: await app.getUrl(), db, issuer, close };
