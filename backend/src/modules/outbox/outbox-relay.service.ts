@@ -100,6 +100,14 @@ export function relayDelayMs(result: RelayResult): number {
 }
 
 /**
+ * The relay's poll: pending rows of the routed types in identity order, skipping rows another worker
+ * holds and the ids parked after a send failure. Exported so DBS-171 can `EXPLAIN` this exact text.
+ */
+export const PENDING_BATCH_SQL = `SELECT id, event_type, payload FROM outbox_events
+           WHERE published_at IS NULL AND event_type = ANY($2::text[]) AND id <> ALL($3::bigint[])
+           ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED`;
+
+/**
  * Moves events from `outbox_events` to SQS (docs/03 §10), at least once.
  *
  * It selects pending rows with `FOR UPDATE SKIP LOCKED`, so several worker tasks never take the
@@ -154,12 +162,11 @@ export class OutboxRelayService implements OnApplicationBootstrap, OnApplication
     const parkedIds = [...this.parked].filter(([, p]) => p.retryAt > started).map(([id]) => id);
     return this.tx.run(
       async manager => {
-        const pending: PendingEvent[] = await manager.query(
-          `SELECT id, event_type, payload FROM outbox_events
-           WHERE published_at IS NULL AND event_type = ANY($2::text[]) AND id <> ALL($3::bigint[])
-           ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED`,
-          [limit, ROUTED_EVENT_TYPES, parkedIds],
-        );
+        const pending: PendingEvent[] = await manager.query(PENDING_BATCH_SQL, [
+          limit,
+          ROUTED_EVENT_TYPES,
+          parkedIds,
+        ]);
         const sent: string[] = [];
         let failure: unknown;
         let transientInARow = 0;
