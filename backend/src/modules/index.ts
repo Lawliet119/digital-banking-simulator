@@ -9,6 +9,7 @@ import { AccountsModule } from './accounts';
 import { RiskModule, RiskWorkerModule } from './risk';
 import { FraudHttpModule } from './risk/fraud-http.module';
 import { LedgerModule, LedgerReconciliationModule } from './ledger';
+import { RiskConfigHttpModule } from './risk/risk-config-http.module';
 
 type ModuleRef = Type<unknown> | DynamicModule;
 
@@ -30,6 +31,7 @@ const sharedModules: ModuleRef[] = [
 ];
 
 const apiModules: ModuleRef[] = [
+  RiskConfigHttpModule,
   SessionRevocationModule,
   HealthModule,
   IdentityModule,

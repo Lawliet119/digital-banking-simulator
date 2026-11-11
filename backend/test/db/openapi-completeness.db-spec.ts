@@ -261,10 +261,8 @@ describe('DBS-137 the OpenAPI document is complete and agrees with docs/03', () 
     }));
     const rows = parseDocsEndpoints(docs03);
     expect(compareEndpoints(rows, swagger, new Set(Object.keys(NO_ROLE_ALLOWLIST)))).toEqual([]);
-    expect(rows.filter(r => r.planned).map(r => `${r.method} ${r.path}`)).toEqual([
-      'GET /v1/admin/risk-config',
-      'POST /v1/admin/risk-config/versions',
-    ]);
+    // UC-12 (DBS-160) is implemented: no row of the table is marked "chưa triển khai" any more.
+    expect(rows.filter(r => r.planned).map(r => `${r.method} ${r.path}`)).toEqual([]);
   });
 
   it('TC-137-12 no example carries a token, and no customer schema mentions fraud', () => {

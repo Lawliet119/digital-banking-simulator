@@ -40,6 +40,14 @@ Migration DBS-58 tạo ba bảng ban đầu và seed `rule_only`; RSK-01 thêm d
 - **Consumer chỉ khởi động khi `runsWorkers()`** — instance `api` không bao giờ poll queue.
 - Worker chạy bằng DB role `dbs_worker`: đọc giao dịch qua view `v_transfer_facts`, không đọc thẳng `transfers`; ghi decision, cờ/hit, processed event và audit theo grants, chỉ EXECUTE hàm gate.
 
+## API quản trị cấu hình (`RiskConfigHttpModule`)
+
+DBS-160 triển khai API quản trị cấu hình fraud có phiên bản cho `APP_ROLE=api` (`/v1/admin/risk-config`, chỉ vai `admin`):
+- `GET /v1/admin/risk-config`: Đọc cấu hình hiện hành mới nhất (`version`, `config`, `createdBy`, `createdAt`).
+- `GET /v1/admin/risk-config/versions?limit=50&before=10`: Danh sách phiên bản giảm dần, phân trang con trỏ `before`.
+- `GET /v1/admin/risk-config/versions/:version`: Đọc chi tiết một phiên bản bất biến.
+- `POST /v1/admin/risk-config/versions`: Tạo phiên bản mới tuần tự hóa qua advisory lock `(20261110, 160)` và ghi `audit_log` (`action: 'risk_config.create'`) nguyên tử trong cùng transaction. Validate nghiêm ngặt các tham số R1–R6 và khối `ai` (nếu có).
+
 ## Export công khai (`index.ts`)
 
-Hầu như không có: module khác không gọi `risk`. Giao tiếp qua sự kiện (queue `risk-events`).
+Module khác không gọi `risk` nội bộ. Giao tiếp nghiệp vụ qua sự kiện (queue `risk-events`) và HTTP API quản trị (`RiskConfigHttpModule`).

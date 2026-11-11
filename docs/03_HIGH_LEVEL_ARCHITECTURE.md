@@ -503,8 +503,10 @@ sequenceDiagram
 | GET | `/v1/operator/fraud-flags/{transferId}` | operator | UC-10 | Chi tiết cờ: điểm, mức, luật kích hoạt kèm giải thích, 10 giao dịch gần nhất của tài khoản nguồn; mỗi lần xem ghi audit |
 | POST | `/v1/operator/fraud-flags/{transferId}/review` | operator | UC-10 | Chỉ review một lần; lần hai trả 409 `FLAG_ALREADY_REVIEWED` |
 | GET | `/v1/audit/entries` | auditor | UC-8 | Lọc theo người, hành động, thời gian, `correlationId` |
-| GET | `/v1/admin/risk-config` | admin | UC-12 | **Chưa triển khai (DBS-160).** Phiên bản hiện hành |
-| POST | `/v1/admin/risk-config/versions` | admin | UC-12 | **Chưa triển khai (DBS-160).** Tạo phiên bản mới, không sửa phiên bản cũ |
+| GET | `/v1/admin/risk-config` | admin | UC-12 | Phiên bản cấu hình mới nhất đã commit; 404 nếu chưa có phiên bản nào (DBS-160) |
+| GET | `/v1/admin/risk-config/versions` | admin | UC-12 | Danh sách phiên bản bất biến, mới nhất trước; `limit` 1–100 (mặc định 50), `before` là cursor phiên bản (loại trừ) |
+| GET | `/v1/admin/risk-config/versions/{version}` | admin | UC-12 | Một phiên bản; 404 nếu không tồn tại |
+| POST | `/v1/admin/risk-config/versions` | admin | UC-12 | Tạo phiên bản mới, không sửa phiên bản cũ; cấu hình được kiểm bằng cùng bộ kiểm tra khi đọc (`parseRuleSet`) trước khi ghi; audit cùng transaction (DBS-160) |
 | GET | `/health/live`, `/health/ready` | — | — | Cho load balancer |
 
 **Quy ước chung:**
