@@ -130,6 +130,7 @@ Reviewer độc lập (runtime không cung cấp tên model): vòng đầu **REV
 
 - `backend/src/modules/risk/README.md`: Cập nhật tài liệu API quản trị cấu hình fraud và module `RiskConfigHttpModule`.
 - `docs/features/README.md`: Thêm mục DBS-160 vào danh sách tính năng.
+- Bằng chứng thủ công chạy lại 2026-11-11 trên commit cuối (SHA ở dòng đầu `manual-test.txt`); ảnh `01-manual-output.png` là ảnh của lần chạy trước (SHA `11cd982`), nội dung output tương đương, không chụp lại.
 - `docs/BACKLOG.md`: thêm dòng `BL-235` (không xóa `BL-188`).
 - `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §7: bốn dòng UC-12 (thêm `GET /v1/admin/risk-config/versions` và `/versions/{version}`), bỏ dấu «chưa triển khai (DBS-160)»; `docs/components/_shared/api-design.md`: UC-12 **Implemented**.
 - `docs/deliverables/openapi.json`: xuất lại (có ba path `risk-config`); `risk-config-http.dto.ts`: thêm `example` theo quy tắc của `openapi-completeness` (DBS-137); `backend/test/db/openapi-completeness.db-spec.ts`: không còn dòng «chưa triển khai» nào.
