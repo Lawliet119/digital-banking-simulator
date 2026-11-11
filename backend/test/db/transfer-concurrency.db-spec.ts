@@ -168,6 +168,97 @@ describe('DBS-80 cross transfers, deadlock retry and database timeouts on the re
     }
   });
 
+  it('TC-98-01..02: AC-5.6 daily limit boundary, the TC-54-04 scenario repeated 10 times with the DBS-69 invariants after each round', async () => {
+    for (let round = 1; round <= 10; round++) {
+      const a = await target(app, '300000000'),
+        b = await target(app);
+      // Pre-send 180,000,000 sequentially (3 x 50m + 1 x 30m)
+      for (let i = 0; i < 3; i++) {
+        const res = await send(app, a, b.accountId, '50000000', randomUUID());
+        expect(res.status).toBe(201);
+      }
+      const pre30 = await send(app, a, b.accountId, '30000000', randomUUID());
+      expect(pre30.status).toBe(201);
+
+      // Fire two parallel 15,000,000 transfers. Exactly one must succeed (201), exactly one must fail (422 LIMIT_PER_DAY_EXCEEDED).
+      const [r1, r2] = await Promise.all([
+        send(app, a, b.accountId, '15000000', randomUUID()),
+        send(app, a, b.accountId, '15000000', randomUUID()),
+      ]);
+      const statuses = [r1.status, r2.status].sort();
+      expect(statuses).toEqual([201, 422]);
+
+      const rejected = [r1, r2].find(r => r.status === 422)!;
+      expect(rejected.body.errorCode).toBe('LIMIT_PER_DAY_EXCEEDED');
+
+      // Verify balances and daily debit limit invariant
+      expect(await balance(b.accountId)).toBe('195000000');
+      const [{ sent }] = (await q(
+        "SELECT sum(amount)::text AS sent FROM ledger_entries WHERE account_id=$1 AND direction='DEBIT'",
+        [a.accountId],
+      )) as { sent: string }[];
+      expect(sent).toBe('195000000');
+      expect(BigInt(sent)).toBeLessThanOrEqual(200_000_000n);
+
+      const report = await checkLedgerInvariants(db.runner);
+      expect(report.status).toBe('PASS');
+      expect(report.violations).toEqual([]);
+      console.log(
+        JSON.stringify({
+          scenario: 'DBS-98-AC-5.6',
+          round,
+          dailySent: sent,
+          invariants: report.status,
+        }),
+      );
+    }
+  });
+
+  it('TC-98-03..04: AC-5.2 parallel balance exhaustion: multiple concurrent transfers never drain balance below zero (10 consecutive rounds)', async () => {
+    for (let round = 1; round <= 10; round++) {
+      const src = await target(app, '50000'),
+        dest = await target(app);
+      const jobs = Array.from({ length: 20 }, () =>
+        send(app, src, dest.accountId, '10000', randomUUID()),
+      );
+      const responses = await Promise.all(jobs);
+      const successes = responses.filter(r => r.status === 201);
+      const failures = responses.filter(r => r.status === 422);
+
+      expect(successes).toHaveLength(5);
+      expect(failures).toHaveLength(15);
+      for (const f of failures) {
+        expect(f.body.errorCode).toBe('INSUFFICIENT_FUNDS');
+      }
+
+      // Balance must be exactly zero, never negative
+      const srcBalance = await balance(src.accountId);
+      const destBalance = await balance(dest.accountId);
+      expect(srcBalance).toBe('0');
+      expect(destBalance).toBe('50000');
+      expect(BigInt(srcBalance)).toBeGreaterThanOrEqual(0n);
+
+      const [{ totalOut }] = (await q(
+        'SELECT coalesce(sum(amount), 0)::text AS "totalOut" FROM ledger_entries WHERE account_id=$1 AND direction=\'DEBIT\'',
+        [src.accountId],
+      )) as { totalOut: string }[];
+      expect(totalOut).toBe('50000');
+
+      const report = await checkLedgerInvariants(db.runner);
+      expect(report.status).toBe('PASS');
+      expect(report.violations).toEqual([]);
+      console.log(
+        JSON.stringify({
+          scenario: 'DBS-98-AC-5.2',
+          round,
+          srcBalance,
+          destBalance,
+          invariants: report.status,
+        }),
+      );
+    }
+  });
+
   it('TC-80-01 100 A→B and 100 B→A, 20 at a time: all 201, balances back, nothing hangs', async () => {
     const a = await target(app, '10000000'),
       b = await target(app, '10000000');
