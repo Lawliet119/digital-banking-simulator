@@ -1,0 +1,30 @@
+d5ff3bb7bde26d3a85eac28858ac1d70c937acb0  (last commit that changes code; branch fix/pr133, rebased on main d9d6388)
+Run: 2026-11-11T10:27:12Z
+Input: docs/features/screenshots/DBS-211/sample-input.csv (14 hand-written transactions, synthetic names; the sealed generator is NOT used)
+
+$ npm run export-features -- --input ../docs/features/screenshots/DBS-211/sample-input.csv --output out1.csv
+[export-features] Processed 14 transactions in 0.00s
+[export-features] Output written to: C:\Users\ADMIN\AppData\Local\Temp\tmp.IG34ezbkja\out1.csv
+$ npm run export-features -- --input ../docs/features/screenshots/DBS-211/sample-input.csv --output out2.csv
+[export-features] Processed 14 transactions in 0.00s
+[export-features] Output written to: C:\Users\ADMIN\AppData\Local\Temp\tmp.IG34ezbkja\out2.csv
+$ sha256sum out1.csv out2.csv
+8dd6596a9419b44a059cd02ec2b28441fc41e0a70873049ca0e132cd25a7a71e *out1.csv
+8dd6596a9419b44a059cd02ec2b28441fc41e0a70873049ca0e132cd25a7a71e *out2.csv
+$ head -1 out1.csv; wc -l out1.csv
+tx_id,amount,fromBalanceBefore,accountAgeHours,sameOwner,txCount10m,txCount1h,historyCount30d,medianAmount30d,minutesSinceReverse,newRecipients1h,distinctRecipients24h,is_fraud
+15
+--- t08 row (acc-an to acc-binh, 20 min after a reverse transfer): fields
+t08,500000,3350000,720,false,1,1,6,275000,20,0,1,0
+--- boundary cases
+$ header with missing columns:
+[export-features] Error: Invalid CSV header: missing required column 'to_account'
+$ is_fraud=2 on line 3:
+[export-features] Error: Line 3: is_fraud must be 0 or 1, got '2'
+$ short row on line 4:
+[export-features] Error: Line 4: expected 12 columns, got 11
+$ missing --input:
+[export-features] Error: Missing required option: --input <path>
+bad1.csv bad2.csv bad3.csv out1.csv out2.csv 
+
+--- M-211-03 hand check of t08: acc-an has 6 prior transfers (150000,200000,250000,300000,350000,400000): median = (250000+300000)/2 = 275000 (observed 275000); acc-binh sent to acc-an at 09:00, t08 is at 09:20: minutesSinceReverse = 20 (observed 20); accountAgeHours capped at 720 (observed 720); t07 is sent by acc-binh so txCount10m=txCount1h=1 (only t08 itself) (observed 1,1)
