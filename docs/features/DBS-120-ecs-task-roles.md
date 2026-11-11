@@ -47,7 +47,7 @@
 | BL-101, BL-027 (role cho script seed Cognito, quyền state) | Không nhận: không phải role của ECS task |
 | BL-043 (secret `OPENAI_API_KEY`) | Không nhận; khi có secret này, chỉ execution role worker được đọc (ghi ở §3) |
 
-- **Ngoài phạm vi:** service, task definition và log group của worker (DBS-121); secret và login DB riêng cho từng tiến trình (BL-103); quyền `iam:PassRole` và `ecs:UpdateService` cho service worker trong role deploy (DBS-121, khi có service để deploy); OIDC thật (BL-105); WAF (BL-037).
+- **Ngoài phạm vi:** service, task definition và log group của worker (DBS-121); secret và login DB riêng cho từng tiến trình (BL-103); quyền `iam:PassRole` và `ecs:UpdateService` cho service worker trong role deploy (DBS-121, khi có service để deploy); queue policy dạng allow-list cho mọi principal khác ngoài worker (threat-model T9, ghi BL ở Phase 5); OIDC thật (BL-105); WAF (BL-037). Danh sách bàn giao ở §8.
 - **Câu hỏi mở** và **Quyết định ở G1** (agent tự quyết):
   1. **Tạo role worker khi chưa có service worker?** Có. DBS-121 phụ thuộc DBS-120 (board), BL-113 giao việc gắn policy cho task này. Role không có task chạy thì không cấp gì cho ai; đây không phải stub vì role là sản phẩm của chính DBS-120. Output `worker_task_role_arn`, `worker_execution_role_arn` cho DBS-121.
   2. **"Đọc secret của mình" nằm ở role nào?** Ở **execution role của từng service**. Lý do: app không gọi Secrets Manager (đã grep), secret đi vào container qua `secrets` của task definition, do ECS agent đọc bằng execution role. Cho task role quyền `GetSecretValue` là thêm quyền mà mã app không dùng, trái Expect. Vậy: task role api và worker **không có** quyền Secrets Manager hay KMS; mỗi service có execution role riêng, chỉ `GetSecretValue` đúng các secret mà task definition của nó tham chiếu. Ghi diễn giải này trong PR cho reviewer.
@@ -56,7 +56,8 @@
   5. **Tên role api** giữ `dbs-dev-api-task` để queue policy `Deny` ở `base/sqs.tf:105` vẫn khớp (bàn giao của DBS-73). Có test khóa tên này.
   6. **Log của worker:** execution role worker được ghi log vào log group `/dbs/dev/worker` (ARN dựng theo quy ước tên); DBS-121 tạo log group đó. Ghi dòng BL cho DBS-121 để tên khớp.
   7. **Role deploy:** thêm `dbs-dev-migrate-execution` vào `iam:PassRole` (migrate.sh đăng ký revision mới với role mới); **không** thêm role worker lúc này (chưa có gì để deploy; DBS-121 thêm cùng `ecs:UpdateService` cho service worker).
-  8. **Kiểm DoD 3 thế nào?** Không assume được task role từ máy (trust chỉ `ecs-tasks`), ECS Exec cần thêm quyền `ssmmessages:*` vào task role nên bị loại. Chọn hai lớp: (a) `aws iam simulate-principal-policy` trên role thật, có `--resource-policy` của queue, cho ma trận quyền đầy đủ; (b) **gọi thật**: một task Fargate tạm `dbs-probe` (image `public.ecr.aws/aws-cli/aws-cli`, như M-34-07 của DBS-34) chạy dưới task role api thì `aws sqs send-message` trả `AccessDenied`; dưới task role worker thì gửi, nhận, xóa được. Cần dựng stack `session` (desired_count 0, không chạy app) rồi destroy ngay: ước tính khoảng 40 phút bật, ≈ 0,10 USD (RDS, Valkey, ALB, IPv4 theo docs/03 §13.2), task probe ≈ 0,01 USD. Nếu RDS không dựng được, phương án lùi là `apply -target` chỉ phần IAM và cluster (miễn phí) và kiểm execution role bằng `simulate-custom-policy` trên policy lấy từ `terraform plan`.
+  8. **Kiểm DoD 3 thế nào?** Không assume được task role từ máy (trust chỉ `ecs-tasks`); ECS Exec cần thêm `ssmmessages:*` vào task role nên bị loại; `simulate-principal-policy --resource-policy` không dùng được với principal là role (cần `--caller-arn` là IAM user, nên `aws:PrincipalArn` không bao giờ là ARN role; DBS-73 §6 V2-1). Chọn ba lớp: (a) **gọi thật** bằng task Fargate tạm `dbs-probe` (image `public.ecr.aws/aws-cli/aws-cli`, như M-34-07 của DBS-34) dưới task role api thật: `aws sqs send-message` trả `AccessDenied` với thông báo "explicit deny in a resource-based policy"; dưới task role worker thì gửi, nhận, xóa được; (b) **trường hợp xấu nhất** theo cách M-73-11 của DBS-73: trước khi dựng session, tạo role tạm **cùng tên** `dbs-dev-api-task` có `sqs:*`, assume và gọi thật, vẫn bị explicit deny; xóa ngay; (c) `simulate-principal-policy` (chỉ identity policy) và `simulate-custom-policy` (policy lấy từ `terraform show -json`) cho phần còn lại của ma trận. Cần dựng stack `session` (desired_count 0, không chạy app) rồi destroy ngay: ước tính khoảng 40 phút bật, ≈ 0,10 USD (RDS, Valkey, ALB, IPv4 theo docs/03 §13.2), task probe ≈ 0,01 USD. Phương án lùi nếu RDS không dựng được: `apply -target` **chỉ** `aws_iam_role.*`, attachment worker, các policy kéo image và ghi log, `aws_ecs_cluster.main` (những resource này không phụ thuộc RDS hay Valkey; các policy đọc secret và task def thì có nên không target), probe chạy bằng task def CLI; execution role kiểm bằng `simulate-custom-policy` trên JSON của `terraform plan -out` rồi `terraform show -json`.
+  10. **Trust của task role:** thêm `ArnLike aws:SourceArn = arn:aws:ecs:ap-southeast-1:<account>:*` cạnh `aws:SourceAccount` cho hai task role (khuyến nghị chống confused deputy của ECS cho task role). Execution role giữ trust hiện tại (chỉ `aws:SourceAccount`): agent chưa có nguồn khẳng định ECS agent gửi `aws:SourceArn` khi assume execution role, và một trust sai làm task không khởi động; M-120-08 khởi động task thật bằng execution role api nên bắt được lỗi trust.
   9. **Lệch vai:** không có; task Terraform, vai #5, baseline Terraform.
 
 **Tự kiểm G1** (2026-11-11): DoD và Expect chép nguyên văn từ `fetch-task.mjs DBS-120`; trong và ngoài phạm vi ghi rõ ở trên; "Thực trạng" kiểm bằng đọc Terraform và lệnh AWS chỉ đọc (`iam list-roles`, `iam list-policies --scope Local`, `sqs list-queues`, `secretsmanager list-secrets`, `ecs list-clusters`, `logs describe-log-groups`); hai phụ thuộc Done và có trong `main`; baseline xanh (9/43/24); mọi dòng BACKLOG cùng chủ đề đã nhận hoặc nêu tên. **G1 qua.**
@@ -73,15 +74,16 @@ Không có API; hệ thống là ma trận "principal → hành động → kế
 | `dbs-dev-worker-task` | task | đúng một attachment: managed policy `dbs-dev-worker-sqs` (lấy ARN qua `terraform_remote_state`); không inline | chưa gắn task def nào (DBS-121) |
 | `dbs-dev-api-execution` | execution | kéo image `dbs-api`, ghi log `/dbs/dev/api`, `GetSecretValue` đúng {secret master RDS, `dbs/dev/redis-auth`}, `kms:Decrypt` CMK qua Secrets Manager | task def `dbs-api` |
 | `dbs-dev-worker-execution` | execution | kéo image `dbs-api`, ghi log `/dbs/dev/worker`, `GetSecretValue` đúng {secret master RDS, `dbs/dev/redis-auth`}, `kms:Decrypt` CMK qua Secrets Manager | chưa gắn (DBS-121) |
-| `dbs-dev-migrate-execution` | execution | kéo image `dbs-api`, ghi log `/dbs/dev/api` (stream `migrate/`), `GetSecretValue` đúng {secret master RDS}, `kms:Decrypt` CMK qua Secrets Manager | task def `dbs-migrate` (không task role) |
+| `dbs-dev-migrate-execution` | execution | kéo image `dbs-api`, ghi log chỉ stream `migrate/*` của `/dbs/dev/api` (không ghi được stream `api/`), `GetSecretValue` đúng {secret master RDS}, `kms:Decrypt` CMK qua Secrets Manager | task def `dbs-migrate` (không task role) |
 
-Cả năm role tin đúng `ecs-tasks.amazonaws.com` với `aws:SourceAccount` = tài khoản; năm tên khác nhau; không role nào có `*` trong `Action` hay `Resource` của Secrets Manager, KMS, SQS.
+Cả năm role tin đúng `ecs-tasks.amazonaws.com` với `aws:SourceAccount` = tài khoản; hai task role thêm `ArnLike aws:SourceArn = arn:aws:ecs:ap-southeast-1:<account>:*` (§1 câu 10); năm tên khác nhau; không role nào có `*` trong `Action` hay `Resource` của Secrets Manager, KMS, SQS.
 
-**Ma trận chấp nhận và từ chối** (kết quả `simulate-principal-policy` mong đợi; `AccessDenied` khi gọi thật):
+**Ma trận chấp nhận và từ chối.** Cột kết quả ghi kết quả simulate (chỉ identity policy, vì simulate không áp được queue policy cho role) và, nếu có, kết quả gọi thật:
 
 | Principal | Hành động | Tài nguyên | Kết quả |
 |---|---|---|---|
-| task api | `sqs:SendMessage`, `ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes` | 2 queue chính, 2 DLQ | `explicitDeny` (queue policy) · thật: `AccessDenied` |
+| task api | `sqs:SendMessage`, `ReceiveMessage`, `DeleteMessage`, `GetQueueAttributes` | 2 queue chính, 2 DLQ | simulate: `implicitDeny` (role không có Allow) · thật (probe, `send-message` tới `dbs-dev-risk-events`): `AccessDenied`, thông báo có "explicit deny in a resource-based policy" (queue policy `DenyApiTaskRole`) |
+| role tạm cùng tên `dbs-dev-api-task` có `sqs:*` (trường hợp xấu nhất) | `send-message`, `receive-message` | `dbs-dev-risk-events` | thật: `AccessDenied`, "explicit deny in a resource-based policy" |
 | task api | `secretsmanager:GetSecretValue` | `dbs/dev/redis-auth`, secret master | `implicitDeny` · thật: `AccessDeniedException` |
 | task api | `kms:Decrypt` | CMK | `implicitDeny` |
 | task worker | `SendMessage`, `ReceiveMessage`, `DeleteMessage`, `ChangeMessageVisibility`, `GetQueueAttributes` | `dbs-dev-risk-events`, `dbs-dev-notification-events` | `allowed` · thật: có `MessageId`, nhận và xóa được |
@@ -97,7 +99,10 @@ Cả năm role tin đúng `ecs-tasks.amazonaws.com` với `aws:SourceAccount` = 
 | mọi execution role | `kms:Decrypt` không qua Secrets Manager (không có `kms:ViaService`) | CMK | `implicitDeny` |
 | mọi execution role | `sqs:SendMessage` | queue chính | `implicitDeny` |
 | execution worker | `logs:PutLogEvents` | `/dbs/dev/api` | `implicitDeny` (chỉ log group của mình) |
-| role deploy | `iam:PassRole` cho `ecs-tasks` | `dbs-dev-migrate-execution` | `allowed`; `dbs-dev-worker-*` → `implicitDeny` tới DBS-121 |
+| execution migrate | `logs:CreateLogStream`, `PutLogEvents` | stream `api/x` của `/dbs/dev/api` | `implicitDeny`; stream `migrate/migrate/x` → `allowed` |
+| role deploy (policy render từ `terraform plan` của base, `simulate-custom-policy`, context `iam:PassedToService`) | `iam:PassRole`, `PassedToService = ecs-tasks.amazonaws.com` | `dbs-dev-migrate-execution`, hai role api | `allowed` |
+| role deploy | `iam:PassRole`, `PassedToService = ecs-tasks.amazonaws.com` | `dbs-dev-worker-task`, `dbs-dev-worker-execution` | `implicitDeny` (tới DBS-121) |
+| role deploy | `iam:PassRole`, `PassedToService = lambda.amazonaws.com` | `dbs-dev-migrate-execution` | `implicitDeny` |
 
 **Ca biên:**
 - Task def `dbs-migrate` không có `taskRoleArn`: container không lấy được credential (`aws sts get-caller-identity` trong container sẽ lỗi "Unable to locate credentials"); migration vẫn chạy vì không gọi AWS.
@@ -108,6 +113,8 @@ Cả năm role tin đúng `ecs-tasks.amazonaws.com` với `aws:SourceAccount` = 
 
 - **Vị trí:** `infra/terraform/envs/dev/session/iam.tf` (thêm role worker, migrate; tách policy kéo image và log thành từng role), `session/ecs.tf` (`dbs-migrate` đổi execution role, bỏ task role), `session/outputs.tf` (thêm `worker_task_role_arn`, `worker_execution_role_arn`), `session/tests/session.tftest.hcl` (override ARN role mới, thêm `worker_sqs_policy_arn` vào base mock), `base/deploy_role.tf` (PassRole thêm migrate execution), `base/tests/deploy_role.tftest.hcl`. Không đổi code backend, không đổi `base/sqs.tf`.
 - **Interface dùng:** output base `worker_sqs_policy_arn`, `redis_auth_secret_arn`, `kms_key_arn`, `ecr_repository_arn`, `api_log_group_arn`; `aws_db_instance.main.master_user_secret[0].secret_arn`. **Cung cấp** cho DBS-121: output session `worker_task_role_arn`, `worker_execution_role_arn`; log group phải tên `/dbs/dev/worker`.
+- **Thứ tự apply:** `base/deploy_role.tf` đổi PassRole, `session` đổi execution role của `dbs-migrate`. Nếu dựng session mới mà chưa `apply base`, `migrate.sh` (`register-task-definition` rồi `run-task`) lỗi `iam:PassRole` trên `dbs-dev-migrate-execution`. Quy tắc: `apply base` trước lần deploy kế tiếp; ghi vào README Terraform và §8. Hiện role deploy chưa có trên tài khoản (BL-105, BL-109) nên chưa ảnh hưởng ai.
+- **`render-task-definition.py`:** chỉ chép khóa có trong revision cũ (`{key: definition[key] for key in ALLOWED if key in definition}`), nên revision `dbs-migrate` không có `taskRoleArn` vẫn ra JSON không có khóa đó; test tự động TC-120-14 khóa hành vi này (fixture hiện tại luôn có `taskRoleArn`).
 - **Người dùng của symbol bị đổi:** `aws_iam_role.execution`, `aws_iam_role.task` được tham chiếu ở `session/ecs.tf` (4 chỗ) và `session/tests/session.tftest.hcl` (override, run `task_definition`, `iam`, `db_secret_policy`, `redis_secret_policy`, `migrate_task_definition`). Chuỗi tên role ở `base/sqs.tf:105`, `base/deploy_role.tf:33-34`, `base/tests/sqs.tftest.hcl:154`, `base/tests/deploy_role.tftest.hcl:69`. Giữ địa chỉ resource của role api (hoặc dùng `moved` nếu đổi tên địa chỉ; session bị destroy mỗi phiên nên không có rủi ro state).
 - **Dữ liệu:** không chạm database.
 - **Ranh giới transaction:** không áp dụng.
@@ -143,7 +150,7 @@ flowchart LR
     ME --> SM
 ```
 
-- **Thay đổi cấp hệ thống:** không ADR mới (đúng docs/03 §12 "IAM role riêng cho task API và worker"). Phase 5 sửa: threat-model T23 (và T9) sang "Đã kiểm" kèm bằng chứng; `infra/terraform/README.md` bảng IAM (dòng nói policy chưa gắn) và mục migration (task migrate dùng role riêng); docs/03 §12 nếu cần nêu execution role theo service.
+- **Thay đổi cấp hệ thống:** không ADR mới (đúng docs/03 §12 "IAM role riêng cho task API và worker"). Phase 5 sửa: threat-model **chỉ T23** sang "Đã kiểm" kèm bằng chứng; **T9 giữ "một phần"**: queue policy chỉ chặn `dbs-dev-api-task`, mọi principal khác trong tài khoản có quyền SQS (admin, role tương lai) vẫn gửi được message giả, DBS-120 không đổi điều đó; ghi dòng BL cho queue policy dạng allow-list (Deny `sqs:SendMessage`, `ReceiveMessage`, `DeleteMessage` trừ khi `aws:PrincipalArn` thuộc {role task worker, role admin break-glass}); `infra/terraform/README.md` bảng IAM (dòng nói policy chưa gắn) và mục migration (task migrate dùng role riêng); docs/03 §12 nếu cần nêu execution role theo service.
 
 ## 4. Test cases tự động
 
@@ -151,33 +158,105 @@ Tất cả là `terraform test` với `mock_provider` (không cần credential),
 
 | ID | Truy vết | Lớp | Given · When · Then | Mong đợi |
 |---|---|---|---|---|
-| TC-120-01 | DoD 1 (api) | tf test session | plan session · không `aws_iam_role_policy` hay `aws_iam_role_policy_attachment` nào có `role` = role api task; tên role = `dbs-dev-api-task` | đúng |
-| TC-120-02 | DoD 1 (api) | grep tĩnh (lệnh ghi ở §8, như M-34-02b của DBS-34) | `grep -n 'aws_iam_role.task' envs/dev/session/*.tf` chỉ ra `ecs.tf` (task def `dbs-api`) và `outputs.tf`, không có `aws_iam_role_policy*` nào | đúng |
+| TC-120-01 | DoD 1 (api) | tf test session | plan session · mọi `aws_iam_role_policy` và `aws_iam_role_policy_attachment` **có tên trong config** (assert chỉ tham chiếu được resource có địa chỉ) không trỏ role api task; tên role = `dbs-dev-api-task`. "Không có policy nào" được chứng minh bằng TC-120-02 (grep) và M-120-03 (`list-role-policies`, `list-attached-role-policies` thật) | đúng |
+| TC-120-02 | DoD 1 (api) | grep tĩnh (lệnh và kết quả ghi ở §8, như M-34-02b của DBS-34) | `grep -nE 'aws_iam_role\.task\b' infra/terraform/envs/dev/session/*.tf` chỉ ra khai báo role, `task_role_arn` của `dbs-api` (`ecs.tf`) và output (nếu có); `git grep -n 'dbs-dev-api-task' -- infra/terraform/envs` chỉ ra `session/iam.tf` (tên role), `base/sqs.tf` (queue policy), `base/deploy_role.tf` (PassRole) và các file test; không dòng nào là `aws_iam_role_policy*` | đúng |
 | TC-120-03 | DoD 1 (worker) | tf test session | role `dbs-dev-worker-task` có đúng một `aws_iam_role_policy_attachment` với `policy_arn` = output base `worker_sqs_policy_arn`; không inline policy | đúng |
 | TC-120-04 | DoD 1 (worker) | tf test base (TC-73-05 giữ nguyên) | policy `dbs-dev-worker-sqs` chỉ có action `sqs:*` liệt kê trên đúng 2 ARN queue + `SendMessage` trên 2 DLQ | đúng (chạy lại, không sửa) |
 | TC-120-05 | DoD 1 (secret của mình) | tf test session | tập `Resource` của `GetSecretValue` trên execution api = {secret master, secret Redis}; worker = {secret master, secret Redis}; migrate = {secret master} | đúng, không `*` |
 | TC-120-06 | DoD 1 (secret của mình) | tf test session | với `dbs-api` và `dbs-migrate`: mọi ARN (bỏ hậu tố `:key::`) trong `secrets[].valueFrom` thuộc tập `GetSecretValue` của execution role gắn với task def đó, và ngược lại | bằng nhau |
 | TC-120-07 | DoD 1 | tf test session | `kms:Decrypt` của mỗi execution role chỉ trên CMK và có `kms:ViaService = secretsmanager.ap-southeast-1.amazonaws.com`; task role không có action `secretsmanager:*`, `kms:*` | đúng |
 | TC-120-08 | DoD 2 | tf test session | `dbs-api`: execution = api execution, task = api task, hai ARN khác nhau; `dbs-migrate`: execution = migrate execution, `task_role_arn` null; năm tên role đôi một khác nhau | đúng |
-| TC-120-09 | DoD 2 | tf test session | trust policy của năm role: `Principal.Service = ecs-tasks.amazonaws.com`, `aws:SourceAccount` = `account_id` | đúng |
-| TC-120-10 | DoD 1 (log) | tf test session | log statement: api, migrate execution trên `/dbs/dev/api:*`; worker execution trên `arn:aws:logs:…:log-group:/dbs/dev/worker:*`; ECR pull chỉ trên ARN repo | đúng |
+| TC-120-09 | DoD 2 | tf test session | trust policy của năm role: `Principal.Service = ecs-tasks.amazonaws.com`, `aws:SourceAccount` = `account_id`; hai task role có thêm `ArnLike aws:SourceArn = arn:aws:ecs:ap-southeast-1:<account_id>:*` | đúng |
+| TC-120-10 | DoD 1 (log) | tf test session | log statement: api execution trên `/dbs/dev/api:*`; migrate execution chỉ trên `…:log-group:/dbs/dev/api:log-stream:migrate/*`; worker execution trên `arn:aws:logs:…:log-group:/dbs/dev/worker:*`; ECR pull chỉ trên ARN repo | đúng |
 | TC-120-11 | DoD 2 (deploy truyền role) | tf test base | `iam:PassRole` của role deploy = đúng {api execution, api task, migrate execution}, điều kiện `ecs-tasks`; không chứa `dbs-dev-worker-*` | đúng |
 | TC-120-12 | DoD 1 (worker) | tf test session | output `worker_task_role_arn`, `worker_execution_role_arn` bằng ARN role tương ứng | đúng |
-| TC-120-13 | DoD 3 | thủ công | ma trận §2 trên AWS thật | xem M-120-04…07 |
+| TC-120-13 | DoD 3 | thủ công | ma trận §2 trên AWS thật | xem M-120-02, M-120-04…09 |
+| TC-120-14 | DoD 2 (migrate không task role vẫn deploy được) | unit Python (`.github/scripts/tests/test_render_task_definition.py`) | phản hồi `describe-task-definition` của `dbs-migrate` **không có** `taskRoleArn`, `--container migrate` · render · thoát 0, JSON ra không có khóa `taskRoleArn`, `executionRoleArn` giữ nguyên | đúng |
 | — | DoD 4 | quy trình | PR merge, CI xanh, Dev review, bảng đối chiếu | không có test |
 
 ## 5. Test thủ công
 
-Điều kiện: profile `dbs-admin`, `ap-southeast-1`, budget alarm có; image không cần (desired_count 0). Lệnh chạy trong bash, output thô vào `screenshots/DBS-120/manual-test.txt`, xóa id tài khoản và ARN trước khi commit.
+Điều kiện: profile `dbs-admin`, `ap-southeast-1`, budget alarm có; image app không cần (desired_count 0). Lệnh chạy trong bash, output thô vào `screenshots/DBS-120/manual-test.txt`, xóa id tài khoản và ARN trước khi commit. Biến dùng chung: `ACCT=$(aws sts get-caller-identity --query Account --output text)`, `Q=arn:aws:sqs:ap-southeast-1:$ACCT`.
 
 | Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
-| M-120-01 | `aws sts get-caller-identity`; `aws budgets describe-budgets`; `terraform plan` ở `envs/dev/session` (`-var image_tag=<sha main>`) | đúng tài khoản; plan tạo đủ 5 role, 1 attachment, các inline policy theo §2; không xóa gì ngoài session |
-| M-120-02 | `terraform apply` session (sau khi kiểm plan; agent ghi giờ bắt đầu) | apply xong; `aws iam list-attached-role-policies --role-name dbs-dev-worker-task` = `dbs-dev-worker-sqs`; `list-role-policies` và `list-attached-role-policies` của `dbs-dev-api-task` rỗng |
-| M-120-03 | `aws ecs describe-task-definition` cho `dbs-api` và `dbs-migrate` | `dbs-api`: hai role api khác nhau; `dbs-migrate`: execution migrate, không `taskRoleArn` |
-| M-120-04 | `simulate-principal-policy` cho task api: 4 action SQS × 4 queue, kèm `--resource-policy` của queue; `GetSecretValue` 2 secret; `kms:Decrypt` | SQS `explicitDeny`; secret và KMS `implicitDeny` |
-| M-120-05 | `simulate-principal-policy` cho task worker theo bảng §2 (cho phép và từ chối) | đúng từng ô của bảng |
-| M-120-06 | `simulate-principal-policy` cho ba execution role (secret của mình, secret của role khác, `demo-accounts`, KMS không qua Secrets Manager, log group khác) | đúng từng ô của bảng |
-| M-120-07 | **Gọi thật, bị từ chối:** đăng ký task def tạm `dbs-probe` (image `public.ecr.aws/aws-cli/aws-cli`, execution role api, log `/dbs/dev/api` prefix `probe`, task role `dbs-dev-api-task`), `run-task` ở public subnet với SG `dbs-dev-api`, lệnh `sqs send-message` tới `dbs-dev-risk-events` rồi `secretsmanager get-secret-value dbs/dev/redis-auth` | log: `AccessDenied` cho SQS, `AccessDeniedException` cho secret; task thoát khác 0 |
-| M-120-08 | **Gọi thật, được phép và ca biên:** cùng probe với task role `dbs-dev-worker-task`: `send-message` tới `dbs-dev-risk-events` (body `{"probe":"DBS-120"}`), `receive-message`, `delete-message`, rồi `receive-message` trên `dbs-dev-risk-events-dlq` | có `MessageId`; nhận và xóa được; DLQ `AccessDenied`; `get-queue-attributes` cho thấy queue chính về 0 message |
-| M-120-09 | **Down:** deregister và xóa revision `dbs-probe`; `terraform destroy` session; kiểm còn sót: load balancer, RDS, ElastiCache, task ECS, Elastic IP, ENI `available`, role `dbs-dev-*-task`/`*-execution` | không còn gì của session; queue và policy base vẫn còn; ghi giờ tắt và chi phí ngày hôm sau (Cost Explorer) |
+| M-120-01 | `aws sts get-caller-identity`; `aws budgets describe-budgets --account-id $ACCT`; `terraform plan -out=s.tfplan` ở `envs/dev/session` (`-var image_tag=<sha main>`), `terraform show -json s.tfplan > s.json`; `terraform plan -out=b.tfplan` ở `envs/dev/base` (chỉ đọc, không apply), `terraform show -json b.tfplan > b.json` | đúng tài khoản; session tạo đủ 5 role, 1 attachment, các inline policy theo §2; base chỉ đổi `deploy-dbs-dev-api` (cộng lệch state đã biết, ghi lại nếu có) |
+| M-120-02 | **Trường hợp xấu nhất, trước khi dựng session** (cách M-73-11 của DBS-73). Điều kiện: `aws iam get-role --role-name dbs-dev-api-task` → `NoSuchEntity`. Đặt `trap` dọn trước (`delete-role-policy`, `delete-role`); `create-role dbs-dev-api-task` trust chỉ IAM user đang chạy; inline `sqs:*` trên 4 queue; chờ 10 giây; `sts assume-role`; với credential đó `aws sqs send-message --queue-url <risk> --message-body '{"probe":"DBS-120"}'` và `receive-message` | cả hai lệnh: `AccessDenied`, thông báo có "explicit deny in a resource-based policy"; role tạm đã xóa (`get-role` → `NoSuchEntity`) |
+| M-120-03 | `terraform apply s.tfplan` (ghi giờ bắt đầu); `aws iam list-role-policies` và `list-attached-role-policies` cho `dbs-dev-api-task`, `dbs-dev-worker-task` | api task: cả hai danh sách rỗng; worker task: không inline, attached đúng `dbs-dev-worker-sqs` |
+| M-120-04 | `aws ecs describe-task-definition` cho `dbs-api` và `dbs-migrate`; `aws iam get-role` hai task role (trust) | `dbs-api`: hai role api khác nhau; `dbs-migrate`: execution migrate, không có `taskRoleArn`; trust task role có `aws:SourceArn` |
+| M-120-05 | `simulate-principal-policy` **chỉ identity policy** (không `--resource-policy`) cho task api: 4 action SQS trên 4 ARN queue; `secretsmanager:GetSecretValue` 2 secret; `kms:Decrypt` CMK | tất cả `implicitDeny` (explicit deny của queue chứng minh ở M-120-02 và M-120-08) |
+| M-120-06 | `simulate-principal-policy` cho task worker theo bảng §2, một lệnh cho mỗi nhóm action và tài nguyên | đúng từng ô: cho phép trên 2 queue chính và `SendMessage` 2 DLQ; từ chối DLQ receive, delete, purge; quản trị queue; queue `dbs-dev-other`; secret; KMS |
+| M-120-07 | `simulate-principal-policy` cho ba execution role: `GetSecretValue` secret của mình, secret của role khác, `dbs/dev/demo-accounts`; `kms:Decrypt` **hai lần**, có và không có `--context-entries ContextKeyName=kms:ViaService,ContextKeyValues=secretsmanager.ap-southeast-1.amazonaws.com,ContextKeyType=string`; `logs:PutLogEvents` trên log group, stream khác của mình; `sqs:SendMessage`. Role deploy: `simulate-custom-policy` với policy `deploy-dbs-dev-api` lấy từ `b.json`, `iam:PassRole` trên 5 ARN role, context `iam:PassedToService` = `ecs-tasks.amazonaws.com` rồi `lambda.amazonaws.com` | đúng từng ô của bảng §2; KMS có context → `allowed`, không có → `implicitDeny`; PassRole: migrate execution và hai role api `allowed`, hai role worker `implicitDeny`, `lambda` `implicitDeny` |
+| M-120-08 | **Gọi thật dưới task role api.** Đăng ký task def tạm `dbs-probe` (JSON dưới bảng) với task role `dbs-dev-api-task`, execution role `dbs-dev-api-execution`; `aws ecs run-task --cluster dbs-dev --launch-type FARGATE --task-definition dbs-probe --network-configuration 'awsvpcConfiguration={subnets=[<public-a>],securityGroups=[<sg dbs-dev-api>],assignPublicIp=ENABLED}'`; chờ `STOPPED`; đọc log stream `probe/…` | task khởi động (execution role api và trust của nó hoạt động); log có `== sqs send ==` rồi `AccessDenied` với "explicit deny in a resource-based policy"; `== secret ==` rồi `AccessDeniedException`; `== identity ==` in ARN phiên assumed-role `dbs-dev-api-task` |
+| M-120-09 | **Gọi thật dưới task role worker, ca được phép và ca biên:** đăng ký revision mới `dbs-probe` với task role `dbs-dev-worker-task` (execution role vẫn là api, xem ghi chú), lệnh: `send-message` tới `dbs-dev-risk-events` body `{"probe":"DBS-120"}`, `receive-message`, `delete-message` bằng receipt handle vừa nhận, rồi `receive-message` trên `dbs-dev-risk-events-dlq` | `send` có `MessageId`; nhận đúng message đó và xóa được; DLQ `AccessDenied`; sau bước, `get-queue-attributes ApproximateNumberOfMessages` của queue chính = 0 |
+| M-120-10 | **Down:** `deregister-task-definition` mọi revision `dbs-probe` rồi `delete-task-definitions`; `terraform destroy` session; kiểm còn sót từng loại: load balancer, RDS, ElastiCache, task ECS, Elastic IP, ENI `available`, role `dbs-dev-*-task`, `dbs-dev-*-execution` | không còn gì của session; queue, policy `dbs-dev-worker-sqs`, log group base vẫn còn; ghi giờ tắt; chi phí ghi ngày hôm sau (Cost Explorer) |
+
+**Task def `dbs-probe`** (đăng ký bằng CLI, không ở Terraform; xóa ở M-120-10). Image có entrypoint `aws`, nên ghi đè `entryPoint` bằng `sh -c`. Mỗi lệnh có dòng đánh dấu riêng và `|| true`, để một lệnh bị từ chối không che lệnh sau; kết quả đọc từ log, không từ exit code.
+
+```json
+{
+  "family": "dbs-probe",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "256",
+  "memory": "512",
+  "taskRoleArn": "arn:aws:iam::<account>:role/dbs-dev-api-task",
+  "executionRoleArn": "arn:aws:iam::<account>:role/dbs-dev-api-execution",
+  "containerDefinitions": [{
+    "name": "probe",
+    "image": "public.ecr.aws/aws-cli/aws-cli:latest",
+    "essential": true,
+    "entryPoint": ["sh", "-c"],
+    "command": ["echo '== identity =='; aws sts get-caller-identity || true; echo '== sqs send =='; aws sqs send-message --queue-url https://sqs.ap-southeast-1.amazonaws.com/<account>/dbs-dev-risk-events --message-body '{\"probe\":\"DBS-120\"}' || true; echo '== secret =='; aws secretsmanager get-secret-value --secret-id dbs/dev/redis-auth --query Name || true; echo '== done =='"],
+    "environment": [{ "name": "AWS_REGION", "value": "ap-southeast-1" }],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "/dbs/dev/api",
+        "awslogs-region": "ap-southeast-1",
+        "awslogs-stream-prefix": "probe"
+      }
+    }
+  }]
+}
+```
+
+Revision cho M-120-09 đổi `taskRoleArn` sang `dbs-dev-worker-task` và `command` thành chuỗi `send-message` → `receive-message` (lấy `ReceiptHandle` bằng `--query 'Messages[0].ReceiptHandle' --output text`) → `delete-message` → `receive-message` trên DLQ, cùng kiểu dòng đánh dấu. Tag `latest` của image chỉ dùng cho probe tạm, không phải image ứng dụng.
+
+**Giới hạn đã biết:** execution role worker chỉ được kiểm bằng simulate (M-120-07) tới DBS-121: log group `/dbs/dev/worker` chưa có, nên một task khởi động bằng role này sẽ lỗi ghi log. Probe dùng execution role api cho cả hai lần. DBS-121 khởi động task worker thật và kiểm lại (bàn giao ở §8).
+
+## 6. Domain review (AI)
+
+**Reviewer:** subagent mới, chỉ đọc (do coordinator gọi), model claude-opus-5-5, ngày 2026-11-11 · **Kết quả vòng 1:** 12 phát hiện (blocking 1, should-fix 4, minor 7), verdict REVISE · [trả lời nguyên văn](screenshots/DBS-120/domain-review.md)
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | blocking | `simulate-principal-policy --resource-policy` không dùng được với role, nên `explicitDeny` không bao giờ thấy được | đã sửa §1 câu 8, ma trận §2 (simulate api SQS = `implicitDeny`; explicit deny chỉ ghi cho gọi thật), §5: M-120-05 bỏ `--resource-policy`; explicit deny chứng minh bằng probe thật M-120-08 (thông báo "explicit deny in a resource-based policy") và role tạm cùng tên M-120-02 (cách M-73-11) |
+| 2 | should-fix | Phương án lùi `-target` không miễn phí vì policy secret và task def kéo theo RDS, Valkey | đã sửa §1 câu 8: chỉ target role, attachment, policy kéo image và ghi log, cluster; execution role kiểm bằng `simulate-custom-policy` trên `terraform show -json` |
+| 3 | should-fix | PassRole mới của role deploy không có bước thủ công; rủi ro thứ tự apply base/session | đã thêm dòng ma trận §2, M-120-07 (`simulate-custom-policy` trên policy render từ plan base, có `iam:PassedToService`), M-120-01 (plan base), §3 "Thứ tự apply" (apply base trước lần deploy kế tiếp, ghi README và §8) |
+| 4 | should-fix | Đánh dấu T9 "Đã kiểm" là nói quá | đã sửa §3: chỉ T23 sang "Đã kiểm", T9 giữ "một phần"; BL queue policy allow-list ghi ở §8 và thêm ở Phase 5 |
+| 5 | should-fix | TC-120-01 không liệt kê được mọi policy | đã sửa TC-120-01: chỉ assert resource có tên; "không có gì" dựa vào TC-120-02 và M-120-03 |
+| 6 | minor | grep của TC-120-02 không neo, bỏ sót tên chuỗi | đã sửa: `grep -nE 'aws_iam_role\.task\b'` và `git grep -n 'dbs-dev-api-task' -- infra/terraform/envs`, kèm danh sách kết quả mong đợi |
+| 7 | minor | Image aws-cli có entrypoint `aws`; worker execution role không được khởi động thật | đã sửa §5: JSON task def đầy đủ (`entryPoint ["sh","-c"]`, dòng đánh dấu, `\|\| true`, `assignPublicIp=ENABLED`); ghi giới hạn execution role worker chỉ simulate tới DBS-121, bàn giao §8 |
+| 8 | minor | KMS cần `--context-entries kms:ViaService`; mỗi queue một lệnh | đã sửa M-120-07 (KMS có và không có context). Mục "mỗi queue một lệnh" không còn áp dụng vì không dùng `--resource-policy` nữa; simulate identity nhận nhiều `--resource-arns` một lần |
+| 9 | minor | Execution role migrate ghi được stream `api/` | đã sửa §2, TC-120-10: chỉ `log-stream:migrate/*`; thêm dòng ma trận |
+| 10 | minor | Trust thiếu `aws:SourceArn` | đã sửa một phần: thêm cho hai task role (§1 câu 10, §2, TC-120-09); execution role không đổi vì chưa có nguồn khẳng định ECS agent gửi `aws:SourceArn` khi assume execution role, và trust sai làm task không khởi động; M-120-08 khởi động task thật bằng execution role |
+| 11 | minor | Hành vi render khi không có `taskRoleArn` để tới Phase 4 | đã thêm TC-120-14 (unit Python, fixture `dbs-migrate` không có `taskRoleArn`) và ghi ở §3 |
+| 12 | minor (bàn giao) | Log group worker ở base, PassRole/UpdateService worker, SG/Redis worker, worker vẫn dùng secret master | đã ghi ở §8 "Bàn giao" (DBS-121, BL-103, BL-119); dòng BL thêm ở Phase 5 |
+
+**Quyết định ở G2:** (ghi sau khi review vòng 2 xong)
+
+## 7. Kế hoạch triển khai
+
+(Phase 3.)
+
+## 8. Kết quả
+
+(Điền ở Phase 4–5. Phần bàn giao đã biết từ thiết kế:)
+
+- **Bàn giao cho vai khác** (dòng BL thêm ở Phase 5):
+  - DBS-121: tạo log group `/dbs/dev/worker` ở `base/logs.tf` (cạnh `/dbs/dev/api`, sống qua `destroy session`, tên khớp ARN của execution role worker); thêm `iam:PassRole` cho `dbs-dev-worker-task`, `dbs-dev-worker-execution` và `ecs:UpdateService` trên `service/dbs-dev/worker` vào `base/deploy_role.tf`; khởi động task worker thật để kiểm execution role worker (M-120-07 chỉ simulate); dùng output `worker_task_role_arn`, `worker_execution_role_arn`.
+  - DBS-121 / BL-119: SG worker và ingress Redis, RDS.
+  - BL-103: execution role worker và api vẫn đưa credential **master** RDS vào container; đổi sang secret `dbs_api`, `dbs_worker`, `dbs_migrator` thì chỉ sửa `Resource` của execution role tương ứng.
+  - BL mới (#5): queue policy dạng allow-list để T9 thành "Đã kiểm".
+  - README Terraform: `apply base` trước lần deploy kế tiếp sau khi session có `dbs-dev-migrate-execution`.
