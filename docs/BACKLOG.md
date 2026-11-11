@@ -128,4 +128,3 @@ Quy tắc:
 | BL-235 | DBS-160 đã hoàn tất API backend quản trị cấu hình fraud có phiên bản (UC-12); còn thiếu giao diện web (UI admin/dashboard) để xem danh sách phiên bản, xem chi tiết và tạo phiên bản mới trực quan; và alarm CloudWatch cho metric fallback cấu hình `risk_config_redis_fallback_total`. | [DBS-160](features/DBS-160-risk-config-api.md) §8 | Dev frontend / UI dashboard và #5 Platform & Ops | Giao diện web gọi được API DBS-160, hiển thị lịch sử phiên bản và cho phép nhập cấu hình mới; có alarm cho metric fallback |
 
 
-
