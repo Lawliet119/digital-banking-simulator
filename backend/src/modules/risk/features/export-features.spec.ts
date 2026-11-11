@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import { exportFeaturesString, parseTransactionCsv } from './export-features';
 
+const HEADER =
+  'tx_id,occurred_at,from_account,to_account,from_customer,to_customer,amount,from_balance_before,from_account_created_at,to_account_created_at,is_fraud,scenario';
+const row = (id: string, at: string, amount: string, balance = '9000000') =>
+  `${id},${at},acc-A,acc-B,u-1,u-2,${amount},${balance},2026-09-01T00:00:00.000Z,2026-09-01T00:00:00.000Z,0,NORMAL`;
+
 const SAMPLE_CSV = `tx_id,occurred_at,from_account,to_account,from_customer,to_customer,amount,from_balance_before,from_account_created_at,to_account_created_at,is_fraud,scenario
 00000000-0000-4000-8000-000000000001,2026-10-01T10:00:00.000Z,acc-1,acc-2,cust-1,cust-2,100000,500000,2026-09-01T00:00:00.000Z,2026-09-01T00:00:00.000Z,0,NORMAL
 00000000-0000-4000-8000-000000000002,2026-10-01T10:05:00.000Z,acc-1,acc-3,cust-1,cust-3,200000,400000,2026-09-01T00:00:00.000Z,2026-09-01T00:00:00.000Z,1,ATO_DRAIN
@@ -122,5 +127,33 @@ tx-3,2026-10-01T10:30:00.000Z,acc-A,acc-B,user-1,user-1,100000,950000,2026-10-01
   it('TC-211-05 rejects malformed CSVs with missing required columns', () => {
     const badCsv = `tx_id,occurred_at,from_account\n1,2,3`;
     expect(() => parseTransactionCsv(badCsv)).toThrow(/Invalid CSV header/);
+  });
+  it('TC-211-03b medianAmount30d: null below 5 prior transfers, middle value for an odd count, mean of the two middle values for an even count', async () => {
+    // Prior transfers of acc-A inside the 30 days: amounts 10000, 20000, 30000, 40000, 50000, 60000.
+    const prior = ['10000', '20000', '30000', '40000', '50000', '60000'].map((amount, i) =>
+      row(`p${i + 1}`, `2026-10-0${i + 1}T10:00:00.000Z`, amount),
+    );
+    const rows = (n: number) =>
+      [HEADER, ...prior.slice(0, n), row('target', '2026-10-09T10:00:00.000Z', '70000')].join('\n');
+    const medianOf = async (n: number) =>
+      (await exportFeaturesString(rows(n))).trim().split('\n').pop()!.split(',')[8];
+    expect(await medianOf(4)).toBe(''); // 4 prior: below the minimum of 5 -> null
+    expect(await medianOf(5)).toBe('30000'); // odd: the middle of 10000..50000
+    expect(await medianOf(6)).toBe('35000'); // even: (30000 + 40000) / 2
+  });
+
+  it('TC-211-05b refuses a short row, a quoted field and a bad label instead of skipping or guessing, naming the line', () => {
+    const good = row('a', '2026-10-01T10:00:00.000Z', '1000');
+    expect(() =>
+      parseTransactionCsv([HEADER, good, 'a,2026-10-01T10:00:00.000Z,acc-A'].join('\n')),
+    ).toThrow(/Line 3: expected 12 columns, got 3/);
+    expect(() =>
+      parseTransactionCsv([HEADER, good.replace('acc-A', '"acc,A"')].join('\n')),
+    ).toThrow(/Line 2: quoted fields are not supported/);
+    expect(() =>
+      parseTransactionCsv([HEADER, good.replace(',0,NORMAL', ',2,NORMAL')].join('\n')),
+    ).toThrow(/Line 2: is_fraud must be 0 or 1, got '2'/);
+    // blank lines do not shift the reported line number
+    expect(() => parseTransactionCsv([HEADER, '', good, '', 'x,y'].join('\n'))).toThrow(/Line 5:/);
   });
 });

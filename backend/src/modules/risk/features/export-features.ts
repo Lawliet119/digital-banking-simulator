@@ -41,12 +41,16 @@ export interface ParsedDataset {
 }
 
 export function parseTransactionCsv(csvText: string): ParsedDataset {
-  const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
+  // Keep the physical line number of every non-blank line, so an error can name the line to fix.
+  const lines = csvText
+    .split(/\r?\n/)
+    .map((text, index) => ({ text, number: index + 1 }))
+    .filter(line => line.text.trim().length > 0);
   if (lines.length === 0) {
     throw new Error('Empty CSV file');
   }
 
-  const header = lines[0].split(',').map(s => s.trim());
+  const header = lines[0].text.split(',').map(s => s.trim());
   const indexMap = new Map<string, number>();
   for (let i = 0; i < header.length; i++) {
     indexMap.set(header[i], i);
@@ -75,8 +79,13 @@ export function parseTransactionCsv(csvText: string): ParsedDataset {
   const labels = new Map<string, string>();
 
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',').map(s => s.trim());
-    if (cols.length < header.length) continue;
+    const { text, number } = lines[i];
+    // The tune CSV has no quoting or embedded commas: refuse anything else instead of mis-splitting.
+    if (text.includes('"')) throw new Error(`Line ${number}: quoted fields are not supported`);
+    const cols = text.split(',').map(s => s.trim());
+    if (cols.length !== header.length) {
+      throw new Error(`Line ${number}: expected ${header.length} columns, got ${cols.length}`);
+    }
 
     const txId = cols[txIdIdx];
     const occurredAt = cols[occurredAtIdx];
@@ -89,6 +98,9 @@ export function parseTransactionCsv(csvText: string): ParsedDataset {
     const fromAccountCreatedAt = cols[fromCreatedAtIdx];
     const toAccountCreatedAt = cols[toCreatedAtIdx];
     const isFraud = cols[isFraudIdx];
+    if (isFraud !== '0' && isFraud !== '1') {
+      throw new Error(`Line ${number}: is_fraud must be 0 or 1, got '${isFraud}'`);
+    }
 
     facts.push({
       id: txId,
@@ -116,15 +128,21 @@ export function parseTransactionCsv(csvText: string): ParsedDataset {
       toAccountCreatedAt,
     });
 
-    labels.set(txId, isFraud === '1' ? '1' : '0');
+    labels.set(txId, isFraud);
   }
 
   return { facts, events, labels };
 }
 
+/**
+ * Only `smallTxCount24h` of the provider reads this limit, and that field is not among the 11 exported
+ * fields, so its value never changes the output. It is NOT the platform limit (TRANSFER_LIMIT_PER_TX).
+ */
+const OFFLINE_PER_TX_LIMIT = 500_000_000n;
+
 export async function exportFeaturesString(
   csvText: string,
-  perTxLimit: bigint = 500_000_000n,
+  perTxLimit: bigint = OFFLINE_PER_TX_LIMIT,
 ): Promise<string> {
   const { facts, events, labels } = parseTransactionCsv(csvText);
   const provider = new OfflineFeatureProvider(facts, perTxLimit);
@@ -157,7 +175,7 @@ export async function exportFeaturesString(
 export async function exportFeaturesFile(
   inputPath: string,
   outputPath: string,
-  perTxLimit: bigint = 500_000_000n,
+  perTxLimit: bigint = OFFLINE_PER_TX_LIMIT,
 ): Promise<{ rowCount: number }> {
   const text = readFileSync(inputPath, 'utf8');
   const result = await exportFeaturesString(text, perTxLimit);
