@@ -131,4 +131,3 @@ Quy tắc:
 | BL-240 | DBS-171: EXPLAIN chỉ chạy với dữ liệu sinh bằng `generate_series` (100 đến 400 nghìn dòng trong CI); chưa chạy trên dữ liệu của generator fraud, trên 1 triệu dòng trong CI hay trên RDS thật. | [DBS-171](features/DBS-171-explain-hot-queries.md) §1, §8 | Dev | Chạy lại năm EXPLAIN trên RDS của môi trường dev (sau DBS-146/Terraform) và ghi số vào query-plans.md |
 
 
-
