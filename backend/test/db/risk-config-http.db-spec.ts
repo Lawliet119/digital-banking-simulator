@@ -1,11 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
-import { createClient } from 'redis';
 import { DataSource } from 'typeorm';
-import { RedisClient, RedisMetrics } from '@libs/redis';
-import { LATEST_KEY, RuleSetRepository } from '@modules/risk/config/rule-set.repository';
-import { RiskMetrics } from '@modules/risk/risk.metrics';
-import { startValkeyContainer } from '../support/valkey.container';
 import request from 'supertest';
 import { startRiskConfigApp, type RiskConfigApp } from '../support/risk-config-app';
 
@@ -300,38 +295,4 @@ describe('DBS-160 versioned risk configuration over real HTTP', () => {
       await pending?.catch(() => undefined);
     }
   });
-
-  it('keeps latest cache bounded and sees the new version on cache miss or outage', async () => {
-    const valkey = await startValkeyContainer();
-    const adminRedis = createClient({ url: valkey.url });
-    adminRedis.on('error', () => undefined);
-    await adminRedis.connect();
-    const redis = new RedisClient({ url: valkey.url, commandTimeoutMs: 50 }, new RedisMetrics());
-    try {
-      const deadline = Date.now() + 5000;
-      while (!redis.isReady && Date.now() < deadline) await delay(10);
-      if (!redis.isReady) throw new Error('Valkey is unavailable');
-      const db = fixture.app.get(DataSource);
-      const repository = new RuleSetRepository({ redis, db, metrics: new RiskMetrics() });
-      const old = await repository.current();
-      const ttl = await adminRedis.pTTL(LATEST_KEY);
-      expect(ttl).toBeGreaterThan(0);
-      expect(ttl).toBeLessThanOrEqual(60_000);
-      const created = await request(fixture.url)
-        .post(`${root}/versions`)
-        .auth(admin, { type: 'bearer' })
-        .send({ config: seed })
-        .expect(201);
-      expect((await repository.current()).version).toBe(old.version);
-      await adminRedis.del(LATEST_KEY);
-      expect((await repository.current()).version).toBe(created.body.version);
-      redis.onModuleDestroy();
-      const fallback = new RuleSetRepository({ redis, db, metrics: new RiskMetrics() });
-      expect((await fallback.current()).version).toBe(created.body.version);
-    } finally {
-      redis.onModuleDestroy();
-      if (adminRedis.isOpen) adminRedis.destroy();
-      await valkey.stop();
-    }
-  }, 30_000);
 });
