@@ -1,6 +1,6 @@
 # DBS-120 · ECS task role riêng cho api và worker với quyền tối thiểu
 
-> **Status:** Draft · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-120-ecs-task-roles` (từ `main` 17b011e) · **PR:** — · **Cập nhật:** 2026-11-11
+> **Status:** Plan approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-120-ecs-task-roles` (từ `main` 17b011e) · **PR:** — · **Cập nhật:** 2026-11-11
 
 ## 1. Bối cảnh
 
@@ -260,11 +260,34 @@ Revision cho M-120-09 đổi `taskRoleArn` sang `dbs-dev-worker-task` và `comma
 | R2-5 | minor | Probe chỉ có `AWS_REGION`; một lần `receive-message` có thể rỗng | đã thêm `AWS_DEFAULT_REGION`; M-120-09 dùng `--wait-time-seconds 20 --max-number-of-messages 1`, lặp tối đa 3 lần, so body |
 | R2-6 | minor | `-target aws_iam_role.*` không hợp lệ | đã sửa §1 câu 8: liệt kê từng địa chỉ |
 
-**Quyết định ở G2:** (ghi sau khi review vòng 3 xong)
+**Vòng 3** (model claude-opus-5-5, trên commit `ed46a79`): R3-1…R3-6 xác nhận sáu phát hiện vòng 2 đã sửa, không phát hiện mới; verdict **APPROVE** · [nguyên văn](screenshots/DBS-120/domain-review.md#vòng-3). Lưu ý R3-6: địa chỉ `-target` ở §7 phải giống hệt danh sách ở §1 câu 8 (đã giữ đúng).
+
+**Quyết định ở G2** (agent tự quyết, 2026-11-11):
+1. Chấp nhận thiết kế sau ba vòng review; không còn phát hiện blocking hay should-fix mở.
+2. Giữ trust execution role như cũ (#10, R2-8 đồng ý) và không tách lệnh simulate theo queue (#8, R2-7 đồng ý).
+3. Rủi ro còn lại chấp nhận: execution role migrate tạo được stream tên `api/…` nhưng không ghi sự kiện vào đó (R3-1); ECR pull và đọc secret master của execution role migrate chỉ kiểm bằng simulate và TC-120-06 (R3-2).
 
 ## 7. Kế hoạch triển khai
 
-(Phase 3.)
+Tên địa chỉ chốt (giống §1 câu 8): role `aws_iam_role.execution` (api, giữ), `aws_iam_role.task` (api, giữ), `aws_iam_role.worker_task`, `aws_iam_role.worker_execution`, `aws_iam_role.migrate_execution`; attachment `aws_iam_role_policy_attachment.worker_sqs`; policy kéo image và ghi log `aws_iam_role_policy.execution` (giữ), `aws_iam_role_policy.worker_execution`, `aws_iam_role_policy.migrate_execution`; `aws_ecs_cluster.main`. Policy đọc secret (không target ở phương án lùi): `aws_iam_role_policy.read_db_master_secret`, `aws_iam_role_policy.read_redis_auth_secret` (api, giữ), `aws_iam_role_policy.worker_read_secrets`, `aws_iam_role_policy.migrate_read_db_master_secret`. Policy kéo image và ghi log không tham chiếu RDS hay Valkey.
+
+| Bước | File | Test viết trước | Kết quả đỏ (1 dòng, điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `session/tests/session.tftest.hcl` (override ARN 3 role mới, thêm `worker_sqs_policy_arn` vào mock base, run mới `dbs120_task_roles`, `dbs120_execution_roles`, `dbs120_task_definitions`, sửa assert role của `migrate_task_definition`); `session/iam.tf`, `session/ecs.tf`, `session/outputs.tf` | TC-120-01, 03, 05…10, 12 | … | `cd envs/dev/session && terraform test` | `chore(infra): DBS-120 separate task and execution roles for api, worker and migrate` |
+| 2 | `base/tests/deploy_role.tftest.hcl`, `base/deploy_role.tf` | TC-120-11 | … | `cd envs/dev/base && terraform test` | `chore(infra): DBS-120 let the deploy role pass the migrate execution role` |
+| 3 | `.github/scripts/tests/test_render_task_definition.py` | TC-120-14 | hành vi đã có ở `render-task-definition.py`, nên test khóa hành vi; đỏ chứng minh bằng đột biến tạm (script luôn ghi `taskRoleArn`, không commit) | `python3 -m unittest discover -s .github/scripts/tests -p 'test_*.py'` | `test(ci): DBS-120 render keeps a task definition without a task role` |
+| 4 | không đổi file | TC-120-02, TC-120-04 | — | `grep -nE 'aws_iam_role\.task\b' …`, `git grep -n 'dbs-dev-api-task' -- infra/terraform/envs`; `terraform test` base (TC-73-05) | — |
+| 5 | toàn bộ `infra/terraform` | baseline | — | `terraform fmt -check -recursive`; `init -backend=false && validate && test` ba stack | — |
+| 6 | §5 thủ công (phần thay đổi AWS cần người dùng cho phép) | TC-120-13 | — | M-120-01…11, output vào `screenshots/DBS-120/manual-test.txt` | `docs(features): DBS-120 manual test evidence` |
+| 7 | `infra/terraform/README.md` (bảng IAM, mục migration, thứ tự `apply base`), `docs/security/threat-model.md` (T23 đã kiểm, T9 giữ một phần), `docs/BACKLOG.md` (xóa BL-113; sửa BL-103; thêm BL bàn giao DBS-121 và BL allow-list), `docs/features/README.md`, docs/03 §12 nếu cần | — | — | `check-doc-links.mjs` | `docs: DBS-120 task roles in README, threat model and backlog` |
+
+**Rủi ro và cách lùi:**
+- Session bị destroy mỗi phiên, nên đổi role không có rủi ro state; lùi bằng revert các commit bước 1, 2.
+- `migrate.sh` cần PassRole cho `dbs-dev-migrate-execution`: phải `apply base` trước lần deploy kế tiếp (§3); nếu quên, migration lỗi trước `update-service` nên service giữ revision cũ.
+- Execution role worker chưa khởi động thật tới DBS-121 (giới hạn đã biết, BL ở Phase 5).
+- Phần AWS của test thủ công: chi phí và dọn dẹp ở §5 M-120-11; phương án lùi `-target` ở §1 câu 8.
+
+**Quyết định ở G3** (agent tự quyết, 2026-11-11): (1) giữ địa chỉ resource của role api (không `moved`) để giảm thay đổi; (2) tách policy kéo image và ghi log khỏi policy secret ở role mới, giống mẫu của role api; (3) bước 3 không có đỏ thật vì hành vi đã có: đỏ chứng minh bằng đột biến tạm, ghi ở §8. **Quét kế hoạch:** đã đối chiếu DoD 1–4, các mục "Thay đổi cấp hệ thống" và "Giới hạn đã biết", danh sách bàn giao §8: mỗi mục có bước ở bảng trên hoặc dòng ngoài phạm vi / BL; không mục nào bị bỏ sót.
 
 ## 8. Kết quả
 

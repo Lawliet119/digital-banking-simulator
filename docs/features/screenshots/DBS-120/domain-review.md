@@ -38,3 +38,20 @@ Round 2 of my review of DBS-120 (commit 1188fbb). 10 of my 12 round-1 findings a
 Verdict: REVISE
 
 Reviewer model: claude-opus-5-5
+
+## Vòng 3
+
+Round 3 of the DBS-120 design review (commit ed46a79): all six round-2 findings are fixed, and the changed text adds no new defect, so the verdict is APPROVE.
+
+| # | Round-2 # | Severity | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|---|
+| R3-1 | R2-1 | — (fixed) | §2 role table and matrix, TC-120-10, M-120-10 | `CreateLogStream` now covers the whole log group `/dbs/dev/api:*`, and `PutLogEvents` is limited to `log-stream:migrate/*`. The awslogs stream name is `<prefix>/<container>/<task-id>`, so both the real `migrate/migrate/<id>` and the probe's `migrate/probe/<id>` match. M-120-10 starts a real task with the migrate execution role, which catches any error in its trust or log permissions. Accepted residual: the migrate role can create a stream named `api/…` but cannot write events to it. | `session/ecs.tf:117-124`; design §5 M-120-10 | none |
+| R3-2 | R2-2 | — (fixed) | §2 Ca biên, M-120-10 | A probe revision with no `taskRoleArn` runs `sts get-caller-identity` and expects "Unable to locate credentials". Fargate gives a container no other source of credentials, so the expectation is sound. Probe and real migrate share the setup that matters here (no `taskRoleArn`, the migrate execution role) and differ only in image. The probe image is public, so it does not exercise the migrate role's ECR pull or its master-secret read. Simulation covers both (M-120-07), and TC-120-06 checks that the secret matches the task definition. | design §5 M-120-07, M-120-10; §4 TC-120-06 | none |
+| R3-3 | R2-3 | — (fixed) | §5 M-120-02 | Matches the final M-73-11 step by step: no `set -e`, the `trap` is set before `create-role`, cleanup runs with `--profile dbs-admin`, the `ListQueues` check proves the role works before the denied calls, `assume-role` retries up to 12 × 5 s, temporary credentials are passed per command (never exported), and errors are recorded word for word. | `docs/features/DBS-73-terraform-sqs.md:147` | none |
+| R3-4 | R2-4 | — (fixed) | §5 M-120-03 | The first command checks `get-role` → `NoSuchEntity` and the step stops before `apply` if the role still exists. The saved plan from M-120-01 is still valid because the temporary role lives outside Terraform state. | design §5 M-120-01, M-120-03 | none |
+| R3-5 | R2-5 | — (fixed) | §5 probe JSON, M-120-09 | `AWS_DEFAULT_REGION` added. The receive loop is `--wait-time-seconds 20 --max-number-of-messages 1`, up to 3 tries, and compares the body and `MessageId`. | `base/sqs.tf:20-28` | none |
+| R3-6 | R2-6 | — (fixed) | §1 Q8 fallback | `-target` is now listed per address: 5 roles, the worker attachment, 3 pull/log policies and `aws_ecs_cluster.main`. None of them reference `aws_db_instance` or `aws_elasticache_*`. The worker and migrate policy addresses are noted as final in §7. | `session/iam.tf` (existing pattern references only `local.base`) | Keep the §7 addresses identical to this list when the plan is written. |
+
+Verdict: APPROVE
+
+Reviewer model: claude-opus-5-5
