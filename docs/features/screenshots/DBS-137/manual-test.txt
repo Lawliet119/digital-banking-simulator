@@ -1,0 +1,44 @@
+SHA: 0112e08  (last commit that changes code; branch feat/DBS-137-openapi-clean, rebased on main 1a1d216)
+Run: 2026-11-10T17:28:14Z  API=APP_ROLE=api node dist/main  DB=PostgreSQL 17 (dbs137_manual)
+
+## M-137-01 Swagger UI is served and shows role, errorCode and Idempotency-Key
+  GET /docs -> HTTP 200
+  POST /v1/transfers summary: Customer: transfer between distinct customer accounts with atomic double entry
+  description tail: "Vai trò: customer. errorCode: 400 IDEMPOTENCY_KEY_REQUIRED; 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 422 ACCOUNT_NOT_ACTIVE | LIMIT_PER_TX_EXCEEDED | LIMIT_PER_DAY_EXCEEDED | INSUFFICIENT_FUNDS | IDEMPOTENCY_KEY_REUSED; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
+  x-roles: ["customer"]  security: [{"access-token":[]}]
+  parameters: [{"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}}]
+  x-error-codes: {"400":["IDEMPOTENCY_KEY_REQUIRED"],"401":["UNAUTHENTICATED","TOKEN_EXPIRED","SESSION_REVOKED"],"403":["FORBIDDEN"],"422":["ACCOUNT_NOT_ACTIVE","LIMIT_PER_TX_EXCEEDED","LIMIT_PER_DAY_EXCEEDED","INSUFFICIENT_FUNDS","IDEMPOTENCY_KEY_REUSED"],"429":["RATE_LIMITED"],"503":["SERVICE_TEMPORARILY_UNAVAILABLE"]}
+  response statuses: 201, 400, 401, 403, 404, 422, 429, 500, 503
+  request example (fromAccountId/amount): {"$ref":"#/components/schemas/TransferDto"}
+  operations in /docs-json: 19
+  securityScheme: {"access-token":{"scheme":"bearer","bearerFormat":"JWT","type":"http"}}
+
+## M-137-02 the committed artifact equals what the API serves, byte for byte after export
+OpenAPI artifact exported
+  diff exported.json vs docs/deliverables/openapi.json: IDENTICAL
+
+## M-137-03 use the example body of Swagger: POST /v1/customers/me
+  example body taken from Swagger: {"fullName":"Nguyễn Minh Anh"}
+  -> HTTP 200
+  -> {"id":"8f9e7cc1-c891-43e6-ac88-9ec8992a773f","fullName":"Nguy?n Minh Anh","createdAt":"2026-11-10T17:28:24.111Z"}
+  GET /v1/identity/me (now documented with a 200 body):
+  -> HTTP 200
+  -> {"sub":"nguyen-thi-lan","userId":"06180804-4d9d-483f-a454-4cde4d2f5437","groups":["customer"],"tokenUse":"access","claims":{"sub":"nguyen-thi-lan","iss":"https://dbs.local/auth","client_id":"dbs-local-client","token_use":"access","cognito:groups":["customer"],"jti":"c4e12dd8-0d20-4f22-9134-b523294d831c","iat":1794331700,"exp":1794332600}}
+
+## M-137-04 boundary: POST /v1/transfers without Idempotency-Key
+  -> HTTP 400
+  -> {"errorCode":"IDEMPOTENCY_KEY_REQUIRED","type":"about:blank","title":"Bad Request","status":400,"detail":"Idempotency-Key is required","correlationId":"938d4215-012e-4ad4-a1b4-4a468cf7b5c3"}
+  x-error-codes[400] of the operation: ["IDEMPOTENCY_KEY_REQUIRED"]
+
+## M-137-05 boundary: a customer calls GET /v1/audit/entries (auditor only)
+  -> HTTP 403
+  -> {"errorCode":"FORBIDDEN","type":"about:blank","title":"Forbidden","status":403,"detail":"The caller's role is not allowed to use this endpoint.","correlationId":"307b60c9-2dba-4ae5-bde0-83dc55d86399"}
+  x-error-codes[403] of the operation: ["FORBIDDEN"]
+  and the auditor is allowed:
+  -> HTTP 200
+  -> {"entries":[{"id":"2","occurredAt":"2026-11-10T17:28:25.718649Z","actorUserId":"08b5c3eb-5c95-4f6e-b271-7481032ac129","actorRole":"auditor","action":"audit.search","outcome":"SUCCESS","target":{"type":"audit_search","id":"155e9cbc-a08c-4079-8470-c1116f5030ec"},"correlationId":"155e9cbc-a08c-4079-8470-c1116f5030ec","metadata":{}},{"id":"1","occurredAt":"2026-11-10T17:28:24.116530Z","actorUserId":"06180804-4d9d-48
+
+## M-137-06 Swagger off in production
+  chưa chạy được ở local: NODE_ENV=production đòi DATABASE_SSL, rediss://, COGNITO_*, TRUST_PROXY_HOPS và từ chối AUTH_MODE=local, nên app không khởi động. Chứng cứ là mã nguồn:
+  src/main.ts:15:import { configureHttpApp, setupSwagger } from './app.setup';
+  src/main.ts:60:    if (!config.isProduction) setupSwagger(app);

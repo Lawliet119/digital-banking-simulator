@@ -34,6 +34,15 @@ export class HealthController {
   /** The process is up. Used as the liveness probe: a failure restarts the task. */
   @Get('live')
   @ApiOperation({ summary: 'Liveness probe' })
+  @ApiOkResponse({
+    description: 'The process is up',
+    schema: {
+      type: 'object',
+      required: ['status'],
+      properties: { status: { type: 'string', enum: ['ok'] } },
+      example: { status: 'ok' },
+    },
+  })
   live(): { status: 'ok' } {
     return { status: 'ok' };
   }
@@ -52,6 +61,13 @@ export class HealthController {
         info: { type: 'object', additionalProperties: true },
         error: { type: 'object', additionalProperties: true },
         details: { type: 'object', additionalProperties: true },
+      },
+      example: {
+        status: 'ok',
+        info: { database: { status: 'up' } },
+        error: {},
+        details: { database: { status: 'up' } },
+        redis: 'up',
       },
     },
   })

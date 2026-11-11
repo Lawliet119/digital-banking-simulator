@@ -80,7 +80,7 @@ Một Pull Request chỉ được merge khi:
 - [ ] CI xanh: đủ sáu check ở [mục 4b](#4b-đọc-kết-quả-ci-trên-github-actions)
 - [ ] Không có secret trong code, log hay commit
 - [ ] Nếu đổi thiết kế: cập nhật `docs/03` (hoặc `docs/BRD.md`, `_shared/database-design.md`, `_shared/event-contract.md`) và thêm ADR nếu là quyết định kiến trúc; xem [docs/README.md](docs/README.md)
-- [ ] Nếu đổi API: OpenAPI (Swagger) được cập nhật
+- [ ] Nếu đổi API: OpenAPI (Swagger) được cập nhật và artifact `docs/deliverables/openapi.json` được xuất lại (`OPENAPI_UPDATE=1 npm run test:db -- test/db/openapi-completeness.db-spec.ts`; test đó đỏ nếu quên). Endpoint mới cũng phải có dòng ở bảng `docs/03` §7 (test `openapi-completeness` so hai bên)
 - [ ] File `docs/features/DBS-<n>-<slug>.md` (hoặc `<KIND>-YYYYMMDD-<slug>.md`) đã đủ mục 1–9, test thủ công đã chạy (bước chưa chạy ghi rõ lý do), có ảnh chụp trong `docs/features/screenshots/DBS-<n>/`
 
 ## 4b. Đọc kết quả CI trên GitHub Actions

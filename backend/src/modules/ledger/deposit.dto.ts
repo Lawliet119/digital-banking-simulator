@@ -21,7 +21,7 @@ export class DepositDto {
 }
 
 export class DepositResultDto {
-  @ApiProperty({ format: 'uuid' })
+  @ApiProperty({ format: 'uuid', example: '3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44' })
   transferId!: string;
   @ApiProperty({ enum: ['COMPLETED'], example: 'COMPLETED' })
   status!: 'COMPLETED';

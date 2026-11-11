@@ -14,6 +14,8 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { ErrorCode } from '@common/errors/error-code.enum';
+import { ApiErrorCodes } from '@common/openapi/api-error-codes.decorator';
 import { CurrentUser, type CurrentUserInfo, Roles } from '@modules/identity';
 import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
 import { AccountOpeningService } from './account-opening.service';
@@ -76,6 +78,7 @@ export class AccountsController {
   }
 
   @Post()
+  @ApiErrorCodes({ 409: [ErrorCode.ACCOUNT_LIMIT_REACHED] })
   @ApiOperation({ summary: 'Customer: open a CHECKING or SAVINGS account (maximum three)' })
   @ApiCreatedResponse({ type: OpenedAccountDto })
   @ApiBadRequestResponse({ description: 'Invalid account type or extra body fields' })

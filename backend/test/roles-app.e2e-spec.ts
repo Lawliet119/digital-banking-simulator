@@ -10,6 +10,7 @@ import {
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import request from 'supertest';
+import { NO_ROLE_ALLOWLIST } from './support/no-role-allowlist';
 
 /**
  * Boots the REAL `AppModule` (role `api`, real PostgreSQL from docker compose), like
@@ -18,11 +19,6 @@ import request from 'supertest';
  * has declared its roles. `process.env` is set before the dynamic import because
  * `modules/index.ts` reads APP_ROLE the moment `app.module.ts` is evaluated.
  */
-
-/** Routes of the real app that deliberately have neither @Public() nor @Roles(), with the reason. */
-const NO_ROLE_ALLOWLIST: Record<string, string> = {
-  'GET /v1/identity/me': 'DBS-50 smoke endpoint: any valid token, whatever its role',
-};
 
 type AnyFn = (...args: never[]) => unknown;
 
