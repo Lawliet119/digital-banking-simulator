@@ -1,4 +1,9 @@
-d5bf3a8047900b98eb9e67ca08a735c05c74fc95
-$ DATABASE_URL=postgres://... npx ts-node -r tsconfig-paths/register test/manual/provider-parity.manual.ts
+8f45d8ec9e77d2db8643edab8db9f3ba98c31edc  (last commit that changes code; branch fix/pr142, rebased on main c1266a1)
+Run: 2026-11-11T10:38:21Z
+$ DATABASE_URL=postgres://postgres:***@localhost:55442/postgres npx ts-node -r tsconfig-paths/register test/manual/provider-parity.manual.ts
 M-162 PASS: Verified 30/30 transfers with 100% parity
 M-162 PASS: OnlineFeatureProvider and OfflineFeatureProvider agree on Features, Rule Scoring and FeatureInput
+
+$ npx jest --config ./test/jest-db.js --testRegex test/services/feature-provider-parity.services-spec.ts --runInBand
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
