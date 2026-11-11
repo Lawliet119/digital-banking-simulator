@@ -168,7 +168,7 @@ describe('DBS-80 cross transfers, deadlock retry and database timeouts on the re
     }
   });
 
-  it('TC-98-01..02: AC-5.6 daily limit boundary under parallel race (10 consecutive rounds)', async () => {
+  it('TC-98-01..02: AC-5.6 daily limit boundary, the TC-54-04 scenario repeated 10 times with the DBS-69 invariants after each round', async () => {
     for (let round = 1; round <= 10; round++) {
       const a = await target(app, '300000000'),
         b = await target(app);

@@ -1,6 +1,8 @@
 # DBS-98 · Test đồng thời: hạn mức ngày và số dư (AC-5.6, 5.2) trên Postgres thật
 
-> **Status:** Implemented · **Vai:** Dev · **Nhánh:** `test/DBS-98-daily-limit-concurrency` · **PR:** — · **Cập nhật:** 2026-11-10
+> **Status:** Kiểm chứng cục bộ; chờ CI và Dev review · **Vai:** Dev · **Nhánh:** `test/DBS-98-daily-limit-concurrency` · **PR:** [#132](https://github.com/Lawliet119/digital-banking-simulator/pull/132) · **Cập nhật:** 2026-11-11
+
+> **Ghi chú về lịch sử (2026-11-11):** gate G1 đến G3 và domain review độc lập không được ghi lúc làm; không dựng lại dấu vết đó. Một review độc lập (subagent, 2026-11-11) tìm thấy: TC-98-01 trùng test có sẵn trên `main`, bằng chứng thủ công gắn sai SHA, hai thay đổi ngoài phạm vi (timeout `jest-db.js` và test DBS-116). Đã sửa: hai thay đổi ngoài phạm vi bị bỏ, TC-98-01 được nêu đúng là bản lặp 10 lần, bằng chứng chạy lại trên commit cuối.
 
 ## 1. Bối cảnh
 
@@ -17,6 +19,7 @@
 - **Đã có gì:**
   - `backend/test/db/transfer-concurrency.db-spec.ts` có khung test HTTP e2e trên Testcontainers Postgres 17 thật, đã có TC cho DBS-80 và DBS-99.
   - Bộ kiểm tra bất biến sổ cái `checkLedgerInvariants(db.runner)`.
+  - **Trên `main` đã có** TC-54-04 (`customer-transfers.db-spec.ts`: 180tr, 2 lệnh 15tr song song, 1×201 và 1×422, 195tr) và TC-84-06 (5×10tr, tổng 200tr), và DBS-84 đã nhận AC-5.6. **Phần mới thật sự của task này** là (a) kịch bản AC-5.2 rút cạn số dư song song (20 lệnh 10.000đ vào số dư 50.000đ), chỉ có TC-65-04 tuần tự trước đó; (b) lặp 10 lần liên tiếp và chạy bất biến DBS-69 sau mỗi vòng, như DoD 3 yêu cầu. TC-98-01 vì vậy **không** thêm phủ AC-5.6 mới: nó lặp lại kịch bản TC-54-04 mười lần kèm bất biến.
 - **Ngoài phạm vi:** Không thay đổi thuật toán khóa tài khoản, không đổi schema cơ sở dữ liệu hay rule giới hạn hạn mức đã chốt trong SyncGuard.
 - **Quyết định ở G1:**
   1. Tích hợp trực tiếp test case của DBS-98 vào `transfer-concurrency.db-spec.ts` để tái sử dụng temp database và runner Postgres 17 đã có.
@@ -86,9 +89,7 @@ sequenceDiagram
 
 ## 6. Domain review (AI)
 
-**Reviewer:** Adversarial Self-Review (Gemini 3.8 Flash) · [trả lời nguyên văn](screenshots/DBS-98/domain-review.md)
-- **Kết quả:** Đạt (PASS WITH RECOMMENDATIONS).
-- Các rủi ro về race condition, non-negativity và flakiness đều đã được kiểm chứng qua 10 vòng chạy độc lập trên Postgres thật.
+**Reviewer:** review độc lập bằng subagent (opus, 2026-11-11); self-review cũ của tác giả bị loại. Nguyên văn không lưu; kết quả: tính đúng của logic tiền và test rút cạn số dư được xác nhận; phát hiện blocking về trùng AC-5.6 và SHA sai, should-fix về thay đổi ngoài phạm vi, §9 thiếu, body PR; tất cả đã xử lý ở §8. Chưa có lượt review thứ hai.
 
 ## 7. Kế hoạch triển khai
 
@@ -99,13 +100,15 @@ sequenceDiagram
 ## 8. Kết quả bàn giao & G4 Checklist
 
 - **Đối chiếu test case:**
-  - `TC-98-01`: Đạt (đúng 1 COMPLETED, 1 REJECTED khi gửi song song 15tr).
+  - `TC-98-01`: Đạt, **nhưng là bản lặp của TC-54-04** (đúng 1 COMPLETED, 1 REJECTED khi gửi song song 15tr), không phải phủ AC-5.6 mới.
   - `TC-98-02`: Đạt (10 vòng liên tiếp không flaky, invariant PASS).
   - `TC-98-03`: Đạt (đúng 5 COMPLETED, 15 REJECTED, số dư = 0, không âm).
   - `TC-98-04`: Đạt (10 vòng liên tiếp không flaky, invariant PASS).
-- **Manual test output:** `docs/features/screenshots/DBS-98/manual-test.txt`.
+- **Manual test output:** `docs/features/screenshots/DBS-98/manual-test.txt` (chạy lại 2026-11-11 trên commit cuối, SHA ở dòng đầu). **Chưa chạy:** M-98-02 là cùng kiểm tra bất biến đã nằm trong từng vòng của test (không có lệnh riêng); không có ảnh chụp (đầu ra chỉ là log test).
+- **Bỏ khỏi PR (ngoài phạm vi, không thuộc DBS-98):** tăng `testTimeout` toàn cục của `jest-db.js` và sửa `reconciliation-migration-revert.db-spec.ts` (DBS-116). Lý do bỏ: suite DBS-98 chạy chỉ vài giây; timeout của test DBS-116 đã được xử lý riêng ở `main` (#138).
+- **Bàn giao:** DoD 4 (merge, CI, Dev review) chờ PR, theo BL-160.
 - **G4 Checklist:**
   - [x] Test tự động chạy trên Postgres thật (Testcontainers Postgres 17) đạt 100%.
   - [x] Không mock logic sổ cái, phân quyền hay row lock.
-  - [x] Feature doc đầy đủ 5 phase và 4 gate tự duyệt.
+  - [ ] Feature doc đủ 5 phase và 4 gate: **không** (G1 đến G3 không được ghi, xem ghi chú đầu tài liệu).
   - [x] Bảng đối chiếu DoD/AC đầy đủ.
