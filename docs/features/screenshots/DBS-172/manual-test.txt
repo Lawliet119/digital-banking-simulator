@@ -1,16 +1,5 @@
-98cdb309c51d0384ffbf21b2714eca586c30a087
-
-# Manual Test Execution Output - DBS-172 Connection Pool Capacity
-# Date: 2026-11-10
-
-$ npm test -- connection-pool.spec.ts
-
-
-> digital-banking-simulator-backend@0.1.0 test
-> jest --config ./test/jest-unit.js connection-pool.spec.ts
-
+e0bd80a7f520e547bd76892c09f930c810c82681  (commit that changes code and docs; branch fix/pr140, rebased on main 0c46bbd)
+Run: 2026-11-11T10:13:16Z
+$ cd backend && npm test -- connection-pool
 Test Suites: 1 passed, 1 total
 Tests:       4 passed, 4 total
-Snapshots:   0 total
-Time:        2.179 s, estimated 3 s
-Ran all test suites matching connection-pool.spec.ts.
