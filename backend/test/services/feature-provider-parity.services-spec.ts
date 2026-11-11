@@ -278,4 +278,81 @@ describe('DBS-162 FeatureProvider parity (Online PostgreSQL vs Offline in-memory
       expect(onAi).toEqual(offAi);
     }
   }, 60_000);
+  it('TC-162-07 DoD 1: a few thousand seeded transfers, boundaries and same-millisecond facts: every sampled event has the same features, score and FeatureInput online and offline', async () => {
+    // Deterministic PRNG (mulberry32): the same data on every run.
+    let seed = 0x5eed162;
+    const next = (): number => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const pick = (n: number): number => Math.floor(next() * n);
+    const accounts = await fixture.accounts(12);
+    const specs: TxSpec[] = [];
+
+    // 2,400 transfers over 29 days among 12 accounts, amounts 20.000 to 2.000.000, 15 percent sameOwner.
+    for (let i = 0; i < 2400; i++) {
+      const from = pick(12);
+      let to = pick(12);
+      if (to === from) to = (to + 1) % 12;
+      specs.push({
+        from: accounts[from],
+        to: accounts[to],
+        amount: String((20 + pick(1980)) * 1000),
+        offsetMs: -29 * DAY + Math.floor((i / 2400) * 29 * DAY) + pick(1000),
+        sameOwner: next() < 0.15,
+      });
+    }
+    // Window boundaries around a target of account 0 -> account 1 at offset 0: exactly 10 min, 10 min
+    // minus 1 ms, 60 min, 24 h and 30 d earlier, and two transfers in the very same millisecond.
+    const edges = [
+      -10 * MIN,
+      -10 * MIN + 1,
+      -10 * MIN - 1,
+      -HOUR,
+      -HOUR + 1,
+      -DAY,
+      -DAY + 1,
+      -30 * DAY,
+      -30 * DAY + 1,
+      -1,
+      -1,
+    ];
+    for (const offsetMs of edges) {
+      specs.push({ from: accounts[0], to: accounts[2 + pick(9)], amount: '70000', offsetMs });
+    }
+    specs.push({ from: accounts[1], to: accounts[0], amount: '55000', offsetMs: -20 * MIN }); // reverse
+    specs.push({ from: accounts[0], to: accounts[1], amount: '90000', offsetMs: 0 }); // the target
+    specs.push({ from: accounts[0], to: accounts[1], amount: '90000', offsetMs: 0 }); // same millisecond
+
+    const { events, facts } = await buildScenario(specs);
+    expect(events.length).toBeGreaterThanOrEqual(2400);
+    const offline = new OfflineFeatureProvider(facts, PER_TX_LIMIT);
+
+    const targets = new Set<number>();
+    for (let i = 0; i < events.length; i += 8) targets.add(i); // every 8th
+    for (let i = events.length - 120; i < events.length; i++) targets.add(i); // all around the boundaries
+    let withHits = 0;
+    let withMedian = 0;
+    for (const index of targets) {
+      const event = events[index];
+      const onFeat = await online.extract(event);
+      const offFeat = await offline.extract(event);
+      expect([index, onFeat]).toEqual([index, offFeat]);
+      const onScore = scoring.score(event, onFeat, ruleConfig);
+      const offScore = scoring.score(event, offFeat, ruleConfig);
+      expect([index, onScore]).toEqual([index, offScore]);
+      expect([index, toAiFeatureInput(event, onFeat)]).toEqual([
+        index,
+        await offline.extractAiInput(event),
+      ]);
+      if (onScore !== null && onScore.hits.length > 0) withHits++;
+      if (offFeat.medianAmount30dTimes2 !== null) withMedian++;
+    }
+    // The comparison is not vacuous: rules fire and the median is exercised on both sides.
+    expect(targets.size).toBeGreaterThan(400);
+    expect(withHits).toBeGreaterThan(0);
+    expect(withMedian).toBeGreaterThan(0);
+  }, 240_000);
 });
