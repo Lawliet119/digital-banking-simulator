@@ -14,7 +14,7 @@ DoD nguyên văn:
 
 AC-11.1 nguyên văn từ BRD: «Khách A đang đăng nhập, tài khoản `ACTIVE` | Nhân viên khóa tài khoản A | Yêu cầu kế tiếp của A bị từ chối (không chờ phiên hết hạn)».
 
-Phụ thuộc DBS-114 và DBS-75 đều Done trên sheet. Main `478ab4c` có SessionRevocationCache, guard SQL fallback, publish sau commit và Terraform Valkey TLS. ADR-12 là tài liệu kiến trúc, không phải ticket phụ thuộc bị thiếu. [DBS-114](DBS-114-session-revocation.md) đã kiểm flush và dừng Redis trước lock; task này bổ sung đúng thứ tự lock → fault → next request và kiểm cùng giây/giây sau khi cache mất hoặc dừng.
+Phụ thuộc DBS-114 và DBS-75 đều Done trên sheet. Main `478ab4c` có SessionRevocationCache, guard SQL fallback, publish sau commit và Terraform Valkey TLS. ADR-12 là tài liệu kiến trúc, không phải ticket phụ thuộc bị thiếu. [DBS-114](DBS-114-session-revocation.md) đã có TC-114-04 (lock → flush → request kế tiếp → 401 và nạp lại cache) và TC-114-06 (dừng Redis **trước** lock); chế độ flush của TC-186-01 mở rộng TC-114-04 (đếm SQL, timestamp, user B, audit/outbox), còn phần mới thật sự là đúng thứ tự lock → dừng Redis → request kế tiếp và kiểm cùng giây/giây sau khi cache mất hoặc dừng.
 
 Đã đọc BRD AC-11.1/NFR-SEC-02; docs/03 §6.2,9,11; ADR-06/12; CONTRIBUTING §5/5b; database-design users và event-contract AccountStatusChanged; README identity; các feature114/115 và source/fixture tương ứng. Baseline main478ab4c: Compose 3 services started; lint/typecheck đạt, unit: 98 suites, 1.770/1.770 (157.268s), e2e17 suites163/163 (154.151s); DB revocation-cache+boundary2 suites14/14 (37.023s), 0 skip.
 
@@ -60,7 +60,6 @@ Chạy `node scripts/manual-dbs186.cjs` từ backend qua Git Bash, output tee UT
 | M-186-04 | Với hit, flush và down, giữ A LOCKED và B cùng chủ ACTIVE; lấy SQL giây, token bằng/giây sau gọi GET accountB; kiểm SQL | bằng401, giây sau200/idB/ACTIVE, A LOCKED, marker không đổi, PASS; kiểm unlock không hồi sinh phiên cũ riêng sau boundary |
 | M-186-05 | Đóng mọi resource fixture trong finally | không để container/pool/proxy riêng còn chạy |
 | M-186-06 | Cloud: ghi account/region/image SHA đã che ID, token Cognito A/B/operator; lock→flush/down trên môi trường drill riêng, query RDS/checker và khôi phục | cùng401, SQL không mất, recovery có thời gian; chưa chạy vì chưa có endpoint/credentials/môi trường cloud |
-
 | M-186-07 | Chạy suite từ clean clone local của commit cuối code, dùng node_modules đã cài qua junction; chạy lại childprocess Docker context trỏ endpoint đóng, DATABASE_URL rỗng | clone suite PASS; Docker-unreachable exit khác0, lỗi rõ, 0 skip; không dừng daemon chung |
 
 ## 6. Domain review (AI)
