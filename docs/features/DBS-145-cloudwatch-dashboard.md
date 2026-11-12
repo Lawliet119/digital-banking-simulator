@@ -1,6 +1,6 @@
 # DBS-145 · Dashboard CloudWatch bản đầu (Terraform)
 
-> **Status:** Design approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác (theo team.md) · **Nhánh:** `infra/DBS-145-cloudwatch-dashboard` (cắt từ `origin/main` `17b011e`; không phụ thuộc PR chưa merge) · **PR:** — · **Cập nhật:** 2026-11-12
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác (theo team.md) · **Nhánh:** `infra/DBS-145-cloudwatch-dashboard` (cắt từ `origin/main` `17b011e`; không phụ thuộc PR chưa merge) · **PR:** — · **Cập nhật:** 2026-11-12
 
 ## 1. Bối cảnh
 
@@ -127,3 +127,76 @@ flowchart LR
 | V6 #1–3 | minor | Chỉ định stream cho filter, kiểm tên dashboard lặp lại, PII chỉ xét chuỗi metric | đã sửa §4, §5 |
 
 **Quyết định ở G2 (agent tự duyệt, người dùng vắng):** chấp nhận thiết kế sau 6 vòng; không có câu hỏi blocking còn lại.
+
+## 7. Kế hoạch triển khai
+
+Kế hoạch `terraform plan` dự kiến: **1 to add, 0 to change, 0 to destroy** (`aws_cloudwatch_dashboard.overview`); không đổi tài nguyên nào khác của session.
+
+| Bước | File | Test viết trước | Kết quả đỏ | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `session/tests/session.tftest.hcl` (thêm `sqs_dlq_names` vào override), `session/tests/dashboard.tftest.hcl` | TC-145-01..07, 04b, 04c | `0 passed, 1 failed, 10 skipped` (chưa có `aws_cloudwatch_dashboard.overview` và `var.metrics_namespace`) | `terraform test -filter=tests/dashboard.tftest.hcl` | cùng commit bước 2 |
+| 2 | `session/variables.tf`, `session/dashboard.tf`, `session/outputs.tf` | như trên | `11 passed`; đột biến (đổi 150 → 151, `POST` → `PUT`, `QueueName` → `Queue`) làm đỏ hai run đúng chỗ | `terraform test -parallelism=1` (35 đạt) | `feat(infra): CloudWatch dashboard ... (DBS-145)` |
+| 3 | `docs/` (observability, docs/03 §14, README Terraform, BACKLOG, features README) | TC-145-14 (liên kết) | — | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(observability): ...` |
+| 4 | manual M-145-01..09 | — | — | script ở §8 | `docs(...)` kèm ảnh và `manual-test.txt` |
+
+Rủi ro và cách lùi: dashboard là tài nguyên độc lập, lùi bằng `destroy -target` hoặc revert commit; không chạm state dùng chung (state key riêng trong lúc thử). **Quyết định ở G3 (agent tự duyệt, người dùng vắng):** kế hoạch khớp §2–§5; sweep: mọi dòng DoD và mọi mục «chưa có» ở §1 đều có dòng kế hoạch hoặc BL (§8).
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra (2026-11-12, `envs/dev/session`):** `terraform fmt -list=true` (không file lệch), `terraform validate` hợp lệ, `GOMAXPROCS=2 GOMEMLIMIT=1500MiB terraform test -parallelism=1`: `Success! 35 passed, 0 failed` (24 cũ + 11 mới; không `skip`). Backend không đổi nên không chạy lại jest.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-145-01 | `dashboard.tftest.hcl` › `dashboard_shape` | đạt |
+| TC-145-02 | › `dashboard_has_every_metric` | đạt |
+| TC-145-03 | › `dashboard_labels_are_safe` | đạt |
+| TC-145-04 | › `dashboard_slo_lines` | đạt |
+| TC-145-04b | › `dashboard_route_search_excludes_health` | đạt |
+| TC-145-04c | › `dashboard_namespace_variable`, `rejects_namespace_with_bad_characters`, `rejects_namespace_without_dbs_prefix` | đạt |
+| TC-145-05 | › `dashboard_queue_names` | đạt |
+| TC-145-06 | › `dashboard_error_rate_expression` | đạt |
+| TC-145-07 | › `dashboard_outputs` | đạt |
+| TC-145-08 | M-145-03: `Plan: 1 to add, 0 to change, 0 to destroy` với `-target` | đạt |
+| TC-145-09 | M-145-06b: 12 ảnh + ảnh ghép trong `screenshots/DBS-145/` | đơn giản hóa (số mô phỏng, ảnh render bằng API chứ không phải màn hình console; BL-262, BL-263) |
+| TC-145-10 | PR, CI, Dev review | chưa làm (chưa có PR; CI không có job Terraform, BL-028, BL-262) |
+| TC-145-11 | `session.tftest.hcl` (24 run) | đạt |
+
+- **Test thủ công** (AWS thật, profile `dbs-admin`, ap-southeast-1, SHA `89e244e`; lệnh và output thô ở [manual-test.txt](screenshots/DBS-145/manual-test.txt), đã thay id tài khoản và IP):
+
+| Bước | Kết quả | |
+|---|---|---|
+| M-145-01 | Không có `dbs-dev-overview`; **hiện trạng khi bắt đầu**: ALB, RDS, ElastiCache, ECS `dbs-dev` và 2 EIP là phiên của agent DBS-139 (giữ khóa `dev/session.tfstate.tflock`); không cạnh tranh, không đụng | đạt |
+| M-145-02 | `plan` với `account_id=000000000000` → `AWS account ID not allowed`; `metrics_namespace="DBS Backend!"` → `Invalid value for variable ... must start with DBS/` | đạt (cả hai bị từ chối) |
+| M-145-03 | `Plan: 1 to add, 0 to change, 0 to destroy` | đạt |
+| M-145-04 | `apply -target=aws_cloudwatch_dashboard.overview`: `1 added`; `get-dashboard`: 13 widget (12 metric), `start=-PT3H`, `periodOverride=inherit`; `put-dashboard` tên tạm: `DashboardValidationMessages: []`; JSON cụt và widget thiếu `region/metrics` bị `InvalidParameterInput` (3 lỗi liệt kê); tên tạm đã xóa; `plan` lần hai `No changes` | đạt |
+| M-145-05 | 459 dòng EMF mô phỏng 30 phút (15:42–16:12Z) do `HttpStats → toEmfSpecs → buildEmf` thật sinh, namespace ghi đè `DBS/Backend-dbs145`, 4 lô, `rejectedLogEventsInfo` rỗng; `list-metrics` thấy 44 metric trong namespace thử | đạt |
+| M-145-06 | `get-metric-data` đối chiếu: `http_requests_total` tổng **6129 = 6129** mong đợi, `http_5xx_total` **9 = 9**, 5xx toàn khung 0,1468 % (cửa sổ 5 phút lớn nhất 0,585 %, dưới đường 1 %); `redis_fallback_total` 25 = 25; `rate_limited_total` ip 9 = 9; tuổi outbox cực đại 12 s; p95 `POST /v1/transfers` 296–302 ms so với mong đợi bucket 300 (ước lượng, như đã cảnh báo), p99 300–1876 ms; p95 `GET /v1/accounts/:id` ≈ 146 ms (bucket 150); 12 PNG render, `SEARCH` p95 theo Route **ra chuỗi thời gian thật, không có `/health/*`**; DLQ 0 (số thật của SQS); widget risk trống như thiết kế | đạt |
+| M-145-07 | `Route` trong namespace thử: `/health/live`, `/health/ready`, `/v1/accounts`, `/v1/accounts/:id`, `/v1/accounts/:id/transactions`, `/v1/operator/deposits`, `/v1/transfers` (toàn mẫu, không id); `filter-log-events` JSON trên stream tạm: dòng mang `DBS/Backend` thật = **0**, mang `DBS/Backend-dbs145` = **459** | đạt |
+| M-145-08 | `destroy -target` → `list-dashboards` rỗng → `apply -target` lại → băm body **787d63fceee82f30 = 787d63fceee82f30** | đạt |
+| M-145-09 | Xóa stream tạm; `destroy` đầy đủ `1 destroyed`; `terraform state list` rỗng; `list-dashboards` rỗng; ALB/NAT/EIP/WAF rỗng, `.terraform` của worktree không đổi. RDS và ElastiCache `dbs-dev` còn lại **không phải của DBS-145** (phiên DBS-139 đang tự dọn: ECS, ALB, EIP đã biến mất giữa M-01 và M-09). Còn lại do task này: object `dev/session-dbs145.tfstate` (rỗng) trong bucket state và metric trong `DBS/Backend-dbs145` (hết hạn sau 15 ngày, không xóa được) | đạt |
+
+- **Số mô phỏng, không phải số thật:** mọi dữ liệu ở M-145-05..07 và các ảnh là mô phỏng (không docker, không app chạy trên ECS); script không commit (ở scratchpad của phiên); guard chặn namespace thật không kích hoạt lần này, bằng chứng không rò là `filter-log-events` = 0. Số metric thật của dashboard (ngưỡng 50 để miễn phí) chưa đếm.
+- **Chi phí:** dashboard tồn tại ≈ 5 phút (≈ 0,0003 USD), 44 metric tùy chỉnh trong 1 giờ và 12 lần `GetMetricWidgetImage` ≈ vài cent; không tạo tài nguyên tính tiền theo giờ nào khác. Hóa đơn thật chưa xem (billing trễ ≥ 1 ngày); ước tính tổng dưới 0,10 USD.
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` trước commit tài liệu cuối: 7 file (feature doc, domain-review, `dashboard.tf`, `outputs.tf`, `variables.tf`, hai file tftest) khớp §7; các file docs cập nhật ở §9.
+- **Ảnh chụp:** [ghép 12 widget](screenshots/DBS-145/00-dashboard-overview.png); từng widget `01`..`12` cùng thư mục (render bằng `GetMetricWidgetImage`, không phải màn hình console; số mô phỏng).
+
+![Dashboard dbs-dev-overview, 12 widget metric, số mô phỏng](screenshots/DBS-145/00-dashboard-overview.png)
+
+- **Lệch so với kế hoạch:** không có lệch ngoài các quyết định đã ghi ở §1 (biến `metrics_namespace`, state key riêng, `periodOverride`); biến mới `metrics_namespace` là biến Terraform, không phải env của ứng dụng.
+- **Bàn giao cho vai khác:** BL-261 (widget ALB/ECS/RDS/Valkey, 5xx ở ALB, đối soát; #5), BL-262 (DoD 3, ảnh console; Dev reviewer và #5), BL-263 (ảnh từ số thật, DBS-121/166; #5); BL-028 thêm DBS-145 làm nguồn (tftest vào job CI); BL-152 sửa (dashboard đã có, còn số thật). `risk_redis_fallback_total` và metric chấm điểm: BL-204 (có sẵn, #4).
+
+## 9. Tài liệu đã cập nhật
+
+`docs/components/observability/01-concept-brief.md` (mục Dashboard, tách dòng `risk_config_redis_fallback_total` `[Role]` khỏi `risk_redis_fallback_total`, trạng thái), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §14 (dòng Dashboard), `infra/terraform/README.md` (mục Dashboard), `docs/features/README.md` (hàng DBS-145), `docs/BACKLOG.md`: thêm BL-261, BL-262, BL-263; sửa BL-152 và BL-028; không xóa dòng nào.
+
+## Checklist G4 (agent tự kiểm, người dùng vắng)
+
+- [x] 11/12 case có test hoặc bước thủ công đạt đủ độ sâu (TC-145-01..08, 11 và 04b/04c), 1 đơn giản hóa (TC-145-09: số mô phỏng, ảnh API), 1 chưa làm (TC-145-10, quy trình)
+- [x] Test thủ công chạy trên commit `89e244e` (dòng đầu `manual-test.txt`, commit cuối đổi code); success path đã chạy; không có bước nào «chưa chạy»; `manual-test.txt` đã thay id tài khoản và IP, không có token hay header `Authorization`
+- [x] Ảnh có đủ (12 + 1 ảnh ghép); nêu rõ là số mô phỏng và không phải màn hình console
+- [x] `git diff --stat origin/main...HEAD` khớp §7
+- [x] Baseline hạ tầng chạy lúc bàn giao: fmt, validate, `terraform test` 35 đạt
+- [x] Doc liên quan đã sửa; `check-doc-links.mjs` (chạy ở bước sau); trạng thái doc Implemented
+- [x] DoD chưa đạt (DoD 3 và phần ảnh thật) có BL-262, BL-263
+
