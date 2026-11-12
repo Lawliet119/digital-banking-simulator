@@ -41,6 +41,18 @@ if svc == "secretsmanager" and op == "get-secret-value":
         users.pop("operator")
     sys.stdout.write(json.dumps({"users": users, "pending_signout": []}) + "\n")
 elif svc == "cognito-idp" and op == "initiate-auth":
+    # Hành vi thật của AWS CLI v2 (đo ở M-139-03): --cli-input-json file:///dev/stdin báo "Invalid JSON received";
+    # chỉ --auth-parameters file:///dev/stdin (JSON {"USERNAME","PASSWORD"}) cùng --auth-flow và --client-id chạy được.
+    if "--cli-input-json" in argv:
+        err("ParamValidation", "InitiateAuth")
+    need = {"--auth-flow": "USER_PASSWORD_AUTH", "--client-id": os.environ["COGNITO_CLIENT_ID"],
+            "--auth-parameters": "file:///dev/stdin"}
+    for k, v in need.items():
+        if k not in argv or argv[argv.index(k) + 1] != v:
+            err("ParamValidation", "InitiateAuth")
+    ap = json.loads(stdin)
+    if set(ap) != {"USERNAME", "PASSWORD"}:
+        err("ParamValidation", "InitiateAuth")
     mode = os.environ.get("FAKE_AUTH", "ok")
     if mode == "denied":
         err("NotAuthorizedException", "InitiateAuth")
@@ -79,7 +91,7 @@ class Env:
         )
         env.update({k.upper(): v for k, v in self.fake.items()})
         env.update(extra_env or {})
-        return subprocess.run(["bash", str(SCRIPT), *args], env=env, capture_output=True, text=True)
+        return subprocess.run(["bash", str(SCRIPT), *args], env=env, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=60)
 
     def calls(self):
         p = self.state / "calls.jsonl"
@@ -127,7 +139,8 @@ class DemoToken(unittest.TestCase):
         # mật khẩu chỉ đi qua stdin của initiate-auth
         auth = [c for c in calls if c["argv"][:2] == ["cognito-idp", "initiate-auth"]][0]
         self.assertIn(PASSWORD, auth["stdin"])
-        self.assertIn("file:///dev/stdin", auth["argv"])
+        self.assertEqual(auth["argv"][auth["argv"].index("--auth-parameters") + 1], "file:///dev/stdin")
+        self.assertNotIn("--cli-input-json", auth["argv"])
         self.assertNotIn(PASSWORD, r.stdout + r.stderr)
         self.assertEqual(list(e.scratch.iterdir()), [], "script để lại tệp tạm")
 

@@ -36,23 +36,21 @@ if ! SECRET_DOC="$(aws secretsmanager get-secret-value --secret-id "$SECRET_NAME
   exit 1
 fi
 
-# JSON yêu cầu initiate-auth dựng từ secret, đi thẳng vào stdin của aws (không biến, không tệp)
+# JSON {USERNAME, PASSWORD} dựng từ secret, đi vào stdin của aws qua --auth-parameters file:///dev/stdin
+# (đo thật ở M-139-03: --cli-input-json file:///dev/stdin báo "Invalid JSON received"). Không tệp tạm.
 if ! REQUEST="$(printf '%s' "$SECRET_DOC" | python3 -c '
 import json, sys
 role, client = sys.argv[1], sys.argv[2]
 user = json.load(sys.stdin)["users"][role]
-sys.stdout.write(json.dumps({
-    "AuthFlow": "USER_PASSWORD_AUTH",
-    "ClientId": client,
-    "AuthParameters": {"USERNAME": user["email"], "PASSWORD": user["password"]},
-}))
+sys.stdout.write(json.dumps({"USERNAME": user["email"], "PASSWORD": user["password"]}))
 ' "$ROLE" "$CLIENT_ID" 2>/dev/null)"; then
   echo "Secret $SECRET_NAME chưa có tài khoản $ROLE. Chạy: bash infra/scripts/seed-cognito.sh" >&2
   exit 1
 fi
 unset SECRET_DOC
 
-if ! TOKEN="$(printf '%s' "$REQUEST" | aws cognito-idp initiate-auth --cli-input-json file:///dev/stdin \
+if ! TOKEN="$(printf '%s' "$REQUEST" | aws cognito-idp initiate-auth \
+  --auth-flow USER_PASSWORD_AUTH --client-id "$CLIENT_ID" --auth-parameters file:///dev/stdin \
   --region "$REGION" --query AuthenticationResult.AccessToken --output text 2>/dev/null)"; then
   unset REQUEST
   echo "Cognito từ chối đăng nhập của $ROLE (sai mật khẩu hoặc tài khoản chưa seed): chạy lại seed-cognito.sh." >&2
