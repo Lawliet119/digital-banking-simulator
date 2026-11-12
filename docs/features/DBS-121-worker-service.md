@@ -1,6 +1,6 @@
 # DBS-121 · Dựng service worker (APP_ROLE=worker) trên ECS
 
-> **Status:** Implemented một phần (G4 tự duyệt 2026-11-12; DoD 2 và nhóm B của test thủ công chưa đạt, BL-244) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-121-worker-service` (từ `origin/chore/DBS-120-ecs-task-roles` 18b8163) · **PR:** — · **Cập nhật:** 2026-11-12
+> **Status:** Implemented một phần (G4 tự duyệt 2026-11-12; DoD 2 và nhóm B của test thủ công chưa đạt, BL-247) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-121-worker-service` (từ `origin/chore/DBS-120-ecs-task-roles` 18b8163) · **PR:** — · **Cập nhật:** 2026-11-12
 >
 > **Phụ thuộc PR #146 (DBS-120):** nhánh này xây trên `chore/DBS-120-ecs-task-roles` vì cần hai role worker (`worker_task`, `worker_execution`), policy `dbs-dev-worker-sqs` và danh sách bàn giao BL-242. PR của DBS-121 chỉ nên mở/merge sau khi PR #146 vào `main` (hoặc dùng PR #146 làm nhánh nền), nếu không diff sẽ lẫn commit của DBS-120.
 
@@ -230,7 +230,7 @@ Rủi ro và cách lùi: `terraform apply` chỉ chạy `-target` nhóm miễn p
 | TC-121-10 | `worker_security_group` (gồm `description` không đổi) | đạt |
 | TC-121-11 | `base/tests/deploy_role.tftest.hcl` › `deploy_policy` | đạt |
 | TC-121-12 | `test_render_task_definition.py` › `test_worker_revision_keeps_its_settings` | đạt (test khóa) |
-| TC-121-13 | M-121-06..08 | **chưa làm** (thiếu image, BL-244) |
+| TC-121-13 | M-121-06..08 | **chưa làm** (thiếu image, BL-247) |
 | TC-121-14 | quy trình (merge, CI, Dev review) | chưa làm, chờ PR |
 | TC-121-15 | `connection-pool.spec.ts` › TC-121-15 | đạt (test khóa) |
 
@@ -251,12 +251,12 @@ Rủi ro và cách lùi: `terraform apply` chỉ chạy `-target` nhóm miễn p
   1. M-121-04 dùng `-target=aws_ecs_service.worker` (kéo RDS, Valkey, cluster, task def, 2 role) cộng 3 policy IAM, **không** dựng cả stack, để không tốn ALB; lý do chi phí, người dùng yêu cầu `-target` rõ. Hệ quả: chưa kiểm `/health/ready` qua ALB (thuộc nhóm B).
   2. Quyền deploy worker (PassRole, UpdateService) trên role `dbs-github-deploy` được code nhưng **chưa apply** (role chưa có trên tài khoản, BL-105): người dùng quyết khi nào dựng role OIDC.
   3. Đã apply thay đổi `base` của nhánh chưa merge (7 resource miễn phí) vào state thật. Nếu PR bị bỏ, phải `terraform destroy -target` các địa chỉ đó.
-- **Bàn giao và BACKLOG:** BL-244 (nhóm B chưa chạy, DoD 2 chưa đạt; #5), BL-245 (`deploy.sh` cho worker; #5), BL-246 (thứ tự hủy module SQS khi SIGTERM; Dev), BL-247 (`propagate_tags` api; #5). Đã sửa BL-161, BL-182, BL-234, BL-242; đã xóa BL-114, BL-119.
+- **Bàn giao và BACKLOG:** BL-247 (nhóm B chưa chạy, DoD 2 chưa đạt; #5), BL-248 (`deploy.sh` cho worker; #5), BL-249 (thứ tự hủy module SQS khi SIGTERM; Dev), BL-250 (`propagate_tags` api; #5). Đã sửa BL-161, BL-182, BL-234, BL-242; đã xóa BL-114, BL-119.
 - **Khoảng hở còn lại:** api vẫn lăn 200% (BL-234): api 5 + worker 1 khi deploy tới 11 task, 115 > 74 kết nối dùng được; worker treo chưa có alarm (BL-161); credential master RDS vào worker (BL-103).
 
 ## 9. Tài liệu đã cập nhật
 
-`infra/terraform/README.md` (mục «Service worker», đổi câu SQS), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (§13.2, §13.3), `docs/components/_shared/database-design.md` §6.4 (số task worker), `docs/features/README.md`, `docs/BACKLOG.md` (thêm BL-244..247; sửa BL-161, 182, 234, 242; xóa BL-114, BL-119). Không đổi threat-model: T9 giữ trạng thái «Một phần» (queue policy allow-list vẫn là BL-241).
+`infra/terraform/README.md` (mục «Service worker», đổi câu SQS), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (§13.2, §13.3), `docs/components/_shared/database-design.md` §6.4 (số task worker), `docs/features/README.md`, `docs/BACKLOG.md` (thêm BL-247..250; sửa BL-161, 182, 234, 242; xóa BL-114, BL-119). Không đổi threat-model: T9 giữ trạng thái «Một phần» (queue policy allow-list vẫn là BL-241).
 
 ## Checklist G4 (tự duyệt, Claude audit)
 
@@ -266,4 +266,4 @@ Rủi ro và cách lùi: `terraform apply` chỉ chạy `-target` nhóm miễn p
 - [x] Diff khớp §7, lệch ghi ở §8
 - [x] Lệnh kiểm tra chạy lúc bàn giao, có số đếm
 - [x] `check-doc-links.mjs` sạch; trạng thái doc ghi Implemented một phần
-- [x] Bàn giao và DoD chưa đạt đã có BL-244..247; BL-114, BL-119 đã xóa
+- [x] Bàn giao và DoD chưa đạt đã có BL-247..250; BL-114, BL-119 đã xóa
