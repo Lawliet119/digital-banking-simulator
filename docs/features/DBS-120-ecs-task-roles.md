@@ -1,6 +1,6 @@
 # DBS-120 · ECS task role riêng cho api và worker với quyền tối thiểu
 
-> **Status:** Plan approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-120-ecs-task-roles` (từ `main` 17b011e) · **PR:** — · **Cập nhật:** 2026-11-11
+> **Status:** Implemented (G4 tự duyệt 2026-11-12) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `chore/DBS-120-ecs-task-roles` (từ `main` 17b011e) · **PR:** — · **Cập nhật:** 2026-11-12
 
 ## 1. Bối cảnh
 
@@ -291,16 +291,66 @@ Tên địa chỉ chốt (giống §1 câu 8): role `aws_iam_role.execution` (ap
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (commit `52cde05`, Terraform 1.16.6): `terraform fmt -check -recursive` exit 0; `validate` đạt ba stack; `terraform test`: bootstrap **9 passed, 0 failed**, `base` **43 passed, 0 failed**, `session` **27 passed, 0 failed** (24 cũ + 3 run mới); `python3 -m unittest discover -s .github/scripts/tests -p 'test_*.py'`: **Ran 49 tests, OK** (48 cũ + TC-120-14).
-- **Đột biến kiểm test:** gắn `worker_sqs` vào `aws_iam_role.task` → `dbs120_task_roles` đỏ cả hai assert (TC-120-01, 03), `26 passed, 1 failed`; sửa `render-task-definition.py` luôn ghi mọi khóa → TC-120-14 đỏ (`'taskRoleArn' unexpectedly found`). Cả hai đã hoàn lại, không commit.
-- **TC-120-02 (grep):** `grep -nE 'aws_iam_role\.task\b' infra/terraform/envs/dev/session/*.tf` → đúng một dòng `ecs.tf:21: task_role_arn = aws_iam_role.task.arn`. `git grep -n 'dbs-dev-api-task' -- infra/terraform/envs` → `base/deploy_role.tf:37`, `base/sqs.tf:105`, `session/iam.tf:8` (comment), `session/iam.tf:133` (tên role) và các file test; không dòng nào là `aws_iam_role_policy*`. Danh sách resource policy trong `session/*.tf` (8 cái) trùng đúng danh sách assert của TC-120-01.
-- **`terraform plan` thật (chỉ đọc, `-lock=false`, profile `dbs-admin`):** session `Plan: 28 to add, 0 to change, 0 to destroy` (5 role, 7 inline policy, 1 attachment, cùng các resource phiên như cũ); base `Plan: 2 to add, 0 to change, 0 to destroy` (`aws_iam_role.github_deploy`, `aws_iam_role_policy.deploy`: role deploy chưa có trên tài khoản, BL-105, BL-109; task này không apply base).
+- **Lệnh kiểm tra** (lúc bàn giao, code không đổi từ `52cde05`, Terraform 1.16.6): `terraform fmt -check -recursive` exit 0; `terraform validate` đạt ba stack; `terraform test`: bootstrap **9 passed, 0 failed**, `base` **43 passed, 0 failed**, `session` **27 passed, 0 failed** (24 cũ + 3 run mới); `python3 -m unittest discover -s .github/scripts/tests -p 'test_*.py'`: **Ran 49 tests, OK** (48 cũ + TC-120-14). Không có `.skip`, `.only`, `.todo`; 0 test bị bỏ qua. Không đổi code backend nên không chạy baseline backend.
+- **Đột biến kiểm test:** gắn `worker_sqs` vào `aws_iam_role.task` → `dbs120_task_roles` đỏ ở TC-120-01 và TC-120-03 (`26 passed, 1 failed`); sửa `render-task-definition.py` luôn ghi mọi khóa → TC-120-14 đỏ (`'taskRoleArn' unexpectedly found`). Cả hai đã hoàn lại, không commit.
+- **TC-120-02 (grep):** `grep -nE 'aws_iam_role\.task\b' infra/terraform/envs/dev/session/*.tf` → một dòng `ecs.tf:21: task_role_arn = aws_iam_role.task.arn`. `git grep -n 'dbs-dev-api-task' -- infra/terraform/envs` → `base/deploy_role.tf:37`, `base/sqs.tf:105`, `session/iam.tf:8` (comment), `session/iam.tf:133` (tên role) và các file test; không dòng nào là `aws_iam_role_policy*`. Tám resource policy trong `session/*.tf` trùng đúng danh sách assert của TC-120-01.
+- **`terraform plan` thật** (chỉ đọc, `-lock=false`): session `Plan: 28 to add, 0 to change, 0 to destroy`; base `Plan: 2 to add, 0 to change, 0 to destroy` (`aws_iam_role.github_deploy`, `aws_iam_role_policy.deploy`: role deploy chưa có trên tài khoản, BL-105, BL-109; không apply base). Plan có 10 `-target`: `Plan: 10 to add, 0 to change, 0 to destroy`, đúng 10 địa chỉ ở §1 câu 8, rồi apply.
+- **Đối chiếu test case:**
 
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-120-01 | `session.tftest.hcl` › `dbs120_task_roles` (assert thứ nhất) | đạt |
+| TC-120-02 | grep tĩnh (kết quả ở trên) | đạt |
+| TC-120-03 | `session.tftest.hcl` › `dbs120_task_roles` (assert thứ hai) | đạt |
+| TC-120-04 | `base/tests/sqs.tftest.hcl` › `worker_policy` (TC-73-05, chạy lại, không sửa) | đạt |
+| TC-120-05 | `session.tftest.hcl` › `dbs120_execution_roles` (ba assert secret) | đạt |
+| TC-120-06 | `session.tftest.hcl` › `dbs120_task_definitions` (assert secret của task def) | đạt |
+| TC-120-07 | `session.tftest.hcl` › `dbs120_execution_roles` (assert KMS worker, migrate) và `db_secret_policy` (api, đã có từ DBS-67) | đạt |
+| TC-120-08 | `session.tftest.hcl` › `dbs120_task_definitions`, `migrate_task_definition` | đạt |
+| TC-120-09 | `session.tftest.hcl` › `dbs120_task_roles` (SourceArn), `dbs120_execution_roles` | đạt |
+| TC-120-10 | `session.tftest.hcl` › `dbs120_execution_roles` (ECR, log worker, log migrate) và `iam` (log api, đã có) | đạt |
+| TC-120-11 | `base/tests/deploy_role.tftest.hcl` › `deploy_policy` (hai assert PassRole) | đạt |
+| TC-120-12 | `session.tftest.hcl` › `dbs120_task_definitions` (output) | đạt |
+| TC-120-13 | thủ công M-120-02, 04…10 | đơn giản hóa (phương án A không dựng RDS: ba policy đọc secret chưa kiểm trên AWS, BL-243) |
+| TC-120-14 | `.github/scripts/tests/test_render_task_definition.py` › `test_migrate_without_task_role_stays_without_task_role` | đạt |
+
+  **13/14 đạt đủ độ sâu, 1 đơn giản hóa** (TC-120-13). TC-120-01 và TC-120-10 (api) chỉ assert được resource có tên, đúng như thiết kế (§4).
+- **Test thủ công** (phương án A, §8 "Lệch so với kế hoạch" mục 1; commit code cuối `52cde05`; session bật 00:33:14Z, tắt 00:41:30Z ngày 2026-11-12, khoảng 8 phút). Output thô, đã xóa id tài khoản: [manual-test.txt](screenshots/DBS-120/manual-test.txt).
+
+| Bước | Kết quả thật (rút gọn) | Trạng thái |
+|---|---|---|
+| M-120-01 | đúng tài khoản; budget `My Monthly Cost Budget` 150 USD đã chi 0,904, cảnh báo 50/100/forecast `OK`; plan session 28 add, base 2 add, 0 change, 0 destroy | đạt |
+| M-120-02 | role tạm cùng tên: `assume-role` lần 3; `list-queues` thấy 4 queue (đối chứng dương); `send-message` và `receive-message` đều `AccessDenied … with an explicit deny in a resource-based policy`; trap dọn xong, `get-role` → `NoSuchEntity` | đạt |
+| M-120-03 | `get-role` → `NoSuchEntity`, cluster `MISSING`; plan 10 `-target` đúng danh sách; `Apply complete! Resources: 10 added`; `dbs-dev-api-task`: không inline, không attached; `dbs-dev-worker-task`: attached `dbs-dev-worker-sqs`. Lần chạy script đầu dừng ở bước so sánh danh sách (lỗi thứ tự sắp xếp trong script, chưa apply gì), lần hai apply | đạt |
+| M-120-04 | trust hai task role có `aws:SourceAccount` và `aws:SourceArn`; ba execution role chỉ `aws:SourceAccount`; theo plan: `dbs-api` task role `dbs-dev-api-task`, execution `dbs-dev-api-execution`; `dbs-migrate` `task_role_arn=None`, execution `dbs-dev-migrate-execution` (task def không dựng ở phương án A nên đọc từ plan, không `describe-task-definition`) | đạt (theo plan) |
+| M-120-05 | task api: 4 action SQS × 4 queue, `GetSecretValue`, `kms:Decrypt` đều `implicitDeny` | đạt |
+| M-120-06 | task worker: 5 action trên 2 queue chính và `SendMessage` trên 2 DLQ `allowed`; `Receive`, `Delete`, `PurgeQueue` trên DLQ, `PurgeQueue`, `DeleteQueue`, `SetQueueAttributes` trên queue chính, `CreateQueue`, `SendMessage` trên `dbs-dev-other`, secret, KMS đều `implicitDeny` | đạt |
+| M-120-07 | execution api, worker, migrate (policy đã apply): log group của mình và ECR pull `allowed`; log group khác, `sqs:SendMessage`, `GetSecretValue` `demo-accounts` `implicitDeny`; migrate: `CreateLogStream` `allowed`, `PutLogEvents` stream `migrate/…` `allowed`, stream `api/…` `implicitDeny`. `simulate-custom-policy`: `read-redis-auth-secret` cho secret Redis `allowed`, `demo-accounts` `implicitDeny`; role deploy `iam:PassRole` (ecs-tasks): migrate-execution và hai role api `allowed`, hai role worker `implicitDeny`, migrate-execution với `lambda` `implicitDeny`. **Chưa chạy:** ba policy đọc secret có RDS (`read_db_master_secret`, `worker_read_secrets`, `migrate_read_db_master_secret`) và `kms:Decrypt` có/không `kms:ViaService`: plan không render được vì secret master RDS chưa dựng (BL-243) | đạt một phần (phần còn lại chưa chạy, BL-243) |
+| M-120-08 | task Fargate dưới `dbs-dev-api-task`: identity đúng role; `send-message` `AccessDenied … explicit deny in a resource-based policy`; `get-secret-value dbs/dev/redis-auth` `AccessDeniedException … no identity-based policy allows`; task thoát bình thường | đạt |
+| M-120-09 | dưới `dbs-dev-worker-task`: `send-message` có `MessageId`; nhận lần 1 đúng message, body `{"probe":"DBS-120"}`; `delete-message` `deleted`; `receive-message` trên DLQ `AccessDenied … no identity-based policy`; `ApproximateNumberOfMessages` queue chính = 0 | đạt |
+| M-120-10 | task không `taskRoleArn`, execution `dbs-dev-migrate-execution`, stream `migrate/probe/<task-id>`: task khởi động và ghi log (`CreateLogStream` và `PutLogEvents` đúng); `aws sts get-caller-identity` → `NoCredentials: Unable to locate credentials` | đạt |
+| M-120-11 | deregister 3 revision `dbs-probe` rồi `delete-task-definitions`; `terraform destroy` 10 `-target`: `Destroy complete! Resources: 10 destroyed`; liệt kê sót: không cluster (INACTIVE), không task, ALB, RDS, ElastiCache, NAT, Elastic IP, ENI `available`, WAF, role `dbs-dev-*`; base còn nguyên: 4 queue (0 message), policy `dbs-dev-worker-sqs`, log group `/dbs/dev/api` | đạt |
+
+  Ghi chú: simulator in ARN dạng mẫu (`${Region}…`) khi một lệnh truyền nhiều ARN, quyết định vẫn đúng cho nhóm ARN. Message probe đã xóa nên không còn message dư. Log stream `probe/…` và `migrate/probe/…` còn trong `/dbs/dev/api` (giữ 7 ngày, vài KB); revision `dbs-probe` đầu tiên (`:1`) không còn trong danh sách (không phải do task này để lại: lần liệt kê `ACTIVE`, `INACTIVE` trước khi dọn chỉ có `:2`, `:3`, `:4`).
+- **Chi phí:** không có `RDS`, `Valkey`, `ALB`, NAT. Phần tính tiền duy nhất là ba task Fargate 0,25 vCPU / 0,5 GB chạy mỗi task dưới 3 phút (ước tính ≈ 0,003 USD) và IPv4 công khai của chúng (≈ 0,001 USD): **dưới 0,01 USD**. Số thật chưa có (billing trễ một ngày): ghi vào báo cáo chi phí DBS-143 ngày 2026-11-13 (`infra/scripts/cost-report.py`). IAM, cluster, queue không tính tiền.
+- **Phạm vi so với §7:** `git diff --stat origin/main` trước khi điền dòng này: 14 file (`.github/scripts/tests/test_render_task_definition.py`, `docs/03_HIGH_LEVEL_ARCHITECTURE.md`, `docs/BACKLOG.md`, feature doc, `docs/features/README.md`, `screenshots/DBS-120/domain-review.md`, `docs/security/threat-model.md`, `infra/terraform/README.md`, `base/deploy_role.tf`, `base/tests/deploy_role.tftest.hcl`, `session/ecs.tf`, `session/iam.tf`, `session/outputs.tf`, `session/tests/session.tftest.hcl`) cộng `screenshots/DBS-120/manual-test.txt`. Khớp §7 (docs/03 là mục "nếu cần"); không file lạ.
+- **Ảnh chụp:** không áp dụng ảnh PNG. Môi trường chạy không có công cụ chụp màn hình terminal; bằng chứng là output thô ở [manual-test.txt](screenshots/DBS-120/manual-test.txt) (đã xóa id tài khoản AWS, user id, tên IAM user, id khóa KMS, hậu tố secret). Ảnh còn thiếu ghi trong tin nhắn G4 và mô tả PR.
 - **Lệch so với kế hoạch** (gate phụ, ghi trước khi chạy, 2026-11-11):
-  1. **Test thủ công theo phương án A thay vì dựng toàn bộ session.** Lựa chọn: (A) `apply` chỉ 10 địa chỉ ở §1 câu 8 (5 role, 3 policy kéo image và ghi log, attachment worker, cluster), dưới 0,01 USD, khoảng 20–25 phút; (B) dựng đủ 28 resource của session theo §5 (RDS, Valkey, ALB), khoảng 0,15 USD, khoảng 60 phút. Người dùng trả lời «Phương án A». Quyết định: A. Lý do: ít thay đổi và rẻ nhất, vẫn chứng minh DoD 3 bằng gọi thật trên role thật. Hệ quả: các bước cần RDS chạy khác §5: M-120-01 không chạy `apply s.tfplan` đầy đủ; M-120-04 đọc task def `dbs-api`, `dbs-migrate` từ `s.tfplan` (`terraform show -json`) thay cho `describe-task-definition`; M-120-07 kiểm bốn policy đọc secret (`read_db_master_secret`, `read_redis_auth_secret`, `worker_read_secrets`, `migrate_read_db_master_secret`) bằng `simulate-custom-policy` trên JSON lấy từ plan, phần còn lại của execution role bằng `simulate-principal-policy` trên role thật; M-120-11 `destroy` cùng 10 `-target`. Không apply base, không dựng RDS, Valkey, ALB.
-- **Bàn giao cho vai khác** (dòng BL thêm ở Phase 5):
-  - DBS-121: tạo log group `/dbs/dev/worker` ở `base/logs.tf` (cạnh `/dbs/dev/api`, sống qua `destroy session`, tên khớp ARN của execution role worker); thêm `iam:PassRole` cho `dbs-dev-worker-task`, `dbs-dev-worker-execution` và `ecs:UpdateService` trên `service/dbs-dev/worker` vào `base/deploy_role.tf`; khởi động task worker thật để kiểm execution role worker (M-120-07 chỉ simulate); dùng output `worker_task_role_arn`, `worker_execution_role_arn`.
-  - DBS-121 / BL-119: SG worker và ingress Redis, RDS.
-  - BL-103: execution role worker và api vẫn đưa credential **master** RDS vào container; đổi sang secret `dbs_api`, `dbs_worker`, `dbs_migrator` thì chỉ sửa `Resource` của execution role tương ứng.
-  - BL mới (#5): queue policy dạng allow-list để T9 thành "Đã kiểm".
-  - README Terraform: `apply base` trước lần deploy kế tiếp sau khi session có `dbs-dev-migrate-execution`.
+  1. **Test thủ công theo phương án A thay vì dựng toàn bộ session.** Lựa chọn: (A) `apply` chỉ 10 địa chỉ ở §1 câu 8 (5 role, 3 policy kéo image và ghi log, attachment worker, cluster), dưới 0,01 USD, khoảng 20–25 phút; (B) dựng đủ 28 resource của session theo §5 (RDS, Valkey, ALB), khoảng 0,15 USD, khoảng 60 phút. Người dùng trả lời «Phương án A». Quyết định: A. Lý do: ít thay đổi và rẻ nhất, vẫn chứng minh DoD 3 bằng gọi thật trên role thật. Hệ quả: các bước cần RDS chạy khác §5: M-120-01 không chạy `apply s.tfplan` đầy đủ; M-120-04 đọc task def `dbs-api`, `dbs-migrate` từ plan (`terraform show -json`) thay cho `describe-task-definition`; M-120-07 kiểm bốn policy đọc secret bằng `simulate-custom-policy` trên JSON lấy từ plan, nhưng chỉ `read_redis_auth_secret` render được (ba policy còn lại phụ thuộc secret master RDS chưa dựng): ba policy này chưa kiểm trên AWS (BL-243); M-120-11 `destroy` cùng 10 `-target`. Không apply base, không dựng RDS, Valkey, ALB.
+  2. Nhờ kịch bản plan 10 `-target` đúng danh sách, apply không đụng resource nào ngoài 10 địa chỉ. Phiên chạy thật không cần `-target` lần nào khác.
+- **Bàn giao cho vai khác:**
+  - **BL-241** (#5): queue policy allow-list để T9 thành "Đã kiểm".
+  - **BL-242** (#5, DBS-121): log group `/dbs/dev/worker` ở base, PassRole và `ecs:UpdateService` cho role worker, kiểm execution role worker bằng task thật, worker vẫn dùng secret master (BL-103).
+  - **BL-243** (#5): ba policy đọc secret có RDS và task `dbs-migrate` thật chưa kiểm, cần một phiên session đầy đủ (cùng BL-106, BL-109).
+  - **BL-103** sửa mô tả: phần IAM (execution role riêng, task role riêng, PassRole) đã xong ở DBS-120; còn secret và login DB riêng cho từng role. **BL-113** đã xóa (xử lý hoàn toàn). **BL-105**: bỏ tên DBS-120 khỏi cột vai (task này không đổi OIDC, không dùng `environment:`).
+  - README Terraform: `apply base` trước lần deploy kế tiếp (ghi ở mục "Task role và execution role (DBS-120)").
+  - DoD 4 (PR merge, CI xanh, Dev review, bảng đối chiếu trong PR): chưa thể kiểm khi chưa có PR; là bước quy trình của người dùng sau G4 (không thêm BL: đã có trong mô tả PR).
+
+## 9. Tài liệu đã cập nhật
+
+- `infra/terraform/README.md`: mục mới "Task role và execution role (DBS-120)", bảng IAM của SQS (policy gắn vào `dbs-dev-worker-task`), mục migration (execution role riêng, không task role, `apply base` trước deploy).
+- `docs/security/threat-model.md`: T23 sang "Đã kiểm"; T9 giữ "Một phần" kèm BL-241.
+- `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §12 dòng "Quyền tối thiểu": nêu task role và execution role theo service.
+- `docs/BACKLOG.md`: **xóa BL-113**; sửa BL-103 (thêm DBS-120 làm nguồn, phần IAM đã xong) và BL-105 (bỏ DBS-120 khỏi cột vai); **thêm BL-241, BL-242, BL-243**.
+- `docs/features/README.md`: thêm dòng DBS-120.
+- Mermaid ở §3 chưa render bằng công cụ vì môi trường không có `mmdc`; đã đối chiếu cú pháp thủ công theo danh sách lỗi hay gặp ở `docs-style.md` (không có `;`, `<`, `>` trong nhãn ngoài `<br/>`).
