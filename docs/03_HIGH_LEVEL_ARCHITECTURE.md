@@ -851,7 +851,7 @@ flowchart TB
 | Dev khi đang bật | ≈ 0,14 USD/giờ (`ap-southeast-1`, ước tính) | Bảng chi tiết ở phụ lục [ADR-11](adr/0011-aws-managed-session-based.md) |
 | Dựng/xóa theo phiên, 10 tuần | ≈ 80–100 USD (gồm WAF tuần 6–8 và ~20 giờ cấu hình production) | Nằm trong credit AWS 200 USD; chạy 24/7 sẽ ≈ 230–250 USD |
 
-**Connection pool:** `DATABASE_POOL_MAX = 10` mỗi task, và `số task × 10 + 5 (migration, quản trị) ≤ max_connections`. `db.t4g.micro` có `max_connections` khoảng 80–110 (kiểm bằng `SHOW max_connections;`) nên dev chạy tối đa 6 task; `db.t4g.small` của cấu hình production gấp khoảng đôi. Số đo thật của micro là 79, ứng dụng dùng được 74 (trừ phần dành cho superuser và reserved). Khi bật AI, cộng thêm `số task worker × RISK_AI_CONCURRENCY` (mỗi lần gọi AI mở một kết nối ngoài pool), và tính `2 × số task` lúc rolling deploy (ECS mặc định tối đa 200%). Chi tiết ở [database-design §6.4](components/_shared/database-design.md).
+**Connection pool:** `DATABASE_POOL_MAX = 10` mỗi task, và `số task × 10 + 5 (migration, quản trị) ≤ max_connections`. `db.t4g.micro` có `max_connections` khoảng 80–110 (kiểm bằng `SHOW max_connections;`) nên dev chạy tối đa 6 task (api + worker, worker tối đa 2: `envs/dev/session/worker.tf`, DBS-121); `db.t4g.small` của cấu hình production gấp khoảng đôi. Số đo thật của micro là 79, ứng dụng dùng được 74 (trừ phần dành cho superuser và reserved). Khi bật AI, cộng thêm `số task worker × RISK_AI_CONCURRENCY` (mỗi lần gọi AI mở một kết nối ngoài pool), và tính `2 × số task` lúc rolling deploy (ECS mặc định tối đa 200%). Chi tiết ở [database-design §6.4](components/_shared/database-design.md).
 
 ### 13.3 Deploy và rollback
 
@@ -859,7 +859,7 @@ flowchart TB
 |---|---|
 | Build | Mỗi commit vào nhánh chính → lint, typecheck, unit + e2e test (gồm Testcontainers), build **một image** (`backend/Dockerfile`), quét lỗ hổng, đẩy lên ECR với tag = commit SHA |
 | Migration | Chạy như một bước riêng trước deploy, theo kiểu backward-compatible: **expand → migrate → contract** |
-| Deploy | Hai ECS service dùng chung image, khác `APP_ROLE`. Service `api`: rolling update; ALB kiểm `/health/ready` mỗi 15 giây, timeout 5 giây, 2 lần đạt là healthy, 3 lần trượt liên tiếp là unhealthy; ECS `healthCheckGracePeriodSeconds = 60`. Ngưỡng 3 × 15 giây đủ rộng để một đợt pool bão hòa ngắn không làm ECS thay task hàng loạt. Service `worker`: không có cổng HTTP; ECS thay task khi tiến trình thoát |
+| Deploy | Hai ECS service dùng chung image, khác `APP_ROLE`. Service `api`: rolling update; ALB kiểm `/health/ready` mỗi 15 giây, timeout 5 giây, 2 lần đạt là healthy, 3 lần trượt liên tiếp là unhealthy; ECS `healthCheckGracePeriodSeconds = 60`. Ngưỡng 3 × 15 giây đủ rộng để một đợt pool bão hòa ngắn không làm ECS thay task hàng loạt. Service `worker` ([DBS-121](features/DBS-121-worker-service.md), `envs/dev/session/worker.tf`): không có cổng HTTP, không `healthCheck` container, không load balancer; container `essential` nên ECS thay task khi tiến trình thoát; `stopTimeout` 60 giây; lăn 0%/100% (không hai worker song song) |
 | Rollback | Cập nhật service về task definition trước đó (image cũ); migration kiểu expand nên schema vẫn tương thích |
 
 ---
