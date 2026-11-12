@@ -77,6 +77,11 @@ override_data {
       redis_subnet_group_name = "dbs-dev"
       redis_security_group_id = "sg-redis"
       redis_auth_secret_arn   = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf"
+      # DBS-145: dashboard đọc tên DLQ từ base.
+      sqs_dlq_names = {
+        risk         = "dbs-dev-risk-events-dlq"
+        notification = "dbs-dev-notification-events-dlq"
+      }
     }
   }
 }
