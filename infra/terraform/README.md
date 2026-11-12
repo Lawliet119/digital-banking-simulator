@@ -247,6 +247,46 @@ Mỗi service có execution role riêng (ECS agent dùng để kéo image, ghi l
 - **Kiểm quyền trái phép:** không assume được task role từ máy. Gọi thật bằng task Fargate tạm (family `dbs-probe`, image `public.ecr.aws/aws-cli/aws-cli`, `entryPoint ["sh","-c"]`) chạy dưới role cần thử; `simulate-principal-policy` chỉ tính identity policy (không áp queue policy cho role). Để thấy `explicit deny` của queue policy mà không cần task: dựng tạm một role **cùng tên** `dbs-dev-api-task` có `sqs:*` khi `session` chưa dựng, assume rồi gọi `sqs send-message`. Bằng chứng ở [feature doc DBS-120](../../docs/features/DBS-120-ecs-task-roles.md).
 - **Dựng phần IAM rẻ để kiểm:** `terraform apply` với mười `-target` (5 role, `aws_iam_role_policy_attachment.worker_sqs`, `aws_iam_role_policy.execution`, `.worker_execution`, `.migrate_execution`, `aws_ecs_cluster.main`) không cần RDS hay Valkey; phần còn lại của session không dựng.
 
+## Dựng từ trạng thái trống và đo thời gian (DBS-139)
+
+«Trạng thái trống» nghĩa là: `base` đã có (giữ lại, không dựng lại mỗi phiên), `session` rỗng, ECR có image của SHA cần chạy. Bảng dưới đây là các bước theo thứ tự; cột thời gian chỉ ghi số **đo thật** (ngày 2026-11-12, `ap-southeast-1`, profile `dbs-admin`, Terraform 1.16.6) hoặc nói rõ **ước tính, chưa đo** và lý do. Checklist cho người trực demo: [docs/runbooks/demo-checklist.md](../../docs/runbooks/demo-checklist.md).
+
+| # | Bước | Lệnh | Thời gian |
+|---|---|---|---|
+| 1 | Kiểm tài khoản, vùng, budget, khởi đầu sạch | `aws sts get-caller-identity`; `aws budgets describe-budgets --account-id <id>`; `bash infra/scripts/verify-clean.sh` | **đo: 17 giây** (verify-clean, 13 loại) |
+| 2 | `plan` session, đọc kết quả | `terraform plan …` (30 tài nguyên thêm, 0 xóa) | **đo: 5 giây** |
+| 3 | `apply` session (RDS, Valkey, ALB, IAM, ECS service ở 0 task) | `terraform apply …` (lệnh ở mục «Thứ tự dựng») | **đo: 9 phút 16 giây** (RDS 8 phút 41 giây, Valkey 9 phút 10 giây, ALB 2 phút 13 giây, chạy song song nên tổng ≈ tài nguyên chậm nhất) |
+| 4 | Image `<sha>` lên ECR | CI `Image` trên `main` (hoặc đã có từ trước) | **chưa đo**: ECR đang không có image và máy làm việc không có docker (BL-247). Đã có sẵn từ lần `main` trước thì ≈ 0 phút lúc dựng |
+| 5 | Migration | `IMAGE_TAG=<sha> bash .github/scripts/migrate.sh` | **ước tính, chưa đo**: trần của script 10 phút; một task Fargate chạy một lần thường 1–3 phút (BL-109) |
+| 6 | Nâng service lên 1 api và 1 worker, chờ `runningCount` | `terraform apply … -var desired_count=1 -var worker_desired_count=1` | **ước tính, chưa đo**: 2–4 phút (kéo image, `healthCheckGracePeriodSeconds = 60`) |
+| 7 | Tài khoản nhân viên demo | `bash infra/scripts/seed-cognito.sh` | **đo `--dry-run` 0 giây**; chạy thật không cần lặp: tài khoản đã có trong Cognito (phần giữ lại) |
+| 8 | Dữ liệu demo qua API | `cd backend && npm run seed -- --auth cloud …` (token qua biến môi trường) | **chưa đo** (cần API chạy; còn vướng TLS tự ký và token khách hàng, BL-252) |
+| 9 | Health | `curl -k https://<alb>/health/live`, `/health/ready` | **đo: ALB trả 503 khi chưa có target** (chứng minh ALB và TLS lên); 200 **chưa đo** |
+| 10 | Token demo | `bash infra/scripts/demo-token.sh --role operator\|auditor\|admin` | **đo: 3–4 giây mỗi vai** |
+| 11 | Bất biến sổ cái | `npm run check:invariants` | **chưa chạy được trên cloud** (RDS riêng tư, checker cần `ts-node`: BL-128) |
+
+**Tổng.** Phần đo thật (bước 1–3, 7, 9 phần ALB, 10) là **≈ 10 phút**, chủ yếu là RDS và Valkey. Phần chưa đo (4, 5, 6, 8, 9 phần 200) cộng ước tính khoảng 10–15 phút, nên cả quy trình **dự kiến** vào khoảng 20–25 phút; đây là **ước tính, chưa chứng minh**: DoD «≤ 30 phút» của DBS-139 chưa đạt cho tới khi chạy trọn có image (BL-251). Bước bị bỏ qua có chủ ý: tạo ba role DB (`db-roles.sql`) không có bước riêng, vì task vẫn nối bằng credential master (BL-103).
+
+**Ngoại lệ có chủ ý khi chỉ kiểm hạ tầng.** `image_tag` bắt buộc là SHA 40 ký tự hex; khi ECR chưa có image, dùng SHA của HEAD làm giá trị giữ chỗ cùng `desired_count=0` và `worker_desired_count=0`: an toàn vì không task nào chạy (Terraform không kiểm image tồn tại). Đây là ngoại lệ của quy tắc «tag phải có trên ECR»; đừng dùng khi nâng service lên 1 task.
+
+**Chi phí khi bật.** RDS ≈ 0,029 + Valkey 0,0192 + ALB ≈ 0,025 và IPv4 công khai ≈ 0,01 = **≈ 0,09 USD/giờ** chưa có task (≈ 0,14 USD/giờ khi api và worker chạy, ADR-11). Quên tắt ≈ 2 USD/ngày. Trần một phiên: 90 phút bật.
+
+### Dọn sau demo và chứng minh sạch
+
+```bash
+# cùng bộ biến lúc dựng, không -target
+terraform destroy -var account_id=<account-id> -var state_bucket=dbs-tfstate-<account-id>-ap-southeast-1 -var image_tag=<sha-40-ky-tu>
+AWS_PROFILE=dbs-admin bash infra/scripts/verify-clean.sh
+```
+
+**Đo thật:** `destroy` 30 tài nguyên mất **4 phút 50 giây** (ALB 17 giây, RDS 1 phút 51 giây, Valkey 4 phút 14 giây); `verify-clean.sh` sau đó thoát 0 (15 giây), cùng các lệnh `describe-*` độc lập đều đếm 0 và `terraform state list` của `session` rỗng ([bằng chứng](../../docs/features/screenshots/DBS-139/manual-test.txt)).
+
+[`infra/scripts/verify-clean.sh`](../scripts/verify-clean.sh) chỉ đọc (chỉ `describe-*` và `list-*`, luôn `--region ap-southeast-1`) và quét **cả tài khoản** mười ba loại tính tiền: NAT Gateway, load balancer, RDS (instance, cluster, snapshot thủ công, bản sao lưu tự động), ElastiCache (nhóm, cluster, snapshot), ECS (service `desiredCount > 0` hoặc task đang chạy; cluster rỗng miễn phí), Elastic IP, ENI `available`, WAF vùng, VPC interface endpoint và EC2, EBS volume và snapshot. Thoát 0 là sạch; 1 là còn thứ tính tiền (tên nằm trong dòng `FAIL`); 2 là có loại không kiểm được (thiếu quyền, hết hạn credential) và **không** kết luận sạch. Tag listing không đủ vì bỏ sót ENI và EIP. Ngay sau `destroy`, ENI `available` hoặc bản sao lưu RDS `deleting` là tạm thời: đợi vài phút rồi chạy lại. Khi stack đang bật, `FAIL` ở load-balancer, rds, elasticache, elastic-ip (hai IP công khai của ALB) và rds-automated-backup là đúng. Phần giữ lại (VPC, ECR, KMS, Cognito, SQS, secret, log group) không bị tính là tồn dư. Test: `python3 infra/scripts/tests/test_verify_clean.py` (`aws` giả, không cần credential).
+
+### Token nhân viên demo
+
+`bash infra/scripts/demo-token.sh --role operator|auditor|admin` in một access token Cognito (15 phút) ra stdout, mật khẩu đọc từ secret `dbs/dev/demo-accounts` và chỉ đi qua stdin của `aws` (`--auth-parameters file:///dev/stdin`; `--cli-input-json file:///dev/stdin` không chạy được trên AWS CLI v2). Chưa seed hoặc Cognito trả thử thách thì thoát 1 và không in gì. Test: `python3 infra/scripts/tests/test_demo_token.py`. Token khách hàng: chưa có script (BL-252).
+
 ## Báo cáo chi phí tuần (DBS-143)
 
 [`infra/scripts/cost-report.py`](../scripts/cost-report.py) đọc Cost Explorer (chỉ đọc) và in báo cáo Markdown: chi phí gộp theo dịch vụ (đã lọc bỏ credit, vì credit trừ hết mọi khoản), số giờ dựng và đơn giá theo từng usage type, chi phí theo tag `env`, credit đã dùng và còn lại, dự báo, cảnh báo (NAT Gateway hoặc VPC endpoint theo ADR-10; tài nguyên phiên còn chạy ở ngày cuối). Mỗi lệnh Cost Explorer tính 0,01 USD; một lần chạy 4–6 lệnh.
