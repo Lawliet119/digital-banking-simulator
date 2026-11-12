@@ -1,0 +1,53 @@
+8bf5438
+### M-155-02: run-gitleaks.sh (binary gitleaks 8.30.1) trên nhánh task, cấu hình thật
+$ GITLEAKS_RUN=<binary> SCAN_PATH=$PWD CONFIG=.gitleaks.toml IGNORE=.gitleaksignore bash .github/scripts/run-gitleaks.sh
+INF 148 commits scanned.
+INF no leaks found
+gitleaks: rc=0, đã quét 148 commit, repo có 149 commit không phải merge, ngưỡng tối thiểu 135
+exit=0
+
+### M-155-02 (đối chứng): cùng lệnh trên bản clone ở commit d901ab3, trước khi có .gitleaks.toml và .gitleaksignore (luật mặc định, ignore rỗng; gitleaks còn tự đọc .gitleaksignore ở thư mục hiện tại, nên cwd là thư mục khác)
+INF 144 commits scanned.
+WRN leaks found: 122
+gitleaks: rc=1, đã quét 144 commit, repo có 145 commit không phải merge, ngưỡng tối thiểu 131
+exit=1
+
+### M-155-04: khóa giả sinh bằng openssl, rồi revert (repo thử, cấu hình thật)
+$ run-gitleaks.sh trên repo thử sau commit khóa giả
+Secret:      REDACTED
+RuleID:      private-key
+File:        tmp/fake.key
+INF 2 commits scanned.
+WRN leaks found: 1
+gitleaks: rc=1, đã quét 2 commit, repo có 2 commit không phải merge, ngưỡng tối thiểu 2
+exit=1
+$ git revert, rồi chạy lại
+INF 2 commits scanned.
+WRN leaks found: 1
+gitleaks: rc=1, đã quét 2 commit, repo có 3 commit không phải merge, ngưỡng tối thiểu 3
+exit=1
+
+### M-155-05 (phần checker): ngoại lệ hợp lệ rồi hết hạn
+$ check-scan-exceptions.py --root <thư mục thử> (expired_at 2027-01-20)
+OK
+exit=0
+$ đổi expired_at về hôm qua (2026-11-11), chạy lại với --today 2026-11-12
+FAIL:
+ - .trivyignore.yaml vulnerabilities[0] CVE-2099-00000: hết hạn 2026-11-11 (hôm nay 2026-11-12); xem lại lý do rồi gia hạn bằng PR
+exit=1
+
+### M-155-05 trên file thật của repo
+OK
+exit=0
+
+### M-155-07: kiểm tĩnh và test
+OK
+check-image-workflow.py exit=0
+test_check_image_workflow: Ran 37 tests in 5.863s OK 
+test_check_scan_exceptions: Ran 28 tests in 2.523s OK 
+test_run_trivy: Ran 11 tests in 0.166s OK 
+test_gitleaks_config (GITLEAKS_BIN): Ran 16 tests in 17.525s OK 
+
+### chưa chạy
+M-155-01, M-155-03, M-155-05 (lượt Trivy), M-155-06: cần Trivy và DB Trivy, chưa được tải.
+M-155-08, M-155-09, M-155-10: cần GitHub Actions (Draft PR chưa được duyệt; image.yml thiếu AWS_ROLE_ARN, BL-034).

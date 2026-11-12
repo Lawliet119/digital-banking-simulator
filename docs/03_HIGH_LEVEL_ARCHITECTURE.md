@@ -857,7 +857,7 @@ flowchart TB
 
 | Bước | Cách làm |
 |---|---|
-| Build | Mỗi commit vào nhánh chính → lint, typecheck, unit + e2e test (gồm Testcontainers), build **một image** (`backend/Dockerfile`), quét lỗ hổng, đẩy lên ECR với tag = commit SHA |
+| Build | Mỗi commit vào nhánh chính → lint, typecheck, unit + e2e test (gồm Testcontainers), build **một image** (`backend/Dockerfile`), quét bằng Trivy (lỗ hổng HIGH/CRITICAL đã có bản sửa và secret trong image làm job đỏ; chạy trước khi lấy credential AWS và trước khi push), quét secret toàn lịch sử bằng gitleaks ở mọi PR, rồi đẩy lên ECR với tag = commit SHA ([kết quả quét](components/ci-cd/scan-results.md)) |
 | Migration | Chạy như một bước riêng trước deploy, theo kiểu backward-compatible: **expand → migrate → contract** |
 | Deploy | Hai ECS service dùng chung image, khác `APP_ROLE`. Service `api`: rolling update; ALB kiểm `/health/ready` mỗi 15 giây, timeout 5 giây, 2 lần đạt là healthy, 3 lần trượt liên tiếp là unhealthy; ECS `healthCheckGracePeriodSeconds = 60`. Ngưỡng 3 × 15 giây đủ rộng để một đợt pool bão hòa ngắn không làm ECS thay task hàng loạt. Service `worker`: không có cổng HTTP; ECS thay task khi tiến trình thoát |
 | Rollback | Cập nhật service về task definition trước đó (image cũ); migration kiểu expand nên schema vẫn tương thích |

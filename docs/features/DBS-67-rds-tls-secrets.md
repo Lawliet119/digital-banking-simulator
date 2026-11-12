@@ -303,7 +303,7 @@ Rủi ro và cách lùi: revert commit bước 2 trả lại trạng thái cũ (
 
 Không có ảnh chụp (không có bước giao diện); bằng chứng là `manual-test.txt` và URL run CI.
 - **Phạm vi so với §10.7:** khớp. Sai khác nhỏ: test dùng `spawnSync` thay vì `execFileSync` như §10.4 ghi (cùng không qua shell; `spawnSync` trả mã thoát mà không ném, gọn hơn cho kiểm mã 0/1).
-- **Bàn giao / BACKLOG:** BL-111 (allowlist Gitleaks cho `server.key`, DBS-155), BL-112 (test `jwks-verifier` phụ thuộc thời gian, module identity).
+- **Bàn giao / BACKLOG:** BL-111 (allowlist Gitleaks cho `server.key`, đã xử lý ở DBS-155), BL-112 (test `jwks-verifier` phụ thuộc thời gian, module identity).
 
 ### 10.9 Tài liệu đã cập nhật
 
