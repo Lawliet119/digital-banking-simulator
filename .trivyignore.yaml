@@ -3,13 +3,13 @@ vulnerabilities:
   - id: CVE-2026-111181
     paths: ["app/node_modules/body-parser/package.json"]
     statement: "Thử bằng chứng DBS-155: lockfile cũ cố ý; #5 chấp nhận tạm; đóng khi nâng body-parser"
-    expired_at: 2027-01-20
+    expired_at: 2026-11-11
   - id: CVE-2026-118772
     paths: ["app/node_modules/joi/package.json"]
     statement: "Thử bằng chứng DBS-155: lockfile cũ cố ý; #5 chấp nhận tạm; đóng khi nâng joi"
-    expired_at: 2027-01-20
+    expired_at: 2026-11-11
   - id: CVE-2026-113872
     paths: ["app/node_modules/multer/package.json"]
     statement: "Thử bằng chứng DBS-155: lockfile cũ cố ý; #5 chấp nhận tạm; đóng khi nâng multer"
-    expired_at: 2027-01-20
+    expired_at: 2026-11-11
 secrets: []
