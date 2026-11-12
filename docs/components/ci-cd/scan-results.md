@@ -36,4 +36,8 @@ Máy chạy: Linux, không có Docker. Binary chính thức tải về và kiể
 | `npm audit --omit=dev`, trước khi sửa | | 10 lỗ hổng: 4 high, 6 moderate |
 | `npm audit --omit=dev`, sau khi nâng lockfile | | 5 moderate, 0 high, 0 critical |
 
+### Lần chạy CI đầu (PR #147, run 43131596232)
+
+`secret-scan` đạt; `image-scan` đỏ với 6 HIGH có bản sửa, đều trong npm đi kèm image `node:24-alpine` (`usr/local/lib/node_modules/npm/node_modules/`): `brace-expansion` 2 CVE (CVE-2026-102276, 102278), `undici` 4 CVE (CVE-2026-109383, 109869, 19534, 87018); 0 CRITICAL, 0 secret, 0 lỗ hổng Alpine hay gói ứng dụng. Xử lý: xóa npm, npx, corepack khỏi stage `runtime` của `backend/Dockerfile` (runtime chỉ chạy `node`), không dùng ngoại lệ. Kết quả run sau sửa ghi ở feature doc §8.
+
 Chưa chạy: Trivy trên image thật (gói Alpine, `npm` đi kèm image `node`, secret trong các lớp), các lần chạy `image-scan` và `secret-scan` trên GitHub, Draft PR thử có dependency lỗi và secret giả (cần người dùng duyệt đẩy lên GitHub), `image.yml` thật (thiếu biến `AWS_ROLE_ARN`, BL-034).

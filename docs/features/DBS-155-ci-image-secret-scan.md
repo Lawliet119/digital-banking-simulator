@@ -424,6 +424,7 @@ Phụ thuộc giữa bước: bước 5 cần 3 và 4; bước 6 cần 4; bướ
 | TC-155-20 | `check-doc-links.mjs`; `scan-results.md` | đạt |
 | TC-155-21 | audit 0 high, lint/typecheck/unit/build/e2e như bảng trên | đơn giản hóa (e2e/db/services đầy đủ chưa chạy: thiếu Docker) |
 | TC-155-22 | quy trình | chưa làm |
+| TC-155-23 | `backend/test/support/dockerfile.spec.ts` › TC-155-23 (2 ca) | đạt (thêm sau lần chạy CI đầu) |
 
 - **Test thủ công:** output thô ở [manual-test.txt](screenshots/DBS-155/manual-test.txt) (dòng đầu là SHA `8bf5438`, đã bỏ giờ khỏi log gitleaks; không có token, khóa giả bị che `REDACTED`).
 
@@ -443,6 +444,14 @@ Phụ thuộc giữa bước: bước 5 cần 3 và 4; bước 6 cần 4; bướ
   3. *Cài PyYAML bằng venv* (`python3 -m venv` + `pip install pyyaml==6.0.2`) ở `secret-scan` và `image.yml`, thay `pip install` thẳng: runner ubuntu-24.04 dùng Python hệ thống có thể chặn `pip install` (PEP 668); bước cũ trong `image.yml` chưa từng chạy (job luôn `skipped`). Chưa kiểm trên runner.
   4. *Lượt (b) Trivy dùng `--ignorefile` và gate không dùng `--severity`* như đã duyệt ở G2; không lệch.
   5. *Quét `.gitleaks.toml`/`.gitleaksignore` tự động:* phát hiện khi chạy: gitleaks tự đọc `.gitleaksignore` ở thư mục hiện tại và `.gitleaks.toml` ở thư mục quét; `run-gitleaks.sh` luôn truyền tường minh nên CI không bị ảnh hưởng; ghi ở §1 để người sau đo baseline đúng.
+- **Kết quả thật của lần chạy CI đầu** ([PR #147](https://github.com/Lawliet119/digital-banking-simulator/pull/147), run 43131596232): `secret-scan` đạt (18 giây, quét cả lịch sử), sáu job cũ đạt, **`image-scan` đỏ** với 6 phát hiện HIGH có bản sửa, 0 CRITICAL, 0 secret, 0 lỗ hổng gói Alpine, 0 lỗ hổng gói ứng dụng (`app/node_modules`). Cả 6 nằm ở npm đi kèm image `node:24-alpine`, không phải dependency của app:
+
+| Gói | Đường dẫn trong layer | Số CVE | Bản sửa |
+|---|---|---|---|
+| `brace-expansion` | `usr/local/lib/node_modules/npm/node_modules/brace-expansion/package.json` | 2 (CVE-2026-102276, CVE-2026-102278) | 5.0.11, 3.0.8, 2.1.6, 1.1.20 |
+| `undici` | `usr/local/lib/node_modules/npm/node_modules/undici/package.json` | 4 (CVE-2026-109383, 109869, 19534, 87018) | 6.29.1, 7.30.1, 8.12.2 |
+
+  Đây là đúng kịch bản §1 câu 7 và H6 (phát hiện trong image mà `npm audit` không thấy). Cổng hoạt động đúng: bắt được lỗ hổng thật ở lần chạy đầu. Xử lý (gate phụ, đổi Dockerfile, agent tự quyết): **loại bỏ khỏi runtime image thứ không cần** thay vì ngoại lệ: stage `runtime` xóa `/usr/local/lib/node_modules/npm`, `/usr/local/lib/node_modules/corepack` và các liên kết `npm`, `npx`, `corepack`, vì runtime chỉ chạy `node` (`CMD ["node","dist/main.js"]` và task migration `node ./node_modules/typeorm/cli.js`, đã kiểm trong `ecs.tf`). Các stage build giữ npm. Không có ngoại lệ trong `.trivyignore.yaml`. Test mới TC-155-23 (`backend/test/support/dockerfile.spec.ts`, 7/7 đạt: đỏ trước khi sửa Dockerfile). Hệ quả: image không còn `npm` để vào chạy lệnh trong container (debug bằng `node`); nếu sau này cần npm ở runtime thì phải xử lý lỗ hổng của nó. Kết quả sau sửa: xem mục run mới ngay dưới khi có.
 - **Chưa chứng minh:** Trivy trên image thật, các run Actions, Draft PR thử, `docker run --user` với gitleaks, venv/pip trên runner, `ghcr.io` kéo được ẩn danh trên runner, mermaid §3 chưa render, chữ ký cosign. Mỗi mục có đường chứng minh ở BL-246 và BL-245.
 - **Bàn giao cho vai khác:** chủ repo thêm `image-scan`, `secret-scan` vào ruleset (BL-035, BL-012); người dùng duyệt Draft PR thử (BL-246); cosign (BL-245); ghim digest base image (BL-244). Dòng BACKLOG: BL-244, BL-245, BL-246 thêm mới; BL-035 thu hẹp; BL-106 thêm nguồn; BL-111, BL-013 đã xóa.
 
