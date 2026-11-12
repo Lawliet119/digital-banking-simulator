@@ -1,0 +1,49 @@
+SHA code cuối đã chạy: 93deb95 (commit cuối đổi code; sau đó chỉ sửa docs)
+Môi trường: AWS ap-southeast-1, profile dbs-admin, tài khoản <acct> (đã che), Terraform 1.16.6, 2026-11-12.
+NHÓM A (không cần image). Nhóm B (M-121-06..12) CHƯA CHẠY: ECR dbs-api không có image, máy không có docker.
+
+== M-121-01 sạch trước khi làm (lúc bắt đầu, chỉ đọc)
+ecs list-clusters: rỗng; rds describe-db-instances: rỗng; elasticache: rỗng; elbv2: rỗng; ecr describe-images dbs-api: rỗng;
+log group /dbs với tiền tố: chỉ /dbs/dev/api; role dbs-*: chỉ dbs-github-ecr-push.
+
+== M-121-02 terraform plan -lock=false (base, backend S3 thật)
+  + aws_cloudwatch_log_group.worker, aws_security_group.worker, 3 egress rule worker, db_from_worker, redis_from_worker
+  + aws_iam_role.github_deploy, aws_iam_role_policy.deploy   (chưa có trên tài khoản, BL-105/BL-109)
+Plan: 9 to add, 0 to change, 0 to destroy.   (không replace/destroy aws_security_group.db và .redis)
+
+== M-121-03 terraform apply base, chỉ 7 -target worker (không có role deploy)
+-target=aws_cloudwatch_log_group.worker -target=aws_security_group.worker
+-target=aws_vpc_security_group_egress_rule.worker_https -target=...worker_to_db -target=...worker_to_redis
+-target=aws_vpc_security_group_ingress_rule.db_from_worker -target=...redis_from_worker
+Kiểm:
+  terraform output worker_security_group_id  -> "sg-02c300770f5084abe"
+  terraform output worker_log_group_name     -> "/dbs/dev/worker"
+  terraform output worker_log_group_arn      -> "arn:aws:logs:ap-southeast-1:<acct>:log-group:/dbs/dev/worker"
+  aws logs describe-log-groups --log-group-name-prefix /dbs/dev/worker -> /dbs/dev/worker  7 (ngày)
+  aws ec2 describe-security-groups sg-worker -> dbs-dev-worker  IpPermissions=0  IpPermissionsEgress=3
+  SG dbs-dev-redis -> cổng 6379, 2 nguồn; dbs-dev-db -> cổng 5432, 2 nguồn (api, worker)
+
+== M-121-04 terraform apply session (13:30Z), -target=aws_ecs_service.worker
+   + -target=aws_iam_role_policy.worker_execution -target=aws_iam_role_policy.worker_read_secrets
+   + -target=aws_iam_role_policy_attachment.worker_sqs   (không ALB, không api)
+   image_tag=0000...0000 (40 số 0, không có trong ECR; desired_count worker = 0 nên không có task)
+Plan: 8 to add (rds, parameter group, cluster, service worker, task def worker, valkey, 2 role) + 3 policy; Apply complete.
+aws ecs describe-services --cluster dbs-dev --services worker:
+  worker ACTIVE desiredCount 0 runningCount 0 FARGATE loadBalancers 0
+  minimumHealthyPercent 0 maximumPercent 100 deploymentCircuitBreaker enable=true rollback=true
+aws ecs describe-task-definition dbs-worker (revision 1):
+  cpu 256 memory 512 essential true stopTimeout 60 portMappings [] healthCheck null
+  taskRole  arn:aws:iam::<acct>:role/dbs-dev-worker-task
+  execRole  arn:aws:iam::<acct>:role/dbs-dev-worker-execution
+  logConfiguration awslogs group /dbs/dev/worker region ap-southeast-1 prefix worker
+  secrets DB_USER DB_PASSWORD REDIS_AUTH_TOKEN
+  environment APP_ROLE=worker, SQS_RISK_QUEUE_URL=https://sqs.ap-southeast-1.amazonaws.com/<acct>/dbs-dev-risk-events,
+              SQS_NOTIFICATION_QUEUE_URL=https://sqs.ap-southeast-1.amazonaws.com/<acct>/dbs-dev-notification-events, không SQS_ENDPOINT
+aws iam list-role-policies dbs-dev-worker-execution -> pull-image-and-write-logs, read-db-master-and-redis-auth-secrets
+aws iam list-attached-role-policies dbs-dev-worker-task -> dbs-dev-worker-sqs
+
+== M-121-05 terraform destroy session (ngay sau M-121-04): Destroy complete! Resources: 11 destroyed.
+== chứng minh sạch (13:45:29Z, chỉ đọc): ecs list-clusters, rds, elasticache, elbv2, NAT (available/pending),
+   Elastic IP, ENI status=available, ecs list-task-definitions ACTIVE, role dbs-dev-*: tất cả RỖNG.
+Còn lại (cố ý, miễn phí, thuộc base): log group /dbs/dev/worker, SG dbs-dev-worker và 4 luật SG (M-121-03).
+Chi phí ước tính: RDS + Valkey ≈ 15 phút ≈ 0,01 USD; chi phí thật ghi từ cost-report.py hôm sau.

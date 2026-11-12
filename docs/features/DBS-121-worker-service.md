@@ -1,6 +1,6 @@
 # DBS-121 · Dựng service worker (APP_ROLE=worker) trên ECS
 
-> **Status:** Plan approved (G1–G3 tự duyệt 2026-11-12 theo memory `feedback-autonomous-gates`) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-121-worker-service` (từ `origin/chore/DBS-120-ecs-task-roles` 18b8163) · **PR:** — · **Cập nhật:** 2026-11-12
+> **Status:** Implemented một phần (G4 tự duyệt 2026-11-12; DoD 2 và nhóm B của test thủ công chưa đạt, BL-244) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-121-worker-service` (từ `origin/chore/DBS-120-ecs-task-roles` 18b8163) · **PR:** — · **Cập nhật:** 2026-11-12
 >
 > **Phụ thuộc PR #146 (DBS-120):** nhánh này xây trên `chore/DBS-120-ecs-task-roles` vì cần hai role worker (`worker_task`, `worker_execution`), policy `dbs-dev-worker-sqs` và danh sách bàn giao BL-242. PR của DBS-121 chỉ nên mở/merge sau khi PR #146 vào `main` (hoặc dùng PR #146 làm nhánh nền), nếu không diff sẽ lẫn commit của DBS-120.
 
@@ -124,7 +124,7 @@ Terraform test với `mock_provider` (không cần credential); `session/tests/w
 
 ## 5. Test thủ công
 
-**Trạng thái: chưa chạy** (trừ M-121-01, chỉ đọc, đã chạy lúc bắt đầu; kết quả ở §1). Người dùng cho phép thao tác AWS miễn là `destroy` ngay sau khi xong. Kịch bản chia hai nhóm:
+**Trạng thái: nhóm A đã chạy (2026-11-12, xem §8); nhóm B chưa chạy.** Người dùng cho phép thao tác AWS miễn là `destroy` ngay sau khi xong. Kịch bản chia hai nhóm:
 
 - **Nhóm A, không cần image** (M-121-01 đến M-121-05): kiểm hạ tầng thật (log group, SG, task def, service `desiredCount 0`, ngưỡng cấu hình) rồi destroy; ≈ 0,08 USD/giờ (RDS 0,025, ALB 0,03, Valkey 0,016, IP của ALB; không task Fargate), chỉ cần ≈ 20–30 phút.
 - **Nhóm B, cần image** (M-121-06 đến M-121-13): task worker thật, chuyển tiền → cờ, tắt/bật worker, phục hồi. **Chặn bởi thiếu image** trong ECR `dbs-api`: máy này không có docker, và tải image gốc cùng CA ngoài repo bị cấm lượt này. Cần một máy có docker đẩy image hoặc workflow Image của CI chạy trên `main`. DoD 2 và BL-242 (3) chưa đạt cho tới khi nhóm B chạy.
@@ -212,8 +212,58 @@ Rủi ro và cách lùi: `terraform apply` chỉ chạy `-target` nhóm miễn p
 
 ## 8. Kết quả
 
-(điền ở Phase 4–5)
+- **Lệnh kiểm tra** (tuần tự, `-parallelism=1 GOMAXPROCS=2 GOMEMLIMIT=1500MiB`, `terraform 1.16.6`): `terraform fmt -check -recursive` sạch ở `base` và `session`; `base`: **45 passed, 0 failed** (baseline 43, +2 run của `worker.tftest.hcl`; `deploy_role.tftest.hcl` đổi assertion); `session`: **35 passed, 0 failed** (baseline 27, +8 run); jest `connection-pool.spec.ts`: **5 passed** (baseline 4); `python3 .github/scripts/tests/test_render_task_definition.py`: **11 tests OK**; `check-doc-links.mjs`: 0 broken link. Không `.skip/.only/.todo`. Không chạy bốn lệnh backend đầy đủ (không đổi code ứng dụng; không có docker cho e2e Testcontainers).
+- **Kết quả đỏ** (chạy trước khi viết code): `base/worker.tftest.hcl`: `Reference to undeclared resource aws_cloudwatch_log_group.worker`; `deploy_role.tftest.hcl`: 3 assertion `Test assertion failed` (PassRole, TagResource, service worker); `session/worker.tftest.hcl`: `aws_ecs_task_definition.worker has not been declared`. TC-121-12 và TC-121-15 là test khóa hành vi, xanh ngay vì script đã hỗ trợ `--container` và `worker.tf` đã có hai trần (ghi trung thực, không phải red).
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-121-01 | `session/tests/worker.tftest.hcl` › `worker_task_definition` | đạt |
+| TC-121-02 | cùng run (env có SQS, đúng tập tên, không `SQS_ENDPOINT`/`PORT`) | đạt |
+| TC-121-03 | cùng run (role worker khác role api) | đạt |
+| TC-121-04 | cùng run (secrets = tập `GetSecretValue`) | đạt |
+| TC-121-05 | cùng run (log group, prefix, ARN trong policy) | đạt |
+| TC-121-06 | `worker_service` | đạt |
+| TC-121-07 | `worker_off_api_unchanged`, `worker_on_api_unchanged` (mức plan/apply mock; không phải chạy thật, xem M-121-10) | đơn giản hóa (không chạy thật trên AWS) |
+| TC-121-08 | `worker_default_is_zero`, `rejects_three_workers`, `rejects_total_above_six`, `accepts_five_plus_one` | đạt |
+| TC-121-09 | `base/tests/worker.tftest.hcl` › `worker_log_group` | đạt |
+| TC-121-10 | `worker_security_group` (gồm `description` không đổi) | đạt |
+| TC-121-11 | `base/tests/deploy_role.tftest.hcl` › `deploy_policy` | đạt |
+| TC-121-12 | `test_render_task_definition.py` › `test_worker_revision_keeps_its_settings` | đạt (test khóa) |
+| TC-121-13 | M-121-06..08 | **chưa làm** (thiếu image, BL-244) |
+| TC-121-14 | quy trình (merge, CI, Dev review) | chưa làm, chờ PR |
+| TC-121-15 | `connection-pool.spec.ts` › TC-121-15 | đạt (test khóa) |
+
+- **Test thủ công** (output thô: [manual-test.txt](screenshots/DBS-121/manual-test.txt), SHA 93deb95; máy không có `gh`/docker; ảnh chụp không áp dụng vì là lệnh CLI, bằng chứng là văn bản):
+
+| Bước | Kết quả |
+|---|---|
+| M-121-01 | **đạt**: tài khoản sạch lúc bắt đầu (không cluster, RDS, Valkey, ALB; ECR rỗng; chỉ `/dbs/dev/api`) |
+| M-121-02 | **đạt** (chỉ `base`): plan `9 to add, 0 to change, 0 to destroy`; hai dòng thêm là role/policy deploy chưa có trên tài khoản; không replace SG db/redis. Plan của `session` chạy ở M-121-04 |
+| M-121-03 | **đạt**: apply 7 `-target` của worker; log group retention 7, SG worker `IpPermissions` 0 và egress 3, SG db và redis đúng 2 nguồn; 3 output đọc được |
+| M-121-04 | **đạt một phần** (lệch kế hoạch, xem dưới): `-target=aws_ecs_service.worker` cùng 3 policy IAM thay vì cả stack (không dựng ALB/api). Service `worker` ACTIVE, desired 0, không load balancer, 0/100%, circuit breaker; task def đúng cấu hình (không portMappings/healthCheck, `stopTimeout` 60, secrets, log, URL SQS); role/policy đúng |
+| M-121-05 | **đạt**: `terraform destroy` 11 resource; chứng minh sạch lúc 13:45Z (cluster, RDS, Valkey, ALB, NAT, EIP, ENI `available`, task def ACTIVE, role `dbs-dev-*` rỗng). Chi phí ước tính ≈ 0,01 USD (≈ 15 phút RDS + Valkey) |
+| M-121-06..12 | **chưa chạy (thiếu image trong ECR `dbs-api`, máy không có docker, tải ngoài repo bị cấm)**: task worker thật, chuyển tiền → cờ, tắt/bật worker, kill task, revision thiếu biến |
+| M-121-13 | **một phần**: destroy và chứng minh sạch đã làm sau nhóm A; không có khách Cognito để xóa |
+
+- **Phạm vi so với §7:** các file trong §7 đều có; thêm `docs/features/screenshots/DBS-121/*`, `backend/src/config/connection-pool.spec.ts` (đúng kế hoạch). Log group và SG gộp trong `base/worker.tf` thay vì `logs.tf`/`worker_network.tf`; biến `worker_desired_count` và output nằm trong `session/worker.tf` (không sửa `variables.tf`, `outputs.tf`, `ecs.tf`) để dễ đọc và để lệnh shell đơn giản; `connection-pool.spec.ts` đọc `worker.tf`.
+- **Lệch so với kế hoạch** (agent tự duyệt, gate phụ):
+  1. M-121-04 dùng `-target=aws_ecs_service.worker` (kéo RDS, Valkey, cluster, task def, 2 role) cộng 3 policy IAM, **không** dựng cả stack, để không tốn ALB; lý do chi phí, người dùng yêu cầu `-target` rõ. Hệ quả: chưa kiểm `/health/ready` qua ALB (thuộc nhóm B).
+  2. Quyền deploy worker (PassRole, UpdateService) trên role `dbs-github-deploy` được code nhưng **chưa apply** (role chưa có trên tài khoản, BL-105): người dùng quyết khi nào dựng role OIDC.
+  3. Đã apply thay đổi `base` của nhánh chưa merge (7 resource miễn phí) vào state thật. Nếu PR bị bỏ, phải `terraform destroy -target` các địa chỉ đó.
+- **Bàn giao và BACKLOG:** BL-244 (nhóm B chưa chạy, DoD 2 chưa đạt; #5), BL-245 (`deploy.sh` cho worker; #5), BL-246 (thứ tự hủy module SQS khi SIGTERM; Dev), BL-247 (`propagate_tags` api; #5). Đã sửa BL-161, BL-182, BL-234, BL-242; đã xóa BL-114, BL-119.
+- **Khoảng hở còn lại:** api vẫn lăn 200% (BL-234): api 5 + worker 1 khi deploy tới 11 task, 115 > 74 kết nối dùng được; worker treo chưa có alarm (BL-161); credential master RDS vào worker (BL-103).
 
 ## 9. Tài liệu đã cập nhật
 
-(điền ở Phase 5)
+`infra/terraform/README.md` (mục «Service worker», đổi câu SQS), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (§13.2, §13.3), `docs/components/_shared/database-design.md` §6.4 (số task worker), `docs/features/README.md`, `docs/BACKLOG.md` (thêm BL-244..247; sửa BL-161, 182, 234, 242; xóa BL-114, BL-119). Không đổi threat-model: T9 giữ trạng thái «Một phần» (queue policy allow-list vẫn là BL-241).
+
+## Checklist G4 (tự duyệt, Claude audit)
+
+- [x] 12 test case đạt đủ độ sâu (TC-121-01..06, 08..12, 15 tính run Terraform; 01–05 chung một run), 1 đơn giản hóa (TC-121-07), TC-121-13 và 14 chưa làm
+- [ ] Test thủ công: nhóm A chạy trên AWS (SHA code 93deb95); **đường thành công DoD 2 chưa chạy** (nhóm B, thiếu image): chưa đạt DoD
+- [x] `manual-test.txt` đã che id tài khoản; ảnh chụp không áp dụng (văn bản); token/Authorization không có
+- [x] Diff khớp §7, lệch ghi ở §8
+- [x] Lệnh kiểm tra chạy lúc bàn giao, có số đếm
+- [x] `check-doc-links.mjs` sạch; trạng thái doc ghi Implemented một phần
+- [x] Bàn giao và DoD chưa đạt đã có BL-244..247; BL-114, BL-119 đã xóa
