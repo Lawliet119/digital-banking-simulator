@@ -41,7 +41,7 @@
   - `npm audit --omit=dev`: 10 lỗ hổng ở dependency production: 4 high, 6 moderate, 0 critical. Bốn high đều có bản sửa trong dải semver hiện tại: `body-parser` 2.0.0–2.3.0 (GHSA-27r3-jxmh-p828), `multer` 2.0.0–2.4.0 (GHSA-q7qp-rjg7-q26m, qua `@nestjs/platform-express`), `joi` 18.0.0–18.3.0 (GHSA-4528-x5fx-h6hg). Cả cây (gồm dev): 1 critical, 6 high, 37 moderate, 2 low; dependency dev không vào image. Nghĩa là cổng Trivy bật hôm nay sẽ **đỏ ngay**.
   - Quét lịch sử git bằng regex (`git log --all -p`, script tạm ở scratchpad, giá trị đã che; `git rev-list --count HEAD` = 138, `--all` = 494 vì có 52 nhánh remote): khối `PRIVATE KEY` có thân khóa chỉ ở `backend/test/support/tls-fixtures/server.key` (ngoại lệ CONTRIBUTING §6, BL-111); các chỗ khác chỉ là dòng tiêu đề (`dev-auth.spec.ts`, manual-test DBS-53, tài liệu). Hai chuỗi dạng JWT ở `logging.options.spec.ts` và tài liệu review DBS-42 (token thử). Không có `AKIA…`, `ghp_…`, `sk-…`, `xox…`, `AIza…`. Ước lượng này đã được thay bằng số đếm thật ngay dưới.
   - **gitleaks 8.30.1** (binary, `git --log-opts="HEAD" --redact`, bộ luật mặc định, chưa có cấu hình): thoát 1, "137 commits scanned", **122 phát hiện**: 1 `private-key` (`server.key`, BL-111) và 121 `generic-api-key`. Phân loại theo dạng giá trị (không in giá trị; report chưa che đã xóa): 113 là UUID trong `docs/features/screenshots/**/manual-test*.txt` (Idempotency-Key, `"key":"…"`, `idem_key`), 3 là id container Docker (hex 64) cùng thư mục, 5 là giá trị thử trong 5 file spec (`compose-redis-url`, `env.bootstrap`, `validation.schema`, `r2-unusual-amount`, `r3-new-account-large-transfer`). Không phát hiện nào giống credential thật; xử lý ở câu 13.
-  - **gitleaks đếm 137, `git rev-list --count HEAD` = 138:** commit `a89b678` chỉ xóa file nên gitleaks không đếm. `git log --diff-filter=AM --format=%H HEAD | wc -l` = 137, khớp.
+  - **Số commit gitleaks đếm không bằng một công thức git nào ổn định:** 137 so với `rev-list --count HEAD` = 138 (commit `a89b678` chỉ xóa file). Trên repo thử (§8) gitleaks còn bỏ commit chỉ đổi mode, chỉ đổi tên, rỗng, chỉ xóa file (kể cả commit revert xóa file), nên phép so bằng với `--diff-filter=AM` cũng sai. Chốt kiểu chặn ở H2.
   - **Trivy 0.76.1** `fs` trên `backend/package-lock.json` (dependency production, DB tải từ `mirror.gcr.io`): CRITICAL 0; HIGH 3 (cả 3 có bản sửa): `body-parser` 2.3.0 → 2.4.0 (CVE-2026-111181), `joi` 18.2.9 → 18.3.1 (CVE-2026-118772), `multer` 2.4.0 → 2.5.0 (CVE-2026-113872); MEDIUM 4 (có bản sửa); LOW 0; không có lỗi chưa có bản sửa. Lệnh chặn (a) thoát 1. `fs --scanners secret` trên cây (trừ `node_modules`): 0 phát hiện, thoát 0. Gói Alpine và `npm` đi kèm image `node` chưa quét được (cần image, chỉ có trên CI).
   - Chưa có bản ghép P3: [deliverables README](../deliverables/README.md) ghi P3 (Security & DevOps, #5, tuần 6) "chưa nộp", nguồn là `components/ci-cd`, threat model.
 - **BACKLOG liên quan:**
@@ -62,15 +62,15 @@
 | # | Câu hỏi | Quyết định và lý do |
 |---|---|---|
 | 1 | Công cụ | **Trivy** cho image (lỗ hổng OS Alpine và gói npm trong image, kèm quét secret trong image), **gitleaks** cho repo. Đúng ví dụ DoD, docs/03 §12 ("quét bí mật trong CI"), NFR-SEC-04 ([BRD](../BRD.md): 0 bí mật trong mã nguồn, đo bằng quét trong CI), threat model T16. |
-| 2 | Cách chạy, có tính là thêm dependency không | **Có**, là gate phụ (ghi ở §8). Chạy bằng **image Docker chính thức ghim digest**: `ghcr.io/aquasecurity/trivy:0.76.1@sha256:…` (GHCR, không Docker Hub ẩn danh bị giới hạn lượt kéo) và `ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:…`; không dùng action marketplace (không thêm JavaScript bên thứ ba chạy với token của job; gitleaks-action cần license với tài khoản tổ chức). Phiên bản đã chọn theo advisory: xem §8 "Chọn phiên bản". Digest và chữ ký cosign của image kiểm ở Phase 3. Local dùng binary chính thức cùng phiên bản. |
+| 2 | Cách chạy, có tính là thêm dependency không | **Có**, là gate phụ (ghi ở §8). Chạy bằng **image Docker chính thức ghim digest**: `ghcr.io/aquasecurity/trivy:0.76.1@sha256:…` (GHCR, không Docker Hub ẩn danh bị giới hạn lượt kéo) và `ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:…`; không dùng action marketplace (không thêm JavaScript bên thứ ba chạy với token của job; gitleaks-action cần license với tài khoản tổ chức). Phiên bản và digest đã chọn: xem §8 "Chọn phiên bản" (digest index đa kiến trúc trùng nhau ở GHCR, ECR Public và Docker Hub; không có cosign nên không kiểm chữ ký, người dùng chưa cho tải cosign). Local dùng binary chính thức cùng phiên bản. |
 | 3 | Đặt ở workflow/job nào | Hai job mới trong `ci.yml`: **`image-scan`** (build image, `docker save`, Trivy trên file tar) và **`secret-scan`** (gitleaks, cộng kiểm tĩnh workflow và ngoại lệ), chạy mọi PR và push `main`, tên khác sáu tên hợp đồng, `working-directory: .` (gốc repo; `ci.yml` mặc định `backend`). Trong **`image.yml`**: build, save, Trivy **trước** `configure-aws-credentials`; chỉ khi Trivy thoát 0 mới lấy credential, kiểm tag và push. Không nhét vào job `build`: đổi nghĩa một check hợp đồng và CONTRIBUTING §4b. |
 | 4 | Ngưỡng | Trivy `--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1` (đúng "cao/nghiêm trọng có bản sửa"); thêm một bước chỉ in (exit 0) HIGH/CRITICAL chưa có bản sửa để người đọc thấy. MEDIUM/LOW không chặn. Secret trong image: một lượt Trivy riêng `--scanners secret` **không lọc mức**, mọi phát hiện là đỏ. gitleaks: mọi phát hiện (bộ luật mặc định) là đỏ, `--redact`. |
-| 5 | Ngoại lệ | Ba file ở gốc repo, mỗi mục có lý do và hạn xem lại. Trivy: **`.trivyignore.yaml`** (`statement`, `expired_at`; Trivy tự bỏ mục quá hạn nên lỗ hổng hiện lại). gitleaks theo đường dẫn: **`.gitleaks.toml`** (`useDefault = true`, `description` chứa `Hạn xem lại: YYYY-MM-DD`, path neo `^…$` đúng một file). gitleaks theo phát hiện cụ thể trong commit đã có trên `main` (không viết lại được lịch sử): **`.gitleaksignore`**, mỗi fingerprint `commit:file:rule:line` có dòng `#` ngay trên ghi lý do và hạn. Hạn: **cuộn 90 ngày** (≤ hôm nay + 90 ngày, UTC), không gắn ngày kết thúc dự án. `.github/scripts/check-scan-exceptions.py` đỏ khi thiếu lý do/hạn, hạn đã qua hoặc quá 90 ngày. Hạn qua là **cố ý đỏ**: #5 xem lại lý do rồi gia hạn bằng PR; người gia hạn là người review PR đó. |
-| 6 | gitleaks quét gì | **Lịch sử tới `HEAD`** (`fetch-depth: 0`, `--log-opts="HEAD"`) ở cả PR (HEAD là merge commit nên gồm commit của PR và `main`) và `main`. Không quét `--all` (mặc định của chế độ `git`): checkout `fetch-depth: 0` kéo cả 52 nhánh remote (`rev-list --all` = 494 so với `HEAD` = 138), nên một nhánh rác có secret sẽ làm mọi PR đỏ. Secret đã revert trong PR vẫn đỏ; nhánh lỡ commit secret phải rotate rồi viết lại lịch sử nhánh (CONTRIBUTING §6). Sau quét, so số commit gitleaks báo với số commit tới `HEAD` có thêm/sửa file (H2); lệch là đỏ (chống xanh giả do clone nông, `safe.directory`, mount sai). |
+| 5 | Ngoại lệ | Ba file ở gốc repo, mỗi mục có lý do và hạn xem lại. Trivy: **`.trivyignore.yaml`** (`statement`, `expired_at`; Trivy tự bỏ mục quá hạn nên lỗ hổng hiện lại). gitleaks theo đường dẫn: **`.gitleaks.toml`** (`useDefault = true`, `description` chứa `Hạn xem lại: YYYY-MM-DD`; path là đúng một file, trừ khi cùng allowlist có `targetRules`, `regexes` và `condition = "AND"`, xem H4). gitleaks theo phát hiện cụ thể trong commit đã có trên `main` (không viết lại được lịch sử): **`.gitleaksignore`**, mỗi fingerprint `commit:file:rule:line` có dòng `#` ngay trên ghi lý do và hạn. Hạn: **cuộn 90 ngày** (≤ hôm nay + 90 ngày, UTC), không gắn ngày kết thúc dự án; các mục để hạn lệch nhau để không hết hạn cùng ngày. `.trivyignore.yaml` luôn có trong repo (tối thiểu `vulnerabilities: []`), thiếu file là đỏ. `.github/scripts/check-scan-exceptions.py` đỏ khi thiếu lý do/hạn, hạn đã qua hoặc quá 90 ngày. Hạn qua là **cố ý đỏ**: #5 xem lại lý do rồi gia hạn bằng PR; người gia hạn là người review PR đó. |
+| 6 | gitleaks quét gì | **Lịch sử tới `HEAD`** (`fetch-depth: 0`, `--log-opts="HEAD"`) ở cả PR (HEAD là merge commit nên gồm commit của PR và `main`) và `main`. Không quét `--all` (mặc định của chế độ `git`): checkout `fetch-depth: 0` kéo cả 52 nhánh remote (`rev-list --all` = 494 so với `HEAD` = 138), nên một nhánh rác có secret sẽ làm mọi PR đỏ. Secret đã revert trong PR vẫn đỏ; nhánh lỡ commit secret phải rotate rồi viết lại lịch sử nhánh (CONTRIBUTING §6). Chống xanh giả (clone nông, `safe.directory`, mount sai, khoảng commit sai): repo không nông, gitleaks quét ít nhất 1 commit và ít nhất 90% số commit không phải merge tới `HEAD` (H2). |
 | 7 | 4 lỗ hổng high đang có bản sửa | **Sửa trong task này** bằng cập nhật `package-lock.json` trong dải semver hiện tại (không đổi `package.json` nếu dải cho phép), vì cổng không được đỏ ngay lúc merge và ngoại lệ cho lỗi đã có bản sửa đi ngược DoD #1. Gate phụ (đổi dependency, ghi §8); CI sáu job chứng minh không vỡ. Phát hiện Trivy khác npm audit (gói Alpine, `npm` đi kèm image `node`) xử lý ở Phase 4 theo kết quả thật: ưu tiên sửa (vd bỏ `npm`/`npx` khỏi stage runtime, runtime không dùng npm: `ecs.tf` dòng 99), cuối cùng mới là ngoại lệ có hạn. |
-| 8 | Chứng minh "PR thử → CI đỏ" khi chưa lên GitHub | Trước G3 không chạm GitHub. Phase 4: chạy local đúng image, phiên bản và tham số workflow dùng (nhánh thử cục bộ có secret giả, có dependency lỗi, có ngoại lệ quá hạn). Sau đó chuẩn bị nhánh thử `test/DBS-155-scan-proof` (loại `test` có trong CONTRIBUTING §2) với các commit thử để coordinator đẩy lên một Draft PR bỏ đi, **sau** khi Draft PR của nhánh task đã có run xanh (không chạy song song); xóa nhánh khi đã ghi link. Secret giả là khóa sinh ngẫu nhiên tại chỗ, không phải định dạng token của nhà cung cấp. Người dùng đã cho tải binary Trivy và gitleaks chính thức vào scratchpad; máy vẫn không có Docker nên phần cần `docker build` chỉ chứng minh trên CI (cột "Chạy được ở đâu" ở §4, §5). |
+| 8 | Chứng minh "PR thử → CI đỏ" khi chưa lên GitHub | Trước G3 không chạm GitHub. Phase 4: chạy local đúng image, phiên bản và tham số workflow dùng (nhánh thử cục bộ có secret giả, có dependency lỗi, có ngoại lệ quá hạn). Sau đó chuẩn bị nhánh thử `test/DBS-155-scan-proof` (loại `test` có trong CONTRIBUTING §2) với các commit thử để coordinator đẩy lên Draft PR bỏ đi, **sau** khi Draft PR của nhánh task đã có run xanh (không chạy song song). Hai chuỗi tách nhau (ngoại lệ, rồi secret), mỗi commit chỉ đẩy khi run trước đã xong vì `ci.yml` có `cancel-in-progress` cho PR (TC-19); xóa nhánh khi đã ghi link. Secret giả là khóa sinh ngẫu nhiên tại chỗ, không phải định dạng token của nhà cung cấp. Người dùng đã cho tải binary Trivy và gitleaks chính thức vào scratchpad; máy vẫn không có Docker nên phần cần `docker build` chỉ chứng minh trên CI (cột "Chạy được ở đâu" ở §4, §5). |
 | 12 | CVE mới công bố làm PR không liên quan đỏ | Chấp nhận: base `node:24-alpine` theo tag và DB Trivy tải mới mỗi lần nên kết quả thay đổi theo ngày. Quy trình ở §2 H6. Ghim digest base image chuyển BACKLOG ở Phase 5 (đổi thì phải có người cập nhật digest, ngoài DoD). |
-| 13 | 121 phát hiện `generic-api-key` sẵn có trong lịch sử | Không viết lại lịch sử `main` và không allowlist cả thư mục. (a) Một allowlist trong `.gitleaks.toml` chỉ cho luật `generic-api-key`, `regexTarget = "secret"`, giá trị đúng dạng UUID hoặc hex 64, **và** path `^docs/features/screenshots/.+\.(txt\|md)$`: đó là Idempotency-Key và id container trong log test thủ công, không phải bí mật (116 phát hiện). (b) 5 giá trị thử trong spec: fingerprint trong `.gitleaksignore`, mỗi dòng có lý do và hạn (cho phép chính xác commit, file, dòng; giá trị mới ở chỗ khác vẫn đỏ). Hệ quả: một UUID thật sự là secret đặt trong log test thủ công sẽ lọt; chấp nhận vì log đó đã có quy tắc che token (`manual-testing.md`). Phân loại lại bằng output thật ở Phase 4. |
+| 13 | 121 phát hiện `generic-api-key` sẵn có trong lịch sử | Không viết lại lịch sử `main`, không allowlist cả thư mục, không allowlist dạng hex 64. (a) Một allowlist chỉ cho luật `generic-api-key`, `condition = "AND"`, `regexTarget = "match"`: đoạn khớp phải là tên khóa idempotency (`key`, `idempotencyKey`, `Idempotency-Key`, `idem_key`) theo sau là **một UUID** và kết thúc ở đó, **và** file là `docs/features/screenshots/DBS-<n>/manual-test*.txt` (113 phát hiện). (b) 3 id container Docker (hex 64) ở `DBS-40/manual-test.txt` và 5 giá trị thử trong spec: 8 fingerprint trong `.gitleaksignore`, mỗi dòng có lý do và hạn. Đã chạy thử với gitleaks 8.30.1 (§8): lịch sử thật còn 0 phát hiện; `secret = <hex64>` mới trong `manual-test.txt`, `api_key = <uuid>` trong `.md`, bản sao `server.key` đều vẫn đỏ. Hệ quả còn lại: một UUID thật sự là secret ghi dưới tên `key=` trong log test thủ công sẽ lọt. |
 | 9 | Kết quả quét cho P3 | Lưu bản tóm tắt kết quả (lệnh, phiên bản, số phát hiện theo mức, ngoại lệ) ở `docs/components/ci-cd/scan-results.md`, link từ concept brief ci-cd, hàng P3 của deliverables README và T16 của threat model. |
 | 10 | Nhánh | `infra/`: CONTRIBUTING §2 ghi `infra` cho "Terraform, CI/CD"; DBS-35, DBS-41 dùng `infra/`. Không có loại `ci/`. |
 | 11 | Board role | #5 khớp loại việc (CI quét image/secret là việc của #5 theo `platform.md`). |
@@ -81,15 +81,16 @@ Task không có API. Mô tả những gì CI chấp nhận và từ chối. `<di
 
 **H1. Job `image-scan` (`ci.yml`, mọi PR và push `main`, `timeout-minutes: 15`).**
 - Bước: checkout (không giữ credential) → `docker build --provenance=false --sbom=false -t dbs-api:scan backend` → `docker save -o "$T/img.tar" dbs-api:scan` → tải DB → ba lượt Trivy.
-- Container Trivy **không mount `docker.sock`**, không nhận biến môi trường của job, chỉ thấy thư mục cache DB và file cần quét (chỉ đọc). Lượt tải DB có mạng nhưng không thấy image; ba lượt quét chạy `--network none`, `--skip-db-update`, `--offline-scan`:
+- Container Trivy **không mount `docker.sock`**, không nhận biến môi trường của job, chỉ thấy thư mục cache DB và file cần quét (chỉ đọc). Lượt tải DB có mạng nhưng không thấy image; ba lượt quét chạy `--network none`, `--skip-db-update`, `--skip-java-db-update` (image không có JAR; thiếu cờ thì Trivy thử tải Java DB khi gặp JAR và đỏ vì không có mạng), `--offline-scan`:
 
 ```bash
 TRIVY=ghcr.io/aquasecurity/trivy:0.76.1@sha256:<digest>
 DBREPO=mirror.gcr.io/aquasec/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2
 docker run --rm -v "$T/cache:/cache" "$TRIVY" image --cache-dir /cache --download-db-only --db-repository "$DBREPO"
-RUN="docker run --rm --network none -v $T/cache:/cache -v $T/img.tar:/scan/img.tar:ro -v $PWD/.trivyignore.yaml:/scan/.trivyignore.yaml:ro $TRIVY image --cache-dir /cache --skip-db-update --offline-scan --input /scan/img.tar"
-$RUN --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --ignorefile /scan/.trivyignore.yaml --exit-code 1   # (a) chặn lỗ hổng
-$RUN --scanners secret --exit-code 1                                                                             # (b) chặn secret, không lọc mức
+test -f .trivyignore.yaml   # thiếu file thì docker -v tạo thư mục rỗng và Trivy lỗi khó hiểu: chặn trước
+RUN="docker run --rm --network none -v $T/cache:/cache -v $T/img.tar:/scan/img.tar:ro -v $PWD/.trivyignore.yaml:/scan/.trivyignore.yaml:ro $TRIVY image --cache-dir /cache --skip-db-update --skip-java-db-update --offline-scan --input /scan/img.tar --ignorefile /scan/.trivyignore.yaml"
+$RUN --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1   # (a) chặn lỗ hổng
+$RUN --scanners secret --exit-code 1                                         # (b) chặn secret, không lọc mức; ngoại lệ ở mục secrets:
 $RUN --scanners vuln --severity HIGH,CRITICAL --exit-code 0                                                       # (c) chỉ in, gồm lỗi chưa có bản sửa
 ```
 
@@ -100,15 +101,20 @@ $RUN --scanners vuln --severity HIGH,CRITICAL --exit-code 0                     
 - Bước: checkout `fetch-depth: 0` (không giữ credential) → `pip install pyyaml==6.0.2` → `python3 .github/scripts/check-image-workflow.py` (kiểm tĩnh mọi workflow, có fixture âm; xem H7) → `python3 .github/scripts/check-scan-exceptions.py` (H4) → gitleaks → so số commit.
 
 ```bash
-docker run --rm -v "$PWD:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:<digest> \
+set -o pipefail
+docker run --rm -v "$PWD:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
   git /repo --log-opts="HEAD" --config /repo/.gitleaks.toml --gitleaks-ignore-path /repo/.gitleaksignore \
-  --redact --exit-code 1 --verbose 2>&1 | tee "$T/gitleaks.log"
-test "$(sed -n 's/.* \([0-9]\+\) commits scanned.*/\1/p' "$T/gitleaks.log")" = "$(git log --diff-filter=AM --format=%H HEAD | wc -l)"
+  --no-color --no-banner --redact --exit-code 1 --verbose 2>&1 | tee "$T/gitleaks.log"
+scanned=$(sed -n 's/.* \([0-9]\+\) commits scanned.*/\1/p' "$T/gitleaks.log")
+total=$(git rev-list --count --no-merges HEAD)
+test "$(git rev-parse --is-shallow-repository)" = false
+test -n "$scanned" && test "$scanned" -ge 1 && test "$scanned" -ge $(( (total * 9 + 9) / 10 ))
 ```
 
-- Số so sánh là số commit tới `HEAD` có thêm hoặc sửa file, không phải `git rev-list --count HEAD`: gitleaks không đếm commit chỉ xóa file (đo local: 137 so với 138, lệch đúng commit `a89b678`).
+- `--no-color` bắt buộc: không có nó gitleaks 8.30.1 in mã ANSI trước số (`^[[1m8 commits scanned.`) kể cả khi không phải TTY, `sed` trả rỗng và bước đỏ mọi lần (đã thấy trên repo thử).
+- Không so bằng: gitleaks không đếm commit chỉ đổi mode, chỉ đổi tên, rỗng, chỉ xóa file, nên mọi công thức git so bằng đều đỏ giả vĩnh viễn khi một commit như vậy vào `main`. Ngưỡng 90% số commit không phải merge: lịch sử thật đạt 138/139 và 138/140 (thêm một commit chỉ đổi tên); clone nông, 0 commit, khoảng commit sai đều đỏ (§8). Ngưỡng có thể đỏ giả nếu hơn 10% lịch sử là commit không nội dung (repo thử 8/12): khi đó #5 xem lại ngưỡng bằng PR; lịch sử squash-merge của repo này không có dạng đó.
 
-- Kết quả: bất kỳ phát hiện nào ở bất kỳ commit tới `HEAD` (trừ ngoại lệ còn hạn) → thoát 1; log chỉ có luật, file, dòng, commit, fingerprint, giá trị `REDACTED`. Không phát hiện → 0. Số commit gitleaks quét khác số ở dòng `test` (clone nông, `safe.directory`, mount sai, 0 commit) → đỏ. `set -o pipefail` để `tee` không nuốt mã thoát.
+- Kết quả: bất kỳ phát hiện nào ở bất kỳ commit tới `HEAD` (trừ ngoại lệ còn hạn) → thoát 1; log chỉ có luật, file, dòng, commit, fingerprint, giá trị `REDACTED`. Không phát hiện → 0. Repo nông, gitleaks quét 0 commit hoặc dưới 90% (`safe.directory`, mount sai, `--log-opts` sai) → đỏ. `set -o pipefail` để `tee` không nuốt mã thoát.
 - Ca biên: `backend/test/support/tls-fixtures/server.key` không báo (allowlist đúng đường dẫn); cùng nội dung ở đường dẫn khác vẫn báo. Secret đã revert vẫn đỏ. Nhánh remote khác có secret **không** ảnh hưởng (chỉ quét tới `HEAD`).
 
 **H3. `image.yml`.** Thứ tự mới của job `image-push`: checkout → kiểm tĩnh → `docker build -t dbs-api:$IMAGE_TAG backend` → `docker save` → tải DB → Trivy (a) và (b) như H1 → `configure-aws-credentials` → ECR login → kiểm tag đã có → nếu chưa có: `docker tag` sang `$REGISTRY/$REPOSITORY:$IMAGE_TAG` và `docker push` → đọc scan ECR (chỉ cảnh báo, như cũ). Trivy thoát 1 → job đỏ trước khi có credential AWS hay token OIDC được dùng, không push, `Deploy` không chạy (chỉ chạy khi `Image` `success`). Hệ quả: image được build cả khi tag đã có trên ECR (vài phút runner, chấp nhận). Vẫn một job, không chuỗi `latest`, không `pull_request`.
@@ -118,11 +124,17 @@ test "$(sed -n 's/.* \([0-9]\+\) commits scanned.*/\1/p' "$T/gitleaks.log")" = "
 `.trivyignore.yaml`:
 
 ```yaml
+# Luôn có trong repo; không có ngoại lệ thì là `vulnerabilities: []` và `secrets: []`.
 vulnerabilities:
-  - id: CVE-2099-00000            # ví dụ dạng; file rỗng nếu không cần
+  - id: CVE-2099-00000            # ví dụ dạng
     paths: ["usr/local/lib/node_modules/npm/node_modules/x/package.json"]
     statement: "Lý do cụ thể; ai chấp nhận (#5); cách đóng"
-    expired_at: 2027-02-01
+    expired_at: 2027-01-20
+secrets:
+  - id: private-key               # ví dụ dạng: khóa thử đi kèm một package
+    paths: ["app/node_modules/some-pkg/test/fixture.key"]
+    statement: "Khóa thử của package, không dùng ở runtime"
+    expired_at: 2027-01-27
 ```
 
 `.gitleaks.toml`:
@@ -132,34 +144,38 @@ vulnerabilities:
 useDefault = true
 
 [[allowlists]]
-description = "Khóa thử TLS CN=localhost, CA đã hủy khóa, chỉ cho test (CONTRIBUTING §6, BL-111). Hạn xem lại: 2027-02-01"
+description = "Khóa thử TLS CN=localhost, CA đã hủy khóa, chỉ cho test (CONTRIBUTING §6, BL-111). Hạn xem lại: 2027-02-09"
 paths = ['''^backend/test/support/tls-fixtures/server\.key$''']
 
 [[allowlists]]
-description = "Idempotency-Key (UUID) và id container (hex 64) trong log test thủ công, không phải bí mật (§1 câu 13). Hạn xem lại: 2027-02-01"
+description = "Idempotency-Key (UUID) trong log test thủ công, không phải bí mật (§1 câu 13). Hạn xem lại: 2027-01-25"
 targetRules = ["generic-api-key"]
 condition = "AND"
-regexTarget = "secret"
-regexes = ['''^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$''', '''^[0-9a-f]{64}$''']
-paths = ['''^docs/features/screenshots/.+\.(txt|md)$''']
+regexTarget = "match"
+regexes = ['''(?i)(idempotency-?key|idem_key|\bkey)"?\s*[:=]\s*"?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}["\s]*$''']
+paths = ['''^docs/features/screenshots/DBS-[0-9]+/manual-test[a-z-]*\.txt$''']
 ```
 
-Cú pháp `targetRules`, `condition` kiểm lại trên gitleaks 8.30.1 ở Phase 4 (binary đã có).
+Đã chạy đúng cấu hình này với gitleaks 8.30.1 (§8). Đoạn khớp (`Match`) của luật kết thúc bằng khoảng trắng hoặc dấu nháy, nên regex chấp nhận `["\s]*` ở cuối.
 
 `.gitleaksignore` (chỉ khi cần, cho phát hiện trong commit bất biến trên `main`):
 
 ```text
-# Token thử trong spec, không phải credential thật. Hạn xem lại: 2027-02-01
-<commit>:backend/src/common/logging/logging.options.spec.ts:jwt:<line>
+# Id container Valkey (hex 64) trong log DBS-40, không phải bí mật. Hạn xem lại: 2027-01-18
+6f6ec08941d3c2d17becdf87bb7a76b7cf87d58e:docs/features/screenshots/DBS-40/manual-test.txt:generic-api-key:15
+# Mật khẩu thử trong spec ghép REDIS_URL, không phải credential. Hạn xem lại: 2027-01-04
+7238cecbc35e1a98bacdde0c25341be2f5090461:backend/src/config/compose-redis-url.spec.ts:generic-api-key:6
 ```
 
-`check-scan-exceptions.py` (Python chuẩn + PyYAML) thoát 1 và nêu tên mục khi: mục Trivy thiếu `statement` hoặc `expired_at`; allowlist gitleaks thiếu `description` hoặc không có `Hạn xem lại: YYYY-MM-DD`; `paths` không neo `^…$` hoặc kết thúc `/`; fingerprint trong `.gitleaksignore` không có dòng `#` lý do + hạn ngay trên; hạn < hôm nay (UTC) hoặc > hôm nay + 90 ngày. Hạn qua thì CI đỏ có chủ ý cho tới khi #5 xem lại và gia hạn bằng PR. Chạy lại một commit cũ sau khi hạn của nó qua cũng đỏ: chấp nhận, vì cổng chỉ có nghĩa với đầu nhánh.
+Hai dòng mẫu lấy từ report baseline; bản đầy đủ có 8 fingerprint (3 dòng DBS-40, 5 spec).
+
+`check-scan-exceptions.py` (Python chuẩn + PyYAML) thoát 1 và nêu tên mục khi: thiếu `.trivyignore.yaml`; mục Trivy (`vulnerabilities:` và `secrets:`) thiếu `statement` hoặc `expired_at`; allowlist gitleaks thiếu `description` hoặc không có `Hạn xem lại: YYYY-MM-DD`; một `paths` không neo `^…$`, hoặc có ký tự đại diện ngoài literal đã escape (`.`, `*`, `+`, `?`, `[`, `(`, `|`) mà allowlist đó không đồng thời có `targetRules`, `regexes` và `condition = "AND"` (vd `^docs/.+$` một mình là đỏ); fingerprint trong `.gitleaksignore` không có dòng `#` lý do + hạn ngay trên; hạn < hôm nay (UTC) hoặc > hôm nay + 90 ngày. Hạn qua thì CI đỏ có chủ ý cho tới khi #5 xem lại và gia hạn bằng PR. Chạy lại một commit cũ sau khi hạn của nó qua cũng đỏ: chấp nhận, vì cổng chỉ có nghĩa với đầu nhánh.
 
 **H5. Dependency.** Cập nhật `package-lock.json` trong dải semver hiện tại cho `body-parser`, `multer` (qua `@nestjs/platform-express`), `joi`. Sau đó `npm audit --omit=dev` không còn high/critical; diff phiên bản resolve chỉ gồm các gói đó và phụ thuộc của chúng (ghi ở §8); `package.json` không đổi nếu dải cho phép. Rủi ro đường tiền: `joi` kiểm schema sự kiện outbox (`src/common/events/event-schemas.ts`) và cấu hình; `body-parser` giữ giới hạn kích thước body (413, BL-023).
 
 **H6. CVE mới công bố làm PR không liên quan đỏ.** Base `node:24-alpine` theo tag và DB Trivy cập nhật mỗi lần chạy, nên một CVE mới có bản sửa có thể làm mọi PR đỏ qua đêm (gồm PR đường tiền, khi check thành bắt buộc). Quy trình: người thấy đỏ báo #5; #5 trong một ngày làm việc (1) sửa trước: nâng lockfile hoặc build lại với base mới; (2) chỉ khi chưa sửa được mới thêm ngoại lệ có lý do và hạn ≤ 90 ngày, review như PR thường. Image `ci.yml` quét và image `image.yml` đẩy có thể khác nhau (base theo tag, build khác thời điểm): vì vậy `image.yml` tự quét lại image chính nó đẩy (H3). Ghim digest base image: BACKLOG ở Phase 5.
 
-**H7. Kiểm tĩnh chạy trên mọi PR.** `check-image-workflow.py` mở rộng và chạy trong `secret-scan` (H2), không chỉ trong `image.yml`/`deploy.yml` (luôn `skipped`, BL-034). Kiểm thêm: hai job mới tồn tại, tên không trùng sáu tên, `working-directory: .`, `timeout-minutes` có, `contents: read`, không `id-token`, `persist-credentials: false`; image công cụ ghim `@sha256:` 64 hex trên GHCR; đủ cờ ở H1/H2 (gồm `--log-opts="HEAD"`, `--redact`, `--network none`, `fetch-depth: 0`); không chuỗi `docker.sock` ở bất kỳ workflow nào; trong `image.yml` bước Trivy đứng trước `configure-aws-credentials` và `docker push`; `ci.yml` có bước gọi chính script này. Mỗi điều có fixture âm.
+**H7. Kiểm tĩnh chạy trên mọi PR.** `check-image-workflow.py` mở rộng và chạy trong `secret-scan` (H2), không chỉ trong `image.yml`/`deploy.yml` (luôn `skipped`, BL-034). Kiểm thêm: hai job mới tồn tại, tên không trùng sáu tên, `working-directory: .`, `timeout-minutes` có, `contents: read`, không `id-token`, `persist-credentials: false`; image công cụ ghim `@sha256:` 64 hex trên GHCR; đủ cờ ở H1/H2 (gồm `--log-opts="HEAD"`, `--no-color`, `--redact`, `--network none`, `--skip-java-db-update`, `--ignorefile` ở cả (a) và (b), `fetch-depth: 0`, các dòng chặn nông và 90%); không chuỗi `docker.sock` ở bất kỳ workflow nào; trong `image.yml` bước Trivy đứng trước `configure-aws-credentials` và `docker push`; `ci.yml` có bước gọi chính script này. Mỗi điều có fixture âm.
 
 ## 3. Kiến trúc
 
@@ -191,24 +207,24 @@ Lớp "tĩnh": script Python, chạy local và trong `secret-scan`. Lớp "công
 | ID | Truy vết | Lớp | Ở đâu | Given · When · Then | Mong đợi |
 |---|---|---|---|---|---|
 | TC-155-01 | DoD 1 | tĩnh | L, CI | `ci.yml` · `check-image-workflow.py` · hai job mới, tên không trùng sáu tên, `working-directory: .`, `timeout-minutes`, `contents: read`, không `id-token`, `persist-credentials: false`, image ghim `ghcr.io/…@sha256:` 64 hex | `OK` |
-| TC-155-02 | DoD 1 | tĩnh | L, CI | Đủ cờ H1 (a)(b), `--network none`; H2 `--log-opts="HEAD"`, `--redact`, `--exit-code 1`, `fetch-depth: 0`, bước so số commit | `OK` |
+| TC-155-02 | DoD 1 | tĩnh | L, CI | Đủ cờ H1 (a)(b), `--network none`, `--skip-java-db-update`, `--ignorefile` ở (a) và (b); H2 `--log-opts="HEAD"`, `--no-color`, `--redact`, `--exit-code 1`, `fetch-depth: 0`, chặn nông và 90% | `OK` |
 | TC-155-03 | DoD 1 | tĩnh | L, CI | `image.yml`: Trivy trước `configure-aws-credentials` và `docker push`; không `docker.sock` ở mọi workflow; vẫn một job, không `latest`, không `pull_request` | `OK` |
 | TC-155-04 | DoD 1 | tĩnh, fixture âm | L, CI | Bỏ từng cờ ở TC-02, digest thành tag, Docker Hub thay GHCR, Trivy sau credential, thêm `docker.sock`, tên job `build`, bỏ `working-directory` | mỗi fixture `FAIL` |
 | TC-155-05 | DoD 1 | tĩnh | CI (Actions) | `ci.yml` có bước chạy `check-image-workflow.py` trong `secret-scan`; log run có dòng `OK` | `OK` trong log |
 | TC-155-06 | DoD 2 | unit Python | L, CI | `check-scan-exceptions.py` với mục đủ lý do và hạn trong 90 ngày (ba file) | thoát 0 |
-| TC-155-07 | DoD 2 | unit Python | L, CI | Thiếu `statement`; thiếu `expired_at`; hạn đã qua; hạn > hôm nay + 90; allowlist thiếu hạn; `paths` không neo hoặc là thư mục; fingerprint không có dòng lý do | mỗi ca thoát 1, nêu tên mục |
-| TC-155-08 | DoD 2, BL-111 | tĩnh | L, CI | `.gitleaks.toml` thật: đúng một allowlist path, khớp chính xác `server.key` | `OK` |
+| TC-155-07 | DoD 2 | unit Python | L, CI | Thiếu `.trivyignore.yaml`; thiếu `statement` (ở `vulnerabilities` và ở `secrets`); thiếu `expired_at`; hạn đã qua; hạn > hôm nay + 90; allowlist thiếu hạn; `paths` không neo; `^docs/.+$` không kèm `targetRules`/`regexes`/`condition = "AND"`; fingerprint không có dòng lý do | mỗi ca thoát 1, nêu tên mục |
+| TC-155-08 | DoD 2, BL-111 | tĩnh | L, CI | `.gitleaks.toml` thật có đúng hai allowlist: (1) path literal đúng `server.key`, không `targetRules`; (2) `targetRules = ["generic-api-key"]`, `condition = "AND"`, `regexTarget = "match"`, một regex có UUID, path `manual-test*.txt` | `OK` |
 | TC-155-09 | DoD 1, 3 | công cụ | L (`trivy fs` lockfile), CI (image) | Thêm dependency production có lỗ hổng HIGH đã có bản sửa · Trivy (a) | thoát 1, bảng nêu CVE |
 | TC-155-10 | DoD 1, 3, NFR-SEC-04 | công cụ | L, CI | Commit chứa khóa sinh ngẫu nhiên ở `tmp/fake.key` · gitleaks H2 | thoát 1, giá trị `REDACTED` |
 | TC-155-11 | DoD 1, 3, NFR-SEC-04 | công cụ | L, CI | Sau `git revert` commit đó | vẫn thoát 1 |
-| TC-155-12 | DoD 1, NFR-SEC-04 | công cụ | L (gitleaks, `trivy fs`), CI (image) | Nhánh task sau sửa lockfile · gitleaks và Trivy (a)(b) | thoát 0; số commit gitleaks = số commit thêm/sửa file tới `HEAD` (H2) |
+| TC-155-12 | DoD 1, NFR-SEC-04 | công cụ | L (gitleaks, `trivy fs`), CI (image) | Nhánh task sau sửa lockfile · gitleaks và Trivy (a)(b) | thoát 0; chạy đúng đoạn shell H2 (không đọc số bằng mắt): không nông, số quét ≥ 90% |
 | TC-155-13 | DoD 2 | công cụ | L (`trivy fs`), CI | Ngoại lệ hợp lệ cho CVE ở TC-09 → thoát 0; `expired_at` về hôm qua → Trivy (a) thoát 1 và `check-scan-exceptions.py` thoát 1 | 0 rồi 1 |
-| TC-155-14 | DoD 2 | công cụ | L, CI | Bản sao `server.key` ở đường dẫn khác · gitleaks | thoát 1 |
+| TC-155-14 | DoD 2 | công cụ | L, CI | Repo thử từ lịch sử thật với cấu hình H4: (a) bản sao `server.key` ở đường dẫn khác; (b) `secret = <hex64>` mới trong `manual-test.txt`; (c) `api_key = <uuid>` trong `.md` dưới screenshots; (d) `key=<uuid>` mới trong `manual-test.txt` | (a)(b)(c) thoát 1; (d) thoát 0 |
 | TC-155-15 | DoD 1 | công cụ | L (`trivy rootfs`), CI (image) | Thư mục/image có file khóa riêng · Trivy (b) | thoát 1 |
 | TC-155-16 | DoD 1 | công cụ | L | Repo thử có nhánh khác chứa secret, `HEAD` sạch · gitleaks H2 | thoát 0 (chỉ quét tới `HEAD`) |
-| TC-155-17 | DoD 1 | công cụ | L | Clone nông (`--depth 1`) · H2 | bước so số commit thoát 1 |
+| TC-155-17 | DoD 1 | công cụ | L | Đoạn shell H2 trên repo thử: clone nông; repo chỉ có commit rỗng (0 commit quét); lịch sử thật thêm commit chỉ đổi mode và chỉ đổi tên; repo có merge | nông và 0 commit thoát 1; lịch sử thật thêm commit không nội dung vẫn thoát 0 |
 | TC-155-18 | DoD 1, NFR-SEC-04 | Actions | CI | Draft PR của nhánh task: `image-scan`, `secret-scan` và sáu job cũ xanh | link run |
-| TC-155-19 | DoD 2, 3 | Actions | CI | Draft PR thử `test/DBS-155-scan-proof`: commit dependency lỗi → `image-scan` đỏ; commit secret giả → `secret-scan` đỏ; commit revert secret → vẫn đỏ; commit ngoại lệ đã hết hạn cho CVE đó → `image-scan` đỏ | link từng run |
+| TC-155-19 | DoD 2, 3 | Actions | CI | Draft PR thử `test/DBS-155-scan-proof`, mỗi commit chỉ đẩy khi run trước đã xong. Chuỗi 1: c1 dependency lỗi → `image-scan` đỏ; c2 ngoại lệ hợp lệ → `image-scan` xanh; c3 hạn về hôm qua → `image-scan` đỏ và `secret-scan` đỏ ở `check-scan-exceptions.py`. Reset nhánh về `main` (hoặc PR thử thứ hai). Chuỗi 2: c4 secret giả → `secret-scan` đỏ; c5 revert → `secret-scan` vẫn đỏ | link từng run |
 | TC-155-20 | DoD 3 | tài liệu | L | `scan-results.md` có lệnh, phiên bản, số phát hiện theo mức, ngoại lệ; link từ hàng P3, ci-cd, T16; `check-doc-links.mjs` sạch | 0 link hỏng |
 | TC-155-21 | DoD 1 (H5) | backend | L một phần, CI | Sau sửa lockfile: `npm audit --omit=dev` 0 high/critical; lint, typecheck, unit, build local; trên CI xanh đủ: `test/error-handling.e2e-spec.ts` (413, BL-023), `test/db/money-flow.db-spec.ts`, các suite `test:services` outbox và consumer; diff phiên bản resolve chỉ gồm gói dự định | xanh |
 | TC-155-22 | DoD 4 | quy trình | — | PR merge vào `main` với CI xanh, Dev khác review, bảng đối chiếu điền đủ | quy trình |
@@ -220,14 +236,14 @@ Công cụ local: binary chính thức Trivy 0.76.1 và gitleaks 8.30.1 ở scra
 | Bước | Việc làm | Ở đâu | Kết quả mong đợi |
 |---|---|---|---|
 | M-155-01 | `trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 backend/package-lock.json` trên nhánh task (sau sửa lockfile) | L | thoát 0 (đường thành công, phần npm) |
-| M-155-02 | gitleaks lệnh H2 (binary, `--log-opts="HEAD"`, `--redact`) rồi so số commit với số commit thêm/sửa file tới `HEAD` (H2) | L | thoát 0; `server.key` không bị báo; hai số bằng nhau |
+| M-155-02 | Chạy nguyên đoạn shell H2 (binary thay `docker run`, cùng cờ) trên nhánh task | L | gitleaks thoát 0; `server.key` không bị báo; các dòng `test` thoát 0 |
 | M-155-03 | Nhánh thử: thêm dependency production có HIGH đã sửa, `trivy fs` lockfile | L | thoát 1, CVE hiện trong bảng (bị từ chối) |
 | M-155-04 | Nhánh thử: commit khóa sinh bằng `openssl genpkey` vào `tmp/fake.key`, gitleaks; `git revert`, gitleaks lại | L | cả hai lần thoát 1, `REDACTED` |
 | M-155-05 | Ngoại lệ hợp lệ cho CVE M-03 → `trivy fs` thoát 0; `expired_at` về hôm qua → `trivy fs` thoát 1 và `check-scan-exceptions.py` thoát 1 nêu tên mục | L | 0 rồi 1 |
 | M-155-06 | `trivy rootfs --scanners secret --exit-code 1` trên thư mục tạm có file khóa riêng | L | thoát 1 |
 | M-155-07 | `check-image-workflow.py`, `check-scan-exceptions.py`, test fixture âm | L | `OK`, thoát 0 |
 | M-155-08 | Draft PR của nhánh task | CI | tám check xanh; log `image-scan` có ba lượt Trivy, log `secret-scan` có `OK` kiểm tĩnh và số commit khớp; link run |
-| M-155-09 | Draft PR thử `test/DBS-155-scan-proof`, đẩy lần lượt bốn commit: dependency lỗi; secret giả; revert secret; ngoại lệ đã hết hạn | CI | `image-scan` đỏ ở commit 1 và 4, `secret-scan` đỏ ở commit 2 và 3, log không lộ giá trị; link từng run; đóng PR, xóa nhánh |
+| M-155-09 | Draft PR thử `test/DBS-155-scan-proof` theo đúng thứ tự TC-19 (c1…c3, reset, c4…c5), đẩy từng commit sau khi run trước xong | CI | c1 `image-scan` đỏ; c2 xanh; c3 `image-scan` đỏ và `secret-scan` đỏ; c4, c5 `secret-scan` đỏ; log không lộ giá trị; link từng run; đóng PR, xóa nhánh |
 | M-155-10 | `image.yml` thật trên `main` | CI | **chưa chạy được** cho tới khi có `AWS_ROLE_ARN` (BL-034); thay bằng M-155-07 (thứ tự bước) và M-155-08 (cùng lệnh Trivy) |
 
 ## 6. Domain review (AI)
@@ -240,7 +256,7 @@ Công cụ local: binary chính thức Trivy 0.76.1 và gitleaks 8.30.1 ở scra
 | 2 | should-fix | `ci.yml` mặc định `working-directory: backend`, lệnh H1/H2 giả định gốc repo | **đã sửa** H1, H2, H7, TC-01, TC-04; §3 thêm sửa bảng CONTRIBUTING §4b. Đã kiểm `ci.yml` dòng 27–29 |
 | 3 | should-fix | Mount `docker.sock` cho Trivy quyền root trên runner, đọc được token OIDC/AWS/`ACTIONS_RUNTIME_TOKEN` | **đã sửa** H1, H3, §3: `docker save` + `--input`, không socket, quét `--network none`; `image.yml` quét trước `configure-aws-credentials`; TC-03, TC-04 cấm `docker.sock` |
 | 4 | should-fix | Chỉ có allowlist theo path, hạn cứng 2026-12-14 làm CI đỏ không sửa được | **đã sửa** §1 câu 5, H4: thêm `.gitleaksignore` theo fingerprint có lý do và hạn; hạn cuộn ≤ 90 ngày; hạn qua là cố ý đỏ, #5 gia hạn bằng PR; chạy lại commit cũ đỏ là chấp nhận |
-| 5 | should-fix | Không chống xanh giả khi gitleaks quét 0 commit | **đã sửa** H2 (so số commit, `pipefail`), TC-12, TC-17, M-02, M-08. Chạy binary thật cho thấy so với `rev-list --count HEAD` sẽ đỏ giả (137 ≠ 138, commit chỉ xóa file); số so sánh đổi thành `git log --diff-filter=AM` (= 137) |
+| 5 | should-fix | Không chống xanh giả khi gitleaks quét 0 commit | **đã sửa** H2 (so số commit, `pipefail`), TC-12, TC-17, M-02, M-08. Chạy binary thật cho thấy so với `rev-list --count HEAD` sẽ đỏ giả (137 ≠ 138, commit chỉ xóa file); cách chặn đã đổi hai lần: `--diff-filter=AM` (vòng 1, sai với commit chỉ đổi mode, xem vòng 2 #2), rồi chặn nông + ≥ 90% (H2 hiện hành) |
 | 6 | should-fix | Kiểm tĩnh chỉ chạy trong `image.yml`/`deploy.yml` luôn `skipped` | **đã sửa** H7: chạy trong `secret-scan` mọi PR; TC-05 |
 | 7 | should-fix | §5 không ghi bước nào chạy được, thiếu chứng minh revert và ngoại lệ hết hạn | **đã sửa** cột "Ở đâu" ở §4, §5; binary đã tải nên M-01…07 chạy local; M-09 thêm commit revert và commit ngoại lệ hết hạn; TC-19 |
 | 8 | should-fix | Xóa BL-035 trong khi điều kiện đóng còn BL-012 | **đã sửa** §1 bảng BACKLOG: giữ, thu hẹp về phần ruleset |
@@ -252,7 +268,21 @@ Công cụ local: binary chính thức Trivy 0.76.1 và gitleaks 8.30.1 ở scra
 | 14 | minor | `scratch/` không phải loại nhánh | **đã sửa** dùng `test/DBS-155-scan-proof`, xóa sau khi ghi link |
 | 15 | minor | Job mới thiếu `timeout-minutes` | **đã sửa** H1 15 phút, H2 10 phút, §3, TC-01; CONTRIBUTING §4b cập nhật ở Phase 5 |
 
-**Quyết định ở G2:** chờ vòng 2.
+**Vòng 2** (cùng reviewer, cùng ngày): 9 phát hiện mới (blocking 0, should-fix 5, minor 4), verdict REVISE; reviewer xác nhận 11 phát hiện vòng 1 đã sửa đúng.
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | should-fix | Mã ANSI làm `sed` đọc số commit ra rỗng, bước đỏ mọi lần | **đã sửa** H2 `--no-color`, giải thích kèm bằng chứng; TC-12, M-02 chạy nguyên đoạn shell. Đã thấy ANSI trên repo thử (§8) |
+| 2 | should-fix | Công thức `--diff-filter=AM` sai với commit chỉ đổi mode | **đã sửa** H2: bỏ so bằng, dùng chặn nông + ≥ 1 + ≥ 90% `rev-list --no-merges`; §1, câu 6; TC-17 thêm repo thử. Đo: repo thử 8/12 (mode, rename, rỗng, xóa không đếm), lịch sử thật 138/139 và 138/140 |
+| 3 | should-fix | Allowlist hex 64 và cả cây screenshots quá rộng | **đã sửa** câu 13, H4: bỏ hex 64 (3 id container thành fingerprint), `regexTarget = "match"` cần tên khóa idempotency + UUID, path chỉ `DBS-<n>/manual-test*.txt`; TC-14 (b)(c) âm. Đã chạy: lịch sử thật 0 phát hiện, ca âm đỏ |
+| 4 | should-fix | Checker chấp nhận path có ký tự đại diện | **đã sửa** H4: ký tự đại diện chỉ được khi allowlist có `targetRules` + `regexes` + `condition = "AND"`; TC-07 thêm `^docs/.+$`; TC-08 viết lại cho hai allowlist |
+| 5 | should-fix | Chuỗi PR thử không chứng minh được, `cancel-in-progress` mất run | **đã sửa** TC-19, M-09, câu 8: hai chuỗi tách nhau, có commit ngoại lệ hợp lệ xanh ở giữa, đẩy từng commit sau khi run trước xong, cột mong đợi đúng từng job |
+| 6 | minor | Chưa có cách kiểm nguồn gốc digest chạy được | **đã sửa** §8: so digest index qua API registry đọc ẩn danh, Trivy giống nhau ở GHCR, ECR Public, Docker Hub; gitleaks giống nhau ở GHCR và Docker Hub; không trùng digest IoC; release Trivy Immutable. Không tải cosign (chưa được cho phép) nên chữ ký vẫn chưa kiểm |
+| 7 | minor | Java DB tải lười khi `--network none` | **đã sửa** H1 `--skip-java-db-update`; TC-02 |
+| 8 | minor | Lượt (b) không có ignorefile; file thiếu thì `docker -v` tạo thư mục | **đã sửa** H1 `--ignorefile` ở cả (a)(b), `test -f`; H4 mục `secrets:`, file luôn có; checker đỏ khi thiếu file; TC-07 |
+| 9 | minor | Ví dụ `.gitleaksignore` sai luật và file | **đã sửa** H4 dùng hai fingerprint thật từ report baseline; hạn lệch nhau (ghi chú phần dư của reviewer) |
+
+**Quyết định ở G2:** chờ vòng 3.
 
 ## 7. Kế hoạch triển khai
 
@@ -273,7 +303,32 @@ Chưa viết (Phase 3).
 | `gitleaks_8.30.1_linux_x64.tar.gz` | `https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz` | 8230402 | `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb` | `sha256sum -c` với `gitleaks_8.30.1_checksums.txt`: OK; release không có file chữ ký |
 | `gitleaks_8.30.1_checksums.txt` | cùng thư mục release | 999 | — | — |
 
-  Binary sau giải nén: `trivy` sha256 `d1dfca6a…3d83`, `--version` = 0.76.1; `gitleaks` sha256 `88f91962…5509`, `version` = 8.30.1. DB Trivy tải từ `mirror.gcr.io/aquasec/trivy-db:2` (nguồn mặc định đầu tiên của 0.76.1, cùng giá trị ghi ở H1).
+  Binary sau giải nén: `trivy` sha256 `d1dfca6a…3d83`, `--version` = 0.76.1; `gitleaks` sha256 `88f91962…5509`, `version` = 8.30.1. DB Trivy tải từ `mirror.gcr.io/aquasec/trivy-db:2` (nguồn mặc định đầu tiên của 0.76.1, cùng giá trị ghi ở H1), cache 1,7 GB ở `scratchpad/trivy-cache`, giữ đến hết task.
+- **Nguồn gốc digest image** (thay chữ ký cosign; HEAD manifest với token ẩn danh, chỉ đọc, 2026-11-11):
+
+| Image | GHCR | ECR Public | Docker Hub |
+|---|---|---|---|
+| Trivy `0.76.1` | `sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c` | trùng | trùng (`aquasec/trivy`) |
+| gitleaks `v8.30.1` | `sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f` | không phát hành | trùng (`zricethezav/gitleaks`) |
+
+  Cả hai là OCI image index (đa kiến trúc). Không trùng digest IoC trong GHSA-69fq-xp46-6x23. Release Trivy v0.76.1 ghi Immutable, commit release ký GPG đã xác minh trên GitHub, release note không ghi digest. Giới hạn: ba registry cùng do một bên đẩy, nên trùng digest chỉ chứng minh nhất quán, không chứng minh chữ ký; chữ ký cosign chưa kiểm vì không có cosign và chưa được cho tải.
+- **Chạy thử đoạn shell H2 và cấu hình H4** (repo thử trong scratchpad, gitleaks 8.30.1):
+
+| Repo | gitleaks | Số quét / không merge | Kết quả chặn |
+|---|---|---|---|
+| Đủ dạng commit (c1, c2, nhánh, merge, đổi tên, đổi mode, rỗng, xóa file, binary, xóa dòng) | 0 | 8 / 12 | đỏ (90% = 11): đúng giới hạn đã ghi ở H2 |
+| Không `--no-color` | — | dòng `INF^[[0m ^[[1m8 commits scanned.^[[0m` | `sed` rỗng |
+| Clone nông | 0 | 1 / 1 | đỏ (nông) |
+| Nhánh khác có khóa, `HEAD` sạch | 0 | 2 / 2 | xanh |
+| Khóa giả, rồi revert | 1, 1 | 2 / 2, 2 / 3 | gitleaks đỏ cả hai lần, `REDACTED` |
+| Lịch sử thật (clone) | 1 (chưa cấu hình) | 138 / 139 | xanh |
+| Lịch sử thật + commit chỉ đổi tên | 1 (chưa cấu hình) | 138 / 140 | xanh |
+| Chỉ commit rỗng | 0 | 0 / 1 | đỏ |
+| Lịch sử thật, cấu hình H4 (hai allowlist + 8 fingerprint) | **0 phát hiện** | 138 | — |
+| + `key=<uuid>` mới trong `manual-test.txt` | 0 | — | xanh (đúng) |
+| + `secret = <hex64>` trong cùng file | 1 | — | đỏ |
+| + `api_key = <uuid>` trong `.md` dưới screenshots | 1 | — | đỏ |
+| + bản sao `server.key` ở `backend/test/support/` | 1 `private-key` | — | đỏ |
 - **Quét local trên nhánh task, trước khi sửa gì** (chỉ đọc, kết quả và giải thích ở §1 "Phát hiện ban đầu"): gitleaks 122 phát hiện (1 `private-key`, 121 `generic-api-key`), 137 commit; Trivy `fs` lockfile HIGH 3 có bản sửa, MEDIUM 4, CRITICAL 0, không có lỗi chưa sửa; Trivy secret `fs` 0.
 - **Chứng minh ở đâu:** local chạy được TC-01…17 trừ phần "image" của TC-09, 12, 15 (dùng `trivy fs`/`rootfs` thay); chỉ CI: Trivy trên image thật (gói Alpine, `npm` đi kèm, secret trong lớp image), TC-05, TC-18, TC-19, phần e2e/db của TC-21.
 
