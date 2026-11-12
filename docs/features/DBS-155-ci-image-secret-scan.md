@@ -1,6 +1,6 @@
 # DBS-155 · CI quét lỗ hổng image và quét secret
 
-> **Status:** Draft · **Vai:** #5 Platform & Ops · **Cặp đôi review:** một Dev không phải tác giả · **Nhánh:** `infra/DBS-155-ci-image-secret-scan` · **PR:** — · **Cập nhật:** 2026-11-11
+> **Status:** Design approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** một Dev không phải tác giả · **Nhánh:** `infra/DBS-155-ci-image-secret-scan` · **PR:** — · **Cập nhật:** 2026-11-11
 
 ## 1. Bối cảnh
 
@@ -175,7 +175,7 @@ Hai dòng mẫu lấy từ report baseline; bản đầy đủ có 8 fingerprint
 
 **H6. CVE mới công bố làm PR không liên quan đỏ.** Base `node:24-alpine` theo tag và DB Trivy cập nhật mỗi lần chạy, nên một CVE mới có bản sửa có thể làm mọi PR đỏ qua đêm (gồm PR đường tiền, khi check thành bắt buộc). Quy trình: người thấy đỏ báo #5; #5 trong một ngày làm việc (1) sửa trước: nâng lockfile hoặc build lại với base mới; (2) chỉ khi chưa sửa được mới thêm ngoại lệ có lý do và hạn ≤ 90 ngày, review như PR thường. Image `ci.yml` quét và image `image.yml` đẩy có thể khác nhau (base theo tag, build khác thời điểm): vì vậy `image.yml` tự quét lại image chính nó đẩy (H3). Ghim digest base image: BACKLOG ở Phase 5.
 
-**H7. Kiểm tĩnh chạy trên mọi PR.** `check-image-workflow.py` mở rộng và chạy trong `secret-scan` (H2), không chỉ trong `image.yml`/`deploy.yml` (luôn `skipped`, BL-034). Kiểm thêm: hai job mới tồn tại, tên không trùng sáu tên, `working-directory: .`, `timeout-minutes` có, `contents: read`, không `id-token`, `persist-credentials: false`; image công cụ ghim `@sha256:` 64 hex trên GHCR; đủ cờ ở H1/H2 (gồm `--log-opts="HEAD"`, `--no-color`, `--redact`, `--network none`, `--skip-java-db-update`, `--ignorefile` ở cả (a) và (b), `fetch-depth: 0`, các dòng chặn nông và 90%); không chuỗi `docker.sock` ở bất kỳ workflow nào; trong `image.yml` bước Trivy đứng trước `configure-aws-credentials` và `docker push`; `ci.yml` có bước gọi chính script này. Mỗi điều có fixture âm.
+**H7. Kiểm tĩnh chạy trên mọi PR.** Kiểm theo **đối số của lệnh gitleaks/Trivy tách từ `run:` bằng `shlex`**, không theo chuỗi con của cả file (để comment hay chuỗi nằm chỗ khác không đánh lừa được). `check-image-workflow.py` mở rộng và chạy trong `secret-scan` (H2), không chỉ trong `image.yml`/`deploy.yml` (luôn `skipped`, BL-034). Kiểm thêm: hai job mới tồn tại, tên không trùng sáu tên, `working-directory: .`, `timeout-minutes` có, `contents: read`, không `id-token`, `persist-credentials: false`; image công cụ ghim `@sha256:` 64 hex trên GHCR; đủ cờ ở H1/H2 (gồm `--log-opts="HEAD"`, `--no-color`, `--redact`, `--network none`, `--skip-java-db-update`, `--ignorefile` ở cả (a) và (b), `fetch-depth: 0`, các dòng chặn nông và 90%); không chuỗi `docker.sock` ở bất kỳ workflow nào; trong `image.yml` bước Trivy đứng trước `configure-aws-credentials` và `docker push`; `ci.yml` có bước gọi chính script này. Mỗi điều có fixture âm.
 
 ## 3. Kiến trúc
 
@@ -209,7 +209,7 @@ Lớp "tĩnh": script Python, chạy local và trong `secret-scan`. Lớp "công
 | TC-155-01 | DoD 1 | tĩnh | L, CI | `ci.yml` · `check-image-workflow.py` · hai job mới, tên không trùng sáu tên, `working-directory: .`, `timeout-minutes`, `contents: read`, không `id-token`, `persist-credentials: false`, image ghim `ghcr.io/…@sha256:` 64 hex | `OK` |
 | TC-155-02 | DoD 1 | tĩnh | L, CI | Đủ cờ H1 (a)(b), `--network none`, `--skip-java-db-update`, `--ignorefile` ở (a) và (b); H2 `--log-opts="HEAD"`, `--no-color`, `--redact`, `--exit-code 1`, `fetch-depth: 0`, chặn nông và 90% | `OK` |
 | TC-155-03 | DoD 1 | tĩnh | L, CI | `image.yml`: Trivy trước `configure-aws-credentials` và `docker push`; không `docker.sock` ở mọi workflow; vẫn một job, không `latest`, không `pull_request` | `OK` |
-| TC-155-04 | DoD 1 | tĩnh, fixture âm | L, CI | Bỏ từng cờ ở TC-02, digest thành tag, Docker Hub thay GHCR, Trivy sau credential, thêm `docker.sock`, tên job `build`, bỏ `working-directory` | mỗi fixture `FAIL` |
+| TC-155-04 | DoD 1 | tĩnh, fixture âm | L, CI | Bỏ từng cờ ở TC-02, giữ cờ nhưng đổi giá trị `--log-opts="HEAD~3"` và `--log-opts="origin/main"`, chuỗi `--log-opts="HEAD"` đúng chỉ nằm trong comment còn lệnh thật sai, digest thành tag, Docker Hub thay GHCR, Trivy sau credential, thêm `docker.sock`, tên job `build`, bỏ `working-directory` | mỗi fixture `FAIL` |
 | TC-155-05 | DoD 1 | tĩnh | CI (Actions) | `ci.yml` có bước chạy `check-image-workflow.py` trong `secret-scan`; log run có dòng `OK` | `OK` trong log |
 | TC-155-06 | DoD 2 | unit Python | L, CI | `check-scan-exceptions.py` với mục đủ lý do và hạn trong 90 ngày (ba file) | thoát 0 |
 | TC-155-07 | DoD 2 | unit Python | L, CI | Thiếu `.trivyignore.yaml`; thiếu `statement` (ở `vulnerabilities` và ở `secrets`); thiếu `expired_at`; hạn đã qua; hạn > hôm nay + 90; allowlist thiếu hạn; `paths` không neo; `^docs/.+$` không kèm `targetRules`/`regexes`/`condition = "AND"`; fingerprint không có dòng lý do | mỗi ca thoát 1, nêu tên mục |
@@ -219,7 +219,7 @@ Lớp "tĩnh": script Python, chạy local và trong `secret-scan`. Lớp "công
 | TC-155-11 | DoD 1, 3, NFR-SEC-04 | công cụ | L, CI | Sau `git revert` commit đó | vẫn thoát 1 |
 | TC-155-12 | DoD 1, NFR-SEC-04 | công cụ | L (gitleaks, `trivy fs`), CI (image) | Nhánh task sau sửa lockfile · gitleaks và Trivy (a)(b) | thoát 0; chạy đúng đoạn shell H2 (không đọc số bằng mắt): không nông, số quét ≥ 90% |
 | TC-155-13 | DoD 2 | công cụ | L (`trivy fs`), CI | Ngoại lệ hợp lệ cho CVE ở TC-09 → thoát 0; `expired_at` về hôm qua → Trivy (a) thoát 1 và `check-scan-exceptions.py` thoát 1 | 0 rồi 1 |
-| TC-155-14 | DoD 2 | công cụ | L, CI | Repo thử từ lịch sử thật với cấu hình H4: (a) bản sao `server.key` ở đường dẫn khác; (b) `secret = <hex64>` mới trong `manual-test.txt`; (c) `api_key = <uuid>` trong `.md` dưới screenshots; (d) `key=<uuid>` mới trong `manual-test.txt`; (e) `X-Api-Key: <uuid>`, (f) `"client-secret-key": "<uuid>"`, (g) `private.key=<uuid>` trong `manual-test.txt`; dùng UUID mà luật mặc định thấy được (bộ lọc entropy ẩn một số UUID) | (a)(b)(c)(e)(f)(g) thoát 1; (d) thoát 0; lịch sử thật còn 0 phát hiện |
+| TC-155-14 | DoD 2 | công cụ | L, CI | Repo thử từ lịch sử thật với cấu hình H4: (a) bản sao `server.key` ở đường dẫn khác; (b) `secret = <hex64>` mới trong `manual-test.txt`; (c) `api_key = <uuid>` trong `.md` dưới screenshots; (d) `key=<uuid>` mới trong `manual-test.txt`; (e) `X-Api-Key: <uuid>`, (f) `"client-secret-key": "<uuid>"`, (g) `private.key=<uuid>` trong `manual-test.txt`; (h) `{"secret":{"key":"<uuid>"}}` (khóa lồng: `Match` chỉ có thể bắt đầu ở `key`, nên ca này **được bỏ qua**, đi theo "hệ quả còn lại" ở §1 câu 13, không phải lỗi mới: ghi nhận, không sửa); dùng UUID mà luật mặc định thấy được (bộ lọc entropy ẩn một số UUID) | (a)(b)(c)(e)(f)(g) thoát 1; (d) và (h) thoát 0; lịch sử thật còn 0 phát hiện |
 | TC-155-15 | DoD 1 | công cụ | L (`trivy rootfs`), CI (image) | Thư mục/image có file khóa riêng · Trivy (b) | thoát 1 |
 | TC-155-16 | DoD 1 | công cụ | L | Repo thử có nhánh khác chứa secret, `HEAD` sạch · gitleaks H2 | thoát 0 (chỉ quét tới `HEAD`) |
 | TC-155-17 | DoD 1 | công cụ | L | Đoạn shell H2 trên repo thử: clone nông; repo chỉ có commit rỗng (0 commit quét); lịch sử thật thêm commit chỉ đổi mode và chỉ đổi tên; repo có merge | nông và 0 commit thoát 1; lịch sử thật thêm commit không nội dung vẫn thoát 0 |
@@ -291,7 +291,14 @@ Công cụ local: binary chính thức Trivy 0.76.1 và gitleaks 8.30.1 ở scra
 | 3 | minor | Ngưỡng 90% không chặn khoảng commit sai | **đã sửa** H2, câu 6: nói rõ ngưỡng chỉ chống lỗi công cụ/clone, khoảng commit do H7 và TC-04 giữ; không thêm `merge-base` (lý do ghi ở H2) |
 | 4 | minor | H1 còn `<digest>` | **đã sửa** H1 điền digest Trivy như §8, bỏ câu "chốt ở Phase 3" |
 
-**Quyết định ở G2:** chờ vòng 4.
+**Vòng 4** (cùng reviewer): **APPROVE**, 2 minor; reviewer xác nhận 4 phát hiện vòng 3 đã đóng.
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | minor | TC-04 thiếu fixture đổi giá trị `--log-opts` | **đã sửa** TC-04 thêm `HEAD~3`, `origin/main`, chuỗi đúng chỉ trong comment; H7 kiểm theo đối số tách bằng `shlex` |
+| 2 | minor | Khóa lồng `{"secret":{"key":"<uuid>"}}` được bỏ qua | **không sửa, đã ghi** TC-14 (h): thuộc "hệ quả còn lại" §1 câu 13; sửa sẽ buộc nới regex |
+
+**Quyết định ở G2** (agent tự quyết, 2026-11-12): verdict APPROVE, không còn phát hiện blocking hay should-fix chưa xử lý; qua G2 (tin nhắn G2 ở cuối phiên Phase 2).
 
 ## 7. Kế hoạch triển khai
 

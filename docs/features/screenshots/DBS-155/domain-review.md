@@ -49,3 +49,14 @@ Reviewer model: claude-opus-5-5
 
 Verdict: REVISE
 Reviewer model: claude-opus-5-5
+
+## Vòng 4
+
+| # | Severity (blocking / should-fix / minor) | Section of the doc | Finding | Evidence (file and section) | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | minor | §2 H2 (giới hạn ngưỡng 90%), §4 TC-155-04 | H2 giờ nói rõ khoảng commit do kiểm tĩnh H7 và fixture âm TC-04 giữ, không do ngưỡng 90%. Nhưng TC-04 chỉ có ca "Bỏ từng cờ ở TC-02", tức là xóa `--log-opts`. Chưa có fixture âm cho ca giữ cờ mà đổi giá trị (`--log-opts="origin/main"`, `--log-opts="HEAD~3"`), cũng như ca chuỗi đúng chỉ nằm trong comment còn lệnh thật sai. Chính ca này là ca H2 vừa giao cho H7 giữ. | Doc H2 bullet "Không so bằng…khoảng commit do kiểm tĩnh H7…và fixture âm TC-04 giữ"; TC-155-04 (dòng 212). | Thêm vào TC-04 hai fixture: `--log-opts="HEAD~3"` và `--log-opts="origin/main"` (mong đợi `FAIL`). Trong H7, kiểm theo đối số của lệnh gitleaks đã tách từ `run:` (vd `shlex`), không kiểm theo chuỗi con của cả file. |
+| 2 | minor | §2 H4 regex allowlist | Regex mới chỉ còn một rủi ro sót, và nó đã nằm trong "hệ quả còn lại" của §1 câu 13. `Match` bắt đầu ở ký tự trái nhất thuộc `[\w.-]` mà từ đó luật tìm được một đoạn khớp. Với khóa lồng như `{"secret":{"key":"<uuid>"}}`, đoạn khớp chỉ có thể bắt đầu ở `key` (giá trị không được bắt đầu bằng `{`), nên khóa này được bỏ qua. Theo hướng ngược lại, `key='<uuid>'` (nháy đơn) và `key=<uuid>;` không khớp `["\s]*$` nên đỏ giả, nhưng như vậy là an toàn, và lịch sử thật đã chạy ra 0 phát hiện. Các điểm còn lại đều đúng: neo `^`, chỉ ba tên khóa, `X-Api-Key`/`client-secret-key`/`private.key`/`api_key` đều đỏ. Phần này đã có đối chứng regex cũ và mới ở §8. | H4 `regexes`; §8 bảng "Vòng 3, regex neo đầu"; §1 câu 13 "Hệ quả còn lại". | Không bắt buộc. Có thể thêm vào TC-14 ca (h) `{"secret":{"key":"<uuid>"}}` và ghi rõ ca này đi theo "hệ quả còn lại", để người review sau không coi nó là lỗi mới. |
+| 3 | — (đã đóng) | §1 câu 6, 8; §2 H1, H2, H4; §4 TC-14, TC-19; §5 M-09; §6; §8 | Cả bốn phát hiện vòng 3 đã đóng. #1: regex neo đầu, chỉ ba tên khóa, TC-14 có thêm (e)(f)(g), §8 có chạy đối chứng, và có ghi chú về bộ lọc entropy khi chọn UUID thử. #2: chuỗi 2 reset về SHA đầu nhánh task đã xanh ở M-08, không về `main`; SHA gốc của từng chuỗi được ghi ở M-09. Sau khi force-push về SHA đó, PR vẫn khác `main` nên `synchronize` vẫn chạy CI. #3: câu 6 và H2 nói đúng phạm vi của ngưỡng. #4: H1 đã điền digest Trivy; cả hai digest đều đủ 64 hex và trùng với bảng §8. Không thấy lỗ hổng mới ở mức should-fix trở lên. | Diff `de36d58..226cbf0`; `grep -o 'sha256:[0-9a-f]*'` cho hai digest, mỗi digest dài 64 ký tự. | — |
+
+Verdict: APPROVE
+Reviewer model: claude-opus-5-5
