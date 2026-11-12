@@ -1,6 +1,6 @@
 # DBS-155 · CI quét lỗ hổng image và quét secret
 
-> **Status:** Design approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** một Dev không phải tác giả · **Nhánh:** `infra/DBS-155-ci-image-secret-scan` · **PR:** — · **Cập nhật:** 2026-11-11
+> **Status:** Plan approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** một Dev không phải tác giả · **Nhánh:** `infra/DBS-155-ci-image-secret-scan` · **PR:** — · **Cập nhật:** 2026-11-11
 
 ## 1. Bối cảnh
 
@@ -302,7 +302,31 @@ Công cụ local: binary chính thức Trivy 0.76.1 và gitleaks 8.30.1 ở scra
 
 ## 7. Kế hoạch triển khai
 
-Chưa viết (Phase 3).
+Thứ tự: dependency → script kiểm ngoại lệ → file ngoại lệ → kiểm tĩnh workflow → workflow → tài liệu. Test viết trước, chạy đỏ, rồi mới viết mã. "Kết quả đỏ" điền khi chạy (Phase 4). `GL` = binary gitleaks 8.30.1 ở scratchpad, gọi bằng đường dẫn tuyệt đối.
+
+| Bước | File | Test viết trước | Kết quả đỏ | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `backend/package-lock.json` | TC-09, TC-21: `npm audit --omit=dev` (4 high), đối chiếu diff phiên bản | điền khi chạy | `cd backend && npm audit --omit=dev; npm run lint:check && npm run typecheck && npm test && npm run build`; `npm run test:e2e -- test/error-handling.e2e-spec.ts` | `fix(deps): bump body-parser, multer and joi to patched versions` |
+| 2 | `.github/scripts/tests/test_check_scan_exceptions.py`, rồi `.github/scripts/check-scan-exceptions.py` | TC-06, TC-07 (ba file, mỗi ca đỏ nêu tên mục, `^docs/.+$`, hạn 90 ngày, thiếu `.trivyignore.yaml`) | điền khi chạy | `python3 .github/scripts/tests/test_check_scan_exceptions.py` | `feat(ci): validate scan exception files for reason and review date` |
+| 3 | `.trivyignore.yaml` (`vulnerabilities: []`, `secrets: []`), `.gitleaks.toml`, `.gitleaksignore` (8 fingerprint), `.github/scripts/tests/test_gitleaks_config.py` (chạy gitleaks khi có `GITLEAKS_BIN`, bỏ qua có thông báo khi không có) | TC-08, 10, 11, 14, 16, 17 trên repo thử; lịch sử thật 0 phát hiện | gitleaks mặc định: 122 phát hiện | `GITLEAKS_BIN=$GL python3 .github/scripts/tests/test_gitleaks_config.py`; `check-scan-exceptions.py` thoát 0 | `feat(ci): add gitleaks and trivy exception files with reasons and review dates` |
+| 4 | `.github/scripts/check-image-workflow.py` (H7), `.github/scripts/tests/test_check_image_workflow.py` (fixture âm) | TC-01…04: fixture đỏ trước khi có job; thêm job vào fixture để xanh | điền khi chạy | `python3 .github/scripts/tests/test_check_image_workflow.py` | `test(ci): static checks for scan jobs, flags and step order` |
+| 5 | `.github/workflows/ci.yml` (`image-scan`, `secret-scan`) | TC-01, 02, 05 (bước 4 phải xanh trên file thật) | `check-image-workflow.py` đỏ vì chưa có job | `python3 .github/scripts/check-image-workflow.py`; YAML parse; chạy local đoạn shell H2 bằng `GL` (TC-12, 17) | `feat(ci): add image-scan and secret-scan jobs` |
+| 6 | `.github/workflows/image.yml` | TC-03 | `check-image-workflow.py` đỏ vì Trivy chưa trước credential | `python3 .github/scripts/check-image-workflow.py` | `feat(ci): block image push on trivy findings before aws credentials` |
+| 7 | `docs/components/ci-cd/scan-results.md`, `docs/components/ci-cd/01-concept-brief.md`, `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §13.3, `CONTRIBUTING.md` §4b và §6, `docs/security/threat-model.md` T16, `docs/deliverables/README.md` hàng P3, `docs/BACKLOG.md`, `docs/features/README.md`, feature doc §8, §9 | TC-20 (`check-doc-links.mjs`) | điền khi chạy | `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` | `docs(ci): document scan gates and results for DBS-155` |
+| 8 | Nhánh thử cục bộ `test/DBS-155-scan-proof` (c1…c5 theo TC-19), **chỉ tạo, không đẩy** | M-155-09 | không áp dụng | log của nhánh | không commit vào nhánh task |
+
+Phụ thuộc giữa bước: bước 5 cần 3 và 4; bước 6 cần 4; bước 7 cần kết quả của 1 đến 6. Bước cần Trivy thật (TC-09 lượt image, TC-13, TC-15, M-155-01, 03, 05, 06) **chưa kiểm**: chưa được tải Trivy và DB, xin phép riêng. Phần chỉ chứng minh được trên GitHub (TC-05, 18, 19, M-155-08, 09, 10) chờ người dùng duyệt Draft PR.
+
+**Rủi ro và cách lùi:**
+- Hai job mới đỏ ngay lúc merge vì phát hiện sẵn có: giảm bằng bước 1 (lockfile) và bước 3 (ngoại lệ có lý do). Image Alpine và `npm` đi kèm chưa quét được local; nếu Trivy ở CI thấy HIGH có bản sửa trong image, xử lý theo §1 câu 7 (ưu tiên sửa Dockerfile, cuối cùng ngoại lệ có hạn) trong cùng PR trước khi merge.
+- `image.yml` luôn `skipped` (BL-034) nên thay đổi ở đây chỉ kiểm tĩnh được: lùi bằng revert bước 6.
+- Hai check mới chưa là required (BL-012, BL-035): không chặn merge cho tới khi chủ repo thêm vào ruleset; lùi = bỏ khỏi ruleset hoặc revert bước 5.
+- Cập nhật lockfile đổi `joi` và `body-parser` trên đường tiền: lùi bằng revert bước 1; suite ở TC-21 là chốt.
+- Tải DB Trivy lỗi giữa chừng làm mọi PR đỏ (fail-closed, H1): chấp nhận, quy trình ở H6.
+
+**Quét kế hoạch (plan sweep):** đã đối chiếu từng điều sau với một dòng kế hoạch hoặc một dòng ngoài phạm vi: DoD 1 (bước 4 đến 6), DoD 2 (bước 2, 3), DoD 3 (bước 3, 7, 8; phần GitHub chờ duyệt), DoD 4 (quy trình, TC-22); BL-035 (bước 5, 6, 7: giữ dòng, thu hẹp), BL-111 (bước 3, xóa dòng ở bước 7), BL-013 (xóa dòng ở bước 7), BL-106 (bước 7 thêm nguồn); docs/03 §13.3, CONTRIBUTING §4b và §6, T16, hàng P3, ci-cd (bước 7); `check-image-workflow.py` hiện chỉ chạy trong `image.yml` (bước 4, 5); NFR-SEC-04 (TC-10, 11, 12). Không có mục chưa phủ.
+
+**Quyết định ở G3** (agent tự quyết, 2026-11-12): kế hoạch đủ file, test trước, lệnh chứng minh và commit; không dùng `act` (không có trên máy, không tải); nhánh proof chỉ chuẩn bị cục bộ, đẩy cần người dùng duyệt.
 
 ## 8. Kết quả
 
