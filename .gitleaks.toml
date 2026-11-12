@@ -1,0 +1,18 @@
+# Cấu hình gitleaks của cổng quét secret (DBS-155, docs/features/DBS-155-ci-image-secret-scan.md H4).
+# Mỗi allowlist có description chứa lý do và "Hạn xem lại: YYYY-MM-DD" (tối đa 90 ngày kể từ hôm nay);
+# .github/scripts/check-scan-exceptions.py kiểm. Path chỉ được rộng khi allowlist có targetRules, regexes
+# và condition = "AND". Phát hiện cụ thể trong commit đã nằm trên main thì dùng .gitleaksignore.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Khóa thử TLS CN=localhost, CA đã hủy khóa, chỉ dùng cho test (CONTRIBUTING §6, BL-111). Hạn xem lại: 2027-02-09"
+paths = ['''^backend/test/support/tls-fixtures/server\.key$''']
+
+[[allowlists]]
+description = "Idempotency-Key (UUID) trong log test thủ công, không phải bí mật (feature doc DBS-155 §1 câu 13). Hạn xem lại: 2027-01-25"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "match"
+regexes = ['''(?i)^"?(idempotency-?key|idem_key|key)"?\s*[:=]\s*"?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}["\s]*$''']
+paths = ['''^docs/features/screenshots/DBS-[0-9]+/manual-test[a-z-]*\.txt$''']
