@@ -1,6 +1,6 @@
 # ci-cd: kết quả quét image và secret
 
-> **Status:** Draft · **Owner:** #5 Platform & Ops · **Verified against code:** một phần: gitleaks và Trivy (`fs` trên lockfile) đã chạy local; Trivy trên image, các lần chạy trên GitHub Actions và Draft PR thử chưa chạy · **Cập nhật:** 2026-11-12
+> **Status:** Draft · **Owner:** #5 Platform & Ops · **Verified against code:** gitleaks chạy local và trên CI; Trivy chạy trên CI (image) và local chỉ `fs` trên lockfile; Draft PR thử đã chạy; `image.yml` thật chưa chạy · **Cập nhật:** 2026-11-12
 
 Nguồn kết quả quét cho bản nộp P3 ([deliverables](../../deliverables/README.md)). Thiết kế và quyết định: [DBS-155](../../features/DBS-155-ci-image-secret-scan.md). Bằng chứng chạy thật (link run, ảnh) thêm vào đây khi có; mục chưa chạy ghi rõ "chưa chạy".
 
@@ -40,4 +40,16 @@ Máy chạy: Linux, không có Docker. Binary chính thức tải về và kiể
 
 `secret-scan` đạt; `image-scan` đỏ với 6 HIGH có bản sửa, đều trong npm đi kèm image `node:24-alpine` (`usr/local/lib/node_modules/npm/node_modules/`): `brace-expansion` 2 CVE (CVE-2026-102276, 102278), `undici` 4 CVE (CVE-2026-109383, 109869, 19534, 87018); 0 CRITICAL, 0 secret, 0 lỗ hổng Alpine hay gói ứng dụng. Xử lý: xóa npm, npx, corepack khỏi stage `runtime` của `backend/Dockerfile` (runtime chỉ chạy `node`), không dùng ngoại lệ. Sau sửa: [run 43227579236](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43227579236) cả tám check đạt (`image-scan` 1m49s, `secret-scan` 18s).
 
-Chưa chạy: Trivy trên image thật (gói Alpine, `npm` đi kèm image `node`, secret trong các lớp), các lần chạy `image-scan` và `secret-scan` trên GitHub, Draft PR thử có dependency lỗi và secret giả (cần người dùng duyệt đẩy lên GitHub), `image.yml` thật (thiếu biến `AWS_ROLE_ARN`, BL-034).
+### Draft PR thử: CI đỏ rồi xanh (TC-155-19)
+
+| Chuỗi | Commit | Thay đổi | Run | `image-scan` | `secret-scan` |
+|---|---|---|---|---|---|
+| 1 (PR #148) | c1 `a173834` | lockfile cũ (3 HIGH có bản sửa: `body-parser`, `joi`, `multer`) | [43229246454](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43229246454) | **đỏ**: 3 HIGH (CVE-2026-111181, 113872, 118772) | xanh |
+| 1 | c2 `79cad8f` | `.trivyignore.yaml` có ngoại lệ hợp lệ cho ba CVE (hạn 2027-01-20) | [43230960266](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43230960266) | **xanh** | xanh |
+| 1 | c3 `967302e` | cùng ngoại lệ, `expired_at` = 2026-11-11 (hôm qua) | [43231235322](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43231235322) | **đỏ** | **đỏ** (kiểm tra ngoại lệ hết hạn; log chưa đọc từng dòng) |
+| 2 (PR #150) | c4 `9e8b5a2` | khóa riêng ed25519 giả sinh bằng `openssl`, ghi rõ FAKE, ở `tmp/FAKE-DBS-155-proof.key` | [43231705451](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43231705451) | xanh (file không vào image) | **đỏ** |
+| 2 | c5 `76f5fff` | `git revert` c4 | [43232073324](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43232073324) | xanh | **đỏ**: vẫn thấy khóa ở commit c4 trong lịch sử |
+
+Cả hai chuỗi cắt từ `0c4081b` (commit xanh của nhánh task, run 43227579236), base của hai PR thử là nhánh task, không phải `main`; mỗi commit chỉ đẩy sau khi hai job quét của run trước đã xong. Log `secret-scan` ở c5: `Secret: REDACTED`, `RuleID: private-key`, `File: tmp/FAKE-DBS-155-proof.key`, `Commit: 9e8b5a2…`, 154 commit đã quét; thân khóa không xuất hiện trong log. Hai PR đã đóng, hai nhánh thử đã xóa trên origin, không merge.
+
+Chưa chạy: Trivy local (chưa tải), `image.yml` thật (thiếu biến `AWS_ROLE_ARN`, BL-034), chữ ký cosign (BL-245).

@@ -1,6 +1,6 @@
 # DBS-155 · CI quét lỗ hổng image và quét secret
 
-> **Status:** Plan approved · **Vai:** #5 Platform & Ops · **Cặp đôi review:** một Dev không phải tác giả · **Nhánh:** `infra/DBS-155-ci-image-secret-scan` · **PR:** — · **Cập nhật:** 2026-11-11
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** một Dev không phải tác giả · **Nhánh:** `infra/DBS-155-ci-image-secret-scan` · **PR:** [#147](https://github.com/Lawliet119/digital-banking-simulator/pull/147) · **Cập nhật:** 2026-11-12
 
 ## 1. Bối cảnh
 
@@ -421,7 +421,7 @@ Phụ thuộc giữa bước: bước 5 cần 3 và 4; bước 6 cần 4; bướ
 | TC-155-15 | `trivy rootfs --scanners secret` | chưa làm (cần Trivy) |
 | TC-155-16, 17 | `test_secret_on_other_branch…`, `test_shallow_clone_is_red`, `test_empty_commit_only_is_red`, hai ca mode/rename/merge | đạt |
 | TC-155-18 | [run 43227579236](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43227579236): `image-scan`, `secret-scan` và sáu job cũ xanh | đạt |
-| TC-155-19 | Draft PR thử `test/DBS-155-scan-proof-1`, `-2` | xem mục TC-19 bên dưới (khi chạy) |
+| TC-155-19 | Draft PR thử `test/DBS-155-scan-proof-1`, `-2` (#148, #150, đã đóng) | đạt (bảng dưới) |
 | TC-155-20 | `check-doc-links.mjs`; `scan-results.md` | đạt |
 | TC-155-21 | audit 0 high, lint/typecheck/unit/build/e2e như bảng trên | đơn giản hóa (e2e/db/services đầy đủ chưa chạy: thiếu Docker) |
 | TC-155-22 | quy trình | chưa làm |
@@ -437,7 +437,7 @@ Phụ thuộc giữa bước: bước 5 cần 3 và 4; bước 6 cần 4; bướ
 | M-155-07 | **đạt**: kiểm tĩnh và bốn bộ test như bảng trên |
 | M-155-01, 03, 06 | **chưa chạy**: cần Trivy và DB Trivy (chưa được tải) |
 | M-155-08 | **đạt** sau một lần sửa: run đầu 43131596232 `image-scan` đỏ (6 HIGH trong npm của image base, xem trên), sửa Dockerfile, [run 43227579236](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43227579236) tám check xanh; log `image-scan` có ba lượt Trivy, `secret-scan` có `OK` kiểm tĩnh |
-| M-155-09 | xem mục TC-19 bên dưới (khi chạy) |
+| M-155-09 | **đạt**: bảng TC-19 ngay dưới, đúng kỳ vọng ở cả năm commit |
 | M-155-10 | **chưa chạy**: `image.yml` thiếu `AWS_ROLE_ARN` (BL-034) |
 
 - **Phạm vi so với §7:** thêm so với kế hoạch: `.github/scripts/run-trivy.sh`, `.github/scripts/run-gitleaks.sh`, `.github/scripts/tests/test_run_trivy.py` (xem lệch 1); `image.yml` đổi cách cài PyYAML (lệch 3); `docs/features/DBS-67-…md` một dòng ghi BL-111 đã xử lý.
@@ -455,9 +455,22 @@ Phụ thuộc giữa bước: bước 5 cần 3 và 4; bước 6 cần 4; bướ
 | `undici` | `usr/local/lib/node_modules/npm/node_modules/undici/package.json` | 4 (CVE-2026-109383, 109869, 19534, 87018) | 6.29.1, 7.30.1, 8.12.2 |
 
   Đây là đúng kịch bản §1 câu 7 và H6 (phát hiện trong image mà `npm audit` không thấy). Cổng hoạt động đúng: bắt được lỗ hổng thật ở lần chạy đầu. Xử lý (gate phụ, đổi Dockerfile, agent tự quyết): **loại bỏ khỏi runtime image thứ không cần** thay vì ngoại lệ: stage `runtime` xóa `/usr/local/lib/node_modules/npm`, `/usr/local/lib/node_modules/corepack` và các liên kết `npm`, `npx`, `corepack`, vì runtime chỉ chạy `node` (`CMD ["node","dist/main.js"]` và task migration `node ./node_modules/typeorm/cli.js`, đã kiểm trong `ecs.tf`). Các stage build giữ npm. Không có ngoại lệ trong `.trivyignore.yaml`. Test mới TC-155-23 (`backend/test/support/dockerfile.spec.ts`, 7/7 đạt: đỏ trước khi sửa Dockerfile). Hệ quả: image không còn `npm` để vào chạy lệnh trong container (debug bằng `node`); nếu sau này cần npm ở runtime thì phải xử lý lỗ hổng của nó. Kết quả sau sửa: [run 43227579236](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43227579236) trên commit `0c4081b` (đẩy sau `ee00459`): cả tám check đạt: `image-scan` 1m49s, `secret-scan` 18s, `build` 41s, `lint` 58s, `typecheck` 42s, `unit` 1m24s, `db` 6m30s, `e2e` 9m17s.
-- **Chưa chứng minh:** Trivy trên image thật, các run Actions, Draft PR thử, `docker run --user` với gitleaks, venv/pip trên runner, `ghcr.io` kéo được ẩn danh trên runner, mermaid §3 chưa render, chữ ký cosign. Mỗi mục có đường chứng minh ở BL-246 và BL-245.
-- **Bàn giao cho vai khác:** chủ repo thêm `image-scan`, `secret-scan` vào ruleset (BL-035, BL-012); người dùng duyệt Draft PR thử (BL-246); cosign (BL-245); ghim digest base image (BL-244). Dòng BACKLOG: BL-244, BL-245, BL-246 thêm mới; BL-035 thu hẹp; BL-106 thêm nguồn; BL-111, BL-013 đã xóa.
+- **Bằng chứng TC-155-19 / M-155-09** (chạy 2026-11-12):
+
+| Chuỗi | Commit | Thay đổi | Run | `image-scan` | `secret-scan` |
+|---|---|---|---|---|---|
+| 1 (PR #148) | c1 `a173834` | lockfile cũ (3 HIGH có bản sửa: `body-parser`, `joi`, `multer`) | [43229246454](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43229246454) | **đỏ**: 3 HIGH (CVE-2026-111181, 113872, 118772) | xanh |
+| 1 | c2 `79cad8f` | `.trivyignore.yaml` có ngoại lệ hợp lệ cho ba CVE (hạn 2027-01-20) | [43230960266](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43230960266) | **xanh** | xanh |
+| 1 | c3 `967302e` | cùng ngoại lệ, `expired_at` = 2026-11-11 (hôm qua) | [43231235322](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43231235322) | **đỏ** | **đỏ** (kiểm tra ngoại lệ hết hạn; log chưa đọc từng dòng) |
+| 2 (PR #150) | c4 `9e8b5a2` | khóa riêng ed25519 giả sinh bằng `openssl`, ghi rõ FAKE, ở `tmp/FAKE-DBS-155-proof.key` | [43231705451](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43231705451) | xanh (file không vào image) | **đỏ** |
+| 2 | c5 `76f5fff` | `git revert` c4 | [43232073324](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43232073324) | xanh | **đỏ**: vẫn thấy khóa ở commit c4 trong lịch sử |
+
+Cả hai chuỗi cắt từ `0c4081b` (commit xanh của nhánh task, run 43227579236), base của hai PR thử là nhánh task, không phải `main`; mỗi commit chỉ đẩy sau khi hai job quét của run trước đã xong. Log `secret-scan` ở c5: `Secret: REDACTED`, `RuleID: private-key`, `File: tmp/FAKE-DBS-155-proof.key`, `Commit: 9e8b5a2…`, 154 commit đã quét; thân khóa không xuất hiện trong log. Hai PR đã đóng, hai nhánh thử đã xóa trên origin, không merge.
+
+- **Đã chứng minh trên CI nhờ các run trên:** Trivy chạy trên image thật (và bắt được npm của image base), `docker run --user` với gitleaks, venv/pip, kéo `ghcr.io` ẩn danh, thông tin ngoại lệ hết hạn làm cả hai job đỏ.
+- **Chưa chứng minh:** `image.yml` thật (thiếu `AWS_ROLE_ARN`, BL-034); Trivy chạy local (chưa được tải); mermaid §3 chưa render; chữ ký cosign (BL-245); `test:db`/`test:services` đạt trên CI (run 43227579236) nhưng không chạy local. Lưu ý: `.trivyignore.yaml` ở nhánh task vẫn rỗng; ngoại lệ ở c2 chỉ có trên nhánh thử đã xóa.
+- **Bàn giao cho vai khác:** chủ repo thêm `image-scan`, `secret-scan` vào ruleset (BL-035, BL-012); cosign (BL-245); ghim digest base image (BL-244). Dòng BACKLOG: BL-244, BL-245 thêm mới (BL-246 đã thêm rồi xóa vì DoD 3 đã chứng minh trên GitHub); BL-035 thu hẹp; BL-106 thêm nguồn; BL-111, BL-013 đã xóa.
 
 ## 9. Tài liệu đã cập nhật
 
-`CONTRIBUTING.md` §4b (hai dòng bảng check, đoạn về `image-scan`/`secret-scan`) và §6 (cổng quét, ngoại lệ); `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §13.3 (bước Build); `docs/components/ci-cd/01-concept-brief.md`; `docs/components/ci-cd/scan-results.md` (mới); `docs/security/threat-model.md` T16 (Trạng thái, NFR-SEC-04); `docs/deliverables/README.md` (hàng P3); `docs/features/README.md` (hàng DBS-155); `docs/features/DBS-67-rds-tls-secrets.md` (BL-111 đã xử lý). `docs/BACKLOG.md`: **xóa** BL-111 và BL-013; **thu hẹp** BL-035; **thêm nguồn** vào BL-106; **thêm** BL-244, BL-245, BL-246.
+`CONTRIBUTING.md` §4b (hai dòng bảng check, đoạn về `image-scan`/`secret-scan`) và §6 (cổng quét, ngoại lệ); `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §13.3 (bước Build); `docs/components/ci-cd/01-concept-brief.md`; `docs/components/ci-cd/scan-results.md` (mới); `docs/security/threat-model.md` T16 (Trạng thái, NFR-SEC-04); `docs/deliverables/README.md` (hàng P3); `docs/features/README.md` (hàng DBS-155); `docs/features/DBS-67-rds-tls-secrets.md` (BL-111 đã xử lý). `docs/BACKLOG.md`: **xóa** BL-111 và BL-013; **thu hẹp** BL-035; **thêm nguồn** vào BL-106; **thêm** BL-244, BL-245.

@@ -50,4 +50,15 @@ test_gitleaks_config (GITLEAKS_BIN): Ran 16 tests in 17.525s OK
 
 ### chưa chạy
 M-155-01, M-155-03, M-155-05 (lượt Trivy), M-155-06: cần Trivy và DB Trivy, chưa được tải.
-M-155-08, M-155-09, M-155-10: cần GitHub Actions (Draft PR chưa được duyệt; image.yml thiếu AWS_ROLE_ARN, BL-034).
+M-155-10: image.yml thật thiếu AWS_ROLE_ARN (BL-034).
+
+### M-155-08: PR #147, nhánh task
+run 43131596232 (c. đầu): image-scan ĐỎ, 6 HIGH trong npm của image base; secret-scan xanh; sáu job cũ xanh
+sửa Dockerfile (ee00459); run 43227579236 trên 0c4081b: tám check xanh (image-scan 1m49s, secret-scan 18s)
+
+### M-155-09: Draft PR thử (đã đóng, nhánh đã xóa), cắt từ 0c4081b, base = nhánh task
+chuỗi 1 (PR #148): c1 a173834 run 43229246454 image-scan ĐỎ (3 HIGH: CVE-2026-111181, CVE-2026-113872, CVE-2026-118772), secret-scan xanh
+                   c2 79cad8f run 43230960266 image-scan xanh, secret-scan xanh (ngoại lệ hợp lệ, hạn 2027-01-20)
+                   c3 967302e run 43231235322 image-scan ĐỎ, secret-scan ĐỎ (ngoại lệ hết hạn 2026-11-11)
+chuỗi 2 (PR #150): c4 9e8b5a2 run 43231705451 image-scan xanh, secret-scan ĐỎ (khóa ed25519 giả, ghi FAKE)
+                   c5 76f5fff run 43232073324 image-scan xanh, secret-scan ĐỎ (revert, vẫn thấy ở commit c4); log: Secret: REDACTED, RuleID: private-key, 154 commit quét, thân khóa không có trong log
