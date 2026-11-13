@@ -148,3 +148,7 @@ Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/
 | 7 | minor | **Đã sửa:** `02-architecture.md` (TTL `v{n}` 7 ngày, vai trò repository) |
 | 8 | minor | Nhãn `reason` cho metric fallback → BL-208 |
 | 9, 10 | bàn giao | DBS-111 và UC-12 → BL-188 |
+
+## Cập nhật sau review (BL-188, BL-208)
+
+Phần mô tả `cfg:risk:v{n}` ở trên là thiết kế gốc. Từ nhánh `fix/risk-config-bl-188-208`: Redis chỉ giữ `cfg:risk:latest:v2` (chỉ số phiên bản, ghi bằng Lua compare-and-set chỉ đi tiến); `RuleSetRepository` không đọc và không ghi `cfg:risk:v{n}`, nội dung luật chỉ từ PostgreSQL và giữ trong bộ nhớ tiến trình (review #3). `latest` ngoài int4 hoặc hỏng là `reason="corrupt"`, lỗi Redis là `reason="error"` (review #2, #8). `parseRuleSet` hỏi từng luật chấp nhận tham số của nó, nên `minAmountExclusive` kiểu số hoặc thiếu khóa bị từ chối khi đọc (review #4, H9).

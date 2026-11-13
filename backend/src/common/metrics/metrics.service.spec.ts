@@ -131,14 +131,14 @@ describe('MetricsService', () => {
       const redis = counter('redis_fallback_total');
       const limited = counter('rate_limited_total', ['scope']);
       const risk = counter('risk_redis_fallback_total', ['rule', 'reason']);
-      const config = counter('risk_config_redis_fallback_total');
+      const config = counter('risk_config_redis_fallback_total', ['reason']);
       const { service, docs } = collect();
       await service.start(T0);
       redis.inc(3);
       limited.inc({ scope: 'ip' }, 2);
       limited.inc({ scope: 'user' });
       risk.inc({ rule: 'R1', reason: 'error' }, 4);
-      config.inc();
+      config.inc({ reason: 'corrupt' });
       await service.flush(T0 + MINUTE);
 
       const byName = new Map(docs.map(d => [names(d)[0], d]));
@@ -147,6 +147,11 @@ describe('MetricsService', () => {
       expect(byName.get('risk_config_redis_fallback_total')?.risk_config_redis_fallback_total).toBe(
         1,
       );
+      // BL-208: per reason for the dashboard, and the Role-only set an alarm can watch.
+      expect(byName.get('risk_config_redis_fallback_total')).toMatchObject({ Reason: 'corrupt' });
+      expect(
+        byName.get('risk_config_redis_fallback_total')?._aws.CloudWatchMetrics[0].Dimensions,
+      ).toEqual([['Role', 'Reason'], ['Role']]);
       const risks = docs.filter(d => names(d)[0] === 'risk_redis_fallback_total');
       expect(risks).toHaveLength(1);
       expect(risks[0]).toMatchObject({ Rule: 'R1', Reason: 'error', risk_redis_fallback_total: 4 });

@@ -285,7 +285,9 @@ describe('DBS-111 decisions while the rule set asks for AI (PostgreSQL)', () => 
       await parts.consumer.handle({ ...event, eventId: randomUUID() });
       expect(requests).toHaveLength(1);
       expect(score).toHaveBeenCalledTimes(1);
-      expect(rule).toHaveBeenCalledTimes(1);
+      // parseRuleSet (BL-188) chạy thử R1–R6 trên giao dịch giả để kiểm tham số khi nạp phiên bản luật,
+      // nên chỉ đếm các lần R3 chấm giao dịch thật này.
+      expect(rule.mock.calls.filter(([e]) => e.transferId === transferId)).toHaveLength(1);
       expect(evaluate).toHaveBeenCalledTimes(1);
       const [decision] = await q<{
         feature_snapshot: unknown;

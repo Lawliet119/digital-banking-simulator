@@ -40,7 +40,7 @@ Namespace `DBS/Backend`. Tên metric giống tên counter prom-client (`snake_ca
 | `http_requests_total`, `http_5xx_total`, `http_aborted_total` | Count | như trên | như trên |
 | `redis_fallback_total` | Count | `Role` | `RedisMetrics` · api, worker |
 | `rate_limited_total` | Count | `Role`, `Scope` (`ip`/`user`) | `RateLimitMetrics` · api |
-| `risk_config_redis_fallback_total` | Count | `Role` | `RiskMetrics` qua `RuleSetRepository`; có khi service worker chạy (DBS-121) · worker |
+| `risk_config_redis_fallback_total` | Count | `[Role,Reason]` và `[Role]` (một dòng EMF, hai bộ dimension; `Reason` = `error` hoặc `corrupt`; alarm dùng `[Role]`) | `RiskMetrics` qua `RuleSetRepository`; có khi service worker chạy (DBS-121) · worker |
 | `risk_redis_fallback_total` | Count | `Role`, `Rule`, `Reason` | `RiskMetrics`; **chưa có chỗ nào gọi `.redisFallback(`**: chờ consumer chấm điểm nối đủ (BL-204) · worker |
 | `risk_decision_total` | Count | `Role`, `AiStatus` | `risk-scoring.metrics.ts`: +1 mỗi quyết định ghi bởi lần giao thắng claim (BL-204) · worker |
 | `risk_rule_error_total` | Count | `Role`, `Rule` (`R1`..`R6`) | `ScoringService`: +1 mỗi lần một luật ném lỗi hoặc trả kết quả sai, mỗi lần nhận của message (BL-207 f, BL-046) · worker |

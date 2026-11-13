@@ -178,6 +178,12 @@ run "dashboard_labels_are_safe" {
     error_message = "SEARCH must quote the namespace and use allowlisted dimension names only"
   }
 
+  # BL-208: the config fallback counter now carries Reason; the line also has a Role-only set for alarms.
+  assert {
+    condition     = strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : try(w.properties.metrics, [])]), "Role,Reason} MetricName=\\\"risk_config_redis_fallback_total\\\"")
+    error_message = "risk_config_redis_fallback_total must be searched by {Role,Reason}"
+  }
+
   assert {
     condition     = !strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w.properties.metrics if w.type == "metric"]), "customer") && !strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w.properties.metrics if w.type == "metric"]), "userId")
     error_message = "no personal data in metric definitions"

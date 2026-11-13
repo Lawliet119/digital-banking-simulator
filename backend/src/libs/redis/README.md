@@ -18,7 +18,7 @@ giao dịch hay dữ liệu cá nhân.
 Kho cấu hình risk dùng thêm `serverTimeMs()`, `readExpiringVersion(key)`,
 `setVersionBefore(key,version,deadlineMs)` và `setIfAbsent(key,value,ttlSeconds)`.
 Lua giới hạn thời hạn và so sánh version atomically; lệnh cũ/quá hạn không ghi đè version mới,
-`SET NX` không thay nội dung version có sẵn. Các lệnh vẫn qua breaker như những method khác.
+`SET NX` không thay nội dung version có sẵn. `readExpiringVersion` trả `null` khi key vắng hoặc quá hạn, và ném `RedisUnavailableError` với `reason: 'CORRUPT'` khi key có mà không phải marker do code này ghi (sai kiểu, sai định dạng, ngoài int4, TTL lệch); `setVersionBefore` vẫn sửa được key hỏng đó. Các lệnh vẫn qua breaker như những method khác.
 Caller phải lấy Redis TIME trước khi đọc primary và tự kiểm deadline lúc chọn snapshot; xem
 [bugfix freshness](../../../../docs/features/BUG-20261109-risk-config-freshness.md).
 

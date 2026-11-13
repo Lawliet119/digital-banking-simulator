@@ -174,6 +174,23 @@ describe('DBS-160 versioned risk configuration over real HTTP', () => {
     wrong(c => (c.rules.R5.sameOwnerExempt = false));
     wrong(c => (c.rules.R1.weight = 2_147_483_647));
     wrong(c => (c.rules.R1.extra = 'unexpected'));
+    // BL-188: every value a rule would throw on is refused before the write.
+    wrong(c => (c.rules.R2.historyDays = 29));
+    wrong(c => (c.rules.R2.medianMultiplier = 2.005));
+    wrong(c => (c.rules.R3.minAmountExclusive = 10_000_000));
+    wrong(c => (c.rules.R3.minAmountExclusive = 'abc'));
+    wrong(c => (c.rules.R3.maxAccountAgeHoursExclusive = 87_601));
+    wrong(c => (c.rules.R4.reverseWindowMinutes = 0));
+    wrong(c => (c.rules.R4.reverseWindowMinutes = 30.5));
+    wrong(c => (c.rules.R5.noveltyDays = 7));
+    wrong(c => (c.rules.R6.minBalancePercent = 0));
+    wrong(c => (c.rules.R6.minBalancePercent = 101));
+    wrong(c => (c.rules.R6.minBalancePercent = 90.5));
+    wrong(c => (c.rules.R6.minBalance = 1_000_000));
+    wrong(c => {
+      c.rules.R3.enabled = false; // switching a rule off does not excuse a broken value
+      c.rules.R3.minAmountExclusive = 10_000_000;
+    });
     for (const mode of ['rule_only', 'rules_with_external_ai']) {
       for (const [field, value] of [
         ['provider', 'other'],
