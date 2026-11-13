@@ -1,9 +1,15 @@
 import { randomUUID } from 'node:crypto';
+import { PinoLogger } from 'nestjs-pino';
 import { register as defaultRegister } from 'prom-client';
 import { DataSource } from 'typeorm';
 import type { DomainEvent } from '@common/events';
+import { MetricsService } from '@common/metrics';
+import type { EmfDocument } from '@common/metrics/emf';
+import { LATENCY_BOUNDS_MS } from '@common/metrics/latency-histogram';
 import { PoisonMessageError, type SqsMessage } from '@libs/sqs';
+import { RiskRuleError } from '@modules/risk/risk-rule-error';
 import { RiskScoringConsumer } from '@modules/risk/risk-scoring.consumer';
+import { failR3ForRealTransfers } from '../support/failing-rule';
 import { checkLedgerInvariants } from '../support/invariants';
 import { startDepositApp } from '../support/deposit-app';
 import { ACCOUNT_LOCKED_SAMPLE } from '../support/event-samples';
@@ -300,6 +306,117 @@ describe('DBS-111 risk scoring consumer on PostgreSQL', () => {
       await count("processed_events WHERE consumer = 'risk' AND event_id = $1", [event.eventId]),
     ).toBe(0);
     expect(await count('risk_decisions WHERE transfer_id = $1', [transferId])).toBe(0);
+  });
+
+  /** A real MetricsService whose lines are collected; `start` fixes the baseline of the shared counters. */
+  async function collectingMetrics() {
+    const docs: EmfDocument[] = [];
+    const metrics = new MetricsService(
+      { enabled: true, flushMs: 600_000 },
+      { role: 'worker' } as never,
+      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
+      doc => docs.push(doc),
+    );
+    await metrics.start();
+    return { metrics, docs };
+  }
+  const metricNames = (doc: EmfDocument) => doc._aws.CloudWatchMetrics[0].Metrics.map(m => m.Name);
+
+  it('TC-204-07 a flagged transfer writes risk_decision_total{AiStatus=DISABLED} and risk_transfer_to_flag_ms, equal to fraud_flags.created_at - transfers.created_at, with no personal data', async () => {
+    const { metrics, docs } = await collectingMetrics();
+    const withMetrics = buildRiskConsumer(source, { metrics });
+    const { transferId, event } = await ac91();
+
+    await withMetrics.consumer.handle(event, message(1));
+    await metrics.flush();
+
+    const [decision] = docs.filter(d => metricNames(d).includes('risk_decision_total'));
+    expect(decision).toMatchObject({
+      Role: 'worker',
+      AiStatus: 'DISABLED',
+      risk_decision_total: 1,
+    });
+    expect(decision._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role', 'AiStatus']]);
+
+    // Same base as the consumer (fraud_flags.created_at − event occurredAt, the transfer's commit
+    // time): transfers.created_at can differ by a few ms and land in the next bucket near a bound.
+    const [lag] = await q<{ lag_ms: number }>(
+      `SELECT EXTRACT(EPOCH FROM f.created_at - $2::timestamptz) * 1000 AS lag_ms
+         FROM fraud_flags f WHERE f.transfer_id = $1`,
+      [transferId, String((event as { occurredAt: string }).occurredAt)],
+    );
+    const [flag] = docs.filter(d => metricNames(d).includes('risk_transfer_to_flag_ms'));
+    expect(flag._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role']]);
+    const samples = flag.risk_transfer_to_flag_ms as number[];
+    expect(samples).toHaveLength(1);
+    // The sample is the upper bound of the bucket the real lag falls in (see LatencyHistogram).
+    const bucket = LATENCY_BOUNDS_MS.find(bound => Number(lag.lag_ms) <= bound);
+    expect(samples[0]).toBe(bucket);
+    expect(samples[0]).toBeLessThanOrEqual(5000); // SLO p95 < 5 s, even with a cold database
+
+    const text = JSON.stringify(docs);
+    expect(text).not.toMatch(UUID);
+    expect(text).not.toContain(transferId);
+    expect(text).not.toContain('20000000');
+    // Only the two metrics of this test: other counters (e.g. the rule-set Redis fallback, which
+    // carries `Reason`) may flush in the same window.
+    for (const doc of docs.filter(d =>
+      metricNames(d).some(m => m === 'risk_decision_total' || m === 'risk_transfer_to_flag_ms'),
+    )) {
+      const dims = Object.keys(doc).filter(k => k !== '_aws' && !metricNames(doc).includes(k));
+      expect(dims.every(k => ['Role', 'AiStatus'].includes(k))).toBe(true);
+    }
+  });
+
+  it('TC-204-07 a duplicate delivery and a LOW transfer add no flag-lag sample, and the duplicate no decision', async () => {
+    const { metrics, docs } = await collectingMetrics();
+    const withMetrics = buildRiskConsumer(source, { metrics });
+    const { event } = await ac91();
+    await withMetrics.consumer.handle(event, message(1));
+    await metrics.flush();
+    docs.length = 0;
+
+    await withMetrics.consumer.handle({ ...event, eventId: randomUUID() }, message(1));
+    await metrics.flush();
+    expect(docs).toEqual([]);
+
+    const sender = await fx.customer('Khách LOW A');
+    const recipient = await fx.customer('Khách LOW B');
+    await fx.deposit(sender.accounts[0], '5000000');
+    const lowId = await fx.transfer(
+      sender.token,
+      sender.accounts[0],
+      recipient.accounts[0],
+      '1000',
+    );
+    await withMetrics.consumer.handle(await eventFor(db.runner, lowId), message(1));
+    await metrics.flush();
+    expect(docs.filter(d => metricNames(d).includes('risk_transfer_to_flag_ms'))).toEqual([]);
+    expect(docs.filter(d => metricNames(d).includes('risk_decision_total'))).toHaveLength(1);
+  });
+
+  it('TC-204-08 a rule that throws counts risk_rule_error_total{Rule} per attempt, is still thrown as a retry and goes to the DLQ at the fifth receive', async () => {
+    const { metrics, docs } = await collectingMetrics();
+    const withMetrics = buildRiskConsumer(source, { metrics });
+    const { transferId, event } = await ac91();
+    failR3ForRealTransfers();
+
+    const first = withMetrics.consumer.handle(event, message(1));
+    await expect(first).rejects.toBeInstanceOf(RiskRuleError);
+    await expect(first).rejects.not.toBeInstanceOf(PoisonMessageError);
+    await expect(first).rejects.toMatchObject({ ruleId: 'R3' });
+    await expect(withMetrics.consumer.handle(event, message(5))).rejects.toBeInstanceOf(
+      PoisonMessageError,
+    );
+    await metrics.flush();
+
+    const [line] = docs.filter(d => metricNames(d).includes('risk_rule_error_total'));
+    expect(line).toMatchObject({ Role: 'worker', Rule: 'R3', risk_rule_error_total: 2 });
+    expect(line._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role', 'Rule']]);
+    // Nothing was written and no decision was counted.
+    expect(await count('risk_decisions WHERE transfer_id = $1', [transferId])).toBe(0);
+    expect(docs.filter(d => metricNames(d).includes('risk_decision_total'))).toEqual([]);
+    expect(JSON.stringify(docs)).not.toMatch(UUID);
   });
 
   it('TC-111-11 Redis configuration fallback still increments, but SQL features are not Redis fallbacks', async () => {

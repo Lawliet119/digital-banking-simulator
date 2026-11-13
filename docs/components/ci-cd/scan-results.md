@@ -71,4 +71,4 @@ Máy chạy: Linux, không có Docker. Binary chính thức tải về và kiể
 
 Cả hai chuỗi cắt từ `0c4081b` (commit xanh của nhánh task, run 43227579236), base của hai PR thử là nhánh task, không phải `main`; mỗi commit chỉ đẩy sau khi hai job quét của run trước đã xong. Log `secret-scan` ở c5: `Secret: REDACTED`, `RuleID: private-key`, `File: tmp/FAKE-DBS-155-proof.key`, `Commit: 9e8b5a2…`, 154 commit đã quét; thân khóa không xuất hiện trong log. Hai PR đã đóng, hai nhánh thử đã xóa trên origin, không merge.
 
-Chưa chạy: Trivy local (chưa tải), `image.yml` thật (thiếu biến `AWS_ROLE_ARN`, BL-034), chữ ký cosign (BL-245).
+Chưa chạy: Trivy local (chưa tải), `image.yml` thật (thiếu biến `AWS_ROLE_ARN`, BL-034), chữ ký cosign của image Trivy đã kiểm local bằng cosign v3.1.4 (BL-245; chi tiết ở DBS-155 §8) nhưng bước cài cosign và `cosign verify` trên runner GitHub chưa có run; image gitleaks không có chữ ký (chấp nhận, chỉ ghim digest).

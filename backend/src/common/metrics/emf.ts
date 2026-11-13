@@ -13,7 +13,16 @@
 export const EMF_NAMESPACE = 'DBS/Backend';
 
 /** The only dimension names a metric may carry: none of them can hold an id of a person. */
-export const EMF_DIMENSION_NAMES = ['Route', 'Method', 'Role', 'Rule', 'Reason', 'Scope'] as const;
+export const EMF_DIMENSION_NAMES = [
+  'Route',
+  'Method',
+  'Role',
+  'Rule',
+  'Reason',
+  'Scope',
+  'AiStatus',
+  'Status',
+] as const;
 export type EmfDimensionName = (typeof EMF_DIMENSION_NAMES)[number];
 
 export type EmfUnit = 'Milliseconds' | 'Seconds' | 'Count';

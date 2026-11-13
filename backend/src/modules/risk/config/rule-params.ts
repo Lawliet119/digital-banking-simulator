@@ -21,12 +21,18 @@ const RULES: Readonly<Record<RuleId, RiskRule>> = {
   R6: new R6DrainRule(),
 };
 
+/**
+ * `transferId` of the synthetic transfer the parameter probe scores. Tests that make a rule throw
+ * for a real transfer let this one through, otherwise loading the rule set itself fails.
+ */
+export const RULE_PARAMS_PROBE_TRANSFER_ID = '00000000-0000-4000-8000-000000000003';
+
 // A valid synthetic transfer and facts: only the parameters can make a rule throw.
 const PROBE_EVENT: TransferEvent = {
   eventType: 'TransferCompleted',
   eventId: '00000000-0000-4000-8000-000000000001',
   correlationId: '00000000-0000-4000-8000-000000000002',
-  transferId: '00000000-0000-4000-8000-000000000003',
+  transferId: RULE_PARAMS_PROBE_TRANSFER_ID,
   fromAccountId: '00000000-0000-4000-8000-000000000004',
   toAccountId: '00000000-0000-4000-8000-000000000005',
   fromUserId: '00000000-0000-4000-8000-000000000006',

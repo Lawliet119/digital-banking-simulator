@@ -13,6 +13,7 @@ import { Clock } from '@common/clock';
 import { runsWorkers } from '@common/app-role/app-role';
 import { safeErrorMetadata } from '@common/logging/logging.options';
 import { PollingLoop } from '@common/utils/polling-loop';
+import { countReconciliationRun } from './reconciliation.metrics';
 import {
   classifyReconciliationSnapshot,
   RECONCILIATION_ADVISORY_LOCK_KEY,
@@ -159,6 +160,14 @@ export class ReconciliationService implements OnApplicationBootstrap, OnApplicat
    * lock, returns `{ executed: false }` immediately without querying the ledger or inserting a row.
    */
   async reconcileOnce(options?: ReconcileOnceOptions): Promise<ReconciliationOutcome> {
+    const outcome = await this.runOnce(options);
+    // Counted after the row is committed, once per run; a run that found the lock taken wrote
+    // nothing and counts nothing. Read-only: it changes neither the SQL nor the result.
+    if (outcome.executed) countReconciliationRun(outcome.status);
+    return outcome;
+  }
+
+  private async runOnce(options?: ReconcileOnceOptions): Promise<ReconciliationOutcome> {
     const statementTimeoutMs =
       options?.statementTimeoutMs ?? DEFAULT_RECONCILIATION_STATEMENT_TIMEOUT_MS;
     let lockAcquired = false;

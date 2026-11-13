@@ -259,19 +259,21 @@ export async function resolveTokens(
   }
 
   // Cloud mode
-  const operator = cliCloudTokens?.operatorToken ?? process.env.DBS_OPERATOR_TOKEN;
-  const c1 = cliCloudTokens?.customer1Token ?? process.env.DBS_CUSTOMER_1_TOKEN;
-  const c2 = cliCloudTokens?.customer2Token ?? process.env.DBS_CUSTOMER_2_TOKEN;
-  const c3 = cliCloudTokens?.customer3Token ?? process.env.DBS_CUSTOMER_3_TOKEN;
+  // BL-252: biến môi trường là đường chính (token trên argv lộ qua `ps` và lịch sử shell); cờ `--*-token` chỉ còn
+  // là phương án dự phòng đã lỗi thời (runSeedCli cảnh báo). Biến rỗng coi như chưa đặt.
+  const operator = process.env.DBS_OPERATOR_TOKEN || cliCloudTokens?.operatorToken;
+  const c1 = process.env.DBS_CUSTOMER_1_TOKEN || cliCloudTokens?.customer1Token;
+  const c2 = process.env.DBS_CUSTOMER_2_TOKEN || cliCloudTokens?.customer2Token;
+  const c3 = process.env.DBS_CUSTOMER_3_TOKEN || cliCloudTokens?.customer3Token;
 
   if (!operator) {
     throw new SeedError(
-      'Missing operator token for cloud auth. Provide --operator-token or DBS_OPERATOR_TOKEN.',
+      'Missing operator token for cloud auth. Set DBS_OPERATOR_TOKEN (the deprecated --operator-token flag also works).',
     );
   }
   if (!c1 || !c2 || !c3) {
     throw new SeedError(
-      'Missing customer tokens for cloud auth. Provide --customer1-token, --customer2-token, --customer3-token (or DBS_CUSTOMER_{1,2,3}_TOKEN).',
+      'Missing customer tokens for cloud auth. Set DBS_CUSTOMER_1_TOKEN, DBS_CUSTOMER_2_TOKEN and DBS_CUSTOMER_3_TOKEN (the deprecated --customer{1,2,3}-token flags also work).',
     );
   }
 
@@ -697,20 +699,21 @@ export function printHelp(): string {
     '  --url <url>              API base URL (default: http://127.0.0.1:3000 or DBS_API_URL)',
     '  --auth <local|cloud>     Authentication mode: local | cloud (default: local)',
     '  --key-dir <path>         Local JWT signing key directory (default: .auth-local)',
-    '  --operator-token <jwt>   Operator access token (required for cloud auth)',
-    '  --customer1-token <jwt>  Customer 1 token (Nguyễn Minh Anh, required for cloud)',
-    '  --customer2-token <jwt>  Customer 2 token (Trần Thu Hà, required for cloud)',
-    '  --customer3-token <jwt>  Customer 3 token (Nguyễn Văn Bình, required for cloud)',
+    '  --operator-token <jwt>   DEPRECATED, use DBS_OPERATOR_TOKEN (a token on argv shows up in `ps`)',
+    '  --customer1-token <jwt>  DEPRECATED, use DBS_CUSTOMER_1_TOKEN',
+    '  --customer2-token <jwt>  DEPRECATED, use DBS_CUSTOMER_2_TOKEN',
+    '  --customer3-token <jwt>  DEPRECATED, use DBS_CUSTOMER_3_TOKEN',
     '  --quiet, -q              Suppress summary output on success',
     '  --help, -h               Show this help message',
     '',
     'Environment variables:',
     '  DBS_API_URL / API_URL    Default API base URL',
     '  AUTH_MODE                Set to "local" or "cognito" (mapped to cloud)',
-    '  DBS_OPERATOR_TOKEN       Operator token for cloud auth',
-    '  DBS_CUSTOMER_1_TOKEN     Customer 1 token for cloud auth',
-    '  DBS_CUSTOMER_2_TOKEN     Customer 2 token for cloud auth',
-    '  DBS_CUSTOMER_3_TOKEN     Customer 3 token for cloud auth',
+    '  DBS_OPERATOR_TOKEN       Operator token for cloud auth (required; wins over the flag)',
+    '  DBS_CUSTOMER_1_TOKEN     Customer 1 token, Nguyễn Minh Anh (required for cloud)',
+    '  DBS_CUSTOMER_2_TOKEN     Customer 2 token, Trần Thu Hà (required for cloud)',
+    '  DBS_CUSTOMER_3_TOKEN     Customer 3 token, Nguyễn Văn Bình (required for cloud)',
+    '                           Get them with infra/scripts/demo-token.sh --role operator|customer1|customer2|customer3',
     '',
   ].join('\n');
 }
@@ -769,6 +772,24 @@ export async function runSeedCli(argv: string[], io?: SeedCliIo): Promise<number
     if (args.help) {
       stdout(`${printHelp()}\n`);
       return 0;
+    }
+
+    const usedFlags = (
+      [
+        ['--operator-token', args.operatorToken],
+        ['--customer1-token', args.customer1Token],
+        ['--customer2-token', args.customer2Token],
+        ['--customer3-token', args.customer3Token],
+      ] as const
+    )
+      .filter(([, value]) => value !== undefined)
+      .map(([flag]) => flag);
+    if (usedFlags.length > 0) {
+      // Chỉ nêu tên cờ, không bao giờ in giá trị token.
+      stderr(
+        `Warning: ${usedFlags.join(', ')} is deprecated: a token on the command line is visible in \`ps\` and shell history. ` +
+          'Use DBS_OPERATOR_TOKEN and DBS_CUSTOMER_{1,2,3}_TOKEN instead.\n',
+      );
     }
 
     const report = await runSeed(

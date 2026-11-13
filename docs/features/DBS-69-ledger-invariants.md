@@ -783,3 +783,7 @@ Không có `.skip`, `.only` hay `.todo` trong test của task. **Một test ngo�
 - `docs/features/README.md`: cập nhật dòng DBS-69.
 
 **Quyết định ở G4 (vòng 2):** người dùng trả lời «duyệt» ngày 2026-11-01. Chấp nhận BL-126/127/128, ảnh render bằng Chrome headless, hai sự cố công cụ lúc ghi file đã được phát hiện và sửa, SHA manual `154c76c` (sau đó chỉ thêm script đo tùy chọn và tài liệu), test JWKS flaky giữ ở BL-112. Push thường lên nhánh PR #35, cập nhật body PR, giữ Draft.
+
+## Cập nhật BL-128: checker chạy được từ image và ECS one-off task
+
+Các đường dẫn `backend/test/support/invariants.ts` và `invariants.sql` ở trên là lúc viết DBS-69. Nay mã nguồn nằm ở `backend/src/scripts/invariants/invariants.ts` và `invariants.sql` (`test/support/invariants.ts` chỉ còn `export *` để test cũ giữ import), nên `npm run build` biên dịch vào `dist/scripts/invariants/invariants.js`; `nest-cli.json` có `assets` để chép file SQL. Alias `@common/*`, `@config/*`, `@database/*` được `nest build` đổi sang đường dẫn tương đối, nên `node dist/scripts/invariants/invariants.js` chạy trong image runtime (đã `npm prune --omit=dev`, không `ts-node`, không `tsconfig-paths`). Script mới `npm run check:invariants:dist`; `npm run check:invariants` (ts-node) vẫn dùng cho máy dev. Cách chạy ECS one-off task (ghi đè lệnh của task definition `dbs-migrate`) ở `backend/README.md` §9. Test TC-128-01..04 trong `test/db/invariants.db-spec.ts` build thật rồi chạy `node dist/...` trên PostgreSQL tạm (PASS 0, FAIL 1, config sai 2, `--help`). Chưa làm: một lần chạy thật trên RDS dev.

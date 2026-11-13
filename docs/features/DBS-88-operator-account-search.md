@@ -62,6 +62,8 @@ ORDER BY c.full_name, a.created_at, a.id
 LIMIT 20
 ```
 
+> **Cập nhật BL-178:** thiết kế ban đầu ở trên dùng `ILIKE`. Từ migration `1795000008000` điều kiện tên là `lower(public.f_unaccent(c.full_name)) LIKE '%' || escape(lower(public.f_unaccent($1))) || '%' ESCAPE '\'`; xem §8.
+
 - **Transaction:** đọc + audit `SUCCESS` trong một `TransactionService.run`; trả dữ liệu sau COMMIT.
 - **Sơ đồ UC-3 (docs/03 §6.4):** khớp thiết kế (`GET /v1/operator/accounts` → SELECT tối đa 20 → INSERT audit_log → 200 không số dư). Chỉ bổ sung ghi chú: audit lưu vân tay SHA-256 của từ khóa chứ không lưu tên (quyết định 2).
 - **Thay đổi cấp hệ thống:** docs/03 §7 (dòng bảng API) và §6.4 (ghi chú), README `accounts`.
@@ -111,7 +113,7 @@ PostgreSQL 17 thật; HTTP thật với JWT thật.
 | 3 | should-fix | Tài khoản `funding` không được lộ qua tìm kiếm | `JOIN customers` loại SYSTEM; TC-88-04 |
 | 4 | should-fix | `admin` có thể vô tình truy cập | `@Roles('operator')`, không kế thừa; TC-88-10 |
 | 5 | minor | Bảng khách ~50.000 dòng: Seq Scan chấp nhận được (database-design §6.2) | M-88-06 đo và ghi lại |
-| 6 | minor | `ILIKE` trên Postgres Alpine (musl) không gấp hoa thường ký tự có dấu như glibc | Test dùng khác biệt hoa thường ở ký tự ASCII và khớp có dấu cùng dạng; tìm không dấu ngoài phạm vi (BL) |
+| 6 | minor | `ILIKE` trên Postgres Alpine (musl) không gấp hoa thường ký tự có dấu như glibc | Test dùng khác biệt hoa thường ở ký tự ASCII và khớp có dấu cùng dạng; tìm không dấu ngoài phạm vi (BL). **Đã xử lý ở BL-178** (xem §8): dùng `unaccent` rồi `lower()`, không còn phụ thuộc locale |
 | 7 | minor | Kết quả phụ thuộc thứ tự ổn định giữa các lần gọi | `ORDER BY full_name, created_at, id` |
 
 Không có phát hiện blocking còn mở. Verdict tự đánh giá: APPROVE.
@@ -181,7 +183,15 @@ Rủi ro: endpoint đọc dữ liệu khách → test 403, không số dư, khô
 - **Ảnh chụp:** không có (waiver); bằng chứng là `manual-test.txt`.
 - **Lệch so với kế hoạch:** (1) **Audit không lưu «từ khóa» dạng chữ** như DoD ghi (G1 câu 2): lưu `accountId` hoặc vân tay SHA-256 vì guard metadata cấm PII; lead có thể đổi bằng cách mở rộng danh sách khóa (quyết định riêng). (2) Ca ILIKE có dấu: chỉ kiểm khác biệt hoa thường ASCII vì gấp hoa thường ký tự có dấu phụ thuộc locale máy chủ (G2 mục 6). (3) Lần chạy đột biến đầu bị áp sai (`sed` không khớp) nên chạy lại bằng Edit; ghi nhận ở đây vì lần đầu kết quả «xanh» là giả.
 - **Để lead xem kỹ:** quyết định lưu vân tay thay cho từ khóa trong audit; Seq Scan ~25 ms với từ khóa phổ biến ở 50.000 khách.
-- **Bàn giao:** BL-176 (thêm PR này), **BL-178** (tìm không dấu và gấp hoa thường ký tự Việt theo locale).
+- **Bàn giao:** BL-176 (thêm PR này), **BL-178** (tìm không dấu và gấp hoa thường ký tự Việt theo locale): đã xử lý, xem đoạn dưới.
+- **BL-178 đã xử lý (techlead chọn extension `unaccent`, không thêm cột chuẩn hóa):**
+  - Migration `1795000008000-EnableUnaccentSearch`: `CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public` và hàm bọc `public.f_unaccent(text)` (`IMMUTABLE`, `STRICT`, `PARALLEL SAFE`, cố định từ điển `public.unaccent`). `down()` bỏ hàm rồi bỏ extension, không `CASCADE`. Không đổi `db-roles.sql`: `EXECUTE` mặc định của `PUBLIC` đủ cho `dbs_api` (TC-88-18 chạy bằng role thật).
+  - Truy vấn: `lower(public.f_unaccent(c.full_name)) LIKE '%' || <từ khóa đã escape> || '%' ESCAPE '\'`, với từ khóa cũng đi qua `lower(public.f_unaccent($1))`. **`unaccent` chạy trước `lower()`**: chuỗi đã là ASCII khi gấp hoa thường nên kết quả giống nhau trên Alpine/musl, RDS/glibc và cả database locale `C` (TC-88-20 dựng một database `LC_CTYPE 'C'`, nơi `'Ư' ILIKE 'ư'` là false, và chứng minh `lower(f_unaccent(x))` của mọi chữ Việt ra ASCII đúng). Ký tự ngoài chữ Latinh (Cyrillic, Hy Lạp) `unaccent` không đụng tới, `lower()` vẫn theo locale; chấp nhận vì khách là người Việt.
+  - **Escape chuyển từ ứng dụng sang SQL, sau khi gấp dấu** (xóa `escapeLike`; tham số là từ khóa thô). Lý do tìm ra khi viết test: `unaccent` đổi `％` (U+FF05), `﹪` (U+FE6A) và `＿` (U+FF3F) thành `%`, `_`; escape trước khi gấp dấu sẽ để chúng thành ký tự đại diện. TC-88-16.
+  - Hệ quả có chủ ý: tìm «ình» ra cả «Minh» và «Bình» (TC-88-02 đã sửa); `đ/Đ` → `d`, `ư/Ư` → `u`, `ơ/Ơ` → `o`; tên lưu dạng NFD cũng khớp (TC-88-15).
+  - Vẫn **không có index** trên `full_name` (TC-88-09 giữ nguyên): 50.000 dòng, `LIKE '%…%'` không dùng được b-tree. Nếu cần, index trigram trên đúng biểu thức `lower(public.f_unaccent(full_name))` (cần `pg_trgm`, chưa dùng) và `f_unaccent` `IMMUTABLE` cho phép việc đó.
+  - RDS: `unaccent` được hỗ trợ; người chạy migration cần `rds_superuser` (master user) hoặc `CREATE` trên database (extension *trusted* từ PG 13). Ghi ở `infra/terraform/README.md` và database-design §11.
+  - Test mới TC-88-13..21 trong `test/db/operator-account-search.db-spec.ts`; TC-88-11 (unit) sửa theo câu SQL mới.
 
 ## 9. Tài liệu đã cập nhật
 

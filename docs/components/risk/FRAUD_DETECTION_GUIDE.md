@@ -446,7 +446,7 @@ interface RiskRule {
 | Redis lỗi | Dự phòng SQL (mục 5.4) |
 | DB lỗi | Không xóa message → SQS giao lại; quá 5 lần → DLQ + alarm |
 | Message không đúng định dạng | Log + chuyển thẳng DLQ, không retry vô ích |
-| Một luật hoặc truy vấn feature lỗi | Theo ADR-14: rollback, không ack, retry và sau giới hạn thì DLQ; metric `risk_rule_error_total{rule}` khi lỗi luật. Consumer đã có ([DBS-111](../../features/DBS-111-risk-scoring-consumer.md)); metric và alarm còn ở BL-046/051 |
+| Một luật hoặc truy vấn feature lỗi | Theo ADR-14: rollback, không ack, retry và sau giới hạn thì DLQ; `ScoringService` bọc lỗi luật thành `RiskRuleError{ruleId}` (vẫn ném ra) và tăng metric `risk_rule_error_total{Role,Rule}`. Consumer đã có ([DBS-111](../../features/DBS-111-risk-scoring-consumer.md)); đường DLQ trên queue thật được chứng minh bởi TC-046-01 (`dlq-isolation.services-spec.ts`: 5 lần nhận, không ghi gì, một message trong DLQ). Alarm ở BL-051 |
 | Cấu hình AI không hợp lệ hoặc provider AI lỗi | Giữ điểm sáu luật, contribution AI bằng 0, ghi trạng thái tương ứng; không đẩy DLQ chỉ vì AI. `rule_only` là mặc định; không tự bật AI khi chưa đạt gate ADR-14 |
 | Worker chết | Giao dịch không bị ảnh hưởng; khi bật lại, message còn trong queue được xử lý tiếp |
 
