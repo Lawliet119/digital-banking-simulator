@@ -121,6 +121,23 @@ class Render(unittest.TestCase):
         c = json.loads(p.stdout)["containerDefinitions"][0]
         self.assertEqual((c["image"], c["command"]), (f"{REPO}:{NEW}", ["node", "x", "migration:run"]))
 
+    # TC-120-14: dbs-migrate không có task role (DBS-120); revision mới cũng không được có
+    def test_migrate_without_task_role_stays_without_task_role(self):
+        resp = json.loads(json.dumps(RESPONSE))
+        td = resp["taskDefinition"]
+        td["family"] = "dbs-migrate"
+        del td["taskRoleArn"]
+        td["executionRoleArn"] = "arn:aws:iam::123456789012:role/dbs-dev-migrate-execution"
+        td["containerDefinitions"] = [
+            {"name": "migrate", "image": f"{REPO}:{OLD}", "essential": True, "command": ["node", "x", "migration:run"]}]
+        p = subprocess.run([sys.executable, str(SCRIPT), "--image", f"{REPO}:{NEW}", "--container", "migrate"],
+                           input=json.dumps(resp), capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        out = json.loads(p.stdout)
+        self.assertNotIn("taskRoleArn", out)
+        self.assertEqual(out["executionRoleArn"], "arn:aws:iam::123456789012:role/dbs-dev-migrate-execution")
+        self.assertEqual(out["containerDefinitions"][0]["image"], f"{REPO}:{NEW}")
+
     def test_container_option_unknown_name_is_rejected(self):
         p = subprocess.run([sys.executable, str(SCRIPT), "--image", f"{REPO}:{NEW}", "--container", "migrate"],
                            input=json.dumps(RESPONSE), capture_output=True, text=True)

@@ -74,8 +74,9 @@ resource "aws_ecs_task_definition" "api" {
 }
 
 # DBS-68: bước migration của pipeline. deploy.sh/migrate.sh đăng ký revision mới (chỉ đổi image) và chạy bằng
-# `run-task` trước khi cập nhật service; không có service nên không có ignore_changes. Cùng execution role và task
-# role với dbs-api; kết nối bằng secret master như api (BL-103, DBS-119 tách role dbs_migrator và execution role).
+# `run-task` trước khi cập nhật service; không có service nên không có ignore_changes. DBS-120: execution role
+# riêng (chỉ đọc secret master), không task role vì migration không gọi API AWS nên container không cần credential.
+# Kết nối bằng secret master (BL-103: secret riêng của dbs_migrator).
 # Chỉ cần DB_* và TLS: data-source.ts không đọc COGNITO_*, REDIS_URL hay APP_ROLE.
 resource "aws_ecs_task_definition" "migrate" {
   family                   = "dbs-migrate"
@@ -83,8 +84,7 @@ resource "aws_ecs_task_definition" "migrate" {
   network_mode             = "awsvpc"
   cpu                      = "256"
   memory                   = "512"
-  execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  execution_role_arn       = aws_iam_role.migrate_execution.arn
 
   runtime_platform {
     operating_system_family = "LINUX"

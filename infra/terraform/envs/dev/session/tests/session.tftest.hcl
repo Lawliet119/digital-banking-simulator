@@ -43,6 +43,27 @@ override_resource {
   }
 }
 
+override_resource {
+  target = aws_iam_role.worker_task
+  values = {
+    arn = "arn:aws:iam::123456789012:role/dbs-dev-worker-task"
+  }
+}
+
+override_resource {
+  target = aws_iam_role.worker_execution
+  values = {
+    arn = "arn:aws:iam::123456789012:role/dbs-dev-worker-execution"
+  }
+}
+
+override_resource {
+  target = aws_iam_role.migrate_execution
+  values = {
+    arn = "arn:aws:iam::123456789012:role/dbs-dev-migrate-execution"
+  }
+}
+
 # master_user_secret là list computed: mock để rỗng làm output `[0]` lỗi; cấp giá trị giả hợp lệ.
 override_resource {
   target = aws_db_instance.main
@@ -82,6 +103,7 @@ override_data {
         risk         = "dbs-dev-risk-events-dlq"
         notification = "dbs-dev-notification-events-dlq"
       }
+      worker_sqs_policy_arn   = "arn:aws:iam::123456789012:policy/dbs-dev-worker-sqs"
     }
   }
 }
@@ -543,13 +565,14 @@ run "migrate_task_definition" {
     error_message = "migrate env is DB_* and TLS only (no COGNITO, REDIS, APP_ROLE); credentials from the RDS master secret"
   }
 
+  # DBS-120: execution role riêng, không task role (migration không gọi API AWS)
   assert {
     condition = (
-      aws_ecs_task_definition.migrate.execution_role_arn == aws_ecs_task_definition.api.execution_role_arn
-      && aws_ecs_task_definition.migrate.task_role_arn == aws_ecs_task_definition.api.task_role_arn
+      aws_ecs_task_definition.migrate.execution_role_arn == aws_iam_role.migrate_execution.arn
+      && aws_ecs_task_definition.migrate.task_role_arn == null
       && !can(jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].portMappings)
     )
-    error_message = "same roles as dbs-api (so PassRole already covers them) and no port mappings"
+    error_message = "dbs-migrate uses its own execution role, no task role, and no port mappings"
   }
 
   assert {
@@ -735,5 +758,185 @@ run "redis_secret_policy" {
       && jsondecode(aws_iam_role_policy.read_redis_auth_secret.policy).Statement[0].Resource == "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf"
     )
     error_message = "GetSecretValue on the redis auth secret ARN only"
+  }
+}
+
+# DBS-120 (TC-120-01, 03, 09): task role riêng cho api và worker, quyền tối thiểu
+run "dbs120_task_roles" {
+  command = apply
+
+  # TC-120-01: không policy hay attachment nào có tên trong config trỏ role api; tên khớp queue policy ở base/sqs.tf
+  assert {
+    condition = (
+      aws_iam_role.task.name == "dbs-dev-api-task"
+      && !contains([
+        aws_iam_role_policy.execution.role,
+        aws_iam_role_policy.read_db_master_secret.role,
+        aws_iam_role_policy.read_redis_auth_secret.role,
+        aws_iam_role_policy.worker_execution.role,
+        aws_iam_role_policy.worker_read_secrets.role,
+        aws_iam_role_policy.migrate_execution.role,
+        aws_iam_role_policy.migrate_read_db_master_secret.role,
+        aws_iam_role_policy_attachment.worker_sqs.role,
+      ], aws_iam_role.task.id)
+      && aws_iam_role_policy_attachment.worker_sqs.role != aws_iam_role.task.name
+    )
+    error_message = "the api task role must be named dbs-dev-api-task and carry no policy"
+  }
+
+  # TC-120-03: role worker có đúng policy SQS của base, không inline policy nào
+  assert {
+    condition = (
+      aws_iam_role.worker_task.name == "dbs-dev-worker-task"
+      && aws_iam_role_policy_attachment.worker_sqs.role == aws_iam_role.worker_task.name
+      && aws_iam_role_policy_attachment.worker_sqs.policy_arn == "arn:aws:iam::123456789012:policy/dbs-dev-worker-sqs"
+      && !contains([
+        aws_iam_role_policy.execution.role,
+        aws_iam_role_policy.read_db_master_secret.role,
+        aws_iam_role_policy.read_redis_auth_secret.role,
+        aws_iam_role_policy.worker_execution.role,
+        aws_iam_role_policy.worker_read_secrets.role,
+        aws_iam_role_policy.migrate_execution.role,
+        aws_iam_role_policy.migrate_read_db_master_secret.role,
+      ], aws_iam_role.worker_task.id)
+    )
+    error_message = "the worker task role must have exactly the base worker SQS policy attached and no inline policy"
+  }
+
+  # TC-120-09: hai task role tin ecs-tasks của tài khoản này, từ ECS của region này (chống confused deputy)
+  assert {
+    condition = alltrue([for r in [aws_iam_role.task, aws_iam_role.worker_task] :
+      length(jsondecode(r.assume_role_policy).Statement) == 1
+      && jsondecode(r.assume_role_policy).Statement[0].Principal.Service == "ecs-tasks.amazonaws.com"
+      && jsondecode(r.assume_role_policy).Statement[0].Condition.StringEquals["aws:SourceAccount"] == "123456789012"
+      && jsondecode(r.assume_role_policy).Statement[0].Condition.ArnLike["aws:SourceArn"] == "arn:aws:ecs:ap-southeast-1:123456789012:*"
+    ])
+    error_message = "task roles must trust only ecs-tasks of this account, with aws:SourceArn on ECS of this region"
+  }
+}
+
+# DBS-120 (TC-120-05, 07, 09, 10): execution role riêng cho từng service, chỉ đọc secret của mình
+run "dbs120_execution_roles" {
+  command = apply
+
+  # TC-120-09
+  assert {
+    condition = alltrue([for r in [aws_iam_role.execution, aws_iam_role.worker_execution, aws_iam_role.migrate_execution] :
+      length(jsondecode(r.assume_role_policy).Statement) == 1
+      && jsondecode(r.assume_role_policy).Statement[0].Principal.Service == "ecs-tasks.amazonaws.com"
+      && jsondecode(r.assume_role_policy).Statement[0].Condition.StringEquals["aws:SourceAccount"] == "123456789012"
+    ])
+    error_message = "execution roles must trust only ecs-tasks of this account"
+  }
+
+  assert {
+    condition = (
+      aws_iam_role.execution.name == "dbs-dev-api-execution"
+      && aws_iam_role.worker_execution.name == "dbs-dev-worker-execution"
+      && aws_iam_role.migrate_execution.name == "dbs-dev-migrate-execution"
+      && length(toset([aws_iam_role.execution.name, aws_iam_role.task.name, aws_iam_role.worker_task.name, aws_iam_role.worker_execution.name, aws_iam_role.migrate_execution.name])) == 5
+    )
+    error_message = "five distinct role names"
+  }
+
+  # TC-120-05: tập secret mỗi execution role đọc được
+  assert {
+    condition = (
+      toset(flatten([for p in [aws_iam_role_policy.read_db_master_secret, aws_iam_role_policy.read_redis_auth_secret] : [for st in jsondecode(p.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"]])) == toset([
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf",
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf",
+      ])
+      && aws_iam_role_policy.read_db_master_secret.role == aws_iam_role.execution.id
+      && aws_iam_role_policy.read_redis_auth_secret.role == aws_iam_role.execution.id
+    )
+    error_message = "the api execution role reads exactly the RDS master secret and the redis auth secret"
+  }
+
+  assert {
+    condition = (
+      aws_iam_role_policy.worker_read_secrets.role == aws_iam_role.worker_execution.id
+      && toset(flatten([for st in jsondecode(aws_iam_role_policy.worker_read_secrets.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"])) == toset([
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf",
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf",
+      ])
+    )
+    error_message = "the worker execution role reads exactly the RDS master secret and the redis auth secret"
+  }
+
+  assert {
+    condition = (
+      aws_iam_role_policy.migrate_read_db_master_secret.role == aws_iam_role.migrate_execution.id
+      && toset(flatten([for st in jsondecode(aws_iam_role_policy.migrate_read_db_master_secret.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"])) == toset([
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf",
+      ])
+    )
+    error_message = "the migrate execution role reads only the RDS master secret"
+  }
+
+  # TC-120-07: kms:Decrypt chỉ trên CMK, chỉ qua Secrets Manager; không statement nào trên *
+  assert {
+    condition = alltrue([for p in [aws_iam_role_policy.worker_read_secrets, aws_iam_role_policy.migrate_read_db_master_secret] :
+      toset([for st in jsondecode(p.policy).Statement : st.Action]) == toset(["secretsmanager:GetSecretValue", "kms:Decrypt"])
+      && [for st in jsondecode(p.policy).Statement : st.Resource if st.Action == "kms:Decrypt"] == ["arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"]
+      && [for st in jsondecode(p.policy).Statement : st.Condition.StringEquals["kms:ViaService"] if st.Action == "kms:Decrypt"] == ["secretsmanager.ap-southeast-1.amazonaws.com"]
+      && length([for st in jsondecode(p.policy).Statement : st if contains(flatten([st.Resource]), "*")]) == 0
+    ])
+    error_message = "secret policies: GetSecretValue and kms:Decrypt only, Decrypt on the CMK via Secrets Manager, nothing on *"
+  }
+
+  # TC-120-10: ECR chỉ trên repo; log của từng role
+  assert {
+    condition = alltrue([for p in [aws_iam_role_policy.worker_execution, aws_iam_role_policy.migrate_execution] :
+      [for st in jsondecode(p.policy).Statement : st.Action if st.Resource == "*"] == ["ecr:GetAuthorizationToken"]
+      && [for st in jsondecode(p.policy).Statement : st.Resource if contains(flatten([st.Action]), "ecr:BatchGetImage")] == ["arn:aws:ecr:ap-southeast-1:123456789012:repository/dbs-api"]
+      && toset(flatten([for st in jsondecode(p.policy).Statement : st.Action])) == toset(["ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:BatchCheckLayerAvailability", "logs:CreateLogStream", "logs:PutLogEvents"])
+    ])
+    error_message = "pull-image policies: GetAuthorizationToken on *, pull on the dbs-api repo only, and log actions"
+  }
+
+  assert {
+    condition = (
+      toset(flatten([for st in jsondecode(aws_iam_role_policy.worker_execution.policy).Statement : flatten([st.Resource]) if anytrue([for a in flatten([st.Action]) : startswith(a, "logs:")])])) == toset(["arn:aws:logs:ap-southeast-1:123456789012:log-group:/dbs/dev/worker:*"])
+    )
+    error_message = "the worker execution role writes only to the /dbs/dev/worker log group"
+  }
+
+  assert {
+    condition = (
+      [for st in jsondecode(aws_iam_role_policy.migrate_execution.policy).Statement : st.Resource if flatten([st.Action]) == ["logs:CreateLogStream"]] == ["arn:aws:logs:ap-southeast-1:123456789012:log-group:/dbs/dev/api:*"]
+      && [for st in jsondecode(aws_iam_role_policy.migrate_execution.policy).Statement : st.Resource if flatten([st.Action]) == ["logs:PutLogEvents"]] == ["arn:aws:logs:ap-southeast-1:123456789012:log-group:/dbs/dev/api:log-stream:migrate/*"]
+    )
+    error_message = "the migrate execution role creates streams in /dbs/dev/api and writes events only to migrate/* streams"
+  }
+}
+
+# DBS-120 (TC-120-06, 08, 12): task definition dùng đúng role; secret của task def khớp quyền execution role
+run "dbs120_task_definitions" {
+  command = apply
+
+  # TC-120-08
+  assert {
+    condition = (
+      aws_ecs_task_definition.api.execution_role_arn == aws_iam_role.execution.arn
+      && aws_ecs_task_definition.api.task_role_arn == aws_iam_role.task.arn
+      && aws_ecs_task_definition.migrate.execution_role_arn == aws_iam_role.migrate_execution.arn
+      && aws_ecs_task_definition.migrate.task_role_arn == null
+    )
+    error_message = "dbs-api uses the api roles; dbs-migrate uses the migrate execution role and no task role"
+  }
+
+  # TC-120-06: ARN secret (bỏ hậu tố :key::) của task def = tập GetSecretValue của execution role của nó
+  assert {
+    condition = (
+      toset([for x in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets : replace(x.valueFrom, "/:[a-z_]+::$/", "")]) == toset(flatten([for p in [aws_iam_role_policy.read_db_master_secret, aws_iam_role_policy.read_redis_auth_secret] : [for st in jsondecode(p.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"]]))
+      && toset([for x in jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].secrets : replace(x.valueFrom, "/:[a-z_]+::$/", "")]) == toset(flatten([for st in jsondecode(aws_iam_role_policy.migrate_read_db_master_secret.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"]))
+    )
+    error_message = "each task definition's secrets must match exactly what its execution role may read"
+  }
+
+  # TC-120-12
+  assert {
+    condition     = output.worker_task_role_arn == aws_iam_role.worker_task.arn && output.worker_execution_role_arn == aws_iam_role.worker_execution.arn
+    error_message = "outputs for DBS-121: worker task role and worker execution role ARNs"
   }
 }

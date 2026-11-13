@@ -63,13 +63,25 @@ run "deploy_policy" {
     error_message = "TagResource on dbs-api and dbs-migrate task definitions, only at RegisterTaskDefinition"
   }
 
+  # TC-120-11: PassRole đúng role của dbs-api và dbs-migrate (DBS-120); role worker chờ DBS-121
   assert {
     condition = anytrue([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement :
       flatten([s.Action]) == ["iam:PassRole"]
-      && toset(s.Resource) == toset(["arn:aws:iam::123456789012:role/dbs-dev-api-execution", "arn:aws:iam::123456789012:role/dbs-dev-api-task"])
+      && toset(s.Resource) == toset([
+        "arn:aws:iam::123456789012:role/dbs-dev-api-execution",
+        "arn:aws:iam::123456789012:role/dbs-dev-api-task",
+        "arn:aws:iam::123456789012:role/dbs-dev-migrate-execution",
+      ])
       && s.Condition.StringEquals["iam:PassedToService"] == "ecs-tasks.amazonaws.com"
     ])
-    error_message = "PassRole only for the two task roles and only to ecs-tasks"
+    error_message = "PassRole only for the api roles and the migrate execution role, and only to ecs-tasks"
+  }
+
+  assert {
+    condition = length([for s in jsondecode(aws_iam_role_policy.deploy.policy).Statement : s
+      if contains(flatten([s.Action]), "iam:PassRole") && anytrue([for r in flatten([s.Resource]) : strcontains(r, "worker") || strcontains(r, "*")])
+    ]) == 0
+    error_message = "no PassRole on worker roles (DBS-121) or on a wildcard"
   }
 
   assert {
