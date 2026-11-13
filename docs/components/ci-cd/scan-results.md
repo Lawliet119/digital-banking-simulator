@@ -14,6 +14,25 @@ Nguồn kết quả quét cho bản nộp P3 ([deliverables](../../deliverables/
 
 `secret-scan` cũng chạy [`check-image-workflow.py`](../../../.github/scripts/check-image-workflow.py) (kiểm tĩnh cờ, digest, thứ tự bước) và [`check-scan-exceptions.py`](../../../.github/scripts/check-scan-exceptions.py) (ngoại lệ có lý do và hạn) trên mọi PR. Hai job mới chỉ chặn merge khi chủ repo thêm vào ruleset của `main` (BL-035, BL-012).
 
+## Ghim digest base image (BL-244)
+
+`backend/Dockerfile` ghim cả hai dòng `FROM` dạng `node:24-alpine@sha256:<digest index>` (digest `116b800c…85f5` lúc ghim, 2026-11-13), nên base image không đổi qua đêm và một CVE mới trong bản base mới không làm `image-scan` đỏ trên PR không liên quan. Test `TC-BL244-01` (`backend/test/support/dockerfile.spec.ts`) đỏ nếu một `FROM` ngoài mất `@sha256:` hoặc hai stage lệch digest.
+
+Ghim thì phải có người cập nhật, nếu không base không bao giờ nhận bản vá:
+
+- **Tự động:** [`.github/dependabot.yml`](../../../.github/dependabot.yml) (hệ docker, thư mục `/backend`, hằng tuần, tối đa 2 PR mở) đề xuất digest mới của `24-alpine`; nâng major Node bị bỏ qua có chủ ý. `image-scan` và các check khác chạy trên PR đó như mọi PR; PR xanh thì review rồi merge, đỏ thì xử lý như CVE ở [DBS-155 H6](../../features/DBS-155-ci-image-secret-scan.md) (nâng lockfile, hoặc đợi bản base có sửa). Người review PR Dependabot chính là #5 (Platform & Ops).
+- **Thủ công** (khi cần vá gấp, hoặc Dependabot chưa chạy): lấy digest **index** (đa kiến trúc) của tag, không phải digest của một nền tảng:
+
+  ```bash
+  TOKEN=$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/node:pull" | python -c "import sys,json;print(json.load(sys.stdin)['token'])")
+  curl -sI -H "Authorization: Bearer $TOKEN"     -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"     https://registry-1.docker.io/v2/library/node/manifests/24-alpine | grep -i docker-content-digest
+  # hoặc, có Docker: docker buildx imagetools inspect node:24-alpine   (dòng "Digest:")
+  ```
+
+  Thay `sha256:…` ở **cả hai** `FROM` bằng digest mới, chạy `npx jest --config ./test/jest-unit.js test/support/dockerfile.spec.ts` trong `backend/`, rồi mở PR: job `image-scan` build image với digest mới và quét lại; lệnh chạy lại ở local nằm ở [CONTRIBUTING §4b](../../../CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions).
+
+Image quét của Trivy và gitleaks trong `ci.yml` ghim digest riêng và không thuộc quy trình này.
+
 ## Ngoại lệ
 
 Ba file ở gốc repo, mỗi mục có lý do và hạn xem lại tối đa 90 ngày; hạn qua thì CI đỏ có chủ ý cho tới khi #5 xem lại và gia hạn bằng PR.

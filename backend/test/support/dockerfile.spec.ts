@@ -51,6 +51,24 @@ describe('TC-67-10 Dockerfile: RDS CA bundle and no weakened TLS', () => {
   });
 });
 
+describe('TC-BL244-01 Dockerfile: base image pinned by digest', () => {
+  const froms = instructions.split('\n').filter(line => /^FROM\s/.test(line.trim()));
+  const external = froms.filter(line => !/^FROM\s+(deps|build|runtime)(\s|$)/.test(line.trim()));
+
+  it('pins every external FROM as tag@sha256:<64 hex>, so a new upstream push cannot change it', () => {
+    expect(froms.length).toBeGreaterThanOrEqual(3);
+    expect(external).toHaveLength(2);
+    for (const line of external) {
+      expect(line).toMatch(/^FROM\s+node:24-alpine@sha256:[0-9a-f]{64}\s+AS\s+\w+$/);
+    }
+  });
+
+  it('uses the same digest in the build and runtime stages', () => {
+    const digests = new Set(external.map(line => /@(sha256:[0-9a-f]{64})/.exec(line)?.[1]));
+    expect(digests.size).toBe(1);
+  });
+});
+
 describe('TC-155-23 Dockerfile: runtime image carries no npm, npx or corepack', () => {
   const runtime = instructions.split(/^FROM .* AS runtime$/m)[1] ?? '';
 
