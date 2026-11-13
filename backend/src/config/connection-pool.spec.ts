@@ -52,6 +52,17 @@ describe('connection pool capacity (DBS-172)', () => {
     expect(doubled).toBeGreaterThan(usable);
   });
 
+  it('TC-121-15 the worker counts toward the same limit: api + worker tasks fit the usable connections', () => {
+    // DBS-121: worker_desired_count has its own cap, and the sum with the api is capped by Terraform.
+    const worker = readFileSync(join(REPO, 'infra/terraform/envs/dev/session/worker.tf'), 'utf8');
+    const total = /var\.desired_count \+ var\.worker_desired_count <= (\d+)/.exec(worker);
+    const workerMax = /var\.worker_desired_count <= (\d+)/.exec(worker);
+    if (!total || !workerMax) throw new Error('worker task caps not found in session/worker.tf');
+    expect(Number(workerMax[1])).toBeLessThanOrEqual(2); // docs/03 section 13.1: 1-2 worker tasks
+    expect(Number(total[1]) * defaultPoolMax() + MIGRATION_AND_ADMIN).toBeLessThanOrEqual(usable);
+    expect(Number(total[1])).toBeLessThanOrEqual(maxDevTasks());
+  });
+
   it('TC-172-03 the Terraform variable states the same limit as the docs', () => {
     const variables = readFileSync(
       join(REPO, 'infra/terraform/envs/dev/session/variables.tf'),

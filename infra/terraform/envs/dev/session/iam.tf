@@ -64,8 +64,8 @@ locals {
     Condition = { StringEquals = { "kms:ViaService" = "secretsmanager.${var.region}.amazonaws.com" } }
   }
 
-  # Log group của worker do DBS-121 tạo ở base (cạnh /dbs/dev/api); tên phải khớp.
-  worker_log_group_arn = "arn:aws:logs:${var.region}:${var.account_id}:log-group:/dbs/dev/worker"
+  # Log group của worker do DBS-121 tạo ở base (cạnh /dbs/dev/api); lấy ARN từ output của base.
+  worker_log_group_arn = local.base.worker_log_group_arn
 }
 
 # ---------- api ----------

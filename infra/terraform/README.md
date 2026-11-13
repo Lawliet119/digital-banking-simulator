@@ -211,9 +211,27 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 | `sqs_notification_queue_url` | `SQS_NOTIFICATION_QUEUE_URL` |
 | `sqs_risk_dlq_url`, `sqs_notification_dlq_url` | chưa có biến (DBS-77, DBS-90 thêm khi consumer đẩy message sai schema vào DLQ) |
 
-`SQS_ENDPOINT` không đặt trên AWS. Đưa các biến vào task definition worker là việc của DBS-121.
+`SQS_ENDPOINT` không đặt trên AWS. Hai biến URL vào task definition worker ở `session/worker.tf` (DBS-121).
 
 Redrive DLQ về queue chính: `aws sqs start-message-move-task --source-arn <arn-dlq>`, theo dõi bằng `list-message-move-tasks`. Redrive cấp `MessageId` mới và tính lại hạn giữ từ lúc chuyển, nên message được redrive phải được xử lý xong trong vòng 24 giờ, mỗi message chỉ redrive một lần (quy tắc đầy đủ: [DBS-73 §2](../../docs/features/DBS-73-terraform-sqs.md), runbook ở BL-051). Với queue standard và `maxReceiveCount > 3`, `ApproximateAgeOfOldestMessage` bỏ qua message đã nhận từ 3 lần trở lên (ghi chú cho alarm DBS-163).
+
+### Service worker (DBS-121)
+
+`envs/dev/session/worker.tf` dựng task definition `dbs-worker` (0,25 vCPU / 0,5 GB, cùng image `dbs-api:<image_tag>`, `APP_ROLE=worker`) và service `worker` trong cluster `dbs-dev`; thuộc nhóm xóa hằng ngày. `envs/dev/base/worker.tf` giữ log group `/dbs/dev/worker` (7 ngày) và SG `dbs-dev-worker`.
+
+| Mục | Giá trị |
+|---|---|
+| Sức khỏe | Theo ADR-13 và Dockerfile: không `healthCheck`, không cổng, không load balancer. Container `essential`: tiến trình thoát thì ECS chạy task mới. Worker treo phát hiện qua alarm tuổi outbox và tuổi message (BL-161), không qua ECS |
+| Mạng | SG không ingress; egress 443, 5432 tới SG db, 6379 tới SG redis. SG db và redis nhận từ SG api và SG worker, không ai khác. Task ở public subnet có IP công khai (ADR-10) |
+| Số task | `worker_desired_count` mặc định 0, tối đa 2; `desired_count + worker_desired_count ≤ 6` (74 kết nối dùng được, mỗi task 10 + 5). Lăn 0%/100% để không có hai worker song song |
+| Dừng | `stopTimeout` 60 s (một lô relay tới 25 s) |
+| Log | CloudWatch `/dbs/dev/worker`, stream `worker/worker/<task-id>`; lỗi khởi động ghi `Application startup failed` kèm `invalidKeys` |
+| Biến | như api cộng `SQS_RISK_QUEUE_URL`, `SQS_NOTIFICATION_QUEUE_URL`; không `SQS_ENDPOINT`, không `PORT`; bí mật `DB_USER`, `DB_PASSWORD`, `REDIS_AUTH_TOKEN` qua `secrets` |
+
+- **Thứ tự apply:** `apply base` trước (log group, SG, output) rồi `session`; nếu không `session` thiếu output của `base`. Không sửa `description` của SG `db`/`redis` ở `base` (ForceNew).
+- **Lệnh** (luôn đủ biến, nếu không `desired_count` của api về 0): `terraform apply -var account_id=… -var state_bucket=… -var image_tag=<sha> -var desired_count=1 -var worker_desired_count=1`. Tắt worker: `worker_desired_count=0`; api không đổi.
+- **Chi phí:** một task worker ≈ 0,01 USD/giờ (Fargate 0,25 vCPU / 0,5 GB cộng IPv4 công khai); cả stack bật ≈ 0,14 USD/giờ (ADR-11). Luôn `terraform destroy` cả `session` sau khi dùng.
+- **Chưa có:** `deploy.sh` chưa cập nhật service worker (BL mới); alarm worker treo (BL-161); test thủ công trên AWS: nhóm A và B ở [DBS-121 §5](../../docs/features/DBS-121-worker-service.md).
 
 ### Task role và execution role (DBS-120)
 

@@ -30,12 +30,16 @@ locals {
   ecs_tasks_arn       = "arn:aws:ecs:${var.region}:${var.account_id}:task/dbs-dev/*"
   ecs_cluster_only    = { ArnEquals = { "ecs:cluster" = local.ecs_cluster_arn } }
   # Role mà revision của dbs-api và dbs-migrate tham chiếu (envs/dev/session/iam.tf, DBS-120). dbs-migrate không
-  # có task role. Role worker được thêm cùng service worker (DBS-121). Đổi danh sách này cần `apply base` trước
-  # lần deploy kế tiếp.
+  # có task role; dbs-worker dùng hai role worker (DBS-121). Đổi danh sách này cần `apply base` trước lần deploy
+  # kế tiếp.
+  ecs_worker_service_arn = "arn:aws:ecs:${var.region}:${var.account_id}:service/dbs-dev/worker"
+  ecs_worker_def_arn     = "arn:aws:ecs:${var.region}:${var.account_id}:task-definition/dbs-worker:*"
   task_role_arns = [
     "arn:aws:iam::${var.account_id}:role/dbs-dev-api-execution",
     "arn:aws:iam::${var.account_id}:role/dbs-dev-api-task",
     "arn:aws:iam::${var.account_id}:role/dbs-dev-migrate-execution",
+    "arn:aws:iam::${var.account_id}:role/dbs-dev-worker-execution",
+    "arn:aws:iam::${var.account_id}:role/dbs-dev-worker-task",
   ]
 }
 
@@ -62,10 +66,16 @@ resource "aws_iam_role_policy" "deploy" {
         Resource = local.ecs_service_arn
       },
       {
-        # Giữ tag chi phí (project/env/owner) của task definition mới (api và migrate).
+        # DBS-121 (BL-242): service worker; chưa có script deploy dùng (BL riêng), quyền theo bàn giao DBS-120.
+        Effect   = "Allow"
+        Action   = ["ecs:DescribeServices", "ecs:UpdateService"]
+        Resource = local.ecs_worker_service_arn
+      },
+      {
+        # Giữ tag chi phí (project/env/owner) của task definition mới (api, migrate và worker).
         Effect   = "Allow"
         Action   = ["ecs:TagResource"]
-        Resource = [local.ecs_task_def_arn, local.ecs_migrate_def_arn]
+        Resource = [local.ecs_task_def_arn, local.ecs_migrate_def_arn, local.ecs_worker_def_arn]
         Condition = {
           StringEquals = { "ecs:CreateAction" = "RegisterTaskDefinition" }
         }

@@ -77,6 +77,13 @@ override_data {
       redis_subnet_group_name = "dbs-dev"
       redis_security_group_id = "sg-redis"
       redis_auth_secret_arn   = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf"
+      # DBS-120/121: output của base mà iam.tf và worker.tf đọc.
+      worker_sqs_policy_arn      = "arn:aws:iam::123456789012:policy/dbs-dev-worker-sqs"
+      worker_security_group_id   = "sg-worker"
+      worker_log_group_name      = "/dbs/dev/worker"
+      worker_log_group_arn       = "arn:aws:logs:ap-southeast-1:123456789012:log-group:/dbs/dev/worker"
+      sqs_risk_queue_url         = "https://sqs.ap-southeast-1.amazonaws.com/123456789012/dbs-dev-risk-events"
+      sqs_notification_queue_url = "https://sqs.ap-southeast-1.amazonaws.com/123456789012/dbs-dev-notification-events"
       # DBS-145: dashboard đọc tên DLQ từ base.
       sqs_dlq_names = {
         risk         = "dbs-dev-risk-events-dlq"

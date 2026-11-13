@@ -138,6 +138,36 @@ class Render(unittest.TestCase):
         self.assertEqual(out["executionRoleArn"], "arn:aws:iam::123456789012:role/dbs-dev-migrate-execution")
         self.assertEqual(out["containerDefinitions"][0]["image"], f"{REPO}:{NEW}")
 
+    # TC-121-12 (test khóa hành vi, xanh ngay vì script đã hỗ trợ --container): revision mới của dbs-worker chỉ đổi
+    # image, giữ stopTimeout, secrets, hai role worker; không thêm portMappings hay healthCheck (ADR-13)
+    def test_worker_revision_keeps_its_settings(self):
+        resp = json.loads(json.dumps(RESPONSE))
+        td = resp["taskDefinition"]
+        td["family"] = "dbs-worker"
+        td["taskRoleArn"] = "arn:aws:iam::123456789012:role/dbs-dev-worker-task"
+        td["executionRoleArn"] = "arn:aws:iam::123456789012:role/dbs-dev-worker-execution"
+        td["containerDefinitions"] = [{
+            "name": "worker", "image": f"{REPO}:{OLD}", "essential": True, "stopTimeout": 60,
+            "environment": [{"name": "APP_ROLE", "value": "worker"}],
+            "secrets": [{"name": "DB_USER", "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:x:username::"}],
+            "logConfiguration": {"logDriver": "awslogs", "options": {"awslogs-group": "/dbs/dev/worker"}},
+        }]
+        p = subprocess.run([sys.executable, str(SCRIPT), "--image", f"{REPO}:{NEW}", "--container", "worker"],
+                           input=json.dumps(resp), capture_output=True, text=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        out = json.loads(p.stdout)
+        c = out["containerDefinitions"][0]
+        self.assertEqual(c["image"], f"{REPO}:{NEW}")
+        self.assertEqual((c["stopTimeout"], c["environment"], c["secrets"]),
+                         (60, td["containerDefinitions"][0]["environment"], td["containerDefinitions"][0]["secrets"]))
+        self.assertNotIn("portMappings", c)
+        self.assertNotIn("healthCheck", c)
+        self.assertEqual((out["taskRoleArn"], out["executionRoleArn"]), (td["taskRoleArn"], td["executionRoleArn"]))
+        # đổi sang container không tồn tại thì bị từ chối
+        bad = subprocess.run([sys.executable, str(SCRIPT), "--image", f"{REPO}:{NEW}"],
+                             input=json.dumps(resp), capture_output=True, text=True)
+        self.assertNotEqual(bad.returncode, 0)
+
     def test_container_option_unknown_name_is_rejected(self):
         p = subprocess.run([sys.executable, str(SCRIPT), "--image", f"{REPO}:{NEW}", "--container", "migrate"],
                            input=json.dumps(RESPONSE), capture_output=True, text=True)
