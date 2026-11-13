@@ -126,7 +126,7 @@ describe('correlationId across API → outbox → SQS → consumer (real Postgre
   });
   afterAll(async () => {
     await app?.close();
-    sqs?.onModuleDestroy();
+    sqs?.onApplicationShutdown();
     await source?.destroy();
     await db?.drop();
     await mq?.stop();

@@ -88,7 +88,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     consumer = new NotificationConsumer(tx, sqs, silentPino, config, new AuditService(tx));
   });
   afterAll(async () => {
-    sqs?.onModuleDestroy();
+    sqs?.onApplicationShutdown();
     await source?.destroy();
     await db?.drop();
     await mq?.stop();
@@ -335,7 +335,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
         await enqueue(first);
         expect(await untilPublished(3000)).toBe(true);
       } finally {
-        await worker.onApplicationShutdown();
+        await worker.beforeApplicationShutdown();
       }
     });
     expect((await drain(riskUrl)).map(e => e.eventId)).toEqual([first.eventId]);
@@ -355,7 +355,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
         await new Promise(resolve => setTimeout(resolve, 1500));
         expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toHaveLength(1);
       } finally {
-        await api.onApplicationShutdown();
+        await api.beforeApplicationShutdown();
       }
     });
   });

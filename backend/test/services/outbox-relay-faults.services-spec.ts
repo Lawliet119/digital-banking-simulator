@@ -114,7 +114,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
     sqs = new SqsClient({ region: 'us-east-1', endpoint: mq.endpoint });
   });
   afterAll(async () => {
-    sqs?.onModuleDestroy();
+    sqs?.onApplicationShutdown();
     await source?.destroy();
     await db?.drop();
     await mq?.stop();
@@ -239,7 +239,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
         expect(result.failure).toBeDefined();
         expect(await pendingIds()).toEqual([event.eventId]);
       } finally {
-        stuck.onModuleDestroy();
+        stuck.onApplicationShutdown();
       }
     });
 
@@ -313,7 +313,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
     });
     const run = relay.relayOnce();
     await inside;
-    const stopped = relay.onApplicationShutdown();
+    const stopped = relay.beforeApplicationShutdown();
     hold.release();
     await stopped;
     expect(await run).toEqual({ published: 1 });
@@ -481,7 +481,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
         } finally {
-          await worker.onApplicationShutdown();
+          await worker.beforeApplicationShutdown();
         }
       });
       expect(await pendingIds()).toEqual([]);

@@ -113,11 +113,11 @@ describe('DBS-111 transfer → flag through the real relay and consumer loops', 
   });
   afterAll(async () => {
     try {
-      await parts?.consumer.onApplicationShutdown();
-      await relay?.onApplicationShutdown();
+      await parts?.consumer.beforeApplicationShutdown();
+      await relay?.beforeApplicationShutdown();
       await app?.close();
       redis?.onModuleDestroy();
-      sqs?.onModuleDestroy();
+      sqs?.onApplicationShutdown();
       await source?.destroy();
       await db?.drop();
       await valkey?.stop();
@@ -217,7 +217,7 @@ describe('DBS-111 transfer → flag through the real relay and consumer loops', 
   });
 
   it('transfer → real queue → gated synthetic AI → operator review, without a duplicate decision', async () => {
-    await parts.consumer.onApplicationShutdown();
+    await parts.consumer.beforeApplicationShutdown();
     const calls: unknown[] = [];
     const provider = createServer((req, res) => {
       let body = '';
