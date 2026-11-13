@@ -19,6 +19,17 @@ export interface StartedElasticMq extends ControlledService {
  */
 export const ELASTICMQ_PROBE_TIMEOUT_MS = 150_000;
 
+/**
+ * Image ElasticMQ ghim theo digest (BL-225). Đây đúng là bản DBS-125 đã thử (image ngày 2026-04-05):
+ * hành vi redrive bằng `start-message-move-task`, message đã xóa bị loại khi đổi visibility về 0 và
+ * `list-message-move-tasks` làm ElasticMQ sập đều dựa vào bản này; ElasticMQ 2.0 đổi giới hạn và
+ * retention. Đổi digest thì phải chạy lại `dlq-isolation`, `worker-recovery` và runbook
+ * `docs/runbooks/dlq-redrive.md` trên bản mới, rồi đổi cùng lúc ở `docker-compose.yml` và các lệnh
+ * `docker run` trong `docs/` (test `elasticmq.container.spec.ts` kiểm compose khớp hằng số này).
+ */
+export const ELASTICMQ_IMAGE =
+  'softwaremill/elasticmq-native@sha256:e4580ab9ad1bd5cd37b4ba04911bc5ccc8cd2d9ab4de56ece65acee71c24e05c';
+
 export function localSqsClient(endpoint: string): SQSClient {
   return new SQSClient({
     region: 'us-east-1',
@@ -69,7 +80,7 @@ export async function startElasticMqContainer(): Promise<StartedElasticMq> {
   await assertDockerAvailable(undefined, 'service container tests (Valkey/ElasticMQ)');
   const { container, probeResult: riskQueuePath } = await startServiceContainer(
     'ElasticMQ',
-    new GenericContainer('softwaremill/elasticmq-native:latest')
+    new GenericContainer(ELASTICMQ_IMAGE)
       .withCopyFilesToContainer([
         {
           source: resolve(__dirname, '../../../infra/local/elasticmq.conf'),

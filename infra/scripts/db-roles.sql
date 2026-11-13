@@ -76,6 +76,9 @@ GRANT SELECT ON accounts TO dbs_worker;
 GRANT SELECT ON v_transfer_facts TO dbs_worker;
 GRANT SELECT ON ledger_entries TO dbs_worker;
 GRANT SELECT, DELETE ON idempotency_keys TO dbs_worker;
+-- DELETE here covers every row, but the trigger outbox_events_no_delete_unpublished (BL-180,
+-- migration 1795000004000) refuses to delete a row with published_at IS NULL, so only the cleanup
+-- of published rows can succeed.
 GRANT SELECT, DELETE ON outbox_events TO dbs_worker;
 GRANT UPDATE (published_at) ON outbox_events TO dbs_worker;
 GRANT SELECT, INSERT, DELETE ON processed_events TO dbs_worker;

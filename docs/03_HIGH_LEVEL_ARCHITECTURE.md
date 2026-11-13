@@ -980,7 +980,7 @@ flowchart LR
 | **Concurrent transfer** | Nạp tiền qua API; N luồng chuyển chéo nhau gồm một tài khoản nóng; kiểm tra bất biến sau khi chạy | AC-5.6, 5.9 |
 | **Duplicate request** | Gửi cùng mã yêu cầu nhiều lần, **song song** | AC-5.3, 5.4, 5.5 |
 | **Failure / recovery** | Kill task giữa lệnh; kill worker rồi bật lại, outbox xử lý bù; consumer lỗi → DLQ; **tắt Redis giữa load test, bất biến vẫn đúng** (kịch bản từng bước: [demo-3-failure-recovery.md](demos/demo-3-failure-recovery.md); đọc và redrive DLQ: [runbook](runbooks/dlq-redrive.md)) | AC-5.10 |
-| **Security & audit review** | A truy cập dữ liệu B → 404 và có nhật ký; dùng lại mã yêu cầu của B không lộ gì; **khóa tài khoản → request kế tiếp bị từ chối**; kiểm toán viên chỉ đọc; truy vết một giao dịch theo `correlationId` | AC-5.8, 8.1, 8.2, 11.1 |
+| **Security & audit review** | A truy cập dữ liệu B → 404 và có nhật ký; dùng lại mã yêu cầu của B không lộ gì; **khóa tài khoản → request kế tiếp bị từ chối**; kiểm toán viên chỉ đọc; truy vết một giao dịch theo `correlationId` (kịch bản từng bước và lệnh chạy bộ test: [demo-4-security-audit.md](demos/demo-4-security-audit.md)) | AC-5.8, 8.1, 8.2, 11.1 |
 | **Load test** | k6 ở 12 → 60 → 120 RPS + tài khoản nóng; stress vượt 120 RPS tìm điểm gãy; đo tải SQL feature và chi phí/fallback AI khi được phép | NFR-PERF, SCAL |
 
 ## 18. Architecture Decision Records
