@@ -366,7 +366,11 @@ export DBS_CUSTOMER_3_TOKEN="ey..."
 npm run seed
 ```
 
-**Giới hạn khi chạy lại.** Chạy lại seed không nhân đôi tiền nhờ `Idempotency-Key` cố định, nhưng bản ghi `idempotency_keys` bị job dọn xóa sau `IDEMPOTENCY_KEY_RETENTION_DAYS` ngày (mặc định 7, DBS-136). Quá hạn đó, chạy lại seed sẽ nạp và chuyển thêm một lần nữa (sổ cái vẫn cân, số dư tăng): muốn dữ liệu demo sạch thì dựng lại cơ sở dữ liệu thay vì chạy lại seed sau hạn đó (BL-213).
+**Chạy lại sau khi `idempotency_keys` bị dọn (BL-213).** `Idempotency-Key` cố định chỉ che chạy lại trong thời hạn giữ bản ghi `idempotency_keys` (job dọn xóa sau `IDEMPOTENCY_KEY_RETENTION_DAYS` ngày, mặc định 7, DBS-136). Vì vậy trước mỗi lệnh nạp và mỗi lệnh chuyển, seed đọc số dư hiện tại qua `GET /v1/accounts` và so với dãy số dư mà kế hoạch demo đi qua (ví dụ Thu Hà CHECKING: 0, 10tr, 12tr, 11,5tr):
+
+- số dư đã phản ánh bước đó thì **bỏ qua** (báo `skipped` trong bản tóm tắt), nên chạy lại sau hạn dọn vẫn ra đúng số dư kế hoạch và không nạp hay chuyển thêm;
+- chạy dở (ví dụ đã nạp đủ nhưng mới chuyển một lệnh) thì chỉ gửi các bước còn thiếu;
+- số dư nằm ngoài dãy kế hoạch (có người nạp, chuyển hoặc rút thêm vào tài khoản demo), hoặc hai phía của một lệnh chuyển không khớp nhau, thì seed **dừng với mã thoát 1 và thông báo rõ**, không chuyển đồng nào. Khi đó dựng lại cơ sở dữ liệu rồi chạy lại seed.
 
 ## Docker
 
