@@ -59,6 +59,17 @@ variable "cognito_deletion_protection" {
   }
 }
 
+variable "alarm_email" {
+  description = "Địa chỉ email nhận alarm CloudWatch (SNS đăng ký giao thức email, alarms.tf). Để rỗng thì không tạo đăng ký: topic vẫn có, alarm vẫn đổi trạng thái nhưng không ai nhận thư. Sau apply, SNS gửi thư xác nhận; chưa bấm xác nhận thì không có thư alarm."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.alarm_email == "" || can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alarm_email))
+    error_message = "alarm_email must be empty or an e-mail address."
+  }
+}
+
 variable "sqs_ops_principal_arns" {
   description = "ARN (cho phép ký tự đại diện) của principal vận hành được gửi, nhận, xóa, redrive message SQS ngoài role task worker (BL-241, threat-model T9). Để trống: mọi IAM user của tài khoản (`arn:aws:iam::<account_id>:user/*`). Đặt cụ thể (user hoặc role) để chặt hơn; nhớ gồm người chạy redrive DLQ."
   type        = list(string)

@@ -1,6 +1,6 @@
 # observability — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 (dashboard, alarm; metric do Dev phát) · **Verified against code:** một phần: log JSON có `correlationId` (DBS-42); metric HTTP, tuổi outbox và counter `redis_fallback_total`, `rate_limited_total` xuất bằng CloudWatch EMF trong `common/metrics` (DBS-144, kiểm bằng test và **kiểm trên CloudWatch thật ngày 2026-11-09**, xem «Kết quả kiểm trên CloudWatch»). Dashboard `dbs-dev-overview` dựng bằng Terraform (DBS-145, kiểm trên CloudWatch thật bằng số mô phỏng, xem «Dashboard»). Chưa có: alarm, metric của risk/AI (BL-204) · **Cập nhật:** 2026-11-12
+> **Status:** Draft · **Owner:** #5 (dashboard, alarm; metric do Dev phát) · **Verified against code:** một phần: log JSON có `correlationId` (DBS-42); metric HTTP, tuổi outbox và counter `redis_fallback_total`, `rate_limited_total` xuất bằng CloudWatch EMF trong `common/metrics` (DBS-144, kiểm bằng test và **kiểm trên CloudWatch thật ngày 2026-11-09**, xem «Kết quả kiểm trên CloudWatch»). Dashboard `dbs-dev-overview` dựng bằng Terraform (DBS-145, kiểm trên CloudWatch thật bằng số mô phỏng, xem «Dashboard»). Alarm CloudWatch dựng bằng Terraform (`base/alarms.tf`, `session/alarms.tf`), kiểm bằng `terraform test` với provider giả, **chưa kích hoạt thử trên AWS thật**; dashboard `dbs-dev-infra` (ECS, ALB, RDS, Valkey) cũng chưa kiểm trên CloudWatch thật. Chưa có: metric của AI (BL-204) · **Cập nhật:** 2026-11-14
 
 ## Component
 
@@ -56,7 +56,8 @@ Namespace `DBS/Backend`. Tên metric giống tên counter prom-client (`snake_ca
 - Tỉ lệ 5xx của dịch vụ: `http_5xx_total` chia `http_requests_total` ở bộ dimension `[]` (không có probe `/health/*`).
 - DLQ: `TreatMissingData = notBreaching` (SQS ngừng phát metric của queue rảnh quá 6 giờ).
 - Chi phí: mỗi bộ dimension là một metric tùy chỉnh; khoảng 4 metric × (≈ 20 cặp Route×Method + ≈ 5 `[Method]` + 1 `[]`) ≈ 105, cộng khoảng 10 của counter ≈ 35 USD/tháng nếu để chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều. Log: tối đa một dòng cho mỗi 100 request của mỗi route mỗi phút.
-- Còn lại cho #5: dựng alarm và dashboard theo các quy tắc trên (DBS-145), và xem metric của worker sau khi có service worker trên ECS (DBS-121).
+- Alarm và dashboard đã dựng theo các quy tắc trên (DBS-145, mục «Alarm CloudWatch» bên dưới). Còn lại cho #5: kích hoạt thử alarm trên AWS thật và xem metric của worker sau khi service worker chạy (DBS-121).
+- **Bộ dimension thật của counter.** `MetricsService.writeCounters` xuất mỗi counter ở **một** bộ `[Role, ...nhãn]` (không có bộ `[]`, không có bộ chỉ `Role` khi counter có thêm nhãn); chỉ HTTP và gauge mới có bộ tổng/`[]`. Alarm phải khai đúng bộ đó (ví dụ `risk_decision_total` là `{Role, AiStatus}`), nếu không không bao giờ có dữ liệu.
 
 **Kết quả kiểm trên CloudWatch (2026-11-09, tài khoản dev, profile `dbs`, ap-southeast-1).** Hai dòng EMF do chính mã của `common/metrics` sinh ra (`HttpStats` → `toEmfSpecs` → `buildEmf`) được gửi bằng `aws logs put-log-events` vào `/dbs/dev/api` (log stream tạm, đã xóa), rồi đọc lại bằng `get-metric-statistics` sau khoảng một phút:
 
@@ -73,7 +74,7 @@ Hình dạng dòng (mảng số ≤ 100, không lồng object, ba bộ dimension
 
 ## Dashboard (DBS-145)
 
-`infra/terraform/envs/dev/session/dashboard.tf` dựng dashboard **`dbs-dev-overview`** cùng phiên (`terraform apply` / `destroy` của `session`, hoặc `-target=aws_cloudwatch_dashboard.overview`: dashboard không tham chiếu tài nguyên nào khác của session). Output `dashboard_url`. 13 widget (1 văn bản, 12 metric), khoảng thời gian mặc định 3 giờ, `periodOverride = inherit` để cửa sổ 5 phút của widget không bị console tính lại:
+`infra/terraform/envs/dev/session/dashboard.tf` dựng dashboard **`dbs-dev-overview`** cùng phiên (`terraform apply` / `destroy` của `session`, hoặc `-target=aws_cloudwatch_dashboard.overview`: dashboard không tham chiếu tài nguyên nào khác của session). Output `dashboard_url`. 16 widget (1 văn bản, 15 metric; ba widget cuối ở hàng 7 là đối soát, CONFIG_INVALID và lỗi luật, thời gian tới cờ), khoảng thời gian mặc định 3 giờ, `periodOverride = inherit` để cửa sổ 5 phút của widget không bị console tính lại:
 
 | Hàng | Widget | Nguồn · đường kẻ ngang (SLO docs/03 §14) |
 |---|---|---|
@@ -82,8 +83,43 @@ Hình dạng dòng (mảng số ≤ 100, không lồng object, ba bộ dimension
 | 4 | p95 theo Route (`SEARCH`, loại `/health/*`); tuổi outbox (`Maximum`); DLQ | 10 s và 30 s; DLQ > 0 |
 | 5 | Tuổi message cũ nhất; `redis_fallback_total` (`Role` api, worker); `rate_limited_total` (`Scope` ip, user) | 60 s và 120 s |
 | 6 | Fallback Redis của risk (`SEARCH`) | trống tới khi có nguồn (BL-204) |
+| 7 | Đối soát sổ cái theo `Status` (OK, MISMATCH, ERROR); `risk_decision_total{AiStatus=CONFIG_INVALID}` và `risk_rule_error_total` (`SEARCH`); `risk_transfer_to_flag_ms` p95 | MISMATCH/ERROR > 0; > 0; 5 s (chưa có alarm cho p95) |
 
-Đường kẻ chỉ để nhìn, không phải alarm (BL-051, BL-179, BL-182). Biến `metrics_namespace` (mặc định `DBS/Backend`) chỉ đổi khi thử dashboard bằng số mô phỏng. Ảnh chụp lúc có tải nhẹ: [tổng hợp 12 widget](../../features/screenshots/DBS-145/00-dashboard-overview.png) và từng widget ở [`screenshots/DBS-145/`](../../features/screenshots/DBS-145/). **Đó là số mô phỏng** (30 phút EMF do chính mã `common/metrics` sinh, namespace `DBS/Backend-dbs145`, không phải app chạy trên ECS), ảnh render bằng `GetMetricWidgetImage`, không phải màn hình console; chi tiết và số đối chiếu ở [DBS-145](../../features/DBS-145-cloudwatch-dashboard.md) §8. Đọc ảnh: p95 chuyển tiền nằm sát đường 300 ms vì CloudWatch ước lượng phân vị quanh biên bucket (xem «Bàn giao cho #5»), không phải vi phạm SLO.
+**Dashboard hạ tầng `dbs-dev-infra` (BL-261)**, `session/dashboard_infra.tf`, tách riêng vì widget ALB cần `arn_suffix` của `aws_lb` và target group (không dựng được từ chuỗi biết trước): nó tham chiếu tài nguyên session nên `-target` nó kéo cả ALB lên, còn `overview` giữ tính chất không tham chiếu. 10 widget (1 văn bản, 9 metric), toàn số đo gốc miễn phí của AWS:
+
+| Hàng | Widget | Nguồn |
+|---|---|---|
+| 1 | CPU ECS (`api`, `worker`); bộ nhớ ECS; số task api khỏe và không khỏe | `AWS/ECS` (ClusterName `dbs-dev`, ServiceName); `AWS/ApplicationELB` `HealthyHostCount`, `UnHealthyHostCount` |
+| 2 | Số 5xx ở ALB (do ALB, do app); tỉ lệ 5xx % = (hai loại) / `RequestCount`, đường 1%; kết nối RDS | `AWS/ApplicationELB`; `AWS/RDS` `DatabaseConnections` |
+| 3 | CPU RDS; CPU Valkey (máy và engine); bộ nhớ % và kết nối Valkey | `AWS/RDS`; `AWS/ElastiCache` `CacheClusterId` = `dbs-dev-001` |
+
+Giới hạn: **không có số task đang chạy của ECS** (`RunningTaskCount` thuộc `ECS/ContainerInsights`, Container Insights đang `disabled` ở `ecs.tf` và bật là tốn tiền theo task), nên task api đếm bằng `HealthyHostCount` và worker chỉ nhìn được qua tuổi outbox (không có điểm = không chạy). Tỉ lệ 5xx ở ALB tính cả probe `/health/*` và 5xx do ALB sinh, nên không bằng tỉ lệ ở `overview` (chỉ request ứng dụng).
+
+Đường kẻ chỉ để nhìn, không phải alarm (alarm ở mục dưới). Biến `metrics_namespace` (mặc định `DBS/Backend`) chỉ đổi khi thử dashboard bằng số mô phỏng. Ảnh chụp lúc có tải nhẹ: [tổng hợp 12 widget](../../features/screenshots/DBS-145/00-dashboard-overview.png) và từng widget ở [`screenshots/DBS-145/`](../../features/screenshots/DBS-145/). **Đó là số mô phỏng** (30 phút EMF do chính mã `common/metrics` sinh, namespace `DBS/Backend-dbs145`, không phải app chạy trên ECS), ảnh render bằng `GetMetricWidgetImage`, không phải màn hình console; chi tiết và số đối chiếu ở [DBS-145](../../features/DBS-145-cloudwatch-dashboard.md) §8. Đọc ảnh: p95 chuyển tiền nằm sát đường 300 ms vì CloudWatch ước lượng phân vị quanh biên bucket (xem «Bàn giao cho #5»), không phải vi phạm SLO.
+
+## Alarm CloudWatch (BL-051, BL-117, BL-127, BL-179, BL-182)
+
+12 alarm, dựng bằng Terraform, mọi alarm gửi vào topic SNS `dbs-dev-alarms` (ở `base`, email xác nhận một lần, biến `alarm_email`) cả khi báo và khi hết. Hai alarm DLQ ở `envs/dev/base/alarms.tf` (sống qua `destroy` session, như chính DLQ), mười alarm còn lại ở `envs/dev/session/alarms.tf` (dựng và xóa cùng phiên). **Chưa kích hoạt thử trên AWS thật**: Terraform đã được kiểm bằng `terraform test` với provider giả (đúng namespace, dimension, ngưỡng, cửa sổ, hành động), còn việc đẩy một message vào DLQ, ép lỗi luật, dừng worker, chặn Redis để xem alarm kêu thật vẫn mở (BL-051, BL-161).
+
+| Alarm | Metric (namespace, dimension) | Điều kiện | Cửa sổ · missing data | Vì sao |
+|---|---|---|---|---|
+| `dbs-dev-risk-dlq-not-empty`, `dbs-dev-notification-dlq-not-empty` (base) | `AWS/SQS` `ApproximateNumberOfMessagesVisible`, `QueueName` = DLQ | Maximum > 0 | 60 s × 1 · `notBreaching` | SLO DLQ = 0. Message trong DLQ không tự mất nên một điểm đủ; alarm giữ ALARM tới khi redrive/xóa. SQS ngừng phát số đo queue rảnh > 6 giờ |
+| `dbs-dev-risk-events-age`, `dbs-dev-notification-events-age` | `AWS/SQS` `ApproximateAgeOfOldestMessage`, `QueueName` = queue chính | Maximum > 120 | 60 s × 1 · `notBreaching` | SLO < 60 s, alarm 120 s (docs/03 §14, DBS-163): consumer không theo kịp hoặc worker treo. Message độc vào DLQ sau ≈ 80 s nên không tự kích alarm này |
+| `dbs-dev-outbox-age` (BL-182) | `DBS/Backend` `outbox_oldest_unpublished_age_seconds`, không dimension (gauge) | Maximum > 30 | 60 s, **3 trong 5 điểm** · `breaching` | SLO < 10 s, alarm 30 s. Một lô relay bình thường kéo dài tới 25 s (15 s ngân sách + 2 lần gửi 5 s, DBS-91 §2.8) và các dòng của lô còn `published_at IS NULL` tới COMMIT, nên một điểm > 30 s ở worker khỏe là có thể; relay kẹt (lỗi UPDATE/COMMIT lặp, gửi lại cả lô mỗi 5 s, §2.9) thì tuổi chỉ tăng nên ở mọi điểm sau đều > 30 s. Thiếu dữ liệu = worker chết (gauge báo 0 khi không có gì chờ). 3/5 chịu được lúc ECS thay task worker (0%/100%, `stopTimeout` 60 s) và một phút trống do lệch nhịp flush 60 s. **Độ trễ phát hiện cỡ 3 phút**, không phải 30 s |
+| `dbs-dev-risk-config-invalid` (BL-051, BL-188 `aiConfigInvalid`) | `DBS/Backend` `risk_decision_total`, `{Role=worker, AiStatus=CONFIG_INVALID}` | Sum > 0 | 300 s × 1 · `notBreaching` | Khối `ai.*` hỏng lọt tới consumer: risk lưu `CONFIG_INVALID` và vẫn chấm R1-R6, không vào DLQ, nên không có tín hiệu nào khác |
+| `dbs-dev-risk-rule-error` (BL-051) | `DBS/Backend` `risk_rule_error_total`, `{Role=worker, Rule=R1..R6}`: 6 metric khai tường minh, `SUM(METRICS())` | > 0 | 300 s × 1 · `notBreaching` | Lỗi luật rollback, retry, vào DLQ sau ≈ 80 s; một lỗi tất định đưa mọi event vào DLQ nên alarm này báo sớm hơn và cho biết Rule. Alarm không dùng được `SEARCH`, và counter chỉ có bộ `[Role, Rule]` (không có bộ tổng) nên phải gộp bằng metric math |
+| `dbs-dev-reconciliation-failed` (BL-127, DBS-123) | `DBS/Backend` `reconciliation_runs_total`, `{Role=worker, Status=MISMATCH}` và `{…, Status=ERROR}`, `SUM(METRICS())` | > 0 | 300 s × 1 · `notBreaching` | SLO 0 lệch, báo `MISMATCH` hoặc `ERROR` trong 5 phút (metric ghi tối đa 60 s sau lần chạy, alarm đánh giá mỗi phút). `OK` không tham gia |
+| `dbs-dev-redis-node-missing` (BL-117) | `AWS/ElastiCache` `CPUUtilization`, `CacheClusterId` = `dbs-dev-001` | Average > 100 (không bao giờ xảy ra với số đo thật) | 60 s × 2 · **`breaching`** | "Redis không truy cập được > 1 phút" (docs/03 §14): node chết, failover hoặc bị thay thì ElastiCache ngừng phát số đo, hai phút liền không có điểm là alarm. Heartbeat, không phải cảnh báo CPU. Lúc dựng phiên có thể kêu một lần tới khi Valkey phát điểm đầu tiên |
+| `dbs-dev-redis-fallback` (BL-117, BL-179) | `DBS/Backend` `redis_fallback_total`, `{Role=api}` và `{Role=worker}`, `SUM(METRICS())` | Sum > 0 | 60 s, **2 trên 2** · `notBreaching` | Phát hiện ứng dụng không với tới Redis dù node còn sống (SG, AUTH, TLS, mạng). Bình thường bằng 0 và một lần chớp chỉ tạo vài lần đếm, nên đòi hai phút liên tiếp (> 1 phút), không phải một lần |
+| `dbs-dev-risk-config-redis-fallback` (BL-235) | `DBS/Backend` `risk_config_redis_fallback_total`, `{Role=worker}` | Sum > 0 | 60 s, 2 trên 2 · `notBreaching` | Cache cấu hình luật lỗi nên risk đọc DB: vẫn đúng, chậm hơn. Cùng quy tắc với alarm trên |
+| `dbs-dev-rate-limited` (BL-179) | `DBS/Backend` `rate_limited_total`, `{Role=api, Scope=ip}` và `{…, Scope=user}`, `SUM(METRICS())` | Sum > **50** | 300 s × 1 · `notBreaching` | Khách thật hiếm khi chạm giới hạn; số lớn là tấn công, script lỗi hoặc `TRUST_PROXY_HOPS` sai (mọi khách chung một IP của ALB). **Ngưỡng 50 mỗi 5 phút là ước lượng cho dev, chưa đo**; đổi sau lần chạy tải đầu. Test tải (BL-232) sẽ làm nó kêu |
+
+**Quy ước chung.**
+- Metric đếm sự kiện (lỗi luật, `CONFIG_INVALID`, đối soát, rate limit) chỉ có điểm khi sự kiện xảy ra: cửa sổ 300 s giữ alarm ở ALARM thêm vài phút. Thư **OK nghĩa là "5 phút qua không có sự kiện mới", không phải "đã xử lý xong"**; trạng thái thật nằm ở DLQ, `reconciliation_runs`, log.
+- `treat_missing_data = breaching` chỉ ở hai alarm có nghĩa "không có số đo = hệ thống không chạy" (outbox, node Valkey). Hệ quả: dựng session với `worker_desired_count = 0` làm `dbs-dev-outbox-age` kêu sau ≈ 3 phút.
+- Chi phí: alarm chuẩn 0,10 USD/alarm/tháng; alarm biểu thức metric tính theo số metric tham chiếu (lỗi luật 6, đối soát, Redis fallback, rate limit mỗi cái 2). Ước ≈ 2,2 USD/tháng nếu chạy cả tháng (0,2 USD của hai alarm DLQ chạy luôn ở base); alarm session tính theo giờ.
+- Chưa có alarm cho các hàng còn lại của bảng docs/03 §14: tỉ lệ 5xx > 1%, p95 chuyển tiền/đọc 3 cửa sổ, thời gian tới cờ p95 > 5 s, > 20 cảnh báo gian lận trên 1.000 giao dịch (chưa có task). `risk_redis_fallback_total{Role,Rule,Reason}` cũng chưa có alarm (chưa có chỗ nào phát metric này).
+- Tên metric mới của risk (`risk_decision_total`, `risk_rule_error_total`, `reconciliation_runs_total`, `risk_transfer_to_flag_ms`) là hợp đồng với phía ứng dụng: alarm khai dimension `Role` + nhãn như trên; nếu ứng dụng đổi bộ dimension thì alarm phải đổi theo (test `alarms.tftest.hcl` ghi lại bộ dimension mong đợi).
 
 ## Ngoài phạm vi (v1)
 
