@@ -209,7 +209,7 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 |---|---|
 | `sqs_risk_queue_url` | `SQS_RISK_QUEUE_URL` |
 | `sqs_notification_queue_url` | `SQS_NOTIFICATION_QUEUE_URL` |
-| `sqs_risk_dlq_url`, `sqs_notification_dlq_url` | chưa có biến (DBS-77, DBS-90 thêm khi consumer đẩy message sai schema vào DLQ) |
+| `sqs_risk_dlq_url`, `sqs_notification_dlq_url` | không có biến: app suy ra URL DLQ từ URL queue chính bằng `dlqUrlFor(queueUrl)` = `<queueUrl>-dlq` (`backend/src/common/messaging/consumer-base.ts`), khớp tên Terraform `dbs-dev-<consumer>-events-dlq`. Hai output này dành cho người vận hành và runbook ([dlq-redrive](../../docs/runbooks/dlq-redrive.md)) |
 
 `SQS_ENDPOINT` không đặt trên AWS. Hai biến URL vào task definition worker ở `session/worker.tf` (DBS-121).
 

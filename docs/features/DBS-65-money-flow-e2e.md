@@ -329,6 +329,7 @@ Không test case nào bị đơn giản hóa so với thiết kế G2 cuối; TC
 - Local negative control đổi riêng kỳ vọng A700000 thành700001: TC01 đỏexit1 đúng assertion;finally khôi phục file giống commit. Sau khôi phục, local danh sách CI13/13 đạt; suite checkout sạch8/8 đạt trên cùng code SHA. Đây là kiểm sensitivity local, không thay M10 GitHub. Test nghiệp vụ đã có có thể xanh ngay khi thêm coverage; không nhận đã sửa một bug production.
 - Lần smoke đầu gọi trực tiếp Jest qua Node thiếu npm_execpath nên migration harness từ chối; đổi lệnh về npm như repo hướng dẫn,3suite13/13 đạt. Không chỉnh migration/harness để bỏ điều kiện này.
 - P0 phát hiện api-design mới khác code/ADR ở thời hạn key và tên audit action; giữ oracle theo code/ADR đã duyệt, không thay contract. Bàn giaoBL-201.
+- Cập nhật (BL-201 đã đóng): retention đã đồng bộ ở DBS-136; tên audit action trong `docs/components/_shared/api-design.md` nay khớp code (`customer.created`/`customer.read` ở `customer-profile.service.ts`, `transfer` ở `transfer.service.ts`, `deposit` ở `deposit.service.ts`), không đổi code hay contract.
 - Phạm vi source/docs đúng7file kế hoạch; các raw output/ảnh nằm trong manifest P7. Không đổi production code/schema/ADR/env/dependency/helpers. Công cụ Node/Mermaid, clean clone và server xem transcript ở work ngoài PR. Diff test/driver lớn vì8case integration và driver oracle độc lập cho cùng task; lý do đã ghi trong PR body chuẩn bị.
 
 | Backlog | Việc còn lại / vai |
