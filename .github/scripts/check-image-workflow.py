@@ -75,6 +75,7 @@ for line in text.splitlines():
 # ---- DBS-38: deploy.yml (spec riêng) và ignore_changes của service api ----
 DEPLOY = WORKFLOWS / "deploy.yml"
 ECS_TF = ROOT / "infra" / "terraform" / "envs" / "dev" / "session" / "ecs.tf"
+WORKER_TF = ROOT / "infra" / "terraform" / "envs" / "dev" / "session" / "worker.tf"
 REQUIRED_IF = [
     "github.event_name == 'workflow_dispatch'",
     "github.event.workflow_run.conclusion == 'success'",
@@ -150,6 +151,11 @@ for path in WORKFLOWS.glob("*.yml"):
         check("id-token" not in path.read_text(), f"{path.name}: chỉ image.yml và deploy.yml được xin id-token")
 check("ignore_changes" in ECS_TF.read_text() and "task_definition" in ECS_TF.read_text().split("ignore_changes")[1].split("]")[0],
       "session/ecs.tf: service api phải có lifecycle ignore_changes = [task_definition]")
+# BL-248: deploy.sh lăn service worker nên Terraform không được kéo task_definition của nó về revision cũ.
+_worker_tf = WORKER_TF.read_text()
+_worker_svc = _worker_tf.split('resource "aws_ecs_service" "worker"', 1)[-1]
+check("ignore_changes" in _worker_svc and "task_definition" in _worker_svc.split("ignore_changes", 1)[1].split("]", 1)[0],
+      "session/worker.tf: service worker phải có lifecycle ignore_changes = [task_definition] (deploy.sh lăn worker, BL-248)")
 
 # ---- DBS-155: cổng quét image và secret (H7) ----
 CI = WORKFLOWS / "ci.yml"

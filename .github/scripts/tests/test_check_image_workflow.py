@@ -22,6 +22,7 @@ COPY = [
     ".github/scripts/run-gitleaks.sh",
     ".github/scripts/run-trivy.sh",
     "infra/terraform/envs/dev/session/ecs.tf",
+    "infra/terraform/envs/dev/session/worker.tf",
 ]
 TRIVY_DIGEST = "sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c"
 
@@ -69,6 +70,12 @@ class ScanGates(unittest.TestCase):
         code, out = self.tree().run()
         self.assertEqual(code, 0, out)
         self.assertIn("OK", out)
+
+    # TC-248-10: service worker phải có ignore_changes (deploy.sh lăn worker, BL-248)
+    def test_worker_service_without_ignore_changes(self):
+        t = self.tree()
+        t.edit("infra/terraform/envs/dev/session/worker.tf", "ignore_changes = [task_definition]", "ignore_changes = [desired_count]")
+        self.assertRed(t, "worker.tf")
 
     # TC-155-04: ci.yml
     def test_job_image_scan_missing(self):
