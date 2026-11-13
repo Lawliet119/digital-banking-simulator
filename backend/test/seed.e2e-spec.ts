@@ -1,8 +1,10 @@
 import {
   formatReport,
   parseCliArgs,
+  planBalanceTrail,
   resolveTokens,
   runSeedCli,
+  SEED_STEP_SKIPPED,
   SeedError,
   type SeedReport,
 } from '../src/scripts/seed';
@@ -15,6 +17,54 @@ const TOKEN_ENV = [
 ] as const;
 
 describe('DBS-70 Demo Data Seed CLI (offline e2e)', () => {
+  describe('BL-213 balance plan', () => {
+    it('TC-70-04g lists the balances each account passes through and where each transfer lands', () => {
+      const { trails, transferPositions } = planBalanceTrail();
+      expect(trails.get('demo-customer-minh-anh:CHECKING')).toEqual([0n, 50000000n, 48000000n]);
+      expect(trails.get('demo-customer-minh-anh:SAVINGS')).toEqual([0n, 20000000n]);
+      expect(trails.get('demo-customer-thu-ha:CHECKING')).toEqual([
+        0n,
+        10000000n,
+        12000000n,
+        11500000n,
+      ]);
+      expect(trails.get('demo-customer-van-binh:CHECKING')).toEqual([0n, 5000000n, 5500000n]);
+      expect(transferPositions).toEqual([
+        { from: 2, to: 2 },
+        { from: 3, to: 2 },
+      ]);
+    });
+
+    it('TC-70-04h shows a skipped step in the report instead of a transfer id', () => {
+      const report: SeedReport = {
+        baseUrl: 'http://127.0.0.1:3000',
+        customers: [],
+        deposits: [
+          {
+            toAccountId: '22222222-2222-4222-8222-222222222222',
+            amount: '50000000',
+            transferId: null,
+            status: SEED_STEP_SKIPPED,
+            skipped: true,
+          },
+        ],
+        transfers: [
+          {
+            fromAccountId: '22222222-2222-4222-8222-222222222222',
+            toAccountId: '44444444-4444-4444-8444-444444444444',
+            amount: '2000000',
+            transferId: null,
+            status: SEED_STEP_SKIPPED,
+            skipped: true,
+          },
+        ],
+      };
+      const formatted = formatReport(report);
+      expect(formatted).not.toContain('null');
+      expect(formatted.match(/skipped \(balance already reflects it\)/g)).toHaveLength(2);
+    });
+  });
+
   describe('CLI arguments parsing', () => {
     it('TC-70-04a parses default arguments', () => {
       const args = parseCliArgs([]);

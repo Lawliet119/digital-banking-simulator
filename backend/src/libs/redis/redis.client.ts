@@ -142,6 +142,12 @@ export class RedisClient implements OnModuleDestroy, OnModuleInit {
   private async run<T>(operation: () => Promise<T>): Promise<T> {
     try {
       if (this.disposed) throw new RedisUnavailableError('SHUTDOWN');
+      // opossum emits `fire` before it looks at the state, so a call it rejects while OPEN would
+      // still raise `stats.fires` and dilute the failure percentage that the next closed window is
+      // judged on (BL-152). Reject here instead, on opossum's own condition (neither closed nor
+      // about to try the single half-open call), so only calls that really ran are counted.
+      if (!this.breaker.closed && !this.breaker.pendingClose)
+        throw new RedisUnavailableError('CIRCUIT_OPEN');
       return (await this.breaker.fire(operation)) as T;
     } catch (error) {
       this.metrics.increment();

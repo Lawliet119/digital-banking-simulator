@@ -112,19 +112,26 @@ export interface SeedCustomerResult {
   accounts: SeedAccountResult[];
 }
 
+/** Status of a step that the seed did not send because the balance already shows its effect. */
+export const SEED_STEP_SKIPPED = 'SKIPPED_ALREADY_APPLIED';
+
 export interface SeedDepositResult {
   toAccountId: string;
   amount: string;
-  transferId: string;
+  /** `null` when the step was skipped (nothing was sent, so there is no transfer to name). */
+  transferId: string | null;
   status: string;
+  /** BL-213: the balance already reflected this deposit, so it was not sent again. */
+  skipped?: boolean;
 }
 
 export interface SeedTransferResult {
   fromAccountId: string;
   toAccountId: string;
   amount: string;
-  transferId: string;
+  transferId: string | null;
   status: string;
+  skipped?: boolean;
 }
 
 export interface SeedReport {
@@ -280,6 +287,57 @@ export async function resolveTokens(
   };
 }
 
+const accountKey = (sub: string, type: string): string => `${sub}:${type}`;
+
+export interface SeedBalanceTrail {
+  /** Per account: the balances it passes through, index 0 = empty, 1 = after the deposit, then one per transfer that touches it. */
+  trails: Map<string, bigint[]>;
+  /** Per transfer: the index in the trail of the sender and of the receiver once that transfer is applied. */
+  transferPositions: { from: number; to: number }[];
+}
+
+/**
+ * BL-213: the seed decides from the balance whether a step already happened, so it must know which
+ * balance each step leaves behind. Deposits come first, then the transfers in order (the order
+ * `runSeed` executes them in).
+ */
+export function planBalanceTrail(
+  customers: readonly SeedCustomerPlan[] = SEED_CUSTOMERS,
+  transfers: readonly SeedTransferPlan[] = SEED_TRANSFERS,
+): SeedBalanceTrail {
+  const trails = new Map<string, bigint[]>();
+  for (const customer of customers) {
+    for (const account of customer.accounts) {
+      trails.set(accountKey(customer.sub, account.type), [0n, BigInt(account.initialDeposit)]);
+    }
+  }
+  const transferPositions = transfers.map(transfer => {
+    const fromKey = accountKey(transfer.fromSub, transfer.fromAccountType);
+    const toKey = accountKey(transfer.toSub, transfer.toAccountType);
+    const fromTrail = trails.get(fromKey);
+    const toTrail = trails.get(toKey);
+    if (!fromTrail || !toTrail) {
+      throw new SeedError(
+        `Transfer plan references an account missing from the plan: ${fromKey} -> ${toKey}`,
+      );
+    }
+    const amount = BigInt(transfer.amount);
+    fromTrail.push(fromTrail[fromTrail.length - 1] - amount);
+    toTrail.push(toTrail[toTrail.length - 1] + amount);
+    return { from: fromTrail.length - 1, to: toTrail.length - 1 };
+  });
+  return { trails, transferPositions };
+}
+
+function divergence(what: string, key: string, balance: bigint, trail: bigint[]): SeedError {
+  return new SeedError(
+    `Seed stopped before ${what}: the balance of ${key} is ${balance}, which is not one of the ` +
+      `balances the demo plan passes through (${trail.join(', ')}). Something else changed this ` +
+      `account, so the seed cannot tell which steps already ran and will not move money. ` +
+      `Rebuild the database (or fix the account) and run the seed again.`,
+  );
+}
+
 export async function runSeed(
   options: SeedOptions,
   cliCloudTokens?: {
@@ -369,13 +427,62 @@ export async function runSeed(
     });
   }
 
+  // BL-213: the fixed Idempotency-Key only protects a re-run until the key row is cleaned up
+  // (DBS-136, 7 days by default). So each step first reads the balance through the API and
+  // compares it with the balances the plan passes through: a step whose effect is already there
+  // is skipped, a balance outside the plan stops the seed before it moves any money.
+  const { trails, transferPositions } = planBalanceTrail();
+  const readBalance = async (sub: string, accountId: string): Promise<bigint> => {
+    const token = tokens.customers[sub];
+    if (!token) {
+      throw new SeedError(`No token provided for customer ${sub}`);
+    }
+    const res = await requestJson<RawAccountDto[]>(`${baseUrl}/v1/accounts`, 'GET', token);
+    const match = (res.data || []).find(a => a.id === accountId);
+    if (!match || match.balance === undefined) {
+      throw new SeedError(`Cannot read the balance of account ${accountId} (${sub}) from the API`);
+    }
+    return BigInt(match.balance);
+  };
+  const positionOf = (
+    what: string,
+    sub: string,
+    type: string,
+    balance: bigint,
+  ): { position: number; trail: bigint[] } => {
+    const key = accountKey(sub, type);
+    const trail = trails.get(key);
+    if (!trail) {
+      throw new SeedError(`Account ${key} is not part of the demo plan`);
+    }
+    const position = trail.indexOf(balance);
+    if (position < 0) {
+      throw divergence(what, key, balance, trail);
+    }
+    return { position, trail };
+  };
+
   // 2. Operator deposits
   const depositResults: SeedDepositResult[] = [];
   for (const plan of SEED_CUSTOMERS) {
     for (const accPlan of plan.accounts) {
-      const acc = accountLookup.get(`${plan.sub}:${accPlan.type}`);
+      const acc = accountLookup.get(accountKey(plan.sub, accPlan.type));
       if (!acc) {
         throw new SeedError(`Missing account lookup for ${plan.sub}:${accPlan.type}`);
+      }
+
+      const balance = await readBalance(plan.sub, acc.id);
+      const { position } = positionOf('the deposit', plan.sub, accPlan.type, balance);
+      if (position >= 1) {
+        // Balance already past "empty": the deposit (or what followed it) is in the ledger.
+        depositResults.push({
+          toAccountId: acc.id,
+          amount: accPlan.initialDeposit,
+          transferId: null,
+          status: SEED_STEP_SKIPPED,
+          skipped: true,
+        });
+        continue;
       }
 
       const depositRes = await requestJson<RawTransferResultDto>(
@@ -397,7 +504,7 @@ export async function runSeed(
 
   // 3. Customer transfers
   const transferResults: SeedTransferResult[] = [];
-  for (const txPlan of SEED_TRANSFERS) {
+  for (const [index, txPlan] of SEED_TRANSFERS.entries()) {
     const fromAcc = accountLookup.get(`${txPlan.fromSub}:${txPlan.fromAccountType}`);
     const toAcc = accountLookup.get(`${txPlan.toSub}:${txPlan.toAccountType}`);
     if (!fromAcc) {
@@ -414,6 +521,42 @@ export async function runSeed(
     const senderToken = tokens.customers[txPlan.fromSub];
     if (!senderToken) {
       throw new SeedError(`No token provided for sender customer ${txPlan.fromSub}`);
+    }
+
+    const expected = transferPositions[index];
+    const label = `transfer #${index + 1}`;
+    const from = positionOf(
+      label,
+      txPlan.fromSub,
+      txPlan.fromAccountType,
+      await readBalance(txPlan.fromSub, fromAcc.id),
+    );
+    const to = positionOf(
+      label,
+      txPlan.toSub,
+      txPlan.toAccountType,
+      await readBalance(txPlan.toSub, toAcc.id),
+    );
+    const fromDone = from.position >= expected.from;
+    const toDone = to.position >= expected.to;
+    if (fromDone !== toDone) {
+      throw new SeedError(
+        `Seed stopped before ${label}: the sender ${accountKey(txPlan.fromSub, txPlan.fromAccountType)} ` +
+          `${fromDone ? 'already shows' : 'does not show'} the transfer but the receiver ` +
+          `${accountKey(txPlan.toSub, txPlan.toAccountType)} ${toDone ? 'does' : 'does not'}. ` +
+          `The two sides disagree, so the seed will not move money. Rebuild the database and run the seed again.`,
+      );
+    }
+    if (fromDone && toDone) {
+      transferResults.push({
+        fromAccountId: fromAcc.id,
+        toAccountId: toAcc.id,
+        amount: txPlan.amount,
+        transferId: null,
+        status: SEED_STEP_SKIPPED,
+        skipped: true,
+      });
+      continue;
     }
 
     const transferRes = await requestJson<RawTransferResultDto>(
@@ -598,18 +741,22 @@ export function formatReport(report: SeedReport): string {
   lines.push(`OPERATOR DEPOSITS (${report.deposits.length} transactions):`);
   for (const d of report.deposits) {
     const amountStr = `${Number(d.amount).toLocaleString('vi-VN')} VND`;
-    lines.push(`• Target: ${d.toAccountId} | Amount: ${amountStr} | Tx: ${d.transferId}`);
+    const tx = d.skipped ? 'skipped (balance already reflects it)' : d.transferId;
+    lines.push(`• Target: ${d.toAccountId} | Amount: ${amountStr} | Tx: ${tx}`);
   }
 
   lines.push('');
   lines.push(`CUSTOMER TRANSFERS (${report.transfers.length} transactions):`);
   for (const t of report.transfers) {
     const amountStr = `${Number(t.amount).toLocaleString('vi-VN')} VND`;
-    lines.push(`• From: ${t.fromAccountId} -> To: ${t.toAccountId} | Amount: ${amountStr}`);
+    const note = t.skipped ? ' | skipped (balance already reflects it)' : '';
+    lines.push(`• From: ${t.fromAccountId} -> To: ${t.toAccountId} | Amount: ${amountStr}${note}`);
   }
 
   lines.push('');
-  lines.push('Idempotency verified: Re-running seed replays transactions without duplicate funds.');
+  lines.push(
+    'Re-run safe: each deposit/transfer is sent only when the API balance shows it has not happened yet, so it holds even after the Idempotency-Key rows were cleaned up.',
+  );
   lines.push('Ledger invariant: System funding covers all deposits; total ledger balance = 0.');
   lines.push('============================================================');
   return lines.join('\n');

@@ -177,6 +177,24 @@ export function cleanUrl(raw) {
   return raw.replace(/\/+$/, "");
 }
 
+/**
+ * Every fixture token must belong to its customer and stay valid until the run (and a minute more)
+ * has ended; the claims are read from the payload only, the signature is the target's business.
+ */
+export function assertTokensOutliveRun(fixture, runSeconds, nowMs = Date.now()) {
+  for (const c of fixture.customers) {
+    const claims = JSON.parse(
+      Buffer.from(c.token.split(".")[1], "base64url").toString(),
+    );
+    if (
+      claims.sub !== c.sub ||
+      !Number.isFinite(claims.exp) ||
+      claims.exp < nowMs / 1000 + runSeconds + 60
+    )
+      throw new Error("Token expires before run ends");
+  }
+}
+
 export function validateFixture(fixture, baseUrl) {
   if (
     !fixture ||

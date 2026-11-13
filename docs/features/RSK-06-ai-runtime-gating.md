@@ -1,6 +1,6 @@
 # RSK-06 · Test runtime của cổng bật AI: đua quyết định, rollback, quyền, cô lập khách, chuyển cấu hình
 
-> **Trạng thái:** Kiểm chứng cục bộ; chờ CI và Dev review (phần cache TTL 60 giây với Redis thật chưa làm: BL-239) · **Vai:** Dev · **Nhánh:** `test/RSK-06-ai-runtime-gating` · **PR:** [#141](https://github.com/Lawliet119/digital-banking-simulator/pull/141) · **Cập nhật:** 2026-11-11
+> **Trạng thái:** Kiểm chứng cục bộ; chờ CI và Dev review (phần cache TTL 60 giây với Redis thật đã thêm ở §2 S4 và TC-RSK06-06 đến 08, BL-239) · **Vai:** Dev · **Nhánh:** `test/RSK-06-ai-runtime-gating` · **PR:** [#141](https://github.com/Lawliet119/digital-banking-simulator/pull/141) · **Cập nhật:** 2026-11-11
 
 > **Ghi chú về lịch sử (2026-11-11):** bản đầu của PR có bốn test, trong đó ba cái lặp lại test đã có trên `main` (TC-111-10, TC-111-15, TC-RSK01-08), cái đua worker chỉ khẳng định «nhiều nhất một cờ», và không test nào đi qua đường AI (rule set vẫn là `rule_only`). Một review độc lập (subagent, 2026-11-11) chỉ ra điều đó; bản này giữ ba test thực sự mới và trỏ tới các test cũ cho phần còn lại. G1 đến G3 và domain review độc lập lúc làm bản đầu không được ghi; không dựng lại dấu vết đó.
 
@@ -22,7 +22,7 @@
   - DoD 5: TC-111-11 (Redis cấu hình hỏng, đặc trưng vẫn từ SQL), «keeps request, credential and rubric out of real SafeLogger output» trong `risk-scoring-ai-mode.db-spec.ts` (RSK-02).
 - **Phần mới của task này** (`backend/test/db/risk-runtime-gating.db-spec.ts`, ba test): chuyển cấu hình giữa chừng (DoD 4, trừ cache Redis), quyết định không bị làm lại khi chế độ đổi, kể cả LOW (DoD 1, phần «khác mode»), và khách không thấy gì ở mọi endpoint customer (DoD 3, phần khách).
 - **Quyết định (agent tự quyết):** `risk_rule_sets` là append-only nên ba test dùng chung một database và chạy theo thứ tự; AI được thay bằng một stub trả `UNAVAILABLE` (có provider, model, SHA như đường outage thật) vì kết quả nhà cung cấp đã có test ở RSK-02; «mọi endpoint customer» là sáu route GET customer thật của `deposit-app` (không có `/v1/admin/risk-config` vì app test không gắn module đó).
-- **Ngoài phạm vi:** cache TTL 60 giây với Redis thật (BL-239), SQS thật (đường chạy tay ở DBS-101), model AI thật.
+- **Ngoài phạm vi:** SQS thật (đường chạy tay ở DBS-101), model AI thật.
 
 ## 2. Hành vi
 
@@ -31,10 +31,15 @@
 | S1 | sáu request đang chạy (đã đọc rule set v1 `rule_only`) khi v2 `rules_with_external_ai` được thêm; sáu request sau đó | sáu đầu: v1, `rule_only`, không gọi AI; sáu sau: v2, `rules_with_external_ai`, `UNAVAILABLE`, gọi AI sáu lần; không request nào lỗi; mỗi transfer đúng một quyết định, một cờ, một audit |
 | S2 | sau khi chuyển, hai event mới cho cùng transfer đã quyết (một đã gắn cờ, một LOW), chạy song song | không chấm lại (`score` không được gọi), không gọi AI, quyết định không đổi, vẫn một cờ và một audit (hoặc không cờ với LOW) |
 | S3 | khách gửi và nhận của hai transfer đã gắn cờ (một `rule_only`, một AI) gọi mọi GET customer | 200 và không chuỗi nào về cờ, AI, điểm, quy tắc hay quyết định; GET route operator trả 403 |
+| S4 (BL-239) | Valkey thật giữ `cfg:risk:latest:v2 = 1` (TTL còn tới 60 giây); sáu request đang bay (đã đọc v1); v2 `rules_with_external_ai` được thêm; bốn request mới trong cửa sổ cache | cả mười request quyết định theo v1 `rule_only`, không gọi AI, không lỗi; marker vẫn là 1 dù PostgreSQL đã có v2 |
+| S5 (BL-239) | marker hết hạn (TTL của key thật bị rút còn 1 ms thay cho 60 giây); bốn request mới | v2, `rules_with_external_ai`, gọi AI bốn lần; marker được ghi lại là 2 với TTL ≤ 60 |
+| S6 (BL-239) | thêm v3 (`rule_only`) khi marker còn là 2; một request; cache được làm mới (xóa marker); ba request | request đầu vẫn theo v2 (cache); sau khi marker bị xóa, ba request theo v3 ngay, không chờ TTL; marker ghi lại là 3; mọi transfer một quyết định, một cờ, một audit |
 
 ## 3. Kiến trúc
 
-Chỉ test: `backend/test/db/risk-runtime-gating.db-spec.ts` (PostgreSQL thật qua Testcontainers, ứng dụng thật qua `startDepositApp`, `RiskScoringConsumer` dựng bằng `buildRiskConsumer`). Không đổi mã chạy, schema, CI (`test:db` đã chạy `test/db`).
+Chỉ test: `backend/test/db/risk-runtime-gating.db-spec.ts` (PostgreSQL thật qua Testcontainers, ứng dụng thật qua `startDepositApp`, `RiskScoringConsumer` dựng bằng `buildRiskConsumer`; Redis tắt). Không đổi mã chạy, schema, CI (`test:db` đã chạy `test/db`).
+
+Phần Redis thật (BL-239): `backend/test/services/risk-config-switch.services-spec.ts` (PostgreSQL và Valkey thật; cùng consumer, truyền `RedisClient` thật qua tùy chọn `redis` của `buildRiskConsumer`), thêm bước trong job `e2e` của `.github/workflows/ci.yml`. Từ BL-208 Redis chỉ giữ chỉ số phiên bản `cfg:risk:latest:v2`; nội dung luật luôn đọc từ PostgreSQL, nên test kiểm đúng hợp đồng đó: v2 chỉ có hiệu lực khi marker hết hạn hoặc được làm mới. «60 giây sau» được tạo bằng cách rút TTL của chính key trong Valkey (`PEXPIRE`, như TC-110-02) vì hằng số 60 giây của repository và deadline nằm theo đồng hồ Valkey; `commandTimeoutMs` đặt 1 giây để một lần timeout Redis không lặng lẽ rơi về PostgreSQL và làm v2 xuất hiện sớm. Chạy thử đột biến: bỏ Redis thật (dùng Redis tắt) thì cả ba test đỏ.
 
 ## 4. Test cases tự động
 
@@ -45,6 +50,9 @@ Chỉ test: `backend/test/db/risk-runtime-gating.db-spec.ts` (PostgreSQL thật 
 | TC-RSK06-03 | DoD 3 (khách) | S3 |
 | TC-RSK06-04 | DoD 1, 2, 3, 5 | tham chiếu các test cũ nêu ở §1, không viết lại |
 | TC-RSK06-05 | DoD 6 | CI xanh, Dev review, PR merge |
+| TC-RSK06-06 | DoD 4 (Redis thật, BL-239) | S4 (`risk-config-switch.services-spec.ts`) |
+| TC-RSK06-07 | DoD 4 (Redis thật, BL-239) | S5 |
+| TC-RSK06-08 | DoD 4 (Redis thật, BL-239) | S6 |
 
 ## 5. Test thủ công
 
@@ -61,8 +69,9 @@ Một commit viết lại spec, một commit doc và bằng chứng. Lùi: rever
 ## 8. Kết quả
 
 - 3 test đạt trên PostgreSQL thật; lint và typecheck sạch.
-- **Chưa làm:** cache TTL 60 giây với Redis thật (BL-239); SQS thật; ảnh chụp (đầu ra là log test); review độc lập thứ hai; DoD 6.
-- **Bàn giao:** BL-239.
+- BL-239: 3 test đạt trên PostgreSQL và Valkey thật (`risk-config-switch.services-spec.ts`).
+- **Chưa làm:** SQS thật; ảnh chụp (đầu ra là log test); review độc lập thứ hai; DoD 6.
+- **Bàn giao:** BL-239 đã có test; chờ CI.
 
 ## 9. Tài liệu đã cập nhật
 
