@@ -81,9 +81,12 @@ async function main() {
   // Runs the same CLI as `npm run --silent check:invariants`, through ts-node, so the driver does
   // not depend on npm_execpath (it is started with node -r ts-node/register, where it is not set).
   function cli(db: TempDatabase, expectedExit: number, overrides: Record<string, string> = {}) {
-    log('$ ts-node src/scripts/invariants/invariants.ts (same CLI as npm run --silent check:invariants)', {
-      database: db.name,
-    });
+    log(
+      '$ ts-node src/scripts/invariants/invariants.ts (same CLI as npm run --silent check:invariants)',
+      {
+        database: db.name,
+      },
+    );
     const result = spawnSync(
       process.execPath,
       [
