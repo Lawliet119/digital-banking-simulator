@@ -8,6 +8,7 @@ import { AuditHttpModule } from './audit-http.module';
 import { AuditController } from './audit.controller';
 import { AuditSearchService } from './audit-search.service';
 import { AuditModule } from './audit.module';
+import { RoleDenialAudit } from '@modules/identity';
 import { AuditService } from './audit.service';
 
 // This unit test proves wiring only; the HTTP/PG suite executes these real providers against PG.
@@ -49,7 +50,12 @@ describe('AuditHttpModule (DBS-103)', () => {
 
   it('TC-103-19 keeps query/controller/identity out of the shared writer module', () => {
     expect(Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, AuditModule) ?? []).toEqual([]);
-    expect(Reflect.getMetadata(MODULE_METADATA.PROVIDERS, AuditModule)).toEqual([AuditService]);
+    // BL-132: the only addition is the RoleDenialAudit port, an alias of AuditService; no query
+    // service, no controller, no IdentityService/IdentityModule.
+    expect(Reflect.getMetadata(MODULE_METADATA.PROVIDERS, AuditModule)).toEqual([
+      AuditService,
+      { provide: RoleDenialAudit, useExisting: AuditService },
+    ]);
     expect(Reflect.getMetadata(MODULE_METADATA.IMPORTS, AuditModule) ?? []).toEqual([]);
     expect(Reflect.getMetadata(MODULE_METADATA.IMPORTS, AuditHttpModule)).toEqual([AuditModule]);
     expect(Reflect.getMetadata(MODULE_METADATA.EXPORTS, AuditHttpModule) ?? []).toEqual([]);

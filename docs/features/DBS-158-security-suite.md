@@ -16,14 +16,14 @@
 - **Đã có trên `main` (không viết lại):** AC-5.8 qua TC-86-02/03 (`resource-ownership.db-spec.ts`), TC-87-06 (`transaction-history.db-spec.ts`), TC-61-03 (`customer-transfers.db-spec.ts`), TC-65-05 (`money-flow.db-spec.ts`), TC-159-01/03 (`auth-attacks.db-spec.ts`); AC-8.1 qua `audit-search.http.db-spec.ts`; AC-10.2 qua TC-87-09 (`transfer-status.db-spec.ts`, `transaction-history.db-spec.ts`) và `fraud-operator-http.db-spec.ts`.
 - **Phần mới của task này:** (a) DoD 2: mọi lỗi 401/403/404/400 và route lạ là `application/problem+json` có `correlationId` và không lộ stack, SQL hay đường dẫn nội bộ; (b) AC-8.1 rộng hơn: auditor bị từ chối (403 `FORBIDDEN`) trên **mọi** route ghi (bảy route), và không bảng nào đổi (`transfers`, `ledger_entries`, `accounts`, `customers`, `outbox_events`, `fraud_flags`, `audit_log`); (c) suite nằm ở `backend/test/security` như DoD 1 và được `test:db` chạy (regex của `jest-db.js` mở thêm `test/security`).
 - **Quyết định (agent tự quyết):** không lặp lại test có sẵn; ghi tham chiếu ở đây. DoD 3 «kịch bản Demo 4» viết sau ở `docs/demos/demo-4-security-audit.md` (BL-237).
-- **Ngoài phạm vi:** kịch bản Demo 4, 403 của `RolesGuard` chưa ghi audit `DENIED` (BL-132), phần cloud.
+- **Ngoài phạm vi:** phần cloud. (403 của `RolesGuard` lúc viết doc chưa ghi audit `DENIED`; BL-132 đã làm, TC-158-02 nay kiểm cả dòng `DENIED`.)
 
 ## 2. Hành vi
 
 | # | Điều kiện | Kết quả |
 |---|---|---|
 | S1 | không token, sai vai, tài khoản của người khác, id sai dạng, query sai, route lạ | status 401/403/404/404/400/404; `Content-Type: application/problem+json`; thân có `status` đúng và `correlationId`; không có `stack`, đường dẫn `.ts`, `node_modules`, câu SQL, `QueryFailed`, tên `pg_*` |
-| S2 | token auditor gọi từng route ghi (`POST /v1/transfers`, `/v1/operator/deposits`, `/v1/accounts`, `/v1/customers/me`, lock, unlock, review cờ) | 403 `FORBIDDEN`; số dòng của bảy bảng trên không đổi |
+| S2 | token auditor gọi từng route ghi (`POST /v1/transfers`, `/v1/operator/deposits`, `/v1/accounts`, `/v1/customers/me`, lock, unlock, review cờ) | 403 `FORBIDDEN`; số dòng của sáu bảng nghiệp vụ trên không đổi, `audit_log` tăng đúng 7 dòng `DENIED` (một mỗi route: `access.denied`, `actor_role=auditor`, `target=route`, mẫu route; BL-132, BL-019) |
 
 ## 3. Kiến trúc
 

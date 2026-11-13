@@ -1,6 +1,7 @@
 import * as Joi from 'joi';
 import { parseBalance, parsePositiveMoney } from '@common/money';
 import type { AccountStatusChanged, TransferCompleted } from './event-types';
+import { isRealUtcTime } from './utc-time';
 
 /**
  * One `joi` schema per field of each event. `satisfies Record<keyof T, Joi.Schema>` is the point:
@@ -21,27 +22,7 @@ import type { AccountStatusChanged, TransferCompleted } from './event-types';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const uuid = Joi.string().pattern(UUID).required();
 
-/**
- * ISO-8601 UTC with `Z`: seconds, and 1 to 9 fraction digits when there are any. An offset is
- * refused, `+00:00` included (producers use `Date#toISOString()`, never Postgres' `to_json`).
- */
-const UTC_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?Z$/;
-
-/**
- * The shape alone is not enough: `Date.parse` rolls `2026-02-30` over to 2 March and accepts hour
- * 24, so the calendar is checked by hand. `setUTCFullYear` keeps years below 100 as written
- * (`Date.UTC(99, …)` would mean 1999).
- */
-function isRealUtcTime(value: string): boolean {
-  const match = UTC_TIME.exec(value);
-  if (match === null) return false;
-  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
-  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return false;
-  const lastDayOfMonth = new Date(0);
-  lastDayOfMonth.setUTCFullYear(year, month, 0);
-  return day >= 1 && day <= lastDayOfMonth.getUTCDate();
-}
-
+/** A timestamp field: ISO-8601 UTC with `Z` and a real calendar date (`isRealUtcTime`). */
 const time = Joi.string()
   .custom((value: string) => {
     if (!isRealUtcTime(value)) throw new Error('not a real UTC time');

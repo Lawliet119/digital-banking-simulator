@@ -6,6 +6,12 @@ import {
   type AuditOutcome,
   type AuditRecordInput,
 } from './audit.types';
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ACTOR_ROLES,
+  AUDIT_TARGET_TYPES,
+  actorRoleOf,
+} from './audit.registry';
 
 const VALID_INPUT: AuditRecordInput = {
   actor: '11111111-1111-1111-1111-111111111111',
@@ -41,6 +47,42 @@ describe('audit types (DBS-56)', () => {
       // @ts-expect-error -- a free sentence is not a member of either registry
       const _r3: AuditMetadata = { reason: 'khach khong phai chu tai khoan' };
     };
+  });
+
+  it('TC-19-01 the compiler closes action, actor role and target type (BL-019)', () => {
+    // Nothing here runs: every `@ts-expect-error` line must be a compile error, so a typo in a
+    // caller fails `tsc` instead of becoming a second spelling of an action in audit_log.
+    const _typeChecks = (): void => {
+      // @ts-expect-error -- 'transfer.send' is not a registered action
+      const _a1: AuditRecordInput = { ...VALID_INPUT, action: 'transfer.send' };
+      // @ts-expect-error -- 'superuser' is neither a role nor 'worker'
+      const _a2: AuditRecordInput = { ...VALID_INPUT, role: 'superuser' };
+      // @ts-expect-error -- 'system' was never written by any caller; the worker role is 'worker'
+      const _a3: AuditRecordInput = { ...VALID_INPUT, role: 'system' };
+      // @ts-expect-error -- 'acount' is a typo of a target type
+      const _a4: AuditRecordInput = { ...VALID_INPUT, target: { type: 'acount', id: 'x' } };
+
+      // The registered values still compile, including a role list for a multi-group caller.
+      const _ok1: AuditRecordInput = { ...VALID_INPUT, action: 'access.denied' };
+      const _ok2: AuditRecordInput = { ...VALID_INPUT, role: 'operator,auditor' };
+      const _ok3: AuditRecordInput = { ...VALID_INPUT, role: 'worker' };
+    };
+  });
+
+  it('TC-19-02 the registries hold every value once, with no blanks', () => {
+    for (const registry of [AUDIT_ACTIONS, AUDIT_ACTOR_ROLES, AUDIT_TARGET_TYPES]) {
+      expect(new Set(registry).size).toBe(registry.length);
+      for (const value of registry) expect(value).toMatch(/^[a-z][a-z_.]*$/);
+    }
+    expect(AUDIT_ACTOR_ROLES).toEqual(['customer', 'operator', 'auditor', 'admin', 'worker']);
+    expect(AUDIT_ACTIONS).toContain('access.denied');
+    expect(AUDIT_TARGET_TYPES).toContain('route');
+  });
+
+  it('TC-19-03 actorRoleOf keeps one role as is and joins several in the order given', () => {
+    expect(actorRoleOf(['customer'])).toBe('customer');
+    expect(actorRoleOf(['operator', 'auditor'])).toBe('operator,auditor');
+    expect(() => actorRoleOf([])).toThrow();
   });
 
   it('accepts a fully valid AuditRecordInput', () => {

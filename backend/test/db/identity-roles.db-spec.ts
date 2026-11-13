@@ -19,6 +19,7 @@ import {
   type CurrentUserInfo,
 } from '../../src/modules/identity';
 import { Controller, Get } from '@nestjs/common';
+import { AuditModule } from '../../src/modules/audit';
 import { startJwksFixture, type JwksFixture } from '../support/jwks-fixture';
 import {
   createIdentityUsersFixture,
@@ -109,6 +110,7 @@ describe('DBS-51 @CurrentUser userId against PostgreSQL', () => {
         FakeConfigModule.forRoot(db.url, jwks.url),
         DatabaseModule,
         IdentityModule,
+        AuditModule,
         WhoAmIModule,
       ],
       providers: [
