@@ -7,6 +7,8 @@ import { Logger as PinoNestLogger, PinoLogger } from 'nestjs-pino';
 import pinoHttp from 'pino-http';
 import { SafeLogger } from '@common/logging/safe-logger';
 import { createLoggingOptions } from '@common/logging/logging.options';
+import { MetricsService } from '@common/metrics';
+import type { EmfDocument } from '@common/metrics/emf';
 import { RiskAiService } from '@modules/risk/ai/risk-ai.service';
 import { createLoopbackAdapter } from '@modules/risk/ai/openai-decisions';
 import { projectFeatures } from '@modules/risk/ai/feature-projection';
@@ -434,6 +436,57 @@ describe('DBS-111 decisions while the rule set asks for AI (PostgreSQL)', () => 
     expect(
       await q('SELECT count(*)::int AS n FROM risk_decisions WHERE transfer_id=$1', [transferId]),
     ).toEqual([{ n: 1 }]);
+  });
+
+  async function collectingMetrics() {
+    const docs: EmfDocument[] = [];
+    const metrics = new MetricsService(
+      { enabled: true, flushMs: 600_000 },
+      { role: 'worker' } as never,
+      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
+      doc => docs.push(doc),
+    );
+    await metrics.start();
+    return { metrics, docs };
+  }
+  const lines = (docs: EmfDocument[], name: string) =>
+    docs.filter(d => d._aws.CloudWatchMetrics[0].Metrics.some(m => m.Name === name));
+
+  it.each([
+    ['success', 'SUCCEEDED', 1],
+    ['outage', 'UNAVAILABLE', 1],
+    ['429', 'UNAVAILABLE', 1],
+  ] as const)(
+    'TC-204-09 AI answer %s: risk_decision_total{AiStatus=%s} and %s risk_ai_call_duration_ms sample',
+    async (kind, status, samples) => {
+      responseKind = kind;
+      await newVersion(VALID_AI);
+      const { metrics, docs } = await collectingMetrics();
+      const { event } = await ac91();
+      await buildRiskConsumer(source, { ai: runtime(), metrics }).consumer.handle(event);
+      await metrics.flush();
+
+      const [decision] = lines(docs, 'risk_decision_total');
+      expect(decision).toMatchObject({ Role: 'worker', AiStatus: status, risk_decision_total: 1 });
+      const [call] = lines(docs, 'risk_ai_call_duration_ms');
+      expect(call._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role']]);
+      expect(call._aws.CloudWatchMetrics[0].Metrics).toEqual([
+        { Name: 'risk_ai_call_duration_ms', Unit: 'Milliseconds' },
+      ]);
+      expect(call.risk_ai_call_duration_ms as number[]).toHaveLength(samples);
+      expect(JSON.stringify(docs)).not.toContain('synthetic');
+    },
+  );
+
+  it('TC-204-09 a broken ai block counts CONFIG_INVALID and makes no AI call, so no duration sample', async () => {
+    await newVersion({ ...VALID_AI, threshold: 7 });
+    const { metrics, docs } = await collectingMetrics();
+    const { event } = await ac91();
+    await buildRiskConsumer(source, { ai: runtime(), metrics }).consumer.handle(event);
+    await metrics.flush();
+    expect(lines(docs, 'risk_decision_total')[0]).toMatchObject({ AiStatus: 'CONFIG_INVALID' });
+    expect(lines(docs, 'risk_ai_call_duration_ms')).toEqual([]);
+    expect(requests).toHaveLength(0);
   });
 
   it('TC-111-11a a broken ai block records rules_with_external_ai / CONFIG_INVALID with no AI weight, and still flags on the rules', async () => {

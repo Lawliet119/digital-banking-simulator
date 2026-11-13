@@ -2,6 +2,8 @@ import { Counter, register } from 'prom-client';
 import type { TransferCompleted } from '@common/events';
 import type { AiAssessment, AiStatus } from './ai/ai-contract';
 import type { Features, TransferEvent } from './features/feature-provider';
+import { RiskRuleError } from './risk-rule-error';
+import { countRuleError } from './risk-scoring.metrics';
 import { R1VelocityRule } from './rules/r1-velocity.rule';
 import { R2UnusualAmountRule } from './rules/r2-unusual-amount.rule';
 import { R3NewAccountLargeTransferRule } from './rules/r3-new-account-large-transfer.rule';
@@ -92,15 +94,25 @@ export class ScoringService {
       if (!params || typeof params !== 'object' || Array.isArray(params)) {
         throw new Error('Invalid risk rule configuration');
       }
-      const hit = rule.evaluate(event as TransferEvent, features, params);
+      let hit: RuleHit | null;
+      try {
+        hit = rule.evaluate(event as TransferEvent, features, params);
+      } catch (error) {
+        // Same outcome as before (the error is thrown, the consumer rolls back and retries); the
+        // wrapper only names the rule so `risk_rule_error_total{rule}` can count it (BL-207 f).
+        countRuleError(rule.id);
+        throw new RiskRuleError(rule.id, 'threw', { cause: error });
+      }
       if (hit === null) continue;
       if (
+        typeof hit !== 'object' ||
         hit.id !== rule.id ||
         hit.weight !== params.weight ||
         typeof hit.explanation !== 'string' ||
         hit.explanation.length === 0
       ) {
-        throw new Error('Invalid risk rule result');
+        countRuleError(rule.id);
+        throw new RiskRuleError(rule.id, 'invalid result');
       }
       ruleScore += hit.weight;
       if (!Number.isSafeInteger(ruleScore) || ruleScore < 0 || ruleScore > MAX_SCORE) {
