@@ -10,6 +10,7 @@ import { OutboxCleanupService } from '@modules/outbox/outbox-cleanup.service';
 import { NotificationConsumer, dlqUrlFor } from '@modules/notification';
 import { AuditService } from '@modules/audit';
 import { ACCOUNT_LOCKED_SAMPLE, TRANSFER_SAMPLE } from '../support/event-samples';
+import { clearOutbox } from '../support/outbox-fixtures';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
@@ -87,7 +88,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     consumer = new NotificationConsumer(tx, sqs, silentPino, config, new AuditService(tx));
   });
   afterAll(async () => {
-    sqs?.onModuleDestroy();
+    sqs?.onApplicationShutdown();
     await source?.destroy();
     await db?.drop();
     await mq?.stop();
@@ -97,7 +98,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     else process.env.AWS_SECRET_ACCESS_KEY = oldSecret;
   });
   beforeEach(async () => {
-    await q('DELETE FROM outbox_events');
+    await clearOutbox(q);
     await q('DELETE FROM processed_events');
     await q('DELETE FROM notification_log');
     await drain(riskUrl);
@@ -334,7 +335,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
         await enqueue(first);
         expect(await untilPublished(3000)).toBe(true);
       } finally {
-        await worker.onApplicationShutdown();
+        await worker.beforeApplicationShutdown();
       }
     });
     expect((await drain(riskUrl)).map(e => e.eventId)).toEqual([first.eventId]);
@@ -354,7 +355,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
         await new Promise(resolve => setTimeout(resolve, 1500));
         expect(await q('SELECT 1 FROM outbox_events WHERE published_at IS NULL')).toHaveLength(1);
       } finally {
-        await api.onApplicationShutdown();
+        await api.beforeApplicationShutdown();
       }
     });
   });

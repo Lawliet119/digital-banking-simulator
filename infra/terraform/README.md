@@ -174,7 +174,7 @@ Mật khẩu nằm ở Secrets Manager `dbs/dev/demo-accounts` (secret là ngu�
 
 Xóa (thứ tự ngược): `session` trước, `base` sau. `base` chỉ xóa được khi ECR `dbs-api` rỗng (`force_delete = false`); xóa image bằng `aws ecr batch-delete-image` trước. `base` gần như miễn phí nên thường giữ lại; chỉ xóa `session` cuối mỗi phiên làm việc. Ai bật phần tính tiền thì tắt khi xong.
 
-Kiểm tra tĩnh cho `envs/dev/base` và `envs/dev/session`: `terraform init -backend=false && terraform test` (dùng `mock_provider` và `override_data`, không cần credential). ALB của dev nghe HTTPS bằng chứng chỉ self-signed (chưa có tên miền): gọi bằng `curl -k`.
+Kiểm tra tĩnh cho `envs/dev/base` và `envs/dev/session`: `terraform init -backend=false && terraform test` (dùng `mock_provider` và `override_data`, không cần credential; CI chạy sẵn, xem "Kiểm tra trước khi push"). ALB của dev nghe HTTPS bằng chứng chỉ self-signed (chưa có tên miền): gọi bằng `curl -k`.
 
 ### Secret DB và TLS trong task api (DBS-67)
 Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_NAME`, `DATABASE_SSL=true`, `DATABASE_SSL_CA_PATH` làm biến thường, và `DB_USER`, `DB_PASSWORD` từ secret master (`<arn>:username::`, `<arn>:password::`). Execution role `dbs-dev-api-execution` có `secretsmanager:GetSecretValue` trên đúng secret đó và `kms:Decrypt` trên CMK `alias/dbs-dev` với `kms:ViaService = secretsmanager.<region>.amazonaws.com`.
@@ -209,7 +209,7 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 |---|---|
 | `sqs_risk_queue_url` | `SQS_RISK_QUEUE_URL` |
 | `sqs_notification_queue_url` | `SQS_NOTIFICATION_QUEUE_URL` |
-| `sqs_risk_dlq_url`, `sqs_notification_dlq_url` | chưa có biến (DBS-77, DBS-90 thêm khi consumer đẩy message sai schema vào DLQ) |
+| `sqs_risk_dlq_url`, `sqs_notification_dlq_url` | không có biến: app suy ra URL DLQ từ URL queue chính bằng `dlqUrlFor(queueUrl)` = `<queueUrl>-dlq` (`backend/src/common/messaging/consumer-base.ts`), khớp tên Terraform `dbs-dev-<consumer>-events-dlq`. Hai output này dành cho người vận hành và runbook ([dlq-redrive](../../docs/runbooks/dlq-redrive.md)) |
 
 `SQS_ENDPOINT` không đặt trên AWS. Hai biến URL vào task definition worker ở `session/worker.tf` (DBS-121).
 
@@ -323,5 +323,7 @@ aws ce list-cost-allocation-tag-backfill-history
 terraform fmt -check -recursive
 for d in bootstrap envs/dev/base envs/dev/session; do (cd $d && terraform init -backend=false && terraform validate && terraform test); done
 ```
+
+CI chạy đúng các lệnh này ở job `terraform` của [`ci.yml`](../../.github/workflows/ci.yml) trên mọi PR và mọi lần push vào `main` (BL-028): một lần `terraform fmt -check -recursive infra/terraform`, rồi `init -backend=false`, `validate`, `test` cho từng thư mục trong ba thư mục trên, gồm mọi `tests/*.tftest.hcl` (kể cả `session/tests/dashboard.tftest.hcl` của DBS-145). Runner không có credential AWS và không cần: test dùng `mock_provider`/`override_data` (kể cả `data.terraform_remote_state.base`). Test mới phải giữ tính chất đó, đừng thêm test gọi AWS thật. Job ghim Terraform `1.16.6` (`required_version` trong `versions.tf` là `>= 1.11`) và chạy `init -lockfile=readonly`, nên đổi provider thì phải commit lại `.terraform.lock.hcl` (`terraform init -upgrade` kèm `terraform providers lock` cho các nền tảng cần). Job `script-tests` chạy test Python của `infra/scripts/tests/` (`seed-cognito.sh`, `verify-clean.sh`, `demo-token.sh`, `cost-report.py`) và `.github/scripts/tests/`. Job chưa nằm trong required status checks của `main`; thêm vào ruleset do chủ repo quyết định (BL-012).
 
 Chi tiết cấu hình: [docs/03 mục 13](../../docs/03_HIGH_LEVEL_ARCHITECTURE.md).

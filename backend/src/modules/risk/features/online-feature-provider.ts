@@ -1,8 +1,11 @@
 import { riskTimeMilliseconds } from '../risk-time';
-import type { FeatureProvider, Features, TransferEvent } from './feature-provider';
+import {
+  MIN_HISTORY_FOR_MEDIAN,
+  type FeatureProvider,
+  type Features,
+  type TransferEvent,
+} from './feature-provider';
 import { TransferFacts } from './transfer-facts';
-
-const MIN_HISTORY_FOR_MEDIAN = 5;
 
 export interface OnlineFeatureProviderDeps {
   readonly facts: TransferFacts;

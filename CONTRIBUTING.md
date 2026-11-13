@@ -85,7 +85,7 @@ Một Pull Request chỉ được merge khi:
 
 ## 4b. Đọc kết quả CI trên GitHub Actions
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) chạy khi mở, cập nhật hay mở lại PR và khi push vào `main`. Sáu job chạy **song song**, mỗi job một lệnh chính trong `backend/`, nên một job đỏ không che job khác. Mỗi job tối đa 10 phút, trừ `e2e` tối đa 35 phút vì có bốn bước (xem bảng).
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) chạy khi mở, cập nhật hay mở lại PR và khi push vào `main`. Sáu job đầu chạy **song song**, mỗi job một lệnh chính trong `backend/`, nên một job đỏ không che job khác; bốn job sau (`image-scan`, `secret-scan`, `terraform`, `script-tests`) chạy song song với chúng ở gốc repo. Mỗi job tối đa 10 phút, trừ `e2e` tối đa 35 phút vì có bốn bước (xem bảng) và các job gốc repo có giới hạn riêng.
 
 | Check trên PR (tên job) | Lệnh chạy lại ở local (trong `backend/`) | Đỏ khi |
 |---|---|---|
@@ -97,8 +97,10 @@ Một Pull Request chỉ được merge khi:
 | `build` | `npm run build` | `nest build` lỗi |
 | `image-scan` | từ **gốc repo** (cần Docker): `docker build -t dbs-api:scan backend`, rồi `TRIVY_IMAGE=<image Trivy ghim digest trong ci.yml> bash .github/scripts/run-trivy.sh dbs-api:scan` | lỗ hổng HIGH/CRITICAL đã có bản sửa trong image, hoặc secret ở mọi mức; DB Trivy tải lỗi |
 | `secret-scan` | từ **gốc repo**: `python3 .github/scripts/check-image-workflow.py`, `python3 .github/scripts/check-scan-exceptions.py`; gitleaks: xem đầu `.github/scripts/run-gitleaks.sh` | gitleaks báo secret trong lịch sử tới `HEAD` (kể cả đã revert); ngoại lệ thiếu lý do hoặc quá hạn; cờ hay thứ tự bước quét bị sửa |
+| `terraform` | từ **gốc repo**: `terraform fmt -check -recursive infra/terraform`; rồi trong từng thư mục `infra/terraform/bootstrap`, `envs/dev/base`, `envs/dev/session`: `terraform init -backend=false -lockfile=readonly && terraform validate && terraform test` (không cần credential AWS) | file `.tf`/`.tftest.hcl` sai format; `validate` lỗi; một run trong `tests/*.tftest.hcl` đỏ; `.terraform.lock.hcl` không khớp provider đã khai báo (BL-028) |
+| `script-tests` | từ **gốc repo**, chỉ Linux: `python3 <file>` cho từng `infra/scripts/tests/test_*.py` và `.github/scripts/tests/test_*.py` (cần bash, curl, jq, PyYAML) | một test script hạ tầng hoặc script CI đỏ (BL-101, BL-253) |
 
-`image-scan` và `secret-scan` (DBS-155) chạy ở gốc repo, tối đa 15 và 10 phút, chưa thuộc sáu tên hợp đồng và chỉ chặn merge khi chủ repo thêm vào ruleset của `main` (BL-035, BL-012). Thiết kế và cờ: [feature doc DBS-155](docs/features/DBS-155-ci-image-secret-scan.md), kết quả: [scan-results](docs/components/ci-cd/scan-results.md). Khi một CVE mới làm check đỏ trên PR không liên quan: báo #5, sửa trước (nâng lockfile hoặc build lại với base mới), chỉ khi chưa sửa được mới thêm ngoại lệ có lý do và hạn.
+`terraform` và `script-tests` (BL-028) chạy ở gốc repo, tối đa 20 và 15 phút, cùng chưa thuộc sáu tên hợp đồng và chưa là required check (BL-012). `image-scan` và `secret-scan` (DBS-155) chạy ở gốc repo, tối đa 15 và 10 phút, chưa thuộc sáu tên hợp đồng và chỉ chặn merge khi chủ repo thêm vào ruleset của `main` (BL-035, BL-012). Thiết kế và cờ: [feature doc DBS-155](docs/features/DBS-155-ci-image-secret-scan.md), kết quả: [scan-results](docs/components/ci-cd/scan-results.md). Base image `node:24-alpine` trong `backend/Dockerfile` ghim theo digest (BL-244): Dependabot mở PR đổi digest hằng tuần và `image-scan` chạy trên PR đó; cách nâng tay ở [scan-results](docs/components/ci-cd/scan-results.md#ghim-digest-base-image-bl-244). Khi một CVE mới làm check đỏ trên PR không liên quan: báo #5, sửa trước (nâng lockfile hoặc nâng digest base), chỉ khi chưa sửa được mới thêm ngoại lệ có lý do và hạn.
 
 **Cách đọc khi có check đỏ:**
 1. Cuối trang PR, ở khung kiểm tra, bấm **Details** cạnh check đỏ (hoặc mở tab **Checks** rồi chọn job). Bước đỏ tự mở sẵn trong log.

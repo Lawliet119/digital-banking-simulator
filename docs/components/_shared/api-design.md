@@ -111,15 +111,15 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 | 1 | `GET /health/live` | `@Public()` | — | Miễn | — | — | **Implemented** ([DBS-78](../../features/DBS-78-health-redis-degraded.md)) |
 | 2 | `GET /health/ready` | `@Public()` | — | Miễn | — | — | **Implemented** ([DBS-78](../../features/DBS-78-health-redis-degraded.md)) |
 | 3 | `GET /v1/identity/me` | Mọi vai trò đã đăng nhập | — | `100/phút/IP` | — | — | **Implemented** ([DBS-50](../../features/DBS-50-jwt-auth-guard-jwks.md)) |
-| 4 | `POST /v1/customers/me` | `customer` | UC-1 | `100/phút/IP` | Tự nhiên theo `user_id` | `customer.onboard` / `customer.profile.read` | **Implemented** ([DBS-63](../../features/DBS-63-open-accounts.md)) |
-| 5 | `GET /v1/customers/me` | `customer` | UC-1 | `100/phút/IP` | — | `customer.profile.read` | **Implemented** ([DBS-63](../../features/DBS-63-open-accounts.md)) |
+| 4 | `POST /v1/customers/me` | `customer` | UC-1 | `100/phút/IP` | Tự nhiên theo `user_id` | `customer.created` / `customer.read` | **Implemented** ([DBS-63](../../features/DBS-63-open-accounts.md)) |
+| 5 | `GET /v1/customers/me` | `customer` | UC-1 | `100/phút/IP` | — | `customer.read` | **Implemented** ([DBS-63](../../features/DBS-63-open-accounts.md)) |
 | 6 | `POST /v1/accounts` | `customer` | UC-2 | `100/phút/IP` | — | `account.open` | **Implemented** ([DBS-63](../../features/DBS-63-open-accounts.md)) |
 | 7 | `GET /v1/accounts` | `customer` | UC-4 | `100/phút/IP` | — | `account.list` | **Implemented** ([DBS-64](../../features/DBS-64-read-accounts.md)) |
 | 8 | `GET /v1/accounts/:id` | `customer` | UC-4 | `100/phút/IP` | — | `account.read` | **Implemented** ([DBS-64](../../features/DBS-64-read-accounts.md)) |
 | 9 | `GET /v1/accounts/:id/transactions` | `customer` | UC-6 | `100/phút/IP` | — | `account.transactions` | **Implemented** ([DBS-87](../../features/DBS-87-history-and-transfer-status.md)) |
-| 10 | `POST /v1/transfers` | `customer` | UC-5 | `100/phút/IP` + `10/phút/khách` | Bắt buộc (`Idempotency-Key`) | `transfer.create` | **Implemented** ([DBS-61](../../features/DBS-61-customer-transfers.md)) |
+| 10 | `POST /v1/transfers` | `customer` | UC-5 | `100/phút/IP` + `10/phút/khách` | Bắt buộc (`Idempotency-Key`) | `transfer` | **Implemented** ([DBS-61](../../features/DBS-61-customer-transfers.md)) |
 | 11 | `GET /v1/transfers/:id` | `customer` | UC-7 | `100/phút/IP` | — | `transfer.read` | **Implemented** ([DBS-87](../../features/DBS-87-history-and-transfer-status.md)) |
-| 12 | `POST /v1/operator/deposits` | `operator` | UC-3 | `100/phút/IP` | Bắt buộc (`Idempotency-Key`) | `deposit.create` | **Implemented** ([DBS-60](../../features/DBS-60-operator-deposits.md)) |
+| 12 | `POST /v1/operator/deposits` | `operator` | UC-3 | `100/phút/IP` | Bắt buộc (`Idempotency-Key`) | `deposit` | **Implemented** ([DBS-60](../../features/DBS-60-operator-deposits.md)) |
 | 13 | `GET /v1/operator/accounts` | `operator` | UC-3, UC-11 | `100/phút/IP` | — | `operator.account.search` | **Implemented** ([DBS-88](../../features/DBS-88-operator-account-search.md)) |
 | 14 | `GET /v1/audit/entries` | `auditor` | UC-8 | `100/phút/IP` | — | `audit.search` | **Implemented** ([DBS-103](../../features/DBS-103-audit-search.md)) |
 | 15 | `POST /v1/operator/accounts/:id/lock` | `operator` | UC-11 | `100/phút/IP` | Idempotent theo trạng thái | `account.lock` | **Implemented** (DBS-113, `docs/03` §6.2, §7) |
@@ -196,7 +196,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
   }
   ```
   - `fullName`: chuỗi được tự động chuẩn hóa Unicode `NFC` và `trim()`, độ dài `1..200` ký tự, cấm ký tự điều khiển ASCII (`\u0000-\u001f`, `\u007f`).
-- **Hành vi:** Idempotent theo `userId`. Nếu khách chưa có hồ sơ thì tạo mới (`INSERT INTO customers`) và ghi audit `customer.onboard`; nếu đã có hồ sơ thì giữ nguyên `fullName` lần đầu, trả về hồ sơ hiện có và ghi audit `customer.profile.read` trong cùng transaction.
+- **Hành vi:** Idempotent theo `userId`. Nếu khách chưa có hồ sơ thì tạo mới (`INSERT INTO customers`) và ghi audit `customer.created`; nếu đã có hồ sơ thì giữ nguyên `fullName` lần đầu, trả về hồ sơ hiện có và ghi audit `customer.read` trong cùng transaction.
 - **Response `200 OK` ([`CustomerProfileDto`](../../../backend/src/modules/accounts/customer-profile.dto.ts)):**
   ```json
   {
@@ -209,7 +209,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 
 #### `GET /v1/customers/me` (UC-1: Xem hồ sơ khách hàng)
 - **Auth:** `@Roles('customer')`.
-- **Response `200 OK`:** Cùng cấu trúc `CustomerProfileDto` như trên (ghi audit `customer.profile.read` cùng transaction).
+- **Response `200 OK`:** Cùng cấu trúc `CustomerProfileDto` như trên (ghi audit `customer.read` cùng transaction).
 - **Mã lỗi:** `404 Not Found` (nếu khách chưa gọi `POST /v1/customers/me`), `401`, `403`, `500`, `503`.
 
 #### `POST /v1/accounts` (UC-2: Mở tài khoản ngân hàng)
@@ -406,7 +406,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 - **Response Header:** `Cache-Control: no-store`.
 - **Query Params ([`AuditSearchQueryPipe`](../../../backend/src/modules/audit/audit-search.query.ts)):**
   - `actorUserId` (tùy chọn): UUID của người thực hiện hành động (`users.id`).
-  - `action` (tùy chọn): chuỗi phân biệt hoa/thường (`1..128` ký tự, ví dụ `transfer.create`, `account.open`).
+  - `action` (tùy chọn): chuỗi phân biệt hoa/thường (`1..128` ký tự, ví dụ `transfer`, `account.open`).
   - `from` (tùy chọn): mốc thời gian UTC `Z` bắt đầu (bao gồm).
   - `to` (tùy chọn): mốc thời gian UTC `Z` kết thúc (không bao gồm, `to > from`).
   - `correlationId` (tùy chọn): UUID vết request cần tra.
@@ -422,7 +422,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
         "occurredAt": "2026-11-04T08:10:00.123456Z",
         "actorUserId": "0f6a3d52-8c1b-4e7a-b6d4-2c9e1a7f5b30",
         "actorRole": "customer",
-        "action": "transfer.create",
+        "action": "transfer",
         "outcome": "SUCCESS",
         "target": {
           "type": "transfer",

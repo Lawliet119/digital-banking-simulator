@@ -21,6 +21,7 @@ import {
 } from '../support/temp-database';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { checkLedgerInvariants } from '../support/invariants';
+import { clearOutbox } from '../support/outbox-fixtures';
 import { insertRuleOnlyDecision } from '../support/risk-decisions';
 
 /**
@@ -263,7 +264,7 @@ describe('least-privilege roles dbs_api, dbs_worker, dbs_migrator (DBS-119)', ()
   });
 
   it('TC-92-13 the cleanup job runs as dbs_worker: old rows go, unpublished ones stay, no 42501', async () => {
-    await db.runner.query('DELETE FROM outbox_events');
+    await clearOutbox(sql => db.runner.query(sql));
     await db.runner.query('DELETE FROM processed_events');
     await db.runner.query(
       `INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id,created_at,published_at)

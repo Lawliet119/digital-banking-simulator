@@ -17,7 +17,7 @@ G1 (agent tự quyết): chỉ đánh giá snapshot trong event, không đọc s
 
 ## 2. Hành vi
 
-Chỉ TRANSFER; sameOwner bắt buộc boolean. Đọc `fromBalanceBefore` qua `parseBalance`, amount dương qua `parsePositiveMoney`. Hit khi cùng lúc đủ balance, khác chủ và `amount*100 >= balance*minBalancePercent`; cả ba là so sánh bigint. Explanation hiển thị phần trăm xấp xỉ và số tiền/số dư chính xác, đều là dữ liệu nhạy cảm.
+Chỉ TRANSFER; sameOwner bắt buộc boolean. Đọc `fromBalanceBefore` qua `parseBalance`, amount dương qua `parsePositiveMoney`. Hit khi cùng lúc đủ balance, khác chủ và `amount*100 >= balance*minBalancePercent`; cả ba là so sánh bigint. Explanation hiển thị phần trăm xấp xỉ (làm tròn xuống, dấu phẩy thập phân) và số tiền/số dư chính xác theo định dạng chung (`Chuyển xấp xỉ 95,00% số dư (950.000đ/1.000.000đ).`), đều là dữ liệu nhạy cảm. Rule tắt chỉ kiểm cấu hình rồi trả `null`.
 
 ## 3. Kiến trúc
 
@@ -75,6 +75,6 @@ Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/
 
 | # | Mức | Xử lý |
 |---|---|---|
-| 1, 2, 3 | minor | Không sửa: R6 tắt vẫn kiểm snapshot; làm tròn 99,996% thành «100.00%»; định dạng tiền trong explanation → BL-207 (định dạng tiền cũng là H7 của BL-184) |
+| 1, 2, 3 | minor | **Đã sửa ở BL-207 (a), (d), (e) và BL-184 H7:** R6 tắt trả `null` trước khi kiểm snapshot; phần trăm làm tròn xuống (99,996% hiện «99,99%»); tiền theo định dạng chung `950.000đ/1.000.000đ`, dấu phẩy thập phân |
 | 4 | minor | **Đã sửa:** §8 «chưa merge». Ca số gần 2^63 trong manual và đường lỗi → BL-212 |
 | 5 | minor | Bàn giao UC-12: `parseRuleSet` chưa chặn `minBalancePercent` không nguyên hoặc ngoài 1–100 → BL-188 |

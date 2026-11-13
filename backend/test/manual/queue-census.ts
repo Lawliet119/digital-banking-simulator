@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   process.stdout.write(
     `${JSON.stringify({ queue: queue.split('/').pop(), messages, distinctEventIds: counts.size, duplicated })}\n`,
   );
-  sqs.onModuleDestroy();
+  sqs.onApplicationShutdown();
 }
 
 void main().catch(error => {

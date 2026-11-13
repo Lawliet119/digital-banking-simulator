@@ -95,7 +95,7 @@ describe('ConsumerBase (real PostgreSQL + ElasticMQ)', () => {
   });
   afterAll(async () => {
     for (const url of created) await admin.send(new DeleteQueueCommand({ QueueUrl: url }));
-    sqs?.onModuleDestroy();
+    sqs?.onApplicationShutdown();
     admin?.destroy();
     await source?.destroy();
     await db?.drop();
