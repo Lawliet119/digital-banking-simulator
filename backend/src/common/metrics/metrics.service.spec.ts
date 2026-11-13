@@ -11,6 +11,9 @@ const COUNTERS = [
   'risk_redis_fallback_total',
   'risk_config_redis_fallback_total',
   'risk_unsupported_mode_total',
+  'risk_rule_error_total',
+  'risk_decision_total',
+  'reconciliation_runs_total',
 ];
 
 function counter(name: string, labelNames: string[] = []): Counter {
@@ -211,6 +214,123 @@ describe('MetricsService', () => {
       counter('redis_fallback_total').inc(2);
       await service.flush(T0 + MINUTE);
       expect(docs[0].redis_fallback_total).toBe(2);
+    });
+  });
+
+  describe('risk and reconciliation counters (BL-204, BL-207, BL-046, BL-127)', () => {
+    it('TC-204-01 risk_rule_error_total, risk_decision_total and reconciliation_runs_total are written with Role and their one dimension', async () => {
+      const ruleErrors = counter('risk_rule_error_total', ['rule']);
+      const decisions = counter('risk_decision_total', ['ai_status']);
+      const runs = counter('reconciliation_runs_total', ['status']);
+      const { service, docs } = collect();
+      await service.start(T0);
+      ruleErrors.inc({ rule: 'R3' }, 2);
+      decisions.inc({ ai_status: 'DISABLED' }, 5);
+      decisions.inc({ ai_status: 'CONFIG_INVALID' });
+      runs.inc({ status: 'MISMATCH' });
+      await service.flush(T0 + MINUTE);
+
+      const line = (name: string) => docs.filter(d => names(d)[0] === name);
+      const [rule] = line('risk_rule_error_total');
+      expect(rule).toMatchObject({ Role: 'api', Rule: 'R3', risk_rule_error_total: 2 });
+      expect(rule._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role', 'Rule']]);
+      expect(rule._aws.CloudWatchMetrics[0].Metrics).toEqual([
+        { Name: 'risk_rule_error_total', Unit: 'Count' },
+      ]);
+      const byStatus = line('risk_decision_total').map(d => [d.AiStatus, d.risk_decision_total]);
+      expect(byStatus.sort()).toEqual([
+        ['CONFIG_INVALID', 1],
+        ['DISABLED', 5],
+      ]);
+      expect(line('risk_decision_total')[0]._aws.CloudWatchMetrics[0].Dimensions).toEqual([
+        ['Role', 'AiStatus'],
+      ]);
+      const [run] = line('reconciliation_runs_total');
+      expect(run).toMatchObject({ Role: 'api', Status: 'MISMATCH', reconciliation_runs_total: 1 });
+      expect(run._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role', 'Status']]);
+    });
+
+    it('TC-204-02 a label value that looks like an id or an e-mail is redacted, never written as it is', async () => {
+      const decisions = counter('risk_decision_total', ['ai_status']);
+      const { service, docs } = collect();
+      await service.start(T0);
+      decisions.inc({ ai_status: '3f2b8c1e-9a4d-4e21-8c7a-1b2c3d4e5f60' });
+      decisions.inc({ ai_status: 'an@example.com' });
+      await service.flush(T0 + MINUTE);
+      expect(docs.map(d => d.AiStatus)).toEqual(['redacted', 'redacted']);
+      expect(JSON.stringify(docs)).not.toMatch(/3f2b8c1e|example\.com/);
+    });
+  });
+
+  describe('distributions (BL-204)', () => {
+    const samplesOf = (docs: EmfDocument[], name: string) => docs.filter(d => names(d)[0] === name);
+
+    it('TC-204-03 recordDistribution writes the samples of a flush as Milliseconds under Role, and nothing else', async () => {
+      const { service, docs } = collect();
+      await service.start(T0);
+      service.recordDistribution('risk_transfer_to_flag_ms', 120);
+      service.recordDistribution('risk_transfer_to_flag_ms', 4800);
+      service.recordDistribution('risk_ai_call_duration_ms', 900);
+      await service.flush(T0 + MINUTE);
+
+      const [flag] = samplesOf(docs, 'risk_transfer_to_flag_ms');
+      expect(flag._aws.Timestamp).toBe(T0);
+      expect(flag._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role']]);
+      expect(flag._aws.CloudWatchMetrics[0].Metrics).toEqual([
+        { Name: 'risk_transfer_to_flag_ms', Unit: 'Milliseconds' },
+      ]);
+      expect(flag.Role).toBe('api');
+      // Bucket upper bounds, ascending: 120 -> 150, 4800 -> 5000 (the SLO threshold is a bound).
+      expect(flag.risk_transfer_to_flag_ms).toEqual([150, 5000]);
+      const [ai] = samplesOf(docs, 'risk_ai_call_duration_ms');
+      expect(ai.risk_ai_call_duration_ms).toEqual([1000]);
+      expect(Object.keys(ai).sort()).toEqual(['Role', '_aws', 'risk_ai_call_duration_ms']);
+    });
+
+    it('TC-204-03 a flush with no sample writes no distribution line, and the samples are not written twice', async () => {
+      const { service, docs } = collect();
+      await service.start(T0);
+      await service.flush(T0 + MINUTE);
+      expect(docs).toEqual([]);
+      service.recordDistribution('risk_transfer_to_flag_ms', 10);
+      await service.flush(T0 + 2 * MINUTE);
+      await service.flush(T0 + 3 * MINUTE);
+      expect(samplesOf(docs, 'risk_transfer_to_flag_ms')).toHaveLength(1);
+    });
+
+    it('TC-204-03 more than 100 samples are cut into lines of at most 100 values', async () => {
+      const { service, docs } = collect();
+      await service.start(T0);
+      // 250 samples in 3 different buckets so each value of a bucket is spelled out.
+      for (let i = 0; i < 250; i++) {
+        service.recordDistribution('risk_transfer_to_flag_ms', [10, 100, 1000][i % 3]);
+      }
+      await service.flush(T0 + MINUTE);
+      const lines = samplesOf(docs, 'risk_transfer_to_flag_ms');
+      expect(lines.length).toBeGreaterThanOrEqual(3);
+      const all = lines.flatMap(d => d.risk_transfer_to_flag_ms as number[]);
+      for (const line of lines) {
+        expect((line.risk_transfer_to_flag_ms as number[]).length).toBeLessThanOrEqual(100);
+      }
+      expect(all).toHaveLength(250);
+    });
+
+    it('TC-204-03 a name that is not on the list and a bad value are ignored', async () => {
+      const { service, docs } = collect();
+      await service.start(T0);
+      service.recordDistribution('anything_ms' as never, 5);
+      service.recordDistribution('risk_transfer_to_flag_ms', Number.NaN);
+      service.recordDistribution('risk_transfer_to_flag_ms', -1);
+      await service.flush(T0 + MINUTE);
+      expect(docs).toEqual([]);
+    });
+
+    it('TC-204-03 switched off, nothing is kept and nothing is written', async () => {
+      const docs: EmfDocument[] = [];
+      const off = make(false, doc => docs.push(doc)).service;
+      off.recordDistribution('risk_transfer_to_flag_ms', 10);
+      await off.flush(T0 + MINUTE);
+      expect(docs).toEqual([]);
     });
   });
 

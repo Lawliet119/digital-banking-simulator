@@ -4,6 +4,7 @@ import request from 'supertest';
 import type { DataSource, QueryRunner } from 'typeorm';
 import { RedisUnavailableError } from '@libs/redis';
 import type { SqsClient } from '@libs/sqs';
+import type { MetricsService } from '@common/metrics';
 import { TransactionService } from '@database/transaction.service';
 import { AuditService } from '@modules/audit/audit.service';
 import { RuleSetRepository, type RuleSetRedis } from '@modules/risk/config/rule-set.repository';
@@ -47,6 +48,8 @@ export function buildRiskConsumer(
     queueUrl?: string;
     sqs?: SqsClient;
     ai?: RiskAiService;
+    /** Real metrics service with a sink: the consumer then writes its EMF lines (BL-204). */
+    metrics?: MetricsService;
     make?: (...args: ConstructorParameters<typeof RiskScoringConsumer>) => RiskScoringConsumer;
   } = {},
 ): RiskConsumerParts {
@@ -78,6 +81,7 @@ export function buildRiskConsumer(
     audit,
     source,
     options.ai ?? new RiskAiService(),
+    options.metrics,
   ];
   const consumer = options.make ? options.make(...args) : new RiskScoringConsumer(...args);
   return { consumer, provider, scoring, audit, tx };

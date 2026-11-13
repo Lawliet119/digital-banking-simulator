@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { setTimeout as wait } from 'node:timers/promises';
+import { PinoLogger } from 'nestjs-pino';
 import { DataSource } from 'typeorm';
+import { MetricsService } from '@common/metrics';
+import type { EmfDocument } from '@common/metrics/emf';
 import request from 'supertest';
 import { TransactionService } from '@database/transaction.service';
 import { RedisClient, RedisMetrics } from '@libs/redis';
@@ -48,6 +51,8 @@ describe('DBS-111 transfer → flag through the real relay and consumer loops', 
   let redis: RedisClient;
   let relay: OutboxRelayService;
   let parts: RiskConsumerParts;
+  let metrics: MetricsService;
+  const emf: EmfDocument[] = [];
   let app: Awaited<ReturnType<typeof startDepositApp>>;
   let fx: ReturnType<typeof riskFixtures>;
   let riskUrl: string;
@@ -100,7 +105,15 @@ describe('DBS-111 transfer → flag through the real relay and consumer loops', 
       riskQueueUrl: riskUrl,
       notificationQueueUrl: notificationUrl,
     });
+    metrics = new MetricsService(
+      { enabled: true, flushMs: 600_000 },
+      { role: 'worker' } as never,
+      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
+      doc => emf.push(doc),
+    );
+    await metrics.start();
     parts = buildRiskConsumer(source, {
+      metrics,
       redis,
       sqs,
       queueUrl: riskUrl,
@@ -171,6 +184,26 @@ describe('DBS-111 transfer → flag through the real relay and consumer loops', 
     };
     console.log(`DBS-111 transfer → flag ms: ${JSON.stringify(summary)}`);
     expect(summary.p95).toBeLessThan(5000);
+
+    // BL-204: the same measure as the metric the consumer wrote while the loops ran.
+    const names = (d: EmfDocument) => d._aws.CloudWatchMetrics[0].Metrics.map(m => m.Name);
+    const flagSamples = () =>
+      emf
+        .filter(d => names(d).includes('risk_transfer_to_flag_ms'))
+        .flatMap(d => d.risk_transfer_to_flag_ms as number[]);
+    // The metric is recorded right after the commit that made the flag visible: poll until it is in.
+    await until(async () => {
+      await metrics.flush();
+      return flagSamples().length >= SOURCES;
+    }, 'the flag latency samples');
+    const samples = flagSamples().sort((a, b) => a - b);
+    expect(samples).toHaveLength(SOURCES);
+    // A bucket bound is never lower than the real latency, and p95 stays under the 5 s SLO.
+    expect(samples[samples.length - 1]).toBeGreaterThanOrEqual(summary.max);
+    expect(samples[Math.ceil(0.95 * SOURCES) - 1]).toBeLessThanOrEqual(5000);
+    const decisions = emf.filter(d => names(d).includes('risk_decision_total'));
+    expect(new Set(decisions.map(d => d.AiStatus))).toEqual(new Set(['DISABLED']));
+    expect(decisions.reduce((sum, d) => sum + Number(d.risk_decision_total), 0)).toBe(SOURCES);
 
     const rows = await q<{ score: number; risk_level: string; rules: string }>(
       `SELECT f.score, f.risk_level, string_agg(h.rule_id, ',' ORDER BY h.rule_id) AS rules

@@ -8,6 +8,7 @@ import {
   StartMessageMoveTaskCommand,
 } from '@aws-sdk/client-sqs';
 import { PinoLogger } from 'nestjs-pino';
+import { register } from 'prom-client';
 import { DataSource, type EntityManager } from 'typeorm';
 import type { DomainEvent } from '@common/events';
 import { dlqUrlFor } from '@common/messaging';
@@ -18,6 +19,7 @@ import { NotificationConsumer } from '@modules/notification';
 import { OutboxRelayService } from '@modules/outbox';
 import { AuditService } from '@modules/audit';
 import { RiskScoringConsumer } from '@modules/risk/risk-scoring.consumer';
+import { R3NewAccountLargeTransferRule } from '@modules/risk/rules/r3-new-account-large-transfer.rule';
 import { checkLedgerInvariants } from '../support/invariants';
 import { startDepositApp } from '../support/deposit-app';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
@@ -37,6 +39,21 @@ class CountingRisk extends RiskScoringConsumer {
     this.handled.set(eventIdOf(body), (this.handled.get(eventIdOf(body)) ?? 0) + 1);
     return super.handle(body, message);
   }
+}
+
+/** The risk consumer with no backoff and a 1-second visibility, so five receives take seconds. */
+class QuickRetryRisk extends CountingRisk {
+  protected override get retryBackoffSeconds(): number {
+    return 0;
+  }
+  override consumeOnce(waitTimeSeconds = 1, visibilityTimeout = 1): Promise<BatchResult[]> {
+    return super.consumeOnce(waitTimeSeconds, visibilityTimeout);
+  }
+}
+
+async function ruleErrors(rule: string): Promise<number> {
+  const values = (await register.getSingleMetric('risk_rule_error_total')?.get())?.values ?? [];
+  return values.find(v => v.labels.rule === rule)?.value ?? 0;
 }
 
 /**
@@ -190,6 +207,15 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
     });
     return start(parts.consumer as CountingRisk);
   }
+  function quickRisk(): QuickRetryRisk {
+    const parts = buildRiskConsumer(source, {
+      redis,
+      sqs,
+      queueUrl: riskUrl,
+      make: (...args) => new QuickRetryRisk(...args),
+    });
+    return start(parts.consumer as QuickRetryRisk);
+  }
   /** AC-9.1 source: new account, 21M deposited, consumed by both queues before the test acts. */
   async function ac91Source() {
     const from = await fx.customer('Trần Văn An');
@@ -331,6 +357,47 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
     }
     expect(await n('notification_log WHERE event_id = $1', [eventId])).toBe(2);
     expect(await n('fraud_flags WHERE transfer_id = $1', [transferId])).toBe(1);
+  });
+
+  it('TC-046-01 a rule that throws is received 5 times, writes nothing, counts risk_rule_error_total{R3} each time and ends in the risk DLQ (ADR-14, BL-046)', async () => {
+    relay();
+    const failing = quickRisk();
+    const healthy = notification();
+    const s = await ac91Source(); // deposits are never scored: the rule is only reached by the transfer
+    const before = await ruleErrors('R3');
+    const evaluate = jest
+      .spyOn(R3NewAccountLargeTransferRule.prototype, 'evaluate')
+      .mockImplementation(() => {
+        throw new Error('rule bug');
+      });
+    try {
+      const transferId = await fx.transfer(s.token, s.from, s.to, '20000000');
+      const eventId = String((await eventFor(db.runner, transferId)).eventId);
+      await until(
+        async () =>
+          (failing.handled.get(eventId) ?? 0) >= 5 &&
+          (await onQueue(riskUrl)) === 0 &&
+          (await onQueue(dlqUrlFor(riskUrl))) === 1,
+        'the failing rule to be dead-lettered',
+      );
+
+      expect(failing.handled.get(eventId)).toBe(5);
+      expect(evaluate).toHaveBeenCalledTimes(5);
+      expect(await ruleErrors('R3')).toBe(before + 5);
+      const dead = (await peek(dlqUrlFor(riskUrl))).filter(m => m.body.includes(eventId));
+      expect(dead).toHaveLength(1);
+      // Rolled back every time: no claim, no decision, no flag, no audit row.
+      expect(await n("processed_events WHERE consumer = 'risk' AND event_id = $1", [eventId])).toBe(
+        0,
+      );
+      expect(await n('risk_decisions WHERE transfer_id = $1', [transferId])).toBe(0);
+      expect(await n('fraud_flags WHERE transfer_id = $1', [transferId])).toBe(0);
+      // The other consumer was not held up.
+      expect(healthy.handled.get(eventId)).toBe(1);
+      expect(await onQueue(dlqUrlFor(notificationUrl))).toBe(0);
+    } finally {
+      evaluate.mockRestore();
+    }
   });
 
   it('TC-125-03 the runbook redrive (explicit destination ARN) brings the message back for exactly one successful handling', async () => {

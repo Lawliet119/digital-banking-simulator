@@ -14,6 +14,7 @@ import { appConfig } from '@config/app.config';
 import { metricsConfig } from '@config/metrics.config';
 import {
   buildEmf,
+  splitSamples,
   type EmfDimensionName,
   type EmfDocument,
   type EmfSpec,
@@ -21,6 +22,7 @@ import {
 } from './emf';
 import { createHttpMetricsMiddleware } from './http-metrics.middleware';
 import { HttpStats, toEmfSpecs } from './http-stats';
+import { LatencyHistogram } from './latency-histogram';
 
 /** Where finished EMF lines go; a test injects its own. The default is the application logger. */
 export const EMF_SINK = 'EMF_SINK';
@@ -53,7 +55,25 @@ const COUNTERS: CounterSpec[] = [
   { name: 'rate_limited_total', labels: { scope: 'Scope' } },
   { name: 'risk_redis_fallback_total', labels: { rule: 'Rule', reason: 'Reason' } },
   { name: 'risk_config_redis_fallback_total', labels: {} },
+  // BL-204/BL-207/BL-046: the scoring half of risk. Every label value is one of a fixed set (rule
+  // R1..R6, an `ai_status` of the schema), enforced where the counter is incremented.
+  { name: 'risk_rule_error_total', labels: { rule: 'Rule' } },
+  { name: 'risk_decision_total', labels: { ai_status: 'AiStatus' } },
+  // BL-127: one increment per reconciliation run that was recorded; `status` is OK, MISMATCH or ERROR.
+  { name: 'reconciliation_runs_total', labels: { status: 'Status' } },
 ];
+
+/**
+ * Distributions a module may feed with `recordDistribution` (BL-204). Each one is a latency in
+ * milliseconds, written per flush as samples (at most 100 per EMF line) under the dimension
+ * `Role`. A name is listed here, not made up by the caller, so no label or metric can hold data
+ * about a person.
+ */
+export const DISTRIBUTION_METRICS = [
+  'risk_transfer_to_flag_ms',
+  'risk_ai_call_duration_ms',
+] as const;
+export type DistributionMetric = (typeof DISTRIBUTION_METRICS)[number];
 
 const PASS_THROUGH: RequestHandler = (_req, _res, next) => next();
 
@@ -71,6 +91,10 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
   private readonly gauges: Gauge[] = [];
   /** Gauges whose last read has not finished: never read twice at once. */
   private readonly pending = new Set<string>();
+  /** Latencies recorded since the last flush; same buckets as HTTP, so memory does not grow. */
+  private readonly distributions = new Map<DistributionMetric, LatencyHistogram>(
+    DISTRIBUTION_METRICS.map(name => [name, new LatencyHistogram()]),
+  );
   private baseline = new Map<string, number>();
   private intervalStart = 0;
   private timer: NodeJS.Timeout | undefined;
@@ -90,6 +114,16 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
 
   registerGauge(gauge: Gauge): void {
     this.gauges.push(gauge);
+  }
+
+  /**
+   * Adds one latency (milliseconds) to a distribution; the next flush writes it. A percentile of
+   * the result is the upper bound of the bucket it falls in (see `LatencyHistogram`), never lower
+   * than the real one. Switched off, it does nothing, like the HTTP middleware.
+   */
+  recordDistribution(name: DistributionMetric, milliseconds: number): void {
+    if (!this.config.enabled) return;
+    this.distributions.get(name)?.record(milliseconds);
   }
 
   async onApplicationBootstrap(): Promise<void> {
@@ -132,10 +166,27 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
       for (const group of this.stats.drain()) {
         for (const spec of toEmfSpecs(group, timestamp)) this.emit(spec, now);
       }
+      this.writeDistributions(timestamp, now);
       await this.writeCounters(timestamp, now);
       if (withGauges) await this.writeGauges(now);
     } catch (error) {
       this.logger.warn({ errorName: errorName(error) }, 'Metric flush failed');
+    }
+  }
+
+  private writeDistributions(timestamp: number, now: number): void {
+    for (const [name, histogram] of this.distributions) {
+      for (const piece of splitSamples(histogram.drain().samples)) {
+        this.emit(
+          {
+            timestamp,
+            dimensions: { Role: this.app.role },
+            dimensionSets: [['Role']],
+            metrics: [{ name, unit: 'Milliseconds', value: piece }],
+          },
+          now,
+        );
+      }
     }
   }
 
