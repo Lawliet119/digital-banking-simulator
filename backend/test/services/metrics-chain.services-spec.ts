@@ -72,7 +72,7 @@ describe('metrics across API, outbox and relay (real PostgreSQL + ElasticMQ)', (
   afterAll(async () => {
     await metrics?.onApplicationShutdown();
     await app?.close();
-    sqs?.onModuleDestroy();
+    sqs?.onApplicationShutdown();
     await source?.destroy();
     await db?.drop();
     await mq?.stop();

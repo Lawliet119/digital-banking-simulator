@@ -107,7 +107,8 @@ output "sqs_notification_queue_url" {
   value = aws_sqs_queue.main["notification"].url
 }
 
-# Chưa có biến app tương ứng (bàn giao DBS-77/DBS-90: consumer gửi message sai schema vào DLQ).
+# Không có biến app tương ứng: app suy URL DLQ bằng dlqUrlFor(queueUrl) = "<queueUrl>-dlq"
+# (backend/src/common/messaging/consumer-base.ts, khớp tên ở sqs.tf). Hai output này dành cho người vận hành.
 output "sqs_risk_dlq_url" {
   value = aws_sqs_queue.dlq["risk"].url
 }

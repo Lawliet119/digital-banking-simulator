@@ -28,7 +28,7 @@ describe('DBS-77 real SQS protocol on ElasticMQ', () => {
     adapter = new SqsClient({ region: 'us-east-1', endpoint: mq.endpoint });
   });
   afterAll(async () => {
-    adapter?.onModuleDestroy();
+    adapter?.onApplicationShutdown();
     admin?.destroy();
     await mq?.stop();
     if (oldKey === undefined) delete process.env.AWS_ACCESS_KEY_ID;

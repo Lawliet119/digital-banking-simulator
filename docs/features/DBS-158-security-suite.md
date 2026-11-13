@@ -1,6 +1,6 @@
 # DBS-158 · Test bảo mật tập trung: truy cập chéo, auditor chỉ đọc, khách không thấy cờ
 
-> **Trạng thái:** Kiểm chứng cục bộ; chờ CI và Dev review (DoD 3 «kịch bản Demo 4 ghi lại» chưa làm: BL-237) · **Vai:** Dev · **Nhánh:** `test/DBS-158-security-suite` · **PR:** [#136](https://github.com/Lawliet119/digital-banking-simulator/pull/136) · **Cập nhật:** 2026-11-11
+> **Trạng thái:** Kiểm chứng cục bộ; chờ CI và Dev review (DoD 3 «kịch bản Demo 4 ghi lại»: đã viết ở [docs/demos/demo-4-security-audit.md](../demos/demo-4-security-audit.md), BL-237) · **Vai:** Dev · **Nhánh:** `test/DBS-158-security-suite` · **PR:** [#136](https://github.com/Lawliet119/digital-banking-simulator/pull/136) · **Cập nhật:** 2026-11-11
 
 > **Ghi chú về lịch sử (2026-11-11):** bản đầu của PR có bảy test lặp lại các test đã có trên `main` và yếu hơn (TC-86-02/03, TC-87-06, TC-61-03, TC-65-05, TC-159-01, TC-87-09), không chứng minh DoD 2, bằng chứng thủ công gắn sai SHA, và gây xung đột ở `deposit-app.ts` (option `auditHttp` trùng option `audit` của #138). Một review độc lập (subagent, 2026-11-11) chỉ ra điều đó; bản này giữ **phần mới thật sự** và trỏ tới các test cũ. G1 đến G3 và domain review độc lập lúc làm bản đầu không được ghi; không dựng lại dấu vết đó.
 
@@ -15,7 +15,7 @@
 - **Phụ thuộc:** DBS-86, DBS-103 Done; **DBS-131 ghi `In Review` trên board** (không phải Done): phần AC-10.2 dựa vào test của DBS-87/DBS-131 đã có trên `main`.
 - **Đã có trên `main` (không viết lại):** AC-5.8 qua TC-86-02/03 (`resource-ownership.db-spec.ts`), TC-87-06 (`transaction-history.db-spec.ts`), TC-61-03 (`customer-transfers.db-spec.ts`), TC-65-05 (`money-flow.db-spec.ts`), TC-159-01/03 (`auth-attacks.db-spec.ts`); AC-8.1 qua `audit-search.http.db-spec.ts`; AC-10.2 qua TC-87-09 (`transfer-status.db-spec.ts`, `transaction-history.db-spec.ts`) và `fraud-operator-http.db-spec.ts`.
 - **Phần mới của task này:** (a) DoD 2: mọi lỗi 401/403/404/400 và route lạ là `application/problem+json` có `correlationId` và không lộ stack, SQL hay đường dẫn nội bộ; (b) AC-8.1 rộng hơn: auditor bị từ chối (403 `FORBIDDEN`) trên **mọi** route ghi (bảy route), và không bảng nào đổi (`transfers`, `ledger_entries`, `accounts`, `customers`, `outbox_events`, `fraud_flags`, `audit_log`); (c) suite nằm ở `backend/test/security` như DoD 1 và được `test:db` chạy (regex của `jest-db.js` mở thêm `test/security`).
-- **Quyết định (agent tự quyết):** không lặp lại test có sẵn; ghi tham chiếu ở đây. DoD 3 «kịch bản Demo 4» chưa làm (BL-237).
+- **Quyết định (agent tự quyết):** không lặp lại test có sẵn; ghi tham chiếu ở đây. DoD 3 «kịch bản Demo 4» viết sau ở `docs/demos/demo-4-security-audit.md` (BL-237).
 - **Ngoài phạm vi:** kịch bản Demo 4, 403 của `RolesGuard` chưa ghi audit `DENIED` (BL-132), phần cloud.
 
 ## 2. Hành vi
@@ -36,7 +36,7 @@
 | TC-158-01 | DoD 2 | integration (PostgreSQL thật) | S1 |
 | TC-158-02 | DoD 1 (AC-8.1) | integration | S2 |
 | TC-158-03 | DoD 1 (AC-5.8, AC-10.2) | tham chiếu | TC-86-02/03, TC-87-06, TC-61-03, TC-65-05, TC-159-01/03, TC-87-09: đã có trên `main`, không viết lại |
-| TC-158-04 | DoD 3 | quy trình | mỗi test có id; CI chạy `test:db` (job `db`); Demo 4: BL-237 |
+| TC-158-04 | DoD 3 | quy trình | mỗi test có id; CI chạy `test:db` (job `db`); Demo 4: `docs/demos/demo-4-security-audit.md` (BL-237) |
 | TC-158-05 | DoD 4 | quy trình | PR merge, CI xanh, Dev review |
 
 ## 5. Test thủ công
@@ -54,8 +54,8 @@ Một commit viết lại test và doc, một commit bằng chứng. Lùi: rever
 ## 8. Kết quả
 
 - `test/security/security-boundaries.db-spec.ts`: 2 test đạt trên PostgreSQL thật; lint và typecheck sạch.
-- **Chưa làm:** kịch bản Demo 4 (DoD 3), ảnh chụp (đầu ra là log test), review độc lập thứ hai, DoD 4.
-- **Bàn giao:** BL-237 (kịch bản Demo 4 ghi lại, dùng các test nêu ở §1).
+- **Chưa làm:** ảnh chụp (đầu ra là log test), review độc lập thứ hai, DoD 4.
+- **Bàn giao:** BL-237 đã xử lý (2026-11-13): kịch bản Demo 4 ghi ở [docs/demos/demo-4-security-audit.md](../demos/demo-4-security-audit.md), trỏ tới các test nêu ở §1 (kèm file và id test case, đã kiểm bằng `git grep` và chạy lại) và lệnh chạy bộ test. Phần chạy tay của kịch bản chưa được quay hay chạy trọn một lượt; trạng thái Draft ghi trong chính tài liệu đó.
 
 ## 9. Tài liệu đã cập nhật
 
