@@ -17,7 +17,9 @@ HERE = pathlib.Path(__file__).resolve().parent
 SCRIPT = HERE.parent / "demo-token.sh"
 
 PASSWORD = "Kh0ng-Dung-That-Xyzzy-7391!"
-TOKEN = "eyJhbGciOiJSUzI1NiJ9.eyJjb2duaXRvOmdyb3VwcyI6WyJvcGVyYXRvciJdfQ.c2lnbmF0dXJl"
+# JWT giả (header, payload {"cognito:groups":["operator"]}, chữ ký "signature"), dựng từ ba đoạn rời để gitleaks
+# (luật `jwt`) không báo dương tính giả trên một chuỗi không phải bí mật.
+TOKEN = ".".join(["eyJhbGciOiJSUzI1NiJ9", "eyJjb2duaXRvOmdyb3VwcyI6WyJvcGVyYXRvciJdfQ", "c2lnbmF0dXJl"])
 CLIENT = "7abcdefghijklmnopqrstuvwxy"
 
 FAKE_AWS = r'''#!/usr/bin/env python3
