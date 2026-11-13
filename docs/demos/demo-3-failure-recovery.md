@@ -20,8 +20,10 @@ Demo bắt buộc "Failure / recovery" ([docs/03 §17](../03_HIGH_LEVEL_ARCHITEC
 
   ```bash
   docker run -d --name demo3-mq -p 9334:9324 \
-    -v "$PWD/infra/local/elasticmq.conf:/opt/elasticmq.conf:ro" softwaremill/elasticmq-native:latest
+    -v "$PWD/infra/local/elasticmq.conf:/opt/elasticmq.conf:ro"     softwaremill/elasticmq-native@sha256:e4580ab9ad1bd5cd37b4ba04911bc5ccc8cd2d9ab4de56ece65acee71c24e05c
   ```
+
+  Image ghim digest (BL-225): đúng bản mà DBS-125 đã thử (redrive, `list-message-move-tasks` làm ElasticMQ sập). Không đổi về `:latest`; muốn nâng bản thì làm theo [runbook DLQ, mục "Nâng image ElasticMQ"](../runbooks/dlq-redrive.md#nâng-image-elasticmq) trước.
 
   Đặt cho cả hai process:
   - `SQS_ENDPOINT=http://localhost:9334`

@@ -22,7 +22,7 @@ Không log body/attribute/receipt handle/lỗi. `send`/`receive` lỗi SDK thì 
 
 ## 3. Kiến trúc
 
-`@libs/sqs` export `SqsClient` và `SqsModule`. `SqsClient` là `Injectable`, nhận `sqsConfig` qua DI, tạo một `AwsClient` SDK, đóng nó ở `onModuleDestroy`. `SqsModule` đăng ký `ConfigModule.forFeature(sqsConfig)`, export `SqsClient`; module khác phải tự import, không có trong `AppModule` hay worker loop ở task này. Chuyển `@aws-sdk/client-sqs` từ `devDependencies` sang `dependencies` ở version khóa cũ (`^3.1156.0`, lock thực tế `3.1157.0`), không nâng version SDK.
+`@libs/sqs` export `SqsClient` và `SqsModule`. `SqsClient` là `Injectable`, nhận `sqsConfig` qua DI, tạo một `AwsClient` SDK, đóng nó ở `onApplicationShutdown` (ban đầu là `onModuleDestroy`; đổi ở BL-249 để relay/consumer dừng vòng lặp trước). `SqsModule` đăng ký `ConfigModule.forFeature(sqsConfig)`, export `SqsClient`; module khác phải tự import, không có trong `AppModule` hay worker loop ở task này. Chuyển `@aws-sdk/client-sqs` từ `devDependencies` sang `dependencies` ở version khóa cũ (`^3.1156.0`, lock thực tế `3.1157.0`), không nâng version SDK.
 
 ```mermaid
 sequenceDiagram

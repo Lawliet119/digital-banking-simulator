@@ -231,4 +231,55 @@ describe('Role forgery is refused (e2e, security)', () => {
       expect(denialLines()).toHaveLength(0);
     });
   });
+
+  // BL-132: the guard hands every 403 to the audit port. The row itself (action, target, reason,
+  // one row per 403) is proved against PostgreSQL in test/db/auth-attacks.db-spec.ts.
+  describe('TC-51-33 the audit hand-over on the real app (BL-132)', () => {
+    beforeEach(() => {
+      ctx.denials.denials.length = 0;
+      ctx.denials.failure = undefined;
+    });
+
+    it('hands over exactly one denial per 403, with the user, the derived roles, the route template and the response correlationId', async () => {
+      const token = await ctx.tokenFor(['customer'], { sub: 'sub-denial-owner' });
+
+      const res = await bearer(
+        request(ctx.server).get('/v1/sample/admin?role=admin&x=secret'),
+        token,
+      );
+
+      expectForbidden(res);
+      expect(ctx.denials.denials).toEqual([
+        {
+          userId: ctx.userIdFor('sub-denial-owner'),
+          roles: ['customer'],
+          method: 'GET',
+          route: '/v1/sample/admin',
+          correlationId: res.headers['x-correlation-id'],
+        },
+      ]);
+      expect(JSON.stringify(ctx.denials.denials)).not.toContain('secret');
+    });
+
+    it('hands over nothing for an allowed request or a 401', async () => {
+      const token = await ctx.tokenFor(['admin']);
+
+      await bearer(request(ctx.server).get('/v1/sample/admin'), token).expect(200);
+      await request(ctx.server).get('/v1/sample/admin').expect(401);
+
+      expect(ctx.denials.denials).toHaveLength(0);
+    });
+
+    it('answers 500, not a bare 403, when the denial cannot be recorded, and still never runs the handler', async () => {
+      ctx.denials.failure = new Error('connection terminated');
+      const token = await ctx.tokenFor(['customer']);
+
+      const res = await bearer(request(ctx.server).get('/v1/sample/admin'), token);
+
+      expect(res.status).toBe(500);
+      expect(res.body).not.toMatchObject({ errorCode: ErrorCode.FORBIDDEN });
+      expect(JSON.stringify(res.body)).not.toContain('connection terminated');
+      expect(ctx.calls.total()).toBe(0);
+    });
+  });
 });

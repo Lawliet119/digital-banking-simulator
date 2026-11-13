@@ -14,7 +14,6 @@ export class R1VelocityRule implements RiskRule {
     if ((event.type as string) !== 'TRANSFER') return null;
 
     const { maxTransfers, windowMinutes } = params.thresholds;
-    const count = features.txCount10m;
     if (
       typeof params.enabled !== 'boolean' ||
       !Number.isInteger(params.weight) ||
@@ -23,14 +22,17 @@ export class R1VelocityRule implements RiskRule {
       typeof maxTransfers !== 'number' ||
       !Number.isSafeInteger(maxTransfers) ||
       maxTransfers < 0 ||
-      windowMinutes !== WINDOW_MINUTES ||
-      !Number.isSafeInteger(count) ||
-      count < 1
+      windowMinutes !== WINDOW_MINUTES
     ) {
       throw new Error('Invalid R1 velocity input or configuration');
     }
 
-    if (!params.enabled || count <= maxTransfers) return null;
+    if (!params.enabled) return null; // a switched-off rule judges only its configuration (BL-207(a))
+    const count = features.txCount10m;
+    if (!Number.isSafeInteger(count) || count < 1) {
+      throw new Error('Invalid R1 velocity input or configuration');
+    }
+    if (count <= maxTransfers) return null;
     return {
       id: this.id,
       weight: params.weight,

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { StartedTestContainer } from 'testcontainers';
 
 const mockSend = jest.fn();
@@ -23,6 +25,7 @@ jest.mock('./postgres.container', () => {
 });
 
 import {
+  ELASTICMQ_IMAGE,
   ELASTICMQ_PROBE_TIMEOUT_MS,
   probeRiskQueue,
   startElasticMqContainer,
@@ -70,5 +73,37 @@ describe('startElasticMqContainer Docker-down short-circuit (TC-40-09, DBS-40 v�
 
     expect(GenericContainerMock).not.toHaveBeenCalled();
     expect(mockSend).not.toHaveBeenCalled();
+  });
+});
+
+describe('TC-BL225-01 image ElasticMQ ghim digest đã thử ở DBS-125', () => {
+  const TESTED_DIGEST = 'sha256:e4580ab9ad1bd5cd37b4ba04911bc5ccc8cd2d9ab4de56ece65acee71c24e05c';
+  const repoRoot = resolve(__dirname, '../../..');
+
+  it('hằng số ELASTICMQ_IMAGE ghim đúng digest đã thử, không dùng :latest', () => {
+    expect(ELASTICMQ_IMAGE).toBe(`softwaremill/elasticmq-native@${TESTED_DIGEST}`);
+    expect(ELASTICMQ_IMAGE).not.toContain(':latest');
+  });
+
+  it('startElasticMqContainer tạo container từ ELASTICMQ_IMAGE, không chuỗi :latest viết tay', () => {
+    const source = readFileSync(resolve(__dirname, 'elasticmq.container.ts'), 'utf8');
+    expect(source).toContain('new GenericContainer(ELASTICMQ_IMAGE)');
+    expect(source).not.toMatch(/elasticmq-native:latest/);
+  });
+
+  it('docker-compose.yml dùng cùng image với test', () => {
+    const compose = readFileSync(resolve(repoRoot, 'docker-compose.yml'), 'utf8');
+    const lines = compose.split(/\r?\n/).map(line => line.trim());
+    expect(lines).toContain(`image: ${ELASTICMQ_IMAGE}`);
+    expect(compose).not.toMatch(/elasticmq-native:latest/);
+  });
+
+  it('lệnh docker run trong tài liệu hiện hành (Demo 3, runbook DLQ) không kéo :latest', () => {
+    for (const doc of ['docs/demos/demo-3-failure-recovery.md', 'docs/runbooks/dlq-redrive.md']) {
+      const text = readFileSync(resolve(repoRoot, doc), 'utf8');
+      expect(text).not.toMatch(/elasticmq-native:latest/);
+    }
+    const demo = readFileSync(resolve(repoRoot, 'docs/demos/demo-3-failure-recovery.md'), 'utf8');
+    expect(demo).toContain(ELASTICMQ_IMAGE);
   });
 });

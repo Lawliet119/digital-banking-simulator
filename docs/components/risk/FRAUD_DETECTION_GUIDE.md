@@ -132,17 +132,21 @@ history = amountsFrom(fromAccountId, last = 30d, before = occurredAt)
 skip if history.length < 5
 median = percentile50(history)
 hit if amount > 5 * median
-explain: `Số tiền ${amount} gấp ${amount/median}× trung vị 30 ngày (${median})`
+// bội số = (200n * amount) / medianTimes2 (bigint, làm tròn xuống 2 chữ số thập phân);
+// khi chỉ vượt ngưỡng chút ít thì ghi `hơn <ngưỡng>` thay vì số làm tròn
+explain: `Số tiền ${dong(amount)} gấp ${bội số}× trung vị 30 ngày (${dongHalf(medianTimes2)})`
+// ví dụ: `Số tiền 50.000.000đ gấp 12,5× trung vị 30 ngày (4.000.000đ)`
 
 // R3 — tài khoản mới chuyển lớn
-age = occurredAt - fromAccountCreatedAt
+age = max(0, occurredAt - fromAccountCreatedAt)   // tuổi âm (đồng hồ lùi) coi là 0 và vẫn chấm
 hit if age < 24h && amount > 10_000_000
-explain: `Tài khoản mở ${age} trước, chuyển ${amount}`
+explain: `Tài khoản mở ${age làm tròn xuống} trước, chuyển ${dong(amount)}`
 
 // R4 — chuyển vòng
 hit if exists transfer(from = toAccountId, to = fromAccountId, status = COMPLETED,
                        createdAt in [occurredAt - 1h, occurredAt))
-explain: `Tài khoản đích đã chuyển ngược lại ${x} phút trước`
+// lệnh ngược tại hoặc sau occurredAt là lỗi provider: ném lỗi, không trả null (ADR-14)
+explain: `Tài khoản đích đã chuyển ngược lại khoảng ${phút, làm tròn xuống 2 chữ số} phút trước`
 
 // R5 — fan-out
 newRecipients = distinctNewRecipients(fromAccountId, window = 1h, until = occurredAt)
@@ -151,8 +155,13 @@ explain: `${n} người nhận mới trong 1 giờ (ngưỡng 5)`
 
 // R6 — rút cạn
 hit if !sameOwner && fromBalanceBefore >= 1_000_000n && amount * 10n >= fromBalanceBefore * 9n
-explain: `Chuyển ${pct}% số dư (${amount}/${fromBalanceBefore})`
+explain: `Chuyển xấp xỉ ${pct}% số dư (${dong(amount)}/${dong(fromBalanceBefore)}).`
+// pct = amount * 10_000n / fromBalanceBefore (bigint, làm tròn xuống): 99,996% hiện «99,99», không «100,00»
 ```
+
+**Định dạng explanation (R1–R6):** một bộ định dạng chung ở `backend/src/modules/risk/rules/explanation-format.ts`. `dong(x)` là số đồng nguyên có dấu chấm ngăn nghìn và hậu tố `đ` (`20.000.000đ`); `dongHalf` thêm `,5` cho trung vị nửa đồng (`1.000.000,5đ`); số thập phân dùng **dấu phẩy** (`12,5`, `99,99`). Mọi phép chia hiển thị làm tròn **xuống** để câu chữ không nói quá sự thật. Tất cả tính bằng bigint, không qua `Number`.
+
+**Luật tắt:** luật `enabled = false` chỉ kiểm cấu hình rồi trả `null`; không kiểm dữ liệu provider. Nhờ đó tắt luật bằng phiên bản mới cứu được consumer khi provider phát dữ liệu hỏng. Luật bật mà gặp dữ liệu hỏng thì ném lỗi (ADR-14).
 
 **Tiền và thời gian chính xác:** `amount`/`fromBalanceBefore` trên wire là chuỗi đồng canonical, parse qua `@common/money`; nội bộ bigint/numeric, không `Number`, `parseInt`, `percentile_cont` trả floating-point hay `0.9 * number` để so luật. R2 với số lịch sử chẵn phải giữ trung vị nửa đồng chính xác (numeric hoặc tử số/2), không làm tròn. Lịch sử dùng bound theo `occurredAt = transfers.created_at`, không giờ worker; R1 đếm cả lệnh hiện tại đúng một lần, R2/R4 chỉ lịch sử trước event. R3/R6 tuyệt đối không thay snapshot bằng tuổi/số dư hiện tại. Các đoạn TypeScript ở đây là giả mã.
 
@@ -252,7 +261,7 @@ Mỗi cờ lưu: giao dịch, điểm, mức, **phiên bản luật đã dùng**
   "ruleSetVersion": 3,
   "hits": [
     { "ruleId": "R3", "explanation": "Tài khoản mở 3 giờ trước, chuyển 20.000.000đ" },
-    { "ruleId": "R6", "explanation": "Chuyển 96% số dư (20.000.000/20.800.000)" }
+    { "ruleId": "R6", "explanation": "Chuyển xấp xỉ 96,15% số dư (20.000.000đ/20.800.000đ)." }
   ],
   "reviewStatus": "OPEN"
 }

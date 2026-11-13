@@ -5,6 +5,7 @@ import {
   OutboxCleanupService,
   PROCESSED_BATCH_SQL,
 } from '@modules/outbox/outbox-cleanup.service';
+import { clearOutbox } from '../support/outbox-fixtures';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 
 /**
@@ -65,7 +66,7 @@ describe('outbox cleanup job (real PostgreSQL)', () => {
     await db?.drop();
   });
   beforeEach(async () => {
-    await q('DELETE FROM outbox_events');
+    await clearOutbox(q);
     await q('DELETE FROM processed_events');
   });
 

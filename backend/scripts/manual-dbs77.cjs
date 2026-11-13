@@ -39,6 +39,6 @@ async function main(){
 }
 main().catch(error=>{log('FAILED: '+error.name);process.exitCode=1}).finally(async()=>{
   for(const queue of queues){try{await sdk.send(new DeleteQueueCommand({QueueUrl:queue}));log('Deleted isolated queue '+new URL(queue).pathname)}catch(error){log('Cleanup FAILED: '+error.name);process.exitCode=1}}
-  client.onModuleDestroy();sdk.destroy();if(!process.exitCode)log('M-77-06 cleanup PASS');
+  client.onApplicationShutdown();sdk.destroy();if(!process.exitCode)log('M-77-06 cleanup PASS');
   const dir=resolve(root,'docs/features/screenshots/DBS-77');mkdirSync(dir,{recursive:true});writeFileSync(resolve(dir,'manual-test.txt'),lines.join('\n')+'\n');
 });

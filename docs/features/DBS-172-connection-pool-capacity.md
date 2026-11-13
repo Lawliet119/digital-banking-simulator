@@ -21,7 +21,7 @@
 
 Công thức chuẩn (docs/03 §13.2): `số task × DATABASE_POOL_MAX + 5 ≤ max_connections dùng được`. Với micro: dùng được 79 − 3 (superuser) − 2 (reserved) = 74; `6 × 10 + 5 = 65 ≤ 74`. Hạng mục chưa có trong công thức cũ và nay được ghi: kết nối ngoài pool của cổng AI (`số task worker × RISK_AI_CONCURRENCY`), hệ số 2 lúc rolling deploy (ECS mặc định 200%, không đặt `deployment_maximum_percent`), và việc `DBInstanceClassMemory` nhỏ hơn RAM danh định (nên không suy `max_connections` từ RAM danh định).
 
-**Hệ quả được test ghim:** ở `desired_count` tối đa (6) một lần deploy có thể tạm chạy 12 task, `2 × 6 × 10 + 5 = 125 > 74`: không vừa micro. Đây là rủi ro thật chưa được xử lý (BL-234).
+**Hệ quả được test ghim:** nếu giữ mặc định 200% thì ở `desired_count` tối đa (6) một lần deploy có thể tạm chạy 12 task, `2 × 6 × 10 + 5 = 125 > 74`: không vừa micro. Đã xử lý ở BL-234: service `api` đặt `deployment_maximum_percent = 100` (xem §8).
 
 ## 3. Kiến trúc
 
@@ -32,7 +32,7 @@ Công thức chuẩn (docs/03 §13.2): `số task × DATABASE_POOL_MAX + 5 ≤ m
 | ID | Truy vết | Lớp | Given · When · Then |
 |---|---|---|---|
 | TC-172-01 | DoD 1, 2 | unit | pool mặc định (đọc từ schema) × `desired_count` tối đa (đọc từ Terraform) + 5 ≤ 74 |
-| TC-172-02 | DoD 2 (kiểm khi scale) | unit | gấp đôi task lúc rolling deploy vượt 74: ghim sự thật, đổi một trong hai số là thấy |
+| TC-172-02 | DoD 2 (kiểm khi scale) | unit | (BL-234) đọc `deployment_maximum_percent` của service api từ `ecs.tf` phải là 100, nên lúc deploy `desired_count × pool + 5 ≤ 74`; gấp đôi (mặc định 200%) vẫn vượt 74, nên bỏ giá trị này là test đỏ |
 | TC-172-03 | DoD 1 | unit | thông báo lỗi của biến Terraform trỏ về docs/03 §13.2 |
 | TC-172-04 | DoD 1 | unit | chỗ còn lại sau các pool ≥ 0 cho kết nối ngoài pool của cổng AI |
 | TC-172-05 | DoD 3 | quy trình | PR merge, CI xanh, Dev review |
@@ -53,7 +53,7 @@ Một commit sửa tài liệu và test (`docs(database): …`), một commit b�
 
 - `npm test -- connection-pool`: 4 test đạt (TC-172-01..04). `lint:check` và `typecheck` sạch. TC-172-05 (quy trình) chờ CI và review.
 - Số `112`, `225`, `450` của bản đầu đã bị xóa vì không có nguồn. Số liệu duy nhất được khẳng định: micro 79 (đo, DBS-66) và 74 dùng được.
-- **Bàn giao:** BL-234 (rolling deploy ở `desired_count` tối đa không vừa micro; đo `max_connections` của lớp production; cập nhật khi DBS-121 xong).
+- **Bàn giao:** BL-234 phần dev đã xong: `aws_ecs_service.api` đặt `deployment_maximum_percent = 100` và `deployment_minimum_healthy_percent = 50` (0 khi `desired_count ≤ 1`, vì ECS làm tròn lên số task khỏe tối thiểu: 50% của 1 task là 1 = tối đa, deploy kẹt). Hệ quả: lúc deploy số task api không vượt `desired_count`, nên bound `(api + worker) × 10 + 5 ≤ 74` giữ cả lúc deploy; đổi lại ECS tắt task cũ trước khi bật task mới, nên dev 1 task mất phục vụ vài chục giây mỗi lần deploy (techlead chấp nhận). Circuit breaker và `deploy.sh` không đổi: cả hai đọc deployment PRIMARY (`rolloutState`, revision), không phụ thuộc phần trăm. Còn mở: `SHOW max_connections` trên lớp production (cần AWS) ghi vào database-design §6.4.
 
 ## 9. Tài liệu đã cập nhật
 

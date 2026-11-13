@@ -1,0 +1,18 @@
+# Cập nhật digest base image của backend/Dockerfile (BL-244). Dockerfile ghim `node:24-alpine@sha256:…`
+# nên không còn tự đổi qua đêm; Dependabot mở PR đổi digest mỗi tuần, `image-scan` chạy trên PR đó.
+# Chỉ Dockerfile: image ElasticMQ ghim digest đã thử ở DBS-125 (BL-225) và chỉ đổi sau khi chạy lại
+# dlq-isolation, worker-recovery và runbook, nên không để Dependabot đề xuất.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    # Chỉ đổi digest trong dòng 24-alpine; nâng major Node là quyết định riêng (engines, CI, ECS).
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "chore(infra)"

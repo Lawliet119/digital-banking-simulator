@@ -25,7 +25,7 @@ docs/
 │   ├── index.md   _shared/ (api-design, database-design, event-contract, glossary)
 │   └── ledger/  accounts/  identity/  risk/  audit/  outbox/  notification/  health/
 │       platform-infra/  ci-cd/  observability/  fraud-dataset/  load-tests/
-├── demos/                                 Kịch bản demo bắt buộc chạy được từng bước (Demo 3: failure / recovery)
+├── demos/                                 Kịch bản demo bắt buộc chạy được từng bước (Demo 3: failure / recovery; Demo 4: security & audit review)
 ├── runbooks/                              Quy trình vận hành từng bước (đọc và redrive DLQ)
 └── deliverables/                          Năm bản nộp P1–P5 (bản ghép trỏ về nguồn)
 ```

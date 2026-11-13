@@ -1,9 +1,10 @@
 import { ErrorCode } from '@common/errors/error-code.enum';
+import type { AuditAction, AuditActorRole, AuditTargetType } from './audit.registry';
 
 export type AuditOutcome = 'SUCCESS' | 'REJECTED' | 'DENIED';
 
 export interface AuditTarget {
-  type: string;
+  type: AuditTargetType;
   id: string;
 }
 
@@ -38,9 +39,10 @@ export interface AuditMetadata {
 export interface AuditRecordInput {
   /** `users.id`, not the Cognito `sub`. `null` for a system/worker action with no logged-in user. */
   actor: string | null;
-  /** Free text from `cognito:groups` (customer/operator/auditor/admin/system, ...). */
-  role: string;
-  action: string;
+  /** From the closed registry in `audit.registry.ts` (derived from `cognito:groups`, or `worker`). */
+  role: AuditActorRole;
+  /** From the closed registry in `audit.registry.ts`: a typo is a compile error. */
+  action: AuditAction;
   outcome: AuditOutcome;
   target: AuditTarget;
   correlationId: string;
