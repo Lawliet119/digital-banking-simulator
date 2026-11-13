@@ -77,6 +77,24 @@ describe('DBS-136 dedup retention on real PostgreSQL and actual worker LOGIN', (
     expect((await f.job().cleanOnce({ pauseMs: 0 })).idempotency).toBe(2);
   });
 
+  it('BL-219 a table that fails (locked row, 55P03) does not stop the table after it; the round still throws', async () => {
+    await f.seedAge('ready', 9);
+    await f.seedAge('locked', 8);
+    const locker = f.owner.createQueryRunner();
+    await locker.startTransaction();
+    try {
+      // processed_events is the second table swept: its DELETE meets the lock and times out.
+      await locker.query("SELECT 1 FROM processed_events WHERE consumer='locked' FOR UPDATE");
+      await expect(f.job().cleanOnce({ pauseMs: 0 })).rejects.toMatchObject({ code: '55P03' });
+      // idempotency_keys comes after it and was cleaned in the same round; processed_events rolled back.
+      expect(await f.counts()).toEqual({ keys: 0, marks: 2 });
+    } finally {
+      await locker.rollbackTransaction();
+      await locker.release();
+    }
+    expect((await f.job().cleanOnce({ pauseMs: 0 })).processed).toBe(2);
+  });
+
   it('TC-136-05 concurrent workers never double-delete and preserve fresh metadata', async () => {
     await f.seedMany(25);
     await f.seedAge('fresh', 1);

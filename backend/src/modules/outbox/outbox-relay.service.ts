@@ -3,7 +3,7 @@ import {
   Injectable,
   Logger,
   type OnApplicationBootstrap,
-  type OnApplicationShutdown,
+  type BeforeApplicationShutdown,
 } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import { TransactionService } from '@database/transaction.service';
@@ -125,7 +125,7 @@ export const PENDING_BATCH_SQL = `SELECT id, event_type, payload FROM outbox_eve
  * release that knows it (BL-010); the unpublished-age alarm is what notices it.
  */
 @Injectable()
-export class OutboxRelayService implements OnApplicationBootstrap, OnApplicationShutdown {
+export class OutboxRelayService implements OnApplicationBootstrap, BeforeApplicationShutdown {
   private readonly logger = new Logger(OutboxRelayService.name);
   private stopping = false;
   /** Outbox id -> when it may be tried again, and how many times it already failed for good. */
@@ -147,8 +147,12 @@ export class OutboxRelayService implements OnApplicationBootstrap, OnApplication
     this.relayLoop.start();
   }
 
-  async onApplicationShutdown(): Promise<void> {
-    // The batch in flight finishes the event it is on, commits, and starts no other.
+  async beforeApplicationShutdown(): Promise<void> {
+    // The batch in flight finishes the event it is on, commits, and starts no other. This is
+    // `beforeApplicationShutdown`, not `onApplicationShutdown`: SqsClient destroys its SDK client in
+    // `onApplicationShutdown` (BL-249), so the loop must be over by then. Nest runs the hooks in
+    // phases (every onModuleDestroy, then every beforeApplicationShutdown, then every
+    // onApplicationShutdown), so this holds whatever the module order.
     this.stopping = true;
     await this.relayLoop.stop();
   }

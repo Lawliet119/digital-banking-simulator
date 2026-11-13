@@ -52,7 +52,7 @@ describe('DBS-77 SQS transport', () => {
       region: 'ap-southeast-1',
       endpoint: 'http://localhost:9324',
     });
-    client.onModuleDestroy();
+    client.onApplicationShutdown();
     expect(destroy).toHaveBeenCalled();
   });
   it('TC-77-01 refuses invalid receive options before sending', async () => {

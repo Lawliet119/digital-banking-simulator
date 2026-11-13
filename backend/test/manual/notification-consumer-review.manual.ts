@@ -137,7 +137,7 @@ async function main(): Promise<void> {
       await sdk.send(new DeleteQueueCommand({ QueueUrl: url })).catch(() => undefined);
     await source?.destroy();
     await db.drop();
-    sqs.onModuleDestroy();
+    sqs.onApplicationShutdown();
     sdk.destroy();
     console.log('cleanup done: temp database dropped, temp queues deleted');
   }

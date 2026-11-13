@@ -132,7 +132,7 @@ describe('DBS-135 an auditor traces one transfer end to end by its correlationId
   afterAll(async () => {
     try {
       await app?.close();
-      sqs?.onModuleDestroy();
+      sqs?.onApplicationShutdown();
       await source?.destroy();
       await db?.drop();
       await mq?.stop();
