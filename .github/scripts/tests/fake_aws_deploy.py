@@ -4,6 +4,8 @@
 describe-services và describe-tasks trả lần lượt các phần tử của `describe_services` / `describe_tasks` (phần tử cuối
 lặp lại). `error` có dạng {"op": "...", "code": "ClusterNotFoundException"} làm lệnh đó lỗi như AWS CLI v2 (mã thoát
 254); tùy chọn `arg` (chuỗi phải có trong argv), `times` (chỉ lỗi trong N lần gọi đầu) và `message` (DBS-68).
+BL-248: service/family `worker` có kịch bản riêng: `describe_services_worker`, `worker_task_definition_response`,
+`register_arn_worker` (cùng quy tắc "phần tử cuối lặp lại").
 """
 import json
 import os
@@ -27,6 +29,9 @@ for i, a in enumerate(argv):
 for i, a in enumerate(argv):
     if a == "--network-configuration" and argv[i + 1].startswith("file://"):
         record["network_json"] = json.load(open(argv[i + 1][7:]))
+worker = "worker" in argv or "dbs-worker" in argv or (record["input_json"] or {}).get("family") == "dbs-worker"
+if worker:
+    key += " worker"  # bộ đếm và kịch bản riêng của worker (BL-248)
 with open(os.path.join(STATE_DIR, "calls.jsonl"), "a") as f:
     f.write(json.dumps(record) + "\n")
 
@@ -37,13 +42,22 @@ counters[key] = n + 1
 json.dump(counters, open(counter_file, "w"))
 
 err = SCEN.get("error")
-if err and err["op"] == key and err.get("arg", "") in " ".join(argv) and n < err.get("times", 10**9):
+if err and err["op"] == key.replace(" worker", "") and err.get("worker", False) == worker and err.get("arg", "") in " ".join(argv) and n < err.get("times", 10**9):
     sys.stderr.write(f"\naws: [ERROR]: An error occurred ({err['code']}) when calling the {op} operation: {err.get('message', 'fake')}\n")
     sys.exit(254)
 
 if key == "ecs describe-services":
     seq = SCEN["describe_services"]
     print(json.dumps(seq[min(n, len(seq) - 1)]))
+elif key == "ecs describe-services worker":
+    seq = SCEN["describe_services_worker"]
+    print(json.dumps(seq[min(n, len(seq) - 1)]))
+elif key == "ecs describe-task-definition worker":
+    print(json.dumps(SCEN["worker_task_definition_response"]))
+elif key == "ecs register-task-definition worker":
+    print(json.dumps({"taskDefinition": {"taskDefinitionArn": SCEN["register_arn_worker"]}}))
+elif key == "ecs update-service worker":
+    print(json.dumps({"service": {"serviceName": "worker"}}))
 elif key == "ecr batch-get-image":
     count = SCEN.get("ecr_images", 1)
     print(json.dumps({"images": [{"imageId": {}}] * count, "failures": [] if count else [{"failureCode": "ImageNotFound"}]}))

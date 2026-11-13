@@ -63,7 +63,7 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
   }
 
   const backend = resolve(__dirname, '../..');
-  const cliFile = resolve(backend, 'test/support/invariants.ts');
+  const cliFile = resolve(backend, 'src/scripts/invariants/invariants.ts');
   const tsNodeArgs = [
     '-r',
     require.resolve('ts-node/register'),
@@ -465,7 +465,10 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     for (const table of ['accounts', 'transfers', 'ledger_entries'])
       await db.runner.query(`CREATE TEMP TABLE ${table} (LIKE public.${table} INCLUDING ALL)`);
     await db.runner.query('SET LOCAL search_path=pg_temp,public');
-    const sql = readFileSync(resolve(__dirname, '../support/invariants.sql'), 'utf8');
+    const sql = readFileSync(
+      resolve(__dirname, '../../src/scripts/invariants/invariants.sql'),
+      'utf8',
+    );
     const [{ report }] = await db.runner.query(sql);
     const fromFunction = await checkLedgerInvariants(db.runner);
     expect(fromFunction).toEqual(report);
@@ -520,6 +523,68 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
     expect(dirty.status).toBe(1);
     expect(JSON.parse(dirty.stdout)).toMatchObject({ status: 'FAIL' });
     await db.runner.query('UPDATE accounts SET balance=balance-1 WHERE id=$1', [refs.senderId]);
+  });
+  // BL-128: the image has no ts-node/tsconfig-paths (npm prune --omit=dev), so the checker must run as plain JS from dist.
+  describe('TC-128 compiled CLI (node dist/..., what an ECS one-off task runs)', () => {
+    const distCli = resolve(backend, 'dist/scripts/invariants/invariants.js');
+    const runDist = (args: string[] = [], overrides: Record<string, string | undefined> = {}) =>
+      spawnSync(process.execPath, [distCli, ...args], {
+        cwd: backend,
+        env: childEnvironment(overrides),
+        encoding: 'utf8',
+        timeout: 45_000,
+      });
+    beforeAll(() => {
+      const npmFile = process.env.npm_execpath;
+      if (!npmFile) {
+        throw new Error('TC-128 needs npm_execpath: run the suite through npm (npm run test:db)');
+      }
+      // Always rebuild: a stale dist would test yesterday's code.
+      const build = spawnSync(process.execPath, [npmFile, 'run', '--silent', 'build'], {
+        cwd: backend,
+        encoding: 'utf8',
+        timeout: 240_000,
+      });
+      if (build.status !== 0)
+        throw new Error(`npm run build failed: ${build.stdout}${build.stderr}`);
+    }, 300_000);
+    it('TC-128-01 the compiled file and its SQL asset exist and the file is plain JS with no TypeScript loader', () => {
+      expect(existsSync(distCli)).toBe(true);
+      expect(existsSync(resolve(backend, 'dist/scripts/invariants/invariants.sql'))).toBe(true);
+      const code = readFileSync(distCli, 'utf8');
+      expect(code).not.toMatch(/ts-node|tsconfig-paths/);
+      expect(code).not.toMatch(/require\("@(common|config|database|libs|modules)\//);
+    });
+    it('TC-128-02 --help works without a database and names the dist command', () => {
+      const help = runDist(['--help'], { DATABASE_URL: '' });
+      expect(help.status).toBe(0);
+      expect(help.stderr).toBe('');
+      expect(help.stdout).toContain('node dist/scripts/invariants/invariants.js');
+    });
+    it('TC-128-03 gives the same exit codes and report as the ts-node CLI (0 PASS, 1 FAIL, 2 bad config)', async () => {
+      const refs = await seedInvariantLedger(db.runner);
+      await db.runner.commitTransaction();
+      const clean = runDist();
+      expect(clean.error).toBeUndefined();
+      expect(clean.stderr).toBe('');
+      expect(clean.status).toBe(0);
+      expect(JSON.parse(clean.stdout)).toEqual(await checkLedgerInvariants(db.runner));
+      await db.runner.query('UPDATE accounts SET balance=balance+1 WHERE id=$1', [refs.senderId]);
+      const dirty = runDist();
+      expect(dirty.status).toBe(1);
+      expect(JSON.parse(dirty.stdout)).toMatchObject({ status: 'FAIL' });
+      expect(dirty.stdout).toBe(cli().stdout);
+      await db.runner.query('UPDATE accounts SET balance=balance-1 WHERE id=$1', [refs.senderId]);
+      expectInvalid(runDist([], { DATABASE_URL: '' }), ['DATABASE_URL']);
+    });
+    it('TC-128-04 the npm script check:invariants:dist runs the compiled CLI', () => {
+      const pkg = JSON.parse(readFileSync(resolve(backend, 'package.json'), 'utf8')) as {
+        scripts: Record<string, string>;
+      };
+      expect(pkg.scripts['check:invariants:dist']).toBe(
+        'node dist/scripts/invariants/invariants.js',
+      );
+    });
   });
   it.each([
     'ssl',

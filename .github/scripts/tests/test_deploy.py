@@ -18,6 +18,8 @@ REPO = "123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/dbs-api"
 OLD, NEW = "1" * 40, "2" * 40
 ARN_OLD = "arn:aws:ecs:ap-southeast-1:123456789012:task-definition/dbs-api:7"
 ARN_NEW = "arn:aws:ecs:ap-southeast-1:123456789012:task-definition/dbs-api:8"
+W_OLD = "arn:aws:ecs:ap-southeast-1:123456789012:task-definition/dbs-worker:2"
+W_NEW = "arn:aws:ecs:ap-southeast-1:123456789012:task-definition/dbs-worker:3"
 
 
 def td_response(image, with_secrets=True):
@@ -40,6 +42,25 @@ def service(td=ARN_OLD, desired=1, status="ACTIVE", deployments=None, events=Non
 
 def deployment(td, state):
     return [{"status": "PRIMARY", "taskDefinition": td, "rolloutState": state}]
+
+
+# BL-248: service/family worker (container `worker`; desired mặc định 1)
+def worker_td_response(image):
+    c = {"name": "worker", "image": image, "essential": True, "stopTimeout": 60,
+         "environment": [{"name": "APP_ROLE", "value": "worker"}]}
+    return {"taskDefinition": {"taskDefinitionArn": W_OLD, "family": "dbs-worker", "revision": 2, "status": "ACTIVE",
+                               "networkMode": "awsvpc", "requiresCompatibilities": ["FARGATE"], "cpu": "256",
+                               "memory": "512", "containerDefinitions": [c]},
+            "tags": [{"key": "project", "value": "dbs"}]}
+
+
+def worker_service(td=W_OLD, desired=1, running=None, state="COMPLETED", status="ACTIVE", events=None, primary=None):
+    running = desired if running is None else running
+    return {"services": [{"serviceName": "worker", "status": status, "desiredCount": desired, "runningCount": running,
+                          "taskDefinition": td,
+                          "deployments": [{"status": "PRIMARY", "taskDefinition": primary or td, "rolloutState": state,
+                                           "desiredCount": desired, "runningCount": running}],
+                          "events": [{"message": m} for m in (events or [])]}], "failures": []}
 
 
 def migrate_defaults():
@@ -65,6 +86,8 @@ class Env:
         self.bin.mkdir()
         base = {"describe_services": [service()], "ecr_images": 1, "task_definition_response": td_response(f"{REPO}:{OLD}"),
                 "register_arn": ARN_NEW}
+        base.update({"describe_services_worker": [worker_service(), worker_service(W_NEW)],
+                     "worker_task_definition_response": worker_td_response(f"{REPO}:{OLD}"), "register_arn_worker": W_NEW})
         base.update(migrate_defaults())  # DBS-68: deploy.sh luôn chạy migrate.sh; mặc định task migration thành công
         base.update(scenario)
         (self.state / "scenario.json").write_text(json.dumps(base))
@@ -149,10 +172,10 @@ class Deploy(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         ops = e.ops()
         regs = [i for i, o in enumerate(ops) if o == "ecs register-task-definition"]
-        self.assertEqual(len(regs), 2)  # api, rồi migrate
+        self.assertEqual(len(regs), 3)  # api, migrate, rồi worker (BL-248)
         self.assertLess(regs[0], ops.index("ecs run-task"))
         self.assertLess(ops.index("ecs run-task"), ops.index("ecs update-service"))
-        self.assertEqual(ops.count("ecs describe-services"), 2)  # migrate.sh dùng lại JSON service, không gọi thêm
+        self.assertEqual(ops.count("ecs describe-services"), 4)  # api ×2 (migrate.sh dùng lại JSON service) + worker ×2
 
     # TC-68-02 qua deploy: migration lỗi thì không update-service
     def test_failed_migration_stops_the_deploy(self):
@@ -299,6 +322,132 @@ class Deploy(unittest.TestCase):
         dt = next(c for c in e.calls() if c["argv"][1] == "describe-task-definition")
         self.assertIn("dbs-api", dt["argv"])  # family, không phải revision của service
         self.assertNotIn(ARN_OLD, dt["argv"])
+
+    # ---- BL-248: lăn service worker cùng image ----
+    @staticmethod
+    def is_worker(c):
+        return "worker" in c["argv"] or "dbs-worker" in c["argv"] or (c["input_json"] or {}).get("family") == "dbs-worker"
+
+    def worker_calls(self, e, op=None):
+        return [c for c in e.calls() if self.is_worker(c) and (op is None or c["argv"][1] == op)]
+
+    @staticmethod
+    def api_ready(**extra):
+        base = {"describe_services": [service(), service(ARN_NEW, deployments=deployment(ARN_NEW, "COMPLETED"))]}
+        base.update(extra)
+        return base
+
+    # TC-248-01: đường bình thường; thứ tự migrate → api → health api → worker
+    def test_worker_is_rolled_after_api_health(self):
+        e = self.make(**self.api_ready())
+        p = e.run()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        reg = self.worker_calls(e, "register-task-definition")[0]
+        self.assertEqual(reg["input_json"]["family"], "dbs-worker")
+        self.assertEqual(reg["input_json"]["containerDefinitions"][0]["image"], f"{REPO}:{NEW}")
+        self.assertEqual(reg["input_json"]["containerDefinitions"][0]["stopTimeout"], 60)  # chỉ đổi image
+        upd = self.worker_calls(e, "update-service")[0]
+        self.assertIn(W_NEW, upd["argv"])
+        self.assertIn("worker", upd["argv"])
+        calls = [(c["argv"][1], self.is_worker(c)) for c in e.calls()]
+        self.assertLess(calls.index(("update-service", False)), calls.index(("update-service", True)))
+        self.assertLess(calls.index(("run-task", False)), calls.index(("update-service", True)))
+        self.assertEqual(len(e.curls()), 2)
+
+    # TC-248-02: desiredCount = 0: vẫn đăng ký + update-service, không chờ rollout
+    def test_worker_desired_zero_updates_without_waiting(self):
+        e = self.make(**self.api_ready(describe_services_worker=[worker_service(desired=0)]))
+        p = e.run()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.worker_calls(e, "register-task-definition")), 1)
+        self.assertEqual(len(self.worker_calls(e, "update-service")), 1)
+        self.assertEqual(len(self.worker_calls(e, "describe-services")), 1)  # chỉ lần đọc đầu, không poll
+        self.assertIn("::warning::", p.stdout)
+
+    # TC-248-03: chờ tới khi runningCount đủ (COMPLETED mà running chưa đủ vẫn chờ)
+    def test_worker_waits_for_running_count(self):
+        e = self.make(**self.api_ready(describe_services_worker=[
+            worker_service(), worker_service(W_NEW, state="IN_PROGRESS", running=0),
+            worker_service(W_NEW, state="COMPLETED", running=0), worker_service(W_NEW, state="COMPLETED", running=1)]))
+        p = e.run()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.worker_calls(e, "describe-services")), 4)
+        self.assertIn("runningCount 1/1", p.stdout)
+
+    # TC-248-04: circuit breaker rollback / FAILED / hết hạn đều đỏ
+    def test_worker_rollback_is_red(self):
+        e = self.make(**self.api_ready(describe_services_worker=[
+            worker_service(), worker_service(W_NEW, primary=W_OLD, events=["rolled back", "task failed"])]))
+        p = e.run()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("circuit breaker", p.stdout + p.stderr)
+        self.assertIn("rolled back", p.stdout + p.stderr)
+
+    def test_worker_failed_and_deadline_are_red(self):
+        e = self.make(**self.api_ready(describe_services_worker=[worker_service(), worker_service(W_NEW, state="FAILED", events=["boom"])]))
+        self.assertNotEqual(e.run().returncode, 0)
+        e = self.make(**self.api_ready(describe_services_worker=[worker_service(), worker_service(W_NEW, state="IN_PROGRESS", running=0, events=["slow"])]))
+        p = e.run(DEADLINE_SECONDS="1", POLL_SECONDS="1")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("slow", p.stdout + p.stderr)
+
+    # TC-248-05: service worker không có / không ACTIVE: cảnh báo, api vẫn xanh
+    def test_missing_worker_service_is_skipped_with_warning(self):
+        for sc in ({"services": [], "failures": [{"arn": "x", "reason": "MISSING"}]}, worker_service(status="INACTIVE")):
+            e = self.make(**self.api_ready(describe_services_worker=[sc]))
+            p = e.run()
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+            self.assertIn("::warning::", p.stdout)
+            self.assertEqual(self.worker_calls(e, "register-task-definition"), [])
+            self.assertEqual(self.worker_calls(e, "update-service"), [])
+
+    # TC-248-06: api hoặc health api lỗi thì worker không bị đụng (cùng ở bản cũ)
+    def test_api_failure_never_touches_worker(self):
+        e = self.make(describe_services=[service(), service(ARN_NEW, deployments=deployment(ARN_NEW, "FAILED"))])
+        self.assertNotEqual(e.run().returncode, 0)
+        self.assertEqual(self.worker_calls(e), [])
+        e = self.make(**self.api_ready())
+        self.assertNotEqual(e.run(FAKE_CURL_ready="503").returncode, 0)
+        self.assertEqual(self.worker_calls(e), [])
+
+    # TC-248-07: idempotent: revision mới nhất đã dùng image thì không đăng ký lại; service đã trỏ revision đó thì không update
+    def test_worker_already_current_is_a_noop(self):
+        e = self.make(**self.api_ready(worker_task_definition_response=worker_td_response(f"{REPO}:{NEW}"),
+                                       describe_services_worker=[worker_service(W_OLD)]))
+        p = e.run()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(self.worker_calls(e, "register-task-definition"), [])
+        self.assertEqual(self.worker_calls(e, "update-service"), [])
+
+    # TC-248-08: DEPLOY_WORKER=0 tắt bước worker; family chưa có revision, lỗi quyền, sai tên container đều đỏ
+    def test_worker_can_be_disabled(self):
+        e = self.make(**self.api_ready())
+        self.assertEqual(e.run(DEPLOY_WORKER="0").returncode, 0)
+        self.assertEqual(self.worker_calls(e), [])
+
+    def test_worker_errors_are_red(self):
+        e = self.make(**self.api_ready(error={"op": "ecs describe-task-definition", "worker": True,
+                                              "code": "ClientException", "message": "Unable to describe task definition."}))
+        p = e.run()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("terraform apply", p.stdout + p.stderr)
+        for op in ("ecs update-service", "ecs describe-services"):
+            e = self.make(**self.api_ready(error={"op": op, "worker": True, "code": "AccessDeniedException"}))
+            self.assertNotEqual(e.run().returncode, 0, op)
+        wrong = worker_td_response(f"{REPO}:{OLD}")
+        wrong["taskDefinition"]["containerDefinitions"][0]["name"] = "other"
+        e = self.make(**self.api_ready(worker_task_definition_response=wrong))
+        p = e.run()
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("container worker", p.stdout + p.stderr)
+
+    # TC-248-09: các đường bỏ qua của api không chạm worker
+    def test_skip_paths_never_touch_worker(self):
+        for scenario in ({"error": {"op": "ecs describe-services", "code": "ClusterNotFoundException"}},
+                         {"describe_services": [service(desired=0)]}, {"ecr_images": 0}):
+            e = self.make(**scenario)
+            self.assertEqual(e.run().returncode, 0)
+            self.assertEqual(self.worker_calls(e), [])
 
 
 if __name__ == "__main__":

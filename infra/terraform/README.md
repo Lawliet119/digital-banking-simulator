@@ -104,6 +104,23 @@ terraform destroy -var account_id=<account-id> -var state_bucket=dbs-tfstate-<ac
 
 `envs/dev/session/dashboard.tf` tạo `aws_cloudwatch_dashboard.overview` (`dbs-dev-overview`) cùng phiên; output `dashboard_url`. Dashboard không tham chiếu tài nguyên nào của session (chỉ tên DLQ từ state của `base`), nên có thể dựng riêng, không kéo ALB/RDS: `terraform apply -target=aws_cloudwatch_dashboard.overview` (cần `-var` như các lệnh trên). Xóa cùng `destroy` của session. Biến `metrics_namespace` (mặc định `DBS/Backend`) chỉ đổi khi thử bằng số mô phỏng. Hai phiên cùng dựng thì dùng chung một tên dashboard (PutDashboard ghi đè): chỉ một state được giữ nó. Chi phí ≈ 3 USD/tháng tính theo giờ tồn tại. Nội dung widget và cách đọc: [observability](../../docs/components/observability/01-concept-brief.md#dashboard-dbs-145).
 
+**Dashboard hạ tầng (BL-261).** `envs/dev/session/dashboard_infra.tf` tạo thêm `dbs-dev-infra` (output `infra_dashboard_url`): ECS CPU và bộ nhớ của `api` và `worker`, số task api khỏe sau ALB, 5xx ở ALB (số lượng và tỉ lệ), RDS (kết nối, CPU), Valkey (CPU, bộ nhớ, kết nối). Nó **tách** khỏi `overview` vì widget ALB cần `arn_suffix` của `aws_lb` và target group (không dựng được từ chuỗi biết trước), nên dashboard này tham chiếu tài nguyên session và `-target` nó sẽ kéo cả ALB lên; `overview` vẫn không tham chiếu gì nên giữ tính chất `-target` ở trên. Số task đang chạy của ECS (`RunningTaskCount`) cần Container Insights, đang tắt ở `ecs.tf` (bật tốn tiền theo task), nên chưa có số task của worker: xem tuổi outbox (không có điểm là worker không chạy). Hai dashboard nằm trong 3 dashboard miễn phí của tài khoản (tối đa 50 metric mỗi dashboard).
+
+### Alarm CloudWatch và thông báo (BL-051, BL-117, BL-127, BL-179, BL-182, BL-188, BL-235)
+
+Mọi alarm gửi vào topic SNS `dbs-dev-alarms`, cả lúc báo (`alarm_actions`) lẫn lúc hết (`ok_actions`).
+
+- `envs/dev/base/alarms.tf`: topic SNS, đăng ký email (biến `alarm_email`, mặc định rỗng = không đăng ký), 2 alarm DLQ (`dbs-dev-risk-dlq-not-empty`, `dbs-dev-notification-dlq-not-empty`). Ở base để email chỉ phải xác nhận **một lần** (không mất theo `destroy` của session) và để alarm DLQ còn đó khi session đã xóa nhưng DLQ vẫn giữ message tới 6 ngày. Output `alarm_topic_arn`.
+- `envs/dev/session/alarms.tf`: 10 alarm của thứ chỉ có khi phiên chạy (tuổi queue, outbox, Redis, fallback, rate limit, risk, đối soát). Đọc `alarm_topic_arn` từ state của `base`, nên **phải apply `base` trước `session`** (session cũ không có output này sẽ lỗi lúc plan).
+- Bảng alarm, ngưỡng, cửa sổ và lý do: [observability](../../docs/components/observability/01-concept-brief.md#alarm-cloudwatch-bl-051-bl-117-bl-127-bl-179-bl-182).
+
+```bash
+# base: đặt email nhận alarm (SNS gửi thư xác nhận; chưa bấm "Confirm subscription" thì không có thư alarm)
+terraform apply -var account_id=<account-id> -var alarm_email=<email>
+```
+
+Chi phí: 12 alarm (2 ở base, 10 ở session). Alarm chuẩn 0,10 USD/alarm/tháng; alarm biểu thức metric (`SUM(METRICS())`) tính theo số metric tham chiếu (alarm lỗi luật 6, ba alarm khác mỗi cái 2). Ước ≈ 2,2 USD/tháng nếu chạy cả tháng, trong đó 0,2 USD của hai alarm DLQ ở base chạy luôn; alarm của session tính theo giờ và mất cùng phiên. SNS email gần như miễn phí. Thử alarm thật (đẩy message độc vào DLQ, ép lỗi luật) cần AWS thật và chưa làm: còn mở ở BL-051.
+
 ### Đẩy image lên ECR bằng OIDC (DBS-36)
 
 `envs/dev/base` tạo OIDC provider của GitHub và role `dbs-github-ecr-push` (output `github_ecr_push_role_arn`). Role chỉ tin đúng `sub` của repo và nhánh `main` (repo bật immutable subject nên `sub` có id owner và id repo). Biến `github_oidc_sub_prefix` có sẵn giá trị đã kiểm; đổi repo thì lấy giá trị mới bằng `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` (trường `sub_claim_prefix`).
@@ -114,7 +131,7 @@ Sau khi `apply`, **chủ repo** (cần quyền admin) tạo biến Actions (Sett
 
 `envs/dev/base` thêm role `dbs-github-deploy` (output `github_deploy_role_arn`), tin đúng `sub` của repo và nhánh `main` như role đẩy image; quyền chỉ gồm cập nhật service `dbs-dev/api`, đăng ký task definition `dbs-api`, đọc image trên ECR và `iam:PassRole` cho hai role của task. Sau khi `apply`, **chủ repo** tạo biến Actions `AWS_DEPLOY_ROLE_ARN` (thiếu biến thì job `deploy` bị bỏ qua). Chỉ `image.yml` và `deploy.yml` được xin `id-token: write`.
 
-Luồng: push `main` → `Image` đẩy `dbs-api:<SHA>` → `Deploy` (`.github/workflows/deploy.yml`, `workflow_run`) chạy `.github/scripts/deploy.sh`: lấy revision ACTIVE mới nhất của family `dbs-api`, đổi image container `api`, đăng ký revision mới, `update-service`, chờ deployment PRIMARY `COMPLETED` (tối đa 20 phút; circuit breaker đã rollback hoặc `FAILED` thì đỏ), rồi kiểm `/health/live` và `/health/ready`. Bỏ qua (thoát 0) khi stack `session` chưa dựng, service `desired_count = 0`, hoặc commit không còn là đầu `main`. Service có `ignore_changes = [task_definition]`: `terraform apply` không kéo về revision của Terraform; thay đổi task definition trong Terraform có hiệu lực ở lần deploy kế tiếp. `image_tag` lúc `apply` session phải là tag đã có trên ECR.
+Luồng: push `main` → `Image` đẩy `dbs-api:<SHA>` → `Deploy` (`.github/workflows/deploy.yml`, `workflow_run`) chạy `.github/scripts/deploy.sh`: lấy revision ACTIVE mới nhất của family `dbs-api`, đổi image container `api`, đăng ký revision mới, `update-service`, chờ deployment PRIMARY `COMPLETED` (tối đa 20 phút; circuit breaker đã rollback hoặc `FAILED` thì đỏ), rồi kiểm `/health/live` và `/health/ready`. Sau khi api khỏe, `deploy.sh` lăn tiếp service `worker` (BL-248) cùng image: lấy revision ACTIVE mới nhất của family `dbs-worker`, đổi image container `worker`, đăng ký, `update-service`, rồi chờ PRIMARY `COMPLETED` với `runningCount` đủ `desiredCount` (worker lăn 0%/100%). `desiredCount` của worker = 0 (mặc định của stack): vẫn đăng ký và trỏ service về revision mới nhưng không chờ; service worker không ACTIVE thì cảnh báo và bỏ qua; `DEPLOY_WORKER=0` tắt bước này. Api lỗi thì worker không bị đụng (cả hai cùng ở bản cũ). Bỏ qua (thoát 0) khi stack `session` chưa dựng, service `desired_count = 0`, hoặc commit không còn là đầu `main`. Service có `ignore_changes = [task_definition]`: `terraform apply` không kéo về revision của Terraform; thay đổi task definition trong Terraform có hiệu lực ở lần deploy kế tiếp. `image_tag` lúc `apply` session phải là tag đã có trên ECR.
 
 Chạy tay (không cần `gh`): `IMAGE_TAG=<sha-40-ky-tu> AWS_PROFILE=dbs-admin bash .github/scripts/deploy.sh`.
 
@@ -148,13 +165,27 @@ Script từ chối chạy khi còn task `dbs-migrate` đang `RUNNING` (TypeORM k
 
 **Trình tự "Up" lần đầu** (`desired_count = 0` nên `deploy.sh` bỏ qua): `apply session` → `Image` đã đẩy tag SHA lên ECR → `migrate.sh` bằng tay → nâng `desired_count` lên 1.
 
-**Quy tắc:** migration chạy khi bản app cũ vẫn phục vụ, nên viết theo kiểu expand → migrate → contract (backend README); deploy lỗi sau migration không hoàn tác schema. Task migration chạy bằng execution role riêng `dbs-dev-migrate-execution` và **không có task role** (DBS-120); kết nối bằng secret master (BL-103 đổi sang secret của `dbs_migrator`). Role deploy cần `apply base` để có `iam:PassRole` cho role này trước lần deploy kế tiếp. Mặc định TypeORM chạy mọi migration chờ trong **một** transaction nên không dùng được `CREATE INDEX CONCURRENTLY` (BL-110). Role `dbs-github-deploy` cần `apply base` để có quyền `ecs:RunTask` (BL-109). Chi phí một lần chạy ≈ 0,012 USD/giờ × thời gian chạy; `destroy session` bỏ task definition, chỉ còn log event ở `base` (7 ngày).
+**Role chạy migration (BL-195): bước bắt buộc trước migration đầu tiên trên RDS.** Task `dbs-migrate` nối bằng user master (BL-103), mà master của RDS **không phải superuser thật**. Migration bước 7 (`1793664000000-CreateDbRolesAndGrants`, DBS-119) chạy `ALTER VIEW v_transfer_facts OWNER TO dbs_migrator`, và PostgreSQL chỉ cho người không phải superuser đổi chủ sang role mà họ `SET ROLE` được. Chưa có quyền đó thì cả lượt migration dừng với `42501 must be able to SET ROLE "dbs_migrator"` và rollback hết (`migration:run` chạy mọi migration chờ trong một transaction); `migrate.sh` thoát 1 và `deploy.sh` không `update-service`. Vì vậy, một lần, **trước** lần `migrate.sh` đầu tiên của database mới, kết nối bằng master (hoặc role có `ADMIN OPTION` trên `dbs_migrator`) và chạy:
+
+```sql
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_migrator') THEN
+    CREATE ROLE dbs_migrator NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
+  END IF;
+END $$;
+GRANT dbs_migrator TO <master>;   -- <master> = DB_USER của secret master, ví dụ postgres
+```
+
+Migration bước 7 chỉ tạo `dbs_migrator` khi chưa có và **không bao giờ tự gán quyền cho user chạy nó** (một migration tự cấp quyền cho người chạy sẽ che đúng lỗi này). Một role do master tự tạo bằng `CREATEROLE` vẫn không cho master `SET ROLE` cho tới khi có `GRANT`, nên không bỏ qua được bước trên. Mọi migration sau đó (kể cả `1793750400000-AddNotificationLogCorrelationId`, `ALTER TABLE` đầu tiên trên bảng có sẵn) phải chạy bằng đúng role là **chủ các bảng**, tức master đã tạo chúng: đừng đổi chủ bảng sang `dbs_migrator` hay chạy migration bằng user khác khi chưa đổi chủ bảng. Bằng chứng: `backend/test/db/migration-owner-role.db-spec.ts` chạy toàn bộ migration bằng một login `CREATEROLE`, không superuser: không `GRANT` thì dừng đúng `42501` ở bước 7 và không áp dụng gì, có `GRANT` thì qua cả chuỗi và chạy lại được. Test này mô phỏng master bằng PostgreSQL 17 trong Testcontainers, **không phải RDS**: `rds_superuser` của RDS chưa được kiểm, nên BL-195 còn mở tới khi `migration:run` chạy thật trên RDS dev (M-68-04).
+
+**Quy tắc:** migration chạy khi bản app cũ vẫn phục vụ, nên viết theo kiểu expand → migrate → contract (backend README); deploy lỗi sau migration không hoàn tác schema. Task migration chạy bằng execution role riêng `dbs-dev-migrate-execution` và **không có task role** (DBS-120); kết nối bằng secret master (BL-103 đổi sang secret của `dbs_migrator`). Role deploy cần `apply base` để có `iam:PassRole` cho role này trước lần deploy kế tiếp. Migration `1795000008000-EnableUnaccentSearch` (BL-178) chạy `CREATE EXTENSION unaccent`: `unaccent` có trong danh sách extension RDS hỗ trợ, và secret master (thành viên `rds_superuser`) đủ quyền; khi BL-103 đổi sang `dbs_migrator` thì role đó cần `CREATE` trên database `dbs` (extension này là *trusted* từ PG 13, không đòi superuser). Mặc định TypeORM chạy mọi migration chờ trong **một** transaction nên không dùng được `CREATE INDEX CONCURRENTLY` (BL-110). Role `dbs-github-deploy` cần `apply base` để có quyền `ecs:RunTask` (BL-109). Chi phí một lần chạy ≈ 0,012 USD/giờ × thời gian chạy; `destroy session` bỏ task definition, chỉ còn log event ở `base` (7 ngày).
 
 ### Cognito và tài khoản nhân viên demo (DBS-54)
 
 `envs/dev/base` tạo user pool `dbs` (đăng nhập bằng email không phân biệt hoa thường, tự đăng ký bật, mật khẩu tối thiểu 12 ký tự đủ 4 loại), 4 nhóm `customer`, `operator`, `auditor`, `admin` và app client `dbs-app` không secret (`USER_SRP_AUTH`, `REFRESH_TOKEN_AUTH`, `USER_PASSWORD_AUTH`; access và ID token 15 phút, refresh 1 ngày). Output: `cognito_user_pool_id`, `cognito_client_id`, `cognito_issuer` (ba biến `COGNITO_*` của task ECS lấy từ đây, không bí mật). `cognito_deletion_protection` mặc định `INACTIVE` cho dev (teardown cần); đặt `ACTIVE` khi pool đã có người dùng thật, và đặt lại `INACTIVE` trước khi `destroy base`.
 
-Tài khoản `operator`, `auditor`, `admin` demo do script tạo, không do Terraform (mật khẩu không vào state):
+Tài khoản demo do script tạo, không do Terraform (mật khẩu không vào state): `operator`, `auditor`, `admin` và, từ BL-252, ba khách `customer1`, `customer2`, `customer3` (email `customerN.demo@dbs.invalid`, nhóm `customer`):
 
 ```bash
 export COGNITO_USER_POOL_ID=$(terraform -chdir=infra/terraform/envs/dev/base output -raw cognito_user_pool_id)
@@ -206,6 +237,7 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 - **Xoay token giữa phiên:** tăng `redis_auth_version` (mặc định 1) rồi `apply`. Strategy `ROTATE`: Valkey nhận cả token mới và token cũ, task đang chạy giữ kết nối, task khởi động sau đó đọc token mới (`aws ecs update-service --force-new-deployment` để thay hết). Token cũ còn hợp lệ tới lần xoay sau; xoay thêm một lần nếu cần loại hẳn nó. Không dùng `SET`: ElastiCache chỉ nhận `SET` cho token đầu tiên. Cùng cách đó dùng để khôi phục khi token của secret và Valkey lệch nhau (`WRONGPASS`), ví dụ ghi secret thất bại giữa chừng.
 - Sau `destroy session`, secret vẫn còn một version `AWSCURRENT` chứa token của phiên đã xóa; không hại gì vì Valkey dùng token đó đã bị xóa.
 - **Chi phí khi bật** (ADR-11, ADR-12; giá thật trên Cost Explorer, DBS-143): node 0,0192 USD/giờ (quên `destroy` ≈ 14 USD/tháng), secret 0,40 USD/tháng. Tạo mất 5–10 phút, xóa khoảng 5 phút; chạy song song với RDS.
+- **Alarm "Redis không truy cập được > 1 phút"** (BL-117, docs/03 §14): `session/alarms.tf` có `dbs-dev-redis-node-missing` (node `dbs-dev-001` ngừng phát `CPUUtilization` 2 phút liên tiếp) và `dbs-dev-redis-fallback` (`redis_fallback_total` > 0 ở 2 phút liên tiếp, phát hiện cả khi node sống nhưng app không với tới). Bật `redis_replicas` > 0 thì node chính có thể là `-002`: thêm alarm cho node đó.
 - Provider: `aws >= 6.70, < 7.0` ở `base` và `session` (cần thuộc tính write-only), `random ~> 3.7` ở `session`.
 - Kiểm tĩnh: `terraform test` ở `envs/dev/base` (`tests/redis.tftest.hcl`) và `envs/dev/session` (run `valkey_replication_group`, `redis_connection`, `redis_secret_policy`…). Probe chạy thật trên AWS: [DBS-75 §8](../../docs/features/DBS-75-terraform-valkey.md).
 
@@ -231,7 +263,7 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 
 **Kiểm danh sách cho phép trên AWS thật (BL-241, chưa chạy; sau `apply base`):** (1) tạo role tạm `dbs-sqs-probe` tin cậy IAM user đang chạy, inline policy `Allow sqs:*` trên 4 queue (đối chứng dương: Allow đã có hiệu lực, nên từ chối sau đó là do queue policy), `aws sts assume-role` (lặp tối đa 12 lần × 5 giây cho tới khi lan truyền); (2) gọi bằng credential tạm của role đó, truyền theo từng lệnh, không `export`: `env AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… AWS_SESSION_TOKEN=… aws sqs send-message --queue-url <url dbs-dev-risk-events> --message-body '{"probe":"BL-241"}'` và `receive-message`; mong đợi `AccessDenied` với "explicit deny in a resource-based policy"; (3) cùng lệnh bằng IAM user trong danh sách phải thành công (gửi rồi nhận và xóa message probe); (4) role worker thật gửi và nhận được: task Fargate tạm với `dbs-dev-worker-task` như bước "Kiểm quyền trái phép" ở mục DBS-120; (5) gửi một message hỏng và để consumer nhận 5 lần: message phải sang DLQ (redrive nội bộ không bị chặn), rồi `start-message-move-task` bằng user trong danh sách phải chạy; (6) xóa role tạm. Ghi nguyên văn thông báo lỗi.
 
-Redrive DLQ về queue chính: `aws sqs start-message-move-task --source-arn <arn-dlq>`, theo dõi bằng `list-message-move-tasks`. Redrive cấp `MessageId` mới và tính lại hạn giữ từ lúc chuyển, nên message được redrive phải được xử lý xong trong vòng 24 giờ, mỗi message chỉ redrive một lần (quy tắc đầy đủ: [DBS-73 §2](../../docs/features/DBS-73-terraform-sqs.md), runbook ở BL-051). Với queue standard và `maxReceiveCount > 3`, `ApproximateAgeOfOldestMessage` bỏ qua message đã nhận từ 3 lần trở lên (ghi chú cho alarm DBS-163).
+Redrive DLQ về queue chính: `aws sqs start-message-move-task --source-arn <arn-dlq>`, theo dõi bằng `list-message-move-tasks`. Redrive cấp `MessageId` mới và tính lại hạn giữ từ lúc chuyển, nên message được redrive phải được xử lý xong trong vòng 24 giờ, mỗi message chỉ redrive một lần (quy tắc đầy đủ: [DBS-73 §2](../../docs/features/DBS-73-terraform-sqs.md), runbook ở BL-051). Với queue standard và `maxReceiveCount > 3`, `ApproximateAgeOfOldestMessage` bỏ qua message đã nhận từ 3 lần trở lên (ghi chú cho alarm DBS-163). Alarm DLQ > 0 (`base/alarms.tf`) và alarm tuổi message > 120 giây (`session/alarms.tf`): xem mục «Alarm CloudWatch» ở trên.
 
 ### Service worker (DBS-121)
 
@@ -239,7 +271,7 @@ Redrive DLQ về queue chính: `aws sqs start-message-move-task --source-arn <ar
 
 | Mục | Giá trị |
 |---|---|
-| Sức khỏe | Theo ADR-13 và Dockerfile: không `healthCheck`, không cổng, không load balancer. Container `essential`: tiến trình thoát thì ECS chạy task mới. Worker treo phát hiện qua alarm tuổi outbox và tuổi message (BL-161), không qua ECS |
+| Sức khỏe | Theo ADR-13 và Dockerfile: không `healthCheck`, không cổng, không load balancer. Container `essential`: tiến trình thoát thì ECS chạy task mới. Worker treo phát hiện qua alarm tuổi outbox (`dbs-dev-outbox-age`) và tuổi message (`dbs-dev-*-events-age`), cả hai ở `session/alarms.tf`; không qua ECS |
 | Mạng | SG không ingress; egress 443, 5432 tới SG db, 6379 tới SG redis. SG db và redis nhận từ SG api và SG worker, không ai khác. Task ở public subnet có IP công khai (ADR-10) |
 | Số task | `worker_desired_count` mặc định 0, tối đa 2; `desired_count + worker_desired_count ≤ 6` (74 kết nối dùng được, mỗi task 10 + 5). Lăn 0%/100% để không có hai worker song song |
 | Dừng | `stopTimeout` 60 s (một lô relay tới 25 s) |
@@ -249,7 +281,7 @@ Redrive DLQ về queue chính: `aws sqs start-message-move-task --source-arn <ar
 - **Thứ tự apply:** `apply base` trước (log group, SG, output) rồi `session`; nếu không `session` thiếu output của `base`. Không sửa `description` của SG `db`/`redis` ở `base` (ForceNew).
 - **Lệnh** (luôn đủ biến, nếu không `desired_count` của api về 0): `terraform apply -var account_id=… -var state_bucket=… -var image_tag=<sha> -var desired_count=1 -var worker_desired_count=1`. Tắt worker: `worker_desired_count=0`; api không đổi.
 - **Chi phí:** một task worker ≈ 0,01 USD/giờ (Fargate 0,25 vCPU / 0,5 GB cộng IPv4 công khai); cả stack bật ≈ 0,14 USD/giờ (ADR-11). Luôn `terraform destroy` cả `session` sau khi dùng.
-- **Chưa có:** `deploy.sh` chưa cập nhật service worker (BL mới); alarm worker treo (BL-161); test thủ công trên AWS: nhóm A và B ở [DBS-121 §5](../../docs/features/DBS-121-worker-service.md).
+- **Chưa có:** `deploy.sh` chưa cập nhật service worker (BL mới); alarm worker treo đã có trong Terraform nhưng chưa kích hoạt thử trên AWS (BL-161); test thủ công trên AWS: nhóm A và B ở [DBS-121 §5](../../docs/features/DBS-121-worker-service.md).
 
 ### Task role và execution role (DBS-120)
 
@@ -307,7 +339,7 @@ AWS_PROFILE=dbs-admin bash infra/scripts/verify-clean.sh
 
 ### Token nhân viên demo
 
-`bash infra/scripts/demo-token.sh --role operator|auditor|admin` in một access token Cognito (15 phút) ra stdout, mật khẩu đọc từ secret `dbs/dev/demo-accounts` và chỉ đi qua stdin của `aws` (`--auth-parameters file:///dev/stdin`; `--cli-input-json file:///dev/stdin` không chạy được trên AWS CLI v2). Chưa seed hoặc Cognito trả thử thách thì thoát 1 và không in gì. Test: `python3 infra/scripts/tests/test_demo_token.py`. Token khách hàng: chưa có script (BL-252).
+`bash infra/scripts/demo-token.sh --role operator|auditor|admin|customer1|customer2|customer3` in một access token Cognito (15 phút) ra stdout, mật khẩu đọc từ secret `dbs/dev/demo-accounts` và chỉ đi qua stdin của `aws` (`--auth-parameters file:///dev/stdin`; `--cli-input-json file:///dev/stdin` không chạy được trên AWS CLI v2). Chưa seed hoặc Cognito trả thử thách thì thoát 1 và không in gì. Test: `python3 infra/scripts/tests/test_demo_token.py`. Ba khách demo `customer1..3` (Nguyễn Minh Anh, Trần Thu Hà, Nguyễn Văn Bình theo kế hoạch của `npm run seed`) do `seed-cognito.sh` tạo (nhóm `customer`, mật khẩu cùng secret); chạy lại `seed-cognito.sh` để bổ sung vào secret cũ chỉ có ba nhân viên. `--role customer` (không số) bị từ chối (thoát 2). Seed nhận token qua `DBS_OPERATOR_TOKEN` và `DBS_CUSTOMER_{1,2,3}_TOKEN`, cờ `--*-token` đã lỗi thời (BL-252).
 
 ## Báo cáo chi phí tuần (DBS-143)
 

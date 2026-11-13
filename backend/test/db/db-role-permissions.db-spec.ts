@@ -5,6 +5,7 @@ import {
   rollbackProbe,
   protectedMutations,
   flagInsert,
+  hitInsert,
   transferInsert,
   auditInsert,
   assertRuntimeRole,
@@ -83,8 +84,10 @@ describe('DBS-122 actual LOGIN role permissions on isolated PostgreSQL 17', () =
     const transfer = fixture.transfers[0];
     const flag = flagInsert(transfer.id),
       audit = auditInsert(transfer);
+    const hit = hitInsert(transfer.id);
     await fixture.worker.transaction(async manager => {
       await manager.query(flag.sql, flag.args);
+      await manager.query(hit.sql, hit.args);
       await manager.query(audit.sql, audit.args);
     });
     expect(

@@ -75,6 +75,7 @@ for line in text.splitlines():
 # ---- DBS-38: deploy.yml (spec riêng) và ignore_changes của service api ----
 DEPLOY = WORKFLOWS / "deploy.yml"
 ECS_TF = ROOT / "infra" / "terraform" / "envs" / "dev" / "session" / "ecs.tf"
+WORKER_TF = ROOT / "infra" / "terraform" / "envs" / "dev" / "session" / "worker.tf"
 REQUIRED_IF = [
     "github.event_name == 'workflow_dispatch'",
     "github.event.workflow_run.conclusion == 'success'",
@@ -150,6 +151,11 @@ for path in WORKFLOWS.glob("*.yml"):
         check("id-token" not in path.read_text(), f"{path.name}: chỉ image.yml và deploy.yml được xin id-token")
 check("ignore_changes" in ECS_TF.read_text() and "task_definition" in ECS_TF.read_text().split("ignore_changes")[1].split("]")[0],
       "session/ecs.tf: service api phải có lifecycle ignore_changes = [task_definition]")
+# BL-248: deploy.sh lăn service worker nên Terraform không được kéo task_definition của nó về revision cũ.
+_worker_tf = WORKER_TF.read_text()
+_worker_svc = _worker_tf.split('resource "aws_ecs_service" "worker"', 1)[-1]
+check("ignore_changes" in _worker_svc and "task_definition" in _worker_svc.split("ignore_changes", 1)[1].split("]", 1)[0],
+      "session/worker.tf: service worker phải có lifecycle ignore_changes = [task_definition] (deploy.sh lăn worker, BL-248)")
 
 # ---- DBS-155: cổng quét image và secret (H7) ----
 CI = WORKFLOWS / "ci.yml"
@@ -271,10 +277,35 @@ else:
     check(bool(exit_codes) and all(v == "1" for v in exit_codes), "run-gitleaks.sh: phải có --exit-code 1")
     check("is-shallow-repository" in gl_code, "run-gitleaks.sh: thiếu kiểm repo nông (rev-parse --is-shallow-repository)")
 
+# BL-245: bước cài cosign (ghim SHA) phải đứng trước bước chạy run-trivy.sh ở cả hai workflow; không workflow nào
+# được đặt TRIVY_SKIP_COSIGN (lối thoát chỉ dành cho chạy tay).
+COSIGN_INSTALLER_RE = re.compile(r"^sigstore/cosign-installer@[0-9a-f]{40}$")
+
+
+def cosign_order_ok(steps):
+    idx_trivy = next((i for i, st in enumerate(steps) if "run-trivy.sh" in str(st.get("run", ""))), None)
+    idx_cosign = next((i for i, st in enumerate(steps) if COSIGN_INSTALLER_RE.match(str(st.get("uses", "")))), None)
+    return idx_trivy is not None and idx_cosign is not None and idx_cosign < idx_trivy
+
+
+if CI.exists():
+    check(cosign_order_ok(load(CI).get("jobs", {}).get("image-scan", {}).get("steps", [])),
+          "ci.yml job image-scan: phải có sigstore/cosign-installer@<SHA 40 ký tự> trước bước run-trivy.sh (BL-245)")
+if IMAGE.exists():
+    check(cosign_order_ok(wf["jobs"].get("image-push", {}).get("steps", [])),
+          "image.yml job image-push: phải có sigstore/cosign-installer@<SHA 40 ký tự> trước bước run-trivy.sh (BL-245)")
+for wf_path in WORKFLOWS.glob("*.yml"):
+    check("TRIVY_SKIP_COSIGN" not in wf_path.read_text(), f"{wf_path.name}: không được đặt TRIVY_SKIP_COSIGN (bỏ kiểm cosign chỉ dành cho chạy tay)")
+
 trivy_sh = SCRIPTS / "run-trivy.sh"
 if not trivy_sh.exists():
     errors.append("thiếu .github/scripts/run-trivy.sh")
 else:
+    tv_code = code_text(trivy_sh.read_text())
+    check("cosign verify" in tv_code and "--certificate-identity-regexp" in tv_code and "--certificate-oidc-issuer" in tv_code,
+          "run-trivy.sh: phải chạy cosign verify với --certificate-identity-regexp và --certificate-oidc-issuer (BL-245)")
+    check(tv_code.find("cosign verify") != -1 and tv_code.find("cosign verify") < tv_code.find("docker save"),
+          "run-trivy.sh: cosign verify phải đứng trước mọi lệnh docker (BL-245)")
     tv_lines = logical_lines(trivy_sh.read_text())
     common = next((t for t in tv_lines if "docker" in t and "run" in t and "--input" in t), None)
     if common is None:
