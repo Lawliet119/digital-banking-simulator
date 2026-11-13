@@ -12,7 +12,7 @@ import CircuitBreaker from 'opossum';
 import { RedisMetrics } from './redis.metrics';
 
 export type RedisFailureReason =
-  'TIMEOUT' | 'CIRCUIT_OPEN' | 'UNAVAILABLE' | 'COMMAND_FAILED' | 'SHUTDOWN';
+  'TIMEOUT' | 'CIRCUIT_OPEN' | 'UNAVAILABLE' | 'COMMAND_FAILED' | 'SHUTDOWN' | 'CORRUPT';
 export class RedisUnavailableError extends Error {
   constructor(readonly reason: RedisFailureReason) {
     super(`Redis fallback required: ${reason}`);
@@ -30,22 +30,28 @@ local function now_ms()
   local time = redis.call('TIME')
   return tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
 end
+-- nil: no usable marker because the key is absent or its deadline has passed (a normal miss).
+-- false: the key exists but is not a marker this code wrote (wrong type, junk, out of range).
 local function valid(key, now)
   local kind = redis.call('TYPE', key).ok
-  if kind ~= 'string' then return nil end
+  if kind == 'none' then return nil end
+  if kind ~= 'string' then return false end
   local ttl = redis.call('PTTL', key)
-  if ttl <= 0 or ttl > 60000 then return nil end
+  if ttl == -2 then return nil end
+  if ttl <= 0 or ttl > 60000 then return false end
   local value = redis.call('GET', key)
   local version, deadline = string.match(value, '^([1-9]%d*):([1-9]%d*)$')
-  if not version or #version > 10 or #deadline > 15 then return nil end
+  if not version or #version > 10 or #deadline > 15 then return false end
   local nversion, ndeadline = tonumber(version), tonumber(deadline)
-  if nversion > 2147483647 or ndeadline > 253402300799999 or ndeadline <= now
-    or ndeadline - now > 60000 or ttl > ndeadline - now + 1 then return nil end
+  if nversion > 2147483647 or ndeadline > 253402300799999 then return false end
+  if ndeadline <= now then return nil end
+  if ndeadline - now > 60000 or ttl > ndeadline - now + 1 then return false end
   return {version, deadline}
 end
 `;
 const READ_VERSION = `${VERSION_CACHE_LUA}
 local result = valid(KEYS[1], now_ms())
+if result == false then return {'corrupt'} end
 if result then return result end
 return nil
 `;
@@ -182,6 +188,8 @@ export class RedisClient implements OnModuleDestroy, OnModuleInit {
       () => this.driver.eval(READ_VERSION, 1, key) as Promise<string[] | null>,
     );
     if (result === null) return null;
+    // Redis answered, but with a value this code never wrote: not an outage, so not a breaker hit.
+    if (result.length === 1 && result[0] === 'corrupt') throw new RedisUnavailableError('CORRUPT');
     const version = Number(result[0]);
     const deadlineMs = Number(result[1]);
     if (
@@ -192,7 +200,7 @@ export class RedisClient implements OnModuleDestroy, OnModuleInit {
       deadlineMs < 1 ||
       deadlineMs > MAX_CACHE_TIME_MS
     ) {
-      throw new RedisUnavailableError('COMMAND_FAILED');
+      throw new RedisUnavailableError('CORRUPT');
     }
     return { version, deadlineMs };
   }

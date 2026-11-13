@@ -43,15 +43,38 @@ describe('risk configuration publication on Valkey', () => {
   it('repairs wrong-type and improperly extended latest keys without touching immutable content', async () => {
     const deadline = (await client.serverTimeMs()) + 5000;
     await admin.lPush(key, 'wrong-type');
-    expect(await client.readExpiringVersion(key)).toBeNull();
+    await expect(client.readExpiringVersion(key)).rejects.toMatchObject({ reason: 'CORRUPT' });
     expect(await client.setVersionBefore(key, 1, deadline)).toBe(true);
     await admin.set(key, `2:${deadline}`, { PX: 30_000 });
-    expect(await client.readExpiringVersion(key)).toBeNull();
+    await expect(client.readExpiringVersion(key)).rejects.toMatchObject({ reason: 'CORRUPT' });
     expect(await client.setVersionBefore(key, 1, deadline)).toBe(true);
     expect((await client.readExpiringVersion(key))?.version).toBe(1);
     expect(await client.setIfAbsent('dbs110:immutable-test', 'first', 60)).toBe(true);
     expect(await client.setIfAbsent('dbs110:immutable-test', 'second', 60)).toBe(false);
     expect(await client.get('dbs110:immutable-test')).toBe('first');
+  });
+
+  it('BL-208 reports a marker nobody wrote as corrupt, an absent or expired one as a plain miss', async () => {
+    const deadline = (await client.serverTimeMs()) + 5000;
+    const junk = [
+      '9999999999', // the bare legacy form of latest, out of int4 range
+      `9999999999:${deadline}`, // int4 overflow
+      `2147483648:${deadline}`,
+      'not-a-marker',
+      `0:${deadline}`,
+    ];
+    for (const value of junk) {
+      await admin.set(key, value, { PX: 5000 });
+      await expect(client.readExpiringVersion(key)).rejects.toMatchObject({ reason: 'CORRUPT' });
+      // A later writer repairs it, so one bad value is not served for a whole TTL.
+      expect(await client.setVersionBefore(key, 4, deadline)).toBe(true);
+      expect((await client.readExpiringVersion(key))?.version).toBe(4);
+      await admin.del(key);
+    }
+    expect(await client.readExpiringVersion(key)).toBeNull(); // absent
+    await admin.set(key, `3:${(await client.serverTimeMs()) + 20}`, { PX: 20 });
+    await wait(60);
+    expect(await client.readExpiringVersion(key)).toBeNull(); // expired
   });
 
   it('keeps newer values when timed-out writes reach Valkey late', async () => {

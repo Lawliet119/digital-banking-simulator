@@ -1,7 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import type { Features, TransferEvent } from './features/feature-provider';
 import { parseRuleSet } from './config/rule-set';
-import { ScoringService } from './scoring.service';
 
 const RULE_KEYS: Record<string, readonly string[]> = {
   R1: ['enabled', 'weight', 'maxTransfers', 'windowMinutes'],
@@ -24,37 +22,6 @@ const AI_KEYS = [
   'requestTimeoutMs',
 ] as const;
 
-// Every rule validates its configuration before scoring this valid synthetic transfer.
-const PROBE: TransferEvent = {
-  eventType: 'TransferCompleted',
-  eventId: '00000000-0000-4000-8000-000000000001',
-  correlationId: '00000000-0000-4000-8000-000000000002',
-  transferId: '00000000-0000-4000-8000-000000000003',
-  fromAccountId: '00000000-0000-4000-8000-000000000004',
-  toAccountId: '00000000-0000-4000-8000-000000000005',
-  fromUserId: '00000000-0000-4000-8000-000000000006',
-  toUserId: '00000000-0000-4000-8000-000000000007',
-  type: 'TRANSFER',
-  amount: '1',
-  fromBalanceBefore: '1',
-  sameOwner: false,
-  occurredAt: '2026-01-02T00:00:00.000Z',
-  fromAccountCreatedAt: '2026-01-01T00:00:00.000Z',
-  toAccountCreatedAt: '2026-01-01T00:00:00.000Z',
-};
-const FACTS: Features = {
-  txCount10m: 1,
-  txCount1h: 1,
-  historyCount30d: 0,
-  medianAmount30dTimes2: null,
-  reverseTransferOccurredAt: null,
-  newRecipients1h: 1,
-  distinctRecipients24h: 1,
-  sumOut24h: '1',
-  smallTxCount24h: 1,
-};
-const scoring = new ScoringService();
-
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -69,7 +36,12 @@ function keys(value: unknown, required: readonly string[], optional: readonly st
   }
 }
 
-/** Strict write boundary; the worker retains its separate legacy/fallback read policy. */
+/**
+ * Strict write boundary (BL-188). Besides the exact key sets it runs `parseRuleSet`, the check the
+ * worker applies when it reads a version, and that check asks each rule to accept its own
+ * parameters: there is no second list of ranges to drift from the rules. The worker keeps its
+ * separate lenient read policy for `ai.*`; the API does not.
+ */
 export function validateRiskConfig(raw: unknown): Record<string, unknown> {
   keys(raw, ['mode', 'thresholds', 'rules'], ['ai', 'ml']);
   if (!object(raw)) throw new BadRequestException('Invalid risk configuration');
@@ -92,11 +64,10 @@ export function validateRiskConfig(raw: unknown): Record<string, unknown> {
   const hasAi = Object.hasOwn(raw, 'ai');
   if (hasAi || raw.mode === 'rules_with_external_ai') keys(raw.ai, AI_KEYS);
   try {
-    const selected = parseRuleSet(1, raw);
+    parseRuleSet(1, raw);
     if (hasAi && parseRuleSet(1, { ...raw, mode: 'rules_with_external_ai' }).aiConfigInvalid) {
       throw new BadRequestException('Invalid risk configuration');
     }
-    scoring.score(PROBE, FACTS, selected);
     return raw;
   } catch {
     throw new BadRequestException('Invalid risk configuration');

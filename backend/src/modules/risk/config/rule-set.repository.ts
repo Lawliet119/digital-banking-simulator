@@ -1,21 +1,30 @@
 import { performance } from 'node:perf_hooks';
-import type { RedisClient } from '@libs/redis';
-import type { RiskMetrics } from '../risk.metrics';
+import { RedisUnavailableError, type RedisClient } from '@libs/redis';
+import type { ConfigFallbackReason, RiskMetrics } from '../risk.metrics';
 import { InvalidRuleSetError, parseRuleSet, type RuleSet } from './rule-set';
 
 /** The current version has a strict 60-second freshness budget. */
 export const LATEST_KEY = 'cfg:risk:latest:v2';
 export const LATEST_TTL_SECONDS = 60;
 const MAX_AGE_MS = LATEST_TTL_SECONDS * 1000;
-const CONTENT_TTL_SECONDS = 604_800;
 const MAX_CACHE_TIME_MS = 253_402_300_799_999;
+const MAX_VERSION = 2_147_483_647; // PostgreSQL int4: `risk_rule_sets.version`
 
-export const versionKey = (version: number): string => `cfg:risk:v${version}`;
-
+/**
+ * Redis only says which version is current (and for how long). Rule-set content is never read from
+ * Redis: it comes from PostgreSQL rows only, so whoever can write to Redis cannot change scoring.
+ */
 export type RuleSetRedis = Pick<
   RedisClient,
-  'get' | 'serverTimeMs' | 'readExpiringVersion' | 'setVersionBefore' | 'setIfAbsent'
+  'serverTimeMs' | 'readExpiringVersion' | 'setVersionBefore'
 >;
+
+const redisReason = (error: unknown): ConfigFallbackReason | undefined =>
+  error instanceof RedisUnavailableError
+    ? error.reason === 'CORRUPT'
+      ? 'corrupt'
+      : 'error'
+    : undefined;
 
 export interface RuleSetDb {
   query(sql: string, params?: unknown[]): Promise<unknown>;
@@ -99,21 +108,36 @@ export class RuleSetRepository {
     try {
       const marker = await this.redis.readExpiringVersion(LATEST_KEY);
       if (!marker) return undefined;
-      let set = await this.cachedContent(marker.version);
+      // The marker is a number from Redis: it must be a valid int4 before it becomes a SQL
+      // parameter, or PostgreSQL's range error would fail every event until the key expires.
+      if (
+        !Number.isSafeInteger(marker.version) ||
+        marker.version < 1 ||
+        marker.version > MAX_VERSION
+      ) {
+        this.metrics.configFallback('corrupt');
+        return undefined;
+      }
+      let set = this.parsed.get(marker.version);
       if (!set) {
         const [row] = (await this.db.query(
           'SELECT version, config FROM risk_rule_sets WHERE version = $1',
           [marker.version],
         )) as Row[];
-        if (!row) return undefined;
+        if (!row) {
+          this.metrics.configFallback('corrupt'); // the marker names a version PostgreSQL lacks
+          return undefined;
+        }
         set = this.parse(row);
-        await this.rememberContent(row);
       }
       const start = this.stamp();
       const serverTime = await this.redis.serverTimeMs();
       return serverTime + this.elapsed(start) < marker.deadlineMs ? set : undefined;
-    } catch {
-      this.metrics.configFallback();
+    } catch (error) {
+      // Only a Redis failure is a Redis fallback; a PostgreSQL or parse error is not counted here
+      // and the PostgreSQL path below reports it by itself.
+      const reason = redisReason(error);
+      if (reason) this.metrics.configFallback(reason);
       return undefined;
     }
   }
@@ -122,8 +146,8 @@ export class RuleSetRepository {
     let serverTime: number | undefined;
     try {
       serverTime = await this.redis.serverTimeMs();
-    } catch {
-      this.metrics.configFallback();
+    } catch (error) {
+      this.metrics.configFallback(redisReason(error) ?? 'error');
     }
     const start = this.stamp();
     const [row] = (await this.db.query(
@@ -133,40 +157,15 @@ export class RuleSetRepository {
     const set = this.parse(row);
     if (this.elapsed(start) >= MAX_AGE_MS) throw new FreshnessExpired();
     if (serverTime !== undefined && serverTime <= MAX_CACHE_TIME_MS - MAX_AGE_MS) {
-      await this.rememberContent(row);
       try {
+        // Forward-only in Redis (Lua compare-and-set): a late reader cannot move `latest` back or
+        // push its deadline past the one the version it read was entitled to.
         await this.redis.setVersionBefore(LATEST_KEY, row.version, serverTime + MAX_AGE_MS);
-      } catch {
-        this.metrics.configFallback();
+      } catch (error) {
+        this.metrics.configFallback(redisReason(error) ?? 'error');
       }
     }
     if (this.elapsed(start) >= MAX_AGE_MS) throw new FreshnessExpired();
     return set;
-  }
-
-  private async cachedContent(version: number): Promise<RuleSet | undefined> {
-    const known = this.parsed.get(version);
-    if (known) return known;
-    try {
-      const text = await this.redis.get(versionKey(version));
-      if (text === null) return undefined;
-      return this.parse({ version, config: JSON.parse(text) as unknown });
-    } catch {
-      this.metrics.configFallback();
-      return undefined;
-    }
-  }
-
-  /** A delayed cache write must never replace another writer's immutable content. */
-  private async rememberContent(row: Row): Promise<void> {
-    try {
-      await this.redis.setIfAbsent(
-        versionKey(row.version),
-        JSON.stringify(row.config),
-        CONTENT_TTL_SECONDS,
-      );
-    } catch {
-      this.metrics.configFallback();
-    }
   }
 }

@@ -141,3 +141,83 @@ describe('DBS-110 RuleSetRepository failure and freshness behavior', () => {
     expect((await repository.current()).version).toBe(2);
   });
 });
+
+describe('BL-208 RuleSetRepository trusts only PostgreSQL for content', () => {
+  const marker = (version: number) => ({
+    readExpiringVersion: () => Promise.resolve({ version, deadlineMs: Date.now() + 30_000 }),
+    serverTimeMs: () => Promise.resolve(Date.now()),
+    setVersionBefore: () => Promise.resolve(true),
+  });
+
+  it('never reads cfg:risk:v{n}: a valid entry that differs from PostgreSQL is ignored', async () => {
+    const get = jest.fn(() => Promise.resolve(JSON.stringify(config(99))));
+    const sql: string[] = [];
+    const repository = new RuleSetRepository({
+      redis: { ...marker(1), get, setIfAbsent: unavailable } as never,
+      db: {
+        query: (text: string) => {
+          sql.push(text);
+          return Promise.resolve([{ version: 1, config: config(30) }]);
+        },
+      },
+      metrics: new RiskMetrics(),
+    });
+    expect((await repository.current()).rules.R1.weight).toBe(30);
+    expect(get).not.toHaveBeenCalled();
+    expect(sql).toHaveLength(1);
+    // The parsed version stays in memory: the next read does not touch PostgreSQL again.
+    expect((await repository.current()).rules.R1.weight).toBe(30);
+    expect(sql).toHaveLength(1);
+  });
+
+  it('a marker above int4 never reaches WHERE version = $1 and is counted as corrupt', async () => {
+    const calls: unknown[][] = [];
+    const metrics = new RiskMetrics();
+    const repository = new RuleSetRepository({
+      redis: marker(9_999_999_999),
+      db: {
+        query: (text: string, params?: unknown[]) => {
+          calls.push([text, params]);
+          return Promise.resolve([{ version: 2, config: config(30) }]);
+        },
+      },
+      metrics,
+    });
+    expect((await repository.current()).version).toBe(2);
+    expect(calls.every(([, params]) => params === undefined)).toBe(true);
+    expect(await metrics.configFallbackCount('corrupt')).toBe(1);
+    expect(await metrics.configFallbackCount('error')).toBe(0);
+  });
+
+  it('a marker naming a version PostgreSQL does not have is corrupt and falls back to the latest', async () => {
+    const metrics = new RiskMetrics();
+    const repository = new RuleSetRepository({
+      redis: marker(7),
+      db: {
+        query: (_text: string, params?: unknown[]) =>
+          Promise.resolve(params ? [] : [{ version: 2, config: config(30) }]),
+      },
+      metrics,
+    });
+    expect((await repository.current()).version).toBe(2);
+    expect(await metrics.configFallbackCount('corrupt')).toBe(1);
+  });
+
+  it('labels the fallback by cause: a Redis failure is error, unusable content is corrupt', async () => {
+    const metrics = new RiskMetrics();
+    const rows = [{ version: 1, config: config(30) }];
+    for (const reason of ['UNAVAILABLE', 'CORRUPT'] as const) {
+      await new RuleSetRepository({
+        redis: {
+          ...noCache,
+          readExpiringVersion: () => Promise.reject(new RedisUnavailableError(reason)),
+        },
+        db: { query: () => Promise.resolve(rows) },
+        metrics,
+      }).current();
+    }
+    // The UNAVAILABLE read, and the two failed Redis time reads of the PostgreSQL path.
+    expect(await metrics.configFallbackCount('error')).toBe(3);
+    expect(await metrics.configFallbackCount('corrupt')).toBe(1);
+  });
+});

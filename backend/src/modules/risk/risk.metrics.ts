@@ -23,10 +23,18 @@ const CONFIG_NAME = 'risk_config_redis_fallback_total';
 const CONFIG_HELP =
   'Rule configuration reads answered from PostgreSQL because Redis failed or held a bad value';
 
-function sharedConfigCounter(): Counter {
+/** `error`: a Redis call failed; `corrupt`: Redis answered with a value that cannot be used. */
+export type ConfigFallbackReason = 'error' | 'corrupt';
+
+function sharedConfigCounter(): Counter<'reason'> {
   const existing = defaultRegister.getSingleMetric(CONFIG_NAME);
   if (existing instanceof Counter) return existing;
-  return new Counter({ name: CONFIG_NAME, help: CONFIG_HELP, registers: [defaultRegister] });
+  return new Counter({
+    name: CONFIG_NAME,
+    help: CONFIG_HELP,
+    labelNames: ['reason'],
+    registers: [defaultRegister],
+  });
 }
 
 @Injectable()
@@ -35,6 +43,7 @@ export class RiskMetrics {
   private readonly localConfig = new Counter({
     name: CONFIG_NAME,
     help: CONFIG_HELP,
+    labelNames: ['reason'],
     registers: [this.registry],
   });
   private readonly sharedConfig = sharedConfigCounter();
@@ -53,13 +62,17 @@ export class RiskMetrics {
     this.shared.inc({ rule, reason });
   }
 
-  configFallback(): void {
-    this.localConfig.inc();
-    this.sharedConfig.inc();
+  configFallback(reason: ConfigFallbackReason): void {
+    this.localConfig.inc({ reason });
+    this.sharedConfig.inc({ reason });
   }
 
-  async configFallbackCount(): Promise<number> {
-    return (await this.localConfig.get()).values[0]?.value ?? 0;
+  /** The fallbacks of one reason, or of all reasons when none is given. */
+  async configFallbackCount(reason?: ConfigFallbackReason): Promise<number> {
+    const values = (await this.localConfig.get()).values;
+    return values
+      .filter(v => reason === undefined || v.labels.reason === reason)
+      .reduce((sum, v) => sum + v.value, 0);
   }
 
   async count(rule: FallbackRule, reason: 'error' | 'cold'): Promise<number> {
