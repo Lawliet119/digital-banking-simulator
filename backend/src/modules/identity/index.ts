@@ -9,6 +9,8 @@ export { ROLES, rolesFromGroups } from './roles';
 export type { Role } from './roles';
 export { Roles, ROLES_KEY } from './roles.decorator';
 export { RolesGuard } from './roles.guard';
+export { RoleDenialAudit } from './role-denial-audit';
+export type { RoleDenial } from './role-denial-audit';
 export { CurrentUser } from './current-user.decorator';
 export type { CurrentUserInfo } from './current-user.decorator';
 export { TokenExpiredError, TokenVerificationError } from './identity.errors';

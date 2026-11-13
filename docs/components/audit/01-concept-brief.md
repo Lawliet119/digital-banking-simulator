@@ -21,7 +21,8 @@ Nhật ký thao tác rời rạc và có thể bị sửa nên không đáp ứn
 
 - Thư viện `AuditService.record(manager, …)` được module ghi dữ liệu gọi **trong transaction của chính nó**; không ghi được nhật ký thì cả transaction rollback.
 - Bảng `audit_log` chỉ cấp quyền INSERT/SELECT ở mức DB.
-- Ghi cả truy cập dữ liệu nhạy cảm và các lần bị từ chối quyền.
+- Ghi cả truy cập dữ liệu nhạy cảm và các lần bị từ chối quyền: từ chối sở hữu (404, `NOT_OWNER`, action của thao tác bị thử) và từ chối vai trò (403 của `RolesGuard`, action `access.denied`, `NO_PERMISSION`; BL-132).
+- `action`, `actor_role` và `target_type` là registry đóng ở compile time (`backend/src/modules/audit/audit.registry.ts`, danh sách đầy đủ ở đó); cột DB vẫn là text mở.
 - `correlationId` xuyên suốt API → outbox → consumer → audit.
 
 ## Ngoài phạm vi (v1)

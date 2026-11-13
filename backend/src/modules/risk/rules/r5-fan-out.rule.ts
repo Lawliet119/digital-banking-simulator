@@ -20,10 +20,11 @@ export class R5FanOutRule implements RiskRule {
       params.thresholds?.noveltyDays !== 30
     )
       throw new Error('Invalid R5 configuration');
+    if (!params.enabled) return null; // a switched-off rule judges only its configuration (BL-207(a))
     if (typeof event.sameOwner !== 'boolean') throw new Error('Invalid R5 owner snapshot');
     const count = features.newRecipients1h;
     if (!Number.isSafeInteger(count) || count < 0) throw new Error('Invalid R5 recipient count');
-    if (!params.enabled || event.sameOwner || count < minimum) return null;
+    if (event.sameOwner || count < minimum) return null;
     return {
       id: this.id,
       weight: params.weight,

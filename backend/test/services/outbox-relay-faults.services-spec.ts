@@ -12,6 +12,7 @@ import { OutboxRelayService } from '@modules/outbox';
 import { NotificationConsumer } from '@modules/notification';
 import { AuditService } from '@modules/audit';
 import { TRANSFER_SAMPLE } from '../support/event-samples';
+import { clearOutbox } from '../support/outbox-fixtures';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
@@ -113,7 +114,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
     sqs = new SqsClient({ region: 'us-east-1', endpoint: mq.endpoint });
   });
   afterAll(async () => {
-    sqs?.onModuleDestroy();
+    sqs?.onApplicationShutdown();
     await source?.destroy();
     await db?.drop();
     await mq?.stop();
@@ -123,7 +124,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
     else process.env.AWS_SECRET_ACCESS_KEY = oldSecret;
   });
   beforeEach(async () => {
-    await q('DELETE FROM outbox_events');
+    await clearOutbox(q);
     await drain(riskUrl);
     await drain(notificationUrl);
   });
@@ -238,7 +239,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
         expect(result.failure).toBeDefined();
         expect(await pendingIds()).toEqual([event.eventId]);
       } finally {
-        stuck.onModuleDestroy();
+        stuck.onApplicationShutdown();
       }
     });
 
@@ -312,7 +313,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
     });
     const run = relay.relayOnce();
     await inside;
-    const stopped = relay.onApplicationShutdown();
+    const stopped = relay.beforeApplicationShutdown();
     hold.release();
     await stopped;
     expect(await run).toEqual({ published: 1 });
@@ -480,7 +481,7 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
             await new Promise(resolve => setTimeout(resolve, 100));
           }
         } finally {
-          await worker.onApplicationShutdown();
+          await worker.beforeApplicationShutdown();
         }
       });
       expect(await pendingIds()).toEqual([]);

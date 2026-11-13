@@ -68,6 +68,8 @@ SELECT count(*)::int AS count FROM gone`;
 const IDEMPOTENCY_LOCK_KEY = [136, 1] as const;
 const DAY_MS = 86_400_000;
 
+type CleanupTable = 'outbox' | 'processed' | 'idempotency';
+
 export interface CleanupResult {
   /** Outbox rows deleted. */
   outbox: number;
@@ -154,7 +156,11 @@ export class OutboxCleanupService implements OnApplicationBootstrap, OnApplicati
     await this.loop.stop();
   }
 
-  /** One run over both tables. Throws on a database error; batches already deleted stay deleted. */
+  /**
+   * One run over the three tables. A table that fails does not stop the others: after all three
+   * were tried it throws (the error itself for one table, an AggregateError for several); batches
+   * already deleted stay deleted.
+   */
   async cleanOnce(options: CleanOptions = {}): Promise<CleanupResult> {
     const batchSize = options.batchSize ?? CLEANUP_BATCH_SIZE;
     const maxBatches = options.maxBatches ?? CLEANUP_MAX_BATCHES;
@@ -169,7 +175,7 @@ export class OutboxCleanupService implements OnApplicationBootstrap, OnApplicati
       idempotency: new Date(now - this.retention.idempotencyDays * DAY_MS),
     };
 
-    const sweep = async (table: 'outbox' | 'processed' | 'idempotency'): Promise<number> => {
+    const sweep = async (table: CleanupTable): Promise<number> => {
       let total = 0;
       for (let i = 0; i < maxBatches; i++) {
         if (this.stopping) {
@@ -195,13 +201,32 @@ export class OutboxCleanupService implements OnApplicationBootstrap, OnApplicati
       return total;
     };
 
-    const outbox = await sweep('outbox');
-    const processed = await sweep('processed');
-    const idempotency = await sweep('idempotency');
+    // Each table has its own try/catch (BL-219): a failing table (DELETE refused, repeated timeout)
+    // must not keep the tables after it from being cleaned. The round reports it at the end.
+    const counts: Record<CleanupTable, number> = { outbox: 0, processed: 0, idempotency: 0 };
+    const failures: { table: CleanupTable; error: unknown }[] = [];
+    for (const table of ['outbox', 'processed', 'idempotency'] as const) {
+      try {
+        counts[table] = await sweep(table);
+      } catch (error) {
+        failures.push({ table, error });
+        this.logger.error({ ...safeErrorMetadata(error), table }, 'Outbox cleanup table failed');
+      }
+    }
+    if (failures.length > 0) {
+      this.logger.warn(
+        { ...counts, batches, failedTables: failures.map(failure => failure.table) },
+        'Outbox cleanup round ended with failures',
+      );
+      // One failure keeps its own error (SQLSTATE and message stay visible to the loop and callers).
+      if (failures.length === 1) throw failures[0].error;
+      throw new AggregateError(
+        failures.map(failure => failure.error),
+        `Outbox cleanup failed for ${failures.map(failure => failure.table).join(', ')}`,
+      );
+    }
     return {
-      outbox,
-      processed,
-      idempotency,
+      ...counts,
       batches,
       ...(truncated ? { truncated: true as const } : {}),
     };
@@ -209,7 +234,7 @@ export class OutboxCleanupService implements OnApplicationBootstrap, OnApplicati
 
   /** Rows deleted by one batch, or undefined when the table is being cleaned by another job. */
   private deleteBatch(
-    table: 'outbox' | 'processed' | 'idempotency',
+    table: CleanupTable,
     size: number,
     cutoff?: Date,
   ): Promise<number | undefined> {

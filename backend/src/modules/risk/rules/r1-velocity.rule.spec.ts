@@ -56,6 +56,15 @@ describe('DBS-93 R1 velocity', () => {
     expect(rule.evaluate(event, withCount(6), { ...params, enabled: false })).toBeNull();
   });
 
+  it.each([0, -1, 1.5, NaN, Infinity, undefined])(
+    'BL-207(a) returns null when disabled even with a bad feature count %s',
+    count => {
+      expect(
+        rule.evaluate(event, withCount(count as number), { ...params, enabled: false }),
+      ).toBeNull();
+    },
+  );
+
   it('TC-93-02 uses the versioned threshold and weight instead of the seed values', () => {
     const configured: RuleParams = {
       enabled: true,

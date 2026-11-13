@@ -14,7 +14,7 @@ Chỉ redrive **sau khi đã sửa nguyên nhân**: deploy bản sửa, gỡ c�
 
 ## Quyền
 
-**Ops** (không phải task `worker`; DBS-73 từ chối worker đọc hoặc xóa DLQ) cần các quyền sau:
+**Ops** (không phải task `worker`; DBS-73 từ chối worker đọc hoặc xóa DLQ) cần các quyền sau. Từ BL-241, queue policy còn `Deny` các thao tác message cho principal ngoài danh sách cho phép (role `dbs-dev-worker-task` và `sqs_ops_principal_arns`, mặc định mọi IAM user của tài khoản): người redrive phải nằm trong danh sách đó, nếu không sẽ gặp `explicit deny in a resource-based policy` dù identity policy đủ quyền (`infra/terraform/README.md`, mục SQS).
 - **Trên DLQ:** `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, `sqs:GetQueueAttributes`, `sqs:StartMessageMoveTask`, `sqs:ListMessageMoveTasks`, `sqs:CancelMessageMoveTask`.
 - **Trên queue chính:** `sqs:SendMessage`, `sqs:GetQueueAttributes`.
 
@@ -82,7 +82,7 @@ $SQS start-message-move-task --source-arn "$SRC_ARN" --destination-arn "$DST_ARN
 - **Lấy ARN bằng `get-queue-attributes`**, không tự ghép.
 - **Theo dõi:**
   - Trên AWS: `$SQS list-message-move-tasks --source-arn "$SRC_ARN"`, đợi `COMPLETED`. Hủy bằng `cancel-message-move-task --task-handle <handle>`.
-  - **Ở local thì không dùng `list-message-move-tasks`:** lệnh này làm ElasticMQ sập (`scala.MatchError`, image `softwaremill/elasticmq-native@sha256:e4580ab9…`, thử ngày 2026-11-10). Thay bằng cách đếm DLQ (bước 1) cho tới khi về 0.
+  - **Ở local thì không dùng `list-message-move-tasks`:** lệnh này làm ElasticMQ sập (`scala.MatchError`, image `softwaremill/elasticmq-native@sha256:e4580ab9…`, thử ngày 2026-11-10; image này nay được ghim, xem "Nâng image ElasticMQ"). Thay bằng cách đếm DLQ (bước 1) cho tới khi về 0.
 
 ## 5. Kiểm sau redrive (quy tắc 24 giờ)
 
@@ -93,6 +93,17 @@ $SQS start-message-move-task --source-arn "$SRC_ARN" --destination-arn "$DST_ARN
 - Kiểm hiệu ứng theo `eventId`:
   - notification: `SELECT count(*) FROM notification_log WHERE event_id = '<eventId>'` (một TRANSFER khác chủ có 2 dòng);
   - risk: `SELECT * FROM risk_decisions WHERE event_id = '<eventId>'`.
+
+## Nâng image ElasticMQ
+
+Local stack ghim ElasticMQ theo digest `sha256:e4580ab9ad1bd5cd37b4ba04911bc5ccc8cd2d9ab4de56ece65acee71c24e05c` (BL-225; image ngày 2026-04-05, bản DBS-125 đã thử). Ba nơi dùng cùng một giá trị: hằng số `ELASTICMQ_IMAGE` trong `backend/test/support/elasticmq.container.ts` (mọi suite `test:services` và CI), `docker-compose.yml`, và lệnh `docker run` của [Demo 3](../demos/demo-3-failure-recovery.md). Hành vi runbook này dựa vào (redrive bằng `start-message-move-task`, message đã xóa bị loại khi đổi visibility về 0, `list-message-move-tasks` làm ElasticMQ sập) chưa được thử trên bản nào khác; ElasticMQ 2.0 (2026-11) đổi giới hạn và retention.
+
+Nâng bản (đổi digest) chỉ khi cần, theo thứ tự:
+
+1. Lấy digest mới của tag muốn thử (`docker buildx imagetools inspect softwaremill/elasticmq-native:<tag>`), chạy thử bằng `docker run` riêng như Demo 3.
+2. Từ `backend/`, với `DATABASE_URL` trỏ một PostgreSQL: `npm run test:services -- --runInBand --runTestsByPath test/services/dlq-isolation.services-spec.ts` và `…/worker-recovery.services-spec.ts`.
+3. Chạy lại runbook này (mục 1 đến 5) trên bản mới, kể cả kiểm `list-message-move-tasks` có còn làm ElasticMQ sập không; ghi khác biệt vào runbook.
+4. Đổi digest ở cả ba nơi trong cùng một PR (test `TC-BL225-01` trong `elasticmq.container.spec.ts` kiểm `docker-compose.yml` và tài liệu khớp hằng số), cập nhật đoạn này.
 
 ## Lần chạy thật
 

@@ -246,10 +246,10 @@ async function main(): Promise<void> {
       `M-RSK-02 PASS: gate one request/released; review audit committed; ledger invariants unchanged${live ? '' : '; no external provider request'}`,
     );
   } finally {
-    await parts?.consumer.onApplicationShutdown();
-    await relay?.onApplicationShutdown();
+    await parts?.consumer.beforeApplicationShutdown();
+    await relay?.beforeApplicationShutdown();
     await app?.close();
-    sqs?.onModuleDestroy();
+    sqs?.onApplicationShutdown();
     await source?.destroy();
     await db?.drop();
     if (provider?.listening)

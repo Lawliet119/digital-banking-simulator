@@ -1,4 +1,8 @@
-import { Logger, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
+import {
+  Logger,
+  type BeforeApplicationShutdown,
+  type OnApplicationBootstrap,
+} from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import type { EntityManager } from 'typeorm';
 import { runsWorkers } from '@common/app-role/app-role';
@@ -54,7 +58,7 @@ function receiveCountOf(message: SqsMessage | undefined): number {
  * `apply` and `onCommitted`. The result travels as an argument because a batch is handled
  * concurrently: an instance field would mix up two messages.
  */
-export abstract class ConsumerBase implements OnApplicationBootstrap, OnApplicationShutdown {
+export abstract class ConsumerBase implements OnApplicationBootstrap, BeforeApplicationShutdown {
   /** `processed_events.consumer`: stable, one per consumer. */
   protected abstract readonly consumerName: string;
   private readonly baseLogger = new Logger(ConsumerBase.name);
@@ -114,7 +118,11 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, OnApplicat
     if (runsWorkers()) this.loop.start();
   }
 
-  async onApplicationShutdown(): Promise<void> {
+  /**
+   * Stops the loop and waits for the batch in flight (receive, handlers, deletes) before
+   * `SqsClient` destroys its SDK client in `onApplicationShutdown` (BL-249).
+   */
+  async beforeApplicationShutdown(): Promise<void> {
     await this.loop.stop();
   }
 

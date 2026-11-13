@@ -107,7 +107,8 @@ output "sqs_notification_queue_url" {
   value = aws_sqs_queue.main["notification"].url
 }
 
-# Chưa có biến app tương ứng (bàn giao DBS-77/DBS-90: consumer gửi message sai schema vào DLQ).
+# Không có biến app tương ứng: app suy URL DLQ bằng dlqUrlFor(queueUrl) = "<queueUrl>-dlq"
+# (backend/src/common/messaging/consumer-base.ts, khớp tên ở sqs.tf). Hai output này dành cho người vận hành.
 output "sqs_risk_dlq_url" {
   value = aws_sqs_queue.dlq["risk"].url
 }
@@ -134,4 +135,9 @@ output "sqs_dlq_names" {
 output "worker_sqs_policy_arn" {
   description = "DBS-120 gắn vào role task worker."
   value       = aws_iam_policy.worker_sqs.arn
+}
+
+output "cognito_seeder_role_arn" {
+  description = "BL-101: role de chay seed-cognito.sh (aws sts assume-role, hoac profile role_arn)."
+  value       = aws_iam_role.cognito_seeder.arn
 }

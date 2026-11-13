@@ -47,7 +47,7 @@ assert.equal(atFive, null);
 assert.deepEqual(above, {
   id: 'R2',
   weight: 25,
-  explanation: 'Số tiền 50000000 gấp 12,5× trung vị 30 ngày (4000000)',
+  explanation: 'Số tiền 50.000.000đ gấp 12,5× trung vị 30 ngày (4.000.000đ)',
 });
 console.log(JSON.stringify({ case: 'M-94-01', exactlyFiveTimes: atFive, aboveFiveTimes: above }));
 
@@ -72,7 +72,7 @@ console.log(JSON.stringify({ case: 'M-94-03', exactlyFiveTimes: bigEqual, onePas
 const million = features({ medianAmount30dTimes2: '2000000' });
 const tiny = rule.evaluate(event('5000001'), million, v1);
 const half = rule.evaluate(event('5000003'), features({ medianAmount30dTimes2: '2000001' }), v1);
-assert.equal(tiny?.explanation, 'Số tiền 5000001 gấp hơn 5× trung vị 30 ngày (1000000)');
+assert.equal(tiny?.explanation, 'Số tiền 5.000.001đ gấp hơn 5× trung vị 30 ngày (1.000.000đ)');
 assert(half?.explanation.endsWith('(1000000,5)'));
 console.log(JSON.stringify({ case: 'M-94-04', tinyExcess: tiny, halfMedian: half }));
 

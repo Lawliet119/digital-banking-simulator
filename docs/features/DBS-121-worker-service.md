@@ -61,7 +61,7 @@ Không có API; hệ thống là hạ tầng. Hành vi mong đợi của service
 | Tiến trình worker chết | Container `essential`, ECS chạy task mới (cùng `desired_count`) |
 | Worker treo (còn tiến trình, không xử lý) | **Không** phát hiện bởi ECS; alarm tuổi outbox và tuổi message (BL-161 (3)) |
 | `worker_desired_count` đổi 0 ↔ 1 | Chỉ service worker thay đổi; service api, ALB, task def api không đổi; api vẫn nhận chuyển tiền, outbox tích lũy khi worker tắt và được xả khi bật lại (ADR-03) |
-| Dừng task (SIGTERM) | ECS chờ `stopTimeout` 60 s trước SIGKILL; `enableShutdownHooks` bật. Thứ tự hủy module của Nest (`SqsClient.onModuleDestroy` trước vòng lặp relay/consumer dừng ở `onApplicationShutdown`) có thể làm lệnh gửi/xóa đang dở lỗi: không mất tiền vì SQS giao ít nhất một lần và `processed_events` khử trùng (ADR-03); việc đổi thứ tự là của Dev backend (BL mới) |
+| Dừng task (SIGTERM) | ECS chờ `stopTimeout` 60 s trước SIGKILL; `enableShutdownHooks` bật. Trước đây `SqsClient.onModuleDestroy` chạy trước khi vòng lặp relay/consumer dừng ở `onApplicationShutdown`, có thể làm lệnh gửi/xóa đang dở lỗi (không mất tiền vì SQS giao ít nhất một lần và `processed_events` khử trùng, ADR-03). Đã sửa ở BL-249: relay và consumer dừng vòng lặp (chờ lô đang chạy) ở `beforeApplicationShutdown`, `SqsClient` đóng SDK ở `onApplicationShutdown`; Nest chạy mọi `onModuleDestroy`, rồi mọi `beforeApplicationShutdown`, rồi mọi `onApplicationShutdown`, nên thứ tự đúng bất kể thứ tự module. Không thêm chờ mới: vẫn dùng ngân sách lô relay 25 s và long-poll 20 s trong `stopTimeout` 60 s |
 | `terraform destroy` stack `session` | Xóa service, task def, SG tham chiếu không bị ảnh hưởng (SG, log group nằm ở `base`) |
 
 Biến môi trường của task worker (không bí mật): `NODE_ENV`, `APP_ROLE=worker`, `AWS_REGION`, `LOG_LEVEL=log`, `TRUST_PROXY_HOPS=1` (schema bắt buộc ở staging/production dù không có HTTP), `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `COGNITO_ISSUER` (schema bắt buộc ở staging/production), `DB_HOST/PORT/NAME`, `DATABASE_SSL=true`, `DATABASE_SSL_CA_PATH`, `REDIS_HOST/PORT`, `SQS_RISK_QUEUE_URL`, `SQS_NOTIFICATION_QUEUE_URL`. **Không** `SQS_ENDPOINT`, không `PORT`. Bí mật qua `secrets` (ECS đọc bằng execution role worker): `DB_USER`, `DB_PASSWORD`, `REDIS_AUTH_TOKEN`.
@@ -171,7 +171,7 @@ Ngưỡng đạt (docs/03 §14): tuổi outbox chưa gửi cũ nhất < 10 s (EM
 | 1.6 | 1 | should-fix | Redis chết không làm worker thoát | đã sửa §2 |
 | 1.7 | 1 | should-fix | Trần 6 task bỏ qua lăn api 200% | không sửa trần api; nêu ở §1 Q3, giữ BL-234 |
 | 1.8 | 1 | should-fix | `connection-pool.spec.ts` không đếm worker | đã sửa: TC-121-15, §3, baseline đã chạy |
-| 1.9 | 1 | should-fix | Thứ tự hủy module làm lệnh dở lỗi khi SIGTERM | sửa lời ở §2; **chuyển Dev backend** (BL mới, §8) |
+| 1.9 | 1 | should-fix | Thứ tự hủy module làm lệnh dở lỗi khi SIGTERM | sửa lời ở §2; **chuyển Dev backend** (BL-249, §8); BL-249 đã xử lý: vòng lặp dừng ở `beforeApplicationShutdown`, `SqsClient` đóng SDK ở `onApplicationShutdown` |
 | 1.10 | 1 | should-fix | Ngưỡng không lấy từ docs/03 §14 | đã sửa §5 (ngưỡng đạt) |
 | 1.11 | 1 | should-fix | `-target` khi destroy để lại RDS | đã sửa: destroy cả stack |
 | 1.12 | 1 | should-fix | Thiếu bước rejection hạ tầng | đã sửa: M-121-12 |
