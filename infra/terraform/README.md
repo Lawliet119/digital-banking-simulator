@@ -131,7 +131,7 @@ Sau khi `apply`, **chủ repo** (cần quyền admin) tạo biến Actions (Sett
 
 `envs/dev/base` thêm role `dbs-github-deploy` (output `github_deploy_role_arn`), tin đúng `sub` của repo và nhánh `main` như role đẩy image; quyền chỉ gồm cập nhật service `dbs-dev/api`, đăng ký task definition `dbs-api`, đọc image trên ECR và `iam:PassRole` cho hai role của task. Sau khi `apply`, **chủ repo** tạo biến Actions `AWS_DEPLOY_ROLE_ARN` (thiếu biến thì job `deploy` bị bỏ qua). Chỉ `image.yml` và `deploy.yml` được xin `id-token: write`.
 
-Luồng: push `main` → `Image` đẩy `dbs-api:<SHA>` → `Deploy` (`.github/workflows/deploy.yml`, `workflow_run`) chạy `.github/scripts/deploy.sh`: lấy revision ACTIVE mới nhất của family `dbs-api`, đổi image container `api`, đăng ký revision mới, `update-service`, chờ deployment PRIMARY `COMPLETED` (tối đa 20 phút; circuit breaker đã rollback hoặc `FAILED` thì đỏ), rồi kiểm `/health/live` và `/health/ready`. Bỏ qua (thoát 0) khi stack `session` chưa dựng, service `desired_count = 0`, hoặc commit không còn là đầu `main`. Service có `ignore_changes = [task_definition]`: `terraform apply` không kéo về revision của Terraform; thay đổi task definition trong Terraform có hiệu lực ở lần deploy kế tiếp. `image_tag` lúc `apply` session phải là tag đã có trên ECR.
+Luồng: push `main` → `Image` đẩy `dbs-api:<SHA>` → `Deploy` (`.github/workflows/deploy.yml`, `workflow_run`) chạy `.github/scripts/deploy.sh`: lấy revision ACTIVE mới nhất của family `dbs-api`, đổi image container `api`, đăng ký revision mới, `update-service`, chờ deployment PRIMARY `COMPLETED` (tối đa 20 phút; circuit breaker đã rollback hoặc `FAILED` thì đỏ), rồi kiểm `/health/live` và `/health/ready`. Sau khi api khỏe, `deploy.sh` lăn tiếp service `worker` (BL-248) cùng image: lấy revision ACTIVE mới nhất của family `dbs-worker`, đổi image container `worker`, đăng ký, `update-service`, rồi chờ PRIMARY `COMPLETED` với `runningCount` đủ `desiredCount` (worker lăn 0%/100%). `desiredCount` của worker = 0 (mặc định của stack): vẫn đăng ký và trỏ service về revision mới nhưng không chờ; service worker không ACTIVE thì cảnh báo và bỏ qua; `DEPLOY_WORKER=0` tắt bước này. Api lỗi thì worker không bị đụng (cả hai cùng ở bản cũ). Bỏ qua (thoát 0) khi stack `session` chưa dựng, service `desired_count = 0`, hoặc commit không còn là đầu `main`. Service có `ignore_changes = [task_definition]`: `terraform apply` không kéo về revision của Terraform; thay đổi task definition trong Terraform có hiệu lực ở lần deploy kế tiếp. `image_tag` lúc `apply` session phải là tag đã có trên ECR.
 
 Chạy tay (không cần `gh`): `IMAGE_TAG=<sha-40-ky-tu> AWS_PROFILE=dbs-admin bash .github/scripts/deploy.sh`.
 
@@ -185,7 +185,7 @@ Migration bước 7 chỉ tạo `dbs_migrator` khi chưa có và **không bao gi
 
 `envs/dev/base` tạo user pool `dbs` (đăng nhập bằng email không phân biệt hoa thường, tự đăng ký bật, mật khẩu tối thiểu 12 ký tự đủ 4 loại), 4 nhóm `customer`, `operator`, `auditor`, `admin` và app client `dbs-app` không secret (`USER_SRP_AUTH`, `REFRESH_TOKEN_AUTH`, `USER_PASSWORD_AUTH`; access và ID token 15 phút, refresh 1 ngày). Output: `cognito_user_pool_id`, `cognito_client_id`, `cognito_issuer` (ba biến `COGNITO_*` của task ECS lấy từ đây, không bí mật). `cognito_deletion_protection` mặc định `INACTIVE` cho dev (teardown cần); đặt `ACTIVE` khi pool đã có người dùng thật, và đặt lại `INACTIVE` trước khi `destroy base`.
 
-Tài khoản `operator`, `auditor`, `admin` demo do script tạo, không do Terraform (mật khẩu không vào state):
+Tài khoản demo do script tạo, không do Terraform (mật khẩu không vào state): `operator`, `auditor`, `admin` và, từ BL-252, ba khách `customer1`, `customer2`, `customer3` (email `customerN.demo@dbs.invalid`, nhóm `customer`):
 
 ```bash
 export COGNITO_USER_POOL_ID=$(terraform -chdir=infra/terraform/envs/dev/base output -raw cognito_user_pool_id)
@@ -339,7 +339,7 @@ AWS_PROFILE=dbs-admin bash infra/scripts/verify-clean.sh
 
 ### Token nhân viên demo
 
-`bash infra/scripts/demo-token.sh --role operator|auditor|admin` in một access token Cognito (15 phút) ra stdout, mật khẩu đọc từ secret `dbs/dev/demo-accounts` và chỉ đi qua stdin của `aws` (`--auth-parameters file:///dev/stdin`; `--cli-input-json file:///dev/stdin` không chạy được trên AWS CLI v2). Chưa seed hoặc Cognito trả thử thách thì thoát 1 và không in gì. Test: `python3 infra/scripts/tests/test_demo_token.py`. Token khách hàng: chưa có script (BL-252).
+`bash infra/scripts/demo-token.sh --role operator|auditor|admin|customer1|customer2|customer3` in một access token Cognito (15 phút) ra stdout, mật khẩu đọc từ secret `dbs/dev/demo-accounts` và chỉ đi qua stdin của `aws` (`--auth-parameters file:///dev/stdin`; `--cli-input-json file:///dev/stdin` không chạy được trên AWS CLI v2). Chưa seed hoặc Cognito trả thử thách thì thoát 1 và không in gì. Test: `python3 infra/scripts/tests/test_demo_token.py`. Ba khách demo `customer1..3` (Nguyễn Minh Anh, Trần Thu Hà, Nguyễn Văn Bình theo kế hoạch của `npm run seed`) do `seed-cognito.sh` tạo (nhóm `customer`, mật khẩu cùng secret); chạy lại `seed-cognito.sh` để bổ sung vào secret cũ chỉ có ba nhân viên. `--role customer` (không số) bị từ chối (thoát 2). Seed nhận token qua `DBS_OPERATOR_TOKEN` và `DBS_CUSTOMER_{1,2,3}_TOKEN`, cờ `--*-token` đã lỗi thời (BL-252).
 
 ## Báo cáo chi phí tuần (DBS-143)
 
