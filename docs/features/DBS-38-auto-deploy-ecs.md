@@ -215,3 +215,15 @@ Chưa có ảnh chụp màn hình (không có bước thật nào chạy); G4 n�
 - `docs/BACKLOG.md`: thêm BL-104, BL-105; xóa BL-036; sửa BL-039.
 - `docs/features/README.md`: thêm dòng DBS-38.
 
+
+## 10. Cập nhật BL-248: `deploy.sh` lăn service `worker`
+
+Trước đây `deploy.sh` chỉ cập nhật `api`, nên api và worker có thể chạy hai image khác nhau sau một lần deploy. Nay có bước 8 (`deploy_worker`, `.github/scripts/deploy.sh`), cùng image `dbs-api:<SHA>` (ADR-13).
+
+- **Thứ tự: migrate → api → health api → worker.** Worker cuối vì: (1) api lỗi (rollback, FAILED, hết hạn, health đỏ) thì worker không bị đụng, hai bên cùng ở bản cũ; (2) migration đã xong trước cả hai; (3) worker lăn 0%/100% (DBS-121) nên có khoảng trống xử lý ngắn, để sau khi api đã được xác nhận khỏe. Đánh đổi: giữa lúc api xong và worker xong, worker cũ có thể gặp loại event mới (BL-010); cửa sổ đó ngắn và vốn đã tồn tại do api lăn cuốn chiếu.
+- **Các bước:** `describe-services worker` (không ACTIVE/không có: `::warning::` và bỏ qua, api vẫn xanh) → `describe-task-definition dbs-worker` (chưa có revision ACTIVE: lỗi, nhắc `terraform apply` ở `session`) → `render-task-definition.py --container worker` chỉ đổi image → `register-task-definition` (bỏ qua nếu revision mới nhất đã dùng image) → `update-service` (bỏ qua nếu đã trỏ revision đó) → `wait_rollout`.
+- **`desiredCount` = 0 (mặc định của stack):** vẫn đăng ký và `update-service` để lần bật sau dùng image mới, nhưng không chờ (không có task nào). **Khác 0:** poll `describe-services` tới khi deployment PRIMARY ở revision mới, `rolloutState = COMPLETED` và `runningCount >= desiredCount`; circuit breaker đã rollback hoặc `FAILED` hoặc quá `DEADLINE_SECONDS` thì đỏ. Không dùng `aws ecs wait` (lý do như api). Hàm `wait_rollout` dùng chung cho api và worker.
+- **Quyền role deploy (`base/deploy_role.tf`):** đã đủ, không đổi policy: `RegisterTaskDefinition` và `DescribeTaskDefinition` (`*`), `DescribeServices`/`UpdateService` trên `service/dbs-dev/worker`, `TagResource` cho `dbs-worker:*` khi `RegisterTaskDefinition`, `PassRole` cho hai role worker, `ecr:BatchGetImage` (cùng repo). Chỉ sửa comment.
+- **Terraform:** `session/worker.tf` thêm `lifecycle { ignore_changes = [task_definition] }` cho service worker (như api) để `apply` sau deploy không kéo worker về revision cũ; `check-image-workflow.py` kiểm điều này (TC-248-10).
+- **Test:** `test_deploy.py` TC-248-01..09 (thứ tự, desired 0, chờ `runningCount`, rollback/FAILED/hết hạn, service thiếu, api lỗi không đụng worker, idempotent, `DEPLOY_WORKER=0` và lỗi), `fake_aws_deploy.py` có kịch bản riêng cho worker.
+- **Chưa kiểm trên AWS thật:** lần chạy `deploy.sh` với service worker `desired 1` trên stack dựng thật chưa làm (cùng nhóm B của BL-247).

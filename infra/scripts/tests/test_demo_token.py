@@ -39,8 +39,13 @@ if svc == "secretsmanager" and op == "get-secret-value":
     users = {"operator": {"email": "operator.demo@dbs.invalid", "password": os.environ["FAKE_PASSWORD"]},
              "auditor": {"email": "auditor.demo@dbs.invalid", "password": os.environ["FAKE_PASSWORD"]},
              "admin": {"email": "admin.demo@dbs.invalid", "password": os.environ["FAKE_PASSWORD"]}}
+    for n in (1, 2, 3):  # BL-252: ba khách demo; mật khẩu riêng để test biết token ứng với ai
+        users[f"customer{n}"] = {"email": f"customer{n}.demo@dbs.invalid", "password": os.environ["FAKE_PASSWORD"] + str(n)}
     if mode == "norole":
         users.pop("operator")
+    if mode == "nocustomer":  # secret có từ DBS-54: chỉ ba nhân viên
+        for n in (1, 2, 3):
+            users.pop(f"customer{n}")
     sys.stdout.write(json.dumps({"users": users, "pending_signout": []}) + "\n")
 elif svc == "cognito-idp" and op == "initiate-auth":
     # Hành vi thật của AWS CLI v2 (đo ở M-139-03): --cli-input-json file:///dev/stdin báo "Invalid JSON received";
@@ -146,8 +151,33 @@ class DemoToken(unittest.TestCase):
         self.assertNotIn(PASSWORD, r.stdout + r.stderr)
         self.assertEqual(list(e.scratch.iterdir()), [], "script để lại tệp tạm")
 
+    # TC-252-01: customer1..3 đăng nhập đúng tài khoản của mình, mật khẩu chỉ qua stdin
+    def test_customer_roles_log_in_as_their_own_account(self):
+        for n in (1, 2, 3):
+            with self.subTest(n=n):
+                e = self.env()
+                r = e.run("--role", f"customer{n}")
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertEqual(r.stdout, TOKEN + "\n")
+                auth = [c for c in e.calls() if c["argv"][:2] == ["cognito-idp", "initiate-auth"]][0]
+                self.assertEqual(json.loads(auth["stdin"]), {"USERNAME": f"customer{n}.demo@dbs.invalid", "PASSWORD": PASSWORD + str(n)})
+                for c in e.calls():
+                    self.assertNotIn(PASSWORD, " ".join(c["argv"]))
+                    self.assertFalse(any(PASSWORD in v for k, v in c["env"].items() if k != "FAKE_PASSWORD"))
+                self.assertNotIn(PASSWORD, r.stdout + r.stderr)
+                self.assertEqual(list(e.scratch.iterdir()), [])
+
+    # TC-252-02: secret cũ (chỉ ba nhân viên) thì báo chạy lại seed-cognito.sh, không gọi Cognito
+    def test_customer_missing_from_old_secret_hints_seed(self):
+        e = self.env(fake_secret="nocustomer")
+        r = e.run("--role", "customer2")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertEqual(r.stdout, "")
+        self.assertIn("seed-cognito.sh", r.stderr)
+        self.assertEqual([c["argv"][0] for c in e.calls()], ["secretsmanager"])
+
     def test_09_bad_role_exit_2_no_aws_call(self):
-        for args in (["--role", "customer"], [], ["--role", ""], ["--role"], ["--vai", "admin"]):
+        for args in (["--role", "customer"], ["--role", "customer4"], ["--role", "customer0"], [], ["--role", ""], ["--role"], ["--vai", "admin"]):
             with self.subTest(args=args):
                 e = self.env()
                 r = e.run(*args)
