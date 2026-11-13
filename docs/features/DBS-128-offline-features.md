@@ -1,6 +1,6 @@
 # DBS-128 · Đặc trưng fraud offline
 
-> **Trạng thái:** Đã triển khai và kiểm tra cục bộ; chờ CI và Dev review. **Vai:** #4 Fraud. **Cập nhật:** 2026-11-10.
+> **Trạng thái:** Đã triển khai và kiểm tra cục bộ. Đã merge vào `main` trong [PR #129](https://github.com/Lawliet119/digital-banking-simulator/pull/129) (2026-11-10, CI 6 job xanh); chưa có review GitHub của người khác tác giả. **Vai:** #4 Fraud. **Cập nhật:** 2026-11-10; trạng thái PR kiểm 2026-11-14.
 
 ## 1. Phạm vi
 
@@ -8,7 +8,7 @@
 
 `OfflineFeatureProvider` dùng cùng interface `FeatureProvider` với online, xử lý các giao dịch `TRANSFER` đã hoàn tất được cấp trong bộ nhớ. Không đọc nhãn, holdout, gọi mạng hay huấn luyện model. Caller phải cấp đủ lịch sử cần cho cửa sổ 30 ngày; không tự bịa lịch sử thiếu.
 
-**DoD:** cùng cửa sổ và định nghĩa người nhận mới; test R1/R2/R4/R5 tính tay; xử lý 100.000 giao dịch trong vài phút; xuất `FeatureInput` 11 trường; PR được review và merge. Phần review/merge chưa xảy ra.
+**DoD:** cùng cửa sổ và định nghĩa người nhận mới; test R1/R2/R4/R5 tính tay; xử lý 100.000 giao dịch trong vài phút; xuất `FeatureInput` 11 trường; PR được review và merge. PR #129 đã merge nhưng chưa có review của Dev khác; phần review còn mở.
 
 ## 2. Hành vi và kiến trúc
 
@@ -28,4 +28,4 @@ Index theo tài khoản/cặp, cửa sổ trượt và Fenwick tree cho phép kh
 
 Lệnh từ `backend/`: `npm test -- --runInBand --runTestsByPath src/modules/risk/features/offline-feature-provider.spec.ts src/modules/risk/risk.contract.spec.ts`, `npm run test:db -- --runInBand --runTestsByPath test/db/offline-features.db-spec.ts`, `npx ts-node -r tsconfig-paths/register test/manual/offline-features.manual.ts`. Typecheck và lint có mục tiêu cũng đạt. [Output thủ công](screenshots/DBS-128/manual-test.txt).
 
-**Giới hạn:** dữ liệu smoke không có nhãn, không phải tập tune/holdout độc lập và không chứng minh precision/recall, chất lượng AI hay tải production. Tập tune được nhóm dataset quản lý; thư mục `backend/data/fraud/` hiện chưa được bàn giao. CI, review độc lập và merge còn chờ.
+**Giới hạn:** dữ liệu smoke không có nhãn, không phải tập tune/holdout độc lập và không chứng minh precision/recall, chất lượng AI hay tải production. Tập tune được nhóm dataset quản lý; thư mục `backend/data/fraud/` hiện chưa được bàn giao. CI đã xanh và PR #129 đã merge; review độc lập còn chờ.

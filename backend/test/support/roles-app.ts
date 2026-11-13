@@ -13,6 +13,7 @@ import {
   RolesGuard,
 } from '../../src/modules/identity';
 import { startJwksFixture, type JwksFixture } from './jwks-fixture';
+import { FakeRoleDenialAudit, fakeRoleDenialAuditProvider } from './role-denial-audit.fake';
 import { calls, RolesSampleModule } from './roles-sample.module';
 
 export const ISSUER = 'https://issuer.test';
@@ -50,6 +51,8 @@ export interface RolesApp {
   app: NestExpressApplication;
   fixture: JwksFixture;
   calls: typeof calls;
+  /** What RolesGuard handed to the audit port (the real row is proved in auth-attacks.db-spec). */
+  denials: FakeRoleDenialAudit;
   /** A really signed access token. `groups` undefined leaves out the `cognito:groups` claim. */
   tokenFor(groups: unknown, options?: TokenOptions): Promise<string>;
   /** The `users.id` the fake IdentityService gives to this `sub` (stable for the whole run). */
@@ -68,6 +71,7 @@ export async function startRolesApp(): Promise<RolesApp> {
   const key = await fixture.generateKey(KID);
   fixture.rotate(KID, key.publicJwk);
 
+  const denials = new FakeRoleDenialAudit();
   const userIds = new Map<string, string>();
   const userIdFor = (sub: string): string => {
     let id = userIds.get(sub);
@@ -96,6 +100,7 @@ export async function startRolesApp(): Promise<RolesApp> {
     providers: [
       { provide: APP_GUARD, useClass: JwtAuthGuard },
       { provide: APP_GUARD, useClass: RolesGuard },
+      fakeRoleDenialAuditProvider(denials),
     ],
   })
     .overrideProvider(IdentityService)
@@ -116,6 +121,7 @@ export async function startRolesApp(): Promise<RolesApp> {
     app,
     fixture,
     calls,
+    denials,
     async tokenFor(groups, options = {}) {
       counter += 1;
       const claims: Record<string, unknown> = {

@@ -88,6 +88,35 @@ describe('DBS-159 attacks on identity, keys and roles (security, real PostgreSQL
     return { ...counts, balances };
   }
 
+  /**
+   * A 403 of RolesGuard writes no business row, but exactly one audit_log DENIED row per refusal
+   * (BL-132, FR-AUD-02): the snapshot is unchanged except for `audit`, which grew by `denials`.
+   */
+  async function expectOnlyDenialRows(
+    before: Awaited<ReturnType<typeof snapshot>>,
+    denials: number,
+  ) {
+    const after = await snapshot();
+    expect({ ...after, audit: after.audit - denials }).toEqual(before);
+  }
+
+  /** The `access.denied` rows of one request, found by the correlationId the response carried. */
+  async function denialRows(correlationId: unknown) {
+    return q<{
+      actor_user_id: string;
+      actor_role: string;
+      action: string;
+      outcome: string;
+      target_type: string;
+      target_id: string;
+      metadata: Record<string, unknown>;
+    }>(
+      `SELECT actor_user_id, actor_role, action, outcome, target_type, target_id, metadata
+         FROM audit_log WHERE correlation_id=$1`,
+      [correlationId],
+    );
+  }
+
   const withoutCorrelation = (body: Record<string, unknown>) => {
     const { correlationId: _ignored, ...rest } = body;
     return rest;
@@ -320,7 +349,7 @@ describe('DBS-159 attacks on identity, keys and roles (security, real PostgreSQL
     };
     const forgedBody = { role: 'operator', roles: ['operator'], 'cognito:groups': ['operator'] };
 
-    it('TC-159-08 a customer token dressed up as operator by header, cookie, query and body is 403 on deposit and lock, writes nothing and adds no audit row (BL-132)', async () => {
+    it('TC-159-08 a customer token dressed up as operator by header, cookie, query and body is 403 on deposit and lock, writes no business row and leaves one DENIED audit row each (BL-132)', async () => {
       const before = await snapshot();
       const dep = await request(app.url)
         .post('/v1/operator/deposits?role=operator')
@@ -337,8 +366,31 @@ describe('DBS-159 attacks on identity, keys and roles (security, real PostgreSQL
         .send({ reason: 'CONFIRMED_FRAUD', ...forgedBody })
         .expect(403);
       expect(lock.body.errorCode).toBe(ErrorCode.FORBIDDEN);
-      // Today a 403 of RolesGuard is only a log line; when BL-132 lands this goes red on purpose.
-      expect(await snapshot()).toEqual(before);
+      // BL-132: each 403 is one DENIED row (the role the token really has, the route template, the
+      // response's correlationId, no forged role anywhere); nothing else changed.
+      await expectOnlyDenialRows(before, 2);
+      expect(await denialRows(dep.headers['x-correlation-id'])).toEqual([
+        {
+          actor_user_id: binh.userId,
+          actor_role: 'customer',
+          action: 'access.denied',
+          outcome: 'DENIED',
+          target_type: 'route',
+          target_id: 'POST /v1/operator/deposits',
+          metadata: { reason: 'NO_PERMISSION' },
+        },
+      ]);
+      expect(await denialRows(lock.headers['x-correlation-id'])).toEqual([
+        {
+          actor_user_id: binh.userId,
+          actor_role: 'customer',
+          action: 'access.denied',
+          outcome: 'DENIED',
+          target_type: 'route',
+          target_id: 'POST /v1/operator/accounts/:id/lock',
+          metadata: { reason: 'NO_PERMISSION' },
+        },
+      ]);
       const [anUser] = await q<{ sessions_revoked_at: Date | null }>(
         'SELECT sessions_revoked_at FROM users WHERE id=$1',
         [an.userId],
@@ -355,7 +407,14 @@ describe('DBS-159 attacks on identity, keys and roles (security, real PostgreSQL
       const before = await snapshot();
       const res = await deposit(token, randomUUID(), binh.accounts[0], '9000000').expect(403);
       expect(res.body.errorCode).toBe(ErrorCode.FORBIDDEN);
-      expect(await snapshot()).toEqual(before);
+      await expectOnlyDenialRows(before, 1);
+      // The extra claims do not change the recorded role: it is derived from cognito:groups only.
+      const [row] = await denialRows(res.headers['x-correlation-id']);
+      expect(row).toMatchObject({
+        actor_role: 'customer',
+        outcome: 'DENIED',
+        actor_user_id: binh.userId,
+      });
     });
 
     it('TC-159-10 no role hierarchy: auditor and admin are 403 on deposit and lock, operator is 403 on a customer transfer', async () => {
@@ -373,6 +432,14 @@ describe('DBS-159 attacks on identity, keys and roles (security, real PostgreSQL
             status: 403,
             errorCode: ErrorCode.FORBIDDEN,
           });
+          // BL-019 / AC-8.1: the auditor is read-only, and the refusal is itself evidence.
+          const rows = await denialRows(res.headers['x-correlation-id']);
+          expect(rows).toHaveLength(1);
+          expect(rows[0]).toMatchObject({
+            actor_role: role,
+            action: 'access.denied',
+            outcome: 'DENIED',
+          });
         }
       }
       const asOperator = await transfer(chi, randomUUID(), {
@@ -381,7 +448,14 @@ describe('DBS-159 attacks on identity, keys and roles (security, real PostgreSQL
         amount: '50000',
       }).expect(403);
       expect(asOperator.body.errorCode).toBe(ErrorCode.FORBIDDEN);
-      expect(await snapshot()).toEqual(before);
+      // 2 roles x (deposit + lock) + 1 operator transfer: one DENIED row per 403, no business row.
+      await expectOnlyDenialRows(before, 5);
+      const [operatorRow] = await denialRows(asOperator.headers['x-correlation-id']);
+      expect(operatorRow).toMatchObject({
+        actor_role: 'operator',
+        target_id: 'POST /v1/transfers',
+        outcome: 'DENIED',
+      });
     });
 
     it('TC-159-11 role or user fields in a transfer body are refused (400); forged headers on a valid transfer change nothing about who acts', async () => {

@@ -145,7 +145,7 @@ Cả M-97-01/02/03 chạy trong Git Bash với `env -u DATABASE_URL npm run test
 | TC-97-01/02/03 | TC-79-07 mở rộng; manual-test.txt | Đạt trên PG thật ở lượt chạy thành công: mỗi batch 10response đồng nhất, footprint1/2/1/1/1, replay/mismatch không ghi thêm, checkerPASS |
 | TC-97-04 | red-green.txt | Đột biến 10key khác nhau làm fail body/transferId, sau đó hoàn đúng hunk |
 | TC-97-05 | load-tests/README.md | Demo2 có lệnh/data/result và scope CI/local |
-| DoD CI/review/merge | BL-192 | Chưa có CI run thật/PR |
+| DoD CI/review/merge | BL-192 | Lúc viết: chưa có CI run thật/PR. Cập nhật 2026-11-14 (kiểm bằng `gh`): [PR #84](https://github.com/Lawliet119/digital-banking-simulator/pull/84) đã merge ngày 2026-11-09, 6 job CI xanh; GitHub không có review của người khác tác giả. Dev khác review còn ở BL-192 |
 
 **Manual:** checkout sạch detached tại code cuối (D:/UET_PROJECT/dbs97-manual-final); dependency dùng junction tới node_modules cùng lockfile. M-97-01 bằng npm/Git Bash hai lần thoát127, không đủ báo cáo (một lượt đến round4); chưa đạt theo đúng lệnh gốc. Chạy diagnostic gọi node/Jest trực tiếp trên cùng checkout đạt36/36, 10round checkerPASS, exit0; không nhận là đã giải thích hoặc sửa exit127. M-97-02/03 đang chờ cửa sổ dừng Docker sau các run đang chạy. [Raw manual](screenshots/DBS-97/manual-test.txt), [mutation](screenshots/DBS-97/red-green.txt).
 
