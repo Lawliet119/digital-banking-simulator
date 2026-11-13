@@ -1,0 +1,428 @@
+52cde0575a9c05bfbff63f136d1bc81465cfecc1
+# DBS-120 manual test, phương án A (chỉ IAM và cluster, 10 -target). Terraform 1.16.6, aws-cli 2.38.1, profile dbs-admin, ap-southeast-1.
+# Đã xóa: id tài khoản AWS (<acct>), user id và tên IAM user, id khóa KMS, hậu tố secret. ARN giữ tên tài nguyên.
+# Dòng đầu: SHA của commit cuối đổi code (52cde05). Lần chạy M-120-03 đầu tiên dừng ở bước so sánh danh sách plan (chưa apply gì), lần hai apply.
+# Simulator in ARN dạng mẫu (${Region}...) khi một lệnh truyền nhiều ARN; quyết định vẫn là của cả nhóm ARN.
+
+===== M-120-01 2026-11-12T00:29:54Z
+$ aws sts get-caller-identity
+{
+    "UserId": "<user-id>",
+    "Account": "<acct>",
+    "Arn": "arn:aws:iam::<acct>:user/<iam-user>"
+}
+$ aws budgets describe-budgets (tên, hạn mức, đã chi)
+Free-tier Budget	0.01	0.0
+My Monthly Cost Budget	150.0	0.904
+$ aws budgets describe-notifications-for-budget (mỗi budget)
+budget Free-tier Budget:
+ACTUAL	0.01	OK
+budget My Monthly Cost Budget:
+ACTUAL	100.0	OK
+ACTUAL	50.0	OK
+FORECASTED	100.0	OK
+$ terraform plan (session, chỉ đọc, -lock=false)
+init ok
+plan exit 0
+Plan: 28 to add, 0 to change, 0 to destroy.
+  # aws_acm_certificate.dev
+  # aws_db_instance.main
+  # aws_db_parameter_group.postgres17
+  # aws_ecs_cluster.main
+  # aws_ecs_service.api
+  # aws_ecs_task_definition.api
+  # aws_ecs_task_definition.migrate
+  # aws_elasticache_replication_group.main
+  # aws_iam_role.execution
+  # aws_iam_role.migrate_execution
+  # aws_iam_role.task
+  # aws_iam_role.worker_execution
+  # aws_iam_role.worker_task
+  # aws_iam_role_policy.execution
+  # aws_iam_role_policy.migrate_execution
+  # aws_iam_role_policy.migrate_read_db_master_secret
+  # aws_iam_role_policy.read_db_master_secret
+  # aws_iam_role_policy.read_redis_auth_secret
+  # aws_iam_role_policy.worker_execution
+  # aws_iam_role_policy.worker_read_secrets
+  # aws_iam_role_policy_attachment.worker_sqs
+  # aws_lb.main
+  # aws_lb_listener.http
+  # aws_lb_listener.https
+  # aws_lb_target_group.api
+  # aws_secretsmanager_secret_version.redis_auth
+  # tls_private_key.dev
+  # tls_self_signed_cert.dev
+$ terraform plan (base, chỉ đọc, -lock=false)
+init ok
+plan exit 0
+Plan: 2 to add, 0 to change, 0 to destroy.
+  # aws_iam_role.github_deploy will be created
+  # aws_iam_role_policy.deploy will be created
+===== M-120-01 xong 2026-11-12T00:31:10Z
+===== M-120-02 2026-11-12T00:31:39Z
+$ aws iam get-role --role-name dbs-dev-api-task   (điều kiện: NoSuchEntity)
+
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-api-task cannot be found.
+điều kiện đạt: tên role còn trống
+$ aws iam create-role --role-name dbs-dev-api-task   (trust: chỉ IAM user đang chạy)
+arn:aws:iam::<acct>:role/dbs-dev-api-task
+$ aws iam put-role-policy probe-sqs-all   (sqs:* trên 4 queue, sqs:ListQueues trên *)
+put-role-policy ok
+assume-role lần 1 chưa được, chờ 5 giây
+assume-role lần 2 chưa được, chờ 5 giây
+assume-role thành công ở lần 3
+$ (role tạm) aws sts get-caller-identity
+arn:aws:sts::<acct>:assumed-role/dbs-dev-api-task/dbs120-probe
+$ (role tạm) aws sqs list-queues --queue-name-prefix dbs-dev-   [đối chứng dương]
+QUEUEURLS	https://sqs.ap-southeast-1.amazonaws.com/<acct>/dbs-dev-notification-events
+QUEUEURLS	https://sqs.ap-southeast-1.amazonaws.com/<acct>/dbs-dev-notification-events-dlq
+QUEUEURLS	https://sqs.ap-southeast-1.amazonaws.com/<acct>/dbs-dev-risk-events
+QUEUEURLS	https://sqs.ap-southeast-1.amazonaws.com/<acct>/dbs-dev-risk-events-dlq
+$ (role tạm) aws sqs send-message dbs-dev-risk-events
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the SendMessage operation: User: arn:aws:sts::<acct>:assumed-role/dbs-dev-api-task/dbs120-probe is not authorized to perform: sqs:sendmessage on resource: arn:aws:sqs:ap-southeast-1:<acct>:dbs-dev-risk-events with an explicit deny in a resource-based policy
+$ (role tạm) aws sqs receive-message dbs-dev-risk-events
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the ReceiveMessage operation: User: arn:aws:sts::<acct>:assumed-role/dbs-dev-api-task/dbs120-probe is not authorized to perform: sqs:receivemessage on resource: arn:aws:sqs:ap-southeast-1:<acct>:dbs-dev-risk-events with an explicit deny in a resource-based policy
+===== M-120-02 xong 2026-11-12T00:32:00Z
+--- trap dọn (profile dbs-admin)
+delete-role-policy ok
+delete-role ok
+$ aws iam get-role --role-name dbs-dev-api-task   (sau dọn)
+
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-api-task cannot be found.
+===== M-120-03 2026-11-12T00:32:33Z
+$ aws iam get-role --role-name dbs-dev-api-task --profile dbs-admin   (phải NoSuchEntity)
+
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-api-task cannot be found.
+$ aws ecs describe-clusters --clusters dbs-dev (phải MISSING)
+MISSING
+$ terraform plan (session) với 10 -target
+plan exit 0
+Plan: 10 to add, 0 to change, 0 to destroy.
+  # aws_ecs_cluster.main
+  # aws_iam_role.execution
+  # aws_iam_role.migrate_execution
+  # aws_iam_role_policy_attachment.worker_sqs
+  # aws_iam_role_policy.execution
+  # aws_iam_role_policy.migrate_execution
+  # aws_iam_role_policy.worker_execution
+  # aws_iam_role.task
+  # aws_iam_role.worker_execution
+  # aws_iam_role.worker_task
+DỪNG: plan khác 10 địa chỉ đã duyệt, không apply
+===== M-120-03 2026-11-12T00:33:05Z
+$ aws iam get-role --role-name dbs-dev-api-task --profile dbs-admin   (phải NoSuchEntity)
+
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-api-task cannot be found.
+$ aws ecs describe-clusters --clusters dbs-dev (phải MISSING)
+MISSING
+$ terraform plan (session) với 10 -target
+plan exit 0
+Plan: 10 to add, 0 to change, 0 to destroy.
+  # aws_ecs_cluster.main
+  # aws_iam_role.execution
+  # aws_iam_role.migrate_execution
+  # aws_iam_role_policy_attachment.worker_sqs
+  # aws_iam_role_policy.execution
+  # aws_iam_role_policy.migrate_execution
+  # aws_iam_role_policy.worker_execution
+  # aws_iam_role.task
+  # aws_iam_role.worker_execution
+  # aws_iam_role.worker_task
+plan đúng 10 địa chỉ, 10 to add, 0 to change, 0 to destroy
+--- BẮT ĐẦU APPLY 2026-11-12T00:33:14Z
+aws_iam_role.worker_execution: Creating...
+aws_iam_role.worker_task: Creating...
+aws_ecs_cluster.main: Creating...
+aws_iam_role.execution: Creating...
+aws_iam_role.migrate_execution: Creating...
+aws_iam_role.task: Creating...
+aws_iam_role.task: Creation complete after 2s [id=dbs-dev-api-task]
+aws_iam_role.worker_task: Creation complete after 2s [id=dbs-dev-worker-task]
+aws_iam_role_policy_attachment.worker_sqs: Creating...
+aws_iam_role.worker_execution: Creation complete after 2s [id=dbs-dev-worker-execution]
+aws_iam_role_policy.worker_execution: Creating...
+aws_iam_role.execution: Creation complete after 2s [id=dbs-dev-api-execution]
+aws_iam_role_policy.execution: Creating...
+aws_iam_role.migrate_execution: Creation complete after 2s [id=dbs-dev-migrate-execution]
+aws_iam_role_policy.migrate_execution: Creating...
+aws_iam_role_policy_attachment.worker_sqs: Creation complete after 0s [id=dbs-dev-worker-task/arn:aws:iam::<acct>:policy/dbs-dev-worker-sqs]
+aws_iam_role_policy.worker_execution: Creation complete after 0s [id=dbs-dev-worker-execution:pull-image-and-write-logs]
+aws_iam_role_policy.execution: Creation complete after 0s [id=dbs-dev-api-execution:pull-image-and-write-logs]
+aws_iam_role_policy.migrate_execution: Creation complete after 0s [id=dbs-dev-migrate-execution:pull-image-and-write-migrate-logs]
+aws_ecs_cluster.main: Creation complete after 10s [id=arn:aws:ecs:ap-southeast-1:<acct>:cluster/dbs-dev]
+Warning: Applied changes may be incomplete
+Apply complete! Resources: 10 added, 0 changed, 0 destroyed.
+$ aws iam list-role-policies / list-attached-role-policies
+role dbs-dev-api-task inline:
+role dbs-dev-api-task attached:
+role dbs-dev-worker-task inline:
+role dbs-dev-worker-task attached:
+dbs-dev-worker-sqs
+===== M-120-03 xong 2026-11-12T00:33:37Z
+===== M-120-04 2026-11-12T00:34:14Z
+$ aws iam get-role dbs-dev-api-task (trust)
+{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole","Condition":{"StringEquals":{"aws:SourceAccount":"<acct>"},"ArnLike":{"aws:SourceArn":"arn:aws:ecs:ap-southeast-1:<acct>:*"}}}
+$ aws iam get-role dbs-dev-worker-task (trust)
+{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole","Condition":{"StringEquals":{"aws:SourceAccount":"<acct>"},"ArnLike":{"aws:SourceArn":"arn:aws:ecs:ap-southeast-1:<acct>:*"}}}
+$ aws iam get-role dbs-dev-api-execution (trust)
+{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole","Condition":{"StringEquals":{"aws:SourceAccount":"<acct>"}}}
+$ aws iam get-role dbs-dev-worker-execution (trust)
+{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole","Condition":{"StringEquals":{"aws:SourceAccount":"<acct>"}}}
+$ aws iam get-role dbs-dev-migrate-execution (trust)
+{"Effect":"Allow","Principal":{"Service":"ecs-tasks.amazonaws.com"},"Action":"sts:AssumeRole","Condition":{"StringEquals":{"aws:SourceAccount":"<acct>"}}}
+$ task def theo terraform plan (full session, chỉ đọc; role đã có nên ARN role đã biết)
+plan exit 0
+aws_ecs_task_definition.api family=dbs-api task_role_arn=arn:aws:iam::<acct>:role/dbs-dev-api-task execution_role_arn=arn:aws:iam::<acct>:role/dbs-dev-api-execution
+aws_ecs_task_definition.migrate family=dbs-migrate task_role_arn=None execution_role_arn=arn:aws:iam::<acct>:role/dbs-dev-migrate-execution
+===== M-120-05 task role api (chỉ identity policy, không --resource-policy)
+$ simulate api: SQS x 4 queue
+sqs:SendMessage	arn:aws:sqs:${Region}:${Account}:${QueueName}	implicitDeny
+sqs:ReceiveMessage	arn:aws:sqs:${Region}:${Account}:${QueueName}	implicitDeny
+sqs:DeleteMessage	arn:aws:sqs:${Region}:${Account}:${QueueName}	implicitDeny
+sqs:GetQueueAttributes	arn:aws:sqs:${Region}:${Account}:${QueueName}	implicitDeny
+$ simulate api: GetSecretValue, kms:Decrypt
+secretsmanager:GetSecretValue	arn:aws:secretsmanager:${Region}:${Account}:secret:${SecretId}	implicitDeny
+kms:Decrypt	arn:aws:kms:ap-southeast-1:<acct>:key/<key-id>	implicitDeny
+===== M-120-06 task role worker
+$ simulate worker: gửi/nhận/xóa trên 2 queue chính
+sqs:SendMessage	arn:aws:sqs:${Region}:${Account}:${QueueName}	allowed
+sqs:ReceiveMessage	arn:aws:sqs:${Region}:${Account}:${QueueName}	allowed
+sqs:DeleteMessage	arn:aws:sqs:${Region}:${Account}:${QueueName}	allowed
+sqs:ChangeMessageVisibility	arn:aws:sqs:${Region}:${Account}:${QueueName}	allowed
+sqs:GetQueueAttributes	arn:aws:sqs:${Region}:${Account}:${QueueName}	allowed
+$ simulate worker: SendMessage trên 2 DLQ
+sqs:SendMessage	arn:aws:sqs:${Region}:${Account}:${QueueName}	allowed
+$ simulate worker: Receive/Delete/Purge trên 2 DLQ
+sqs:ReceiveMessage	arn:aws:sqs:${Region}:${Account}:${QueueName}	implicitDeny
+sqs:DeleteMessage	arn:aws:sqs:${Region}:${Account}:${QueueName}	implicitDeny
+sqs:PurgeQueue	arn:aws:sqs:${Region}:${Account}:${QueueName}	implicitDeny
+$ simulate worker: PurgeQueue/DeleteQueue/SetQueueAttributes trên queue chính; CreateQueue
+sqs:PurgeQueue	arn:aws:sqs:${Region}:${Account}:${QueueName}	implicitDeny
+sqs:DeleteQueue	arn:aws:sqs:${Region}:${Account}:${QueueName}	implicitDeny
+sqs:SetQueueAttributes	arn:aws:sqs:${Region}:${Account}:${QueueName}	implicitDeny
+sqs:CreateQueue	arn:aws:sqs:ap-southeast-1:<acct>:dbs-dev-other	implicitDeny
+$ simulate worker: SendMessage trên queue lạ dbs-dev-other
+sqs:SendMessage	arn:aws:sqs:ap-southeast-1:<acct>:dbs-dev-other	implicitDeny
+$ simulate worker: secret, KMS
+secretsmanager:GetSecretValue	arn:aws:secretsmanager:${Region}:${Account}:secret:${SecretId}	implicitDeny
+kms:Decrypt	arn:aws:kms:ap-southeast-1:<acct>:key/<key-id>	implicitDeny
+===== M-120-07 execution role (role thật, các policy đã apply: kéo image và log)
+$ simulate execution api: log api (CreateLogStream, PutLogEvents), ECR pull
+logs:CreateLogStream	arn:aws:logs:${Region}:${Account}:.+	allowed
+logs:PutLogEvents	arn:aws:logs:${Region}:${Account}:.+	allowed
+ecr:BatchGetImage	arn:aws:ecr:ap-southeast-1:<acct>:repository/dbs-api	allowed
+ecr:GetDownloadUrlForLayer	arn:aws:ecr:ap-southeast-1:<acct>:repository/dbs-api	allowed
+$ simulate execution api: log worker (khác), sqs:SendMessage, GetSecretValue demo-accounts
+logs:PutLogEvents	arn:aws:logs:ap-southeast-1:<acct>:log-group:/dbs/dev/worker:log-stream:worker/worker/x:*	implicitDeny
+sqs:SendMessage	arn:aws:sqs:ap-southeast-1:<acct>:dbs-dev-risk-events	implicitDeny
+secretsmanager:GetSecretValue	arn:aws:secretsmanager:ap-southeast-1:<acct>:secret:dbs/dev/demo-accounts-<suffix>	implicitDeny
+$ simulate execution worker: log worker, log api
+logs:CreateLogStream	arn:aws:logs:${Region}:${Account}:.+	allowed
+logs:PutLogEvents	arn:aws:logs:${Region}:${Account}:.+	allowed
+logs:PutLogEvents	arn:aws:logs:ap-southeast-1:<acct>:log-group:/dbs/dev/api:log-stream:api/api/x:*	implicitDeny
+sqs:SendMessage	arn:aws:sqs:ap-southeast-1:<acct>:dbs-dev-risk-events	implicitDeny
+secretsmanager:GetSecretValue	arn:aws:secretsmanager:ap-southeast-1:<acct>:secret:dbs/dev/demo-accounts-<suffix>	implicitDeny
+$ simulate execution migrate: CreateLogStream (log group), PutLogEvents stream migrate/ và api/
+logs:CreateLogStream	arn:aws:logs:ap-southeast-1:<acct>:log-group:/dbs/dev/api:*	allowed
+logs:PutLogEvents	arn:aws:logs:${Region}:${Account}:.+	allowed
+logs:PutLogEvents	arn:aws:logs:${Region}:${Account}:.+	implicitDeny
+ecr:BatchGetImage	arn:aws:ecr:ap-southeast-1:<acct>:repository/dbs-api	allowed
+sqs:SendMessage	arn:aws:sqs:ap-southeast-1:<acct>:dbs-dev-risk-events	implicitDeny
+secretsmanager:GetSecretValue	arn:aws:secretsmanager:${Region}:${Account}:secret:${SecretId}	implicitDeny
+===== M-120-07b simulate-custom-policy trên JSON lấy từ plan (policy đọc secret, role deploy)
+aws_iam_role_policy.migrate_read_db_master_secret policy unknown (phụ thuộc RDS chưa dựng)
+aws_iam_role_policy.read_db_master_secret policy unknown (phụ thuộc RDS chưa dựng)
+aws_iam_role_policy.read_redis_auth_secret policy known
+aws_iam_role_policy.worker_read_secrets policy unknown (phụ thuộc RDS chưa dựng)
+deploy policy known
+===== M-120-04..07 xong 2026-11-12T00:35:22Z
+===== M-120-07b 2026-11-12T00:35:44Z
+$ simulate-custom-policy: policy read-redis-auth-secret (từ s2.json)
+  GetSecretValue trên secret Redis (mong đợi allowed):
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+  GetSecretValue trên dbs/dev/demo-accounts (mong đợi implicitDeny):
+
+aws: [ERROR]: An error occurred (InvalidInput) when calling the SimulateCustomPolicy operation: Policy input list item 1 has invalid content
+  (chưa chạy) read-db-master-secret, worker, migrate: policy phụ thuộc secret master RDS chưa dựng ở phương án A
+$ simulate-custom-policy: policy deploy-dbs-dev-api (từ b.json), iam:PassRole
+  PassRole dbs-dev-migrate-execution, PassedToService=ecs-tasks:
+
+aws: [ERROR]: An error occurred (ValidationError) when calling the SimulateCustomPolicy operation: 1 validation error detected: Value at 'policyInputList' failed to satisfy constraint: Member must have length less than or equal to 2000
+  PassRole dbs-dev-api-execution, PassedToService=ecs-tasks:
+
+aws: [ERROR]: An error occurred (ValidationError) when calling the SimulateCustomPolicy operation: 1 validation error detected: Value at 'policyInputList' failed to satisfy constraint: Member must have length less than or equal to 2000
+  PassRole dbs-dev-api-task, PassedToService=ecs-tasks:
+
+aws: [ERROR]: An error occurred (ValidationError) when calling the SimulateCustomPolicy operation: 1 validation error detected: Value at 'policyInputList' failed to satisfy constraint: Member must have length less than or equal to 2000
+  PassRole dbs-dev-worker-task, PassedToService=ecs-tasks:
+
+aws: [ERROR]: An error occurred (ValidationError) when calling the SimulateCustomPolicy operation: 1 validation error detected: Value at 'policyInputList' failed to satisfy constraint: Member must have length less than or equal to 2000
+  PassRole dbs-dev-worker-execution, PassedToService=ecs-tasks:
+
+aws: [ERROR]: An error occurred (ValidationError) when calling the SimulateCustomPolicy operation: 1 validation error detected: Value at 'policyInputList' failed to satisfy constraint: Member must have length less than or equal to 2000
+  PassRole dbs-dev-migrate-execution, PassedToService=lambda:
+
+aws: [ERROR]: An error occurred (ValidationError) when calling the SimulateCustomPolicy operation: 1 validation error detected: Value at 'policyInputList' failed to satisfy constraint: Member must have length less than or equal to 2000
+===== M-120-07b xong 2026-11-12T00:35:59Z
+===== M-120-07b 2026-11-12T00:36:08Z
+$ simulate-custom-policy: policy read-redis-auth-secret (từ s2.json)
+  GetSecretValue trên secret Redis (mong đợi allowed):
+secretsmanager:GetSecretValue	arn:aws:secretsmanager:ap-southeast-1:<acct>:secret:dbs/dev/redis-auth-<suffix>	allowed
+  GetSecretValue trên dbs/dev/demo-accounts (mong đợi implicitDeny):
+secretsmanager:GetSecretValue	arn:aws:secretsmanager:ap-southeast-1:<acct>:secret:dbs/dev/demo-accounts-<suffix>	implicitDeny
+  (chưa chạy) read-db-master-secret, worker, migrate: policy phụ thuộc secret master RDS chưa dựng ở phương án A
+$ simulate-custom-policy: policy deploy-dbs-dev-api (từ b.json), iam:PassRole
+  PassRole dbs-dev-migrate-execution, PassedToService=ecs-tasks:
+iam:PassRole	arn:aws:iam::<acct>:role/dbs-dev-migrate-execution	allowed
+  PassRole dbs-dev-api-execution, PassedToService=ecs-tasks:
+iam:PassRole	arn:aws:iam::<acct>:role/dbs-dev-api-execution	allowed
+  PassRole dbs-dev-api-task, PassedToService=ecs-tasks:
+iam:PassRole	arn:aws:iam::<acct>:role/dbs-dev-api-task	allowed
+  PassRole dbs-dev-worker-task, PassedToService=ecs-tasks:
+iam:PassRole	arn:aws:iam::<acct>:role/dbs-dev-worker-task	implicitDeny
+  PassRole dbs-dev-worker-execution, PassedToService=ecs-tasks:
+iam:PassRole	arn:aws:iam::<acct>:role/dbs-dev-worker-execution	implicitDeny
+  PassRole dbs-dev-migrate-execution, PassedToService=lambda:
+iam:PassRole	arn:aws:iam::<acct>:role/dbs-dev-migrate-execution	implicitDeny
+===== M-120-07b xong 2026-11-12T00:36:21Z
+===== M-120-08..10 2026-11-12T00:36:54Z
+$ aws sqs get-queue-attributes (admin) risk queue và DLQ trước probe
+0	0
+0
+subnet=<id> sg=<id>
+===== M-120-08 probe dưới task role api
+$ aws ecs register-task-definition --family dbs-probe (task role api)
+arn:aws:ecs:ap-southeast-1:<acct>:task-definition/dbs-probe:2
+$ aws ecs run-task --cluster dbs-dev --launch-type FARGATE --task-definition dbs-probe:2 ...
+arn:aws:ecs:ap-southeast-1:<acct>:task/dbs-dev/2cd2099d4e2d42309b47a6801307e6c3
+chờ task STOPPED ...
+STOPPED	Essential container in task exited	0	None
+--- log stream probe/probe/<task-id>
+== identity ==
+arn:aws:sts::<acct>:assumed-role/dbs-dev-api-task/2cd2099d4e2d42309b47a6801307e6c3
+== sqs send ==
+aws: [ERROR]: An error occurred (AccessDenied) when calling the SendMessage operation: User: arn:aws:sts::<acct>:assumed-role/dbs-dev-api-task/2cd2099d4e2d42309b47a6801307e6c3 is not authorized to perform: sqs:sendmessage on resource: arn:aws:sqs:ap-southeast-1:<acct>:dbs-dev-risk-events with an explicit deny in a resource-based policy
+== secret ==
+aws: [ERROR]: An error occurred (AccessDeniedException) when calling the GetSecretValue operation: User: arn:aws:sts::<acct>:assumed-role/dbs-dev-api-task/2cd2099d4e2d42309b47a6801307e6c3 is not authorized to perform: secretsmanager:GetSecretValue on resource: dbs/dev/redis-auth because no identity-based policy allows the secretsmanager:GetSecretValue action
+== done ==
+===== M-120-09 probe dưới task role worker
+$ aws ecs register-task-definition --family dbs-probe (task role worker)
+arn:aws:ecs:ap-southeast-1:<acct>:task-definition/dbs-probe:3
+$ aws ecs run-task --cluster dbs-dev --launch-type FARGATE --task-definition dbs-probe:3 ...
+arn:aws:ecs:ap-southeast-1:<acct>:task/dbs-dev/df2390fc39ae40998333b596c8191a1f
+chờ task STOPPED ...
+STOPPED	Essential container in task exited	0	None
+--- log stream probe/probe/<task-id>
+== identity ==
+arn:aws:sts::<acct>:assumed-role/dbs-dev-worker-task/df2390fc39ae40998333b596c8191a1f
+== send ==
+196b381a-fd4b-49f3-899d-426bcd791866
+== receive ==
+try 1: MessageId=196b381a-fd4b-49f3-899d-426bcd791866 Body={"probe":"DBS-120"}
+== delete ==
+deleted
+== dlq receive ==
+aws: [ERROR]: An error occurred (AccessDenied) when calling the ReceiveMessage operation: User: arn:aws:sts::<acct>:assumed-role/dbs-dev-worker-task/df2390fc39ae40998333b596c8191a1f is not authorized to perform: sqs:receivemessage on resource: arn:aws:sqs:ap-southeast-1:<acct>:dbs-dev-risk-events-dlq because no identity-based policy allows the sqs:receivemessage action
+== attributes ==
+{
+    "Attributes": {
+        "ApproximateNumberOfMessages": "0"
+    }
+}
+== done ==
+===== M-120-10 probe không task role, execution role migrate
+$ aws ecs register-task-definition --family dbs-probe (không task role, execution migrate)
+arn:aws:ecs:ap-southeast-1:<acct>:task-definition/dbs-probe:4
+$ aws ecs run-task --cluster dbs-dev --launch-type FARGATE --task-definition dbs-probe:4 ...
+arn:aws:ecs:ap-southeast-1:<acct>:task/dbs-dev/120693ecb23c4b448ca5bfd59e7602db
+chờ task STOPPED ...
+STOPPED	Essential container in task exited	0	None
+--- log stream migrate/probe/<task-id>
+== identity ==
+aws: [ERROR]: An error occurred (NoCredentials): Unable to locate credentials. You can configure credentials by running "aws login".
+== done ==
+===== M-120-08..10 xong 2026-11-12T00:40:44Z
+===== M-120-11 down 2026-11-12T00:41:07Z
+$ aws ecs list-tasks --cluster dbs-dev (phải rỗng trước khi destroy)
+$ task definition dbs-probe (ACTIVE và INACTIVE)
+ACTIVE:
+arn:aws:ecs:ap-southeast-1:<acct>:task-definition/dbs-probe:2	arn:aws:ecs:ap-southeast-1:<acct>:task-definition/dbs-probe:3	arn:aws:ecs:ap-southeast-1:<acct>:task-definition/dbs-probe:4
+INACTIVE:
+deregister dbs-probe:2
+INACTIVE
+deregister dbs-probe:3
+INACTIVE
+deregister dbs-probe:4
+INACTIVE
+$ aws ecs delete-task-definitions
+DELETE_IN_PROGRESS	DELETE_IN_PROGRESS	DELETE_IN_PROGRESS
+$ terraform destroy (session) với 10 -target
+aws_iam_role_policy.migrate_execution: Destroying... [id=dbs-dev-migrate-execution:pull-image-and-write-migrate-logs]
+aws_iam_role_policy.execution: Destroying... [id=dbs-dev-api-execution:pull-image-and-write-logs]
+aws_iam_role_policy_attachment.worker_sqs: Destroying... [id=dbs-dev-worker-task/arn:aws:iam::<acct>:policy/dbs-dev-worker-sqs]
+aws_iam_role_policy.worker_execution: Destroying... [id=dbs-dev-worker-execution:pull-image-and-write-logs]
+aws_iam_role.task: Destroying... [id=dbs-dev-api-task]
+aws_ecs_cluster.main: Destroying... [id=arn:aws:ecs:ap-southeast-1:<acct>:cluster/dbs-dev]
+aws_ecs_cluster.main: Destruction complete after 0s
+aws_iam_role_policy.migrate_execution: Destruction complete after 1s
+aws_iam_role_policy.worker_execution: Destruction complete after 1s
+aws_iam_role.migrate_execution: Destroying... [id=dbs-dev-migrate-execution]
+aws_iam_role.worker_execution: Destroying... [id=dbs-dev-worker-execution]
+aws_iam_role_policy.execution: Destruction complete after 1s
+aws_iam_role.execution: Destroying... [id=dbs-dev-api-execution]
+aws_iam_role_policy_attachment.worker_sqs: Destruction complete after 2s
+aws_iam_role.worker_task: Destroying... [id=dbs-dev-worker-task]
+aws_iam_role.task: Destruction complete after 2s
+aws_iam_role.worker_execution: Destruction complete after 1s
+aws_iam_role.migrate_execution: Destruction complete after 1s
+aws_iam_role.worker_task: Destruction complete after 0s
+aws_iam_role.execution: Destruction complete after 1s
+Warning: Resource targeting is in effect
+Warning: Applied changes may be incomplete
+Destroy complete! Resources: 10 destroyed.
+--- destroy xong 2026-11-12T00:41:30Z
+===== M-120-11 kiểm sót 2026-11-12T00:41:48Z
+$ aws ecs list-clusters
+$ aws ecs describe-clusters --clusters dbs-dev
+INACTIVE
+$ aws ecs list-task-definitions --family-prefix dbs-probe (ACTIVE)
+$ aws elbv2 describe-load-balancers
+$ aws rds describe-db-instances
+$ aws elasticache describe-replication-groups
+$ aws ec2 describe-nat-gateways (không deleted)
+$ aws ec2 describe-addresses
+$ aws ec2 describe-network-interfaces (status available)
+$ aws wafv2 list-web-acls --scope REGIONAL
+$ aws iam list-roles (dbs-dev-*)
+$ aws iam get-role --role-name dbs-dev-api-task
+
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-api-task cannot be found.
+$ aws iam get-role --role-name dbs-dev-worker-task
+
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-worker-task cannot be found.
+$ aws iam get-role --role-name dbs-dev-api-execution
+
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-api-execution cannot be found.
+$ aws iam get-role --role-name dbs-dev-worker-execution
+
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-worker-execution cannot be found.
+$ aws iam get-role --role-name dbs-dev-migrate-execution
+
+aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name dbs-dev-migrate-execution cannot be found.
+--- phần base vẫn còn
+$ aws sqs list-queues --queue-name-prefix dbs-dev
+https://sqs.ap-southeast-1.amazonaws.com/<acct>/dbs-dev-notification-events	https://sqs.ap-southeast-1.amazonaws.com/<acct>/dbs-dev-notification-events-dlq	https://sqs.ap-southeast-1.amazonaws.com/<acct>/dbs-dev-risk-events	https://sqs.ap-southeast-1.amazonaws.com/<acct>/dbs-dev-risk-events-dlq
+$ aws iam list-policies --scope Local (dbs-dev-worker-sqs)
+dbs-dev-worker-sqs	0
+$ aws logs describe-log-groups --log-group-name-prefix /dbs
+/dbs/dev/api	7
+$ aws sqs get-queue-attributes (risk, DLQ) sau probe
+0	0
+0
+$ terraform state list (session sau destroy)
+data.terraform_remote_state.base
+===== M-120-11 xong 2026-11-12T00:42:23Z

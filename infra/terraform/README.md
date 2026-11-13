@@ -144,7 +144,7 @@ Script từ chối chạy khi còn task `dbs-migrate` đang `RUNNING` (TypeORM k
 
 **Trình tự "Up" lần đầu** (`desired_count = 0` nên `deploy.sh` bỏ qua): `apply session` → `Image` đã đẩy tag SHA lên ECR → `migrate.sh` bằng tay → nâng `desired_count` lên 1.
 
-**Quy tắc:** migration chạy khi bản app cũ vẫn phục vụ, nên viết theo kiểu expand → migrate → contract (backend README); deploy lỗi sau migration không hoàn tác schema. Task migration tạm dùng secret master như api (BL-103); DBS-119 tách role `dbs_migrator`, execution role riêng và sửa `iam:PassRole` ở `base/deploy_role.tf`. Mặc định TypeORM chạy mọi migration chờ trong **một** transaction nên không dùng được `CREATE INDEX CONCURRENTLY` (BL-110). Role `dbs-github-deploy` cần `apply base` để có quyền `ecs:RunTask` (BL-109). Chi phí một lần chạy ≈ 0,012 USD/giờ × thời gian chạy; `destroy session` bỏ task definition, chỉ còn log event ở `base` (7 ngày).
+**Quy tắc:** migration chạy khi bản app cũ vẫn phục vụ, nên viết theo kiểu expand → migrate → contract (backend README); deploy lỗi sau migration không hoàn tác schema. Task migration chạy bằng execution role riêng `dbs-dev-migrate-execution` và **không có task role** (DBS-120); kết nối bằng secret master (BL-103 đổi sang secret của `dbs_migrator`). Role deploy cần `apply base` để có `iam:PassRole` cho role này trước lần deploy kế tiếp. Mặc định TypeORM chạy mọi migration chờ trong **một** transaction nên không dùng được `CREATE INDEX CONCURRENTLY` (BL-110). Role `dbs-github-deploy` cần `apply base` để có quyền `ecs:RunTask` (BL-109). Chi phí một lần chạy ≈ 0,012 USD/giờ × thời gian chạy; `destroy session` bỏ task definition, chỉ còn log event ở `base` (7 ngày).
 
 ### Cognito và tài khoản nhân viên demo (DBS-54)
 
@@ -198,7 +198,7 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 |---|---|
 | Queue chính | visibility 30 giây, long polling 20 giây, giữ 4 ngày, sang DLQ sau 5 lần nhận (ADR-03), mã hóa SSE-SQS |
 | DLQ | giữ 6 ngày, ngắn hơn 7 ngày của `processed_events`; redrive allow `byQueue`: chỉ queue chính tương ứng được trỏ vào |
-| IAM | managed policy `dbs-dev-worker-sqs` (gửi, nhận, xóa, đổi visibility trên queue chính; chỉ `SendMessage` trên DLQ cho message sai schema). Chưa gắn role nào: DBS-120 gắn vào role task worker |
+| IAM | managed policy `dbs-dev-worker-sqs` (gửi, nhận, xóa, đổi visibility trên queue chính; chỉ `SendMessage` trên DLQ cho message sai schema), gắn vào role `dbs-dev-worker-task` ở `session` (DBS-120) |
 | Chặn api | queue policy của cả 4 queue `Deny` mọi `sqs:*` cho role `dbs-dev-api-task` (so `aws:PrincipalArn` theo tên; đổi tên role thì sửa `sqs.tf`) |
 
 | Output của `base` | Biến môi trường (`sqs.config.ts`) |
@@ -210,6 +210,24 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 `SQS_ENDPOINT` không đặt trên AWS. Đưa các biến vào task definition worker là việc của DBS-121.
 
 Redrive DLQ về queue chính: `aws sqs start-message-move-task --source-arn <arn-dlq>`, theo dõi bằng `list-message-move-tasks`. Redrive cấp `MessageId` mới và tính lại hạn giữ từ lúc chuyển, nên message được redrive phải được xử lý xong trong vòng 24 giờ, mỗi message chỉ redrive một lần (quy tắc đầy đủ: [DBS-73 §2](../../docs/features/DBS-73-terraform-sqs.md), runbook ở BL-051). Với queue standard và `maxReceiveCount > 3`, `ApproximateAgeOfOldestMessage` bỏ qua message đã nhận từ 3 lần trở lên (ghi chú cho alarm DBS-163).
+
+### Task role và execution role (DBS-120)
+
+Mỗi service có execution role riêng (ECS agent dùng để kéo image, ghi log và đọc secret của chính service đó) và task role riêng (quyền của mã ứng dụng). App không gọi Secrets Manager hay KMS: secret vào container qua `secrets` của task definition, nên quyền đọc secret nằm ở execution role, task role không có.
+
+| Role | Quyền | Dùng bởi |
+|---|---|---|
+| `dbs-dev-api-task` | không có (không policy, không attachment); queue policy `Deny sqs:*` | `dbs-api` |
+| `dbs-dev-worker-task` | managed policy `dbs-dev-worker-sqs` (đúng 2 queue và `SendMessage` vào 2 DLQ) | service worker (DBS-121) |
+| `dbs-dev-api-execution` | kéo image, ghi log `/dbs/dev/api`, `GetSecretValue` secret master RDS và `dbs/dev/redis-auth`, `kms:Decrypt` CMK qua Secrets Manager | `dbs-api` |
+| `dbs-dev-worker-execution` | như api, ghi log `/dbs/dev/worker` | service worker (DBS-121) |
+| `dbs-dev-migrate-execution` | kéo image, `CreateLogStream` trên `/dbs/dev/api`, `PutLogEvents` chỉ stream `migrate/*`, `GetSecretValue` chỉ secret master | `dbs-migrate` (không task role) |
+
+- Hai task role tin `ecs-tasks.amazonaws.com` với `aws:SourceAccount` và `aws:SourceArn` (`arn:aws:ecs:<region>:<account>:*`); execution role chỉ có `aws:SourceAccount`.
+- **Không đổi tên `dbs-dev-api-task`:** queue policy ở `base/sqs.tf` chặn theo tên role. Test khóa tên này.
+- **Thứ tự apply:** role deploy (`base/deploy_role.tf`) chỉ được `iam:PassRole` cho role của `dbs-api` và `dbs-migrate`. Sau khi `session` đổi role, `apply base` trước lần deploy kế tiếp, nếu không `migrate.sh` lỗi `iam:PassRole`. Role worker được thêm cùng service worker (DBS-121, BL-242).
+- **Kiểm quyền trái phép:** không assume được task role từ máy. Gọi thật bằng task Fargate tạm (family `dbs-probe`, image `public.ecr.aws/aws-cli/aws-cli`, `entryPoint ["sh","-c"]`) chạy dưới role cần thử; `simulate-principal-policy` chỉ tính identity policy (không áp queue policy cho role). Để thấy `explicit deny` của queue policy mà không cần task: dựng tạm một role **cùng tên** `dbs-dev-api-task` có `sqs:*` khi `session` chưa dựng, assume rồi gọi `sqs send-message`. Bằng chứng ở [feature doc DBS-120](../../docs/features/DBS-120-ecs-task-roles.md).
+- **Dựng phần IAM rẻ để kiểm:** `terraform apply` với mười `-target` (5 role, `aws_iam_role_policy_attachment.worker_sqs`, `aws_iam_role_policy.execution`, `.worker_execution`, `.migrate_execution`, `aws_ecs_cluster.main`) không cần RDS hay Valkey; phần còn lại của session không dựng.
 
 ## Báo cáo chi phí tuần (DBS-143)
 

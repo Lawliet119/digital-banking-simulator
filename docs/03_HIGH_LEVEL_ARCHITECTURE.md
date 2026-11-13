@@ -800,7 +800,7 @@ flowchart LR
 | **Phân quyền** | Guard theo vai trò **cộng** kiểm tra sở hữu trong service ở mọi truy vấn theo tài khoản; mã yêu cầu scope theo user; trả 404 cho tài nguyên không thuộc mình | NFR-SEC-01 |
 | **Mã hóa** | TLS ở ALB, tới RDS, tới ElastiCache; mã hóa at-rest bằng KMS cho RDS, ElastiCache, S3 | NFR-SEC-03 |
 | **Bí mật** | Secrets Manager; không có bí mật trong repo hay image; quét bí mật trong CI | NFR-SEC-04 |
-| **Quyền tối thiểu** | IAM role riêng cho task API và worker; DB role riêng cho tiến trình `api` và `worker` (`dbs_api`, `dbs_worker`; không role nào được UPDATE/DELETE sổ cái và nhật ký), risk đọc giao dịch qua view chỉ đọc `v_transfer_facts` (database-design §8); Redis và RDS chỉ mở cho security group của app | NFR-SEC-06 |
+| **Quyền tối thiểu** | IAM role riêng cho task API và worker (task role api không có quyền nào, worker chỉ hai queue và DLQ; execution role riêng cho api, worker và migrate, mỗi role chỉ đọc secret của service mình, [DBS-120](features/DBS-120-ecs-task-roles.md)); DB role riêng cho tiến trình `api` và `worker` (`dbs_api`, `dbs_worker`; không role nào được UPDATE/DELETE sổ cái và nhật ký), risk đọc giao dịch qua view chỉ đọc `v_transfer_facts` (database-design §8); Redis và RDS chỉ mở cho security group của app | NFR-SEC-06 |
 | **Kiểm toán** | Nhật ký ghi trong transaction; ghi cả truy cập nhạy cảm và lần bị từ chối; kiểm toán viên chỉ đọc | NFR-AUD-01 |
 | **Threat model** | STRIDE cho luồng chuyển tiền và nạp tiền: [security/threat-model.md](security/threat-model.md) (P3) | — |
 
