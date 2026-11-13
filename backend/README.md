@@ -45,6 +45,7 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Tự động khởi tạo PostgreSQL 17 qua Testcontainers (hoặc dùng `DATABASE_URL` có sẵn nếu đã xuất ra môi trường). Cần Docker Desktop bật; nếu Docker tắt thì test báo lỗi ngay, không treo |
 | `npm run test:services -- --runInBand` | sample Valkey 8 và ElasticMQ thật (`test/services/`): mỗi lần chạy tự tạo container/cổng động, thử SET/GET, SQS send/receive, pause/resume và stop/start rồi dọn container. Cần Docker; không lấy endpoint từ Compose |
 | `npm run check:invariants` | kiểm năm bất biến sổ cái trên `DATABASE_URL` (hoặc bộ `DB_*` như ECS): exit 0 sạch, 1 có vi phạm, 2 không nhận là sạch; mã thoát là thẩm quyền cuối cùng |
+| `npm run check:invariants:dist` | cùng CLI, chạy bằng `node` từ `dist` (sau `npm run build`); trong image và ECS one-off task dùng `node dist/scripts/invariants/invariants.js`, xem §9 |
 | `npm run auth:dev-keys` | sinh khóa ký thử nghiệm và JWKS vào `backend/.auth-local/` (bị gitignore); chỉ chạy được khi `NODE_ENV` là `development`, `test` hoặc để trống. Xem [mục 10](#10-token-thử-ở-local) |
 | `npm run --silent auth:dev-token -- --role <vai>` | in một access token mẫu của `customer`, `operator`, `auditor` hoặc `admin` (stdout chỉ có token); tùy chọn `--sub`, `--iat`, `--exp`, `--dir` |
 | `npm run seed` | tạo dữ liệu demo qua API (3 khách hàng, 4 tài khoản, 85tr nạp, 2 chuyển tiền mẫu); an toàn, idempotent, bảo toàn bất biến sổ cái (DBS-70). Xem [mục 12](#12-dữ-liệu-demo-scriptsseedts-dbs-70) |
@@ -235,7 +236,7 @@ Chi tiết và bằng chứng: [DBS-42](../docs/features/DBS-42-json-logger.md).
 
 ### 9. Kiểm tra bất biến sổ cái
 
-Chạy sau money test hoặc load run, từ checkout có devDependencies và quyền SELECT ba bảng `public.accounts`, `public.transfers`, `public.ledger_entries`:
+Chạy sau money test hoặc load run, từ checkout có devDependencies (hoặc từ image/ECS, xem "Chạy từ image hoặc ECS one-off task" dưới) và quyền SELECT ba bảng `public.accounts`, `public.transfers`, `public.ledger_entries`:
 
 ```bash
 # từ backend/; DATABASE_URL hoặc bộ DB_* của ECS được cấp qua môi trường hoặc env/.env.<NODE_ENV>
@@ -243,7 +244,7 @@ npm run --silent check:invariants
 npm run check:invariants -- --help
 ```
 
-[Nguồn SQL](test/support/invariants.sql) và [hàm/CLI](test/support/invariants.ts) dùng chung một SELECT để năm phép kiểm nhìn cùng snapshot:
+[Nguồn SQL](src/scripts/invariants/invariants.sql) và [hàm/CLI](src/scripts/invariants/invariants.ts) dùng chung một SELECT để năm phép kiểm nhìn cùng snapshot:
 
 1. Tổng DEBIT = tổng CREDIT.
 2. Mỗi `accounts.balance` = SUM(CREDIT) − SUM(DEBIT); không có entry thì kỳ vọng 0.
@@ -259,7 +260,32 @@ PASS/FAIL là JSON trên stdout, gồm `totals` và `violations` với `check`, 
 | 1 | FAIL, có vi phạm | Giữ IDs/report, điều tra; công cụ không tự sửa dữ liệu |
 | 2 | Không nhận là sạch: ERROR trên stderr (cấu hình, kết nối, quyền, schema, I/O, timeout, hoặc dọn dẹp lỗi sau commit). Có thể kèm report PASS trên stdout | Mã thoát là **thẩm quyền cuối cùng**: exit 2 kèm PASS là "không nhận là sạch". Sửa môi trường rồi chạy lại |
 
-Dùng `--silent` khi cần parse JSON; npm không silent có thể thêm banner. `psql -f test/support/invariants.sql` chỉ trả report, không tự đổi FAIL thành exit khác 0; CI/load gate dùng CLI và giữ nguyên mã thoát.
+Dùng `--silent` khi cần parse JSON; npm không silent có thể thêm banner. `psql -f src/scripts/invariants/invariants.sql` chỉ trả report, không tự đổi FAIL thành exit khác 0; CI/load gate dùng CLI và giữ nguyên mã thoát.
+
+**Chạy từ image hoặc ECS one-off task (BL-128).** CLI nằm trong `src/scripts/invariants/` nên `npm run build` biên dịch nó vào `dist/scripts/invariants/invariants.js` (kèm `invariants.sql` qua `assets` của `nest-cli.json`; alias `@common/*`... được `nest build` đổi thành đường dẫn tương đối). Image runtime không có `ts-node`, `tsconfig-paths` (đã `npm prune --omit=dev`) và cả npm, nên chạy bằng `node` thuần:
+
+```bash
+# trong checkout đã build:    npm run --silent check:invariants:dist
+# trong container của image:  node dist/scripts/invariants/invariants.js   # DATABASE_URL hoặc bộ DB_*
+```
+
+Trên ECS, dùng lại task definition `dbs-migrate` (đã có `DB_HOST`, `DB_PORT`, `DB_NAME`, TLS RDS, secret `DB_USER`/`DB_PASSWORD`) và ghi đè lệnh của container `migrate`, giống cách `.github/scripts/migrate.sh` chạy migration (cùng subnet và security group với service `api` để tới được RDS):
+
+```bash
+CLUSTER=dbs-dev
+NET=$(aws ecs describe-services --cluster $CLUSTER --services api --query 'services[0].networkConfiguration' --output json)
+TASK=$(aws ecs run-task --cluster $CLUSTER --task-definition dbs-migrate --launch-type FARGATE --count 1 \
+  --started-by check-invariants --network-configuration "$NET" \
+  --overrides '{"containerOverrides":[{"name":"migrate","command":["node","dist/scripts/invariants/invariants.js"]}]}' \
+  --query 'tasks[0].taskArn' --output text)
+aws ecs wait tasks-stopped --cluster $CLUSTER --tasks "$TASK"
+# 0 sạch, 1 vi phạm, 2 không nhận là sạch
+aws ecs describe-tasks --cluster $CLUSTER --tasks "$TASK" --query 'tasks[0].containers[0].exitCode'
+# report JSON (stdout của CLI) nằm trong log của task
+aws logs get-log-events --log-group-name /dbs/dev/api --log-stream-name "migrate/migrate/${TASK##*/}" --query 'events[].message' --output text
+```
+
+`exitCode` là thẩm quyền cuối cùng như ở bảng trên. Task dùng credential master (BL-103) nhưng CLI chỉ chạy một `SELECT` trong transaction `READ ONLY`. Revision `dbs-migrate` mang image của lần deploy gần nhất (`migrate.sh` cập nhật mỗi lần deploy); muốn chạy bản CLI mới hơn thì deploy trước. **Một lần chạy thật trên RDS dev chưa làm** (phần này của BL-128 còn mở).
 
 Ví dụ từ file test trong `test/db/`, với QueryRunner đã kết nối:
 
@@ -347,22 +373,14 @@ npm run seed -- --url http://127.0.0.1:3000 --key-dir .auth-local
 ```
 
 #### Chạy trên Cloud / Staging (`AUTH_MODE=cognito`):
-Trên môi trường cloud, `dev-auth` bị vô hiệu hóa vì lý do bảo mật. Cần truyền token tương ứng cho 4 vai trò demo thông qua cờ dòng lệnh hoặc biến môi trường:
+Trên môi trường cloud, `dev-auth` bị vô hiệu hóa vì lý do bảo mật. Cần token cho 4 vai trò demo, truyền bằng **biến môi trường**. Token trên argv lộ qua `ps` và lịch sử shell nên các cờ `--operator-token`, `--customer{1,2,3}-token` đã **lỗi thời** (BL-252): vẫn chạy, in cảnh báo (chỉ nêu tên cờ), và nếu đặt cả hai thì biến môi trường thắng. Token lấy bằng `infra/scripts/demo-token.sh` cho các tài khoản do `infra/scripts/seed-cognito.sh` tạo (operator và ba khách `customer1..3` ứng với Nguyễn Minh Anh, Trần Thu Hà, Nguyễn Văn Bình theo thứ tự của kế hoạch seed). Token sống 15 phút nên lấy ngay trước khi seed:
 ```bash
-# Cách 1: Truyền qua CLI flags
-npm run seed -- --auth cloud --url https://api-dev.dbs.internal \
-  --operator-token "$DBS_OPERATOR_TOKEN" \
-  --customer1-token "$DBS_CUSTOMER_1_TOKEN" \
-  --customer2-token "$DBS_CUSTOMER_2_TOKEN" \
-  --customer3-token "$DBS_CUSTOMER_3_TOKEN"
-
-# Cách 2: Thiết lập biến môi trường
 export AUTH_MODE=cognito
-export DBS_API_URL=https://api-dev.dbs.internal
-export DBS_OPERATOR_TOKEN="ey..."
-export DBS_CUSTOMER_1_TOKEN="ey..."
-export DBS_CUSTOMER_2_TOKEN="ey..."
-export DBS_CUSTOMER_3_TOKEN="ey..."
+export DBS_API_URL=https://<alb-dns>   # chứng chỉ ALB dev tự ký: xem BL-252 (1)
+export DBS_OPERATOR_TOKEN=$(bash ../infra/scripts/demo-token.sh --role operator)
+export DBS_CUSTOMER_1_TOKEN=$(bash ../infra/scripts/demo-token.sh --role customer1)
+export DBS_CUSTOMER_2_TOKEN=$(bash ../infra/scripts/demo-token.sh --role customer2)
+export DBS_CUSTOMER_3_TOKEN=$(bash ../infra/scripts/demo-token.sh --role customer3)
 npm run seed
 ```
 

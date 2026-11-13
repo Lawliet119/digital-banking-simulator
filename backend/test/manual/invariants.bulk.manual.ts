@@ -97,7 +97,7 @@ async function main() {
         require.resolve('ts-node/register'),
         '-r',
         require.resolve('tsconfig-paths/register'),
-        resolve(backend, 'test/support/invariants.ts'),
+        resolve(backend, 'src/scripts/invariants/invariants.ts'),
       ],
       {
         cwd: backend,

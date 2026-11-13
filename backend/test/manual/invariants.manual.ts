@@ -18,13 +18,13 @@ import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-
 
 const backend = resolve(__dirname, '../..');
 const root = resolve(backend, '..');
-const cliFile = resolve(backend, 'test/support/invariants.ts');
+const cliFile = resolve(backend, 'src/scripts/invariants/invariants.ts');
 const codePaths = [
   'backend/package.json',
   'backend/test/db/invariants.db-spec.ts',
   'backend/test/support/invariant-fixtures.ts',
-  'backend/test/support/invariants.ts',
-  'backend/test/support/invariants.sql',
+  'backend/src/scripts/invariants/invariants.ts',
+  'backend/src/scripts/invariants/invariants.sql',
   'backend/test/manual/invariants.manual.ts',
 ];
 const log = (label: string, value?: unknown) =>
@@ -81,7 +81,7 @@ async function main() {
   // Runs the same CLI as `npm run --silent check:invariants`, through ts-node, so the driver does
   // not depend on npm_execpath (it is started with node -r ts-node/register, where it is not set).
   function cli(db: TempDatabase, expectedExit: number, overrides: Record<string, string> = {}) {
-    log('$ ts-node test/support/invariants.ts (same CLI as npm run --silent check:invariants)', {
+    log('$ ts-node src/scripts/invariants/invariants.ts (same CLI as npm run --silent check:invariants)', {
       database: db.name,
     });
     const result = spawnSync(
@@ -113,9 +113,9 @@ async function main() {
     };
   }
   async function reports(db: TempDatabase) {
-    log('SQL> test/support/invariants.sql (one SELECT)');
+    log('SQL> src/scripts/invariants/invariants.sql (one SELECT)');
     const [{ report }] = await db.runner.query(
-      readFileSync(resolve(__dirname, '../support/invariants.sql'), 'utf8'),
+      readFileSync(resolve(__dirname, '../../src/scripts/invariants/invariants.sql'), 'utf8'),
     );
     log('RAW SQL REPORT', report);
     const fromFunction = await checkLedgerInvariants(db.runner);
