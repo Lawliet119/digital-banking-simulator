@@ -34,6 +34,7 @@ async function main(argv = process.argv.slice(2)) {
   const {
     SCENARIOS,
     validateFixture,
+    assertTokensOutliveRun,
     durationSeconds,
     maxTransfers,
     requireBudget,
@@ -84,17 +85,7 @@ async function main(argv = process.argv.slice(2)) {
         JSON.parse(readFileSync(env.LOAD_FIXTURE, "utf8")),
         baseUrl,
       );
-      for (const c of fixture.customers) {
-        const claims = JSON.parse(
-          Buffer.from(c.token.split(".")[1], "base64url").toString(),
-        );
-        if (
-          claims.sub !== c.sub ||
-          !Number.isFinite(claims.exp) ||
-          claims.exp < Date.now() / 1000 + durationSeconds(kind, smoke) + 60
-        )
-          throw new Error("Token expires before run ends");
-      }
+      assertTokensOutliveRun(fixture, durationSeconds(kind, smoke));
       const before = await snapshot(fixture);
       const total = maxTransfers(kind, smoke);
       const sources = ["hot-account", "duplicate", "rate-limit"].includes(kind)
