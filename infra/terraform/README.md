@@ -100,6 +100,10 @@ terraform apply -var account_id=<account-id> -var state_bucket=dbs-tfstate-<acco
 terraform destroy -var account_id=<account-id> -var state_bucket=dbs-tfstate-<account-id>-ap-southeast-1 -var image_tag=<sha-40-ky-tu>
 ```
 
+### Dashboard CloudWatch (DBS-145)
+
+`envs/dev/session/dashboard.tf` tạo `aws_cloudwatch_dashboard.overview` (`dbs-dev-overview`) cùng phiên; output `dashboard_url`. Dashboard không tham chiếu tài nguyên nào của session (chỉ tên DLQ từ state của `base`), nên có thể dựng riêng, không kéo ALB/RDS: `terraform apply -target=aws_cloudwatch_dashboard.overview` (cần `-var` như các lệnh trên). Xóa cùng `destroy` của session. Biến `metrics_namespace` (mặc định `DBS/Backend`) chỉ đổi khi thử bằng số mô phỏng. Hai phiên cùng dựng thì dùng chung một tên dashboard (PutDashboard ghi đè): chỉ một state được giữ nó. Chi phí ≈ 3 USD/tháng tính theo giờ tồn tại. Nội dung widget và cách đọc: [observability](../../docs/components/observability/01-concept-brief.md#dashboard-dbs-145).
+
 ### Đẩy image lên ECR bằng OIDC (DBS-36)
 
 `envs/dev/base` tạo OIDC provider của GitHub và role `dbs-github-ecr-push` (output `github_ecr_push_role_arn`). Role chỉ tin đúng `sub` của repo và nhánh `main` (repo bật immutable subject nên `sub` có id owner và id repo). Biến `github_oidc_sub_prefix` có sẵn giá trị đã kiểm; đổi repo thì lấy giá trị mới bằng `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` (trường `sub_claim_prefix`).
