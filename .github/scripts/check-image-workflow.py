@@ -277,10 +277,35 @@ else:
     check(bool(exit_codes) and all(v == "1" for v in exit_codes), "run-gitleaks.sh: phải có --exit-code 1")
     check("is-shallow-repository" in gl_code, "run-gitleaks.sh: thiếu kiểm repo nông (rev-parse --is-shallow-repository)")
 
+# BL-245: bước cài cosign (ghim SHA) phải đứng trước bước chạy run-trivy.sh ở cả hai workflow; không workflow nào
+# được đặt TRIVY_SKIP_COSIGN (lối thoát chỉ dành cho chạy tay).
+COSIGN_INSTALLER_RE = re.compile(r"^sigstore/cosign-installer@[0-9a-f]{40}$")
+
+
+def cosign_order_ok(steps):
+    idx_trivy = next((i for i, st in enumerate(steps) if "run-trivy.sh" in str(st.get("run", ""))), None)
+    idx_cosign = next((i for i, st in enumerate(steps) if COSIGN_INSTALLER_RE.match(str(st.get("uses", "")))), None)
+    return idx_trivy is not None and idx_cosign is not None and idx_cosign < idx_trivy
+
+
+if CI.exists():
+    check(cosign_order_ok(load(CI).get("jobs", {}).get("image-scan", {}).get("steps", [])),
+          "ci.yml job image-scan: phải có sigstore/cosign-installer@<SHA 40 ký tự> trước bước run-trivy.sh (BL-245)")
+if IMAGE.exists():
+    check(cosign_order_ok(wf["jobs"].get("image-push", {}).get("steps", [])),
+          "image.yml job image-push: phải có sigstore/cosign-installer@<SHA 40 ký tự> trước bước run-trivy.sh (BL-245)")
+for wf_path in WORKFLOWS.glob("*.yml"):
+    check("TRIVY_SKIP_COSIGN" not in wf_path.read_text(), f"{wf_path.name}: không được đặt TRIVY_SKIP_COSIGN (bỏ kiểm cosign chỉ dành cho chạy tay)")
+
 trivy_sh = SCRIPTS / "run-trivy.sh"
 if not trivy_sh.exists():
     errors.append("thiếu .github/scripts/run-trivy.sh")
 else:
+    tv_code = code_text(trivy_sh.read_text())
+    check("cosign verify" in tv_code and "--certificate-identity-regexp" in tv_code and "--certificate-oidc-issuer" in tv_code,
+          "run-trivy.sh: phải chạy cosign verify với --certificate-identity-regexp và --certificate-oidc-issuer (BL-245)")
+    check(tv_code.find("cosign verify") != -1 and tv_code.find("cosign verify") < tv_code.find("docker save"),
+          "run-trivy.sh: cosign verify phải đứng trước mọi lệnh docker (BL-245)")
     tv_lines = logical_lines(trivy_sh.read_text())
     common = next((t for t in tv_lines if "docker" in t and "run" in t and "--input" in t), None)
     if common is None:
