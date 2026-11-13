@@ -1,0 +1,13 @@
+# Ngoại lệ của cổng quét Trivy (DBS-155). Mỗi mục: id, paths, statement (lý do, ai chấp nhận, cách đóng)
+# và expired_at (hạn xem lại, tối đa 90 ngày kể từ hôm nay). Trivy tự bỏ qua mục đã quá hạn nên phát hiện
+# hiện lại và job đỏ; .github/scripts/check-scan-exceptions.py cũng đỏ. Gia hạn bằng PR có người review.
+# Luôn giữ file này trong repo (thiếu file thì `docker run -v` tạo thư mục rỗng và Trivy lỗi).
+#
+# Ví dụ dạng một mục:
+#   vulnerabilities:
+#     - id: CVE-2026-00000
+#       paths: ["usr/local/lib/node_modules/npm/package.json"]
+#       statement: "Lý do cụ thể; #5 chấp nhận; cách đóng"
+#       expired_at: 2027-01-20
+vulnerabilities: []
+secrets: []

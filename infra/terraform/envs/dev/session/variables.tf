@@ -85,3 +85,14 @@ variable "redis_auth_version" {
   type        = number
   default     = 1
 }
+
+variable "metrics_namespace" {
+  description = "Namespace CloudWatch của metric ứng dụng (DBS-144 ghi vào DBS/Backend). Chỉ đổi khi thử dashboard bằng dữ liệu mô phỏng, để số giả không lẫn vào metric thật."
+  type        = string
+  default     = "DBS/Backend"
+
+  validation {
+    condition     = can(regex("^DBS/[A-Za-z0-9_./#:-]+$", var.metrics_namespace)) && length(var.metrics_namespace) <= 255
+    error_message = "metrics_namespace must start with DBS/ and use only A-Z a-z 0-9 _ . / # : -."
+  }
+}

@@ -2,6 +2,16 @@ output "vpc_id" {
   value = local.base.vpc_id
 }
 
+output "dashboard_name" {
+  description = "Dashboard CloudWatch của dev (DBS-145)."
+  value       = aws_cloudwatch_dashboard.overview.dashboard_name
+}
+
+output "dashboard_url" {
+  description = "Đường dẫn console tới dashboard."
+  value       = "https://${var.region}.console.aws.amazon.com/cloudwatch/home?region=${var.region}#dashboards/dashboard/${aws_cloudwatch_dashboard.overview.dashboard_name}"
+}
+
 output "public_subnet_ids" {
   value = local.base.public_subnet_ids
 }

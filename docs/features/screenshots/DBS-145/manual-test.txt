@@ -1,0 +1,3473 @@
+89e244ecf1580e56bc8ac0625338dd1f7d2ae703
+# Manual test DBS-145 2026-11-12T16:09:31Z; account id thay bang <acct>
+$ M-145-01 hien trang truoc (chi doc)
+identity: arn:aws:iam::<acct>:user/faker
+dashboards: []
+ALB: [dbs-dev]
+RDS: [dbs-dev]
+ElastiCache: [dbs-dev]
+ECS clusters: [arn:aws:ecs:ap-southeast-1:<acct>:cluster/dbs-dev]
+NAT: []
+EIP: [<ip>	<ip>]
+WAF regional: []
+log streams /dbs/dev/api: [migrate/probe/120693ecb23c4b448ca5bfd59e7602db	probe/probe/2cd2099d4e2d42309b47a6801307e6c3	probe/probe/3dc2294877144fed8df94448891f04f8	probe/probe/44768db1581b4d1fa233567f81788bae	probe/probe/58b477cc01c2440ba4e34d00cf329d13	probe/probe/a0df7bfce45d4fd8af9e33ec76b27c06	probe/probe/a72e5f3caac74ab9908929fb47ac067d	probe/probe/d564b037b13742d6b3f94adac7d5e689	probe/probe/d72e3a5447b04d2480ca3dd88d726d88	probe/probe/df2390fc39ae40998333b596c8191a1f	probe/probe/f151368976e34414961ec6b356659f33]
+state objects: base.tfstate session.tfstate session.tfstate.tflock 
+
+$ M-145-02a terraform init, state key rieng dev/session-dbs145.tfstate, TF_DATA_DIR rieng (DBS-139 dang giu khoa dev/session.tfstate, khong cham)  [2026-11-12T16:10:00Z]
+[0m[1mInitializing the backend...[0m
+[0m[32m
+Successfully configured the backend "s3"! Terraform will automatically
+use this backend unless the backend configuration changes.[0m
+
+[0m[1mInitializing provider plugins...[0m
+- terraform.io/builtin/terraform is built in to Terraform
+- Reusing previous version of hashicorp/tls from the dependency lock file
+- Reusing previous version of hashicorp/random from the dependency lock file
+- Reusing previous version of hashicorp/aws from the dependency lock file
+- Installing hashicorp/tls v4.4.2...
+- Installed hashicorp/tls v4.4.2 (signed by HashiCorp)
+- Installing hashicorp/random v3.9.1...
+- Installed hashicorp/random v3.9.1 (signed by HashiCorp)
+- Installing hashicorp/aws v6.70.0...
+- Installed hashicorp/aws v6.70.0 (signed by HashiCorp)
+
+[0m[1m[32mTerraform has been successfully initialized![0m[32m[0m
+(exit=0)
+
+$ M-145-02b plan -target voi account_id sai (<acct>): phai bi tu choi  [2026-11-12T16:10:29Z]
+data.terraform_remote_state.base: Reading...
+
+Planning failed. Terraform encountered an error while generating this plan.
+
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+
+Error: Error loading state error
+
+  with data.terraform_remote_state.base,
+  on remote_state.tf line 2, in data "terraform_remote_state" "base":
+   2:   backend = "s3"
+
+error loading the remote state: S3 bucket
+"dbs-tfstate-<acct>-ap-southeast-1" does not exist.
+
+The referenced S3 bucket must have been previously created. If the S3 bucket
+was created within the last minute, please wait for a minute or two and try
+again.
+
+Error: operation error S3: ListObjectsV2, https response error StatusCode:
+404, RequestID: 2G0VNK5A9AWV5NWA, HostID:
+mihgxkQL/cB/+ahPjklC4V77xnAtVQCGQxBIV96/SL0Bk6txiLLO9FfMLKeLFk/Jy6ydZjy9j9ocC4H9AqREM6f2ipedl0l8,
+NoSuchBucket: The specified bucket does not exist
+
+
+Error: AWS account ID not allowed: <acct>
+
+  with provider["registry.terraform.io/hashicorp/aws"],
+  on versions.tf line 23, in provider "aws":
+  23: provider "aws" {
+
+(exit=1)
+
+$ M-145-02c plan voi metrics_namespace chua ky tu cam: phai bi tu choi  [2026-11-12T16:10:33Z]
+data.terraform_remote_state.base: Reading...
+data.terraform_remote_state.base: Read complete after 1s
+
+Changes to Outputs:
+  + private_subnet_ids = [
+      + "subnet-07938b0e4422c02ae",
+      + "subnet-035204bb27adf5772",
+    ]
+  + public_subnet_ids  = [
+      + "subnet-0fa92ab42a51f458e",
+      + "subnet-0faa4503583aa1b95",
+    ]
+  + vpc_id             = "vpc-0c30109ee998eb80e"
+
+You can apply this plan to save these new output values to the Terraform
+state, without changing any real infrastructure.
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+
+Error: Invalid value for variable
+
+  on variables.tf line 89:
+  89: variable "metrics_namespace" {
+    ├────────────────
+    │ var.metrics_namespace is "DBS Backend!"
+
+metrics_namespace must start with DBS/ and use only A-Z a-z 0-9 _ . / # : -.
+
+This was checked by the validation rule at variables.tf:94,3-13.
+(exit=1)
+
+$ M-145-03 plan -target=aws_cloudwatch_dashboard.overview (account dung)  [2026-11-12T16:10:38Z]
+data.terraform_remote_state.base: Reading...
+data.terraform_remote_state.base: Read complete after 1s
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_cloudwatch_dashboard.overview will be created
+  + resource "aws_cloudwatch_dashboard" "overview" {
+      + dashboard_arn  = (known after apply)
+      + dashboard_body = jsonencode(
+            {
+              + periodOverride = "inherit"
+              + start          = "-PT3H"
+              + widgets        = [
+                  + {
+                      + height     = 4
+                      + properties = {
+                          + markdown = <<-EOT
+                                ## DBS dev: sức khỏe hệ thống
+                                Metric từ ứng dụng nằm trong namespace `DBS/Backend-dbs145` (CloudWatch EMF, DBS-144); DLQ và tuổi message lấy từ `AWS/SQS`. Đường kẻ ngang là ngưỡng SLO ở docs/03 mục 14, không phải alarm.
+                                - **Phân vị** do CloudWatch ước lượng quanh biên bucket (150, 300, 1000 ms): sai khác vài phần trăm. Cửa sổ 5 phút cho độ trễ và 5xx như SLO.
+                                - **Lỗi = 5xx**; 422 và 429 không tính. Tỉ lệ 5xx tính trên bộ dimension tổng, không có probe `/health/*`.
+                                - **Tuổi outbox** dùng `Maximum`. Không có điểm dữ liệu nghĩa là worker không chạy (không phải 0).
+                                - Chỉ vẽ `Role` `api` và `worker`. Widget trống là chưa có nguồn: service worker chờ DBS-121; `risk_redis_fallback_total` và các metric thời gian giao dịch tới cờ, `ai_status`, độ trễ AI, `risk_rule_error_total` chờ BL-204.
+                            EOT
+                        }
+                      + type       = "text"
+                      + width      = 24
+                      + x          = 0
+                      + y          = 0
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + {
+                                      + label = "p50"
+                                      + stat  = "p50"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + {
+                                      + label = "p95"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + {
+                                      + label = "p99"
+                                      + stat  = "p99"
+                                    },
+                                ],
+                            ]
+                          + period  = 300
+                          + region  = "ap-southeast-1"
+                          + title   = "Độ trễ toàn dịch vụ (ms)"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 12
+                      + x          = 0
+                      + y          = 4
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO p95 300 ms"
+                                      + value = 300
+                                    },
+                                  + {
+                                      + label = "SLO p99 1 s"
+                                      + value = 1000
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/transfers",
+                                  + "Method",
+                                  + "POST",
+                                  + {
+                                      + label = "p95"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/transfers",
+                                  + "Method",
+                                  + "POST",
+                                  + {
+                                      + label = "p99"
+                                      + stat  = "p99"
+                                    },
+                                ],
+                            ]
+                          + period      = 300
+                          + region      = "ap-southeast-1"
+                          + title       = "Chuyển tiền POST /v1/transfers: p95 và p99 (ms)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 12
+                      + x          = 12
+                      + y          = 4
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO đọc p95 150 ms"
+                                      + value = 150
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/accounts",
+                                  + "Method",
+                                  + "GET",
+                                  + {
+                                      + label = "GET /v1/accounts"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/accounts/:id",
+                                  + "Method",
+                                  + "GET",
+                                  + {
+                                      + label = "GET /v1/accounts/:id"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/accounts/:id/transactions",
+                                  + "Method",
+                                  + "GET",
+                                  + {
+                                      + label = "GET .../transactions"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                            ]
+                          + period      = 300
+                          + region      = "ap-southeast-1"
+                          + title       = "Đọc: p95 (ms)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 0
+                      + y          = 10
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "Báo động 5xx > 1%"
+                                      + value = 1
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_5xx_total",
+                                  + {
+                                      + id      = "m5"
+                                      + stat    = "Sum"
+                                      + visible = false
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_requests_total",
+                                  + {
+                                      + id      = "mr"
+                                      + stat    = "Sum"
+                                      + visible = false
+                                    },
+                                ],
+                              + [
+                                  + {
+                                      + expression = "100 * FILL(m5, 0) / mr"
+                                      + id         = "e1"
+                                      + label      = "5xx %"
+                                    },
+                                ],
+                            ]
+                          + period      = 300
+                          + region      = "ap-southeast-1"
+                          + title       = "Tỉ lệ 5xx (%)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 8
+                      + y          = 10
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_requests_total",
+                                  + {
+                                      + label = "request"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_5xx_total",
+                                  + {
+                                      + label = "5xx"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_aborted_total",
+                                  + {
+                                      + label = "bị ngắt"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Request, 5xx, bị ngắt"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 16
+                      + y          = 10
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + {
+                                      + expression = "SEARCH('{\"DBS/Backend-dbs145\",Method,Route} MetricName=\"http_request_duration_ms\" NOT Route=\"/health/live\" NOT Route=\"/health/ready\"', 'p95', 300)"
+                                      + id         = "s1"
+                                    },
+                                ],
+                            ]
+                          + period  = 300
+                          + region  = "ap-southeast-1"
+                          + title   = "p95 theo Route (ms)"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 0
+                      + y          = 16
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO 10 s"
+                                      + value = 10
+                                    },
+                                  + {
+                                      + label = "Báo động 30 s"
+                                      + value = 30
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "outbox_oldest_unpublished_age_seconds",
+                                  + {
+                                      + label = "tuổi"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          + period      = 60
+                          + region      = "ap-southeast-1"
+                          + stat        = "Maximum"
+                          + title       = "Tuổi outbox chưa gửi cũ nhất (giây)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 8
+                      + y          = 16
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "DLQ > 0"
+                                      + value = 1
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateNumberOfMessagesVisible",
+                                  + "QueueName",
+                                  + "dbs-dev-notification-events-dlq",
+                                  + {
+                                      + label = "dbs-dev-notification-events-dlq"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateNumberOfMessagesVisible",
+                                  + "QueueName",
+                                  + "dbs-dev-risk-events-dlq",
+                                  + {
+                                      + label = "dbs-dev-risk-events-dlq"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          + period      = 60
+                          + region      = "ap-southeast-1"
+                          + title       = "DLQ: số message"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 16
+                      + y          = 16
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO 60 s"
+                                      + value = 60
+                                    },
+                                  + {
+                                      + label = "Báo động 120 s"
+                                      + value = 120
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateAgeOfOldestMessage",
+                                  + "QueueName",
+                                  + "dbs-dev-notification-events",
+                                  + {
+                                      + label = "dbs-dev-notification-events"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateAgeOfOldestMessage",
+                                  + "QueueName",
+                                  + "dbs-dev-risk-events",
+                                  + {
+                                      + label = "dbs-dev-risk-events"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          + period      = 60
+                          + region      = "ap-southeast-1"
+                          + title       = "Tuổi message cũ nhất (giây)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 0
+                      + y          = 22
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "redis_fallback_total",
+                                  + "Role",
+                                  + "api",
+                                  + {
+                                      + label = "api"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "redis_fallback_total",
+                                  + "Role",
+                                  + "worker",
+                                  + {
+                                      + label = "worker"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Redis fallback"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 8
+                      + y          = 22
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "rate_limited_total",
+                                  + "Role",
+                                  + "api",
+                                  + "Scope",
+                                  + "ip",
+                                  + {
+                                      + label = "theo IP"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "rate_limited_total",
+                                  + "Role",
+                                  + "api",
+                                  + "Scope",
+                                  + "user",
+                                  + {
+                                      + label = "theo user"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Request bị rate limit"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 16
+                      + y          = 22
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + {
+                                      + expression = "SEARCH('{\"DBS/Backend-dbs145\",Role} MetricName=\"risk_config_redis_fallback_total\"', 'Sum', 60)"
+                                      + id         = "s2"
+                                    },
+                                ],
+                              + [
+                                  + {
+                                      + expression = "SEARCH('{\"DBS/Backend-dbs145\",Role,Rule,Reason} MetricName=\"risk_redis_fallback_total\"', 'Sum', 60)"
+                                      + id         = "s3"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Risk: fallback Redis"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 24
+                      + x          = 0
+                      + y          = 28
+                    },
+                ]
+            }
+        )
+      + dashboard_name = "dbs-dev-overview"
+      + id             = (known after apply)
+      + region         = "ap-southeast-1"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + dashboard_name     = "dbs-dev-overview"
+  + dashboard_url      = "https://ap-southeast-1.console.aws.amazon.com/cloudwatch/home?region=ap-southeast-1#dashboards/dashboard/dbs-dev-overview"
+  + private_subnet_ids = [
+      + "subnet-07938b0e4422c02ae",
+      + "subnet-035204bb27adf5772",
+    ]
+  + public_subnet_ids  = [
+      + "subnet-0fa92ab42a51f458e",
+      + "subnet-0faa4503583aa1b95",
+    ]
+  + vpc_id             = "vpc-0c30109ee998eb80e"
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+(exit=0)
+
+$ M-145-04a apply -target=aws_cloudwatch_dashboard.overview (dia chi duy nhat)  [2026-11-12T16:10:46Z]
+data.terraform_remote_state.base: Reading...
+data.terraform_remote_state.base: Read complete after 1s
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_cloudwatch_dashboard.overview will be created
+  + resource "aws_cloudwatch_dashboard" "overview" {
+      + dashboard_arn  = (known after apply)
+      + dashboard_body = jsonencode(
+            {
+              + periodOverride = "inherit"
+              + start          = "-PT3H"
+              + widgets        = [
+                  + {
+                      + height     = 4
+                      + properties = {
+                          + markdown = <<-EOT
+                                ## DBS dev: sức khỏe hệ thống
+                                Metric từ ứng dụng nằm trong namespace `DBS/Backend-dbs145` (CloudWatch EMF, DBS-144); DLQ và tuổi message lấy từ `AWS/SQS`. Đường kẻ ngang là ngưỡng SLO ở docs/03 mục 14, không phải alarm.
+                                - **Phân vị** do CloudWatch ước lượng quanh biên bucket (150, 300, 1000 ms): sai khác vài phần trăm. Cửa sổ 5 phút cho độ trễ và 5xx như SLO.
+                                - **Lỗi = 5xx**; 422 và 429 không tính. Tỉ lệ 5xx tính trên bộ dimension tổng, không có probe `/health/*`.
+                                - **Tuổi outbox** dùng `Maximum`. Không có điểm dữ liệu nghĩa là worker không chạy (không phải 0).
+                                - Chỉ vẽ `Role` `api` và `worker`. Widget trống là chưa có nguồn: service worker chờ DBS-121; `risk_redis_fallback_total` và các metric thời gian giao dịch tới cờ, `ai_status`, độ trễ AI, `risk_rule_error_total` chờ BL-204.
+                            EOT
+                        }
+                      + type       = "text"
+                      + width      = 24
+                      + x          = 0
+                      + y          = 0
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + {
+                                      + label = "p50"
+                                      + stat  = "p50"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + {
+                                      + label = "p95"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + {
+                                      + label = "p99"
+                                      + stat  = "p99"
+                                    },
+                                ],
+                            ]
+                          + period  = 300
+                          + region  = "ap-southeast-1"
+                          + title   = "Độ trễ toàn dịch vụ (ms)"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 12
+                      + x          = 0
+                      + y          = 4
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO p95 300 ms"
+                                      + value = 300
+                                    },
+                                  + {
+                                      + label = "SLO p99 1 s"
+                                      + value = 1000
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/transfers",
+                                  + "Method",
+                                  + "POST",
+                                  + {
+                                      + label = "p95"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/transfers",
+                                  + "Method",
+                                  + "POST",
+                                  + {
+                                      + label = "p99"
+                                      + stat  = "p99"
+                                    },
+                                ],
+                            ]
+                          + period      = 300
+                          + region      = "ap-southeast-1"
+                          + title       = "Chuyển tiền POST /v1/transfers: p95 và p99 (ms)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 12
+                      + x          = 12
+                      + y          = 4
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO đọc p95 150 ms"
+                                      + value = 150
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/accounts",
+                                  + "Method",
+                                  + "GET",
+                                  + {
+                                      + label = "GET /v1/accounts"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/accounts/:id",
+                                  + "Method",
+                                  + "GET",
+                                  + {
+                                      + label = "GET /v1/accounts/:id"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/accounts/:id/transactions",
+                                  + "Method",
+                                  + "GET",
+                                  + {
+                                      + label = "GET .../transactions"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                            ]
+                          + period      = 300
+                          + region      = "ap-southeast-1"
+                          + title       = "Đọc: p95 (ms)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 0
+                      + y          = 10
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "Báo động 5xx > 1%"
+                                      + value = 1
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_5xx_total",
+                                  + {
+                                      + id      = "m5"
+                                      + stat    = "Sum"
+                                      + visible = false
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_requests_total",
+                                  + {
+                                      + id      = "mr"
+                                      + stat    = "Sum"
+                                      + visible = false
+                                    },
+                                ],
+                              + [
+                                  + {
+                                      + expression = "100 * FILL(m5, 0) / mr"
+                                      + id         = "e1"
+                                      + label      = "5xx %"
+                                    },
+                                ],
+                            ]
+                          + period      = 300
+                          + region      = "ap-southeast-1"
+                          + title       = "Tỉ lệ 5xx (%)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 8
+                      + y          = 10
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_requests_total",
+                                  + {
+                                      + label = "request"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_5xx_total",
+                                  + {
+                                      + label = "5xx"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_aborted_total",
+                                  + {
+                                      + label = "bị ngắt"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Request, 5xx, bị ngắt"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 16
+                      + y          = 10
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + {
+                                      + expression = "SEARCH('{\"DBS/Backend-dbs145\",Method,Route} MetricName=\"http_request_duration_ms\" NOT Route=\"/health/live\" NOT Route=\"/health/ready\"', 'p95', 300)"
+                                      + id         = "s1"
+                                    },
+                                ],
+                            ]
+                          + period  = 300
+                          + region  = "ap-southeast-1"
+                          + title   = "p95 theo Route (ms)"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 0
+                      + y          = 16
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO 10 s"
+                                      + value = 10
+                                    },
+                                  + {
+                                      + label = "Báo động 30 s"
+                                      + value = 30
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "outbox_oldest_unpublished_age_seconds",
+                                  + {
+                                      + label = "tuổi"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          + period      = 60
+                          + region      = "ap-southeast-1"
+                          + stat        = "Maximum"
+                          + title       = "Tuổi outbox chưa gửi cũ nhất (giây)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 8
+                      + y          = 16
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "DLQ > 0"
+                                      + value = 1
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateNumberOfMessagesVisible",
+                                  + "QueueName",
+                                  + "dbs-dev-notification-events-dlq",
+                                  + {
+                                      + label = "dbs-dev-notification-events-dlq"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateNumberOfMessagesVisible",
+                                  + "QueueName",
+                                  + "dbs-dev-risk-events-dlq",
+                                  + {
+                                      + label = "dbs-dev-risk-events-dlq"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          + period      = 60
+                          + region      = "ap-southeast-1"
+                          + title       = "DLQ: số message"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 16
+                      + y          = 16
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO 60 s"
+                                      + value = 60
+                                    },
+                                  + {
+                                      + label = "Báo động 120 s"
+                                      + value = 120
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateAgeOfOldestMessage",
+                                  + "QueueName",
+                                  + "dbs-dev-notification-events",
+                                  + {
+                                      + label = "dbs-dev-notification-events"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateAgeOfOldestMessage",
+                                  + "QueueName",
+                                  + "dbs-dev-risk-events",
+                                  + {
+                                      + label = "dbs-dev-risk-events"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          + period      = 60
+                          + region      = "ap-southeast-1"
+                          + title       = "Tuổi message cũ nhất (giây)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 0
+                      + y          = 22
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "redis_fallback_total",
+                                  + "Role",
+                                  + "api",
+                                  + {
+                                      + label = "api"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "redis_fallback_total",
+                                  + "Role",
+                                  + "worker",
+                                  + {
+                                      + label = "worker"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Redis fallback"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 8
+                      + y          = 22
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "rate_limited_total",
+                                  + "Role",
+                                  + "api",
+                                  + "Scope",
+                                  + "ip",
+                                  + {
+                                      + label = "theo IP"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "rate_limited_total",
+                                  + "Role",
+                                  + "api",
+                                  + "Scope",
+                                  + "user",
+                                  + {
+                                      + label = "theo user"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Request bị rate limit"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 16
+                      + y          = 22
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + {
+                                      + expression = "SEARCH('{\"DBS/Backend-dbs145\",Role} MetricName=\"risk_config_redis_fallback_total\"', 'Sum', 60)"
+                                      + id         = "s2"
+                                    },
+                                ],
+                              + [
+                                  + {
+                                      + expression = "SEARCH('{\"DBS/Backend-dbs145\",Role,Rule,Reason} MetricName=\"risk_redis_fallback_total\"', 'Sum', 60)"
+                                      + id         = "s3"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Risk: fallback Redis"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 24
+                      + x          = 0
+                      + y          = 28
+                    },
+                ]
+            }
+        )
+      + dashboard_name = "dbs-dev-overview"
+      + id             = (known after apply)
+      + region         = "ap-southeast-1"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + dashboard_name     = "dbs-dev-overview"
+  + dashboard_url      = "https://ap-southeast-1.console.aws.amazon.com/cloudwatch/home?region=ap-southeast-1#dashboards/dashboard/dbs-dev-overview"
+  + private_subnet_ids = [
+      + "subnet-07938b0e4422c02ae",
+      + "subnet-035204bb27adf5772",
+    ]
+  + public_subnet_ids  = [
+      + "subnet-0fa92ab42a51f458e",
+      + "subnet-0faa4503583aa1b95",
+    ]
+  + vpc_id             = "vpc-0c30109ee998eb80e"
+aws_cloudwatch_dashboard.overview: Creating...
+aws_cloudwatch_dashboard.overview: Creation complete after 1s [id=dbs-dev-overview]
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+
+Warning: Applied changes may be incomplete
+
+The plan was created with the -target option in effect, so some changes
+requested in the configuration may have been ignored and the output values
+may not be fully updated. Run the following command to verify that no other
+changes are pending:
+    terraform plan
+
+Note that the -target option is not suitable for routine use, and is provided
+only for exceptional situations such as recovering from errors or mistakes,
+or when Terraform specifically suggests to use it as part of an error
+message.
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+dashboard_name = "dbs-dev-overview"
+dashboard_url = "https://ap-southeast-1.console.aws.amazon.com/cloudwatch/home?region=ap-southeast-1#dashboards/dashboard/dbs-dev-overview"
+private_subnet_ids = [
+  "subnet-07938b0e4422c02ae",
+  "subnet-035204bb27adf5772",
+]
+public_subnet_ids = [
+  "subnet-0fa92ab42a51f458e",
+  "subnet-0faa4503583aa1b95",
+]
+vpc_id = "vpc-0c30109ee998eb80e"
+(exit=0)
+
+$ M-145-04b get-dashboard + put-dashboard ten tam (hop le / hong) + xoa  [2026-11-12T16:11:06Z]
+widgets: 13 start= -PT3H periodOverride= inherit
+metric widgets: 12
+sha256 body: 787d63fceee82f30
+--- put-dashboard len ten tam (body hop le) ---
+{
+    "DashboardValidationMessages": []
+}
+--- put-dashboard body hong (JSON cut) ---
+
+aws: [ERROR]: An error occurred (InvalidParameterInput) when calling the PutDashboard operation: The field DashboardBody must be a valid JSON object
+--- put-dashboard body sai schema (widget thieu region/metrics) ---
+
+aws: [ERROR]: An error occurred (InvalidParameterInput) when calling the PutDashboard operation: The dashboard body is invalid, there are 3 validation errors:
+[
+  {
+    "dataPath": "/widgets/0/properties",
+    "message": "Should have required property 'metrics'"
+  },
+  {
+    "dataPath": "/widgets/0/properties",
+    "message": "The metric widget should have specified a region and a data source or an alarm annotation"
+  },
+  {
+    "dataPath": "/widgets/0/properties",
+    "message": "Should have required property 'annotations'"
+  }
+]
+--- xoa ten tam ---
+dashboards con lai: [dbs-dev-overview]
+(exit=0)
+
+$ M-145-04c plan -target lan hai (khong lech)  [2026-11-12T16:11:18Z]
+data.terraform_remote_state.base: Reading...
+data.terraform_remote_state.base: Read complete after 1s
+aws_cloudwatch_dashboard.overview: Refreshing state... [id=dbs-dev-overview]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+(exit=0)
+
+$ M-145-05 phat EMF mo phong 30 phut (ma DBS-144 that + ghi de namespace + chan) vao stream tam  [2026-11-12T16:12:27Z]
+expected.json:
+{
+  "namespace": "DBS/Backend-dbs145",
+  "startIso": "2026-11-12T15:42:00.000Z",
+  "endIso": "2026-11-12T16:12:00.000Z",
+  "events": 459,
+  "batches": 4,
+  "requests_excluding_health": 6129,
+  "http_5xx": 9,
+  "error_percent_whole_window": 0.1468,
+  "transfers_samples": 549,
+  "transfers_p95_bucket_upper_bound_ms": 300
+}stream tam: dbs145-sim-1794499947 (log group /dbs/dev/api)
+batch-00.json: 150 events, response: rejected= none
+batch-01.json: 150 events, response: rejected= none
+batch-02.json: 150 events, response: rejected= none
+batch-03.json: 9 events, response: rejected= none
+tong so dong da gui: 459
+(exit=0)
+
+$ M-145-05b/06a/07 doi metric, list-metrics, ro namespace, get-metric-data so voi mong doi  [2026-11-12T16:12:59Z]
+--- list-metrics --namespace DBS/Backend-dbs145 (ten, dimension) ---
+http_5xx_total  |  
+http_5xx_total  |  Method=GET
+http_5xx_total  |  Method=GET,Route=/health/live
+http_5xx_total  |  Method=GET,Route=/health/ready
+http_5xx_total  |  Method=GET,Route=/v1/accounts
+http_5xx_total  |  Method=GET,Route=/v1/accounts/:id
+http_5xx_total  |  Method=GET,Route=/v1/accounts/:id/transactions
+http_5xx_total  |  Method=POST
+http_5xx_total  |  Method=POST,Route=/v1/operator/deposits
+http_5xx_total  |  Method=POST,Route=/v1/transfers
+http_aborted_total  |  
+http_aborted_total  |  Method=GET
+http_aborted_total  |  Method=GET,Route=/health/live
+http_aborted_total  |  Method=GET,Route=/health/ready
+http_aborted_total  |  Method=GET,Route=/v1/accounts
+http_aborted_total  |  Method=GET,Route=/v1/accounts/:id
+http_aborted_total  |  Method=GET,Route=/v1/accounts/:id/transactions
+http_aborted_total  |  Method=POST
+http_aborted_total  |  Method=POST,Route=/v1/operator/deposits
+http_aborted_total  |  Method=POST,Route=/v1/transfers
+http_request_duration_ms  |  
+http_request_duration_ms  |  Method=GET
+http_request_duration_ms  |  Method=GET,Route=/health/live
+http_request_duration_ms  |  Method=GET,Route=/health/ready
+http_request_duration_ms  |  Method=GET,Route=/v1/accounts
+http_request_duration_ms  |  Method=GET,Route=/v1/accounts/:id
+http_request_duration_ms  |  Method=GET,Route=/v1/accounts/:id/transactions
+http_request_duration_ms  |  Method=POST
+http_request_duration_ms  |  Method=POST,Route=/v1/operator/deposits
+http_request_duration_ms  |  Method=POST,Route=/v1/transfers
+http_requests_total  |  
+http_requests_total  |  Method=GET
+http_requests_total  |  Method=GET,Route=/health/live
+http_requests_total  |  Method=GET,Route=/health/ready
+http_requests_total  |  Method=GET,Route=/v1/accounts
+http_requests_total  |  Method=GET,Route=/v1/accounts/:id
+http_requests_total  |  Method=GET,Route=/v1/accounts/:id/transactions
+http_requests_total  |  Method=POST
+http_requests_total  |  Method=POST,Route=/v1/operator/deposits
+http_requests_total  |  Method=POST,Route=/v1/transfers
+outbox_oldest_unpublished_age_seconds  |  
+rate_limited_total  |  Role=api,Scope=ip
+rate_limited_total  |  Role=api,Scope=user
+redis_fallback_total  |  Role=api
+--- so luong metric trong namespace thu: 44
+--- Route khac nhau (phai la mau duong dan, khong UUID/id) ---
+/health/live
+/health/ready
+/v1/accounts
+/v1/accounts/:id
+/v1/accounts/:id/transactions
+/v1/operator/deposits
+/v1/transfers
+--- ro namespace that: filter-log-events tren stream tam ---
+dong mang namespace that (mong doi 0): 0
+dong mang namespace thu (trang dau, doi chung duong): 459
+--- get-metric-data ---
+http_requests_total tong (CloudWatch): 6129.0  | mong doi: 6129
+http_5xx_total tong (CloudWatch): 9.0  | mong doi: 9
+5xx % toan khung: 0.1468  | mong doi: 0.1468
+5xx % theo cua so 5 phut (expression): [0.0, 0.293, 0.585, 0.0, 0.0, 0.0]
+POST /v1/transfers p95 theo cua so 5 phut: [296.277, 301.647, 301.953, 296.145, 302.073, 301.704]  | mong doi toan khung (bien bucket): 300
+POST /v1/transfers p99 theo cua so 5 phut: [299.252, 958.637, 957.332, 299.225, 495.644, 1875.525]
+GET /v1/accounts/:id p95 theo cua so 5 phut: [146.783, 146.376, 146.922, 146.078, 145.595, 145.967]
+outbox age Maximum (diem co du lieu): [8.0, 12.0, 6.0, 3.0]  so diem: 30
+redis_fallback_total Role=api Sum: [25.0]  tong: 25.0 | mong doi 25
+rate_limited_total Role=api Scope=ip Sum: [9.0]  tong: 9.0 | mong doi 9
+KET QUA so khop tong request va 5xx: DAT
+(exit=0)
+
+$ M-145-06b render 12 widget thanh PNG (get-metric-widget-image)  [2026-11-12T16:13:16Z]
+widget metric da tach: 12
+01-latency-service.png: 16527 bytes, PNG image data, 900 x 330, 8-bit/color R
+02-latency-transfer.png: 25873 bytes, PNG image data, 900 x 330, 8-bit/color R
+03-latency-reads.png: 18547 bytes, PNG image data, 900 x 330, 8-bit/color R
+04-error-rate.png: 18873 bytes, PNG image data, 900 x 330, 8-bit/color R
+05-request-volume.png: 14345 bytes, PNG image data, 900 x 330, 8-bit/color R
+06-p95-by-route.png: 21651 bytes, PNG image data, 900 x 330, 8-bit/color R
+07-outbox-age.png: 20070 bytes, PNG image data, 900 x 330, 8-bit/color R
+08-dlq-depth.png: 17281 bytes, PNG image data, 900 x 330, 8-bit/color R
+09-queue-age.png: 19670 bytes, PNG image data, 900 x 330, 8-bit/color R
+10-redis-fallback.png: 12298 bytes, PNG image data, 900 x 330, 8-bit/color R
+11-rate-limited.png: 12242 bytes, PNG image data, 900 x 330, 8-bit/color R
+12-risk-fallback.png: 11383 bytes, PNG image data, 900 x 330, 8-bit/color R
+(exit=0)
+
+$ M-145-08a list-dashboards truoc destroy (ten chua bi ai khac dung)  [2026-11-12T16:13:52Z]
+dashboards: [dbs-dev-overview]
+sha256 body: 787d63fceee82f30  (lan dau: 787d63fceee82f30)
+(exit=0)
+
+$ M-145-08b destroy -target  [2026-11-12T16:13:55Z]
+data.terraform_remote_state.base: Reading...
+data.terraform_remote_state.base: Read complete after 0s
+aws_cloudwatch_dashboard.overview: Refreshing state... [id=dbs-dev-overview]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  # aws_cloudwatch_dashboard.overview will be destroyed
+  - resource "aws_cloudwatch_dashboard" "overview" {
+      - dashboard_arn  = "arn:aws:cloudwatch::<acct>:dashboard/dbs-dev-overview" -> null
+      - dashboard_body = jsonencode(
+            {
+              - periodOverride = "inherit"
+              - start          = "-PT3H"
+              - widgets        = [
+                  - {
+                      - height     = 4
+                      - properties = {
+                          - markdown = <<-EOT
+                                ## DBS dev: sức khỏe hệ thống
+                                Metric từ ứng dụng nằm trong namespace `DBS/Backend-dbs145` (CloudWatch EMF, DBS-144); DLQ và tuổi message lấy từ `AWS/SQS`. Đường kẻ ngang là ngưỡng SLO ở docs/03 mục 14, không phải alarm.
+                                - **Phân vị** do CloudWatch ước lượng quanh biên bucket (150, 300, 1000 ms): sai khác vài phần trăm. Cửa sổ 5 phút cho độ trễ và 5xx như SLO.
+                                - **Lỗi = 5xx**; 422 và 429 không tính. Tỉ lệ 5xx tính trên bộ dimension tổng, không có probe `/health/*`.
+                                - **Tuổi outbox** dùng `Maximum`. Không có điểm dữ liệu nghĩa là worker không chạy (không phải 0).
+                                - Chỉ vẽ `Role` `api` và `worker`. Widget trống là chưa có nguồn: service worker chờ DBS-121; `risk_redis_fallback_total` và các metric thời gian giao dịch tới cờ, `ai_status`, độ trễ AI, `risk_rule_error_total` chờ BL-204.
+                            EOT
+                        }
+                      - type       = "text"
+                      - width      = 24
+                      - x          = 0
+                      - y          = 0
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - {
+                                      - label = "p50"
+                                      - stat  = "p50"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - {
+                                      - label = "p95"
+                                      - stat  = "p95"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - {
+                                      - label = "p99"
+                                      - stat  = "p99"
+                                    },
+                                ],
+                            ]
+                          - period  = 300
+                          - region  = "ap-southeast-1"
+                          - title   = "Độ trễ toàn dịch vụ (ms)"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 12
+                      - x          = 0
+                      - y          = 4
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "SLO p95 300 ms"
+                                      - value = 300
+                                    },
+                                  - {
+                                      - label = "SLO p99 1 s"
+                                      - value = 1000
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - "Route",
+                                  - "/v1/transfers",
+                                  - "Method",
+                                  - "POST",
+                                  - {
+                                      - label = "p95"
+                                      - stat  = "p95"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - "Route",
+                                  - "/v1/transfers",
+                                  - "Method",
+                                  - "POST",
+                                  - {
+                                      - label = "p99"
+                                      - stat  = "p99"
+                                    },
+                                ],
+                            ]
+                          - period      = 300
+                          - region      = "ap-southeast-1"
+                          - title       = "Chuyển tiền POST /v1/transfers: p95 và p99 (ms)"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 12
+                      - x          = 12
+                      - y          = 4
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "SLO đọc p95 150 ms"
+                                      - value = 150
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - "Route",
+                                  - "/v1/accounts",
+                                  - "Method",
+                                  - "GET",
+                                  - {
+                                      - label = "GET /v1/accounts"
+                                      - stat  = "p95"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - "Route",
+                                  - "/v1/accounts/:id",
+                                  - "Method",
+                                  - "GET",
+                                  - {
+                                      - label = "GET /v1/accounts/:id"
+                                      - stat  = "p95"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - "Route",
+                                  - "/v1/accounts/:id/transactions",
+                                  - "Method",
+                                  - "GET",
+                                  - {
+                                      - label = "GET .../transactions"
+                                      - stat  = "p95"
+                                    },
+                                ],
+                            ]
+                          - period      = 300
+                          - region      = "ap-southeast-1"
+                          - title       = "Đọc: p95 (ms)"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 0
+                      - y          = 10
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "Báo động 5xx > 1%"
+                                      - value = 1
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_5xx_total",
+                                  - {
+                                      - id      = "m5"
+                                      - stat    = "Sum"
+                                      - visible = false
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_requests_total",
+                                  - {
+                                      - id      = "mr"
+                                      - stat    = "Sum"
+                                      - visible = false
+                                    },
+                                ],
+                              - [
+                                  - {
+                                      - expression = "100 * FILL(m5, 0) / mr"
+                                      - id         = "e1"
+                                      - label      = "5xx %"
+                                    },
+                                ],
+                            ]
+                          - period      = 300
+                          - region      = "ap-southeast-1"
+                          - title       = "Tỉ lệ 5xx (%)"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 8
+                      - y          = 10
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_requests_total",
+                                  - {
+                                      - label = "request"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_5xx_total",
+                                  - {
+                                      - label = "5xx"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_aborted_total",
+                                  - {
+                                      - label = "bị ngắt"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          - period  = 60
+                          - region  = "ap-southeast-1"
+                          - title   = "Request, 5xx, bị ngắt"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 16
+                      - y          = 10
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - {
+                                      - expression = "SEARCH('{\"DBS/Backend-dbs145\",Method,Route} MetricName=\"http_request_duration_ms\" NOT Route=\"/health/live\" NOT Route=\"/health/ready\"', 'p95', 300)"
+                                      - id         = "s1"
+                                    },
+                                ],
+                            ]
+                          - period  = 300
+                          - region  = "ap-southeast-1"
+                          - title   = "p95 theo Route (ms)"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 0
+                      - y          = 16
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "SLO 10 s"
+                                      - value = 10
+                                    },
+                                  - {
+                                      - label = "Báo động 30 s"
+                                      - value = 30
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "outbox_oldest_unpublished_age_seconds",
+                                  - {
+                                      - label = "tuổi"
+                                      - stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          - period      = 60
+                          - region      = "ap-southeast-1"
+                          - stat        = "Maximum"
+                          - title       = "Tuổi outbox chưa gửi cũ nhất (giây)"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 8
+                      - y          = 16
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "DLQ > 0"
+                                      - value = 1
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "AWS/SQS",
+                                  - "ApproximateNumberOfMessagesVisible",
+                                  - "QueueName",
+                                  - "dbs-dev-notification-events-dlq",
+                                  - {
+                                      - label = "dbs-dev-notification-events-dlq"
+                                      - stat  = "Maximum"
+                                    },
+                                ],
+                              - [
+                                  - "AWS/SQS",
+                                  - "ApproximateNumberOfMessagesVisible",
+                                  - "QueueName",
+                                  - "dbs-dev-risk-events-dlq",
+                                  - {
+                                      - label = "dbs-dev-risk-events-dlq"
+                                      - stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          - period      = 60
+                          - region      = "ap-southeast-1"
+                          - title       = "DLQ: số message"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 16
+                      - y          = 16
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "SLO 60 s"
+                                      - value = 60
+                                    },
+                                  - {
+                                      - label = "Báo động 120 s"
+                                      - value = 120
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "AWS/SQS",
+                                  - "ApproximateAgeOfOldestMessage",
+                                  - "QueueName",
+                                  - "dbs-dev-notification-events",
+                                  - {
+                                      - label = "dbs-dev-notification-events"
+                                      - stat  = "Maximum"
+                                    },
+                                ],
+                              - [
+                                  - "AWS/SQS",
+                                  - "ApproximateAgeOfOldestMessage",
+                                  - "QueueName",
+                                  - "dbs-dev-risk-events",
+                                  - {
+                                      - label = "dbs-dev-risk-events"
+                                      - stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          - period      = 60
+                          - region      = "ap-southeast-1"
+                          - title       = "Tuổi message cũ nhất (giây)"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 0
+                      - y          = 22
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "redis_fallback_total",
+                                  - "Role",
+                                  - "api",
+                                  - {
+                                      - label = "api"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "redis_fallback_total",
+                                  - "Role",
+                                  - "worker",
+                                  - {
+                                      - label = "worker"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          - period  = 60
+                          - region  = "ap-southeast-1"
+                          - title   = "Redis fallback"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 8
+                      - y          = 22
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "rate_limited_total",
+                                  - "Role",
+                                  - "api",
+                                  - "Scope",
+                                  - "ip",
+                                  - {
+                                      - label = "theo IP"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "rate_limited_total",
+                                  - "Role",
+                                  - "api",
+                                  - "Scope",
+                                  - "user",
+                                  - {
+                                      - label = "theo user"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          - period  = 60
+                          - region  = "ap-southeast-1"
+                          - title   = "Request bị rate limit"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 16
+                      - y          = 22
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - {
+                                      - expression = "SEARCH('{\"DBS/Backend-dbs145\",Role} MetricName=\"risk_config_redis_fallback_total\"', 'Sum', 60)"
+                                      - id         = "s2"
+                                    },
+                                ],
+                              - [
+                                  - {
+                                      - expression = "SEARCH('{\"DBS/Backend-dbs145\",Role,Rule,Reason} MetricName=\"risk_redis_fallback_total\"', 'Sum', 60)"
+                                      - id         = "s3"
+                                    },
+                                ],
+                            ]
+                          - period  = 60
+                          - region  = "ap-southeast-1"
+                          - title   = "Risk: fallback Redis"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 24
+                      - x          = 0
+                      - y          = 28
+                    },
+                ]
+            }
+        ) -> null
+      - dashboard_name = "dbs-dev-overview" -> null
+      - id             = "dbs-dev-overview" -> null
+      - region         = "ap-southeast-1" -> null
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+aws_cloudwatch_dashboard.overview: Destroying... [id=dbs-dev-overview]
+aws_cloudwatch_dashboard.overview: Destruction complete after 1s
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+
+Warning: Applied changes may be incomplete
+
+The plan was created with the -target option in effect, so some changes
+requested in the configuration may have been ignored and the output values
+may not be fully updated. Run the following command to verify that no other
+changes are pending:
+    terraform plan
+
+Note that the -target option is not suitable for routine use, and is provided
+only for exceptional situations such as recovering from errors or mistakes,
+or when Terraform specifically suggests to use it as part of an error
+message.
+
+Destroy complete! Resources: 1 destroyed.
+(exit=0)
+
+$ M-145-08c sau destroy  [2026-11-12T16:14:03Z]
+dashboards: []
+dbs-dev-overview: khong ton tai
+(exit=0)
+
+$ M-145-08d apply -target lai  [2026-11-12T16:14:06Z]
+data.terraform_remote_state.base: Reading...
+data.terraform_remote_state.base: Read complete after 1s
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_cloudwatch_dashboard.overview will be created
+  + resource "aws_cloudwatch_dashboard" "overview" {
+      + dashboard_arn  = (known after apply)
+      + dashboard_body = jsonencode(
+            {
+              + periodOverride = "inherit"
+              + start          = "-PT3H"
+              + widgets        = [
+                  + {
+                      + height     = 4
+                      + properties = {
+                          + markdown = <<-EOT
+                                ## DBS dev: sức khỏe hệ thống
+                                Metric từ ứng dụng nằm trong namespace `DBS/Backend-dbs145` (CloudWatch EMF, DBS-144); DLQ và tuổi message lấy từ `AWS/SQS`. Đường kẻ ngang là ngưỡng SLO ở docs/03 mục 14, không phải alarm.
+                                - **Phân vị** do CloudWatch ước lượng quanh biên bucket (150, 300, 1000 ms): sai khác vài phần trăm. Cửa sổ 5 phút cho độ trễ và 5xx như SLO.
+                                - **Lỗi = 5xx**; 422 và 429 không tính. Tỉ lệ 5xx tính trên bộ dimension tổng, không có probe `/health/*`.
+                                - **Tuổi outbox** dùng `Maximum`. Không có điểm dữ liệu nghĩa là worker không chạy (không phải 0).
+                                - Chỉ vẽ `Role` `api` và `worker`. Widget trống là chưa có nguồn: service worker chờ DBS-121; `risk_redis_fallback_total` và các metric thời gian giao dịch tới cờ, `ai_status`, độ trễ AI, `risk_rule_error_total` chờ BL-204.
+                            EOT
+                        }
+                      + type       = "text"
+                      + width      = 24
+                      + x          = 0
+                      + y          = 0
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + {
+                                      + label = "p50"
+                                      + stat  = "p50"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + {
+                                      + label = "p95"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + {
+                                      + label = "p99"
+                                      + stat  = "p99"
+                                    },
+                                ],
+                            ]
+                          + period  = 300
+                          + region  = "ap-southeast-1"
+                          + title   = "Độ trễ toàn dịch vụ (ms)"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 12
+                      + x          = 0
+                      + y          = 4
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO p95 300 ms"
+                                      + value = 300
+                                    },
+                                  + {
+                                      + label = "SLO p99 1 s"
+                                      + value = 1000
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/transfers",
+                                  + "Method",
+                                  + "POST",
+                                  + {
+                                      + label = "p95"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/transfers",
+                                  + "Method",
+                                  + "POST",
+                                  + {
+                                      + label = "p99"
+                                      + stat  = "p99"
+                                    },
+                                ],
+                            ]
+                          + period      = 300
+                          + region      = "ap-southeast-1"
+                          + title       = "Chuyển tiền POST /v1/transfers: p95 và p99 (ms)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 12
+                      + x          = 12
+                      + y          = 4
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO đọc p95 150 ms"
+                                      + value = 150
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/accounts",
+                                  + "Method",
+                                  + "GET",
+                                  + {
+                                      + label = "GET /v1/accounts"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/accounts/:id",
+                                  + "Method",
+                                  + "GET",
+                                  + {
+                                      + label = "GET /v1/accounts/:id"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_request_duration_ms",
+                                  + "Route",
+                                  + "/v1/accounts/:id/transactions",
+                                  + "Method",
+                                  + "GET",
+                                  + {
+                                      + label = "GET .../transactions"
+                                      + stat  = "p95"
+                                    },
+                                ],
+                            ]
+                          + period      = 300
+                          + region      = "ap-southeast-1"
+                          + title       = "Đọc: p95 (ms)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 0
+                      + y          = 10
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "Báo động 5xx > 1%"
+                                      + value = 1
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_5xx_total",
+                                  + {
+                                      + id      = "m5"
+                                      + stat    = "Sum"
+                                      + visible = false
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_requests_total",
+                                  + {
+                                      + id      = "mr"
+                                      + stat    = "Sum"
+                                      + visible = false
+                                    },
+                                ],
+                              + [
+                                  + {
+                                      + expression = "100 * FILL(m5, 0) / mr"
+                                      + id         = "e1"
+                                      + label      = "5xx %"
+                                    },
+                                ],
+                            ]
+                          + period      = 300
+                          + region      = "ap-southeast-1"
+                          + title       = "Tỉ lệ 5xx (%)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 8
+                      + y          = 10
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_requests_total",
+                                  + {
+                                      + label = "request"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_5xx_total",
+                                  + {
+                                      + label = "5xx"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "http_aborted_total",
+                                  + {
+                                      + label = "bị ngắt"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Request, 5xx, bị ngắt"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 16
+                      + y          = 10
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + {
+                                      + expression = "SEARCH('{\"DBS/Backend-dbs145\",Method,Route} MetricName=\"http_request_duration_ms\" NOT Route=\"/health/live\" NOT Route=\"/health/ready\"', 'p95', 300)"
+                                      + id         = "s1"
+                                    },
+                                ],
+                            ]
+                          + period  = 300
+                          + region  = "ap-southeast-1"
+                          + title   = "p95 theo Route (ms)"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 0
+                      + y          = 16
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO 10 s"
+                                      + value = 10
+                                    },
+                                  + {
+                                      + label = "Báo động 30 s"
+                                      + value = 30
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "outbox_oldest_unpublished_age_seconds",
+                                  + {
+                                      + label = "tuổi"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          + period      = 60
+                          + region      = "ap-southeast-1"
+                          + stat        = "Maximum"
+                          + title       = "Tuổi outbox chưa gửi cũ nhất (giây)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 8
+                      + y          = 16
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "DLQ > 0"
+                                      + value = 1
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateNumberOfMessagesVisible",
+                                  + "QueueName",
+                                  + "dbs-dev-notification-events-dlq",
+                                  + {
+                                      + label = "dbs-dev-notification-events-dlq"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateNumberOfMessagesVisible",
+                                  + "QueueName",
+                                  + "dbs-dev-risk-events-dlq",
+                                  + {
+                                      + label = "dbs-dev-risk-events-dlq"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          + period      = 60
+                          + region      = "ap-southeast-1"
+                          + title       = "DLQ: số message"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 16
+                      + y          = 16
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + annotations = {
+                              + horizontal = [
+                                  + {
+                                      + label = "SLO 60 s"
+                                      + value = 60
+                                    },
+                                  + {
+                                      + label = "Báo động 120 s"
+                                      + value = 120
+                                    },
+                                ]
+                            }
+                          + metrics     = [
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateAgeOfOldestMessage",
+                                  + "QueueName",
+                                  + "dbs-dev-notification-events",
+                                  + {
+                                      + label = "dbs-dev-notification-events"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                              + [
+                                  + "AWS/SQS",
+                                  + "ApproximateAgeOfOldestMessage",
+                                  + "QueueName",
+                                  + "dbs-dev-risk-events",
+                                  + {
+                                      + label = "dbs-dev-risk-events"
+                                      + stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          + period      = 60
+                          + region      = "ap-southeast-1"
+                          + title       = "Tuổi message cũ nhất (giây)"
+                          + view        = "timeSeries"
+                          + yAxis       = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 0
+                      + y          = 22
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "redis_fallback_total",
+                                  + "Role",
+                                  + "api",
+                                  + {
+                                      + label = "api"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "redis_fallback_total",
+                                  + "Role",
+                                  + "worker",
+                                  + {
+                                      + label = "worker"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Redis fallback"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 8
+                      + y          = 22
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "rate_limited_total",
+                                  + "Role",
+                                  + "api",
+                                  + "Scope",
+                                  + "ip",
+                                  + {
+                                      + label = "theo IP"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                              + [
+                                  + "DBS/Backend-dbs145",
+                                  + "rate_limited_total",
+                                  + "Role",
+                                  + "api",
+                                  + "Scope",
+                                  + "user",
+                                  + {
+                                      + label = "theo user"
+                                      + stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Request bị rate limit"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 8
+                      + x          = 16
+                      + y          = 22
+                    },
+                  + {
+                      + height     = 6
+                      + properties = {
+                          + metrics = [
+                              + [
+                                  + {
+                                      + expression = "SEARCH('{\"DBS/Backend-dbs145\",Role} MetricName=\"risk_config_redis_fallback_total\"', 'Sum', 60)"
+                                      + id         = "s2"
+                                    },
+                                ],
+                              + [
+                                  + {
+                                      + expression = "SEARCH('{\"DBS/Backend-dbs145\",Role,Rule,Reason} MetricName=\"risk_redis_fallback_total\"', 'Sum', 60)"
+                                      + id         = "s3"
+                                    },
+                                ],
+                            ]
+                          + period  = 60
+                          + region  = "ap-southeast-1"
+                          + title   = "Risk: fallback Redis"
+                          + view    = "timeSeries"
+                          + yAxis   = {
+                              + left = {
+                                  + min = 0
+                                }
+                            }
+                        }
+                      + type       = "metric"
+                      + width      = 24
+                      + x          = 0
+                      + y          = 28
+                    },
+                ]
+            }
+        )
+      + dashboard_name = "dbs-dev-overview"
+      + id             = (known after apply)
+      + region         = "ap-southeast-1"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+aws_cloudwatch_dashboard.overview: Creating...
+aws_cloudwatch_dashboard.overview: Creation complete after 1s [id=dbs-dev-overview]
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+
+Warning: Applied changes may be incomplete
+
+The plan was created with the -target option in effect, so some changes
+requested in the configuration may have been ignored and the output values
+may not be fully updated. Run the following command to verify that no other
+changes are pending:
+    terraform plan
+
+Note that the -target option is not suitable for routine use, and is provided
+only for exceptional situations such as recovering from errors or mistakes,
+or when Terraform specifically suggests to use it as part of an error
+message.
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+dashboard_name = "dbs-dev-overview"
+dashboard_url = "https://ap-southeast-1.console.aws.amazon.com/cloudwatch/home?region=ap-southeast-1#dashboards/dashboard/dbs-dev-overview"
+private_subnet_ids = [
+  "subnet-07938b0e4422c02ae",
+  "subnet-035204bb27adf5772",
+]
+public_subnet_ids = [
+  "subnet-0fa92ab42a51f458e",
+  "subnet-0faa4503583aa1b95",
+]
+vpc_id = "vpc-0c30109ee998eb80e"
+(exit=0)
+
+$ M-145-08e sau apply lai: body  [2026-11-12T16:14:12Z]
+dashboards: [dbs-dev-overview]
+sha256 body: 787d63fceee82f30  (lan dau: 787d63fceee82f30)
+(exit=0)
+
+$ M-145-09a xoa log stream tam dbs145-sim-1794499947  [2026-11-12T16:14:24Z]
+stream con lai chua 'dbs145': []
+(exit=0)
+
+$ M-145-09b list-dashboards truoc destroy cuoi  [2026-11-12T16:14:25Z]
+dashboards: [dbs-dev-overview]
+sha256 body: 787d63fceee82f30  (lan dau: 787d63fceee82f30)
+(exit=0)
+
+$ M-145-09c destroy day du (state key rieng chi chua dashboard)  [2026-11-12T16:14:27Z]
+data.terraform_remote_state.base: Reading...
+ephemeral.random_password.redis_auth: Opening...
+ephemeral.random_password.redis_auth: Opening complete after 0s
+data.terraform_remote_state.base: Read complete after 1s
+aws_cloudwatch_dashboard.overview: Refreshing state... [id=dbs-dev-overview]
+ephemeral.random_password.redis_auth: Closing...
+ephemeral.random_password.redis_auth: Closing complete after 0s
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  # aws_cloudwatch_dashboard.overview will be destroyed
+  - resource "aws_cloudwatch_dashboard" "overview" {
+      - dashboard_arn  = "arn:aws:cloudwatch::<acct>:dashboard/dbs-dev-overview" -> null
+      - dashboard_body = jsonencode(
+            {
+              - periodOverride = "inherit"
+              - start          = "-PT3H"
+              - widgets        = [
+                  - {
+                      - height     = 4
+                      - properties = {
+                          - markdown = <<-EOT
+                                ## DBS dev: sức khỏe hệ thống
+                                Metric từ ứng dụng nằm trong namespace `DBS/Backend-dbs145` (CloudWatch EMF, DBS-144); DLQ và tuổi message lấy từ `AWS/SQS`. Đường kẻ ngang là ngưỡng SLO ở docs/03 mục 14, không phải alarm.
+                                - **Phân vị** do CloudWatch ước lượng quanh biên bucket (150, 300, 1000 ms): sai khác vài phần trăm. Cửa sổ 5 phút cho độ trễ và 5xx như SLO.
+                                - **Lỗi = 5xx**; 422 và 429 không tính. Tỉ lệ 5xx tính trên bộ dimension tổng, không có probe `/health/*`.
+                                - **Tuổi outbox** dùng `Maximum`. Không có điểm dữ liệu nghĩa là worker không chạy (không phải 0).
+                                - Chỉ vẽ `Role` `api` và `worker`. Widget trống là chưa có nguồn: service worker chờ DBS-121; `risk_redis_fallback_total` và các metric thời gian giao dịch tới cờ, `ai_status`, độ trễ AI, `risk_rule_error_total` chờ BL-204.
+                            EOT
+                        }
+                      - type       = "text"
+                      - width      = 24
+                      - x          = 0
+                      - y          = 0
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - {
+                                      - label = "p50"
+                                      - stat  = "p50"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - {
+                                      - label = "p95"
+                                      - stat  = "p95"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - {
+                                      - label = "p99"
+                                      - stat  = "p99"
+                                    },
+                                ],
+                            ]
+                          - period  = 300
+                          - region  = "ap-southeast-1"
+                          - title   = "Độ trễ toàn dịch vụ (ms)"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 12
+                      - x          = 0
+                      - y          = 4
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "SLO p95 300 ms"
+                                      - value = 300
+                                    },
+                                  - {
+                                      - label = "SLO p99 1 s"
+                                      - value = 1000
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - "Route",
+                                  - "/v1/transfers",
+                                  - "Method",
+                                  - "POST",
+                                  - {
+                                      - label = "p95"
+                                      - stat  = "p95"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - "Route",
+                                  - "/v1/transfers",
+                                  - "Method",
+                                  - "POST",
+                                  - {
+                                      - label = "p99"
+                                      - stat  = "p99"
+                                    },
+                                ],
+                            ]
+                          - period      = 300
+                          - region      = "ap-southeast-1"
+                          - title       = "Chuyển tiền POST /v1/transfers: p95 và p99 (ms)"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 12
+                      - x          = 12
+                      - y          = 4
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "SLO đọc p95 150 ms"
+                                      - value = 150
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - "Route",
+                                  - "/v1/accounts",
+                                  - "Method",
+                                  - "GET",
+                                  - {
+                                      - label = "GET /v1/accounts"
+                                      - stat  = "p95"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - "Route",
+                                  - "/v1/accounts/:id",
+                                  - "Method",
+                                  - "GET",
+                                  - {
+                                      - label = "GET /v1/accounts/:id"
+                                      - stat  = "p95"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_request_duration_ms",
+                                  - "Route",
+                                  - "/v1/accounts/:id/transactions",
+                                  - "Method",
+                                  - "GET",
+                                  - {
+                                      - label = "GET .../transactions"
+                                      - stat  = "p95"
+                                    },
+                                ],
+                            ]
+                          - period      = 300
+                          - region      = "ap-southeast-1"
+                          - title       = "Đọc: p95 (ms)"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 0
+                      - y          = 10
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "Báo động 5xx > 1%"
+                                      - value = 1
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_5xx_total",
+                                  - {
+                                      - id      = "m5"
+                                      - stat    = "Sum"
+                                      - visible = false
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_requests_total",
+                                  - {
+                                      - id      = "mr"
+                                      - stat    = "Sum"
+                                      - visible = false
+                                    },
+                                ],
+                              - [
+                                  - {
+                                      - expression = "100 * FILL(m5, 0) / mr"
+                                      - id         = "e1"
+                                      - label      = "5xx %"
+                                    },
+                                ],
+                            ]
+                          - period      = 300
+                          - region      = "ap-southeast-1"
+                          - title       = "Tỉ lệ 5xx (%)"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 8
+                      - y          = 10
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_requests_total",
+                                  - {
+                                      - label = "request"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_5xx_total",
+                                  - {
+                                      - label = "5xx"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "http_aborted_total",
+                                  - {
+                                      - label = "bị ngắt"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          - period  = 60
+                          - region  = "ap-southeast-1"
+                          - title   = "Request, 5xx, bị ngắt"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 16
+                      - y          = 10
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - {
+                                      - expression = "SEARCH('{\"DBS/Backend-dbs145\",Method,Route} MetricName=\"http_request_duration_ms\" NOT Route=\"/health/live\" NOT Route=\"/health/ready\"', 'p95', 300)"
+                                      - id         = "s1"
+                                    },
+                                ],
+                            ]
+                          - period  = 300
+                          - region  = "ap-southeast-1"
+                          - title   = "p95 theo Route (ms)"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 0
+                      - y          = 16
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "SLO 10 s"
+                                      - value = 10
+                                    },
+                                  - {
+                                      - label = "Báo động 30 s"
+                                      - value = 30
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "outbox_oldest_unpublished_age_seconds",
+                                  - {
+                                      - label = "tuổi"
+                                      - stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          - period      = 60
+                          - region      = "ap-southeast-1"
+                          - stat        = "Maximum"
+                          - title       = "Tuổi outbox chưa gửi cũ nhất (giây)"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 8
+                      - y          = 16
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "DLQ > 0"
+                                      - value = 1
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "AWS/SQS",
+                                  - "ApproximateNumberOfMessagesVisible",
+                                  - "QueueName",
+                                  - "dbs-dev-notification-events-dlq",
+                                  - {
+                                      - label = "dbs-dev-notification-events-dlq"
+                                      - stat  = "Maximum"
+                                    },
+                                ],
+                              - [
+                                  - "AWS/SQS",
+                                  - "ApproximateNumberOfMessagesVisible",
+                                  - "QueueName",
+                                  - "dbs-dev-risk-events-dlq",
+                                  - {
+                                      - label = "dbs-dev-risk-events-dlq"
+                                      - stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          - period      = 60
+                          - region      = "ap-southeast-1"
+                          - title       = "DLQ: số message"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 16
+                      - y          = 16
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - annotations = {
+                              - horizontal = [
+                                  - {
+                                      - label = "SLO 60 s"
+                                      - value = 60
+                                    },
+                                  - {
+                                      - label = "Báo động 120 s"
+                                      - value = 120
+                                    },
+                                ]
+                            }
+                          - metrics     = [
+                              - [
+                                  - "AWS/SQS",
+                                  - "ApproximateAgeOfOldestMessage",
+                                  - "QueueName",
+                                  - "dbs-dev-notification-events",
+                                  - {
+                                      - label = "dbs-dev-notification-events"
+                                      - stat  = "Maximum"
+                                    },
+                                ],
+                              - [
+                                  - "AWS/SQS",
+                                  - "ApproximateAgeOfOldestMessage",
+                                  - "QueueName",
+                                  - "dbs-dev-risk-events",
+                                  - {
+                                      - label = "dbs-dev-risk-events"
+                                      - stat  = "Maximum"
+                                    },
+                                ],
+                            ]
+                          - period      = 60
+                          - region      = "ap-southeast-1"
+                          - title       = "Tuổi message cũ nhất (giây)"
+                          - view        = "timeSeries"
+                          - yAxis       = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 0
+                      - y          = 22
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "redis_fallback_total",
+                                  - "Role",
+                                  - "api",
+                                  - {
+                                      - label = "api"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "redis_fallback_total",
+                                  - "Role",
+                                  - "worker",
+                                  - {
+                                      - label = "worker"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          - period  = 60
+                          - region  = "ap-southeast-1"
+                          - title   = "Redis fallback"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 8
+                      - y          = 22
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "rate_limited_total",
+                                  - "Role",
+                                  - "api",
+                                  - "Scope",
+                                  - "ip",
+                                  - {
+                                      - label = "theo IP"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                              - [
+                                  - "DBS/Backend-dbs145",
+                                  - "rate_limited_total",
+                                  - "Role",
+                                  - "api",
+                                  - "Scope",
+                                  - "user",
+                                  - {
+                                      - label = "theo user"
+                                      - stat  = "Sum"
+                                    },
+                                ],
+                            ]
+                          - period  = 60
+                          - region  = "ap-southeast-1"
+                          - title   = "Request bị rate limit"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 8
+                      - x          = 16
+                      - y          = 22
+                    },
+                  - {
+                      - height     = 6
+                      - properties = {
+                          - metrics = [
+                              - [
+                                  - {
+                                      - expression = "SEARCH('{\"DBS/Backend-dbs145\",Role} MetricName=\"risk_config_redis_fallback_total\"', 'Sum', 60)"
+                                      - id         = "s2"
+                                    },
+                                ],
+                              - [
+                                  - {
+                                      - expression = "SEARCH('{\"DBS/Backend-dbs145\",Role,Rule,Reason} MetricName=\"risk_redis_fallback_total\"', 'Sum', 60)"
+                                      - id         = "s3"
+                                    },
+                                ],
+                            ]
+                          - period  = 60
+                          - region  = "ap-southeast-1"
+                          - title   = "Risk: fallback Redis"
+                          - view    = "timeSeries"
+                          - yAxis   = {
+                              - left = {
+                                  - min = 0
+                                }
+                            }
+                        }
+                      - type       = "metric"
+                      - width      = 24
+                      - x          = 0
+                      - y          = 28
+                    },
+                ]
+            }
+        ) -> null
+      - dashboard_name = "dbs-dev-overview" -> null
+      - id             = "dbs-dev-overview" -> null
+      - region         = "ap-southeast-1" -> null
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+
+Changes to Outputs:
+  - cluster_name       = "dbs-dev" -> null
+  - dashboard_name     = "dbs-dev-overview" -> null
+  - dashboard_url      = "https://ap-southeast-1.console.aws.amazon.com/cloudwatch/home?region=ap-southeast-1#dashboards/dashboard/dbs-dev-overview" -> null
+  - db_instance_id     = "dbs-dev" -> null
+  - db_port            = 5432 -> null
+  - private_subnet_ids = [
+      - "subnet-07938b0e4422c02ae",
+      - "subnet-035204bb27adf5772",
+    ] -> null
+  - public_subnet_ids  = [
+      - "subnet-0fa92ab42a51f458e",
+      - "subnet-0faa4503583aa1b95",
+    ] -> null
+  - service_name       = "api" -> null
+  - vpc_id             = "vpc-0c30109ee998eb80e" -> null
+aws_cloudwatch_dashboard.overview: Destroying... [id=dbs-dev-overview]
+aws_cloudwatch_dashboard.overview: Destruction complete after 1s
+
+Destroy complete! Resources: 1 destroyed.
+(exit=0)
+
+$ M-145-09d terraform state list (mong doi rong)  [2026-11-12T16:14:35Z]
+Usage: terraform [global options] state <subcommand> [options] [args]
+
+  This command has subcommands for advanced state management.
+
+  These subcommands can be used to slice and dice the Terraform state.
+  This is sometimes necessary in advanced cases. For your safety, all
+  state management commands that modify the state create a timestamped
+  backup of the state prior to making modifications.
+
+  The structure and output of the commands is specifically tailored to work
+  well with the common Unix utilities such as grep, awk, etc. We recommend
+  using those tools to perform more advanced state tasks.
+
+Subcommands:
+    identities          List the identities of resources in the state
+    list                List resources in the state
+    mv                  Move an item in the state
+    pull                Pull current state and output to stdout
+    push                Update remote state from a local state file
+    replace-provider    Replace provider in the state
+    rm                  Remove instances from the state
+    show                Show a resource in the state
+(exit=1)
+
+$ M-145-09e hien trang sau (chi doc), so voi M-145-01  [2026-11-12T16:14:35Z]
+identity: arn:aws:iam::<acct>:user/faker
+dashboards: []
+ALB: []
+RDS: [dbs-dev]
+ElastiCache: [dbs-dev]
+ECS clusters: []
+NAT: []
+EIP: []
+WAF regional: []
+log streams /dbs/dev/api: [migrate/probe/120693ecb23c4b448ca5bfd59e7602db	probe/probe/2cd2099d4e2d42309b47a6801307e6c3	probe/probe/3dc2294877144fed8df94448891f04f8	probe/probe/44768db1581b4d1fa233567f81788bae	probe/probe/58b477cc01c2440ba4e34d00cf329d13	probe/probe/a0df7bfce45d4fd8af9e33ec76b27c06	probe/probe/a72e5f3caac74ab9908929fb47ac067d	probe/probe/d564b037b13742d6b3f94adac7d5e689	probe/probe/d72e3a5447b04d2480ca3dd88d726d88	probe/probe/df2390fc39ae40998333b596c8191a1f	probe/probe/f151368976e34414961ec6b356659f33]
+state objects: base.tfstate session-dbs145.tfstate session.tfstate session.tfstate.tflock 
+(exit=0)
+
+$ M-145-09d' terraform state list (key rieng)  [2026-11-12T16:14:53Z]
+terraform state list (state key dev/session-dbs145.tfstate): []
+worktree .terraform ton tai: 1 (mong doi 1: tu terraform init -backend=false luc baseline, khong tro vao key tam)
+(exit=0)
+
+# NOTE (M-145-01..09): luc chay, agent DBS-139 co phien session rieng (ALB, RDS, ElastiCache, ECS, 2 EIP) giu khoa dev/session.tfstate.tflock; task nay KHONG cham: dung state key dev/session-dbs145.tfstate. Phien do dang duoc don trong luc M-145-09e (ALB/ECS/EIP da het, RDS/ElastiCache con) - khong phai tai nguyen cua DBS-145.
+# NOTE: guard cua script phat EMF (dung neu con namespace that) khong kich hoat trong lan chay nay; chi co bang chung kiem ro: filter-log-events = 0.
