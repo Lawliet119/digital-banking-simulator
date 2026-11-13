@@ -126,14 +126,31 @@ resource "aws_ecs_task_definition" "migrate" {
   }])
 }
 
+# BL-234: lăn tối đa 100%, tối thiểu khỏe 50%. Lúc deploy số task api không bao giờ vượt `desired_count`
+# (mặc định của ECS là 200%: 6 task thành 12, `2 × 6 × 10 + 5 = 125 > 74` kết nối dùng được của
+# db.t4g.micro). Vì thế (api + worker) × DATABASE_POOL_MAX + 5 ≤ 74 giữ cả lúc deploy, chỉ cần tổng
+# `desired_count + worker_desired_count ≤ 6` (worker.tf) như ở trạng thái ổn định.
+#
+# Cái giá: không còn task "mới chạy trước, cũ tắt sau". ECS tắt tối đa `desired_count − min` task cũ
+# rồi mới bật task mới, nên lúc đó còn khoảng `min` task phục vụ (có ALB health check và grace 60 giây).
+# ECS làm tròn lên số task khỏe tối thiểu và tròn xuống số task tối đa (docs AWS, "deploy by replacing
+# tasks"): với `desired_count = 1`, 50% thành 1 task khỏe tối thiểu và tối đa 1, ECS không tắt cũng không
+# bật được task nào và deploy kẹt. Với 1 task nên đặt tối thiểu 0%: task duy nhất bị tắt trước khi task
+# mới chạy, dev mất phục vụ vài chục giây mỗi lần deploy (chấp nhận được ở dev, đã được techlead chốt).
+# Từ 2 task trở lên 50% luôn tắt được ít nhất một task và vẫn còn task phục vụ.
+#
+# Circuit breaker và deploy.sh vẫn đúng: cả hai nhìn deployment PRIMARY (rolloutState, revision), không
+# phụ thuộc phần trăm; breaker rollback bằng cùng cấu hình này nên rollback cũng không vượt `desired_count`.
 resource "aws_ecs_service" "api" {
-  name                              = "api"
-  cluster                           = aws_ecs_cluster.main.id
-  task_definition                   = aws_ecs_task_definition.api.arn
-  desired_count                     = var.desired_count
-  launch_type                       = "FARGATE"
-  propagate_tags                    = "TASK_DEFINITION"
-  health_check_grace_period_seconds = 60
+  name                               = "api"
+  cluster                            = aws_ecs_cluster.main.id
+  task_definition                    = aws_ecs_task_definition.api.arn
+  desired_count                      = var.desired_count
+  launch_type                        = "FARGATE"
+  propagate_tags                     = "TASK_DEFINITION"
+  health_check_grace_period_seconds  = 60
+  deployment_maximum_percent         = 100
+  deployment_minimum_healthy_percent = var.desired_count <= 1 ? 0 : 50
 
   # deploy.sh (DBS-38) đăng ký revision mới và đổi task_definition của service; Terraform không kéo về.
   lifecycle {

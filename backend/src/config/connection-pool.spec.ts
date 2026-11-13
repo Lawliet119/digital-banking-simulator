@@ -44,12 +44,25 @@ describe('connection pool capacity (DBS-172)', () => {
     expect(used).toBeLessThanOrEqual(usable);
   });
 
-  it('TC-172-02 a rolling deploy that doubles the tasks still has to be re-checked, and it does not fit at the dev maximum', () => {
-    // ECS defaults to 200% (no deployment_maximum_percent in infra/terraform): at 6 tasks a deploy
-    // can briefly run 12. That exceeds the micro limit, so a deploy at the maximum needs a lower
-    // desired_count or a larger class. The test pins the fact so a change of either number is seen.
-    const doubled = 2 * maxDevTasks() * defaultPoolMax() + MIGRATION_AND_ADMIN;
-    expect(doubled).toBeGreaterThan(usable);
+  it('TC-172-02 a rolling deploy never runs more api tasks than desired_count, so the dev maximum still fits', () => {
+    // BL-234: ECS defaults to 200%, where 6 tasks briefly become 12 and 2 x 6 x 10 + 5 = 125 > 74.
+    // The api service sets deployment_maximum_percent = 100, so a deploy never exceeds desired_count
+    // and the same (api + worker) x pool + 5 bound holds during it. The test reads the real value from
+    // Terraform: removing it (back to 200%) makes the doubled figure below overflow and fails the test.
+    const ecs = readFileSync(join(REPO, 'infra/terraform/envs/dev/session/ecs.tf'), 'utf8');
+    const service = /resource "aws_ecs_service" "api" \{([\s\S]*?)\n\}/.exec(ecs);
+    if (!service) throw new Error('aws_ecs_service.api not found in session/ecs.tf');
+    const maxPercent = /deployment_maximum_percent\s*=\s*(\d+)/.exec(service[1]);
+    expect(maxPercent).not.toBeNull();
+    const surge = Number(maxPercent?.[1]) / 100; // ECS rounds the task cap down; 100 gives exactly desired
+    expect(surge).toBe(1);
+
+    const duringDeploy = Math.floor(maxDevTasks() * surge) * defaultPoolMax() + MIGRATION_AND_ADMIN;
+    expect(duringDeploy).toBeLessThanOrEqual(usable);
+
+    // The default (200%) would not fit: this is why the cap is needed.
+    const uncapped = 2 * maxDevTasks() * defaultPoolMax() + MIGRATION_AND_ADMIN;
+    expect(uncapped).toBeGreaterThan(usable);
   });
 
   it('TC-121-15 the worker counts toward the same limit: api + worker tasks fit the usable connections', () => {
