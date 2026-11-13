@@ -42,6 +42,12 @@ interface CounterSpec {
   name: string;
   /** Label of the counter -> dimension of the metric. */
   labels: Record<string, EmfDimensionName>;
+  /**
+   * Also publish the total without the labels (`Role` alone) next to the per-label series, in the
+   * same line: an alarm watches the total, the dashboard splits it. The line carries the number
+   * once; CloudWatch aggregates it into both metrics.
+   */
+  roleTotal?: boolean;
 }
 
 /**
@@ -52,7 +58,7 @@ const COUNTERS: CounterSpec[] = [
   { name: 'redis_fallback_total', labels: {} },
   { name: 'rate_limited_total', labels: { scope: 'Scope' } },
   { name: 'risk_redis_fallback_total', labels: { rule: 'Rule', reason: 'Reason' } },
-  { name: 'risk_config_redis_fallback_total', labels: {} },
+  { name: 'risk_config_redis_fallback_total', labels: { reason: 'Reason' }, roleTotal: true },
 ];
 
 const PASS_THROUGH: RequestHandler = (_req, _res, next) => next();
@@ -140,8 +146,9 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
   }
 
   private async writeCounters(timestamp: number, now: number): Promise<void> {
-    const dimensionSets = (labels: EmfDimensionName[]): EmfDimensionName[][] => [
+    const dimensionSets = (labels: EmfDimensionName[], total: boolean): EmfDimensionName[][] => [
       ['Role', ...labels],
+      ...(total && labels.length > 0 ? [['Role'] as EmfDimensionName[]] : []),
     ];
     for (const counter of await this.readCounters()) {
       const before = this.baseline.get(counter.key) ?? 0;
@@ -154,7 +161,10 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
         {
           timestamp,
           dimensions,
-          dimensionSets: dimensionSets(Object.keys(counter.dimensions) as EmfDimensionName[]),
+          dimensionSets: dimensionSets(
+            Object.keys(counter.dimensions) as EmfDimensionName[],
+            counter.roleTotal,
+          ),
           metrics: [{ name: counter.name, unit: 'Count', value: delta }],
         },
         now,
@@ -206,13 +216,20 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
   }
 
   private async readCounters(): Promise<
-    { key: string; name: string; value: number; dimensions: EmfSpec['dimensions'] }[]
+    {
+      key: string;
+      name: string;
+      value: number;
+      dimensions: EmfSpec['dimensions'];
+      roleTotal: boolean;
+    }[]
   > {
     const found: {
       key: string;
       name: string;
       value: number;
       dimensions: EmfSpec['dimensions'];
+      roleTotal: boolean;
     }[] = [];
     for (const spec of COUNTERS) {
       const metric = register.getSingleMetric(spec.name);
@@ -228,6 +245,7 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
           name: spec.name,
           value: sample.value,
           dimensions,
+          roleTotal: spec.roleTotal === true,
         });
       }
     }

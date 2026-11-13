@@ -175,6 +175,67 @@ describe('DBS-110 parseRuleSet', () => {
     }
   });
 
+  it('BL-208 each rule has a schema: required keys, string money, value domains (H9)', () => {
+    type Mutation = [string, (rules: Record<string, Record<string, unknown>>) => void];
+    const bad: Mutation[] = [
+      ['R1 maxTransfers missing', r => delete r.R1.maxTransfers],
+      ['R1 maxTransfers negative', r => (r.R1.maxTransfers = -1)],
+      ['R1 windowMinutes 11', r => (r.R1.windowMinutes = 11)],
+      ['R2 historyDays 31', r => (r.R2.historyDays = 31)],
+      ['R2 minHistory 4', r => (r.R2.minHistory = 4)],
+      ['R2 multiplier 3 decimals', r => (r.R2.medianMultiplier = 1.005)],
+      ['R2 multiplier 0', r => (r.R2.medianMultiplier = 0)],
+      ['R3 minAmountExclusive number', r => (r.R3.minAmountExclusive = 10_000_000)],
+      ['R3 minAmountExclusive junk', r => (r.R3.minAmountExclusive = '1e7')],
+      ['R3 minAmountExclusive missing', r => delete r.R3.minAmountExclusive],
+      ['R3 age 0', r => (r.R3.maxAccountAgeHoursExclusive = 0)],
+      ['R3 age 87601', r => (r.R3.maxAccountAgeHoursExclusive = 87_601)],
+      ['R3 age fraction', r => (r.R3.maxAccountAgeHoursExclusive = 1.5)],
+      ['R4 window 0', r => (r.R4.reverseWindowMinutes = 0)],
+      ['R4 window 61', r => (r.R4.reverseWindowMinutes = 61)],
+      ['R4 window fraction', r => (r.R4.reverseWindowMinutes = 1.5)],
+      ['R5 windowMinutes 59', r => (r.R5.windowMinutes = 59)],
+      ['R5 noveltyDays 29', r => (r.R5.noveltyDays = 29)],
+      ['R5 minNewRecipients 0', r => (r.R5.minNewRecipients = 0)],
+      ['R6 percent 0', r => (r.R6.minBalancePercent = 0)],
+      ['R6 percent 101', r => (r.R6.minBalancePercent = 101)],
+      ['R6 percent fraction', r => (r.R6.minBalancePercent = 50.5)],
+      ['R6 minBalance number', r => (r.R6.minBalance = 1_000_000)],
+      ['R6 minBalance zero', r => (r.R6.minBalance = '0')],
+    ];
+    for (const [name, mutate] of bad) {
+      const raw = clone();
+      mutate(raw.rules);
+      let thrown: unknown;
+      try {
+        parseRuleSet(9, raw);
+      } catch (error) {
+        thrown = error;
+      }
+      expect([name, thrown instanceof InvalidRuleSetError]).toEqual([name, true]);
+    }
+  });
+
+  it('BL-208 a disabled rule is still checked: switching it off cannot hide a broken value', () => {
+    const raw = clone();
+    raw.rules.R3.enabled = false;
+    raw.rules.R3.minAmountExclusive = 10_000_000 as unknown as string;
+    expect(() => parseRuleSet(9, raw)).toThrow(InvalidRuleSetError);
+  });
+
+  it('BL-208 the error names the rule, never the value', () => {
+    const raw = clone();
+    (raw.rules.R3 as Record<string, unknown>).minAmountExclusive = 123_456_789;
+    try {
+      parseRuleSet(9, raw);
+      throw new Error('expected a throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidRuleSetError);
+      expect((error as InvalidRuleSetError).field).toBe('rules.R3');
+      expect((error as Error).message).not.toContain('123456789');
+    }
+  });
+
   it('TC-110-03 the rule weights together stay within the score range', () => {
     const raw = clone();
     for (const id of ['R1', 'R2', 'R3', 'R4', 'R5', 'R6'] as const)

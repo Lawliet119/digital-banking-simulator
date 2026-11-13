@@ -2,11 +2,7 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { createClient } from 'redis';
 import { DataSource } from 'typeorm';
 import { RedisClient, RedisMetrics } from '@libs/redis';
-import {
-  LATEST_KEY,
-  RuleSetRepository,
-  versionKey,
-} from '@modules/risk/config/rule-set.repository';
+import { LATEST_KEY, RuleSetRepository } from '@modules/risk/config/rule-set.repository';
 import { RiskMetrics } from '@modules/risk/risk.metrics';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startValkeyContainer, type StartedValkey } from '../support/valkey.container';
@@ -85,14 +81,16 @@ describe('RuleSetRepository (real PostgreSQL + Valkey)', () => {
     }
   }
 
-  it('TC-110-01 keys: latest lives at most 60 s, the version content for days', async () => {
+  const nextVersion = async (): Promise<number> =>
+    Number((await q('SELECT max(version) AS version FROM risk_rule_sets'))[0].version) + 1;
+
+  it('TC-110-01 keys: latest lives at most 60 s and no rule-set content is written to Redis', async () => {
     const set = await repository.current();
     expect(set.version).toBe(1);
     const latestTtl = await admin.ttl(LATEST_KEY);
     expect(latestTtl).toBeGreaterThan(0);
     expect(latestTtl).toBeLessThanOrEqual(60);
-    expect(await admin.ttl(versionKey(1))).toBeGreaterThan(24 * 3600);
-    expect(JSON.parse((await admin.get(versionKey(1)))!)).toMatchObject({ mode: 'rule_only' });
+    expect(await admin.keys('cfg:risk:v*')).toEqual([]);
   });
 
   it('TC-110-02 a new version is used once latest expires (at most 60 s), not sooner', async () => {
@@ -131,13 +129,47 @@ describe('RuleSetRepository (real PostgreSQL + Valkey)', () => {
     ).toBe(3);
   });
 
-  it('TC-110-03 a cached value that is garbage never reaches the scorer', async () => {
+  it('TC-110-03 BL-208 a Redis entry that is valid but differs from PostgreSQL is never scored', async () => {
+    const n = await nextVersion();
+    await addVersion(n, 77);
     const deadline = (await client.serverTimeMs()) + 5000;
-    await client.setVersionBefore(LATEST_KEY, 3, deadline);
-    await admin.set(versionKey(3), '{"thresholds":', { EX: 60 });
-    const set = await new RuleSetRepository({ redis: client, db: source, metrics }).current();
-    expect(set.version).toBe(3);
-    expect(set.rules.R1.weight).toBe(61);
+    await client.setVersionBefore(LATEST_KEY, n, deadline);
+    // The old content cache: a well-formed rule set for this version that PostgreSQL does not hold.
+    await admin.set(`cfg:risk:v${n}`, JSON.stringify(version(99)), { EX: 60 });
+    const reader = new RuleSetRepository({ redis: client, db: source, metrics });
+    const set = await reader.current();
+    expect(set.version).toBe(n);
+    expect(set.rules.R1.weight).toBe(77);
+    // And it is not pinned in memory: the same reader keeps answering from the PostgreSQL row.
+    expect((await reader.current()).rules.R1.weight).toBe(77);
+  });
+
+  it('BL-208 a latest outside int4 or junk falls back to PostgreSQL, is counted corrupt, and is repaired', async () => {
+    const n = await nextVersion();
+    await addVersion(n, 78);
+    for (const junk of ['9999999999', '9999999999:99999999999999', 'x', '{"v":3}']) {
+      await admin.flushAll();
+      await admin.set(LATEST_KEY, junk, { PX: 5000 });
+      const m = new RiskMetrics();
+      const set = await new RuleSetRepository({ redis: client, db: source, metrics: m }).current();
+      expect([junk, set.version]).toEqual([junk, n]);
+      expect([junk, await m.configFallbackCount('corrupt')]).toEqual([junk, 1]);
+      expect((await client.readExpiringVersion(LATEST_KEY))?.version).toBe(n);
+    }
+  });
+
+  it('BL-208 a Redis failure is labelled error, not corrupt', async () => {
+    await repository.current();
+    await valkey.pause();
+    try {
+      const m = new RiskMetrics();
+      await new RuleSetRepository({ redis: client, db: source, metrics: m }).current();
+      expect(await m.configFallbackCount('error')).toBeGreaterThanOrEqual(1);
+      expect(await m.configFallbackCount('corrupt')).toBe(0);
+    } finally {
+      await valkey.resume();
+    }
+    await healthy();
   });
 
   it('does not let an older SQL read or a legacy writer replace a newer cached version', async () => {
