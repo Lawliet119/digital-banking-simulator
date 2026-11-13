@@ -6,6 +6,11 @@ import { type MigrationInterface, type QueryRunner } from 'typeorm';
  * least-privilege matrix.
  *
  * Idempotent: safe to run multiple times.
+ *
+ * Needs the user that runs it to be able to SET ROLE to dbs_migrator (step 3). A superuser can; the
+ * RDS master user cannot until `GRANT dbs_migrator TO <master>` was run once before the first
+ * migration, otherwise the whole run stops with 42501 (BL-195, infra/terraform/README.md "Role chạy
+ * migration", test/db/migration-owner-role.db-spec.ts). This migration never grants it itself.
  */
 export class CreateDbRolesAndGrants1793664000000 implements MigrationInterface {
   name = 'CreateDbRolesAndGrants1793664000000';

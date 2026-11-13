@@ -7,7 +7,7 @@ import { RiskMetrics } from '@modules/risk/risk.metrics';
 import { TRANSFER_SAMPLE } from '../support/event-samples';
 import { TransferFixture } from '../support/transfer-facts-fixture';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
-import { insertRuleOnlyDecision } from '../support/risk-decisions';
+import { insertFlaggedDecision } from '../support/risk-decisions';
 
 /** A cache that never holds anything: every read goes to PostgreSQL. */
 const noCache = {
@@ -103,12 +103,12 @@ describe('RuleSetRepository (real PostgreSQL)', () => {
     const fixture = new TransferFixture(db.runner);
     const [a, b] = await fixture.accounts(2);
     const transfer = await fixture.transfer({ from: a, to: b, at: new Date().toISOString() });
-    // RSK-01: a flag needs a decision of the same rule-set version.
-    await insertRuleOnlyDecision(db.runner, transfer.id, { version: set.version });
-    await q(
-      `INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version) VALUES($1,45,'MEDIUM',$2)`,
-      [transfer.id, set.version],
-    );
+    // RSK-01, BL-223: a flag needs a decision of the same version whose score and hits match it.
+    await insertFlaggedDecision(db.runner, transfer.id, {
+      version: set.version,
+      score: 45,
+      level: 'MEDIUM',
+    });
     const [flag] = await q('SELECT rule_set_version FROM fraud_flags WHERE transfer_id=$1', [
       transfer.id,
     ]);

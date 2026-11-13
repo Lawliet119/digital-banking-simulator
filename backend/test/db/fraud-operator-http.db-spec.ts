@@ -7,7 +7,12 @@ import { TransferFixture } from '../support/transfer-facts-fixture';
 import { modulesForRole } from '../../src/modules';
 import { FraudHttpModule } from '../../src/modules/risk/fraud-http.module';
 import { AppRole } from '../../src/common/app-role/app-role';
-import { createRolePermissionsFixture, expectAclDenied } from '../support/db-role-permissions';
+import {
+  createRolePermissionsFixture,
+  expectAclDenied,
+  flagInsert,
+  hitInsert,
+} from '../support/db-role-permissions';
 
 const ROOT = '/v1/operator/fraud-flags';
 const RUBRIC_HASH = createHash('sha256').update('needs_operator_review').digest('hex');
@@ -28,7 +33,13 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
       .post(`${ROOT}/${id}/review`)
       .auth(operator, { type: 'bearer' })
       .send({ decision, note: 'operator private note' });
-  async function seed(at: string, ai = false): Promise<string> {
+  /**
+   * BL-223: decision, flag and hits must agree at COMMIT. `high` makes a rule-only HIGH flag
+   * (80 >= the high threshold 70 of rule set 1); otherwise MEDIUM 55 (40 <= 55 < 70).
+   */
+  async function seed(at: string, ai = false, high = false): Promise<string> {
+    const score = high && !ai ? 80 : 55;
+    const level = score >= 70 ? 'HIGH' : 'MEDIUM';
     const t = await fixture.transfer({ from, to, at });
     await q('BEGIN');
     try {
@@ -39,7 +50,7 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
           t.id,
           randomUUID(),
           ai ? 'rules_with_external_ai' : 'rule_only',
-          ai ? 0 : 55,
+          ai ? 0 : score,
           '{}',
           ai ? 'SUCCEEDED' : 'DISABLED',
           ai ? 55 : 0,
@@ -51,12 +62,17 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
         ],
       );
       await q(
-        `INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version,created_at) VALUES($1,55,'MEDIUM',$3,$2)`,
-        [t.id, at, ai ? 2 : 1],
+        `INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version,created_at) VALUES($1,$4,$5,$3,$2)`,
+        [t.id, at, ai ? 2 : 1, score, level],
       );
       if (!ai)
         await q(
           `INSERT INTO fraud_rule_hits(transfer_id,rule_id,weight,explanation) VALUES($1,'R1',30,'6 giao dịch trong 10 phút'),($1,'R2',25,'Số tiền vượt ngưỡng trung vị')`,
+          [t.id],
+        );
+      if (!ai && high)
+        await q(
+          `INSERT INTO fraud_rule_hits(transfer_id,rule_id,weight,explanation) VALUES($1,'R3',25,'Tài khoản mới chuyển số tiền lớn')`,
           [t.id],
         );
       await q('COMMIT');
@@ -204,8 +220,7 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
       '2026-10-20T00:00:00.123452Z',
     ])
       ids.push(await seed(at));
-    const high = await seed('2026-10-19T00:00:00.000000Z');
-    await q("UPDATE fraud_flags SET risk_level='HIGH',score=80 WHERE transfer_id=$1", [high]);
+    const high = await seed('2026-10-19T00:00:00.000000Z', false, true);
     ids.push(high);
     const expected = await q(
       `SELECT transfer_id FROM fraud_flags WHERE review_status='OPEN' ORDER BY CASE risk_level WHEN 'HIGH' THEN 0 ELSE 1 END,created_at DESC,transfer_id DESC`,
@@ -339,8 +354,7 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
     expect(after.n).toBe(before.n);
   });
   it('combines status and level filters and rejects a second sequential review', async () => {
-    const id = await seed('2026-10-24T00:00:00.000001Z');
-    await q("UPDATE fraud_flags SET risk_level='HIGH',score=80 WHERE transfer_id=$1", [id]);
+    const id = await seed('2026-10-24T00:00:00.000001Z', false, true);
     await review(id, 'FALSE_POSITIVE').expect(200);
     await review(id).expect(409);
     const selected = await get('?review_status=FALSE_POSITIVE&level=HIGH').expect(200);
@@ -383,10 +397,10 @@ describe('DBS-129/130 restricted dbs_api HTTP', () => {
     const fixture = await createRolePermissionsFixture({ fraud: true });
     try {
       const id = fixture.transfers[0].id;
-      await fixture.owner.query(
-        "INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version) VALUES($1,55,'MEDIUM',1)",
-        [id],
-      );
+      // One statement: the flag and its hit (BL-223 checks both together at commit).
+      const flag = flagInsert(id);
+      const hit = hitInsert(id);
+      await fixture.owner.query(`WITH f AS (${flag.sql} RETURNING 1) ${hit.sql}`, flag.args);
       const token = await fixture.app.issuer.token('operator', { sub: randomUUID() });
       const http = () => request(fixture.app.url);
       await http().get(ROOT).auth(token, { type: 'bearer' }).expect(200);

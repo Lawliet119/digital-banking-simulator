@@ -28,7 +28,7 @@
   - `test:db`: 60 suite / 863 test.
 - **Ngoài phạm vi:**
   - Consumer ghi decision và cờ: DBS-111.
-  - Constraint trigger kiểm bất biến liên bảng: `rule_score = sum(hits.weight)`, `fraud_flags.score = rule_score + ai_applied_weight`, mức cờ theo threshold, chỉ `COMPLETED`/`TRANSFER`. FRAUD-API-01 §3.8 gọi đây là "migration tương lai"; chuyển sang BL mới.
+  - Constraint trigger kiểm bất biến liên bảng: `rule_score = sum(hits.weight)`, `fraud_flags.score = rule_score + ai_applied_weight`, mức cờ theo threshold, chỉ `COMPLETED`/`TRANSFER`. FRAUD-API-01 §3.8 gọi đây là "migration tương lai"; chuyển sang BL mới. **Đã làm ở BL-223** (migration `1795000006000-AddRiskInvariantTriggers`, test `test/db/risk-invariants.db-spec.ts`; xem `database-design.md` §11 mục 10). Hệ quả cho RSK-01: các test chèn thẳng `fraud_flags` và **commit** phải ghi decision, cờ, hit nhất quán (`insertFlaggedDecision` trong `test/support/risk-decisions.ts`); test chỉ rollback không bị ảnh hưởng.
   - Lời gọi AI: task tích hợp riêng.
 - **Dòng BACKLOG liên quan:**
   - BL-048 (FK ghép và rolling deploy) và BL-049 (retention) được nhận vào phạm vi và xóa khi xong.

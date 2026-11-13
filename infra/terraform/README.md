@@ -148,6 +148,20 @@ Script từ chối chạy khi còn task `dbs-migrate` đang `RUNNING` (TypeORM k
 
 **Trình tự "Up" lần đầu** (`desired_count = 0` nên `deploy.sh` bỏ qua): `apply session` → `Image` đã đẩy tag SHA lên ECR → `migrate.sh` bằng tay → nâng `desired_count` lên 1.
 
+**Role chạy migration (BL-195): bước bắt buộc trước migration đầu tiên trên RDS.** Task `dbs-migrate` nối bằng user master (BL-103), mà master của RDS **không phải superuser thật**. Migration bước 7 (`1793664000000-CreateDbRolesAndGrants`, DBS-119) chạy `ALTER VIEW v_transfer_facts OWNER TO dbs_migrator`, và PostgreSQL chỉ cho người không phải superuser đổi chủ sang role mà họ `SET ROLE` được. Chưa có quyền đó thì cả lượt migration dừng với `42501 must be able to SET ROLE "dbs_migrator"` và rollback hết (`migration:run` chạy mọi migration chờ trong một transaction); `migrate.sh` thoát 1 và `deploy.sh` không `update-service`. Vì vậy, một lần, **trước** lần `migrate.sh` đầu tiên của database mới, kết nối bằng master (hoặc role có `ADMIN OPTION` trên `dbs_migrator`) và chạy:
+
+```sql
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'dbs_migrator') THEN
+    CREATE ROLE dbs_migrator NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
+  END IF;
+END $$;
+GRANT dbs_migrator TO <master>;   -- <master> = DB_USER của secret master, ví dụ postgres
+```
+
+Migration bước 7 chỉ tạo `dbs_migrator` khi chưa có và **không bao giờ tự gán quyền cho user chạy nó** (một migration tự cấp quyền cho người chạy sẽ che đúng lỗi này). Một role do master tự tạo bằng `CREATEROLE` vẫn không cho master `SET ROLE` cho tới khi có `GRANT`, nên không bỏ qua được bước trên. Mọi migration sau đó (kể cả `1793750400000-AddNotificationLogCorrelationId`, `ALTER TABLE` đầu tiên trên bảng có sẵn) phải chạy bằng đúng role là **chủ các bảng**, tức master đã tạo chúng: đừng đổi chủ bảng sang `dbs_migrator` hay chạy migration bằng user khác khi chưa đổi chủ bảng. Bằng chứng: `backend/test/db/migration-owner-role.db-spec.ts` chạy toàn bộ migration bằng một login `CREATEROLE`, không superuser: không `GRANT` thì dừng đúng `42501` ở bước 7 và không áp dụng gì, có `GRANT` thì qua cả chuỗi và chạy lại được. Test này mô phỏng master bằng PostgreSQL 17 trong Testcontainers, **không phải RDS**: `rds_superuser` của RDS chưa được kiểm, nên BL-195 còn mở tới khi `migration:run` chạy thật trên RDS dev (M-68-04).
+
 **Quy tắc:** migration chạy khi bản app cũ vẫn phục vụ, nên viết theo kiểu expand → migrate → contract (backend README); deploy lỗi sau migration không hoàn tác schema. Task migration chạy bằng execution role riêng `dbs-dev-migrate-execution` và **không có task role** (DBS-120); kết nối bằng secret master (BL-103 đổi sang secret của `dbs_migrator`). Role deploy cần `apply base` để có `iam:PassRole` cho role này trước lần deploy kế tiếp. Mặc định TypeORM chạy mọi migration chờ trong **một** transaction nên không dùng được `CREATE INDEX CONCURRENTLY` (BL-110). Role `dbs-github-deploy` cần `apply base` để có quyền `ecs:RunTask` (BL-109). Chi phí một lần chạy ≈ 0,012 USD/giờ × thời gian chạy; `destroy session` bỏ task definition, chỉ còn log event ở `base` (7 ngày).
 
 ### Cognito và tài khoản nhân viên demo (DBS-54)
