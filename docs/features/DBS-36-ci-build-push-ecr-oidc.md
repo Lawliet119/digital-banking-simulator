@@ -214,8 +214,8 @@ Rủi ro và cách lùi: `terraform destroy -target` cho ba tài nguyên IAM (mi
 | M-36-05 | đạt: Secrets `0` |
 | M-36-06 | đạt: `OK` |
 | M-36-07 | đạt: `No changes` ở lần plan thứ hai |
-| M-36-08 | **chưa chạy (chờ merge và biến `AWS_ROLE_ARN`)**: BL-034 |
-| M-36-09 | **chưa chạy (chờ merge)**: BL-034 |
+| M-36-08 | **đạt (2026-11-14, sau merge):** `image.yml` trên `main` xanh ([run 43485390398](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43485390398)); `aws ecr describe-images` có tag bằng SHA của từng commit trên `main` (ví dụ `f48ee33…`); `describe-image-scan-findings` trạng thái `COMPLETE`. Bước «Kết quả scan» trước đây đọc kết quả trước khi ECR tạo scan nên báo `ScanNotFoundException`; đã sửa thành vòng chờ tối đa 5 phút. Scan ECR báo 1 CRITICAL chưa có bản sửa (BL-264). BL-034 đóng |
+| M-36-09 | **đạt (2026-11-14):** `gh workflow run image.yml --ref docs/aws-bl-167-168-stale` → job `image-push` đỏ ở bước `configure-aws-credentials`: `Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity` ([run 43486533556](https://github.com/Lawliet119/digital-banking-simulator/actions/runs/43486533556)) |
 
 - **Phạm vi so với §7:** `git diff --stat` khớp: `oidc.tf`, `variables.tf`, `outputs.tf`, `tests/oidc.tftest.hcl`, `image.yml`, `check-image-workflow.py`, README, BACKLOG và các file doc. Không có file lạ.
 - **Ảnh chụp:** không áp dụng (người dùng bỏ qua ảnh console, 2026-10-25; bằng chứng là output thô).
