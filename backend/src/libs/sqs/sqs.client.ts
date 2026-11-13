@@ -1,4 +1,4 @@
-import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, type OnApplicationShutdown } from '@nestjs/common';
 import { sqsConfig } from '@config/sqs.config';
 import { type ConfigType } from '@nestjs/config';
 import {
@@ -39,7 +39,7 @@ export class PoisonMessageError extends Error {
 
 /** Transport only: consumers own transactions, event validation, dedup and worker lifecycle. */
 @Injectable()
-export class SqsClient implements OnModuleDestroy {
+export class SqsClient implements OnApplicationShutdown {
   private readonly sdk: AwsClient;
   constructor(
     @Inject(sqsConfig.KEY) config: Pick<ConfigType<typeof sqsConfig>, 'region' | 'endpoint'>,
@@ -180,7 +180,13 @@ export class SqsClient implements OnModuleDestroy {
     }
   }
 
-  onModuleDestroy(): void {
+  /**
+   * Not `onModuleDestroy` (BL-249): that hook runs before the relay and consumer loops stop, and
+   * destroying the SDK under a send or delete in flight made it fail on a stopping worker. The relay
+   * and consumers stop their loops in `beforeApplicationShutdown`, which Nest runs after every
+   * `onModuleDestroy` and before every `onApplicationShutdown`, so the SDK goes last.
+   */
+  onApplicationShutdown(): void {
     this.sdk.destroy();
   }
 }

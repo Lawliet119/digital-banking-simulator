@@ -132,8 +132,8 @@ describe('DBS-124 worker stop, crash and restart (real PostgreSQL, Valkey, Elast
     return worker;
   }
   async function stopWorker(worker: Worker) {
-    await worker.parts.consumer.onApplicationShutdown();
-    await worker.relay.onApplicationShutdown();
+    await worker.parts.consumer.beforeApplicationShutdown();
+    await worker.relay.beforeApplicationShutdown();
     running.splice(running.indexOf(worker), 1);
   }
 
@@ -184,7 +184,7 @@ describe('DBS-124 worker stop, crash and restart (real PostgreSQL, Valkey, Elast
     try {
       await app?.close();
       redis?.onModuleDestroy();
-      sqs?.onModuleDestroy();
+      sqs?.onApplicationShutdown();
       attributes?.destroy();
       await source?.destroy();
       await db?.drop();

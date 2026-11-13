@@ -7,6 +7,7 @@ import {
   OUTBOX_AGE_SQL,
   OutboxAgeGauge,
 } from '@modules/outbox/outbox-age.gauge';
+import { clearOutbox } from '../support/outbox-fixtures';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 
 /** TC-144-07: the age of the oldest unpublished outbox row, on real PostgreSQL. */
@@ -44,7 +45,7 @@ describe('OutboxAgeGauge (real PostgreSQL)', () => {
     await db?.drop();
   });
   beforeEach(async () => {
-    await q('DELETE FROM outbox_events');
+    await clearOutbox(q);
   });
 
   it('TC-144-07 is 0 when nothing waits', async () => {

@@ -277,3 +277,72 @@ jobs:
           export GITLEAKS_RUN="docker run --rm --user $(id -u):$(id -g) -v $PWD:/repo:ro $GITLEAKS_IMAGE"
           export SCAN_PATH=/repo CONFIG=/repo/.gitleaks.toml IGNORE=/repo/.gitleaksignore LOG="$RUNNER_TEMP/gitleaks.log"
           bash .github/scripts/run-gitleaks.sh
+
+  # Hai job của BL-028 / BL-101 / BL-253: Terraform và test script hạ tầng. Chạy ở gốc repo (mặc định
+  # working-directory là backend). Chưa thuộc "sáu tên hợp đồng"; chỉ chặn merge khi chủ repo thêm vào
+  # ruleset (BL-012).
+  # CI không có thông tin xác thực AWS và không cần: `-backend=false` bỏ backend S3, còn `terraform test`
+  # dùng mock_provider/override_data (kể cả data.terraform_remote_state.base của session) nên không gọi
+  # AWS. Ba thư mục gồm cả tests/dashboard.tftest.hcl của DBS-145. Lock file đã commit giữ nguyên bản
+  # provider; `-lockfile=readonly` làm `init` đỏ thay vì âm thầm sửa chúng.
+  terraform:
+    name: terraform
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: .
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "0"
+      # Không có AWS thật: không để provider thử gọi IMDS rồi chờ hết hạn.
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # required_version của các versions.tf là ">= 1.11"; ghim đúng bản đã chạy thử để CI không đổi theo.
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.16.6"
+          terraform_wrapper: false
+      - name: terraform fmt -check -recursive
+        run: terraform fmt -check -recursive -diff infra/terraform
+      - name: init, validate, test (bootstrap, envs/dev/base, envs/dev/session)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in infra/terraform/bootstrap infra/terraform/envs/dev/base infra/terraform/envs/dev/session; do
+            echo "::group::$dir"
+            terraform -chdir="$dir" init -backend=false -input=false -lockfile=readonly
+            terraform -chdir="$dir" validate
+            terraform -chdir="$dir" test
+            echo "::endgroup::"
+          done
+
+  script-tests:
+    name: script-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Test dùng `aws`, `curl`, `gh` giả đặt trước trên PATH, nên chỉ chạy trên Linux (PATH tách bằng
+      # `:`). Cần bash, python3, curl, jq (có sẵn trên ubuntu-24.04) và PyYAML cho
+      # test_check_image_workflow.py. Chạy hết rồi mới báo, để một test đỏ không che các test khác.
+      - name: Test script hạ tầng và script CI (BL-101, BL-253)
+        shell: bash
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install pyyaml==6.0.2
+          failed=0
+          for t in infra/scripts/tests/test_*.py .github/scripts/tests/test_*.py; do
+            echo "::group::$t"
+            "$RUNNER_TEMP/venv/bin/python" "$t" || { echo "::error::$t đỏ"; failed=1; }
+            echo "::endgroup::"
+          done
+          exit "$failed"
