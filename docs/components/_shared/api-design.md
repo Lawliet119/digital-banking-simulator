@@ -381,7 +381,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 - **Response Header:** `Cache-Control: no-store`.
 - **Query Param:** `q` (bắt buộc, `1..100` ký tự sau khi chuẩn hóa `NFC` + `trim()`, cấm ký tự điều khiển).
   - Nếu `q` là một UUID đầy đủ: tìm chính xác theo `accounts.id`.
-  - Ngược lại: tìm khớp một phần không phân biệt hoa/thường (`ILIKE`) trên `customers.full_name` (ký tự `%` và `_` được escape thành ký tự thường).
+  - Ngược lại: tìm khớp một phần, không phân biệt hoa/thường **và không phân biệt dấu** trên `customers.full_name` (BL-178): tên và từ khóa cùng được gấp bằng `lower(public.f_unaccent(x))`, nên `nguyen`, `NGUYEN` và `Nguyễn` khớp nhau, `duc` khớp `Đức`, `ung` khớp `Ưng`. Ký tự `%`, `_` và `\` trong từ khóa là ký tự thường (escape ở SQL, sau khi gấp dấu). Kết quả không phụ thuộc locale của máy chủ PostgreSQL vì `unaccent` chạy trước `lower()`; cần extension `unaccent` (migration `1795000008000-EnableUnaccentSearch`, [database-design §11](database-design.md#cấu-hình-postgresrds-đáng-bật)). Hệ quả: `ình` khớp cả `Minh` và `Bình`.
 - **Bảo mật dữ liệu (FR-ACC-04, BR-10):** Trả tối đa 20 tài khoản, **không bao giờ trả cột `balance`** và không bao giờ trả tài khoản `SYSTEM`. Mọi lần tìm kiếm hợp lệ (kể cả kết quả rỗng) đều ghi `audit_log (action = 'operator.account.search')` lưu số lượng kết quả và `accountId` hoặc 32 ký tự đầu của băm `SHA-256(q)` (không lưu tên khách dạng rõ vào `audit_log`).
 - **Response `200 OK` ([`OperatorAccountSearchDto`](../../../backend/src/modules/accounts/operator-account-search.dto.ts)):**
   ```json

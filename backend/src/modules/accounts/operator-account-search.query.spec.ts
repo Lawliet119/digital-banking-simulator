@@ -1,11 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import {
-  buildSearchSql,
-  escapeLike,
-  fingerprintTerm,
-  parseSearchQuery,
-} from './operator-account-search.query';
+import { buildSearchSql, fingerprintTerm, parseSearchQuery } from './operator-account-search.query';
 
 const UUID = '2e859a80-d4d0-471d-8cee-e9d0de9d4bc7';
 const rejects = (raw: unknown) => expect(() => parseSearchQuery(raw)).toThrow(BadRequestException);
@@ -51,18 +46,21 @@ describe('TC-88-11 operator account search term (no database)', () => {
     expect(parseSearchQuery({ q: UUID + 'x' }).kind).toBe('name');
   });
 
-  it('escapes the LIKE wildcards so the term is only ever literal text', () => {
-    expect(escapeLike('50%')).toBe('50\\%');
-    expect(escapeLike('a_b')).toBe('a\\_b');
-    expect(escapeLike('a\\b')).toBe('a\\\\b');
-    expect(escapeLike('%_\\')).toBe('\\%\\_\\\\');
-    expect(escapeLike('Nguyễn')).toBe('Nguyễn');
+  it('escapes the LIKE wildcards in SQL, after the folding, so the term is only ever literal text', () => {
+    const { sql } = buildSearchSql(parseSearchQuery({ q: 'x' }));
+    // Backslash first, then %, then _: the order that does not double the backslashes it adds.
+    expect(sql).toContain(
+      String.raw`LIKE '%' || replace(replace(replace(lower(public.f_unaccent($1)), '\', '\\'), '%', '\%'), '_', '\_') || '%' ESCAPE '\'`,
+    );
   });
 
   it('builds a parameterized query: at most 20 rows, a stable order, no balance, no SYSTEM account', () => {
     const byName = buildSearchSql(parseSearchQuery({ q: '50%_' }));
-    expect(byName.parameters).toEqual(['%50\\%\\_%']);
-    expect(byName.sql).toContain("ILIKE $1 ESCAPE '\\'");
+    expect(byName.parameters).toEqual(['50%_']);
+    // BL-178: both sides are folded as lower(unaccent(x)); the raw term is the one parameter.
+    expect(byName.sql).toContain('WHERE lower(public.f_unaccent(c.full_name)) LIKE ');
+    expect(byName.sql).not.toMatch(/ILIKE/);
+    expect(byName.sql).not.toContain('$2');
     expect(byName.sql).toContain('ORDER BY c.full_name, a.created_at, a.id');
     expect(byName.sql).toContain('LIMIT 20');
     expect(byName.sql).toContain('JOIN customers c ON c.id = a.customer_id');

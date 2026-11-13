@@ -473,7 +473,7 @@ PostgreSQL **không tự đánh index cho cột khóa ngoại**. Các cột khó
 | `accounts(balance)`, `accounts(status)` | Cập nhật cột có index làm mất **HOT update**; `accounts` là bảng bị ghi nóng nhất (xem [§9](#9-đồng-thời-và-tài-khoản-nóng-ở-tầng-db)). Truy vấn theo trạng thái hầu như không có |
 | `transfers (to_account_id, created_at)` | docs/03 liệt kê, nhưng v1 không có truy vấn nào dùng (fan-in nằm ngoài phạm vi, lịch sử đọc từ `ledger_entries`). Thêm khi có luật fan-in |
 | `transfers (created_at)` đơn lẻ | Không có truy vấn theo thời gian trên toàn bảng |
-| Index tìm tên khách trên `customers` | Nhân viên tra cứu khớp một phần trên khoảng 50.000 dòng, giới hạn 20 kết quả; quét tuần tự đủ nhanh. Thêm index trigram khi đo thấy chậm |
+| Index tìm tên khách trên `customers` | Nhân viên tra cứu khớp một phần trên khoảng 50.000 dòng, giới hạn 20 kết quả; quét tuần tự đủ nhanh. Thêm index trigram khi đo thấy chậm: biểu thức phải là `lower(public.f_unaccent(full_name))` (đúng biểu thức của truy vấn, BL-178), cần thêm extension `pg_trgm`; `f_unaccent` là `IMMUTABLE` nên dùng được trong index |
 | GIN trên `payload`, `metadata` (jsonb) | Chỉ đọc theo khóa chính hoặc `correlation_id`, không tìm theo nội dung |
 | Index mọi cột cho "chắc ăn" | Mỗi lệnh chuyển ghi 5+ dòng; thừa index = chậm đường găng |
 
@@ -717,6 +717,7 @@ Bốn kiểm tra của job (DBS-117, `ReconciliationService`): (1) `SUM` Nợ = 
 | `rds.force_ssl` | bật | Khớp NFR-SEC-03 |
 | Mã hóa lưu trữ | KMS | NFR-SEC-03 |
 | Backup / PITR | bật (RDS mặc định) | RPO ≤ 5 phút |
+| Extension `unaccent` | `CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public` trong migration `1795000008000-EnableUnaccentSearch` (BL-178), kèm hàm bọc `public.f_unaccent(text)` (`IMMUTABLE`, cố định từ điển `public.unaccent`) | Tìm tên khách không dấu, gấp hoa/thường không phụ thuộc locale của máy chủ (`unaccent` chạy trước `lower()` nên chuỗi đã là ASCII). RDS hỗ trợ `unaccent`; người chạy migration cần `rds_superuser` (master user có sẵn) hoặc, từ PG 13, `CREATE` trên database vì extension này là *trusted*. `dbs_api` gọi được hàm nhờ quyền `EXECUTE` mặc định của `PUBLIC` (không migration nào thu hồi); test `operator-account-search.db-spec.ts` TC-88-18 chạy bằng role thật. Extension duy nhất của schema; `gen_random_uuid()` không cần extension |
 
 ---
 
