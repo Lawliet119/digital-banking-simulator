@@ -312,7 +312,7 @@ Mọi lần xem chi tiết và review đều ghi nhật ký. Kết luận của 
 ### 4.6 Cấu hình luật có phiên bản (UC-12)
 
 - Bảng `risk_rule_sets`: mỗi dòng là một **phiên bản bất biến** chứa tham số, trọng số và ngưỡng mức của cả 6 luật, kèm cờ bật/tắt từng luật.
-- Đổi cấu hình = thêm phiên bản mới. Worker biết phiên bản hiện hành qua key Redis `cfg:risk:latest` (TTL 60 giây; miss hoặc lỗi thì `SELECT max(version)` từ `risk_rule_sets`), rồi đọc nội dung từ `cfg:risk:v{n}` (bất biến nên TTL dài). Phiên bản mới có hiệu lực sau tối đa 60 giây.
+- Đổi cấu hình = thêm phiên bản mới. Worker biết phiên bản hiện hành qua key Redis `cfg:risk:latest` (TTL 60 giây; miss hoặc lỗi thì `SELECT max(version)` từ `risk_rule_sets`), rồi đọc nội dung phiên bản đó từ PostgreSQL (bất biến nên giữ trong bộ nhớ tiến trình; Redis không giữ nội dung luật, nên ghi vào Redis không đổi được cách chấm điểm). Giá trị `latest` hỏng hoặc ngoài int4 bị bỏ qua, worker đọc PostgreSQL và đếm `risk_config_redis_fallback_total{reason="corrupt"}`. Phiên bản mới có hiệu lực sau tối đa 60 giây.
 - Mỗi cờ ghi `ruleSetVersion`, để biết cờ được tạo theo cấu hình nào.
 - **Công tắc khẩn cấp:** tắt một luật đang báo nhầm hàng loạt chỉ cần tạo phiên bản mới với luật đó `enabled = false`.
 

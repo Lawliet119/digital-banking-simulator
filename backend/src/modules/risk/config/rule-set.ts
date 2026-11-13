@@ -1,5 +1,6 @@
 import type { RuleId, RuleParams } from '../rules/rule';
 import type { ScoringConfig } from '../scoring.service';
+import { firstRuleRejectingParams } from './rule-params';
 
 /** PostgreSQL `int` maximum: a flag's score, and so the sum of all weights, must fit it. */
 const MAX_SCORE = 2_147_483_647;
@@ -113,6 +114,10 @@ export function parseRuleSet(version: number, raw: unknown): RuleSet {
     ruleScoreCeiling += rules[id].weight;
   }
   if (ruleScoreCeiling > MAX_SCORE) throw new InvalidRuleSetError('rules.weight');
+  // Each rule's own check of its parameters (required keys, string money, ranges): a version a
+  // rule would throw on for every transfer is refused here, not scored into the DLQ.
+  const rejecting = firstRuleRejectingParams(rules);
+  if (rejecting !== undefined) throw new InvalidRuleSetError(`rules.${rejecting}`);
 
   const mode = raw.mode === undefined ? 'rule_only' : raw.mode;
   if (typeof mode !== 'string') throw new InvalidRuleSetError('mode');
