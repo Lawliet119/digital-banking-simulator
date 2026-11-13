@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
-import { AuditService } from '@modules/audit';
+import { AuditService, type AuditAction } from '@modules/audit';
 import { CustomerProfileDto } from './customer-profile.dto';
 
 interface ProfileRow {
@@ -63,7 +63,7 @@ export class CustomerProfileService {
     userId: string,
     id: string,
     correlationId: string,
-    action: string,
+    action: AuditAction,
   ) {
     return this.audit.record(manager, {
       actor: userId,

@@ -76,7 +76,7 @@ describe('DBS-158 security boundaries on the real app and PostgreSQL', () => {
     }
   });
 
-  it('TC-158-02 AC-8.1: an auditor is refused on every write route and no row is written anywhere', async () => {
+  it('TC-158-02 AC-8.1: an auditor is refused on every write route; no business row is written, only one DENIED audit row per refusal (BL-132, BL-019)', async () => {
     const target = await seedDepositTarget(db.runner);
     const other = await seedDepositTarget(db.runner);
     const auditor = await app.issuer.token('auditor', { sub: randomUUID() });
@@ -105,6 +105,7 @@ describe('DBS-158 security boundaries on the real app and PostgreSQL', () => {
       [`/v1/operator/accounts/${target.accountId}/unlock`, 'POST', { reason: 'OPERATOR_UNLOCK' }],
       [`/v1/operator/fraud-flags/${randomUUID()}/review`, 'POST', { decision: 'FALSE_POSITIVE' }],
     ];
+    const correlationIds: string[] = [];
     for (const [path, method, body] of writes) {
       const res = await request(app.url)
         .post(path)
@@ -113,7 +114,34 @@ describe('DBS-158 security boundaries on the real app and PostgreSQL', () => {
         .send(body);
       expect([method, path, res.status]).toEqual([method, path, 403]);
       expect((res.body as Row).errorCode).toBe('FORBIDDEN');
+      correlationIds.push(String(res.headers['x-correlation-id']));
     }
-    expect(await count()).toEqual(before);
+    // Nothing a business flow writes changed. The only growth is audit_log: one row per refusal.
+    const after = await count();
+    expect({ ...after, audit_log: Number(after.audit_log) - writes.length }).toEqual(before);
+    const rows = await q(
+      `SELECT actor_role, action, outcome, target_type, target_id, metadata
+         FROM audit_log WHERE correlation_id = ANY($1::uuid[]) ORDER BY id`,
+      [correlationIds],
+    );
+    expect(rows).toHaveLength(writes.length);
+    expect(rows.map(row => row.target_id)).toEqual([
+      'POST /v1/transfers',
+      'POST /v1/operator/deposits',
+      'POST /v1/accounts',
+      'POST /v1/customers/me',
+      'POST /v1/operator/accounts/:id/lock',
+      'POST /v1/operator/accounts/:id/unlock',
+      'POST /v1/operator/fraud-flags/:transferId/review',
+    ]);
+    for (const row of rows) {
+      expect(row).toMatchObject({
+        actor_role: 'auditor',
+        action: 'access.denied',
+        outcome: 'DENIED',
+        target_type: 'route',
+        metadata: { reason: 'NO_PERMISSION' },
+      });
+    }
   });
 });
