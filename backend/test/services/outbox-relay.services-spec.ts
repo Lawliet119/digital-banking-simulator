@@ -10,6 +10,7 @@ import { OutboxCleanupService } from '@modules/outbox/outbox-cleanup.service';
 import { NotificationConsumer, dlqUrlFor } from '@modules/notification';
 import { AuditService } from '@modules/audit';
 import { ACCOUNT_LOCKED_SAMPLE, TRANSFER_SAMPLE } from '../support/event-samples';
+import { clearOutbox } from '../support/outbox-fixtures';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
@@ -97,7 +98,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
     else process.env.AWS_SECRET_ACCESS_KEY = oldSecret;
   });
   beforeEach(async () => {
-    await q('DELETE FROM outbox_events');
+    await clearOutbox(q);
     await q('DELETE FROM processed_events');
     await q('DELETE FROM notification_log');
     await drain(riskUrl);
