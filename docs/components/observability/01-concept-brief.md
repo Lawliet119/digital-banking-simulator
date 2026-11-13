@@ -1,6 +1,6 @@
 # observability — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 (dashboard, alarm; metric do Dev phát) · **Verified against code:** một phần: log JSON có `correlationId` (DBS-42); metric HTTP, tuổi outbox và counter `redis_fallback_total`, `rate_limited_total` xuất bằng CloudWatch EMF trong `common/metrics` (DBS-144, kiểm bằng test và **kiểm trên CloudWatch thật ngày 2026-11-09**, xem «Kết quả kiểm trên CloudWatch»). Chưa có: dashboard, alarm, metric của risk/AI (BL-204) · **Cập nhật:** 2026-11-09
+> **Status:** Draft · **Owner:** #5 (dashboard, alarm; metric do Dev phát) · **Verified against code:** một phần: log JSON có `correlationId` (DBS-42); metric HTTP, tuổi outbox và counter `redis_fallback_total`, `rate_limited_total` xuất bằng CloudWatch EMF trong `common/metrics` (DBS-144, kiểm bằng test và **kiểm trên CloudWatch thật ngày 2026-11-09**, xem «Kết quả kiểm trên CloudWatch»). Dashboard `dbs-dev-overview` dựng bằng Terraform (DBS-145, kiểm trên CloudWatch thật bằng số mô phỏng, xem «Dashboard»). Chưa có: alarm, metric của risk/AI (BL-204) · **Cập nhật:** 2026-11-12
 
 ## Component
 
@@ -40,7 +40,8 @@ Namespace `DBS/Backend`. Tên metric giống tên counter prom-client (`snake_ca
 | `http_requests_total`, `http_5xx_total`, `http_aborted_total` | Count | như trên | như trên |
 | `redis_fallback_total` | Count | `Role` | `RedisMetrics` · api, worker |
 | `rate_limited_total` | Count | `Role`, `Scope` (`ip`/`user`) | `RateLimitMetrics` · api |
-| `risk_redis_fallback_total`, `risk_config_redis_fallback_total` | Count | `Role`, `Rule`, `Reason` | `RiskMetrics`; **chỉ có khi consumer chấm điểm được nối vào app** (BL-204) · worker |
+| `risk_config_redis_fallback_total` | Count | `Role` | `RiskMetrics` qua `RuleSetRepository`; có khi service worker chạy (DBS-121) · worker |
+| `risk_redis_fallback_total` | Count | `Role`, `Rule`, `Reason` | `RiskMetrics`; **chưa có chỗ nào gọi `.redisFallback(`**: chờ consumer chấm điểm nối đủ (BL-204) · worker |
 | `outbox_oldest_unpublished_age_seconds` | Seconds | không | gauge `OutboxAgeGauge`, mỗi lượt ghi · worker |
 
 **Độ sâu DLQ và tuổi message cũ nhất không có code**: dùng metric gốc của SQS trong namespace `AWS/SQS` (dimension `QueueName`): `ApproximateNumberOfMessagesVisible` trên `dbs-dev-*-events-dlq` và `ApproximateAgeOfOldestMessage` trên `dbs-dev-*-events` (docs/03 §14).
@@ -69,6 +70,20 @@ Namespace `DBS/Backend`. Tên metric giống tên counter prom-client (`snake_ca
 | metric lỗi EMF trong `AWS/Logs` | không có | không có |
 
 Hình dạng dòng (mảng số ≤ 100, không lồng object, ba bộ dimension, đơn vị) vì thế đã được CloudWatch chấp nhận và trích đúng. Metric thử nằm ở `Route=/v1/check-dbs144` và hết hạn tự động sau 15 ngày.
+
+## Dashboard (DBS-145)
+
+`infra/terraform/envs/dev/session/dashboard.tf` dựng dashboard **`dbs-dev-overview`** cùng phiên (`terraform apply` / `destroy` của `session`, hoặc `-target=aws_cloudwatch_dashboard.overview`: dashboard không tham chiếu tài nguyên nào khác của session). Output `dashboard_url`. 13 widget (1 văn bản, 12 metric), khoảng thời gian mặc định 3 giờ, `periodOverride = inherit` để cửa sổ 5 phút của widget không bị console tính lại:
+
+| Hàng | Widget | Nguồn · đường kẻ ngang (SLO docs/03 §14) |
+|---|---|---|
+| 2 | Độ trễ toàn dịch vụ p50/p95/p99 (tổng quan, không đường SLO); chuyển tiền `POST /v1/transfers` p95/p99 | `[]`, `[Route,Method]` · 300 ms, 1 s |
+| 3 | Đọc p95 (`GET /v1/accounts`, `/:id`, `/:id/transactions`); tỉ lệ 5xx %; request, 5xx, bị ngắt | 150 ms · `100 * FILL(5xx,0) / request`, 1% |
+| 4 | p95 theo Route (`SEARCH`, loại `/health/*`); tuổi outbox (`Maximum`); DLQ | 10 s và 30 s; DLQ > 0 |
+| 5 | Tuổi message cũ nhất; `redis_fallback_total` (`Role` api, worker); `rate_limited_total` (`Scope` ip, user) | 60 s và 120 s |
+| 6 | Fallback Redis của risk (`SEARCH`) | trống tới khi có nguồn (BL-204) |
+
+Đường kẻ chỉ để nhìn, không phải alarm (BL-051, BL-179, BL-182). Biến `metrics_namespace` (mặc định `DBS/Backend`) chỉ đổi khi thử dashboard bằng số mô phỏng. Ảnh chụp lúc có tải nhẹ: [tổng hợp 12 widget](../../features/screenshots/DBS-145/00-dashboard-overview.png) và từng widget ở [`screenshots/DBS-145/`](../../features/screenshots/DBS-145/). **Đó là số mô phỏng** (30 phút EMF do chính mã `common/metrics` sinh, namespace `DBS/Backend-dbs145`, không phải app chạy trên ECS), ảnh render bằng `GetMetricWidgetImage`, không phải màn hình console; chi tiết và số đối chiếu ở [DBS-145](../../features/DBS-145-cloudwatch-dashboard.md) §8. Đọc ảnh: p95 chuyển tiền nằm sát đường 300 ms vì CloudWatch ước lượng phân vị quanh biên bucket (xem «Bàn giao cho #5»), không phải vi phạm SLO.
 
 ## Ngoài phạm vi (v1)
 

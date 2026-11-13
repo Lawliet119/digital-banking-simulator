@@ -857,7 +857,7 @@ flowchart TB
 
 | Bước | Cách làm |
 |---|---|
-| Build | Mỗi commit vào nhánh chính → lint, typecheck, unit + e2e test (gồm Testcontainers), build **một image** (`backend/Dockerfile`), quét lỗ hổng, đẩy lên ECR với tag = commit SHA |
+| Build | Mỗi commit vào nhánh chính → lint, typecheck, unit + e2e test (gồm Testcontainers), build **một image** (`backend/Dockerfile`), quét bằng Trivy (lỗ hổng HIGH/CRITICAL đã có bản sửa và secret trong image làm job đỏ; chạy trước khi lấy credential AWS và trước khi push), quét secret toàn lịch sử bằng gitleaks ở mọi PR, rồi đẩy lên ECR với tag = commit SHA ([kết quả quét](components/ci-cd/scan-results.md)) |
 | Migration | Chạy như một bước riêng trước deploy, theo kiểu backward-compatible: **expand → migrate → contract** |
 | Deploy | Hai ECS service dùng chung image, khác `APP_ROLE`. Service `api`: rolling update; ALB kiểm `/health/ready` mỗi 15 giây, timeout 5 giây, 2 lần đạt là healthy, 3 lần trượt liên tiếp là unhealthy; ECS `healthCheckGracePeriodSeconds = 60`. Ngưỡng 3 × 15 giây đủ rộng để một đợt pool bão hòa ngắn không làm ECS thay task hàng loạt. Service `worker` ([DBS-121](features/DBS-121-worker-service.md), `envs/dev/session/worker.tf`): không có cổng HTTP, không `healthCheck` container, không load balancer; container `essential` nên ECS thay task khi tiến trình thoát; `stopTimeout` 60 giây; lăn 0%/100% (không hai worker song song) |
 | Rollback | Cập nhật service về task definition trước đó (image cũ); migration kiểu expand nên schema vẫn tương thích |
@@ -883,7 +883,7 @@ SLO chính thức (chốt 2026-10-11). Đo trong các đợt bật cấu hình p
 
 - **Log:** `nestjs-pino` xuất JSON với `level`, `time` ISO UTC, `message`, `role` (`api|worker`) và `correlationId` (UUID của request, `null` ngoài context). HTTP logger dùng ID do server sinh, gắn trước CORS/body parser; không ghi URL/query, headers hoặc body. Cấu hình sai khi khởi động ghi tên biến sai (`invalidKeys`) mà không kèm giá trị, và lỗi lọt cấp tiến trình ra đúng một dòng JSON `fatal` thay vì stack text. Chi tiết redaction và log level: [backend — Log JSON](../backend/README.md#8-log-json). Mã truy vết được thiết kế đi từ API → outbox → sự kiện → consumer → nhật ký kiểm toán; context xuyên worker/message còn thuộc DBS-43.
 - **Xuất metric (DBS-144):** CloudWatch EMF: một dòng JSON ra log, `awslogs` biến thành metric trong namespace `DBS/Backend`, không cần IAM hay cổng mới. Có: độ trễ và 5xx theo `Route`/`Method` (p50/p95/p99 tính ở CloudWatch), `redis_fallback_total`, `rate_limited_total`, `outbox_oldest_unpublished_age_seconds`; DLQ và tuổi message dùng metric gốc `AWS/SQS`. Đã có consumer fraud, nhưng chưa có metric thời gian giao dịch → cờ và metric AI. Chi tiết: [observability](components/observability/01-concept-brief.md#xuất-metric-dbs-144).
-- **Dashboard:** CloudWatch (hoặc Grafana) theo các SLI trên.
+- **Dashboard:** CloudWatch `dbs-dev-overview`, dựng bằng Terraform ở `envs/dev/session` (DBS-145) theo các SLI trên, đường kẻ ngang là ngưỡng SLO; chưa có widget ALB/ECS/RDS/Valkey (BL-261). Chi tiết: [observability](components/observability/01-concept-brief.md#dashboard-dbs-145).
 - **Alarm:** theo cột cuối của bảng trên, gửi SNS email; tạo bằng Terraform.
 - **Health check:** `/health/ready` báo Redis ở trạng thái *degraded* chứ không *down*, vì hệ thống vẫn chạy được khi không có Redis.
 

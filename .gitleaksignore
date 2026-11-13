@@ -1,0 +1,19 @@
+# Id container Valkey (hex 64) trong log test thủ công DBS-40, không phải bí mật. Hạn xem lại: 2027-01-18
+6f6ec08941d3c2d17becdf87bb7a76b7cf87d58e:docs/features/screenshots/DBS-40/manual-test.txt:generic-api-key:15
+6f6ec08941d3c2d17becdf87bb7a76b7cf87d58e:docs/features/screenshots/DBS-40/manual-test.txt:generic-api-key:30
+6f6ec08941d3c2d17becdf87bb7a76b7cf87d58e:docs/features/screenshots/DBS-40/manual-test.txt:generic-api-key:45
+
+# Giá trị thử trong spec R3, không phải credential. Hạn xem lại: 2027-01-11
+da96d35f50bc23c57e127c3f5b30ee9851cb0bb6:backend/src/modules/risk/rules/r3-new-account-large-transfer.rule.spec.ts:generic-api-key:205
+
+# Giá trị thử trong spec R2, không phải credential. Hạn xem lại: 2027-01-11
+4024f7480172b7bf2f746d42674ff1123bd54341:backend/src/modules/risk/rules/r2-unusual-amount.rule.spec.ts:generic-api-key:232
+
+# Mật khẩu thử trong spec cấu hình (validation schema), không phải credential. Hạn xem lại: 2027-01-04
+7238cecbc35e1a98bacdde0c25341be2f5090461:backend/src/config/validation.schema.spec.ts:generic-api-key:273
+
+# Mật khẩu thử trong spec ghép REDIS_URL, không phải credential. Hạn xem lại: 2027-01-04
+7238cecbc35e1a98bacdde0c25341be2f5090461:backend/src/config/compose-redis-url.spec.ts:generic-api-key:6
+
+# Mật khẩu thử trong spec bootstrap env, không phải credential. Hạn xem lại: 2027-01-04
+7238cecbc35e1a98bacdde0c25341be2f5090461:backend/src/config/env.bootstrap.spec.ts:generic-api-key:77

@@ -229,3 +229,51 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  # Hai job quét của DBS-155. Chạy ở gốc repo (khác sáu job trên, mặc định working-directory là backend).
+  # Chưa thuộc "sáu tên hợp đồng"; chỉ chặn merge khi chủ repo thêm vào ruleset (BL-035, BL-012).
+  # Công cụ chạy bằng image chính thức ghim digest; cách dùng và cờ ở .github/scripts/run-trivy.sh và
+  # run-gitleaks.sh, được .github/scripts/check-image-workflow.py kiểm trên mọi PR.
+  image-scan:
+    name: image-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: .
+    env:
+      TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build image
+        run: docker build --provenance=false --sbom=false -t dbs-api:scan backend
+      - name: Trivy (lỗ hổng HIGH/CRITICAL có bản sửa, secret trong image)
+        run: bash .github/scripts/run-trivy.sh dbs-api:scan
+
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: .
+    env:
+      GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Kiểm tĩnh workflow và tệp ngoại lệ
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install pyyaml==6.0.2
+          "$RUNNER_TEMP/venv/bin/python" .github/scripts/check-image-workflow.py
+          "$RUNNER_TEMP/venv/bin/python" .github/scripts/check-scan-exceptions.py
+      - name: gitleaks trên lịch sử tới HEAD
+        run: |
+          export GITLEAKS_RUN="docker run --rm --user $(id -u):$(id -g) -v $PWD:/repo:ro $GITLEAKS_IMAGE"
+          export SCAN_PATH=/repo CONFIG=/repo/.gitleaks.toml IGNORE=/repo/.gitleaksignore LOG="$RUNNER_TEMP/gitleaks.log"
+          bash .github/scripts/run-gitleaks.sh

@@ -95,6 +95,10 @@ Một Pull Request chỉ được merge khi:
 | `e2e` | `npm run test:e2e`; hai suite `test:db` (`testcontainers-sample`, `migration-revert`) trên Testcontainers khi bỏ `DATABASE_URL`; `npm run test:services` cho `sqs-adapter` và `redis-adapter` | một test e2e đỏ, hoặc một trong các suite Testcontainers đỏ (cần Docker) |
 | `db` | `npm run test:db` (cần `docker compose up -d` và `DATABASE_URL`) | một test `test/db/*.db-spec.ts` đỏ, hoặc không nối được PostgreSQL (đỏ, không bao giờ bỏ qua); hoặc role không phải superuser, hay timezone không phải UTC |
 | `build` | `npm run build` | `nest build` lỗi |
+| `image-scan` | từ **gốc repo** (cần Docker): `docker build -t dbs-api:scan backend`, rồi `TRIVY_IMAGE=<image Trivy ghim digest trong ci.yml> bash .github/scripts/run-trivy.sh dbs-api:scan` | lỗ hổng HIGH/CRITICAL đã có bản sửa trong image, hoặc secret ở mọi mức; DB Trivy tải lỗi |
+| `secret-scan` | từ **gốc repo**: `python3 .github/scripts/check-image-workflow.py`, `python3 .github/scripts/check-scan-exceptions.py`; gitleaks: xem đầu `.github/scripts/run-gitleaks.sh` | gitleaks báo secret trong lịch sử tới `HEAD` (kể cả đã revert); ngoại lệ thiếu lý do hoặc quá hạn; cờ hay thứ tự bước quét bị sửa |
+
+`image-scan` và `secret-scan` (DBS-155) chạy ở gốc repo, tối đa 15 và 10 phút, chưa thuộc sáu tên hợp đồng và chỉ chặn merge khi chủ repo thêm vào ruleset của `main` (BL-035, BL-012). Thiết kế và cờ: [feature doc DBS-155](docs/features/DBS-155-ci-image-secret-scan.md), kết quả: [scan-results](docs/components/ci-cd/scan-results.md). Khi một CVE mới làm check đỏ trên PR không liên quan: báo #5, sửa trước (nâng lockfile hoặc build lại với base mới), chỉ khi chưa sửa được mới thêm ngoại lệ có lý do và hạn.
 
 **Cách đọc khi có check đỏ:**
 1. Cuối trang PR, ở khung kiểm tra, bấm **Details** cạnh check đỏ (hoặc mở tab **Checks** rồi chọn job). Bước đỏ tự mở sẵn trong log.
@@ -129,6 +133,7 @@ Chi tiết: [docs/03_HIGH_LEVEL_ARCHITECTURE.md](docs/03_HIGH_LEVEL_ARCHITECTURE
 - **Không commit**: `.env`, key AWS, `*.tfvars`, `terraform.tfstate`, file `.pem`/`.key`. Các mẫu này đã có trong `.gitignore`. Ngoại lệ duy nhất: `ca.pem`, `other-ca.pem`, `server.pem`, `server.key` trong `backend/test/support/tls-fixtures/`, chỉ dùng cho test TLS, khóa CA đã hủy (xem README trong thư mục). Thêm ngoại lệ khác phải hỏi #5.
 - Lỡ commit secret: **báo ngay cho #5**, thu hồi (rotate) key trước rồi mới xóa khỏi lịch sử git. Xóa commit thôi là chưa đủ vì key đã bị lộ.
 - GitHub Actions kết nối AWS qua **OIDC**, không lưu access key trong GitHub Secrets.
+- `secret-scan` quét **toàn bộ lịch sử tới `HEAD`** bằng gitleaks: secret đã revert trong PR vẫn đỏ; lỡ commit thì rotate rồi viết lại lịch sử nhánh. Ngoại lệ chỉ ở ba file gốc repo (`.gitleaks.toml` theo đường dẫn, `.gitleaksignore` theo fingerprint, `.trivyignore.yaml` cho Trivy), mỗi mục có lý do và hạn xem lại tối đa 90 ngày; `.github/scripts/check-scan-exceptions.py` kiểm. Gia hạn bằng PR có người review.
 - Không dùng trigger `pull_request_target` cho workflow chạy code từ fork.
 
 ## 7. ADR

@@ -1,4 +1,4 @@
-# Build image từ backend/Dockerfile và đẩy lên ECR với tag = SHA của commit trên main (DBS-36).
+# Build image từ backend/Dockerfile, quét bằng Trivy (DBS-155), rồi đẩy lên ECR với tag = SHA của commit trên main (DBS-36).
 # Xác thực bằng OIDC, không có access key trong GitHub Secrets. Role chỉ tin đúng repo và nhánh main
 # (infra/terraform/envs/dev/base/oidc.tf).
 #
@@ -34,6 +34,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
       REPOSITORY: dbs-api
       IMAGE_TAG: ${{ github.sha }}
+      TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,8 +42,18 @@ jobs:
 
       - name: Kiểm tĩnh workflow này
         run: |
-          pip install pyyaml==6.0.2
-          python3 .github/scripts/check-image-workflow.py
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install pyyaml==6.0.2
+          "$RUNNER_TEMP/venv/bin/python" .github/scripts/check-image-workflow.py
+
+      # Build và quét TRƯỚC khi có credential AWS (DBS-155): image có lỗ hổng HIGH/CRITICAL đã có bản sửa hoặc
+      # secret thì job đỏ ở đây, không lấy token OIDC, không push, và Deploy không chạy. Cờ ở .github/scripts/run-trivy.sh.
+      # Cờ tắt provenance và sbom: image index làm scan cơ bản của ECR không đọc được.
+      - name: Build image
+        run: docker build --provenance=false --sbom=false -t "dbs-api:$IMAGE_TAG" backend
+
+      - name: Trivy chặn lỗ hổng và secret
+        run: bash .github/scripts/run-trivy.sh "dbs-api:$IMAGE_TAG"
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
@@ -59,19 +70,17 @@ jobs:
           found=$(aws ecr batch-get-image --repository-name "$REPOSITORY" \
             --image-ids imageTag="$IMAGE_TAG" --query 'length(images)' --output text)
           echo "found=$found" >> "$GITHUB_OUTPUT"
-          if [ "$found" != "0" ]; then echo "Tag $IMAGE_TAG đã tồn tại (repo bất biến), bỏ qua build và push."; fi
+          if [ "$found" != "0" ]; then echo "Tag $IMAGE_TAG đã tồn tại (repo bất biến), bỏ qua push."; fi
 
-      # Cờ tắt provenance và sbom: image index làm scan cơ bản của ECR không đọc được.
-      - name: Build và push
+      - name: Gắn tag ECR và push
         if: steps.exists.outputs.found == '0'
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
-          docker build --provenance=false --sbom=false \
-            -t "$REGISTRY/$REPOSITORY:$IMAGE_TAG" backend
+          docker tag "dbs-api:$IMAGE_TAG" "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
           docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
 
-      # Scan on push chạy ở phía ECR. Lỗi ở đây chỉ cảnh báo; chặn theo mức nghiêm trọng là việc sau (BACKLOG).
+      # Scan on push chạy ở phía ECR, sau khi đã push, nên chỉ cảnh báo. Cổng chặn là bước Trivy ở trên (DBS-155).
       - name: Kết quả scan
         if: steps.exists.outputs.found == '0'
         run: |

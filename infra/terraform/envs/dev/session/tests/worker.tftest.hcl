@@ -104,6 +104,11 @@ override_data {
       worker_log_group_arn       = "arn:aws:logs:ap-southeast-1:123456789012:log-group:/dbs/dev/worker"
       sqs_risk_queue_url         = "https://sqs.ap-southeast-1.amazonaws.com/123456789012/dbs-dev-risk-events"
       sqs_notification_queue_url = "https://sqs.ap-southeast-1.amazonaws.com/123456789012/dbs-dev-notification-events"
+      # DBS-145: dashboard đọc tên DLQ từ base.
+      sqs_dlq_names = {
+        risk         = "dbs-dev-risk-events-dlq"
+        notification = "dbs-dev-notification-events-dlq"
+      }
     }
   }
 }

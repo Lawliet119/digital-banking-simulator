@@ -50,3 +50,26 @@ describe('TC-67-10 Dockerfile: RDS CA bundle and no weakened TLS', () => {
     );
   });
 });
+
+describe('TC-155-23 Dockerfile: runtime image carries no npm, npx or corepack', () => {
+  const runtime = instructions.split(/^FROM .* AS runtime$/m)[1] ?? '';
+
+  it('removes the npm, npx and corepack of the node base image, as root, before USER node', () => {
+    for (const target of [
+      '/usr/local/lib/node_modules/npm',
+      '/usr/local/lib/node_modules/corepack',
+      '/usr/local/bin/npm',
+      '/usr/local/bin/npx',
+      '/usr/local/bin/corepack',
+    ]) {
+      expect(runtime).toContain(target);
+    }
+    expect(runtime).toMatch(/^RUN rm -rf /m);
+    expect(runtime.indexOf('rm -rf')).toBeLessThan(runtime.indexOf('USER node'));
+  });
+
+  it('never needs npm at runtime: CMD and the migration task call node directly', () => {
+    expect(runtime).toMatch(/^CMD \["node", "dist\/main\.js"\]$/m);
+    expect(ecs).toContain('"node", "./node_modules/typeorm/cli.js"');
+  });
+});
