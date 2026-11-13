@@ -34,7 +34,9 @@ services:
       retries: 10
 
   elasticmq:
-    image: softwaremill/elasticmq-native:latest
+    # Ghim digest bản DBS-125 đã thử (BL-225); cùng giá trị với ELASTICMQ_IMAGE ở
+    # backend/test/support/elasticmq.container.ts. Đổi digest: xem docs/runbooks/dlq-redrive.md, mục "Nâng image ElasticMQ".
+    image: softwaremill/elasticmq-native@sha256:e4580ab9ad1bd5cd37b4ba04911bc5ccc8cd2d9ab4de56ece65acee71c24e05c
     ports:
       - "9324:9324" # SQS API
       - "9325:9325" # giao diện xem queue

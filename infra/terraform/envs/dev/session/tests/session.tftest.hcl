@@ -148,6 +148,11 @@ run "service" {
   }
 
   assert {
+    condition     = aws_ecs_service.api.propagate_tags == "TASK_DEFINITION"
+    error_message = "api tasks must carry the task definition tags (project/env/owner), like the worker service (BL-250)"
+  }
+
+  assert {
     condition     = aws_ecs_service.api.health_check_grace_period_seconds == 60
     error_message = "grace period must be 60 s (docs/03 section 13.3)"
   }
