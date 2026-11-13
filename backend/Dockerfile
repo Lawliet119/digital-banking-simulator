@@ -1,10 +1,15 @@
 # syntax=docker/dockerfile:1
 # One image, two ECS services: the same image runs as `api` or `worker` depending on APP_ROLE.
 #   docker build -t dbs-backend backend
-#   docker run -e APP_ROLE=api    -e DATABASE_URL=… dbs-backend
-#   docker run -e APP_ROLE=worker -e DATABASE_URL=… dbs-backend
+#   docker run -e APP_ROLE=api    -e DATABASE_URL=â€¦ dbs-backend
+#   docker run -e APP_ROLE=worker -e DATABASE_URL=â€¦ dbs-backend
+#
+# The base image is pinned by tag AND digest (BL-244), so a new upstream push cannot change the
+# image (or turn `image-scan` red on an unrelated PR) overnight. Keep both FROM lines on the same
+# digest. Dependabot (docker ecosystem on /backend) opens the bump PR weekly; to bump by hand see
+# docs/components/ci-cd/scan-results.md ("Ghim digest base image").
 
-FROM node:24-alpine AS deps
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -14,7 +19,7 @@ COPY nest-cli.json tsconfig.json tsconfig.build.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
-FROM node:24-alpine AS runtime
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
@@ -38,5 +43,5 @@ EXPOSE 3000
 # No HEALTHCHECK here on purpose: the `api` service is checked by the load balancer
 # (GET /health/ready) and the `worker` service has no HTTP port, so each ECS service defines
 # its own check. Migrations are a separate pipeline step (npm run migration:run:prod):
-#   docker run … dbs-backend node ./node_modules/typeorm/cli.js -d dist/database/data-source.js migration:run
+#   docker run â€¦ dbs-backend node ./node_modules/typeorm/cli.js -d dist/database/data-source.js migration:run
 CMD ["node", "dist/main.js"]

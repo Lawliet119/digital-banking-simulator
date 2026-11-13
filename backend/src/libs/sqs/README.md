@@ -27,7 +27,7 @@ const results = await sqs.processBatch(queueUrl, dlqUrl, async (body, message) =
   nguồn. Nếu gửi DLQ thành công nhưng xóa nguồn sau đó lỗi, kết quả vẫn là dead-lettered (không
   phải failed) — nguồn vẫn còn hiển thị và có thể bị chuyển DLQ lại lần nữa khi redeliver, DLQ
   consumer phải chịu được việc đó. Thiếu body/receipt thì trả failed. Lỗi `receive` lan nguyên lên.
-- `onModuleDestroy()`: giải phóng socket SDK. Nest gọi khi module shutdown.
+- `onApplicationShutdown()`: giải phóng socket SDK. Cố ý không dùng `onModuleDestroy` (BL-249): Nest chạy mọi `onModuleDestroy`, rồi mọi `beforeApplicationShutdown`, rồi mọi `onApplicationShutdown`; relay và consumer dừng vòng lặp (chờ lô đang chạy) ở `beforeApplicationShutdown`, nên SDK chỉ bị hủy sau khi lệnh gửi/xóa đang dở đã xong. Test gọi `onApplicationShutdown()` để dọn client.
 
 Caller tự chịu trách nhiệm: polling chỉ chạy ở worker, dừng loop có kiểm soát, dedup, kiểm schema
 sự kiện, chính sách `UNKNOWN_EVENT_TYPE`, chuyển DLQ ngay khi sai schema, và gia hạn visibility khi

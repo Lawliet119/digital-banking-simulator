@@ -132,6 +132,7 @@ resource "aws_ecs_service" "api" {
   task_definition                   = aws_ecs_task_definition.api.arn
   desired_count                     = var.desired_count
   launch_type                       = "FARGATE"
+  propagate_tags                    = "TASK_DEFINITION"
   health_check_grace_period_seconds = 60
 
   # deploy.sh (DBS-38) đăng ký revision mới và đổi task_definition của service; Terraform không kéo về.

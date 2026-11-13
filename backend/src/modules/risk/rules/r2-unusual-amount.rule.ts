@@ -1,10 +1,15 @@
 import { MONEY_MAX, parsePositiveMoney } from '@common/money';
-import type { Features, TransferEvent } from '../features/feature-provider';
+import {
+  HISTORY_DAYS,
+  MIN_HISTORY_FOR_MEDIAN,
+  type Features,
+  type TransferEvent,
+} from '../features/feature-provider';
+import { formatDong, formatDongHalf, formatTrimmed2 } from './explanation-format';
 import type { RiskRule, RuleHit, RuleParams } from './rule';
 
-const HISTORY_DAYS = 30;
 /** The provider returns no median below five history rows, so a lower minimum cannot be honoured. */
-const MIN_HISTORY_FLOOR = 5;
+const MIN_HISTORY_FLOOR = MIN_HISTORY_FOR_MEDIAN;
 const MAX_WEIGHT = 2147483647;
 const MAX_MULTIPLIER = 1000;
 const MEDIAN_TIMES2_PATTERN = /^[1-9][0-9]*$/;
@@ -29,13 +34,6 @@ function multiplierTimes100(value: unknown): bigint {
   const scaled = Math.round(value * 100);
   if (scaled < 1 || Math.abs(value * 100 - scaled) > 1e-7) return invalid();
   return BigInt(scaled);
-}
-
-/** `value / 100` for a non-negative bigint, with a decimal comma and no trailing zeros. */
-function formatTimes100(value: bigint): string {
-  const whole = value / 100n;
-  const fraction = (value % 100n).toString().padStart(2, '0').replace(/0+$/, '');
-  return fraction === '' ? whole.toString() : `${whole},${fraction}`;
 }
 
 /**
@@ -67,11 +65,12 @@ export class R2UnusualAmountRule implements RiskRule {
       return invalid();
     }
     const m100 = multiplierTimes100(thresholds.medianMultiplier);
+
+    if (!params.enabled) return null; // a switched-off rule judges only its configuration (BL-207(a))
+
     const amount = BigInt(parsePositiveMoney(event.amount));
     const count = features.historyCount30d;
     if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) return invalid();
-
-    if (!params.enabled) return null;
     if (count < thresholds.minHistory) return null; // not enough history: skip, do not read the median
 
     const raw: unknown = features.medianAmount30dTimes2;
@@ -86,12 +85,11 @@ export class R2UnusualAmountRule implements RiskRule {
     // amount / median, rounded down to two decimals (never overstates the multiple).
     const multiple100 = scaledAmount / medianTimes2;
     const multiple =
-      multiple100 <= m100 ? `hơn ${formatTimes100(m100)}` : formatTimes100(multiple100);
-    const median = `${medianTimes2 / 2n}${medianTimes2 % 2n === 1n ? ',5' : ''}`;
+      multiple100 <= m100 ? `hơn ${formatTrimmed2(m100)}` : formatTrimmed2(multiple100);
     return {
       id: this.id,
       weight: params.weight,
-      explanation: `Số tiền ${amount} gấp ${multiple}× trung vị 30 ngày (${median})`,
+      explanation: `Số tiền ${formatDong(amount)} gấp ${multiple}× trung vị 30 ngày (${formatDongHalf(medianTimes2)})`,
     };
   }
 }

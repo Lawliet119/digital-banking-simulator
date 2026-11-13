@@ -17,7 +17,7 @@ G1 (agent tự quyết): implement phần rule trên timestamp đã được pro
 
 ## 2. Hành vi
 
-Chỉ TRANSFER. `reverseTransferOccurredAt` null → không hit; nếu có, hit khi nằm trong `[occurredAt − reverseWindowMinutes, occurredAt)` với cửa sổ 1–60 phút. Chính xác tới nanosecond; timestamp sai/config sai → lỗi. Explanation nêu số phút xấp xỉ. Provider phải đảm bảo đây là lệnh ngược `COMPLETED` và chỉ lấy lịch sử trước event.
+Chỉ TRANSFER. `reverseTransferOccurredAt` null → không hit; nếu có, hit khi nằm trong `[occurredAt − reverseWindowMinutes, occurredAt)` với cửa sổ 1–60 phút. Luật so sánh chính xác tới nanosecond trên timestamp nhận được, nhưng provider online cắt `occurredAt` và lệnh ngược về **mili giây** (`date_trunc('milliseconds')`), nên độ phân giải đầu-cuối là mili giây và khoảng cách nhỏ nhất luật thấy là 1 ms (BL-207(c)); muốn chính xác dưới ms phải đổi provider. Cấu hình sai → lỗi. **Rule tắt** chỉ kiểm cấu hình rồi trả `null`, không parse dữ liệu provider (BL-207(a), cùng chính sách R3). **Rule bật** gặp lệnh ngược tại hoặc sau `occurredAt` thì ném `Invalid R4 reverse timestamp` thay vì trả `null` (BL-207(b)): provider chỉ trả lệnh ngược strictly trước event, nên đó là lỗi feature, đi theo ADR-14 (rollback, retry/DLQ), thống nhất với projection AI vốn đã ném lỗi. Timestamp sai → lỗi. Explanation nêu số phút xấp xỉ, làm tròn xuống, dấu phẩy thập phân (`khoảng 15,00 phút`, `chưa đến 0,01 phút`). Provider phải đảm bảo đây là lệnh ngược `COMPLETED` và chỉ lấy lịch sử trước event.
 
 ## 3. Kiến trúc
 
@@ -76,7 +76,7 @@ Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/
 
 | # | Mức | Xử lý |
 |---|---|---|
-| 1, 2, 3 | should-fix, minor | Không sửa: R4 tắt vẫn parse dữ liệu provider; chính sách `elapsed <= 0` khác projection AI; độ phân giải thật là mili giây → BL-207 |
+| 1, 2, 3 | should-fix, minor | **Đã sửa ở BL-207 (a)–(c):** R4 tắt trả `null` trước khi parse dữ liệu provider; `elapsed <= 0` ném lỗi như projection AI; §2 ghi độ phân giải mili giây |
 | 4, 6 | minor | Không sửa: thiếu ca biên 61 phút, manual thiếu đường lỗi → BL-212 |
 | 5 | minor | **Đã sửa:** bảng truy vết ở §8 |
 | 7 | minor | Bàn giao UC-12: `parseRuleSet` chưa chặn `reverseWindowMinutes` ngoài 1–60 → BL-188 |

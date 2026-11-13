@@ -98,7 +98,7 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
   let riskUrl: string;
   let notificationUrl: string;
   const pino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
-  const running: { onApplicationShutdown(): Promise<void> }[] = [];
+  const running: { beforeApplicationShutdown(): Promise<void> }[] = [];
   const saved = {
     role: process.env.APP_ROLE,
     key: process.env.AWS_ACCESS_KEY_ID,
@@ -161,14 +161,14 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
     (await onQueue(notificationUrl)) === 0;
 
   function start<
-    T extends { onApplicationBootstrap(): void; onApplicationShutdown(): Promise<void> },
+    T extends { onApplicationBootstrap(): void; beforeApplicationShutdown(): Promise<void> },
   >(component: T): T {
     component.onApplicationBootstrap();
     running.push(component);
     return component;
   }
-  async function stop(component: { onApplicationShutdown(): Promise<void> }) {
-    await component.onApplicationShutdown();
+  async function stop(component: { beforeApplicationShutdown(): Promise<void> }) {
+    await component.beforeApplicationShutdown();
     running.splice(running.indexOf(component), 1);
   }
   const config = () =>
@@ -257,7 +257,7 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
     try {
       await app?.close();
       redis?.onModuleDestroy();
-      sqs?.onModuleDestroy();
+      sqs?.onApplicationShutdown();
       admin?.destroy();
       await source?.destroy();
       await db?.drop();
