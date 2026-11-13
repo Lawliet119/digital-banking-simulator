@@ -9,6 +9,7 @@ import { SqsClient } from '@libs/sqs';
 import { OutboxRelayService } from '@modules/outbox';
 import { NotificationConsumer, dlqUrlFor } from '@modules/notification';
 import { AuditService } from '@modules/audit';
+import { clearOutbox } from '../support/outbox-fixtures';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
@@ -136,7 +137,7 @@ describe('correlationId across API → outbox → SQS → consumer (real Postgre
   });
   beforeEach(async () => {
     consumer.failuresLeft = 0;
-    await q('DELETE FROM outbox_events');
+    await clearOutbox(q);
     await q('DELETE FROM processed_events');
     await q('DELETE FROM notification_log');
     for (const url of [riskUrl, notificationUrl, dlqUrlFor(notificationUrl)]) {
