@@ -58,3 +58,14 @@ variable "cognito_deletion_protection" {
     error_message = "cognito_deletion_protection must be ACTIVE or INACTIVE."
   }
 }
+
+variable "alarm_email" {
+  description = "Địa chỉ email nhận alarm CloudWatch (SNS đăng ký giao thức email, alarms.tf). Để rỗng thì không tạo đăng ký: topic vẫn có, alarm vẫn đổi trạng thái nhưng không ai nhận thư. Sau apply, SNS gửi thư xác nhận; chưa bấm xác nhận thì không có thư alarm."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.alarm_email == "" || can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alarm_email))
+    error_message = "alarm_email must be empty or an e-mail address."
+  }
+}

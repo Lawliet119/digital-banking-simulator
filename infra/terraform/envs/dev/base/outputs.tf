@@ -135,3 +135,8 @@ output "worker_sqs_policy_arn" {
   description = "DBS-120 gắn vào role task worker."
   value       = aws_iam_policy.worker_sqs.arn
 }
+
+output "alarm_topic_arn" {
+  description = "Topic SNS nhận mọi alarm; alarm của session (session/alarms.tf) gửi vào đây."
+  value       = aws_sns_topic.alarms.arn
+}
