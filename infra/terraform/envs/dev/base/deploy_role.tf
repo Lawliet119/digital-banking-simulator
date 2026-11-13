@@ -29,9 +29,13 @@ locals {
   ecs_cluster_arn     = "arn:aws:ecs:${var.region}:${var.account_id}:cluster/dbs-dev"
   ecs_tasks_arn       = "arn:aws:ecs:${var.region}:${var.account_id}:task/dbs-dev/*"
   ecs_cluster_only    = { ArnEquals = { "ecs:cluster" = local.ecs_cluster_arn } }
+  # Role mà revision của dbs-api và dbs-migrate tham chiếu (envs/dev/session/iam.tf, DBS-120). dbs-migrate không
+  # có task role. Role worker được thêm cùng service worker (DBS-121). Đổi danh sách này cần `apply base` trước
+  # lần deploy kế tiếp.
   task_role_arns = [
     "arn:aws:iam::${var.account_id}:role/dbs-dev-api-execution",
     "arn:aws:iam::${var.account_id}:role/dbs-dev-api-task",
+    "arn:aws:iam::${var.account_id}:role/dbs-dev-migrate-execution",
   ]
 }
 
