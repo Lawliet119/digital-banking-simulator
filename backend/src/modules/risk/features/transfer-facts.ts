@@ -11,6 +11,8 @@
  * keeps the index usable and keeps the current transfer (`.123456` for an event at `.123`) inside
  * its own window.
  */
+import { HISTORY_DAYS } from './feature-provider';
+
 export interface Queryable {
   query(sql: string, params?: unknown[]): Promise<unknown>;
 }
@@ -78,7 +80,7 @@ export function factQueries(
                    (sum(amount) FILTER (WHERE rn = (n + 1) / 2)
                     + sum(amount) FILTER (WHERE rn = (n + 2) / 2))::text AS median2
             FROM h`,
-      params: [fromId, iso(occMs - 30 * DAY), iso(occMs)],
+      params: [fromId, iso(occMs - HISTORY_DAYS * DAY), iso(occMs)],
     },
     reverse: {
       sql: `SELECT to_char(date_trunc('milliseconds', max(created_at)) AT TIME ZONE 'UTC',

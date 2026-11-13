@@ -11,6 +11,7 @@ export {
   type EventType,
   type TransferCompleted,
 } from './event-types';
+export { isRealUtcTime } from './utc-time';
 export {
   assertEvent,
   InvalidEventError,
