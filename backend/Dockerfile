@@ -27,6 +27,11 @@ COPY package.json ./
 # connection error.
 ADD --checksum=sha256:90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b --chmod=0444 \
   https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/rds/global-bundle.pem
+# The runtime only runs `node` (CMD and the migration task call node directly), so the npm, npx and corepack
+# bundled with the base image are removed: they carry their own dependencies (brace-expansion, undici) with
+# HIGH CVEs that the image scan in CI blocks (DBS-155). The build stages keep npm.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+  /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 # Never run as root. The `node` user ships with the official image.
 USER node
 EXPOSE 3000
