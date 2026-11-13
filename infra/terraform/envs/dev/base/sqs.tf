@@ -77,14 +77,39 @@ resource "aws_iam_policy" "worker_sqs" {
   })
 }
 
-# Role task api không bao giờ được dùng SQS (ADR-13: chỉ worker publish và consume). Chặn ở queue:
-# Deny thắng mọi Allow của identity policy, kể cả khi role api lỡ được gắn sqs:*. So theo tên role
-# (aws:PrincipalArn của phiên assume-role là ARN role), nên role tạo lại mỗi phiên vẫn bị chặn;
-# đổi tên role api (DBS-120) thì phải sửa ở đây.
+# Queue policy (resource-based) có hai Deny; Deny thắng mọi Allow của identity policy.
+#
+# 1. DenyApiTaskRole: role task api không bao giờ được dùng SQS (ADR-13: chỉ worker publish và consume).
+#    Chặn kể cả khi role api lỡ được gắn sqs:*. So theo tên role (aws:PrincipalArn của phiên assume-role là ARN
+#    role), nên role tạo lại mỗi phiên vẫn bị chặn; đổi tên role api (DBS-120) thì phải sửa ở đây.
+#
+# 2. DenyMessageActionsExceptAllowList (BL-241, threat-model T9 "chỉ IAM role của worker gửi/nhận được SQS"):
+#    danh sách cho phép. Mọi principal KHÔNG khớp {role task worker, sqs_ops_principal_arns} bị từ chối các
+#    thao tác trên message (gửi, nhận, xóa, đổi visibility, purge, redrive). Nên một role tương lai hoặc một
+#    user khác có sqs:* trong identity policy vẫn không gửi được message giả vào queue.
+#    - Không chặn thao tác quản trị queue (SetQueueAttributes, GetQueueAttributes, DeleteQueue, tag…):
+#      Terraform chạy bằng quyền admin của người apply và phải sửa được chính queue policy này. Vì thế
+#      khoảng khóa tối đa chỉ là dữ liệu message, và gỡ bằng cách sửa biến rồi `terraform apply`.
+#    - Redrive DLQ -> queue chính của chính SQS (maxReceiveCount, redrive_policy) là nội bộ SQS, không đi qua
+#      quyền gọi của principal nào. Ops redrive bằng StartMessageMoveTask (docs/runbooks/dlq-redrive.md) phải
+#      nằm trong danh sách.
+#    - Worker gửi vào DLQ message sai schema (DeadLetterMalformed) nên cũng nằm trong danh sách ở DLQ.
 locals {
   sqs_all_queues = merge(
     { for k, q in aws_sqs_queue.main : k => q },
     { for k, q in aws_sqs_queue.dlq : "${k}-dlq" => q },
+  )
+
+  # Mặc định mọi IAM user của tài khoản (người vận hành ở dev dùng IAM user, không dùng role admin): vẫn chặn
+  # role (api, role tương lai) và principal ngoài tài khoản, và không khóa người sự cố. Muốn chặt hơn thì đặt
+  # `sqs_ops_principal_arns` thành danh sách ARN cụ thể (user hoặc role).
+  sqs_ops_principals = length(var.sqs_ops_principal_arns) > 0 ? var.sqs_ops_principal_arns : [
+    "arn:aws:iam::${var.account_id}:user/*",
+  ]
+
+  sqs_allowed_principals = concat(
+    ["arn:aws:iam::${var.account_id}:role/dbs-dev-worker-task"],
+    local.sqs_ops_principals,
   )
 }
 
@@ -95,15 +120,34 @@ resource "aws_sqs_queue_policy" "deny_api" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid       = "DenyApiTaskRole"
-      Effect    = "Deny"
-      Principal = "*"
-      Action    = "sqs:*"
-      Resource  = each.value.arn
-      Condition = {
-        ArnLike = { "aws:PrincipalArn" = "arn:aws:iam::${var.account_id}:role/dbs-dev-api-task" }
-      }
-    }]
+    Statement = [
+      {
+        Sid       = "DenyApiTaskRole"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "sqs:*"
+        Resource  = each.value.arn
+        Condition = {
+          ArnLike = { "aws:PrincipalArn" = "arn:aws:iam::${var.account_id}:role/dbs-dev-api-task" }
+        }
+      },
+      {
+        Sid       = "DenyMessageActionsExceptAllowList"
+        Effect    = "Deny"
+        Principal = "*"
+        Action = [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:ChangeMessageVisibility",
+          "sqs:PurgeQueue",
+          "sqs:StartMessageMoveTask",
+        ]
+        Resource = each.value.arn
+        Condition = {
+          ArnNotLike = { "aws:PrincipalArn" = local.sqs_allowed_principals }
+        }
+      },
+    ]
   })
 }

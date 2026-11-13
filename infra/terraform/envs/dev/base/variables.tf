@@ -58,3 +58,14 @@ variable "cognito_deletion_protection" {
     error_message = "cognito_deletion_protection must be ACTIVE or INACTIVE."
   }
 }
+
+variable "sqs_ops_principal_arns" {
+  description = "ARN (cho phép ký tự đại diện) của principal vận hành được gửi, nhận, xóa, redrive message SQS ngoài role task worker (BL-241, threat-model T9). Để trống: mọi IAM user của tài khoản (`arn:aws:iam::<account_id>:user/*`). Đặt cụ thể (user hoặc role) để chặt hơn; nhớ gồm người chạy redrive DLQ."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for a in var.sqs_ops_principal_arns : can(regex("^arn:aws:iam::[0-9]{12}:(user|role)/.+$", a))])
+    error_message = "sqs_ops_principal_arns must be IAM user or role ARNs (arn:aws:iam::<12 digits>:user|role/<name>); wildcards allowed in the name."
+  }
+}
