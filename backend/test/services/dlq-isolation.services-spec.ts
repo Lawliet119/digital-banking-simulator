@@ -19,7 +19,7 @@ import { NotificationConsumer } from '@modules/notification';
 import { OutboxRelayService } from '@modules/outbox';
 import { AuditService } from '@modules/audit';
 import { RiskScoringConsumer } from '@modules/risk/risk-scoring.consumer';
-import { R3NewAccountLargeTransferRule } from '@modules/risk/rules/r3-new-account-large-transfer.rule';
+import { failR3ForRealTransfers } from '../support/failing-rule';
 import { checkLedgerInvariants } from '../support/invariants';
 import { startDepositApp } from '../support/deposit-app';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
@@ -365,11 +365,7 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
     const healthy = notification();
     const s = await ac91Source(); // deposits are never scored: the rule is only reached by the transfer
     const before = await ruleErrors('R3');
-    const evaluate = jest
-      .spyOn(R3NewAccountLargeTransferRule.prototype, 'evaluate')
-      .mockImplementation(() => {
-        throw new Error('rule bug');
-      });
+    const { spy: evaluate, realCalls } = failR3ForRealTransfers();
     try {
       const transferId = await fx.transfer(s.token, s.from, s.to, '20000000');
       const eventId = String((await eventFor(db.runner, transferId)).eventId);
@@ -382,7 +378,7 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
       );
 
       expect(failing.handled.get(eventId)).toBe(5);
-      expect(evaluate).toHaveBeenCalledTimes(5);
+      expect(realCalls).toHaveLength(5);
       expect(await ruleErrors('R3')).toBe(before + 5);
       const dead = (await peek(dlqUrlFor(riskUrl))).filter(m => m.body.includes(eventId));
       expect(dead).toHaveLength(1);

@@ -9,7 +9,7 @@ import { LATENCY_BOUNDS_MS } from '@common/metrics/latency-histogram';
 import { PoisonMessageError, type SqsMessage } from '@libs/sqs';
 import { RiskRuleError } from '@modules/risk/risk-rule-error';
 import { RiskScoringConsumer } from '@modules/risk/risk-scoring.consumer';
-import { R3NewAccountLargeTransferRule } from '@modules/risk/rules/r3-new-account-large-transfer.rule';
+import { failR3ForRealTransfers } from '../support/failing-rule';
 import { checkLedgerInvariants } from '../support/invariants';
 import { startDepositApp } from '../support/deposit-app';
 import { ACCOUNT_LOCKED_SAMPLE } from '../support/event-samples';
@@ -338,10 +338,12 @@ describe('DBS-111 risk scoring consumer on PostgreSQL', () => {
     });
     expect(decision._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role', 'AiStatus']]);
 
+    // Same base as the consumer (fraud_flags.created_at − event occurredAt, the transfer's commit
+    // time): transfers.created_at can differ by a few ms and land in the next bucket near a bound.
     const [lag] = await q<{ lag_ms: number }>(
-      `SELECT EXTRACT(EPOCH FROM f.created_at - t.created_at) * 1000 AS lag_ms
-         FROM fraud_flags f JOIN transfers t ON t.id = f.transfer_id WHERE f.transfer_id = $1`,
-      [transferId],
+      `SELECT EXTRACT(EPOCH FROM f.created_at - $2::timestamptz) * 1000 AS lag_ms
+         FROM fraud_flags f WHERE f.transfer_id = $1`,
+      [transferId, String((event as { occurredAt: string }).occurredAt)],
     );
     const [flag] = docs.filter(d => metricNames(d).includes('risk_transfer_to_flag_ms'));
     expect(flag._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role']]);
@@ -356,7 +358,11 @@ describe('DBS-111 risk scoring consumer on PostgreSQL', () => {
     expect(text).not.toMatch(UUID);
     expect(text).not.toContain(transferId);
     expect(text).not.toContain('20000000');
-    for (const doc of docs) {
+    // Only the two metrics of this test: other counters (e.g. the rule-set Redis fallback, which
+    // carries `Reason`) may flush in the same window.
+    for (const doc of docs.filter(d =>
+      metricNames(d).some(m => m === 'risk_decision_total' || m === 'risk_transfer_to_flag_ms'),
+    )) {
       const dims = Object.keys(doc).filter(k => k !== '_aws' && !metricNames(doc).includes(k));
       expect(dims.every(k => ['Role', 'AiStatus'].includes(k))).toBe(true);
     }
@@ -393,9 +399,7 @@ describe('DBS-111 risk scoring consumer on PostgreSQL', () => {
     const { metrics, docs } = await collectingMetrics();
     const withMetrics = buildRiskConsumer(source, { metrics });
     const { transferId, event } = await ac91();
-    jest.spyOn(R3NewAccountLargeTransferRule.prototype, 'evaluate').mockImplementation(() => {
-      throw new Error('rule bug');
-    });
+    failR3ForRealTransfers();
 
     const first = withMetrics.consumer.handle(event, message(1));
     await expect(first).rejects.toBeInstanceOf(RiskRuleError);
