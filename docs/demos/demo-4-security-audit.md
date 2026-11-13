@@ -118,7 +118,7 @@ Thêm vào kịch bản như một đoạn ngắn sau phần E:
 
 ## Chạy bộ test tự động
 
-Cần Docker bật (Testcontainers dựng PostgreSQL 17, và ElasticMQ cho `test:services`). Từ `backend/`:
+Cần Docker bật (`test:db` tự dựng PostgreSQL 17 bằng Testcontainers khi không có `DATABASE_URL`; `test:services` dựng ElasticMQ). Từ `backend/`:
 
 ```bash
 # Phần mới của DBS-158: lỗi problem+json, auditor bị từ chối trên mọi route ghi (TC-158-01, TC-158-02)
@@ -135,9 +135,14 @@ npm run test:db -- --runInBand \
   test/db/fraud-operator-http.db-spec.ts test/db/notification-consumer.db-spec.ts \
   test/db/append-only.db-spec.ts
 
-# Phần E: chuỗi giao dịch, thông báo, cờ, review (TC-135-01..05; HTTP thật, PostgreSQL và ElasticMQ)
-npm run test:services -- --runInBand --runTestsByPath test/services/audit-trace.services-spec.ts
+# Phần E: chuỗi giao dịch, thông báo, cờ, review (TC-135-01..05; HTTP thật, PostgreSQL và ElasticMQ).
+# test:services không tự dựng PostgreSQL: cần DATABASE_URL trỏ tới một PostgreSQL 17 chạy sẵn
+# (ví dụ docker run -d --rm -p 55433:5432 -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test postgres:17)
+DATABASE_URL=postgres://test:test@localhost:55433/postgres \
+  npm run test:services -- --runInBand --runTestsByPath test/services/audit-trace.services-spec.ts
 ```
+
+Đã chạy lại các lệnh trên ngày 2026-11-13 trên `main` `f48ee33` cộng các commit tài liệu này (Node 24.22.2, Windows): `test/security` cùng 11 file `test:db` đầu danh sách đạt 12 suite / 199 test; `account-reads`, `audit-search` và `append-only` đạt 3 suite / 46 test; `audit-trace.services-spec.ts` đạt 3/3. Chạy `test:services` không có `DATABASE_URL` thì cả ba test đỏ với lỗi "DATABASE_URL is not set".
 
 `--runInBand` cần khi chạy nhiều file một lúc: các file `test:db` cùng tạo role DB và tranh nhau nếu chạy song song. CI chạy `npm run test:db` (job `db`, gồm `test/security` nhờ regex ở `backend/test/jest-db.js`) và từng file `test:services` (bước `audit-trace` ở `.github/workflows/ci.yml`).
 
