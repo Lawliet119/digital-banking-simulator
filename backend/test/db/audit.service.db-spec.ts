@@ -200,13 +200,13 @@ describe('AuditService against real PostgreSQL (DBS-56)', () => {
     await expect(auditService.recordDenied(withoutOutcome)).rejects.toThrow();
   });
 
-  it('TC-56-09 actor null, role free text, for a system action', async () => {
-    const i = input({ actor: null, role: 'system' });
+  it('TC-56-09 actor null, role worker, for a system action', async () => {
+    const i = input({ actor: null, role: 'worker' });
     await transactionService.run(manager => auditService.record(manager, i));
 
     const [row] = await auditRows(i.correlationId);
     expect(row.actor_user_id).toBeNull();
-    expect(row.actor_role).toBe('system');
+    expect(row.actor_role).toBe('worker');
   });
 
   it('TC-56-10 an outcome CHECK violation fails closed, with a real other write rolled back', async () => {

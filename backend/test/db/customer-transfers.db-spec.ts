@@ -258,11 +258,30 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     expect(none.body.errorCode).toBe('UNAUTHENTICATED');
     const expired = await app.issuer.token('customer', { sub: a.sub, iat: 1, exp: 2 });
     expect((await send(body, expired).expect(401)).body.errorCode).toBe('TOKEN_EXPIRED');
-    for (const role of ['operator', 'auditor', 'admin'] as const)
+    const refusals: [string, string][] = [];
+    for (const role of ['operator', 'auditor', 'admin'] as const) {
+      const res = await send(body, await app.issuer.token(role, { sub: randomUUID() })).expect(403);
+      expect(res.body.errorCode).toBe('FORBIDDEN');
+      refusals.push([role, String(res.headers['x-correlation-id'])]);
+    }
+    // BL-132 / BL-019 (AC-8.1): the auditor and the other non-customer roles each leave one DENIED
+    // row; `audits` below grows by exactly that many and no money row appears.
+    for (const [role, correlationId] of refusals) {
       expect(
-        (await send(body, await app.issuer.token(role, { sub: randomUUID() })).expect(403)).body
-          .errorCode,
-      ).toBe('FORBIDDEN');
+        await q(
+          'SELECT actor_role, action, outcome, target_type, target_id FROM audit_log WHERE correlation_id=$1',
+          [correlationId],
+        ),
+      ).toEqual([
+        {
+          actor_role: role,
+          action: 'access.denied',
+          outcome: 'DENIED',
+          target_type: 'route',
+          target_id: 'POST /v1/transfers',
+        },
+      ]);
+    }
     for (const key of [null, '', ' '])
       expect((await send(body, a.token, key).expect(400)).body.errorCode).toBe(
         'IDEMPOTENCY_KEY_REQUIRED',
@@ -282,7 +301,9 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
     await send({ ...body, toAccountId: 'bad' }, a.token).expect(400);
     await send({ ...body, toAccountId: a.accountId.toUpperCase() }, a.token).expect(400);
     await send({ ...body, userId: b.userId }, a.token).expect(400);
-    expect(await totals()).toEqual(before);
+    const [now] = await totals();
+    const [was] = before;
+    expect({ ...now, audits: now.audits - refusals.length }).toEqual(was);
     await send(body, a.token, 'k'.repeat(128)).expect(201);
   });
   it('TC-61-06 ten concurrent withdrawals cannot overspend; opposite-direction transfers finish', async () => {

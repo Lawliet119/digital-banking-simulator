@@ -534,7 +534,7 @@ sequenceDiagram
 | `ACCOUNT_LIMIT_REACHED` | 409 | Khách đã có tối đa số tài khoản | BR-14 |
 | `UNAUTHENTICATED` | 401 | Thiếu token, token sai dạng, sai chữ ký, khóa ký lạ, sai `iss` / `client_id` / `token_use`; hoặc route có `@Roles` mà không có người gọi (route `@Public`) | Đăng nhập lại, gửi lại cùng token không bao giờ được |
 | `TOKEN_EXPIRED` | 401 | `exp` của access token đã qua | Khác `UNAUTHENTICATED`: client có refresh token được phép làm mới im lặng |
-| `FORBIDDEN` | 403 | Token hợp lệ nhưng không vai trò nào của người gọi được dùng endpoint này | Không nêu vai trò đang có hay cần. Tài nguyên của người khác là 404, không phải mã này (AC-5.8) |
+| `FORBIDDEN` | 403 | Token hợp lệ nhưng không vai trò nào của người gọi được dùng endpoint này | Không nêu vai trò đang có hay cần. Tài nguyên của người khác là 404, không phải mã này (AC-5.8). Mỗi 403 để lại đúng một dòng `audit_log` `DENIED` (action `access.denied`, FR-AUD-02, BL-132); nếu không ghi được dòng đó thì trả 500/503 chứ không trả 403 không có bằng chứng |
 | `SESSION_REVOKED` | 401 | Token phát hành trước mốc thu hồi phiên (ví dụ tài khoản bị khóa) | BR-12 · khác "hết hạn": dùng lại token không bao giờ được |
 | `RATE_LIMITED` | 429 | Vượt giới hạn tần suất | NFR-SEC-05 |
 | `SERVICE_TEMPORARILY_UNAVAILABLE` | 503 | Lỗi database tạm thời | Kèm `Retry-After`; gửi lại cùng `Idempotency-Key` |
@@ -780,6 +780,8 @@ flowchart LR
 ## 12. Bảo mật
 
 Customer ownership ở `AccountsService.getOwnedAccount(accountId, context)` bắt buộc context gồm internal users.id, role customer, một action account.read/account.transactions/ledger.transfer và correlationId do server sinh. Service snapshot scalar trước await; owned trả Account hiện có, foreign/missing/SYSTEM/malformed await một DENIED độc lập rồi cùng404. Audit lỗi lan ra; lookup lỗi không chuyển thành missing. Gọi trước transaction nghiệp vụ: ALS guard chặn cả owned/denied trước SELECT; raw BEGIN/savepoint ngoài ALS không được dùng để bọc helper. Các luồng operator có policy riêng. [Contract và evidence DBS-86](features/DBS-86-resource-ownership.md) chỉ chứng minh service; HTTP DBS-61/64/87 và full AC-5.8 còn BL-122/145.
+
+Từ chối vai trò (403 `FORBIDDEN` của `RolesGuard`) khác với từ chối sở hữu ở trên: không có tài nguyên nên không có 404. Guard gọi `AuditService.recordRoleDenied` qua cổng `RoleDenialAudit` trước khi ném 403; dòng `audit_log` có `outcome = DENIED`, `action = access.denied`, `actor_user_id` là `users.id` của người gọi, `actor_role` là mọi vai trò đã suy ra (nối bằng dấu phẩy, ví dụ `operator,auditor`), `target = {route, "<METHOD> <mẫu route>"}`, `correlation_id` của request và `metadata.reason = NO_PERMISSION`. Ghi ở transaction riêng (`recordDenied`, trước khi handler chạy nên không có transaction nghiệp vụ để rollback theo). Fail-closed như `recordDenied` ở đường 404: lỗi ghi audit lan ra thành 500/503, handler vẫn không chạy. Dòng log `warn` cũ được giữ có chủ đích làm tín hiệu vận hành và dấu vết duy nhất khi chính lần ghi audit lỗi. 401 không ghi audit (chưa có danh tính để gán). Auditor bị từ chối ở mọi endpoint ghi nay để lại dòng `DENIED` (AC-8.1).
 
 ```mermaid
 flowchart LR
