@@ -172,4 +172,41 @@ describe('AI feature projection', () => {
       ).toThrow(/^Invalid AI features$/);
     }
   });
+
+  // BL-184 H8: a snapshot created after the transfer (clock stepped back) is age 0 for R3 and the AI
+  // alike: the account is at least that new, and refusing it would drop the transfer from scoring.
+  it.each(['2026-10-19T06:00:00.001Z', '2027-01-01T00:00:00.000Z'])(
+    'BL-184 H8 projects an account created after the transfer (%s) as age 0, not as an error',
+    fromAccountCreatedAt => {
+      const event = {
+        eventId: '2f6c1a90-7d3b-4e58-9a14-c5b8e0d7f362',
+        eventType: 'TransferCompleted',
+        occurredAt: '2026-10-19T06:00:00.000Z',
+        correlationId: '9b4e7c21-5a0d-4f83-b6e9-1d2c8a7f3045',
+        transferId: '5c8d2e47-1b96-4a30-8f5e-7a3b9c0d6e18',
+        type: 'TRANSFER',
+        fromAccountId: '7e1a4b93-2c58-4d06-9b7f-e3a5c8d19f20',
+        toAccountId: '1d9f6a38-4e72-4c15-a083-b6d2e7c4f951',
+        amount: '20000000',
+        fromBalanceBefore: '22000000',
+        fromAccountCreatedAt,
+        toAccountCreatedAt: '2026-01-15T08:00:00.000Z',
+        sameOwner: false,
+        fromUserId: 'b2e5c8a1-6f40-4d93-8c17-a9d3f0e6b724',
+        toUserId: 'd4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783',
+      } as TransferEvent;
+      const features: Features = {
+        txCount10m: 1,
+        txCount1h: 1,
+        historyCount30d: 0,
+        medianAmount30dTimes2: null,
+        reverseTransferOccurredAt: null,
+        newRecipients1h: 1,
+        distinctRecipients24h: 1,
+        sumOut24h: '20000000',
+        smallTxCount24h: 0,
+      };
+      expect(toAiFeatureInput(event, features).accountAgeHours).toBe(0);
+    },
+  );
 });

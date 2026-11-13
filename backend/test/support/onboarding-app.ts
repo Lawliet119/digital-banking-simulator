@@ -12,6 +12,7 @@ import { authConfig } from '@config/auth.config';
 import { databaseConfig } from '@config/database.config';
 import { TransactionService } from '@database/transaction.service';
 import { AccountsModule } from '@modules/accounts';
+import { AuditModule } from '@modules/audit';
 import { IdentityModule, JwtAuthGuard, RolesGuard } from '@modules/identity';
 import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
 import { configureHttpApp } from '../../src/app.setup';
@@ -86,6 +87,7 @@ export async function startOnboardingApp(databaseUrl: string) {
         }),
         IdentityModule,
         AccountsModule,
+        AuditModule,
       ],
       providers: [
         { provide: APP_GUARD, useClass: JwtAuthGuard },

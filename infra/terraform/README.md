@@ -166,6 +166,21 @@ python3 infra/scripts/tests/test_seed_cognito.py   # test của script (aws gi�
 
 Mật khẩu nằm ở Secrets Manager `dbs/dev/demo-accounts` (secret là nguồn sự thật; ≈ 0,40 USD/tháng; tag `project/env/owner`). Không bao giờ để mật khẩu trên dòng lệnh hay in ra màn hình. Quyền tối thiểu cho người chạy: `cognito-idp:AdminGetUser`, `AdminCreateUser`, `AdminSetUserPassword`, `AdminAddUserToGroup`, `AdminRemoveUserFromGroup`, `AdminUpdateUserAttributes`, `AdminListGroupsForUser`, `AdminUserGlobalSignOut` trên ARN pool; `secretsmanager:DescribeSecret`, `GetSecretValue`, `CreateSecret`, `PutSecretValue`, `TagResource` trên `dbs/dev/demo-accounts-*`. Teardown: `aws secretsmanager delete-secret --secret-id dbs/dev/demo-accounts --force-delete-without-recovery`.
 
+**Role riêng để seed (BL-101):** `envs/dev/base/cognito_seeder.tf` tạo role `dbs-dev-cognito-seeder` (output `cognito_seeder_role_arn`) với đúng các quyền trên và không gì khác (không xóa secret hay user, không KMS vì secret dùng khóa mặc định `aws/secretsmanager`). Trust là gốc tài khoản: chỉ principal của tài khoản có `sts:AssumeRole` trong identity policy của mình (admin có sẵn) mới assume được; không đòi MFA vì dev không bật MFA cho IAM user. `apply base` một lần để tạo role, rồi thêm profile vào `~/.aws/config` và chạy script bằng profile đó thay cho `dbs-admin`:
+
+```ini
+[profile dbs-seeder]
+role_arn       = <output cognito_seeder_role_arn>
+source_profile = <profile của người chạy, ví dụ dbs-admin>
+region         = ap-southeast-1
+```
+
+```bash
+AWS_PROFILE=dbs-seeder bash infra/scripts/seed-cognito.sh
+```
+
+Phần chưa chạy thật: một lần seed bằng role này trên AWS (còn mở ở BL-101). Teardown secret vẫn cần quyền admin vì role không có `DeleteSecret`.
+
 ### RDS PostgreSQL 17 (DBS-66)
 
 `base` giữ KMS CMK dùng chung `alias/dbs-dev` (≈ 1 USD/tháng; xóa phải chờ 7 ngày), DB subnet group `dbs-dev` (2 private subnet) và SG `dbs-dev-db` (5432 chỉ từ SG `dbs-dev-api`; task `api` chỉ được đi ra 5432 tới SG này). `session` dựng instance `dbs-dev` (`db.t4g.micro`, Single-AZ, 20 GB gp3, mã hóa bằng CMK, `rds.force_ssl = 1`, `timezone = UTC`, backup 1 ngày) và parameter group `dbs-dev-postgres17`. Mật khẩu master do RDS quản lý trong Secrets Manager (output `db_master_secret_arn`); không có mật khẩu nào trong state. `db_instance_class` và `db_multi_az` là biến (production đổi).
@@ -204,6 +219,7 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 | DLQ | giữ 6 ngày, ngắn hơn 7 ngày của `processed_events`; redrive allow `byQueue`: chỉ queue chính tương ứng được trỏ vào |
 | IAM | managed policy `dbs-dev-worker-sqs` (gửi, nhận, xóa, đổi visibility trên queue chính; chỉ `SendMessage` trên DLQ cho message sai schema), gắn vào role `dbs-dev-worker-task` ở `session` (DBS-120) |
 | Chặn api | queue policy của cả 4 queue `Deny` mọi `sqs:*` cho role `dbs-dev-api-task` (so `aws:PrincipalArn` theo tên; đổi tên role thì sửa `sqs.tf`) |
+| Danh sách cho phép (BL-241) | cùng queue policy có `Deny` `SendMessage`, `ReceiveMessage`, `DeleteMessage`, `ChangeMessageVisibility`, `PurgeQueue`, `StartMessageMoveTask` cho mọi principal **không** khớp `ArnNotLike aws:PrincipalArn` với {role `dbs-dev-worker-task`, biến `sqs_ops_principal_arns`}. Mặc định biến để trống = mọi IAM user của tài khoản (`arn:aws:iam::<account>:user/*`), nên người vận hành và người redrive DLQ không bị khóa; role khác (api, role tương lai) và principal ngoài tài khoản bị chặn dù identity policy cho `sqs:*`. Chặt hơn: đặt `sqs_ops_principal_arns = ["arn:aws:iam::<account>:user/<tên>", …]` (nhớ gồm người chạy redrive). Không chặn thao tác quản trị queue (`SetQueueAttributes`, `GetQueueAttributes`, `DeleteQueue`), nên Terraform vẫn sửa được policy; lỡ khóa nhầm thì chỉ mất quyền đụng message, gỡ bằng sửa biến rồi `terraform apply base`. Redrive tự động của SQS sang DLQ (`maxReceiveCount`) là nội bộ SQS, không bị policy này đánh giá |
 
 | Output của `base` | Biến môi trường (`sqs.config.ts`) |
 |---|---|
@@ -212,6 +228,8 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 | `sqs_risk_dlq_url`, `sqs_notification_dlq_url` | không có biến: app suy ra URL DLQ từ URL queue chính bằng `dlqUrlFor(queueUrl)` = `<queueUrl>-dlq` (`backend/src/common/messaging/consumer-base.ts`), khớp tên Terraform `dbs-dev-<consumer>-events-dlq`. Hai output này dành cho người vận hành và runbook ([dlq-redrive](../../docs/runbooks/dlq-redrive.md)) |
 
 `SQS_ENDPOINT` không đặt trên AWS. Hai biến URL vào task definition worker ở `session/worker.tf` (DBS-121).
+
+**Kiểm danh sách cho phép trên AWS thật (BL-241, chưa chạy; sau `apply base`):** (1) tạo role tạm `dbs-sqs-probe` tin cậy IAM user đang chạy, inline policy `Allow sqs:*` trên 4 queue (đối chứng dương: Allow đã có hiệu lực, nên từ chối sau đó là do queue policy), `aws sts assume-role` (lặp tối đa 12 lần × 5 giây cho tới khi lan truyền); (2) gọi bằng credential tạm của role đó, truyền theo từng lệnh, không `export`: `env AWS_ACCESS_KEY_ID=… AWS_SECRET_ACCESS_KEY=… AWS_SESSION_TOKEN=… aws sqs send-message --queue-url <url dbs-dev-risk-events> --message-body '{"probe":"BL-241"}'` và `receive-message`; mong đợi `AccessDenied` với "explicit deny in a resource-based policy"; (3) cùng lệnh bằng IAM user trong danh sách phải thành công (gửi rồi nhận và xóa message probe); (4) role worker thật gửi và nhận được: task Fargate tạm với `dbs-dev-worker-task` như bước "Kiểm quyền trái phép" ở mục DBS-120; (5) gửi một message hỏng và để consumer nhận 5 lần: message phải sang DLQ (redrive nội bộ không bị chặn), rồi `start-message-move-task` bằng user trong danh sách phải chạy; (6) xóa role tạm. Ghi nguyên văn thông báo lỗi.
 
 Redrive DLQ về queue chính: `aws sqs start-message-move-task --source-arn <arn-dlq>`, theo dõi bằng `list-message-move-tasks`. Redrive cấp `MessageId` mới và tính lại hạn giữ từ lúc chuyển, nên message được redrive phải được xử lý xong trong vòng 24 giờ, mỗi message chỉ redrive một lần (quy tắc đầy đủ: [DBS-73 §2](../../docs/features/DBS-73-terraform-sqs.md), runbook ở BL-051). Với queue standard và `maxReceiveCount > 3`, `ApproximateAgeOfOldestMessage` bỏ qua message đã nhận từ 3 lần trở lên (ghi chú cho alarm DBS-163).
 

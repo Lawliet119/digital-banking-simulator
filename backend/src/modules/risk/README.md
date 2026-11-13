@@ -34,7 +34,10 @@ Migration DBS-58 tạo ba bảng ban đầu và seed `rule_only`; RSK-01 thêm d
 - **Hệ thống chỉ gắn cờ, không tự khóa tài khoản.** Khách hàng không bao giờ thấy cờ.
 - `rule_only` là mặc định; khi được bật qua gate ADR-14, API AI chỉ bổ sung điểm ở worker, lỗi thì dùng kết quả luật và không ảnh hưởng giao dịch đã hoàn tất.
 - **Luật là hàm thuần** `evaluate(event, features, params)`: không gọi Redis hay DB. Đặc trưng đến từ `FeatureProvider` (online: SQL; offline: dữ liệu trong bộ nhớ) để dùng cùng code luật.
-- Mọi cửa sổ thời gian tính theo `occurredAt` của sự kiện, không theo giờ worker.
+- Mọi cửa sổ thời gian tính theo `occurredAt` của sự kiện, không theo giờ worker. Provider online cắt về mili giây, nên R4 đầu-cuối có độ phân giải mili giây.
+- **Luật tắt chỉ kiểm cấu hình** rồi trả `null`, không kiểm dữ liệu provider hay snapshot (BL-207(a)); tắt luật trong phiên bản mới cứu được consumer khi provider phát dữ liệu hỏng. Luật bật gặp dữ liệu hỏng thì ném lỗi (ADR-14), gồm R4 khi lệnh ngược không strictly trước event.
+- **Tuổi âm:** `fromAccountCreatedAt` sau `occurredAt` (đồng hồ lùi) được coi là tuổi 0 ở R3 và projection AI, giao dịch vẫn được chấm; schema event không từ chối (BL-184 H8). Kiểm thời gian thực dùng `isRealUtcTime` của `@common/events`.
+- **Explanation R1–R6** dùng một định dạng chung (`rules/explanation-format.ts`): `20.000.000đ`, thập phân dấu phẩy, mọi phép chia làm tròn xuống.
 - R3, R6 dùng **ảnh chụp** trong sự kiện (`fromBalanceBefore`, `fromAccountCreatedAt`), không đọc trạng thái hiện tại.
 - Consumer idempotent: ghi `processed_events` cùng transaction với cờ; khóa chính `fraud_flags(transfer_id)` chặn cờ trùng.
 - **Consumer chỉ khởi động khi `runsWorkers()`** — instance `api` không bao giờ poll queue.
