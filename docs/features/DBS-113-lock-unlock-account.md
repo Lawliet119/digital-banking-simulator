@@ -379,7 +379,7 @@ Thứ tự: `AuditReason` & DTO/hàm thuần kiểm tra đầu vào → `Operato
 | `TC-113-11` | `backend/test/db/operator-account-status.db-spec.ts` › `TC-113-11: returns 503 SERVICE_TEMPORARILY_UNAVAILABLE with Retry-After when account row is locked by another transaction beyond lock_timeout` | đạt |
 | `TC-113-12` | `backend/src/modules/accounts/operator-account-status.reason.spec.ts` › `TC-113-12: operator-account-status pure helpers and AuditReason guard` (12 ca unit) | đạt |
 | `TC-113-13` | `backend/test/db/operator-account-status.db-spec.ts` › `TC-113-13: documents /lock and /unlock in OpenAPI with operator role, required reason (1..200), status codes, and response schema without balance` | đạt |
-| Quy trình | DoD #4: PR đã merge vào `main` (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ | chưa làm (quy trình sau G4: mở PR, chờ CI xanh và Dev khác review trước khi merge — theo dõi tại `BL-189`) |
+| Quy trình | DoD #4: PR đã merge vào `main` (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ | Cập nhật 2026-11-14 (kiểm bằng `gh`): [PR #80](https://github.com/Lawliet119/digital-banking-simulator/pull/80) đã merge vào `main` ngày 2026-11-09, 6 job CI xanh; GitHub không có review của người khác tác giả. Dev khác review còn mở, theo dõi tại `BL-189`. (Ghi chú trước đó: quy trình sau G4 là mở PR, chờ CI xanh và Dev khác review trước khi merge.) |
 
   **13/13 test case tự động đạt đủ độ sâu**, **0 đơn giản hóa**.
 

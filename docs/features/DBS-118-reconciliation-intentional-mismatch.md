@@ -357,7 +357,7 @@ Script tự động hóa hoàn toàn việc khởi chạy NestJS application (va
 | `TC-118-02` | [`reconciliation-intentional-mismatch.db-spec.ts`](../../backend/test/db/reconciliation-intentional-mismatch.db-spec.ts) › `TC-118-02` | đạt trên commit `8e3feea` |
 | `TC-118-03` | [`reconciliation-intentional-mismatch.db-spec.ts`](../../backend/test/db/reconciliation-intentional-mismatch.db-spec.ts) › `TC-118-03` | đạt trên commit `8e3feea` |
 | `TC-118-04` | [`reconciliation-intentional-mismatch.db-spec.ts`](../../backend/test/db/reconciliation-intentional-mismatch.db-spec.ts) › `TC-118-04` | đạt trên commit `8e3feea` |
-| `Quy trình` | DoD #4: PR đã merge vào `main` (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ | chưa làm (chờ mở PR sau G4, theo dõi tại `BL-197`) |
+| `Quy trình` | DoD #4: PR đã merge vào `main` (CI xanh); Dev review; bảng «Đối chiếu test case» trong PR điền đủ | Cập nhật 2026-11-14 (kiểm bằng `gh`): [PR #88](https://github.com/Lawliet119/digital-banking-simulator/pull/88) đã merge vào `main` ngày 2026-11-09, 6 job CI xanh; GitHub không có review của người khác tác giả. Dev khác review còn mở, theo dõi tại `BL-197`. (Ghi chú trước đó: chờ mở PR sau G4.) |
 
 - **Test thủ công:** chạy trên commit code cuối `f86ac8de2f8f6675154cc1b2f134e8f5c36e97d2` qua [`backend/scripts/manual-dbs118.cjs`](../../backend/scripts/manual-dbs118.cjs), toàn bộ 4 bước thành công:
 
