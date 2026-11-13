@@ -288,7 +288,7 @@ locals {
       view   = "timeSeries"
       period = 60
       metrics = [
-        [{ expression = "SEARCH('{\"${local.dash_ns}\",Role} MetricName=\"risk_config_redis_fallback_total\"', 'Sum', 60)", id = "s2" }],
+        [{ expression = "SEARCH('{\"${local.dash_ns}\",Role,Reason} MetricName=\"risk_config_redis_fallback_total\"', 'Sum', 60)", id = "s2" }],
         [{ expression = "SEARCH('{\"${local.dash_ns}\",Role,Rule,Reason} MetricName=\"risk_redis_fallback_total\"', 'Sum', 60)", id = "s3" }],
       ]
       yAxis = { left = { min = 0 } }

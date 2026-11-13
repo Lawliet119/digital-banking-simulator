@@ -137,7 +137,7 @@ Cả M-99-01/02/03 chạy trong Git Bash bằng `env -u DATABASE_URL npm run tes
 | TC-99-01/02/03 | transfer-concurrency.db-spec.ts; manual-test.txt | Đạt 10round đủ50×201, IDs/counts/balance đúng, checkerPASS từng round, cuối H250000 mỗiP50000 |
 | TC-99-04 | red-green.txt | Đột biến bỏ1request làm fail49/50, hoàn đúng hunk rồi suite11/11 xanh |
 | TC-99-05 | load-tests/README.md / BACKLOG / threat modelT6 | Demo1 đầy đủ; BL-156 đã được giải quyết bởi PG thật; T6 chỉ nhận phầnAC5.9 |
-| DoD CI/review/merge | BL-193 | Chưa có run CI/PR/review thật |
+| DoD CI/review/merge | BL-193 | Lúc viết: chưa có run CI/PR/review thật. Cập nhật 2026-11-14 (kiểm bằng `gh`): [PR #85](https://github.com/Lawliet119/digital-banking-simulator/pull/85) đã merge ngày 2026-11-09, 6 job CI xanh; GitHub không có review của người khác tác giả. Dev khác review còn ở BL-193 |
 
 **Manual:** checkout sạch detached tại D:/UET_PROJECT/dbs99-manual-final trên code cuối, dependency junction cùng lockfile. M-99-01 chạy qua Git Bash/PG17 Testcontainers đạt11/11, 10×50/invariants trong transcript. M-99-02/03 chờ cửa sổ dừng Docker sau run đang chạy; người dùng đã cho phép thao tác dừng/bật. [Raw manual](screenshots/DBS-99/manual-test.txt), [mutation](screenshots/DBS-99/red-green.txt).
 

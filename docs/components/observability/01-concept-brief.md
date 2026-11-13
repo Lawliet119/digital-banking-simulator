@@ -40,7 +40,7 @@ Namespace `DBS/Backend`. Tên metric giống tên counter prom-client (`snake_ca
 | `http_requests_total`, `http_5xx_total`, `http_aborted_total` | Count | như trên | như trên |
 | `redis_fallback_total` | Count | `Role` | `RedisMetrics` · api, worker |
 | `rate_limited_total` | Count | `Role`, `Scope` (`ip`/`user`) | `RateLimitMetrics` · api |
-| `risk_config_redis_fallback_total` | Count | `Role` | `RiskMetrics` qua `RuleSetRepository`; có khi service worker chạy (DBS-121) · worker |
+| `risk_config_redis_fallback_total` | Count | `[Role,Reason]` và `[Role]` (một dòng EMF, hai bộ dimension; `Reason` = `error` hoặc `corrupt`; alarm dùng `[Role]`) | `RiskMetrics` qua `RuleSetRepository`; có khi service worker chạy (DBS-121) · worker |
 | `risk_redis_fallback_total` | Count | `Role`, `Rule`, `Reason` | `RiskMetrics`; **chưa có chỗ nào gọi `.redisFallback(`**: chờ consumer chấm điểm nối đủ (BL-204) · worker |
 | `outbox_oldest_unpublished_age_seconds` | Seconds | không | gauge `OutboxAgeGauge`, mỗi lượt ghi · worker |
 

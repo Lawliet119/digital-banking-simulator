@@ -364,7 +364,7 @@ BL-005/017/019/155/156/160 và các hạn chế G1 khác vẫn ngoài phạm vi;
 Người dùng duyệt G4 ngày2026-11-08, chấp nhận bàn giao với M07cloud và M10CI red→green chưa chạy, ảnh03/04 chưa có. Sau fetch đã merge main479e77d (#93 đổi skill tự duyệt gate; #94 cleanup outbox), không xung đột. Giữ nguyên lịch sử gate do người dùng đã duyệt. Chạy lại suite65 và driver trên merge SHA; bằng chứng cũ giữ ở §8 là lịch sử, transcript manual mới ở cùng đường dẫn. Push/PR sau G4; không merge/đổi board. CI GitHub xanh thông thường không đồng nghĩa đã chạy negativecontrol M10.
 Sau đồng bộ: suite65 đạt8/8,0skip; driverM01–06 đạt trên71c96f58cd991bc9afc31651184347dc62b92684 (dòng đầu manual-test.txt). Ảnh01/02 giữ lần chạy dff4013 trước đồng bộ, có SHA hiển thị; không nhận là ảnh của lần mới. G4 người dùng đã duyệt, trạng thái local Implemented; cloud và CI negativecontrol vẫn chưa chạy.
 
-Đã push và mở Ready PR95 sau G4. CI thông thường xem Checks của PR; M10 negativecontrol chưa chạy, cloud chưa chạy; Dev khác review và merge còn chờ. Nhờ người quản lý chuyển board In Review.
+Đã push và mở Ready PR95 sau G4. CI thông thường xem Checks của PR; M10 negativecontrol chưa chạy, cloud chưa chạy; Dev khác review và merge còn chờ. Nhờ người quản lý chuyển board In Review. Cập nhật 2026-11-14 (kiểm bằng `gh`): PR #95 đã merge ngày 2026-11-09, 6 job CI xanh ở head; GitHub không có review của người khác tác giả. M10 và Dev khác review còn ở BL-199.
 
 ## Sau rebase (techlead review PR #95, 2026-11-09)
 

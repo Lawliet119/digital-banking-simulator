@@ -139,7 +139,7 @@ Setup trong Git Bash: từ root chạy `npm --prefix backend ci`, bảo đảm `
 | TC-72-01/02 | export-openapi.spec.ts | Đạt: export JSON; HTTP/schema/JSON lỗi; rename lỗi giữ artifact và dọn temp |
 | TC-72-03 | openapi-export.db-spec.ts | Đạt với CLI thật, AppModule/PG thật, Swagger equality/roles/Bearer/string money |
 | TC-72-04/06 | definition-check.txt và link checker | Đã đối chiếu schema/mã lỗi/module/ADR; link checker sạch |
-| TC-72-05 / quy trình | P2 §6, backlog | Chưa đạt rubric/nộp, CI/review/merge; BL-190/191 |
+| TC-72-05 / quy trình | P2 §6, backlog | Chưa đạt rubric/nộp; BL-190. Cập nhật 2026-11-14 (kiểm bằng `gh`): [PR #83](https://github.com/Lawliet119/digital-banking-simulator/pull/83) đã merge ngày 2026-11-09, 6 job CI xanh, GitHub không có review của người khác tác giả; Dev khác review còn ở BL-191 |
 
 **Manual:** M-72-01/02 đã chạy trên code cuối, cả API snapshot và CLI subprocess thật: artifact 12 paths khớp /docs-json; failure giữ file cũ. Lần driver đầu lỗi cleanup vì kết nối drop nhầm URL quản trị; đã sửa lệnh driver (không sửa code ứng dụng), chạy lại hoàn tất exit0; raw giữ cả lần lỗi. M-72-03 link checker đạt 256files/0broken ở lượt đã lưu. [Raw manual](screenshots/DBS-72/manual-test.txt), [đối chiếu nguồn](screenshots/DBS-72/definition-check.txt).
 
