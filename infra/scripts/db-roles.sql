@@ -6,6 +6,13 @@
 --   dbs_api      the ECS service `api`
 --   dbs_worker   the ECS service `worker` (relay, consumers, cleanup)
 --
+-- On RDS the user that runs this file or `migration:run` is the master user, which is not a real
+-- superuser. `ALTER VIEW ... OWNER TO dbs_migrator` below (and in migration 1793664000000) needs
+-- the right to SET ROLE to dbs_migrator, so before the FIRST migration of a database the master
+-- must hold it: create the role if missing, then `GRANT dbs_migrator TO <master>;` (BL-195,
+-- infra/terraform/README.md "Role chạy migration"). Neither this file nor the migration grants it
+-- to the user that runs them.
+--
 -- The roles are created NOLOGIN. Whoever provisions the database gives them a login and a password
 -- from Secrets Manager (BL-103, DBS-119): `ALTER ROLE dbs_api LOGIN PASSWORD '...'`. The
 -- application must never connect as the owner of the tables.

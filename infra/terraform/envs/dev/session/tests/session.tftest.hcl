@@ -105,6 +105,8 @@ override_data {
       sqs_risk_queue_url         = "https://sqs.ap-southeast-1.amazonaws.com/123456789012/dbs-dev-risk-events"
       sqs_notification_queue_url = "https://sqs.ap-southeast-1.amazonaws.com/123456789012/dbs-dev-notification-events"
       # DBS-145: dashboard đọc tên DLQ từ base.
+      # BL-051: alarm của session gửi vào topic SNS của base.
+      alarm_topic_arn = "arn:aws:sns:ap-southeast-1:123456789012:dbs-dev-alarms"
       sqs_dlq_names = {
         risk         = "dbs-dev-risk-events-dlq"
         notification = "dbs-dev-notification-events-dlq"

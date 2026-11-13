@@ -136,6 +136,7 @@ describe('RSK-01 risk_decisions on PostgreSQL', () => {
       await q(
         `SELECT conname FROM pg_constraint
           WHERE conrelid IN ('risk_decisions'::regclass,'fraud_flags'::regclass,'fraud_rule_hits'::regclass)
+            AND contype <> 't' -- constraint triggers (BL-223) have their own test: risk-invariants.db-spec
           ORDER BY conname`,
       )
     ).map((r: { conname: string }) => r.conname);
@@ -371,6 +372,9 @@ describe('RSK-01 risk_decisions on PostgreSQL', () => {
 
     it('TC-RSK01-07 append-only for the owner: UPDATE, DELETE, TRUNCATE CASCADE hit forbid_mutation; plain TRUNCATE stops at the FK', async () => {
       await insertRuleOnlyDecision(db.runner, transfers[34]);
+      // BL-223: the row has a pending deferred constraint-trigger event, and PostgreSQL refuses TRUNCATE
+      // with 55006 before forbid_mutation runs. Run the check now (it passes) so TRUNCATE reaches the trigger.
+      await q('SET CONSTRAINTS ALL IMMEDIATE');
       for (const sql of [
         'UPDATE risk_decisions SET rule_score = 0',
         'DELETE FROM risk_decisions',
