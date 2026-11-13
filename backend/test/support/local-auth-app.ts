@@ -17,6 +17,7 @@ import {
   RolesGuard,
 } from '../../src/modules/identity';
 import { createDevTokenIssuer, type DevTokenIssuer } from './dev-tokens';
+import { FakeRoleDenialAudit, fakeRoleDenialAuditProvider } from './role-denial-audit.fake';
 import { calls, RolesSampleModule } from './roles-sample.module';
 
 /** Same technique as roles-app.ts: a fake `authConfig.KEY`, global so IdentityModule can inject it. */
@@ -36,6 +37,7 @@ export interface LocalAuthApp {
   server: Parameters<typeof request>[0];
   app: NestExpressApplication;
   calls: typeof calls;
+  denials: FakeRoleDenialAudit;
   issuer: DevTokenIssuer;
   /** The `users.id` the fake IdentityService gives to this `sub` (stable for the whole run). */
   userIdFor(sub: string): string;
@@ -55,6 +57,7 @@ export async function startLocalAuthApp(): Promise<LocalAuthApp> {
   const jwksPath = join(dir, 'jwks.json');
   writeFileSync(jwksPath, JSON.stringify(issuer.jwks));
 
+  const denials = new FakeRoleDenialAudit();
   const userIds = new Map<string, string>();
   const userIdFor = (sub: string): string => {
     let id = userIds.get(sub);
@@ -84,6 +87,7 @@ export async function startLocalAuthApp(): Promise<LocalAuthApp> {
     providers: [
       { provide: APP_GUARD, useClass: JwtAuthGuard },
       { provide: APP_GUARD, useClass: RolesGuard },
+      fakeRoleDenialAuditProvider(denials),
     ],
   })
     .overrideProvider(IdentityService)
@@ -101,6 +105,7 @@ export async function startLocalAuthApp(): Promise<LocalAuthApp> {
     server: app.getHttpServer() as Parameters<typeof request>[0],
     app,
     calls,
+    denials,
     issuer,
     userIdFor,
     async close() {

@@ -8,7 +8,9 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ErrorCode } from '@common/errors/error-code.enum';
+import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
 import type { RequestWithUser } from './jwt-auth.guard';
+import { RoleDenialAudit } from './role-denial-audit';
 import { ROLES, rolesFromGroups, type Role } from './roles';
 import { ROLES_KEY } from './roles.decorator';
 
@@ -37,20 +39,29 @@ function forbidden(): never {
  *   refuses such a list, so this only happens when someone writes the metadata by hand, and
  *   "open to everyone" would be the worst way to fail.
  * - `@Roles` on a `@Public()` route: there is no `request.user`, so 401 (fail closed).
- * - Wrong role: 403 `FORBIDDEN`, handler not run, one `warn` log line (see below).
+ * - Wrong role: 403 `FORBIDDEN`, handler not run, one `warn` log line and one audit `DENIED` row.
  *
- * The log line is the hook for the audit `DENIED` record that DBS-56 will write at this point
- * (FR-AUD-02). It holds the roles because they exist nowhere else — there is no `users.role` —
- * and never the token, the `sub`, the groups, the claims or the URL (a query string can carry
- * anything).
+ * The audit row (BL-132, FR-AUD-02) is written through `RoleDenialAudit`, in its own transaction,
+ * before the 403 is thrown. It fails closed: if the row cannot be written the audit error escapes
+ * and the caller gets 500/503 instead of a 403 with no evidence behind it. Access is still denied
+ * (the handler never ran); only the status code changes. This costs no availability that was not
+ * already gone, because `JwtAuthGuard` has already read PostgreSQL for the same request.
+ *
+ * The `warn` line stays on purpose: it is the operational signal (searchable in CloudWatch with no
+ * database round trip) and the only trace left when the audit write itself fails. Both hold the
+ * roles because they exist nowhere else — there is no `users.role` — and never the token, the
+ * `sub`, the groups, the claims or the URL (a query string can carry anything).
  */
 @Injectable()
 export class RolesGuard implements CanActivate {
   private readonly logger = new Logger(RolesGuard.name);
 
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly audit: RoleDenialAudit,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const required = this.reflector.getAllAndOverride<unknown>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -59,7 +70,7 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<RequestWithUser>();
+    const request = context.switchToHttp().getRequest<RequestWithUser & RequestWithCorrelationId>();
     if (!request.user) {
       throw new HttpException(
         { errorCode: ErrorCode.UNAUTHENTICATED, message: 'Authentication is required' },
@@ -75,16 +86,31 @@ export class RolesGuard implements CanActivate {
 
     // Express types `route` as any. Only the path template is read, never `url`/`originalUrl`.
     const route = request.route as { path?: unknown } | undefined;
+    const routeTemplate = typeof route?.path === 'string' ? route.path : UNKNOWN_ROUTE;
     this.logger.warn(
       {
         userId: request.user.userId,
         method: request.method,
-        route: typeof route?.path === 'string' ? route.path : UNKNOWN_ROUTE,
+        route: routeTemplate,
         requiredRoles: allowed ?? [],
         roles: callerRoles,
       },
       'Request denied: role not allowed',
     );
+    // No fallback id: `correlationIdMiddleware` always sets it, so a missing one is a wiring bug
+    // that must show up as a failure, not as a denial filed under a made-up code.
+    if (!request.correlationId) {
+      throw new Error(
+        'RolesGuard needs request.correlationId (correlationIdMiddleware not applied)',
+      );
+    }
+    await this.audit.recordRoleDenied({
+      userId: request.user.userId,
+      roles: callerRoles,
+      method: request.method,
+      route: routeTemplate,
+      correlationId: request.correlationId,
+    });
     return forbidden();
   }
 

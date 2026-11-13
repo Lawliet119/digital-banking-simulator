@@ -5,6 +5,20 @@
 > **Cập nhật ADR-14 (Accepted, 2026-11-08):** Phương án rules + API AI ở [ADR-14](../../adr/0014-fraud-rules-external-ai.md) ([FRAUD-API-01](../../features/FRAUD-API-01-external-ai-decision.md), [FRAUD-API-02](../../features/FRAUD-API-02-standalone-risk.md)) đã được nhóm chấp nhận để bỏ hướng tự train / ONNX `v3` của ADR-08; 6 luật `R1–R6` (`rule_only`) giữ nguyên làm mặc định.
 >
 > **Đọc trước:** Các mục còn nói `ml_tuned_rules`, `hybrid_onnx`, train model, candidate gate, Redis counter hoặc không tốn token là **lịch sử, không phải triển khai hiện hành**. Hiện có `rule_only` và `rules_with_external_ai`; mọi TRANSFER mới ở mode AI hợp lệ được admission, không lọc trước theo điểm luật. Đặc trưng online đọc SQL, Redis chỉ cache cấu hình. Chưa có đo chất lượng, tải production, hay phê duyệt dữ liệu/egress thật. Chỉ dùng synthetic cho phát triển/test.
+>
+> **Cách đọc bản này (BL-186).** Số mục và tiêu đề được giữ nguyên vì ADR-08 và các feature doc cũ trỏ tới chúng (ví dụ §4.3.b, §4.2, §5.x, §6.1). Phần còn là quy tắc nghiệp vụ (sync guard, sáu luật, cờ, review, bộ dữ liệu, chỉ số đánh giá, guardrails) vẫn dùng được. Phần nào mô tả hướng ADR-08 cũ được đánh dấu **«Lịch sử (ADR-08, đã thay bởi ADR-14)»** ngay dưới tiêu đề hoặc trong ô liên quan:
+>
+> | Mục | Trạng thái |
+> |---|---|
+> | §4.3.b `v1`/`v2`/`v3`, vector 12 đặc trưng, đường huấn luyện | Lịch sử. Hiện hành: bảng «Chế độ hiện hành» ở đầu mục đó |
+> | §4.2 cột «Nguồn dữ liệu» (R1, R5 ghi Redis) | Lịch sử. Hiện R1/R5 đọc SQL aggregate; Redis chỉ cache cấu hình |
+> | §5.4 bộ đếm Redis; §8.4 dòng «Test dự phòng» (tắt Redis) | Lịch sử, giữ để hiểu quyết định cũ |
+> | §5.1 sơ đồ, §5.5 cây code | Đã sửa theo code hiện tại (SQL, `ai/`, không có `ml/`) |
+> | §5.7 dòng Redis và ONNX; §8.3 tuần 5–6 | Đánh dấu lịch sử ngay trong bảng |
+> | §6.3, §6.4, §6.6, §8.6, §9 phần `v2`/`v3` | Đã sửa trỏ ADR-14, phần ADR-08 ghi «lịch sử» |
+> | §7 guardrails và chi phí, §10 câu bảo vệ | Đã viết lại theo ADR-14 |
+>
+> **Hạn chế khi bật API AI.** `rule_only` là mặc định và là đường vận hành độc lập. `rules_with_external_ai` chỉ chạy khi version có khối `ai` hợp lệ **và** qua gate vận hành ([README risk](../../../backend/src/modules/risk/README.md), [RSK-02](../../features/RSK-02-durable-ai-gate.md)): `RISK_AI_EGRESS_APPROVED` mặc định `false`, policy/quota ngày/concurrency do Ops khai báo, không có policy mặc định. Dữ liệu gửi đi là allowlist 11 trường; dữ liệu thật cần phê duyệt riêng ([chính sách dữ liệu AI](04-ai-data-governance.md), trạng thái Proposed). Chưa có benchmark B0/B1/B2 chứng minh API tốt hơn luật; theo ADR-14, thiếu bằng chứng thì giữ AI tắt (no-go là kết quả hợp lệ).
 
 > Tài liệu làm việc nội bộ cho mảng **Fraud** (#4) và người làm bộ dữ liệu (#6).
 > Dựa trên: `docs/BRD.md` (BR-06, BR-11, BR-13, UC-9, UC-10, UC-12, FR-RSK-*, NFR-FRD-*), `docs/03` (mục 9, 10, 15).
@@ -50,8 +64,8 @@ flowchart LR
         G1{ACTIVE?} --> G2{≤ hạn mức lần?} --> G3{≤ hạn mức ngày?}
     end
     subgraph ASYNC[Tầng 2 — Async detection · worker, sau commit]
-        E[TransferCompleted] --> F[Tính đặc trưng<br/>Redis + SQL + snapshot]
-        F --> R[6 luật R1–R6] --> S[Tính điểm] --> D{≥ Trung bình?}
+        E[TransferCompleted] --> F[Tính đặc trưng<br/>SQL + snapshot]
+        F --> R[6 luật R1–R6] --> S[Tính điểm<br/>+ API AI nếu mode và gate cho phép] --> D{≥ Trung bình?}
         D -- Có --> FL[Gắn cờ + giải thích]
     end
     subgraph HUMAN[Tầng 3 — Con người]
@@ -210,11 +224,20 @@ score = Σ trọng số các luật kích hoạt
 | 6 người nhận mới trong 1 giờ | R5 | 40 | MEDIUM |
 | 8 lệnh / 10 phút, toàn người nhận mới | R1 + R5 | 70 | HIGH |
 
-Trọng số và ngưỡng là **điểm xuất phát**, sẽ chỉnh bằng tập tune (mục 6).
+Trọng số và ngưỡng là **điểm xuất phát**, sẽ chỉnh bằng tập tune (mục 6). Ở mode `rules_with_external_ai`, điểm tổng còn cộng `ai.weight` khi API trả kết quả hợp lệ đạt ngưỡng (xem bảng «Chế độ hiện hành» ở 4.3.b); mức rủi ro vẫn theo cùng ngưỡng 40 / 70.
 
 ### 4.3.b Ba chế độ chấm điểm theo phiên bản cấu hình (`v1` → `v2` → `v3`)
 
-Cột `risk_rule_sets.config` là `jsonb` nên bộ chấm điểm (`ScoringService`) hỗ trợ 3 chế độ **không cần đổi schema**. Quyết định và cổng go/no-go nằm ở [ADR-08](../../adr/0008-fraud-detection-architecture.md); mục này là chi tiết kỹ thuật.
+**Chế độ hiện hành (ADR-14).** Cột `risk_rule_sets.config` là `jsonb`; mỗi version bất biến mang một `mode`. Chỉ có hai giá trị được chấp nhận khi tạo version (`POST /v1/admin/risk-config/versions`):
+
+| `mode` | Cách tính điểm | Ghi chú |
+|---|---|---|
+| `rule_only` (seed `v1`, mặc định; thiếu `mode` cũng hiểu là `rule_only`) | `score = Σ trọng số R1–R6`. Không gọi API | Tất định, là baseline và đường vận hành độc lập |
+| `rules_with_external_ai` | `score = Σ trọng số R1–R6 + aiContribution`. `aiContribution = ai.weight` khi câu trả lời `needs_operator_review` hợp lệ và xác suất `p ≥ ai.threshold`, ngược lại 0. AI không trừ điểm hay hủy cờ của luật | Cần khối `ai` hợp lệ (`model`, `rubric`, `threshold`, `weight`, `maxAdmissionDelayMs`, `requestTimeoutMs`) và gate ở phần «Hạn chế khi bật API AI» đầu tài liệu. Khối `ai` hỏng → `CONFIG_INVALID`, vẫn chấm sáu luật; provider lỗi/timeout/429 → giữ điểm luật |
+
+Giá trị `mode` khác (kể cả `ml_tuned_rules`, `hybrid_onnx`) bị API cấu hình từ chối; nếu vẫn đọc ra từ dữ liệu cũ thì `ScoringService` chấm như `rule_only` và tăng metric `risk_unsupported_mode_total`. Khối `ml` chỉ còn nhận `{ "enabled": false }`. Không có pipeline train, file `.onnx` hay `onnxruntime-node` trong repo. Chi tiết: [ADR-14](../../adr/0014-fraud-rules-external-ai.md), [kiến trúc risk](02-architecture.md) §2.2, [RSK-02](../../features/RSK-02-durable-ai-gate.md).
+
+> **Lịch sử (ADR-08, đã thay bởi ADR-14).** Từ đây tới hết mục này (bảng `v1`/`v2`/`v3`, vector 12 đặc trưng, quy ước giải thích `v3`, đường huấn luyện, giao thức đánh giá ba phiên bản) mô tả hướng tự train mô hình ONNX của [ADR-08](../../adr/0008-fraud-detection-architecture.md). Hướng này **không được triển khai và không còn là khuyến nghị**: không có `v2` học tham số tự động, không có `v3`. Giữ lại để ADR-08 và các task cũ còn chỗ tham chiếu; không dùng làm yêu cầu.
 
 | Phiên bản | Chế độ (`mode`) | Cách tính điểm | Trạng thái |
 |---|---|---|---|
@@ -303,7 +326,6 @@ Mọi lần xem chi tiết và review đều ghi nhật ký. Kết luận của 
 sequenceDiagram
     participant Q as SQS risk-events
     participant W as risk (worker)
-    participant R as Redis
     participant DB as PostgreSQL
 
     Q->>W: TransferCompleted (eventId, snapshot)
@@ -311,9 +333,11 @@ sequenceDiagram
     alt Đã xử lý
         W->>Q: Xóa message, kết thúc
     else Chưa
-        W->>R: Cập nhật + đọc bộ đếm R1, R5
-        W->>DB: Truy vấn R2, R4, kiểm tra người nhận mới (R5)
+        W->>DB: Đọc version cấu hình (cache Redis, lỗi thì SQL) và đặc trưng R1, R2, R4, R5 từ v_transfer_facts
         W->>W: Đọc snapshot cho R3, R6 · chạy 6 luật · tính điểm
+        opt Mode rules_with_external_ai hợp lệ và gate cho phép
+            W->>W: Gọi API AI ngoài transaction, có timeout; lỗi thì giữ điểm luật
+        end
         W->>DB: BEGIN
         W->>DB: INSERT processed_events
         W->>DB: INSERT risk_decisions (mọi TRANSFER) ON CONFLICT DO NOTHING
@@ -355,6 +379,8 @@ Schema chính thức của `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, `
 
 ### 5.4 Bộ đếm Redis (R1, R5)
 
+> **Lịch sử (ADR-08, đã thay bởi ADR-14 và các task DBS-109/111).** Mục này mô tả thiết kế bộ đếm Redis ban đầu. Hiện hành: `OnlineFeatureProvider` đọc 5 SELECT từ `v_transfer_facts` theo `occurredAt`, R1/R5 dùng SQL aggregate vì thứ tự giao message không bằng thứ tự commit nên không thể chứng minh coverage của cache; Redis chỉ cache cấu hình luật (`cfg:risk:latest:v2`, `cfg:risk:v{n}`; TTL của key latest là 60 giây). Xem [kiến trúc risk §2.3](02-architecture.md) và [DBS-109](../../features/DBS-109-online-feature-provider.md). Metric `risk_redis_fallback_total` vẫn được khai báo trong code.
+
 | Luật | Key | Lệnh |
 |---|---|---|
 | R1 | `risk:vel:{accountId}` (sorted set, member = `transferId`, score = `occurredAt`) | `ZADD` → `ZCOUNT key (occurredAt−10m) occurredAt` → `EXPIRE key 7200` (dọn phần cũ theo giờ tường, xem bên dưới) |
@@ -377,8 +403,7 @@ backend/src/modules/risk/
 ├── risk-flags.controller.ts     # role api: danh sách cờ, review (UC-10)
 ├── risk-config.controller.ts    # role api: cấu hình luật có phiên bản (UC-12)
 ├── risk-scoring.consumer.ts     # role worker: nhận message, idempotency, transaction ghi cờ
-├── scoring.service.ts           # điều phối chấm điểm (rule_only / ml_tuned_rules / hybrid_onnx)
-├── entities/                    # fraud-flag, fraud-rule-hit, risk-rule-set
+├── scoring.service.ts           # điều phối chấm điểm (rule_only / rules_with_external_ai)
 ├── rules/
 │   ├── rule.ts                  # interface chung
 │   ├── r1-velocity.rule.ts
@@ -387,15 +412,16 @@ backend/src/modules/risk/
 │   ├── r4-round-trip.rule.ts
 │   ├── r5-fan-out.rule.ts
 │   └── r6-drain.rule.ts
-├── ml/
-│   └── onnx-model.scorer.ts     # chỉ khi có v3: nạp backend/models/fraud-model.onnx, kiểm sha256, suy luận + quy kết nhóm R1–R6, fail-safe
+├── ai/                          # ADR-14: adapter OpenAI Decisions, gate quota/egress, chiếu 11 trường
 ├── features/
-│   ├── feature-provider.ts      # interface lấy đặc trưng (cho cả 6 luật và vector liên tục)
-│   ├── online-feature-provider.ts   # Redis + SQL v_transfer_facts (chạy thật)
-│   └── offline-feature-provider.ts  # tính từ dữ liệu CSV trong bộ nhớ (đánh giá)
-├── config/rule-set.repository.ts
-└── index.ts                     # API công khai (chỉ export RiskModule)
+│   ├── feature-provider.ts      # interface lấy đặc trưng cho 6 luật
+│   ├── online-feature-provider.ts   # SQL v_transfer_facts (chạy thật)
+│   └── offline-feature-provider.ts  # tính từ dữ liệu trong bộ nhớ (đánh giá)
+├── config/                      # rule-set.ts, rule-set.repository.ts (Redis cache cấu hình, lỗi thì SQL)
+└── index.ts                     # API công khai
 ```
+
+Cây trên là rút gọn theo code hiện tại; thư mục `ml/` và `onnx-model.scorer.ts` của thiết kế ADR-08 (`v3`) **không tồn tại** và không được thêm theo ADR-14. Danh sách đầy đủ xem `backend/src/modules/risk/`.
 
 **Điểm thiết kế quan trọng nhất: luật là hàm thuần.**
 
@@ -428,11 +454,12 @@ interface RiskRule {
 
 | Bước | Ngân sách |
 |---|---|
-| Redis (1 pipeline cho R1, R5) | ≤ 5 ms |
+| Redis (1 pipeline cho R1, R5) — *lịch sử, hiện R1/R5 đọc SQL (mục 5.4); chưa đo lại ngân sách này* | ≤ 5 ms |
 | SQL (R2, R4, kiểm tra người nhận mới) | ≤ 30 ms |
 | Ghi cờ (1 transaction) | ≤ 15 ms |
-| ONNX suy luận + quy kết nhóm (chỉ `v3`) | ≤ 15 ms |
-| **Tổng xử lý một sự kiện** | **≤ 50 ms** (`v1`, `v2`), **≤ 65 ms** (`v3`) |
+| ONNX suy luận + quy kết nhóm (chỉ `v3`) — *lịch sử, không triển khai* | ≤ 15 ms |
+| **Tổng xử lý một sự kiện** (ngân sách ADR-08, chưa đo trên bản hiện hành) | **≤ 50 ms** (`v1`, `v2`), **≤ 65 ms** (`v3`, lịch sử) |
+| Gọi API AI (chỉ mode `rules_with_external_ai`) | Ngoài ngân sách trên: giới hạn bởi `ai.maxAdmissionDelayMs` và `ai.requestTimeoutMs` của version; chưa đo 120 RPS |
 | Thời gian chờ outbox relay (poll ≤ 1 giây) + SQS | ≤ 2 giây |
 | **Từ giao dịch tới khi có cờ** | **p95 < 5 giây** |
 
@@ -535,7 +562,7 @@ flowchart LR
 | Đóng góp từng luật (ablation) | Tắt lần lượt từng luật, đo Δ precision và Δ recall |
 | Đường precision – recall | Quét ngưỡng gắn cờ từ 20 đến 90 điểm, vẽ đường; đánh dấu điểm đang chọn |
 | Báo nhầm theo loại hard negative | Hard negative nào hay bị gắn cờ nhất → gợi ý cải tiến luật |
-| So sánh các chế độ (`v1`, `v2`, và `v3` nếu có) | Đóng băng tất cả trước khi chạy holdout, chạy một lần, báo cáo đủ; không chọn bản tốt nhất dựa trên holdout |
+| So sánh các chế độ | Hiện hành (ADR-14): B0 chỉ luật, B1 API riêng (chỉ phân tích offline), B2 luật + API trên cùng giao dịch và cùng capture API; xem «Cách kiểm chứng» ở ADR-14. *Lịch sử (ADR-08): so `v1`, `v2`, `v3`.* Đóng băng trước khi chạy holdout, chạy một lần, báo cáo đủ; không chọn bản tốt nhất dựa trên holdout |
 
 ### 6.4 Mục tiêu đánh giá (đã chốt)
 
@@ -549,7 +576,7 @@ Với tỉ lệ gian lận 1% thì cứ 1.000 giao dịch có ~10 vụ gian lậ
 | Recall | **≥ 70%** | Gộp trên 5 kịch bản trong tầm luật: `ATO_DRAIN`, `MULE_FANOUT`, `VELOCITY_BURST`, `BUST_OUT`, `ROUND_TRIP`. Ba kịch bản ngoài tầm (`SLOW_DRIP`, `STRUCTURING`, `FAN_IN`) báo cáo riêng, không tính vào mục tiêu |
 | Tập đo | Holdout, một lần, sau khi đóng băng | Tune chỉ dùng để chỉnh tham số |
 
-Với 1% gian lận, 20 cảnh báo / 1.000 tương ứng precision khoảng 35% nếu recall đạt 70%. Đây là mức nhân viên còn xử lý được, và đạt được bằng luật có giải thích. Mục tiêu tối ưu khi học tham số `v2`: **recall lớn nhất với ràng buộc ≤ 20 cảnh báo / 1.000** (không tối ưu F2).
+Với 1% gian lận, 20 cảnh báo / 1.000 tương ứng precision khoảng 35% nếu recall đạt 70%. Đây là mức nhân viên còn xử lý được, và đạt được bằng luật có giải thích. Khi chọn lại ngưỡng/trọng số trên tập tune (không còn là `v2` học tự động của ADR-08 — *lịch sử*): mục tiêu là **recall lớn nhất với ràng buộc ≤ 20 cảnh báo / 1.000** (không tối ưu F2). Với API AI, ADR-14 còn đòi B2 tăng recall ít nhất 5 điểm phần trăm trên grouped validation (khoảng tin cậy paired bootstrap 95% loại trừ 0) và vẫn trong ngân sách cảnh báo, mới đủ điều kiện bật; chưa có số đo nên AI giữ tắt.
 
 ### 6.5 Hai kiểu chạy đánh giá
 
@@ -563,7 +590,7 @@ Với 1% gian lận, 20 cảnh báo / 1.000 tương ứng precision khoảng 35%
 
 ### 6.6 Khung báo cáo P5
 
-1. **Kiến trúc AI/Data:** hai tầng, luồng dữ liệu, vì sao bắt đầu từ luật (giải thích được, không cần dữ liệu huấn luyện, chi phí thấp), vì sao thêm học tham số (`v2`) và kết quả cổng go/no-go cho mô hình ONNX (`v3`), kể cả khi quyết định không đưa vào.
+1. **Kiến trúc AI/Data:** hai tầng, luồng dữ liệu, vì sao bắt đầu từ luật (giải thích được, không cần dữ liệu huấn luyện, chi phí thấp), vì sao ADR-14 bỏ hướng tự train (`v2` học tham số, ONNX `v3` của ADR-08) và chỉ cho phép API AI bổ sung sau gate, kể cả khi kết luận là no-go.
 2. **Bộ dữ liệu:** cách sinh, kịch bản, hard negative, cách chia tập, các giới hạn.
 3. **Kết quả:** ma trận nhầm lẫn, các chỉ số, recall theo kịch bản, ablation, đường PR.
 4. **Vận hành:** latency, tải DB, so sánh có/không Redis.
@@ -583,17 +610,16 @@ Với 1% gian lận, 20 cảnh báo / 1.000 tương ứng precision khoảng 35%
 | Truy vết quyết định | Mỗi cờ ghi phiên bản luật; mọi review có người, thời điểm, ghi chú, nhật ký |
 | Không lộ dữ liệu cá nhân | Log và Redis chỉ chứa id, số đếm; không ghi số tài khoản đầy đủ hay tên |
 | Kiểm soát thay đổi luật | Cấu hình có phiên bản, đổi phải tạo phiên bản mới, có nhật ký |
-| Công tắc khẩn cấp | Tắt từng luật, hoặc tắt mô hình ML (`ml.enabled = false`), bằng phiên bản cấu hình mới |
+| Công tắc khẩn cấp | Tắt từng luật, hoặc chuyển về `rule_only` (khối `ml` chỉ nhận `enabled: false`), bằng phiên bản cấu hình mới. Cache latest TTL 60 giây nên đây là chuyển có độ trễ, không phải ngắt egress tức thì (ADR-14) |
+| Giới hạn gọi API AI | `RISK_AI_EGRESS_APPROVED=false` mặc định; policy, quota ngày và concurrency ở gate do Ops khai báo; payload chỉ 11 trường allowlist |
 | Theo dõi báo nhầm | Metric cảnh báo / 1.000 giao dịch trên dashboard; alarm khi vượt ngân sách |
 | Không ảnh hưởng chuyển tiền | Async + DLQ; worker chết thì giao dịch vẫn chạy bình thường |
 
-**Chi phí:** không gọi LLM nên **không tốn token**. Chi phí gồm:
-- CPU worker: 1 task nhỏ (đã nằm trong chi phí ECS chung).
-- Truy vấn DB: ~3–4 truy vấn mỗi sự kiện; đo tải phụ lên RDS ở 120 RPS.
-- Redis: vài lệnh mỗi sự kiện; lợi ích đo bằng thí nghiệm bật/tắt.
-- Chỉ với `v3`: gói `onnxruntime-node` (bản 1.30.0 nặng khoảng 301 MB sau giải nén) và file mô hình làm image lớn hơn; mức tăng được đo ở cổng go/no-go.
-
-Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho nhân viên, khi đó mới cần phân tích token. V1 không cần.
+**Chi phí (ADR-14).**
+- Mode `rule_only` (mặc định): không gọi API ngoài nên không tốn token hay phí provider. Chi phí chỉ là CPU worker (đã nằm trong ECS chung) và 5 SELECT feature mỗi TRANSFER tới `v_transfer_facts`; tải phụ lên RDS ở 120 RPS **chưa đo** (kiến trúc risk §2.3 ước tính khoảng 600 SELECT/giây).
+- Mode `rules_with_external_ai`: mỗi TRANSFER được admission đều có thể gọi API, không lọc trước theo điểm luật. Có phí theo token của provider, cộng egress, secret, quota và latency. Retry hoặc hai delivery đồng thời có thể gọi thêm, không hứa exactly-once billing. Giá tham khảo trong ADR-14 ($0,10/1M token input theo trang provider ngày 2026-10-25) cần xác nhận lại; ước tính cost/1.000 TRANSFER phải ghi giả định, không phải hóa đơn thực.
+- `risk_decisions` thêm một dòng cho mọi TRANSFER (≈ 616 B/dòng đo ở RSK-01).
+- Không có chi phí train, `.onnx` hay `onnxruntime-node`: các mục này thuộc hướng ADR-08 đã bị thay.
 
 ---
 
@@ -622,6 +648,8 @@ Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho n
 
 ### 8.3 Lộ trình theo tuần
 
+> **Lịch sử (ADR-08).** Lộ trình dưới đây là kế hoạch ban đầu. Hai dòng tuần 5 và 6 nhắc spike ONNX, cổng go/no-go và `v3` đã bị ADR-14 thay: không còn spike/huấn luyện ONNX; thay vào đó là các gate bật API AI của ADR-14. Chưa dòng nào trong bảng này là cam kết lịch hiện hành.
+
 | Tuần | #4 làm | #6 làm | ✅ Xong khi |
 |---|---|---|---|
 | **1** | Chốt 6 luật, trọng số ban đầu; chốt event contract với #3 | Thiết kế mô hình hành vi bình thường | Bảng luật + contract được cả nhóm đồng ý |
@@ -642,7 +670,7 @@ Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho n
 | Unit test tính điểm | Bảng ví dụ ở mục 4.3 | CI |
 | Integration test | Gửi sự kiện vào ElasticMQ → consumer → kiểm tra cờ trong Postgres (Testcontainers) | CI |
 | Test idempotency | Gửi cùng sự kiện 3 lần → 1 cờ (AC-9.2) | CI |
-| Test dự phòng | Tắt Redis → kết quả luật R1, R5 không đổi | CI |
+| Test dự phòng *(lịch sử, theo bộ đếm Redis của mục 5.4; hiện R1/R5 đọc SQL)* | Tắt Redis → kết quả luật R1, R5 không đổi | CI |
 | Test so khớp | `OnlineFeatureProvider` và `OfflineFeatureProvider` cho cùng đặc trưng trên cùng dữ liệu | CI |
 | Đánh giá offline | Script tính chỉ số trên tập tune | Thủ công, mỗi lần chỉnh |
 
@@ -665,8 +693,9 @@ Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho n
 | Generator trễ | Tuần 4 chưa có tập tune | #4 tự làm bộ dữ liệu nhỏ thủ công để test luật (không dùng cho đánh giá cuối) |
 | Truy vấn luật chậm | p95 xử lý sự kiện > 50 ms | Kiểm tra index; chuyển thêm đặc trưng sang Redis |
 | Event thiếu trường | Không có `sameOwner` | Tạm bỏ ngoại lệ, ghi rõ trong báo cáo; đề xuất bổ sung sớm ở tuần 1 |
-| Gói ONNX không chạy trên image hiện tại hoặc quá nặng | Spike tuần 5 không qua | Dừng ở `v2`; ghi lý do vào P5. Đổi base image khỏi `node:24-alpine` là thay đổi ADR-13, cần nhóm duyệt |
-| Mô hình quá khớp, hoặc chọn phiên bản dựa trên holdout | Recall tune rất cao, holdout thấp | Cross-validation theo khách; đóng băng cả ba phiên bản trước holdout; không dùng `scenario` làm đặc trưng |
+| *Lịch sử (ADR-08, đã thay):* gói ONNX không chạy trên image hoặc quá nặng | Spike tuần 5 không qua | Không còn áp dụng: ADR-14 bỏ hướng ONNX. Thay bằng rủi ro API AI ở dòng dưới |
+| API AI không chứng minh được lợi ích, vượt chi phí, hoặc chưa được phép gửi dữ liệu | Không đạt gate ADR-14, thiếu credential/quota/phê duyệt egress | Giữ `rule_only`; ghi «chưa kiểm chứng» hoặc no-go trong P5, không hạ gate |
+| Chọn cấu hình dựa trên holdout, hoặc tune quá khớp | Recall tune rất cao, holdout thấp | Tách khách cho tune/validation; đóng băng mọi phiên bản trước holdout, chạy holdout một lần; không dùng `scenario` làm đặc trưng |
 
 ---
 
@@ -675,23 +704,23 @@ Nếu sau này thêm LLM để viết lời giải thích tự nhiên hơn cho n
 | Giới hạn hiện tại | Hướng phát triển |
 |---|---|
 | Chỉ chấm phía người gửi | Luật fan-in phía người nhận (nhiều người chuyển vào một tài khoản) |
-| `v1` và `v2` không bắt được rút dần, chia nhỏ dưới ngưỡng | Luật tổng tiền theo cửa sổ dài (24h, 7 ngày); hoặc mô hình `v3` nếu qua cổng go/no-go (chỉ đưa vào khi đo được lợi ích) |
+| Sáu luật hiện tại không bắt được rút dần, chia nhỏ dưới ngưỡng | Luật tổng tiền theo cửa sổ dài (24h, 7 ngày); hoặc tín hiệu API AI bổ sung nếu qua gate ADR-14 (chỉ bật khi đo được lợi ích; trước đây ADR-08 đề xuất mô hình `v3`, đã bị thay) |
 | Không có dữ liệu thiết bị, IP, vị trí | Giả lập header `X-Device-Id`, thêm luật "thiết bị mới + chuyển lớn" |
 | Phát hiện sau khi tiền đã đi | Giữ tiền chờ duyệt với giao dịch điểm `HIGH` |
-| `v2` học tham số trên dữ liệu tổng hợp, không phải nhãn thật | Dùng nhãn review của nhân viên để học lại tham số hoặc thêm mô hình anomaly; so sánh trên cùng holdout |
+| Ngưỡng/trọng số chọn trên dữ liệu tổng hợp, không phải nhãn thật (ADR-08 gọi là `v2`, không triển khai tự động) | Dùng nhãn review của nhân viên để chọn lại tham số (qua version cấu hình mới); so sánh trên cùng holdout. Thêm mô hình tự train cần ADR mới |
 | Dữ liệu tổng hợp | Thử trên bộ dữ liệu công khai (ví dụ PaySim — kiểm tra giấy phép trước) |
 
 ---
 
 ## 10. Trả lời câu bảo vệ 12: "AI: chất lượng, an toàn, chi phí?"
 
-> **Chất lượng:** chúng em đánh giá trên tập holdout ~30.000 giao dịch do thành viên #6 sinh độc lập, chưa từng thấy nhãn khi chỉnh luật và huấn luyện mô hình. Chúng em đóng băng các phiên bản trước khi chạy holdout rồi báo cáo tất cả: (`v1`) 6 luật ngưỡng cố định, (`v2`) 6 luật học tham số từ dữ liệu, và (`v3`) kết hợp thêm mô hình LightGBM/XGBoost nếu qua cổng đánh giá khả thi. Trên các kịch bản mục tiêu, recall đạt X%, precision Y%, Z cảnh báo trên 1.000 giao dịch; chúng em nêu rõ kịch bản mà luật tĩnh bỏ sót (`STRUCTURING`, `SLOW_DRIP`) và kết quả của `v3` trên đó (hoặc lý do không đưa `v3` vào), cùng giới hạn thiết kế với `FAN_IN`.
+> **Chất lượng:** chúng em đánh giá trên tập holdout ~30.000 giao dịch do thành viên #6 sinh độc lập, chưa từng thấy nhãn khi chỉnh luật. Chúng em đóng băng mọi cấu hình trước khi chạy holdout, chạy một lần rồi báo cáo đủ: B0 (6 luật `R1–R6`, `rule_only`) và, nếu đủ điều kiện dữ liệu và credential, B2 (luật + API AI bổ sung theo ADR-14). Chúng em không tự train mô hình. Trên các kịch bản mục tiêu, recall đạt X%, precision Y%, Z cảnh báo trên 1.000 giao dịch; chúng em nêu rõ kịch bản mà luật tĩnh bỏ sót (`STRUCTURING`, `SLOW_DRIP`), kết quả B2 trên đó hoặc lý do chưa kiểm chứng/no-go, cùng giới hạn thiết kế với `FAN_IN`.
 >
-> **An toàn:** hệ thống không bao giờ tự chặn hay tự khóa — chỉ gắn cờ có giải thích tiếng Việt theo 6 nhóm rủi ro `R1–R6`, nhân viên quyết định cuối cùng. Khách không thấy cờ (AC-10.2). Mỗi cờ ghi phiên bản cấu hình `rule_set_version`, mỗi quyết định có nhật ký. Nếu dùng mô hình ONNX thì có kiểm `sha256`, fail-safe tự rơi về 6 luật và công tắc tắt khẩn cấp; toàn bộ chạy bất đồng bộ nên không bao giờ ảnh hưởng chuyển tiền.
+> **An toàn:** hệ thống không bao giờ tự chặn hay tự khóa — chỉ gắn cờ có giải thích tiếng Việt theo 6 nhóm rủi ro `R1–R6`, nhân viên quyết định cuối cùng. Khách không thấy cờ (AC-10.2). Mỗi cờ ghi phiên bản cấu hình `rule_set_version`, mỗi quyết định có nhật ký. Nếu bật API AI: gọi ở worker sau commit, ngoài transaction; chỉ gửi 11 trường allowlist, không gửi ID hay văn bản tự do; lỗi hoặc timeout thì giữ điểm sáu luật; egress mặc định tắt và phải được Ops phê duyệt. Toàn bộ chạy bất đồng bộ nên không ảnh hưởng chuyển tiền.
 >
-> **Chi phí:** không gọi LLM nên không tốn token; nếu có `v3` thì mô hình chạy in-process trong worker (không dựng thêm container Python riêng, tuân thủ ADR-13), kèm mức tăng kích thước image và độ trễ suy luận đã đo. Chi phí chỉ gồm một task worker và 3–4 truy vấn mỗi giao dịch; bộ đếm Redis giảm tải RDS khoảng N% ở 120 RPS (số liệu đo được).
+> **Chi phí:** `rule_only` không gọi API nên không tốn token. Nếu bật `rules_with_external_ai` thì có phí theo token của provider, tính cho mọi TRANSFER được admission và có thể bị gọi thừa khi retry/đua; chi phí ước tính phải ghi giả định. Không có chi phí train hay lưu mô hình. Cả hai mode đều tốn 5 SELECT mỗi TRANSFER, tải RDS ở 120 RPS chưa đo.
 
-Các chữ X, Y, Z, N điền từ kết quả tuần 7.
+Các chữ X, Y, Z điền từ kết quả tuần 7, nếu có đo thật.
 
 ---
 

@@ -1,6 +1,6 @@
 # DBS-129 / DBS-130 · API fraud dành cho operator
 
-> Trạng thái: đã triển khai và kiểm tra cục bộ; chờ CI, Dev review và merge. Vai: #4 Fraud.
+> Trạng thái: đã triển khai và kiểm tra cục bộ; đã merge vào `main` trong [PR #129](https://github.com/Lawliet119/digital-banking-simulator/pull/129) (2026-11-10, CI 6 job xanh); chưa có review GitHub của người khác tác giả. Vai: #4 Fraud. Trạng thái PR kiểm 2026-11-14.
 
 ## Phạm vi và thiết kế
 
@@ -34,4 +34,4 @@ Lệnh từ `backend/`: `npm run lint:check`, `npm run typecheck`, `npm test -- 
 
 ## Giới hạn
 
-Chưa có CI hay Dev review độc lập trên PR. Kết quả synthetic không chứng minh chất lượng AI. Việc triển khai, egress và sử dụng dữ liệu thật vẫn cần quyền của owner dữ liệu và Ops; mặc định vẫn `rule_only`.
+PR #129 đã có CI xanh và đã merge, nhưng chưa có Dev review độc lập trên PR. Kết quả synthetic không chứng minh chất lượng AI. Việc triển khai, egress và sử dụng dữ liệu thật vẫn cần quyền của owner dữ liệu và Ops; mặc định vẫn `rule_only`.
