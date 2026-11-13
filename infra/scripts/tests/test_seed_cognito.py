@@ -16,11 +16,18 @@ import unittest
 HERE = pathlib.Path(__file__).resolve().parent
 SCRIPT = HERE.parent / "seed-cognito.sh"
 FAKE_AWS = HERE / "fake_aws.py"
-USERS = {  # nhóm -> (username, email)
+USERS = {  # khóa trong secret -> email (BL-252: thêm ba khách demo)
     "operator": "operator.demo@dbs.invalid",
     "auditor": "auditor.demo@dbs.invalid",
     "admin": "admin.demo@dbs.invalid",
+    "customer1": "customer1.demo@dbs.invalid",
+    "customer2": "customer2.demo@dbs.invalid",
+    "customer3": "customer3.demo@dbs.invalid",
 }
+
+
+def group_of(name):
+    return "customer" if name.startswith("customer") else name
 POOL = "ap-southeast-1_ABCDEFGHI"
 
 
@@ -112,7 +119,7 @@ class SeedCognito(unittest.TestCase):
         self.assertEqual(set(st), set(USERS.values()))
         for group, email in USERS.items():
             u = st[email]
-            self.assertEqual(u["groups"], [group])
+            self.assertEqual(u["groups"], [group_of(group)])
             self.assertEqual(u["status"], "CONFIRMED")
             self.assertTrue(u["verified"])
             self.assertEqual(u["message_action"], "SUPPRESS")
@@ -125,7 +132,7 @@ class SeedCognito(unittest.TestCase):
         p = self.e.run()
         self.assertEqual(p.returncode, 0, p.stderr)
         pws = self.e.passwords()
-        self.assertEqual(len(set(pws)), 3)
+        self.assertEqual(len(set(pws)), 6)
         for pw in pws:
             self.assertGreaterEqual(len(pw), 24)
             self.assertIsNone(re.search(r"\s", pw))
@@ -167,7 +174,7 @@ class SeedCognito(unittest.TestCase):
         p = self.e.run(fail_on="admin-set-user-password:2")
         self.assertNotEqual(p.returncode, 0)
         stored = self.e.secret()
-        self.assertEqual(set(stored["users"]), set(USERS))  # secret đã đủ ba mật khẩu trước khi tạo user
+        self.assertEqual(set(stored["users"]), set(USERS))  # secret đã đủ sáu mật khẩu trước khi tạo user
         p = self.e.run()
         self.assertEqual(p.returncode, 0, p.stderr)
         for group, email in USERS.items():
@@ -190,7 +197,7 @@ class SeedCognito(unittest.TestCase):
 
     def test_rotate_failure_then_plain_rerun_signs_out_remaining(self):
         self.assertEqual(self.e.run().returncode, 0)
-        p = self.e.run("--rotate", fail_on="admin-set-user-password:5")  # lần gọi thứ 2 của lần rotate
+        p = self.e.run("--rotate", fail_on="admin-set-user-password:8")  # lần gọi thứ 2 của lần rotate (lần đầu có 6)
         self.assertNotEqual(p.returncode, 0)
         self.assertEqual(self.e.run().returncode, 0)
         for group, email in USERS.items():
@@ -223,6 +230,28 @@ class SeedCognito(unittest.TestCase):
         self.assertEqual(u["groups"], ["operator"])
         self.assertTrue(u["verified"])
         self.assertEqual(u["password"], self.e.secret()["users"]["operator"]["password"])
+
+    # TC-252-03: secret có từ DBS-54 (chỉ ba nhân viên) được bổ sung ba khách, mật khẩu nhân viên giữ nguyên
+    def test_old_three_user_secret_gains_customers_without_changing_staff(self):
+        self.assertEqual(self.e.run().returncode, 0)
+        full = self.e.secret()
+        old = {k: full["users"][k] for k in ("operator", "auditor", "admin")}
+        sf = self.e.state_json()
+        sf["secret"]["value"] = json.dumps({"users": old})
+        for n in (1, 2, 3):
+            sf["users"].pop(f"customer{n}.demo@dbs.invalid")
+        (self.e.state / "state.json").write_text(json.dumps(sf))
+        p = self.e.run()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        now = self.e.secret()["users"]
+        for k, v in old.items():
+            self.assertEqual(now[k], v)
+        self.assertEqual(set(now), set(USERS))
+        for n in (1, 2, 3):
+            u = self.e.state_json()["users"][f"customer{n}.demo@dbs.invalid"]
+            self.assertEqual(u["groups"], ["customer"])
+            self.assertEqual(u["password"], now[f"customer{n}"]["password"])
+        self.assertNotIn("admin-user-global-sign-out", self.e.ops()[-30:])
 
     # TC-54-13
     def test_dry_run_calls_nothing(self):

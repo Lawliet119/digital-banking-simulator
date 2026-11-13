@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-# DBS-139: in access token Cognito (ra stdout, đúng một dòng) của tài khoản nhân viên demo.
+# DBS-139: in access token Cognito (ra stdout, đúng một dòng) của tài khoản demo: nhân viên hoặc khách hàng (BL-252).
 #
-# Dùng:  COGNITO_CLIENT_ID=<id> AWS_PROFILE=dbs-admin bash infra/scripts/demo-token.sh --role operator|auditor|admin
+# Dùng:  COGNITO_CLIENT_ID=<id> AWS_PROFILE=dbs-admin bash infra/scripts/demo-token.sh --role operator|auditor|admin|customer1|customer2|customer3
 #   COGNITO_CLIENT_ID  mặc định lấy từ: terraform -chdir=infra/terraform/envs/dev/base output -raw cognito_client_id
 #   SECRET_NAME        mặc định dbs/dev/demo-accounts (nguồn mật khẩu, do seed-cognito.sh ghi, DBS-54)
 #
-# Token sống 15 phút (DBS-54): lấy SAU khi hệ thống đã lên. Customer không có ở đây (tài khoản khách hàng demo
-# trên cloud chưa có script, xem BACKLOG). Mật khẩu chỉ đi qua stdin (file:///dev/stdin), không bao giờ trên argv,
+# Token sống 15 phút (DBS-54): lấy SAU khi hệ thống đã lên. customer1..3 là ba khách của seed dữ liệu
+# (Nguyễn Minh Anh, Trần Thu Hà, Nguyễn Văn Bình) do seed-cognito.sh tạo; `--role customer` (không số) bị từ chối.
+# Nạp cho `npm run seed -- --auth cloud` qua biến môi trường, không qua argv:
+#   export DBS_OPERATOR_TOKEN=$(bash infra/scripts/demo-token.sh --role operator)   # tương tự DBS_CUSTOMER_{1,2,3}_TOKEN
+# Mật khẩu chỉ đi qua stdin (file:///dev/stdin), không bao giờ trên argv,
 # không vào môi trường tiến trình con, không ghi tệp; không dùng set -x hay --debug.
 # Thoát: 0 in token; 1 chưa seed, Cognito từ chối hoặc trả thử thách; 2 dùng sai.
 set -euo pipefail
@@ -15,11 +18,11 @@ REGION="ap-southeast-1"
 SECRET_NAME="${SECRET_NAME:-dbs/dev/demo-accounts}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-usage() { echo "Dùng: demo-token.sh --role operator|auditor|admin" >&2; exit 2; }
+usage() { echo "Dùng: demo-token.sh --role operator|auditor|admin|customer1|customer2|customer3" >&2; exit 2; }
 
 [ "$#" -eq 2 ] && [ "$1" = "--role" ] || usage
 ROLE="$2"
-case "$ROLE" in operator | auditor | admin) ;; *) usage ;; esac
+case "$ROLE" in operator | auditor | admin | customer1 | customer2 | customer3) ;; *) usage ;; esac
 
 CLIENT_ID="${COGNITO_CLIENT_ID:-}"
 if [ -z "$CLIENT_ID" ] && command -v terraform >/dev/null 2>&1; then

@@ -35,16 +35,16 @@ Theo bảng ở README (dựng từ trạng thái trống). Bật tối đa 90 p
 - [ ] `https://<alb>/health/ready` = 200, thân có `redis: up` (hoặc `degraded` nếu Valkey chậm: vẫn 200; PostgreSQL lỗi mới 503).
 - [ ] Log api không có `Application startup failed`: `aws logs tail /dbs/dev/api --since 10m`.
 - [ ] Worker: `aws logs tail /dbs/dev/worker --since 10m` không có lỗi; hàng đợi `dbs-dev-risk-events-dlq` và `dbs-dev-notification-events-dlq` có 0 message.
-- [ ] Bất biến sổ cái: chưa chạy được trên cloud (RDS riêng tư, checker cần `ts-node`: BL-128). Dùng kết quả `check:invariants` của lần chạy local gần nhất; không đánh dấu ô này là đạt.
+- [ ] Bất biến sổ cái: CLI đã biên dịch vào image (`node dist/scripts/invariants/invariants.js`, chạy bằng ECS one-off task theo `backend/README.md` §9, BL-128) nhưng **chưa có lần chạy thật trên RDS dev**. Cho đến khi có, dùng kết quả `check:invariants` của lần chạy local gần nhất; không đánh dấu ô này là đạt.
 
 ## 4. Seed
 
-- [ ] Tài khoản nhân viên (operator, auditor, admin) có trong Cognito: `bash infra/scripts/seed-cognito.sh --dry-run` rồi (khi chưa có) `bash infra/scripts/seed-cognito.sh`.
-- [ ] Dữ liệu demo qua API: `cd backend && npm run seed -- --auth cloud --url https://<alb>`, **token chỉ qua biến môi trường** `DBS_OPERATOR_TOKEN`, `DBS_CUSTOMER_1_TOKEN`, `DBS_CUSTOMER_2_TOKEN`, `DBS_CUSTOMER_3_TOKEN` (không dùng cờ `--*-token`: lộ trên `ps`). Hai giới hạn đã biết: chứng chỉ ALB tự ký (CN `dbs-dev.local`) làm Node từ chối TLS, và chưa có script tạo ba tài khoản khách hàng demo (xem BACKLOG). Việc dựng từ DB trống nên không dính BL-213.
+- [ ] Tài khoản demo (nhân viên operator, auditor, admin và ba khách customer1..3) có trong Cognito: `bash infra/scripts/seed-cognito.sh --dry-run` rồi (khi chưa có) `bash infra/scripts/seed-cognito.sh`.
+- [ ] Dữ liệu demo qua API: `cd backend && npm run seed -- --auth cloud --url https://<alb>`, **token chỉ qua biến môi trường** `DBS_OPERATOR_TOKEN`, `DBS_CUSTOMER_1_TOKEN`, `DBS_CUSTOMER_2_TOKEN`, `DBS_CUSTOMER_3_TOKEN` (không dùng cờ `--*-token`: lộ trên `ps`). Giới hạn còn lại: chứng chỉ ALB tự ký (CN `dbs-dev.local`) làm Node từ chối TLS (BL-252 (1)). Ba khách customer1..3 do `seed-cognito.sh` tạo. Việc dựng từ DB trống nên không dính BL-213.
 
 ## 5. Token demo
 
-- [ ] Lấy **sau** khi hệ thống đã lên (token sống 15 phút): `export DBS_OPERATOR_TOKEN=$(bash infra/scripts/demo-token.sh --role operator)`; tương tự `auditor`, `admin`. Không dán token vào chat, ghi chú hay commit.
+- [ ] Lấy **sau** khi hệ thống đã lên (token sống 15 phút): `export DBS_OPERATOR_TOKEN=$(bash infra/scripts/demo-token.sh --role operator)`; tương tự `DBS_CUSTOMER_1_TOKEN` với `--role customer1`, `customer2`, `customer3` (và `auditor`, `admin` khi cần). Không dán token vào chat, ghi chú hay commit.
 - [ ] Kiểm nhanh một token: gọi một route của đúng vai bằng `curl -sk -H "Authorization: Bearer $DBS_OPERATOR_TOKEN" https://<alb>/<route>` (bảng route: docs/03 §7) trả 2xx, và route của vai khác trả 403. Chưa chạy trên cloud (không có image, BL-247).
 - [ ] Token khách hàng: đăng nhập bằng tài khoản khách hàng đã tạo (tự đăng ký của pool); chưa có script (BACKLOG).
 
