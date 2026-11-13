@@ -1,16 +1,12 @@
 // From backend/: DATABASE_URL=<postgres server> npx ts-node -r tsconfig-paths/register test/manual/rule-set-repository.manual.ts
 // Needs `docker compose up -d` (Valkey on :6379, container dbs-valkey-1) and a PostgreSQL server for the throwaway DB.
-// It uses the real keys cfg:risk:latest and cfg:risk:v{n} of the local Valkey and deletes them at the end.
+// It uses the real key cfg:risk:latest:v2 of the local Valkey and deletes it at the end (BL-208: no content keys).
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { setTimeout as wait } from 'node:timers/promises';
 import { DataSource } from 'typeorm';
 import { RedisClient, RedisMetrics } from '@libs/redis';
-import {
-  LATEST_KEY,
-  RuleSetRepository,
-  versionKey,
-} from '@modules/risk/config/rule-set.repository';
+import { LATEST_KEY, RuleSetRepository } from '@modules/risk/config/rule-set.repository';
 import { RiskMetrics } from '@modules/risk/risk.metrics';
 import { createTempDatabase, migrate } from '../support/temp-database';
 
@@ -42,8 +38,7 @@ async function main(): Promise<void> {
       new RedisMetrics(),
     );
     while (!client.isReady) await wait(20);
-    for (const key of [LATEST_KEY, versionKey(1), versionKey(2), versionKey(3)])
-      await client.del(key);
+    await client.del(LATEST_KEY);
     const metrics = new RiskMetrics();
     const fresh = () => new RuleSetRepository({ redis: client!, db: source!, metrics });
     const add = (n: number, r1Weight: number) =>
@@ -60,9 +55,8 @@ async function main(): Promise<void> {
     const first = await fresh().current();
     assert.equal(first.version, 1);
     assert.equal((await client.readExpiringVersion(LATEST_KEY))?.version, 1);
-    assert.ok(await client.get(versionKey(1)));
     console.log(
-      `M-110-01 PASS: current version ${first.version} (R1 weight ${first.rules.R1.weight}); ${LATEST_KEY} and ${versionKey(1)} stored`,
+      `M-110-01 PASS: current version ${first.version} (R1 weight ${first.rules.R1.weight}); ${LATEST_KEY} stored`,
     );
 
     // M-110-02: version 2 appears; the cache keeps v1 until latest expires.
@@ -100,8 +94,7 @@ async function main(): Promise<void> {
           await wait(250);
         }
       }
-      for (const key of [LATEST_KEY, versionKey(1), versionKey(2), versionKey(3)])
-        await client.del(key).catch(() => undefined);
+      await client.del(LATEST_KEY).catch(() => undefined);
       client.onModuleDestroy();
     }
     await source?.destroy();
