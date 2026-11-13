@@ -84,6 +84,38 @@ describe('DBS-106 R5 fan-out', () => {
     expect(rule.evaluate(event, features, { ...params, enabled: false })).toBeNull();
   });
 
+  // BL-207(a): a switched-off rule judges only its configuration, never the provider's data.
+  it.each([undefined, null, '5', -1, 1.5, NaN, Infinity])(
+    'returns null when disabled even with a bad recipient count %s',
+    newRecipients1h => {
+      expect(
+        rule.evaluate(event, { ...features, newRecipients1h } as unknown as Features, {
+          ...params,
+          enabled: false,
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it('returns null when disabled even with a malformed sameOwner snapshot', () => {
+    expect(
+      rule.evaluate({ ...event, sameOwner: 'x' } as unknown as TransferEvent, features, {
+        ...params,
+        enabled: false,
+      }),
+    ).toBeNull();
+  });
+
+  it('still rejects a bad configuration when disabled', () => {
+    expect(() =>
+      rule.evaluate(event, features, {
+        ...params,
+        enabled: false,
+        thresholds: { ...params.thresholds, minNewRecipients: 0 },
+      }),
+    ).toThrow('Invalid R5 configuration');
+  });
+
   it.each([undefined, null, 'false', 0, 1])('rejects malformed sameOwner %s', sameOwner => {
     expect(() =>
       rule.evaluate({ ...event, sameOwner } as unknown as TransferEvent, features, params),

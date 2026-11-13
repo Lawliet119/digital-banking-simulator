@@ -141,3 +141,8 @@ output "alarm_topic_arn" {
   description = "Topic SNS nhận mọi alarm; alarm của session (session/alarms.tf) gửi vào đây."
   value       = aws_sns_topic.alarms.arn
 }
+
+output "cognito_seeder_role_arn" {
+  description = "BL-101: role de chay seed-cognito.sh (aws sts assume-role, hoac profile role_arn)."
+  value       = aws_iam_role.cognito_seeder.arn
+}

@@ -531,8 +531,9 @@ describe('DBS-65 full HTTP/JWT money flow on real PostgreSQL and Valkey', () => 
       403,
       'FORBIDDEN',
     );
-    // BL-132: RolesGuard currently logs refusals, without an audit_log DENIED row.
-    expect(await snapshot()).toEqual(before);
+    // BL-132: every refusal also leaves one DENIED row (2 deposits by a customer and an auditor,
+    // 1 transfer by an operator); no transfer, ledger line, key, event or balance changed.
+    expect(await snapshot()).toEqual({ ...before, audits: before.audits + 3 });
     await balances(a, b, ['700000', '300000']);
   });
 

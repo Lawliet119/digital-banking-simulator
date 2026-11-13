@@ -152,16 +152,92 @@ run "queue_policy_denies_api" {
 
   assert {
     condition = alltrue([for k, p in aws_sqs_queue_policy.deny_api : (
-      length(jsondecode(p.policy).Statement) == 1 &&
-      jsondecode(p.policy).Statement[0].Effect == "Deny" &&
-      jsondecode(p.policy).Statement[0].Principal == "*" &&
-      jsondecode(p.policy).Statement[0].Action == "sqs:*" &&
-      jsondecode(p.policy).Statement[0].Resource == local.sqs_all_queues[k].arn &&
-      jsondecode(p.policy).Statement[0].Condition.ArnLike["aws:PrincipalArn"] == "arn:aws:iam::123456789012:role/dbs-dev-api-task" &&
+      length(jsondecode(p.policy).Statement) == 2 &&
+      one([for st in jsondecode(p.policy).Statement : st.Effect if st.Sid == "DenyApiTaskRole"]) == "Deny" &&
+      one([for st in jsondecode(p.policy).Statement : st.Principal if st.Sid == "DenyApiTaskRole"]) == "*" &&
+      one([for st in jsondecode(p.policy).Statement : st.Action if st.Sid == "DenyApiTaskRole"]) == "sqs:*" &&
+      one([for st in jsondecode(p.policy).Statement : st.Resource if st.Sid == "DenyApiTaskRole"]) == local.sqs_all_queues[k].arn &&
+      one([for st in jsondecode(p.policy).Statement : st.Condition.ArnLike["aws:PrincipalArn"] if st.Sid == "DenyApiTaskRole"]) == "arn:aws:iam::123456789012:role/dbs-dev-api-task" &&
       p.queue_url == local.sqs_all_queues[k].id
     )])
     error_message = "each queue policy must deny sqs:* to the dbs-dev-api-task role of this account"
   }
+}
+
+# TC-241-01: danh sách cho phép (BL-241): Deny thao tác message với mọi principal ngoài {worker, ops};
+# mặc định ops là mọi IAM user của tài khoản (không khóa người sự cố)
+run "queue_policy_allow_list_default" {
+  command = apply
+
+  assert {
+    condition = alltrue([for k, p in aws_sqs_queue_policy.deny_api : (
+      one([for st in jsondecode(p.policy).Statement : st.Effect if st.Sid == "DenyMessageActionsExceptAllowList"]) == "Deny" &&
+      one([for st in jsondecode(p.policy).Statement : st.Principal if st.Sid == "DenyMessageActionsExceptAllowList"]) == "*" &&
+      one([for st in jsondecode(p.policy).Statement : st.Resource if st.Sid == "DenyMessageActionsExceptAllowList"]) == local.sqs_all_queues[k].arn
+    )])
+    error_message = "every queue must carry a Deny statement for everyone, scoped to that queue"
+  }
+
+  assert {
+    condition = alltrue([for k, p in aws_sqs_queue_policy.deny_api : (
+      toset(one([for st in jsondecode(p.policy).Statement : st.Action if st.Sid == "DenyMessageActionsExceptAllowList"])) ==
+      toset(["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:PurgeQueue", "sqs:StartMessageMoveTask"])
+    )])
+    error_message = "allow-list deny must cover exactly the message-level actions"
+  }
+
+  assert {
+    condition = alltrue([for k, p in aws_sqs_queue_policy.deny_api : (
+      !strcontains(p.policy, "sqs:SetQueueAttributes") &&
+      !strcontains(p.policy, "sqs:GetQueueAttributes") &&
+      !strcontains(p.policy, "sqs:DeleteQueue") &&
+      !strcontains(jsonencode(one([for st in jsondecode(p.policy).Statement : st.Action if st.Sid == "DenyMessageActionsExceptAllowList"])), "sqs:*")
+    )])
+    error_message = "allow-list deny must not block queue administration (Terraform must still edit the policy)"
+  }
+
+  assert {
+    condition = alltrue([for k, p in aws_sqs_queue_policy.deny_api : (
+      keys(one([for st in jsondecode(p.policy).Statement : st.Condition if st.Sid == "DenyMessageActionsExceptAllowList"])) == ["ArnNotLike"] &&
+      toset(one([for st in jsondecode(p.policy).Statement : st.Condition.ArnNotLike["aws:PrincipalArn"] if st.Sid == "DenyMessageActionsExceptAllowList"])) ==
+      toset(["arn:aws:iam::123456789012:role/dbs-dev-worker-task", "arn:aws:iam::123456789012:user/*"])
+    )])
+    error_message = "allow-list must be the worker task role plus, by default, the IAM users of this account (ArnNotLike on aws:PrincipalArn)"
+  }
+
+  assert {
+    condition = alltrue([for k, p in aws_sqs_queue_policy.deny_api : (
+      !contains(one([for st in jsondecode(p.policy).Statement : st.Condition.ArnNotLike["aws:PrincipalArn"] if st.Sid == "DenyMessageActionsExceptAllowList"]), "arn:aws:iam::123456789012:role/dbs-dev-api-task")
+    )])
+    error_message = "the api task role must never be on the allow-list"
+  }
+}
+
+# TC-241-02: đặt danh sách ops cụ thể thì thay mặc định "mọi IAM user", worker vẫn luôn có
+run "queue_policy_allow_list_explicit_ops" {
+  command = apply
+
+  variables {
+    sqs_ops_principal_arns = ["arn:aws:iam::123456789012:user/ops-one", "arn:aws:iam::123456789012:role/dbs-incident-admin"]
+  }
+
+  assert {
+    condition = alltrue([for k, p in aws_sqs_queue_policy.deny_api : (
+      toset(one([for st in jsondecode(p.policy).Statement : st.Condition.ArnNotLike["aws:PrincipalArn"] if st.Sid == "DenyMessageActionsExceptAllowList"])) ==
+      toset(["arn:aws:iam::123456789012:role/dbs-dev-worker-task", "arn:aws:iam::123456789012:user/ops-one", "arn:aws:iam::123456789012:role/dbs-incident-admin"])
+    )])
+    error_message = "explicit ops list must replace the all-users default and keep the worker role"
+  }
+}
+
+run "rejects_non_iam_ops_principal" {
+  command = plan
+
+  variables {
+    sqs_ops_principal_arns = ["*"]
+  }
+
+  expect_failures = [var.sqs_ops_principal_arns]
 }
 
 # TC-73-08: output cho DBS-121 (biến môi trường của sqs.config.ts), DBS-120 (policy) và DBS-163 (alarm)

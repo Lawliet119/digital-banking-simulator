@@ -11,12 +11,15 @@ import type {
 } from '@common/events';
 
 describe('@common/events public index (DBS-24)', () => {
-  it('TC-24-21 exports the validator, the error, the event names and nothing else at run time', () => {
+  it('TC-24-21 exports the validator, the error, the event names, the time check and nothing else at run time', () => {
     // No schema and no `joi` object leaves the folder: callers go through `validateEvent`.
+    // `isRealUtcTime` is the one calendar check for event timestamps (BL-184 H8): a consumer that
+    // parses `occurredAt` or `fromAccountCreatedAt` again uses it instead of a private copy.
     expect(Object.keys(viaIndex).sort()).toEqual([
       'EVENT_TYPES',
       'InvalidEventError',
       'assertEvent',
+      'isRealUtcTime',
       'validateEvent',
     ]);
     expect(typeof viaIndex.validateEvent).toBe('function');

@@ -76,6 +76,6 @@ Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/
 
 | # | Mức | Xử lý |
 |---|---|---|
-| 1 | should-fix | Không sửa: R5 tắt vẫn kiểm dữ liệu provider trước `enabled` → BL-207 |
+| 1 | should-fix | **Đã sửa ở BL-207(a):** R5 tắt trả `null` ngay sau khi kiểm cấu hình, không kiểm `sameOwner` và count |
 | 2 | minor | **Đã sửa:** §8 trỏ sang DBS-109 |
 | 3 | minor | Không sửa: manual thiếu đường lỗi → BL-212 |

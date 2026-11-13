@@ -271,7 +271,7 @@ Ghi ở `infra/terraform/README.md` mục "Báo cáo chi phí tuần":
   3. Giá Valkey trong README đổi từ ≈ 0,016 sang 0,0192 USD/giờ theo số thật (điều kiện đóng BL-118). ADR-11, ADR-12 giữ nguyên vì ghi rõ là ước tính.
 - **Bàn giao cho vai khác:**
   - **BL-168** (#5, cùng leader merge DBS-73): state `base` lệch với `main`; `plan` đầy đủ sẽ xóa 11 tài nguyên SQS.
-  - **BL-167** (#5): xác nhận bảng chi phí theo `env` có số thật (`dev` chiếm phần lớn, không còn dòng "dữ liệu tag chưa đủ") ở báo cáo thứ Hai 09/11, sau khi backfill `SUCCEEDED`.
+  - **BL-167** (#5): xác nhận bảng chi phí theo `env` có số thật (`dev` chiếm phần lớn, không còn dòng "dữ liệu tag chưa đủ") ở báo cáo thứ Hai 09/11, sau khi backfill `SUCCEEDED`. **Đã đóng 2026-11-14:** backfill từ 01/10 `SUCCEEDED` (04/11), [báo cáo 2026-11-14](../components/platform-infra/cost-reports/2026-11-14.md) mục 3 có `dev 1,2308` và `(không tag) 0,3346` USD, không còn dòng «dữ liệu tag chưa đủ».
   - BL-033 (ngưỡng budget ACTUAL > 150) vẫn mở: trên tài khoản hiện chỉ có ngưỡng ACTUAL > 50, ACTUAL > 100, FORECASTED > 100.
 
 ## 9. Tài liệu đã cập nhật
