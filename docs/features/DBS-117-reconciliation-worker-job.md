@@ -398,7 +398,7 @@ Kịch bản chạy bằng script thực tế `node backend/scripts/manual-dbs11
 | `TC-117-10` | [`db-roles.db-spec.ts`](../../backend/test/db/db-roles.db-spec.ts) › `TC-117-10` | đạt trên commit `055190c` |
 | `TC-117-11` | [`reconciliation-job.db-spec.ts`](../../backend/test/db/reconciliation-job.db-spec.ts) › `TC-117-11` | đạt trên commit `5030edf` |
 | `TC-117-12` | [`reconciliation.types.spec.ts`](../../backend/src/modules/ledger/reconciliation.types.spec.ts) › `TC-117-12` | đạt trên commit `b994775` |
-| `Quy trình` | DoD #5: PR đã merge vào `main` (CI xanh); Dev review | chưa làm (chờ mở PR sau G4, theo dõi tại `BL-196`) |
+| `Quy trình` | DoD #5: PR đã merge vào `main` (CI xanh); Dev review | Cập nhật 2026-11-14 (kiểm bằng `gh`): [PR #86](https://github.com/Lawliet119/digital-banking-simulator/pull/86) đã merge vào `main` ngày 2026-11-09, 6 job CI xanh; GitHub không có review của người khác tác giả. Dev khác review còn mở, theo dõi tại `BL-196`. (Ghi chú trước đó: chờ mở PR sau G4.) |
 
 - **Test thủ công:** chạy trên commit code cuối `6f0f95d7ddd2fbb6fdcc9665c8216e8b7b2576ca` qua [`backend/scripts/manual-dbs117.cjs`](../../backend/scripts/manual-dbs117.cjs), toàn bộ 7 bước thành công:
 

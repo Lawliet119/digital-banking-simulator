@@ -121,7 +121,7 @@ Kiểm tra bàn giao: lint đạt, typecheck đạt; unit98 suites/1770 tests đ
 | TC-165-04 | smoke.cjs từ clone sạch | đủ5bài, checkerPASS sau mỗi bài |
 | TC-165-05 | runner.test.mjs và API unreachable | đạt: k6 exit99, checker vẫnPASS; checker lỗi thì runner đỏ |
 | TC-165-06 | unitfixture thiếu, đọc validator, kiểm raw output | đơn giản hóa: chưa unit từng biến thể URL/token sai; không đổi chính sách auth backend; raw không token/Authorization/DB URL/ARN |
-| DoD5 quy trình | PR/CI/Dev review | CI sẽ đối chiếu exact head sau push; Dev review/merge còn BL-233 |
+| DoD5 quy trình | PR/CI/Dev review | Cập nhật 2026-11-14 (kiểm bằng `gh`): [PR #128](https://github.com/Lawliet119/digital-banking-simulator/pull/128) đã merge ngày 2026-11-11, 6 job CI xanh; GitHub không có review của người khác tác giả. Dev khác review còn ở BL-233 |
 
 | Bước | Lệnh/kết quả thật | Kết luận |
 |---|---|---|

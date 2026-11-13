@@ -450,7 +450,7 @@ Script tự động hóa hoàn toàn việc khởi chạy PostgreSQL 17 thật t
 - **Đóng dứt điểm `BL-017`:** Ma trận quyền ACL tối thiểu được PostgreSQL thực thi ở tầng DB, ngăn chặn hoàn toàn thao tác `UPDATE/DELETE` trên các bảng chỉ-thêm (`transfers`, `ledger_entries`, `audit_log`). Đã xóa khỏi `docs/BACKLOG.md`.
 - **Cập nhật `BL-019`:** Ghi nhận DBS-119 đã hoàn tất production role grants và AC-8.1/8.2 checks trên PostgreSQL thật.
 - **Cập nhật `BL-103`:** Ghi nhận DBS-119 đã hoàn tất tạo role và grants qua Migration bước 7 và `infra/scripts/db-roles.sql`.
-- **Mở mới `BL-194`:** Theo dõi quy trình DoD #5: PR merge vào main (CI xanh, Dev review và điền bảng «Đối chiếu test case»).
+- **Mở mới `BL-194`:** Theo dõi quy trình DoD #5: PR merge vào main (CI xanh, Dev review và điền bảng «Đối chiếu test case»). Cập nhật 2026-11-14 (kiểm bằng `gh`): [PR #99](https://github.com/Lawliet119/digital-banking-simulator/pull/99) đã merge ngày 2026-11-09, 6 job CI xanh. GitHub chỉ có một bình luận phối hợp RSK-01 của người khác (không phải review), không có review; Dev khác review còn ở `BL-194`.
 
 ---
 

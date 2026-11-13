@@ -146,9 +146,20 @@ export async function assertMoneyUnchanged(fixture: RolePermissionsFixture): Pro
   }
 }
 
+/** The fixture decision's rule_score; a flag written for it must carry exactly this score (BL-223). */
+export const FIXTURE_FLAG_SCORE = 75;
+
 export function flagInsert(transferId: string) {
   return {
-    sql: "INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version) VALUES($1,75,'HIGH',1)",
+    sql: `INSERT INTO fraud_flags(transfer_id,score,risk_level,rule_set_version) VALUES($1,${FIXTURE_FLAG_SCORE},'HIGH',1)`,
+    args: [transferId],
+  };
+}
+
+/** The one hit that makes `flagInsert` satisfy rule_score = sum(weights) at COMMIT (BL-223). */
+export function hitInsert(transferId: string) {
+  return {
+    sql: `INSERT INTO fraud_rule_hits(transfer_id,rule_id,weight,explanation) VALUES($1,'R1',${FIXTURE_FLAG_SCORE},'fixture')`,
     args: [transferId],
   };
 }
@@ -301,7 +312,11 @@ export async function createRolePermissionsFixture(
     // RSK-01: a flag needs a committed decision of the same rule-set version. The owner commits one
     // per fixture transfer here (permanent: append-only, private container), so the probes below
     // that write a flag as dbs_worker or dbs_api fail only on their grants, never on the key.
-    for (const transfer of transfers) await insertRuleOnlyDecision(owner, transfer.id);
+    // BL-223: the decision's rule_score is the flag score `flagInsert` writes, so a flag that is
+    // committed under it (TC-122-05, DBS-129/130) is consistent; probes that only roll back never reach the check.
+    for (const transfer of transfers) {
+      await insertRuleOnlyDecision(owner, transfer.id, { ruleScore: FIXTURE_FLAG_SCORE });
+    }
     const fixture = {
       owner,
       api,

@@ -12,6 +12,16 @@ output "dashboard_url" {
   value       = "https://${var.region}.console.aws.amazon.com/cloudwatch/home?region=${var.region}#dashboards/dashboard/${aws_cloudwatch_dashboard.overview.dashboard_name}"
 }
 
+output "infra_dashboard_name" {
+  description = "Dashboard hạ tầng ECS, ALB, RDS, Valkey (BL-261)."
+  value       = aws_cloudwatch_dashboard.infra.dashboard_name
+}
+
+output "infra_dashboard_url" {
+  description = "Đường dẫn console tới dashboard hạ tầng."
+  value       = "https://${var.region}.console.aws.amazon.com/cloudwatch/home?region=${var.region}#dashboards/dashboard/${aws_cloudwatch_dashboard.infra.dashboard_name}"
+}
+
 output "public_subnet_ids" {
   value = local.base.public_subnet_ids
 }

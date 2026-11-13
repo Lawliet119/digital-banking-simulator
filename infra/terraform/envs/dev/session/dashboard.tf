@@ -1,7 +1,10 @@
 # DBS-145: dashboard CloudWatch bản đầu cho các metric của DBS-144 (docs/03 §14, observability).
 # Nằm ở session: dựng và xóa cùng phiên. Không tham chiếu tài nguyên nào của session, nên
 # `terraform apply -target=aws_cloudwatch_dashboard.overview` chỉ tạo đúng dashboard này.
-# Đường kẻ ngang là ngưỡng SLO để nhìn, không phải alarm (alarm: BL-051, BL-179).
+# Đường kẻ ngang là ngưỡng SLO để nhìn; alarm nằm ở alarms.tf (và base/alarms.tf cho DLQ).
+# Widget hạ tầng (ECS, RDS, Valkey, ALB, BL-261) CỐ Ý nằm ở dashboard riêng `dbs-dev-infra` (dashboard_infra.tf): chúng
+# phải tham chiếu aws_lb, aws_db_instance... (ALB cần arn_suffix, không dựng được từ chuỗi biết trước), còn dashboard này
+# giữ tính chất không tham chiếu tài nguyên session để `-target` được. Tài khoản có 3 dashboard miễn phí.
 # aws_cloudwatch_dashboard không hỗ trợ tag; chi phí được kiểm soát bằng việc xóa cùng phiên.
 
 locals {
@@ -18,7 +21,8 @@ locals {
     "- **Phân vị** do CloudWatch ước lượng quanh biên bucket (150, 300, 1000 ms): sai khác vài phần trăm. Cửa sổ 5 phút cho độ trễ và 5xx như SLO.",
     "- **Lỗi = 5xx**; 422 và 429 không tính. Tỉ lệ 5xx tính trên bộ dimension tổng, không có probe `/health/*`.",
     "- **Tuổi outbox** dùng `Maximum`. Không có điểm dữ liệu nghĩa là worker không chạy (không phải 0).",
-    "- Chỉ vẽ `Role` `api` và `worker`. Widget trống là chưa có nguồn: service worker chờ DBS-121; `risk_redis_fallback_total` và các metric thời gian giao dịch tới cờ, `ai_status`, độ trễ AI, `risk_rule_error_total` chờ BL-204.",
+    "- Chỉ vẽ `Role` `api` và `worker`. Widget trống là chưa có nguồn: `risk_redis_fallback_total` chờ consumer risk nối đủ (BL-204); `risk_decision_total`, `risk_rule_error_total`, `risk_transfer_to_flag_ms` và `reconciliation_runs_total` chỉ có khi worker chạy và đã có dòng sự kiện (metric đếm sự kiện không có điểm khi không có sự kiện).",
+    "- ECS, RDS, Valkey và ALB ở dashboard `dbs-dev-infra`. Alarm: xem `alarms.tf`.",
   ])
 
   # Một dòng metric (namespace, tên, các cặp dimension, tùy chọn).
@@ -284,9 +288,78 @@ locals {
       view   = "timeSeries"
       period = 60
       metrics = [
-        [{ expression = "SEARCH('{\"${local.dash_ns}\",Role} MetricName=\"risk_config_redis_fallback_total\"', 'Sum', 60)", id = "s2" }],
+        [{ expression = "SEARCH('{\"${local.dash_ns}\",Role,Reason} MetricName=\"risk_config_redis_fallback_total\"', 'Sum', 60)", id = "s2" }],
         [{ expression = "SEARCH('{\"${local.dash_ns}\",Role,Rule,Reason} MetricName=\"risk_redis_fallback_total\"', 'Sum', 60)", id = "s3" }],
       ]
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
+  # BL-127: kết quả đối soát (dimension Status của reconciliation_runs_total). Chỉ có điểm khi job vừa chạy.
+  w_recon = {
+    type   = "metric"
+    x      = 0
+    y      = 34
+    width  = 8
+    height = 6
+    properties = {
+      title  = "Đối soát sổ cái: số lần chạy theo kết quả"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 300
+      metrics = [
+        [local.dash_ns, "reconciliation_runs_total", "Role", "worker", "Status", "OK", { stat = "Sum", label = "OK" }],
+        [local.dash_ns, "reconciliation_runs_total", "Role", "worker", "Status", "MISMATCH", { stat = "Sum", label = "MISMATCH" }],
+        [local.dash_ns, "reconciliation_runs_total", "Role", "worker", "Status", "ERROR", { stat = "Sum", label = "ERROR" }],
+      ]
+      annotations = {
+        horizontal = [{ label = "Báo động: MISMATCH/ERROR > 0", value = 0 }]
+      }
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
+  # BL-051, BL-188: quyết định CONFIG_INVALID và lỗi luật R1..R6 (alarm cùng tên trong alarms.tf).
+  w_risk_health = {
+    type   = "metric"
+    x      = 8
+    y      = 34
+    width  = 8
+    height = 6
+    properties = {
+      title  = "Risk: CONFIG_INVALID và lỗi luật"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 300
+      metrics = [
+        [local.dash_ns, "risk_decision_total", "Role", "worker", "AiStatus", "CONFIG_INVALID", { stat = "Sum", label = "CONFIG_INVALID" }],
+        [{ expression = "SEARCH('{\"${local.dash_ns}\",Role,Rule} MetricName=\"risk_rule_error_total\"', 'Sum', 300)", id = "s4" }],
+      ]
+      annotations = {
+        horizontal = [{ label = "Báo động > 0", value = 0 }]
+      }
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
+  # docs/03 §14: thời gian từ giao dịch tới khi có cờ, p95 < 5 giây trong 15 phút (chưa có alarm).
+  w_flag = {
+    type   = "metric"
+    x      = 16
+    y      = 34
+    width  = 8
+    height = 6
+    properties = {
+      title  = "Thời gian giao dịch tới cờ: p95 (ms)"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 900
+      metrics = [
+        [local.dash_ns, "risk_transfer_to_flag_ms", "Role", "worker", { stat = "p95", label = "p95" }],
+      ]
+      annotations = {
+        horizontal = [{ label = "SLO p95 5 s", value = 5000 }]
+      }
       yAxis = { left = { min = 0 } }
     }
   }
@@ -297,6 +370,7 @@ locals {
     widgets = [
       local.w_text, local.w_overall, local.w_transfer, local.w_reads, local.w_errors, local.w_volume,
       local.w_routes, local.w_outbox, local.w_dlq, local.w_age, local.w_redis, local.w_rate, local.w_risk,
+      local.w_recon, local.w_risk_health, local.w_flag,
     ]
   }
 }
