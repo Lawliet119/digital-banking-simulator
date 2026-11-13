@@ -10,16 +10,20 @@ variables {
 
 # mock_provider sinh ARN không hợp lệ; cấp ARN giả hợp lệ (và khác nhau giữa hai role) cho các tham chiếu chéo.
 override_resource {
-  target = aws_lb.main
+  target          = aws_lb.main
+  override_during = plan
   values = {
-    arn = "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:loadbalancer/app/dbs-dev/0123456789abcdef"
+    arn        = "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:loadbalancer/app/dbs-dev/0123456789abcdef"
+    arn_suffix = "app/dbs-dev/0123456789abcdef"
   }
 }
 
 override_resource {
-  target = aws_lb_target_group.api
+  target          = aws_lb_target_group.api
+  override_during = plan
   values = {
-    arn = "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:targetgroup/dbs-dev-api/0123456789abcdef"
+    arn        = "arn:aws:elasticloadbalancing:ap-southeast-1:123456789012:targetgroup/dbs-dev-api/0123456789abcdef"
+    arn_suffix = "targetgroup/dbs-dev-api/0123456789abcdef"
   }
 }
 
@@ -85,6 +89,8 @@ override_data {
       sqs_risk_queue_url         = "https://sqs.ap-southeast-1.amazonaws.com/123456789012/dbs-dev-risk-events"
       sqs_notification_queue_url = "https://sqs.ap-southeast-1.amazonaws.com/123456789012/dbs-dev-notification-events"
       # DBS-145: dashboard đọc tên DLQ từ base.
+      # BL-051: alarm của session gửi vào topic SNS của base.
+      alarm_topic_arn = "arn:aws:sns:ap-southeast-1:123456789012:dbs-dev-alarms"
       sqs_dlq_names = {
         risk         = "dbs-dev-risk-events-dlq"
         notification = "dbs-dev-notification-events-dlq"
@@ -103,13 +109,13 @@ run "dashboard_shape" {
   }
 
   assert {
-    condition     = length(jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets) == 13
-    error_message = "13 widgets: 1 text + 12 metric"
+    condition     = length(jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets) == 16
+    error_message = "16 widgets: 1 text + 15 metric"
   }
 
   assert {
-    condition     = length([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if w.type == "metric"]) == 12 && length([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if w.type == "text"]) == 1
-    error_message = "12 metric widgets and 1 text widget"
+    condition     = length([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if w.type == "metric"]) == 15 && length([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if w.type == "text"]) == 1
+    error_message = "15 metric widgets and 1 text widget"
   }
 
   assert {
@@ -138,6 +144,7 @@ run "dashboard_has_every_metric" {
         "http_request_duration_ms", "http_requests_total", "http_5xx_total", "http_aborted_total",
         "redis_fallback_total", "rate_limited_total", "risk_redis_fallback_total",
         "risk_config_redis_fallback_total", "outbox_oldest_unpublished_age_seconds",
+        "reconciliation_runs_total", "risk_decision_total", "risk_rule_error_total", "risk_transfer_to_flag_ms",
         "ApproximateNumberOfMessagesVisible", "ApproximateAgeOfOldestMessage",
       ] : strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "\"${name}\"") || strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "MetricName=\\\"${name}\\\"")
     ])
@@ -162,7 +169,7 @@ run "dashboard_labels_are_safe" {
     condition = alltrue(flatten([
       for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : [
         for m in try(w.properties.metrics, []) : [
-          for i, v in m : contains(["Route", "Method", "Role", "Rule", "Reason", "Scope", "QueueName"], tostring(v)) if i >= 2 && i % 2 == 0 && can(tostring(v))
+          for i, v in m : contains(["Route", "Method", "Role", "Rule", "Reason", "Scope", "Status", "AiStatus", "QueueName"], tostring(v)) if i >= 2 && i % 2 == 0 && can(tostring(v))
         ]
       ]
     ]))
@@ -172,7 +179,7 @@ run "dashboard_labels_are_safe" {
   assert {
     condition = alltrue(flatten([
       for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : [
-        for m in try(w.properties.metrics, []) : can(regex("^SEARCH\\('\\{\"DBS/Backend\",(Method|Route|Role|Rule|Reason|Scope)(,(Method|Route|Role|Rule|Reason|Scope))*\\} MetricName=\"[a-z0-9_]+\"", m[0].expression)) if try(m[0].expression, null) != null && startswith(m[0].expression, "SEARCH(")
+        for m in try(w.properties.metrics, []) : can(regex("^SEARCH\\('\\{\"DBS/Backend\",(Method|Route|Role|Rule|Reason|Scope|Status|AiStatus)(,(Method|Route|Role|Rule|Reason|Scope|Status|AiStatus))*\\} MetricName=\"[a-z0-9_]+\"", m[0].expression)) if try(m[0].expression, null) != null && startswith(m[0].expression, "SEARCH(")
       ]
     ]))
     error_message = "SEARCH must quote the namespace and use allowlisted dimension names only"
@@ -306,4 +313,148 @@ run "rejects_namespace_without_dbs_prefix" {
   }
 
   expect_failures = [var.metrics_namespace]
+}
+
+# BL-127, BL-051: widget đối soát, CONFIG_INVALID/lỗi luật và thời gian tới cờ nằm ở overview, theo dimension mà app xuất
+run "dashboard_reconciliation_and_risk_widgets" {
+  command = plan
+
+  assert {
+    condition = (
+      length([for m in [for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Đối soát sổ cái: số lần chạy theo kết quả"][0].properties.metrics : m if m[1] == "reconciliation_runs_total"]) == 3 &&
+      toset([for m in [for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Đối soát sổ cái: số lần chạy theo kết quả"][0].properties.metrics : m[5]]) == toset(["OK", "MISMATCH", "ERROR"]) &&
+      alltrue([for m in [for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Đối soát sổ cái: số lần chạy theo kết quả"][0].properties.metrics : m[2] == "Role" && m[3] == "worker" && m[4] == "Status"])
+    )
+    error_message = "reconciliation widget: reconciliation_runs_total [Role=worker, Status] for OK, MISMATCH, ERROR"
+  }
+
+  assert {
+    condition = (
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Risk: CONFIG_INVALID và lỗi luật"][0].properties.metrics), "CONFIG_INVALID") &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Risk: CONFIG_INVALID và lỗi luật"][0].properties.metrics), "risk_rule_error_total")
+    )
+    error_message = "risk health widget: CONFIG_INVALID and risk_rule_error_total"
+  }
+
+  assert {
+    condition     = [for a in [for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Thời gian giao dịch tới cờ: p95 (ms)"][0].properties.annotations.horizontal : a.value] == [5000]
+    error_message = "time-to-flag widget: 5 s SLO line"
+  }
+}
+
+# BL-261: overview vẫn không tham chiếu tài nguyên session (không nhắc tới ALB, RDS, ECS), nên `-target` được như DBS-145
+run "overview_has_no_infra_metrics" {
+  command = plan
+
+  assert {
+    condition     = !strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "AWS/ECS") && !strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "AWS/RDS") && !strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "AWS/ApplicationELB") && !strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "AWS/ElastiCache")
+    error_message = "infra metrics belong to dbs-dev-infra, not overview"
+  }
+}
+
+# BL-261: dashboard hạ tầng
+run "infra_dashboard_shape" {
+  command = plan
+
+  assert {
+    condition     = aws_cloudwatch_dashboard.infra.dashboard_name == "dbs-dev-infra" && output.infra_dashboard_name == "dbs-dev-infra" && strcontains(output.infra_dashboard_url, "dbs-dev-infra")
+    error_message = "infra dashboard name and outputs"
+  }
+
+  assert {
+    condition     = length(jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets) == 10 && length([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if w.type == "metric"]) == 9
+    error_message = "infra dashboard: 1 text + 9 metric widgets"
+  }
+
+  assert {
+    condition     = alltrue([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w.x >= 0 && w.x + w.width <= 24 && w.width > 0 && w.height > 0])
+    error_message = "every infra widget must fit the 24-column grid"
+  }
+
+  assert {
+    condition     = alltrue([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w.properties.region == "ap-southeast-1" if w.type == "metric"])
+    error_message = "every infra metric widget must pin the region"
+  }
+
+  assert {
+    condition     = jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).start == "-PT3H" && jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).periodOverride == "inherit"
+    error_message = "start -PT3H and periodOverride inherit"
+  }
+}
+
+run "infra_dashboard_metrics" {
+  command = plan
+
+  # ECS: CPU và bộ nhớ của hai service trong cluster dbs-dev
+  assert {
+    condition = alltrue([
+      for title in ["ECS: CPU (%)", "ECS: bộ nhớ (%)"] :
+      toset([for m in [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == title][0].properties.metrics : m[5]]) == toset(["api", "worker"]) &&
+      alltrue([for m in [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == title][0].properties.metrics : m[0] == "AWS/ECS" && m[2] == "ClusterName" && m[3] == "dbs-dev" && m[4] == "ServiceName"])
+    ])
+    error_message = "ECS widgets: AWS/ECS ClusterName dbs-dev, ServiceName api and worker"
+  }
+
+  assert {
+    condition = (
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "ECS: CPU (%)"][0].properties.metrics), "CPUUtilization") &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "ECS: bộ nhớ (%)"][0].properties.metrics), "MemoryUtilization")
+    )
+    error_message = "ECS widgets: CPUUtilization and MemoryUtilization"
+  }
+
+  # ALB: số task khỏe, 5xx (ELB và target), tỉ lệ
+  assert {
+    condition = (
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "Task api sau ALB: khỏe và không khỏe"][0].properties.metrics), "HealthyHostCount") &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "Task api sau ALB: khỏe và không khỏe"][0].properties.metrics), "targetgroup/dbs-dev-api/0123456789abcdef") &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "Task api sau ALB: khỏe và không khỏe"][0].properties.metrics), "app/dbs-dev/0123456789abcdef")
+    )
+    error_message = "healthy host widget: HealthyHostCount with the target group and load balancer arn_suffix"
+  }
+
+  assert {
+    condition = (
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "ALB: số 5xx"][0].properties.metrics), "HTTPCode_ELB_5XX_Count") &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "ALB: số 5xx"][0].properties.metrics), "HTTPCode_Target_5XX_Count") &&
+      alltrue([for m in [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "ALB: số 5xx"][0].properties.metrics : m[0] == "AWS/ApplicationELB" && m[2] == "LoadBalancer" && m[3] == "app/dbs-dev/0123456789abcdef"])
+    )
+    error_message = "ALB 5xx widget: ELB and target 5xx counts on the load balancer arn_suffix"
+  }
+
+  assert {
+    condition = (
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "ALB: tỉ lệ 5xx (%)"][0].properties.metrics), "100 * (FILL(e5, 0) + FILL(t5, 0)) / rc") &&
+      [for a in [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "ALB: tỉ lệ 5xx (%)"][0].properties.annotations.horizontal : a.value] == [1] &&
+      [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "ALB: tỉ lệ 5xx (%)"][0].properties.period == 300
+    )
+    error_message = "ALB 5xx rate: (ELB + target) / RequestCount, 1 percent line, period 300"
+  }
+
+  # RDS
+  assert {
+    condition = (
+      toset([for m in [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "RDS: số kết nối"][0].properties.metrics : m[1]]) == toset(["DatabaseConnections"]) &&
+      toset([for m in [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "RDS: CPU (%)"][0].properties.metrics : m[1]]) == toset(["CPUUtilization"]) &&
+      alltrue([for t in ["RDS: số kết nối", "RDS: CPU (%)"] : alltrue([for m in [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == t][0].properties.metrics : m[0] == "AWS/RDS" && m[2] == "DBInstanceIdentifier" && m[3] == "dbs-dev"])])
+    )
+    error_message = "RDS widgets: DatabaseConnections and CPUUtilization of DBInstanceIdentifier dbs-dev"
+  }
+
+  # Valkey: node chính dbs-dev-001
+  assert {
+    condition = alltrue([
+      for t in ["Valkey: CPU (%)", "Valkey: bộ nhớ (%) và kết nối"] :
+      alltrue([for m in [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == t][0].properties.metrics : m[0] == "AWS/ElastiCache" && m[2] == "CacheClusterId" && m[3] == "dbs-dev-001"])
+    ])
+    error_message = "Valkey widgets: AWS/ElastiCache CacheClusterId dbs-dev-001"
+  }
+
+  assert {
+    condition = (
+      toset([for m in [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "Valkey: CPU (%)"][0].properties.metrics : m[1]]) == toset(["CPUUtilization", "EngineCPUUtilization"]) &&
+      toset([for m in [for w in jsondecode(aws_cloudwatch_dashboard.infra.dashboard_body).widgets : w if try(w.properties.title, "") == "Valkey: bộ nhớ (%) và kết nối"][0].properties.metrics : m[1]]) == toset(["DatabaseMemoryUsagePercentage", "CurrConnections"])
+    )
+    error_message = "Valkey widgets: CPU, engine CPU, memory percentage, connections"
+  }
 }
