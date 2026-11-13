@@ -136,3 +136,8 @@ output "worker_sqs_policy_arn" {
   description = "DBS-120 gắn vào role task worker."
   value       = aws_iam_policy.worker_sqs.arn
 }
+
+output "cognito_seeder_role_arn" {
+  description = "BL-101: role de chay seed-cognito.sh (aws sts assume-role, hoac profile role_arn)."
+  value       = aws_iam_role.cognito_seeder.arn
+}

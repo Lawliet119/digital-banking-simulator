@@ -166,6 +166,21 @@ python3 infra/scripts/tests/test_seed_cognito.py   # test của script (aws gi�
 
 Mật khẩu nằm ở Secrets Manager `dbs/dev/demo-accounts` (secret là nguồn sự thật; ≈ 0,40 USD/tháng; tag `project/env/owner`). Không bao giờ để mật khẩu trên dòng lệnh hay in ra màn hình. Quyền tối thiểu cho người chạy: `cognito-idp:AdminGetUser`, `AdminCreateUser`, `AdminSetUserPassword`, `AdminAddUserToGroup`, `AdminRemoveUserFromGroup`, `AdminUpdateUserAttributes`, `AdminListGroupsForUser`, `AdminUserGlobalSignOut` trên ARN pool; `secretsmanager:DescribeSecret`, `GetSecretValue`, `CreateSecret`, `PutSecretValue`, `TagResource` trên `dbs/dev/demo-accounts-*`. Teardown: `aws secretsmanager delete-secret --secret-id dbs/dev/demo-accounts --force-delete-without-recovery`.
 
+**Role riêng để seed (BL-101):** `envs/dev/base/cognito_seeder.tf` tạo role `dbs-dev-cognito-seeder` (output `cognito_seeder_role_arn`) với đúng các quyền trên và không gì khác (không xóa secret hay user, không KMS vì secret dùng khóa mặc định `aws/secretsmanager`). Trust là gốc tài khoản: chỉ principal của tài khoản có `sts:AssumeRole` trong identity policy của mình (admin có sẵn) mới assume được; không đòi MFA vì dev không bật MFA cho IAM user. `apply base` một lần để tạo role, rồi thêm profile vào `~/.aws/config` và chạy script bằng profile đó thay cho `dbs-admin`:
+
+```ini
+[profile dbs-seeder]
+role_arn       = <output cognito_seeder_role_arn>
+source_profile = <profile của người chạy, ví dụ dbs-admin>
+region         = ap-southeast-1
+```
+
+```bash
+AWS_PROFILE=dbs-seeder bash infra/scripts/seed-cognito.sh
+```
+
+Phần chưa chạy thật: một lần seed bằng role này trên AWS (còn mở ở BL-101). Teardown secret vẫn cần quyền admin vì role không có `DeleteSecret`.
+
 ### RDS PostgreSQL 17 (DBS-66)
 
 `base` giữ KMS CMK dùng chung `alias/dbs-dev` (≈ 1 USD/tháng; xóa phải chờ 7 ngày), DB subnet group `dbs-dev` (2 private subnet) và SG `dbs-dev-db` (5432 chỉ từ SG `dbs-dev-api`; task `api` chỉ được đi ra 5432 tới SG này). `session` dựng instance `dbs-dev` (`db.t4g.micro`, Single-AZ, 20 GB gp3, mã hóa bằng CMK, `rds.force_ssl = 1`, `timezone = UTC`, backup 1 ngày) và parameter group `dbs-dev-postgres17`. Mật khẩu master do RDS quản lý trong Secrets Manager (output `db_master_secret_arn`); không có mật khẩu nào trong state. `db_instance_class` và `db_multi_az` là biến (production đổi).
