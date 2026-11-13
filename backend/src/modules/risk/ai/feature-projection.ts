@@ -1,9 +1,12 @@
 import { MONEY_MAX, parseBalance, parseMoney, parsePositiveMoney } from '@common/money';
-import type { Features, TransferEvent } from '../features/feature-provider';
+import {
+  MIN_HISTORY_FOR_MEDIAN,
+  type Features,
+  type TransferEvent,
+} from '../features/feature-provider';
 import { riskTimeNanoseconds } from '../risk-time';
 import type { FeatureInput } from './ai-contract';
 
-const MIN_HISTORY_FOR_MEDIAN = 5;
 const MAX_ACCOUNT_AGE_HOURS = 720;
 const HOUR_NS = 3_600_000_000_000n;
 const MINUTE_NS = 60_000_000_000n;
@@ -110,6 +113,8 @@ export function toAiFeatureInput(event: TransferEvent, features: Features): Feat
     const createdAt = event.fromAccountCreatedAt;
     const occurredNs = riskTimeNanoseconds(occurredAt);
     const createdNs = riskTimeNanoseconds(createdAt);
+    // Same policy as R3 (BL-184 H7/H8): an account snapshot created after the transfer (a clock
+    // stepped back) is age 0 and the transfer is still scored, not refused.
     const ageNs = occurredNs - createdNs;
     const accountAgeHours =
       ageNs <= 0n
@@ -134,6 +139,8 @@ export function toAiFeatureInput(event: TransferEvent, features: Features): Feat
     const reverseAt = features.reverseTransferOccurredAt;
     if (reverseAt !== null) {
       const elapsed = occurredNs - riskTimeNanoseconds(reverseAt);
+      // Same policy as R4 (BL-207(b)): a reverse transfer not strictly before the event is a
+      // provider fault, never a silent "no reverse transfer".
       if (elapsed <= 0n) throw new Error();
       minutesSinceReverse = Number(elapsed) / Number(MINUTE_NS);
     }

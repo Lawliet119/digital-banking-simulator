@@ -1,7 +1,13 @@
 import { toAiFeatureInput } from '../ai/feature-projection';
 import type { FeatureInput } from '../ai/ai-contract';
 import { riskTimeMilliseconds, riskTimeNanoseconds } from '../risk-time';
-import type { FeatureProvider, Features, TransferEvent } from './feature-provider';
+import {
+  HISTORY_DAYS,
+  MIN_HISTORY_FOR_MEDIAN,
+  type FeatureProvider,
+  type Features,
+  type TransferEvent,
+} from './feature-provider';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -135,7 +141,7 @@ export class OfflineFeatureProvider implements FeatureProvider {
       let end = start;
       while (end < rows.length && rows[end].ms === at) end++;
       while (historyRight < start) ranks.add(rows[historyRight++].money, 1);
-      while (historyLeft < start && rows[historyLeft].ms < at - 30 * DAY)
+      while (historyLeft < start && rows[historyLeft].ms < at - HISTORY_DAYS * DAY)
         ranks.add(rows[historyLeft++].money, -1);
       const historyCount = start - historyLeft;
       for (let i = start; i < end; i++) {
@@ -172,7 +178,7 @@ export class OfflineFeatureProvider implements FeatureProvider {
         txCount1h: end - hourLeft,
         historyCount30d: historyCount,
         medianAmount30dTimes2:
-          historyCount < 5
+          historyCount < MIN_HISTORY_FOR_MEDIAN
             ? null
             : String(
                 ranks.select(Math.floor((historyCount + 1) / 2)) +
