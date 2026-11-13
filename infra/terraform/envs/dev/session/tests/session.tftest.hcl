@@ -191,6 +191,61 @@ run "service_desired_count_variable" {
   }
 }
 
+# BL-234: lúc deploy số task api không vượt desired_count (kết nối DB: `(api + worker) × 10 + 5 ≤ 74`).
+# ECS làm tròn lên số task khỏe tối thiểu: với 1 task, 50% thành 1 và max 100% thành 1, deploy kẹt, nên
+# từ 1 task trở xuống đặt tối thiểu 0.
+run "service_rolling_bound_default" {
+  command = plan
+
+  assert {
+    condition     = aws_ecs_service.api.deployment_maximum_percent == 100 && aws_ecs_service.api.deployment_minimum_healthy_percent == 0
+    error_message = "desired_count 0: max 100, min healthy 0"
+  }
+}
+
+run "service_rolling_bound_single_task" {
+  command = plan
+
+  variables {
+    desired_count = 1
+  }
+
+  assert {
+    condition     = aws_ecs_service.api.deployment_maximum_percent == 100 && aws_ecs_service.api.deployment_minimum_healthy_percent == 0
+    error_message = "one task: max 100 and min healthy 0, otherwise ceil(50% of 1) = 1 = max and ECS can neither stop nor start a task"
+  }
+}
+
+run "service_rolling_bound_multi_task" {
+  command = plan
+
+  variables {
+    desired_count = 6
+  }
+
+  assert {
+    condition     = aws_ecs_service.api.deployment_maximum_percent == 100 && aws_ecs_service.api.deployment_minimum_healthy_percent == 50
+    error_message = "two or more tasks: max 100 (never above desired_count, BL-234) and min healthy 50"
+  }
+}
+
+run "service_rolling_bound_two_tasks" {
+  command = plan
+
+  variables {
+    desired_count = 2
+  }
+
+  assert {
+    condition = (
+      aws_ecs_service.api.deployment_maximum_percent == 100 &&
+      aws_ecs_service.api.deployment_minimum_healthy_percent == 50 &&
+      ceil(2 * aws_ecs_service.api.deployment_minimum_healthy_percent / 100) < floor(2 * aws_ecs_service.api.deployment_maximum_percent / 100)
+    )
+    error_message = "two tasks: ECS must be able to stop one (ceil(min) < max)"
+  }
+}
+
 # TC-34-04: target group
 run "target_group" {
   command = plan

@@ -14,7 +14,7 @@ Chỉ redrive **sau khi đã sửa nguyên nhân**: deploy bản sửa, gỡ c�
 
 ## Quyền
 
-**Ops** (không phải task `worker`; DBS-73 từ chối worker đọc hoặc xóa DLQ) cần các quyền sau:
+**Ops** (không phải task `worker`; DBS-73 từ chối worker đọc hoặc xóa DLQ) cần các quyền sau. Từ BL-241, queue policy còn `Deny` các thao tác message cho principal ngoài danh sách cho phép (role `dbs-dev-worker-task` và `sqs_ops_principal_arns`, mặc định mọi IAM user của tài khoản): người redrive phải nằm trong danh sách đó, nếu không sẽ gặp `explicit deny in a resource-based policy` dù identity policy đủ quyền (`infra/terraform/README.md`, mục SQS).
 - **Trên DLQ:** `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, `sqs:GetQueueAttributes`, `sqs:StartMessageMoveTask`, `sqs:ListMessageMoveTasks`, `sqs:CancelMessageMoveTask`.
 - **Trên queue chính:** `sqs:SendMessage`, `sqs:GetQueueAttributes`.
 
