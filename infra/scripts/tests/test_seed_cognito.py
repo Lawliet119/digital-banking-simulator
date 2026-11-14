@@ -266,6 +266,36 @@ class SeedCognito(unittest.TestCase):
         self.assertEqual(self.e.calls(), [])
         self.assertIn("COGNITO_USER_POOL_ID", p.stderr)
 
+    # TC-154-12: create-secret có --kms-key-id; secret cũ đổi sang CMK qua update-secret; đã đúng CMK thì không gọi update-secret
+    def test_create_secret_uses_cmk_and_migrates_old_secret(self):
+        p = self.e.run()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        create = next(c for c in self.e.calls() if c["argv"][1] == "create-secret")
+        self.assertIn("--kms-key-id", create["argv"])
+        self.assertEqual(create["argv"][create["argv"].index("--kms-key-id") + 1], "alias/dbs-dev")
+        self.assertEqual(self.e.state_json()["secret"]["kms_key_id"], "alias/dbs-dev")
+        self.assertNotIn("update-secret", self.e.ops())
+
+        # Chạy lại khi đã đúng CMK -> không gọi update-secret
+        mark = len(self.e.calls())
+        p2 = self.e.run()
+        self.assertEqual(p2.returncode, 0, p2.stderr)
+        self.assertNotIn("update-secret", [c["argv"][1] for c in self.e.calls()[mark:]])
+
+        # Giả lập secret cũ dùng khóa mặc định (kms_key_id = None) -> phải gọi update-secret --kms-key-id alias/dbs-dev
+        sf = self.e.state_json()
+        sf["secret"]["kms_key_id"] = None
+        (self.e.state / "state.json").write_text(json.dumps(sf))
+        mark = len(self.e.calls())
+        p3 = self.e.run()
+        self.assertEqual(p3.returncode, 0, p3.stderr)
+        new_calls = self.e.calls()[mark:]
+        updates = [c for c in new_calls if c["argv"][1] == "update-secret"]
+        self.assertEqual(len(updates), 1)
+        self.assertIn("--kms-key-id", updates[0]["argv"])
+        self.assertEqual(updates[0]["argv"][updates[0]["argv"].index("--kms-key-id") + 1], "alias/dbs-dev")
+        self.assertEqual(self.e.state_json()["secret"]["kms_key_id"], "alias/dbs-dev")
+
 
 class StaticChecks(unittest.TestCase):
     # TC-54-14: không bí mật viết thẳng trong script, test và doc của task
