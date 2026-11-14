@@ -109,6 +109,31 @@ describe('DBS-42 bootstrap failure logging (real subprocess)', () => {
     30_000,
   );
 
+  it('BL-026 a process warning comes out as JSON on stdout, with nothing on stderr', () => {
+    const { result, output, rows } = runMain(
+      {
+        APP_ROLE: 'worker',
+        DBS42_CRASH: 'warning',
+        DATABASE_URL: 'postgres://u:sensitive-db-fixture@127.0.0.1:1/banking',
+      },
+      true,
+    );
+    expect(result.stderr).toBe('');
+    expect(output).not.toContain('sensitive-');
+    const warnings = rows.filter(row => row.level === 40 && row.message !== undefined);
+    expect(warnings.map(row => row.message)).toEqual(
+      expect.arrayContaining([
+        "SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.",
+        'Process warning',
+      ]),
+    );
+    expect(warnings.find(row => row.warningCode === 'DBS26_TEST')).toMatchObject({
+      warningName: 'Warning',
+      role: 'worker',
+      correlationId: null,
+    });
+  }, 30_000);
+
   it.each([
     ['api', 'uncaught', 'Uncaught exception'],
     ['api', 'unhandled', 'Unhandled promise rejection'],

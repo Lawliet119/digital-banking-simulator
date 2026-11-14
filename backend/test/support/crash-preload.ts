@@ -13,6 +13,14 @@ if (kind === 'uncaught') {
   setImmediate(() => {
     throw new Error('sensitive-uncaught-fixture');
   });
+} else if (kind === 'warning') {
+  // BL-026: a process warning (like the sslmode one of pg-connection-string) must come out as JSON.
+  setImmediate(() => {
+    process.emitWarning(
+      "SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.\nsensitive-warning-fixture postgres://u:sensitive-uri-fixture@h/db",
+    );
+    process.emitWarning('sensitive-other-warning-fixture', { code: 'DBS26_TEST' });
+  });
 } else if (kind === 'unhandled') {
   setImmediate(() => {
     void Promise.reject(new Error('sensitive-rejection-fixture'));

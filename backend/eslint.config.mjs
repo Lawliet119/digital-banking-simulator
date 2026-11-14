@@ -38,6 +38,26 @@ const moneyNumberSyntaxRestriction = {
     'Do not use Number/parseInt/parseFloat in ledger or accounts modules; use @common/money instead (BR-01, ADR-07).',
 };
 
+// BL-024: every log line goes through Nest's Logger, so SafeLogger covers it. PinoLogger and
+// `req.log` reach pino directly and skip that protection; contexts are opened with
+// @common/logging/log-context, not with PinoLogger.runInContext.
+const directPinoMessage =
+  'Log through Nest\'s Logger (@nestjs/common, which goes through SafeLogger) and open contexts with @common/logging/log-context; PinoLogger and req.log bypass SafeLogger.';
+const pinoSyntaxRestrictions = [
+  {
+    selector: "ImportDeclaration[source.value='nestjs-pino'] > ImportSpecifier[imported.name=/^(PinoLogger|InjectPinoLogger|getLoggerToken)$/]",
+    message: directPinoMessage,
+  },
+  {
+    selector: 'MemberExpression[property.name="log"][object.name=/^(req|request|res|response)$/]',
+    message: directPinoMessage,
+  },
+  {
+    selector: 'MemberExpression[property.name="log"][object.property.name=/^(req|request|res|response)$/]',
+    message: directPinoMessage,
+  },
+];
+
 export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**', 'eslint.config.mjs'] },
   eslint.configs.recommended,
@@ -48,15 +68,40 @@ export default tseslint.config(
     ignores: ['src/libs/redis/**'],
     rules: {
       'no-restricted-modules': ['error', { paths: [{ name: 'ioredis', message: 'Use @libs/redis so timeout, breaker and fallback metric apply.' }] }],
-      'no-restricted-syntax': ['error', ...ioredisSyntaxRestrictions],
+      'no-restricted-syntax': ['error', ...ioredisSyntaxRestrictions, ...pinoSyntaxRestrictions],
     },
+  },
+  {
+    files: ['src/libs/redis/**/*.ts'],
+    rules: { 'no-restricted-syntax': ['error', ...pinoSyntaxRestrictions] },
   },
   {
     files: ['src/modules/ledger/**/*.ts', 'src/modules/accounts/**/*.ts'],
     ignores: ['**/*.spec.ts'],
     rules: {
-      'no-restricted-syntax': ['error', ...ioredisSyntaxRestrictions, moneyNumberSyntaxRestriction],
+      'no-restricted-syntax': [
+        'error',
+        ...ioredisSyntaxRestrictions,
+        moneyNumberSyntaxRestriction,
+        ...pinoSyntaxRestrictions,
+      ],
     },
+  },
+  // Who may touch PinoLogger: the logging module itself, tests, and the files that already held one
+  // before this rule (injected and handed on to ConsumerBase, read for the context, or wired in
+  // main). The list only shrinks; new code uses Nest's Logger.
+  {
+    files: [
+      'src/common/logging/**/*.ts',
+      '**/*.spec.ts',
+      'src/common/messaging/consumer-base.ts',
+      'src/common/metrics/metrics.service.ts',
+      'src/main.ts',
+      'src/modules/notification/notification.consumer.ts',
+      'src/modules/outbox/outbox-writer.ts',
+      'src/modules/risk/risk-scoring.consumer.ts',
+    ],
+    rules: { 'no-restricted-syntax': ['error', ...ioredisSyntaxRestrictions] },
   },
   {
     languageOptions: {
