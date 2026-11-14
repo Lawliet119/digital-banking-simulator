@@ -1,6 +1,6 @@
 # DBS-164 · Runbook DLQ: xem message, redrive, bỏ qua có ghi nhận
 
-> **Status:** Plan approved (sau G3) · **Vai:** Dev (docs) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-164-dlq-runbook` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (sau G4) · **Vai:** Dev (docs) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-164-dlq-runbook` · **PR:** — · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
@@ -175,3 +175,60 @@ Task docs-only: "test viết trước" là các lệnh grep của TC-164-01/02/0
 - **Plan sweep:** hạn chế nêu trong runbook (`list-message-move-tasks` làm ElasticMQ sập: không đổi), "chưa chạy trên AWS" (bước 1 và 3), status DBS-163 lệch (bước 2), `processed_events` không kiểm được (bàn giao BL-362), quyền tối thiểu không kiểm (BL-363), log chưa kiểm trên log thật vì không có worker (BL-364), ghi đè file quarantine và `.gitignore` (BL-360, BL-361). Không còn mục nào chưa có hàng kế hoạch.
 - **Rủi ro và cách lùi:** (1) lần thử để message tổng hợp trong queue dev: dọn ở M-164-09/11 bằng `delete-message` theo `eventId`, không `purge-queue`, kiểm lại không có cluster ECS trước redrive; (2) file thử chứa body tổng hợp: xóa cuối lần thử; (3) sai nhãn runbook phát hiện khi chạy: sửa tài liệu theo kết quả, không sửa kết quả. Back-out: không đổi code, bỏ commit docs. Hệ quả: DLQ notification hết cửa sổ redrive tới 2026-11-21 (ghi ở §8).
 - **Quyết định ở G3 (agent tự quyết):** BL của task này lấy dải 360–364 (các PR khác đang mở dùng dải 265–342, BL-350, 351 đã dùng).
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra (docs-only, lúc bàn giao):** `check-doc-links.mjs` → `421 files checked, 0 broken link(s)`. TC-164-01: runbook có "Tóm tắt cho người trực" (dòng 5), mục 2 (Xem), 2b (Phân loại), 3a, 3b, 3c (dòng 135, trước mục 4 ở dòng 145), mục 4 (Redrive). TC-164-02: bốn `reason` (`invalid_event`, `unknown_event_type`, `'poison'`, `attempts_exhausted`) có trong `consumer-base.ts`; các khóa `outcome`, `consumer`, `receiveCount`, `eventId`, `messageId`, `issueCodes` có trong `consumer-base.ts`, `errorType` và `code` trong `logging.options.ts` (`safeErrorMetadata`); `RISK_CONSUMER = 'risk'`, `NOTIFICATION_CONSUMER = 'notification'`; log group `/dbs/dev/worker` ở `envs/dev/base/worker.tf:7`; alarm `dbs-dev-${each.key}-dlq-not-empty` ở `alarms.tf:29`; cờ `--delete-stale`, `--quarantine-file`, `--max-age-days` ở `dlq-age-check.ts`; `processed_events` ở `database-design.md` §4.6. TC-164-04: `grep -n "chưa kích hoạt" docs/runbooks/dlq-redrive.md` → 0 dòng; status DBS-163 `Implemented`.
+- **Đối chiếu test case:**
+
+| ID | Kiểm bằng | Đạt? |
+|---|---|---|
+| TC-164-01 | grep tiêu đề runbook | đạt |
+| TC-164-02 | grep đối chiếu nguồn (kết quả ở trên) | đạt |
+| TC-164-03 | M-164-01..12 trên SQS dev thật | đạt, trừ hai chỗ chưa kiểm ghi ở M-164-05 và BL-362..364 |
+| TC-164-04 | link check và grep | đạt |
+| TC-164-05 | quy trình | làm ở PR |
+
+- **Test thủ công** (raw: [manual-test.txt](screenshots/DBS-164/manual-test.txt); chạy trên commit `deab1a2`, sau đó chỉ thêm ba lưu ý và mục "Lần chạy thật" vào runbook, không đổi lệnh nào ngoài việc thêm `--query` cho `list-message-move-tasks`; SQS dev, DLQ notification, profile `dbs`):
+
+| Bước | Kết quả |
+|---|---|
+| M-164-01 | đạt: hai alarm `OK`, bốn queue 0, không cluster ECS, DLQ notification chưa có move task, DLQ risk có một task `COMPLETED` (2026-11-14). Lệnh `list-message-move-tasks --query 'length(Results)'` báo lỗi khi chưa có task (không có `Results`): đã sửa runbook |
+| M-164-02 | đạt: ba message vào DLQ, `visible=3` |
+| M-164-03 | đạt: thấy bodies; một lần xem trả cùng message nhiều lần (3 message ra 10 dòng): đã ghi vào runbook mục 2 |
+| M-164-04 | đạt: `dbs-dev-notification-dlq-not-empty` sang `ALARM` sau +139 s (≤ 5 phút) |
+| M-164-05 | một phần: phân loại theo body đạt ((a) hợp lệ, (b) `invalid_event`, (c) `unknown_event_type`). Lệnh lọc log lần đầu hỏng vì Git Bash đổi `/dbs/dev/worker` thành đường dẫn Windows; chạy lại với `MSYS_NO_PATHCONV=1` trả `0` (log group có, chưa dòng nào vì không có worker). **Chưa chạy:** dòng log thật (BL-364), `processed_events` (BL-362) |
+| M-164-06 | đạt: `checked` 3, `fresh` 3, `stale` 0, thoát 0 |
+| M-164-07 | đạt: hai message "bỏ qua" ghi vào `$SKIP` (2 dòng) và xóa theo handle mới nhất; (a) trả về; `git status --porcelain` không có `.tsv`/`.jsonl` mới |
+| M-164-08 | đạt: đếm lại `visible=1`, `age-check` `fresh` 1 thoát 0, không move task, không cluster; `start-message-move-task` `COMPLETED` (1 message); queue chính có 1 message |
+| M-164-09 | đạt: xóa đúng message theo `eventId`, không `purge-queue`; bốn queue 0 |
+| M-164-10 | đạt: sau 100 s, `--max-age-days 0.0007 --delete-stale --quarantine-file "$QF"` báo `stale` 1, `deleted` 1, `failed` rỗng, `complete: true`, thoát 0; file có body (d); kiểm `test -e` báo file đã có (không dùng lại tên); DLQ 0 |
+| M-164-11 | đạt: hai alarm `OK`, bốn queue 0 ở ba thuộc tính; move task `COMPLETED` 1 message |
+| M-164-12 | đạt: bản ghi nhận mẫu (dưới), file thử đã xóa, thư mục `~/dbs-ops/dlq` rỗng |
+
+- **Bản ghi nhận mẫu** (đầu ra của M-164-12; không tạo issue thật cho lần thử): tiêu đề `DLQ bỏ qua 2026-11-15 notification-events-dlq`; DLQ `dbs-dev-notification-events-dlq`; 3 message bỏ qua ((b) `invalid_event`, (c) `unknown_event_type` eventId `71aa0d6d-…`, (d) quá hạn mô phỏng eventId `7e57748d-…`); người quyết định `<GitHub handle>`; xử lý: lưu body ra `skip-notification-…` và `stale-notification-…` ngoài repo rồi xóa khỏi DLQ; báo cáo `dlq:age-check` `checked 1, stale 1, deleted 1, complete true`; sửa nguyên nhân: không áp dụng.
+- **Hệ quả của lần thử:** DLQ notification đã redrive thật ngày 2026-11-15, **không redrive lại trước 2026-11-21**; DLQ risk đã redrive 2026-11-14, không trước 2026-11-20. Sự cố thật trong khoảng đó xử lý tay; đã ghi ở runbook, mục "Lần chạy thật".
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD`: runbook, DBS-163 (chỉ status), feature doc, `docs/features/README.md`, `docs/BACKLOG.md`, ba file `screenshots/DBS-164/`. Khớp §7 bước 1–4.
+- **Lệch so với kế hoạch (agent tự duyệt):**
+  1. Bước 2 của §7 thu hẹp: chỉ sửa status `Draft` của DBS-163, không sửa §7 và §8 của DBS-163 vì không có bằng chứng chúng sai (lúc đó có thể đã có phiên ECS).
+  2. Phân loại ở M-164-07 làm bằng script Node nhỏ (`JSON.parse`, đối chiếu `eventType` với danh sách đã biết) thay cho đọc tay, cùng quy tắc với mục 2b; lệnh AWS đúng như runbook.
+  3. Trong lúc chạy phát hiện ba điều đã sửa vào runbook sau lần chạy (xem M-164-01, 03, 05); không đổi hành vi.
+  4. Không chạy vòng domain review thứ ba (G2 QĐ).
+- **Ảnh chụp:** không áp dụng (docs-only; bằng chứng là `manual-test.txt`, đã thay id tài khoản AWS, không có token hay `ReceiptHandle`).
+- **Bàn giao cho vai khác:** **BL-360** (Dev chủ outbox/messaging): `dlq:age-check` ghi đè file quarantine. **BL-361** (#5): `.gitignore` cho file quarantine và quét. **BL-362** (#5): đường đọc `processed_events` cho Ops. **BL-363** (#5): kiểm quyền tối thiểu và `Deny` BL-241. **BL-364** (Dev chạy DBS-183/184): kiểm log `dead_letter` và lệnh lọc trên log thật.
+
+## 9. Tài liệu đã cập nhật
+
+- `docs/runbooks/dlq-redrive.md` (tóm tắt cho người trực, mục 2b, 3c, kiểm lại và quy tắc move task ở mục 4, đường dẫn ngoài repo, sửa hai câu `processed_events`, bỏ "chưa kích hoạt", "Lần chạy thật").
+- `docs/features/DBS-163-dlq-age-alarms.md` (status `Draft` → `Implemented`), `docs/features/README.md` (hàng DBS-164).
+- `docs/BACKLOG.md`: thêm BL-360, BL-361, BL-362, BL-363, BL-364; không xóa dòng nào.
+
+## Checklist G4
+
+- [x] 5/5 test case đạt (TC-164-05 quy trình, làm ở PR), 0 đơn giản hóa; TC-164-03 đạt trừ hai điểm chưa kiểm đã thành BL
+- [x] Test thủ công trên SQS dev thật, commit `deab1a2` (dòng đầu `manual-test.txt`); M-164-05 một phần: dòng log thật và `processed_events` **chưa chạy** (không có worker, không có phiên RDS), nêu trong PR
+- [x] Ảnh chụp: không áp dụng; `manual-test.txt` không có token, `ReceiptHandle`; id tài khoản AWS đã thay
+- [x] `git diff --stat origin/main...HEAD` khớp §7
+- [x] Baseline docs-only (`check-doc-links.mjs`) chạy lúc bàn giao: 421 file, 0 liên kết hỏng
+- [x] Mọi doc có fact bị đổi đã sửa (runbook, DBS-163 status); trạng thái doc Implemented
+- [x] Bàn giao và DoD chưa đạt đã có BL-360..364 trong `docs/BACKLOG.md`
