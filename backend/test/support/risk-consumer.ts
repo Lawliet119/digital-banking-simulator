@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from './silent-root-logger';
 import request from 'supertest';
 import type { DataSource, QueryRunner } from 'typeorm';
 import { RedisUnavailableError } from '@libs/redis';
@@ -67,13 +67,12 @@ export function buildRiskConsumer(
   const ruleSets = new RuleSetRepository({ redis, db: source, metrics });
   const scoring = new ScoringService();
   const audit = new AuditService(tx);
-  const pino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
+  installSilentRootLogger();
   const sqs = options.sqs ?? ({} as SqsClient);
   const config = { riskQueueUrl: options.queueUrl } as never;
   const args: ConstructorParameters<typeof RiskScoringConsumer> = [
     tx,
     sqs,
-    pino,
     config,
     ruleSets,
     provider,

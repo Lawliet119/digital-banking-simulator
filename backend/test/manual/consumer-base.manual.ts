@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { CreateQueueCommand, DeleteQueueCommand, SQSClient } from '@aws-sdk/client-sqs';
-import { PinoLogger } from 'nestjs-pino';
 import { DataSource, type EntityManager } from 'typeorm';
 import type { DomainEvent } from '@common/events';
 import { ConsumerBase } from '@common/messaging';
@@ -27,7 +26,7 @@ class DemoConsumer extends ConsumerBase {
     tx: TransactionService,
     sqs: SqsClient,
   ) {
-    super(tx, sqs, new PinoLogger({ pinoHttp: { level: 'silent' } } as never));
+    super(tx, sqs);
   }
   protected queueUrl(): string {
     return this.url;

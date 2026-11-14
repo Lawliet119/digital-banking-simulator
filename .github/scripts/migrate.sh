@@ -6,7 +6,7 @@
 #
 # Runner GitHub không với tới RDS (subnet riêng), nên task dùng subnet và SG của service `api`. Family riêng
 # `dbs-migrate` (Terraform, session/ecs.tf): đăng ký revision mới chỉ đổi image, `run-task`, chờ STOPPED, đọc exitCode
-# của container `migrate`. Thoát 0 chỉ khi container thoát 0; mọi lỗi khác thoát 1 và in 50 dòng log cuối.
+# của container `migrate`. Thoát 0 chỉ khi container thoát 0; mọi lỗi khác thoát 1 và chỉ in chỗ đọc log (không in nội dung log: repo public).
 set -euo pipefail
 
 CLUSTER="${CLUSTER:-dbs-dev}"
@@ -59,7 +59,7 @@ if [ "$rc" -ne 0 ]; then
   fi
   exit 1
 fi
-# DB_HOST hiện trong log lỗi của Postgres: che trước khi in bất cứ thứ gì từ task.
+# Log task không còn được in (repo public), nhưng stoppedReason và lỗi aws cũng có thể nhắc DB_HOST: vẫn che trước khi in.
 dbhost="$(jget '(lambda c: next((e["value"] for e in c.get("environment", []) if e["name"] == "DB_HOST"), ""))([c for c in d["taskDefinition"]["containerDefinitions"] if c["name"] == "migrate"][0])' <"$TMP/td.json")"
 if [ -n "$dbhost" ]; then echo "::add-mask::$dbhost"; fi
 log_group="$(jget '[c for c in d["taskDefinition"]["containerDefinitions"] if c["name"] == "migrate"][0]["logConfiguration"]["options"]["awslogs-group"]' <"$TMP/td.json")"
@@ -76,20 +76,12 @@ else
   echo "Đã đăng ký $td_arn"
 fi
 
-# In log của task giữa ::group::, bọc bằng ::stop-commands:: để dòng log bắt đầu bằng `::` không thành lệnh của runner.
-print_logs() {
-  local task_id="$1" token
-  token="$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
-  echo "::group::Log task migration (50 dòng cuối)"
-  echo "::stop-commands::${token}"
-  if aws logs get-log-events --log-group-name "$log_group" --log-stream-name "${log_prefix}/${CONTAINER}/${task_id}" \
-    --limit 50 --output json >"$TMP/logs.json" 2>"$TMP/logs.err"; then
-    python3 -c 'import json,sys; [print(m.rstrip("\n")[:2000]) for m in (e["message"] for e in json.load(sys.stdin)["events"])]' <"$TMP/logs.json"
-  else
-    echo "(không đọc được log của task)"
-  fi
-  echo "::${token}::"
-  echo "::endgroup::"
+# Repo là public (BL-110 c) nên log Actions ai cũng đọc được: KHÔNG in nội dung log của task (lỗi Postgres có thể
+# mang tên máy chủ, tên user, giá trị dữ liệu). Chỉ in chỗ để người có quyền AWS tự đọc.
+print_log_pointer() {
+  local task_id="$1"
+  echo "Log của task nằm ở CloudWatch (không in ra đây vì repo public): log group ${log_group}, stream ${log_prefix}/${CONTAINER}/${task_id}"
+  echo "Đọc: aws logs get-log-events --log-group-name ${log_group} --log-stream-name ${log_prefix}/${CONTAINER}/${task_id} --limit 50 --query 'events[].message' --output text"
 }
 
 # --- 4. run-task ---
@@ -161,5 +153,5 @@ else
   echo "::error::Migration thất bại (exitCode $code)." >&2
 fi
 jget 'd["tasks"][0].get("stoppedReason", "")' <"$TMP/poll.json" >&2 || true
-print_logs "$task_id"
+print_log_pointer "$task_id"
 exit 1

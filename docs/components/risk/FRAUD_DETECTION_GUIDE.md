@@ -379,7 +379,7 @@ Schema chính thức của `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, `
 
 ### 5.4 Bộ đếm Redis (R1, R5)
 
-> **Lịch sử (ADR-08, đã thay bởi ADR-14 và các task DBS-109/111).** Mục này mô tả thiết kế bộ đếm Redis ban đầu. Hiện hành: `OnlineFeatureProvider` đọc 5 SELECT từ `v_transfer_facts` theo `occurredAt`, R1/R5 dùng SQL aggregate vì thứ tự giao message không bằng thứ tự commit nên không thể chứng minh coverage của cache; Redis chỉ cache cấu hình luật (`cfg:risk:latest:v2`, `cfg:risk:v{n}`; TTL của key latest là 60 giây). Xem [kiến trúc risk §2.3](02-architecture.md) và [DBS-109](../../features/DBS-109-online-feature-provider.md). Metric `risk_redis_fallback_total` vẫn được khai báo trong code.
+> **Lịch sử (ADR-08, đã thay bởi ADR-14 và các task DBS-109/111).** Mục này mô tả thiết kế bộ đếm Redis ban đầu. Hiện hành: `OnlineFeatureProvider` đọc 5 SELECT từ `v_transfer_facts` theo `occurredAt`, R1/R5 dùng SQL aggregate vì thứ tự giao message không bằng thứ tự commit nên không thể chứng minh coverage của cache; Redis chỉ cache cấu hình luật (`cfg:risk:latest:v2`, `cfg:risk:v{n}`; TTL của key latest là 60 giây). Xem [kiến trúc risk §2.3](02-architecture.md) và [DBS-109](../../features/DBS-109-online-feature-provider.md). Metric `risk_redis_fallback_total` đã bỏ (BL-204): đọc feature đi thẳng SQL nên không có lần "rơi về" nào để đếm.
 
 | Luật | Key | Lệnh |
 |---|---|---|
@@ -391,7 +391,7 @@ Schema chính thức của `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, `
 - Cửa sổ đếm theo `occurredAt`, nhưng việc dọn cache theo giờ tường và retention (TTL 7200 giây), **không `ZREMRANGEBYSCORE` dựa trên `occurredAt` của event đang xử lý**: event mới tới trước sẽ xóa phần mà event cũ tới sau còn cần. Phần đã dọn hoặc không chứng minh đủ coverage thì event trễ phải đọc SQL.
 - Gom các lệnh của một key vào một `MULTI`/pipeline chỉ giảm round-trip, không chứng minh coverage hay làm parity tự đúng. Redis I/O thực hiện **trước** `BEGIN` của consumer.
 - Parity online/offline chỉ được tuyên bố trên input theo thứ tự, cache ấm; cache lạnh, event trễ/đảo thứ tự và đường dự phòng SQL có test riêng đối chiếu SQL.
-- **Redis lỗi → dự phòng SQL:** đếm trực tiếp trên view `v_transfer_facts` (role `dbs_worker` không có quyền SELECT bảng `transfers`), cùng cửa sổ. Kết quả như nhau, chỉ tốn tải DB hơn. Ghi metric `risk_redis_fallback_total`.
+- **Redis lỗi → dự phòng SQL:** đếm trực tiếp trên view `v_transfer_facts` (role `dbs_worker` không có quyền SELECT bảng `transfers`), cùng cửa sổ. Kết quả như nhau, chỉ tốn tải DB hơn. (Thiết kế cũ có ghi metric `risk_redis_fallback_total`; BL-204 đã bỏ metric này vì đường chính nay là SQL.)
 
 ### 5.5 Cấu trúc code
 

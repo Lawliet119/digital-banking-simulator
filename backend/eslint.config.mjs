@@ -40,13 +40,22 @@ const moneyNumberSyntaxRestriction = {
 
 // BL-024: every log line goes through Nest's Logger, so SafeLogger covers it. PinoLogger and
 // `req.log` reach pino directly and skip that protection; contexts are opened with
-// @common/logging/log-context, not with PinoLogger.runInContext.
+// @common/logging/log-context, not with PinoLogger.runInContext. `setBindings()` rewrites the
+// bindings of a logger in place and skips the `onChild` hook (masking, one role, one correlationId),
+// so a secret or a second id would be written in every later line; `logger.child()` goes through
+// the hook.
+const setBindingsMessage =
+  'logger.setBindings() skips the onChild hook (masking, one role and correlationId per line); open a context with @common/logging/log-context or use logger.child().';
 const directPinoMessage =
   'Log through Nest\'s Logger (@nestjs/common, which goes through SafeLogger) and open contexts with @common/logging/log-context; PinoLogger and req.log bypass SafeLogger.';
 const pinoSyntaxRestrictions = [
   {
     selector: "ImportDeclaration[source.value='nestjs-pino'] > ImportSpecifier[imported.name=/^(PinoLogger|InjectPinoLogger|getLoggerToken)$/]",
     message: directPinoMessage,
+  },
+  {
+    selector: 'CallExpression[callee.property.name="setBindings"]',
+    message: setBindingsMessage,
   },
   {
     selector: 'MemberExpression[property.name="log"][object.name=/^(req|request|res|response)$/]',
@@ -87,20 +96,11 @@ export default tseslint.config(
       ],
     },
   },
-  // Who may touch PinoLogger: the logging module itself, tests, and the files that already held one
-  // before this rule (injected and handed on to ConsumerBase, read for the context, or wired in
-  // main). The list only shrinks; new code uses Nest's Logger.
+  // Who may touch PinoLogger and logger bindings: the logging module itself and tests. Everything
+  // else logs through Nest's Logger and reads the pino logger only through `currentLogger()` /
+  // `currentLogBindings()` of @common/logging/log-context.
   {
-    files: [
-      'src/common/logging/**/*.ts',
-      '**/*.spec.ts',
-      'src/common/messaging/consumer-base.ts',
-      'src/common/metrics/metrics.service.ts',
-      'src/main.ts',
-      'src/modules/notification/notification.consumer.ts',
-      'src/modules/outbox/outbox-writer.ts',
-      'src/modules/risk/risk-scoring.consumer.ts',
-    ],
+    files: ['src/common/logging/**/*.ts', '**/*.spec.ts'],
     rules: { 'no-restricted-syntax': ['error', ...ioredisSyntaxRestrictions] },
   },
   {

@@ -57,6 +57,14 @@ export class AuditMetadataError extends Error {
   }
 }
 
+/** Thrown by the target guard when `target.id` does not fit its `target.type` (BL-019). Fixed message, never the value. */
+export class AuditTargetError extends Error {
+  constructor() {
+    super('audit target có id không đúng định dạng của target.type');
+    this.name = 'AuditTargetError';
+  }
+}
+
 /**
  * Thrown by `recordDenied()` when called from inside another already-open transaction (DBS-56
  * vòng 2, F-2) — a deadlock retry would otherwise insert the DENIED row twice. Message is fixed

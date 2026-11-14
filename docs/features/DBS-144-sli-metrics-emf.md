@@ -13,7 +13,7 @@
   5. Thêm metric: số quyết định theo ai_status (SUCCEEDED, UNAVAILABLE, REFUSED, INVALID_RESPONSE, BUDGET_EXHAUSTED, CONFIG_INVALID), độ trễ gọi AI, tỉ lệ fallback baseline, risk_rule_error_total{rule}; nhãn không chứa dữ liệu cá nhân
 - **Phụ thuộc:** DBS-42 (log JSON) Done và có trong `main`. DBS-121 (service worker trên ECS) **To Do**: chỉ chặn việc xem gauge của worker trên CloudWatch thật. Service `api` và log group đã có trong Terraform nên EMF của api kiểm được trên cloud khi #5 dựng phiên (cần quyền AWS, xem «Chưa chạy» ở §8).
 - **Đã có gì (đã đọc code):**
-  - `prom-client` có trong `package.json`; các counter đăng ký vào `defaultRegister`: `redis_fallback_total` (`libs/redis/redis.metrics.ts`), `rate_limited_total{scope}` (`common/rate-limit/rate-limit.metrics.ts`), `risk_redis_fallback_total{rule,reason}` và `risk_config_redis_fallback_total` (`modules/risk/risk.metrics.ts`; **`RiskMetrics` chưa là provider của app nào**, hai counter này chỉ có khi consumer chấm điểm được nối), `risk_unsupported_mode_total` (`scoring.service.ts`). **Không có gì đọc `defaultRegister`**: không có `/metrics`, không có EMF (BL-152).
+  - `prom-client` có trong `package.json`; các counter đăng ký vào `defaultRegister`: `redis_fallback_total` (`libs/redis/redis.metrics.ts`), `rate_limited_total{scope}` (`common/rate-limit/rate-limit.metrics.ts`), `risk_redis_fallback_total{rule,reason}` (*đã bỏ ở BL-204*) và `risk_config_redis_fallback_total` (`modules/risk/risk.metrics.ts`; **`RiskMetrics` chưa là provider của app nào**, hai counter này chỉ có khi consumer chấm điểm được nối), `risk_unsupported_mode_total` (`scoring.service.ts`). **Không có gì đọc `defaultRegister`**: không có `/metrics`, không có EMF (BL-152).
   - Không có metric HTTP nào; pino-http chỉ ghi dòng log.
   - `outbox_unpublished_idx (id) WHERE published_at IS NULL` (migration `1792627200000`); `dbs_worker` có `SELECT` trên `outbox_events` (`infra/scripts/db-roles.sql:78`); `dbs_api` chỉ `INSERT`, nên gauge chạy **chỉ ở role có worker**.
   - SQS tự phát `ApproximateNumberOfMessagesVisible` và `ApproximateAgeOfOldestMessage` (namespace `AWS/SQS`, dimension `QueueName`).
@@ -40,11 +40,11 @@
   5. **Nhãn được phép:** `Route`, `Method`, `Role`, `Rule`, `Reason`, `Scope`. `Route` là mẫu; không khớp route nào là `unmatched`. `Method` thuộc `{GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS}` còn lại là `OTHER`. Giá trị nhãn chứa UUID, `@` hoặc dãy ≥ 6 chữ số bị thay bằng `redacted`.
   6. **Lỗi = 5xx.** 422 và 429 không tính (docs/03 §14). Request bị ngắt trước khi trả lời (ALB/khách đóng kết nối) đếm riêng `http_aborted_total` và **vẫn vào histogram** để p99 không thấp giả.
   7. **Ba bộ dimension** cho nhóm HTTP: `[Route, Method]`, `[Method]`, `[]` (cộng gộp cả dịch vụ cho SLO 5xx > 1%). Route `/health/*` chỉ có bộ `[Route, Method]` để probe 15 s của ALB không làm loãng tỉ lệ. Chi phí: mỗi bộ dimension là một metric riêng, với 4 metric HTTP × (≈ 20 cặp Route×Method + ≈ 5 bộ `[Method]` + 1 bộ `[]`) ≈ 105 metric tùy chỉnh, cộng khoảng 10 của counter; ≈ 35 USD mỗi tháng nếu để chạy cả tháng, tính theo giờ nên phiên ngắn rẻ hơn nhiều: ghi ở observability.
-  8. **Ghi qua pino của ứng dụng** (`PinoLogger.logger.child({}, { level: 'info' })`), không mở writer thứ hai trên fd 1 (tránh cắt ngang dòng). Mỗi dòng EMF vì thế có thêm `level`, `time`, `role`: EMF cho phép trường thừa ở gốc. Test thay bằng sink tiêm vào.
+  8. **Ghi qua pino của ứng dụng** (`currentLogger().child({}, { level: 'info' })`, `currentLogger()` ở `common/logging/log-context.ts`; BL-024 bỏ `PinoLogger` khỏi `MetricsService`, và `flush()` chạy trong `runAsWorker` nên dòng EMF mang `role=worker` kể cả trong `both`), không mở writer thứ hai trên fd 1 (tránh cắt ngang dòng). Mỗi dòng EMF vì thế có thêm `level`, `time`, `role`: EMF cho phép trường thừa ở gốc. Test thay bằng sink tiêm vào.
   9. **Gauge có giới hạn riêng:** chạy bằng `TransactionService.run` với `statementTimeoutMs = 2000` (không bao phủ bước connect/BEGIN, và server bị `pause` thì không tự hủy được) cộng `Promise.race` 3 s; chỉ một lượt flush tại một thời điểm; **mỗi gauge tối đa một lần đọc đang chạy**: lần đọc trước chưa xong (kể cả sau khi race hết hạn) thì lượt này bỏ qua gauge đó và log `warn`, nên gauge giữ nhiều nhất một kết nối của pool; dòng HTTP và counter ghi **trước** khi chờ gauge.
   10. **Tuổi tính trong SQL** (`EXTRACT(EPOCH FROM clock_timestamp() - created_at)`) để không lệch đồng hồ ECS/RDS. Gauge phát 0 khi không có dòng chờ; nếu worker chết thì **không có dữ liệu**: alarm của #5 phải dùng `Maximum` và `TreatMissingData=breaching` (bàn giao §8).
   11. **Baseline của counter lấy lúc `onApplicationBootstrap`** (registry dùng chung cả tiến trình Jest); `Timestamp` = **đầu** khoảng đo; lượt flush cuối khi tắt chỉ ghi HTTP và counter (DataSource có thể đã đóng), bỏ gauge DB.
-  12. **Allowlist counter:** `redis_fallback_total`, `rate_limited_total{scope}`, `risk_redis_fallback_total{rule,reason}`, `risk_config_redis_fallback_total`, `risk_config_freshness_exceeded_total` (BL-188, không nhãn). `risk_unsupported_mode_total` không vào (không có nhãn nào cần, chưa dùng ở app).
+  12. **Allowlist counter:** `redis_fallback_total`, `rate_limited_total{scope}`, `risk_config_redis_fallback_total`, `risk_config_freshness_exceeded_total` (BL-188, không nhãn) (`risk_redis_fallback_total{rule,reason}` có lúc đầu, bỏ ở BL-204 vì không còn chỗ tăng). `risk_unsupported_mode_total` không vào (không có nhãn nào cần, chưa dùng ở app).
 
 ## 2. Hành vi
 
@@ -79,7 +79,7 @@ Ví dụ hai dòng (rút gọn, `Timestamp` là mili giây của đầu khoảng
   - `OutboxAgeGauge` (`modules/outbox`, trong `OutboxRelayModule`, nên chỉ ở role có worker): đọc bằng `TransactionService`.
 - **Dữ liệu:** chỉ đọc `outbox_events`: `SELECT EXTRACT(EPOCH FROM clock_timestamp() - created_at) FROM outbox_events WHERE published_at IS NULL ORDER BY id LIMIT 1` (đi theo `outbox_unpublished_idx`). Không migration, không đổi quyền.
 - **Ranh giới transaction:** gauge là truy vấn chỉ-đọc trong `TransactionService.run` riêng, `statementTimeoutMs = 2000`, không khóa; request path không chờ flush.
-- **Allowlist:** counter `redis_fallback_total`, `rate_limited_total{scope}`, `risk_redis_fallback_total{rule,reason}`, `risk_config_redis_fallback_total`; nhãn `Route`, `Method`, `Role`, `Rule`, `Reason`, `Scope`.
+- **Allowlist:** counter `redis_fallback_total`, `rate_limited_total{scope}`, `risk_config_redis_fallback_total` (BL-204: bỏ `risk_redis_fallback_total`); nhãn `Route`, `Method`, `Role`, `Rule`, `Reason`, `Scope`.
 - **Sơ đồ:**
 
 ```mermaid
@@ -191,7 +191,7 @@ Vòng 2:
 
 **Rủi ro và cách lùi:** (1) EMF sai hình dạng trên CloudWatch → chỉ mất metric; tắt bằng `METRICS_EMF=false` hoặc revert PR, không đổi dữ liệu. (2) Chi phí log: ≤ 1 dòng/100 request/route/phút. (3) Overhead mỗi request: một `hrtime` và một phép tăng map; tắt thì đi thẳng `next()`. (4) Gauge giữ kết nối pool: tối đa một, `statement_timeout` 2 s; tắt bằng `METRICS_EMF=false`. (5) Đổi `main.ts`/`app.setup.ts` ảnh hưởng mọi request: e2e hiện có (153) phải xanh sau bước 4.
 
-**Quyết định ở G3 (agent tự quyết):** (1) `metrics.service.ts` nhận `PinoLogger` và token `EMF_SINK` tùy chọn để test tiêm sink; (2) thêm bước CI riêng cho `metrics-chain.services-spec` theo quy ước mỗi services-spec một bước; (3) gauge outbox đặt trong `OutboxRelayModule` (chỉ role có worker), không ở `OutboxModule` (api không có `SELECT` trên `outbox_events`).
+**Quyết định ở G3 (agent tự quyết):** (1) `metrics.service.ts` nhận token `EMF_SINK` tùy chọn (lúc đầu còn nhận `PinoLogger`; BL-024 bỏ, xem `currentLogger()`) để test tiêm sink; (2) thêm bước CI riêng cho `metrics-chain.services-spec` theo quy ước mỗi services-spec một bước; (3) gauge outbox đặt trong `OutboxRelayModule` (chỉ role có worker), không ở `OutboxModule` (api không có `SELECT` trên `outbox_events`).
 
 ## 8. Kết quả
 
@@ -258,7 +258,7 @@ Vòng 2:
 
 - **Bàn giao cho vai khác (đã có dòng `docs/BACKLOG.md`):**
   - **BL-203 đã xóa** sau khi kiểm xong trên CloudWatch (M-144-09). Phần alarm và dashboard (quy tắc `Maximum`/`breaching`/`GreaterThanThreshold`/`notBreaching`, chi phí ≈ 115 metric) nằm ở observability và được BL-051, BL-179 và DBS-145 trỏ tới; metric của worker xem sau DBS-121.
-  - **BL-204** (#4): metric thời gian giao dịch → cờ, `ai_status`, độ trễ AI, fallback baseline, `risk_rule_error_total`; `RiskMetrics` chưa là provider; cần API mẫu phân phối ở `MetricsService`. *Cập nhật (BL-204): đã có `MetricsService.recordDistribution`, `risk_transfer_to_flag_ms`, `risk_ai_call_duration_ms`, `risk_decision_total{AiStatus}`, `risk_rule_error_total{Rule}` và `reconciliation_runs_total{Status}`; `RiskMetrics` đã là provider của `RiskWorkerModule`. Dimension `AiStatus` và `Status` thêm vào allowlist nhãn. Danh sách đầy đủ ở observability 01-concept-brief; còn mở: `risk_redis_fallback_total` chưa có chỗ gọi.*
+  - **BL-204** (#4): metric thời gian giao dịch → cờ, `ai_status`, độ trễ AI, fallback baseline, `risk_rule_error_total`; `RiskMetrics` chưa là provider; cần API mẫu phân phối ở `MetricsService`. *Cập nhật (BL-204): đã có `MetricsService.recordDistribution`, `risk_transfer_to_flag_ms`, `risk_ai_call_duration_ms`, `risk_decision_total{AiStatus}`, `risk_rule_error_total{Rule}` và `reconciliation_runs_total{Status}`; `RiskMetrics` đã là provider của `RiskWorkerModule`. Dimension `AiStatus` và `Status` thêm vào allowlist nhãn. Danh sách đầy đủ ở observability 01-concept-brief; `risk_redis_fallback_total` đã bỏ khỏi code, allowlist, dashboard và tài liệu vì `OnlineFeatureProvider` đọc SQL (BL-187).*
   - Cập nhật tại chỗ: BL-127 (`registerGauge` dùng được cho metric đối soát), BL-152 (counter Redis đã xuất bằng EMF; còn dashboard và kiểm `opossum`), BL-179 (metric đã có, còn cảnh báo).
 
 ## 9. Tài liệu đã cập nhật

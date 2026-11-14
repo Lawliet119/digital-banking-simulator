@@ -443,7 +443,6 @@ describe('DBS-111 decisions while the rule set asks for AI (PostgreSQL)', () => 
     const metrics = new MetricsService(
       { enabled: true, flushMs: 600_000 },
       { role: 'worker' } as never,
-      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
       doc => docs.push(doc),
     );
     await metrics.start();

@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { PinoLogger } from 'nestjs-pino';
 import { Counter, register } from 'prom-client';
 import type { EmfDocument } from './emf';
 import { MetricsService } from './metrics.service';
@@ -8,7 +9,6 @@ const MINUTE = 60_000;
 const COUNTERS = [
   'redis_fallback_total',
   'rate_limited_total',
-  'risk_redis_fallback_total',
   'risk_config_redis_fallback_total',
   'risk_config_freshness_exceeded_total',
   'risk_unsupported_mode_total',
@@ -33,13 +33,10 @@ function make(enabled = true, sink?: (doc: EmfDocument) => void, role = 'api'): 
   const info = jest.fn((doc: EmfDocument) => docs.push(doc));
   const child = jest.fn(() => ({ info }));
   const flushLogger = jest.fn((cb: () => void) => cb());
-  const pino = { logger: { child, flush: flushLogger } };
-  const service = new MetricsService(
-    { enabled, flushMs: MINUTE },
-    { role } as never,
-    pino as never,
-    sink,
-  );
+  jest
+    .spyOn(PinoLogger.prototype, 'logger', 'get')
+    .mockReturnValue({ child, flush: flushLogger } as never);
+  const service = new MetricsService({ enabled, flushMs: MINUTE }, { role } as never, sink);
   return { service, docs, child, flushLogger };
 }
 
@@ -131,7 +128,6 @@ describe('MetricsService', () => {
     it('TC-144-06 writes the increase of every counter on the list, with its labels and the role', async () => {
       const redis = counter('redis_fallback_total');
       const limited = counter('rate_limited_total', ['scope']);
-      const risk = counter('risk_redis_fallback_total', ['rule', 'reason']);
       const config = counter('risk_config_redis_fallback_total', ['reason']);
       const freshness = counter('risk_config_freshness_exceeded_total');
       const { service, docs } = collect();
@@ -140,7 +136,6 @@ describe('MetricsService', () => {
       freshness.inc(2);
       limited.inc({ scope: 'ip' }, 2);
       limited.inc({ scope: 'user' });
-      risk.inc({ rule: 'R1', reason: 'error' }, 4);
       config.inc({ reason: 'corrupt' });
       await service.flush(T0 + MINUTE);
 
@@ -162,10 +157,8 @@ describe('MetricsService', () => {
       expect(
         byName.get('risk_config_freshness_exceeded_total')?._aws.CloudWatchMetrics[0].Dimensions,
       ).toEqual([['Role']]);
-      const risks = docs.filter(d => names(d)[0] === 'risk_redis_fallback_total');
-      expect(risks).toHaveLength(1);
-      expect(risks[0]).toMatchObject({ Rule: 'R1', Reason: 'error', risk_redis_fallback_total: 4 });
-      expect(risks[0]._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role', 'Rule', 'Reason']]);
+      // BL-204: the metric of a feature read falling back from Redis is gone with the Redis read.
+      expect(docs.map(d => names(d)[0])).not.toContain('risk_redis_fallback_total');
       const limits = docs.filter(d => names(d)[0] === 'rate_limited_total');
       expect(limits.map(d => [d.Scope, d.rate_limited_total]).sort()).toEqual([
         ['ip', 2],

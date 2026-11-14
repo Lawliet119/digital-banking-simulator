@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import { DataSource, QueryFailedError } from 'typeorm';
 import type { DomainEvent } from '@common/events';
 import { NotificationConsumer } from '@modules/notification';
@@ -14,6 +14,8 @@ import {
   TRANSFER_SAMPLE,
 } from '../support/event-samples';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+
+installSilentRootLogger();
 
 type Row = { user_id: string; kind: string; message: string };
 
@@ -53,7 +55,6 @@ describe('NotificationConsumer (real PostgreSQL)', () => {
     consumer = new NotificationConsumer(
       tx,
       {} as SqsClient,
-      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
       { notificationQueueUrl: 'http://localhost:9324/000000000000/notification-events' } as never,
       new AuditService(tx),
     );
