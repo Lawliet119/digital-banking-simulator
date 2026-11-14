@@ -15,6 +15,40 @@ const UNSTORABLE_TEXT =
   // eslint-disable-next-line no-control-regex
   /\u0000|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 
+/**
+ * What an SQS message may weigh: 256 KiB, the body and the message attributes together (the
+ * queue's `MaximumMessageSize` is left at its default, 262 144, in Terraform).
+ */
+export const SQS_MAX_MESSAGE_BYTES = 262_144;
+/**
+ * Room kept for what the relay adds around the body: two message attributes (`eventType` and
+ * `correlationId`: name + type + value, about 130 bytes today) and any attribute a later release
+ * adds. 1 KiB is several times the real figure and costs the payload under 0.4 %.
+ */
+export const SQS_ATTRIBUTE_RESERVE_BYTES = 1024;
+/**
+ * The most an outbox payload may weigh, in UTF-8 bytes of its JSON text (BL-123): the relay sends
+ * that text as the SQS body, so a payload over this would only fail at the queue with a 4xx and
+ * then never get out (BL-181). It is also far below what PostgreSQL jsonb refuses (268 435 455
+ * bytes, SQLSTATE 54000), which `JSON.parse` would have accepted. Real events weigh about 0.6 KiB.
+ */
+export const OUTBOX_MAX_PAYLOAD_BYTES = SQS_MAX_MESSAGE_BYTES - SQS_ATTRIBUTE_RESERVE_BYTES;
+
+/**
+ * The payload of an event is too large to travel through SQS. A producer bug (an unbounded
+ * extension field), not a user error: like `InvalidEventError` it fails the caller's transaction.
+ * It carries sizes only, never any of the payload.
+ */
+export class OutboxPayloadTooLargeError extends Error {
+  constructor(
+    readonly sizeBytes: number,
+    readonly limitBytes: number,
+  ) {
+    super(`Outbox payload is ${sizeBytes} bytes, over the limit of ${limitBytes}`);
+    this.name = 'OutboxPayloadTooLargeError';
+  }
+}
+
 /** Walks a value that came out of JSON.parse. It never reports or keeps the offending text. */
 function hasUnstorableText(root: unknown): boolean {
   const pending: unknown[] = [root];
@@ -48,6 +82,12 @@ export class OutboxWriter {
     assertEvent(event);
     const payload = JSON.stringify(event);
     if (typeof payload !== 'string') throw new TypeError('Event must serialize to JSON');
+    // Refused by size before it is parsed or sent to PostgreSQL (BL-123): the check is on bytes,
+    // which is what SQS counts, and costs nothing next to the stringify that already happened.
+    const sizeBytes = Buffer.byteLength(payload, 'utf8');
+    if (sizeBytes > OUTBOX_MAX_PAYLOAD_BYTES) {
+      throw new OutboxPayloadTooLargeError(sizeBytes, OUTBOX_MAX_PAYLOAD_BYTES);
+    }
     // Validate what will be persisted too: a toJSON hook can change a previously valid object.
     const snapshot = assertEvent(JSON.parse(payload));
     // PostgreSQL would refuse this text at the INSERT. Refuse it here so the caller gets a typed

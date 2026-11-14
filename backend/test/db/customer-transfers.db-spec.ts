@@ -1,7 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { validateEvent } from '@common/events';
+import { validateEvent, type DomainEvent } from '@common/events';
+import {
+  OUTBOX_MAX_PAYLOAD_BYTES,
+  OutboxPayloadTooLargeError,
+  OutboxWriter,
+} from '@modules/outbox';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { checkLedgerInvariants } from '../support/invariants';
@@ -411,6 +416,31 @@ describe('DBS-61 customer transfers: actual JWT/HTTP/PG double entry', () => {
       await transfer(a, b.accountId, '1000', key).expect(201);
     },
   );
+  it('BL-123 an oversized outbox payload fails the real transfer with 500 and rolls back every row, the same key then succeeds', async () => {
+    const a = await target('1000000'),
+      b = await target(),
+      key = randomUUID(),
+      before = await totals();
+    const add = OutboxWriter.prototype.add;
+    const spy = jest.spyOn(OutboxWriter.prototype, 'add').mockImplementationOnce(function (
+      this: OutboxWriter,
+      manager,
+      event: DomainEvent,
+    ) {
+      const padded = { ...event, extension: 'x'.repeat(OUTBOX_MAX_PAYLOAD_BYTES) };
+      return add.call(this, manager, padded);
+    });
+    try {
+      const res = await transfer(a, b.accountId, '1000', key).expect(500);
+      expect(res.body.detail).toBe('Internal server error');
+      expect(JSON.stringify(res.body)).not.toContain('xxxxxxxx');
+      await expect(spy.mock.results[0].value).rejects.toBeInstanceOf(OutboxPayloadTooLargeError);
+      expect(await totals()).toEqual(before);
+    } finally {
+      spy.mockRestore();
+    }
+    await transfer(a, b.accountId, '1000', key).expect(201);
+  });
   it.each(['audit_log', 'idempotency_keys'])(
     'TC-61-08 rejected %s fault rolls back, retry persists422',
     async table => {
