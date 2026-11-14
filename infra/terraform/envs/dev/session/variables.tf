@@ -96,3 +96,38 @@ variable "metrics_namespace" {
     error_message = "metrics_namespace must start with DBS/ and use only A-Z a-z 0-9 _ . / # : -."
   }
 }
+
+variable "waf_enabled" {
+  description = "Bật AWS WAF gắn vào ALB (DBS-153, chỉ tuần 6-8). Đặt false sau waf_off_date để tắt hẳn (0 USD)."
+  type        = bool
+  default     = true
+}
+
+variable "waf_rate_limit" {
+  description = "Ngưỡng rate rule của WAF (request / 5 phút / IP, mặc định 1000 theo docs/03 §12)."
+  type        = number
+  default     = 1000
+}
+
+variable "waf_rate_limit_exempt_cidrs" {
+  description = "Danh sách IPv4 CIDR (/8-/32) miễn rate rule của WAF (vd IP máy k6 khi load test). Managed rules vẫn chạy."
+  type        = list(string)
+  default     = []
+}
+
+variable "waf_managed_rules_count_only" {
+  description = "Khi true, chuyển AWS managed rule groups sang chế độ count để xử lý false positive mà không gỡ WAF."
+  type        = bool
+  default     = false
+}
+
+variable "waf_off_date" {
+  description = "Ngày dự kiến tắt WAF (YYYY-MM-DD, đầu tuần 9). Nếu waf_enabled = true từ ngày này trở đi, check waf_off_date sẽ cảnh báo."
+  type        = string
+  default     = "2026-11-26"
+
+  validation {
+    condition     = can(regex("^\\d{4}-\\d{2}-\\d{2}$", var.waf_off_date))
+    error_message = "waf_off_date must be in YYYY-MM-DD format."
+  }
+}

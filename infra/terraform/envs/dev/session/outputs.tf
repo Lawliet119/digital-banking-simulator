@@ -91,3 +91,13 @@ output "worker_task_role_arn" {
 output "worker_execution_role_arn" {
   value = aws_iam_role.worker_execution.arn
 }
+
+output "waf_web_acl_name" {
+  description = "Tên WAF web ACL gắn vào ALB (null khi waf_enabled = false, DBS-153)."
+  value       = var.waf_enabled ? module.waf[0].web_acl_name : null
+}
+
+output "waf_web_acl_arn" {
+  description = "ARN WAF web ACL gắn vào ALB (null khi waf_enabled = false, DBS-153)."
+  value       = var.waf_enabled ? module.waf[0].web_acl_arn : null
+}

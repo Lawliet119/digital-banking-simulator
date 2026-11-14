@@ -64,6 +64,13 @@ override_resource {
   }
 }
 
+override_resource {
+  target = module.waf[0].aws_wafv2_web_acl.main
+  values = {
+    arn = "arn:aws:wafv2:ap-southeast-1:123456789012:regional/webacl/dbs-dev-waf/00000000-0000-0000-0000-000000000000"
+  }
+}
+
 # master_user_secret là list computed: mock để rỗng làm output `[0]` lỗi; cấp giá trị giả hợp lệ.
 override_resource {
   target = aws_db_instance.main
