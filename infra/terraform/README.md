@@ -106,12 +106,12 @@ terraform destroy -var account_id=<account-id> -var state_bucket=dbs-tfstate-<ac
 
 **Dashboard hạ tầng (BL-261).** `envs/dev/session/dashboard_infra.tf` tạo thêm `dbs-dev-infra` (output `infra_dashboard_url`): ECS CPU và bộ nhớ của `api` và `worker`, số task api khỏe sau ALB, 5xx ở ALB (số lượng và tỉ lệ), RDS (kết nối, CPU), Valkey (CPU, bộ nhớ, kết nối). Nó **tách** khỏi `overview` vì widget ALB cần `arn_suffix` của `aws_lb` và target group (không dựng được từ chuỗi biết trước), nên dashboard này tham chiếu tài nguyên session và `-target` nó sẽ kéo cả ALB lên; `overview` vẫn không tham chiếu gì nên giữ tính chất `-target` ở trên. Số task đang chạy của ECS (`RunningTaskCount`) cần Container Insights, đang tắt ở `ecs.tf` (bật tốn tiền theo task), nên chưa có số task của worker: xem tuổi outbox (không có điểm là worker không chạy). Hai dashboard nằm trong 3 dashboard miễn phí của tài khoản (tối đa 50 metric mỗi dashboard).
 
-### Alarm CloudWatch và thông báo (BL-051, BL-117, BL-127, BL-179, BL-182, BL-188, BL-235)
+### Alarm CloudWatch và thông báo (BL-051, BL-117, BL-127, BL-179, BL-182, BL-188, BL-235, DBS-177)
 
 Mọi alarm gửi vào topic SNS `dbs-dev-alarms`, cả lúc báo (`alarm_actions`) lẫn lúc hết (`ok_actions`).
 
 - `envs/dev/base/alarms.tf`: topic SNS, đăng ký email (biến `alarm_email`, mặc định rỗng = không đăng ký), 2 alarm DLQ (`dbs-dev-risk-dlq-not-empty`, `dbs-dev-notification-dlq-not-empty`). Ở base để email chỉ phải xác nhận **một lần** (không mất theo `destroy` của session) và để alarm DLQ còn đó khi session đã xóa nhưng DLQ vẫn giữ message tới 6 ngày. Output `alarm_topic_arn`.
-- `envs/dev/session/alarms.tf`: 11 alarm của thứ chỉ có khi phiên chạy (tuổi queue, tuổi và cách ly outbox, Redis, fallback, rate limit, risk, đối soát). Đọc `alarm_topic_arn` từ state của `base`, nên **phải apply `base` trước `session`** (session cũ không có output này sẽ lỗi lúc plan).
+- `envs/dev/session/alarms.tf`: 15 alarm của thứ chỉ có khi phiên chạy (tuổi queue, tuổi và cách ly outbox, Redis, fallback, rate limit, risk, đối soát, tỉ lệ 5xx API, latency chuyển tiền p95, latency đọc p95, thời gian tới cờ p95). Đọc `alarm_topic_arn` từ state của `base`, nên **phải apply `base` trước `session`** (session cũ không có output này sẽ lỗi lúc plan).
 - Bảng alarm, ngưỡng, cửa sổ và lý do: [observability](../../docs/components/observability/01-concept-brief.md#alarm-cloudwatch-bl-051-bl-117-bl-127-bl-179-bl-181-bl-182).
 
 ```bash
@@ -119,7 +119,7 @@ Mọi alarm gửi vào topic SNS `dbs-dev-alarms`, cả lúc báo (`alarm_action
 terraform apply -var account_id=<account-id> -var alarm_email=<email>
 ```
 
-Chi phí: 13 alarm (2 ở base, 11 ở session). Alarm chuẩn 0,10 USD/alarm/tháng; alarm biểu thức metric (`SUM(METRICS())`) tính theo số metric tham chiếu (alarm lỗi luật 6, ba alarm khác mỗi cái 2). Ước ≈ 2,3 USD/tháng nếu chạy cả tháng, trong đó 0,2 USD của hai alarm DLQ ở base chạy luôn; alarm của session tính theo giờ và mất cùng phiên. SNS email gần như miễn phí. Thử alarm thật (đẩy message độc vào DLQ, ép lỗi luật) cần AWS thật và chưa làm: còn mở ở BL-051.
+Chi phí: 17 alarm (2 ở base, 15 ở session). Alarm chuẩn 0,10 USD/alarm/tháng; alarm biểu thức metric (`SUM(METRICS())` / `MAX(METRICS())` / công thức tỉ lệ) tính theo số metric tham chiếu (alarm lỗi luật 6, latency đọc 3, bốn alarm khác mỗi cái 2). Ước ≈ 3,0 USD/tháng nếu chạy cả tháng, trong đó 0,2 USD của hai alarm DLQ ở base chạy luôn; alarm của session tính theo giờ và mất cùng phiên. SNS email gần như miễn phí. Thử alarm thật (đẩy message độc vào DLQ, ép lỗi luật, tải 5xx/latency) cần AWS thật và chưa làm: còn mở ở BL-051, BL-341.
 
 ### Đẩy image lên ECR bằng OIDC (DBS-36)
 
