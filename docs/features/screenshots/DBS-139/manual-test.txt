@@ -874,3 +874,46 @@ CloudWatch DBS/Backend có metric thật: http_*, outbox_oldest_unpublished_age_
           alarm dbs-dev-risk-dlq-not-empty: OK -> ALARM sau 244s (BL-051); sau đó purge DLQ (dev1, trong allow-list BL-241)
 14:27:42  terraform destroy session: 43 destroyed, 484s
 verify-clean.sh: KET LUAN: sạch (13 loại)
+
+
+===== Phiên AWS 2026-11-14 tối (dev1; dùng lại phiên do IAM user khác dựng lúc 15:05, theo quyết định techlead) =====
+20:2x     apply base từ main 5b4b767 (4 thêm, 8 sửa: đưa thay đổi base của nhánh chưa merge về đúng main)
+20:32-38  apply session image 5fb15c4 (BL-103), -var db_instance_class=db.t4g.small: 19 thêm, 4 sửa, 12 xóa; RDS đổi lớp 5m47s
+db-roles.sh (BL-103): 55s, thoát 0. Log: "Đã đặt LOGIN và mật khẩu cho role dbs_api/dbs_worker/dbs_migrator",
+          "Đăng nhập thử bằng dbs_api / dbs_worker / dbs_migrator: được" (không in mật khẩu)
+migrate.sh (image 5fb15c4, role dbs_migrator): 70s, thoát 0
+apply desired 1/1: service vẫn ở revision cũ dbs-api:7 / dbs-worker:4 (ignore_changes) tham chiếu secret master
+          -> task worker: ResourceInitializationError ... AccessDeniedException ... rds!db-... (đúng ý đồ BL-103)
+20:52:51  deploy.sh IMAGE_TAG=5b4b767: dbs-api:10, migration task (dbs-migrate:7) xong, rollout api COMPLETED 1/1,
+          health/live 200, health/ready 200, dbs-worker:7 COMPLETED 1/1,
+          "OK: chỉ còn dbs-worker:7, 1/1 task RUNNING, không có deployment hay task cũ" (BL-188), tổng 8m44s
+probe one-off (task dbs-migrate, current_user dbs_migrator, PostgreSQL 17.9):
+          pg_stat_activity: dbs_api (dbs-api) 1, dbs_worker (dbs-worker) 1, dbs_migrator (probe) 1; không có master (BL-103)
+          pg_tables owner: dbs_migrator 19; pg_views owner: dbs_migrator 1 (DB cũ migrate bằng master đã được chuyển chủ)
+          max_connections 181, reserved_connections 2, superuser_reserved_connections 3 trên db.t4g.small (BL-234)
+          lệch đồng hồ ECS-RDS: RTT nhỏ nhất 0 ms, lệch 0,48 ms; trung vị 0,51 ms; min -25,76 / max 3,94 ms (BL-177)
+seed-cognito.sh bằng role dbs-dev-cognito-seeder (assumed-role/dbs-dev-cognito-seeder, container Linux): 22s,
+          OK operator, auditor, admin, customer1..3 (BL-101)
+seed-cloud.sh (container Linux): task dbs-seed:2, 63s, 3 khách, 4 nạp, 2 chuyển, "total ledger balance = 0" (BL-252)
+21:06:26  worker desired 0 (running 0)
+21:06:45  3 x POST /v1/transfers qua ALB: 201 COMPLETED (0,30 / 0,19 / 0,19 s); /health/ready 200 (BL-247)
+          seeder role gọi SQS dbs-dev-risk-events: SendMessage, ReceiveMessage, PurgeQueue đều
+          "AccessDenied ... with an explicit deny in a resource-based policy" (BL-241)
+          simulate-custom-policy ba policy đọc secret: mỗi execution role chỉ allowed đúng secret của mình,
+          chỉ dbs-dev-db-roles-execution allowed secret master; kms:Decrypt allowed chỉ khi có kms:ViaService (BL-243)
+21:15:48  dbs-dev-outbox-age OK -> ALARM ("2 datapoints ... 3 missing datapoints were treated as [Breaching]"), 9m22s sau khi dừng (BL-182)
+21:16:29  worker running 1; outbox_events của 3 giao dịch published_at 21:16:33 (lag 588s), risk_decisions có 3 dòng,
+          outbox chưa gửi = 0; reconciliation_runs: 16 dòng OK, lần cuối 21:16:33 (BL-161, BL-196)
+21:20:46  ecs stop-task worker -> task mới RUNNING 21:23:04; /health/ready 200 (BL-247)
+21:23:22  update-service worker -> dbs-worker:8 (bỏ DB_HOST): 4 task thoát 1 (~0,1s sau "Starting Nest application");
+          21:28:46 "rolling back to deployment"; 21:31:40 steady state ở dbs-worker:7; api 200 suốt; deregister dbs-worker:8
+21:35:34  gửi bản sao sự kiện thật (eventId d9148c48-…) vào dbs-dev-risk-events-dlq; dlq:age-check: checked 1, fresh 1, complete
+21:36:22  start-message-move-task không --destination-arn: FAILED CouldNotDetermineMessageSource
+21:36:56  start-message-move-task --destination-arn dbs-dev-risk-events: COMPLETED, moved 1; DLQ 0/0, queue chính 0/0,
+          không dead_letter mới (BL-051)
+21:40:03  EMF tổng hợp (log stream synthetic/alarm-drill-2026-11-14, đã xóa): risk-config-invalid ALARM 21:41:10,
+          risk-rule-error 21:41:36, risk-config-freshness 21:41:31, reconciliation-failed 21:41:48;
+          risk-config-redis-fallback (2/2 điểm) ALARM 21:52:00 sau khi đẩy ba phút liên tiếp (BL-051, 127, 188, 235)
+21:5x     24 widget dbs-dev-overview + dbs-dev-infra render bằng GetMetricWidgetImage -> screenshots/DBS-145/real-2026-11-14 (BL-263)
+21:54:54  terraform destroy session: 57 destroyed, 8m25s (Valkey 5m26s)
+verify-clean.sh: KET LUAN: sạch (13 loại)

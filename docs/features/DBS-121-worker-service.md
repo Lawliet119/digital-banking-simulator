@@ -254,6 +254,21 @@ Rủi ro và cách lùi: `terraform apply` chỉ chạy `-target` nhóm miễn p
 - **Bàn giao và BACKLOG:** BL-247 (nhóm B chưa chạy, DoD 2 chưa đạt; #5), BL-248 (`deploy.sh` cho worker; #5), BL-249 (thứ tự hủy module SQS khi SIGTERM; Dev), BL-250 (`propagate_tags` api; #5). Đã sửa BL-161, BL-182, BL-234, BL-242; đã xóa BL-114, BL-119.
 - **Khoảng hở còn lại:** api vẫn lăn 200% (BL-234): api 5 + worker 1 khi deploy tới 11 task, 115 > 74 kết nối dùng được; worker treo chưa có alarm (BL-161); credential master RDS vào worker (BL-103; code đổi sang secret `dbs/dev/db-worker` đã xong 2026-11-14, chưa chạy trên AWS).
 
+
+### Nhóm B trên AWS 2026-11-14 (BL-247)
+
+- **Tắt worker không đổi api:** `desiredCount` worker 0 lúc 21:06:26; ba `POST /v1/transfers` qua ALB đều 201 `COMPLETED`
+  (0,19–0,30 s), `/health/ready` 200. Outbox giữ ba sự kiện chưa gửi.
+- **Bật lại:** worker RUNNING 21:16:29; ba sự kiện `published_at` 21:16:33 (4 giây sau), mỗi giao dịch có `risk_decisions`,
+  `outbox_events` chưa gửi = 0.
+- **Kill task:** `ecs stop-task` lúc 21:20:46, ECS thay bằng task mới RUNNING lúc 21:23:04 (2 phút 18 giây, gồm
+  `stopTimeout` tắt êm); api vẫn 200.
+- **Revision thiếu biến:** revision `dbs-worker` bỏ `DB_HOST`: container thoát 1 khoảng 0,1 giây sau khi khởi động (kiểm
+  cấu hình), 4 lần; circuit breaker rollback về revision tốt lúc 5 phút 24 giây sau `update-service`, xong sau 8 phút 18
+  giây. Vì worker lăn 0%/100%, suốt lúc đó không có worker nào xử lý (outbox giữ sự kiện, alarm `dbs-dev-outbox-age` kêu
+  lại); revision hỏng được deregister để `deploy.sh` không lấy nó làm "revision mới nhất".
+- Bằng chứng: [manual-test DBS-139](screenshots/DBS-139/manual-test.txt).
+
 ## 9. Tài liệu đã cập nhật
 
 `infra/terraform/README.md` (mục «Service worker», đổi câu SQS), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (§13.2, §13.3), `docs/components/_shared/database-design.md` §6.4 (số task worker), `docs/features/README.md`, `docs/BACKLOG.md` (thêm BL-247..250; sửa BL-161, 182, 234, 242; xóa BL-114, BL-119). Không đổi threat-model: T9 giữ trạng thái «Một phần» (queue policy allow-list vẫn là BL-241).

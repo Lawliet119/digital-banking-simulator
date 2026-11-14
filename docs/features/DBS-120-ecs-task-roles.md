@@ -347,6 +347,24 @@ Tên địa chỉ chốt (giống §1 câu 8): role `aws_iam_role.execution` (ap
   - README Terraform: `apply base` trước lần deploy kế tiếp (ghi ở mục "Task role và execution role (DBS-120)").
   - DoD 4 (PR merge, CI xanh, Dev review, bảng đối chiếu trong PR): chưa thể kiểm khi chưa có PR; là bước quy trình của người dùng sau G4 (không thêm BL: đã có trong mô tả PR).
 
+
+### Kiểm trên AWS 2026-11-14 (BL-243, BL-103)
+
+`iam simulate-custom-policy` trên JSON thật của phiên (policy inline đọc secret của từng execution role), hành động
+`secretsmanager:GetSecretValue` với năm secret và `kms:Decrypt` trên `alias/dbs-dev`:
+
+| Execution role | `db-api` | `db-worker` | `db-migrator` | `redis-auth` | master `rds!db-…` | `kms:Decrypt` có / không `kms:ViaService` |
+|---|---|---|---|---|---|---|
+| `dbs-dev-api-execution` (`read-db-api-secret`) | allowed | deny | deny | deny (policy riêng `read-redis-auth-secret`) | deny | allowed / deny |
+| `dbs-dev-worker-execution` | deny | allowed | deny | allowed | deny | allowed / deny |
+| `dbs-dev-migrate-execution` | deny | deny | allowed | deny | deny | allowed / deny |
+| `dbs-dev-db-roles-execution` | allowed | allowed | allowed | deny | allowed | allowed / deny |
+
+"deny" là `implicitDeny`. Chỉ role của task `dbs-db-roles` đọc được secret master. Gọi thật cùng ngày: task api, worker,
+`dbs-migrate` khởi động bằng role của mình và nối DB bằng `dbs_api`, `dbs_worker`, `dbs_migrator` (`pg_stat_activity`);
+một revision cũ còn tham chiếu secret master không khởi động được (`AccessDeniedException ... no identity-based policy
+allows`), đúng ý đồ ([manual-test DBS-139](screenshots/DBS-139/manual-test.txt)).
+
 ## 9. Tài liệu đã cập nhật
 
 - `infra/terraform/README.md`: mục mới "Task role và execution role (DBS-120)", bảng IAM của SQS (policy gắn vào `dbs-dev-worker-task`), mục migration (execution role riêng, không task role, `apply base` trước deploy).

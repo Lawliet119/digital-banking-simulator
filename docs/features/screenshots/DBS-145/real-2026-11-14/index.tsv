@@ -1,0 +1,24 @@
+overview-01-do-tre-toan-dich-vu-ms.png	Độ trễ toàn dịch vụ (ms)
+overview-02-chuyen-tien-post-v1-transfers-p95-va-p99.png	Chuyển tiền POST /v1/transfers: p95 và p99 (ms)
+overview-03-doc-p95-ms.png	Đọc: p95 (ms)
+overview-04-ti-le-5xx.png	Tỉ lệ 5xx (%)
+overview-05-request-5xx-bi-ngat.png	Request, 5xx, bị ngắt
+overview-06-p95-theo-route-ms.png	p95 theo Route (ms)
+overview-07-tuoi-outbox-chua-gui-cu-nhat-giay.png	Tuổi outbox chưa gửi cũ nhất (giây)
+overview-08-dlq-so-message.png	DLQ: số message
+overview-09-tuoi-message-cu-nhat-giay.png	Tuổi message cũ nhất (giây)
+overview-10-redis-fallback.png	Redis fallback
+overview-11-request-bi-rate-limit.png	Request bị rate limit
+overview-12-risk-fallback-redis-cua-cau-hinh-luat.png	Risk: fallback Redis của cấu hình luật
+overview-13-doi-soat-so-cai-so-lan-chay-theo-ket-qua.png	Đối soát sổ cái: số lần chạy theo kết quả
+overview-14-risk-config-invalid-va-loi-luat.png	Risk: CONFIG_INVALID và lỗi luật
+overview-15-thoi-gian-giao-dich-toi-co-p95-ms.png	Thời gian giao dịch tới cờ: p95 (ms)
+infra-01-ecs-cpu.png	ECS: CPU (%)
+infra-02-ecs-bo-nho.png	ECS: bộ nhớ (%)
+infra-03-task-api-sau-alb-khoe-va-khong-khoe.png	Task api sau ALB: khỏe và không khỏe
+infra-04-alb-so-5xx.png	ALB: số 5xx
+infra-05-alb-ti-le-5xx.png	ALB: tỉ lệ 5xx (%)
+infra-06-rds-so-ket-noi.png	RDS: số kết nối
+infra-07-rds-cpu.png	RDS: CPU (%)
+infra-08-valkey-cpu.png	Valkey: CPU (%)
+infra-09-valkey-bo-nho-va-ket-noi.png	Valkey: bộ nhớ (%) và kết nối
