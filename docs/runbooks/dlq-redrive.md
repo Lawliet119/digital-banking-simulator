@@ -97,6 +97,9 @@ npm run --silent dlq:age-check -- --queue-url "$DLQ" [--endpoint-url http://loca
 SRC_ARN=$($SQS get-queue-attributes --queue-url "$DLQ" --attribute-names QueueArn --query Attributes.QueueArn --output text)
 DST_ARN=$($SQS get-queue-attributes --queue-url "$MAIN" --attribute-names QueueArn --query Attributes.QueueArn --output text)
 $SQS start-message-move-task --source-arn "$SRC_ARN" --destination-arn "$DST_ARN"
+# Đã chạy thật trên AWS 2026-11-14 (BL-051): `dlq:age-check` báo 1 fresh, move task COMPLETED (1 message), worker nhận lại
+# và bỏ qua vì eventId đã xử lý; DLQ và queue chính về 0. Thiếu --destination-arn thì message không do SQS tự chuyển
+# sang DLQ (ví dụ gửi tay) làm move task FAILED với `CouldNotDetermineMessageSource`: luôn ghi rõ đích.
 ```
 
 - **Luôn ghi `--destination-arn`.** Message trong DLQ do `ConsumerBase` **gửi** sang (`SendMessage`), không phải do SQS chuyển. Vì vậy AWS không biết "queue gốc" của chúng.

@@ -184,6 +184,14 @@ Rủi ro: đồng hồ app lệch DB (ghi BL). Lùi: `git revert`, không migrat
 - **Để lead xem kỹ:** hạn mức ngày giờ lấy "bây giờ" từ đồng hồ ứng dụng thay vì đồng hồ DB (G1 câu 1); đánh đổi nêu ở BL-177.
 - **Bàn giao:** BL-176 (Dev review các PR techlead), BL-177 (đo độ lệch đồng hồ ECS–RDS). BL-154 (nửa đêm) để DBS-85.
 
+
+### Độ lệch đồng hồ ECS–RDS đo trên AWS 2026-11-14 (BL-177)
+
+Task Fargate một lần trong VPC (cùng mạng với api) gọi `SELECT clock_timestamp()` 50 lần trên RDS PostgreSQL 17 qua TLS và
+so với `Date.now()` hai đầu: RTT nhỏ nhất 0–1 ms, lệch ở mẫu RTT nhỏ nhất **0,48 ms**, trung vị 0,51 ms (mẫu lệch nhất
+−25,8 ms là mẫu có RTT lớn, nên là trễ mạng chứ không phải lệch đồng hồ). Dưới ngưỡng 100 ms của BL-177 nên giữ `Clock` của
+ứng dụng như quyết định §2. Bằng chứng: [manual-test DBS-139](screenshots/DBS-139/manual-test.txt).
+
 ## 9. Tài liệu đã cập nhật
 
 `docs/components/_shared/database-design.md` (§7.1 kết quả đo), `backend/src/modules/ledger/README.md`, `docs/features/README.md`, `docs/BACKLOG.md` (thêm BL-176, BL-177). Không xóa dòng BL nào.

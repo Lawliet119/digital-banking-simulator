@@ -186,6 +186,19 @@ Rủi ro và cách lùi: dashboard là tài nguyên độc lập, lùi bằng `d
 - **Lệch so với kế hoạch:** không có lệch ngoài các quyết định đã ghi ở §1 (biến `metrics_namespace`, state key riêng, `periodOverride`); biến mới `metrics_namespace` là biến Terraform, không phải env của ứng dụng.
 - **Bàn giao cho vai khác:** BL-261 (widget ALB/ECS/RDS/Valkey, 5xx ở ALB, đối soát; #5), BL-262 (DoD 3, ảnh console; Dev reviewer và #5), BL-263 (ảnh từ số thật, DBS-121/166; #5); BL-028 thêm DBS-145 làm nguồn (tftest vào job CI); BL-152 sửa (dashboard đã có, còn số thật). Metric chấm điểm có từ BL-204; `risk_redis_fallback_total` đã bỏ ở BL-204 (widget, tftest TC-145-02).
 
+
+### Ảnh từ số thật 2026-11-14 (BL-263)
+
+Phiên AWS có api và worker trên ECS, vài chục request, tắt/bật worker và kích hoạt thử alarm: 24 widget metric của
+`dbs-dev-overview` (15) và `dbs-dev-infra` (9) render bằng `GetMetricWidgetImage`, cửa sổ 3 giờ, ở
+[`screenshots/DBS-145/real-2026-11-14/`](screenshots/DBS-145/real-2026-11-14/index.tsv) (tên file ↔ tiêu đề widget trong
+`index.tsv`). Ảnh `00`..`12` cũ là số mô phỏng, giữ lại làm đối chứng. Các điểm tăng vọt trong `risk_decision_total
+{AiStatus=CONFIG_INVALID}`, `risk_rule_error_total`, `reconciliation_runs_total{Status=MISMATCH}` và
+`risk_config_*` lúc 21:40–21:52 là dòng EMF tổng hợp dùng kích hoạt thử alarm, không phải lỗi thật. Vẫn chưa có ảnh màn
+hình console (BL-262).
+
+**Container Insights (BL-261):** giữ tắt. Widget «Task api sau ALB: khỏe và không khỏe» (`HealthyHostCount`) đã có số thật trong phiên này và đủ cho dev 1–2 task; Container Insights tính phí theo metric mỗi task và chỉ thêm số task, nên chỉ bật khi production cần theo dõi số task theo thời gian.
+
 ## 9. Tài liệu đã cập nhật
 
 `docs/components/observability/01-concept-brief.md` (mục Dashboard, tách dòng `risk_config_redis_fallback_total` `[Role]` khỏi `risk_redis_fallback_total`, trạng thái), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §14 (dòng Dashboard), `infra/terraform/README.md` (mục Dashboard), `docs/features/README.md` (hàng DBS-145), `docs/BACKLOG.md`: thêm BL-261, BL-262, BL-263; sửa BL-152 và BL-028; không xóa dòng nào.
