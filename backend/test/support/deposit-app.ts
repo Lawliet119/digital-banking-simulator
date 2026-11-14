@@ -9,7 +9,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { RequestHandler } from 'express';
 import { DataSource, type QueryRunner } from 'typeorm';
-import { PinoLogger } from 'nestjs-pino';
 import { appConfig } from '@config/app.config';
 import { authConfig } from '@config/auth.config';
 import { databaseConfig } from '@config/database.config';
@@ -190,12 +189,7 @@ export async function startDepositApp(
     }
     module = await builder.compile();
     app = module.createNestApplication<NestExpressApplication>({ logger: false });
-    configureHttpApp(
-      app,
-      appSettings,
-      createHttpLogging(await app.resolve(PinoLogger), appSettings),
-      options.metrics,
-    );
+    configureHttpApp(app, appSettings, createHttpLogging(appSettings), options.metrics);
     await app.listen(0, '127.0.0.1');
     return { app, url: await app.getUrl(), source: app.get(DataSource), issuer, limits, close };
   } catch (error) {

@@ -98,7 +98,7 @@ describe('DBS-103 audit search through the real AppModule, JWT and PostgreSQL', 
     configureHttpApp(
       app,
       { trustProxyHops: 0, corsOrigins: [], isProduction: false },
-      createHttpLogging(pinoLogger, settings),
+      createHttpLogging(settings),
     );
     setupSwagger(app);
     // Listen once: ten concurrent supertest requests must share one real listener.

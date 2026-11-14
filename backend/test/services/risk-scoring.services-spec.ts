@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { setTimeout as wait } from 'node:timers/promises';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import { DataSource } from 'typeorm';
 import { MetricsService } from '@common/metrics';
 import type { EmfDocument } from '@common/metrics/emf';
@@ -25,6 +25,8 @@ import {
 } from '../support/risk-consumer';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startValkeyContainer, type StartedValkey } from '../support/valkey.container';
+
+installSilentRootLogger();
 
 /** The production consumer with a 1-second long poll, so stopping the loop in teardown is quick. */
 class FastPollConsumer extends RiskScoringConsumer {
@@ -108,7 +110,6 @@ describe('DBS-111 transfer → flag through the real relay and consumer loops', 
     metrics = new MetricsService(
       { enabled: true, flushMs: 600_000 },
       { role: 'worker' } as never,
-      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
       doc => emf.push(doc),
     );
     await metrics.start();

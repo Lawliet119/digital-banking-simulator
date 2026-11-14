@@ -1,4 +1,4 @@
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
@@ -16,7 +16,7 @@ import { startElasticMqContainer, type StartedElasticMq } from '../support/elast
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { checkLedgerInvariants } from '../support/invariants';
 
-const silentPino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
+installSilentRootLogger();
 
 /**
  * Outbox relay and notification consumer against real PostgreSQL and a real SQS protocol server
@@ -85,7 +85,7 @@ describe('outbox relay and notification consumer (real PostgreSQL + ElasticMQ)',
       notificationQueueUrl: notificationUrl,
     };
     relay = new OutboxRelayService(tx, sqs, config);
-    consumer = new NotificationConsumer(tx, sqs, silentPino, config, new AuditService(tx));
+    consumer = new NotificationConsumer(tx, sqs, config, new AuditService(tx));
   });
   afterAll(async () => {
     sqs?.onApplicationShutdown();

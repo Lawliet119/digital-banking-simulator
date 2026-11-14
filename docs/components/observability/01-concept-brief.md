@@ -19,7 +19,7 @@ Cần biết hệ thống khỏe hay không và truy vết một giao dịch xuy
 
 ## Ý tưởng
 
-- Log JSON có `correlationId` ở mọi dòng. Một hàm bind chung (`runInLogContext`, `common/logging/log-context.ts`) gắn `role` và `correlationId` đúng một lần cho HTTP, consumer và tác vụ nền (`role=worker` kể cả trong `APP_ROLE=both`); binding do code khác tạo bị khử trùng khoá và che dữ liệu nhạy cảm; `PinoLogger` và `req.log` bị ESLint chặn ngoài module logging (BL-024). Lỗi nội bộ Nest/TypeORM chỉ ghi nguyên văn các thông điệp cố định trong allowlist theo `context`, và cảnh báo `process.emitWarning` đi qua logger JSON (BL-026). Chi tiết: [DBS-42](../../features/DBS-42-json-logger.md), `backend/README.md` §8.
+- Log JSON có `correlationId` ở mọi dòng. Một hàm bind chung (`runInLogContext`, `common/logging/log-context.ts`) gắn `role` và `correlationId` đúng một lần cho HTTP, consumer và tác vụ nền (`role=worker` kể cả trong `APP_ROLE=both`); binding do code khác tạo bị khử trùng khoá và che dữ liệu nhạy cảm; `PinoLogger`, `req.log` và `logger.setBindings()` bị ESLint chặn ngoài module logging và test, kể cả `MetricsService` (flush chạy trong `runAsWorker`, nên dòng EMF mang `role=worker`) (BL-024). Lỗi nội bộ Nest/TypeORM chỉ ghi nguyên văn các thông điệp cố định trong allowlist theo `context`, và cảnh báo `process.emitWarning` đi qua logger JSON (BL-026). Chi tiết: [DBS-42](../../features/DBS-42-json-logger.md), `backend/README.md` §8.
 - SLI: tỉ lệ chuyển tiền thành công, latency p95/p99, thời gian tới cờ, DLQ, kết quả đối soát, Redis fallback.
 - Dashboard và alarm cho các SLI trên; SLO chính thức chốt ở P4.
 
@@ -41,7 +41,6 @@ Namespace `DBS/Backend`. Tên metric giống tên counter prom-client (`snake_ca
 | `redis_fallback_total` | Count | `Role` | `RedisMetrics` · api, worker |
 | `rate_limited_total` | Count | `Role`, `Scope` (`ip`/`user`) | `RateLimitMetrics` · api |
 | `risk_config_redis_fallback_total` | Count | `[Role,Reason]` và `[Role]` (một dòng EMF, hai bộ dimension; `Reason` = `error` hoặc `corrupt`; alarm dùng `[Role]`) | `RiskMetrics` qua `RuleSetRepository`; có khi service worker chạy (DBS-121) · worker |
-| `risk_redis_fallback_total` | Count | `Role`, `Rule`, `Reason` | `RiskMetrics`; **chưa có chỗ nào gọi `.redisFallback(`**: chờ consumer chấm điểm nối đủ (BL-204) · worker |
 | `risk_decision_total` | Count | `Role`, `AiStatus` | `risk-scoring.metrics.ts`: +1 mỗi quyết định ghi bởi lần giao thắng claim (BL-204) · worker |
 | `risk_rule_error_total` | Count | `Role`, `Rule` (`R1`..`R6`) | `ScoringService`: +1 mỗi lần một luật ném lỗi hoặc trả kết quả sai, mỗi lần nhận của message (BL-207 f, BL-046) · worker |
 | `risk_transfer_to_flag_ms` | Milliseconds (mảng mẫu, biên trên bucket) | `Role` | `MetricsService.recordDistribution`; `fraud_flags.created_at − transfers.created_at` của cờ vừa ghi, SLO p95 < 5 giây (docs/03 §14) · worker |
@@ -51,7 +50,7 @@ Namespace `DBS/Backend`. Tên metric giống tên counter prom-client (`snake_ca
 | `outbox_oldest_unpublished_age_seconds` | Seconds | không | gauge `OutboxAgeGauge`, mỗi lượt ghi; **không tính dòng đã bị cách ly** (BL-181) · worker |
 | `outbox_quarantined_events` | Count | không | gauge `OutboxQuarantineGauge`: số dòng `quarantined_at IS NOT NULL AND published_at IS NULL`, 0 khi không có (BL-181) · worker |
 
-**Giá trị `AiStatus`** là đúng giá trị `risk_decisions.ai_status`: `DISABLED` (cũng là giá trị của quyết định `rule_only`, tức "không yêu cầu AI"), `CONFIG_INVALID`, `SUCCEEDED`, `REFUSED`, `INVALID_RESPONSE`, `UNAVAILABLE`, `BUDGET_EXHAUSTED`; giá trị lạ thành `unknown`. **Tỉ lệ fallback baseline không có metric riêng**: là tổng `risk_decision_total` của các `AiStatus` khác `DISABLED` và `SUCCEEDED`, chia tổng mọi `AiStatus` (cùng `Role`). `risk_redis_fallback_total` vẫn **chưa có chỗ nào gọi** (`OnlineFeatureProvider` chưa nhận `RiskMetrics`): còn mở.
+**Giá trị `AiStatus`** là đúng giá trị `risk_decisions.ai_status`: `DISABLED` (cũng là giá trị của quyết định `rule_only`, tức "không yêu cầu AI"), `CONFIG_INVALID`, `SUCCEEDED`, `REFUSED`, `INVALID_RESPONSE`, `UNAVAILABLE`, `BUDGET_EXHAUSTED`; giá trị lạ thành `unknown`. **Tỉ lệ fallback baseline không có metric riêng**: là tổng `risk_decision_total` của các `AiStatus` khác `DISABLED` và `SUCCEEDED`, chia tổng mọi `AiStatus` (cùng `Role`). Metric `risk_redis_fallback_total` đã **bỏ** (BL-204): `OnlineFeatureProvider` đọc SQL, không còn đường Redis để rơi về; chỉ `risk_config_redis_fallback_total` (cache cấu hình luật) còn.
 
 **Độ sâu DLQ và tuổi message cũ nhất không có code**: dùng metric gốc của SQS trong namespace `AWS/SQS` (dimension `QueueName`): `ApproximateNumberOfMessagesVisible` trên `dbs-dev-*-events-dlq` và `ApproximateAgeOfOldestMessage` trên `dbs-dev-*-events` (docs/03 §14).
 
@@ -130,7 +129,7 @@ Giới hạn: **không có số task đang chạy của ECS** (`RunningTaskCount
 - Metric đếm sự kiện (lỗi luật, `CONFIG_INVALID`, đối soát, rate limit) chỉ có điểm khi sự kiện xảy ra: cửa sổ 300 s giữ alarm ở ALARM thêm vài phút. Thư **OK nghĩa là "5 phút qua không có sự kiện mới", không phải "đã xử lý xong"**; trạng thái thật nằm ở DLQ, `reconciliation_runs`, log.
 - `treat_missing_data = breaching` chỉ ở hai alarm có nghĩa "không có số đo = hệ thống không chạy" (outbox, node Valkey). Hệ quả: dựng session với `worker_desired_count = 0` làm `dbs-dev-outbox-age` kêu sau ≈ 3 phút.
 - Chi phí: alarm chuẩn 0,10 USD/alarm/tháng; alarm biểu thức metric tính theo số metric tham chiếu (lỗi luật 6, đối soát, Redis fallback, rate limit mỗi cái 2). Ước ≈ 2,3 USD/tháng nếu chạy cả tháng (0,2 USD của hai alarm DLQ chạy luôn ở base); alarm session tính theo giờ.
-- Chưa có alarm cho các hàng còn lại của bảng docs/03 §14: tỉ lệ 5xx > 1%, p95 chuyển tiền/đọc 3 cửa sổ, thời gian tới cờ p95 > 5 s, > 20 cảnh báo gian lận trên 1.000 giao dịch (chưa có task). `risk_redis_fallback_total{Role,Rule,Reason}` cũng chưa có alarm (chưa có chỗ nào phát metric này).
+- Chưa có alarm cho các hàng còn lại của bảng docs/03 §14: tỉ lệ 5xx > 1%, p95 chuyển tiền/đọc 3 cửa sổ, thời gian tới cờ p95 > 5 s, > 20 cảnh báo gian lận trên 1.000 giao dịch (chưa có task).
 - Tên metric mới của risk (`risk_decision_total`, `risk_rule_error_total`, `reconciliation_runs_total`, `risk_transfer_to_flag_ms`) là hợp đồng với phía ứng dụng: alarm khai dimension `Role` + nhãn như trên; nếu ứng dụng đổi bộ dimension thì alarm phải đổi theo (test `alarms.tftest.hcl` ghi lại bộ dimension mong đợi).
 
 ## Ngoài phạm vi (v1)

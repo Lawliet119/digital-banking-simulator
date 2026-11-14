@@ -1,5 +1,4 @@
 import { Logger } from '@nestjs/common';
-import { PinoLogger } from 'nestjs-pino';
 import type { TransactionService } from '@database/transaction.service';
 import type { SqsClient } from '@libs/sqs';
 import { ConsumerBase } from './consumer-base';
@@ -7,11 +6,7 @@ import { ConsumerBase } from './consumer-base';
 class PollingConsumer extends ConsumerBase {
   protected readonly consumerName = 'shutdown';
   constructor(sqs: SqsClient) {
-    super(
-      {} as TransactionService,
-      sqs,
-      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
-    );
+    super({} as TransactionService, sqs);
   }
   protected queueUrl(): string | undefined {
     return 'http://localhost:9324/000000000000/shutdown-events';

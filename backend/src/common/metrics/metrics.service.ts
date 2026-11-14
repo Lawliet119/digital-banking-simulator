@@ -8,8 +8,8 @@ import {
 } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import type { RequestHandler } from 'express';
-import { PinoLogger } from 'nestjs-pino';
 import { Counter, register } from 'prom-client';
+import { currentLogger, runAsWorker } from '@common/logging/log-context';
 import { appConfig } from '@config/app.config';
 import { metricsConfig } from '@config/metrics.config';
 import {
@@ -59,7 +59,6 @@ interface CounterSpec {
 const COUNTERS: CounterSpec[] = [
   { name: 'redis_fallback_total', labels: {} },
   { name: 'rate_limited_total', labels: { scope: 'Scope' } },
-  { name: 'risk_redis_fallback_total', labels: { rule: 'Rule', reason: 'Reason' } },
   { name: 'risk_config_redis_fallback_total', labels: { reason: 'Reason' }, roleTotal: true },
   // BL-204/BL-207/BL-046: the scoring half of risk. Every label value is one of a fixed set (rule
   // R1..R6, an `ai_status` of the schema), enforced where the counter is incremented.
@@ -113,7 +112,6 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
   constructor(
     @Inject(metricsConfig.KEY) private readonly config: ConfigType<typeof metricsConfig>,
     @Inject(appConfig.KEY) private readonly app: ConfigType<typeof appConfig>,
-    private readonly pino: PinoLogger,
     @Optional() @Inject(EMF_SINK) private readonly sink?: EmfSink,
   ) {}
 
@@ -161,7 +159,11 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
   flush(now: number = Date.now(), withGauges = true): Promise<void> {
     if (!this.config.enabled) return Promise.resolve();
     if (this.running) return this.running;
-    const run = this.write(now, withGauges).finally(() => {
+    // The timer, the shutdown hook and a manual call all land here, so one place gives the flush
+    // `role=worker` (BL-024): it is process-level work, not part of any request, and in a `both`
+    // process a line written outside a context would say `api`. It also starts from the root
+    // logger, so the cached EMF child never inherits the id of whichever request flushed first.
+    const run = runAsWorker(() => this.write(now, withGauges)).finally(() => {
       this.running = undefined;
     });
     this.running = run;
@@ -322,7 +324,7 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
 
   /** A child at info level, so a quiet LOG_LEVEL does not silence the metrics. */
   private logOut(): { info: (doc: object) => void } {
-    this.emfLogger ??= this.pino.logger.child({}, { level: 'info' });
+    this.emfLogger ??= currentLogger().child({}, { level: 'info' });
     return this.emfLogger;
   }
 
@@ -330,7 +332,7 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
     if (this.sink) return;
     try {
       await new Promise<void>(resolve => {
-        this.pino.logger.flush(() => resolve());
+        currentLogger().flush(() => resolve());
       });
     } catch {
       // Best effort: a stream that cannot flush has nothing left to lose here.

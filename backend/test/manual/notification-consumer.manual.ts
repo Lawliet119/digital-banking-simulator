@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { CreateQueueCommand, DeleteQueueCommand, SQSClient } from '@aws-sdk/client-sqs';
-import { PinoLogger } from 'nestjs-pino';
 import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
@@ -61,7 +60,6 @@ async function main(): Promise<void> {
     const consumer = new NotificationConsumer(
       tx,
       sqs,
-      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
       { notificationQueueUrl: url } as never,
       new AuditService(tx),
     );
@@ -140,7 +138,6 @@ async function main(): Promise<void> {
     const quick = new NoBackoffNotification(
       tx,
       sqs,
-      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
       { notificationQueueUrl: url } as never,
       new AuditService(tx),
     );

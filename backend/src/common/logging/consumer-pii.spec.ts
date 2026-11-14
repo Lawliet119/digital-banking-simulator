@@ -30,7 +30,7 @@ describe('BL-024 consumers do not log personal data', () => {
         run: <T>(fn: (manager: EntityManager) => Promise<T>) =>
           fn({ query: () => Promise.resolve([{ event_id: 'x' }]) } as unknown as EntityManager),
       } as unknown as TransactionService;
-      super(tx, { changeVisibility } as unknown as SqsClient, pino);
+      super(tx, { changeVisibility } as unknown as SqsClient);
     }
     protected queueUrl(): string {
       return 'http://localhost:9324/000000000000/pii-events';
@@ -41,10 +41,10 @@ describe('BL-024 consumers do not log personal data', () => {
     protected apply(event: DomainEvent): Promise<void> {
       if (this.mode === 'throw')
         return Promise.reject(new Error(`customer ${NAME} not found for ${event.eventId}`));
-      if (this.mode === 'assign') this.pino.assign({ fullName: NAME, full_name: NAME });
+      if (this.mode === 'assign') pino.assign({ fullName: NAME, full_name: NAME });
       // What a careless handler would write after reading a customer row.
       this.own.log({ fullName: NAME, full_name: NAME, ownerName: NAME }, 'Customer read');
-      this.pino.logger.info({ customer: { fullName: NAME } }, 'Customer read');
+      pino.logger.info({ customer: { fullName: NAME } }, 'Customer read');
       return Promise.resolve();
     }
   }

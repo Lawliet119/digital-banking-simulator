@@ -59,7 +59,7 @@ Mọi event bắt buộc `eventId/eventType/occurredAt/correlationId`. TransferC
 }
 ```
 
-**2.3 Correlation.** Input luôn cần correlationId hợp lệ; không dùng ALS che payload thiếu/sai. Đọc `PinoLogger.logger.bindings().correlationId`: public getter lấy logger từ ALS sẵn có của nestjs-pino; không import sâu storage hay tạo provider DBS-43.
+**2.3 Correlation.** Input luôn cần correlationId hợp lệ; không dùng ALS che payload thiếu/sai. Đọc `PinoLogger.logger.bindings().correlationId` (*BL-024: nay qua `currentLogBindings()` ở `common/logging/log-context.ts`, writer không còn inject `PinoLogger`*): public getter lấy logger từ ALS sẵn có của nestjs-pino; không import sâu storage hay tạo provider DBS-43.
 
 | Context | Hành vi trước INSERT |
 |---|---|
@@ -79,7 +79,7 @@ Không chọn header client; middleware sinh ID server. Context chỉ ưu tiên 
 
 ```ts
 class OutboxWriter {
-  constructor(private readonly logger: PinoLogger) {}
+  // BL-024: không có constructor; context đọc bằng currentLogBindings()
   add(manager: EntityManager, event: DomainEvent): Promise<void>;
 }
 // @modules/outbox exports OutboxWriter, OutboxModule
