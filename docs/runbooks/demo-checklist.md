@@ -46,7 +46,7 @@ Theo bảng ở README (dựng từ trạng thái trống). Bật tối đa 90 p
 
 - [ ] Lấy **sau** khi hệ thống đã lên (token sống 15 phút): `export DBS_OPERATOR_TOKEN=$(bash infra/scripts/demo-token.sh --role operator)`; tương tự `DBS_CUSTOMER_1_TOKEN` với `--role customer1`, `customer2`, `customer3` (và `auditor`, `admin` khi cần). Không dán token vào chat, ghi chú hay commit.
 - [ ] Kiểm nhanh một token: gọi một route của đúng vai bằng `curl -sk -H "Authorization: Bearer $DBS_OPERATOR_TOKEN" https://<alb>/<route>` (bảng route: docs/03 §7) trả 2xx, và route của vai khác trả 403. Chưa chạy trên cloud (không có image, BL-247).
-- [ ] Token khách hàng: đăng nhập bằng tài khoản khách hàng đã tạo (tự đăng ký của pool); chưa có script (BACKLOG).
+- [ ] Token khách hàng: ba khách seed lấy bằng `demo-token.sh --role customer1|customer2|customer3`; khách tự đăng ký mới dùng `sign-up`, `admin-confirm-sign-up` và `initiate-auth` (mật khẩu qua stdin, chạy trong Linux) như ở [demo giữa kỳ, nhánh cloud](../demos/demo-midterm-end-to-end.md#nhánh-cloud); chưa có script riêng (BL-350). Xóa khách đó (`admin-delete-user`) trước khi `destroy`, vì pool ở `base`.
 
 ## 6. Sau demo (ngay, không để qua đêm)
 

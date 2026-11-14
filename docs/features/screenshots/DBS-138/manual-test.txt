@@ -1,0 +1,174 @@
+code/doc commit under test: cbeaac07e5f400db5379192dafa420653bd2eace
+date: 2026-11-14T16:17:51Z  node: v24.22.2  docker compose: 2.30.3-desktop.1
+
+########## RESET 1 + start (phase A)
+=== stop previous app on :3000
+killed 6948
+removed private containers
+=== [Chuẩn bị chung] docker compose down -v && up -d --wait (override: Postgres 55432 and Valkey 6380 because 5432 (native Postgres) and 6379 (other project) are taken)
+ Network dbs_default  Removing
+ Volume dbs_pgdata  Removed
+ Network dbs_default  Removed
+ Container dbs-postgres-1  Waiting
+ Container dbs-valkey-1  Waiting
+ Container dbs-elasticmq-1  Waiting
+ Container dbs-elasticmq-1  Healthy
+ Container dbs-valkey-1  Healthy
+ Container dbs-postgres-1  Healthy
+dbs-elasticmq-1 Up 5 seconds
+dbs-postgres-1 Up 5 seconds (healthy)
+dbs-valkey-1 Up 5 seconds (healthy)
+22:DATABASE_URL=postgres://<redacted>@localhost:5432/banking
+70:AUTH_MODE=local
+71:AUTH_LOCAL_JWKS_PATH=.auth-local/jwks.json
+dev keys present
+=== npm run migration:run
+[4mMigration EnableUnaccentSearch1795000008000 has been executed successfully.[24m
+[4mMigration QuarantineOutboxEvents1795000009000 has been executed successfully.[24m
+[4mMigration AddNotificationLogOccurredAt1795000010000 has been executed successfully.[24m
+migrations executed in 1st run (count of lines in 2nd run): 0
+=== start app (node dist/main == start:dev without watch)
+live after 1s
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+
+########## STEPS (phase B)
+##### M-138-01 seed twice + invariants
+=== [Bước 0 · Reset dữ liệu và seed]
+============================================================
+Digital Banking Simulator — Demo Seed Complete (DBS-70)
+API Base URL: http://127.0.0.1:3000
+============================================================
+CUSTOMERS & ACCOUNTS:
+• Nguyễn Minh Anh (demo-customer-minh-anh)
+  Customer ID: 8d600727-5612-4571-8f7e-b8f3608ae0d9
+  - [CHECKING] c16249cf-9b65-4de5-bdd9-1e2fb9388521 (Created, Balance: 48.000.000 VND)
+  - [SAVINGS] 6ebf0695-f9a0-458c-ad23-4a1859379ada (Created, Balance: 20.000.000 VND)
+• Trần Thu Hà (demo-customer-thu-ha)
+  Customer ID: 0d87e45c-b4c0-477a-93d3-5fbb0d34851d
+  - [CHECKING] 894dd099-10cb-4416-9bd6-4fe6bfec6f32 (Created, Balance: 11.500.000 VND)
+• Nguyễn Văn Bình (demo-customer-van-binh)
+  Customer ID: e08e9c94-4528-478a-a0a1-b61ac5ff1f37
+  - [CHECKING] 3466def3-db2c-4bdf-92ec-8afe69b8ecce (Created, Balance: 5.500.000 VND)
+OPERATOR DEPOSITS (4 transactions):
+• Target: c16249cf-9b65-4de5-bdd9-1e2fb9388521 | Amount: 50.000.000 VND | Tx: be921b06-b3b6-4a32-b77b-26186e653042
+• Target: 6ebf0695-f9a0-458c-ad23-4a1859379ada | Amount: 20.000.000 VND | Tx: 4d4ae892-7702-4347-ae4c-2ef9adc12881
+• Target: 894dd099-10cb-4416-9bd6-4fe6bfec6f32 | Amount: 10.000.000 VND | Tx: 12f073e0-95e7-4322-905e-9e836c1d66f3
+• Target: 3466def3-db2c-4bdf-92ec-8afe69b8ecce | Amount: 5.000.000 VND | Tx: 3d4993f7-ec48-4a43-87d3-46cb4aa88bbc
+CUSTOMER TRANSFERS (2 transactions):
+• From: c16249cf-9b65-4de5-bdd9-1e2fb9388521 -> To: 894dd099-10cb-4416-9bd6-4fe6bfec6f32 | Amount: 2.000.000 VND
+• From: 894dd099-10cb-4416-9bd6-4fe6bfec6f32 -> To: 3466def3-db2c-4bdf-92ec-8afe69b8ecce | Amount: 500.000 VND
+Re-run safe: each deposit/transfer is sent only when the API balance shows it has not happened yet, so it holds even after the Idempotency-Key rows were cleaned up.
+Ledger invariant: System funding covers all deposits; total ledger balance = 0.
+============================================================
+============================================================
+Digital Banking Simulator — Demo Seed Complete (DBS-70)
+API Base URL: http://127.0.0.1:3000
+============================================================
+CUSTOMERS & ACCOUNTS:
+• Nguyễn Minh Anh (demo-customer-minh-anh)
+  Customer ID: 8d600727-5612-4571-8f7e-b8f3608ae0d9
+  - [CHECKING] c16249cf-9b65-4de5-bdd9-1e2fb9388521 (Reused, Balance: 48.000.000 VND)
+  - [SAVINGS] 6ebf0695-f9a0-458c-ad23-4a1859379ada (Reused, Balance: 20.000.000 VND)
+• Trần Thu Hà (demo-customer-thu-ha)
+  Customer ID: 0d87e45c-b4c0-477a-93d3-5fbb0d34851d
+  - [CHECKING] 894dd099-10cb-4416-9bd6-4fe6bfec6f32 (Reused, Balance: 11.500.000 VND)
+• Nguyễn Văn Bình (demo-customer-van-binh)
+  Customer ID: e08e9c94-4528-478a-a0a1-b61ac5ff1f37
+  - [CHECKING] 3466def3-db2c-4bdf-92ec-8afe69b8ecce (Reused, Balance: 5.500.000 VND)
+OPERATOR DEPOSITS (4 transactions):
+• Target: c16249cf-9b65-4de5-bdd9-1e2fb9388521 | Amount: 50.000.000 VND | Tx: skipped (balance already reflects it)
+• Target: 6ebf0695-f9a0-458c-ad23-4a1859379ada | Amount: 20.000.000 VND | Tx: skipped (balance already reflects it)
+• Target: 894dd099-10cb-4416-9bd6-4fe6bfec6f32 | Amount: 10.000.000 VND | Tx: skipped (balance already reflects it)
+• Target: 3466def3-db2c-4bdf-92ec-8afe69b8ecce | Amount: 5.000.000 VND | Tx: skipped (balance already reflects it)
+CUSTOMER TRANSFERS (2 transactions):
+• From: c16249cf-9b65-4de5-bdd9-1e2fb9388521 -> To: 894dd099-10cb-4416-9bd6-4fe6bfec6f32 | Amount: 2.000.000 VND | skipped (balance already reflects it)
+• From: 894dd099-10cb-4416-9bd6-4fe6bfec6f32 -> To: 3466def3-db2c-4bdf-92ec-8afe69b8ecce | Amount: 500.000 VND | skipped (balance already reflects it)
+Re-run safe: each deposit/transfer is sent only when the API balance shows it has not happened yet, so it holds even after the Idempotency-Key rows were cleaned up.
+Ledger invariant: System funding covers all deposits; total ledger balance = 0.
+============================================================
+> digital-banking-simulator-backend@0.1.0 check:invariants
+> ts-node -r tsconfig-paths/register src/scripts/invariants/invariants.ts
+{"status":"PASS","totals":{"debit":"87500000","credit":"87500000","balance":"0"},"violations":[]}
+##### M-138-02..11 steps
+=== [Bước 1–9 · Luồng chính]
+=== [Bước 1 · Đăng ký]
+{"id":"2373532b-3052-4fa5-948d-b48539ceaec6","fullName":"Tran Van An","createdAt":"2026-11-14T16:18:38.839Z"}{"id":"6747f762-93e2-4ef1-a575-53c827e9111c","fullName":"Nguyen Thi Binh","createdAt":"2026-11-14T16:18:39.085Z"}
+=== [Bước 2 · Mở tài khoản]
+AN_ACC=216e1c97-3a2f-4055-96ea-13037ddd7747 BINH_ACC=0cefab5a-2949-4cc5-8c13-ba41cf53f4fe
+=== [Bước 3 · Nạp tiền]
+{"transferId":"3e15b129-88e2-4c92-9ad2-3cd84e24b25e","status":"COMPLETED"}
+=== [Bước 4 · Chuyển tiền (ghi `C` và `T`)]
+HTTP/1.1 201 Created
+{"transferId":"2ece371d-c432-4357-9dc4-d567a65a78fa","status":"COMPLETED"}
+C=68c66117-0897-4393-8327-6e4feab6abe7 T=2ece371d-c432-4357-9dc4-d567a65a78fa
+##### M-138-10 replay of the transfer with the same Idempotency-Key
+HTTP/1.1 201 Created
+{"status":"COMPLETED","transferId":"2ece371d-c432-4357-9dc4-d567a65a78fa"}
+same body as first: no; C2 differs from C: yes
+audit rows for replay code C2: 0
+=== [Bước 5 · Cờ gian lận xuất hiện]
+{"items":[{"transferId":"2ece371d-c432-4357-9dc4-d567a65a78fa","fromAccountId":"216e1c97-3a2f-4055-96ea-13037ddd7747","toAccountId":"0cefab5a-2949-4cc5-8c13-ba41cf53f4fe","score":65,"riskLevel":"MEDIUM","reviewStatus":"OPEN","ruleSetVersion":1,"createdAt":"2026-11-14T16:18:40.419562Z"}],"nextCursor":null}
+=== [Bước 6 · Khách không thấy cờ]
+{"transferId":"2ece371d-c432-4357-9dc4-d567a65a78fa","type":"TRANSFER","status":"COMPLETED","amount":"20000000","createdAt":"2026-11-14T16:18:40.240432Z","fromAccountId":"216e1c97-3a2f-4055-96ea-13037ddd7747","toAccountId":"0cefab5a-2949-4cc5-8c13-ba41cf53f4fe"}
+{"items":[{"entryId":"15","transferId":"2ece371d-c432-4357-9dc4-d567a65a78fa","type":"TRANSFER","direction":"DEBIT","amount":"20000000","balanceAfter":"1000000","counterpartyAccountId":"0cefab5a-2949-4cc5-8c13-ba41cf53f4fe","createdAt":"2026-11-14T16:18:40.241367Z"},{"entryId":"14","transferId":"3e15b129-88e2-4c92-9ad2-3cd84e24b25e","type":"DEPOSIT","direction":"CREDIT","amount":"21000000","balanceAfter":"21000000","counterpartyAccountId":null,"createdAt":"2026-11-14T16:18:39.935321Z"}],"nextCursor":null}
+=== [Bước 7 · Nhân viên review (chỉ một lần)]
+{"transferId":"2ece371d-c432-4357-9dc4-d567a65a78fa","fromAccountId":"216e1c97-3a2f-4055-96ea-13037ddd7747","toAccountId":"0cefab5a-2949-4cc5-8c13-ba41cf53f4fe","score":65,"riskLevel":"MEDIUM","reviewStatus":"OPEN","ruleSetVersion":1,"createdAt":"2026-11-14T16:18:40.419562Z","aiAssessment":null,"hits":[{"ruleId":"R3","weight":35,"explanation":"Tài khoản mở dưới 1 phút trước, chuyển 20.000.000đ"},{"ruleId":"R6","weight":30,"explanation":"Chuyển xấp xỉ 95,23% số dư (20.000.000đ/21.000.000đ)."}],"recentTransactions":[{"entryId":"15","transferId":"2ece371d-c432-4357-9dc4-d567a65a78fa","type":"TRANSFER","direction":"DEBIT","amount":"20000000","balanceAfter":"1000000","counterpartyAccountId":"0cefab5a-2949-4cc5-8c13-ba41cf53f4fe","createdAt":"2026-11-14T16:18:40.241367Z"},{"entryId":"14","transferId":"3e15b129-88e2-4c92-9ad2-3cd84e24b25e","type":"DEPOSIT","direction":
+{"transferId":"2ece371d-c432-4357-9dc4-d567a65a78fa","reviewStatus":"CONFIRMED_FRAUD"}
+{"errorCode":"FLAG_ALREADY_REVIEWED","type":"about:blank","title":"Conflict","status":409,"detail":"Fraud flag already reviewed","correlationId":"9b7dda02-9f63-48f0-82b3-88827d089985"}
+##### step 8 (timed)
+=== [Bước 8 · Kiểm toán viên tra `correlationId` (bấm giờ)]
+fraud_flag.review SUCCESS operator =C
+fraud_flag.view SUCCESS operator =C
+fraud.flagged SUCCESS worker =C
+notification.sent SUCCESS worker =C
+transfer SUCCESS customer =C
+step 8 elapsed ms: 272
+##### step 9
+=== [Bước 9 · Ca từ chối]
+khach xem co: 403
+auditor review: 403
+{"entries":[{"id":"68","occurredAt":"2026-11-14T16:18:48.504119Z","actorUserId":"be5c67a5-b894-4227-ba88-0539caf0d0d9","actorRole":"auditor","action":"access.denied","outcome":"DENIED","target":{"type":"route","id":"POST /v1/operator/fraud-flags/:transferId/review"},"correlationId":"f9c0f6a1-9b70-4713-abf2-a9a1d6169139","metadata":{"reason":"NO_PERMISSION"}},{"id":"67","occurredAt":"2026-11-14T16:18:48.257417Z","actorUserId":"f6423223-03b1-458a-8014-e2a703e5d1cc","actorRole":"customer","action":"access.denied","outcome":"DENIED","target":{"type":"route","id":"GET /v1/operator/fraud-flags"},"correlationId":"155aeed6-8021-4066-af29-385618c69cbb","metadata":{"reason":"NO_PERMISSION"}}],"nextCursor":null}
+
+##### balances and flags
+{"id":"216e1c97-3a2f-4055-96ea-13037ddd7747","type":"CHECKING","status":"ACTIVE","balance":"1000000","createdAt":"2026-11-14T16:18:39.360Z","updatedAt":"2026-11-14T16:18:40.242Z"}
+
+T=2ece371d-c432-4357-9dc4-d567a65a78fa
+app errors in log: 0
+
+##### invariants after the flow
+{"status":"PASS","totals":{"debit":"128500000","credit":"128500000","balance":"0"},"violations":[]}
+
+########## M-138-12 RESET 2 + seed twice on the used stack
+ Container dbs-elasticmq-1  Waiting
+ Container dbs-postgres-1  Waiting
+ Container dbs-valkey-1  Waiting
+ Container dbs-elasticmq-1  Healthy
+ Container dbs-postgres-1  Healthy
+ Container dbs-valkey-1  Healthy
+dbs-elasticmq-1 Up 5 seconds
+dbs-postgres-1 Up 6 seconds (healthy)
+dbs-valkey-1 Up 5 seconds (healthy)
+[4mMigration EnableUnaccentSearch1795000008000 has been executed successfully.[24m
+[4mMigration QuarantineOutboxEvents1795000009000 has been executed successfully.[24m
+[4mMigration AddNotificationLogOccurredAt1795000010000 has been executed successfully.[24m
+migrations executed in 1st run (count of lines in 2nd run): 0
+live after 1s
+  - [CHECKING] f3e615d8-2eb4-46e6-a425-8849db93a937 (Created, Balance: 48.000.000 VND)
+  - [SAVINGS] 82ed0734-ac92-44ee-b08f-e92c2798c7d0 (Created, Balance: 20.000.000 VND)
+  - [CHECKING] 11004c66-8cc9-407b-9a3c-6f42d590c711 (Created, Balance: 11.500.000 VND)
+  - [CHECKING] 0758bd20-a011-4f4f-bba2-f87965b7f700 (Created, Balance: 5.500.000 VND)
+Ledger invariant: System funding covers all deposits; total ledger balance = 0.
+  - [CHECKING] f3e615d8-2eb4-46e6-a425-8849db93a937 (Reused, Balance: 48.000.000 VND)
+  - [SAVINGS] 82ed0734-ac92-44ee-b08f-e92c2798c7d0 (Reused, Balance: 20.000.000 VND)
+  - [CHECKING] 11004c66-8cc9-407b-9a3c-6f42d590c711 (Reused, Balance: 11.500.000 VND)
+  - [CHECKING] 0758bd20-a011-4f4f-bba2-f87965b7f700 (Reused, Balance: 5.500.000 VND)
+• Target: f3e615d8-2eb4-46e6-a425-8849db93a937 | Amount: 50.000.000 VND | Tx: skipped (balance already reflects it)
+• Target: 82ed0734-ac92-44ee-b08f-e92c2798c7d0 | Amount: 20.000.000 VND | Tx: skipped (balance already reflects it)
+• Target: 11004c66-8cc9-407b-9a3c-6f42d590c711 | Amount: 10.000.000 VND | Tx: skipped (balance already reflects it)
+• Target: 0758bd20-a011-4f4f-bba2-f87965b7f700 | Amount: 5.000.000 VND | Tx: skipped (balance already reflects it)
+• From: f3e615d8-2eb4-46e6-a425-8849db93a937 -> To: 11004c66-8cc9-407b-9a3c-6f42d590c711 | Amount: 2.000.000 VND | skipped (balance already reflects it)
+• From: 11004c66-8cc9-407b-9a3c-6f42d590c711 -> To: 0758bd20-a011-4f4f-bba2-f87965b7f700 | Amount: 500.000 VND | skipped (balance already reflects it)
+Ledger invariant: System funding covers all deposits; total ledger balance = 0.
+> digital-banking-simulator-backend@0.1.0 check:invariants
+> ts-node -r tsconfig-paths/register src/scripts/invariants/invariants.ts
+{"status":"PASS","totals":{"debit":"87500000","credit":"87500000","balance":"0"},"violations":[]}

@@ -1,6 +1,6 @@
 # Demo giữa kỳ · Từ đăng ký tới tra `correlationId`
 
-> **Status:** Draft (đã chạy local; cloud xem mục "Nhánh cloud" và [DBS-138 §8](../features/DBS-138-midterm-demo-script.md)) · **Owner:** Dev · **Nguồn:** [DBS-138](../features/DBS-138-midterm-demo-script.md) · **Cập nhật:** 2026-11-14
+> **Status:** Active (đã chạy trọn local và cloud ngày 2026-11-14, chưa quay: [DBS-138 §8](../features/DBS-138-midterm-demo-script.md)) · **Owner:** Dev · **Nguồn:** [DBS-138](../features/DBS-138-midterm-demo-script.md) · **Cập nhật:** 2026-11-14
 
 Một kịch bản duy nhất cho cả nhóm, chạy trọn luồng nghiệp vụ chính: khách đăng ký, mở tài khoản, được nạp tiền, chuyển một khoản lớn, hệ thống gắn cờ gian lận, nhân viên review, kiểm toán viên truy ra cả chuỗi bằng một mã. Mỗi bước có lệnh và kết quả mong đợi (đã thấy khi chạy thật). Các demo bắt buộc khác giữ ở [Demo 3](demo-3-failure-recovery.md) (lỗi và phục hồi) và [Demo 4](demo-4-security-audit.md) (an ninh và audit); kịch bản này nối các luồng đó lại cho buổi giữa kỳ.
 
@@ -172,7 +172,7 @@ Mục tiêu: từ lúc auditor nhận `C` tới lúc thấy cả chuỗi dưới
 curl -sS --get $API/v1/audit/entries -H "Authorization: Bearer $AUD" --data-urlencode "correlationId=$C" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const e of JSON.parse(s).entries)console.log(e.action,e.outcome,e.actorRole,e.correlationId===process.argv[1]?"=C":"≠C")})' "$C"
 ```
 
-Mong đợi (mới nhất trước): `fraud_flag.review`, `fraud_flag.view`, `fraud.flagged`, `notification.sent`, `transfer`, đều `SUCCESS` và `=C`. `fraud_flag.view` chỉ có khi nhân viên đã mở chi tiết cờ (bước 7). Danh sách cờ (`fraud_flag.search`) và các lần tra của auditor (`audit.search`) mang mã của chính request đó nên **không** nằm trong chuỗi `C`. Đối chiếu từng dòng bằng Demo 4 phần E.
+Mong đợi (mới nhất trước): `fraud_flag.review`, `fraud_flag.view`, hai dòng của worker `fraud.flagged` và `notification.sent` (thứ tự hai dòng này có thể đảo giữa các lần chạy), rồi `transfer`; tất cả `SUCCESS` và `=C`. `fraud_flag.view` chỉ có khi nhân viên đã mở chi tiết cờ (bước 7). Danh sách cờ (`fraud_flag.search`) và các lần tra của auditor (`audit.search`) mang mã của chính request đó nên **không** nằm trong chuỗi `C`. Đối chiếu từng dòng bằng Demo 4 phần E.
 
 ### Bước 9 · Ca từ chối
 
@@ -186,7 +186,85 @@ Mong đợi: hai dòng `403`; lệnh cuối trả các dòng `access.denied` (l�
 
 ## Nhánh cloud
 
-*(điền sau khi chạy phiên cloud ở DBS-138 M-138-13)*
+Cùng bước 1–9 trên môi trường AWS dev. Đã chạy thật ngày 2026-11-14 (ảnh chụp lệnh và kết quả thô: [manual-test-cloud.txt](../features/screenshots/DBS-138/manual-test-cloud.txt)); mỗi lần quay thì chạy thử lại một lượt trước ngày quay (DBS-140).
+
+**Chi phí và dọn dẹp.** Phiên ≈ 0,14 USD/giờ khi api và worker chạy (lần chạy 2026-11-14 kéo dài khoảng 25 phút, ≈ 0,06 USD), quên tắt ≈ 3,4 USD/ngày. **Xong là `destroy` ngay** và chứng minh sạch (mục "Đóng phiên").
+
+### Chuẩn bị Linux cho các lệnh có mật khẩu
+
+`aws.exe` trên Windows không đọc `file:///dev/stdin`, nên `demo-token.sh`, `seed-cognito.sh`, `db-roles.sh`, `migrate.sh`, `seed-cloud.sh` và bước đăng ký bên dưới chạy trong Linux (WSL, hoặc container dựng một lần):
+
+```bash
+docker build -t dbs-awscli - <<'EOF'
+FROM python:3.12
+RUN pip install -q awscli==1.36.40 && apt-get update -qq && apt-get install -y -qq curl jq
+EOF
+# chạy một lệnh trong container, repo ở /repo, thông tin AWS ở /root/.aws (chỉ đọc)
+dkr() { MSYS_NO_PATHCONV=1 docker run --rm -e AWS_PROFILE -e AWS_DEFAULT_REGION=ap-southeast-1 -e IMAGE_TAG -e COGNITO_USER_POOL_ID -e COGNITO_CLIENT_ID -v "$PWD:/repo" -v "$HOME/.aws:/root/.aws:ro" -w /repo dbs-awscli "$@"; }
+```
+
+### Mở phiên
+
+`AWS_PROFILE` là profile trong nhóm `dbs-admin` (README Terraform ghi `dbs-admin`; trên máy dùng `dbs`). `SHA` là commit đã có image trên ECR (workflow `Image` đẩy mỗi lần merge `main`).
+
+| Bước | Lệnh | Đo 2026-11-14 |
+|---|---|---|
+| Khởi đầu sạch | `bash infra/scripts/verify-clean.sh` | `KET LUAN: sạch (13 loại)` |
+| Dựng, chưa chạy task | `terraform -chdir=infra/terraform/envs/dev/session apply -var image_tag=$SHA -var desired_count=0 -var worker_desired_count=0` | 9 phút 01 giây, 57 tài nguyên |
+| Đặt LOGIN cho ba role DB | `IMAGE_TAG=$SHA dkr bash infra/scripts/db-roles.sh` | thoát 0, đăng nhập thử cả ba được |
+| Migration | `IMAGE_TAG=$SHA dkr bash .github/scripts/migrate.sh` | `Migration xong` |
+| Bật api và worker | `terraform … apply -var image_tag=$SHA -var desired_count=1 -var worker_desired_count=1` | `/health/ready` 200 sau 30 giây |
+| Tài khoản nhân viên và 3 khách seed | `export COGNITO_USER_POOL_ID=$(terraform -chdir=infra/terraform/envs/dev/base output -raw cognito_user_pool_id) COGNITO_CLIENT_ID=$(terraform -chdir=infra/terraform/envs/dev/base output -raw cognito_client_id)`; `dkr bash infra/scripts/seed-cognito.sh` | `OK` cho 6 tài khoản |
+| Dữ liệu demo (bước 0 của cloud) | `dkr bash infra/scripts/seed-cloud.sh` | 3 khách, 4 lệnh nạp, 2 lệnh chuyển, `total ledger balance = 0` |
+
+Reset trên cloud là `destroy` rồi dựng lại (RDS nằm ở `session`, `skip_final_snapshot`); không có lệnh reset riêng.
+
+### Chạy bước 1–9
+
+Khác local ở chỗ lấy token và đăng ký, còn các khối bước 3–9 dùng lại **không đổi** (từ bước 3: nạp, chuyển, cờ, khách không thấy cờ, review, tra, từ chối):
+
+- An là khách **tự đăng ký**: `sign-up` rồi `admin-confirm-sign-up` (cần nhóm `dbs-admin`; email không cần xác minh thật) rồi lấy token. Pool nhận email làm tên đăng nhập; mật khẩu ≥ 12 ký tự có hoa, thường, số, ký hiệu; app client không có secret. Sign-up công khai luôn gửi một thư xác minh tới địa chỉ đó, nên dùng `…@dbs.invalid` như `seed-cognito.sh`. Mật khẩu chỉ đi qua stdin. Lưu đoạn dưới thành file `an-signup.sh` rồi chạy `dkr bash an-signup.sh`:
+
+  ```bash
+  set -euo pipefail
+  PW="Dbs-$(python3 -c 'import secrets;print(secrets.token_urlsafe(12))')-9aZ!"
+  printf '%s' "$PW" | aws cognito-idp sign-up --client-id "$COGNITO_CLIENT_ID" --username "$AN_EMAIL" --password file:///dev/stdin --query UserConfirmed --output text >&2
+  aws cognito-idp admin-confirm-sign-up --user-pool-id "$COGNITO_USER_POOL_ID" --username "$AN_EMAIL" >&2
+  printf '{"USERNAME":"%s","PASSWORD":"%s"}' "$AN_EMAIL" "$PW" | aws cognito-idp initiate-auth --auth-flow USER_PASSWORD_AUTH --client-id "$COGNITO_CLIENT_ID" --auth-parameters file:///dev/stdin --query AuthenticationResult.AccessToken --output text
+  ```
+
+  (`--cli-input-json file:///dev/stdin` không chạy được: AWS CLI báo `Invalid JSON`. Dùng `--password` và `--auth-parameters` như trên.)
+- Bình là `customer3` của seed (đã onboard, đã có một CHECKING); nhân viên và kiểm toán viên lấy bằng `demo-token.sh`:
+
+```bash
+export AWS_PROFILE=dbs   # hoặc dbs-admin
+ALB=$(terraform -chdir=infra/terraform/envs/dev/session output -raw alb_dns_name)
+export API=https://$ALB
+curl() { command curl -k "$@"; }                      # chứng chỉ ALB tự ký
+export OP=$(dkr bash infra/scripts/demo-token.sh --role operator)
+export AUD=$(dkr bash infra/scripts/demo-token.sh --role auditor)
+export BINH=$(dkr bash infra/scripts/demo-token.sh --role customer3)
+RUN=$(date +%s); export AN_EMAIL="demo-an-$RUN@dbs.invalid"
+export AN=$(MSYS_NO_PATHCONV=1 docker run --rm -e AWS_PROFILE -e AWS_DEFAULT_REGION=ap-southeast-1 -e COGNITO_CLIENT_ID -e COGNITO_USER_POOL_ID -e AN_EMAIL -v "$HOME/.aws:/root/.aws:ro" -v "$PWD:/sp:ro" dbs-awscli bash /sp/an-signup.sh)
+# Bước 1 chỉ onboard An; Bước 2: An mở CHECKING mới, Bình dùng CHECKING của seed
+AN_ACC=$(curl -sS -X POST $API/v1/accounts -H "Authorization: Bearer $AN" -H 'Content-Type: application/json' -d '{"type":"CHECKING"}' | field id)
+BINH_ACC=$(curl -sS $API/v1/accounts -H "Authorization: Bearer $BINH" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s);console.log((Array.isArray(a)?a:a.items).find(x=>x.type==="CHECKING").id)})')
+```
+
+(đặt `field` như ở phần local; `curl -sS -X POST $API/v1/customers/me … -d '{"fullName":"Tran Van An"}'` với `$AN` là bước 1 của An).
+
+An (nguồn mới, nạp 21.000.000đ) chuyển 20.000.000đ cho CHECKING của Bình (khác chủ): R3 + R6 = 65, giống local. Thứ tự hai dòng audit của worker (`fraud.flagged`, `notification.sent`) có thể đảo giữa các lần chạy; ba dòng còn lại cố định.
+
+### Đóng phiên
+
+```bash
+aws cognito-idp list-users --user-pool-id "$COGNITO_USER_POOL_ID" --filter 'email ^= "demo-an-"' --query 'Users[].Username' --output text   # rồi:
+aws cognito-idp admin-delete-user --user-pool-id "$COGNITO_USER_POOL_ID" --username <username-cua-An>   # pool ở base, không bị destroy session xóa
+terraform -chdir=infra/terraform/envs/dev/session destroy -var image_tag=$SHA          # 8 phút 18 giây, 57 tài nguyên
+bash infra/scripts/verify-clean.sh                                                        # phải thoát 0
+```
+
+Hôm sau chạy `python3 infra/scripts/cost-report.py` để ghi chi phí thật (Cost Explorer trễ tới 24 giờ).
 
 ## Checklist trước khi quay
 

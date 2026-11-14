@@ -1,6 +1,6 @@
 # DBS-138 · Kịch bản demo giữa kỳ và checklist trước khi quay
 
-> **Status:** Design approved (sau G2) · **Vai:** Dev (docs) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-138-demo-script` · **PR:** — · **Cập nhật:** 2026-11-14
+> **Status:** Implemented (sau G4) · **Vai:** Dev (docs) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-138-demo-script` · **PR:** — · **Cập nhật:** 2026-11-14
 
 ## 1. Bối cảnh
 
@@ -93,13 +93,14 @@ Task docs-only: kiểm bằng script kiểm liên kết và grep đối chiếu;
 Lệnh của TC-138-02 (từ gốc repo):
 
 ```bash
-rg -n "FLAG_ALREADY_REVIEWED|FORBIDDEN" backend/src/common/errors/error-code.enum.ts
+grep -nE "FLAG_ALREADY_REVIEWED|FORBIDDEN" backend/src/common/errors/error-code.enum.ts
 # mỗi action phải nằm trong AUDIT_ACTIONS (audit.registry.ts, không phải AUDIT_TARGET_TYPES)
-rg -n "'transfer'|'notification.sent'|'fraud.flagged'|'fraud_flag.view'|'fraud_flag.review'|'fraud_flag.search'|'audit.search'|'access.denied'" backend/src/modules/audit/audit.registry.ts
-rg -n "CREATE TABLE.*(fraud_flags|audit_log|ledger_entries|outbox_events|transfers|accounts|processed_events)" backend/src/database/migrations
+grep -nE "'transfer'|'notification.sent'|'fraud.flagged'|'fraud_flag.view'|'fraud_flag.review'|'fraud_flag.search'|'audit.search'|'access.denied'" backend/src/modules/audit/audit.registry.ts
+grep -rnE "CREATE TABLE.*(fraud_flags|audit_log|ledger_entries|outbox_events|transfers|accounts|processed_events)" backend/src/database/migrations
 # route: mỗi đường dẫn trong kịch bản có @Controller/@Get/@Post tương ứng; tiền tố /v1 do enableVersioning (backend/src/app.setup.ts)
-rg -n "@Controller|@Get|@Post" backend/src/modules/identity backend/src/modules/accounts backend/src/modules/ledger backend/src/modules/risk backend/src/modules/audit
+grep -rnE "@Controller|@Get|@Post" backend/src/modules/identity backend/src/modules/accounts backend/src/modules/ledger backend/src/modules/risk backend/src/modules/audit --include=*.controller.ts
 ```
+(`rg` dùng được thay `grep` nếu đã cài; Git Bash trên máy này không có `rg`.)
 
 ## 5. Test thủ công (chạy đúng như tài liệu viết)
 
