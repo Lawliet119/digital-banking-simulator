@@ -1,0 +1,114 @@
+code/doc commit under test (runbook): commit: deab1a2b48e0fdb1c81d4afd45d9d52782bded84  date: 2026-11-14T17:52:47Z  profile=dbs(IAM user in group dbs-admin)  region=ap-southeast-1
+
+##### M-164-01 baseline
+alarm dbs-dev-risk-dlq-not-empty: OK
+alarm dbs-dev-notification-dlq-not-empty: OK
+risk-events visible=0 notVisible=0 delayed=0
+risk-events-dlq visible=0 notVisible=0 delayed=0
+notification-events visible=0 notVisible=0 delayed=0
+notification-events-dlq visible=0 notVisible=0 delayed=0
+ecs clusters: 0
+
+aws: [ERROR]: In function length(), invalid type for value: None, expected one of: ['string', 'array', 'object'], received: "null"
+move tasks of notification DLQ (any status): 
+move tasks of risk DLQ (any status): COMPLETED	1794667017343
+
+##### M-164-02 inject (a) valid TransferCompleted, (b) not JSON, (c) unknown event type
+sent (a) eventId=45af6868-8a47-4722-924e-25f53e8aebfd
+sent (b)
+sent (c) eventId=71aa0d6d-938e-46fd-89e6-7d3980c4df55
+DLQ after inject: visible=3 notVisible=0 delayed=0
+
+##### M-164-03 view (visibility 0), bodies only
+49abb5fc-e81d-4e84-b061-baeb7a5714f8	{"eventId":"45af6868-8a47-4722-924e-25f53e8aebfd","eventType":"TransferCompleted","occurredAt":"2026-11-15T00:00:
+49abb5fc-e81d-4e84-b061-baeb7a5714f8	{"eventId":"45af6868-8a47-4722-924e-25f53e8aebfd","eventType":"TransferCompleted","occurredAt":"2026-11-15T00:00:
+49abb5fc-e81d-4e84-b061-baeb7a5714f8	{"eventId":"45af6868-8a47-4722-924e-25f53e8aebfd","eventType":"TransferCompleted","occurredAt":"2026-11-15T00:00:
+2e4d5a75-11d8-4f30-b12b-b65b266a0284	{"eventId":"71aa0d6d-938e-46fd-89e6-7d3980c4df55","eventType":"DemoUnknownEvent","occurredAt":"2026-11-15T00:00:0
+2e4d5a75-11d8-4f30-b12b-b65b266a0284	{"eventId":"71aa0d6d-938e-46fd-89e6-7d3980c4df55","eventType":"DemoUnknownEvent","occurredAt":"2026-11-15T00:00:0
+2e4d5a75-11d8-4f30-b12b-b65b266a0284	{"eventId":"71aa0d6d-938e-46fd-89e6-7d3980c4df55","eventType":"DemoUnknownEvent","occurredAt":"2026-11-15T00:00:0
+49abb5fc-e81d-4e84-b061-baeb7a5714f8	{"eventId":"45af6868-8a47-4722-924e-25f53e8aebfd","eventType":"TransferCompleted","occurredAt":"2026-11-15T00:00:
+49abb5fc-e81d-4e84-b061-baeb7a5714f8	{"eventId":"45af6868-8a47-4722-924e-25f53e8aebfd","eventType":"TransferCompleted","occurredAt":"2026-11-15T00:00:
+49abb5fc-e81d-4e84-b061-baeb7a5714f8	{"eventId":"45af6868-8a47-4722-924e-25f53e8aebfd","eventType":"TransferCompleted","occurredAt":"2026-11-15T00:00:
+2e4d5a75-11d8-4f30-b12b-b65b266a0284	{"eventId":"71aa0d6d-938e-46fd-89e6-7d3980c4df55","eventType":"DemoUnknownEvent","occurredAt":"2026-11-15T00:00:0
+DLQ after view: visible=3 notVisible=0 delayed=0
+
+##### M-164-04 alarm (polling every 15 s, T0 = inject time)
+ALARM after +139s
+
+##### M-164-05 classify: worker log group, then by body
+
+aws: [ERROR]: An error occurred (InvalidParameterException) when calling the FilterLogEvents operation: 1 validation error detected: Value at 'logGroupName' failed to satisfy constraint: Member must satisfy regular expression pattern: [\.\-_/#A-Za-z0-9]+
+log events matching dead_letter in /dbs/dev/worker: 
+processed_events lookup: not run (no RDS session)
+
+##### M-164-06 dlq:age-check report only
+{"checked":3,"fresh":3,"stale":0,"deleted":0,"failed":[],"complete":true}
+exit code of age-check: 0
+
+##### M-164-07 scan (3b) + skip (3c): SCAN/SKIP outside the repo
+SCAN and SKIP live in ~/dbs-ops/dlq (outside the repo); test -e SCAN: free
+scan file lines: 3
+SKIP invalid_event(not-json) 231fe3ca-398c-41f8-810d-71acfd210786
+SKIP unknown_event_type 2e4d5a75-11d8-4f30-b12b-b65b266a0284
+KEEP valid 49abb5fc-e81d-4e84-b061-baeb7a5714f8
+deleted (skip) 231fe3ca-398c-41f8-810d-71acfd210786
+deleted (skip) 2e4d5a75-11d8-4f30-b12b-b65b266a0284
+returned (keep) 49abb5fc-e81d-4e84-b061-baeb7a5714f8
+skip file lines: 2
+DLQ after scan: visible=0 notVisible=3 delayed=0
+git status --porcelain (tsv/jsonl in the repo): 0
+
+##### M-164-08 redrive: recount, age-check again, move tasks (any status), ecs, start
+recount: visible=1 notVisible=0 delayed=0
+{"checked":1,"fresh":1,"stale":0,"complete":true}
+age-check exit: 0
+
+aws: [ERROR]: In function length(), invalid type for value: None, expected one of: ['string', 'array', 'object'], received: "null"
+move tasks (any status): ; ecs clusters: 0
+start-message-move-task: started
+move task: RUNNING	0
+move task: COMPLETED	1
+DLQ: visible=1 notVisible=0 delayed=0   MAIN: visible=1 notVisible=0 delayed=0
+
+##### M-164-09 clean main queue (delete by eventId, never purge)
+deleted injected event 45af6868-8a47-4722-924e-25f53e8aebfd from main
+risk-events visible=0 notVisible=0 delayed=0
+risk-events-dlq visible=0 notVisible=0 delayed=0
+notification-events visible=0 notVisible=0 delayed=0
+notification-events-dlq visible=0 notVisible=0 delayed=0
+
+##### M-164-10 skip by age (simulated stale): (d), wait 100 s, --max-age-days 0.0007 --delete-stale
+sent (d) eventId=7e57748d-bbed-46b2-9ebb-e70f574f35b6
+{"checked":1,"fresh":0,"stale":1,"deleted":1,"failed":[],"complete":true}
+age-check exit: 0
+quarantine file lines: 1; contains eventId (d): 1
+second run with the same name is refused by the runbook check: test -e says EXISTS -> rename
+DLQ: visible=0 notVisible=0 delayed=0
+
+##### M-164-11 final state and alarm back to OK
+alarm notification: OK  risk: OK
+risk-events visible=0 notVisible=0 delayed=0
+risk-events-dlq visible=0 notVisible=0 delayed=0
+notification-events visible=0 notVisible=0 delayed=0
+notification-events-dlq visible=0 notVisible=0 delayed=0
+move task of notification DLQ after trial: COMPLETED	1 (next redrive allowed after 2026-11-21)
+
+##### M-164-12 sample record (runbook 3c), then cleanup of trial files
+Tiêu đề: DLQ bỏ qua 2026-11-15 notification-events-dlq
+- DLQ: dbs-dev-notification-events-dlq; số message bỏ qua: 3 (2 lúc quét: (b) invalid_event, (c) unknown_event_type; 1 quá hạn mô phỏng: (d))
+- eventId: (c) 71aa0d6d-938e-46fd-89e6-7d3980c4df55, (d) 7e57748d-bbed-46b2-9ebb-e70f574f35b6; (b) không có eventId (messageId trên DLQ ghi trong báo cáo)
+- reason: invalid_event, unknown_event_type, stale (mô phỏng, --max-age-days 0.0007)
+- Người quyết định: <GitHub handle> lúc 00:58:04
+- Cách xử lý: lưu body ra file skip-notification-… và stale-notification-… (ngoài repo), xóa khỏi DLQ; tên file ghi ở đây, không dán đường dẫn
+- Báo cáo dlq:age-check (không có body): checked 1, stale 1, deleted 1, complete true
+- Sửa nguyên nhân: không áp dụng (dữ liệu thử tổng hợp)
+      1 actions.txt
+      1 scan-notification-<stamp>.tsv
+      1 skip-notification-<stamp>.jsonl
+      1 stale-notification-<stamp>.jsonl
+trial files removed; remaining in ops dir: 0
+
+##### Bổ sung sau lần chạy (cùng ngày): chạy lại riêng lệnh lọc log
+Git Bash biến /dbs/dev/worker thành đường dẫn Windows (InvalidParameterException ở M-164-05 ở trên là do đó, không phải lỗi runbook).
+Với MSYS_NO_PATHCONV=1: aws logs filter-log-events --log-group-name /dbs/dev/worker --filter-pattern '{ ($.outcome = "dead_letter") && ($.consumer = "notification") }' --query 'length(events)' → 0 (log group có, chưa có dòng nào).
+list-message-move-tasks khi chưa có task: in rỗng (không có trường Results); --query 'length(Results)' báo lỗi (hai dòng "In function length()" ở M-164-01 và M-164-08 ở trên).

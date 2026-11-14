@@ -61,7 +61,7 @@ $SQS receive-message --queue-url "$DLQ" --max-number-of-messages 10 --wait-time-
 
 - Mỗi body là một sự kiện. `eventId`, `eventType` và `correlationId` dùng để tra log và `audit_log`.
 - **Chỉ xem DLQ, không xem queue chính.** Mỗi lần nhận đều tăng `ApproximateReceiveCount`, mà queue chính chuyển message sang DLQ khi số này đủ 5.
-- **Đừng xóa bằng handle của lần xem này.** Mỗi lần nhận sau đó cấp handle mới, và handle cũ không dùng được nữa. Lệnh xem với visibility 0 cũng chỉ thấy lại tối đa 10 message đầu, nên không dùng để quét cả DLQ.
+- **Đừng xóa bằng handle của lần xem này.** Mỗi lần nhận sau đó cấp handle mới, và handle cũ không dùng được nữa. Lệnh xem với visibility 0 cũng chỉ thấy lại tối đa 10 message đầu, nên không dùng để quét cả DLQ. Một lần xem có thể trả **cùng một message nhiều lần** (đã thấy trên AWS: 3 message ra 10 dòng): đếm theo `MessageId`, không theo số dòng.
 
 ## 2b. Phân loại nguyên nhân
 
@@ -71,6 +71,8 @@ Mỗi message vào DLQ để lại một dòng log mức `error` của worker (s
 aws logs filter-log-events --log-group-name /dbs/dev/worker --start-time <epoch ms> --end-time <epoch ms> \
   --filter-pattern '{ ($.outcome = "dead_letter") && ($.consumer = "risk") }' --query 'events[].message' --output text
 ```
+
+Trên Git Bash (Windows) đặt `MSYS_NO_PATHCONV=1` trước lệnh: nếu không, `/dbs/dev/worker` bị đổi thành đường dẫn Windows và AWS báo `InvalidParameterException` (đã gặp ở DBS-164). Lệnh trả `0` khi chưa có dòng nào (worker chưa chạy hoặc không có message lỗi).
 
 Dòng có `consumer` (`risk` hoặc `notification`), `outcome: "dead_letter"`, `reason`, `receiveCount`; `eventId` (khi body hợp lệ) **hoặc** `messageId` và `issueCodes` (khi body không hợp lệ: body không bao giờ được ghi vào log); `errorType` (`Error` hoặc `NonError`) và `code` (SQLSTATE hoặc mã mạng) của lỗi gốc nếu có (hai dòng `invalid_event` và `unknown_event_type` không có hai trường này). **`messageId` trong log là id trên queue chính**: bản sao trong DLQ có `MessageId` mới, nên đối chiếu `invalid_event` với message trong DLQ theo khung giờ, `consumer`, `issueCodes` và nội dung body (mục 2), rồi ghi cả hai id.
 
@@ -147,7 +149,7 @@ Redrive chuyển **mọi** message của DLQ, nên mọi message nhãn "bỏ qua
 **Trước khi chạy lệnh** (cả hai bắt buộc):
 
 1. Đếm lại (mục 1) và chạy lại `dlq:age-check` (chỉ báo cáo): từ lúc quét tới giờ có thể đã qua nhiều giờ (sửa nguyên nhân, chờ hạ tầng), message mới chưa được phân loại, và redrive chuyển mọi message. Có message mới, hoặc thoát khác 0: quay về bước 3 của bản tóm tắt.
-2. (đặt `SRC_ARN` bằng lệnh đầu của khối bên dưới trước) `$SQS list-message-move-tasks --source-arn "$SRC_ARN"`: có task **bất kỳ trạng thái** (kể cả `CANCELLED`, `FAILED`, `RUNNING`) bắt đầu trong 6 ngày qua, hoặc `ApproximateNumberOfMessagesMoved` > 0: **không redrive**, xử lý tay (message đã chuyển có thể quay lại DLQ và sống quá mốc 7 ngày của `processed_events`). Ở local không chạy lệnh này (xem dưới).
+2. (đặt `SRC_ARN` bằng lệnh đầu của khối bên dưới trước) `$SQS list-message-move-tasks --source-arn "$SRC_ARN" --query 'Results[].[Status,StartedTimestamp,ApproximateNumberOfMessagesMoved]' --output text` (chưa có task nào thì in rỗng: không có trường `Results`, nên `--query 'length(Results)'` báo lỗi): có task **bất kỳ trạng thái** (kể cả `CANCELLED`, `FAILED`, `RUNNING`) bắt đầu trong 6 ngày qua, hoặc `ApproximateNumberOfMessagesMoved` > 0: **không redrive**, xử lý tay (message đã chuyển có thể quay lại DLQ và sống quá mốc 7 ngày của `processed_events`). Ở local không chạy lệnh này (xem dưới).
 
 ```bash
 SRC_ARN=$($SQS get-queue-attributes --queue-url "$DLQ" --attribute-names QueueArn --query Attributes.QueueArn --output text)
@@ -187,4 +189,6 @@ Nâng bản (đổi digest) chỉ khi cần, theo thứ tự:
 
 ## Lần chạy thật
 
-[DBS-125 §8](../features/DBS-125-dlq-isolation-runbook.md#8-kết-quả) (ElasticMQ local, hai process thật). Kịch bản demo: [Demo 3 phần C](../demos/demo-3-failure-recovery.md#c-consumer-lỗi--dlq-dbs-125).
+- **AWS dev, SQS thật, ngày 2026-11-15 ([DBS-164](../features/DBS-164-dlq-runbook-dev-trial.md), [output thô](../features/screenshots/DBS-164/manual-test.txt)):** chạy trọn mục tóm tắt trên `dbs-dev-notification-events-dlq` với ba message tổng hợp (hợp lệ, không phải JSON, loại sự kiện lạ): alarm `ALARM` sau 139 s; `dlq:age-check` báo 3 `fresh`; quét tách hai message "bỏ qua" ra file ngoài repo rồi xóa theo handle; redrive bằng `start-message-move-task` `COMPLETED` (1 message); dọn queue chính theo `eventId`; nhánh quá hạn mô phỏng (`--max-age-days 0.0007`) báo `stale` 1, `deleted` 1 và file quarantine có body; cuối cùng bốn queue 0 và hai alarm `OK`. **Chưa kiểm:** dòng log của worker (không có worker), `processed_events` (không có phiên RDS), danh sách quyền tối thiểu của mục "Quyền" (chạy bằng IAM user nhóm `dbs-admin`, BL-363).
+- **Hệ quả của lần chạy:** DLQ notification được redrive thật ngày 2026-11-15 nên **không redrive lại trước 2026-11-21**; DLQ risk đã redrive ngày 2026-11-14 nên **không trước 2026-11-20**. Sự cố thật trên hai DLQ này trong khoảng đó xử lý tay (xem, quét, bỏ qua có ghi nhận, và xử lý message hợp lệ ngoài `start-message-move-task`, ví dụ gửi lại bằng `send-message` sau khi sửa nguyên nhân và ghi `eventId`).
+- [DBS-125 §8](../features/DBS-125-dlq-isolation-runbook.md#8-kết-quả) (ElasticMQ local, hai process thật). Kịch bản demo: [Demo 3 phần C](../demos/demo-3-failure-recovery.md#c-consumer-lỗi--dlq-dbs-125).
