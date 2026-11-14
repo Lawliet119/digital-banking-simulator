@@ -1,0 +1,34 @@
+=== DBS-156 Live Rollback Drill (2026-11-14) ===
+Command: API_SVC=api WORKER_SVC=worker ALB_URL=https://<ALB_DNS> AWS_PROFILE=dbs-admin AWS_REGION=ap-southeast-1 bash docs/deliverables/P3-rollback-drill/drill.sh
+
+=== [Phase A] Baseline check at 2026-11-14T08:37:02Z ===
+api    1/1  arn:aws:ecs:ap-southeast-1:<ACCOUNT_ID>:task-definition/dbs-api:7
+worker 1/1  arn:aws:ecs:ap-southeast-1:<ACCOUNT_ID>:task-definition/dbs-worker:4
+Health live: 200
+Health ready: 200
+
+=== [Phase B] Register & deploy broken task definitions at 2026-11-14T08:37:07Z ===
+Bad TDs registered: api=dbs-api:8 worker=dbs-worker:5 (DB_HOST=broken-db-host.invalid)
+Polling broken deploy (max 120s)...
+  +10s health/ready=200
+  +20s health/ready=200
+  +30s health/ready=503
+  +40s health/ready=503
+
+=== [Phase C] Rollback to dbs-api:7 and dbs-worker:4 ===
+Rollback start t0=1794645479 (2026-11-14T08:37:59Z)
+  +3s   health=503 | api 0/1 IN_PROGRESS worker 0/1 IN_PROGRESS
+  +35s  health=503 | api 0/1 IN_PROGRESS worker 0/1 IN_PROGRESS
+  +71s  health=503 | api 0/1 IN_PROGRESS worker 0/1 IN_PROGRESS
+  +78s  health=200 | api 0/1 IN_PROGRESS worker 0/1 IN_PROGRESS
+  +84s  health=200 | api 1/1 IN_PROGRESS worker 1/1 IN_PROGRESS
+  +108s health=200 | api 1/1 COMPLETED   worker 1/1 IN_PROGRESS
+  +299s health=200 | api 1/1 COMPLETED   worker 1/1 COMPLETED
+Rollback COMPLETED in 301s at 2026-11-14T08:43:00Z
+
+=== [Phase D] Post-rollback verification & Cleanup ===
+api    1/1 COMPLETED PRIMARY arn:aws:ecs:ap-southeast-1:<ACCOUNT_ID>:task-definition/dbs-api:7
+worker 1/1 COMPLETED PRIMARY arn:aws:ecs:ap-southeast-1:<ACCOUNT_ID>:task-definition/dbs-worker:4
+Health live: 200
+Health ready: 200
+Cleanup: deregister dbs-api:8 -> INACTIVE, deregister dbs-worker:5 -> INACTIVE
