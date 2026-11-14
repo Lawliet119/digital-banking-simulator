@@ -78,13 +78,6 @@ resource "aws_kms_key" "main" {
         Condition = {
           StringEquals = {
             "kms:CallerAccount" = var.account_id
-            "kms:ViaService" = [
-              "rds.${var.region}.amazonaws.com",
-              "secretsmanager.${var.region}.amazonaws.com",
-              "sqs.${var.region}.amazonaws.com",
-              "elasticache.${var.region}.amazonaws.com",
-              "ec.${var.region}.amazonaws.com",
-            ]
           }
           Bool = {
             "kms:GrantIsForAWSResource" = "true"
