@@ -294,6 +294,55 @@ describe('least-privilege roles dbs_api, dbs_worker, dbs_migrator (DBS-119)', ()
     expect(await db.runner.query('SELECT 1 FROM processed_events')).toHaveLength(1);
   });
 
+  it('TC-181-15 the relay quarantines an event as dbs_worker with column-level grants only; dbs_api gets nothing new', async () => {
+    await clearOutbox(sql => db.runner.query(sql));
+    const event = { ...TRANSFER_SAMPLE, eventId: randomUUID() };
+    await db.runner.query(
+      `INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation_id)
+       VALUES($1,'TransferCompleted',$2,$3::jsonb,$4)`,
+      [event.eventId, randomUUID(), JSON.stringify(event), event.correlationId],
+    );
+    const tx = new TransactionService(workerSource, {
+      lockTimeoutMs: 2000,
+      statementTimeoutMs: 5000,
+      idleInTransactionTimeoutMs: 10000,
+    } as never);
+    const refuse = Object.assign(new Error('refused'), {
+      name: 'InvalidParameterValue',
+      $metadata: { httpStatusCode: 400 },
+    });
+    const sqs = { send: () => Promise.reject(refuse) } as unknown as SqsClient;
+    const relay = new OutboxRelayService(tx, sqs, {
+      region: 'us-east-1',
+      endpoint: undefined,
+      riskQueueUrl: 'http://queue/risk-events',
+      notificationQueueUrl: 'http://queue/notification-events',
+    });
+    await relay.relayOnce(100, { quarantineAfterAttempts: 1 });
+    const [row] = (await db.runner.query(
+      `SELECT attempts, last_error_code, quarantined_at IS NOT NULL AS quarantined
+         FROM outbox_events WHERE event_id=$1`,
+      [event.eventId],
+    )) as { attempts: number; last_error_code: string; quarantined: boolean }[];
+    expect(row).toEqual({
+      attempts: 1,
+      last_error_code: 'SQS_400_InvalidParameterValue',
+      quarantined: true,
+    });
+    // The grant is on the four columns only.
+    await denied(workerSource.query('UPDATE outbox_events SET event_type = event_type'));
+    await denied(workerSource.query("UPDATE outbox_events SET payload = '{}'::jsonb"));
+    await denied(workerSource.query('UPDATE outbox_events SET created_at = now()'));
+    // The BL-180 guard still holds for the worker, quarantined or not.
+    await expect(
+      workerSource.query('DELETE FROM outbox_events WHERE event_id=$1', [event.eventId]),
+    ).rejects.toMatchObject({ code: '42501', message: expect.stringMatching(/unpublished/) });
+    await denied(apiSource.query('UPDATE outbox_events SET quarantined_at = NULL'));
+    await denied(apiSource.query('UPDATE outbox_events SET attempts = 0'));
+    await denied(apiSource.query('SELECT attempts FROM outbox_events'));
+    await clearOutbox(sql => db.runner.query(sql));
+  });
+
   it('TC-119-04 assertNotMigratorUser guard blocks applications from connecting as dbs_migrator (DoD #2)', async () => {
     await expect(startDepositApp(urlFor('dbs_migrator'))).rejects.toThrow(/dbs_migrator/);
     const upperUrl = new URL(urlFor('dbs_migrator'));

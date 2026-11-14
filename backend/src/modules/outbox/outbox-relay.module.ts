@@ -6,6 +6,7 @@ import { SqsModule } from '@libs/sqs';
 import { Clock, SystemClock } from '@common/clock';
 import { OutboxAgeGauge } from './outbox-age.gauge';
 import { OutboxCleanupService } from './outbox-cleanup.service';
+import { OutboxQuarantineGauge } from './outbox-quarantine.gauge';
 import { OutboxRelayService } from './outbox-relay.service';
 
 /**
@@ -21,6 +22,7 @@ import { OutboxRelayService } from './outbox-relay.service';
     OutboxRelayService,
     OutboxCleanupService,
     OutboxAgeGauge,
+    OutboxQuarantineGauge,
   ],
   exports: [OutboxRelayService],
 })

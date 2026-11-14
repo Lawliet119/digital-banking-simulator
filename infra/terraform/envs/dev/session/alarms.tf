@@ -1,15 +1,15 @@
-# Alarm CloudWatch của tài nguyên session (docs/03 §14, BL-051, BL-117, BL-127, BL-179, BL-182, BL-188, BL-235, DBS-163).
+# Alarm CloudWatch của tài nguyên session (docs/03 §14, BL-051, BL-117, BL-127, BL-179, BL-181, BL-182, BL-188, BL-235, DBS-163).
 # Dựng và xóa cùng phiên: tuổi queue, outbox, Redis, fallback đều vô nghĩa khi worker, Valkey, api không chạy, và
 # alarm "thiếu dữ liệu = vi phạm" sẽ kêu mãi sau destroy. Alarm DLQ > 0 và topic SNS ở base/alarms.tf (sống qua destroy).
 # Mọi alarm gửi vào topic SNS của base (`alarm_topic_arn`), cả lúc báo (alarm_actions) và lúc hết (ok_actions).
 # Tag lấy từ default_tags của provider (locals.tags), alarm hỗ trợ tag nên không cần khai thêm.
 #
-# Chi phí: 10 alarm ở đây (+ 2 alarm DLQ ở base = 12). Alarm chuẩn 0,10 USD/alarm/tháng; alarm dùng biểu thức metric
+# Chi phí: 11 alarm ở đây (+ 2 alarm DLQ ở base = 13). Alarm chuẩn 0,10 USD/alarm/tháng; alarm dùng biểu thức metric
 # (SUM(METRICS())) bị tính theo số metric được tham chiếu: `risk_rule_error` 6 metric, `reconciliation`, `redis_fallback`,
-# `rate_limited` mỗi cái 2. Tổng cỡ 2,2 USD/tháng nếu chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều.
+# `rate_limited` mỗi cái 2. Tổng cỡ 2,3 USD/tháng nếu chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều.
 #
 # Dimension: bộ đếm của ứng dụng (MetricsService.writeCounters) chỉ xuất ở bộ `[Role, ...nhãn]`, KHÔNG có bộ `[]`; gauge
-# thì ngược lại chỉ có bộ `[]` (outbox_oldest_unpublished_age_seconds). Alarm phải khai đúng bộ dimension đó, nếu không
+# thì ngược lại chỉ có bộ `[]` (outbox_oldest_unpublished_age_seconds, outbox_quarantined_events). Alarm phải khai đúng bộ dimension đó, nếu không
 # sẽ không bao giờ có dữ liệu. Metric của worker mang `Role=worker`, của api mang `Role=api`.
 #
 # Alarm không dùng được SEARCH, nên metric có dimension thay đổi (Rule R1..R6, Status MISMATCH/ERROR, Scope ip/user,
@@ -89,6 +89,35 @@ resource "aws_cloudwatch_metric_alarm" "outbox_age" {
   threshold           = 30
   comparison_operator = "GreaterThanThreshold"
   treat_missing_data  = "breaching"
+
+  alarm_actions = local.alarm_actions
+  ok_actions    = local.alarm_actions
+}
+
+# --- Sự kiện outbox bị cách ly (BL-181) -------------------------------------------------------------------------------
+# Relay cách ly một sự kiện sau 5 lần gửi lỗi mà SQS từ chối vì chính nội dung (400/413, DBS-91 §2.4): dòng giữ
+# `published_at IS NULL`, có `quarantined_at`, relay không chọn nó nữa và gauge `outbox_quarantined_events` đếm chúng.
+# Bình thường bằng 0: mọi giá trị > 0 là có một sự kiện chuyển tiền hoặc đổi trạng thái tài khoản KHÔNG BAO GIỜ tới được
+# consumer, nên một điểm là đủ báo, không cần cửa sổ nhiều điểm như alarm tuổi.
+# Gauge giữ giá trị > 0 cho tới khi người vận hành xử lý (runbook trong README outbox: xem `last_error_code`, sửa nguyên
+# nhân rồi `UPDATE ... SET quarantined_at = NULL, attempts = 0`), nên alarm ở ALARM tới lúc đó; không nhấp nháy.
+# treat_missing_data = ignore: giữ nguyên trạng thái khi không có số đo. Không dùng `breaching` vì worker chết đã có
+# alarm tuổi outbox (trùng báo), và không dùng `notBreaching` vì nó đưa alarm đang ALARM về OK chỉ vì worker khởi động
+# lại hay gauge đọc lỗi một lúc, che mất sự kiện vẫn đang nằm trong cách ly.
+resource "aws_cloudwatch_metric_alarm" "outbox_quarantined" {
+  alarm_name        = "dbs-dev-outbox-quarantined"
+  alarm_description = "Có sự kiện outbox bị relay cách ly vì SQS từ chối nội dung của nó (400/413) và sẽ không được gửi nữa: người dùng thiếu thông báo hoặc risk thiếu giao dịch. Xem log worker `Outbox event quarantined` và cột last_error_code, sửa nguyên nhân rồi đưa lại hàng đợi theo README outbox."
+
+  namespace   = var.metrics_namespace
+  metric_name = "outbox_quarantined_events"
+
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "ignore"
 
   alarm_actions = local.alarm_actions
   ok_actions    = local.alarm_actions

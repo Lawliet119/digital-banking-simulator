@@ -3,7 +3,11 @@ import { DataSource, type EntityManager } from 'typeorm';
 import { PinoLogger } from 'nestjs-pino';
 import { InvalidEventError, type DomainEvent } from '@common/events';
 import { TransactionService } from '@database/transaction.service';
-import { OutboxWriter } from '@modules/outbox';
+import {
+  OUTBOX_MAX_PAYLOAD_BYTES,
+  OutboxPayloadTooLargeError,
+  OutboxWriter,
+} from '@modules/outbox';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { VALID_SAMPLES, TRANSFER_SAMPLE, DEPOSIT_SAMPLE } from '../support/event-samples';
 
@@ -209,6 +213,81 @@ describe('DBS-57 outbox writer in the caller transaction (real PostgreSQL)', () 
       expect(await users(sub)).toEqual([]);
     },
   );
+
+  describe('BL-123 payload size limit (the SQS message limit)', () => {
+    const withExtensionOf = (base: DomainEvent, bytes: number): DomainEvent => {
+      // Pad to an exact serialized size: the extension holds one ASCII string.
+      const probe = JSON.stringify({ ...base, extension: '' });
+      return {
+        ...base,
+        extension: 'x'.repeat(bytes - Buffer.byteLength(probe)),
+      } as unknown as DomainEvent;
+    };
+
+    it('TC-57-16 refuses an oversized payload before the insert, rolls back the caller and names no data', async () => {
+      const input = withExtensionOf(event(), OUTBOX_MAX_PAYLOAD_BYTES + 1);
+      const sub = randomUUID();
+      let outboxInserts = 0;
+      const error = await tx
+        .run(async manager => {
+          await seedUser(manager, sub);
+          const query = jest.spyOn(manager, 'query');
+          try {
+            await writer.add(manager, input);
+          } finally {
+            outboxInserts = query.mock.calls.filter(([sql]) =>
+              /INSERT INTO outbox_events/i.test(String(sql)),
+            ).length;
+            query.mockRestore();
+          }
+        })
+        .then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+      expect(outboxInserts).toBe(0);
+      expect(error).toBeInstanceOf(OutboxPayloadTooLargeError);
+      expect(error).toMatchObject({
+        name: 'OutboxPayloadTooLargeError',
+        sizeBytes: OUTBOX_MAX_PAYLOAD_BYTES + 1,
+        limitBytes: OUTBOX_MAX_PAYLOAD_BYTES,
+      });
+      expect((error as Error).message).toBe(
+        `Outbox payload is ${OUTBOX_MAX_PAYLOAD_BYTES + 1} bytes, over the limit of ${OUTBOX_MAX_PAYLOAD_BYTES}`,
+      );
+      expect(await rows(input.eventId)).toEqual([]);
+      expect(await users(sub)).toEqual([]);
+    });
+
+    it('TC-57-16 counts UTF-8 bytes, not characters', async () => {
+      // 3-byte characters: fewer than the limit in characters, more in bytes.
+      const base = event();
+      const probe = Buffer.byteLength(JSON.stringify({ ...base, extension: '' }));
+      const chars = Math.ceil((OUTBOX_MAX_PAYLOAD_BYTES + 1 - probe) / 3);
+      const input = { ...base, extension: 'ế'.repeat(chars) };
+      expect(JSON.stringify(input).length).toBeLessThan(OUTBOX_MAX_PAYLOAD_BYTES);
+      await expect(tx.run(manager => writer.add(manager, input))).rejects.toBeInstanceOf(
+        OutboxPayloadTooLargeError,
+      );
+      expect(await rows(input.eventId)).toEqual([]);
+    });
+
+    it('TC-57-16 stores a payload of exactly the limit, and the relay would send the same bytes', async () => {
+      const input = withExtensionOf(event(), OUTBOX_MAX_PAYLOAD_BYTES);
+      await tx.run(manager => writer.add(manager, input));
+      const [row] = await rows(input.eventId);
+      // What the relay sends is JSON.stringify of the jsonb it reads back.
+      expect(Buffer.byteLength(JSON.stringify(row.payload))).toBe(OUTBOX_MAX_PAYLOAD_BYTES);
+    });
+
+    it('TC-57-16 an oversized deposit/transfer-shaped event leaves no outbox row for its id', async () => {
+      const input = withExtensionOf(event(DEPOSIT_SAMPLE), 300 * 1024);
+      await expect(tx.run(manager => writer.add(manager, input))).rejects.toBeInstanceOf(
+        OutboxPayloadTooLargeError,
+      );
+      expect(await rows(input.eventId)).toEqual([]);
+    });
+  });
 
   it('TC-57-14 still stores valid surrogate pairs and Vietnamese text', async () => {
     const input = { ...event(), extension: { emoji: `x${HI}${LO}y`, vi: 'Ngân hàng số' } };

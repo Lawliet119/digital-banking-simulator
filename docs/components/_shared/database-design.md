@@ -268,7 +268,12 @@ CREATE TABLE outbox_events (
   payload        jsonb NOT NULL,                                    -- theo _shared/event-contract.md
   correlation_id uuid NOT NULL,
   created_at     timestamptz NOT NULL DEFAULT clock_timestamp(),
-  published_at   timestamptz                                        -- NULL = chưa gửi
+  published_at   timestamptz,                                       -- NULL = chưa gửi
+  -- BL-181 (migration 1795000009000): cách ly sự kiện lỗi vĩnh viễn
+  attempts        integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),   -- lần gửi lỗi theo kiểu sẽ lặp lại (SQS 400/413)
+  last_attempt_at timestamptz,                                       -- lần lỗi gần nhất (đồng hồ DB)
+  last_error_code text CHECK (last_error_code ~ '^[A-Za-z0-9_.:-]{1,80}$'),  -- mã ngắn, không có thông điệp lỗi hay dữ liệu
+  quarantined_at  timestamptz                                        -- có giá trị = relay không chọn dòng nữa
 );
 
 CREATE TABLE processed_events (
@@ -279,6 +284,8 @@ CREATE TABLE processed_events (
 );
 CREATE INDEX processed_events_processed_at_idx ON processed_events (processed_at); -- cho job dọn 7 ngày
 ```
+
+**Cách ly sự kiện lỗi vĩnh viễn (BL-181).** Sau 5 lần gửi lỗi do chính sự kiện (SQS 400/413) relay đặt `quarantined_at`; `PENDING_BATCH_SQL` có `AND quarantined_at IS NULL` nên dòng không bao giờ được chọn lại, kể cả sau khi khởi động lại. Dòng cách ly vẫn là dòng chưa gửi (`published_at IS NULL`): trigger BL-180 bên dưới vẫn cấm xóa và job dọn không bao giờ động tới. Đưa lại hàng đợi: `UPDATE outbox_events SET quarantined_at = NULL, attempts = 0 WHERE …` bằng role owner (runbook ở README outbox). `dbs_worker` được `UPDATE` đúng bốn cột mới (mức cột, như `published_at`). Gauge `outbox_quarantined_events` đếm chúng, gauge tuổi outbox bỏ chúng.
 
 **Chốt ở DB: không xóa được dòng chưa gửi (BL-180).** `dbs_worker` giữ `DELETE` trên mọi dòng `outbox_events` vì job dọn cần nó, và PostgreSQL không cấp `DELETE` theo điều kiện dòng nếu không dùng row-level security. Quy tắc "không bao giờ xóa sự kiện chưa gửi" vì thế không chỉ dựa vào `WHERE published_at IS NOT NULL` của job: migration `GuardOutboxUnpublishedDelete1795000004000` thêm hàm `public.forbid_delete_unpublished_outbox()` và trigger `outbox_events_no_delete_unpublished` (`BEFORE DELETE … FOR EACH ROW`). Dòng có `published_at IS NULL` bị từ chối với SQLSTATE `42501` (cùng mã và kiểu thông điệp với `forbid_mutation()` ở §8.3), kể cả khi người xóa là owner của bảng; một câu `DELETE` trúng cả dòng chưa gửi lẫn đã gửi thì thất bại toàn bộ. Dòng đã gửi vẫn xóa bình thường (đường của `OutboxCleanupService`); `INSERT` và `UPDATE published_at` của relay không đổi, quyền (`db-roles.sql`) không đổi. Hai chỗ trigger **không** chặn, có chủ ý: (1) `TRUNCATE`: trigger theo hàng không chạy, nhưng `dbs_api`/`dbs_worker` không có quyền `TRUNCATE` nên chỉ owner hoặc superuser làm được; (2) phiên superuser đặt `session_replication_role = replica` hoặc owner chạy `ALTER TABLE … DISABLE TRIGGER`. Cả hai nằm ngoài hai role chạy ứng dụng. Hệ quả cho test: muốn dọn outbox giữa các ca thì `UPDATE … SET published_at = now() WHERE published_at IS NULL` rồi mới `DELETE` (helper `clearOutbox` ở `backend/test/support/outbox-fixtures.ts`), không bỏ trigger. Test: [`outbox-delete-guard.db-spec.ts`](../../../backend/test/db/outbox-delete-guard.db-spec.ts), chạy bằng role `dbs_worker` thật.
 
@@ -454,7 +461,8 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | Trạng thái một giao dịch (UC-7) | PK `transfers(id)` | Có sẵn |
 | **R1/R2/R5** đếm lệnh, trung vị số tiền, người nhận mới (risk) | `transfers_account_completed_idx`: `transfers (from_account_id, created_at) INCLUDE (amount, to_account_id) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Một index phục vụ cả ba luật, và nhỏ vì loại `REJECTED` và `DEPOSIT` |
 | **R4** có lệnh chuyển ngược trong 1 giờ (risk) | `transfers_pair_completed_idx`: `transfers (from_account_id, to_account_id, created_at) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Truy vấn theo cặp |
-| Relay lấy sự kiện chưa gửi (`outbox`) | `outbox_unpublished_idx`: `outbox_events (id) WHERE published_at IS NULL` | Chỉ chứa các dòng đang chờ: luôn nhỏ dù bảng lớn |
+| Relay lấy sự kiện chưa gửi (`outbox`) | `outbox_unpublished_idx`: `outbox_events (id) WHERE published_at IS NULL AND quarantined_at IS NULL` (BL-181) | Chỉ chứa các dòng đang chờ relay, không có dòng cách ly: luôn nhỏ dù bảng lớn |
+| Đếm sự kiện bị cách ly (gauge) | `outbox_quarantined_idx`: `outbox_events (id) WHERE quarantined_at IS NOT NULL AND published_at IS NULL` (BL-181) | Chỉ chứa dòng cách ly: thường rỗng |
 | Dọn outbox cũ | `outbox_published_cleanup_idx`: `outbox_events (published_at) WHERE published_at IS NOT NULL` | Truy vấn tuổi dòng đã gửi |
 | Dọn processed_events cũ (ít nhất7 ngày) | `processed_events_processed_at_idx`: `processed_events (processed_at)` | `OutboxCleanupService`: cutoff Clock, ORDER BY processed_at LIMIT; EXPLAIN thật trong `dedup-cleanup.db-spec.ts` |
 | Dọn idempotency cũ (ít nhất7 ngày) | `idempotency_keys_created_idx`: `idempotency_keys (created_at)` | Cùng job, cutoff Clock và ORDER BY created_at LIMIT; EXPLAIN thật, không ép planner |
@@ -559,7 +567,7 @@ Ma trận quyền (S = SELECT, I = INSERT, U = UPDATE, D = DELETE):
 | `v_transfer_facts` (view) | — | S |
 | `ledger_entries` | S I | S |
 | `idempotency_keys` | S I U | D (dọn) |
-| `outbox_events` | I | S U D |
+| `outbox_events` | I | S, U (`published_at`, `attempts`, `last_attempt_at`, `last_error_code`, `quarantined_at`), D |
 | `processed_events` | — | S I D |
 | `audit_log` | S I | I |
 | `fraud_flags` | S U (cột `review_*`) | S I |

@@ -12,6 +12,7 @@ import { safeErrorMetadata } from '@common/logging/logging.options';
 import { PollingLoop } from '@common/utils/polling-loop';
 import { TransactionService } from '@database/transaction.service';
 import { PoisonMessageError, SqsClient, type BatchResult, type SqsMessage } from '@libs/sqs';
+import { countConsumerMessage, type ConsumerOutcome } from './consumer.metrics';
 
 /** Receives a message may get before it is dead-lettered: 4 retries after the first (ADR-03). */
 export const MAX_ATTEMPTS = 5;
@@ -53,6 +54,12 @@ function receiveCountOf(message: SqsMessage | undefined): number {
  * - **Workers only.** Polling starts only when `runsWorkers()`; an `api` instance never polls.
  * - **Correlation.** The event's `correlationId` is bound in the logging context (AsyncLocalStorage)
  *   around `apply`, so logs and `OutboxWriter` inside see it.
+ * - **Visible failures (BL-209).** Every retry and every dead-letter decision is one log line
+ *   (`consumer`, `eventId`, `receiveCount`, `outcome`, the error class and SQLSTATE through
+ *   `safeErrorMetadata`; never the body, never the error message) and one increment of
+ *   `consumer_message_total{Consumer, Outcome}`.
+ * - **Shutdown.** The long poll is cancelled when the application stops, so the loop ends in
+ *   moments instead of up to 20 s (ECS gives a worker `stopTimeout` 60 s).
  *
  * `apply` must not call SQS, Redis or any slow service: it holds the transaction open. Work of that
  * kind goes in `prepare` (DBS-111), which runs before the transaction and hands its result to
@@ -63,6 +70,8 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, BeforeAppl
   /** `processed_events.consumer`: stable, one per consumer. */
   protected abstract readonly consumerName: string;
   private readonly baseLogger = new Logger(ConsumerBase.name);
+  /** Aborts the long poll in flight; made when the loop starts, aborted by `beforeApplicationShutdown`. */
+  private pollAbort: AbortController | undefined;
   private readonly loop = new PollingLoop(
     async () => {
       await this.consumeOnce();
@@ -116,14 +125,19 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, BeforeAppl
   }
 
   onApplicationBootstrap(): void {
-    if (runsWorkers()) this.loop.start();
+    if (!runsWorkers()) return;
+    this.pollAbort = new AbortController();
+    this.loop.start();
   }
 
   /**
-   * Stops the loop and waits for the batch in flight (receive, handlers, deletes) before
-   * `SqsClient` destroys its SDK client in `onApplicationShutdown` (BL-249).
+   * Stops the loop and waits for the batch in flight (handlers, deletes) before `SqsClient`
+   * destroys its SDK client in `onApplicationShutdown` (BL-249). A long poll that is still waiting
+   * for a message is cancelled first (BL-209), so this returns when the handlers have finished
+   * and not after up to 20 s of waiting for a queue that is empty.
    */
   async beforeApplicationShutdown(): Promise<void> {
+    this.pollAbort?.abort();
     await this.loop.stop();
   }
 
@@ -134,12 +148,25 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, BeforeAppl
   ): Promise<BatchResult[]> {
     const queue = this.queueUrl();
     if (!queue) throw new Error(`${this.consumerName} queue is not configured`);
-    return this.sqs.processBatch(
-      queue,
-      dlqUrlFor(queue),
-      (body, message) => this.handle(body, message),
-      { waitTimeSeconds, ...(visibilityTimeout === undefined ? {} : { visibilityTimeout }) },
-    );
+    const signal = this.pollAbort?.signal;
+    if (signal?.aborted) return Promise.resolve([]);
+    return Promise.resolve(
+      this.sqs.processBatch(
+        queue,
+        dlqUrlFor(queue),
+        (body, message) => this.handle(body, message),
+        {
+          waitTimeSeconds,
+          ...(visibilityTimeout === undefined ? {} : { visibilityTimeout }),
+          ...(signal === undefined ? {} : { abortSignal: signal }),
+        },
+      ),
+    ).catch((error: unknown) => {
+      // Only the receive can throw out of processBatch. A shutdown that cancelled it is not a
+      // failure to report, and the loop is about to end anyway.
+      if (signal?.aborted) return [];
+      throw error;
+    });
   }
 
   /**
@@ -151,6 +178,15 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, BeforeAppl
     if (!checked.ok) {
       const unknownType = checked.issues.some(issue => issue.code === 'UNKNOWN_EVENT_TYPE');
       if (unknownType && this.unknownEventPolicy === 'acknowledge') return;
+      // The body is not trusted and is never logged, not even its eventId, which may be anything.
+      // The issue codes are a fixed vocabulary; their paths can be keys the sender chose, so they
+      // stay out. The SQS message id says which message it was.
+      this.observe('dead_letter', {
+        receiveCount: receiveCountOf(message),
+        ...(message?.MessageId === undefined ? {} : { messageId: message.MessageId }),
+        reason: unknownType ? 'unknown_event_type' : 'invalid_event',
+        issueCodes: [...new Set(checked.issues.map(issue => issue.code))].sort(),
+      });
       throw new PoisonMessageError(
         unknownType ? 'Unknown event type on the queue' : 'Invalid event on the queue',
       );
@@ -163,19 +199,50 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, BeforeAppl
         try {
           await this.process(event);
         } catch (error) {
-          if (error instanceof PoisonMessageError) throw error;
           const attempt = receiveCountOf(message);
+          const fields = { eventId: event.eventId, receiveCount: attempt };
+          if (error instanceof PoisonMessageError) {
+            // The handler decided: the cause (a SQLSTATE such as 23503) says why.
+            this.observe('dead_letter', { ...fields, reason: 'poison' }, error.cause ?? error);
+            throw error;
+          }
           if (attempt >= MAX_ATTEMPTS) {
+            this.observe('dead_letter', { ...fields, reason: 'attempts_exhausted' }, error);
             throw new PoisonMessageError('Event kept failing and used up its attempts', {
               cause: error,
             });
           }
+          this.observe('retry', fields, error);
           await this.backOff(message, attempt);
           throw error;
         }
       },
       { role: 'worker', correlationId: event.correlationId },
     );
+  }
+
+  /**
+   * One structured line and one count for a retry or a dead-letter decision (BL-209). `fields`
+   * is built by the caller from ids and counts only; the error contributes its class and SQLSTATE
+   * through `safeErrorMetadata`, never its message (a driver message can quote a row).
+   */
+  private observe(
+    outcome: ConsumerOutcome,
+    fields: Record<string, unknown>,
+    error?: unknown,
+  ): void {
+    countConsumerMessage(this.consumerName, outcome);
+    const line = {
+      consumer: this.consumerName,
+      outcome,
+      ...fields,
+      ...(error === undefined ? {} : safeErrorMetadata(error)),
+    };
+    if (outcome === 'dead_letter') {
+      this.baseLogger.error(line, `${this.consumerName} message dead-lettered`);
+    } else {
+      this.baseLogger.warn(line, `${this.consumerName} message will be retried`);
+    }
   }
 
   /** Never hides the real error: if the queue refuses the new timeout, the default one applies. */

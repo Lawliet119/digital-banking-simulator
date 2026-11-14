@@ -16,7 +16,9 @@ describe('TC-57-12 OutboxModule public API and dependency injection', () => {
 
   it('exports only the writer, the relay and their modules through the public index', () => {
     expect(Object.keys(publicApi).sort()).toEqual([
+      'OUTBOX_MAX_PAYLOAD_BYTES',
       'OutboxModule',
+      'OutboxPayloadTooLargeError',
       'OutboxRelayModule',
       'OutboxRelayService',
       'OutboxWriter',

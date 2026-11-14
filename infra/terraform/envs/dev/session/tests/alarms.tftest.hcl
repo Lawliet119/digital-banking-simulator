@@ -1,4 +1,4 @@
-# Alarm CloudWatch của session (BL-051, BL-117, BL-127, BL-179, BL-182, BL-188, BL-235, DBS-163). Mock, biến và override chép từ dashboard.tftest.hcl vì chỉ có hiệu lực trong file khai báo chúng.
+# Alarm CloudWatch của session (BL-051, BL-117, BL-127, BL-179, BL-181, BL-182, BL-188, BL-235, DBS-163). Mock, biến và override chép từ dashboard.tftest.hcl vì chỉ có hiệu lực trong file khai báo chúng.
 mock_provider "aws" {}
 mock_provider "tls" {}
 
@@ -108,6 +108,7 @@ run "all_alarms_notify_the_topic" {
         values(aws_cloudwatch_metric_alarm.queue_age),
         [
           aws_cloudwatch_metric_alarm.outbox_age,
+          aws_cloudwatch_metric_alarm.outbox_quarantined,
           aws_cloudwatch_metric_alarm.risk_config_invalid,
           aws_cloudwatch_metric_alarm.risk_rule_error,
           aws_cloudwatch_metric_alarm.reconciliation,
@@ -123,7 +124,7 @@ run "all_alarms_notify_the_topic" {
 
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.queue_age) == 2
-    error_message = "10 session alarms: 2 queue age + 8 others (12 with the 2 DLQ alarms of base)"
+    error_message = "11 session alarms: 2 queue age + 9 others (13 with the 2 DLQ alarms of base)"
   }
 }
 
@@ -184,6 +185,39 @@ run "outbox_age_alarm" {
   assert {
     condition     = aws_cloudwatch_metric_alarm.outbox_age.datapoints_to_alarm >= 2 && aws_cloudwatch_metric_alarm.outbox_age.threshold > 25
     error_message = "a single 25 s relay batch must not trip the alarm (threshold above 25 s and at least 2 datapoints)"
+  }
+}
+
+# TC-ALM-03b (BL-181): sự kiện outbox bị cách ly. Gauge không dimension, Maximum, một điểm 300 s > 0 là báo;
+# thiếu dữ liệu = `ignore` (giữ nguyên trạng thái: worker chết đã có alarm tuổi outbox, và alarm đang ALARM không được tự về OK vì mất số đo)
+run "outbox_quarantined_alarm" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.outbox_quarantined.alarm_name == "dbs-dev-outbox-quarantined" &&
+      aws_cloudwatch_metric_alarm.outbox_quarantined.namespace == "DBS/Backend" &&
+      aws_cloudwatch_metric_alarm.outbox_quarantined.metric_name == "outbox_quarantined_events" &&
+      length(coalesce(aws_cloudwatch_metric_alarm.outbox_quarantined.dimensions, {})) == 0 &&
+      aws_cloudwatch_metric_alarm.outbox_quarantined.statistic == "Maximum"
+    )
+    error_message = "outbox quarantined: DBS/Backend outbox_quarantined_events, no dimension (gauge), Maximum"
+  }
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.outbox_quarantined.threshold == 0 &&
+      aws_cloudwatch_metric_alarm.outbox_quarantined.comparison_operator == "GreaterThanThreshold" &&
+      aws_cloudwatch_metric_alarm.outbox_quarantined.period == 300 &&
+      aws_cloudwatch_metric_alarm.outbox_quarantined.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.outbox_quarantined.datapoints_to_alarm == 1
+    )
+    error_message = "outbox quarantined: any value above 0 in one 300 s period"
+  }
+
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.outbox_quarantined.treat_missing_data == "ignore"
+    error_message = "outbox quarantined: missing data keeps the current state (ignore), neither breaching nor notBreaching"
   }
 }
 
@@ -402,6 +436,7 @@ run "alarms_follow_metrics_namespace" {
   assert {
     condition = (
       aws_cloudwatch_metric_alarm.outbox_age.namespace == "DBS/Backend-alm" &&
+      aws_cloudwatch_metric_alarm.outbox_quarantined.namespace == "DBS/Backend-alm" &&
       aws_cloudwatch_metric_alarm.risk_config_invalid.namespace == "DBS/Backend-alm" &&
       aws_cloudwatch_metric_alarm.risk_config_redis_fallback.namespace == "DBS/Backend-alm" &&
       alltrue([for q in aws_cloudwatch_metric_alarm.redis_fallback.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&

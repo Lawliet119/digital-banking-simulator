@@ -193,6 +193,17 @@ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs   -> 0 link 
 - **Lệch so với kế hoạch:** (1) thêm `test/support/relay-crash-name.ts`: ban đầu spec import hằng số từ `relay-crash-child.ts` làm Jest chạy luôn `main()` của tiến trình con. (2) `SendOptions` được xuất thêm từ `libs/sqs/index.ts`. Không đổi phạm vi.
 - **Bàn giao:** **BL-181** (cách ly bền vững sự kiện lỗi vĩnh viễn), **BL-182** (`stopTimeout`, alarm tuổi outbox), DBS-111 (chống trùng ở `risk-events`: bản trùng đã được chứng minh có thật ở M-91-03/04), BL-180 và BL-123 mục 2 (đã có).
 
+### Bổ sung BL-181: cách ly bền vững
+
+Thay phần «gạt tạm trong bộ nhớ» (§2.4) bằng bản bền vững, giữ nguyên gạt trong bộ nhớ làm nhịp (không gọi lại một sự kiện lỗi ở mọi lô):
+
+- **Cột mới** trên `outbox_events` (migration `QuarantineOutboxEvents1795000009000`): `attempts`, `last_attempt_at`, `last_error_code` (mã ngắn kiểu `SQS_400_InvalidParameterValue`, CHECK không cho văn bản), `quarantined_at`. Câu chọn `PENDING_BATCH_SQL` thêm `AND quarantined_at IS NULL`; `outbox_unpublished_idx` thu hẹp theo cùng điều kiện; `outbox_quarantined_idx` mới cho gauge. `dbs_worker` được `UPDATE` bốn cột (mức cột; `db-roles.sql`).
+- **Phân loại.** `classifySendError` giữ nguyên (§2.4). Thêm `quarantineCodeOf(error)`: chỉ SQS **400/413** (trừ queue không tồn tại) là lỗi của sự kiện và được đếm; 403, 404, queue không tồn tại và URL chưa cấu hình là lỗi môi trường, vẫn chỉ gạt trong bộ nhớ (cách ly hết mọi sự kiện vì một cấu hình sai là sai hướng; alarm tuổi outbox báo); lỗi tạm thời không đổi (thử lại mãi, tính vào giới hạn 3).
+- **Cách ly.** Mỗi lỗi của sự kiện: `attempts + 1`, `last_attempt_at`, `last_error_code` trong cùng transaction của lô; `attempts >= RELAY_QUARANTINE_AFTER_ATTEMPTS` (5, sau ≈ 7,5 phút với gạt 30/60/120/240 s) thì đặt `quarantined_at` và log `Outbox event quarantined` (không payload). Giới hạn 1 000 id của bộ nhớ không còn là lỗ hổng: mỗi sự kiện lỗi tự ra khỏi hàng sau 5 lần.
+- **Quan sát.** Gauge `outbox_quarantined_events` và alarm `dbs-dev-outbox-quarantined` (`treat_missing_data = ignore`, vì sao ở alarms.tf); gauge tuổi outbox **bỏ** dòng cách ly để một sự kiện độc không giữ alarm tuổi kêu mãi.
+- **Vận hành.** Dòng cách ly vẫn `published_at IS NULL`: trigger BL-180 cấm xóa, job dọn không đụng. Đưa lại hàng đợi bằng `UPDATE outbox_events SET quarantined_at = NULL, attempts = 0 WHERE …` (runbook ở README outbox).
+- **Test.** `test/db/outbox-quarantine.db-spec.ts` TC-181-01..16 (PostgreSQL thật: cột và CHECK, đếm qua nhiều relay mới, quarantined không được chọn lại, 1 100 dòng độc, lỗi tạm thời và môi trường không đếm, log không payload, trigger xóa, job dọn, đưa lại hàng đợi, hai gauge, revert), `db-roles.db-spec.ts` TC-181-15, `outbox-relay-faults.services-spec.ts` TC-181-17 (PostgreSQL + ElasticMQ), unit `quarantineCodeOf`, `alarms.tftest.hcl` `outbox_quarantined_alarm`. Đỏ: bỏ `quarantined_at IS NULL` khỏi `PENDING_BATCH_SQL` thì TC-181-04 và 05 đỏ.
+
 ## 9. Tài liệu đã cập nhật
 
 - `backend/src/modules/outbox/README.md`: hành vi khi lỗi và các giới hạn thời gian.

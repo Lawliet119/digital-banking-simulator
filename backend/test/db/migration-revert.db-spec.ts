@@ -87,7 +87,9 @@ describe('migrations 1 and 2: run, revert, run', () => {
     expect(await db.runner.query('SELECT id, type, balance FROM accounts')).toEqual([
       { id: FUNDING_ID, type: 'SYSTEM', balance: '0' },
     ]);
-  });
+    // One CLI process (ts-node start-up) per migration, so the run grows with every migration added;
+    // at ~40 migrations a CI runner reached the default 120 s (main 8755335). Own budget, not a retry.
+  }, 600_000);
 
   it('TC-20-18 refuses to revert, and drops nothing, once the tables hold data', async () => {
     db = await createTempDatabase();

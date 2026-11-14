@@ -22,6 +22,9 @@ export const EMF_DIMENSION_NAMES = [
   'Scope',
   'AiStatus',
   'Status',
+  // BL-209: which queue consumer, and whether it retried or dead-lettered. Both come from fixed sets.
+  'Consumer',
+  'Outcome',
 ] as const;
 export type EmfDimensionName = (typeof EMF_DIMENSION_NAMES)[number];
 
