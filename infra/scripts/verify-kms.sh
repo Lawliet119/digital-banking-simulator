@@ -44,13 +44,14 @@ check_cmk() {
     ERRS+=("cmk")
     return 0
   fi
-  if ! rot="$(ro kms get-key-rotation-status --key-id "$KMS_ALIAS" --query 'KeyRotationEnabled' 2>/dev/null)"; then
+
+  IFS=$'\t' read -r CMK_ID CMK_ARN state manager <<< "$(printf '%s' "$meta" | head -n 1)"
+
+  if ! rot="$(ro kms get-key-rotation-status --key-id "$CMK_ID" --query 'KeyRotationEnabled' 2>/dev/null)"; then
     echo "LOI cmk: không kiểm được (kms get-key-rotation-status)"
     ERRS+=("cmk")
     return 0
   fi
-
-  IFS=$'\t' read -r CMK_ID CMK_ARN state manager <<< "$(printf '%s' "$meta" | head -n 1)"
   rot="$(printf '%s' "$rot" | head -n 1 | tr -d '[:space:]')"
 
   local bad=()
