@@ -272,6 +272,8 @@ Quy ước: lệnh tĩnh gọi tắt **`actionlint`** = `docker run --rm -v "${P
 
 ## 8. Kết quả
 
+- **Cập nhật 2026-11-14 (BL-012, BL-035 đóng):** ruleset `protect-main` bắt buộc mười check (`lint`, `typecheck`, `unit`, `e2e`, `db`, `build`, `image-scan`, `secret-scan`, `terraform`, `script-tests`), nguồn GitHub Actions (`integration_id` 15368), không bật «require branches to be up to date» và không đòi approval (techlead là người review duy nhất).
+
 - **Lệnh kiểm tra lúc bàn giao** (backend không đổi sau commit `6ab5d4f`; chạy trong container `node:24` Linux, Node v24.22.0 / npm 11.19.1, `DATABASE_URL` **không đặt** cho năm lệnh đầu, đặt cho `test:db`; output thô ở [manual-test.txt](screenshots/DBS-35/manual-test.txt) phần LẦN 2):
 
 ```
