@@ -5,3 +5,14 @@ M-102-01 PASS: transfer -> 2 notification_log rows (sender, recipient)
 M-102-02 PASS: lock notice for the owner has no reason: "Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ ngân hàng để được hỗ trợ"
 M-102-03 PASS: recipient missing -> failed, rolled back (no mark), message hidden by the 5 s backoff (immediate receive is empty)
 cleanup done: temp database dropped, temp queues deleted
+
+--- BL-212 (2026-11-14, Node 24, ElasticMQ :9324 + postgres:17 tạm; script đã siết, chạy lại) ---
+Thêm M-102-04..07 (trùng, hồi phục sau backoff, vào DLQ ở lần nhận 5, poison vào DLQ lần đầu); vòng chờ có hạn.
+M-102-01 PASS: transfer -> 2 notification_log rows (sender, recipient)
+M-102-02 PASS: lock notice for the owner has no reason: "Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ ngân hàng để được hỗ trợ"
+M-102-03 PASS: recipient missing -> failed, rolled back (no mark), message hidden by the 5 s backoff (immediate receive is empty)
+M-102-04 PASS: same eventId again -> acknowledged, notification_log still 2 rows
+M-102-05 PASS: user created, message came back after the backoff -> acknowledged, 2 rows, 1 processed_events
+M-102-06 PASS: failed,failed,failed,failed,dead-lettered; message in notification DLQ; nothing written
+M-102-07 PASS: schema-breaking body -> DLQ at the first receive
+cleanup done: temp database dropped, temp queues deleted

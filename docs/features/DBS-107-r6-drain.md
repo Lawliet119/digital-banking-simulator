@@ -33,7 +33,7 @@ Chỉ TRANSFER; sameOwner bắt buộc boolean. Đọc `fromBalanceBefore` qua `
 
 ## 5. Manual
 
-`npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts` từ `backend/`: M-107-01 kiểm biên 90% và sameOwner; M-95/105/106/107-02 kiểm DEPOSIT.
+`npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts` từ `backend/`: M-107-01 kiểm biên 90% và sameOwner; M-95/105/106/107-02 kiểm DEPOSIT. BL-212: M-107-02 thêm biên 90% gần 2^63 (số dư 9223372036854775807: số tiền …227 hit, …226 không; so sánh số nguyên, không phải số thực) và đường lỗi (`minBalancePercent: 90.5`, số dư không phải số); unit `r6-drain.rule.spec.ts` có cùng các ca.
 
 ## 6. Review
 

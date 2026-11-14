@@ -85,6 +85,8 @@ sequenceDiagram
 
 ## 5. Test thủ công
 
+> **Cập nhật BL-212:** bảng M-109-01..03 dưới đây là của thiết kế gốc có bộ đếm Redis. BUG-20261110 đã bỏ Redis khỏi provider và viết lại script (M-ORDER-01..03), nên không còn Valkey và không còn vòng chờ Valkey không hạn. Script hiện chạy bằng `NODE_ENV=test DATABASE_URL=<postgres server> npx ts-node -r tsconfig-paths/register test/manual/online-feature-provider.manual.ts`; M-ORDER-03 là đường lỗi: SQL mất kết nối thì `extract` bị từ chối, sau khi hồi phục trả đúng features.
+
 Script `backend/test/manual/online-feature-provider.manual.ts`, cần `docker compose up -d` (Valkey 6379) và PostgreSQL; dựng provider thật.
 
 | Bước | Việc làm | Mong đợi |
