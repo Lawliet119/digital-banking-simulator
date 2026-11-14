@@ -223,6 +223,8 @@ Ghi ở `infra/terraform/README.md` mục "Báo cáo chi phí tuần":
 
 ## 8. Kết quả
 
+- **Cập nhật 2026-11-14 (BL-168 đóng):** `terraform apply` base từ `main` (profile admin) thêm `aws_iam_role.github_deploy`, `aws_iam_role_policy.deploy` cùng các tài nguyên mới (SNS alarm, alarm DLQ, role seed Cognito, SQS allow-list); `plan` ngay sau đó thoát 0 («No changes»).
+
 - **Lệnh kiểm tra** (lúc bàn giao, commit `a6c34e3`): stack `base` `terraform fmt -check` sạch, `validate` đạt, `terraform test` **35/35** (34 cũ + `cost_tags`); `python3 infra/scripts/tests/test_cost_report.py` **18/18 OK**, 0 skip; `test_seed_cognito.py` 12/12 (không đổi); `check-doc-links.mjs` 0 link hỏng. Không đổi `backend/` nên không chạy baseline backend.
 - **Kiểm đột biến** (tự làm, không giữ trong repo): bỏ filter credit → TC-143-02 đỏ; tính credit từ `--start` → TC-143-06 đỏ; tính data transfer cả service `AWS Data Transfer` → ban đầu **không** test nào đỏ, đã thêm assert vào TC-143-01, sau đó đỏ.
 - **Đối chiếu test case:**
