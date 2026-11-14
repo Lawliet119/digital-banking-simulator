@@ -189,7 +189,7 @@ Task docs-only: "test viết trước" là các lệnh grep của TC-164-01/02/0
 | TC-164-04 | link check và grep | đạt |
 | TC-164-05 | quy trình | làm ở PR |
 
-- **Test thủ công** (raw: [manual-test.txt](screenshots/DBS-164/manual-test.txt); chạy trên commit `deab1a2`, sau đó chỉ thêm ba lưu ý và mục "Lần chạy thật" vào runbook, không đổi lệnh nào ngoài việc thêm `--query` cho `list-message-move-tasks`; SQS dev, DLQ notification, profile `dbs`):
+- **Test thủ công** (raw: [manual-test.txt](screenshots/DBS-164/manual-test.txt); chạy trên commit `1e426fe` (tên cũ `deab1a2` trước khi rebase lên `main`), sau đó chỉ thêm ba lưu ý và mục "Lần chạy thật" vào runbook, không đổi lệnh nào ngoài việc thêm `--query` cho `list-message-move-tasks`; SQS dev, DLQ notification, profile `dbs`):
 
 | Bước | Kết quả |
 |---|---|
@@ -226,7 +226,7 @@ Task docs-only: "test viết trước" là các lệnh grep của TC-164-01/02/0
 ## Checklist G4
 
 - [x] 5/5 test case đạt (TC-164-05 quy trình, làm ở PR), 0 đơn giản hóa; TC-164-03 đạt trừ hai điểm chưa kiểm đã thành BL
-- [x] Test thủ công trên SQS dev thật, commit `deab1a2` (dòng đầu `manual-test.txt`); M-164-05 một phần: dòng log thật và `processed_events` **chưa chạy** (không có worker, không có phiên RDS), nêu trong PR
+- [x] Test thủ công trên SQS dev thật, commit `1e426fe` (tên cũ `deab1a2` trước khi rebase lên `main`) (dòng đầu `manual-test.txt`); M-164-05 một phần: dòng log thật và `processed_events` **chưa chạy** (không có worker, không có phiên RDS), nêu trong PR
 - [x] Ảnh chụp: không áp dụng; `manual-test.txt` không có token, `ReceiptHandle`; id tài khoản AWS đã thay
 - [x] `git diff --stat origin/main...HEAD` khớp §7
 - [x] Baseline docs-only (`check-doc-links.mjs`) chạy lúc bàn giao: 421 file, 0 liên kết hỏng
