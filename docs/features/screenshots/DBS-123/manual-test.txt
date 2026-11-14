@@ -1,0 +1,62 @@
+f3752244c695e04a34ce1669bb55094e1c632d35
+## M-123-01 driver MISMATCH (job + MetricsService real, scripted snapshot); stdout lines of the driver:
+[Nest] 12787  - 11/14/2026, 11:59:50 AM    WARN [ReconciliationService] Object(5) {
+  status: 'MISMATCH',
+  mismatchedAccounts: 1,
+  totalDebit: '350000000',
+  totalCredit: '350000000',
+  totalBalance: '1000000'
+}
+[Nest] 12787  - 11/14/2026, 11:59:50 AM    WARN [ReconciliationService] Ledger reconciliation detected mismatch
+[Nest] 12787  - 11/14/2026, 11:59:50 AM     LOG [ReconciliationService] Object(4) {
+  event: 'reconciliation_run',
+  status: 'MISMATCH',
+  durationMs: 0,
+  mismatchedAccounts: 1
+}
+[Nest] 12787  - 11/14/2026, 11:59:50 AM     LOG [ReconciliationService] Ledger reconciliation run finished
+outcome: {"executed":true,"status":"MISMATCH"}
+{"_aws":{"Timestamp":1794632390645,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Role","Status"]],"Metrics":[{"Name":"reconciliation_runs_total","Unit":"Count"}]}]},"Role":"worker","Status":"MISMATCH","
+## M-123-02 driver OK, EMF line only
+{"_aws":{"Timestamp":1794632392785,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Role","Status"]],"Metrics":[{"Name":"reconciliation_runs_total","Unit":"Count"}]}]},"Role":"worker","Status":"OK","reconciliation_runs_total":1}
+## M-123-03 OK run, wait 4 minutes: alarm must not fire
+04:59:53 put OK line, alarm: OK
+None
+05:00:55 alarm: OK
+05:01:55 alarm: OK
+05:02:56 alarm: OK
+05:04:17 alarm: OK
+## M-123-04 trial 1: MISMATCH, alarm must reach ALARM within 3 minutes of the write (the real path adds up to 60 s interval and 60 s flush, 5 minutes in total)
+05:04:20 [trial-1] put MISMATCH line (EMF timestamp 1794632660215, written 0 s after it was made); alarm: OK
+None
+05:04:37 [trial-1] (+17 s) alarm: OK
+05:04:56 [trial-1] (+36 s) alarm: OK
+05:05:50 [trial-1] (+90 s) alarm: ALARM
+## wait until the alarm is OK again (5 minute window ages out)
+## (the first run was cut off after trial 1 reached ALARM at +90 s; this part continues from the same alarm)
+05:24:01 alarm: OK
+## M-123-02b subscribers of the topic
+sqs
+## M-123-04 trial 2
+05:24:06 [trial-2] put MISMATCH line (EMF timestamp 1794633846157, written 0 s after it was made); alarm: OK
+None
+05:24:23 [trial-2] (+17 s) alarm: OK
+05:24:39 [trial-2] (+33 s) alarm: OK
+05:24:55 [trial-2] (+49 s) alarm: OK
+05:25:10 [trial-2] (+64 s) alarm: OK
+05:25:26 [trial-2] (+80 s) alarm: OK
+05:25:42 [trial-2] (+96 s) alarm: OK
+05:25:58 [trial-2] (+112 s) alarm: ALARM
+## M-123-05 alarm history
+2026-11-14T12:25:55.553000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-14T12:25:55.510000+07:00	StateUpdate	Alarm updated from OK to ALARM
+2026-11-14T12:20:55.552000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-14T12:20:55.515000+07:00	StateUpdate	Alarm updated from ALARM to OK
+2026-11-14T12:05:24.428000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-14T12:05:24.391000+07:00	StateUpdate	Alarm updated from OK to ALARM
+2026-11-14T11:56:24.429000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-14T11:56:24.390000+07:00	StateUpdate	Alarm updated from INSUFFICIENT_DATA to OK
+2026-11-14T11:55:10.394000+07:00	ConfigurationUpdate	Alarm "dbs-dev-reconciliation-failed" created
+2026-11-14T05:21:54.941000+07:00	ConfigurationUpdate	Alarm "dbs-dev-reconciliation-failed" deleted
+2026-11-14T05:13:13.162000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-14T05:13:13.130000+07:00	StateUpdate	Alarm updated from INSUFFICIENT_DATA to OK
