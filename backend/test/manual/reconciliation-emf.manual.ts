@@ -14,7 +14,8 @@ import { ReconciliationService } from '../../src/modules/ledger/reconciliation.s
  * under test, not a balance. Usage: ts-node -r tsconfig-paths/register test/manual/reconciliation-emf.manual.ts OK|MISMATCH|ERROR
  */
 const mode = process.argv[2] ?? 'OK';
-if (!['OK', 'MISMATCH', 'ERROR'].includes(mode)) throw new Error('mode must be OK, MISMATCH or ERROR');
+if (!['OK', 'MISMATCH', 'ERROR'].includes(mode))
+  throw new Error('mode must be OK, MISMATCH or ERROR');
 
 const snapshot = {
   total_debit: '350000000',
@@ -52,7 +53,9 @@ async function main(): Promise<void> {
     transfer: { perTx: parsePositiveMoney('50000000'), perDay: parsePositiveMoney('200000000') },
   } as never);
   const outcome = await service.reconcileOnce();
-  console.error(`outcome: ${JSON.stringify({ executed: outcome.executed, status: 'status' in outcome ? outcome.status : null })}`);
+  console.error(
+    `outcome: ${JSON.stringify({ executed: outcome.executed, status: 'status' in outcome ? outcome.status : null })}`,
+  );
   await metrics.flush(Date.now(), false);
   for (const doc of lines) console.log(JSON.stringify(doc));
   await metrics.onApplicationShutdown();
