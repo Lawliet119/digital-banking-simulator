@@ -275,6 +275,7 @@ Redrive DLQ về queue chính: `aws sqs start-message-move-task --source-arn <ar
 | Mạng | SG không ingress; egress 443, 5432 tới SG db, 6379 tới SG redis. SG db và redis nhận từ SG api và SG worker, không ai khác. Task ở public subnet có IP công khai (ADR-10) |
 | Số task | `worker_desired_count` mặc định 0, tối đa 2; `desired_count + worker_desired_count ≤ 6` (74 kết nối dùng được, mỗi task 10 + 5). Lăn 0%/100% để không có hai worker song song |
 | Dừng | `stopTimeout` 60 s (một lô relay tới 25 s) |
+| Đối soát sổ cái | Biến `reconciliation_interval_ms` (mặc định 60 000, nhận 10 000..300 000) → env `RECONCILIATION_INTERVAL_MS`. Mặc định của ứng dụng là 300 s, quá chậm để alarm `dbs-dev-reconciliation-failed` báo trong 5 phút; production đặt lại theo tải ([DBS-123](../../docs/features/DBS-123-reconciliation-alarms.md)) |
 | Log | CloudWatch `/dbs/dev/worker`, stream `worker/worker/<task-id>`; lỗi khởi động ghi `Application startup failed` kèm `invalidKeys` |
 | Biến | như api cộng `SQS_RISK_QUEUE_URL`, `SQS_NOTIFICATION_QUEUE_URL`; không `SQS_ENDPOINT`, không `PORT`; bí mật `DB_USER`, `DB_PASSWORD`, `REDIS_AUTH_TOKEN` qua `secrets` |
 
