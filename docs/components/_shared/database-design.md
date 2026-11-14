@@ -378,12 +378,20 @@ CREATE TABLE notification_log (
   user_id    uuid CONSTRAINT notification_log_user_id_fkey REFERENCES users(id) ON DELETE RESTRICT,
   message    text NOT NULL,                  -- không nêu lý do gian lận (BR-13)
   created_at timestamptz NOT NULL DEFAULT now(),
-  correlation_id uuid                        -- DBS-134: correlationId của event gây ra thông báo
+  correlation_id uuid,                       -- DBS-134: correlationId của event gây ra thông báo
+  occurred_at timestamptz NOT NULL DEFAULT now() -- BL-211: event.occurredAt; đọc thì sắp theo cột này
 );
 CREATE INDEX notification_log_event_id_idx ON notification_log(event_id);
 -- correlation_id nullable: dòng sinh trước DBS-134 được backfill từ outbox_events theo event_id khi
 -- dòng outbox còn (cleanup DBS-92 xóa dòng cũ), worker bản cũ trong lúc deploy cuốn chiếu có thể
 -- vẫn INSERT không có cột. Code mới luôn điền. Không index: kiểm toán tra theo audit_log.
+-- occurred_at (BL-211, migration 1795000010000): event contract không bảo đảm thứ tự giao (ADR-03),
+-- nên «đã mở khóa» có thể được xử lý trước «đã bị khóa». Mọi nơi đọc danh sách thông báo phải
+-- `ORDER BY occurred_at, id`, không theo `id` hay `created_at` (thời điểm worker xử lý). Consumer luôn
+-- ghi `event.occurredAt`. Dòng cũ được backfill từ created_at. DEFAULT now() chỉ để worker bản cũ
+-- trong lúc deploy cuốn chiếu vẫn INSERT được (khi đó occurred_at = lúc xử lý, như hành vi cũ).
+-- Chưa có index theo người dùng vì v1 chưa có API đọc; reader đầu tiên thêm
+-- (user_id, occurred_at, id) cùng truy vấn của nó. Quyền: dbs_worker đã có S I D cấp bảng.
 -- BR-13: writer chỉ ghi thông báo chung, không nêu lý do gian lận.
 -- Index không UNIQUE: một event có thể có nhiều người nhận. DBS-96.
 
@@ -660,7 +668,7 @@ Down của migration fraud phải DROP hai trigger của mình trước khi DROP
 | `risk_decisions` | **Vĩnh viễn**, không phân vùng ([RSK-01](../../features/RSK-01-risk-decisions-migration.md)) | Không dọn (append-only, là bằng chứng của quyết định) | Đo 2026-11-10 trên PostgreSQL 17: dòng `rule_only` 480 B, dòng AI 696 B; 10.000 dòng = 616 B/dòng gồm PK và UNIQUE. Ở 120 RPS **liên tục** là ≈ 6,4 GB/ngày; ở tải demo (≤ 50.000 TRANSFER/ngày) ≈ 31 MB/ngày. Xem lại hướng (hash partition theo `transfer_id` hoặc bảng claim hẹp + snapshot lưu trữ) khi bảng vượt 100 GB hoặc lưu lượng thật vượt 1 triệu TRANSFER/ngày kéo dài; ghi ở ADR-14 |
 | `idempotency_keys` | **Ít nhất7 ngày** (ADR-05), `IDEMPOTENCY_KEY_RETENTION_DAYS` mặc định7,7–3650 | `OutboxCleanupService` ở worker xóa `created_at < cutoff`, Clock UTC chốt đầu lượt | Khi key hết hạn và đã bị dọn, cùng key có thể trở thành lệnh mới; khi key còn tồn tại vẫn replay. Không hứa xóa đúng giây hết hạn |
 | `outbox_events` | Đã gửi + `OUTBOX_RETENTION_DAYS` (mặc định 7) | Job `worker` (`OutboxCleanupService`) xóa `published_at < now() - N days` theo lô 1000 dòng | Dòng chưa gửi không bao giờ bị xóa: câu SQL của job lọc `published_at IS NOT NULL`, và trigger `outbox_events_no_delete_unpublished` chốt lại ở DB (BL-180, xem §4.6) |
-| `processed_events` | **≥ thời gian giữ message của SQS + dư**; `PROCESSED_EVENTS_RETENTION_DAYS` (mặc định/min7,max3650) | Cùng job worker, `processed_at < cutoff`; advisory riêng theo bảng | Queue4ngày, DLQ6ngày, marker7ngày; Ops phải nâng retention trước khi nới cửa sổ queue/redrive (BL-051) |
+| `processed_events` | **≥ thời gian giữ message của SQS + dư**; `PROCESSED_EVENTS_RETENTION_DAYS` (mặc định/min7,max3650) | Cùng job worker, `processed_at < cutoff`; advisory riêng theo bảng | Queue4ngày, DLQ6ngày, marker7ngày; Ops phải nâng retention trước khi nới cửa sổ queue/redrive (BL-051). **Tuổi message tính từ lần gửi gốc, không từ lúc vào DLQ (BL-210):** `ConsumerBase` chuyển DLQ bằng `SendMessage` nên hạn giữ của DLQ tính lại từ lúc chuyển, một message có thể nằm trong DLQ 6 ngày sau khi đã chờ ở queue chính. Vì vậy bản sao mang thuộc tính `OriginalSentTimestamp` (epoch ms, lấy từ `SentTimestamp` của lần nhận, giữ nguyên qua các lần chuyển và replay), và trước mỗi redrive Ops chạy `npm run --silent dlq:age-check` ([runbook](../../runbooks/dlq-redrive.md)): message gửi gốc quá 6 ngày bị loại khỏi DLQ (lưu ra file), không được replay vì dòng `processed_events` của nó có thể đã bị dọn |
 | `notification_log` | 30 ngày | Job `worker` | v1 chỉ để quan sát |
 | `reconciliation_runs` | 90 ngày | Job `worker` | |
 
@@ -698,7 +706,7 @@ Bốn kiểm tra của job (DBS-117, `ReconciliationService`): (1) `SUM` Nợ = 
 5. `notification_log` (migration `1792886400000-CreateNotificationLog`, DBS-96); `reconciliation_runs` (migration `1793577600000-CreateReconciliationRuns`, DBS-116), độc lập job DBS-117 và quyền DBS-119
 6. Hàm `public.forbid_mutation()` và sáu trigger trên ledger_entries/transfers/audit_log (`1792627200002-AddAppendOnlyTriggers`, DBS-27); task fraud thêm cặp trigger risk_rule_sets khi bảng tồn tại
 7. Role và `GRANT` (migration `1793664000000-CreateDbRolesAndGrants`, [DBS-119](../../features/DBS-119-db-roles-grant-matrix.md); tạo `dbs_migrator`, `dbs_api`, `dbs_worker`, đổi owner view `v_transfer_facts` sang `dbs_migrator`, cấp quyền sequences, idempotent, có revert `down()` hoàn tác view owner về `CURRENT_USER`; chạy bằng tài khoản đủ quyền master/pipeline; master RDS không phải superuser nên phải được `GRANT dbs_migrator TO <master>` trước migration đầu tiên, xem `infra/terraform/README.md` "Role chạy migration", BL-195)
-8. `notification_log.correlation_id` (migration `1793750400000-AddNotificationLogCorrelationId`, [DBS-134](../../features/DBS-134-correlation-propagation.md))
+8. `notification_log.correlation_id` (migration `1793750400000-AddNotificationLogCorrelationId`, [DBS-134](../../features/DBS-134-correlation-propagation.md)); `notification_log.occurred_at` (migration `1795000010000-AddNotificationLogOccurredAt`, BL-211, xem §4.9)
 9. `risk_decisions`, `fraud_flags_decision_fkey`, `fraud_rule_hits_weight_check`, trigger append-only và quyền S/S I (migration `1793836800000-CreateRiskDecisions`, [RSK-01](../../features/RSK-01-risk-decisions-migration.md)). Bảng tạo sau bước 7 tự cấp quyền trong migration của nó và trong `infra/scripts/db-roles.sql` (khối có `to_regclass`); chạy lại riêng bước 7 (`REVOKE ALL ON ALL TABLES`) sẽ xóa các quyền này, nên sau đó phải chạy lại `db-roles.sql`.
 10. Bất biến liên bảng của ADR-14 là năm `CONSTRAINT TRIGGER … DEFERRABLE INITIALLY DEFERRED` trên `risk_decisions`, `fraud_flags`, `fraud_rule_hits` (migration `1795000006000-AddRiskInvariantTriggers`, BL-223), kiểm **lúc COMMIT** nên thứ tự decision, cờ, hit trong transaction của writer không đổi. Lỗi là `23514` với tên ràng buộc: `risk_decisions_completed_transfer` (decision chỉ cho transfer `COMPLETED`/`TRANSFER`), `risk_decisions_rule_score_hits` (`rule_score = sum(fraud_rule_hits.weight)` khi có cờ; cờ AI-only có 0 hit và `rule_score = 0`), `fraud_flags_score_decision` (`score = rule_score + ai_applied_weight`), `fraud_flags_level_threshold` (`score >= thresholds.high` là HIGH, `>= thresholds.medium` là MEDIUM, thấp hơn thì không được có cờ; ngưỡng đọc từ `risk_rule_sets.config` của đúng `rule_set_version`; thiếu ngưỡng dạng số thì từ chối). Bốn hàm `risk_check_*` là `SECURITY DEFINER` với `search_path` cố định vì `dbs_worker` không có SELECT trên `transfers`; chỉ đọc, bỏ EXECUTE khỏi PUBLIC. Không hồi tố (dòng đã commit trước migration không bị kiểm lại) và không bắt "decision có tổng điểm từ ngưỡng medium mà thiếu cờ" (dòng thiếu không kích hoạt trigger dòng): đó vẫn là việc của writer.
 

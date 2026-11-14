@@ -93,6 +93,43 @@ describe('NotificationConsumer (real PostgreSQL)', () => {
     expect(await ids(status.eventId)).toEqual([status.correlationId]);
   });
 
+  it('TC-211-01 every notice carries occurred_at = the event occurredAt, for each of the rows of one event', async () => {
+    const transfer = { ...TRANSFER_SAMPLE, eventId: randomUUID() };
+    const status = { ...ACCOUNT_LOCKED_SAMPLE, eventId: randomUUID() };
+    await consumer.handle(transfer);
+    await consumer.handle(status);
+    const occurred = async (eventId: string) =>
+      (
+        (await q('SELECT occurred_at FROM notification_log WHERE event_id=$1', [eventId])) as {
+          occurred_at: Date;
+        }[]
+      ).map(r => r.occurred_at.toISOString());
+    expect(await occurred(transfer.eventId)).toEqual([transfer.occurredAt, transfer.occurredAt]);
+    expect(await occurred(status.eventId)).toEqual([status.occurredAt]);
+  });
+
+  it('TC-211-02 the owner reads the lock first when the unlock was delivered first (order by occurred_at)', async () => {
+    // Same owner, same account; the event contract does not order delivery (ADR-03), so the
+    // unlock (05:30) is processed BEFORE the lock (04:02) that it undoes.
+    const owner = ACCOUNT_LOCKED_SAMPLE.ownerUserId;
+    const unlock = { ...ACCOUNT_ACTIVE_SAMPLE, eventId: randomUUID() };
+    const lock = { ...ACCOUNT_LOCKED_SAMPLE, eventId: randomUUID() };
+    await consumer.handle(unlock);
+    await consumer.handle(lock);
+    const listing = (orderBy: string) =>
+      q(
+        `SELECT message FROM notification_log
+         WHERE user_id=$1 AND event_id = ANY($2::uuid[]) ORDER BY ${orderBy}`,
+        [owner, [lock.eventId, unlock.eventId]],
+      ).then(found => found.map(r => r.message));
+    const LOCKED = 'Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ ngân hàng để được hỗ trợ';
+    const UNLOCKED = 'Tài khoản của bạn đã được mở khóa';
+    // The processing order (id) reads "unlocked" before "locked": the bug BL-211 describes.
+    expect(await listing('id')).toEqual([UNLOCKED, LOCKED]);
+    // The contract for every reader: by occurred_at, id as tie-break.
+    expect(await listing('occurred_at, id')).toEqual([LOCKED, UNLOCKED]);
+  });
+
   it('TC-102-01 a transfer between two accounts of one owner writes one row', async () => {
     const event = {
       ...TRANSFER_SAMPLE,

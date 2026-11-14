@@ -83,9 +83,18 @@ export class NotificationConsumer extends ConsumerBase {
     const notices = noticesFor(event);
     for (const notice of notices) {
       await manager.query(
-        `INSERT INTO notification_log(event_id,kind,user_id,message,correlation_id)
-         VALUES($1,$2,$3,$4,$5)`,
-        [event.eventId, notice.kind, notice.userId, notice.message, event.correlationId],
+        // occurred_at is the time of the event, not of this processing (BL-211): delivery is not
+        // ordered, so readers sort by it (`ORDER BY occurred_at, id`) and not by id or created_at.
+        `INSERT INTO notification_log(event_id,kind,user_id,message,correlation_id,occurred_at)
+         VALUES($1,$2,$3,$4,$5,$6)`,
+        [
+          event.eventId,
+          notice.kind,
+          notice.userId,
+          notice.message,
+          event.correlationId,
+          event.occurredAt,
+        ],
       );
     }
     // DBS-135 (AC-8.2): the auditor reads audit_log only, so the notification step of a chain is
