@@ -10,6 +10,7 @@ import { buildRiskConsumer, eventFor, riskFixtures } from '../support/risk-consu
 import { startPostgresContainer, stopPostgresContainer } from '../support/postgres.container';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startValkeyContainer, type StartedValkey } from '../support/valkey.container';
+import { expectLedgerInvariantsAfterEach } from '../support/ledger-invariants';
 
 const VALID_AI = {
   provider: 'openai',
@@ -158,6 +159,8 @@ describe('RSK-06 DoD 4 / BL-239: rule-set switch while Valkey caches the old lat
   let withinTtl: Sale[];
   let afterExpiry: Sale[];
   let afterRefresh: Sale[];
+
+  expectLedgerInvariantsAfterEach(() => source);
 
   it('TC-RSK06-06 in-flight requests and requests inside the 60 s window keep the cached version 1; nobody fails', async () => {
     const warm = await flaggable('làm nóng cache');

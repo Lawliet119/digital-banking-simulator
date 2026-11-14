@@ -37,7 +37,7 @@ Several things this file mentions do not exist at the time of writing. Check wit
 - **Midnight boundary:** inject the clock; never edit row timestamps or the machine timezone.
 - **A TTL** (a 60 s cache, a 15 min token): make the TTL injectable and assert the value Redis reports (`TTL`) or the clock-based expiry, instead of waiting.
 - **Data:** seed only through the deposit API, never `UPDATE accounts SET balance`. Each suite gets its own database cloned from a migrated template.
-- End every business money test with checkLedgerInvariants(runner); expect PASS and no violations. Intentional-corruption cases assert FAIL then rollback. The shared SQL is backend/test/support/invariants.sql; see the [backend README](../../../../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái) for the callable function and CLI.
+- End every business money test with expectLedgerInvariants(runner or dataSource) from backend/test/support/ledger-invariants.ts (or register expectLedgerInvariantsAfterEach(() => db?.runner) in the describe); it wraps checkLedgerInvariants and expects PASS, no violations and a zero balance total. Intentional-corruption cases assert FAIL then rollback. The shared SQL is backend/test/support/invariants.sql; see the [backend README](../../../../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái) for the callable function and CLI.
 
 ## Security checklist for §2 and §4
 

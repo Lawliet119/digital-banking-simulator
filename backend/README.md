@@ -138,7 +138,7 @@ Hệ thống sử dụng bảng sổ cái chỉ-thêm (`append-only ledger` như
 
 
 ### 6. Migration
-Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`) là một task ECS chạy một lần trước khi deploy, không phải lúc app khởi động ([DBS-68](../docs/features/DBS-68-migration-step.md)); chạy tay trên cloud bằng `IMAGE_TAG=<sha-40-ky-tu> bash .github/scripts/migrate.sh` (xem `infra/terraform/README.md`, mục "Migration trước deploy"). Task đọc kết nối từ `DB_*` (DBS-67), nên chạy được cả khi `DATABASE_URL` không có. Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1, 2, outbox và audit). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser. Trên RDS, master không phải superuser: trước migration đầu tiên của một database phải chạy `GRANT dbs_migrator TO <master>` (BL-195, `infra/terraform/README.md` mục "Role chạy migration"; test `test/db/migration-owner-role.db-spec.ts`), nếu không bước 7 dừng `42501` và cả lượt migration rollback. Ràng buộc liên bảng của fraud (BL-223) là constraint trigger kiểm lúc commit (`1795000006000-AddRiskInvariantTriggers`): writer mới ghi decision, cờ, hit trong **một** transaction.
+Không bao giờ chạy lúc app khởi động (`synchronize: false`). Viết theo kiểu **expand → migrate → contract** để bản cũ vẫn chạy được trong lúc deploy. Trên pipeline: `npm run migration:run:prod` (chạy từ `dist/`) là một task ECS chạy một lần trước khi deploy, không phải lúc app khởi động ([DBS-68](../docs/features/DBS-68-migration-step.md)); chạy tay trên cloud bằng `IMAGE_TAG=<sha-40-ky-tu> bash .github/scripts/migrate.sh` (xem `infra/terraform/README.md`, mục "Migration trước deploy"). Task đọc kết nối từ `DB_*` (DBS-67), nên chạy được cả khi `DATABASE_URL` không có. Entity và SQL viết tay dùng chung tên cột nhờ `SnakeNamingStrategy` (`src/database/snake-naming.strategy.ts`, bật ở cả app lẫn CLI); entity ghi tên bảng tường minh (`@Entity('accounts')`). Mỗi migration có test trong `test/db/` (`npm run test:db`). `npm run migration:revert` chỉ hoàn tác migration **mới nhất**; migration `down` có `DROP TABLE` tự từ chối khi bảng đã có dữ liệu (migration 1, 2, outbox và audit). Migration 2 (`CreateTransfersLedgerIdempotency`) cần quyền superuser trong test `test:db` ở ca TC-21-24 (dùng `session_replication_role`); role `banking` của docker compose đã là superuser. Trên RDS, master không phải superuser (BL-195, test `test/db/migration-owner-role.db-spec.ts`): từ BL-103 migration chạy bằng `dbs_migrator` (chủ các bảng), nên trước migration đầu tiên của một database chạy `AWS_PROFILE=dbs-admin bash infra/scripts/db-roles.sh` để role có login, mật khẩu và quyền `CREATE` trên schema `public` và database (`infra/terraform/README.md` mục "Role DB riêng cho api, worker và migrate"; test `test/db/db-role-provisioning.db-spec.ts`). Ràng buộc liên bảng của fraud (BL-223) là constraint trigger kiểm lúc commit (`1795000006000-AddRiskInvariantTriggers`): writer mới ghi decision, cờ, hit trong **một** transaction.
 
 
 **Schema outbox.**
@@ -289,7 +289,7 @@ aws ecs describe-tasks --cluster $CLUSTER --tasks "$TASK" --query 'tasks[0].cont
 aws logs get-log-events --log-group-name /dbs/dev/api --log-stream-name "migrate/migrate/${TASK##*/}" --query 'events[].message' --output text
 ```
 
-`exitCode` là thẩm quyền cuối cùng như ở bảng trên. Task dùng credential master (BL-103) nhưng CLI chỉ chạy một `SELECT` trong transaction `READ ONLY`. Revision `dbs-migrate` mang image của lần deploy gần nhất (`migrate.sh` cập nhật mỗi lần deploy); muốn chạy bản CLI mới hơn thì deploy trước. **Một lần chạy thật trên RDS dev chưa làm** (phần này của BL-128 còn mở).
+`exitCode` là thẩm quyền cuối cùng như ở bảng trên. Task nối bằng role `dbs_migrator` (BL-103, code xong, chưa chạy trên AWS; trước đó là master) và CLI chỉ chạy một `SELECT` trong transaction `READ ONLY`. Revision `dbs-migrate` mang image của lần deploy gần nhất (`migrate.sh` cập nhật mỗi lần deploy); muốn chạy bản CLI mới hơn thì deploy trước. **Một lần chạy thật trên RDS dev chưa làm** (phần này của BL-128 còn mở).
 
 Ví dụ từ file test trong `test/db/`, với QueryRunner đã kết nối:
 
@@ -300,6 +300,8 @@ const report = await checkLedgerInvariants(db.runner);
 expect(report.status).toBe('PASS');
 expect(report.violations).toEqual([]);
 ```
+
+Test nghiệp vụ có tiền dùng helper chung `test/support/ledger-invariants.ts` (BL-127): `expectLedgerInvariants(target)` nhận `QueryRunner` hoặc `DataSource`, gọi hàm trên rồi assert không violation, `PASS` và tổng số dư `0` (báo cáo vi phạm nằm trong thông báo lỗi của test); `expectLedgerInvariantsAfterEach(() => db?.runner)` đăng ký `afterEach` kiểm sổ sau mỗi test của `describe`. Không dùng cho test tự chèn `transfers`/`ledger_entries` lệch ý đồ (fixture `TransferFixture`, test corruption) vì sổ của chúng không cân theo thiết kế.
 
 Hàm không tạo kết nối, log, đổi timeout hoặc mở/commit/rollback transaction. Dùng cùng runner để kiểm dữ liệu của transaction caller; kết nối khác chỉ nhìn dữ liệu đã commit. Test cố ý làm lệch assert FAIL rồi rollback/drop DB tạm, không ép thành PASS bằng sửa/xóa sổ.
 
@@ -359,7 +361,7 @@ Chỉ nhóm auditor được phép; admin-only cũng nhận 403. Thêm `actorUse
 
 `test/manual/audit-search-session.ts` cung cấp session kiểm thủ công trên **DB tạm riêng**, AppModule thật và dữ liệu audit SQL fixture. Chạy với `NODE_ENV=test`, `APP_ROLE=api`, local JWT keys và `DATABASE_URL` quản trị được cấp ngoài transcript; helper nhận `--port` và `--db-name-file`, chỉ bind loopback và in database name/fixture metadata, không in URL hoặc token. Giữ stdin mở rồi gửi `quit` hoặc Ctrl+C để đóng app, khôi phục admin URL và drop đúng DB tạm. Kịch bản Git Bash/curl/psql, đường dẫn Windows và bằng chứng nằm tại [DBS-103](../docs/features/DBS-103-audit-search.md#5-test-thủ-công).
 
-Session helper và dev signing tools chỉ có trong checkout dev/test, không đóng gói vào `dist/`. Role grants có trong code/test DBS-119, triển khai RDS/ECS thật còn BL-103/195; thu hồi phiên Redis/SQL local có trong DBS-114, bằng chứng cloud còn DBS-186. Local/mock/targeted evidence không thay cho production ACL, CI hoặc kiểm trên AWS.
+Session helper và dev signing tools chỉ có trong checkout dev/test, không đóng gói vào `dist/`. Role grants có trong code/test DBS-119, nối api, worker, migrate bằng role riêng có code (BL-103) nhưng chưa chạy trên RDS/ECS thật (BL-103/195); thu hồi phiên Redis/SQL local có trong DBS-114, bằng chứng cloud còn DBS-186. Local/mock/targeted evidence không thay cho production ACL, CI hoặc kiểm trên AWS.
 
 ### 12. Dữ liệu demo (scripts/seed.ts, DBS-70)
 
@@ -407,7 +409,7 @@ docker run --rm -e APP_ROLE=worker --env-file backend/env/.env.development dbs-b
 ### Kết nối RDS qua TLS
 Staging và production bắt buộc `DATABASE_SSL=true`, và app **luôn** xác minh chứng chỉ của server (`rejectUnauthorized: true`). Node không tin CA của Amazon RDS mặc định, nên Dockerfile tải `global-bundle.pem` vào `/etc/ssl/rds/global-bundle.pem` (`ADD --checksum=sha256:…`, cần BuildKit) và task đặt `DATABASE_SSL_CA_PATH` trỏ tới file đó. **Không** tắt xác minh chứng chỉ để "cho kết nối được".
 
-**Ghép `DATABASE_URL` từ secret (DBS-67).** ECS `secrets` không nối chuỗi được, nên task truyền `DB_HOST`, `DB_PORT`, `DB_NAME` (biến thường) và `DB_USER`, `DB_PASSWORD` (từ secret master do RDS quản lý). `env.bootstrap` ghép thành `DATABASE_URL` (user và mật khẩu được mã hóa URL). `DATABASE_URL` đã có giá trị thì được giữ nguyên. Giá trị `DB_*` sai chỉ làm log nêu **tên** biến, không in giá trị. CLI typeorm cũng đi qua `env.bootstrap` nên dùng được cách này.
+**Ghép `DATABASE_URL` từ secret (DBS-67).** ECS `secrets` không nối chuỗi được, nên task truyền `DB_HOST`, `DB_PORT`, `DB_NAME` (biến thường) và `DB_USER`, `DB_PASSWORD` (từ secret của role DB của task, BL-103). `env.bootstrap` ghép thành `DATABASE_URL` (user và mật khẩu được mã hóa URL). `DATABASE_URL` đã có giá trị thì được giữ nguyên. Giá trị `DB_*` sai chỉ làm log nêu **tên** biến, không in giá trị. CLI typeorm cũng đi qua `env.bootstrap` nên dùng được cách này.
 
 **Làm mới hash khi AWS đổi bundle.** Build đỏ ở dòng `ADD --checksum` nghĩa là AWS đã cập nhật bundle. Tải bản mới từ nguồn chính thức của AWS RDS, kiểm tra nội dung PEM, tính SHA-256 rồi cập nhật hằng số trong `backend/Dockerfile`:
 ```bash

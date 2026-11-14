@@ -12,6 +12,7 @@ import { startDepositApp } from '../support/deposit-app';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
 import { buildRiskConsumer, riskFixtures, type RiskConsumerParts } from '../support/risk-consumer';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+import { expectLedgerInvariantsAfterEach } from '../support/ledger-invariants';
 
 type Row = Record<string, unknown>;
 
@@ -144,6 +145,8 @@ describe('DBS-135 an auditor traces one transfer end to end by its correlationId
   beforeEach(async () => {
     for (const url of [riskUrl, notificationUrl, dlqUrlFor(notificationUrl)]) await drain(url);
   });
+
+  expectLedgerInvariantsAfterEach(() => source);
 
   it('TC-135-01/02/03 transfer → notice → flag → review: four lines under one code, no fraud detail leaks', async () => {
     const attacker = randomUUID();

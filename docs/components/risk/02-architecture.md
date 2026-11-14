@@ -8,7 +8,7 @@
 |---|---|---|
 | `RiskWorkerModule`, `RiskScoringConsumer` | worker | Nhận `TransferCompleted` qua `risk-events`; dedup, chấm, lưu decision/cờ/audit; không chặn giao dịch đã hoàn tất |
 | `ScoringService`, `rules/r1-*.ts` … `r6-*.ts` | worker/offline | Sáu luật thuần, tính baseline một lần; áp dụng weight AI theo cấu hình, không gọi I/O |
-| `OnlineFeatureProvider`, `TransferFacts` | worker | 5 SELECT tới view `v_transfer_facts` theo event-time mili giây; R1/R5 dùng SQL aggregate thay cache theo thứ tự nhận event |
+| `OnlineFeatureProvider`, `TransferFacts` | worker | 5 SELECT tới view `v_transfer_facts` trong một transaction `REPEATABLE READ READ ONLY` (một snapshot, một connection) theo event-time mili giây; R1/R5 dùng SQL aggregate thay cache theo thứ tự nhận event |
 | `OfflineFeatureProvider` | offline | Trích đặc trưng trên snapshot fact tổng hợp bất biến; xuất cùng 11 trường qua mapper |
 | `RuleSetRepository` | worker | Chọn version trong `risk_rule_sets`; Redis cache cấu hình, lỗi/miss đọc PostgreSQL |
 | `RiskAiService`, `ai/openai-decisions.ts`, `AiGate` | worker | Với version AI hợp lệ: admission bền vững, gửi 11 trường cho OpenAI Decisions có timeout, lưu provenance/fallback |
@@ -34,7 +34,7 @@ UC-12 API tạo version chưa nằm trong phạm vi nhánh này. Không có pipe
 
 ### 2.3 Truy cập và hiệu năng
 
-Worker đọc `v_transfer_facts`, không cần đọc trực tiếp bảng chuyển tiền. Các cửa sổ dựa `occurredAt`; SQL aggregate tính fact đã commit, tránh kết quả phụ thuộc thứ tự delivery. Năm SELECT không cùng snapshot khi có commit đồng thời; tại 120 extraction/s xấp xỉ 600 SELECT feature/s, chưa đo tải production/hot-account. Redis chỉ cache cấu hình, không dùng để quyết định số lượng feature. Cursor API sắp xếp HIGH trước MEDIUM, thời gian rồi UUID giảm dần; chưa benchmark backlog lớn.
+Worker đọc `v_transfer_facts`, không cần đọc trực tiếp bảng chuyển tiền. Các cửa sổ dựa `occurredAt`; SQL aggregate tính fact đã commit, tránh kết quả phụ thuộc thứ tự delivery. Năm SELECT chung một snapshot (BL-187): commit đồng thời không làm feature lệch nhau. Đo cục bộ (không phải RDS) hot-account 18.000 fact: p95 khoảng 46 ms ở 20 extraction/s, xem [regression thứ tự](../../features/BUG-20261110-fraud-feature-order.md); chưa đo 120 extraction/s hay RDS. Redis chỉ cache cấu hình, không dùng để quyết định số lượng feature. Cursor API sắp xếp HIGH trước MEDIUM, thời gian rồi UUID giảm dần; chưa benchmark backlog lớn.
 
 ## 3. Interface công khai
 

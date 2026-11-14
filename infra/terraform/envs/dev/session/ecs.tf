@@ -8,7 +8,7 @@ resource "aws_ecs_cluster" "main" {
 }
 
 # Chỉ biến môi trường không bí mật (COGNITO_* là định danh công khai, không phải bí mật).
-# DB_USER, DB_PASSWORD (DBS-67) và REDIS_AUTH_TOKEN (DBS-75) đi qua `secrets`, không viết thẳng; app ghép
+# DB_USER, DB_PASSWORD (role dbs_api, BL-103; DBS-67) và REDIS_AUTH_TOKEN (DBS-75) đi qua `secrets`, không viết thẳng; app ghép
 # DATABASE_URL và REDIS_URL từ các phần (env.bootstrap). Thiếu chúng thì app staging từ chối khởi động,
 # nên desired_count mặc định 0.
 resource "aws_ecs_task_definition" "api" {
@@ -53,11 +53,12 @@ resource "aws_ecs_task_definition" "api" {
       { name = "REDIS_PORT", value = "6379" },
     ]
 
-    # Mật khẩu master do RDS sinh và xoay; ECS đọc khi task khởi động (execution role, iam.tf).
-    # Task đang chạy giữ mật khẩu cũ sau khi xoay: khởi động lại task (xem README Terraform).
+    # Login của role dbs_api (db_roles.tf, BL-103), không phải master; ECS đọc khi task khởi động (execution
+    # role, iam.tf). Đổi mật khẩu (db_role_password_version) thì task đang chạy giữ mật khẩu cũ: khởi động lại
+    # task (xem README Terraform).
     secrets = [
-      { name = "DB_USER", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::" },
-      { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
+      { name = "DB_USER", valueFrom = "${aws_secretsmanager_secret.db_role["api"].arn}:username::" },
+      { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.db_role["api"].arn}:password::" },
       # Token mới mỗi phiên, ghi bởi redis.tf; ECS đọc lúc task khởi động.
       { name = "REDIS_AUTH_TOKEN", valueFrom = local.base.redis_auth_secret_arn },
     ]
@@ -71,12 +72,16 @@ resource "aws_ecs_task_definition" "api" {
       }
     }
   }])
+
+  # Secret của dbs_api phải có giá trị trước khi ECS dựng task đầu tiên.
+  depends_on = [aws_secretsmanager_secret_version.db_role]
 }
 
 # DBS-68: bước migration của pipeline. deploy.sh/migrate.sh đăng ký revision mới (chỉ đổi image) và chạy bằng
 # `run-task` trước khi cập nhật service; không có service nên không có ignore_changes. DBS-120: execution role
-# riêng (chỉ đọc secret master), không task role vì migration không gọi API AWS nên container không cần credential.
-# Kết nối bằng secret master (BL-103: secret riêng của dbs_migrator).
+# riêng (chỉ đọc secret của dbs_migrator), không task role vì migration không gọi API AWS nên container không cần
+# credential. BL-103: kết nối bằng role dbs_migrator (chủ các bảng, có CREATE trên schema public và database), không
+# bằng master; LOGIN và mật khẩu của role do task dbs-db-roles đặt trước migration đầu tiên (db_roles.tf).
 # Chỉ cần DB_* và TLS: data-source.ts không đọc COGNITO_*, REDIS_URL hay APP_ROLE.
 resource "aws_ecs_task_definition" "migrate" {
   family                   = "dbs-migrate"
@@ -110,8 +115,8 @@ resource "aws_ecs_task_definition" "migrate" {
     ]
 
     secrets = [
-      { name = "DB_USER", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::" },
-      { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
+      { name = "DB_USER", valueFrom = "${aws_secretsmanager_secret.db_role["migrator"].arn}:username::" },
+      { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.db_role["migrator"].arn}:password::" },
     ]
 
     # Stream thực tế: migrate/migrate/<task-id>; role deploy chỉ đọc được stream bắt đầu bằng migrate/.
@@ -124,6 +129,8 @@ resource "aws_ecs_task_definition" "migrate" {
       }
     }
   }])
+
+  depends_on = [aws_secretsmanager_secret_version.db_role]
 }
 
 # BL-234: lăn tối đa 100%, tối thiểu khỏe 50%. Lúc deploy số task api không bao giờ vượt `desired_count`
