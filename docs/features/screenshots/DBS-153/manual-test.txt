@@ -1,0 +1,34 @@
+=== DBS-153 Live WAFv2 Verification on ALB dbs-dev (2026-11-14) ===
+Environment: ap-southeast-1, profile=dbs-admin, ALB=https://<ALB_DNS>
+
+=== M-153-01: Web ACL & Association & Tags ===
+WebACL: dbs-dev-waf (REGIONAL)
+Rules:
+  - Priority 10: rate-limit (limit=1000, window=300s, action=block 429)
+  - Priority 20: aws-managed-common (AWSManagedRulesCommonRuleSet)
+  - Priority 30: aws-managed-known-bad-inputs (AWSManagedRulesKnownBadInputsRuleSet)
+Associated ALB: arn:aws:elasticloadbalancing:ap-southeast-1:<ACCOUNT_ID>:loadbalancer/app/dbs-dev/<ALB_ID>
+Tags: project=dbs, env=dev, owner=platform
+
+=== M-153-02: Normal requests ===
+GET /health/live -> 200
+POST /v1/transfers (Vietnamese JSON, no auth) -> 401 (passed WAF to API)
+
+=== M-153-03: Managed rules block (403) ===
+XSS (?q=<script>alert(1)</script>)         -> 403
+LFI query (?file=../../etc/passwd)         -> 403
+Log4Shell (X-Api-Version: ${jndi:...})     -> 403
+No User-Agent (-H 'User-Agent:')           -> 403
+
+=== M-153-04: Rate limit (429) ===
+Applied waf_rate_limit=100 -> sent 300 requests -> +20s GET /health/live -> 429
+
+=== M-153-05: Exempt CIDR ===
+Applied waf_rate_limit_exempt_cidrs=["<TESTER_IP>/32"]
+GET /health/live -> 200 (exempt from rate limit, lifted from 429)
+
+=== M-153-06 & M-153-06b: Count-only & Restore ===
+Applied waf_managed_rules_count_only=true  -> XSS -> 404 (passed WAF to NestJS app)
+Restored defaults (rate=1000, exempt=[], count_only=false):
+  XSS              -> 403
+  GET /health/live -> 200
