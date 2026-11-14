@@ -71,6 +71,35 @@ override_resource {
   }
 }
 
+# BL-103: ARN giả hợp lệ, khác nhau, cho ba secret login của role DB.
+override_resource {
+  target = aws_secretsmanager_secret.db_role["api"]
+  values = {
+    arn = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-api-AbCdEf"
+  }
+}
+
+override_resource {
+  target = aws_secretsmanager_secret.db_role["worker"]
+  values = {
+    arn = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-worker-AbCdEf"
+  }
+}
+
+override_resource {
+  target = aws_secretsmanager_secret.db_role["migrator"]
+  values = {
+    arn = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-migrator-AbCdEf"
+  }
+}
+
+override_resource {
+  target = aws_iam_role.db_roles_execution
+  values = {
+    arn = "arn:aws:iam::123456789012:role/dbs-dev-db-roles-execution"
+  }
+}
+
 # master_user_secret là list computed: mock để rỗng làm output `[0]` lỗi; cấp giá trị giả hợp lệ.
 override_resource {
   target = aws_db_instance.main
@@ -537,7 +566,7 @@ run "rds_variables" {
   }
 }
 
-# TC-67-08: kết nối RDS qua TLS, mật khẩu chỉ đi bằng `secrets` từ secret master của RDS
+# TC-67-08: kết nối RDS qua TLS, mật khẩu chỉ đi bằng `secrets` từ secret của role dbs_api (BL-103), không phải master
 run "db_connection" {
   command = apply
 
@@ -555,11 +584,11 @@ run "db_connection" {
   assert {
     condition = (
       { for s in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets : s.name => s.valueFrom if startswith(s.name, "DB_") } == {
-        DB_USER     = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::"
-        DB_PASSWORD = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::"
+        DB_USER     = "${aws_secretsmanager_secret.db_role["api"].arn}:username::"
+        DB_PASSWORD = "${aws_secretsmanager_secret.db_role["api"].arn}:password::"
       }
     )
-    error_message = "DB_USER and DB_PASSWORD must come from the RDS master secret (json keys username and password)"
+    error_message = "DB_USER and DB_PASSWORD must come from the dbs_api secret (json keys username and password)"
   }
 
   assert {
@@ -576,22 +605,22 @@ run "db_secret_policy" {
   command = apply
 
   assert {
-    condition     = aws_iam_role_policy.read_db_master_secret.role == aws_iam_role.execution.id && aws_iam_role_policy.read_db_master_secret.name == "read-db-master-secret"
+    condition     = aws_iam_role_policy.read_db_api_secret.role == aws_iam_role.execution.id && aws_iam_role_policy.read_db_api_secret.name == "read-db-api-secret"
     error_message = "the secret policy must be a separate policy on the execution role"
   }
 
   assert {
     condition = (
-      length(jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement) == 2
-      && [for s in jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement : s.Resource if s.Action == "secretsmanager:GetSecretValue"] == ["arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf"]
-      && [for s in jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement : s.Resource if s.Action == "kms:Decrypt"] == ["arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"]
-      && [for s in jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement : s.Condition.StringEquals["kms:ViaService"] if s.Action == "kms:Decrypt"] == ["secretsmanager.ap-southeast-1.amazonaws.com"]
+      length(jsondecode(aws_iam_role_policy.read_db_api_secret.policy).Statement) == 2
+      && [for s in jsondecode(aws_iam_role_policy.read_db_api_secret.policy).Statement : s.Resource if s.Action == "secretsmanager:GetSecretValue"] == ["arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-api-AbCdEf"]
+      && [for s in jsondecode(aws_iam_role_policy.read_db_api_secret.policy).Statement : s.Resource if s.Action == "kms:Decrypt"] == ["arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"]
+      && [for s in jsondecode(aws_iam_role_policy.read_db_api_secret.policy).Statement : s.Condition.StringEquals["kms:ViaService"] if s.Action == "kms:Decrypt"] == ["secretsmanager.ap-southeast-1.amazonaws.com"]
     )
-    error_message = "GetSecretValue on the master secret ARN only; Decrypt on the CMK only, via Secrets Manager in this region"
+    error_message = "GetSecretValue on the dbs_api secret ARN only; Decrypt on the CMK only, via Secrets Manager in this region"
   }
 
   assert {
-    condition     = length([for s in jsondecode(aws_iam_role_policy.read_db_master_secret.policy).Statement : s if s.Resource == "*"]) == 0
+    condition     = length([for s in jsondecode(aws_iam_role_policy.read_db_api_secret.policy).Statement : s if s.Resource == "*"]) == 0
     error_message = "no statement on * in the secret policy"
   }
 }
@@ -632,11 +661,11 @@ run "migrate_task_definition" {
         DATABASE_SSL_CA_PATH = "/etc/ssl/rds/global-bundle.pem"
       }
       && { for s in jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].secrets : s.name => s.valueFrom } == {
-        DB_USER     = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::"
-        DB_PASSWORD = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::"
+        DB_USER     = "${aws_secretsmanager_secret.db_role["migrator"].arn}:username::"
+        DB_PASSWORD = "${aws_secretsmanager_secret.db_role["migrator"].arn}:password::"
       }
     )
-    error_message = "migrate env is DB_* and TLS only (no COGNITO, REDIS, APP_ROLE); credentials from the RDS master secret"
+    error_message = "migrate env is DB_* and TLS only (no COGNITO, REDIS, APP_ROLE); credentials from the dbs_migrator secret"
   }
 
   # DBS-120: execution role riêng, không task role (migration không gọi API AWS)
@@ -845,12 +874,12 @@ run "dbs120_task_roles" {
       aws_iam_role.task.name == "dbs-dev-api-task"
       && !contains([
         aws_iam_role_policy.execution.role,
-        aws_iam_role_policy.read_db_master_secret.role,
+        aws_iam_role_policy.read_db_api_secret.role,
         aws_iam_role_policy.read_redis_auth_secret.role,
         aws_iam_role_policy.worker_execution.role,
         aws_iam_role_policy.worker_read_secrets.role,
         aws_iam_role_policy.migrate_execution.role,
-        aws_iam_role_policy.migrate_read_db_master_secret.role,
+        aws_iam_role_policy.migrate_read_db_migrator_secret.role,
         aws_iam_role_policy_attachment.worker_sqs.role,
       ], aws_iam_role.task.id)
       && aws_iam_role_policy_attachment.worker_sqs.role != aws_iam_role.task.name
@@ -866,12 +895,12 @@ run "dbs120_task_roles" {
       && aws_iam_role_policy_attachment.worker_sqs.policy_arn == "arn:aws:iam::123456789012:policy/dbs-dev-worker-sqs"
       && !contains([
         aws_iam_role_policy.execution.role,
-        aws_iam_role_policy.read_db_master_secret.role,
+        aws_iam_role_policy.read_db_api_secret.role,
         aws_iam_role_policy.read_redis_auth_secret.role,
         aws_iam_role_policy.worker_execution.role,
         aws_iam_role_policy.worker_read_secrets.role,
         aws_iam_role_policy.migrate_execution.role,
-        aws_iam_role_policy.migrate_read_db_master_secret.role,
+        aws_iam_role_policy.migrate_read_db_migrator_secret.role,
       ], aws_iam_role.worker_task.id)
     )
     error_message = "the worker task role must have exactly the base worker SQS policy attached and no inline policy"
@@ -916,40 +945,40 @@ run "dbs120_execution_roles" {
   # TC-120-05: tập secret mỗi execution role đọc được
   assert {
     condition = (
-      toset(flatten([for p in [aws_iam_role_policy.read_db_master_secret, aws_iam_role_policy.read_redis_auth_secret] : [for st in jsondecode(p.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"]])) == toset([
-        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf",
+      toset(flatten([for p in [aws_iam_role_policy.read_db_api_secret, aws_iam_role_policy.read_redis_auth_secret] : [for st in jsondecode(p.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"]])) == toset([
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-api-AbCdEf",
         "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf",
       ])
-      && aws_iam_role_policy.read_db_master_secret.role == aws_iam_role.execution.id
+      && aws_iam_role_policy.read_db_api_secret.role == aws_iam_role.execution.id
       && aws_iam_role_policy.read_redis_auth_secret.role == aws_iam_role.execution.id
     )
-    error_message = "the api execution role reads exactly the RDS master secret and the redis auth secret"
+    error_message = "the api execution role reads exactly the dbs_api secret and the redis auth secret"
   }
 
   assert {
     condition = (
       aws_iam_role_policy.worker_read_secrets.role == aws_iam_role.worker_execution.id
       && toset(flatten([for st in jsondecode(aws_iam_role_policy.worker_read_secrets.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"])) == toset([
-        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf",
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-worker-AbCdEf",
         "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf",
       ])
     )
-    error_message = "the worker execution role reads exactly the RDS master secret and the redis auth secret"
+    error_message = "the worker execution role reads exactly the dbs_worker secret and the redis auth secret"
   }
 
   assert {
     condition = (
-      aws_iam_role_policy.migrate_read_db_master_secret.role == aws_iam_role.migrate_execution.id
-      && toset(flatten([for st in jsondecode(aws_iam_role_policy.migrate_read_db_master_secret.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"])) == toset([
-        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:rds!db-00000000-0000-0000-0000-000000000000-AbCdEf",
+      aws_iam_role_policy.migrate_read_db_migrator_secret.role == aws_iam_role.migrate_execution.id
+      && toset(flatten([for st in jsondecode(aws_iam_role_policy.migrate_read_db_migrator_secret.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"])) == toset([
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-migrator-AbCdEf",
       ])
     )
-    error_message = "the migrate execution role reads only the RDS master secret"
+    error_message = "the migrate execution role reads only the dbs_migrator secret"
   }
 
   # TC-120-07: kms:Decrypt chỉ trên CMK, chỉ qua Secrets Manager; không statement nào trên *
   assert {
-    condition = alltrue([for p in [aws_iam_role_policy.worker_read_secrets, aws_iam_role_policy.migrate_read_db_master_secret] :
+    condition = alltrue([for p in [aws_iam_role_policy.worker_read_secrets, aws_iam_role_policy.migrate_read_db_migrator_secret] :
       toset([for st in jsondecode(p.policy).Statement : st.Action]) == toset(["secretsmanager:GetSecretValue", "kms:Decrypt"])
       && [for st in jsondecode(p.policy).Statement : st.Resource if st.Action == "kms:Decrypt"] == ["arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"]
       && [for st in jsondecode(p.policy).Statement : st.Condition.StringEquals["kms:ViaService"] if st.Action == "kms:Decrypt"] == ["secretsmanager.ap-southeast-1.amazonaws.com"]
@@ -1002,8 +1031,8 @@ run "dbs120_task_definitions" {
   # TC-120-06: ARN secret (bỏ hậu tố :key::) của task def = tập GetSecretValue của execution role của nó
   assert {
     condition = (
-      toset([for x in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets : replace(x.valueFrom, "/:[a-z_]+::$/", "")]) == toset(flatten([for p in [aws_iam_role_policy.read_db_master_secret, aws_iam_role_policy.read_redis_auth_secret] : [for st in jsondecode(p.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"]]))
-      && toset([for x in jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].secrets : replace(x.valueFrom, "/:[a-z_]+::$/", "")]) == toset(flatten([for st in jsondecode(aws_iam_role_policy.migrate_read_db_master_secret.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"]))
+      toset([for x in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets : replace(x.valueFrom, "/:[a-z_]+::$/", "")]) == toset(flatten([for p in [aws_iam_role_policy.read_db_api_secret, aws_iam_role_policy.read_redis_auth_secret] : [for st in jsondecode(p.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"]]))
+      && toset([for x in jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].secrets : replace(x.valueFrom, "/:[a-z_]+::$/", "")]) == toset(flatten([for st in jsondecode(aws_iam_role_policy.migrate_read_db_migrator_secret.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"]))
     )
     error_message = "each task definition's secrets must match exactly what its execution role may read"
   }
@@ -1013,4 +1042,132 @@ run "dbs120_task_definitions" {
     condition     = output.worker_task_role_arn == aws_iam_role.worker_task.arn && output.worker_execution_role_arn == aws_iam_role.worker_execution.arn
     error_message = "outputs for DBS-121: worker task role and worker execution role ARNs"
   }
+}
+
+# BL-103: api, worker, dbs-migrate nối bằng role DB riêng; chỉ task dbs-db-roles còn đọc secret master
+run "bl103_role_credentials" {
+  command = apply
+
+  # TC-103-01: ba secret, tên cố định, mã hóa bằng CMK, xóa ngay khi destroy (dựng lại cùng tên)
+  assert {
+    condition = (
+      toset([for k, v in aws_secretsmanager_secret.db_role : v.name]) == toset(["dbs/dev/db-api", "dbs/dev/db-worker", "dbs/dev/db-migrator"])
+      && alltrue([for k, v in aws_secretsmanager_secret.db_role : v.kms_key_id == "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000" && v.recovery_window_in_days == 0])
+    )
+    error_message = "three secrets dbs/dev/db-{api,worker,migrator}, encrypted with the shared CMK, recovery window 0"
+  }
+
+  # TC-103-02: mật khẩu chỉ đi bằng thuộc tính write-only, không vào state
+  assert {
+    condition = alltrue([for k, v in aws_secretsmanager_secret_version.db_role :
+      v.secret_string == null && v.secret_string_wo_version == 1
+    ])
+    error_message = "the role passwords are write-only (secret_string stays null in state)"
+  }
+
+  # TC-103-03: mỗi task nối bằng secret của đúng role của nó
+  assert {
+    condition = (
+      { for s in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets : s.name => s.valueFrom if startswith(s.name, "DB_") } == {
+        DB_USER     = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-api-AbCdEf:username::"
+        DB_PASSWORD = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-api-AbCdEf:password::"
+      }
+      && { for s in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].secrets : s.name => s.valueFrom if startswith(s.name, "DB_") } == {
+        DB_USER     = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-worker-AbCdEf:username::"
+        DB_PASSWORD = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-worker-AbCdEf:password::"
+      }
+      && { for s in jsondecode(aws_ecs_task_definition.migrate.container_definitions)[0].secrets : s.name => s.valueFrom } == {
+        DB_USER     = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-migrator-AbCdEf:username::"
+        DB_PASSWORD = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-migrator-AbCdEf:password::"
+      }
+    )
+    error_message = "api uses dbs_api, worker uses dbs_worker, dbs-migrate uses dbs_migrator"
+  }
+
+  # TC-103-04: không task nào của api, worker, migrate nhắc tới secret master; execution role cũng không đọc nó
+  assert {
+    condition = (
+      !strcontains(aws_ecs_task_definition.api.container_definitions, "rds!db-")
+      && !strcontains(aws_ecs_task_definition.worker.container_definitions, "rds!db-")
+      && !strcontains(aws_ecs_task_definition.migrate.container_definitions, "rds!db-")
+      && alltrue([for p in [
+        aws_iam_role_policy.read_db_api_secret,
+        aws_iam_role_policy.read_redis_auth_secret,
+        aws_iam_role_policy.worker_read_secrets,
+        aws_iam_role_policy.migrate_read_db_migrator_secret,
+        aws_iam_role_policy.execution,
+        aws_iam_role_policy.worker_execution,
+        aws_iam_role_policy.migrate_execution,
+        aws_iam_role_policy.seed_execution,
+      ] : !strcontains(p.policy, "rds!db-")])
+    )
+    error_message = "api, worker and migrate must not reference or be allowed to read the RDS master secret"
+  }
+
+  # TC-103-05: task dbs-db-roles: master cho đăng nhập, ba mật khẩu role, lệnh cố định, không task role
+  assert {
+    condition = (
+      aws_ecs_task_definition.db_roles.family == "dbs-db-roles"
+      && aws_ecs_task_definition.db_roles.execution_role_arn == aws_iam_role.db_roles_execution.arn
+      && aws_ecs_task_definition.db_roles.task_role_arn == null
+      && jsondecode(aws_ecs_task_definition.db_roles.container_definitions)[0].name == "db-roles"
+      && jsondecode(aws_ecs_task_definition.db_roles.container_definitions)[0].command == ["node", "dist/scripts/provision-db-roles.main.js"]
+      && { for s in jsondecode(aws_ecs_task_definition.db_roles.container_definitions)[0].secrets : s.name => s.valueFrom } == {
+        DB_USER                  = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::"
+        DB_PASSWORD              = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::"
+        DBS_API_DB_PASSWORD      = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-api-AbCdEf:password::"
+        DBS_WORKER_DB_PASSWORD   = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-worker-AbCdEf:password::"
+        DBS_MIGRATOR_DB_PASSWORD = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-migrator-AbCdEf:password::"
+      }
+    )
+    error_message = "dbs-db-roles reads master (login) plus the three role passwords through secrets, with a fixed command and no task role"
+  }
+
+  # Không biến môi trường nào mang mật khẩu thẳng
+  assert {
+    condition = length([
+      for e in jsondecode(aws_ecs_task_definition.db_roles.container_definitions)[0].environment : e.name
+      if strcontains(e.name, "PASSWORD") || strcontains(e.name, "USER")
+    ]) == 0
+    error_message = "dbs-db-roles must not carry a password or user in plain environment"
+  }
+
+  # TC-103-06: quyền đọc secret của dbs-db-roles = master + ba secret role, kms:Decrypt qua Secrets Manager
+  assert {
+    condition = (
+      toset(flatten([for st in jsondecode(aws_iam_role_policy.db_roles_read_secrets.policy).Statement : flatten([st.Resource]) if st.Action == "secretsmanager:GetSecretValue"])) == toset([
+        aws_db_instance.main.master_user_secret[0].secret_arn,
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-api-AbCdEf",
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-worker-AbCdEf",
+        "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/db-migrator-AbCdEf",
+      ])
+      && [for st in jsondecode(aws_iam_role_policy.db_roles_read_secrets.policy).Statement : st.Condition.StringEquals["kms:ViaService"] if st.Action == "kms:Decrypt"] == ["secretsmanager.ap-southeast-1.amazonaws.com"]
+      && [for st in jsondecode(aws_iam_role_policy.db_roles_execution.policy).Statement : st.Resource if flatten([st.Action]) == ["logs:PutLogEvents"]] == ["arn:aws:logs:ap-southeast-1:123456789012:log-group:/dbs/dev/api:log-stream:db-roles/*"]
+    )
+    error_message = "the db-roles execution role reads the master secret and the three role secrets only, and writes only db-roles/* log streams"
+  }
+}
+
+# BL-103: đổi db_role_password_version ghi lại phiên bản write-only mới (mật khẩu mới)
+run "bl103_password_version_rotates" {
+  command = apply
+
+  variables {
+    db_role_password_version = 2
+  }
+
+  assert {
+    condition     = alltrue([for k, v in aws_secretsmanager_secret_version.db_role : v.secret_string_wo_version == 2])
+    error_message = "db_role_password_version must drive secret_string_wo_version"
+  }
+}
+
+run "bl103_rejects_version_zero" {
+  command = plan
+
+  variables {
+    db_role_password_version = 0
+  }
+
+  expect_failures = [var.db_role_password_version]
 }

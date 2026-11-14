@@ -65,6 +65,13 @@ override_resource {
 }
 
 override_resource {
+  target = aws_iam_role.db_roles_execution
+  values = {
+    arn = "arn:aws:iam::123456789012:role/dbs-dev-db-roles-execution"
+  }
+}
+
+override_resource {
   target = aws_iam_role.seed_execution
   values = {
     arn = "arn:aws:iam::123456789012:role/dbs-dev-seed-execution"

@@ -105,7 +105,7 @@ flowchart LR
     I --> J[destroy session + verify-clean]
 ```
 
-- **Bước cố ý bỏ qua trong luồng:** tạo ba role DB (`db-roles.sql`) không có bước riêng: migration bước 7 tạo role `NOLOGIN` và task vẫn nối bằng credential master (BL-103). `check:invariants` không chạy được trên cloud (BL-128), nên nút H của sơ đồ trên chỉ có health; bước invariants ghi «chưa chạy (BL-128)».
+- **Bước cố ý bỏ qua trong luồng:** tạo ba role DB (`db-roles.sql`) không có bước riêng: migration bước 7 tạo role `NOLOGIN` và task vẫn nối bằng credential master (BL-103). *Cập nhật 2026-11-14:* BL-103 thêm bước riêng `infra/scripts/db-roles.sh` (bước 4b trong bảng README Terraform) trước migration; bước này chưa đo thời gian. `check:invariants` không chạy được trên cloud (BL-128), nên nút H của sơ đồ trên chỉ có health; bước invariants ghi «chưa chạy (BL-128)».
 - **Ranh giới transaction:** không có. **Thay đổi cấp hệ thống:** docs/03 §13.3 thêm một dòng liên kết tới README và checklist; không đổi ADR.
 
 ## 4. Test cases tự động
