@@ -660,7 +660,7 @@ describe('DBS-103 audit search through the real AppModule, JWT and PostgreSQL', 
         const app = await NestFactory.createApplicationContext(AppModule, { logger: false, abortOnError: false });
         try {
           for (const token of [AuditSearchService, AuditController, IdentityService]) assert.throws(() => app.get(token));
-          await app.get(AuditService).recordDenied({ actor: null, role: 'system', action: 'worker.audit.probe', target: { type: 'worker', id: 'probe' }, correlationId: process.argv[1], metadata: {} });
+          await app.get(AuditService).recordDenied({ actor: null, role: 'system', action: 'worker.audit.probe', target: { type: 'route', id: 'GET /worker-probe' }, correlationId: process.argv[1], metadata: {} });
           process.stdout.write(JSON.stringify({ event: 'worker-di-verified' }) + '\\n');
         } finally { await app.close(); }
       })().catch(() => { process.stderr.write('Worker DI probe failed\\n'); process.exitCode = 1; });
