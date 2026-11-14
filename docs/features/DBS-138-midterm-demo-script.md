@@ -174,3 +174,67 @@ Task docs-only: "test viết trước" là kịch bản kiểm (TC) và lệnh g
 - **Plan sweep:** hạn chế nêu trong tài liệu liền kề đã rà: demo-checklist "Token khách hàng… chưa có script" (bước 4: cập nhật theo kết quả sign-up thật), Demo 4 "chưa kiểm demo này trên cloud" và "403 chưa ghi audit DENIED, BL-132" (bước 4: kiểm lại bằng M-138-11 và sửa nếu lệch), BL-198 và BL-228 (bước 4), DoD 3 (bước 3). Không có mục nào chưa có hàng kế hoạch.
 - **Rủi ro và cách lùi:** (1) quên `destroy` cloud → mất ≈ 3,4 USD/ngày: bước 3 kết thúc bằng `destroy` và `verify-clean.sh`, ghi vào §8; sai sót thì chạy `destroy` ngay. (2) Sign-up Cognito CLI không chạy được → dùng `customer1..3` và ghi giới hạn, không bịa. (3) Kết quả chạy lệch kịch bản → sửa tài liệu, không sửa mô tả cho khớp trí nhớ. Back-out cả task: không đổi code, chỉ bỏ commit docs.
 - **Quyết định ở G3 (agent tự quyết):** gộp M-138-12 (reset lần hai) sau M-138-11 để seed được thử trên DB đã dùng thật; chạy cloud sau local để không bật phiên trả tiền trong lúc kịch bản còn sửa.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra (docs-only, chạy lúc bàn giao):** `check-doc-links.mjs` → `422 files checked, 0 broken link(s)`. TC-138-02 (grep, dạng `grep -E` vì Git Bash không có `rg`): `FLAG_ALREADY_REVIEWED` (dòng 67) và `FORBIDDEN` (dòng 55) có trong `error-code.enum.ts`; cả tám action (`transfer` ở dòng 27 của `AUDIT_ACTIONS`, `fraud_flag.search` 35, `fraud_flag.view` 36, `fraud_flag.review` 37, `audit.search` 39, `notification.sent` 42, `fraud.flagged` 43, `access.denied` 45) có trong `audit.registry.ts`; bảy bảng `fraud_flags`, `audit_log`, `ledger_entries`, `outbox_events`, `transfers`, `accounts`, `processed_events` đều có `CREATE TABLE` trong migration; mọi route của kịch bản có controller (`customers/me`, `accounts`, `accounts/:id/transactions`, `operator/deposits`, `transfers`, `transfers/:id`, `operator/fraud-flags` kèm `:transferId` và `:transferId/review`, `audit/entries`), tiền tố `/v1` từ `enableVersioning` (`app.setup.ts:59`).
+- **Đối chiếu test case:**
+
+| ID | Kiểm bằng | Đạt? |
+|---|---|---|
+| TC-138-01 | `check-doc-links.mjs` | đạt |
+| TC-138-02 | các lệnh grep ở §4 (kết quả ở trên) | đạt |
+| TC-138-03 | M-138-02..11 chạy các khối trích từ tài liệu, local và cloud | đạt |
+| TC-138-04 | M-138-01 và M-138-12 | đạt |
+| TC-138-05 | M-138-13 (phiên cloud thật) | đạt; người thật chưa chạy: BL-351 |
+| TC-138-06 | quy trình | làm ở PR |
+
+- **Test thủ công** (raw: [local](screenshots/DBS-138/manual-test.txt) trên `cbeaac0`, [cloud](screenshots/DBS-138/manual-test-cloud.txt)). Các khối lệnh bước 0–9 của tài liệu **không đổi** từ `cbeaac0` tới commit cuối (đã so từng khối bằng `cmp`); chỉ phần lời và mục cloud đổi sau đó.
+
+| Bước | Kết quả |
+|---|---|
+| M-138-01 | đạt: reset `down -v` + `up -d --wait`, `migration:run`, seed lần 1 `Created` (Minh Anh 48.000.000 + 20.000.000, Thu Hà 11.500.000, Văn Bình 5.500.000), lần 2 `Reused` và `skipped (balance already reflects it)`, `check:invariants` PASS (debit = credit = 87.500.000) |
+| M-138-02 | đạt: hai khách onboard 200 (`--sub` khác nhau, tên không dấu) |
+| M-138-03 | đạt: hai tài khoản `ACTIVE`, balance `0` |
+| M-138-04 | đạt: nạp 21.000.000 `COMPLETED` |
+| M-138-05 | đạt: chuyển 20.000.000 201 `COMPLETED`, ghi `C` và `T`; số dư An 1.000.000 |
+| M-138-06 | đạt: cờ `transferId` = `T`, `score` 65, MEDIUM, OPEN, `ruleSetVersion` 1 |
+| M-138-07 | đạt: `GET /v1/transfers/{T}` và lịch sử của An 200, không có `score`, `riskLevel`, `reviewStatus` |
+| M-138-08 | đạt: chi tiết cờ có `hits` R3 (35) và R6 (30); review 200 `CONFIRMED_FRAUD`; lần hai 409 `FLAG_ALREADY_REVIEWED` |
+| M-138-09 | đạt: năm dòng đều `=C`: `fraud_flag.review`, `fraud_flag.view`, `fraud.flagged`, `notification.sent`, `transfer`; 272 ms (local), 285 ms (cloud); chưa có người thật bấm giờ (BL-351) |
+| M-138-10 | đạt: gửi lại cùng `Idempotency-Key`: 201, cùng `transferId` và `status` (thứ tự khóa JSON khác), header mã mới `C2` khác `C`, tra `C2` ra 0 dòng |
+| M-138-11 | đạt: khách xem cờ 403, auditor review 403, `action=access.denied` trả đúng hai dòng (`NO_PERMISSION`, `target` là route) |
+| M-138-12 | đạt: reset lần hai trên stack đã dùng thật, seed hai lần ra lại đúng số dư kế hoạch, invariants PASS |
+| M-138-13 | đạt: phiên cloud dựng (57 tài nguyên, 9 phút 01 giây), `db-roles.sh`, `migrate.sh`, `seed-cognito.sh`, `seed-cloud.sh` qua container Linux; An tự đăng ký bằng Cognito (`sign-up`, `admin-confirm-sign-up`, `initiate-auth`); bước 1–9 đạt như local (cờ 65 MEDIUM, năm dòng audit `=C`, hai ca 403); xóa An khỏi pool; `destroy` 57 tài nguyên (8 phút 18 giây), state rỗng, `verify-clean.sh` thoát 0 |
+
+- **Vấn đề gặp khi chạy (DoD 3: "vấn đề gặp phải thành issue"):**
+  1. PostgreSQL native của Windows (tiến trình `postgres`) cũng nghe cổng 5432: `localhost:5432` không tới container, migration báo `password authentication failed` dù mật khẩu đúng. Xử lý trong tài liệu (file override đổi cổng, mục "Cổng bị chiếm"); không cần BL.
+  2. Cổng 6379 bị Redis của dự án khác chiếm: cùng cách xử lý.
+  3. `aws cognito-idp sign-up --cli-input-json file:///dev/stdin` báo `Invalid JSON` (lần chạy cloud đầu của agent hỏng ở đây, không tạo khách nào); dùng `--password file:///dev/stdin` và `--auth-parameters file:///dev/stdin` như `seed-cognito.sh` và `demo-token.sh`. Ghi ở tài liệu và BL-350.
+  4. Demo 4 còn ghi "403 chưa ghi audit `DENIED` (BL-132)" và "`audit_log` không đổi" trong khi BL-132 đã xong (#161) và test `security-boundaries` khẳng định `audit_log` tăng một dòng mỗi lần từ chối: **đã sửa** trong PR này.
+  5. Thứ tự hai dòng audit của worker (`fraud.flagged`, `notification.sent`) đảo giữa các lần chạy (local và cloud khác nhau): tài liệu nêu rõ.
+  6. Gửi lại `Idempotency-Key` cho mã `X-Correlation-Id` mới: tài liệu ghi cách giữ `C` và đường dự phòng.
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` có 12 file: kịch bản (mới), feature doc, Demo 4 (sửa BL-132), docs/03 §17, docs/README, demo-checklist, features/README, BACKLOG, bốn file `screenshots/DBS-138/`. Đúng với §7 bước 1–5; Demo 4 và demo-checklist nằm trong hàng 4 của §7 (kiểm lại lệch và "Token khách hàng").
+- **Lệch so với kế hoạch (quyết định agent tự duyệt):**
+  1. §1 QĐ2 viết lại: bản G1 đầu kết luận "không chạy được cloud" vì chưa kiểm `dev1` thuộc nhóm `dbs-admin`; đã chạy cloud thật sau khi kiểm.
+  2. Local dùng `node dist/main` (`APP_ROLE=both`, cùng bản build) thay cho `npm run start:dev` (watch) để chạy nền; cổng Postgres 55432 và Valkey 6380 qua file override vì hai cổng mặc định bị chiếm (vấn đề 1 và 2). Reset `down -v` xóa volume `dbs_pgdata` của DB local `banking`: dữ liệu dev tự sinh.
+  3. Các khối cloud của tài liệu (container Linux, `an-signup.sh`) được chạy qua script trình chạy tương đương (cùng lệnh `aws`, `terraform`, `curl`; khác ở cách mount thư mục), không chạy nguyên văn từng khối: ghi để người sau chạy lại biết.
+  4. Không chạy vòng domain review thứ ba (G2 vòng 2, QĐ4).
+- **Ảnh chụp:** không áp dụng (task docs-only; bằng chứng là output thô `manual-test.txt` và `manual-test-cloud.txt`, không có token và đã thay id tài khoản AWS).
+- **Bàn giao cho vai khác:** **BL-350** (#5 Platform & Ops): script đăng ký khách mới trên cloud (`demo-signup.sh`), vì hiện là các lệnh chạy tay trong Linux và thư xác minh `@dbs.invalid` chưa kiểm bounce. **BL-351** (Dev quay video, DBS-140): người nhóm chạy lại bằng tay trên commit sẽ quay và bấm giờ bước 8. Đã cập nhật **BL-228** (đã đo trên cloud 285 ms; còn người thật bấm giờ). Không đóng BL-198 (M-65-07 là chuỗi kiểm của DBS-65, chưa chạy lại ở đây).
+
+## 9. Tài liệu đã cập nhật
+
+- `docs/demos/demo-midterm-end-to-end.md` (mới), `docs/demos/demo-4-security-audit.md` (phần D theo BL-132: `audit_log` tăng một dòng `access.denied` mỗi lần từ chối; bỏ giới hạn BL-132 cũ).
+- `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §17 (liên kết kịch bản giữa kỳ), `docs/README.md` (mô tả thư mục `demos/`), `docs/runbooks/demo-checklist.md` (dòng "Token khách hàng", BL-350), `docs/features/README.md` (hàng DBS-138).
+- `docs/BACKLOG.md`: thêm BL-350, BL-351; cập nhật BL-228. Không xóa dòng nào (BL-198 và BL-228 vẫn mở).
+
+## Checklist G4
+
+- [x] 6/6 test case đạt đủ độ sâu (TC-138-06 là quy trình, làm ở PR), 0 đơn giản hóa
+- [x] Test thủ công local trên commit `cbeaac0` (SHA ở dòng đầu `manual-test.txt`; khối lệnh không đổi tới commit cuối), cloud ở `manual-test-cloud.txt`; mọi bước M-138-01..13 đã chạy, không có "chưa chạy" trừ việc người thật bấm giờ (BL-351)
+- [x] Ảnh chụp: không áp dụng (docs-only); `manual-test*.txt` không có token, header `Authorization` hay id tài khoản AWS (`grep -ciE "eyJ|bearer "` = 0)
+- [x] `git diff --stat origin/main...HEAD` khớp §7; Demo 4 và checklist có quyết định ở §8
+- [x] Baseline docs-only (`check-doc-links.mjs`) chạy lúc bàn giao: 422 file, 0 liên kết hỏng
+- [x] Mọi doc có fact bị đổi đã sửa (Demo 4, docs/03, README, checklist, BACKLOG); trạng thái doc Implemented
+- [x] Bàn giao và DoD chưa đạt đã có BL-350, BL-351 (và BL-228 cập nhật) trong `docs/BACKLOG.md`
