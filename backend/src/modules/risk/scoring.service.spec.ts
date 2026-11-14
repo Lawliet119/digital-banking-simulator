@@ -337,4 +337,82 @@ describe('DBS-108 fraud scoring', () => {
   ])('rejects invalid baseline risk thresholds', thresholds => {
     expect(() => service.score(event, facts, { ...baseline, thresholds })).toThrow();
   });
+
+  // BL-212 (DBS-108 review #3): the examples of FRAUD_DETECTION_GUIDE §4.3 and AC-9.1 (BRD), with the
+  // wording and numbers of the documents, not numbers chosen to be convenient for the code.
+  describe('guide §4.3 table, verbatim', () => {
+    const hitIds = (result: ReturnType<ScoringService['score']>) => result?.hits.map(h => h.id);
+    // "Tài khoản 3 giờ tuổi chuyển 20tr, gần hết số dư": R3 + R6 (the account of §4.4: 20,8tr balance).
+    const threeHoursOld = {
+      ...event,
+      amount: '20000000',
+      fromBalanceBefore: '20800000',
+      fromAccountCreatedAt: '2026-10-19T09:00:00.000Z',
+    };
+
+    it('"Khách chuyển 95% số dư sang người quen" → R6, 30, LOW (no flag)', () => {
+      const result = service.score({ ...event, amount: '950000' }, facts, baseline);
+      expect(hitIds(result)).toEqual(['R6']);
+      expect(result).toMatchObject({ ruleScore: 30, score: 30, level: 'LOW' });
+    });
+
+    it('"Tài khoản 3 giờ tuổi chuyển 20tr, gần hết số dư" → R3 + R6, 65, MEDIUM', () => {
+      const result = service.score(threeHoursOld, facts, baseline);
+      expect(hitIds(result)).toEqual(['R3', 'R6']);
+      expect(result).toMatchObject({ ruleScore: 65, score: 65, level: 'MEDIUM' });
+    });
+
+    it('"6 người nhận mới trong 1 giờ" → R5, 40, MEDIUM', () => {
+      const result = service.score(
+        { ...event, amount: '200000' },
+        { ...facts, newRecipients1h: 6 },
+        baseline,
+      );
+      expect(hitIds(result)).toEqual(['R5']);
+      expect(result).toMatchObject({ ruleScore: 40, score: 40, level: 'MEDIUM' });
+    });
+
+    it('"8 lệnh / 10 phút, toàn người nhận mới" → R1 + R5, 70, HIGH', () => {
+      const result = service.score(
+        { ...event, amount: '200000' },
+        { ...facts, txCount10m: 8, txCount1h: 8, newRecipients1h: 8 },
+        baseline,
+      );
+      expect(hitIds(result)).toEqual(['R1', 'R5']);
+      expect(result).toMatchObject({ ruleScore: 70, score: 70, level: 'HIGH' });
+    });
+
+    it('§4.4: the hits of the 3-hour-old account read as the example flag does', () => {
+      const result = service.score(threeHoursOld, facts, baseline);
+      expect(result?.hits.map(h => [h.id, h.explanation])).toEqual([
+        ['R3', 'Tài khoản mở 3 giờ trước, chuyển 20.000.000đ'],
+        ['R6', 'Chuyển xấp xỉ 96,15% số dư (20.000.000đ/20.800.000đ).'],
+      ]);
+    });
+  });
+
+  describe('AC-9.1 verbatim', () => {
+    // "Tài khoản nguồn mở 1 giờ, số dư trước 21 triệu, chuyển 20 triệu tới tài khoản khác chủ"
+    const ac91 = {
+      ...event,
+      amount: '20000000',
+      fromBalanceBefore: '21000000',
+      fromAccountCreatedAt: '2026-10-19T11:00:00.000Z',
+      sameOwner: false,
+    };
+
+    it('matches R3 and R6 only, 35 + 30 = 65, one MEDIUM flag naming R3 and R6', () => {
+      const result = service.score(ac91, facts, baseline);
+      expect(result?.hits.map(h => h.id)).toEqual(['R3', 'R6']);
+      expect(result?.hits.map(h => h.weight)).toEqual([35, 30]);
+      expect(result).toMatchObject({ ruleScore: 65, score: 65, level: 'MEDIUM' });
+    });
+
+    it('R6 alone (30) is not enough to create a flag', () => {
+      const old = { ...ac91, fromAccountCreatedAt: '2026-01-01T00:00:00.000Z' };
+      const result = service.score(old, facts, baseline);
+      expect(result?.hits.map(h => h.id)).toEqual(['R6']);
+      expect(result).toMatchObject({ score: 30, level: 'LOW' });
+    });
+  });
 });

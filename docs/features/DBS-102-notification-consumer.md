@@ -51,13 +51,19 @@ Câu chữ chọn từ loại event và trạng thái, không bao giờ từ tr�
 
 ## 5. Test thủ công
 
-Script `backend/test/manual/notification-consumer.manual.ts` (`npx ts-node -r tsconfig-paths/register …`), cần ElasticMQ của compose và một PostgreSQL; dựng `NotificationConsumer` thật.
+Script `backend/test/manual/notification-consumer.manual.ts`, chạy từ `backend/`: `DATABASE_URL=<postgres server> npx ts-node -r tsconfig-paths/register test/manual/notification-consumer.manual.ts` (đổi `SQS_ENDPOINT` nếu ElasticMQ không ở `localhost:9324`). Cần ElasticMQ của compose và một PostgreSQL; dựng `NotificationConsumer` thật. Mọi vòng chờ có hạn (`test/support/manual-wait.ts`).
 
 | Bước | Việc làm | Mong đợi |
 |---|---|---|
 | M-102-01 | Gửi `TransferCompleted` hai chủ, `consumeOnce` | 2 dòng `notification_log` (người gửi, người nhận) |
 | M-102-02 | Gửi `AccountStatusChanged` `LOCKED` kèm trường lạ nêu lý do gian lận | 1 dòng cho chủ tài khoản, nội dung không có lý do |
 | M-102-03 | Gửi event có người nhận không tồn tại | `failed`, không có `processed_events`, message ẩn do backoff |
+| M-102-04 (BL-212) | Gửi lại event của M-102-01 | `acknowledged`, vẫn 2 dòng |
+| M-102-05 (BL-212) | Tạo người nhận còn thiếu, chờ hết backoff (có hạn) | `acknowledged`, 2 dòng, 1 `processed_events` |
+| M-102-06 (BL-212) | Event mà người nhận không bao giờ có (không backoff) | `failed` ×4 rồi `dead-lettered` ở lần nhận 5, DLQ có message, không dòng nào |
+| M-102-07 (BL-212) | Gửi body sai schema | `dead-lettered` ở lần nhận đầu, DLQ có body |
+
+Test tự động bổ sung ở BL-212: TC-102-02 (`noticesFor` và hiệu ứng thật cho mọi dạng event, không phụ thuộc test khác), TC-102-06 (mã `23503`, ràng buộc `notification_log_user_id_fkey`, không phải `PoisonMessageError`), TC-102-07 (`NotificationConsumer` thật hỏng 5 lần vào DLQ cạnh queue `risk` khỏe, `notification-consumer-review.services-spec.ts`; việc chuyển tiền đã commit trước đó là kiến trúc outbox, không test ở đây).
 
 ## 6. Domain review
 

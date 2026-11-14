@@ -113,6 +113,43 @@ describe('DBS-107 R6 drain', () => {
     );
   });
 
+  // BL-212: the 90 % boundary near 2^63 - 1, where a Number (53-bit) comparison cannot tell
+  // neighbouring amounts apart. 0.9 * 9223372036854775807 = 8301034833169298226.3.
+  it.each([
+    ['9223372036854775807', '8301034833169298227', true], // first amount that is >= 90 %
+    ['9223372036854775807', '8301034833169298226', false], // one less
+    ['9223372036854775807', '9223372036854775807', true],
+    ['9000000000000000000', '8100000000000000000', true], // exactly 90 %
+    ['9000000000000000000', '8099999999999999999', false], // 1 below exactly 90 % (same double as 8.1e18)
+  ])(
+    'compares 90 percent exactly near 2^63: %s balance, %s amount, hit=%s',
+    (balance, amount, hit) => {
+      const result = rule.evaluate(
+        { ...event, amount, fromBalanceBefore: balance },
+        features,
+        params,
+      );
+      expect(result !== null).toBe(hit);
+    },
+  );
+
+  it('the near-2^63 cases above are ones a floating-point comparison would get wrong', () => {
+    expect(Number('8099999999999999999')).toBe(Number('8100000000000000000'));
+    expect(Number('8301034833169298226')).toBe(Number('8301034833169298227'));
+  });
+
+  it('does not lose the digits of an amount equal to the largest balance when the percent is rounded down', () => {
+    // 99.999999...% of 2^63 - 1 must read 99,99 not 100,00 (BL-207(d)).
+    const hit = rule.evaluate(
+      { ...event, amount: '9223372036854775806', fromBalanceBefore: '9223372036854775807' },
+      features,
+      params,
+    );
+    expect(hit?.explanation).toBe(
+      'Chuyển xấp xỉ 99,99% số dư (9.223.372.036.854.775.806đ/9.223.372.036.854.775.807đ).',
+    );
+  });
+
   it('uses the configured percent, minimum balance and weight', () => {
     const configured: RuleParams = {
       enabled: true,

@@ -6,3 +6,7 @@ M-106-01: {"four":null,"five":{"id":"R5","weight":40,"explanation":"5 người n
 M-107-01: {"at90":{"id":"R6","weight":30,"explanation":"Chuyển xấp xỉ 90.00% số dư (900000/1000000đ)."},"below90":null,"sameOwner":null}
 M-95/105/106/107-02: DEPOSIT skipped; invalid timestamp rejected
 exit: 0
+
+--- BL-212 (2026-11-14, Node 24, ElasticMQ :9324 + postgres:17 tạm; script đã siết, chạy lại) ---
+r3-r6.manual.ts (ts-node -T): thêm biên 90% gần 2^63 và cấu hình lỗi R6.
+M-107-02: R6 near 2^63 exact at the 90 % boundary; 90.5 % configuration and a non-numeric balance throw

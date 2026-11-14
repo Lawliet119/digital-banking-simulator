@@ -3,3 +3,12 @@ M-110-01 PASS: current version 1 (R1 weight 30); cfg:risk:latest="1" and cfg:ris
 M-110-02 PASS: v2 added; still v1 inside the cache window, v2 (R1 weight 55) once cfg:risk:latest expired
 M-110-03 PASS: Valkey paused -> version 3 read from PostgreSQL at once (config fallbacks=2)
 cleanup done: temp database dropped, cfg:risk keys deleted
+
+--- BL-212 (2026-11-14, Node 24, ElasticMQ :9324 + postgres:17 tạm; script đã siết, chạy lại) ---
+Dùng Valkey tạm (không ghi vào Valkey dùng chung), chờ có hạn; thêm M-110-04 (hồi phục sau unpause) và M-110-05 (latest rác).
+M-110-01 PASS: current version 1 (R1 weight 30); cfg:risk:latest:v2 stored
+M-110-02 PASS: v2 added; still v1 inside the cache window, v2 (R1 weight 55) once cfg:risk:latest:v2 expired
+M-110-03 PASS: Valkey paused -> version 3 read from PostgreSQL at once (config fallbacks=2)
+M-110-04 PASS: Valkey back -> latest stored again for version 3
+M-110-05 PASS: junk latest ("9999999999", "x", JSON) -> PostgreSQL v3, counted corrupt, key repaired
+cleanup done: temp database dropped, disposable Valkey removed

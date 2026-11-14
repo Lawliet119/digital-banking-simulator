@@ -15,11 +15,19 @@ import {
   DEPOSIT_SAMPLE,
   TRANSFER_SAMPLE,
 } from '../support/event-samples';
+import { drainStatuses, receiveBodies } from '../support/manual-wait';
 import { createTempDatabase, migrate } from '../support/temp-database';
 
-const endpoint = 'http://localhost:9324';
+const endpoint = process.env.SQS_ENDPOINT ?? 'http://localhost:9324';
 process.env.AWS_ACCESS_KEY_ID = 'local';
 process.env.AWS_SECRET_ACCESS_KEY = 'local';
+
+/** M-104-04: no backoff, so the redelivery after the user is created does not wait 5 s. */
+class NoBackoffNotification extends NotificationConsumer {
+  protected override get retryBackoffSeconds(): number {
+    return 0;
+  }
+}
 
 async function main(): Promise<void> {
   const sdk = new SQSClient({ endpoint, region: 'us-east-1' });
@@ -53,11 +61,11 @@ async function main(): Promise<void> {
       statementTimeoutMs: 5000,
       idleInTransactionTimeoutMs: 10000,
     } as never);
-    const fresh = async () => {
+    const fresh = async (Consumer: typeof NotificationConsumer = NotificationConsumer) => {
       const name = `dbs104-manual-${randomUUID()}`;
       const url = await create(name);
       const dlq = await create(`${name}-dlq`);
-      const consumer = new NotificationConsumer(
+      const consumer = new Consumer(
         tx,
         sqs,
         new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
@@ -66,14 +74,13 @@ async function main(): Promise<void> {
       );
       return { url, dlq, consumer };
     };
-    const drain = async (consumer: NotificationConsumer, expected: number) => {
-      const statuses: string[] = [];
-      for (let i = 0; i < 12 && statuses.length < expected; i++)
-        for (const r of await consumer.consumeOnce(1, 0)) statuses.push(r.status);
-      return statuses;
-    };
+    const drain = (consumer: NotificationConsumer, expected: number) =>
+      drainStatuses(consumer, expected);
+    // `event_id` is part of every comparison: an effect written under the wrong event must show.
     const rows = () =>
-      q('SELECT user_id,kind,message FROM notification_log ORDER BY user_id,kind,message');
+      q(
+        'SELECT event_id,user_id,kind,message FROM notification_log ORDER BY event_id,user_id,kind,message',
+      );
     const reset = async () => {
       await q('DELETE FROM notification_log');
       await q('DELETE FROM processed_events');
@@ -98,11 +105,14 @@ async function main(): Promise<void> {
     await sqs.send(ctx.url, broken[1]);
     await sqs.send(ctx.url, JSON.stringify({ ...ACCOUNT_LOCKED_SAMPLE, eventId: randomUUID() }));
     const mixed = await drain(ctx.consumer, 4);
+    assert.equal(mixed.length, 4);
+    assert.equal(mixed.includes('failed'), false);
     assert.equal(mixed.filter(s => s === 'dead-lettered').length, 2);
     assert.equal(mixed.filter(s => s === 'acknowledged').length, 2);
     const opts = { waitTimeSeconds: 1, visibilityTimeout: 0 };
     assert.deepEqual(await sqs.receive(ctx.url, opts), []);
-    const dead = (await sqs.receive(ctx.dlq, { ...opts, maxMessages: 10 })).map(m => m.Body);
+    // The DLQ is read until both bodies arrived (a receive may come back short), never just once.
+    const dead = await receiveBodies(sqs, ctx.dlq, 2);
     assert.deepEqual(new Set(dead), new Set(broken));
     assert.equal((await rows()).length, 2);
     console.log(
@@ -120,17 +130,51 @@ async function main(): Promise<void> {
     for (const order of [events, [...events].reverse()]) {
       await reset();
       ctx = await fresh();
-      for (const e of order) await sqs.send(ctx.url, JSON.stringify(e));
-      const statuses = await drain(ctx.consumer, 4);
-      assert.equal(
-        statuses.every(s => s === 'acknowledged'),
-        true,
+      // One event at a time: the order of processing is the order of the array. (A batch received
+      // at once is handled concurrently, which says nothing about order.)
+      for (const e of order) {
+        await sqs.send(ctx.url, JSON.stringify(e));
+        assert.deepEqual(await drain(ctx.consumer, 1), ['acknowledged']);
+      }
+      const written = (await q('SELECT event_id FROM notification_log ORDER BY id')).map(
+        r => r.event_id,
+      );
+      assert.deepEqual(
+        [...new Set(written)],
+        order.map(e => e.eventId),
+        'rows were written in the order the events were handled',
       );
       results.push(JSON.stringify(await rows()));
     }
     assert.equal(results[0], results[1]);
+    assert.equal((JSON.parse(results[0]) as unknown[]).length, 6);
     console.log(
-      'M-104-03 PASS: forward and reversed order -> no error, identical notification_log (6 rows)',
+      'M-104-03 PASS: handled one at a time, forward and reversed -> identical notification_log (6 rows, event_id compared)',
+    );
+
+    // M-104-04 (BL-212): the recovery path. A transfer to a user who does not exist yet comes back
+    // `failed` and writes nothing; once the user exists the same message is applied exactly once.
+    await reset();
+    const quick = await fresh(NoBackoffNotification);
+    const late = { ...TRANSFER_SAMPLE, eventId: randomUUID(), toUserId: randomUUID() };
+    await sqs.send(quick.url, JSON.stringify(late));
+    assert.deepEqual(await drain(quick.consumer, 1), ['failed']);
+    assert.equal((await rows()).length, 0);
+    assert.equal((await q('SELECT 1 FROM processed_events')).length, 0);
+    await q('INSERT INTO users(id,cognito_sub) VALUES($1,$2)', [late.toUserId, randomUUID()]);
+    assert.deepEqual(await drain(quick.consumer, 1), ['acknowledged']);
+    assert.equal((await rows()).length, 2);
+    assert.equal((await q('SELECT 1 FROM processed_events')).length, 1);
+    assert.deepEqual(
+      await sqs.receive(quick.url, { waitTimeSeconds: 1, visibilityTimeout: 0 }),
+      [],
+    );
+    assert.deepEqual(
+      await sqs.receive(quick.dlq, { waitTimeSeconds: 1, visibilityTimeout: 0 }),
+      [],
+    );
+    console.log(
+      'M-104-04 PASS: missing recipient -> failed, nothing written; user created -> acknowledged, 2 rows, 1 processed_events, DLQ empty',
     );
   } finally {
     for (const url of queues)

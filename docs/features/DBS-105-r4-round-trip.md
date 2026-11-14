@@ -34,7 +34,7 @@ Chỉ TRANSFER. `reverseTransferOccurredAt` null → không hit; nếu có, hit 
 
 ## 5. Manual
 
-`npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts` từ `backend/`: M-105-01 so đúng mốc một giờ và quá một nanosecond; M-95/105/106/107-02 kiểm DEPOSIT.
+`npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts` từ `backend/`: M-105-01 so đúng mốc một giờ và quá một nanosecond; M-95/105/106/107-02 kiểm DEPOSIT. BL-212: M-105-02 thêm đường lỗi và biên (cửa sổ 0 và 61 bị từ chối, lùi 61 phút → null, timestamp hỏng hoặc trùng thời điểm event → ném lỗi, R4 tắt bỏ qua dữ liệu hỏng); unit `r4-round-trip.rule.spec.ts` có thêm ca `reverseWindowMinutes: 61` (từ chối khi bật) và 60/61 phút.
 
 ## 6. Review
 

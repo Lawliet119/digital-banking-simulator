@@ -78,13 +78,17 @@ flowchart TD
 
 ## 5. Test thủ công
 
-`backend/test/manual/rule-set-repository.manual.ts`: Valkey của compose (container `dbs-valkey-1`) + PostgreSQL tạm.
+`backend/test/manual/rule-set-repository.manual.ts` (BL-212): Valkey **tạm** do chính script dựng và xóa bằng Docker (không ghi vào Valkey dùng chung của compose, nên worker local không đọc nhầm v2/v3 của script) + PostgreSQL tạm. Chạy: `DATABASE_URL=<postgres server> npx ts-node -r tsconfig-paths/register test/manual/rule-set-repository.manual.ts`. Vòng chờ có hạn. Từ BL-208 Redis chỉ giữ `latest` (không còn `cfg:risk:v1`).
 
 | Bước | Việc làm | Mong đợi |
 |---|---|---|
 | M-110-01 | `current()` lần đầu | Phiên bản 1 từ PostgreSQL; latest có deadline và `cfg:risk:v1` có trong Valkey |
 | M-110-02 | Thêm v2 (R1 weight 55); đọc lại; rút TTL `LATEST_KEY`; đọc lại | Lần đầu vẫn v1 (trong cửa sổ cache), sau khi `latest` hết hạn là v2 |
 | M-110-03 | `docker pause` Valkey, thêm v3, đọc | Đọc v3 từ PostgreSQL ngay |
+| M-110-04 (BL-212) | `unpause`, xóa `latest`, đọc | Phiên bản 3; `latest` được ghi lại |
+| M-110-05 (BL-212) | Đặt `latest` là `9999999999`, `x`, JSON lạ | Mỗi lần đọc v3 từ PostgreSQL, metric fallback `corrupt` = 1, `latest` được sửa |
+
+**ID TC (BL-212):** `rule-set-repository.services-spec.ts` đã khớp §4: TC-110-01 là khóa/TTL và phiên bản mới sau khi `latest` hết hạn; TC-110-02 là Valkey pause/resume. Các ca của BL-208 mang nhãn `BL-208`, không mượn ID TC-110-03 (của phần nền hỏng, ở `rule-set.spec.ts`). Ca «rác» không còn phụ thuộc test trước: tự tạo phiên bản bằng `nextVersion()`.
 
 ## 6. Domain review
 
