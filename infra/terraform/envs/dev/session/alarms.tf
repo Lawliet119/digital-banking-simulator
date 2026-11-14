@@ -1,20 +1,21 @@
-# Alarm CloudWatch của tài nguyên session (docs/03 §14, BL-051, BL-117, BL-127, BL-179, BL-181, BL-182, BL-188, BL-235, DBS-163).
-# Dựng và xóa cùng phiên: tuổi queue, outbox, Redis, fallback đều vô nghĩa khi worker, Valkey, api không chạy, và
+# Alarm CloudWatch của tài nguyên session (docs/03 §14, BL-051, BL-117, BL-127, BL-179, BL-181, BL-182, BL-188, BL-235, DBS-163, DBS-177).
+# Dựng và xóa cùng phiên: tuổi queue, outbox, Redis, fallback, latency, 5xx đều vô nghĩa khi worker, Valkey, api không chạy, và
 # alarm "thiếu dữ liệu = vi phạm" sẽ kêu mãi sau destroy. Alarm DLQ > 0 và topic SNS ở base/alarms.tf (sống qua destroy).
 # Mọi alarm gửi vào topic SNS của base (`alarm_topic_arn`), cả lúc báo (alarm_actions) và lúc hết (ok_actions).
 # Tag lấy từ default_tags của provider (locals.tags), alarm hỗ trợ tag nên không cần khai thêm.
 #
-# Chi phí: 11 alarm ở đây (+ 2 alarm DLQ ở base = 13). Alarm chuẩn 0,10 USD/alarm/tháng; alarm dùng biểu thức metric
-# (SUM(METRICS())) bị tính theo số metric được tham chiếu: `risk_rule_error` 6 metric, `reconciliation`, `redis_fallback`,
-# `rate_limited` mỗi cái 2. Tổng cỡ 2,3 USD/tháng nếu chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều.
+# Chi phí: 15 alarm ở đây (+ 2 alarm DLQ ở base = 17). Alarm chuẩn 0,10 USD/alarm/tháng; alarm dùng biểu thức metric
+# (SUM(METRICS()) / MAX(METRICS()) / công thức tỉ lệ) bị tính theo số metric được tham chiếu: `risk_rule_error` 6 metric,
+# `read_latency_p95` 3 metric, `reconciliation`, `redis_fallback`, `rate_limited`, `api_5xx_rate` mỗi cái 2. Tổng cỡ
+# 3,0 USD/tháng nếu chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều.
 #
 # Dimension: bộ đếm của ứng dụng (MetricsService.writeCounters) chỉ xuất ở bộ `[Role, ...nhãn]`, KHÔNG có bộ `[]`; gauge
 # thì ngược lại chỉ có bộ `[]` (outbox_oldest_unpublished_age_seconds, outbox_quarantined_events). Alarm phải khai đúng bộ dimension đó, nếu không
 # sẽ không bao giờ có dữ liệu. Metric của worker mang `Role=worker`, của api mang `Role=api`.
 #
 # Alarm không dùng được SEARCH, nên metric có dimension thay đổi (Rule R1..R6, Status MISMATCH/ERROR, Scope ip/user,
-# Role api/worker) được gộp bằng `SUM(METRICS())` trên các metric khai tường minh. SUM bỏ qua chuỗi không có điểm dữ
-# liệu, nên một bộ dimension chưa từng có số không làm alarm "thiếu dữ liệu".
+# Role api/worker, các route đọc) được gộp bằng `SUM(METRICS())` hoặc `MAX(METRICS())` trên các metric khai tường minh.
+# SUM/MAX bỏ qua chuỗi không có điểm dữ liệu, nên một bộ dimension chưa từng có số không làm alarm "thiếu dữ liệu".
 #
 # Metric kiểu sự kiện (lỗi luật, CONFIG_INVALID, đối soát, rate limit) chỉ có điểm dữ liệu khi sự kiện xảy ra rồi
 # biến mất: cửa sổ 300 giây giữ alarm ở ALARM thêm vài phút để người nhận thư kịp thấy, không nhấp nháy ALARM/OK mỗi
@@ -29,6 +30,13 @@ locals {
 
   # Rule của risk (R1..R6, ADR-14).
   risk_rules = ["R1", "R2", "R3", "R4", "R5", "R6"]
+
+  # Các route đọc (số dư, lịch sử) cho SLO latency đọc p95 < 150 ms (docs/03 §14, DBS-145).
+  read_routes = {
+    accounts     = "/v1/accounts"
+    account      = "/v1/accounts/:id"
+    transactions = "/v1/accounts/:id/transactions"
+  }
 
   # Node chính của Valkey: nhóm một node có member `<replication_group_id>-001` (dev chạy 0 replica). Khi bật replica và
   # failover, node chính có thể là -002: cần thêm alarm cho node đó trước khi bật replica ở production.
@@ -352,6 +360,136 @@ resource "aws_cloudwatch_metric_alarm" "rate_limited" {
       }
     }
   }
+
+  alarm_actions = local.alarm_actions
+  ok_actions    = local.alarm_actions
+}
+
+# --- SLO API 5xx, latency chuyển tiền, latency đọc, thời gian tới cờ (DBS-177, docs/03 §14) -------------------------
+# Tỉ lệ 5xx > 1% trong 5 phút. Dùng bộ dimension tổng `[]` của DBS-144 (không chứa probe `/health/*`, không tính 422/429).
+# `IF(mr > 0, ...)` tránh chia 0 nếu có điểm request = 0; khi idle không có điểm, `notBreaching` giữ alarm ở OK.
+resource "aws_cloudwatch_metric_alarm" "api_5xx_rate" {
+  alarm_name        = "dbs-dev-api-5xx-rate"
+  alarm_description = "Tỉ lệ lỗi 5xx của API > 1% trong 5 phút (SLO >= 99,9%, docs/03 §14; không tính 422, 429 và /health/*). Kiểm log /dbs/dev/api, RDS và Valkey."
+
+  threshold           = 1
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  treat_missing_data  = "notBreaching"
+
+  metric_query {
+    id          = "rate"
+    expression  = "IF(mr > 0, 100 * FILL(m5, 0) / mr, 0)"
+    label       = "Tỉ lệ 5xx (%)"
+    return_data = true
+  }
+
+  metric_query {
+    id          = "m5"
+    return_data = false
+
+    metric {
+      namespace   = var.metrics_namespace
+      metric_name = "http_5xx_total"
+      period      = 300
+      stat        = "Sum"
+    }
+  }
+
+  metric_query {
+    id          = "mr"
+    return_data = false
+
+    metric {
+      namespace   = var.metrics_namespace
+      metric_name = "http_requests_total"
+      period      = 300
+      stat        = "Sum"
+    }
+  }
+
+  alarm_actions = local.alarm_actions
+  ok_actions    = local.alarm_actions
+}
+
+# Latency chuyển tiền POST /v1/transfers: SLO p95 < 300 ms, alarm khi p95 > 300 ms trong 3 cửa sổ 5 phút liên tiếp.
+# Yêu cầu 3 cửa sổ liên tiếp giúp tránh nhiễu do CloudWatch ước lượng phân vị quanh biên bucket 300 ms (observability).
+resource "aws_cloudwatch_metric_alarm" "transfer_latency_p95" {
+  alarm_name        = "dbs-dev-transfer-latency-p95"
+  alarm_description = "Latency chuyển tiền POST /v1/transfers p95 > 300 ms trong 3 cửa sổ 5 phút liên tiếp (SLO p95 < 300 ms, docs/03 §14). Kiểm RDS, khóa hàng và log /dbs/dev/api."
+
+  namespace   = var.metrics_namespace
+  metric_name = "http_request_duration_ms"
+  dimensions  = { Route = "/v1/transfers", Method = "POST" }
+
+  extended_statistic  = "p95"
+  period              = 300
+  evaluation_periods  = 3
+  datapoints_to_alarm = 3
+  threshold           = 300
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = local.alarm_actions
+  ok_actions    = local.alarm_actions
+}
+
+# Latency đọc (số dư, lịch sử): SLO p95 < 150 ms, alarm khi p95 > 150 ms trong 3 cửa sổ 5 phút liên tiếp.
+# Gộp 3 route đọc bằng MAX(METRICS()) để bất kỳ endpoint đọc nào vượt ngưỡng đều báo mà không nhân 3 số alarm.
+resource "aws_cloudwatch_metric_alarm" "read_latency_p95" {
+  alarm_name        = "dbs-dev-read-latency-p95"
+  alarm_description = "Latency đọc (GET /v1/accounts, /:id, /:id/transactions) p95 > 150 ms trong 3 cửa sổ 5 phút liên tiếp (SLO p95 < 150 ms, docs/03 §14). Kiểm RDS và log /dbs/dev/api."
+
+  threshold           = 150
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  datapoints_to_alarm = 3
+  treat_missing_data  = "notBreaching"
+
+  metric_query {
+    id          = "max_p95"
+    expression  = "MAX(METRICS())"
+    label       = "Đọc p95 lớn nhất (ms)"
+    return_data = true
+  }
+
+  dynamic "metric_query" {
+    for_each = local.read_routes
+
+    content {
+      id          = metric_query.key
+      return_data = false
+
+      metric {
+        namespace   = var.metrics_namespace
+        metric_name = "http_request_duration_ms"
+        dimensions  = { Route = metric_query.value, Method = "GET" }
+        period      = 300
+        stat        = "p95"
+      }
+    }
+  }
+
+  alarm_actions = local.alarm_actions
+  ok_actions    = local.alarm_actions
+}
+
+# Thời gian từ giao dịch tới khi có cờ gian lận: SLO p95 < 5 giây trong cửa sổ 15 phút (900 s).
+# Worker phát `risk_transfer_to_flag_ms` với dimension [Role] (Role=worker).
+resource "aws_cloudwatch_metric_alarm" "transfer_to_flag_p95" {
+  alarm_name        = "dbs-dev-transfer-to-flag-p95"
+  alarm_description = "Thời gian từ giao dịch tới khi có cờ gian lận p95 > 5 giây trong 15 phút (SLO < 5 s, docs/03 §14). Kiểm worker risk, queue risk-events và truy vấn feature trên RDS."
+
+  namespace   = var.metrics_namespace
+  metric_name = "risk_transfer_to_flag_ms"
+  dimensions  = { Role = local.alarm_role_worker }
+
+  extended_statistic  = "p95"
+  period              = 900
+  evaluation_periods  = 1
+  threshold           = 5000
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
 
   alarm_actions = local.alarm_actions
   ok_actions    = local.alarm_actions

@@ -116,6 +116,10 @@ run "all_alarms_notify_the_topic" {
           aws_cloudwatch_metric_alarm.redis_fallback,
           aws_cloudwatch_metric_alarm.risk_config_redis_fallback,
           aws_cloudwatch_metric_alarm.rate_limited,
+          aws_cloudwatch_metric_alarm.api_5xx_rate,
+          aws_cloudwatch_metric_alarm.transfer_latency_p95,
+          aws_cloudwatch_metric_alarm.read_latency_p95,
+          aws_cloudwatch_metric_alarm.transfer_to_flag_p95,
         ],
       ) : a.alarm_actions == toset(["arn:aws:sns:ap-southeast-1:123456789012:dbs-dev-alarms"]) && a.ok_actions == toset(["arn:aws:sns:ap-southeast-1:123456789012:dbs-dev-alarms"])
     ])
@@ -124,7 +128,7 @@ run "all_alarms_notify_the_topic" {
 
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.queue_age) == 2
-    error_message = "11 session alarms: 2 queue age + 9 others (13 with the 2 DLQ alarms of base)"
+    error_message = "15 session alarms: 2 queue age + 13 others (17 with the 2 DLQ alarms of base)"
   }
 }
 
@@ -443,9 +447,119 @@ run "alarms_follow_metrics_namespace" {
       alltrue([for q in aws_cloudwatch_metric_alarm.reconciliation.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
       alltrue([for q in aws_cloudwatch_metric_alarm.risk_rule_error.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
       alltrue([for q in aws_cloudwatch_metric_alarm.rate_limited.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
+      alltrue([for q in aws_cloudwatch_metric_alarm.api_5xx_rate.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.namespace == "DBS/Backend-alm" &&
+      alltrue([for q in aws_cloudwatch_metric_alarm.read_latency_p95.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
+      aws_cloudwatch_metric_alarm.transfer_to_flag_p95.namespace == "DBS/Backend-alm" &&
       alltrue([for a in aws_cloudwatch_metric_alarm.queue_age : a.namespace == "AWS/SQS"]) &&
       aws_cloudwatch_metric_alarm.redis_node_missing.namespace == "AWS/ElastiCache"
     )
     error_message = "application alarms follow metrics_namespace; AWS/SQS and AWS/ElastiCache stay"
+  }
+}
+
+# TC-177-01 (DBS-177): tỉ lệ 5xx > 1% trong 5 phút, bộ dimension [] (không gồm /health/*)
+run "api_5xx_rate_alarm" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.api_5xx_rate.alarm_name == "dbs-dev-api-5xx-rate" &&
+      aws_cloudwatch_metric_alarm.api_5xx_rate.threshold == 1 &&
+      aws_cloudwatch_metric_alarm.api_5xx_rate.comparison_operator == "GreaterThanThreshold" &&
+      aws_cloudwatch_metric_alarm.api_5xx_rate.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.api_5xx_rate.treat_missing_data == "notBreaching" &&
+      one([for q in aws_cloudwatch_metric_alarm.api_5xx_rate.metric_query : q.expression if q.return_data]) == "IF(mr > 0, 100 * FILL(m5, 0) / mr, 0)"
+    )
+    error_message = "5xx rate: IF(mr > 0, 100 * FILL(m5, 0) / mr, 0) > 1%, 1 period, notBreaching"
+  }
+
+  assert {
+    condition = (
+      toset([for q in aws_cloudwatch_metric_alarm.api_5xx_rate.metric_query : q.metric[0].metric_name if !q.return_data]) == toset(["http_5xx_total", "http_requests_total"]) &&
+      alltrue([for q in aws_cloudwatch_metric_alarm.api_5xx_rate.metric_query : (
+        q.metric[0].namespace == "DBS/Backend" &&
+        length(coalesce(q.metric[0].dimensions, {})) == 0 &&
+        q.metric[0].stat == "Sum" &&
+        q.metric[0].period == 300
+      ) if !q.return_data])
+    )
+    error_message = "5xx rate: http_5xx_total & http_requests_total with no dimensions ([]), Sum, 300 s"
+  }
+}
+
+# TC-177-02 (DBS-177): latency chuyển tiền p95 > 300 ms trong 3 cửa sổ 5 phút liên tiếp
+run "transfer_latency_p95_alarm" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.alarm_name == "dbs-dev-transfer-latency-p95" &&
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.namespace == "DBS/Backend" &&
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.metric_name == "http_request_duration_ms" &&
+      jsonencode(aws_cloudwatch_metric_alarm.transfer_latency_p95.dimensions) == jsonencode({ Method = "POST", Route = "/v1/transfers" }) &&
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.extended_statistic == "p95" &&
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.period == 300 &&
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.evaluation_periods == 3 &&
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.datapoints_to_alarm == 3 &&
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.threshold == 300 &&
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.comparison_operator == "GreaterThanThreshold" &&
+      aws_cloudwatch_metric_alarm.transfer_latency_p95.treat_missing_data == "notBreaching"
+    )
+    error_message = "transfer latency: POST /v1/transfers p95 > 300 ms in 3 of 3 300 s periods, notBreaching"
+  }
+}
+
+# TC-177-03 (DBS-177): latency đọc p95 > 150 ms trong 3 cửa sổ 5 phút liên tiếp (MAX trên 3 route đọc)
+run "read_latency_p95_alarm" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.read_latency_p95.alarm_name == "dbs-dev-read-latency-p95" &&
+      aws_cloudwatch_metric_alarm.read_latency_p95.threshold == 150 &&
+      aws_cloudwatch_metric_alarm.read_latency_p95.comparison_operator == "GreaterThanThreshold" &&
+      aws_cloudwatch_metric_alarm.read_latency_p95.evaluation_periods == 3 &&
+      aws_cloudwatch_metric_alarm.read_latency_p95.datapoints_to_alarm == 3 &&
+      aws_cloudwatch_metric_alarm.read_latency_p95.treat_missing_data == "notBreaching" &&
+      one([for q in aws_cloudwatch_metric_alarm.read_latency_p95.metric_query : q.expression if q.return_data]) == "MAX(METRICS())"
+    )
+    error_message = "read latency: MAX(METRICS()) > 150 ms in 3 of 3 periods, notBreaching"
+  }
+
+  assert {
+    condition = (
+      toset([for q in aws_cloudwatch_metric_alarm.read_latency_p95.metric_query : q.metric[0].dimensions["Route"] if !q.return_data]) == toset(["/v1/accounts", "/v1/accounts/:id", "/v1/accounts/:id/transactions"]) &&
+      alltrue([for q in aws_cloudwatch_metric_alarm.read_latency_p95.metric_query : (
+        q.metric[0].namespace == "DBS/Backend" &&
+        q.metric[0].metric_name == "http_request_duration_ms" &&
+        q.metric[0].dimensions["Method"] == "GET" &&
+        length(q.metric[0].dimensions) == 2 &&
+        q.metric[0].stat == "p95" &&
+        q.metric[0].period == 300
+      ) if !q.return_data])
+    )
+    error_message = "read latency: GET /v1/accounts, /:id, /:id/transactions p95, 300 s"
+  }
+}
+
+# TC-177-04 (DBS-177): thời gian từ giao dịch tới cờ p95 > 5 giây trong 15 phút (900 s)
+run "transfer_to_flag_p95_alarm" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.transfer_to_flag_p95.alarm_name == "dbs-dev-transfer-to-flag-p95" &&
+      aws_cloudwatch_metric_alarm.transfer_to_flag_p95.namespace == "DBS/Backend" &&
+      aws_cloudwatch_metric_alarm.transfer_to_flag_p95.metric_name == "risk_transfer_to_flag_ms" &&
+      jsonencode(aws_cloudwatch_metric_alarm.transfer_to_flag_p95.dimensions) == jsonencode({ Role = "worker" }) &&
+      aws_cloudwatch_metric_alarm.transfer_to_flag_p95.extended_statistic == "p95" &&
+      aws_cloudwatch_metric_alarm.transfer_to_flag_p95.period == 900 &&
+      aws_cloudwatch_metric_alarm.transfer_to_flag_p95.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.transfer_to_flag_p95.threshold == 5000 &&
+      aws_cloudwatch_metric_alarm.transfer_to_flag_p95.comparison_operator == "GreaterThanThreshold" &&
+      aws_cloudwatch_metric_alarm.transfer_to_flag_p95.treat_missing_data == "notBreaching"
+    )
+    error_message = "transfer to flag: risk_transfer_to_flag_ms {Role=worker} p95 > 5000 ms, 900 s x 1, notBreaching"
   }
 }
