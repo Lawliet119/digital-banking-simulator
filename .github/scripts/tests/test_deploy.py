@@ -175,7 +175,7 @@ class Deploy(unittest.TestCase):
         self.assertEqual(len(regs), 3)  # api, migrate, rồi worker (BL-248)
         self.assertLess(regs[0], ops.index("ecs run-task"))
         self.assertLess(ops.index("ecs run-task"), ops.index("ecs update-service"))
-        self.assertEqual(ops.count("ecs describe-services"), 4)  # api ×2 (migrate.sh dùng lại JSON service) + worker ×2
+        self.assertEqual(ops.count("ecs describe-services"), 5)  # api ×2 (migrate.sh dùng lại JSON service) + worker ×2 + verify worker ×1 (BL-188)
 
     # TC-68-02 qua deploy: migration lỗi thì không update-service
     def test_failed_migration_stops_the_deploy(self):
@@ -326,7 +326,8 @@ class Deploy(unittest.TestCase):
     # ---- BL-248: lăn service worker cùng image ----
     @staticmethod
     def is_worker(c):
-        return "worker" in c["argv"] or "dbs-worker" in c["argv"] or (c["input_json"] or {}).get("family") == "dbs-worker"
+        return ("worker" in c["argv"] or "dbs-worker" in c["argv"] or (c["input_json"] or {}).get("family") == "dbs-worker"
+                or any(a.startswith("arn:") and "task/dbs-dev/worker" in a for a in c["argv"]))  # describe-tasks (BL-188)
 
     def worker_calls(self, e, op=None):
         return [c for c in e.calls() if self.is_worker(c) and (op is None or c["argv"][1] == op)]
@@ -371,7 +372,7 @@ class Deploy(unittest.TestCase):
             worker_service(W_NEW, state="COMPLETED", running=0), worker_service(W_NEW, state="COMPLETED", running=1)]))
         p = e.run()
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertEqual(len(self.worker_calls(e, "describe-services")), 4)
+        self.assertEqual(len(self.worker_calls(e, "describe-services")), 5)  # 4 lần poll + 1 lần verify-worker-rollout.sh (BL-188)
         self.assertIn("runningCount 1/1", p.stdout)
 
     # TC-248-04: circuit breaker rollback / FAILED / hết hạn đều đỏ
@@ -448,6 +449,58 @@ class Deploy(unittest.TestCase):
             e = self.make(**scenario)
             self.assertEqual(e.run().returncode, 0)
             self.assertEqual(self.worker_calls(e), [])
+
+    # ---- BL-188: deploy chỉ xong khi không còn task worker revision cũ ----
+    @staticmethod
+    def stale_task_scenario(statuses, **extra):
+        old = "arn:aws:ecs:ap-southeast-1:123456789012:task/dbs-dev/worker%032d" % 2
+        new = "arn:aws:ecs:ap-southeast-1:123456789012:task/dbs-dev/worker%032d" % 1
+
+        def snap(status):
+            return {"tasks": [{"taskArn": new, "lastStatus": "RUNNING", "taskDefinitionArn": W_NEW},
+                              {"taskArn": old, "lastStatus": status, "taskDefinitionArn": W_OLD}], "failures": []}
+        base = Deploy.api_ready(list_tasks_worker={"RUNNING": [[new]], "STOPPED": [[old]]},
+                                describe_tasks_worker=[snap(s) for s in statuses])
+        base.update(extra)
+        return base
+
+    # TC-188-15: rollout COMPLETED nhưng task cũ còn STOPPING thì deploy.sh chờ tới khi nó STOPPED rồi mới xanh
+    def test_deploy_waits_for_old_worker_task_to_stop(self):
+        e = self.make(**self.stale_task_scenario(["STOPPING", "STOPPING", "STOPPED"]))
+        p = e.run()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(len(self.worker_calls(e, "describe-tasks")), 3)
+        self.assertIn("Chờ worker cũ dừng hẳn", p.stdout)
+        self.assertIn("có thể bật phiên bản luật mới", p.stdout)
+        calls = [(c["argv"][1], self.is_worker(c)) for c in e.calls()]
+        self.assertLess(calls.index(("update-service", True)), calls.index(("describe-tasks", True)))
+
+    # TC-188-16: task worker cũ không dừng: deploy đỏ, không in dòng "có thể bật phiên bản luật mới"
+    def test_deploy_is_red_while_old_worker_task_runs(self):
+        e = self.make(**self.stale_task_scenario(["RUNNING"]))
+        p = e.run(VERIFY_DEADLINE_SECONDS="1", POLL_SECONDS="1")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("vẫn ở dbs-worker:2", p.stdout + p.stderr)
+        self.assertNotIn("có thể bật phiên bản luật mới", p.stdout)
+
+    # TC-188-17: deployment cũ còn trong `deployments` cũng làm deploy đỏ
+    def test_deploy_is_red_while_old_worker_deployment_remains(self):
+        leftover = worker_service(W_NEW)
+        leftover["services"][0]["deployments"].append({"status": "ACTIVE", "taskDefinition": W_OLD, "rolloutState": "COMPLETED",
+                                                       "desiredCount": 1, "runningCount": 1})
+        e = self.make(**self.api_ready(describe_services_worker=[worker_service(), leftover]))
+        p = e.run(VERIFY_DEADLINE_SECONDS="1", POLL_SECONDS="1")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("còn deployment ACTIVE", p.stdout + p.stderr)
+
+    # TC-188-18: worker desiredCount = 0 không chạy bước kiểm (không có task để chờ); DEPLOY_WORKER=0 cũng không
+    def test_no_verification_without_worker_tasks(self):
+        e = self.make(**self.api_ready(describe_services_worker=[worker_service(desired=0)]))
+        self.assertEqual(e.run().returncode, 0)
+        self.assertEqual(self.worker_calls(e, "list-tasks"), [])
+        e = self.make(**self.api_ready())
+        self.assertEqual(e.run(DEPLOY_WORKER="0").returncode, 0)
+        self.assertEqual(self.worker_calls(e, "list-tasks"), [])
 
 
 if __name__ == "__main__":

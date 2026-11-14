@@ -44,7 +44,7 @@
   9. **Gauge có giới hạn riêng:** chạy bằng `TransactionService.run` với `statementTimeoutMs = 2000` (không bao phủ bước connect/BEGIN, và server bị `pause` thì không tự hủy được) cộng `Promise.race` 3 s; chỉ một lượt flush tại một thời điểm; **mỗi gauge tối đa một lần đọc đang chạy**: lần đọc trước chưa xong (kể cả sau khi race hết hạn) thì lượt này bỏ qua gauge đó và log `warn`, nên gauge giữ nhiều nhất một kết nối của pool; dòng HTTP và counter ghi **trước** khi chờ gauge.
   10. **Tuổi tính trong SQL** (`EXTRACT(EPOCH FROM clock_timestamp() - created_at)`) để không lệch đồng hồ ECS/RDS. Gauge phát 0 khi không có dòng chờ; nếu worker chết thì **không có dữ liệu**: alarm của #5 phải dùng `Maximum` và `TreatMissingData=breaching` (bàn giao §8).
   11. **Baseline của counter lấy lúc `onApplicationBootstrap`** (registry dùng chung cả tiến trình Jest); `Timestamp` = **đầu** khoảng đo; lượt flush cuối khi tắt chỉ ghi HTTP và counter (DataSource có thể đã đóng), bỏ gauge DB.
-  12. **Allowlist counter:** `redis_fallback_total`, `rate_limited_total{scope}`, `risk_redis_fallback_total{rule,reason}`, `risk_config_redis_fallback_total`. `risk_unsupported_mode_total` không vào (không có nhãn nào cần, chưa dùng ở app).
+  12. **Allowlist counter:** `redis_fallback_total`, `rate_limited_total{scope}`, `risk_redis_fallback_total{rule,reason}`, `risk_config_redis_fallback_total`, `risk_config_freshness_exceeded_total` (BL-188, không nhãn). `risk_unsupported_mode_total` không vào (không có nhãn nào cần, chưa dùng ở app).
 
 ## 2. Hành vi
 

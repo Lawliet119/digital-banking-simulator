@@ -115,6 +115,7 @@ run "all_alarms_notify_the_topic" {
           aws_cloudwatch_metric_alarm.redis_node_missing,
           aws_cloudwatch_metric_alarm.redis_fallback,
           aws_cloudwatch_metric_alarm.risk_config_redis_fallback,
+          aws_cloudwatch_metric_alarm.risk_config_freshness,
           aws_cloudwatch_metric_alarm.rate_limited,
         ],
       ) : a.alarm_actions == toset(["arn:aws:sns:ap-southeast-1:123456789012:dbs-dev-alarms"]) && a.ok_actions == toset(["arn:aws:sns:ap-southeast-1:123456789012:dbs-dev-alarms"])
@@ -124,7 +125,7 @@ run "all_alarms_notify_the_topic" {
 
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.queue_age) == 2
-    error_message = "11 session alarms: 2 queue age + 9 others (13 with the 2 DLQ alarms of base)"
+    error_message = "12 session alarms: 2 queue age + 10 others (14 with the 2 DLQ alarms of base)"
   }
 }
 
@@ -425,6 +426,33 @@ run "rate_limited_alarm" {
   }
 }
 
+# TC-ALM-12 (BL-188): risk_config_freshness_exceeded_total: bound 60 giây của phiên bản luật không còn chứng minh được. Counter
+# không nhãn nên bộ dimension duy nhất là [Role]; một điểm 300 s là đủ.
+run "risk_config_freshness_alarm" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.risk_config_freshness.alarm_name == "dbs-dev-risk-config-freshness" &&
+      aws_cloudwatch_metric_alarm.risk_config_freshness.namespace == "DBS/Backend" &&
+      aws_cloudwatch_metric_alarm.risk_config_freshness.metric_name == "risk_config_freshness_exceeded_total" &&
+      jsonencode(aws_cloudwatch_metric_alarm.risk_config_freshness.dimensions) == jsonencode({ Role = "worker" }) &&
+      aws_cloudwatch_metric_alarm.risk_config_freshness.statistic == "Sum" &&
+      aws_cloudwatch_metric_alarm.risk_config_freshness.period == 300 &&
+      aws_cloudwatch_metric_alarm.risk_config_freshness.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.risk_config_freshness.threshold == 0 &&
+      aws_cloudwatch_metric_alarm.risk_config_freshness.comparison_operator == "GreaterThanThreshold" &&
+      aws_cloudwatch_metric_alarm.risk_config_freshness.treat_missing_data == "notBreaching"
+    )
+    error_message = "freshness: risk_config_freshness_exceeded_total {Role=worker} Sum > 0, 300 s x 1, notBreaching"
+  }
+
+  assert {
+    condition     = strcontains(aws_cloudwatch_metric_alarm.risk_config_freshness.alarm_description, "risk-config-rollout.md")
+    error_message = "freshness alarm description must point to the rollout runbook"
+  }
+}
+
 # TC-ALM-11: namespace đổi được (thử bằng số mô phỏng), SQS và ElastiCache thì không
 run "alarms_follow_metrics_namespace" {
   command = plan
@@ -439,6 +467,7 @@ run "alarms_follow_metrics_namespace" {
       aws_cloudwatch_metric_alarm.outbox_quarantined.namespace == "DBS/Backend-alm" &&
       aws_cloudwatch_metric_alarm.risk_config_invalid.namespace == "DBS/Backend-alm" &&
       aws_cloudwatch_metric_alarm.risk_config_redis_fallback.namespace == "DBS/Backend-alm" &&
+      aws_cloudwatch_metric_alarm.risk_config_freshness.namespace == "DBS/Backend-alm" &&
       alltrue([for q in aws_cloudwatch_metric_alarm.redis_fallback.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
       alltrue([for q in aws_cloudwatch_metric_alarm.reconciliation.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
       alltrue([for q in aws_cloudwatch_metric_alarm.risk_rule_error.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&

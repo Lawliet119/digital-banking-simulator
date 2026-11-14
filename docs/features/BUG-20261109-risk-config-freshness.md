@@ -75,3 +75,10 @@ thanh toán hoặc quyền DB. Tài liệu cập nhật: feature này, DBS-110, 
 ## Sau rebase (techlead review PR #108, 2026-11-09)
 
 Rebase lên `main` `18f93dc`; hai dòng `BL-188` và `DBS-110` trong `docs/BACKLOG.md` / `docs/features/README.md` giữ bản của PR trên nền main (đã có DBS-113). Chạy lại: lint, typecheck sạch; unit 85 suite / 1.634 test; services (`rule-set-repository`, `risk-version-cache`, `redis-adapter`, `online-feature-provider`) 21/21 trên Valkey và PostgreSQL thật; `rule-set-repository.db-spec` 4/4; manual `risk-config-freshness.manual.ts` M-CACHE-01…04 đạt trên commit `7c575ff`. PR vẫn là Draft theo ý tác giả; chưa đổi trạng thái.
+
+## Cập nhật BL-188 (2026-11-14): thay worker cũ và giám sát giả định
+
+- **Thay hết worker cũ:** `deploy.sh` nay kết thúc bằng `verify-worker-rollout.sh`: chỉ khi không còn deployment hay task worker revision cũ (kể cả `STOPPING`) mới xanh; quy trình bật phiên bản luật mới (deploy xong, kiểm lại, rồi mới POST UC-12) ở [runbook](../runbooks/risk-config-rollout.md); hậu quả của worker cũ (key `cfg:risk:latest` không có bound 60 s; `parseRuleSet` hẹp hơn API làm event vào DLQ) cũng ở đó. Chi tiết script: [DBS-38 §12](DBS-38-auto-deploy-ecs.md).
+- **Giám sát giả định §2:** thêm counter `risk_config_freshness_exceeded_total` (mỗi lần `RuleSetRepository` bỏ một lần chọn vì quá 60 s hoặc đồng hồ lùi/lệch, kể cả lần đọc lại) và alarm `dbs-dev-risk-config-freshness`. Redis sống/lỗi đã có `redis-node-missing`, `redis-fallback`, `risk-config-redis-fallback`. Đồng hồ Fargate/ElastiCache dựa vào Amazon Time Sync Service; không có metric lệch giờ trực tiếp nên không dựng alarm giả. Test: `rule-set.repository.spec.ts`, `metrics.service.spec.ts`, `alarms.tftest.hcl` (TC-ALM-12).
+- **Chưa chạy trên AWS:** xem dòng BL-188 ở `docs/BACKLOG.md`.
+

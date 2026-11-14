@@ -16,6 +16,10 @@
 # `dbs-worker`, container `worker`. `desiredCount` = 0 (mặc định của stack): vẫn đăng ký revision và update-service để
 # lần bật sau dùng image mới, nhưng không chờ. Service worker không ACTIVE (stack cũ chưa có) thì cảnh báo và bỏ qua.
 # `DEPLOY_WORKER=0` tắt bước này. Chờ bằng poll `describe-services` như api (không dùng `aws ecs wait`).
+#
+# BL-188 (không còn worker cũ): sau khi rollout worker COMPLETED, verify-worker-rollout.sh bảo đảm chỉ còn một deployment
+# PRIMARY ở revision mới, runningCount = desiredCount và không task nào chưa STOPPED còn ở revision cũ (kể cả đang
+# STOPPING). Chỉ khi bước này đạt mới được bật phiên bản luật mới qua UC-12 (docs/runbooks/risk-config-rollout.md).
 set -euo pipefail
 
 CLUSTER="${CLUSTER:-dbs-dev}"
@@ -220,6 +224,9 @@ deploy_worker() {
     return 0
   fi
   wait_rollout "$WORKER_SERVICE" "$w_new_arn" "$wdesired"
+  # BL-188: COMPLETED chưa đủ; còn phải chờ task worker cũ dừng hẳn và deployment cũ biến mất.
+  CLUSTER="$CLUSTER" WORKER_SERVICE="$WORKER_SERVICE" EXPECT_TASK_DEFINITION="$w_new_arn"     bash "$HERE/verify-worker-rollout.sh" || exit 1
+  echo "Worker: chỉ còn $w_new_arn; có thể bật phiên bản luật mới (docs/runbooks/risk-config-rollout.md)."
 }
 if [ "$DEPLOY_WORKER" = "1" ]; then
   deploy_worker

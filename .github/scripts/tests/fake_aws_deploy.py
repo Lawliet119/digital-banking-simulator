@@ -6,12 +6,17 @@ lặp lại). `error` có dạng {"op": "...", "code": "ClusterNotFoundException
 254); tùy chọn `arg` (chuỗi phải có trong argv), `times` (chỉ lỗi trong N lần gọi đầu) và `message` (DBS-68).
 BL-248: service/family `worker` có kịch bản riêng: `describe_services_worker`, `worker_task_definition_response`,
 `register_arn_worker` (cùng quy tắc "phần tử cuối lặp lại").
+BL-188: `list-tasks --service-name worker` trả `list_tasks_worker[<RUNNING|STOPPED>]` (dãy các danh sách ARN, theo số lần gọi
+của từng trạng thái) và `describe-tasks` của task `task/dbs-dev/worker...` trả `describe_tasks_worker` (dãy kết quả). Mặc định
+mô phỏng ECS khỏe: một task RUNNING ở revision hiện hành của service worker (revision của lần `update-service worker` cuối,
+nếu chưa có thì revision của service lúc đầu).
 """
 import json
 import os
 import sys
 
 STATE_DIR = os.environ["FAKE_STATE"]
+WORKER_TASK = "arn:aws:ecs:ap-southeast-1:123456789012:task/dbs-dev/worker0000000000000000000000000001"
 SCEN = json.load(open(os.path.join(STATE_DIR, "scenario.json")))
 argv = sys.argv[1:]
 service, op = argv[0], argv[1]
@@ -29,7 +34,8 @@ for i, a in enumerate(argv):
 for i, a in enumerate(argv):
     if a == "--network-configuration" and argv[i + 1].startswith("file://"):
         record["network_json"] = json.load(open(argv[i + 1][7:]))
-worker = "worker" in argv or "dbs-worker" in argv or (record["input_json"] or {}).get("family") == "dbs-worker"
+worker = ("worker" in argv or "dbs-worker" in argv or (record["input_json"] or {}).get("family") == "dbs-worker"
+          or any(a.startswith("arn:") and "task/dbs-dev/worker" in a for a in argv))
 if worker:
     key += " worker"  # bộ đếm và kịch bản riêng của worker (BL-248)
 with open(os.path.join(STATE_DIR, "calls.jsonl"), "a") as f:
@@ -58,6 +64,26 @@ elif key == "ecs register-task-definition worker":
     print(json.dumps({"taskDefinition": {"taskDefinitionArn": SCEN["register_arn_worker"]}}))
 elif key == "ecs update-service worker":
     print(json.dumps({"service": {"serviceName": "worker"}}))
+elif key == "ecs list-tasks worker":
+    status = argv[argv.index("--desired-status") + 1]
+    status_key = f"list-tasks worker {status}"
+    m = counters.get(status_key, 0)
+    counters[status_key] = m + 1
+    json.dump(counters, open(counter_file, "w"))
+    defaults = {"RUNNING": [[WORKER_TASK]], "STOPPED": [[]]}
+    seq = SCEN.get("list_tasks_worker", {}).get(status, defaults[status])
+    print(json.dumps({"taskArns": seq[min(m, len(seq) - 1)]}))
+elif key == "ecs describe-tasks worker":
+    if "describe_tasks_worker" in SCEN:
+        seq = SCEN["describe_tasks_worker"]
+        print(json.dumps(seq[min(n, len(seq) - 1)]))
+    else:
+        td = SCEN["describe_services_worker"][0]["services"][0]["taskDefinition"]
+        for line in open(os.path.join(STATE_DIR, "calls.jsonl")):
+            c = json.loads(line)
+            if c["argv"][:2] == ["ecs", "update-service"] and "worker" in c["argv"]:
+                td = c["argv"][c["argv"].index("--task-definition") + 1]
+        print(json.dumps({"tasks": [{"taskArn": WORKER_TASK, "lastStatus": "RUNNING", "taskDefinitionArn": td}], "failures": []}))
 elif key == "ecr batch-get-image":
     count = SCEN.get("ecr_images", 1)
     print(json.dumps({"images": [{"imageId": {}}] * count, "failures": [] if count else [{"failureCode": "ImageNotFound"}]}))

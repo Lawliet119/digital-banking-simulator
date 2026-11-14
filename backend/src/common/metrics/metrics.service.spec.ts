@@ -10,6 +10,7 @@ const COUNTERS = [
   'rate_limited_total',
   'risk_redis_fallback_total',
   'risk_config_redis_fallback_total',
+  'risk_config_freshness_exceeded_total',
   'risk_unsupported_mode_total',
   'risk_rule_error_total',
   'risk_decision_total',
@@ -132,9 +133,11 @@ describe('MetricsService', () => {
       const limited = counter('rate_limited_total', ['scope']);
       const risk = counter('risk_redis_fallback_total', ['rule', 'reason']);
       const config = counter('risk_config_redis_fallback_total', ['reason']);
+      const freshness = counter('risk_config_freshness_exceeded_total');
       const { service, docs } = collect();
       await service.start(T0);
       redis.inc(3);
+      freshness.inc(2);
       limited.inc({ scope: 'ip' }, 2);
       limited.inc({ scope: 'user' });
       risk.inc({ rule: 'R1', reason: 'error' }, 4);
@@ -152,6 +155,13 @@ describe('MetricsService', () => {
       expect(
         byName.get('risk_config_redis_fallback_total')?._aws.CloudWatchMetrics[0].Dimensions,
       ).toEqual([['Role', 'Reason'], ['Role']]);
+      // BL-188: no label, so the only dimension set is `[Role]` (what alarm dbs-dev-risk-config-freshness watches).
+      expect(
+        byName.get('risk_config_freshness_exceeded_total')?.risk_config_freshness_exceeded_total,
+      ).toBe(2);
+      expect(
+        byName.get('risk_config_freshness_exceeded_total')?._aws.CloudWatchMetrics[0].Dimensions,
+      ).toEqual([['Role']]);
       const risks = docs.filter(d => names(d)[0] === 'risk_redis_fallback_total');
       expect(risks).toHaveLength(1);
       expect(risks[0]).toMatchObject({ Rule: 'R1', Reason: 'error', risk_redis_fallback_total: 4 });

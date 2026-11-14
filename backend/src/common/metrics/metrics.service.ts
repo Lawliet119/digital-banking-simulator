@@ -61,6 +61,9 @@ const COUNTERS: CounterSpec[] = [
   { name: 'rate_limited_total', labels: { scope: 'Scope' } },
   { name: 'risk_redis_fallback_total', labels: { rule: 'Rule', reason: 'Reason' } },
   { name: 'risk_config_redis_fallback_total', labels: { reason: 'Reason' }, roleTotal: true },
+  // BL-188: a rule-set selection discarded because the 60-second freshness bound could not be proven (slow SQL or an
+  // inconsistent clock). No label: the dimension set is `[Role]`, which the alarm `dbs-dev-risk-config-freshness` watches.
+  { name: 'risk_config_freshness_exceeded_total', labels: {} },
   // BL-204/BL-207/BL-046: the scoring half of risk. Every label value is one of a fixed set (rule
   // R1..R6, an `ai_status` of the schema), enforced where the counter is incremented.
   { name: 'risk_rule_error_total', labels: { rule: 'Rule' } },
