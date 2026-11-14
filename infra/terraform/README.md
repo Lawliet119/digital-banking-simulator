@@ -195,9 +195,9 @@ bash infra/scripts/seed-cognito.sh --rotate    # đổi mật khẩu và sign-ou
 python3 infra/scripts/tests/test_seed_cognito.py   # test của script (aws giả, không cần credential)
 ```
 
-Mật khẩu nằm ở Secrets Manager `dbs/dev/demo-accounts` (secret là nguồn sự thật; ≈ 0,40 USD/tháng; tag `project/env/owner`). Không bao giờ để mật khẩu trên dòng lệnh hay in ra màn hình. Quyền tối thiểu cho người chạy: `cognito-idp:AdminGetUser`, `AdminCreateUser`, `AdminSetUserPassword`, `AdminAddUserToGroup`, `AdminRemoveUserFromGroup`, `AdminUpdateUserAttributes`, `AdminListGroupsForUser`, `AdminUserGlobalSignOut` trên ARN pool; `secretsmanager:DescribeSecret`, `GetSecretValue`, `CreateSecret`, `PutSecretValue`, `TagResource` trên `dbs/dev/demo-accounts-*`. Teardown: `aws secretsmanager delete-secret --secret-id dbs/dev/demo-accounts --force-delete-without-recovery`.
+Mật khẩu nằm ở Secrets Manager `dbs/dev/demo-accounts` (secret là nguồn sự thật, mã hóa bằng CMK `alias/dbs-dev`; ≈ 0,40 USD/tháng; tag `project/env/owner`). Không bao giờ để mật khẩu trên dòng lệnh hay in ra màn hình. Quyền tối thiểu cho người chạy: `cognito-idp:AdminGetUser`, `AdminCreateUser`, `AdminSetUserPassword`, `AdminAddUserToGroup`, `AdminRemoveUserFromGroup`, `AdminUpdateUserAttributes`, `AdminListGroupsForUser`, `AdminUserGlobalSignOut` trên ARN pool; `secretsmanager:DescribeSecret`, `GetSecretValue`, `CreateSecret`, `PutSecretValue`, `UpdateSecret`, `TagResource` trên `dbs/dev/demo-accounts-*`; và `kms:Decrypt`, `kms:GenerateDataKey`, `kms:DescribeKey` trên CMK `alias/dbs-dev` với `kms:ViaService = secretsmanager.<region>.amazonaws.com`. Teardown: `aws secretsmanager delete-secret --secret-id dbs/dev/demo-accounts --force-delete-without-recovery`.
 
-**Role riêng để seed (BL-101):** `envs/dev/base/cognito_seeder.tf` tạo role `dbs-dev-cognito-seeder` (output `cognito_seeder_role_arn`) với đúng các quyền trên và không gì khác (không xóa secret hay user, không KMS vì secret dùng khóa mặc định `aws/secretsmanager`). Trust là gốc tài khoản: chỉ principal của tài khoản có `sts:AssumeRole` trong identity policy của mình (admin có sẵn) mới assume được; không đòi MFA vì dev không bật MFA cho IAM user. `apply base` một lần để tạo role, rồi thêm profile vào `~/.aws/config` và chạy script bằng profile đó thay cho `dbs-admin`:
+**Role riêng để seed (BL-101, DBS-154):** `envs/dev/base/cognito_seeder.tf` tạo role `dbs-dev-cognito-seeder` (output `cognito_seeder_role_arn`) với đúng các quyền trên và không gì khác (không xóa secret hay user). Trust là gốc tài khoản: chỉ principal của tài khoản có `sts:AssumeRole` trong identity policy của mình (admin có sẵn) mới assume được; không đòi MFA vì dev không bật MFA cho IAM user. `apply base` một lần để tạo role, rồi thêm profile vào `~/.aws/config` và chạy script bằng profile đó thay cho `dbs-admin`:
 
 ```ini
 [profile dbs-seeder]
@@ -241,15 +241,23 @@ Task api nhận `DB_HOST` (từ `aws_db_instance.main.address`), `DB_PORT`, `DB_
 - Provider: `aws >= 6.70, < 7.0` ở `base` và `session` (cần thuộc tính write-only), `random ~> 3.7` ở `session`.
 - Kiểm tĩnh: `terraform test` ở `envs/dev/base` (`tests/redis.tftest.hcl`) và `envs/dev/session` (run `valkey_replication_group`, `redis_connection`, `redis_secret_policy`…). Probe chạy thật trên AWS: [DBS-75 §8](../../docs/features/DBS-75-terraform-valkey.md).
 
+### KMS CMK dùng chung (DBS-154)
+
+`envs/dev/base/kms.tf` quản lý CMK `alias/dbs-dev` (`enable_key_rotation = true`, `rotation_period_in_days = 365`, `deletion_window_in_days = 7`; chi phí 1 USD/tháng, 20.000 yêu cầu đầu tiên miễn phí). Key policy tối thiểu gồm 3 statement ủy quyền cho IAM (`Principal = arn:aws:iam::<account_id>:root`, không `Principal "*"`, không `kms:*`):
+- `AccountManagesKeyNotData`: chỉ thao tác quản lý key (kèm `PutKeyPolicy`, `ScheduleKeyDeletion`, `CancelKeyDeletion` để tránh tự khóa), không cho phép mã hóa/giải mã trực tiếp bằng CLI.
+- `UseKeyOnlyThroughAwsServices` và `GrantsForAwsServices`: chỉ cho phép dùng dữ liệu/tạo grant khi `kms:CallerAccount` = tài khoản và `kms:ViaService` thuộc bốn dịch vụ `{rds, secretsmanager, sqs, elasticache}.<region>.amazonaws.com` (cần đồng thời quyền KMS trong identity policy của caller).
+
+Kiểm tra nhanh trên AWS bằng script chỉ đọc: `AWS_PROFILE=dbs-admin bash infra/scripts/verify-kms.sh` (thoát `0` khi CMK, RDS, ElastiCache, SQS và Secrets Manager đang có đều dùng `alias/dbs-dev`; `1` khi có tài nguyên dùng khóa khác; `2` khi thiếu quyền kiểm tra). Test offline: `python3 infra/scripts/tests/test_verify_kms.py` và `terraform test` (`tests/kms.tftest.hcl`).
+
 ### Hàng đợi SQS (DBS-73)
 
 `envs/dev/base` tạo hai queue standard và hai DLQ: `dbs-dev-risk-events`, `dbs-dev-notification-events`, mỗi queue có `…-dlq` riêng. Queue nằm ở `base` vì SQS không tính tiền khi rảnh (trả theo request, 1 triệu request/tháng đầu miễn phí), URL không đổi giữa các phiên, và message trong DLQ còn nguyên sau `destroy session`.
 
 | Tham số | Giá trị |
 |---|---|
-| Queue chính | visibility 30 giây, long polling 20 giây, giữ 4 ngày, sang DLQ sau 5 lần nhận (ADR-03), mã hóa SSE-SQS |
-| DLQ | giữ 6 ngày, ngắn hơn 7 ngày của `processed_events`; redrive allow `byQueue`: chỉ queue chính tương ứng được trỏ vào |
-| IAM | managed policy `dbs-dev-worker-sqs` (gửi, nhận, xóa, đổi visibility trên queue chính; chỉ `SendMessage` trên DLQ cho message sai schema), gắn vào role `dbs-dev-worker-task` ở `session` (DBS-120) |
+| Queue chính | visibility 30 giây, long polling 20 giây, giữ 4 ngày, sang DLQ sau 5 lần nhận (ADR-03), mã hóa SSE-KMS bằng CMK `alias/dbs-dev` (`kms_data_key_reuse_period_seconds = 300`) |
+| DLQ | giữ 6 ngày, ngắn hơn 7 ngày của `processed_events`; mã hóa SSE-KMS bằng CMK `alias/dbs-dev`; redrive allow `byQueue`: chỉ queue chính tương ứng được trỏ vào |
+| IAM | managed policy `dbs-dev-worker-sqs` (gửi, nhận, xóa, đổi visibility trên queue chính; chỉ `SendMessage` trên DLQ cho message sai schema; `kms:GenerateDataKey` và `kms:Decrypt` trên CMK với `kms:ViaService = sqs.<region>.amazonaws.com`), gắn vào role `dbs-dev-worker-task` ở `session` (DBS-120) |
 | Chặn api | queue policy của cả 4 queue `Deny` mọi `sqs:*` cho role `dbs-dev-api-task` (so `aws:PrincipalArn` theo tên; đổi tên role thì sửa `sqs.tf`) |
 | Danh sách cho phép (BL-241) | cùng queue policy có `Deny` `SendMessage`, `ReceiveMessage`, `DeleteMessage`, `ChangeMessageVisibility`, `PurgeQueue`, `StartMessageMoveTask` cho mọi principal **không** khớp `ArnNotLike aws:PrincipalArn` với {role `dbs-dev-worker-task`, biến `sqs_ops_principal_arns`}. Mặc định biến để trống = mọi IAM user của tài khoản (`arn:aws:iam::<account>:user/*`), nên người vận hành và người redrive DLQ không bị khóa; role khác (api, role tương lai) và principal ngoài tài khoản bị chặn dù identity policy cho `sqs:*`. Chặt hơn: đặt `sqs_ops_principal_arns = ["arn:aws:iam::<account>:user/<tên>", …]` (nhớ gồm người chạy redrive). Không chặn thao tác quản trị queue (`SetQueueAttributes`, `GetQueueAttributes`, `DeleteQueue`), nên Terraform vẫn sửa được policy; lỡ khóa nhầm thì chỉ mất quyền đụng message, gỡ bằng sửa biến rồi `terraform apply base`. Redrive tự động của SQS sang DLQ (`maxReceiveCount`) là nội bộ SQS, không bị policy này đánh giá |
 
