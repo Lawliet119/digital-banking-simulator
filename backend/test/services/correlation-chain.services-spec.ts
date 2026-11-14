@@ -13,6 +13,7 @@ import { clearOutbox } from '../support/outbox-fixtures';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
+import { expectLedgerInvariantsAfterEach } from '../support/ledger-invariants';
 
 type Row = Record<string, unknown>;
 
@@ -144,6 +145,8 @@ describe('correlationId across API → outbox → SQS → consumer (real Postgre
       await readAll(url, true);
     }
   });
+
+  expectLedgerInvariantsAfterEach(() => source);
 
   it('TC-134-04/05/06 the server id links audit, outbox, both queues and the notice; client ids go nowhere', async () => {
     const target = await seedDepositTarget(db.runner);

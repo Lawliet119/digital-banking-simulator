@@ -18,6 +18,7 @@ export interface OnlineFeatureProviderDeps {
  * Delivery order is not commit order: a Redis coverage timestamp cannot prove that
  * every committed transfer has been consumed. Always read the committed facts.
  * Windows use event time at millisecond resolution; R3/R6 retain event snapshots.
+ * The five SELECTs share one `REPEATABLE READ READ ONLY` snapshot (`TransferFacts.snapshot`).
  * SQL failures reject extraction so the consumer can retry, never score partial facts.
  */
 export class OnlineFeatureProvider implements FeatureProvider {
@@ -31,13 +32,20 @@ export class OnlineFeatureProvider implements FeatureProvider {
 
   async extract(event: TransferEvent): Promise<Features> {
     const occMs = riskTimeMilliseconds(event.occurredAt);
-    const [transfers, recipients, history, reverseTransferOccurredAt, outflow] = await Promise.all([
-      this.facts.velocity(event.fromAccountId, event.transferId, occMs),
-      this.facts.newRecipientCount(event.fromAccountId, occMs),
-      this.facts.history(event.fromAccountId, occMs),
-      this.facts.reverseTransfer(event.fromAccountId, event.toAccountId, occMs),
-      this.facts.outflow24h(event.fromAccountId, occMs, this.perTxLimit),
-    ]);
+    // One snapshot for all five SELECTs (BL-187): they all see the same committed facts. They run
+    // one after another on the snapshot's single connection; the driver deprecates queueing
+    // several queries on one client, and PostgreSQL would execute them serially anyway.
+    const [transfers, recipients, history, reverseTransferOccurredAt, outflow] =
+      await this.facts.snapshot(
+        async facts =>
+          [
+            await facts.velocity(event.fromAccountId, event.transferId, occMs),
+            await facts.newRecipientCount(event.fromAccountId, occMs),
+            await facts.history(event.fromAccountId, occMs),
+            await facts.reverseTransfer(event.fromAccountId, event.toAccountId, occMs),
+            await facts.outflow24h(event.fromAccountId, occMs, this.perTxLimit),
+          ] as const,
+      );
     // Preserve the reference R1 contract even when the current row is not visible.
     const current = transfers.includesCurrent ? 0 : 1;
     const txCount10m = transfers.tenMinutes + current;

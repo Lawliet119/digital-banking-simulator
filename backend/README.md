@@ -301,6 +301,8 @@ expect(report.status).toBe('PASS');
 expect(report.violations).toEqual([]);
 ```
 
+Test nghiệp vụ có tiền dùng helper chung `test/support/ledger-invariants.ts` (BL-127): `expectLedgerInvariants(target)` nhận `QueryRunner` hoặc `DataSource`, gọi hàm trên rồi assert không violation, `PASS` và tổng số dư `0` (báo cáo vi phạm nằm trong thông báo lỗi của test); `expectLedgerInvariantsAfterEach(() => db?.runner)` đăng ký `afterEach` kiểm sổ sau mỗi test của `describe`. Không dùng cho test tự chèn `transfers`/`ledger_entries` lệch ý đồ (fixture `TransferFixture`, test corruption) vì sổ của chúng không cân theo thiết kế.
+
 Hàm không tạo kết nối, log, đổi timeout hoặc mở/commit/rollback transaction. Dùng cùng runner để kiểm dữ liệu của transaction caller; kết nối khác chỉ nhìn dữ liệu đã commit. Test cố ý làm lệch assert FAIL rồi rollback/drop DB tạm, không ép thành PASS bằng sửa/xóa sổ.
 
 CLI chỉ đọc `NODE_ENV`, `DATABASE_URL`, `DATABASE_SSL`, `DATABASE_SSL_CA_PATH` và bộ `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (như task ECS), không cần Redis/SQS/Cognito. `DATABASE_URL` không rỗng luôn thắng; không có thì CLI ghép URL từ `DB_*` bằng `composeDatabaseUrl` của ứng dụng (mật khẩu được mã hóa URL). Lỗi cấu hình in `{"status":"ERROR","kind":"INVALID_CONFIG","invalid":[…]}` với **tên** biến sai (ví dụ `["DB_PORT"]`), không bao giờ in giá trị, đường dẫn hay URL. Luật TLS dùng validator hiện có: staging/production bắt buộc TLS và xác minh chứng chỉ; CA tùy chọn qua đường dẫn cấu hình. Query key `ssl*` và `uselibpqcompat` trong URL bị từ chối để không ghi đè CA/xác minh. ERROR chỉ có loại lỗi và SQLSTATE/network code được phép, không in URL, password, SQL hoặc stack.

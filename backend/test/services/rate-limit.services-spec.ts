@@ -9,6 +9,7 @@ import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { startLatencyProxy } from '../support/latency-proxy';
 import { startPostgresContainer, stopPostgresContainer } from '../support/postgres.container';
 import { startValkeyContainer, type StartedValkey } from '../support/valkey.container';
+import { expectLedgerInvariantsAfterEach } from '../support/ledger-invariants';
 
 type App = Awaited<ReturnType<typeof startDepositApp>>;
 type Row = Awaited<ReturnType<typeof seedDepositTarget>>;
@@ -100,6 +101,8 @@ describe('DBS-89 rate limit against Valkey and PostgreSQL', () => {
     await valkey?.stop().catch(() => undefined);
     await stopPostgresContainer();
   }, 120_000);
+
+  expectLedgerInvariantsAfterEach(() => db?.runner);
 
   describe('TRUST_PROXY_HOPS = 0 (no proxy in front)', () => {
     let app: App;

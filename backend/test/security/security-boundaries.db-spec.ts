@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { startDepositApp, seedDepositTarget, type DepositApp } from '../support/deposit-app';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+import { expectLedgerInvariantsAfterEach } from '../support/ledger-invariants';
 
 type Row = Record<string, unknown>;
 
@@ -32,6 +33,8 @@ describe('DBS-158 security boundaries on the real app and PostgreSQL', () => {
 
   const INTERNALS =
     /\bstack\b|at \S+ \(|node_modules|\.ts:\d+|\bSELECT\b[^.]*\bFROM\b|\bINSERT INTO\b|\bUPDATE \w+ SET\b|QueryFailed|\bpg_\w+|ECONN|relation "/i;
+
+  expectLedgerInvariantsAfterEach(() => db?.runner);
 
   it('TC-158-01 DoD 2: 401, 403, 404 and 400 are application/problem+json with a correlationId and no internals', async () => {
     const victim = await seedDepositTarget(db.runner);
