@@ -1,6 +1,6 @@
 # DBS-164 · Runbook DLQ: xem message, redrive, bỏ qua có ghi nhận
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev (docs) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-164-dlq-runbook` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (sau G4) · **Vai:** Dev (docs) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-164-dlq-runbook` · **PR:** [#198](https://github.com/Lawliet119/digital-banking-simulator/pull/198) · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
