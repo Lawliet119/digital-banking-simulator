@@ -378,9 +378,11 @@ npm run seed -- --url http://127.0.0.1:3000 --key-dir .auth-local
 
 #### Chạy trên Cloud / Staging (`AUTH_MODE=cognito`):
 Trên môi trường cloud, `dev-auth` bị vô hiệu hóa vì lý do bảo mật. Cần token cho 4 vai trò demo, truyền bằng **biến môi trường**. Token trên argv lộ qua `ps` và lịch sử shell nên các cờ `--operator-token`, `--customer{1,2,3}-token` đã **lỗi thời** (BL-252): vẫn chạy, in cảnh báo (chỉ nêu tên cờ), và nếu đặt cả hai thì biến môi trường thắng. Token lấy bằng `infra/scripts/demo-token.sh` cho các tài khoản do `infra/scripts/seed-cognito.sh` tạo (operator và ba khách `customer1..3` ứng với Nguyễn Minh Anh, Trần Thu Hà, Nguyễn Văn Bình theo thứ tự của kế hoạch seed). Token sống 15 phút nên lấy ngay trước khi seed:
+**Trên AWS dev, dùng `infra/scripts/seed-cloud.sh` thay vì lệnh dưới đây** (BL-252): ALB dev có chứng chỉ tự ký nên Node từ chối TLS, còn script chạy seed trong một task ECS ngay trong VPC, gọi thẳng task api qua HTTP cổng 3000 bằng `dist/scripts/seed-cloud.js` (điểm vào chỉ có `--auth cloud`, không mang công cụ ký token); chi tiết ở `infra/terraform/README.md`. Lệnh dưới đây dùng khi API đạt được bằng URL tin cậy được (ví dụ API chạy cục bộ trỏ vào Cognito):
+
 ```bash
 export AUTH_MODE=cognito
-export DBS_API_URL=https://<alb-dns>   # chứng chỉ ALB dev tự ký: xem BL-252 (1)
+export DBS_API_URL=http://127.0.0.1:3000
 export DBS_OPERATOR_TOKEN=$(bash ../infra/scripts/demo-token.sh --role operator)
 export DBS_CUSTOMER_1_TOKEN=$(bash ../infra/scripts/demo-token.sh --role customer1)
 export DBS_CUSTOMER_2_TOKEN=$(bash ../infra/scripts/demo-token.sh --role customer2)

@@ -40,7 +40,7 @@ Theo bảng ở README (dựng từ trạng thái trống). Bật tối đa 90 p
 ## 4. Seed
 
 - [ ] Tài khoản demo (nhân viên operator, auditor, admin và ba khách customer1..3) có trong Cognito: `bash infra/scripts/seed-cognito.sh --dry-run` rồi (khi chưa có) `bash infra/scripts/seed-cognito.sh`.
-- [ ] Dữ liệu demo qua API: `cd backend && npm run seed -- --auth cloud --url https://<alb>`, **token chỉ qua biến môi trường** `DBS_OPERATOR_TOKEN`, `DBS_CUSTOMER_1_TOKEN`, `DBS_CUSTOMER_2_TOKEN`, `DBS_CUSTOMER_3_TOKEN` (không dùng cờ `--*-token`: lộ trên `ps`). Giới hạn còn lại: chứng chỉ ALB tự ký (CN `dbs-dev.local`) làm Node từ chối TLS (BL-252 (1)). Ba khách customer1..3 do `seed-cognito.sh` tạo. Việc dựng từ DB trống nên không dính BL-213.
+- [ ] Dữ liệu demo qua API (sau khi api có task `RUNNING`): `AWS_PROFILE=dbs-admin bash infra/scripts/seed-cloud.sh` (thêm `--dry-run` để xem kế hoạch trước). Script chạy task ECS `dbs-seed` **trong VPC** và gọi thẳng task api qua HTTP cổng 3000, nên không dính chứng chỉ ALB tự ký (BL-252); token operator và customer1..3 tự lấy bằng `demo-token.sh` ngay trước khi chạy, không qua argv (đặt sẵn `DBS_*_TOKEN` trong môi trường thì dùng giá trị đó). Thoát 0 và in bản tóm tắt seed là đạt. Cần `apply base` và `apply session` có SG `dbs-dev-seed` và family `dbs-seed`, và image có `seed-cloud.js` (xem `infra/terraform/README.md`, mục Seed dữ liệu demo trên cloud). Ba khách customer1..3 do `seed-cognito.sh` tạo. Việc dựng từ DB trống nên không dính BL-213.
 
 ## 5. Token demo
 

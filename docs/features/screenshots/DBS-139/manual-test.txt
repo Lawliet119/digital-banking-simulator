@@ -847,3 +847,30 @@ Ghi chú M-139-09: lần destroy đầu (16:12:16) KHÔNG xóa gì: scratchpad d
 script của họ (state key khác), terraform dừng ở bước hỏi xác nhận (EOF) và thoát 1. Lần 2 dùng script riêng dbs139-tf.sh, cùng
 bộ biến, xóa đủ 30 tài nguyên. Thời gian bật: apply bắt đầu 16:02:18, destroy xong 16:18:18 (≈ 16 phút, dưới trần 90 phút).
 Tổng chi phí ước tính của phiên: 16 phút × ≈ 0,09 USD/giờ ≈ 0,025 USD (số thật xem Cost Explorer ngày hôm sau, billing trễ).
+
+
+===== Phiên AWS 2026-11-14 (IAM user dev1 sau khi gỡ khỏi dbs-dev, BL-265) =====
+12:12:36  terraform apply session (image 4afac286915c5727d0d2bf6fb10cf055e5d13a04): 40 added, xong 12:22:00
+          aws_lb.main 2m11s, aws_elasticache_replication_group.main 7m39s, aws_db_instance.main 8m47s
+migrate.sh lần 1: 58s, thoát 0, log task: 18 migration "has been executed successfully",
+          gồm CreateDbRolesAndGrants1793664000000 (ALTER VIEW ... OWNER TO dbs_migrator) mà không cần GRANT (BL-195)
+migrate.sh lần 2: 58s, thoát 0, log: "No migrations are pending" (BL-109 M-68-04)
+apply desired_count=1 worker_desired_count=1: 20s; /health/ready 200 sau 24s
+/health/live  {"status":"ok"} [200]
+/health/ready {"status":"ok","info":{"database":{"status":"up"}},...,"redis":"up"} [200]   (BL-038, BL-106, BL-116)
+task worker: log /dbs/dev/worker stream worker/worker/<task>, khởi động bằng dbs-dev-worker-execution (BL-242 (3))
+seed-cognito.sh (container Linux): OK operator, auditor, admin, customer1, customer2, customer3
+demo-token.sh: 4 token; GET /v1/operator/accounts?q=a không token 401, token operator 200 (BL-100)
+npm run seed -- --auth cloud qua ALB: rc=0, 6s, 3 khách, 4 nạp, 2 chuyển, "total ledger balance = 0"
+POST /v1/transfers 45.000.000đ từ tài khoản mới (số dư 48.000.000đ): 201 COMPLETED;
+          GET /v1/operator/fraud-flags/<id> 200 sau 4s: score 65, MEDIUM, OPEN, ruleSetVersion 1 (AC-9.1, SLO tx→cờ < 5s; BL-247 nhóm B)
+ECS one-off node dist/scripts/invariants/invariants.js: exitCode 0,
+          {"status":"PASS","totals":{"debit":"132500000","credit":"132500000","balance":"0"},"violations":[]} (BL-128)
+CloudWatch DBS/Backend có metric thật: http_*, outbox_oldest_unpublished_age_seconds, outbox_quarantined_events,
+          redis_fallback_total{Role}, rate_limited_total, risk_decision_total{Role,AiStatus}, risk_transfer_to_flag_ms{Role},
+          reconciliation_runs_total{Role,Status}, consumer_message_total{Role,Consumer,Outcome}, risk_config_redis_fallback_total (BL-152, BL-263)
+14:06:27  sqs send-message (dev1) vào dbs-dev-risk-events body sai schema
+          worker log: consumer=risk outcome=dead_letter receiveCount=1 reason=invalid_event issueCodes=[MISSING_FIELD] (BL-209)
+          alarm dbs-dev-risk-dlq-not-empty: OK -> ALARM sau 244s (BL-051); sau đó purge DLQ (dev1, trong allow-list BL-241)
+14:27:42  terraform destroy session: 43 destroyed, 484s
+verify-clean.sh: KET LUAN: sạch (13 loại)

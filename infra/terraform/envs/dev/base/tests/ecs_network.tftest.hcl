@@ -85,3 +85,33 @@ run "exports_for_session" {
     error_message = "log group name and arn must be exported"
   }
 }
+
+# BL-252: SG của task seed một lần: không ingress, chỉ đi ra 443 và tới SG api ở 3000; SG api nhận thêm đúng SG seed
+run "seed_security_group" {
+  command = apply
+
+  assert {
+    condition     = aws_security_group.seed.name == "dbs-dev-seed" && aws_security_group.seed.vpc_id == aws_vpc.main.id
+    error_message = "BL-252: seed security group dbs-dev-seed lives in the dev VPC"
+  }
+
+  assert {
+    condition     = length(aws_security_group.seed.ingress) == 0
+    error_message = "BL-252: the seed task accepts no inbound traffic"
+  }
+
+  assert {
+    condition     = aws_vpc_security_group_egress_rule.seed_https.from_port == 443 && aws_vpc_security_group_egress_rule.seed_https.to_port == 443 && aws_vpc_security_group_egress_rule.seed_https.cidr_ipv4 == "0.0.0.0/0"
+    error_message = "BL-252: seed egress to AWS APIs is tcp 443"
+  }
+
+  assert {
+    condition     = aws_vpc_security_group_egress_rule.seed_to_api.from_port == 3000 && aws_vpc_security_group_egress_rule.seed_to_api.to_port == 3000 && aws_vpc_security_group_egress_rule.seed_to_api.ip_protocol == "tcp" && aws_vpc_security_group_egress_rule.seed_to_api.referenced_security_group_id == aws_security_group.api.id && aws_vpc_security_group_egress_rule.seed_to_api.cidr_ipv4 == null
+    error_message = "BL-252: seed egress to the api is tcp 3000 to the api security group only"
+  }
+
+  assert {
+    condition     = aws_vpc_security_group_ingress_rule.api_from_seed.from_port == 3000 && aws_vpc_security_group_ingress_rule.api_from_seed.to_port == 3000 && aws_vpc_security_group_ingress_rule.api_from_seed.ip_protocol == "tcp" && aws_vpc_security_group_ingress_rule.api_from_seed.referenced_security_group_id == aws_security_group.seed.id && aws_vpc_security_group_ingress_rule.api_from_seed.cidr_ipv4 == null
+    error_message = "BL-252: api accepts tcp 3000 from the seed security group only (no CIDR)"
+  }
+}

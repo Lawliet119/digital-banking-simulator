@@ -8,6 +8,6 @@
     "**/*.spec.ts",
     "src/scripts/dev-auth*.ts",
     "src/scripts/manual-smoke*.ts",
-    "src/scripts/seed*.ts"
+    "src/scripts/seed.ts"
   ]
 }

@@ -144,6 +144,8 @@ Rủi ro và cách lùi: lùi bằng revert commit (không đổi schema, không
 
 ## 8. Kết quả
 
+- **Quyết định techlead 2026-11-14 (BL-107 đóng):** RDS xoay mật khẩu master 7 ngày một lần được **chấp nhận ở dev**: môi trường chỉ dựng từng phiên ngắn rồi xóa, nên chưa phiên nào sống qua một lần xoay. Hướng lâu dài là app dùng role DB riêng với mật khẩu do mình quản lý (BL-103), không dựa vào secret master.
+
 - **Lệnh kiểm tra** (SHA code cuối `200e041`, sau rebase là `f221a21`, cùng nội dung): `npm test` **490/490** (31 suite, 0 skipped), `npm run lint:check` sạch, `npm run typecheck` sạch, `npm run build` xanh; `terraform test` ở `session` **15/15**, `terraform fmt -check` sạch; `check-doc-links.mjs` 0 link hỏng. Lúc G4 (2026-10-29) chạy lại `npm test` 490/490, lint, typecheck và `check-doc-links.mjs`: xanh; không chạy lại `terraform test` (máy không có terraform).
 - **Đối chiếu test case:**
 

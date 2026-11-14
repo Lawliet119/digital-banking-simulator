@@ -64,6 +64,13 @@ override_resource {
   }
 }
 
+override_resource {
+  target = aws_iam_role.seed_execution
+  values = {
+    arn = "arn:aws:iam::123456789012:role/dbs-dev-seed-execution"
+  }
+}
+
 # master_user_secret là list computed: mock để rỗng làm output `[0]` lỗi; cấp giá trị giả hợp lệ.
 override_resource {
   target = aws_db_instance.main

@@ -179,6 +179,36 @@ describe('DBS-135 an auditor traces one transfer end to end by its correlationId
     expect(await q('SELECT 1 FROM audit_log WHERE correlation_id = $1', [attacker])).toEqual([]);
   });
 
+  it('BL-226 an operator views the flag before reviewing: the view is a step of the chain, in order', async () => {
+    const { transferId, code } = await completedAndFlagged();
+    const viewed = await request(app.url)
+      .get(`/v1/operator/fraud-flags/${transferId}`)
+      .auth(operatorToken, { type: 'bearer' })
+      .expect(200);
+    const viewRequestId = String(viewed.headers['x-correlation-id']);
+    expect(viewRequestId).not.toBe(code);
+    const reviewed = await review(transferId).expect(200);
+
+    const entries = await chain(code);
+    // Newest first: review, view, then the worker lines (their relative order is not promised),
+    // and the transfer request opens the chain.
+    expect(entries).toHaveLength(CHAIN.length + 1);
+    expect(entries.every(e => e.correlationId === code && e.target.id === transferId)).toBe(true);
+    expect(entries[0].action).toBe('fraud_flag.review');
+    expect(entries[1].action).toBe('fraud_flag.view');
+    expect(entries[entries.length - 1].action).toBe('transfer');
+    expect(entries.map(e => e.action).sort()).toEqual([...CHAIN, 'fraud_flag.view'].sort());
+    // The view keeps the id of its own request, as the review does.
+    expect(entries[1].metadata).toEqual({ id: viewRequestId });
+    expect(entries[0].metadata).toEqual({
+      reason: 'CONFIRMED_FRAUD',
+      id: String(reviewed.headers['x-correlation-id']),
+    });
+    expect(JSON.stringify(entries)).not.toMatch(/riskLevel|score|"R[1-6]"|probability/);
+    // The request's own code is not a chain code: nothing is filed under it.
+    expect((await chain(viewRequestId)).filter(e => e.action === 'fraud_flag.view')).toEqual([]);
+  });
+
   it('TC-135-04 an unknown code finds nothing; looking the chain up again changes nothing', async () => {
     const { transferId, code } = await completedAndFlagged();
     await review(transferId).expect(200);

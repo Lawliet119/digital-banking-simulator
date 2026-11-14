@@ -291,6 +291,33 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
       expect(audit[0].actor_user_id).toBeTruthy();
     }
   });
+  it('BL-226 files the view under the transfer code and keeps the request code in metadata.id', async () => {
+    const id = await seed('2026-10-21T01:00:00.000001Z');
+    const res = await get(`/${id}`).expect(200);
+    const requestCode = res.headers['x-correlation-id'];
+    const [transfer] = await q('SELECT correlation_id FROM transfers WHERE id=$1', [id]);
+    expect(requestCode).toBeTruthy();
+    expect(requestCode).not.toBe(transfer.correlation_id);
+    const audit = await q(
+      `SELECT metadata,correlation_id FROM audit_log WHERE action='fraud_flag.view' AND target_id=$1`,
+      [id],
+    );
+    expect(audit).toEqual([
+      { correlation_id: transfer.correlation_id, metadata: { id: requestCode } },
+    ]);
+    // Same as the review line: a lookup by the request's own code no longer finds it.
+    expect(await q('SELECT 1 FROM audit_log WHERE correlation_id=$1', [requestCode])).toEqual([]);
+  });
+  it('BL-226 leaves the list audit under the request code: a list is not one transaction', async () => {
+    const res = await get().expect(200);
+    const requestCode = res.headers['x-correlation-id'];
+    const audit = await q(
+      `SELECT target_id,correlation_id,metadata FROM audit_log WHERE action='fraud_flag.search' AND correlation_id=$1`,
+      [requestCode],
+    );
+    expect(audit).toHaveLength(1);
+    expect(audit[0].target_id).toBe(requestCode);
+  });
   it('fails closed for list/detail and rolls review back when real audit INSERT fails', async () => {
     const id = await seed('2026-10-22T00:00:00.000001Z');
     await q(
@@ -429,6 +456,14 @@ describe('DBS-129/130 restricted dbs_api HTTP', () => {
         [id],
       );
       expect(chain.review_code).toBe(chain.transfer_code);
+      // BL-226: the view line lands under the transfer's code too, with the real runtime grants.
+      const [view] = await fixture.owner.query(
+        `SELECT a.correlation_id AS view_code, a.metadata FROM audit_log a
+           WHERE a.target_id=$1::text AND a.action='fraud_flag.view'`,
+        [id],
+      );
+      expect(view.view_code).toBe(chain.transfer_code);
+      expect(view.metadata).toEqual({ id: detail.headers['x-correlation-id'] });
     } finally {
       await fixture.close();
     }
