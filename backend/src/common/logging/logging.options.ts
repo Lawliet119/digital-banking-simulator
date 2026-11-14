@@ -46,6 +46,10 @@ const PRIVATE_EXACT_KEYS = new Set([
   'dsn',
   'signature',
   'auth',
+  // Personal data (BL-024): `customers.full_name` and the DTO names built from it.
+  'fullname',
+  'ownername',
+  'customername',
 ]);
 const PRIVATE_KEY_SUFFIXES = ['accountno', 'accountnum', 'cardno', 'cardnum', 'pin', 'otp', 'cvc'];
 const OMITTED_KEYS = new Set([
@@ -251,6 +255,63 @@ function callerFields(value: object): Record<string, unknown> {
   );
 }
 
+/** Bindings that identify the context. They are bound once and then never replaced. */
+const CONTEXT_KEYS = ['role', 'correlationId'] as const;
+/** What a correlationId bound by other code becomes when it is not a UUID. */
+export const INVALID_CORRELATION = '[Invalid]';
+const BINDING_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseChindings(chindings: unknown): Record<string, unknown> {
+  if (typeof chindings !== 'string' || chindings === '') return {};
+  const parsed: unknown = JSON.parse(`{${chindings.slice(1)}}`);
+  return parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+}
+
+function isBound(value: unknown): boolean {
+  return value !== undefined && value !== null;
+}
+
+function validContextValue(key: (typeof CONTEXT_KEYS)[number], value: unknown): boolean {
+  return key === 'role'
+    ? value === 'api' || value === 'worker'
+    : typeof value === 'string' && BINDING_UUID.test(value);
+}
+
+/**
+ * Pino writes the bindings of `child()` as given, joined to the parent's, so two bindings of
+ * `correlationId` would be two keys in the line, and a secret in a binding would be written in
+ * every later line. `onChild` runs right after a child is made: this rebuilds its bindings as one
+ * object. `role` and `correlationId` keep the value the parent already bound (a context is bound
+ * once), take the child's only when it is valid and the parent had none; an invalid role is left to
+ * the mixin and an invalid correlationId becomes the marker `[Invalid]`; the envelope keys of the line are dropped; everything else is masked like a log
+ * object. Failing means the child keeps only what its parent had: it must never throw into the
+ * code that asked for a child.
+ */
+function cleanChildBindings(child: unknown): void {
+  const record = child as Record<symbol, unknown>;
+  const parent = Object.getPrototypeOf(child) as Record<symbol, unknown>;
+  try {
+    const inherited = parseChindings(parent[pino.symbols.chindingsSym]);
+    const own = parseChindings(record[pino.symbols.chindingsSym]);
+    const merged = sanitize(own) as Record<string, unknown>;
+    for (const key of ['level', 'time', 'message', 'msg', 'appRole']) delete merged[key];
+    for (const key of CONTEXT_KEYS) {
+      delete merged[key];
+      if (isBound(inherited[key])) merged[key] = inherited[key];
+      else if (validContextValue(key, own[key])) merged[key] = own[key];
+      else if (key === 'correlationId' && own[key] === null) merged[key] = null;
+      // Not written (it could be anything), but not silently dropped either: the outbox writer
+      // reads the binding and must refuse a producer running in a broken context (TC-57-07).
+      else if (key === 'correlationId' && own[key] !== undefined) merged[key] = INVALID_CORRELATION;
+    }
+    if (isBound(inherited.appRole)) merged.appRole = inherited.appRole;
+    const text = JSON.stringify(merged).slice(1, -1);
+    record[pino.symbols.chindingsSym] = text === '' ? '' : `,${text}`;
+  } catch {
+    record[pino.symbols.chindingsSym] = parent[pino.symbols.chindingsSym];
+  }
+}
+
 function placeholderCount(template: string): number {
   return (template.replace(/%%/g, '').match(/%[sdifjoOc]/g) ?? []).length;
 }
@@ -264,6 +325,40 @@ function render(template: string, extras: unknown[]): string {
   return safeMessage(format(template, ...used), budget);
 }
 
+/**
+ * Fixed messages that Nest and TypeORM write about their own failures (BL-026), by the `context`
+ * they log under. The error text of such a failure can hold SQL or a credential, so by default only
+ * `Diagnostic event` is written; a message that matches here is the exception and is written word
+ * for word. A pattern may hold no free text: only the digits of a retry counter and identifiers
+ * (`[\w$]`, class names) fill its gaps, never `=`, quotes, URIs or spaces beyond the fixed words.
+ * A pattern that is not closed with `$` is a prefix: the text after the match is dropped.
+ */
+const INTERNAL_MESSAGES: Readonly<Record<string, readonly RegExp[]>> = {
+  TypeOrmModule: [/^Unable to connect to the database\. Retrying \(\d{1,3}\)\.\.\.$/],
+  ExceptionHandler: [
+    /^Nest can't resolve dependencies of the [\w$]+ \([\w$?+, ]*\)\. Please make sure that the argument (?:[\w$.]+ )?at index \[\d{1,3}\] is available in the [\w$]+ module\./,
+    /^Nest cannot create the [\w$]+ instance\./,
+    /^Nest cannot export a provider\/module that is not a part of the currently processed module \([\w$]+\)\./,
+  ],
+};
+const MAX_INTERNAL_MESSAGE = 2048;
+
+/** The allowlisted text of `fields.err` for `fields.context`, or undefined. Never throws. */
+function internalMessage(fields: Record<string, unknown>): string | undefined {
+  return guarded(() => {
+    const context = fields.context;
+    const error = fields.err;
+    if (typeof context !== 'string' || !Object.hasOwn(INTERNAL_MESSAGES, context)) return undefined;
+    if (!(error instanceof Error) || typeof error.message !== 'string') return undefined;
+    if (error.message.length > MAX_INTERNAL_MESSAGE) return undefined;
+    for (const pattern of INTERNAL_MESSAGES[context]) {
+      const match = pattern.exec(error.message);
+      if (match) return safeMessage(match[0]);
+    }
+    return undefined;
+  }, undefined);
+}
+
 /** The one place a log call's arguments are rebuilt: always `[message]` or `[fields, message]`. */
 function prepareArgs(args: unknown[]): [string] | [object, string] {
   const [first, second] = args;
@@ -273,7 +368,12 @@ function prepareArgs(args: unknown[]): [string] | [object, string] {
   if (first === null || typeof first !== 'object') return ['Diagnostic event'];
   const fields =
     first instanceof Error || isErrorRecord(first) ? { err: first } : callerFields(first);
-  return [fields, typeof second === 'string' ? render(second, args.slice(2)) : 'Diagnostic event'];
+  return [
+    fields,
+    typeof second === 'string'
+      ? render(second, args.slice(2))
+      : (internalMessage(fields) ?? 'Diagnostic event'),
+  ];
 }
 
 /**
@@ -341,8 +441,9 @@ export function createLoggingOptions(settings: LoggingSettings): Options {
       };
     },
     // Pino runs a `bindings` formatter only on `base` and resets it for every child logger, so
-    // bindings added by `child()`, `assign()` or `runInContext` are not filtered here. That is the
-    // boundary with DBS-43: it must bind each context once and keep sensitive data out of it.
+    // bindings added by `child()`, `assign()` or `runInContext` never reach it. `onChild` is the
+    // hook that does: it rebuilds each child's bindings once (see cleanChildBindings).
+    onChild: cleanChildBindings,
     formatters: {
       log: object =>
         guarded(() => sanitize(object) as Record<string, unknown>, {

@@ -46,6 +46,43 @@ describe('env.bootstrap (TC-67-06)', () => {
     expect(output).not.toContain('p%40ss');
   });
 
+  it('BL-026 turns an error thrown while loading into one fixed JSON fatal line and exit 1', () => {
+    const written: string[] = [];
+    const write = jest.fn((_fd: number, data: string) => {
+      written.push(String(data));
+      return 0;
+    });
+    const exit = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    const stderr = jest.spyOn(process.stderr, 'write').mockReturnValue(true);
+    process.env = { NODE_ENV: 'test', APP_ROLE: 'worker' };
+    jest.isolateModules(() => {
+      jest.doMock('node:fs', () => ({
+        ...jest.requireActual<typeof import('node:fs')>('node:fs'),
+        writeSync: write,
+      }));
+      jest.doMock('./load-env', () => ({
+        loadEnv: () => {
+          throw new Error('EACCES: sensitive-path-fixture C:\\secrets\\.env');
+        },
+      }));
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- the module runs on load
+      require('./env.bootstrap');
+    });
+    jest.dontMock('./load-env');
+    jest.dontMock('node:fs');
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(written[0])).toMatchObject({
+      level: 60,
+      role: 'worker',
+      appRole: 'worker',
+      correlationId: null,
+      message: 'Environment bootstrap failed',
+    });
+    expect(written.join('')).not.toContain('sensitive-');
+    expect(stderr).not.toHaveBeenCalled();
+  });
+
   it('stays silent when DB_HOST is not configured', () => {
     const write = jest.spyOn(process.stderr, 'write').mockReturnValue(true);
     bootstrap({});

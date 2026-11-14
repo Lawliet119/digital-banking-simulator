@@ -7,6 +7,7 @@ import { PinoLogger } from 'nestjs-pino';
 import type { EntityManager } from 'typeorm';
 import { runsWorkers } from '@common/app-role/app-role';
 import { validateEvent, type DomainEvent } from '@common/events';
+import { runInLogContext } from '@common/logging/log-context';
 import { safeErrorMetadata } from '@common/logging/logging.options';
 import { PollingLoop } from '@common/utils/polling-loop';
 import { TransactionService } from '@database/transaction.service';
@@ -193,7 +194,7 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, BeforeAppl
     const event = checked.event;
     // The whole attempt, failure handling included, runs in the event's context, so the logs of a
     // failed attempt (backoff, DLQ decision) carry its correlationId too.
-    await this.pino.runInContext(
+    await runInLogContext(
       async () => {
         try {
           await this.process(event);
@@ -216,7 +217,7 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, BeforeAppl
           throw error;
         }
       },
-      { bindings: { role: 'worker', correlationId: event.correlationId } },
+      { role: 'worker', correlationId: event.correlationId },
     );
   }
 

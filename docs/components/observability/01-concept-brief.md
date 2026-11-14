@@ -19,7 +19,7 @@ Cần biết hệ thống khỏe hay không và truy vết một giao dịch xuy
 
 ## Ý tưởng
 
-- Log JSON có `correlationId` ở mọi dòng.
+- Log JSON có `correlationId` ở mọi dòng. Một hàm bind chung (`runInLogContext`, `common/logging/log-context.ts`) gắn `role` và `correlationId` đúng một lần cho HTTP, consumer và tác vụ nền (`role=worker` kể cả trong `APP_ROLE=both`); binding do code khác tạo bị khử trùng khoá và che dữ liệu nhạy cảm; `PinoLogger` và `req.log` bị ESLint chặn ngoài module logging (BL-024). Lỗi nội bộ Nest/TypeORM chỉ ghi nguyên văn các thông điệp cố định trong allowlist theo `context`, và cảnh báo `process.emitWarning` đi qua logger JSON (BL-026). Chi tiết: [DBS-42](../../features/DBS-42-json-logger.md), `backend/README.md` §8.
 - SLI: tỉ lệ chuyển tiền thành công, latency p95/p99, thời gian tới cờ, DLQ, kết quả đối soát, Redis fallback.
 - Dashboard và alarm cho các SLI trên; SLO chính thức chốt ở P4.
 
