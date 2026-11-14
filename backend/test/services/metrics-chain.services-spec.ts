@@ -11,6 +11,7 @@ import { OUTBOX_AGE_METRIC, OutboxAgeGauge } from '@modules/outbox/outbox-age.ga
 import { startElasticMqContainer, type StartedElasticMq } from '../support/elasticmq.container';
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+import { expectLedgerInvariantsAfterEach } from '../support/ledger-invariants';
 
 const pino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
 
@@ -81,6 +82,8 @@ describe('metrics across API, outbox and relay (real PostgreSQL + ElasticMQ)', (
     if (oldSecret === undefined) delete process.env.AWS_SECRET_ACCESS_KEY;
     else process.env.AWS_SECRET_ACCESS_KEY = oldSecret;
   });
+
+  expectLedgerInvariantsAfterEach(() => source);
 
   it('TC-144-12 a deposit is measured by its route, the waiting outbox row ages, the relay brings it back to 0', async () => {
     const operatorSub = randomUUID();

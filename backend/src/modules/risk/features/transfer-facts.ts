@@ -17,6 +17,29 @@ export interface Queryable {
   query(sql: string, params?: unknown[]): Promise<unknown>;
 }
 
+/** A `Queryable` that can lend out one dedicated connection: a TypeORM `DataSource`. */
+interface ConnectionSource extends Queryable {
+  createQueryRunner(): {
+    connect(): Promise<unknown>;
+    query(sql: string, params?: unknown[]): Promise<unknown>;
+    release(): Promise<void>;
+  };
+}
+
+const hasConnections = (db: Queryable): db is ConnectionSource =>
+  typeof (db as Partial<ConnectionSource>).createQueryRunner === 'function';
+
+/**
+ * One statement string on purpose (no parameters, so PostgreSQL's simple protocol accepts several):
+ * a single round trip opens the snapshot and bounds it. `READ ONLY` makes a stray write fail with
+ * 25006; the idle timeout stops a stalled worker from pinning a snapshot (and so VACUUM) forever.
+ * Both timeouts are `set_config(..., is_local => true)`: they end with the transaction and never
+ * leak to the next user of the pooled connection.
+ */
+const BEGIN_SNAPSHOT_SQL = `START TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+SELECT set_config('statement_timeout', '5000ms', true),
+       set_config('idle_in_transaction_session_timeout', '10000ms', true)`;
+
 export interface TransferStamp {
   readonly id: string;
   /** `created_at` cut to milliseconds, as epoch milliseconds. */
@@ -121,6 +144,44 @@ type Row = Record<string, unknown>;
 
 export class TransferFacts {
   constructor(private readonly db: Queryable) {}
+
+  /**
+   * Runs `read` so that every query it makes through the `TransferFacts` it receives sees ONE
+   * snapshot of the committed facts (BL-187): a `REPEATABLE READ READ ONLY` transaction on one
+   * dedicated connection. Without it, each query is its own autocommitted statement on its own
+   * pooled connection, and a transfer committing between two of them is counted by one feature
+   * and missed by another (R1 and R5 of the same extraction would then describe different worlds).
+   *
+   * The queries inside `read` share one connection, so `read` must await them one at a time (the
+   * driver deprecates queueing several on one client) and PostgreSQL runs them in that order; the
+   * pool no longer fans five statements out to five connections.
+   *
+   * A `Queryable` that cannot lend a connection (a `QueryRunner`, a test double) is already one
+   * connection chosen by the caller; `read` then gets `this` and snapshotting is the caller's job.
+   * Any failure rolls the transaction back, releases the connection and rejects: nothing partial.
+   */
+  async snapshot<T>(read: (facts: TransferFacts) => Promise<T>): Promise<T> {
+    if (!hasConnections(this.db)) return read(this);
+    const runner = this.db.createQueryRunner();
+    try {
+      await runner.connect();
+      await runner.query(BEGIN_SNAPSHOT_SQL);
+      try {
+        const result = await read(new TransferFacts(runner));
+        await runner.query('COMMIT');
+        return result;
+      } catch (error) {
+        try {
+          await runner.query('ROLLBACK');
+        } catch {
+          // The failure of `read` is the useful one; a dead connection cannot roll back anyway.
+        }
+        throw error;
+      }
+    } finally {
+      await runner.release();
+    }
+  }
 
   private async rows(query: Query): Promise<Row[]> {
     return (await this.db.query(query.sql, query.params)) as Row[];

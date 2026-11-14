@@ -21,8 +21,18 @@ Lệnh từ `backend/`: `npm run lint:check`, `npm run typecheck`, `npm test -- 
 
 Chọn tính từ fact đã commit thay vì duy trì cache thứ tự nhận event: đúng với các ca tái hiện và không thay event, schema hay logic tiền. Test không chứng minh tải production; CI và Dev review còn chờ.
 
-## Rủi ro vận hành còn lại
+## Snapshot và đo cục bộ (BL-187)
 
-Mỗi extract chạy song song **5 SELECT độc lập**, không nằm trong decision transaction và không có chung snapshot. Commit đồng thời có thể được thấy khác nhau giữa feature; regression tuần tự không chứng minh snapshot nhất quán hay cạnh tranh. Không đổi transaction nghiệp vụ trong bản sửa này.
+**Snapshot.** `OnlineFeatureProvider.extract` mở `TransferFacts.snapshot`: một transaction `REPEATABLE READ READ ONLY` trên một connection riêng (`statement_timeout` 5 giây, `idle_in_transaction_session_timeout` 10 giây, đặt `is_local`), chạy lần lượt năm SELECT rồi `COMMIT`; lỗi thì `ROLLBACK`, trả connection về pool và `extract` reject, không chấm điểm từ feature thiếu. Một transfer commit ở connection khác sau khi snapshot mở không bị tính ở SELECT nào trong năm câu (trước đây mỗi câu tự commit ở connection riêng nên có thể thấy khác nhau). Test: `test/db/online-feature-snapshot.db-spec.ts` (TC-187-01..05: chèn fact sau khi snapshot mở không đổi feature; không snapshot thì hai SELECT lệch nhau; 1 connection, `START … READ ONLY`, năm SELECT, `COMMIT`; ghi bị từ chối 25006 và timeout không rò sang connection khác; lỗi giải phóng connection). Các regression đảo thứ tự và replay (`risk-feature-order`, `online-feature-provider`, `risk-scoring`) giữ nguyên kết quả. Queryable không cho mượn connection (`QueryRunner`, test double) chạy như cũ, snapshot là việc của người gọi.
 
-Tải DB tăng so với cache ấm; tại 120 lần extract/giây tương đương khoảng 600 feature SELECT/giây, chưa kể config/dedup/decision và retry. Đây là phép tính số lệnh, không phải benchmark. Chưa đo 120 TPS, hot-account, pool saturation hay SLO production. Cần owner/Ops chuẩn bị môi trường và đo trước rollout tải thật. Mặc định `rule_only` không đổi.
+**Đo cục bộ** (số **cục bộ**, không phải RDS: PostgreSQL 17 Testcontainers trên máy phát triển Windows/Docker, không mạng, một tiến trình đo; `npx ts-node -r tsconfig-paths/register test/manual/online-feature-provider.bench.manual.ts`). Tài khoản nóng như bài `hot-account` của k6: 18.000 fact COMPLETED trong giờ trước, 200 người nhận, pool 10; `legacy` là bản 5 SELECT song song ở 5 connection trước BL-187.
+
+| | SELECT gửi mỗi extract | connection mượn | tuần tự p50 / p95 (ms) | 20 extract/giây (open loop) p50 / p95 / p99 (ms) |
+|---|---|---|---|---|
+| legacy (trước) | 5 | tới 5 | 14,5 / 19,5 | 12,3 / 18,9 / 23,9 |
+| snapshot (nay) | 7 (BEGIN, 5 SELECT, COMMIT) | 1 | 38,6 / 46,7 | 35,0 / 45,9 / 48,4 |
+| snapshot, tài khoản không có fact | 7 | 1 | 6,3 / 9,3 | không đo |
+
+Đọc: nhất quán một snapshot làm độ trễ của một extract trên tài khoản nóng tăng khoảng 2,5 lần (năm câu chạy nối tiếp thay vì song song) nhưng giảm số connection mượn từ 5 xuống 1; p95 46 ms ở 20 extract/giây là nhỏ so với phần còn lại của đường chấm điểm bất đồng bộ. Con số đúng với tốc độ chuyển tiền thật của các bài tải (hot-account 20 chuyển/giây; baseline 120 RPS với 20% chuyển, khoảng 24 chuyển/giây): một request HTTP không phải một extract. Một lượt sơ bộ khác (tài khoản có thêm 50.000 fact lịch sử, nhiễu do máy đang chạy việc khác nên không đưa vào bảng) cho tuần tự p50 khoảng 58–65 ms (legacy) và 79 ms (snapshot); mở 120 extract/giây vào đúng một tài khoản như vậy làm hàng đợi dài hàng chục giây ở cả hai bản, tức câu `history` (quét cửa sổ 30 ngày của tài khoản) mới là phần tốn kém và nó tăng theo số fact của tài khoản, không theo snapshot.
+
+**Còn lại.** Chưa đo trên RDS: 120 extract/giây vào một tài khoản, nhiều consumer đồng thời, đối chiếu với pool và CPU RDS thật (BL-187).

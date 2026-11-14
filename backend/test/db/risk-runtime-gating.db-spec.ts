@@ -5,6 +5,7 @@ import type { RiskAiService } from '@modules/risk/ai/risk-ai.service';
 import { buildRiskConsumer, eventFor, riskFixtures } from '../support/risk-consumer';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 import { startDepositApp, type DepositApp } from '../support/deposit-app';
+import { expectLedgerInvariantsAfterEach } from '../support/ledger-invariants';
 
 /**
  * RSK-06, the parts of the DoD that no other test proves (the rest is referenced in the feature doc):
@@ -120,6 +121,8 @@ describe('RSK-06 runtime of the AI gate on PostgreSQL', () => {
       await db?.drop();
     }
   });
+
+  expectLedgerInvariantsAfterEach(() => source);
 
   it('TC-RSK06-01 DoD 4: six requests in flight while the rule set switches to AI keep their own mode; later ones use AI; nobody fails', async () => {
     lowSale = await small('thấp');

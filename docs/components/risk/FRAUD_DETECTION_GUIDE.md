@@ -616,7 +616,7 @@ Với 1% gian lận, 20 cảnh báo / 1.000 tương ứng precision khoảng 35%
 | Không ảnh hưởng chuyển tiền | Async + DLQ; worker chết thì giao dịch vẫn chạy bình thường |
 
 **Chi phí (ADR-14).**
-- Mode `rule_only` (mặc định): không gọi API ngoài nên không tốn token hay phí provider. Chi phí chỉ là CPU worker (đã nằm trong ECS chung) và 5 SELECT feature mỗi TRANSFER tới `v_transfer_facts`; tải phụ lên RDS ở 120 RPS **chưa đo** (kiến trúc risk §2.3 ước tính khoảng 600 SELECT/giây).
+- Mode `rule_only` (mặc định): không gọi API ngoài nên không tốn token hay phí provider. Chi phí chỉ là CPU worker (đã nằm trong ECS chung) và 5 SELECT feature mỗi TRANSFER tới `v_transfer_facts`; tải phụ lên RDS ở 120 RPS **chưa đo** trên RDS (kiến trúc risk §2.3; số đo cục bộ ở BUG-20261110-fraud-feature-order).
 - Mode `rules_with_external_ai`: mỗi TRANSFER được admission đều có thể gọi API, không lọc trước theo điểm luật. Có phí theo token của provider, cộng egress, secret, quota và latency. Retry hoặc hai delivery đồng thời có thể gọi thêm, không hứa exactly-once billing. Giá tham khảo trong ADR-14 ($0,10/1M token input theo trang provider ngày 2026-10-25) cần xác nhận lại; ước tính cost/1.000 TRANSFER phải ghi giả định, không phải hóa đơn thực.
 - `risk_decisions` thêm một dòng cho mọi TRANSFER (≈ 616 B/dòng đo ở RSK-01).
 - Không có chi phí train, `.onnx` hay `onnxruntime-node`: các mục này thuộc hướng ADR-08 đã bị thay.

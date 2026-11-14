@@ -73,7 +73,7 @@
    - `type = 'DEPOSIT'` → `null` (không chấm).
    - **Dedup sớm** (tối ưu, không phải bảo đảm): đã có `processed_events('risk', eventId)` hoặc `risk_decisions(transferId)` thì trả `null`, không đọc Redis hay feature.
    - `ruleSet = RuleSetRepository.current()`: Redis `cfg:risk:latest:v2`, rồi SQL.
-   - `features = OnlineFeatureProvider.extract(event)`: 5 SELECT SQL qua `v_transfer_facts`; R1/R5 aggregate không phụ thuộc thứ tự giao event.
+   - `features = OnlineFeatureProvider.extract(event)`: 5 SELECT SQL qua `v_transfer_facts` trong một snapshot `REPEATABLE READ READ ONLY` (BL-187); R1/R5 aggregate không phụ thuộc thứ tự giao event.
    - Chấm bằng `ScoringService.score(event, features, config)` theo quyết định G1-2. `config` được chọn như sau:
      - `ruleSet.aiConfigInvalid`: truyền `ruleSet` nguyên vẹn; kết quả là `rules_with_external_ai` / `CONFIG_INVALID`.
      - Mode AI với khối `ai` hợp lệ: truyền `{ ...ruleSet, mode: 'rule_only' }`; nếu truyền mode thật mà không có assessment, kết quả `UNAVAILABLE` sẽ vi phạm CHECK `mode_metadata` (23514).
