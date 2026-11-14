@@ -367,13 +367,30 @@ aws ce list-cost-allocation-tag-backfill-history
 
 > **State `base` đang lệch với `main`:** queue SQS của DBS-73 (PR #40, chưa merge) đã được apply, còn role deploy thì chưa có trong state. `terraform plan` đầy đủ từ `main` sẽ **xóa 11 tài nguyên SQS**. Tới khi DBS-73 merge, chỉ apply tag bằng `-target`: `terraform plan -out=tags.tfplan -var account_id=<account-id> -target='aws_ce_cost_allocation_tag.this'`, rồi `terraform apply tags.tfplan` ([BL-138](../../docs/BACKLOG.md)).
 
+## Môi trường production (`envs/prod/session`, DBS-152)
+
+Stack `envs/prod/session` (state key `prod/session.tfstate`) dùng lại VPC, subnet, ECR, KMS CMK `alias/dbs-dev`, SG và Cognito từ `dev/base` qua `terraform_remote_state`, và tự tạo các tài nguyên riêng để cô lập phiên: SQS + DLQ + queue policy (`dbs-prod-*`), secret Valkey (`dbs/prod/redis-auth`, `recovery_window_in_days = 0`), log group (`/dbs/prod/{api,worker}`).
+
+- **Giá trị production:** `NODE_ENV=production` (Swagger tắt), `TRUST_PROXY_HOPS=1`, `DATABASE_SSL=true`, Valkey TLS `required` (`rediss://`), RDS PostgreSQL 17 `db.t4g.small` Multi-AZ (backup 7 ngày, `rds.force_ssl=1`), Valkey 1 primary + 1 replica ghim ở 2 AZ khác nhau (`preferred_cache_cluster_azs`), `desired_count` ∈ `{0} ∪ [2, 4]`, `worker_desired_count` ∈ `[0, 2]`, tổng ≤ 6. Service `api` lăn `100%/200%` khi `desired_count <= 2` và `50%/100%` khi `> 2`.
+- **Chứng chỉ TLS:** bắt buộc truyền `certificate_arn` (ACM cùng tài khoản và vùng `ap-southeast-1`, không dùng chứng chỉ tự ký). RDS và Valkey `depends_on` listener HTTPS để fail-fast nếu chứng chỉ không hợp lệ.
+- **Lưu ý dùng chung `dev/base`:**
+  - Dùng chung Cognito user pool: tài khoản demo dev và token dev dùng được trên prod.
+  - App phát EMF vào cùng namespace `DBS/Backend` (chưa có chiều môi trường): **không chạy dev và prod cùng lúc** khi đo SLO.
+  - Dùng chung CMK `alias/dbs-dev`: không xóa CMK ở `dev/base` khi còn snapshot hoặc secret của prod.
+- **Teardown hai bước** (`termination_protection` mặc định `true`):
+  1. `terraform apply -var termination_protection=false -var account_id=<id> -var state_bucket=<bucket> -var image_tag=<sha> -var certificate_arn=<arn>`
+  2. `terraform destroy -var termination_protection=false -var account_id=<id> -var state_bucket=<bucket> -var image_tag=<sha> -var certificate_arn=<arn>`
+  3. `AWS_PROFILE=dbs-admin bash infra/scripts/verify-clean.sh`
+  (Nếu `apply` lỗi giữa chừng, chạy `destroy -var termination_protection=false` rồi `verify-clean.sh`. Nếu ai đó tắt bảo vệ ngoài Terraform để lại snapshot `dbs-prod-final`, cần xóa snapshot thủ công trước lần `destroy` sau.)
+- **Chi phí ước tính:** ≈ 0,30 USD/giờ khi bật ([ADR-11](../../docs/adr/0011-aws-managed-session-based.md)); kiểm tra cấu hình ngoại tuyến bằng `node infra/scripts/check-prod-config.mjs <plan.json | --self-test>`.
+
 ## Kiểm tra trước khi push
 
 ```bash
 terraform fmt -check -recursive
-for d in bootstrap envs/dev/base envs/dev/session; do (cd $d && terraform init -backend=false && terraform validate && terraform test); done
+for d in bootstrap envs/dev/base envs/dev/session envs/prod/session; do (cd $d && terraform init -backend=false && terraform validate && terraform test); done
 ```
 
-CI chạy đúng các lệnh này ở job `terraform` của [`ci.yml`](../../.github/workflows/ci.yml) trên mọi PR và mọi lần push vào `main` (BL-028): một lần `terraform fmt -check -recursive infra/terraform`, rồi `init -backend=false`, `validate`, `test` cho từng thư mục trong ba thư mục trên, gồm mọi `tests/*.tftest.hcl` (kể cả `session/tests/dashboard.tftest.hcl` của DBS-145). Runner không có credential AWS và không cần: test dùng `mock_provider`/`override_data` (kể cả `data.terraform_remote_state.base`). Test mới phải giữ tính chất đó, đừng thêm test gọi AWS thật. Job ghim Terraform `1.16.6` (`required_version` trong `versions.tf` là `>= 1.11`) và chạy `init -lockfile=readonly`, nên đổi provider thì phải commit lại `.terraform.lock.hcl` (`terraform init -upgrade` kèm `terraform providers lock` cho các nền tảng cần). Job `script-tests` chạy test Python của `infra/scripts/tests/` (`seed-cognito.sh`, `verify-clean.sh`, `demo-token.sh`, `cost-report.py`) và `.github/scripts/tests/`. Job chưa nằm trong required status checks của `main`; thêm vào ruleset do chủ repo quyết định (BL-012).
+CI chạy đúng các lệnh này ở job `terraform` của [`ci.yml`](../../.github/workflows/ci.yml) trên mọi PR và mọi lần push vào `main` (BL-028): một lần `terraform fmt -check -recursive infra/terraform`, rồi `init -backend=false`, `validate`, `test` cho từng thư mục trong bốn thư mục trên, gồm mọi `tests/*.tftest.hcl` (kể cả `session/tests/dashboard.tftest.hcl` của DBS-145 và `envs/prod/session/tests/prod.tftest.hcl` của DBS-152). Runner không có credential AWS và không cần: test dùng `mock_provider`/`override_data` (kể cả `data.terraform_remote_state.base`). Test mới phải giữ tính chất đó, đừng thêm test gọi AWS thật. Job ghim Terraform `1.16.6` (`required_version` trong `versions.tf` là `>= 1.11`) và chạy `init -lockfile=readonly`, nên đổi provider thì phải commit lại `.terraform.lock.hcl` (`terraform init -upgrade` kèm `terraform providers lock` cho các nền tảng cần). Job `script-tests` chạy test Python của `infra/scripts/tests/` (`seed-cognito.sh`, `verify-clean.sh`, `demo-token.sh`, `cost-report.py`) và `.github/scripts/tests/`. Job chưa nằm trong required status checks của `main`; thêm vào ruleset do chủ repo quyết định (BL-012).
 
 Chi tiết cấu hình: [docs/03 mục 13](../../docs/03_HIGH_LEVEL_ARCHITECTURE.md).

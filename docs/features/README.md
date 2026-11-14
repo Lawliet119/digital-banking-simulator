@@ -31,6 +31,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 | Task | Tóm tắt | Vai | Trạng thái |
 |---|---|---|---|
 | [DBS-186](DBS-186-redis-revocation-drill.md) | Khóa trước flush/down Redis; SQL fallback và boundary hit/miss/down; [P4](../deliverables/P4-incident-table.md) | Dev | Implemented local; [PR #127](https://github.com/Lawliet119/digital-banking-simulator/pull/127), đã merge 2026-11-11 (CI xanh); cloud BL-220/222, Dev khác review BL-230 |
+| [DBS-152](DBS-152-terraform-prod-env.md) | Terraform `envs/prod/session`: TLS ở ALB (`certificate_arn`), `NODE_ENV=production` (tắt Swagger), `TRUST_PROXY_HOPS=1`, `DATABASE_SSL=true`, `rediss://`, RDS `db.t4g.small` Multi-AZ, Valkey 2 node 2 AZ, SQS prod cô lập và `check-prod-config.mjs` | #5 Platform & Ops | Implemented (offline/read-only verified; end-to-end cloud startup ở BL-280) |
 | [DBS-165](DBS-165-k6-scenarios.md) | Năm script k6, seed qua API, thresholds theo plateau/route, runner kiểm bất biến và cardinality duplicate; smoke AppModule/PostgreSQL/Valkey thật từ clone sạch | Dev | Implemented; smoke local đạt; [PR #128](https://github.com/Lawliet119/digital-banking-simulator/pull/128) đã merge 2026-11-11 (CI xanh), Dev khác review còn ở BL-233; cloud BL-228/229 |
 
 | [DBS-72](DBS-72-p2-architecture-submission.md) | P2/OpenAPI từ app thật, đối chiếu nguồn và handoff rubric/nộp | Dev | Implemented · G4 đã duyệt kèm giới hạn; PR #83 đã merge 2026-11-09 (CI xanh), chưa có Dev khác review |

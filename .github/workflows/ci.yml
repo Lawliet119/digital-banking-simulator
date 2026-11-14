@@ -320,11 +320,11 @@ jobs:
           terraform_wrapper: false
       - name: terraform fmt -check -recursive
         run: terraform fmt -check -recursive -diff infra/terraform
-      - name: init, validate, test (bootstrap, envs/dev/base, envs/dev/session)
+      - name: init, validate, test (bootstrap, envs/dev/base, envs/dev/session, envs/prod/session)
         shell: bash
         run: |
           set -euo pipefail
-          for dir in infra/terraform/bootstrap infra/terraform/envs/dev/base infra/terraform/envs/dev/session; do
+          for dir in infra/terraform/bootstrap infra/terraform/envs/dev/base infra/terraform/envs/dev/session infra/terraform/envs/prod/session; do
             echo "::group::$dir"
             terraform -chdir="$dir" init -backend=false -input=false -lockfile=readonly
             terraform -chdir="$dir" validate

@@ -844,6 +844,8 @@ flowchart TB
 | Hàng đợi | ElasticMQ (tương thích SQS) | SQS | SQS |
 | Mục tiêu availability | — | Không cam kết | 99,9% |
 
+Stack Terraform cấu hình production nằm ở `infra/terraform/envs/prod/session/` ([DBS-152](features/DBS-152-terraform-prod-env.md), dùng lại `dev/base`).
+
 ### 13.2 Chi phí và các lựa chọn ảnh hưởng chi phí
 
 | Hạng mục | Lựa chọn | Ghi chú |
