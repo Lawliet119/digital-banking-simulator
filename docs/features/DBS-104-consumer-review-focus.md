@@ -46,7 +46,12 @@ Chỉ thêm test và bước CI: `test/services/notification-consumer-review.ser
 |---|---|---|
 | M-104-01 | Gửi một event khóa tài khoản 3 lần | 3 `acknowledged`, 1 dòng log |
 | M-104-02 | Gửi 2 message hỏng xen 2 event hợp lệ | 2 `dead-lettered`, DLQ giữ đúng 2 body, 2 event được xử lý |
-| M-104-03 | Gửi 4 event theo thứ tự xuôi rồi ngược | Cùng 6 dòng log |
+| M-104-03 | Gửi và xử lý từng event một, thứ tự xuôi rồi ngược (BL-212: kiểm thứ tự ghi thật, so cả `event_id`) | Cùng 6 dòng log |
+| M-104-04 (BL-212) | Chuyển tới người nhận chưa tồn tại, rồi tạo người đó | `failed`, không ghi gì; sau đó `acknowledged`, 2 dòng, 1 `processed_events`, DLQ rỗng |
+
+Chạy: `DATABASE_URL=<postgres server> npx ts-node -r tsconfig-paths/register test/manual/notification-consumer-review.manual.ts`. M-104-02 đọc DLQ lặp có hạn thay vì một lần.
+
+BL-212 siết spec (`notification-consumer-review.services-spec.ts`): TC-104-01 (transfer) kiểm đủ 3 `acknowledged`, 1 `processed_events`, queue rỗng; TC-104-02 kiểm đúng 6 kết quả và không có `failed`; TC-104-03 xử lý từng event một (thứ tự thật, kiểm bằng `notification_log.id`) và so cả `event_id`, kèm một ca batch đồng thời.
 
 ## 6. Domain review
 

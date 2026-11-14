@@ -140,6 +140,7 @@ Rủi ro: đổi `NotificationConsumer` làm vỡ `outbox-relay.services-spec` �
 - **Ảnh chụp:** không có ảnh PNG; bằng chứng là output text thô trong `manual-test.txt` (Techlead waiver).
 - **Lệch so với kế hoạch:** (1) `consumeOnce` nhận thêm tham số `visibilityTimeout` để test deterministic, agent tự quyết vì nhỏ nhất; (2) db-spec viết sau `consumer-base.ts` nên không có bước đỏ riêng cho TC-101-01..03 (bù bằng TC-101-03 chứng minh rollback thật).
 - **Bàn giao:** backoff giữa các lần retry thuộc DBS-102; chính sách `UNKNOWN_EVENT_TYPE` của consumer risk thuộc DBS-111 (đã ghi vào BL-010). Không thêm dòng BL mới.
+- **Đã đóng ở BL-010 / BL-212:** test tự động riêng cho từng consumer ở `test/services/consumer-poison.services-spec.ts` (TC-010-01..03, `RiskScoringConsumer` và `NotificationConsumer` trên ElasticMQ + PostgreSQL thật): `UNKNOWN_EVENT_TYPE` đi DLQ ở lần nhận đầu theo chính sách khai báo (`dead-letter`), sai schema và JSON hỏng vào DLQ, nguồn bị xóa, không có claim hay hiệu ứng, event hợp lệ kế tiếp vẫn chạy. TC-101-02 giờ chứng minh chờ khóa thật: lượt giao thứ hai bị chặn trên `INSERT INTO processed_events` (quan sát bằng `pg_stat_activity` và `pg_blocking_pids`), cả khi lượt đầu rollback (`consumer-base.db-spec.ts`). Manual có thêm M-101-04 (lỗi, backoff, hồi phục, một hiệu ứng); chạy bằng `DATABASE_URL=<postgres server> npx ts-node -r tsconfig-paths/register test/manual/consumer-base.manual.ts` (đã ghi vào `manual-test.txt`).
 
 ## 9. Tài liệu đã cập nhật
 

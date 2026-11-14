@@ -112,3 +112,92 @@ assert.throws(() =>
   r3.evaluate({ ...event, fromAccountCreatedAt: 'invalid' }, features, configs.R3),
 );
 console.log('M-95/105/106/107-02: DEPOSIT skipped; invalid timestamp rejected');
+
+// BL-212: the error and boundary paths that were missing. Each assert.throws names the message, so
+// "throws for any reason" cannot pass.
+
+// M-105-02: R4. The window is 1..60 minutes; 61 is refused, 61 minutes back is not a round trip.
+assert.throws(
+  () => r4.evaluate(event, features, { ...configs.R4, thresholds: { reverseWindowMinutes: 61 } }),
+  /Invalid R4 configuration/,
+);
+assert.throws(
+  () => r4.evaluate(event, features, { ...configs.R4, thresholds: { reverseWindowMinutes: 0 } }),
+  /Invalid R4 configuration/,
+);
+assert.equal(
+  r4.evaluate(
+    event,
+    { ...features, reverseTransferOccurredAt: '2026-10-19T10:59:00.000000001Z' },
+    configs.R4,
+  ),
+  null,
+);
+assert.throws(
+  () => r4.evaluate(event, { ...features, reverseTransferOccurredAt: 'invalid' }, configs.R4),
+  /Invalid/,
+);
+assert.throws(
+  () =>
+    r4.evaluate(event, { ...features, reverseTransferOccurredAt: event.occurredAt }, configs.R4),
+  /Invalid R4 reverse timestamp/,
+);
+assert.equal(
+  r4.evaluate(
+    event,
+    { ...features, reverseTransferOccurredAt: 'invalid' },
+    {
+      ...configs.R4,
+      enabled: false,
+    },
+  ),
+  null,
+);
+console.log(
+  'M-105-02: R4 window 0 and 61 refused; 61 minutes back -> null; bad or simultaneous reverse timestamp throws; disabled R4 ignores bad data',
+);
+
+// M-106-02: R5. A negative count and a window other than 60 are errors, not "no hit".
+assert.throws(
+  () => r5.evaluate(event, { ...features, newRecipients1h: -1 }, configs.R5),
+  /Invalid R5 recipient count/,
+);
+assert.throws(
+  () =>
+    r5.evaluate(event, features, {
+      ...configs.R5,
+      thresholds: { ...configs.R5.thresholds, windowMinutes: 59 },
+    }),
+  /Invalid R5 configuration/,
+);
+assert.equal(
+  r5.evaluate(event, { ...features, newRecipients1h: -1 }, { ...configs.R5, enabled: false }),
+  null,
+);
+console.log(
+  'M-106-02: R5 negative count and windowMinutes 59 throw; disabled R5 ignores a bad count',
+);
+
+// M-107-02: R6 near 2^63. 90 % of 9223372036854775807 is 8301034833169298226.3: the amount ...227
+// hits and ...226 does not, which a floating-point comparison cannot tell apart.
+const maxBalance = '9223372036854775807';
+const hitsAt = (amount: string) =>
+  r6.evaluate({ ...event, amount, fromBalanceBefore: maxBalance }, features, configs.R6);
+assert.equal(hitsAt('8301034833169298227')?.id, 'R6');
+assert.equal(hitsAt('8301034833169298226'), null);
+assert.equal(
+  hitsAt('9223372036854775807')?.explanation,
+  'Chuyển xấp xỉ 100,00% số dư (9.223.372.036.854.775.807đ/9.223.372.036.854.775.807đ).',
+);
+assert.throws(
+  () =>
+    r6.evaluate(event, features, {
+      ...configs.R6,
+      thresholds: { minBalancePercent: 90.5, minBalance: '1000000' },
+    }),
+  /Invalid R6 configuration/,
+);
+assert.throws(() => r6.evaluate({ ...event, fromBalanceBefore: 'x' }, features, configs.R6));
+console.log(
+  'M-107-02: R6 near 2^63 exact at the 90 % boundary; 90.5 % configuration and a non-numeric balance throw',
+);

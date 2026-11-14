@@ -10,11 +10,19 @@ import { SqsClient } from '@libs/sqs';
 import { NotificationConsumer } from '@modules/notification';
 import { AuditService } from '@modules/audit';
 import { ACCOUNT_LOCKED_SAMPLE, TRANSFER_SAMPLE } from '../support/event-samples';
+import { drainStatuses, receiveBodies, until } from '../support/manual-wait';
 import { createTempDatabase, migrate } from '../support/temp-database';
 
-const endpoint = 'http://localhost:9324';
+const endpoint = process.env.SQS_ENDPOINT ?? 'http://localhost:9324';
 process.env.AWS_ACCESS_KEY_ID = 'local';
 process.env.AWS_SECRET_ACCESS_KEY = 'local';
+
+/** M-102-06 only: no backoff, so the five receives of a failing message do not wait 75 s. */
+class NoBackoffNotification extends NotificationConsumer {
+  protected override get retryBackoffSeconds(): number {
+    return 0;
+  }
+}
 
 async function main(): Promise<void> {
   const sdk = new SQSClient({ endpoint, region: 'us-east-1' });
@@ -44,7 +52,7 @@ async function main(): Promise<void> {
     source = await new DataSource({ type: 'postgres', url: db.url }).initialize();
     const name = `dbs102-manual-${randomUUID()}`;
     const url = await create(name);
-    await create(`${name}-dlq`);
+    const dlq = await create(`${name}-dlq`);
     const tx = new TransactionService(source, {
       lockTimeoutMs: 2000,
       statementTimeoutMs: 5000,
@@ -57,12 +65,7 @@ async function main(): Promise<void> {
       { notificationQueueUrl: url } as never,
       new AuditService(tx),
     );
-    const drain = async (): Promise<string[]> => {
-      const statuses: string[] = [];
-      for (let i = 0; i < 4 && statuses.length === 0; i++)
-        for (const r of await consumer.consumeOnce(1, 0)) statuses.push(r.status);
-      return statuses;
-    };
+    const drain = (): Promise<string[]> => drainStatuses(consumer, 1);
 
     const transfer = { ...TRANSFER_SAMPLE, eventId: randomUUID() };
     await sqs.send(url, JSON.stringify(transfer));
@@ -106,6 +109,64 @@ async function main(): Promise<void> {
     console.log(
       'M-102-03 PASS: recipient missing -> failed, rolled back (no mark), message hidden by the 5 s backoff (immediate receive is empty)',
     );
+
+    // M-102-04 (BL-212): a redelivered duplicate is acknowledged and adds no row.
+    await sqs.send(url, JSON.stringify(transfer));
+    assert.deepEqual(await drainStatuses(consumer, 1), ['acknowledged']);
+    const afterDup = await q('SELECT 1 FROM notification_log WHERE event_id=$1', [
+      transfer.eventId,
+    ]);
+    assert.equal(afterDup.length, 2);
+    console.log('M-102-04 PASS: same eventId again -> acknowledged, notification_log still 2 rows');
+
+    // M-102-05 (BL-212): the recovery path. The missing user is created; once the 5 s backoff of
+    // M-102-03 has passed (bounded wait), the same message is applied, once, with both notices.
+    await q('INSERT INTO users(id,cognito_sub) VALUES($1,$2)', [orphan.toUserId, randomUUID()]);
+    assert.deepEqual(await drainStatuses(consumer, 1, 20_000), ['acknowledged']);
+    const recovered = await q('SELECT user_id FROM notification_log WHERE event_id=$1', [
+      orphan.eventId,
+    ]);
+    assert.equal(recovered.length, 2);
+    assert.equal(
+      (await q('SELECT 1 FROM processed_events WHERE event_id=$1', [orphan.eventId])).length,
+      1,
+    );
+    console.log(
+      'M-102-05 PASS: user created, message came back after the backoff -> acknowledged, 2 rows, 1 processed_events',
+    );
+
+    // M-102-06 (BL-212): a message that never recovers is dead-lettered on the fifth receive.
+    // Backoff off, so the five receives take seconds, not minutes.
+    const quick = new NoBackoffNotification(
+      tx,
+      sqs,
+      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
+      { notificationQueueUrl: url } as never,
+      new AuditService(tx),
+    );
+    const doomed = { ...TRANSFER_SAMPLE, eventId: randomUUID(), toUserId: randomUUID() };
+    await sqs.send(url, JSON.stringify(doomed));
+    const attempts: string[] = [];
+    await until(async () => {
+      for (const r of await quick.consumeOnce(1, 0)) attempts.push(r.status);
+      return attempts.includes('dead-lettered');
+    }, 'the fifth receive to dead-letter the message');
+    assert.deepEqual(attempts, ['failed', 'failed', 'failed', 'failed', 'dead-lettered']);
+    const [forwarded] = await receiveBodies(sqs, dlq, 1);
+    assert.equal((JSON.parse(forwarded) as { eventId: string }).eventId, doomed.eventId);
+    assert.equal(
+      (await q('SELECT 1 FROM notification_log WHERE event_id=$1', [doomed.eventId])).length,
+      0,
+    );
+    console.log(
+      `M-102-06 PASS: ${attempts.join(',')}; message in notification DLQ; nothing written`,
+    );
+
+    // M-102-07 (BL-212): a poison body goes to the DLQ at the first receive.
+    await sqs.send(url, JSON.stringify({ eventType: 'TransferCompleted' }));
+    assert.deepEqual(await drainStatuses(consumer, 1), ['dead-lettered']);
+    assert.deepEqual(await receiveBodies(sqs, dlq, 1), ['{"eventType":"TransferCompleted"}']);
+    console.log('M-102-07 PASS: schema-breaking body -> DLQ at the first receive');
   } finally {
     for (const url of queues)
       await sdk.send(new DeleteQueueCommand({ QueueUrl: url })).catch(() => undefined);

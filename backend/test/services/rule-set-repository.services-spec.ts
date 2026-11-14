@@ -93,7 +93,7 @@ describe('RuleSetRepository (real PostgreSQL + Valkey)', () => {
     expect(await admin.keys('cfg:risk:v*')).toEqual([]);
   });
 
-  it('TC-110-02 a new version is used once latest expires (at most 60 s), not sooner', async () => {
+  it('TC-110-01 a new version is used once latest expires (at most 60 s), not sooner', async () => {
     await repository.current();
     await addVersion(2, 55);
     // Within the minute the old version is still the one in use: that is the contract.
@@ -108,7 +108,7 @@ describe('RuleSetRepository (real PostgreSQL + Valkey)', () => {
     expect(fresh.rules.R1.weight).toBe(55);
   });
 
-  it('TC-110-03 with Redis paused the right version is read from PostgreSQL, immediately', async () => {
+  it('TC-110-02 with Redis paused the right version is read from PostgreSQL, immediately', async () => {
     await repository.current();
     await valkey.pause();
     try {
@@ -129,7 +129,7 @@ describe('RuleSetRepository (real PostgreSQL + Valkey)', () => {
     ).toBe(3);
   });
 
-  it('TC-110-03 BL-208 a Redis entry that is valid but differs from PostgreSQL is never scored', async () => {
+  it('BL-208 a Redis entry that is valid but differs from PostgreSQL is never scored', async () => {
     const n = await nextVersion();
     await addVersion(n, 77);
     const deadline = (await client.serverTimeMs()) + 5000;

@@ -336,7 +336,9 @@ describe('notification consumer review focus (real PostgreSQL + ElasticMQ)', () 
     // ...the message is in the DLQ once, the source queue is empty...
     expect(await sqs.receive(notification.url, opts)).toEqual([]);
     const dead = await sqs.receive(notification.dlq, { ...opts, maxMessages: 10 });
-    expect(dead.map(m => JSON.parse(m.Body!).eventId)).toEqual([bad.eventId]);
+    expect(dead.map(m => (JSON.parse(m.Body!) as { eventId: string }).eventId)).toEqual([
+      bad.eventId,
+    ]);
     // ...the healthy event of the same queue was applied, and the risk queue neither failed nor dead-lettered.
     expect((await logRows()).map(r => r.event_id)).toEqual([good.eventId]);
     expect(

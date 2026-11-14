@@ -59,6 +59,26 @@ async function main(): Promise<void> {
     assert.equal((await provider.extract(historical)).newRecipients1h, 1);
     assert.deepEqual(await provider.extract(latest), features);
     console.log('M-ORDER-02 PASS: historical replay does not mutate future windows');
+
+    // M-ORDER-03 (BL-212): the error and recovery path. A SQL failure rejects `extract` (the consumer
+    // then rolls back and retries; nothing partial is scored), and the same call succeeds, with the
+    // same features, once the database answers again. There is no Redis here since BUG-20261110.
+    let failing = true;
+    const flaky = new OnlineFeatureProvider({
+      facts: new TransferFacts({
+        query: (sql: string, params?: unknown[]) =>
+          failing
+            ? Promise.reject(new Error('connection lost'))
+            : (source as DataSource).query(sql, params),
+      }),
+      perTxLimit: 500_000n,
+    });
+    await assert.rejects(() => flaky.extract(latest), /connection lost/);
+    failing = false;
+    assert.deepEqual(await flaky.extract(latest), features);
+    console.log(
+      'M-ORDER-03 PASS: SQL failure -> extract rejects; after recovery the features equal the healthy ones',
+    );
   } finally {
     try {
       if (source?.isInitialized) await source.destroy();

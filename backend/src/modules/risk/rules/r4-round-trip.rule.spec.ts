@@ -217,8 +217,32 @@ describe('DBS-105 R4 round trip', () => {
     ).toThrow();
   });
 
+  // BL-212 (DBS-105 review #4): the upper bound of the window is 60 minutes. 61 is refused when
+  // the rule is enabled, and a reverse transfer 61 minutes back is not a round trip at 60.
+  it('rejects a reverseWindowMinutes of 61 when enabled, and accepts the bounds 1 and 60', () => {
+    expect(() =>
+      rule.evaluate(event, features, { ...params, thresholds: { reverseWindowMinutes: 61 } }),
+    ).toThrow('Invalid R4 configuration');
+    for (const reverseWindowMinutes of [1, 60]) {
+      expect(() =>
+        rule.evaluate(event, features, { ...params, thresholds: { reverseWindowMinutes } }),
+      ).not.toThrow();
+    }
+  });
+
+  it('a reverse transfer 61 minutes back is outside the 60-minute window, 60 minutes back is inside', () => {
+    const back = (reverseTransferOccurredAt: string) =>
+      rule.evaluate(event, { ...features, reverseTransferOccurredAt }, params);
+    expect(back('2026-10-19T10:59:00.000Z')).toBeNull(); // 61:00.000
+    expect(back('2026-10-19T10:59:59.999Z')).toBeNull(); // 60:00.001
+    expect(back('2026-10-19T11:00:00.000Z')?.explanation).toBe(
+      'Tài khoản đích đã chuyển ngược lại khoảng 60,00 phút trước.',
+    );
+  });
+
   it.each([
     { ...params, enabled: 'yes' },
+    { ...params, thresholds: { reverseWindowMinutes: 61 } },
     { ...params, weight: -1 },
     { ...params, weight: 0.5 },
     { ...params, weight: 2147483648 },
