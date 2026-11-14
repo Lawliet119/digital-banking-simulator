@@ -2,7 +2,7 @@
 
 <!-- Tài liệu làm việc: §1–§5 viết trước khi chạy kiểm chứng. -->
 
-> **Status:** Draft (đang làm, đến G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-163-dlq-age-alarms` (cắt từ `origin/main` 44f50d8 sau khi PR #149 và PR #160 đã merge) · **PR:** — · **Cập nhật:** 2026-11-14
+> **Status:** Implemented · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `feat/DBS-163-dlq-age-alarms` (cắt từ `origin/main` 44f50d8 sau khi PR #149 và PR #160 đã merge) · **PR:** — · **Cập nhật:** 2026-11-14
 
 ## 1. Bối cảnh
 
