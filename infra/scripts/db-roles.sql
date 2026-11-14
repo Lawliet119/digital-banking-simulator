@@ -13,9 +13,12 @@
 -- infra/terraform/README.md "Role chạy migration"). Neither this file nor the migration grants it
 -- to the user that runs them.
 --
--- The roles are created NOLOGIN. Whoever provisions the database gives them a login and a password
--- from Secrets Manager (BL-103, DBS-119): `ALTER ROLE dbs_api LOGIN PASSWORD '...'`. The
--- application must never connect as the owner of the tables.
+-- The roles are created NOLOGIN. Their login and password come from Secrets Manager (BL-103):
+-- infra/scripts/db-roles.sh runs the ECS task `dbs-db-roles` (backend/src/scripts/provision-db-roles.ts)
+-- as the master user, BEFORE the first migration, and it also gives dbs_migrator CREATE on schema public
+-- and on the database. From then on dbs_migrator runs every migration and owns every table, so this
+-- file runs as dbs_migrator, not as the master. The application must never connect as the owner of the
+-- tables.
 --
 -- Nobody gets UPDATE or DELETE on ledger_entries, transfers or audit_log; the append-only triggers
 -- of DBS-27 are the second line behind these grants. `SELECT ... FOR UPDATE` needs UPDATE on at

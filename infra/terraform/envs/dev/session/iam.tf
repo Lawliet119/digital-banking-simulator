@@ -9,6 +9,7 @@
 # | dbs-dev-worker-execution  | execution | service worker (DBS-121)      |
 # | dbs-dev-worker-task       | task      | service worker (DBS-121)      |
 # | dbs-dev-migrate-execution | execution | dbs-migrate (không task role) |
+# | dbs-dev-db-roles-execution | execution | dbs-db-roles (db_roles.tf, BL-103; duy nhất đọc secret master) |
 # | dbs-dev-seed-execution    | execution | dbs-seed (BL-252, seed.tf; không task role, không đọc secret) |
 
 locals {
@@ -94,10 +95,10 @@ resource "aws_iam_role_policy" "execution" {
   })
 }
 
-# DBS-67: đọc đúng secret master do RDS quản lý. ARN secret đổi mỗi lần dựng lại RDS nên revision ECS của phiên
-# cũ không dùng lại được.
-resource "aws_iam_role_policy" "read_db_master_secret" {
-  name = "read-db-master-secret"
+# DBS-67, BL-103: đọc đúng secret của role dbs_api (db_roles.tf), không đọc secret master. ARN secret đổi mỗi phiên
+# nên revision ECS của phiên cũ không dùng lại được.
+resource "aws_iam_role_policy" "read_db_api_secret" {
+  name = "read-db-api-secret"
   role = aws_iam_role.execution.id
 
   policy = jsonencode({
@@ -106,14 +107,14 @@ resource "aws_iam_role_policy" "read_db_master_secret" {
       {
         Effect   = "Allow"
         Action   = "secretsmanager:GetSecretValue"
-        Resource = aws_db_instance.main.master_user_secret[0].secret_arn
+        Resource = aws_secretsmanager_secret.db_role["api"].arn
       },
       local.decrypt_via_secrets_manager,
     ]
   })
 }
 
-# DBS-75: AUTH token của Valkey (cùng CMK, kms:Decrypt ở read-db-master-secret đã đủ).
+# DBS-75: AUTH token của Valkey (cùng CMK, kms:Decrypt ở read-db-api-secret đã đủ).
 resource "aws_iam_role_policy" "read_redis_auth_secret" {
   name = "read-redis-auth-secret"
   role = aws_iam_role.execution.id
@@ -158,10 +159,10 @@ resource "aws_iam_role_policy" "worker_execution" {
   })
 }
 
-# Worker cần cùng hai secret với api (DATABASE_URL và REDIS_URL bắt buộc ở mọi APP_ROLE). Secret DB riêng của
-# dbs_worker thay secret master ở BL-103.
+# Worker cần hai secret như api (DATABASE_URL và REDIS_URL bắt buộc ở mọi APP_ROLE): secret của role dbs_worker
+# (BL-103, db_roles.tf) và token Valkey. Không đọc secret master.
 resource "aws_iam_role_policy" "worker_read_secrets" {
-  name = "read-db-master-and-redis-auth-secrets"
+  name = "read-db-worker-and-redis-auth-secrets"
   role = aws_iam_role.worker_execution.id
 
   policy = jsonencode({
@@ -171,7 +172,7 @@ resource "aws_iam_role_policy" "worker_read_secrets" {
         Effect = "Allow"
         Action = "secretsmanager:GetSecretValue"
         Resource = [
-          aws_db_instance.main.master_user_secret[0].secret_arn,
+          aws_secretsmanager_secret.db_role["worker"].arn,
           local.base.redis_auth_secret_arn,
         ]
       },
@@ -221,8 +222,9 @@ resource "aws_iam_role_policy" "migrate_execution" {
   })
 }
 
-resource "aws_iam_role_policy" "migrate_read_db_master_secret" {
-  name = "read-db-master-secret"
+# BL-103: migration chạy bằng role dbs_migrator (chủ các bảng), không bằng master.
+resource "aws_iam_role_policy" "migrate_read_db_migrator_secret" {
+  name = "read-db-migrator-secret"
   role = aws_iam_role.migrate_execution.id
 
   policy = jsonencode({
@@ -231,7 +233,7 @@ resource "aws_iam_role_policy" "migrate_read_db_master_secret" {
       {
         Effect   = "Allow"
         Action   = "secretsmanager:GetSecretValue"
-        Resource = aws_db_instance.main.master_user_secret[0].secret_arn
+        Resource = aws_secretsmanager_secret.db_role["migrator"].arn
       },
       local.decrypt_via_secrets_manager,
     ]

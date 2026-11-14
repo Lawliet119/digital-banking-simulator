@@ -24,7 +24,8 @@ variable "worker_desired_count" {
 
 # Biến môi trường không bí mật. TRUST_PROXY_HOPS và COGNITO_* chỉ để qua kiểm tra cấu hình (validation.schema.ts bắt
 # buộc ở staging/production với mọi role), worker không có HTTP. Không đặt SQS_ENDPOINT (AWS thật) và không có PORT.
-# DB_USER, DB_PASSWORD, REDIS_AUTH_TOKEN đi qua `secrets`; ECS đọc bằng execution role worker (iam.tf).
+# DB_USER, DB_PASSWORD (role dbs_worker, BL-103), REDIS_AUTH_TOKEN đi qua `secrets`; ECS đọc bằng execution role
+# worker (iam.tf).
 resource "aws_ecs_task_definition" "worker" {
   family                   = "dbs-worker"
   requires_compatibilities = ["FARGATE"]
@@ -69,8 +70,8 @@ resource "aws_ecs_task_definition" "worker" {
     ]
 
     secrets = [
-      { name = "DB_USER", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::" },
-      { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
+      { name = "DB_USER", valueFrom = "${aws_secretsmanager_secret.db_role["worker"].arn}:username::" },
+      { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.db_role["worker"].arn}:password::" },
       { name = "REDIS_AUTH_TOKEN", valueFrom = local.base.redis_auth_secret_arn },
     ]
 
@@ -83,6 +84,8 @@ resource "aws_ecs_task_definition" "worker" {
       }
     }
   }])
+
+  depends_on = [aws_secretsmanager_secret_version.db_role]
 }
 
 # BL-248: deploy.sh đăng ký revision mới của dbs-worker (chỉ đổi image) và đổi task_definition của service này sau khi

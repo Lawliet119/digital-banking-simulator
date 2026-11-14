@@ -252,7 +252,7 @@ Rủi ro và cách lùi: `terraform apply` chỉ chạy `-target` nhóm miễn p
   2. Quyền deploy worker (PassRole, UpdateService) trên role `dbs-github-deploy` được code nhưng **chưa apply** (role chưa có trên tài khoản, BL-105): người dùng quyết khi nào dựng role OIDC.
   3. Đã apply thay đổi `base` của nhánh chưa merge (7 resource miễn phí) vào state thật. Nếu PR bị bỏ, phải `terraform destroy -target` các địa chỉ đó.
 - **Bàn giao và BACKLOG:** BL-247 (nhóm B chưa chạy, DoD 2 chưa đạt; #5), BL-248 (`deploy.sh` cho worker; #5), BL-249 (thứ tự hủy module SQS khi SIGTERM; Dev), BL-250 (`propagate_tags` api; #5). Đã sửa BL-161, BL-182, BL-234, BL-242; đã xóa BL-114, BL-119.
-- **Khoảng hở còn lại:** api vẫn lăn 200% (BL-234): api 5 + worker 1 khi deploy tới 11 task, 115 > 74 kết nối dùng được; worker treo chưa có alarm (BL-161); credential master RDS vào worker (BL-103).
+- **Khoảng hở còn lại:** api vẫn lăn 200% (BL-234): api 5 + worker 1 khi deploy tới 11 task, 115 > 74 kết nối dùng được; worker treo chưa có alarm (BL-161); credential master RDS vào worker (BL-103; code đổi sang secret `dbs/dev/db-worker` đã xong 2026-11-14, chưa chạy trên AWS).
 
 ## 9. Tài liệu đã cập nhật
 
