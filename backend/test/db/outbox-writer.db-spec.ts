@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DataSource, type EntityManager } from 'typeorm';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import { InvalidEventError, type DomainEvent } from '@common/events';
 import { TransactionService } from '@database/transaction.service';
 import {
@@ -30,7 +30,8 @@ describe('DBS-57 outbox writer in the caller transaction (real PostgreSQL)', () 
       statementTimeoutMs: 5000,
       idleInTransactionTimeoutMs: 10000,
     });
-    writer = new OutboxWriter(new PinoLogger({ pinoHttp: { level: 'silent' } }));
+    installSilentRootLogger();
+    writer = new OutboxWriter();
   });
 
   afterAll(async () => {

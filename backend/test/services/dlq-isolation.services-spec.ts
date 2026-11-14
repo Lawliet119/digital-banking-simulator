@@ -7,7 +7,7 @@ import {
   SQSClient,
   StartMessageMoveTaskCommand,
 } from '@aws-sdk/client-sqs';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import { register } from 'prom-client';
 import { DataSource, type EntityManager } from 'typeorm';
 import type { DomainEvent } from '@common/events';
@@ -114,7 +114,7 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
   let fx: ReturnType<typeof riskFixtures>;
   let riskUrl: string;
   let notificationUrl: string;
-  const pino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
+  installSilentRootLogger();
   const running: { beforeApplicationShutdown(): Promise<void> }[] = [];
   const saved = {
     role: process.env.APP_ROLE,
@@ -196,8 +196,7 @@ describe('DBS-125 a failing consumer dead-letters alone; broken messages; redriv
       notificationQueueUrl: notificationUrl,
     }) as never;
   const relay = () => start(new OutboxRelayService(tx, sqs, config()));
-  const notification = () =>
-    start(new TestNotification(tx, sqs, pino, config(), new AuditService(tx)));
+  const notification = () => start(new TestNotification(tx, sqs, config(), new AuditService(tx)));
   function risk(): CountingRisk {
     const parts = buildRiskConsumer(source, {
       redis,

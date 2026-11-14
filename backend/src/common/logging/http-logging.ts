@@ -1,13 +1,16 @@
 import type { RequestHandler } from 'express';
-import { PinoLogger } from 'nestjs-pino';
 import pinoHttp from 'pino-http';
 import type { RequestWithCorrelationId } from '../middleware/correlation-id.middleware';
-import { runInLogContext } from './log-context';
+import { currentLogger, runInLogContext } from './log-context';
 import { createLoggingOptions, requestId, type LoggingSettings } from './logging.options';
 
-/** Mounted before CORS/body parsing so even rejected and short-circuited requests are traced. */
-export function createHttpLogging(logger: PinoLogger, settings: LoggingSettings): RequestHandler {
-  const middleware = pinoHttp({ ...createLoggingOptions(settings), logger: logger.logger });
+/**
+ * Mounted before CORS/body parsing so even rejected and short-circuited requests are traced. It
+ * builds on the root logger of the process (made by `LoggerModule` or the bootstrap logger), so it
+ * must be called outside any log context, as `main.ts` does.
+ */
+export function createHttpLogging(settings: LoggingSettings): RequestHandler {
+  const middleware = pinoHttp({ ...createLoggingOptions(settings), logger: currentLogger() });
   return (req: RequestWithCorrelationId, res, next) => {
     // Resolve the id first so the handler's logs, the completion line and the response header all
     // carry the same one, even when this logger is mounted without the correlation middleware.

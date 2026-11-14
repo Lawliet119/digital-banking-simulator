@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { CreateQueueCommand, DeleteQueueCommand } from '@aws-sdk/client-sqs';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { SqsClient } from '@libs/sqs';
@@ -19,6 +19,8 @@ import {
 } from '../support/elasticmq.container';
 import { buildRiskConsumer } from '../support/risk-consumer';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+
+installSilentRootLogger();
 
 type Row = { event_id: string; user_id: string; kind: string; message: string };
 
@@ -64,7 +66,6 @@ describe('notification consumer review focus (real PostgreSQL + ElasticMQ)', () 
     const consumer = new Consumer(
       tx,
       sqs,
-      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
       { notificationQueueUrl: url } as never,
       new AuditService(tx),
     );

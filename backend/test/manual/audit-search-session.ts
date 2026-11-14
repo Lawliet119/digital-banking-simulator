@@ -85,7 +85,7 @@ async function run(): Promise<void> {
     configureHttpApp(
       app,
       { trustProxyHops: 0, corsOrigins: [], isProduction: false },
-      createHttpLogging(await app.resolve(PinoLogger), settings),
+      createHttpLogging(settings),
     );
     setupSwagger(app);
     await app.listen(port, '127.0.0.1');

@@ -1,7 +1,13 @@
 import { Writable } from 'node:stream';
 import { PinoLogger } from 'nestjs-pino';
 import { createLoggingOptions } from './logging.options';
-import { bindLogContext, runAsWorker, runInLogContext } from './log-context';
+import {
+  bindLogContext,
+  currentLogBindings,
+  currentLogger,
+  runAsWorker,
+  runInLogContext,
+} from './log-context';
 
 const A = '34b4c724-48ad-4e8c-98ce-e16a5c03b007';
 const B = '0b5f4c0e-7d9a-4f7b-9d63-5d1f0a2f9c11';
@@ -168,6 +174,32 @@ describe('DBS-43 shared log context (BL-024)', () => {
       const [outside, inside] = rows();
       expect(outside).toMatchObject({ appRole: 'both', role: 'api' });
       expect(inside).toMatchObject({ appRole: 'both', role: 'worker', correlationId: null });
+    });
+  });
+
+  describe('currentLogger and currentLogBindings', () => {
+    it('read the logger and the bindings of the context the code runs in, with no injected PinoLogger', async () => {
+      expect(currentLogBindings()).toMatchObject({ appRole: 'both' });
+      expect(currentLogBindings()).not.toHaveProperty('correlationId');
+      await runInLogContext(
+        async () => {
+          await tick();
+          expect(currentLogBindings()).toMatchObject({ role: 'worker', correlationId: A });
+          currentLogger().info('From the context logger');
+        },
+        { role: 'worker', correlationId: A },
+      );
+      expect(rows()[0]).toMatchObject({ role: 'worker', correlationId: A });
+    });
+
+    it('follow what other code assigns through the onChild hook: one correlationId, the first', () => {
+      runInLogContext(
+        () => {
+          logger.assign({ correlationId: B, role: 'api' });
+          expect(currentLogBindings()).toMatchObject({ role: 'worker', correlationId: A });
+        },
+        { role: 'worker', correlationId: A },
+      );
     });
   });
 });

@@ -1,5 +1,4 @@
 import { Logger } from '@nestjs/common';
-import { PinoLogger } from 'nestjs-pino';
 import { Counter, register } from 'prom-client';
 import type { EntityManager } from 'typeorm';
 import type { TransactionService } from '@database/transaction.service';
@@ -15,8 +14,8 @@ class ObservedConsumer extends ConsumerBase {
   protected readonly consumerName = 'observed';
   failure: Error | undefined;
   policy: UnknownEventPolicy = 'dead-letter';
-  constructor(tx: TransactionService, sqs: SqsClient, pino: PinoLogger) {
-    super(tx, sqs, pino);
+  constructor(tx: TransactionService, sqs: SqsClient) {
+    super(tx, sqs);
   }
   protected override get retryBackoffSeconds(): number {
     return 0;
@@ -37,7 +36,6 @@ describe('BL-209 ConsumerBase logs and counts every retry and dead-letter', () =
     run: <T>(fn: (m: EntityManager) => Promise<T>) =>
       fn({ query: () => Promise.resolve([{ event_id: 'x' }]) } as unknown as EntityManager),
   } as unknown as TransactionService;
-  const pino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
   const message = (receiveCount: number, id = 'sqs-msg-1'): SqsMessage => ({
     MessageId: id,
     Attributes: { ApproximateReceiveCount: String(receiveCount) },
@@ -59,7 +57,7 @@ describe('BL-209 ConsumerBase logs and counts every retry and dead-letter', () =
   beforeEach(() => {
     const metric = register.getSingleMetric(CONSUMER_MESSAGE_METRIC);
     if (metric instanceof Counter) metric.reset();
-    consumer = new ObservedConsumer(tx, {} as SqsClient, pino);
+    consumer = new ObservedConsumer(tx, {} as SqsClient);
     warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });

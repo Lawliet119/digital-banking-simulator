@@ -80,7 +80,7 @@ describe('BL-024 logging boundaries in ESLint', () => {
   });
 
   it('still rejects ioredis in the files that may use PinoLogger', () => {
-    const messages = lint('src/common/messaging/consumer-base.ts', "import Redis from 'ioredis';");
+    const messages = lint('src/common/logging/http-logging.ts', "import Redis from 'ioredis';");
     expect(messages).toHaveLength(1);
     expect(messages[0].message).toMatch(/@libs\/redis/);
   });
@@ -92,9 +92,30 @@ describe('BL-024 logging boundaries in ESLint', () => {
     'src/modules/notification/notification.consumer.ts',
     'src/modules/outbox/outbox-writer.ts',
     'src/modules/risk/risk-scoring.consumer.ts',
-  ])('the inventory of existing users: %s may still import PinoLogger', file => {
-    // The files that held a PinoLogger before this rule (injected and handed to ConsumerBase, read
-    // for the context, or wired in main). The list shrinks; a new file must use Nest's Logger.
-    expect(lint(file, "import { PinoLogger } from 'nestjs-pino';")).toEqual([]);
+  ])('%s, once exempt, is held to the rule like any other file', file => {
+    // The six files that held a PinoLogger before BL-024 now go through SafeLogger and
+    // `currentLogger()`; the only exemptions left are the logging module and tests.
+    const messages = lint(file, "import { PinoLogger } from 'nestjs-pino';");
+    expect(messages).toHaveLength(1);
+    expect(messages[0].message).toMatch(/SafeLogger/);
+  });
+
+  it.each([
+    ['a variable', 'logger.setBindings({ fullName });'],
+    ['a member', 'this.logger.setBindings({ role: "api" });'],
+    ['a call result', 'currentLogger().setBindings({ correlationId: "x" });'],
+  ])('rejects setBindings() on %s, which skips the onChild hook', (_name, source) => {
+    const messages = lint(business, source);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].message).toMatch(/setBindings\(\) skips the onChild hook/);
+  });
+
+  it('lets the logging module and tests call setBindings()', () => {
+    expect(lint('src/common/logging/log-context.ts', 'logger.setBindings({});')).toEqual([]);
+    expect(lint('src/common/logging/log-context.spec.ts', 'logger.setBindings({});')).toEqual([]);
+  });
+
+  it('accepts child(), which goes through the onChild hook', () => {
+    expect(lint(business, 'const child = currentLogger().child({ a: 1 });')).toEqual([]);
   });
 });

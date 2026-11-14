@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
-import type { PinoLogger } from 'nestjs-pino';
 import { sqsConfig } from '@config/sqs.config';
 import { ConsumerBase } from '@common/messaging/consumer-base';
 import { OutboxRelayService } from './outbox-relay.service';
@@ -59,7 +58,7 @@ class SlowConsumer extends ConsumerBase {
   protected readonly consumerName = 'slow';
   handling: Promise<void> = Promise.resolve();
   constructor(tx: TransactionService, sqs: SqsClient) {
-    super(tx, sqs, {} as PinoLogger);
+    super(tx, sqs);
   }
   protected queueUrl(): string {
     return RISK;

@@ -38,7 +38,6 @@ class LoggingProbeController {
 
 describe('DBS-42 logger HTTP integration (no database)', () => {
   let app: NestExpressApplication;
-  let pinoLogger: PinoLogger;
   let output = '';
   const rows = () =>
     output
@@ -71,11 +70,10 @@ describe('DBS-42 logger HTTP integration (no database)', () => {
       .setLogger(logger)
       .compile();
     app = moduleRef.createNestApplication<NestExpressApplication>();
-    pinoLogger = await app.resolve(PinoLogger);
     configureHttpApp(
       app,
       { trustProxyHops: 0, corsOrigins: [], isProduction: false },
-      createHttpLogging(pinoLogger, settings),
+      createHttpLogging(settings),
     );
     await app.init();
   });
@@ -178,7 +176,7 @@ describe('DBS-42 logger HTTP integration (no database)', () => {
 
   it('TC-42-05 gives handler, completion and header the same id without the correlation middleware', async () => {
     const web = express();
-    web.use(createHttpLogging(pinoLogger, { role: 'both', logLevel: 'debug' }));
+    web.use(createHttpLogging({ role: 'both', logLevel: 'debug' }));
     web.get('/plain', (_req, res) => {
       new Logger('Probe').log('Inside handler');
       res.json({ ok: true });

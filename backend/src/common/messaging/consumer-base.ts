@@ -3,7 +3,6 @@ import {
   type BeforeApplicationShutdown,
   type OnApplicationBootstrap,
 } from '@nestjs/common';
-import { PinoLogger } from 'nestjs-pino';
 import type { EntityManager } from 'typeorm';
 import { runsWorkers } from '@common/app-role/app-role';
 import { validateEvent, type DomainEvent } from '@common/events';
@@ -90,7 +89,6 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, BeforeAppl
   protected constructor(
     protected readonly tx: TransactionService,
     protected readonly sqs: SqsClient,
-    protected readonly pino: PinoLogger,
   ) {}
 
   /** URL of this consumer's queue; `undefined` when the environment does not configure it. */

@@ -1,7 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
-import { PinoLogger } from 'nestjs-pino';
 import { DataSource, type EntityManager } from 'typeorm';
 import { sqsConfig } from '@config/sqs.config';
 import type { DomainEvent } from '@common/events';
@@ -64,7 +63,6 @@ export class RiskScoringConsumer extends ConsumerBase {
   constructor(
     tx: TransactionService,
     sqs: SqsClient,
-    pino: PinoLogger,
     @Inject(sqsConfig.KEY) private readonly config: ConfigType<typeof sqsConfig>,
     private readonly ruleSets: RuleSetRepository,
     private readonly features: OnlineFeatureProvider,
@@ -75,7 +73,7 @@ export class RiskScoringConsumer extends ConsumerBase {
     /** Absent in a test that builds the consumer by hand: then nothing is measured. */
     @Optional() private readonly metrics?: MetricsService,
   ) {
-    super(tx, sqs, pino);
+    super(tx, sqs);
   }
 
   protected queueUrl(): string | undefined {

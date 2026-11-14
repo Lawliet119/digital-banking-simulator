@@ -120,7 +120,7 @@ describe('correlationId across API → outbox → SQS → consumer (real Postgre
       notificationQueueUrl: notificationUrl,
     };
     relay = new OutboxRelayService(tx, sqs, config);
-    consumer = new FlakyNotificationConsumer(tx, sqs, pino, config, new AuditService(tx));
+    consumer = new FlakyNotificationConsumer(tx, sqs, config, new AuditService(tx));
     app = await startDepositApp(db.url);
     operatorToken = await app.issuer.token('operator', { sub: randomUUID() });
   });
