@@ -207,6 +207,7 @@ Không có migration, service hay endpoint. Thứ tự: công cụ (test trướ
 ## 8. Kết quả
 
 - **Phiên 2026-11-14 (BL-265):** `apply session` bằng IAM user `dev1` dựng được ALB (2 phút 11 giây) và Valkey (8 phút 58 giây) nhưng RDS lỗi `KMSKeyNotAccessibleFault` vì policy `dbs-no-secret` của group `dbs-dev` Deny `kms:Decrypt`; đã `destroy` (32 tài nguyên, 4 phút 34 giây) và `verify-clean.sh` thoát 0. Chưa đo được các bước cần RDS.
+- **Quyết định techlead 2026-11-14 (BL-265 đóng):** gỡ IAM user `dev1` khỏi group `dbs-dev` (policy `dbs-no-secret`); `dev1` chỉ còn `dbs-admin` và `simulate-principal-policy` xác nhận `kms:Decrypt`, `secretsmanager:GetSecretValue` được phép. Các user `dev2`–`dev5` vẫn ở `dbs-dev`.
 
 - **Lệnh kiểm tra** (lúc bàn giao, `GOMAXPROCS=2 GOMEMLIMIT=1500MiB`, `-parallelism=1`): `terraform fmt -check -recursive` sạch; `terraform test` bootstrap **9 passed**, base **45 passed**, session **35 passed**, 0 failed (không sửa `.tf`); `test_verify_clean.py` **9 OK**, `test_demo_token.py` **7 OK**, `test_seed_cognito.py` 12 OK, `test_cost_report.py` 18 OK; `bash -n` hai script sạch; `check-doc-links.mjs` 408 file, 0 liên kết hỏng. Không `.skip`, `.only`, `.todo`. Không chạy `backend/` (không đổi, không có docker).
 - **Đỏ trước khi viết mã:** `test_verify_clean.py` thoát 127 (chưa có script) ở cả 20 ca con; `test_demo_token.py` 12 lỗi (chưa có script). Sau khi chạy thật, thêm đỏ thứ hai: aws giả được dạy hành vi thật của AWS CLI (từ chối `--cli-input-json file:///dev/stdin`), test đỏ 2 ca, rồi sửa script.
