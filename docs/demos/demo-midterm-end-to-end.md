@@ -21,7 +21,7 @@ Một kịch bản duy nhất cho cả nhóm, chạy trọn luồng nghiệp v�
 
 - **Token không bao giờ hiện trên màn hình.** Luôn gán vào biến (`X=$(…)`), không `echo "$X"`, không `set -x`, không `curl -v`, không dán token vào chat, ghi chú hay commit (cùng quy tắc với [demo-checklist](../runbooks/demo-checklist.md)). Token sống 15 phút: lấy lại bằng đúng lệnh ở bước 1 nếu quá hạn.
 - **Dùng tên không dấu** trong thân JSON gửi bằng `curl -d` trên Windows (Git Bash): thân có dấu bị hỏng (tên lưu thành `Tr?n Van An`). Muốn tên có dấu thì ghi thân ra file và dùng `--data-binary @file`.
-- **Ghi lại `C` ngay ở lần gọi chuyển tiền đầu tiên** (bước 4). Server sinh mã mới cho mỗi request: gửi lại cùng `Idempotency-Key` trả đúng kết quả cũ nhưng header `X-Correlation-Id` là mã mới, không có dòng audit nào mang mã đó.
+- **Ghi lại `C` ngay ở lần gọi chuyển tiền đầu tiên** (bước 4). Server sinh mã mới cho mỗi request: gửi lại cùng `Idempotency-Key` trả 201 với cùng `transferId` và `status` (thứ tự khóa JSON có thể khác) nhưng header `X-Correlation-Id` là mã mới, không có dòng audit nào mang mã đó. Mất `C` thì dùng `GET /v1/audit/entries?action=transfer` (auditor) và lấy `correlationId` của dòng mới nhất.
 
 ## Chuẩn bị chung (local)
 
@@ -42,7 +42,20 @@ Bật api và worker trong **một** process, nới giới hạn tốc độ đ�
 RATE_LIMIT_TRANSFERS_PER_MINUTE=1000 RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE=10000 npm run start:dev   # APP_ROLE=both
 ```
 
-Cổng 6379 bị chương trình khác chiếm thì `docker compose up` báo lỗi cổng: dừng chương trình đó, hoặc dùng một file override compose đổi cổng Valkey (`ports: !override ["6380:6379"]`) và đặt `REDIS_URL=redis://localhost:6380` cho api. Redis chết không làm hệ thống ngừng (trạng thái `degraded`), nhưng kịch bản sẽ khác Demo 3 phần D.
+**Cổng bị chiếm.** Máy đã có PostgreSQL (dịch vụ Windows) hoặc Redis của dự án khác nghe cổng 5432 hoặc 6379 thì `localhost:5432` có thể không tới container (lỗi `password authentication failed` dù mật khẩu đúng), và `docker compose up` báo lỗi cổng. Đừng tắt chương trình của người khác: đổi cổng bằng file override (cần Compose v2.24 trở lên cho `!override`):
+
+```yaml
+# compose.override-ports.yml (không commit)
+services:
+  postgres:
+    ports: !override
+      - "55432:5432"
+  valkey:
+    ports: !override
+      - "6380:6379"
+```
+
+Dùng `docker compose -f docker-compose.yml -f compose.override-ports.yml down -v` (và `up -d --wait`) thay cho lệnh ở trên, rồi đặt trước mọi lệnh `npm` ở dưới `DATABASE_URL=postgres://banking:banking_local_only@localhost:55432/banking` và `REDIS_URL=redis://localhost:6380`. Redis chết không làm hệ thống ngừng (trạng thái `degraded`), nhưng kịch bản sẽ khác Demo 3 phần D.
 
 ## Bước 0 · Reset dữ liệu và seed
 
@@ -195,5 +208,5 @@ Mong đợi: hai dòng `403`; lệnh cuối trả các dòng `access.denied` (l�
 ## Giới hạn hiện tại
 
 - Chưa có lần quay (DBS-140).
-- 403 do `RolesGuard` đã ghi dòng `access.denied` (xem bước 9); [Demo 4](demo-4-security-audit.md) vẫn ghi giới hạn BL-132 ở phần D: cần đối chiếu và sửa ở đó (xem [DBS-138 §8](../features/DBS-138-midterm-demo-script.md)).
+- 403 do `RolesGuard` ghi dòng `access.denied` (bước 9, BL-132); [Demo 4](demo-4-security-audit.md) phần D đã được sửa theo trong cùng PR với kịch bản này.
 - Điểm 65 chỉ đúng với rule set seed (`rule_only`); không có AI trong kịch bản này.

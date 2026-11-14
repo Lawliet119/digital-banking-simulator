@@ -85,12 +85,12 @@ Giới hạn khi giải thích: thu hồi dựa trên mốc `users.sessions_revo
 
 | Bước | Làm | Kết quả mong đợi | Test chứng minh |
 |---|---|---|---|
-| D1 | Auditor thử từng route ghi, ví dụ `curl -sS -i -X POST $API/v1/operator/deposits -H "Authorization: Bearer $AUD" -H 'Idempotency-Key: demo4-aud' -H 'Content-Type: application/json' -d "{\"toAccountId\":\"$BINH_ACC\",\"amount\":\"1000\"}"`; lặp với `/v1/transfers`, `/v1/accounts`, `/v1/customers/me`, `lock`, `unlock`, `fraud-flags/<id>/review` | Cả bảy route: 403 `FORBIDDEN`; số dòng của `transfers`, `ledger_entries`, `accounts`, `customers`, `outbox_events`, `fraud_flags`, `audit_log` không đổi | TC-158-02 (`test/security/security-boundaries.db-spec.ts`), TC-159-10 |
+| D1 | Auditor thử từng route ghi, ví dụ `curl -sS -i -X POST $API/v1/operator/deposits -H "Authorization: Bearer $AUD" -H 'Idempotency-Key: demo4-aud' -H 'Content-Type: application/json' -d "{\"toAccountId\":\"$BINH_ACC\",\"amount\":\"1000\"}"`; lặp với `/v1/transfers`, `/v1/accounts`, `/v1/customers/me`, `lock`, `unlock`, `fraud-flags/<id>/review` | Cả bảy route: 403 `FORBIDDEN`; số dòng của `transfers`, `ledger_entries`, `accounts`, `customers`, `outbox_events`, `fraud_flags` không đổi; `audit_log` chỉ tăng đúng một dòng `access.denied` cho mỗi lần bị từ chối | TC-158-02 (`test/security/security-boundaries.db-spec.ts`), TC-159-10 |
 | D2 | Auditor gửi `POST`, `PUT`, `PATCH`, `DELETE` tới `/v1/audit/entries` | 404: API không có route sửa hay xóa nhật ký; băm toàn bộ `audit_log` trước và sau bằng nhau | TC-103-16 (`test/db/audit-search.http.db-spec.ts`) |
 | D3 | Customer, operator, admin gọi `GET /v1/audit/entries` | 403 `FORBIDDEN` (kể cả khi gắn "auditor" vào header, query hoặc thân) | TC-103-07 |
 | D4 | Ngay cả người có quyền DB cũng không sửa được: `docker compose exec postgres psql -U banking -d banking -c "UPDATE audit_log SET outcome='SUCCESS' WHERE id=(SELECT min(id) FROM audit_log)"` | `ERROR: UPDATE on audit_log is not allowed (append-only)`; `DELETE` và `TRUNCATE` cũng bị chặn | TC-27-04, TC-27-05, TC-27-06 (`test/db/append-only.db-spec.ts`, có `audit_log`) |
 
-Giới hạn cần nói thật: 403 do `RolesGuard` **chưa ghi** dòng audit `DENIED` (BL-132), nên D1 chứng minh bị từ chối và không ghi gì, không phải "bị từ chối và có nhật ký". Chỉ 404 quyền sở hữu (phần A) mới có dòng `DENIED`.
+Từ BL-132 ([#161](https://github.com/Lawliet119/digital-banking-simulator/pull/161)), 403 do `RolesGuard` ghi dòng audit `access.denied` (`outcome: "DENIED"`, `metadata.reason: "NO_PERMISSION"`, `target` là route bị gọi), giống 404 quyền sở hữu ở phần A. Kiểm bằng auditor: `curl -sS --get $API/v1/audit/entries -H "Authorization: Bearer $AUD" --data-urlencode "action=access.denied"` (đã chạy ở bước 9 của [demo giữa kỳ](demo-midterm-end-to-end.md#bước-9--ca-từ-chối), DBS-138).
 
 ## E. Truy một giao dịch bằng một mã (AC-8.2)
 
@@ -151,7 +151,7 @@ DATABASE_URL=postgres://test:test@localhost:55433/postgres \
 1. Mở màn (1 phút): nói mục tiêu, chạy "Dữ liệu mở màn" (đã chuẩn bị trước nếu muốn quay gọn).
 2. A và B (3 phút): A1, A2, A4, A5; B1, B2. Nhấn mạnh 404 giống hệt id không tồn tại và dòng `DENIED`.
 3. C (3 phút): C1 đến C5. Nhấn mạnh "không chờ phiên hết hạn".
-4. D (2 phút): D1 (một vài route), D2, D4. Nói rõ giới hạn BL-132.
+4. D (2 phút): D1 (một vài route, rồi tra `action=access.denied`), D2, D4.
 5. E (4 phút): E1 đến E4, bấm giờ ở E3.
 6. F và kết (1 phút): F1, F3; chạy lệnh `test/security` cho thấy 2 test đạt.
 
@@ -159,5 +159,4 @@ DATABASE_URL=postgres://test:test@localhost:55433/postgres \
 
 - Chưa có lần quay: các lệnh chạy tay lấy từ README, [DBS-113](../features/DBS-113-lock-unlock-account.md), [DBS-135](../features/DBS-135-trace-by-correlation-id.md) và test; cần chạy thử trọn một lượt trước khi quay.
 - Suite `test/security` chỉ có hai test mới (TC-158-01, TC-158-02); AC-5.8 và AC-10.2 dựa vào test có sẵn ở DBS-86, 87, 61, 65, 159 như bảng đầu trang ([DBS-158 §1](../features/DBS-158-security-suite.md#1-bối-cảnh)).
-- 403 của `RolesGuard` chưa ghi audit `DENIED` (BL-132).
 - Demo chạy local (`AUTH_MODE=local`). Trên AWS dùng `infra/scripts/demo-token.sh` và checklist ở [demo-checklist](../runbooks/demo-checklist.md); chưa kiểm demo này trên cloud.
