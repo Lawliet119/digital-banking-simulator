@@ -238,7 +238,7 @@ jobs:
       - run: npm run build
 
   # Hai job quét của DBS-155. Chạy ở gốc repo (khác sáu job trên, mặc định working-directory là backend).
-  # Chưa thuộc "sáu tên hợp đồng"; chỉ chặn merge khi chủ repo thêm vào ruleset (BL-035, BL-012).
+  # Là required check của `main` (ruleset protect-main, 2026-11-14): đổi tên job thì sửa ruleset cùng lúc.
   # Công cụ chạy bằng image chính thức ghim digest; cách dùng và cờ ở .github/scripts/run-trivy.sh và
   # run-gitleaks.sh, được .github/scripts/check-image-workflow.py kiểm trên mọi PR.
   image-scan:
@@ -291,8 +291,7 @@ jobs:
           bash .github/scripts/run-gitleaks.sh
 
   # Hai job của BL-028 / BL-101 / BL-253: Terraform và test script hạ tầng. Chạy ở gốc repo (mặc định
-  # working-directory là backend). Chưa thuộc "sáu tên hợp đồng"; chỉ chặn merge khi chủ repo thêm vào
-  # ruleset (BL-012).
+  # working-directory là backend). Là required check của `main` (ruleset protect-main, 2026-11-14).
   # CI không có thông tin xác thực AWS và không cần: `-backend=false` bỏ backend S3, còn `terraform test`
   # dùng mock_provider/override_data (kể cả data.terraform_remote_state.base của session) nên không gọi
   # AWS. Ba thư mục gồm cả tests/dashboard.tftest.hcl của DBS-145. Lock file đã commit giữ nguyên bản

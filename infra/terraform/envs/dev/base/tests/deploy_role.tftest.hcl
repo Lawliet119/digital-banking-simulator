@@ -16,7 +16,7 @@ variables {
   account_id = "123456789012"
 }
 
-# TC-38-14: trust policy của role deploy khóa đúng repo và nhánh main (cùng biến với role đẩy image)
+# TC-38-14 / BL-105: trust policy của role deploy khóa đúng repo và environment dev (role đẩy image vẫn khóa nhánh main)
 run "deploy_trust_policy" {
   command = apply
 
@@ -31,8 +31,8 @@ run "deploy_trust_policy" {
   }
 
   assert {
-    condition     = jsondecode(aws_iam_role.github_deploy.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:Lawliet119@168917377/digital-banking-simulator@1398975427:ref:refs/heads/main" && jsondecode(aws_iam_role.github_deploy.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:aud"] == "sts.amazonaws.com"
-    error_message = "sub must be the main branch of this repo (immutable subject) and aud sts.amazonaws.com"
+    condition     = jsondecode(aws_iam_role.github_deploy.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:Lawliet119@168917377/digital-banking-simulator@1398975427:environment:dev" && jsondecode(aws_iam_role.github_deploy.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:aud"] == "sts.amazonaws.com"
+    error_message = "BL-105: sub must be the dev environment of this repo (immutable subject) and aud sts.amazonaws.com"
   }
 
   assert {
@@ -47,6 +47,49 @@ run "deploy_trust_policy" {
 }
 
 # TC-38-15: quyền tối thiểu
+# BL-105: hai role không còn chung sub: role đẩy image giữ sub nhánh main, role deploy chỉ nhận environment dev.
+run "deploy_and_push_subs_differ" {
+  command = apply
+
+  assert {
+    condition     = jsondecode(aws_iam_role.github_ecr_push.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:Lawliet119@168917377/digital-banking-simulator@1398975427:ref:refs/heads/main"
+    error_message = "BL-105: ecr push role must keep the main-branch sub"
+  }
+
+  assert {
+    condition     = jsondecode(aws_iam_role.github_deploy.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] != jsondecode(aws_iam_role.github_ecr_push.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"]
+    error_message = "BL-105: a plain main-branch job must not be able to assume the deploy role"
+  }
+
+  assert {
+    condition     = !strcontains(aws_iam_role.github_deploy.assume_role_policy, "refs/heads")
+    error_message = "BL-105: deploy trust must not accept the branch ref sub"
+  }
+}
+
+run "deploy_environment_follows_variable" {
+  command = apply
+
+  variables {
+    github_deploy_environment = "staging"
+  }
+
+  assert {
+    condition     = endswith(jsondecode(aws_iam_role.github_deploy.assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"], ":environment:staging")
+    error_message = "BL-105: sub must follow github_deploy_environment"
+  }
+}
+
+run "rejects_environment_with_special_chars" {
+  command = plan
+
+  variables {
+    github_deploy_environment = "dev:prod"
+  }
+
+  expect_failures = [var.github_deploy_environment]
+}
+
 run "deploy_policy" {
   command = apply
 
