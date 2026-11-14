@@ -1,0 +1,71 @@
+code/doc commit under test: cbeaac07e5f400db5379192dafa420653bd2eace (kịch bản), image ECR d3651378e592e0923764e0b60787d9e36a7a1562 (main d365137)
+AWS ap-southeast-1, profile dbs (IAM user dev1, nhóm dbs-admin), 2026-11-14
+
+##### Dựng phiên (ghi từ output các lệnh đã chạy)
+verify-clean.sh trước khi dựng: 'KET LUAN: sạch (13 loại)'
+terraform plan: Plan: 57 to add, 0 to change, 0 to destroy.
+terraform apply (desired_count=0): 23:20:20 -> 23:29:21 UTC+7 (9 phút 01 giây): Apply complete! Resources: 57 added
+db-roles.sh (container Linux dbs-awscli): đặt LOGIN cho dbs_api, dbs_worker, dbs_migrator; đăng nhập thử cả ba: được
+migrate.sh: 'Migration xong'; terraform apply desired_count=1 worker_desired_count=1: 2 changed
+ALB /health/ready: 200 sau 30 giây (database up, redis up); api 1/1, worker 1/1
+seed-cognito.sh: OK operator, auditor, admin, customer1, customer2, customer3
+seed-cloud.sh: task ECS dbs-seed trong VPC, 3 khách, 4 lệnh nạp, 2 lệnh chuyển, 'Ledger invariant ... total ledger balance = 0'
+
+##### Kịch bản (cloud-run: các khối bước 3-9 trích nguyên từ docs/demos/demo-midterm-end-to-end.md, curl -k)
+commit: cbeaac07e5f400db5379192dafa420653bd2eace  date: 2026-11-14T16:35:00Z
+health: {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+=== image running: arn:aws:ecs:ap-southeast-1:<acct>:task-definition/dbs-api:11
+=== [Cloud: tokens nhan vien va Binh (customer3) bang demo-token.sh trong Linux]
+token lengths: op=1174 aud=1173 binh=1174
+=== [Cloud: An tu dang ky bang Cognito sign-up + admin-confirm-sign-up + initiate-auth (mat khau chi qua stdin trong Linux)]
+sign-up stderr: False 
+An token length: 1134
+=== [Buoc 1 · Dang ky: onboard An; Binh la customer3 da onboard boi seed]
+{"id":"6c1cd22d-50e3-4195-bdc1-e6a306bae866","fullName":"Tran Van An","createdAt":"2026-11-14T16:35:10.869Z"}
+=== [Buoc 2 · Mo tai khoan An; Binh lay CHECKING co san]
+AN_ACC=5b9ce098-0ed0-49b0-af32-d17e4495954e BINH_ACC=5f97b7a0-96a4-4b4b-9732-1981a3b8182b
+=== [Bước 3 · Nạp tiền]
+{"transferId":"fc7b8d36-3be6-4fb2-a560-262771065a49","status":"COMPLETED"}
+=== [Bước 4 · Chuyển tiền (ghi `C` và `T`)]
+HTTP/1.1 201 Created
+{"transferId":"ffd5e120-4db5-440d-88fa-43d802b1d4cd","status":"COMPLETED"}
+C=2f805c4f-2ff9-468a-b22b-0245ca4b18ba T=ffd5e120-4db5-440d-88fa-43d802b1d4cd
+=== [Bước 5 · Cờ gian lận xuất hiện]
+{"items":[{"transferId":"ffd5e120-4db5-440d-88fa-43d802b1d4cd","fromAccountId":"5b9ce098-0ed0-49b0-af32-d17e4495954e","toAccountId":"5f97b7a0-96a4-4b4b-9732-1981a3b8182b","score":65,"riskLevel":"MEDIUM","reviewStatus":"OPEN","ruleSetVersion":1,"createdAt":"2026-11-14T16:35:12.364520Z"}],"nextCursor":null}
+=== [Bước 6 · Khách không thấy cờ]
+{"transferId":"ffd5e120-4db5-440d-88fa-43d802b1d4cd","type":"TRANSFER","status":"COMPLETED","amount":"20000000","createdAt":"2026-11-14T16:35:11.896013Z","fromAccountId":"5b9ce098-0ed0-49b0-af32-d17e4495954e","toAccountId":"5f97b7a0-96a4-4b4b-9732-1981a3b8182b"}
+{"items":[{"entryId":"15","transferId":"ffd5e120-4db5-440d-88fa-43d802b1d4cd","type":"TRANSFER","direction":"DEBIT","amount":"20000000","balanceAfter":"1000000","counterpartyAccountId":"5f97b7a0-96a4-4b4b-9732-1981a3b8182b","createdAt":"2026-11-14T16:35:11.897571Z"},{"entryId":"14","transferId":"fc7b8d36-3be6-4fb2-a560-262771065a49","type":"DEPOSIT","direction":"CREDIT","amount":"21000000","balanceAfter":"21000000","counterpartyAccountId":null,"createdAt":"2026-11-14T16:35:11.638935Z"}],"nextCursor":null}
+=== [Bước 7 · Nhân viên review (chỉ một lần)]
+{"transferId":"ffd5e120-4db5-440d-88fa-43d802b1d4cd","fromAccountId":"5b9ce098-0ed0-49b0-af32-d17e4495954e","toAccountId":"5f97b7a0-96a4-4b4b-9732-1981a3b8182b","score":65,"riskLevel":"MEDIUM","reviewStatus":"OPEN","ruleSetVersion":1,"createdAt":"2026-11-14T16:35:12.364520Z","aiAssessment":null,"hits":[{"ruleId":"R3","weight":35,"explanation":"Tài khoản mở dưới 1 phút trước, chuyển 20.000.000đ"},{"ruleId":"R6","weight":30,"explanation":"Chuyển xấp xỉ 95,23% số dư (20.000.000đ/21.000.000đ)."}],"recentTransactions":[{"entryId":"15","transferId":"ffd5e120-4db5-440d-88fa-43d802b1d4cd","type":"TRANSFER","direction":"DEBIT","amount":"20000000","balanceAfter":"1000000","counterpartyAccountId":"5f97b7a0-96a4-4b4b-9732-1981a3b8182b","createdAt":"2026-11-14T16:35:11.897571Z"},{"entryId":"14","transferId":"fc7b8d36-3be6-4fb2-a560-262771065a49","type":"DEPOSIT","direction":
+{"transferId":"ffd5e120-4db5-440d-88fa-43d802b1d4cd","reviewStatus":"CONFIRMED_FRAUD"}
+{"errorCode":"FLAG_ALREADY_REVIEWED","type":"about:blank","title":"Conflict","status":409,"detail":"Fraud flag already reviewed","correlationId":"6e3a500a-dacc-43d6-897b-7bfbd97573cd"}
+=== [Bước 8 · Kiểm toán viên tra `correlationId` (bấm giờ)]
+fraud_flag.review SUCCESS operator =C
+fraud_flag.view SUCCESS operator =C
+notification.sent SUCCESS worker =C
+fraud.flagged SUCCESS worker =C
+transfer SUCCESS customer =C
+step 8 elapsed ms: 285
+=== [Bước 9 · Ca từ chối]
+khach xem co: 403
+auditor review: 403
+{"entries":[{"id":"54","occurredAt":"2026-11-14T16:35:19.308664Z","actorUserId":"ee8bd870-aa48-404e-9c4a-cc6ac047d68c","actorRole":"auditor","action":"access.denied","outcome":"DENIED","target":{"type":"route","id":"POST /v1/operator/fraud-flags/:transferId/review"},"correlationId":"08b5e2af-3c8c-4136-89bf-3976f5c3dcdd","metadata":{"reason":"NO_PERMISSION"}},{"id":"53","occurredAt":"2026-11-14T16:35:19.093611Z","actorUserId":"e72aaa55-b32a-49bb-a6ae-b935c70fffe5","actorRole":"customer","action":"access.denied","outcome":"DENIED","target":{"type":"route","id":"GET /v1/operator/fraud-flags"},"correlationId":"45b11c94-59d3-4e58-84a8-0f21c3b8eef2","metadata":{"reason":"NO_PERMISSION"}},{"id":"37","occurredAt":"2026-11-14T16:34:36.089507Z","actorUserId":"ee8bd870-aa48-404e-9c4a-cc6ac047d68c","actorRole":"auditor","action":"access.denied","outcome":"DENIED","target":{"type":"route","id":"POST 
+=== extra: accounts of An after the flow
+[{"id":"5b9ce098-0ed0-49b0-af32-d17e4495954e","type":"CHECKING","status":"ACTIVE","balance":"1000000","createdAt":"2026-11-14T16:35:11.109Z","updatedAt":"2026-11-14T16:35:11.898Z"}]
+
+OK nat-gateway
+OK load-balancer
+OK rds
+OK rds-snapshot-manual
+OK elasticache
+OK ecs
+OK elastic-ip
+OK eni-available
+OK waf-regional
+OK vpc-endpoint-ec2
+OK rds-automated-backup
+OK elasticache-snapshot
+OK ebs
+KET LUAN: sạch (13 loại)
+
+##### Dọn: admin-delete-user khách An (pool ở base còn lại 6 người dùng seed); terraform destroy 23:35:47 -> 23:44:05 (8 phút 18 giây): Destroy complete! Resources: 57 destroyed; terraform state list của session: 0 dòng; verify-clean.sh (output ở trên) exit=0
