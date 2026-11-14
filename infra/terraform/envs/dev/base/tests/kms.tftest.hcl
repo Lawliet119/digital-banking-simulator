@@ -38,27 +38,23 @@ run "kms_key_policy_minimal" {
 
   assert {
     condition = (
-      length(jsondecode(aws_kms_key.main.policy).Statement) == 4 &&
+      length(jsondecode(aws_kms_key.main.policy).Statement) == 3 &&
       toset([for st in jsondecode(aws_kms_key.main.policy).Statement : st.Sid]) == toset([
         "AccountManagesKeyNotData",
         "UseKeyOnlyThroughAwsServices",
         "GrantsForAwsServices",
-        "ElastiCacheServiceLinkedRole",
       ]) &&
       alltrue([for st in jsondecode(aws_kms_key.main.policy).Statement : st.Effect == "Allow" && length(st.Action) > 0])
     )
-    error_message = "key policy must have exactly the 4 expected Allow statements with non-empty actions"
+    error_message = "key policy must have exactly the 3 expected Allow statements with non-empty actions"
   }
 
   assert {
     condition = alltrue([
       for st in jsondecode(aws_kms_key.main.policy).Statement :
-      (
-        try(st.Principal.AWS, "") == "arn:aws:iam::123456789012:root" ||
-        try(st.Principal.AWS, "") == "arn:aws:iam::123456789012:role/aws-service-role/elasticache.amazonaws.com/AWSServiceRoleForElastiCache"
-      ) && st.Principal != "*"
+      try(st.Principal.AWS, "") == "arn:aws:iam::123456789012:root" && st.Principal != "*"
     ])
-    error_message = "all statements must delegate to account root or AWSServiceRoleForElastiCache (no Principal *)"
+    error_message = "all statements must delegate to account root (no Principal *)"
   }
 
   assert {
@@ -98,6 +94,7 @@ run "kms_key_policy_minimal" {
         "secretsmanager.ap-southeast-1.amazonaws.com",
         "sqs.ap-southeast-1.amazonaws.com",
         "elasticache.ap-southeast-1.amazonaws.com",
+        "ec.ap-southeast-1.amazonaws.com",
       ])
     )
     error_message = "UseKeyOnlyThroughAwsServices must restrict data actions to the 4 AWS services in var.region and this account"
@@ -112,6 +109,7 @@ run "kms_key_policy_minimal" {
         "secretsmanager.ap-southeast-1.amazonaws.com",
         "sqs.ap-southeast-1.amazonaws.com",
         "elasticache.ap-southeast-1.amazonaws.com",
+        "ec.ap-southeast-1.amazonaws.com",
       ]) &&
       one([for st in jsondecode(aws_kms_key.main.policy).Statement : st.Condition.Bool["kms:GrantIsForAWSResource"] if st.Sid == "GrantsForAwsServices"]) == "true"
     )
@@ -133,6 +131,7 @@ run "kms_policy_uses_region_variable" {
       "secretsmanager.us-west-2.amazonaws.com",
       "sqs.us-west-2.amazonaws.com",
       "elasticache.us-west-2.amazonaws.com",
+      "ec.us-west-2.amazonaws.com",
     ])
     error_message = "ViaService must be built from var.region"
   }
