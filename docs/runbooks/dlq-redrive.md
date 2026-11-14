@@ -78,14 +78,15 @@ Dòng có `consumer` (`risk` hoặc `notification`), `outcome: "dead_letter"`, `
 
 | `reason` (hoặc dấu hiệu) | Nghĩa | Việc làm |
 |---|---|---|
-| `invalid_event` | body không phải JSON hoặc sai schema (`issueCodes` nói loại lỗi) | không redrive; tìm nơi gửi; **bỏ qua có ghi nhận** (mục 3c) |
+| `invalid_event` | body là JSON hợp lệ nhưng sai schema (`issueCodes` nói loại lỗi) | không redrive; tìm nơi gửi; **bỏ qua có ghi nhận** (mục 3c) |
+| **không có dòng log nào** | body **không phải JSON**: `SqsClient` chuyển thẳng sang DLQ trước khi tới `ConsumerBase`, nên không có dòng log và không có đếm metric (`dead-lettered` chỉ ở kết quả lô) | phân loại theo nội dung body (mục 2); không redrive; **bỏ qua có ghi nhận** (mục 3c) |
 | `unknown_event_type` | `issueCodes` có `UNKNOWN_EVENT_TYPE`: consumer chưa biết loại sự kiện (producer mới hơn consumer) | deploy consumer biết loại đó rồi redrive; nếu loại sự kiện bị bỏ hẳn thì bỏ qua có ghi nhận |
 | `poison` | handler tự kết luận không xử lý được; `code` là SQLSTATE của lỗi gốc (ví dụ `23503` khóa ngoại) | điều tra dữ liệu của `eventId`; sửa dữ liệu hoặc code rồi redrive; không sửa được thì bỏ qua có ghi nhận |
 | `attempts_exhausted` | lỗi 5 lần liền; các dòng `retry` (mức `warn`) cùng `eventId` đứng trước | lỗi tạm (failover PostgreSQL 60–120 s, hết kết nối) hay lỗi code: chờ hạ tầng hồi phục hoặc deploy bản sửa rồi redrive |
 | `dlq:age-check` báo **stale** (gửi gốc quá 6 ngày) | quá hạn dedup 7 ngày: redrive có thể áp hiệu ứng lần hai | không redrive; **bỏ qua có ghi nhận** (file quarantine) |
 | `processed_events` đã có dòng `(consumer, event_id)` | sự kiện đã áp hiệu ứng (hiếm: bản trùng lỗi ở bước chuẩn bị năm lần trong khi một bản khác đã commit) | xóa message khỏi DLQ, không redrive, ghi nhận. Cần đọc `processed_events` trong RDS của phiên: `SELECT 1 FROM processed_events WHERE consumer = '<risk\|notification>' AND event_id = '<eventId>'`. Ops hiện chưa có đường đọc DB (BL-362), nên bước này làm cùng người có quyền DB |
 
-Không có dòng log (log group hết hạn giữ, worker chưa từng chạy, message do tay gửi): phân loại theo nội dung body (mục 2), tuổi (`dlq:age-check`) và, khi có phiên, `processed_events`; ghi "không rõ" vào bản ghi nhận.
+Không có dòng log (body không phải JSON như trên, log group hết hạn giữ, worker chưa từng chạy, message do tay gửi): phân loại theo nội dung body (mục 2), tuổi (`dlq:age-check`) và, khi có phiên, `processed_events`; ghi "không rõ" vào bản ghi nhận.
 
 ## 3. Quét để tách message hỏng và message quá 6 ngày (bắt buộc trước khi redrive)
 

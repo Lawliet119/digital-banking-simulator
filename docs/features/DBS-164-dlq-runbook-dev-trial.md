@@ -48,7 +48,8 @@ Dòng có `consumer` (`risk` hoặc `notification`), `outcome: "dead_letter"`, `
 
 | `reason` (hoặc dấu hiệu) | Nghĩa | Việc làm |
 |---|---|---|
-| `invalid_event` | body không phải JSON hoặc sai schema (`issueCodes` nói loại lỗi) | không redrive; tìm nơi gửi; **bỏ qua có ghi nhận** (mục 3c) |
+| `invalid_event` | body là JSON hợp lệ nhưng sai schema (`issueCodes` nói loại lỗi) | không redrive; tìm nơi gửi; **bỏ qua có ghi nhận** (mục 3c) |
+| **không có dòng log nào** | body **không phải JSON**: `SqsClient` chuyển thẳng sang DLQ trước khi tới `ConsumerBase` (không log, không metric) | phân loại theo nội dung body (mục 2); không redrive; **bỏ qua có ghi nhận** (mục 3c) |
 | `unknown_event_type` | `issueCodes` có `UNKNOWN_EVENT_TYPE`: consumer chưa biết loại sự kiện (producer mới hơn consumer) | deploy consumer biết loại đó rồi redrive; nếu loại sự kiện bị bỏ hẳn thì bỏ qua có ghi nhận |
 | `poison` | handler tự kết luận không xử lý được; `code` là SQLSTATE của lỗi gốc (ví dụ `23503` khóa ngoại) | điều tra dữ liệu của `eventId`; sửa dữ liệu hoặc code rồi redrive; không sửa được thì bỏ qua có ghi nhận |
 | `attempts_exhausted` | lỗi 5 lần liền; các dòng `retry` (mức `warn`) cùng `eventId` đứng trước | lỗi tạm (failover PostgreSQL 60–120 s, hết kết nối) hay lỗi code: chờ hạ tầng hồi phục hoặc deploy bản sửa rồi redrive |
@@ -208,6 +209,7 @@ Task docs-only: "test viết trước" là các lệnh grep của TC-164-01/02/0
 
 - **Bản ghi nhận mẫu** (đầu ra của M-164-12; không tạo issue thật cho lần thử): tiêu đề `DLQ bỏ qua 2026-11-15 notification-events-dlq`; DLQ `dbs-dev-notification-events-dlq`; 3 message bỏ qua ((b) `invalid_event`, (c) `unknown_event_type` eventId `71aa0d6d-…`, (d) quá hạn mô phỏng eventId `7e57748d-…`); người quyết định `<GitHub handle>`; xử lý: lưu body ra `skip-notification-…` và `stale-notification-…` ngoài repo rồi xóa khỏi DLQ; báo cáo `dlq:age-check` `checked 1, stale 1, deleted 1, complete true`; sửa nguyên nhân: không áp dụng.
 - **Hệ quả của lần thử:** DLQ notification đã redrive thật ngày 2026-11-15, **không redrive lại trước 2026-11-21**; DLQ risk đã redrive 2026-11-14, không trước 2026-11-20. Sự cố thật trong khoảng đó xử lý tay; đã ghi ở runbook, mục "Lần chạy thật".
+- **Sửa sau review của DBS-183:** reviewer của DBS-183 phát hiện bảng 2b ghi sai rằng body không phải JSON có dòng log `invalid_event`; code (`sqs.client.ts` `processBatch`, TC-125-02) cho thấy không có dòng log nào. Đã sửa runbook và §2 B; lần chạy thủ công của DBS-164 không bị ảnh hưởng (M-164-05 phân loại theo body, log trống vì không có worker).
 - **Phạm vi so với §7:** `git diff --stat origin/main...HEAD`: runbook, DBS-163 (chỉ status), feature doc, `docs/features/README.md`, `docs/BACKLOG.md`, ba file `screenshots/DBS-164/`. Khớp §7 bước 1–4.
 - **Lệch so với kế hoạch (agent tự duyệt):**
   1. Bước 2 của §7 thu hẹp: chỉ sửa status `Draft` của DBS-163, không sửa §7 và §8 của DBS-163 vì không có bằng chứng chúng sai (lúc đó có thể đã có phiên ECS).
