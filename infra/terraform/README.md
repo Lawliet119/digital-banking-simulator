@@ -214,7 +214,21 @@ Phần chưa chạy thật: một lần seed bằng role này trên AWS (còn m�
 
 ### RDS PostgreSQL 17 (DBS-66)
 
-`base` giữ KMS CMK dùng chung `alias/dbs-dev` (≈ 1 USD/tháng; xóa phải chờ 7 ngày), DB subnet group `dbs-dev` (2 private subnet) và SG `dbs-dev-db` (5432 chỉ từ SG `dbs-dev-api`; task `api` chỉ được đi ra 5432 tới SG này). `session` dựng instance `dbs-dev` (`db.t4g.micro`, Single-AZ, 20 GB gp3, mã hóa bằng CMK, `rds.force_ssl = 1`, `timezone = UTC`, backup 1 ngày) và parameter group `dbs-dev-postgres17`. Mật khẩu master do RDS quản lý trong Secrets Manager (output `db_master_secret_arn`); không có mật khẩu nào trong state. `db_instance_class` và `db_multi_az` là biến (production đổi).
+`base` giữ KMS CMK dùng chung `alias/dbs-dev` (≈ 1 USD/tháng; xóa phải chờ 7 ngày), DB subnet group `dbs-dev` (2 private subnet) và SG `dbs-dev-db` (5432 chỉ từ SG `dbs-dev-api`; task `api` chỉ được đi ra 5432 tới SG này). `session` dựng instance `dbs-dev` (`db.t4g.micro`, Single-AZ, 20 GB gp3, mã hóa bằng CMK, `rds.force_ssl = 1`, `timezone = UTC`, backup 1 ngày) và parameter group `dbs-dev-postgres17`. Mật khẩu master do RDS quản lý trong Secrets Manager (output `db_master_secret_arn`); không có mật khẩu nào trong state. `db_instance_class` và `db_multi_az` là biến (production đổi; dev bật tạm khi diễn tập failover theo DBS-180).
+
+**Bật/tắt Multi-AZ để diễn tập failover (DBS-180):**
+
+- Mặc định `db_multi_az = false` (Single-AZ). Output `db_multi_az` báo trạng thái sau `apply`.
+- Chênh lệch chi phí theo giờ (`db.t4g.micro` PostgreSQL ở `ap-southeast-1`, giá on-demand niêm yết):
+
+| Mục | Single-AZ | Multi-AZ | Chênh lệch |
+|---|---|---|---|
+| Instance `db.t4g.micro` | 0,0250 USD/giờ | 0,0510 USD/giờ | +0,0260 USD/giờ |
+| Storage gp3 20 GB (730 giờ/tháng) | ≈ 0,0038 USD/giờ | ≈ 0,0076 USD/giờ | +0,0038 USD/giờ |
+| **Tổng** | **≈ 0,0288 USD/giờ** | **≈ 0,0586 USD/giờ** | **≈ +0,030 USD/giờ (gấp ≈ 2,03 lần)** |
+
+- Bật khi diễn tập (sửa tại chỗ, kéo dài vài phút và làm chậm I/O trong lúc tạo standby; báo kênh trước khi bật): `terraform apply -var db_multi_az=true` (kèm đủ biến của phiên đang chạy).
+- Tắt ngay sau khi diễn tập xong để tiết kiệm (quên tắt ≈ +0,72 USD/ngày): chạy lại `terraform apply` không truyền `db_multi_az=true` (về mặc định `false`) và xác nhận `terraform output db_multi_az` = `false`.
 
 **Chi phí khi bật** (ADR-11): RDS ≈ 0,025 USD/giờ + gp3 20 GB ≈ 0,004 USD/giờ + secret master 0,40 USD/tháng theo tỉ lệ. Dev mất dữ liệu mỗi lần `destroy` (không snapshot cuối, xóa cả backup tự động); seed lại bằng migration và script (DBS-68). Tạo mất 10–15 phút, xóa 5–8 phút: `destroy` ngay khi kiểm xong, không để qua đêm. Tên database `dbs` (local và CI dùng `banking`; app chỉ nhận `DATABASE_URL`). CA của RDS ghim `rds-ca-rsa2048-g1`.
 
