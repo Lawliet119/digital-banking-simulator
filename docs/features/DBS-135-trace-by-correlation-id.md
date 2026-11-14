@@ -51,7 +51,7 @@ Một giao dịch có một mã `C` = `correlationId` do server sinh ở request
 | H5 | Consumer chấm điểm tạo cờ | Dòng `fraud.flagged` dưới `C` (đã có, DBS-111) |
 | H6 | Operator `POST /v1/operator/fraud-flags/{transferId}/review` lần đầu | Dòng `fraud_flag.review` dưới `C`, `metadata: {reason, id: <mã request review>}` (`id` UUID được metadata guard cho phép; giữ liên kết với log pino-http, header và problem+json của request review). Header `X-Correlation-Id` của phản hồi vẫn là mã request review (khác `C`). `C` lấy qua hàm export của module ledger (§3), trong cùng transaction với UPDATE. Nếu hàm trả `undefined` (không thể xảy ra sau UPDATE thành công vì khóa ngoại) thì ném lỗi nội bộ: transaction rollback, API trả 500; **không bao giờ** rơi về mã request |
 | H7 | Review lần hai | 409 `FLAG_ALREADY_REVIEWED`, không thêm dòng audit (đã có, DBS-130) |
-| H8 | `fraud_flag.view` và `fraud_flag.search` | Không đổi, vẫn dưới mã request (Quyết định G2 #3) |
+| H8 | `fraud_flag.view` và `fraud_flag.search` | Ban đầu không đổi, vẫn dưới mã request (Quyết định G2 #3). **Cập nhật BL-226:** `fraud_flag.view` ghi dưới `C` với `metadata: {id: <mã request xem>}` (cùng cơ chế H6); `fraud_flag.search` vẫn dưới mã request vì một danh sách không gắn một giao dịch |
 | H9 | Auditor `GET /v1/audit/entries?correlationId=C` | 200, `entries` đúng 4 dòng của chuỗi, mới nhất trước. Dòng `audit.search` của chính lần tra cứu nằm dưới mã server của request tra cứu, không dưới `C` (DBS-103) |
 | H10 | Tra mã không tồn tại | 200, `entries: []`, `nextCursor: null`, vẫn ghi `audit.search` |
 | H11 | Client gửi `X-Correlation-Id` tự chọn ở transfer hoặc review | Bị bỏ qua; mã do server sinh (DBS-134 H1) |
@@ -182,7 +182,7 @@ Lượt 2 không có phát hiện blocking, mọi phát hiện đã sửa bằng
 **Quyết định ở G2 (agent tự quyết):**
 1. Giữ quyết định review dưới mã giao dịch (không để hai mã riêng), kèm `metadata.id` = mã request review để không mất liên kết với log. Đây là thay đổi hành vi của DBS-130 ở module #4 và định nghĩa trong §4.7 của #3: ghi vào mô tả PR để owner duyệt.
 2. `notification.sent` được đăng ký là action mới trong `audit/README`, không sửa ADR.
-3. `fraud_flag.view` giữ mã request: một lượt xem không phải bước của chuỗi giao dịch AC-8.2. Bàn giao nếu auditor muốn thấy cả lượt xem dưới `C` (BL ở §8).
+3. `fraud_flag.view` giữ mã request: một lượt xem không phải bước của chuỗi giao dịch AC-8.2. Bàn giao nếu auditor muốn thấy cả lượt xem dưới `C` (BL ở §8). **Đã đổi ở BL-226 (techlead quyết định):** lượt xem nằm trong chuỗi dưới `C`, `metadata.id` giữ mã request; `fraud_flag.search` vẫn dưới mã request.
 4. Test mới nằm ở `audit-trace.services-spec.ts` (không sửa file của DBS-134) kèm bước CI.
 
 ## 7. Kế hoạch triển khai
@@ -283,7 +283,7 @@ test:services correlation-chain / notification-consumer-review / outbox-relay / 
   2. Test `fraud-operator-http.db-spec.ts`: ngoài hai test đã nêu, thêm assertion vào test `dbs_api` (không đổi hành vi, thêm một kiểm).
   3. Ảnh chụp làm từ transcript bằng Chrome headless (không phải ảnh màn hình terminal trực tiếp), cùng cách DBS-86 đã dùng.
 - **Bàn giao cho vai khác (dòng trong [BACKLOG](../BACKLOG.md)):**
-  - **BL-226:** lượt xem `fraud_flag.view` chưa nằm dưới mã của giao dịch (#4 và #3).
+  - **BL-226 (đã xong):** lượt xem `fraud_flag.view` nay nằm dưới mã của giao dịch, `metadata.id` giữ mã request (`FraudHttpService.detail`, cùng cơ chế review); `fraud_flag.search` giữ mã request. Test: `fraud-operator-http.db-spec.ts` và `audit-trace.services-spec.ts`.
   - **BL-227:** dung lượng `audit_log` khi tải gần cận trên ADR-14, phân vùng hoặc lưu trữ (#3, #5).
   - **BL-228:** DoD 3 cần một người bấm giờ thật trên môi trường demo (Dev reviewer).
   - **BL-160 (có sẵn):** review độc lập trên GitHub cho PR này.
