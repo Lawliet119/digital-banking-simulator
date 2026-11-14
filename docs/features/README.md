@@ -30,6 +30,7 @@ Lỗi không có mã trên board dùng tên `BUG-YYYYMMDD-<slug>.md`.
 
 | Task | Tóm tắt | Vai | Trạng thái |
 |---|---|---|---|
+| [DBS-154](DBS-154-kms-cmk.md) | Terraform & scripts: KMS CMK `alias/dbs-dev` policy tối thiểu (ủy quyền IAM, `ViaService` 4 dịch vụ), xoay 365 ngày; SQS và `demo-accounts` dùng CMK; script `verify-kms.sh` | #5 Platform & Ops | Implemented offline · chờ `apply base` và kiểm tra AWS thật |
 | [DBS-186](DBS-186-redis-revocation-drill.md) | Khóa trước flush/down Redis; SQL fallback và boundary hit/miss/down; [P4](../deliverables/P4-incident-table.md) | Dev | Implemented local; [PR #127](https://github.com/Lawliet119/digital-banking-simulator/pull/127), đã merge 2026-11-11 (CI xanh); cloud BL-220/222, Dev khác review BL-230 |
 | [DBS-165](DBS-165-k6-scenarios.md) | Năm script k6, seed qua API, thresholds theo plateau/route, runner kiểm bất biến và cardinality duplicate; smoke AppModule/PostgreSQL/Valkey thật từ clone sạch | Dev | Implemented; smoke local đạt; [PR #128](https://github.com/Lawliet119/digital-banking-simulator/pull/128) đã merge 2026-11-11 (CI xanh), Dev khác review còn ở BL-233; cloud BL-228/229 |
 
