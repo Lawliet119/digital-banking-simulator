@@ -4,6 +4,7 @@ import { activeTransactionContext } from '@database/transaction.helper';
 import { TransactionService } from '@database/transaction.service';
 import type { RoleDenial, RoleDenialAudit } from '@modules/identity';
 import { serializeMetadata } from './audit-metadata.guard';
+import { assertValidTarget } from './audit-target.guard';
 import { actorRoleOf } from './audit.registry';
 import { AuditReason, NestedTransactionError, type AuditRecordInput } from './audit.types';
 
@@ -21,6 +22,7 @@ export class AuditService implements RoleDenialAudit {
    * `TransactionService.run` rolls back the whole transaction — fail-closed (DoD #2).
    */
   async record(manager: EntityManager, input: AuditRecordInput): Promise<void> {
+    assertValidTarget(input.target);
     const metadata = serializeMetadata(input.metadata);
     await manager.query(INSERT_SQL, [
       input.actor,
