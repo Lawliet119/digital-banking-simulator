@@ -67,6 +67,9 @@ const COUNTERS: CounterSpec[] = [
   { name: 'risk_decision_total', labels: { ai_status: 'AiStatus' } },
   // BL-127: one increment per reconciliation run that was recorded; `status` is OK, MISMATCH or ERROR.
   { name: 'reconciliation_runs_total', labels: { status: 'Status' } },
+  // BL-209: a message a queue consumer retried or dead-lettered. `consumer` is a literal of the code
+  // (risk, notification) and `outcome` is retry or dead_letter, both checked where it is counted.
+  { name: 'consumer_message_total', labels: { consumer: 'Consumer', outcome: 'Outcome' } },
 ];
 
 /**

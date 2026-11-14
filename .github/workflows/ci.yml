@@ -138,6 +138,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/outbox-relay-faults.services-spec.ts
       - name: ConsumerBase on PostgreSQL + ElasticMQ (DBS-101)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/consumer-base.services-spec.ts
+      - name: ConsumerBase stops while a 20 s long poll is pending (BL-209)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/consumer-shutdown.services-spec.ts
       - name: Notification consumer review focus - duplicate, broken, reordered (DBS-104)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/notification-consumer-review.services-spec.ts
       - name: correlationId across API, outbox, SQS and consumer (DBS-134)

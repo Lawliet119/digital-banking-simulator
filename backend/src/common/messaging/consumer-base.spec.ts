@@ -217,7 +217,8 @@ describe('DBS-101 ConsumerBase (unit)', () => {
       await expect(consumer.handle(TRANSFER_SAMPLE, message(1))).rejects.toThrow(
         'database unavailable',
       );
-      expect(seenIds).toEqual([TRANSFER_SAMPLE.correlationId]);
+      // Two warnings now (BL-209): the retry decision and the backoff that could not be applied.
+      expect(seenIds).toEqual([TRANSFER_SAMPLE.correlationId, TRANSFER_SAMPLE.correlationId]);
     } finally {
       warn.mockRestore();
     }

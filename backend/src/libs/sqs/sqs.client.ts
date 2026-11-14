@@ -14,6 +14,12 @@ export interface ReceiveOptions {
   waitTimeSeconds?: number;
   maxMessages?: number;
   visibilityTimeout?: number;
+  /**
+   * Cancels the receive in flight (BL-209): a long poll waits up to 20 s for a message, so a
+   * shutdown aborts it instead of waiting. The request is dropped on the client side; a message the
+   * queue had just handed over stays invisible until its visibility timeout and is delivered again.
+   */
+  abortSignal?: AbortSignal;
 }
 export interface SendOptions {
   /** Gives up on the request after this many milliseconds (the message may still have arrived). */
@@ -91,6 +97,7 @@ export class SqsClient implements OnApplicationShutdown {
         MessageAttributeNames: ['All'],
         MessageSystemAttributeNames: ['ApproximateReceiveCount'],
       }),
+      options.abortSignal === undefined ? undefined : { abortSignal: options.abortSignal },
     );
     return result.Messages ?? [];
   }

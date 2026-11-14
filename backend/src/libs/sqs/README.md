@@ -18,6 +18,7 @@ const results = await sqs.processBatch(queueUrl, dlqUrl, async (body, message) =
 - `send(queue, body, attributes?)`: gửi body dạng string thô; attribute kiểu String. Lỗi SDK ném nguyên lên caller.
 - `receive(queue, options?)`: trả message thô, **không xóa**; mặc định wait 20s, batch 10,
   visibility 30s. Biên hợp lệ: wait 0–20, batch 1–10, visibility 0–43200 (số nguyên).
+  `abortSignal` (BL-209) hủy long poll đang chờ: SDK bỏ request và `receive` từ chối với `AbortError` ngay, không đợi hết 20 s. Phía queue request có thể còn sống một lúc và nhận mất message kế tiếp: message đó ẩn tới hết visibility timeout rồi giao lại với số lần nhận tăng thêm 1 (không mất message). Người gọi (`ConsumerBase`) hủy khi tắt máy và coi lỗi hủy là bình thường; `processBatch` chuyển `abortSignal` cho `receive` và lỗi hủy lan lên như mọi lỗi `receive`.
 - `changeVisibility(queue, message, seconds)` (DBS-102): ẩn message đã nhận thêm `seconds` (0–43200) để làm backoff trước lần giao lại.
 - `acknowledge(queue, message)`: xóa theo receipt handle, chỉ gọi sau khi caller đã commit xử lý.
 - `processBatch(queue, dlqUrl, handler, options?)`: nhận một batch, các handler chạy song song.

@@ -267,6 +267,28 @@ describe('MetricsService', () => {
     });
   });
 
+  describe('consumer counter (BL-209)', () => {
+    it('TC-209-01 consumer_message_total is written with Role, Consumer and Outcome', async () => {
+      const messages = counter('consumer_message_total', ['consumer', 'outcome']);
+      const { service, docs } = collect();
+      await service.start(T0);
+      messages.inc({ consumer: 'risk', outcome: 'retry' }, 3);
+      messages.inc({ consumer: 'notification', outcome: 'dead_letter' });
+      await service.flush(T0 + MINUTE);
+      const rows = docs
+        .filter(d => names(d)[0] === 'consumer_message_total')
+        .map(d => [d.Consumer, d.Outcome, d.consumer_message_total]);
+      expect(rows.sort()).toEqual([
+        ['notification', 'dead_letter', 1],
+        ['risk', 'retry', 3],
+      ]);
+      expect(
+        docs.find(d => names(d)[0] === 'consumer_message_total')!._aws.CloudWatchMetrics[0]
+          .Dimensions,
+      ).toEqual([['Role', 'Consumer', 'Outcome']]);
+    });
+  });
+
   describe('distributions (BL-204)', () => {
     const samplesOf = (docs: EmfDocument[], name: string) => docs.filter(d => names(d)[0] === name);
 
