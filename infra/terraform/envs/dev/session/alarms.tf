@@ -4,7 +4,7 @@
 # Mọi alarm gửi vào topic SNS của base (`alarm_topic_arn`), cả lúc báo (alarm_actions) và lúc hết (ok_actions).
 # Tag lấy từ default_tags của provider (locals.tags), alarm hỗ trợ tag nên không cần khai thêm.
 #
-# Chi phí: 11 alarm ở đây (+ 2 alarm DLQ ở base = 13). Alarm chuẩn 0,10 USD/alarm/tháng; alarm dùng biểu thức metric
+# Chi phí: 12 alarm ở đây (+ 2 alarm DLQ ở base = 14). Alarm chuẩn 0,10 USD/alarm/tháng; alarm dùng biểu thức metric
 # (SUM(METRICS())) bị tính theo số metric được tham chiếu: `risk_rule_error` 6 metric, `reconciliation`, `redis_fallback`,
 # `rate_limited` mỗi cái 2. Tổng cỡ 2,3 USD/tháng nếu chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều.
 #
@@ -308,6 +308,32 @@ resource "aws_cloudwatch_metric_alarm" "risk_config_redis_fallback" {
   period              = 60
   evaluation_periods  = 2
   datapoints_to_alarm = 2
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = local.alarm_actions
+  ok_actions    = local.alarm_actions
+}
+
+# BL-188: giả định của bound 60 giây khi chọn phiên bản luật (docs/features/BUG-20261109-risk-config-freshness.md §2): đồng hồ
+# Redis và đồng hồ local không lùi hay chạy sai tốc độ, SQL đọc phiên bản không quá 60 s. Khi không đứng được, `RuleSetRepository`
+# bỏ lựa chọn đó (`FreshnessExpired`), đọc lại một lần, rồi ném lỗi (message rollback, retry, vào DLQ) và tăng
+# `risk_config_freshness_exceeded_total` (worker; bộ dimension `[Role]`, không nhãn). Không có metric nào đo lệch giờ trực tiếp:
+# ECS Fargate và ElastiCache đồng bộ giờ qua Amazon Time Sync Service, nên đồng hồ chỉ bị bắt khi nó làm hỏng một lần chọn,
+# còn SQL chậm ≥ 60 s cũng đi qua đường này. Bình thường bằng 0; một điểm là đủ báo (một lần chọn không chứng minh được độ tươi
+# là một event có thể bị chấm bằng luật quá hạn nếu đường dự phòng sai), cửa sổ 300 s giữ ALARM vài phút như các alarm sự kiện.
+resource "aws_cloudwatch_metric_alarm" "risk_config_freshness" {
+  alarm_name        = "dbs-dev-risk-config-freshness"
+  alarm_description = "Risk bỏ một lần chọn phiên bản luật vì không chứng minh được bound 60 giây (risk_config_freshness_exceeded_total > 0, BL-188): SQL đọc phiên bản ≥ 60 s, hoặc đồng hồ local/Redis lùi hay lệch. Event bị retry rồi vào DLQ. Kiểm RDS, Valkey và giờ hệ thống của task worker (docs/runbooks/risk-config-rollout.md)."
+
+  namespace   = var.metrics_namespace
+  metric_name = "risk_config_freshness_exceeded_total"
+  dimensions  = { Role = local.alarm_role_worker }
+
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
   threshold           = 0
   comparison_operator = "GreaterThanThreshold"
   treat_missing_data  = "notBreaching"

@@ -65,6 +65,7 @@ describe('DBS-110 RuleSetRepository failure and freshness behavior', () => {
   });
 
   it('rejects snapshots when SQL takes at least the entire freshness budget', async () => {
+    const metrics = new RiskMetrics();
     let elapsed = 0;
     const clock = { monotonicMs: () => elapsed, wallMs: () => elapsed };
     const repository = new RuleSetRepository({
@@ -75,13 +76,16 @@ describe('DBS-110 RuleSetRepository failure and freshness behavior', () => {
           return Promise.resolve([{ version: 1, config: config(30) }]);
         },
       },
-      metrics: new RiskMetrics(),
+      metrics,
       clock,
     });
     await expect(repository.current()).rejects.toThrow('freshness');
+    // BL-188: each discarded selection is counted (both attempts), the signal of the freshness alarm.
+    expect(await metrics.configFreshnessExceededCount()).toBe(2);
   });
 
   it('retries a stale SQL snapshot and selects the newer version', async () => {
+    const metrics = new RiskMetrics();
     let elapsed = 0;
     let first = true;
     const clock = { monotonicMs: () => elapsed, wallMs: () => elapsed };
@@ -97,22 +101,25 @@ describe('DBS-110 RuleSetRepository failure and freshness behavior', () => {
           return Promise.resolve([{ version: 2, config: config(50) }]);
         },
       },
-      metrics: new RiskMetrics(),
+      metrics,
       clock,
     });
     expect((await repository.current()).version).toBe(2);
+    expect(await metrics.configFreshnessExceededCount()).toBe(1); // the discarded stale snapshot
   });
 
   it('fails closed if the local monotonic clock moves backward during selection', async () => {
+    const metrics = new RiskMetrics();
     let monotonic = 0;
     const clock = { monotonicMs: () => --monotonic, wallMs: () => 0 };
     const repository = new RuleSetRepository({
       redis: noCache,
       db: { query: () => Promise.resolve([{ version: 1, config: config(30) }]) },
-      metrics: new RiskMetrics(),
+      metrics,
       clock,
     });
     await expect(repository.current()).rejects.toThrow('freshness');
+    expect(await metrics.configFreshnessExceededCount()).toBe(2); // a clock that went backwards is the same event
   });
 
   it('does not use a cached version after a delayed Redis time sample', async () => {

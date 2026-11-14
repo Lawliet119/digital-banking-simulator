@@ -10,6 +10,7 @@ const COUNTERS = [
   'redis_fallback_total',
   'rate_limited_total',
   'risk_config_redis_fallback_total',
+  'risk_config_freshness_exceeded_total',
   'risk_unsupported_mode_total',
   'risk_rule_error_total',
   'risk_decision_total',
@@ -128,9 +129,11 @@ describe('MetricsService', () => {
       const redis = counter('redis_fallback_total');
       const limited = counter('rate_limited_total', ['scope']);
       const config = counter('risk_config_redis_fallback_total', ['reason']);
+      const freshness = counter('risk_config_freshness_exceeded_total');
       const { service, docs } = collect();
       await service.start(T0);
       redis.inc(3);
+      freshness.inc(2);
       limited.inc({ scope: 'ip' }, 2);
       limited.inc({ scope: 'user' });
       config.inc({ reason: 'corrupt' });
@@ -147,6 +150,13 @@ describe('MetricsService', () => {
       expect(
         byName.get('risk_config_redis_fallback_total')?._aws.CloudWatchMetrics[0].Dimensions,
       ).toEqual([['Role', 'Reason'], ['Role']]);
+      // BL-188: no label, so the only dimension set is `[Role]` (what alarm dbs-dev-risk-config-freshness watches).
+      expect(
+        byName.get('risk_config_freshness_exceeded_total')?.risk_config_freshness_exceeded_total,
+      ).toBe(2);
+      expect(
+        byName.get('risk_config_freshness_exceeded_total')?._aws.CloudWatchMetrics[0].Dimensions,
+      ).toEqual([['Role']]);
       // BL-204: the metric of a feature read falling back from Redis is gone with the Redis read.
       expect(docs.map(d => names(d)[0])).not.toContain('risk_redis_fallback_total');
       const limits = docs.filter(d => names(d)[0] === 'rate_limited_total');

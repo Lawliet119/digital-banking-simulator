@@ -90,6 +90,7 @@ export class RuleSetRepository {
         return await this.selectFromDatabase();
       } catch (error) {
         if (!(error instanceof FreshnessExpired)) throw error;
+        this.metrics.configFreshnessExceeded(); // BL-188: slow SQL or an inconsistent clock; alarm in session/alarms.tf
       }
     }
     throw new Error('Risk rule set freshness bound exceeded');
