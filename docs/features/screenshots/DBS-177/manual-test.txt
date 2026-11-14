@@ -1,0 +1,17 @@
+=== DBS-177 Live AWS SLO Alarms Verification (2026-11-14) ===
+Environment: ap-southeast-1, profile=dbs-admin
+
+1. Applied 4 SLO alarms to dev/session:
+   - dbs-dev-api-5xx-rate
+   - dbs-dev-transfer-latency-p95
+   - dbs-dev-read-latency-p95
+   - dbs-dev-transfer-to-flag-p95
+   Total alarms in dbs-dev-* = 17 (15 session + 2 base DLQ).
+
+2. Verified state transitions (set-alarm-state ALARM -> describe-alarms -> OK):
+   - dbs-dev-api-5xx-rate         : ALARM -> OK
+   - dbs-dev-read-latency-p95     : ALARM -> OK
+   - dbs-dev-transfer-latency-p95 : ALARM -> OK
+   - dbs-dev-transfer-to-flag-p95 : ALARM -> OK
+
+Note: Real k6 load-based triggers (M-177-03/04) and email inbox confirmation remain in BL-341.

@@ -111,7 +111,7 @@ Rủi ro và cách lùi: alarm là tài nguyên độc lập trong `session`, l�
 | TC-177-03 | `alarms.tftest.hcl` › `read_latency_p95_alarm` | đạt |
 | TC-177-04 | `alarms.tftest.hcl` › `transfer_to_flag_p95_alarm` | đạt |
 | TC-177-05 | `alarms.tftest.hcl` › `all_alarms_notify_the_topic`, `alarms_follow_metrics_namespace` | đạt |
-| TC-177-06 | M-177-01..05 (AWS thật) | chưa làm (chờ dựng `dev/session` Up, **BL-341**) |
+| TC-177-06 | M-177-01..02 (AWS thật) | đạt một phần: đã apply 4 SLO alarm lên `dev/session` (tổng 17 alarm), test chuyển trạng thái `ALARM → OK` cho cả 4 alarm (`screenshots/DBS-177/manual-test.txt`); test tải k6 thật + hộp thư email giữ ở **BL-341** |
 | TC-177-07 | PR, CI, Dev review | chưa làm (**BL-342**) |
 
 - **Bàn giao cho vai khác:**
