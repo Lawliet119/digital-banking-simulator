@@ -26,7 +26,7 @@
 | `AccountStatusChanged` `LOCKED` | `ownerUserId` → "Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ ngân hàng để được hỗ trợ" (`account_status_changed`) |
 | `AccountStatusChanged` `ACTIVE` | `ownerUserId` → "Tài khoản của bạn đã được mở khóa" |
 
-Câu chữ chọn từ loại event và trạng thái, không bao giờ từ trường nào khác của event, nên lý do khóa hay điểm rủi ro không thể lọt vào (BR-13). Event nhận lại không ghi thêm dòng. Người nhận không có trong `users` (vi phạm FK) → rollback cả event, retry rồi vào DLQ ở lần nhận thứ 5. Lỗi tạm thời: message bị ẩn 5, 10, 20, 40 giây trước các lần giao lại (`ChangeMessageVisibility`); nếu đổi timeout lỗi thì vẫn ném lỗi gốc.
+Câu chữ chọn từ loại event và trạng thái, không bao giờ từ trường nào khác của event, nên lý do khóa hay điểm rủi ro không thể lọt vào (BR-13). Event nhận lại không ghi thêm dòng. Người nhận không có trong `users` (vi phạm FK) → rollback cả event, retry rồi vào DLQ ở lần nhận thứ 5. Lỗi tạm thời: message bị ẩn 10, 20, 40, 80 giây trước các lần giao lại (`ChangeMessageVisibility`; ban đầu 5, 10, 20, 40, đổi ở BL-210 để cửa sổ retry ≥ 120 giây của ADR-03); nếu đổi timeout lỗi thì vẫn ném lỗi gốc.
 
 ## 3. Kiến trúc
 
@@ -42,7 +42,7 @@ Câu chữ chọn từ loại event và trạng thái, không bao giờ từ tr�
 |---|---|---|---|
 | TC-102-01 | 1 | db (PG thật) | Bốn dạng event (hai chủ, cùng chủ, deposit, đổi trạng thái) → đúng người và đúng `kind` |
 | TC-102-02 | 2 | db | Khóa tài khoản, event mang trường lạ chứa "gian lận"/"rủi ro" → câu cố định; mọi câu trong bảng không khớp regex lý do/rủi ro |
-| TC-102-03 | 4 | unit + services (ElasticMQ) | Lần lỗi 1..4 → ẩn 5/10/20/40 s; cap 300; không backoff với poison, lần cuối, base 0; lỗi `changeVisibility` không che lỗi gốc; trên ElasticMQ message ẩn rồi hiện lại |
+| TC-102-03 | 4 | unit + services (ElasticMQ) | Lần lỗi 1..4 → ẩn 10/20/40/80 s (BL-210; trước đó 5/10/20/40), tổng ≥ 120 s; cap 300; không backoff với poison, lần cuối, base 0; lỗi `changeVisibility` không che lỗi gốc; trên ElasticMQ message ẩn rồi hiện lại |
 | TC-102-04 | 4 | unit (libs/sqs) | `changeVisibility` gửi đúng lệnh, kiểm biên 0–43200, thiếu receipt handle → lỗi |
 | TC-102-05 | 1 | db | Event nhận hai lần → không dòng thừa |
 | TC-102-06 | 3 | db | Người nhận không tồn tại → rollback toàn event, không có `processed_events` |
@@ -109,6 +109,8 @@ Rủi ro: backoff làm chậm retry trong test, nên test đặt `backoff = 0`. 
 ## 9. Tài liệu đã cập nhật
 
 `backend/src/modules/notification/README.md`, `backend/src/libs/sqs/README.md`, `docs/features/README.md`.
+
+**Bổ sung BL-211 (thứ tự thông báo).** `notification_log` có thêm cột `occurred_at timestamptz NOT NULL` (migration `1795000010000-AddNotificationLogOccurredAt`), consumer ghi `event.occurredAt` vào mọi dòng của event. Event contract không bảo đảm thứ tự giao (ADR-03), nên «đã mở khóa» có thể được xử lý trước «đã bị khóa»; mọi nơi đọc danh sách thông báo phải `ORDER BY occurred_at, id`, không theo `id` hay `created_at`. Hiện chưa có API đọc (v1 là log), nên quy tắc là hợp đồng cho reader đầu tiên. Test: `notification-consumer.db-spec.ts` › TC-211-01/02 (unlock giao trước lock; đọc theo `occurred_at` ra lock trước, đọc theo `id` ra ngược lại), `notification-occurred-at.db-spec.ts` › TC-211-03..05 (migration, backfill từ `created_at`, `DEFAULT now()` cho worker bản cũ, grant, revert). Sửa schema của [DBS-96](DBS-96-notification-log.md).
 
 ### Domain review bằng subagent (bù sau merge, 2026-11-09)
 

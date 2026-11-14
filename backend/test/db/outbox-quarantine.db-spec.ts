@@ -18,7 +18,12 @@ import {
 } from '@modules/outbox/outbox-relay.service';
 import { TRANSFER_SAMPLE } from '../support/event-samples';
 import { clearOutbox } from '../support/outbox-fixtures';
-import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+import {
+  createTempDatabase,
+  migrate,
+  migrateThrough,
+  type TempDatabase,
+} from '../support/temp-database';
 import { QuarantineOutboxEvents1795000009000 } from '@database/migrations/1795000009000-QuarantineOutboxEvents';
 
 type Send = SqsClient['send'];
@@ -428,7 +433,8 @@ describe('BL-181 migration 1795000009000: revert is safe and the schema comes ba
 
   beforeEach(async () => {
     db = await createTempDatabase();
-    await migrate(db.url);
+    // Pinned: a later migration exists (BL-211), so undoLast must stop at this one.
+    await migrateThrough(db.url, 'QuarantineOutboxEvents1795000009000');
   });
   afterEach(async () => {
     await db?.drop();

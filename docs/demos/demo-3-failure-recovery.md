@@ -78,7 +78,7 @@ Lần chạy thật: [DBS-124 manual-test.txt](../features/screenshots/DBS-124/m
 
 | Bước | Làm | Kết quả mong đợi |
 |---|---|---|
-| C1 | Nạp tiền cho một nguồn mới, đợi hai queue cạn; thêm constraint; chuyển theo AC-9.1 (21M, chuyển 20M) | Cờ 65 MEDIUM có ngay (risk không bị chặn). ≈ 75–80 s sau (backoff 5+10+20+40 s), `notification-events-dlq` có 1 message mang `eventId` của lệnh; `notification_log` của `eventId` = 0 |
+| C1 | Nạp tiền cho một nguồn mới, đợi hai queue cạn; thêm constraint; chuyển theo AC-9.1 (21M, chuyển 20M) | Cờ 65 MEDIUM có ngay (risk không bị chặn). ≈ 150–155 s sau (backoff 10+20+40+80 s, BL-210), `notification-events-dlq` có 1 message mang `eventId` của lệnh; `notification_log` của `eventId` = 0 |
 | C2 | Gửi `{not json` vào `risk-events` | `risk-events-dlq` có 1 message ngay |
 | C3 | Gỡ constraint; làm theo runbook: quét DLQ, xóa message hỏng, trả message hợp lệ về, rồi `start-message-move-task` với đích ghi rõ | DLQ về 0; `notification_log` của `eventId` có đúng 2 dòng; queue chính cạn |
 | C4 | `npm run --silent check:invariants` | PASS |

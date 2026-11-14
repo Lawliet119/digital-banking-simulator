@@ -1,14 +1,16 @@
 # Runbook · Đọc và redrive DLQ (`risk-events-dlq`, `notification-events-dlq`)
 
-> **Status:** Active (chạy thật trên ElasticMQ local ở [DBS-125](../features/DBS-125-dlq-isolation-runbook.md); chưa chạy trên AWS, BL-161) · **Owner:** Platform & Ops · **Cập nhật:** 2026-11-10
+> **Status:** Active (chạy thật trên ElasticMQ local ở [DBS-125](../features/DBS-125-dlq-isolation-runbook.md); chưa chạy trên AWS, BL-161) · **Owner:** Platform & Ops · **Cập nhật:** 2026-11-14 (BL-210: tuổi message và `dlq:age-check`)
 
 ## Khi nào dùng
 
 - **Alarm DLQ** báo có message, hoặc thấy `ApproximateNumberOfMessages` của một DLQ lớn hơn 0. Trên AWS alarm là `dbs-dev-risk-dlq-not-empty` hoặc `dbs-dev-notification-dlq-not-empty` (`ApproximateNumberOfMessagesVisible` > 0 trong 1 phút, `infra/terraform/envs/dev/base/alarms.tf`), thư gửi tới topic SNS `dbs-dev-alarms`; alarm giữ ở ALARM tới khi DLQ cạn. Alarm `dbs-dev-risk-rule-error` (lỗi luật, kèm `Rule`) và `dbs-dev-risk-config-invalid` báo sớm hơn, trước khi message tới DLQ ([observability](../components/observability/01-concept-brief.md#alarm-cloudwatch-bl-051-bl-117-bl-127-bl-179-bl-181-bl-182)). Alarm mới ở Terraform, **chưa kích hoạt thử trên AWS** (BL-051).
 - **Một message vào DLQ vì một trong hai lý do:**
   - **Hỏng:** không phải JSON, sai schema, hoặc là loại sự kiện mà consumer không biết. Message này vào DLQ ngay lần nhận đầu.
-  - **Lỗi 5 lần liền** (`MAX_ATTEMPTS` của `ConsumerBase`). Ở production, các lần thử cách nhau 5, 10, 20, 40 s, nên message vào DLQ khoảng 75–80 s sau lần nhận đầu.
+  - **Lỗi 5 lần liền** (`MAX_ATTEMPTS` của `ConsumerBase`). Ở production, các lần thử cách nhau 10, 20, 40, 80 s (BL-210, ADR-03), nên message vào DLQ khoảng 150 s sau lần nhận đầu: đủ cho một lần failover PostgreSQL 60–120 s, nên chỉ một sự cố dài hơn mới đưa event vào DLQ.
 - **Cả hai trường hợp đều chưa ghi gì.** Lỗi thì rollback, message hỏng thì không được claim. Vì vậy message trong DLQ **không có** dòng `processed_events`.
+
+- **Tuổi của message tính từ lần gửi gốc, không từ lúc vào DLQ (BL-210).** `ConsumerBase` chuyển message sang DLQ bằng `SendMessage`, nên `SentTimestamp` và hạn giữ của DLQ bắt đầu lại lúc chuyển. Để giữ lời hứa «replay không sống quá dòng `processed_events` 7 ngày» ([database-design §10](../components/_shared/database-design.md)), bản sao mang thuộc tính `OriginalSentTimestamp` (epoch ms của lần gửi gốc, giữ nguyên qua các lần chuyển và replay). Message gửi gốc **quá 6 ngày không được replay**: dòng `processed_events` của nó có thể đã bị dọn, và một bản trùng đã áp hiệu ứng sẽ áp lần hai. Mục 3 kiểm điều này.
 
 Chỉ redrive **sau khi đã sửa nguyên nhân**: deploy bản sửa, gỡ cấu hình hỏng, hoặc chờ DB hay Redis hồi phục. Redrive khi nguyên nhân còn đó chỉ làm message vào lại DLQ.
 
@@ -49,9 +51,28 @@ $SQS receive-message --queue-url "$DLQ" --max-number-of-messages 10 --wait-time-
 - **Chỉ xem DLQ, không xem queue chính.** Mỗi lần nhận đều tăng `ApproximateReceiveCount`, mà queue chính chuyển message sang DLQ khi số này đủ 5.
 - **Đừng xóa bằng handle của lần xem này.** Mỗi lần nhận sau đó cấp handle mới, và handle cũ không dùng được nữa. Lệnh xem với visibility 0 cũng chỉ thấy lại tối đa 10 message đầu, nên không dùng để quét cả DLQ.
 
-## 3. Quét để tách message hỏng (bắt buộc trước khi redrive)
+## 3. Quét để tách message hỏng và message quá 6 ngày (bắt buộc trước khi redrive)
 
-Redrive chuyển **mọi** message trong DLQ, không lọc được. Một message hỏng bị redrive sẽ vào lại DLQ ngay, và như vậy phạm quy tắc "mỗi message chỉ redrive một lần". Vì vậy phải quét hết DLQ:
+Redrive chuyển **mọi** message trong DLQ, không lọc được. Một message hỏng bị redrive sẽ vào lại DLQ ngay, và như vậy phạm quy tắc "mỗi message chỉ redrive một lần". Một message gửi gốc quá 6 ngày thì có thể áp hiệu ứng lần hai (xem "Khi nào dùng"). Vì vậy phải quét hết DLQ.
+
+### 3a. Tuổi: `dlq:age-check` (BL-210)
+
+Từ `backend/` (cần credential Ops đọc và xóa trên DLQ; ở local thêm `--endpoint-url`):
+
+```bash
+npm run --silent dlq:age-check -- --queue-url "$DLQ" [--endpoint-url http://localhost:9324] \
+  --delete-stale --quarantine-file stale-dlq-$(date +%F).jsonl
+```
+
+- Công cụ nhận hết DLQ (ẩn 1800 s như bước quét tay bên dưới), tính tuổi theo `OriginalSentTimestamp`, lấy `SentTimestamp` của queue khi message do SQS tự chuyển và chưa có thuộc tính; message không có thời điểm nào dùng được bị coi là **quá hạn**, không phải mới. Sau đó trả message còn lại về queue (visibility 0).
+- In một báo cáo JSON: `checked`, `fresh`, `stale` (mỗi mục chỉ có `messageId`, `eventId` nếu body là UUID, `ageHours`; **không bao giờ in body**), `deleted`, `failed`, `complete`.
+- Không có `--delete-stale` thì chỉ báo cáo. Có thì công cụ **ghi các message quá hạn (kèm body) vào `--quarantine-file` rồi mới xóa** khỏi DLQ; lỗi ghi file thì không xóa gì. File chứa dữ liệu sự kiện: giữ như dữ liệu điều tra, không đưa lên repo hay kênh chat.
+- Mã thoát: `0` không còn message quá hạn trong DLQ (không có, hoặc đã lưu và xóa hết); `1` còn message quá hạn (chạy không `--delete-stale`): **không redrive**; `2` lỗi tham số, lỗi quét, hoặc quét chưa thấy hết queue (`complete: false`) hay có message không trả về/xóa được (`failed`): **không redrive**, chạy lại sau khi xử lý.
+- Message đã lưu vào file được điều tra tay (áp lại hiệu ứng nếu cần theo quy trình xử lý lỗi), không redrive.
+- Giới hạn mặc định 6 ngày, đổi bằng `--max-age-days`; chỉ hạ, không nâng quá 6 (DLQ giữ 6 ngày, `processed_events` giữ 7 ngày).
+
+### 3b. Tách message hỏng
+
 
 1. Nhận tối đa 10 message mỗi lần, ẩn 1800 s, đủ lâu cho cả lượt quét:
    ```bash

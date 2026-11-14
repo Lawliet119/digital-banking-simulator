@@ -26,7 +26,7 @@
 | `apply` ném lỗi | Rollback cả claim; message không bị xóa, giao lại; lần sau xử lý lại từ đầu |
 | Body không phải JSON | `libs/sqs` chuyển nguyên vào DLQ ở lần nhận đầu (đã có từ DBS-77) |
 | JSON sai schema (thiếu field, sai kiểu, loại sự kiện lạ) | `PoisonMessageError` → chuyển vào DLQ ngay ở lần nhận đầu rồi xóa nguồn; consumer tiếp tục message sau |
-| Lỗi tạm thời ở lần nhận 1..4 | Không xóa; message bị ẩn theo backoff 5/10/20/40 giây (`retryBackoffSeconds`, làm ở DBS-102; mặc định 5, đặt 0 để tắt) rồi SQS giao lại |
+| Lỗi tạm thời ở lần nhận 1..4 | Không xóa; message bị ẩn theo backoff 10/20/40/80 giây (`retryBackoffSeconds`, làm ở DBS-102; mặc định 10 từ BL-210, trước đó 5/10/20/40; đặt 0 để tắt) rồi SQS giao lại |
 | Lỗi ở lần nhận thứ 5 (`ApproximateReceiveCount` ≥ 5) | Chuyển DLQ và xóa nguồn, không phụ thuộc cấu hình redrive của queue |
 | `APP_ROLE=api` | `onApplicationBootstrap` không bật vòng poll |
 
@@ -163,8 +163,8 @@ Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/
 | 1 | blocking | **Đã sửa.** Script manual M-101-03 đỏ trên `main` vì backoff 5/10/20/40 giây của DBS-102. Đã tái hiện (assert lệch), `DemoConsumer` đặt `retryBackoffSeconds` = 0, chạy lại M-101-01..03 đạt, `manual-test.txt` ghi lại với SHA mới |
 | 2 | should-fix | **Đã sửa:** §5 có `DATABASE_URL` |
 | 3 | should-fix | **Đã sửa:** §2 và §3 nêu backoff và tham số `visibility`; TC của backoff nằm ở TC-102-03 |
-| 4 | should-fix | Không sửa ở đây: cửa sổ retry 75 giây so với ADR-03/14 là quyết định ADR → BL-210 |
-| 5 | should-fix | Không sửa ở đây: DLQ retention khi chuyển bằng `SendMessage` là việc hạ tầng/ADR → BL-210 |
+| 4 | should-fix | **Đã xử lý ở BL-210:** backoff mặc định 10, 20, 40, 80 giây (150 giây ≥ 120 giây của ADR-03), lý do ghi ở ADR-03 |
+| 5 | should-fix | **Đã xử lý ở BL-210:** bản sao DLQ mang `OriginalSentTimestamp`; `npm run dlq:age-check` loại message quá 6 ngày trước redrive; ghi ở ADR-03, database-design §10, `sqs.tf`, runbook |
 | 6 | minor | Không sửa: test đồng thời thật → BL-212 |
 | 7, 8 | minor | Không sửa: log/metric dead-letter và tắt máy khi long poll → BL-209 |
 | 9 | minor | **Đã sửa:** header có PR [#101](https://github.com/Lawliet119/digital-banking-simulator/pull/101); Dev review chưa có (Techlead waiver) |

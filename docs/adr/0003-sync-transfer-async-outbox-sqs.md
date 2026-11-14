@@ -43,7 +43,9 @@ Tham số chốt cho v1:
 | Visibility timeout | 30 giây | Lớn hơn nhiều thời gian xử lý một sự kiện (mục tiêu < 50 ms) |
 | Long polling (`WaitTimeSeconds`) | 20 giây | Giảm số lần gọi rỗng, giảm chi phí |
 | Chuyển DLQ sau | 5 lần nhận (`maxReceiveCount = 5`) | Đủ cho lỗi tạm thời; message sai schema thì consumer chuyển DLQ ngay |
-| Thời gian giữ message | 4 ngày (mặc định SQS) | `processed_events` giữ 7 ngày, lâu hơn 4 ngày cộng dư (database-design §10) |
+| Backoff giữa các lần nhận | 10, 20, 40, 80 giây (gấp đôi từ 10 giây, `ConsumerBase`), tổng **150 giây** từ lần lỗi đầu tới DLQ (BL-210) | Lỗi tạm thời dài tới khoảng hai phút (failover PostgreSQL Multi-AZ 60–120 giây) không được đưa event đang xử lý vào DLQ. Bản đầu dùng 5, 10, 20, 40 = 75 giây, ngắn hơn 120 giây mà ADR này giả định (4 lần giao lại × 30 giây visibility). Backoff đầu 10 giây **nhỏ hơn** visibility timeout 30 giây có chủ ý: visibility là thời gian dành cho lần xử lý đang chạy, còn backoff là quyết định sau lỗi; thứ cần đủ dài là **tổng** các lần chờ, và 150 giây ≥ 120 giây. Backoff đầu 30 giây (30/60/120/240 = 7,5 phút) bị bỏ vì lỗi tất định (luật risk ném lỗi, ADR-14) sẽ giữ cờ gian lận quá lâu trước khi alarm DLQ kêu |
+| Thời gian giữ message | Queue chính 4 ngày (mặc định SQS); DLQ 6 ngày | `processed_events` giữ 7 ngày, lâu hơn 4 ngày cộng dư (database-design §10) |
+| Tuổi message trong DLQ | Tính từ **lần gửi gốc**, mang theo bằng thuộc tính `OriginalSentTimestamp`; không replay message quá 6 ngày (BL-210) | Consumer chuyển DLQ bằng `SendMessage` (tạo message mới, hạn DLQ tính lại từ lúc chuyển), nên chỉ DLQ 6 ngày không bảo đảm «tổng đời ≤ 6 ngày < 7 ngày». Thuộc tính này giữ thời điểm gửi gốc qua mọi lần chuyển và replay; `npm run dlq:age-check` loại message quá hạn trước redrive ([runbook](../runbooks/dlq-redrive.md)) |
 | Sự kiện phát ở v1 | `TransferCompleted`, `AccountStatusChanged` | `TransferRejected` không phát ở v1 (event-contract) |
 
 ## Lý do

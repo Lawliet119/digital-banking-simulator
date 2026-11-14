@@ -32,7 +32,7 @@ class DemoConsumer extends ConsumerBase {
   protected queueUrl(): string {
     return this.url;
   }
-  // The default backoff (5/10/20/40 s, DBS-102) would hide the message for longer than M-101-03
+  // The default backoff (10/20/40/80 s, DBS-102, BL-210) would hide the message for longer than M-101-03
   // waits; that step is about the fifth receive, not about the delay, so it turns the backoff off.
   // M-101-04 turns a short one on to show the delay and the recovery.
   protected override get retryBackoffSeconds(): number {

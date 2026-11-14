@@ -6,7 +6,7 @@ Dev, Tuần 3, Medium, In Progress; DBS-20 Done theo board. Tạo storage cho no
 
 ## 2. Hành vi
 
-Theo database-design §4.9: bigint GENERATED ALWAYS AS IDENTITY PK; event_id uuid NOT NULL; kind text NOT NULL chỉ transfer_completed/account_status_changed; user_id nullable FK users; message text NOT NULL; created_at timestamptz DEFAULT now() NOT NULL. Index event_id không UNIQUE: một event có thể có nhiều người nhận. Không thêm dedup hoặc retention job.
+Theo database-design §4.9: bigint GENERATED ALWAYS AS IDENTITY PK; event_id uuid NOT NULL; kind text NOT NULL chỉ transfer_completed/account_status_changed; user_id nullable FK users; message text NOT NULL; created_at timestamptz DEFAULT now() NOT NULL. Index event_id không UNIQUE: một event có thể có nhiều người nhận. Không thêm dedup hoặc retention job. Về sau có thêm `correlation_id` (DBS-134) và `occurred_at timestamptz NOT NULL DEFAULT now()` (BL-211, migration `1795000010000`: `event.occurredAt`, để đọc theo thời điểm xảy ra thay vì thời điểm xử lý; chi tiết ở [DBS-102](DBS-102-notification-consumer.md) §9 và database-design §4.9).
 
 BR-13: nội dung không được nêu lý do gian lận. Ghi COMMENT trên message và hướng dẫn cho writer tương lai; schema không thể nhận diện ngữ nghĩa văn bản, không giả vờ enforce bằng blacklist SQL.
 
