@@ -1,0 +1,444 @@
+=== DBS-152 Offline + Read-Only Verification ===
+2026-11-14T07:53:21Z
+Worktree: /home/ender/Work/Projects/digital-banking-simulator/.claude/worktrees/agent-aa429295894cb0e91
+Branch: feat/DBS-152-terraform-prod-env
+Terraform: Terraform v1.16.6
+AWS CLI: not installed in sandbox; AWS_PROFILE=dbs-admin plan skipped (see BL-280)
+
+=== 1. terraform fmt -check -recursive infra/terraform ===
+PASS: fmt clean
+
+=== 2. terraform init -backend=false -lockfile=readonly + validate + test (prod & dev) ===
+--- infra/terraform/envs/prod/session ---
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.[0m
+[32m[1mSuccess![0m The configuration is valid.
+[0m
+tests/prod.tftest.hcl... [37min progress[0m
+[0m  run "tc_152_01_alb_tls_and_redirect"... [32mpass[0m[0m
+  run "tc_152_02_rejects_empty_certificate_arn"... [32mpass[0m[0m
+  run "tc_152_02_rejects_wrong_account_certificate_arn"... [32mpass[0m[0m
+  run "tc_152_02_rejects_wrong_region_certificate_arn"... [32mpass[0m[0m
+  run "tc_152_02_rejects_non_acm_certificate_arn"... [32mpass[0m[0m
+  run "tc_152_03_04_container_env_and_secrets"... [32mpass[0m[0m
+  run "tc_152_05_valkey_multi_az_tls_and_secret"... [32mpass[0m[0m
+  run "tc_152_06_07_rds_defaults_and_protection"... [32mpass[0m[0m
+  run "tc_152_07_termination_protection_false"... [32mpass[0m[0m
+  run "tc_152_08_rejects_desired_count_1"... [32mpass[0m[0m
+  run "tc_152_08_rejects_desired_count_5"... [32mpass[0m[0m
+  run "tc_152_08_rejects_worker_desired_count_3"... [32mpass[0m[0m
+  run "tc_152_08_rejects_total_tasks_7"... [32mpass[0m[0m
+  run "tc_152_08_ecs_2_tasks_rolling_100_200"... [32mpass[0m[0m
+  run "tc_152_08_ecs_3_tasks_rolling_50_100"... [32mpass[0m[0m
+  run "tc_152_09_10_sqs_isolation_and_iam"... [32mpass[0m[0m
+  run "tc_152_11_13_naming_tags_and_outputs"... [32mpass[0m[0m
+tests/prod.tftest.hcl... [37mtearing down[0m
+[0mtests/prod.tftest.hcl... [32mpass[0m[0m
+
+[32mSuccess![0m[0m 17 passed, 0 failed.
+
+--- infra/terraform/bootstrap ---
+[31m│[0m [0mversions are specified, run the following command:
+[31m│[0m [0m    terraform providers
+[31m╵[0m[0m
+[32m[1mSuccess![0m The configuration is valid.
+[0m
+tests/bootstrap.tftest.hcl... [37min progress[0m
+[0m  run "rejects_malformed_account_id"... [32mpass[0m[0m
+  run "bucket_name_and_tags"... [32mpass[0m[0m
+  run "versioning_enabled"... [32mpass[0m[0m
+  run "encryption_aes256_with_bucket_key"... [32mpass[0m[0m
+  run "public_access_fully_blocked"... [32mpass[0m[0m
+  run "bucket_owner_enforced"... [32mpass[0m[0m
+  run "outputs"... [32mpass[0m[0m
+  run "denies_insecure_transport"... [32mpass[0m[0m
+  run "lifecycle_rules"... [32mpass[0m[0m
+tests/bootstrap.tftest.hcl... [37mtearing down[0m
+[0mtests/bootstrap.tftest.hcl... [32mpass[0m[0m
+
+[32mSuccess![0m[0m 9 passed, 0 failed.
+
+--- infra/terraform/envs/dev/base ---
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.[0m
+[32m[1mSuccess![0m The configuration is valid.
+[0m
+tests/alarms.tftest.hcl... [37min progress[0m
+[0m  run "topic_without_email"... [32mpass[0m[0m
+  run "topic_with_email"... [32mpass[0m[0m
+  run "rejects_bad_email"... [32mpass[0m[0m
+  run "dlq_alarms"... [32mpass[0m[0m
+tests/alarms.tftest.hcl... [37mtearing down[0m
+[0mtests/alarms.tftest.hcl... [32mpass[0m[0m
+tests/base.tftest.hcl... [37min progress[0m
+[0m  run "rejects_malformed_account_id"... [32mpass[0m[0m
+  run "vpc"... [32mpass[0m[0m
+  run "subnets"... [32mpass[0m[0m
+  run "routing"... [32mpass[0m[0m
+  run "s3_gateway_endpoint"... [32mpass[0m[0m
+  run "default_security_group_locked"... [32mpass[0m[0m
+  run "ecr_repository"... [32mpass[0m[0m
+  run "ecr_lifecycle"... [32mpass[0m[0m
+tests/base.tftest.hcl... [37mtearing down[0m
+[0mtests/base.tftest.hcl... [32mpass[0m[0m
+tests/cognito.tftest.hcl... [37min progress[0m
+[0m  run "user_pool"... [32mpass[0m[0m
+  run "deletion_protection_follows_variable"... [32mpass[0m[0m
+  run "password_policy"... [32mpass[0m[0m
+  run "groups"... [32mpass[0m[0m
+  run "app_client"... [32mpass[0m[0m
+  run "issuer_output"... [32mpass[0m[0m
+  run "rejects_bad_deletion_protection"... [32mpass[0m[0m
+  run "cognito_seeder_role"... [32mpass[0m[0m
+tests/cognito.tftest.hcl... [37mtearing down[0m
+[0mtests/cognito.tftest.hcl... [32mpass[0m[0m
+tests/cost_tags.tftest.hcl... [37min progress[0m
+[0m  run "cost_allocation_tags_active"... [32mpass[0m[0m
+tests/cost_tags.tftest.hcl... [37mtearing down[0m
+[0mtests/cost_tags.tftest.hcl... [32mpass[0m[0m
+tests/deploy_role.tftest.hcl... [37min progress[0m
+[0m  run "deploy_trust_policy"... [32mpass[0m[0m
+  run "deploy_policy"... [32mpass[0m[0m
+  run "deploy_policy_migration"... [32mpass[0m[0m
+tests/deploy_role.tftest.hcl... [37mtearing down[0m
+[0mtests/deploy_role.tftest.hcl... [32mpass[0m[0m
+tests/ecs_network.tftest.hcl... [37min progress[0m
+[0m  run "api_security_group"... [32mpass[0m[0m
+  run "alb_security_group"... [32mpass[0m[0m
+  run "api_log_group"... [32mpass[0m[0m
+  run "exports_for_session"... [32mpass[0m[0m
+tests/ecs_network.tftest.hcl... [37mtearing down[0m
+[0mtests/ecs_network.tftest.hcl... [32mpass[0m[0m
+tests/oidc.tftest.hcl... [37min progress[0m
+[0m  run "oidc_provider"... [32mpass[0m[0m
+  run "trust_policy"... [32mpass[0m[0m
+  run "branch_changes_sub"... [32mpass[0m[0m
+  run "rejects_prefix_without_ids"... [32mpass[0m[0m
+  run "ecr_push_policy"... [32mpass[0m[0m
+tests/oidc.tftest.hcl... [37mtearing down[0m
+[0mtests/oidc.tftest.hcl... [32mpass[0m[0m
+tests/rds_network.tftest.hcl... [37min progress[0m
+[0m  run "db_security_group"... [32mpass[0m[0m
+  run "api_egress_to_db"... [32mpass[0m[0m
+  run "kms_key"... [32mpass[0m[0m
+tests/rds_network.tftest.hcl... [37mtearing down[0m
+[0mtests/rds_network.tftest.hcl... [32mpass[0m[0m
+tests/redis.tftest.hcl... [37min progress[0m
+[0m  run "redis_security_group"... [32mpass[0m[0m
+  run "redis_subnet_group"... [32mpass[0m[0m
+  run "exports_for_session"... [32mpass[0m[0m
+  run "redis_auth_secret"... [32mpass[0m[0m
+tests/redis.tftest.hcl... [37mtearing down[0m
+[0mtests/redis.tftest.hcl... [32mpass[0m[0m
+tests/sqs.tftest.hcl... [37min progress[0m
+[0m  run "main_queues"... [32mpass[0m[0m
+  run "dead_letter_queues"... [32mpass[0m[0m
+  run "redrive_policy"... [32mpass[0m[0m
+  run "redrive_allow_policy"... [32mpass[0m[0m
+  run "standard_queues_sse_sqs"... [32mpass[0m[0m
+  run "worker_policy"... [32mpass[0m[0m
+  run "queue_policy_denies_api"... [32mpass[0m[0m
+  run "queue_policy_allow_list_default"... [32mpass[0m[0m
+  run "queue_policy_allow_list_explicit_ops"... [32mpass[0m[0m
+  run "rejects_non_iam_ops_principal"... [32mpass[0m[0m
+  run "exports_for_worker"... [32mpass[0m[0m
+tests/sqs.tftest.hcl... [37mtearing down[0m
+[0mtests/sqs.tftest.hcl... [32mpass[0m[0m
+tests/worker.tftest.hcl... [37min progress[0m
+[0m  run "worker_log_group"... [32mpass[0m[0m
+  run "worker_security_group"... [32mpass[0m[0m
+tests/worker.tftest.hcl... [37mtearing down[0m
+[0mtests/worker.tftest.hcl... [32mpass[0m[0m
+
+[32mSuccess![0m[0m 53 passed, 0 failed.
+
+--- infra/terraform/envs/dev/session ---
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.[0m
+[32m[1mSuccess![0m The configuration is valid.
+[0m
+tests/alarms.tftest.hcl... [37min progress[0m
+[0m  run "all_alarms_notify_the_topic"... [32mpass[0m[0m
+  run "queue_age_alarms"... [32mpass[0m[0m
+  run "outbox_age_alarm"... [32mpass[0m[0m
+  run "outbox_quarantined_alarm"... [32mpass[0m[0m
+  run "config_invalid_alarm"... [32mpass[0m[0m
+  run "risk_rule_error_alarm"... [32mpass[0m[0m
+  run "reconciliation_alarm"... [32mpass[0m[0m
+  run "redis_node_alarm"... [32mpass[0m[0m
+  run "redis_fallback_alarm"... [32mpass[0m[0m
+  run "risk_config_fallback_alarm"... [32mpass[0m[0m
+  run "rate_limited_alarm"... [32mpass[0m[0m
+  run "alarms_follow_metrics_namespace"... [32mpass[0m[0m
+tests/alarms.tftest.hcl... [37mtearing down[0m
+[0mtests/alarms.tftest.hcl... [32mpass[0m[0m
+tests/dashboard.tftest.hcl... [37min progress[0m
+[0m  run "dashboard_shape"... [32mpass[0m[0m
+  run "dashboard_has_every_metric"... [32mpass[0m[0m
+  run "dashboard_labels_are_safe"... [32mpass[0m[0m
+  run "dashboard_slo_lines"... [32mpass[0m[0m
+  run "dashboard_route_search_excludes_health"... [32mpass[0m[0m
+  run "dashboard_queue_names"... [32mpass[0m[0m
+  run "dashboard_error_rate_expression"... [32mpass[0m[0m
+  run "dashboard_outputs"... [32mpass[0m[0m
+  run "dashboard_namespace_variable"... [32mpass[0m[0m
+  run "rejects_namespace_with_bad_characters"... [32mpass[0m[0m
+  run "rejects_namespace_without_dbs_prefix"... [32mpass[0m[0m
+  run "dashboard_reconciliation_and_risk_widgets"... [32mpass[0m[0m
+  run "overview_has_no_infra_metrics"... [32mpass[0m[0m
+  run "infra_dashboard_shape"... [32mpass[0m[0m
+  run "infra_dashboard_metrics"... [32mpass[0m[0m
+tests/dashboard.tftest.hcl... [37mtearing down[0m
+[0mtests/dashboard.tftest.hcl... [32mpass[0m[0m
+tests/session.tftest.hcl... [37min progress[0m
+[0m  run "reexports_base_network"... [32mpass[0m[0m
+  run "service"... [32mpass[0m[0m
+  run "service_desired_count_variable"... [32mpass[0m[0m
+  run "service_rolling_bound_default"... [32mpass[0m[0m
+  run "service_rolling_bound_single_task"... [32mpass[0m[0m
+  run "service_rolling_bound_multi_task"... [32mpass[0m[0m
+  run "service_rolling_bound_two_tasks"... [32mpass[0m[0m
+  run "target_group"... [32mpass[0m[0m
+  run "alb"... [32mpass[0m[0m
+  run "task_definition"... [32mpass[0m[0m
+  run "iam"... [32mpass[0m[0m
+  run "rejects_latest_tag"... [32mpass[0m[0m
+  run "rejects_short_tag"... [32mpass[0m[0m
+  run "rds_instance"... [32mpass[0m[0m
+  run "rds_security"... [32mpass[0m[0m
+  run "rds_parameter_group"... [32mpass[0m[0m
+  run "rds_variables"... [32mpass[0m[0m
+  run "db_connection"... [32mpass[0m[0m
+  run "db_secret_policy"... [32mpass[0m[0m
+  run "migrate_task_definition"... [32mpass[0m[0m
+  run "valkey_replication_group"... [32mpass[0m[0m
+  run "redis_auth_secret_version"... [32mpass[0m[0m
+  run "redis_auth_version_bump"... [32mpass[0m[0m
+  run "redis_replicas"... [32mpass[0m[0m
+  run "rejects_too_many_replicas"... [32mpass[0m[0m
+  run "redis_outputs"... [32mpass[0m[0m
+  run "redis_connection"... [32mpass[0m[0m
+  run "redis_secret_policy"... [32mpass[0m[0m
+  run "dbs120_task_roles"... [32mpass[0m[0m
+  run "dbs120_execution_roles"... [32mpass[0m[0m
+  run "dbs120_task_definitions"... [32mpass[0m[0m
+tests/session.tftest.hcl... [37mtearing down[0m
+[0mtests/session.tftest.hcl... [32mpass[0m[0m
+tests/worker.tftest.hcl... [37min progress[0m
+[0m  run "worker_task_definition"... [32mpass[0m[0m
+  run "worker_service"... [32mpass[0m[0m
+  run "worker_off_api_unchanged"... [32mpass[0m[0m
+  run "worker_on_api_unchanged"... [32mpass[0m[0m
+  run "worker_default_is_zero"... [32mpass[0m[0m
+  run "rejects_three_workers"... [32mpass[0m[0m
+  run "rejects_total_above_six"... [32mpass[0m[0m
+  run "accepts_five_plus_one"... [32mpass[0m[0m
+tests/worker.tftest.hcl... [37mtearing down[0m
+[0mtests/worker.tftest.hcl... [32mpass[0m[0m
+
+[32mSuccess![0m[0m 66 passed, 0 failed.
+
+=== 3. backend validation.schema.spec.ts ===
+
+> digital-banking-simulator-backend@0.1.0 test
+> jest --config ./test/jest-unit.js src/config/validation.schema.spec.ts
+
+PASS src/config/validation.schema.spec.ts
+  validateEnv
+    the shipped example file
+      ✓ env/.env.example always passes the schema, so a new developer can copy it as-is (44 ms)
+    TC-42-11 invalidKeys
+      ✓ names every failing key, in schema order, and keeps the combined message (44 ms)
+      ✓ names a missing required key (1 ms)
+      ✓ labels the transfer-limit rule that spans two keys as <cross-field> (1 ms)
+      ✓ never puts a value in invalidKeys, even when the message quotes it (1 ms)
+      ✓ ignores keys outside the schema (1 ms)
+    defaults and conversion
+      ✓ accepts the minimal development environment and fills in defaults (1 ms)
+      ✓ converts numeric and boolean strings (process.env is all strings) (1 ms)
+      ✓ ignores unrelated variables that process.env always contains
+    required values
+      ✓ refuses to boot without DATABASE_URL or REDIS_URL, listing every problem at once (17 ms)
+      ✓ rejects a DATABASE_URL that is not a postgres URL (1 ms)
+      ✓ rejects an unknown APP_ROLE (1 ms)
+    APP_ROLE decides whether queues are required
+      ✓ an api-only instance does not need SQS settings (1 ms)
+      ✓ a worker instance requires both queue URLs (2 ms)
+      ✓ a both instance requires both queue URLs (1 ms)
+    production hardening (NFR-SEC-03)
+      ✓ accepts a fully configured production environment (18 ms)
+      ✓ requires TLS to the database (4 ms)
+      ✓ requires TLS to Redis (rediss://)
+      ✓ requires Cognito settings (1 ms)
+      ✓ does not demand any of this in development (1 ms)
+      staging is a deployed environment too
+        ✓ accepts a fully configured staging environment (1 ms)
+        ✓ rejects staging without DATABASE_SSL hardening
+        ✓ rejects staging without REDIS_URL hardening (1 ms)
+        ✓ rejects staging without TRUST_PROXY_HOPS hardening
+    AUTH_MODE=local is for development and test only (TC-53-01…09)
+      ✓ TC-53-01 accepts local mode in development (1 ms)
+      ✓ TC-53-01 accepts local mode in test (1 ms)
+      ✓ TC-53-02 refuses AUTH_MODE=local in staging (1 ms)
+      ✓ TC-53-03 refuses AUTH_MODE=local in production, with or without a key path
+      ✓ TC-53-04 refuses a key path in staging even though the mode is cognito (1 ms)
+      ✓ TC-53-04 refuses a key path in production even though the mode is cognito (1 ms)
+      ✓ TC-53-05 requires the key path when the mode is local
+      ✓ TC-53-06 refuses a key path when the mode is cognito (the default) (1 ms)
+      ✓ TC-53-07 rejects the AUTH_MODE value "LOCAL" (exact match, no case folding or trimming)
+      ✓ TC-53-07 rejects the AUTH_MODE value "Local" (exact match, no case folding or trimming) (1 ms)
+      ✓ TC-53-07 rejects the AUTH_MODE value "none" (exact match, no case folding or trimming)
+      ✓ TC-53-07 rejects the AUTH_MODE value "" (exact match, no case folding or trimming) (1 ms)
+      ✓ TC-53-07 rejects the AUTH_MODE value " local" (exact match, no case folding or trimming)
+      ✓ TC-53-07 rejects the AUTH_MODE value "local " (exact match, no case folding or trimming) (1 ms)
+      ✓ TC-53-08 refuses COGNITO_* next to AUTH_MODE=local
+      ✓ TC-53-08b reports the missing COGNITO_* of a deployed environment, not the ones set correctly (1 ms)
+      ✓ TC-53-09 defaults to cognito and leaves the existing rules alone (1 ms)
+      ✓ TC-53-09 the shipped env/.env.example does not switch local mode on (3 ms)
+    client IP behind the load balancer (per-IP rate limiting depends on it)
+      ✓ production must say how many proxies sit in front: forgetting makes every client share the ALB address
+      ✓ production rejects 0 hops, which would key every rate limit on the load balancer itself (1 ms)
+      ✓ development needs no proxy
+    database protection against a stuck transaction
+      ✓ has a positive timeout for every kind of wait even when nothing is configured (1 ms)
+      ✓ refuses to switch DATABASE_LOCK_TIMEOUT_MS off with 0 (PostgreSQL treats 0 as "wait forever")
+      ✓ refuses to switch DATABASE_STATEMENT_TIMEOUT_MS off with 0 (PostgreSQL treats 0 as "wait forever") (1 ms)
+      ✓ refuses to switch DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS off with 0 (PostgreSQL treats 0 as "wait forever")
+      ✓ reads the configured values as numbers (7 ms)
+    database TLS trust
+      ✓ accepts a CA file together with TLS (1 ms)
+      ✓ rejects a CA file without TLS: it would be silently ignored while the connection stays unencrypted (1 ms)
+    business limits (BR-06)
+      ✓ rejects "12.5" as a money value (digits only, no decimals, no zero) (1 ms)
+      ✓ rejects "-1" as a money value (digits only, no decimals, no zero) (1 ms)
+      ✓ rejects "0" as a money value (digits only, no decimals, no zero) (1 ms)
+      ✓ rejects "1e6" as a money value (digits only, no decimals, no zero)
+      ✓ rejects "abc" as a money value (digits only, no decimals, no zero) (1 ms)
+      ✓ rejects "1234567890123456789" as a money value (digits only, no decimals, no zero)
+      ✓ rejects a per-transaction limit larger than the daily limit (1 ms)
+      ✓ accepts equal limits
+    TC-75-10 REDIS_* parts
+      ✓ accepts the parts next to REDIS_URL (1 ms)
+      ✓ still refuses a plain redis:// url in production, parts or not
+      ✓ still demands REDIS_URL when only the parts are given (they are joined by env.bootstrap) (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       63 passed, 63 total
+Snapshots:   0 total
+Time:        2.086 s, estimated 3 s
+Ran all test suites matching src/config/validation.schema.spec.ts.
+
+=== 4. check-prod-config.mjs --self-test ===
+Limitation: plan-time unknown hosts and Secrets Manager values are substituted with runtime placeholders.
+
+[M-152-03] api: {
+  isProduction: true,
+  substituted: [
+    'COGNITO_USER_POOL_ID',
+    'COGNITO_CLIENT_ID',
+    'COGNITO_ISSUER',
+    'DB_HOST',
+    'REDIS_HOST',
+    'DB_USER',
+    'DB_PASSWORD',
+    'REDIS_AUTH_TOKEN'
+  ],
+  env: {
+    NODE_ENV: 'production',
+    APP_ROLE: 'api',
+    TRUST_PROXY_HOPS: '1',
+    PORT: '3000',
+    AWS_REGION: 'ap-southeast-1',
+    LOG_LEVEL: 'log',
+    COGNITO_USER_POOL_ID: 'ap-southeast-1_PLACEHOLDER',
+    COGNITO_CLIENT_ID: 'placeholderclientid123456',
+    COGNITO_ISSUER: 'https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_PLACEHOLDER',
+    DB_HOST: 'dbs-prod.placeholder.ap-southeast-1.rds.amazonaws.com',
+    DB_PORT: '5432',
+    DB_NAME: 'dbs',
+    DATABASE_SSL: 'true',
+    DATABASE_SSL_CA_PATH: '/etc/ssl/rds/global-bundle.pem',
+    REDIS_HOST: 'master.dbs-prod.placeholder.apse1.cache.amazonaws.com',
+    REDIS_PORT: '6379',
+    DB_USER: 'dbs_master',
+    DB_PASSWORD: '<runtime-placeholder>',
+    DATABASE_URL: 'postgresql://dbs_master:<redacted>@dbs-prod.placeholder.ap-southeast-1.rds.amazonaws.com:5432/dbs',
+    REDIS_AUTH_TOKEN: '<runtime-placeholder>',
+    REDIS_URL: 'rediss://:<redacted>@master.dbs-prod.placeholder.apse1.cache.amazonaws.com:6379'
+  }
+}
+
+[M-152-03] worker: {
+  isProduction: true,
+  substituted: [
+    'COGNITO_USER_POOL_ID',
+    'COGNITO_CLIENT_ID',
+    'COGNITO_ISSUER',
+    'DB_HOST',
+    'REDIS_HOST',
+    'SQS_RISK_QUEUE_URL',
+    'SQS_NOTIFICATION_QUEUE_URL',
+    'DB_USER',
+    'DB_PASSWORD',
+    'REDIS_AUTH_TOKEN'
+  ],
+  env: {
+    NODE_ENV: 'production',
+    APP_ROLE: 'worker',
+    TRUST_PROXY_HOPS: '1',
+    AWS_REGION: 'ap-southeast-1',
+    LOG_LEVEL: 'log',
+    COGNITO_USER_POOL_ID: 'ap-southeast-1_PLACEHOLDER',
+    COGNITO_CLIENT_ID: 'placeholderclientid123456',
+    COGNITO_ISSUER: 'https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_PLACEHOLDER',
+    DB_HOST: 'dbs-prod.placeholder.ap-southeast-1.rds.amazonaws.com',
+    DB_PORT: '5432',
+    DB_NAME: 'dbs',
+    DATABASE_SSL: 'true',
+    DATABASE_SSL_CA_PATH: '/etc/ssl/rds/global-bundle.pem',
+    REDIS_HOST: 'master.dbs-prod.placeholder.apse1.cache.amazonaws.com',
+    REDIS_PORT: '6379',
+    SQS_RISK_QUEUE_URL: 'https://sqs.ap-southeast-1.amazonaws.com/000000000000/dbs-prod-risk-events',
+    SQS_NOTIFICATION_QUEUE_URL: 'https://sqs.ap-southeast-1.amazonaws.com/000000000000/dbs-prod-notification-events',
+    DB_USER: 'dbs_master',
+    DB_PASSWORD: '<runtime-placeholder>',
+    DATABASE_URL: 'postgresql://dbs_master:<redacted>@dbs-prod.placeholder.ap-southeast-1.rds.amazonaws.com:5432/dbs',
+    REDIS_AUTH_TOKEN: '<runtime-placeholder>',
+    REDIS_URL: 'rediss://:<redacted>@master.dbs-prod.placeholder.apse1.cache.amazonaws.com:6379'
+  }
+}
+
+[M-152-03] migrate: {
+  isProduction: true,
+  substituted: [ 'DB_HOST', 'DB_USER', 'DB_PASSWORD' ],
+  env: {
+    NODE_ENV: 'production',
+    AWS_REGION: 'ap-southeast-1',
+    DB_HOST: 'dbs-prod.placeholder.ap-southeast-1.rds.amazonaws.com',
+    DB_PORT: '5432',
+    DB_NAME: 'dbs',
+    DATABASE_SSL: 'true',
+    DATABASE_SSL_CA_PATH: '/etc/ssl/rds/global-bundle.pem',
+    DB_USER: 'dbs_master',
+    DB_PASSWORD: '<runtime-placeholder>',
+    DATABASE_URL: 'postgresql://dbs_master:<redacted>@dbs-prod.placeholder.ap-southeast-1.rds.amazonaws.com:5432/dbs'
+  }
+}
+
+[M-152-04] Negative validation checks:
+  PASS TRUST_PROXY_HOPS=0 -> rejected invalidKeys=["TRUST_PROXY_HOPS"]
+  PASS DATABASE_SSL=false -> rejected invalidKeys=["DATABASE_SSL","DATABASE_SSL_CA_PATH"]
+  PASS REDIS_URL=redis:// (no TLS) -> rejected invalidKeys=["REDIS_URL"]
+  PASS AUTH_MODE=local -> rejected invalidKeys=["AUTH_MODE"]
+  PASS missing COGNITO_CLIENT_ID -> rejected invalidKeys=["COGNITO_CLIENT_ID"]
+  INFO NODE_ENV=staging -> accepted by schema (NODE_ENV=staging, isProduction=false -> Swagger enabled; prod locks NODE_ENV=production)
+
+ALL PROD CONFIG CHECKS PASSED.
+
+=== 5. TC-152-12 static secret / backend.hcl check ===
+PASS: no backend.hcl or tfstate tracked
+/home/ender/Work/Projects/digital-banking-simulator/.claude/worktrees/agent-aa429295894cb0e91/infra/terraform/envs/prod/session/rds.tf:38:  manage_master_user_password   = true
+/home/ender/Work/Projects/digital-banking-simulator/.claude/worktrees/agent-aa429295894cb0e91/infra/terraform/envs/prod/session/tests/prod.tftest.hcl:345:      aws_secretsmanager_secret_version.redis_auth.secret_string == null &&
