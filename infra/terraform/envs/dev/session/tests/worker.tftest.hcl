@@ -159,10 +159,16 @@ run "worker_task_definition" {
     condition = (
       toset([for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name]) == toset([
         "NODE_ENV", "APP_ROLE", "TRUST_PROXY_HOPS", "AWS_REGION", "LOG_LEVEL", "COGNITO_USER_POOL_ID", "COGNITO_CLIENT_ID", "COGNITO_ISSUER",
-        "DB_HOST", "DB_PORT", "DB_NAME", "DATABASE_SSL", "DATABASE_SSL_CA_PATH", "REDIS_HOST", "REDIS_PORT", "SQS_RISK_QUEUE_URL", "SQS_NOTIFICATION_QUEUE_URL",
+        "DB_HOST", "DB_PORT", "DB_NAME", "DATABASE_SSL", "DATABASE_SSL_CA_PATH", "REDIS_HOST", "REDIS_PORT", "SQS_RISK_QUEUE_URL", "SQS_NOTIFICATION_QUEUE_URL", "RECONCILIATION_INTERVAL_MS",
       ])
     )
     error_message = "worker env must be exactly the documented set: no SQS_ENDPOINT, no PORT, no secrets in plain text"
+  }
+
+  # TC-123-05: job đối soát chạy mỗi 60 s để MISMATCH tới alarm trong 5 phút (DoD 2 của DBS-123)
+  assert {
+    condition     = { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["RECONCILIATION_INTERVAL_MS"] == "60000"
+    error_message = "worker must run the reconciliation job every 60000 ms by default (DBS-123)"
   }
 
   # TC-121-03
@@ -307,4 +313,21 @@ run "accepts_five_plus_one" {
     condition     = aws_ecs_service.worker.desired_count == 1
     error_message = "5 api + 1 worker is within the limit"
   }
+}
+
+# TC-123-06: chu kỳ đối soát chỉ nhận 10 s đến 300 s (trần 300 s = mặc định của ứng dụng; dưới 10 s tải DB vô ích)
+run "rejects_reconciliation_interval_above_five_minutes" {
+  command = plan
+  variables {
+    reconciliation_interval_ms = 301000
+  }
+  expect_failures = [var.reconciliation_interval_ms]
+}
+
+run "rejects_reconciliation_interval_below_ten_seconds" {
+  command = plan
+  variables {
+    reconciliation_interval_ms = 5000
+  }
+  expect_failures = [var.reconciliation_interval_ms]
 }
