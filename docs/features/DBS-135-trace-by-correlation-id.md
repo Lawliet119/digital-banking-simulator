@@ -218,6 +218,8 @@ Mọi bước: viết test trước, chạy, ghi một dòng đỏ, viết mã t
 
 ## 8. Kết quả
 
+- **Quyết định techlead 2026-11-14 (BL-227 đóng):** chưa phân vùng hay lưu trữ lạnh `audit_log`. Ở tải thiết kế (≈ 10.000 dòng/ngày) và thời gian dự án còn lại, kích thước không đáng kể; quyết định lại khi có số đo dung lượng thật trên RDS hoặc khi tải tiến gần cận trên của ADR-14.
+
 - **Lệnh kiểm tra** (từ `backend/`, Node 24, 2026-11-10, trên commit mã cuối `f974236`):
 
 ```
