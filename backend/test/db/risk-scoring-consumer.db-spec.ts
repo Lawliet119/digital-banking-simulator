@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import { register as defaultRegister } from 'prom-client';
 import { DataSource } from 'typeorm';
 import type { DomainEvent } from '@common/events';
@@ -20,6 +20,8 @@ import {
   type RiskConsumerParts,
 } from '../support/risk-consumer';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+
+installSilentRootLogger();
 
 /**
  * DBS-111: the risk-events consumer on real PostgreSQL. Transfers are made through the real HTTP
@@ -314,7 +316,6 @@ describe('DBS-111 risk scoring consumer on PostgreSQL', () => {
     const metrics = new MetricsService(
       { enabled: true, flushMs: 600_000 },
       { role: 'worker' } as never,
-      new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
       doc => docs.push(doc),
     );
     await metrics.start();
@@ -419,18 +420,18 @@ describe('DBS-111 risk scoring consumer on PostgreSQL', () => {
     expect(JSON.stringify(docs)).not.toMatch(UUID);
   });
 
-  it('TC-111-11 Redis configuration fallback still increments, but SQL features are not Redis fallbacks', async () => {
+  it('TC-111-11 Redis configuration fallback still increments, and no metric counts a feature read as a Redis fallback', async () => {
     const total = async (name: string) =>
       (await defaultRegister.getSingleMetric(name)?.get())?.values.reduce(
         (sum, value) => sum + value.value,
         0,
       ) ?? 0;
     const configBefore = await total('risk_config_redis_fallback_total');
-    const featureBefore = await total('risk_redis_fallback_total');
     const { event } = await ac91();
     await parts.consumer.handle(event, message(1));
     expect(await total('risk_config_redis_fallback_total')).toBeGreaterThan(configBefore);
-    expect(await total('risk_redis_fallback_total')).toBe(featureBefore);
+    // BL-204: `risk_redis_fallback_total` is no longer registered anywhere.
+    expect(defaultRegister.getSingleMetric('risk_redis_fallback_total')).toBeUndefined();
   });
 
   it('TC-111-10 an audit failure rolls back the claim, the decision and the flag', async () => {

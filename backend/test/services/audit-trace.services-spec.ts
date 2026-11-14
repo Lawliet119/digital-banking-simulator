@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
@@ -15,7 +15,7 @@ import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-
 
 type Row = Record<string, unknown>;
 
-const pino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
+installSilentRootLogger();
 const CHAIN = ['transfer', 'notification.sent', 'fraud.flagged', 'fraud_flag.review'];
 
 /**
@@ -122,7 +122,7 @@ describe('DBS-135 an auditor traces one transfer end to end by its correlationId
       notificationQueueUrl: notificationUrl,
     };
     relay = new OutboxRelayService(tx, sqs, config);
-    notification = new NotificationConsumer(tx, sqs, pino, config, new AuditService(tx));
+    notification = new NotificationConsumer(tx, sqs, config, new AuditService(tx));
     risk = buildRiskConsumer(source, { sqs, queueUrl: riskUrl });
     app = await startDepositApp(db.url, { fraud: true, audit: true });
     operatorToken = await app.issuer.token('operator', { sub: randomUUID() });

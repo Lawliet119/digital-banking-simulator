@@ -2,7 +2,6 @@ import { Body, Controller, Injectable, Module, Post, Req } from '@nestjs/common'
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
-import { PinoLogger } from 'nestjs-pino';
 import { configureHttpApp } from '../../src/app.setup';
 import { ConfigModule } from '../../src/config/config.module';
 import { appConfig } from '@config/app.config';
@@ -93,7 +92,7 @@ export async function createOutboxProbe(): Promise<NestExpressApplication> {
   try {
     app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
     const config = app.get<ReturnType<typeof appConfig>>(appConfig.KEY);
-    configureHttpApp(app, config, createHttpLogging(await app.resolve(PinoLogger), config));
+    configureHttpApp(app, config, createHttpLogging(config));
     await app.init();
     return app;
   } catch (error) {

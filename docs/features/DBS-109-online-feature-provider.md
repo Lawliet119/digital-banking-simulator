@@ -40,7 +40,7 @@
 - `gen` là bộ đếm chung `risk:gen`. Khi một lần gọi Redis lỗi, event đó được trả lời từ SQL và **không ghi** vào bộ đếm, nên bộ đếm có thể thiếu lệnh. Lần đầu Redis sống lại, process tăng `risk:gen`: mọi khóa phủ cũ mất hiệu lực trên mọi worker, nên các bộ đếm được nạp lại từ SQL trước khi tin tiếp.
 - Cùng `transferId` (hoặc cùng người nhận mới) hai lần chỉ là một member nên không đếm đôi.
 - Nạp lại tối đa 500 dòng mỗi bộ đếm; nhiều hơn thì không cache cho tài khoản đó (luôn SQL).
-- Mọi lỗi Redis (`RedisUnavailableError`: timeout, breaker mở, mất kết nối) → SQL và tăng `risk_redis_fallback_total{rule,reason}`. Lỗi không phải Redis (SQL lỗi) được ném ra, không nuốt.
+- Mọi lỗi Redis (`RedisUnavailableError`: timeout, breaker mở, mất kết nối) → SQL và tăng `risk_redis_fallback_total{rule,reason}` (*thiết kế gốc; BL-187 chuyển đọc feature sang SQL và BL-204 bỏ metric này*). Lỗi không phải Redis (SQL lỗi) được ném ra, không nuốt.
 
 Giới hạn đã biết (ghi vào BACKLOG): thứ tự xử lý đảo khi bộ đếm đang ấm có thể thiếu lệnh chưa được xử lý (BL-184/DBS-112); không dọn zset theo giờ tường (cần `ZREMRANGEBYSCORE` trong `libs/redis`).
 
@@ -78,7 +78,7 @@ sequenceDiagram
 | TC-109-04 | 1 | db | SQL R5: người nhận mới/cũ trong 30 ngày, biên 30 ngày, nhiều lệnh tới cùng người nhận mới chỉ tính một |
 | TC-109-05 | 3 | db | EXPLAIN các truy vấn R1, R2, R4, R5 trên 40.000 dòng + ANALYZE: không `Seq Scan` trên `transfers`, dùng `transfers_account_completed_idx` / `transfers_pair_completed_idx`; tổng thời gian thực thi R2+R4+R5 ≤ 30 ms |
 | TC-109-06 | 1, 2 | services (Valkey + PG) | Chuỗi lệnh theo thứ tự: Redis cho cùng `Features` với SQL thuần ở từng bước; `transferId` giao lại không đếm đôi |
-| TC-109-07 | 2 | services | Tắt Valkey: cùng `Features`, `risk_redis_fallback_total` tăng; bật lại: lần đầu nạp lại từ SQL, lệnh xử lý lúc Redis tắt được tính, vẫn bằng SQL |
+| TC-109-07 | 2 | services | Tắt Valkey: cùng `Features`, `risk_redis_fallback_total` tăng (*thiết kế gốc, metric đã bỏ ở BL-204*); bật lại: lần đầu nạp lại từ SQL, lệnh xử lý lúc Redis tắt được tính, vẫn bằng SQL |
 | TC-109-08 | 2 | services | Breaker mở (nhiều lệnh lỗi liên tiếp) → vẫn đúng và không treo quá ngân sách |
 | TC-109-09 | 1 | services | Event đến muộn xa (cửa sổ trước vùng phủ) → SQL, cùng kết quả như xử lý ngay |
 | Quy trình | 4 | — | CI, Dev review, merge |

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { MetricsService } from '@common/metrics';
@@ -12,7 +12,7 @@ import { startElasticMqContainer, type StartedElasticMq } from '../support/elast
 import { seedDepositTarget, startDepositApp } from '../support/deposit-app';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
 
-const pino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
+installSilentRootLogger();
 
 /**
  * DBS-144: the metrics of a real operation. A deposit through the HTTP app (measured by the same
@@ -62,7 +62,6 @@ describe('metrics across API, outbox and relay (real PostgreSQL + ElasticMQ)', (
     metrics = new MetricsService(
       { enabled: true, flushMs: 600_000 },
       { role: 'both' } as never,
-      pino,
       doc => docs.push(doc),
     );
     new OutboxAgeGauge(tx, metrics).onModuleInit();

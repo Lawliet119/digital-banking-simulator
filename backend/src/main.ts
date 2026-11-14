@@ -11,7 +11,7 @@ import type { INestApplicationContext } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { Logger, PinoLogger } from 'nestjs-pino';
+import { Logger } from 'nestjs-pino';
 import { configureHttpApp, setupSwagger } from './app.setup';
 import { getAppRole, runsHttp } from './common/app-role/app-role';
 import { createHttpLogging } from './common/logging/http-logging';
@@ -54,7 +54,7 @@ async function bootstrap(): Promise<void> {
     configureHttpApp(
       app,
       config,
-      createHttpLogging(await app.resolve(PinoLogger), config),
+      createHttpLogging(config),
       app.get(MetricsService).httpMiddleware(),
     );
     if (!config.isProduction) setupSwagger(app);

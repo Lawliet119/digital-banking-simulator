@@ -4,7 +4,7 @@ import {
   DeleteQueueCommand,
   GetQueueAttributesCommand,
 } from '@aws-sdk/client-sqs';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import type { DomainEvent } from '@common/events';
 import { ConsumerBase } from '@common/messaging';
 import type { TransactionService } from '@database/transaction.service';
@@ -14,6 +14,8 @@ import {
   startElasticMqContainer,
   type StartedElasticMq,
 } from '../support/elasticmq.container';
+
+installSilentRootLogger();
 
 /**
  * BL-209: a consumer whose long poll (20 s) is waiting on an empty queue stops in moments, against
@@ -27,11 +29,7 @@ describe('ConsumerBase shutdown during a real long poll (ElasticMQ)', () => {
       private readonly url: string,
       sqs: SqsClient,
     ) {
-      super(
-        {} as TransactionService,
-        sqs,
-        new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
-      );
+      super({} as TransactionService, sqs);
     }
     protected queueUrl(): string {
       return this.url;

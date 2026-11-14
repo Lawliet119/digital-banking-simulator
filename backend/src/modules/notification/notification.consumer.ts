@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
-import { PinoLogger } from 'nestjs-pino';
 import type { EntityManager } from 'typeorm';
 import { sqsConfig } from '@config/sqs.config';
 import type { DomainEvent } from '@common/events';
@@ -68,11 +67,10 @@ export class NotificationConsumer extends ConsumerBase {
   constructor(
     tx: TransactionService,
     sqs: SqsClient,
-    pino: PinoLogger,
     @Inject(sqsConfig.KEY) private readonly config: ConfigType<typeof sqsConfig>,
     private readonly audit: AuditService,
   ) {
-    super(tx, sqs, pino);
+    super(tx, sqs);
   }
 
   protected queueUrl(): string | undefined {

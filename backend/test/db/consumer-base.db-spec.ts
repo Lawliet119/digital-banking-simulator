@@ -16,7 +16,7 @@ class LogConsumer extends ConsumerBase {
   /** TC-101-02: the next `apply` signals `entered`, then waits for `release` while it holds the claim. */
   private gate?: { entered: () => void; release: Promise<void> };
   constructor(tx: TransactionService) {
-    super(tx, {} as SqsClient, new PinoLogger({ pinoHttp: { level: 'silent' } } as never));
+    super(tx, {} as SqsClient);
   }
   holdNextApply(gate: { entered: () => void; release: Promise<void> }): void {
     this.gate = gate;
@@ -46,9 +46,9 @@ class LogConsumer extends ConsumerBase {
 class WritingConsumer extends ConsumerBase {
   protected readonly consumerName = 'dbs134';
   private readonly writer: OutboxWriter;
-  constructor(tx: TransactionService, pino: PinoLogger) {
-    super(tx, {} as SqsClient, pino);
-    this.writer = new OutboxWriter(pino);
+  constructor(tx: TransactionService) {
+    super(tx, {} as SqsClient);
+    this.writer = new OutboxWriter();
   }
   protected queueUrl(): string {
     return 'http://localhost:9324/000000000000/dbs134';
@@ -224,7 +224,6 @@ describe('ConsumerBase (real PostgreSQL)', () => {
         statementTimeoutMs: 5000,
         idleInTransactionTimeoutMs: 10000,
       } as never),
-      pino,
     );
     const e = event();
     await pino.runInContext(() => writing.handle(e), {

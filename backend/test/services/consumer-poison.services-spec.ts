@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { CreateQueueCommand, DeleteQueueCommand } from '@aws-sdk/client-sqs';
-import { PinoLogger } from 'nestjs-pino';
+import { installSilentRootLogger } from '../support/silent-root-logger';
 import { DataSource } from 'typeorm';
 import type { ConsumerBase } from '@common/messaging';
 import { TransactionService } from '@database/transaction.service';
@@ -15,6 +15,8 @@ import {
 } from '../support/elasticmq.container';
 import { buildRiskConsumer } from '../support/risk-consumer';
 import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-database';
+
+installSilentRootLogger();
 
 /** Every table a consumer can write to when it handles an event (and the claim itself). */
 const EFFECT_TABLES = [
@@ -90,7 +92,6 @@ describe('consumers: unknown event type, bad schema and broken JSON (real Postgr
         new NotificationConsumer(
           tx,
           sqs,
-          new PinoLogger({ pinoHttp: { level: 'silent' } } as never),
           { notificationQueueUrl: url } as never,
           new AuditService(tx),
         ),

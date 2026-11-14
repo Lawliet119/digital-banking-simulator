@@ -21,7 +21,7 @@ locals {
     "- **Phân vị** do CloudWatch ước lượng quanh biên bucket (150, 300, 1000 ms): sai khác vài phần trăm. Cửa sổ 5 phút cho độ trễ và 5xx như SLO.",
     "- **Lỗi = 5xx**; 422 và 429 không tính. Tỉ lệ 5xx tính trên bộ dimension tổng, không có probe `/health/*`.",
     "- **Tuổi outbox** dùng `Maximum`. Không có điểm dữ liệu nghĩa là worker không chạy (không phải 0).",
-    "- Chỉ vẽ `Role` `api` và `worker`. Widget trống là chưa có nguồn: `risk_redis_fallback_total` chờ consumer risk nối đủ (BL-204); `risk_decision_total`, `risk_rule_error_total`, `risk_transfer_to_flag_ms` và `reconciliation_runs_total` chỉ có khi worker chạy và đã có dòng sự kiện (metric đếm sự kiện không có điểm khi không có sự kiện).",
+    "- Chỉ vẽ `Role` `api` và `worker`. Widget trống là chưa có nguồn: `risk_decision_total`, `risk_rule_error_total`, `risk_transfer_to_flag_ms` và `reconciliation_runs_total` chỉ có khi worker chạy và đã có dòng sự kiện (metric đếm sự kiện không có điểm khi không có sự kiện).",
     "- ECS, RDS, Valkey và ALB ở dashboard `dbs-dev-infra`. Alarm: xem `alarms.tf`.",
   ])
 
@@ -283,13 +283,12 @@ locals {
     width  = 24
     height = 6
     properties = {
-      title  = "Risk: fallback Redis"
+      title  = "Risk: fallback Redis của cấu hình luật"
       region = local.dash_region
       view   = "timeSeries"
       period = 60
       metrics = [
         [{ expression = "SEARCH('{\"${local.dash_ns}\",Role,Reason} MetricName=\"risk_config_redis_fallback_total\"', 'Sum', 60)", id = "s2" }],
-        [{ expression = "SEARCH('{\"${local.dash_ns}\",Role,Rule,Reason} MetricName=\"risk_redis_fallback_total\"', 'Sum', 60)", id = "s3" }],
       ]
       yAxis = { left = { min = 0 } }
     }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PinoLogger } from 'nestjs-pino';
 import type { EntityManager } from 'typeorm';
+import { currentLogBindings } from '@common/logging/log-context';
 import { assertEvent, InvalidEventError, validateEvent, type DomainEvent } from '@common/events';
 
 /**
@@ -70,8 +70,6 @@ function hasUnstorableText(root: unknown): boolean {
 
 @Injectable()
 export class OutboxWriter {
-  constructor(private readonly logger: PinoLogger) {}
-
   async add(manager: EntityManager, event: DomainEvent): Promise<void> {
     const runner = manager.queryRunner;
     if (!runner || !runner.isTransactionActive || runner.isReleased) {
@@ -97,7 +95,7 @@ export class OutboxWriter {
         { path: '', code: 'INVALID_FORMAT', message: 'has an invalid format' },
       ]);
     }
-    const contextId: unknown = this.logger.logger.bindings().correlationId;
+    const contextId: unknown = currentLogBindings().correlationId;
     let correlationId = snapshot.correlationId;
     if (contextId !== undefined && contextId !== null) {
       const checked = validateEvent({ ...snapshot, correlationId: contextId });

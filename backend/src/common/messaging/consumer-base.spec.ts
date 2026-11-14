@@ -4,6 +4,7 @@ import type { EntityManager } from 'typeorm';
 import type { TransactionService } from '@database/transaction.service';
 import type { DomainEvent } from '@common/events';
 import { PoisonMessageError, type SqsClient, type SqsMessage } from '@libs/sqs';
+import { currentLogBindings } from '@common/logging/log-context';
 import { createLoggingOptions } from '@common/logging/logging.options';
 import { TRANSFER_SAMPLE } from '../../../test/support/event-samples';
 import { ConsumerBase, MAX_ATTEMPTS, dlqUrlFor, type UnknownEventPolicy } from './consumer-base';
@@ -21,10 +22,9 @@ class TestConsumer extends ConsumerBase {
   constructor(
     tx: TransactionService,
     sqs: SqsClient,
-    pino: PinoLogger,
     private readonly url: string | null = 'http://localhost:9324/000000000000/unit-events',
   ) {
-    super(tx, sqs, pino);
+    super(tx, sqs);
   }
   protected override get retryBackoffSeconds(): number {
     return this.backoff ?? super.retryBackoffSeconds;
@@ -36,7 +36,7 @@ class TestConsumer extends ConsumerBase {
     return this.url ?? undefined;
   }
   protected apply(event: DomainEvent): Promise<void> {
-    this.seenCorrelationId = this.pino.logger.bindings().correlationId;
+    this.seenCorrelationId = currentLogBindings().correlationId;
     if (this.failure) return Promise.reject(this.failure);
     this.applied.push(event);
     return Promise.resolve();
@@ -86,7 +86,7 @@ describe('DBS-101 ConsumerBase (unit)', () => {
     processBatch.mockReset();
     changeVisibility.mockReset();
     changeVisibility.mockResolvedValue(undefined);
-    consumer = new TestConsumer(tx, sqs, pino);
+    consumer = new TestConsumer(tx, sqs);
   });
   afterEach(() => {
     if (oldRole === undefined) delete process.env.APP_ROLE;
@@ -123,7 +123,7 @@ describe('DBS-101 ConsumerBase (unit)', () => {
         super.onCommitted(event);
       }
     }
-    const preparing = new PreparingConsumer(tx, sqs, pino);
+    const preparing = new PreparingConsumer(tx, sqs);
     await preparing.handle(TRANSFER_SAMPLE, message(1));
     expect(steps).toEqual(['prepare (transactions so far: 0)', 'apply', 'committed']);
     const expected = { for: TRANSFER_SAMPLE.eventId };
@@ -203,7 +203,7 @@ describe('DBS-101 ConsumerBase (unit)', () => {
     await pino.runInContext(
       async () => {
         await consumer.handle(TRANSFER_SAMPLE, message(1));
-        after = pino.logger.bindings().correlationId;
+        after = currentLogBindings().correlationId;
       },
       { bindings: { correlationId: outer } },
     );
@@ -215,12 +215,12 @@ describe('DBS-101 ConsumerBase (unit)', () => {
     class Probe extends TestConsumer {
       bindings: Record<string, unknown> = {};
       protected override apply(): Promise<void> {
-        this.pino.assign({ correlationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', role: 'api' });
-        this.bindings = this.pino.logger.bindings();
+        pino.assign({ correlationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', role: 'api' });
+        this.bindings = currentLogBindings();
         return Promise.resolve();
       }
     }
-    const probe = new Probe(tx, sqs, pino);
+    const probe = new Probe(tx, sqs);
     await probe.handle(TRANSFER_SAMPLE, message(1));
     expect(probe.bindings).toMatchObject({
       role: 'worker',
@@ -259,7 +259,7 @@ describe('DBS-101 ConsumerBase (unit)', () => {
   });
 
   it('consumeOnce fails loudly when the queue is not configured', () => {
-    const unconfigured = new TestConsumer(tx, sqs, pino, null);
+    const unconfigured = new TestConsumer(tx, sqs, null);
     expect(() => unconfigured.consumeOnce(1)).toThrow('queue is not configured');
   });
   it('TC-102-03 a transient error hides the message for a doubling backoff before the next receive', async () => {

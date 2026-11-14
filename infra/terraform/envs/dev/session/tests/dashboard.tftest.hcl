@@ -142,13 +142,19 @@ run "dashboard_has_every_metric" {
     condition = alltrue([
       for name in [
         "http_request_duration_ms", "http_requests_total", "http_5xx_total", "http_aborted_total",
-        "redis_fallback_total", "rate_limited_total", "risk_redis_fallback_total",
+        "redis_fallback_total", "rate_limited_total",
         "risk_config_redis_fallback_total", "outbox_oldest_unpublished_age_seconds",
         "reconciliation_runs_total", "risk_decision_total", "risk_rule_error_total", "risk_transfer_to_flag_ms",
         "ApproximateNumberOfMessagesVisible", "ApproximateAgeOfOldestMessage",
       ] : strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "\"${name}\"") || strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "MetricName=\\\"${name}\\\"")
     ])
     error_message = "every DBS-144 metric and the two SQS metrics must appear"
+  }
+
+  # BL-204: OnlineFeatureProvider reads SQL only, so nothing emits this metric; it must not come back as an empty widget.
+  assert {
+    condition     = !strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "risk_redis_fallback_total")
+    error_message = "risk_redis_fallback_total has no source (BL-204) and must not be on the dashboard"
   }
 }
 

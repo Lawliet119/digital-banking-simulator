@@ -53,7 +53,7 @@ describe('EMF through the application logger', () => {
           ['Role', 'Scope'],
         ] as ('Role' | 'Rule' | 'Reason' | 'Scope')[][],
         metrics: [
-          { name: 'risk_redis_fallback_total', unit: 'Count' as const, value: 3 },
+          { name: 'risk_rule_error_total', unit: 'Count' as const, value: 3 },
           { name: 'rate_limited_total', unit: 'Count' as const, value: 2 },
           { name: 'outbox_oldest_unpublished_age_seconds', unit: 'Seconds' as const, value: 42.5 },
         ],

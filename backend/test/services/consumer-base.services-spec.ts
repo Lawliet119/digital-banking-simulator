@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { CreateQueueCommand, DeleteQueueCommand } from '@aws-sdk/client-sqs';
-import { PinoLogger } from 'nestjs-pino';
 import { DataSource, type EntityManager } from 'typeorm';
 import type { DomainEvent } from '@common/events';
 import { ConsumerBase, MAX_ATTEMPTS } from '@common/messaging';
@@ -25,7 +24,7 @@ describe('ConsumerBase (real PostgreSQL + ElasticMQ)', () => {
       tx: TransactionService,
       sqs: SqsClient,
     ) {
-      super(tx, sqs, new PinoLogger({ pinoHttp: { level: 'silent' } } as never));
+      super(tx, sqs);
     }
     protected override get retryBackoffSeconds(): number {
       return this.backoff;

@@ -1,4 +1,5 @@
 import { PinoLogger } from 'nestjs-pino';
+import type { Logger as Pino } from 'pino';
 
 /**
  * The one way to give a piece of work its logging context (DBS-43, BL-024). Every entrypoint that
@@ -62,4 +63,25 @@ export function runInLogContext<T>(fn: () => T, input: LogContextInput): T {
  */
 export function runAsWorker<T>(fn: () => T): T {
   return runInLogContext(fn, { role: 'worker', correlationId: null });
+}
+
+/**
+ * The pino logger of the current context (the one `runInLogContext` made, else the root). It is
+ * for the few places that need the pino API itself: the metrics writer, which makes a child at
+ * `info` and flushes, and the outbox writer, which reads the bound ids. Writing a log line does
+ * not belong here: use Nest's `Logger`, which goes through `SafeLogger`.
+ *
+ * The `logger` getter of `PinoLogger` reads only the library's store and root, never `this`, so no
+ * injected instance is needed. Throws when no root exists (a unit test of a service).
+ */
+export function currentLogger(): Pino {
+  return PinoLogger.prototype.logger as unknown as Pino;
+}
+
+/**
+ * Bindings of the current context (`role`, `correlationId`, ...). Throws like `currentLogger`: the
+ * outbox writer must refuse to run in a context it cannot read (TC-57-07), not assume none.
+ */
+export function currentLogBindings(): Record<string, unknown> {
+  return currentLogger().bindings();
 }
