@@ -300,7 +300,7 @@ CREATE TABLE audit_log (
   action         text NOT NULL,                           -- 'transfer', 'account.lock', 'audit.search', 'ledger.transfer' (outcome DENIED)...
   outcome        text NOT NULL CHECK (outcome IN ('SUCCESS','REJECTED','DENIED')),
   target_type    text NOT NULL,                           -- 'transfer', 'account', 'fraud_flag'...
-  target_id      text NOT NULL,                           -- text vì có thể là id của tài khoản không tồn tại
+  target_id      text NOT NULL,                           -- text vì có thể là id của tài khoản không tồn tại; định dạng theo target_type (audit-target.guard.ts, BL-019)
   correlation_id uuid NOT NULL,
   metadata       jsonb NOT NULL DEFAULT '{}'              -- chỉ id, lý do, số đếm; KHÔNG tên, email, số tài khoản đầy đủ
 );

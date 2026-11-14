@@ -1,6 +1,6 @@
 # DBS-68 · Bước migration riêng trong pipeline (task ECS một lần, trước khi deploy)
 
-> **Status:** Implemented (G4 duyệt 2026-10-29: chấp nhận hai chỗ lệch, M-68-04..06 chưa chạy, BL-109, TC-68-17 chưa làm, BL-110, và không có ảnh chụp) · PR #38 đã merge 2026-10-31; chưa có Dev review (BL-160) · **Vai:** #5 Platform & Ops · **Nhánh:** `chore/DBS-68-migration-step` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`) · **PR:** [#38](https://github.com/Lawliet119/digital-banking-simulator/pull/38) · **Cập nhật:** 2026-11-07
+> **Status:** Implemented (G4 duyệt 2026-10-29: chấp nhận hai chỗ lệch, M-68-04..06 chưa chạy, BL-109, TC-68-17 chưa làm, BL-110, và không có ảnh chụp) · PR #38 đã merge 2026-10-31; chưa có Dev review (BL-160) · **Vai:** #5 Platform & Ops · **Nhánh:** `chore/DBS-68-migration-step` (xếp chồng trên `chore/DBS-67-rds-tls-secrets`) · **PR:** [#38](https://github.com/Lawliet119/digital-banking-simulator/pull/38) · **Cập nhật:** 2026-11-14
 
 ## 1. Bối cảnh
 
@@ -36,11 +36,11 @@
 | `describe-task-definition dbs-migrate` lỗi `Unable to describe task definition` (family chưa có hoặc không còn revision ACTIVE) | thoát 1, thông báo: chạy `terraform apply` ở `session`; lỗi khác (`AccessDenied`, mạng) in nguyên stderr, không nói "chưa có" |
 | Bình thường | render revision `dbs-migrate` từ revision ACTIVE mới nhất, chỉ đổi image container `migrate` thành `<repo>:<tag>` (bỏ qua đăng ký nếu đã đúng image) → `run-task` Fargate, `count 1`, `started-by migrate-<sha7>`, subnet, SG và `assignPublicIp` lấy từ service → poll `describe-tasks` đến `STOPPED` |
 | Container `migrate` thoát mã 0 | in "Migration xong", thoát 0 |
-| Container thoát khác 0, hoặc không có `exitCode` (task chết trước khi chạy: kéo image lỗi, thiếu quyền secret) | in `stoppedReason` và 50 dòng log cuối, thoát 1 |
+| Container thoát khác 0, hoặc không có `exitCode` (task chết trước khi chạy: kéo image lỗi, thiếu quyền secret) | in `stoppedReason` và chỗ đọc log trên CloudWatch (không in nội dung log, BL-110 c), thoát 1 |
 | `run-task` trả `failures` hoặc không có task; hoặc `describe-tasks` trả `failures`/`tasks` rỗng (tối đa 3 lần lỗi liên tiếp kể cả lỗi gọi `aws`, mỗi lần chờ `POLL_SECONDS`) | in lý do, thoát 1, không lặp tới hạn |
 | Quá `MIGRATE_DEADLINE_SECONDS` (mặc định 600), ở bất kỳ trạng thái nào (PROVISIONING, PENDING, RUNNING) | `stop-task` (lỗi của lệnh này bị bỏ qua), **chờ `STOPPED`** tối đa 120 s, rồi quyết theo `exitCode` thật: 0 (task vừa xong đúng lúc) thì thành công; còn lại thoát 1 với thông báo "quá hạn", không phải "migration lỗi" |
 
-`exitCode` đọc từ container tên `migrate`, không phải phần tử đầu. Log lấy từ stream `migrate/migrate/<task-id>`; stream không tồn tại thì bỏ qua, không làm lỗi thêm. Log in giữa `::group::`/`::endgroup::`, bọc bằng `::stop-commands::<token ngẫu nhiên>` để dòng log bắt đầu bằng `::` không thành lệnh của runner, mỗi dòng cắt 2000 ký tự, và `DB_HOST` của task definition được `::add-mask::` trước khi in.
+`exitCode` đọc từ container tên `migrate`, không phải phần tử đầu. **Log của task không được in ra log GitHub Actions** (BL-110 c; repo là public từ trước 2026-11-14, nên log Actions ai cũng đọc được): script chỉ in log group và stream `migrate/migrate/<task-id>` cùng lệnh `aws logs get-log-events` để người có quyền AWS tự đọc. `DB_HOST` của task definition vẫn được `::add-mask::` trước mọi dòng in ra (`stoppedReason` hay lỗi `aws` cũng có thể nhắc tới nó).
 
 **`deploy.sh`:** thêm bước giữa đăng ký task definition và `update-service`: `bash migrate.sh`; mã thoát khác 0 thì `deploy.sh` thoát 1 và **không gọi `update-service`**. Các đường bỏ qua cũ (không có cluster, service, `desiredCount = 0`, tag chưa lên ECR, commit không còn là đầu `main`) không chạy migration.
 
@@ -50,7 +50,7 @@
 
 **Quy tắc phối hợp với deploy:** migration chạy khi bản app cũ vẫn đang phục vụ, nên mỗi migration phải tương thích ngược (expand). Deploy lỗi sau khi migration đã chạy thì rollback task definition (DBS-38) không hoàn tác schema; contract (xóa cột, đổi tên) chỉ làm ở release sau khi bản dùng cột cũ đã gỡ.
 
-**Rủi ro còn lại:** (a) task migration dùng secret master (BL-103, DBS-119). (b) Log lỗi của task in vào log của GitHub Actions và có thể chứa tên máy chủ RDS, tên user DB, giá trị dữ liệu trong `detail` của lỗi Postgres (không chứa mật khẩu: `typeorm` không in chuỗi kết nối); chỉ in khi migration lỗi, đã che `DB_HOST` và vô hiệu lệnh `::`. Giả định repo private; nếu thành public thì bỏ việc in log (BL-109). (c) TypeORM mặc định `migrationsTransactionMode: 'all'`: mọi migration đang chờ chạy trong **một** transaction nên task chết giữa chừng không để schema nửa chừng; đổi lại không dùng được `CREATE INDEX CONCURRENTLY` hay `ALTER TYPE ... ADD VALUE` trong cùng lô (hiện chưa có, cần thì đổi sang `each` hoặc đường riêng, BL-109). (d) Hai migration cùng timestamp hoặc thứ tự lệch không thuộc task này. (e) Mật khẩu master xoay 7 ngày (BL-107): task migration đọc secret mới ở mỗi lần chạy nên không bị ảnh hưởng.
+**Rủi ro còn lại:** (a) task migration dùng secret master (BL-103, DBS-119). (b) ~~Log lỗi in vào log Actions~~ (đã bỏ ở BL-110 c: repo là public nên không in nội dung log nữa, xem §2 trên). (c) TypeORM mặc định `migrationsTransactionMode: 'all'`: mọi migration đang chờ chạy trong **một** transaction nên task chết giữa chừng không để schema nửa chừng; đổi lại không dùng được `CREATE INDEX CONCURRENTLY` hay `ALTER TYPE ... ADD VALUE` trong cùng lô (hiện chưa có, cần thì đổi sang `each` hoặc đường riêng, BL-109). (d) Hai migration cùng timestamp hoặc thứ tự lệch không thuộc task này. (e) Mật khẩu master xoay 7 ngày (BL-107): task migration đọc secret mới ở mỗi lần chạy nên không bị ảnh hưởng.
 
 ## 3. Kiến trúc
 
@@ -92,12 +92,12 @@ sequenceDiagram
 | ID | Truy vết | Lớp | Given · When · Then | Mong đợi |
 |---|---|---|---|---|
 | TC-68-01 | DoD 1 | python, `aws` giả | `migrate.sh` thành công: đăng ký `dbs-migrate` với image `<repo>:<tag>` (chỉ container `migrate` đổi), `run-task` có cluster, ARN revision mới, `FARGATE`, `count 1`, `started-by migrate-<sha7>`, subnet/SG/`assignPublicIp` lấy từ service; poll đến `STOPPED` | thoát 0, in "Migration xong" |
-| TC-68-02 | DoD 2 | python | Container thoát mã 1 | `migrate.sh` thoát 1, in log cuối và `stoppedReason`; chạy qua `deploy.sh`: **không có** lời gọi `update-service` |
+| TC-68-02 | DoD 2 | python | Container thoát mã 1 | `migrate.sh` thoát 1, in `stoppedReason` và chỗ đọc log (log group, stream), **không** gọi `get-log-events` và không in nội dung log (BL-110 c); chạy qua `deploy.sh`: **không có** lời gọi `update-service` |
 | TC-68-03 | DoD 2 | python | Container không có `exitCode` (task chết khi kéo image); task có hai container, `exitCode` đọc đúng container `migrate` | thoát 1, in `stoppedReason`; đọc đúng container |
 | TC-68-04 | DoD 2 | python | `run-task` trả `failures`; `describe-tasks` trả `failures`/`tasks` rỗng; lỗi `aws` thoáng qua 1 lần rồi hồi phục; lỗi 3 lần liên tiếp | `failures`: thoát 1 không lặp; thoáng qua: tiếp tục tới xong; 3 lần: thoát 1; không `update-service` |
 | TC-68-05 | DoD 2 | python | Task kẹt `PENDING`, rồi `RUNNING`, quá `MIGRATE_DEADLINE_SECONDS`; `stop-task` báo lỗi vì task vừa `STOPPED`; sau `stop-task` task có `exitCode` 0 hoặc 137 | gọi `stop-task`, chờ `STOPPED`, thoát 1 với "quá hạn" (137), thoát 0 nếu `exitCode` 0; lỗi `stop-task` không che mã thoát |
 | TC-68-06 | DoD 2 | python | `describe-task-definition` lỗi `Unable to describe task definition` → thông báo `terraform apply`; lỗi `AccessDenied` → in nguyên lỗi, không nói "chưa có"; còn task `dbs-migrate` đang `RUNNING` → từ chối | thoát 1, không `run-task`, thông báo đúng từng ca |
-| TC-68-16 | an toàn | python | Log của task có dòng `::set-output::x`, `::error::x`, `::stop-commands::`, dòng 5000 ký tự; stream log không tồn tại | log in trong `::group::` bọc `::stop-commands::<token>`, không dòng `::` nào ở đầu dòng ngoài lệnh của script, dòng bị cắt 2000, `DB_HOST` có `::add-mask::`; stream thiếu không làm lỗi thêm |
+| TC-68-16 | an toàn | python | Log của task có dòng `::set-output::x`, `::error::x`, tên máy chủ DB, dòng 5000 ký tự; `stoppedReason` nhắc `DB_HOST` | không có lời gọi `logs get-log-events`, không dòng nào của log xuất hiện ở stdout/stderr; `DB_HOST` có `::add-mask::` trước dòng đầu tiên in ra từ task (BL-110 c) |
 | TC-68-07 | DoD 2 | python | Chạy `migrate.sh` hai lần liên tiếp; lần hai revision mới nhất đã đúng image | cả hai thoát 0; lần hai không đăng ký lại, vẫn `run-task` |
 | TC-68-08 | DoD 1 | python | `deploy.sh` đường thành công | thứ tự gọi: `register-task-definition`(api) → `register-task-definition`(migrate) → `run-task` → `update-service`; các đường bỏ qua cũ (không cluster, `desiredCount 0`, tag chưa có, không phải đầu main) **không** gọi `run-task` |
 | TC-68-09 | an toàn | python | `IMAGE_TAG=latest` hoặc rỗng | thoát 1 trước mọi lời gọi `aws` |
@@ -122,7 +122,7 @@ sequenceDiagram
 | M-68-05 | Cùng môi trường: image có migration cố ý lỗi; chạy `deploy.sh` | `migrate.sh` thoát 1, `update-service` không được gọi, service vẫn ở revision cũ | **chưa chạy**: BACKLOG |
 | M-68-06 | `workflow_dispatch` Deploy từ `main` thật | bước migration thấy trong log, xanh | **chưa chạy** (chờ merge và biến repo, BL-104): BACKLOG |
 | M-68-07 | `aws iam simulate-custom-policy` với policy JSON dựng từ `terraform plan` của `base` (có `ecs:cluster` trong `ContextEntries`): `ecs:RunTask` trên `dbs-migrate:1` (cluster đúng và sai) và trên `dbs-api:1` | cho phép dbs-migrate với cluster đúng; từ chối cluster sai và `dbs-api` | chạy nếu profile có `iam:SimulateCustomPolicy`, nếu không: chưa chạy, BACKLOG |
-| M-68-08 | Sau `npm run build`: `NODE_ENV=staging` và **chỉ** các biến mà task definition đặt (`DB_*`, `DATABASE_SSL`, CA path), chạy `node -e "require('./dist/database/data-source')"` | nạp được `data-source` và entity mà không đòi `COGNITO_*`, `REDIS_URL`, `APP_ROLE` | chạy |
+| M-68-08 | Sau `npm run build`: `NODE_ENV=staging` và **chỉ** các biến mà task definition đặt (`DB_*`, `DATABASE_SSL`, CA path), chạy `node -e "require('./dist/database/data-source')"` | nạp được `data-source` mà không đòi `COGNITO_*`, `REDIS_URL`, `APP_ROLE`. **Lưu ý (BL-110 d):** `require` không nạp entity, TypeORM chỉ import `*.entity.js` ở `initialize()`; phần entity được chứng minh bằng `backend/test/db/migration-cli-reduced-env.db-spec.ts` (chạy CLI `migration:run` thật với đúng env của task trên Postgres thật) | chạy |
 
 ## 6. Domain review (AI)
 
@@ -173,7 +173,7 @@ Rủi ro và cách lùi: lùi bằng revert; không đổi schema, không đổi
 | ID | Test | Đạt? |
 |---|---|---|
 | TC-68-01 | `test_migrate.py` › `test_success_registers_new_image_and_runs_task_with_service_network`, `test_network_configuration_comes_from_the_service` | đạt |
-| TC-68-02 | `test_nonzero_exit_is_red_and_prints_logs`; `test_deploy.py` › `test_failed_migration_stops_the_deploy` | đạt |
+| TC-68-02 | `test_nonzero_exit_is_red_and_points_to_logs_without_printing_them`; `test_deploy.py` › `test_failed_migration_stops_the_deploy` | đạt |
 | TC-68-03 | `test_missing_exit_code_is_red_...`, `test_exit_code_is_read_from_the_container_named_migrate` | đạt |
 | TC-68-04 | `test_run_task_failures_...`, `test_describe_tasks_failures_stop_after_three_times`, `test_transient_describe_error_recovers`, `test_three_describe_errors_in_a_row_are_red` | đạt |
 | TC-68-05 | `test_deadline_stops_the_task_...`, `test_stop_task_error_does_not_hide_a_successful_exit`, `test_task_that_never_stops_...` (ca PENDING nằm trong chuỗi PENDING → RUNNING của ca đầu) | đạt |
@@ -187,7 +187,7 @@ Rủi ro và cách lùi: lùi bằng revert; không đổi schema, không đổi
 | TC-68-13 | toàn bộ lệnh ở trên | đạt |
 | TC-68-14 | README Terraform và backend | đạt |
 | TC-68-15 | quy trình | chưa làm (chờ review và merge) |
-| TC-68-16 | `test_hostile_log_lines_...`, `test_db_host_is_masked_...`, `test_missing_log_stream_...` | đạt |
+| TC-68-16 | `test_hostile_or_sensitive_log_lines_are_never_fetched_or_printed`, `test_db_host_is_masked_before_any_task_output` (BL-110 c; hai test cũ về dòng `::` và stream thiếu bỏ vì không còn đọc log) | đạt |
 | TC-68-17 | test Postgres thật chạy hai lần | **chưa làm** (không có Docker): BL-110 |
 
 17 test case: 14 đạt, 1 đơn giản hóa (TC-68-07), 2 chưa làm (TC-68-15 quy trình, TC-68-17).
@@ -201,13 +201,17 @@ Rủi ro và cách lùi: lùi bằng revert; không đổi schema, không đổi
 | M-68-03 | đạt, **khác kỳ vọng ban đầu**: `plan` ở `base` báo `2 to add` (role `dbs-github-deploy` và policy của nó); role của DBS-38 chưa từng được `apply` (BL-104), nên không phải "đổi tại chỗ". Không có thay đổi nào khác |
 | M-68-04, 05, 06 | **chưa chạy** (cần AWS thật, `apply`; người dùng dặn ghi chưa chạy): BL-109 |
 | M-68-07 | đạt một phần: simulator cho phép `RunTask dbs-migrate:1` với cluster ARN đúng, từ chối cluster sai, từ chối `dbs-api`, từ chối tên cluster không ARN, cho phép `StopTask`; `GetLogEvents` chỉ khớp ARN có `:*` ở cuối (dạng không `:*` bị từ chối, nên policy liệt kê cả hai dạng) và từ chối `api/*` ở cả hai dạng. Hành vi thật của IAM với log stream chưa kiểm: BL-109 |
-| M-68-08 | đạt một phần: `data-source` nạp với env rút gọn của task (không `COGNITO_*`, `REDIS_URL`, `APP_ROLE`); repo chưa có file `*.entity.js` (0 file) nên phần nạp entity chưa chứng minh được: BL-110 |
+| M-68-08 | đạt một phần: `data-source` nạp với env rút gọn của task (không `COGNITO_*`, `REDIS_URL`, `APP_ROLE`); repo chưa có file `*.entity.js` (0 file) nên phần nạp entity chưa chứng minh được. Đã khép bằng test tự động ở BL-110 d (mục dưới) |
 
 Chưa có ảnh chụp màn hình (không có bước giao diện; bằng chứng là `manual-test.txt`).
 - **Chưa chứng minh bằng chạy thật:** `run-task` Fargate thật vào RDS, quyền IAM của role thật, lần chạy hai lần liên tiếp với TypeORM thật, hành vi `deploy.sh` khi migration lỗi trên AWS. Mọi test của script dùng `aws` giả nên chỉ chứng minh logic.
 - **Phạm vi so với §7:** khớp; thêm `fake_aws_deploy.py` và sửa `test_deploy.py` (mặc định migration thành công, đổi một assert vì `dbs-migrate` có thể đăng ký revision), như §7 bước 2–3 đã gồm. Không có file ngoài kế hoạch.
 - **Lệch so với kế hoạch (người duyệt chấp nhận cả hai ở G4 ngày 2026-10-29):** (1) `migrate.sh` được viết trước test của nó; test sau đó viết với script đặt tạm ra ngoài, xác nhận đỏ (19/19 lỗi vì thiếu script), rồi đặt lại script và xanh; thêm 4 phép thử đột biến (bỏ `::add-mask::`, bỏ kiểm đang chạy, luôn coi `exitCode` là 0, ngưỡng 3 lần lỗi) đều làm test đỏ. Cột "Kết quả đỏ" của §7 vì vậy không điền từng dòng. (2) Resource `GetLogEvents` sửa thêm dạng `:*` sau khi M-68-07 cho thấy simulator chỉ khớp dạng đó; test và code đổi cùng lúc, không chạy riêng test đỏ.
-- **Bàn giao / BACKLOG:** BL-109 (chạy thật M-68-04..06, `apply base`, kiểm quyền log thật), BL-110 (giới hạn đã chấp nhận: test Postgres thật, transaction `all`, log khi repo public, nạp entity). Đã sửa BL-103 (tạo role chuyển sang DBS-119, kèm execution role riêng và PassRole) và BL-107 (task migration không bị ảnh hưởng bởi xoay mật khẩu).
+- **BL-110 (2026-11-14): (c) và (d).**
+  - **(c) log khi repo public:** `gh repo view` cho `visibility: PUBLIC`, nên điều kiện "nếu thành public thì bỏ việc in" đã xảy ra. `migrate.sh` không còn gọi `aws logs get-log-events` và không in nội dung log; khi migration lỗi chỉ in `stoppedReason`, log group, stream và lệnh để người có quyền AWS đọc (xem §2). Test: `test_migrate.py` (TC-68-02, TC-68-16) và `test_deploy.py` (`test_failed_migration_stops_the_deploy`) chạy trong container `python:3.12-slim`, 18 và 31 test đạt. Quyền `logs:GetLogEvents` của role deploy (`base/deploy_role.tf`) nay không dùng đến; chưa thu hồi vì đổi stack `base` cần chủ repo `apply`: để cho lần sửa `base` sau.
+  - **(d) nạp entity với env rút gọn:** repo vẫn chưa có file `*.entity.ts` (0 file), nên chưa có entity nào để nạp. `require('./dist/database/data-source')` cũng không nạp entity (TypeORM import ở `initialize()`), nên M-68-08 cũ không bao giờ chứng minh được điều này. Thay bằng `backend/test/db/migration-cli-reduced-env.db-spec.ts`: chạy CLI TypeORM thật (`migration:run`, `data-source.ts`) với đúng env của task `dbs-migrate` (`NODE_ENV=staging`, `DB_*`, `DATABASE_SSL`; không `COGNITO_*`, `REDIS_URL`, `APP_ROLE`, `DATABASE_URL`) trên một database tạm, kiểm thoát 0, stderr rỗng, mọi migration đã ghi vào `migrations`; test thứ hai kiểm glob entity khớp mọi `*.entity.ts`. Có đối chứng: thêm tạm một file `*.entity.ts` ném lỗi khi thiếu `REDIS_URL` làm test đỏ với đúng lỗi đó (đã xóa file). Entity đầu tiên thêm vào repo tự được test này phủ. Giới hạn: chạy bằng `ts-node`, không phải `dist/*.js` (khác nhau chỉ ở đuôi file; chạy `dist` cần `nest build` trong test).
+  - **(b) transaction `all` và `CONCURRENTLY`:** giới hạn đã chấp nhận, hiện không có migration nào cần `CONCURRENTLY` hay `ALTER TYPE ... ADD VALUE`, nên không có việc làm được. Ghi ở §2 "Rủi ro còn lại" (c). Dòng BL-110 bị xóa; khi một migration cần, người viết migration đó phải quyết `migrationsTransactionMode: 'each'` hoặc đường riêng, và mở BL mới.
+- **Bàn giao / BACKLOG:** BL-109 (chạy thật M-68-04..06, `apply base`, kiểm quyền log thật), BL-110 (giới hạn đã chấp nhận: test Postgres thật, transaction `all`, log khi repo public, nạp entity; đã đóng 2026-11-14, xem trên). Đã sửa BL-103 (tạo role chuyển sang DBS-119, kèm execution role riêng và PassRole) và BL-107 (task migration không bị ảnh hưởng bởi xoay mật khẩu).
 
 ## 9. Tài liệu đã cập nhật
 

@@ -74,16 +74,18 @@ class Migrate(unittest.TestCase):
             "subnets": ["subnet-a", "subnet-b"], "securityGroups": ["sg-api"], "assignPublicIp": "ENABLED"}})
         self.assertIn("ecs describe-services", e.ops())  # chạy tay: tự đọc service
 
-    # TC-68-02
-    def test_nonzero_exit_is_red_and_prints_logs(self):
+    # TC-68-02 (BL-110 c: repo public, không in nội dung log)
+    def test_nonzero_exit_is_red_and_points_to_logs_without_printing_them(self):
         e = self.make(describe_tasks=[stopped(1)], log_events=["QueryFailedError: relation exists"])
         p = self.run_script(e)
         self.assertEqual(p.returncode, 1)
-        self.assertIn("thất bại (exitCode 1)", p.stdout + p.stderr)
-        self.assertIn("QueryFailedError: relation exists", p.stdout)
-        stream = self.call(e, "logs get-log-events")["argv"]
-        self.assertIn(f"migrate/migrate/{TASK_ID}", stream)
-        self.assertIn("/dbs/dev/api", stream)
+        out = p.stdout + p.stderr
+        self.assertIn("thất bại (exitCode 1)", out)
+        self.assertIn("Essential container in task exited", out)  # stoppedReason do ECS sinh, không phải log task
+        self.assertIn(f"migrate/migrate/{TASK_ID}", out)
+        self.assertIn("/dbs/dev/api", out)
+        self.assertNotIn("QueryFailedError", out)
+        self.assertNotIn("logs get-log-events", e.ops())
 
     # TC-68-03
     def test_missing_exit_code_is_red_and_reads_the_migrate_container(self):
@@ -187,37 +189,23 @@ class Migrate(unittest.TestCase):
             self.assertNotEqual(self.run_script(e, tag=bad).returncode, 0)
             self.assertEqual(e.calls(), [])
 
-    # TC-68-16
-    def test_hostile_log_lines_cannot_become_workflow_commands(self):
-        long_line = "x" * 5000
-        e = self.make(describe_tasks=[stopped(1)],
-                      log_events=["::set-output name=a::b", "::error::fake", "::stop-commands::x", long_line, "bình thường"])
+    # TC-68-16 (BL-110 c)
+    def test_hostile_or_sensitive_log_lines_are_never_fetched_or_printed(self):
+        lines = ["::set-output name=a::b", "::error::fake", f"connect ECONNREFUSED {DB_HOST}:5432", "x" * 5000]
+        e = self.make(describe_tasks=[stopped(1)], log_events=lines)
         p = self.run_script(e)
         self.assertEqual(p.returncode, 1)
-        lines = p.stdout.splitlines()
-        start = next(i for i, l in enumerate(lines) if l.startswith("::stop-commands::"))
-        token = lines[start].split("::")[2]
-        end = lines.index(f"::{token}::")
-        self.assertGreater(len(token), 16)
-        inside = lines[start + 1:end]
-        self.assertIn("::set-output name=a::b", inside)  # nằm trong vùng đã vô hiệu lệnh
-        self.assertTrue(all(len(l) <= 2000 for l in inside))
-        self.assertEqual(lines[start - 1].split("::")[1], "group")
-        self.assertEqual(lines[end + 1], "::endgroup::")
-        self.assertFalse(any(l.startswith("::") for l in lines[:start] if "set-output" in l or "fake" in l))
+        out = p.stdout + p.stderr
+        self.assertNotIn("logs get-log-events", e.ops())
+        for needle in ("set-output", "::error::fake", "ECONNREFUSED", "x" * 100):
+            self.assertNotIn(needle, out)
 
     def test_db_host_is_masked_before_any_task_output(self):
-        e = self.make(describe_tasks=[stopped(1)], log_events=[f"connect ECONNREFUSED {DB_HOST}:5432"])
+        e = self.make(describe_tasks=[stopped(1, reason=f"Task failed to start {DB_HOST}")])
         p = self.run_script(e)
         lines = p.stdout.splitlines()
         self.assertIn(f"::add-mask::{DB_HOST}", lines)
-        self.assertLess(lines.index(f"::add-mask::{DB_HOST}"), next(i for i, l in enumerate(lines) if "ECONNREFUSED" in l))
-
-    def test_missing_log_stream_is_not_a_second_failure(self):
-        e = self.make(describe_tasks=[stopped(1)], log_stream_missing=True)
-        p = self.run_script(e)
-        self.assertEqual(p.returncode, 1)
-        self.assertIn("không đọc được log", p.stdout)
+        self.assertLess(lines.index(f"::add-mask::{DB_HOST}"), next(i for i, l in enumerate(lines) if "Đã chạy task migration" in l))
 
 
 if __name__ == "__main__":

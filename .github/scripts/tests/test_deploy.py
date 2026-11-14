@@ -185,7 +185,8 @@ class Deploy(unittest.TestCase):
         self.assertNotEqual(p.returncode, 0)
         self.assertNotIn("ecs update-service", e.ops())
         self.assertEqual(e.curls(), [])
-        self.assertIn("boom", p.stdout)
+        self.assertNotIn("boom", p.stdout + p.stderr)  # BL-110 c: log task không in ra log Actions
+        self.assertNotIn("logs get-log-events", e.ops())
 
     def test_skip_paths_never_run_a_migration(self):
         for scenario in (
