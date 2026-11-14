@@ -58,7 +58,7 @@ variable "db_instance_class" {
 }
 
 variable "db_multi_az" {
-  description = "Multi-AZ cho RDS. Dev Single-AZ (false); production true."
+  description = "Multi-AZ cho RDS. Mặc định false (Single-AZ, rẻ nhất). Đặt true chỉ khi diễn tập failover (`-var db_multi_az=true`, RDS tạo standby ở AZ khác, chi phí instance và storage ≈ gấp đôi, ≈ +0,03 USD/giờ ở db.t4g.micro 20 GB) và đặt lại false ngay sau diễn tập; production true."
   type        = bool
   default     = false
 }

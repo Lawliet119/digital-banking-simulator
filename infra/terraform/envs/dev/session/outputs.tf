@@ -64,6 +64,11 @@ output "db_endpoint" {
   value = aws_db_instance.main.endpoint
 }
 
+output "db_multi_az" {
+  description = "RDS đang cấu hình Multi-AZ (true = có standby, chi phí DB ≈ gấp đôi; chỉ bật khi diễn tập HA, README Terraform mục DBS-180)."
+  value       = aws_db_instance.main.multi_az
+}
+
 output "db_port" {
   value = aws_db_instance.main.port
 }

@@ -530,6 +530,51 @@ run "rds_variables" {
   }
 }
 
+# TC-180-01: mặc định Single-AZ (tắt khi không diễn tập, tiết kiệm), output cho biết trạng thái
+run "rds_multi_az_default_off" {
+  command = apply
+
+  assert {
+    condition     = var.db_multi_az == false && aws_db_instance.main.multi_az == false && output.db_multi_az == false
+    error_message = "db_multi_az must default to false and be exported as an output"
+  }
+}
+
+# TC-180-02: bật Multi-AZ bằng đúng một biến, giữ nguyên mọi cấu hình khác (cỡ, mã hóa, backup, ép TLS, không public)
+run "rds_multi_az_drill" {
+  command = apply
+
+  variables {
+    db_multi_az = true
+  }
+
+  assert {
+    condition     = aws_db_instance.main.multi_az == true && output.db_multi_az == true
+    error_message = "db_multi_az = true must turn on the Multi-AZ standby and be exported"
+  }
+
+  assert {
+    condition = (
+      aws_db_instance.main.instance_class == "db.t4g.micro" && aws_db_instance.main.allocated_storage == 20 && aws_db_instance.main.storage_type == "gp3"
+      && aws_db_instance.main.storage_encrypted == true && aws_db_instance.main.publicly_accessible == false
+      && aws_db_instance.main.backup_retention_period == 1 && aws_db_instance.main.apply_immediately == true
+      && aws_db_instance.main.skip_final_snapshot == true && aws_db_instance.main.deletion_protection == false
+      && aws_db_instance.main.parameter_group_name == "dbs-dev-postgres17"
+    )
+    error_message = "the drill toggle must change only multi_az: same class, storage, encryption, backup, TLS parameter group and destroy settings"
+  }
+
+  assert {
+    condition = (
+      aws_db_instance.main.kms_key_id == "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"
+      && aws_db_instance.main.ca_cert_identifier == "rds-ca-rsa2048-g1" && aws_db_instance.main.manage_master_user_password == true
+      && aws_db_instance.main.db_subnet_group_name == "dbs-dev" && aws_db_instance.main.vpc_security_group_ids == toset(["sg-db"])
+      && aws_db_instance.main.delete_automated_backups == true
+    )
+    error_message = "Multi-AZ must keep the shared CMK, pinned CA, managed master password, base subnet group and security group, and still delete automated backups on destroy"
+  }
+}
+
 # TC-67-08: kết nối RDS qua TLS, mật khẩu chỉ đi bằng `secrets` từ secret master của RDS
 run "db_connection" {
   command = apply
