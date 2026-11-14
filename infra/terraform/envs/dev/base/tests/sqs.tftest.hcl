@@ -18,7 +18,7 @@ variables {
   account_id = "123456789012"
 }
 
-# TC-73-01: hai queue chính theo ADR-03 (visibility 30 s, long polling 20 s, giữ 4 ngày), SSE-SQS
+# TC-73-01, TC-154-05: hai queue chính theo ADR-03 (visibility 30 s, long polling 20 s, giữ 4 ngày), SSE-KMS bằng CMK
 run "main_queues" {
   command = apply
 
@@ -33,13 +33,15 @@ run "main_queues" {
       q.receive_wait_time_seconds == 20 &&
       q.message_retention_seconds == 345600 &&
       q.delay_seconds == 0 &&
-      q.sqs_managed_sse_enabled
+      q.kms_master_key_id == aws_kms_key.main.arn &&
+      q.kms_data_key_reuse_period_seconds == 300 &&
+      q.sqs_managed_sse_enabled != true
     )])
-    error_message = "main queues: visibility 30, wait 20, retention 4 days, no delay, SSE-SQS"
+    error_message = "main queues: visibility 30, wait 20, retention 4 days, no delay, CMK with 300s reuse, no SSE-SQS"
   }
 }
 
-# TC-73-02: DLQ giữ 6 ngày: lâu hơn queue chính, ngắn hơn 7 ngày processed_events
+# TC-73-02, TC-154-05: DLQ giữ 6 ngày: lâu hơn queue chính, ngắn hơn 7 ngày processed_events, SSE-KMS bằng CMK
 run "dead_letter_queues" {
   command = apply
 
@@ -53,9 +55,11 @@ run "dead_letter_queues" {
       q.message_retention_seconds == 518400 &&
       q.message_retention_seconds > aws_sqs_queue.main[k].message_retention_seconds &&
       q.message_retention_seconds < 604800 &&
-      q.sqs_managed_sse_enabled
+      q.kms_master_key_id == aws_kms_key.main.arn &&
+      q.kms_data_key_reuse_period_seconds == 300 &&
+      q.sqs_managed_sse_enabled != true
     )])
-    error_message = "DLQs: retention 6 days (> main, < 7 days of processed_events), SSE-SQS"
+    error_message = "DLQs: retention 6 days (> main, < 7 days of processed_events), CMK with 300s reuse, no SSE-SQS"
   }
 }
 
@@ -91,19 +95,22 @@ run "redrive_allow_policy" {
   }
 }
 
-# TC-73-09: queue standard, SSE-SQS không lẫn SSE-KMS
-run "standard_queues_sse_sqs" {
+# TC-154-05: queue standard dùng CMK, không lẫn SSE-SQS
+run "standard_queues_kms" {
   command = apply
 
   assert {
     condition = alltrue([for q in concat(values(aws_sqs_queue.main), values(aws_sqs_queue.dlq)) : (
-      q.fifo_queue != true && q.kms_master_key_id == null
+      q.fifo_queue != true &&
+      q.kms_master_key_id == aws_kms_key.main.arn &&
+      q.kms_data_key_reuse_period_seconds == 300 &&
+      q.sqs_managed_sse_enabled != true
     )])
-    error_message = "queues must be standard with SSE-SQS only"
+    error_message = "queues must be standard with CMK and without SSE-SQS"
   }
 }
 
-# TC-73-05: policy worker: gửi/nhận/xóa ở queue chính, chỉ gửi vào DLQ (message sai schema), không quản trị
+# TC-73-05, TC-154-06: policy worker: gửi/nhận/xóa ở queue chính, chỉ gửi vào DLQ (message sai schema), KMS qua SQS, không quản trị
 run "worker_policy" {
   command = apply
 
@@ -113,10 +120,10 @@ run "worker_policy" {
   }
 
   assert {
-    condition = length(jsondecode(aws_iam_policy.worker_sqs.policy).Statement) == 2 && alltrue([
+    condition = length(jsondecode(aws_iam_policy.worker_sqs.policy).Statement) == 3 && alltrue([
       for st in jsondecode(aws_iam_policy.worker_sqs.policy).Statement : st.Effect == "Allow"
     ])
-    error_message = "worker policy must have exactly two Allow statements"
+    error_message = "worker policy must have exactly three Allow statements"
   }
 
   assert {
@@ -136,7 +143,16 @@ run "worker_policy" {
   }
 
   assert {
-    condition     = !strcontains(aws_iam_policy.worker_sqs.policy, "\"*\"") && !strcontains(aws_iam_policy.worker_sqs.policy, "sqs:*") && !strcontains(aws_iam_policy.worker_sqs.policy, "Purge") && !strcontains(aws_iam_policy.worker_sqs.policy, "sqs:DeleteQueue") && !strcontains(aws_iam_policy.worker_sqs.policy, "sqs:Set")
+    condition = (
+      toset(one([for st in jsondecode(aws_iam_policy.worker_sqs.policy).Statement : st.Action if st.Sid == "KmsForSqs"])) == toset(["kms:GenerateDataKey", "kms:Decrypt"]) &&
+      one([for st in jsondecode(aws_iam_policy.worker_sqs.policy).Statement : st.Resource if st.Sid == "KmsForSqs"]) == [aws_kms_key.main.arn] &&
+      one([for st in jsondecode(aws_iam_policy.worker_sqs.policy).Statement : st.Condition.StringEquals["kms:ViaService"] if st.Sid == "KmsForSqs"]) == "sqs.ap-southeast-1.amazonaws.com"
+    )
+    error_message = "KmsForSqs must grant GenerateDataKey and Decrypt on the CMK only via sqs.ap-southeast-1.amazonaws.com"
+  }
+
+  assert {
+    condition     = !strcontains(aws_iam_policy.worker_sqs.policy, "\"*\"") && !strcontains(aws_iam_policy.worker_sqs.policy, "sqs:*") && !strcontains(aws_iam_policy.worker_sqs.policy, "kms:*") && !strcontains(aws_iam_policy.worker_sqs.policy, "Purge") && !strcontains(aws_iam_policy.worker_sqs.policy, "sqs:DeleteQueue") && !strcontains(aws_iam_policy.worker_sqs.policy, "sqs:Set")
     error_message = "worker policy must not use wildcards or admin actions"
   }
 }

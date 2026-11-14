@@ -1,6 +1,6 @@
-# DBS-73, ADR-03: mỗi consumer một queue standard và một DLQ (docs/03 §10). Nằm ở base (giữ lại):
+# DBS-73, ADR-03, DBS-154: mỗi consumer một queue standard và một DLQ (docs/03 §10). Nằm ở base (giữ lại):
 # SQS không tính tiền khi rảnh, URL ổn định giữa các phiên, DLQ sống qua một lần destroy session.
-# Mã hóa SSE-SQS (miễn phí, worker không cần quyền KMS).
+# Mã hóa SSE-KMS bằng CMK dùng chung `alias/dbs-dev` (data key reuse 300 s để giảm lời gọi KMS).
 
 locals {
   sqs_consumers = toset(["risk", "notification"])
@@ -12,20 +12,22 @@ locals {
 resource "aws_sqs_queue" "dlq" {
   for_each = local.sqs_consumers
 
-  name                      = "dbs-dev-${each.key}-events-dlq"
-  message_retention_seconds = 518400
-  sqs_managed_sse_enabled   = true
+  name                              = "dbs-dev-${each.key}-events-dlq"
+  message_retention_seconds         = 518400
+  kms_master_key_id                 = aws_kms_key.main.arn
+  kms_data_key_reuse_period_seconds = 300
 }
 
 resource "aws_sqs_queue" "main" {
   for_each = local.sqs_consumers
 
-  name                       = "dbs-dev-${each.key}-events"
-  visibility_timeout_seconds = 30
-  receive_wait_time_seconds  = 20
-  message_retention_seconds  = 345600
-  delay_seconds              = 0
-  sqs_managed_sse_enabled    = true
+  name                              = "dbs-dev-${each.key}-events"
+  visibility_timeout_seconds        = 30
+  receive_wait_time_seconds         = 20
+  message_retention_seconds         = 345600
+  delay_seconds                     = 0
+  kms_master_key_id                 = aws_kms_key.main.arn
+  kms_data_key_reuse_period_seconds = 300
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.dlq[each.key].arn
@@ -72,6 +74,20 @@ resource "aws_iam_policy" "worker_sqs" {
         Effect   = "Allow"
         Action   = "sqs:SendMessage"
         Resource = [for q in aws_sqs_queue.dlq : q.arn]
+      },
+      {
+        Sid    = "KmsForSqs"
+        Effect = "Allow"
+        Action = [
+          "kms:GenerateDataKey",
+          "kms:Decrypt",
+        ]
+        Resource = [aws_kms_key.main.arn]
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "sqs.${var.region}.amazonaws.com"
+          }
+        }
       },
     ]
   })
