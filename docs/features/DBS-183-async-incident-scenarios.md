@@ -23,9 +23,9 @@
 
 ## 2. Hành vi
 
-Sản phẩm: [`docs/runbooks/async-incident-scenarios.md`](../runbooks/async-incident-scenarios.md). Bốn kịch bản, mỗi kịch bản có cùng sáu mục: **Mục tiêu**, **Chạy local (lặp lại được)**, **Chạy cloud (cho DBS-184)**, **Kết quả mong đợi**, **Cách xác nhận**, **Dọn để chạy lại**.
+Sản phẩm: [`docs/runbooks/async-incident-scenarios.md`](../runbooks/async-incident-scenarios.md). Bốn kịch bản, mỗi kịch bản có cùng sáu mục: **Mục tiêu**, **Chạy local (lặp lại được)**, **Chạy cloud (cho DBS-184)**, **Kết quả mong đợi**, **Cách xác nhận**, **Dọn để chạy lại**. Tài liệu phụ thuộc runbook DLQ ([DBS-164](DBS-164-dlq-runbook-dev-trial.md), PR #198) nên PR của task này chỉ merge sau #198.
 
-**Chạy local (chung).** Từ `backend/`, cần Docker (Testcontainers tự dựng ElasticMQ và Valkey) và một PostgreSQL 17 đang chạy làm máy chủ (mỗi test tạo database tạm riêng rồi xóa, nên lặp bao nhiêu lần cũng cho cùng kết quả):
+**Chạy local (chung).** Từ `backend/`, cần Docker (Testcontainers tự dựng ElasticMQ và Valkey) và một PostgreSQL 17 đang chạy làm máy chủ; mỗi test tạo database tạm riêng (`dbs_test_<12 hex>`) rồi xóa, nên lặp bao nhiêu lần cũng cho cùng kết quả:
 
 ```bash
 docker run -d --rm --name dbs-pg -p 55433:5432 -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test postgres:17 -c timezone=UTC
@@ -33,32 +33,36 @@ export DATABASE_URL=postgres://test:test@localhost:55433/postgres
 npm run test:services -- --runInBand --runTestsByPath test/services/dlq-isolation.services-spec.ts --verbose
 ```
 
-| Kịch bản | Spec (test) | Điều test chứng minh |
+| Kịch bản | Spec (test) | Điều test chứng minh, và điều không chứng minh |
 |---|---|---|
-| (a) consumer lỗi liên tục → DLQ sau 5 lần + alarm | `dlq-isolation.services-spec.ts` TC-125-01 | notification lỗi mọi lần: message vào DLQ sau đúng 5 lần nhận; risk vẫn xử lý bình thường. Phần **alarm** không có ở local (CloudWatch): chỉ chạy trên cloud |
-| (b) message hỏng → DLQ ngay | `dlq-isolation.services-spec.ts` TC-125-02; `consumer-poison.services-spec.ts` (TC-010-01) | body không phải JSON, sai schema hoặc loại sự kiện lạ vào DLQ ở lần nhận đầu; consumer khác không bị chặn |
-| (c) notification chết → risk vẫn chạy, chuyển tiền không ảnh hưởng | `dlq-isolation.services-spec.ts` TC-125-01 và TC-125-03 | cờ rủi ro vẫn tạo khi notification lỗi; tiền không đổi; sau khi sửa, redrive đưa message về xử lý đúng một lần (TC-125-03) |
-| (d) worker tắt rồi bật → outbox gửi bù | `worker-recovery.services-spec.ts` TC-124-01, TC-124-02 | worker dừng: chuyển tiền vẫn 201, sự kiện nằm chờ trong outbox; bật lại thì 6 cờ MEDIUM, mỗi cờ đúng một audit `fraud.flagged`, không trùng; consumer chết giữa lệnh nhận lại message, vẫn một decision |
+| (a) consumer lỗi liên tục → DLQ sau 5 lần + alarm | `dlq-isolation.services-spec.ts` TC-125-01 | notification lỗi mọi lần: message vào DLQ sau đúng 5 lần nhận; risk vẫn xử lý. **Không có alarm ở local** (CloudWatch): chỉ chạy trên cloud |
+| (b) message hỏng → DLQ ngay | `dlq-isolation.services-spec.ts` TC-125-02; `consumer-poison.services-spec.ts` TC-010-01 (loại sự kiện lạ), TC-010-02 (sai schema), TC-010-03 (không phải JSON) | mỗi loại hỏng vào DLQ ở lần nhận đầu; consumer khác không bị chặn |
+| (c) notification chết → risk vẫn chạy, chuyển tiền không ảnh hưởng | `dlq-isolation.services-spec.ts` TC-125-01 và TC-125-03 | cờ rủi ro vẫn tạo khi notification lỗi; bất biến sổ cái PASS (`afterEach` của spec; giao dịch đã commit trước khi consumer chạy); sau khi sửa, redrive đưa message về xử lý đúng một lần (TC-125-03). Spec không tự kiểm số dư hay trạng thái giao dịch sau lỗi ngoài bất biến |
+| (d) worker tắt rồi bật → outbox gửi bù | `worker-recovery.services-spec.ts` TC-124-01, TC-124-02 | worker dừng: chuyển tiền vẫn 201, sự kiện chờ trong outbox; bật lại thì 6 cờ MEDIUM, mỗi cờ đúng một audit `fraud.flagged`, không trùng; consumer chết giữa lệnh nhận lại message, vẫn một decision. **Local chỉ có consumer risk** (TC-124-01 không có notification) |
 
-**Chạy cloud (chung; DBS-184 chạy và ghi bằng chứng).** Cần phiên ECS và RDS đang chạy ([Dựng từ trạng thái trống](../../infra/terraform/README.md#dựng-từ-trạng-thái-trống-và-đo-thời-gian-dbs-139), 12 phút) và token của nhân viên, khách (kịch bản [demo giữa kỳ](../demos/demo-midterm-end-to-end.md)). Số liệu mong đợi lấy từ các lần đo đã có:
+`dlq-isolation.services-spec.ts` có bốn test: TC-125-01..03 và TC-046-01 (không thuộc kịch bản nào).
+
+**Chạy cloud (chung; DBS-184 chạy và ghi bằng chứng).** Cần phiên ECS và RDS ([Dựng từ trạng thái trống](../../infra/terraform/README.md#dựng-từ-trạng-thái-trống-và-đo-thời-gian-dbs-139), ≈ 12 phút) và token nhân viên, khách (kịch bản [demo giữa kỳ](../demos/demo-midterm-end-to-end.md), nhánh cloud). **Chi phí và dọn:** ≈ 0,14 USD/giờ khi api và worker chạy, quên tắt ≈ 3 USD/ngày, trần một phiên 90 phút. Ngân sách thời gian: (a)+(c) ≈ 10 phút (150 s chờ DLQ, alarm tới 5 phút, khôi phục), (b) ≈ 5 phút, (d) ≈ 12 phút (alarm `outbox-age` kêu sau ≈ 9 phút 22 giây). Cuối cùng **bắt buộc**: `desired-count` của `worker` về 1 (để `dbs-dev-outbox-age` không kẹt ở `ALARM`), `terraform destroy` phiên, `verify-clean.sh` thoát 0, báo trong kênh chat.
 
 | Kịch bản | Ép sự cố | Mong đợi (đã đo ở đâu) | Xác nhận |
 |---|---|---|---|
-| (a) | ép notification lỗi mọi lần: `ALTER TABLE notification_log ADD CONSTRAINT dbs183_block CHECK (false) NOT VALID` bằng task ECS chạy một lần dùng secret master (xem bên dưới), rồi một chuyển tiền đạt ngưỡng | ≈ 150–155 s sau lệnh chuyển, `dbs-dev-notification-events-dlq` có 1 message (backoff 10+20+40+80 s, BL-210); alarm `dbs-dev-notification-dlq-not-empty` sang `ALARM` trong ≤ 5 phút kể từ lúc message vào DLQ (đã đo 139 s và 155 s ở DBS-163, DBS-164) | `get-queue-attributes` của DLQ; `describe-alarms`; log `/dbs/dev/worker` có dòng `dead_letter`, `reason: attempts_exhausted`, `receiveCount: 5` (BL-364: chưa kiểm trên log thật) |
-| (b) | `send-message` thân `{not json` vào `dbs-dev-risk-events` (worker đang chạy) | vào `dbs-dev-risk-events-dlq` ở lần nhận đầu (vài giây); alarm `dbs-dev-risk-dlq-not-empty` sang `ALARM` ≤ 5 phút | `get-queue-attributes`; log `reason: invalid_event`, có `issueCodes`, không có body |
-| (c) | cùng sự cố của (a), nhưng quan sát phía giao dịch | chuyển tiền trả 201 `COMPLETED`; cờ rủi ro xuất hiện (`GET /v1/operator/fraud-flags`) trong vài giây; không có thông báo cho giao dịch đó; bất biến sổ cái PASS | API; `invariants.js` bằng task ECS chạy một lần ([backend/README §9](../../backend/README.md)); DLQ risk 0 |
-| (d) | `aws ecs update-service --cluster dbs-dev --service worker --desired-count 0`, chờ `runningCount` 0, chuyển N lệnh đạt ngưỡng, rồi `--desired-count 1` | chuyển tiền vẫn 201 khi worker tắt; `dbs-dev-outbox-age` sang `ALARM` sau ≈ 9 phút 22 giây (BL-182, đo 2026-11-14); bật lại: outbox xả trong ≈ 4 giây, đủ N cờ, mỗi cờ đúng một audit `fraud.flagged`, queue và DLQ về 0 | `GET /v1/operator/fraud-flags` và `GET /v1/audit/entries?action=fraud.flagged` (auditor); `get-queue-attributes` bốn queue; `describe-alarms` |
+| (a) | thứ tự: nạp tiền cho nguồn **trước**; rồi ép notification lỗi (`ADD CONSTRAINT`, xem dưới); rồi **đúng một** chuyển tiền đạt ngưỡng | ≈ 150–155 s sau lệnh chuyển, `dbs-dev-notification-events-dlq` có message của `eventId` đó (backoff 10+20+40+80 s, BL-210). Constraint chặn **mọi** INSERT `notification_log` của cả môi trường (nạp tiền, giao dịch khác, `AccountStatusChanged`), nên chờ **≥ 1** message và lọc theo `eventId`. Alarm `dbs-dev-notification-dlq-not-empty` sang `ALARM` trong ≤ 5 phút kể từ lúc message vào DLQ (đã đo 155 s ở DBS-163 trên DLQ risk, 139 s ở DBS-164 trên DLQ notification) | `get-queue-attributes` của DLQ; `describe-alarms`; log `/dbs/dev/worker` có dòng `dead_letter`, `reason: attempts_exhausted`, `receiveCount: 5` (BL-364: chưa kiểm trên log thật; trên Git Bash đặt `MSYS_NO_PATHCONV=1`) |
+| (b) | hai message vào `dbs-dev-risk-events` khi worker chạy: (1) `{not json`; (2) `{"eventType":"TransferCompleted"}` (JSON hợp lệ, sai schema) | cả hai vào `dbs-dev-risk-events-dlq` ở lần nhận đầu (vài giây); alarm `dbs-dev-risk-dlq-not-empty` sang `ALARM` ≤ 5 phút. (1) **không có dòng log và không có metric**: `SqsClient` chuyển DLQ trước khi tới `ConsumerBase`; (2) có dòng `dead_letter`, `reason: invalid_event`, `issueCodes`, không có body | `get-queue-attributes` (DLQ = 2); log chỉ một dòng cho (2) |
+| (c) | cùng sự cố và cùng một chuyển tiền của (a); quan sát phía giao dịch | chuyển tiền 201 `COMPLETED`; cờ rủi ro xuất hiện (`GET /v1/operator/fraud-flags`) trong vài giây; bất biến sổ cái PASS | API; `GET /v1/audit/entries?action=notification.sent&correlationId=<C>` (auditor) trả **0** dòng khi lỗi còn và **1** dòng sau khi sửa và gửi lại (không endpoint nào đọc `notification_log`); `invariants.js` bằng task ECS chạy một lần ([backend/README §9](../../backend/README.md)); DLQ risk 0 |
+| (d) | `aws ecs update-service --cluster dbs-dev --service worker --desired-count 0`, chờ `runningCount` 0, chuyển N lệnh đạt ngưỡng, rồi `--desired-count 1` | chuyển tiền vẫn 201 khi worker tắt; `dbs-dev-outbox-age` sang `ALARM` sau ≈ 9 phút 22 giây (BL-182, đo 2026-11-14); bật lại: outbox xả trong ≈ 4 giây, đủ N cờ, mỗi cờ đúng một audit `fraud.flagged`, queue và DLQ về 0 | `GET /v1/operator/fraud-flags`, `GET /v1/audit/entries?action=fraud.flagged` (auditor); `get-queue-attributes` bốn queue; `describe-alarms` |
 
-**Cách ép lỗi notification trên cloud (đề xuất, chưa kiểm; làm rõ ở DBS-184).** Ops không có đường ghi vào RDS (BL-362). Phương án: task ECS chạy một lần từ family `dbs-db-roles` (đã có secret master và `DATABASE_URL` ghép từ `DB_*`), ghi đè `command` bằng một lệnh `node` chạy câu `ALTER TABLE` ở trên (và `DROP CONSTRAINT` để khôi phục), theo cách `seed-cloud.sh` ghi đè lệnh. DBS-184 phải xác nhận lệnh `node` nạp đúng `env.bootstrap` và task role đủ quyền; nếu không làm được thì (a) và (c) trên cloud ghi **chưa chạy** kèm lý do, (b) và (d) không cần ghi RDS nên vẫn chạy. Việc có một lệnh ép lỗi chính thức là bàn giao (§8).
+**Cách ép lỗi notification trên cloud (đề xuất, chưa kiểm; DBS-184 xác nhận).** Ops không có đường ghi vào RDS (BL-362). Dùng `dbs-migrate`, task chạy một lần nối RDS bằng role `dbs_migrator`, là **chủ** của `notification_log` và đã có cách ghi đè lệnh trong [backend/README §9](../../backend/README.md) (không dùng `dbs-db-roles`: task đó cố ý chạy không ghi đè và là task duy nhất đọc secret master; master RDS cũng không phải superuser nên không `ALTER` được bảng của `dbs_migrator`). Ghi đè `command` của container `migrate` bằng một lệnh `node` dùng thư viện `pg` và biến `DB_*` (TLS bằng `DATABASE_SSL_CA_PATH`) chạy `ALTER TABLE notification_log ADD CONSTRAINT dbs183_block CHECK (false) NOT VALID`, và `DROP CONSTRAINT dbs183_block` để khôi phục; kiểm bằng `exitCode` của task, rồi một task nữa kiểm `pg_constraint` không còn `dbs183_block`. Lệnh `node` cụ thể chưa được chạy: DBS-184 viết và kiểm; nếu không làm được thì (a) và (c) trên cloud ghi **chưa chạy** kèm lý do, (b) và (d) không cần ghi RDS nên vẫn chạy. Đừng chạy khi người khác đang dùng cùng phiên (constraint ảnh hưởng mọi thông báo). Một lệnh ép lỗi chính thức là bàn giao (§8).
 
-**Quy tắc 6 ngày của DLQ.** Mọi lần redrive thật làm DLQ đó không được redrive lại trong 6 ngày ([runbook DLQ](../runbooks/dlq-redrive.md)); kịch bản (a) và (c) kết thúc bằng bước xử lý DLQ, nên mặc định **bỏ qua có ghi nhận** (mục 3c của runbook) thay vì redrive, trừ khi cố tình thử redrive và chấp nhận khóa DLQ đó 6 ngày (hiện DLQ notification khóa tới 2026-11-21, DLQ risk tới 2026-11-20).
-
-**Dọn để chạy lại.** (a), (c): `DROP CONSTRAINT dbs183_block`, DLQ về 0 (bỏ qua có ghi nhận); (b): DLQ về 0; (d): `desired-count 1`, outbox rỗng. Local: không cần dọn (database tạm tự xóa), chỉ dừng container PostgreSQL.
+**Dọn để chạy lại.**
+- (a), (c): `DROP CONSTRAINT` rồi kiểm; message notification trong DLQ là **sự kiện hợp lệ** (`attempts_exhausted`) mà nguyên nhân đã sửa, không thuộc bốn trường hợp được bỏ qua ở runbook DLQ mục 3c. Xử lý theo runbook: redrive nếu DLQ đó chưa redrive trong 6 ngày; còn khóa (DLQ notification tới 2026-11-21, DLQ risk tới 2026-11-20) thì gửi lại thân message bằng `send-message` vào `dbs-dev-notification-events` rồi xóa bản trong DLQ theo handle, ghi `eventId` (mục "Lần chạy thật" của runbook). Kết quả: `notification.sent` có đúng 1 dòng (kịch bản (c)).
+- (b): xóa hai message khỏi DLQ theo handle (runbook mục 3b và 3c, ghi nhận bằng GitHub issue); **không** `purge-queue`.
+- (d): `desired-count 1`, outbox rỗng (không còn alarm `outbox-age`).
+- Local: không cần dọn (database tạm tự xóa); dừng container PostgreSQL.
 
 ## 3. Kiến trúc
 
-- **Vị trí:** `docs/runbooks/async-incident-scenarios.md` (mới); `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §17 (một liên kết ở dòng "Failure / recovery"), `docs/demos/demo-3-failure-recovery.md` (liên kết), `docs/features/README.md`, `docs/BACKLOG.md`. Không đổi code, Terraform, hợp đồng sự kiện hay `ErrorCode`.
-- **Dữ liệu chạm tới (đọc để đối chiếu):** `outbox_events`, `processed_events`, `notification_log`, `risk_decisions`, `fraud_flags`, `audit_log` (`fraud.flagged`); hàng đợi `dbs-dev-{risk,notification}-events` và `-dlq`; alarm `dbs-dev-{risk,notification}-dlq-not-empty`, `dbs-dev-outbox-age`; ECS service `worker` của cluster `dbs-dev`; `ConsumerBase` (`MAX_ATTEMPTS = 5`, backoff 10/20/40/80 s).
+- **Vị trí:** `docs/runbooks/async-incident-scenarios.md` (mới); `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §17 (liên kết ở dòng "Failure / recovery"), `docs/demos/demo-3-failure-recovery.md` (liên kết), `docs/features/README.md`, `docs/BACKLOG.md`. Không đổi code, Terraform, hợp đồng sự kiện hay `ErrorCode`.
+- **Dữ liệu chạm tới (đọc để đối chiếu):** `outbox_events`, `processed_events`, `notification_log`, `risk_decisions`, `fraud_flags`, `audit_log` (`fraud.flagged`, `notification.sent`); hàng đợi `dbs-dev-{risk,notification}-events` và `-dlq`; alarm `dbs-dev-{risk,notification}-dlq-not-empty`, `dbs-dev-outbox-age`; ECS service `worker` của cluster `dbs-dev`; `ConsumerBase` (`MAX_ATTEMPTS = 5`, backoff 10/20/40/80 s).
 - **Luồng:**
 
 ```mermaid
@@ -67,12 +71,12 @@ flowchart LR
   O -- relay trong worker --> Q1[risk-events] --> R[risk consumer] --> F[cờ + audit fraud.flagged]
   O -- relay trong worker --> Q2[notification-events] --> N[notification consumer]
   N -- lỗi 5 lần --> D2[notification DLQ] --> A2[alarm]
-  Q1 -- thân hỏng --> D1[risk DLQ] --> A1[alarm]
+  Q1 -- body hỏng --> D1[risk DLQ] --> A1[alarm]
   W[worker tắt] -. sự kiện chờ trong outbox .-> O
 ```
 
-- **Ranh giới transaction và quyền:** không áp dụng. Cloud dùng quyền admin của người chạy (nhóm `dbs-admin`).
-- **Thay đổi cấp hệ thống:** docs/03 §17 thêm liên kết; Demo 3 thêm liên kết.
+- **Ranh giới transaction và quyền:** không áp dụng. Cloud dùng quyền admin của người chạy (nhóm `dbs-admin`); việc ghi RDS để ép lỗi đi qua `dbs-migrate` (role `dbs_migrator`), không qua secret master.
+- **Thay đổi cấp hệ thống:** docs/03 §17 và Demo 3 thêm liên kết.
 
 ## 4. Test cases tự động
 
@@ -81,21 +85,42 @@ Task docs-only: các lệnh local của kịch bản chính là test tự độn
 | ID | Truy vết | Lớp | Given · When · Then |
 |---|---|---|---|
 | TC-183-01 | DoD #1, #2 | grep | runbook có bốn mục (a)–(d), mỗi mục đủ sáu tiểu mục (Mục tiêu, local, cloud, mong đợi, xác nhận, dọn) |
-| TC-183-02 | DoD #1 | grep đối chiếu | mỗi spec và mã `TC-125-01..03`, `TC-124-01..02` trong tài liệu có trong thư mục `backend/test/services/` |
-| TC-183-03 | DoD #1 | chạy thật, hai lần | `dlq-isolation`, `worker-recovery`, `consumer-poison` chạy lần 1 và lần 2 cho cùng kết quả (lặp lại được) |
-| TC-183-04 | DoD #3 | grep đối chiếu | tên queue, alarm, service, `reason`, action audit, mã lỗi, bảng trong tài liệu có ở `sqs.tf`, `alarms.tf`, `consumer-base.ts`, `audit.registry.ts`, migration |
+| TC-183-02 | DoD #1 | grep đối chiếu | mỗi spec và mã `TC-125-01..03`, `TC-124-01..02`, `TC-010-01..03` trong tài liệu có trong `backend/test/services/` |
+| TC-183-03 | DoD #1 | chạy thật, hai lần | `dlq-isolation` (4 test), `worker-recovery` (2), `consumer-poison` chạy lần 1 và lần 2 cho cùng kết quả (lặp lại được); sau đó không còn database `dbs_test_%` |
+| TC-183-04 | DoD #3 | grep đối chiếu | tên queue, alarm, service, `reason`, action audit, bảng trong tài liệu có ở `sqs.tf`, `alarms.tf`, `consumer-base.ts`, `sqs.client.ts`, `audit.registry.ts`, migration |
 | TC-183-05 | DoD #3 | link check | `check-doc-links.mjs` sạch |
-| TC-183-06 | DoD #3 | quy trình | PR merge, Dev review: làm ở PR |
+| TC-183-06 | DoD #3 | quy trình | PR merge (sau #198), Dev review: làm ở PR |
 
-## 5. Test thủ công (local thật; phần cloud chỉ kiểm cú pháp và tên với AWS, không chạy sự cố)
+## 5. Test thủ công (local thật; phần cloud chỉ kiểm tên và cú pháp với AWS, không chạy sự cố)
 
 Điều kiện: Docker bật; PostgreSQL 17 tạm cổng 55433 (cổng 5432 bị Postgres native chiếm); không `DATABASE_URL` từ shell khác.
 
 | Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
-| M-183-01 | `dlq-isolation.services-spec.ts --verbose` | TC-125-01..03 đạt (kịch bản a, b, c) |
-| M-183-02 | `worker-recovery.services-spec.ts --verbose` | TC-124-01..02 đạt (kịch bản d) |
-| M-183-03 | `consumer-poison.services-spec.ts --verbose` | đạt (kịch bản b) |
-| M-183-04 | Chạy lại M-183-01 và M-183-02 lần hai | cùng số test đạt, không dư database tạm (lặp lại được) |
-| M-183-05 | Kiểm tên trên AWS (chỉ đọc): `describe-alarms` hai alarm DLQ, `get-queue-url` bốn queue, `describe-task-definition dbs-db-roles` (family có thật dù session đã xóa?), cú pháp `aws ecs update-service help` | tên khớp; kết quả task def ghi đúng thực tế |
+| M-183-01 | `dlq-isolation.services-spec.ts --verbose` | 4 test đạt (TC-125-01..03, TC-046-01): kịch bản (a), (b), (c) |
+| M-183-02 | `worker-recovery.services-spec.ts --verbose` | TC-124-01..02 đạt: kịch bản (d) |
+| M-183-03 | `consumer-poison.services-spec.ts --verbose` | TC-010-01..03 đạt: kịch bản (b) |
+| M-183-04 | Chạy lại M-183-01, M-183-02 và M-183-03 lần hai; rồi `docker exec dbs183-pg psql -U test -d postgres -Atc "SELECT count(*) FROM pg_database WHERE datname LIKE 'dbs_test_%'"` | cùng số test đạt; số database tạm còn lại là `0` |
+| M-183-05 | Kiểm tên trên AWS (chỉ đọc): `describe-alarms` hai alarm DLQ; `get-queue-url` bốn queue; `describe-services` không có cluster (không có phiên); cú pháp `aws ecs update-service help`, `aws ecs run-task help` | tên khớp; ghi rõ alarm `dbs-dev-outbox-age` và task `dbs-migrate` chỉ tồn tại khi có phiên (không kiểm được lúc này) |
 | M-183-06 | Dừng container PostgreSQL | không còn container tạm |
+
+## 6. Domain review (AI)
+
+**Reviewer:** subagent, model Opus 5.5 (`opus`, effort medium), ngày 2026-11-15 · **Kết quả vòng 1:** 12 phát hiện (blocking 2, should-fix 5, minor 5), REVISE · [nguyên văn](screenshots/DBS-183/domain-review.md)
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 1 | blocking | ép lỗi bằng `dbs-db-roles` (master): không khả thi (chủ bảng là `dbs_migrator`, master không phải superuser) và phá thiết kế không ghi đè | đã sửa §2, §3: dùng `dbs-migrate` (role `dbs_migrator`, chủ bảng), bỏ mọi nhắc secret master |
+| 2 | blocking | body `{not json` không có dòng log `invalid_event` (`SqsClient` chuyển DLQ trước `ConsumerBase`); runbook DBS-164 mục 2b ghi sai | đã sửa §2 (b): hai message (không phải JSON: không log; sai schema: có log); đã sửa runbook DBS-164 trong PR #198 (`invalid_event` chỉ cho JSON sai schema, thêm dòng "không có dòng log nào") |
+| 3 | should-fix | bỏ qua message hợp lệ mất thông báo; phụ thuộc #198 | đã sửa: gửi lại thân message theo runbook khi DLQ còn khóa; PR phụ thuộc #198 (đã ghi ở §2, TC-183-06) |
+| 4 | should-fix | constraint chặn mọi INSERT `notification_log` của môi trường | đã sửa: nạp tiền trước, một chuyển tiền, chờ ≥ 1 message theo `eventId`, kiểm `pg_constraint`, không chạy khi người khác dùng phiên |
+| 5 | should-fix | không có API đọc `notification_log` | đã sửa: xác nhận bằng audit `notification.sent` theo `correlationId` |
+| 6 | should-fix | thiếu chi phí và dọn | đã thêm ngân sách thời gian, chi phí, `desired-count 1`, `destroy`, `verify-clean.sh` |
+| 7 | should-fix | claim vượt quá test (tiền không đổi, TC-010, TC-124 chỉ risk) | đã sửa bảng local §2 |
+| 8 | minor | `dlq-isolation` có 4 test; M-04 thiếu `consumer-poison` và lệnh kiểm database tạm | đã sửa §4, §5 |
+| 9 | minor | `describe-task-definition` không dùng được khi không có phiên | đã sửa M-183-05 |
+| 10 | minor | thứ tự đo 155 s và 139 s | đã sửa (155 s DBS-163 risk; 139 s DBS-164 notification) |
+| 11 | minor | "DLQ về 0" không nói cách | đã sửa: xóa theo handle, không `purge` |
+| 12 | minor | thiếu bảng bàn giao | sẽ có ở §8 |
+
+**Quyết định ở G2 (agent tự quyết):** (1) cloud (a) và (c) dùng `dbs-migrate` với ghi đè lệnh `node` chưa kiểm, DBS-184 xác nhận; (2) PR chỉ merge sau #198.
