@@ -1,3 +1,7 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { generateDevKeys } from '../src/scripts/dev-auth';
 import {
   formatReport,
   parseCliArgs,
@@ -8,6 +12,10 @@ import {
   SeedError,
   type SeedReport,
 } from '../src/scripts/seed';
+import {
+  resolveTokens as coreResolveTokens,
+  runSeedCli as coreRunSeedCli,
+} from '../src/scripts/seed-core';
 
 const TOKEN_ENV = [
   'DBS_OPERATOR_TOKEN',
@@ -240,6 +248,55 @@ describe('DBS-70 Demo Data Seed CLI (offline e2e)', () => {
       expect(code).toBe(1);
       expect(stdout).toBe('');
       expect(stderr).toMatch(/Error:/);
+    });
+  });
+
+  describe('BL-252 seed in the production image (seed-core, seed-cloud)', () => {
+    const scripts = join(__dirname, '..', 'src', 'scripts');
+    const source = (file: string): string => readFileSync(join(scripts, file), 'utf8');
+
+    it('TC-252-05a seed-core and seed-cloud never import dev-auth, so the image carries no token signer', () => {
+      for (const file of ['seed-core.ts', 'seed-cloud.ts']) {
+        expect(source(file)).not.toMatch(/from\s+['"][^'"]*dev-auth/);
+        expect(source(file)).not.toMatch(/require\(\s*['"][^'"]*dev-auth/);
+      }
+      expect(source('seed-cloud.ts')).toMatch(/from\s+'\.\/seed-core'/);
+      expect(source('seed.ts')).toMatch(/from\s+'\.\/dev-auth'/);
+    });
+
+    it('TC-252-05b the production build leaves out seed.ts (dev-auth) but keeps seed-core and seed-cloud', () => {
+      const build = JSON.parse(
+        readFileSync(join(__dirname, '..', 'tsconfig.build.json'), 'utf8'),
+      ) as { exclude: string[] };
+      expect(build.exclude).toContain('src/scripts/dev-auth*.ts');
+      expect(build.exclude.filter(e => e.includes('seed'))).toEqual(['src/scripts/seed.ts']);
+    });
+
+    it('TC-252-05c without mintLocalToken (the cloud build), --auth local fails with a clear message and signs nothing', async () => {
+      await expect(coreResolveTokens({ baseUrl: 'http://x', authMode: 'local' })).rejects.toThrow(
+        /Local auth \(--auth local\) is not available in this build/,
+      );
+      let stderr = '';
+      const code = await coreRunSeedCli(['--url', 'http://127.0.0.1:59999', '--auth', 'local'], {
+        stdout: () => undefined,
+        stderr: text => {
+          stderr += text;
+        },
+      });
+      expect(code).toBe(1);
+      expect(stderr).toMatch(/not available in this build/);
+    });
+
+    it('TC-252-05d the dev entry point injects the signer: seed.ts resolveTokens still mints local tokens', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'seed-keys-'));
+      try {
+        await generateDevKeys({ dir });
+        const tokens = await resolveTokens({ baseUrl: 'http://x', authMode: 'local', keyDir: dir });
+        expect(tokens.operator.split('.')).toHaveLength(3);
+        expect(Object.keys(tokens.customers)).toHaveLength(3);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 

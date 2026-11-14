@@ -110,6 +110,10 @@ def deploy_errors(text, ci_job_names):
     job = jobs.get("deploy", {})
     if job.get("permissions") != {"contents": "read", "id-token": "write"}:
         out.append("deploy.yml: permissions mức job phải đúng {contents: read, id-token: write}")
+    # BL-105: role dbs-github-deploy chỉ tin sub `...:environment:dev`; thiếu `environment: dev` thì assume hỏng,
+    # đổi sang tên khác thì lệch trust policy.
+    if job.get("environment") != "dev":
+        out.append(f"deploy.yml: job deploy phải có environment: dev (sub OIDC của role deploy), đang là {job.get('environment')!r}")
     cond = str(job.get("if", ""))
     for needle in REQUIRED_IF:
         if needle not in cond:
@@ -136,6 +140,8 @@ if DEPLOY.exists():
     base = DEPLOY.read_text()
     negatives = [("thiếu head_branch", base.replace("github.event.workflow_run.head_branch == 'main'", "true")),
                  ("thiếu cùng repo", base.replace("github.event.workflow_run.head_repository.full_name == github.repository", "true")),
+                 ("thiếu environment", base.replace("    environment: dev\n", "")),
+                 ("sai environment", base.replace("    environment: dev\n", "    environment: prod\n")),
                  ("thêm secrets", base + "\n# ${{ secrets.X }}\n"),
                  ("action không ghim", base + "\n      - uses: actions/checkout@v4\n")]
     for name, bad in negatives:

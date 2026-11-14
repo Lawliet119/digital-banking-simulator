@@ -107,7 +107,7 @@ Script hoàn toàn không kết nối PostgreSQL trực tiếp, chỉ tương t�
 
 ### 3.1 Vị trí và phân vai trong codebase
 - **Entry point:** `backend/src/scripts/seed.ts` (được đăng ký script `"seed": "ts-node -r tsconfig-paths/register src/scripts/seed.ts"` trong `backend/package.json`).
-- **Build config:** Thêm `"src/scripts/seed*.ts"` vào mục `exclude` trong `backend/tsconfig.build.json` (tương tự như `dev-auth*.ts`) để tránh gộp script vào bundle production.
+- **Build config:** Thêm `"src/scripts/seed*.ts"` vào mục `exclude` trong `backend/tsconfig.build.json` (tương tự như `dev-auth*.ts`) để tránh gộp script vào bundle production. **Từ BL-252** chỉ còn loại `src/scripts/seed.ts`: logic nằm ở `seed-core.ts` (không import `dev-auth`) và `seed-cloud.ts` là điểm vào biên dịch vào `dist/` cho task ECS (§8.3).
 - **Module nghiệp vụ gọi tới:** Accounts (`CustomersController`, `AccountsController`), Ledger (`OperatorDepositsController`, `TransfersController`), Identity (`dev-auth.ts`).
 - **Test suite:**
   - `backend/test/db/seed.db-spec.ts`: Tích hợp end-to-end với PostgreSQL 17 thật qua Testcontainers (`npm run test:db`), kiểm tra seed lần 1, seed lần 2 (idempotency), và gọi `checkLedgerInvariants` (DoD #1, #2, #3).
@@ -262,7 +262,17 @@ Log chi tiết được lưu trữ tại `docs/features/screenshots/DBS-70/manua
 | **M-70-02** | Chạy lại lần 2: 4 tài khoản đều `reused: true`. Các lệnh nạp và chuyển tiền replay với kết quả cũ. Số dư hoàn toàn không thay đổi. Không phát sinh lỗi trùng lặp | **PASS** |
 | **M-70-03** | Gọi `checkLedgerInvariants`: Báo cáo trả về status `PASS`, 0 vi phạm (`violations: []`), tổng Nợ = tổng Có = 87.500.000 VND, tổng số dư sổ cái toàn hệ thống = 0 VND | **PASS** |
 
-### 8.3 Ảnh chụp màn hình kiểm thử thực tế
+### 8.3 Cập nhật BL-252: seed trên cloud bằng task ECS trong VPC
+
+`npm run seed -- --auth cloud` qua ALB dev không chạy được (chứng chỉ tự ký, CN `dbs-dev.local`, Node từ chối TLS). Quyết định của techlead (2026-11-14): không tin chứng chỉ hay tắt kiểm chứng chỉ; seed bằng một task ECS chạy một lần **trong VPC** gọi thẳng task api qua HTTP cổng 3000 (`infra/scripts/seed-cloud.sh`, chi tiết ở `infra/terraform/README.md`, mục "Seed dữ liệu demo trên cloud").
+
+- **Code:** `seed.ts` tách thành `seed-core.ts` (toàn bộ logic seed, không import `dev-auth`), `seed.ts` (máy dev: thêm đường `--auth local`, tiêm `mintLocalToken` bằng `dev-auth`, vẫn là điểm vào của `npm run seed` và nơi các test import) và `seed-cloud.ts` (điểm vào chạy trong image: chỉ `--auth cloud`, `--auth local` báo lỗi rõ). `tsconfig.build.json` chỉ còn loại `src/scripts/seed.ts` (thay cho `seed*.ts`), nên `dist/scripts/seed-cloud.js` và `seed-core.js` có trong image còn `dev-auth` thì không (ADR-06). Đã kiểm: `npm run build` không sinh `dev-auth.js`.
+- **Hạ tầng:** SG `dbs-dev-seed` (không ingress; ra 443 và tới SG api ở 3000) và luật api nhận 3000 từ SG seed (`base/seed_task.tf`); family `dbs-seed` và role `dbs-dev-seed-execution` (chỉ kéo image, ghi log `seed/*`, không đọc secret; `session/seed.tf`).
+- **Token:** đi vào task bằng `containerOverrides.environment` (`DBS_*_TOKEN`, token Cognito 15 phút lấy ngay trước `run-task`); hệ quả: lộ trong `describe-tasks` khoảng một giờ sau khi task dừng và trong CloudTrail `RunTask` cho người đọc được ECS, đã hết hạn. Không chọn cách task tự đăng nhập vì phải cho task đọc mật khẩu bền của mọi tài khoản demo.
+- **Test:** `backend/test/seed.e2e-spec.ts` TC-252-05a..d (lõi và điểm vào cloud không import `dev-auth`; build loại đúng `seed.ts`; `--auth local` không có bộ ký thì lỗi; điểm vào dev vẫn ký được); `infra/scripts/tests/test_seed_cloud.py` (aws giả: mạng, overrides, token không lộ và không để lại đĩa, mint theo vai trò, image, không chạy chồng, exitCode, hết hạn, `--dry-run`); `terraform test` ở `base` và `session`.
+- **Chưa chạy thật trên AWS:** cần `apply base`, `apply session` và một image build sau thay đổi này; `docs/BACKLOG.md` BL-252 còn mở phần chạy thật (đo thời gian ở `infra/terraform/README.md` bảng DBS-139 bước 8).
+
+### 8.4 Ảnh chụp màn hình kiểm thử thực tế
 
 ![Ảnh kết quả chạy manual test seed.ts](screenshots/DBS-70/01-seed-output.png)
 

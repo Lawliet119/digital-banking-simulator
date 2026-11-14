@@ -77,6 +77,17 @@ class ScanGates(unittest.TestCase):
         t.edit("infra/terraform/envs/dev/session/worker.tf", "ignore_changes = [task_definition]", "ignore_changes = [desired_count]")
         self.assertRed(t, "worker.tf")
 
+    # BL-105: job deploy phải gắn environment dev (sub OIDC của role deploy là `...:environment:dev`)
+    def test_deploy_without_environment(self):
+        t = self.tree()
+        t.edit(".github/workflows/deploy.yml", "    environment: dev\n", "")
+        self.assertRed(t, "deploy.yml", "environment: dev")
+
+    def test_deploy_with_other_environment(self):
+        t = self.tree()
+        t.edit(".github/workflows/deploy.yml", "    environment: dev\n", "    environment: prod\n")
+        self.assertRed(t, "deploy.yml", "environment: dev")
+
     # TC-245-04: kiểm cosign của image Trivy (BL-245)
     def test_ci_without_cosign_installer(self):
         t = self.tree()
