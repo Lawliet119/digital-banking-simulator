@@ -114,3 +114,19 @@ flowchart LR
 | 4 | feature doc, BACKLOG, `features/README.md` | — | — | `check-doc-links.mjs` | `docs(infra): DBS-180 feature doc, backlog (DBS-180)` |
 
 Rủi ro và cách lùi: chuyển tại chỗ trên RDS dùng chung có thể làm chậm I/O vài phút khi người khác đang dùng stack; lùi bằng `terraform apply` mặc định (M-180-06), không destroy. Nếu `apply` lỗi giữa chừng (quota, AZ), dừng, đọc `describe-events`, rút về `false`. **Quyết định ở G3** (agent tự quyết): không đổi `rds.tf`; chỉ thêm output, test, tài liệu; chạy thật có điều kiện rút về cuối phiên.
+
+
+## 8. Kết quả
+
+- **Offline (`terraform test` với `mock_provider`):** `session.tftest.hcl` **33 passed, 0 failed**; `check-doc-links.mjs` đạt.
+- **Live AWS (`ap-southeast-1`, RDS `dbs-dev`, 2026-11-14):**
+  - **M-180-04 (`db_multi_az = true`):** `terraform apply` hoàn tất trong **10 phút 20 giây**; `MultiAZ = True`, endpoint giữ nguyên, `db_multi_az = true`, `/health/ready` trả `200`.
+  - **M-180-06 (`db_multi_az = false`):** `terraform apply` hoàn tất trong **4 phút 34 giây**; `MultiAZ = False`, không còn `SecondaryAvailabilityZone`, `/health/ready` trả `200`.
+  - **Trạng thái cuối phiên:** Theo chỉ đạo giữ hạ tầng để các thành viên khác tiếp tục deploy, đã scale ECS `api`/`worker` về `desiredCount = 0` và stop RDS `dbs-dev` (không `destroy`).
+- **Bằng chứng:** [manual-test.txt](screenshots/DBS-180/manual-test.txt).
+
+## 9. Tài liệu đã cập nhật
+
+- [docs/features/DBS-180-rds-multi-az.md](DBS-180-rds-multi-az.md)
+- [docs/features/screenshots/DBS-180/manual-test.txt](screenshots/DBS-180/manual-test.txt)
+- [infra/terraform/README.md](../../infra/terraform/README.md), [docs/BACKLOG.md](../BACKLOG.md) (đã cập nhật ở commit trước).
