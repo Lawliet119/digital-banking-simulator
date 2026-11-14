@@ -1,6 +1,6 @@
 # DBS-183 · Kịch bản sự cố phần bất đồng bộ (chạy lặp lại được)
 
-> **Status:** Draft (đang làm, đến G2) · **Vai:** Dev (docs, chạy test) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-183-async-incident-scenarios` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Plan approved (sau G3) · **Vai:** Dev (docs, chạy test) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-183-async-incident-scenarios` · **PR:** — · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
@@ -135,3 +135,18 @@ Task docs-only: các lệnh local của kịch bản chính là test tự độn
 | 2.6 | minor | thiếu Node 24, `npm ci`, `MSYS_NO_PATHCONV` | đã thêm vào điều kiện §5 |
 
 **Quyết định ở G2 (agent tự quyết):** (1) cloud (a) và (c) dùng `dbs-migrate` với ghi đè lệnh `node` chưa kiểm, DBS-184 xác nhận; (2) PR chỉ merge sau #198.
+
+## 7. Kế hoạch triển khai
+
+Task docs-only: "test viết trước" là các lệnh grep của TC-183-01, 02, 04 và lần chạy test dịch vụ của TC-183-03; "đỏ" là grep chưa ra gì vì runbook chưa tồn tại.
+
+| Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `docs/runbooks/async-incident-scenarios.md` (mới; bốn kịch bản, sáu tiểu mục mỗi cái) | TC-183-01, 02, 04 | `ls docs/runbooks/async-incident-scenarios.md` báo không có file; `check-doc-links.mjs` báo 2 liên kết hỏng tới file này và tới feature doc DBS-164 (chờ #198) | các grep ở §4, `check-doc-links.mjs` | `docs(runbook): bốn kịch bản sự cố bất đồng bộ chạy lặp lại được (DBS-183)` |
+| 2 | `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §17, `docs/demos/demo-3-failure-recovery.md` (liên kết), `docs/features/README.md` | TC-183-05 | — | `check-doc-links.mjs` | `docs: nối kịch bản sự cố bất đồng bộ vào docs/03 và Demo 3 (DBS-183)` |
+| 3 | `docs/features/screenshots/DBS-183/manual-test.txt` | M-183-01..06 | — | chạy ba spec hai lần với `--verbose`, kiểm database tạm, kiểm tên trên AWS | `docs(runbook): kết quả chạy local của kịch bản sự cố (DBS-183)` |
+| 4 | feature doc §8–§9, `docs/BACKLOG.md` (bàn giao) | G4 | — | checklist G4 | `docs(features): hoàn tất DBS-183` |
+
+- **Plan sweep:** hạn chế nêu trong docs: Demo 3 ("kill API giữa lệnh chờ DBS-185": ngoài phạm vi, ghi tên), BL-182 (số đo (d) cloud, dùng không đóng), BL-364 (kiểm log trên cloud: DBS-184), BL-362 (đường ghi RDS), quy tắc 6 ngày của runbook DLQ (ghi trong dọn dẹp (a), (c)), reviewer vòng 1 (hai blocking: bước 1), phụ thuộc #198 (rebase lên `main` sau khi #198 merge, bước trước G4). Không còn mục nào chưa có hàng kế hoạch.
+- **Rủi ro và cách lùi:** (1) lệnh cloud viết từ tài liệu, chưa chạy: ghi rõ "chưa chạy trên cloud (DBS-184)" ở từng kịch bản và ở PR; (2) hai liên kết hỏng cho tới khi #198 merge: rebase và chạy lại link check trước G4; (3) test dịch vụ phụ thuộc Docker và Postgres tạm: dọn container cuối. Back-out: không đổi code, bỏ commit docs.
+- **Quyết định ở G3 (agent tự quyết):** BL của task lấy dải 370–374 (BL-350, 351, 360–364 đã dùng).
