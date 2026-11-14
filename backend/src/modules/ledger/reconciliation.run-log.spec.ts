@@ -71,7 +71,13 @@ describe('structured log of a reconciliation run (DBS-123)', () => {
     });
     await service.reconcileOnce();
     const [fields] = log.mock.calls[0] as [Record<string, unknown>];
-    expect(fields).toMatchObject({ status: 'MISMATCH', mismatchedAccounts: 1 });
+    // The exact key set: nobody can add a balance or an account id to the line unnoticed.
+    expect(fields).toEqual({
+      event: 'reconciliation_run',
+      status: 'MISMATCH',
+      durationMs: 250,
+      mismatchedAccounts: 1,
+    });
     expect(JSON.stringify(fields)).not.toContain('acc-1');
   });
 
@@ -80,6 +86,17 @@ describe('structured log of a reconciliation run (DBS-123)', () => {
       if (sql.includes('pg_try_advisory_xact_lock')) return [{ acquired: true }];
       if (sql.includes('INSERT INTO public.reconciliation_runs')) return [];
       throw new Error('statement timeout');
+    });
+    await service.reconcileOnce();
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0][0]).toMatchObject({ status: 'ERROR', mismatchedAccounts: 0 });
+  });
+
+  it('TC-123-03b a total that overflows bigint is an ERROR run (no exception) and still writes the line', async () => {
+    const service = make(sql => {
+      if (sql.includes('pg_try_advisory_xact_lock')) return [{ acquired: true }];
+      if (sql.includes('INSERT INTO public.reconciliation_runs')) return [];
+      return [{ ...SNAPSHOT_OK, total_debit: '9223372036854775808' }];
     });
     await service.reconcileOnce();
     expect(log).toHaveBeenCalledTimes(1);
