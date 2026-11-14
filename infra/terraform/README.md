@@ -301,6 +301,20 @@ Mỗi service có execution role riêng (ECS agent dùng để kéo image, ghi l
 - **Kiểm quyền trái phép:** không assume được task role từ máy. Gọi thật bằng task Fargate tạm (family `dbs-probe`, image `public.ecr.aws/aws-cli/aws-cli`, `entryPoint ["sh","-c"]`) chạy dưới role cần thử; `simulate-principal-policy` chỉ tính identity policy (không áp queue policy cho role). Để thấy `explicit deny` của queue policy mà không cần task: dựng tạm một role **cùng tên** `dbs-dev-api-task` có `sqs:*` khi `session` chưa dựng, assume rồi gọi `sqs send-message`. Bằng chứng ở [feature doc DBS-120](../../docs/features/DBS-120-ecs-task-roles.md).
 - **Dựng phần IAM rẻ để kiểm:** `terraform apply` với mười `-target` (5 role, `aws_iam_role_policy_attachment.worker_sqs`, `aws_iam_role_policy.execution`, `.worker_execution`, `.migrate_execution`, `aws_ecs_cluster.main`) không cần RDS hay Valkey; phần còn lại của session không dựng.
 
+### WAF gắn ALB (DBS-153)
+
+`infra/terraform/modules/waf` dựng `aws_wafv2_web_acl` vùng (`scope = "REGIONAL"`, mặc định `allow`) gắn vào `aws_lb.main` qua `envs/dev/session/waf.tf` (`dbs-dev-waf`), với 3 rule theo thứ tự: `rate-limit` (ưu tiên 10, `evaluation_window_sec = 300`, `aggregate_key_type = "IP"`, chặn trả **429**), `AWSManagedRulesCommonRuleSet` (ưu tiên 20) và `AWSManagedRulesKnownBadInputsRuleSet` (ưu tiên 30).
+
+| Biến ở `session` | Mặc định | Ý nghĩa |
+|---|---|---|
+| `waf_enabled` | `true` | Bật/tắt WAF (tắt bằng `-var waf_enabled=false` → 0 USD) |
+| `waf_rate_limit` | `1000` | Ngưỡng request / 5 phút / IP (`10..2000000000`) |
+| `waf_rate_limit_exempt_cidrs` | `[]` | Danh sách IPv4 CIDR (`/8`–`/32`) miễn rate rule (managed rules vẫn chạy). Trước khi chạy k6 cùng region, truyền `-var 'waf_rate_limit_exempt_cidrs=["<IP k6>/32"]'` |
+| `waf_managed_rules_count_only` | `false` | Đặt `true` để chuyển hai nhóm managed sang `count` khi xử lý false positive mà không gỡ WAF |
+| `waf_off_date` | `"2026-11-26"` | Ngày đầu tuần 9 dự kiến tắt WAF; `check "waf_off_date"` cảnh báo nếu `waf_enabled = true` từ ngày này trở đi |
+
+- **Chi phí:** ≈ 1,85 USD/tuần nếu bật 24/7 (5 USD/ACL + 3 USD/3 rule + phí request) hoặc ≈ 0,5 USD/tuần nếu dựng/xóa theo phiên (~45 giờ/tuần). Chi tiết ở [DBS-153 §3](../../docs/features/DBS-153-waf-alb.md).
+
 ## Dựng từ trạng thái trống và đo thời gian (DBS-139)
 
 «Trạng thái trống» nghĩa là: `base` đã có (giữ lại, không dựng lại mỗi phiên), `session` rỗng, ECR có image của SHA cần chạy. Bảng dưới đây là các bước theo thứ tự; cột thời gian chỉ ghi số **đo thật** (ngày 2026-11-12, `ap-southeast-1`, profile `dbs-admin`, Terraform 1.16.6) hoặc nói rõ **ước tính, chưa đo** và lý do. Checklist cho người trực demo: [docs/runbooks/demo-checklist.md](../../docs/runbooks/demo-checklist.md).
@@ -371,9 +385,9 @@ aws ce list-cost-allocation-tag-backfill-history
 
 ```bash
 terraform fmt -check -recursive
-for d in bootstrap envs/dev/base envs/dev/session; do (cd $d && terraform init -backend=false && terraform validate && terraform test); done
+for d in bootstrap modules/waf envs/dev/base envs/dev/session; do (cd $d && terraform init -backend=false && terraform validate && terraform test); done
 ```
 
-CI chạy đúng các lệnh này ở job `terraform` của [`ci.yml`](../../.github/workflows/ci.yml) trên mọi PR và mọi lần push vào `main` (BL-028): một lần `terraform fmt -check -recursive infra/terraform`, rồi `init -backend=false`, `validate`, `test` cho từng thư mục trong ba thư mục trên, gồm mọi `tests/*.tftest.hcl` (kể cả `session/tests/dashboard.tftest.hcl` của DBS-145). Runner không có credential AWS và không cần: test dùng `mock_provider`/`override_data` (kể cả `data.terraform_remote_state.base`). Test mới phải giữ tính chất đó, đừng thêm test gọi AWS thật. Job ghim Terraform `1.16.6` (`required_version` trong `versions.tf` là `>= 1.11`) và chạy `init -lockfile=readonly`, nên đổi provider thì phải commit lại `.terraform.lock.hcl` (`terraform init -upgrade` kèm `terraform providers lock` cho các nền tảng cần). Job `script-tests` chạy test Python của `infra/scripts/tests/` (`seed-cognito.sh`, `verify-clean.sh`, `demo-token.sh`, `cost-report.py`) và `.github/scripts/tests/`. Job chưa nằm trong required status checks của `main`; thêm vào ruleset do chủ repo quyết định (BL-012).
+CI chạy đúng các lệnh này ở job `terraform` của [`ci.yml`](../../.github/workflows/ci.yml) trên mọi PR và mọi lần push vào `main` (BL-028): một lần `terraform fmt -check -recursive infra/terraform`, rồi `init -backend=false`, `validate`, `test` cho từng thư mục trong bốn thư mục trên, gồm mọi `tests/*.tftest.hcl` (kể cả `session/tests/dashboard.tftest.hcl` của DBS-145 và `waf.tftest.hcl` của DBS-153). Runner không có credential AWS và không cần: test dùng `mock_provider`/`override_data` (kể cả `data.terraform_remote_state.base`). Test mới phải giữ tính chất đó, đừng thêm test gọi AWS thật. Job ghim Terraform `1.16.6` (`required_version` trong `versions.tf` là `>= 1.11`) và chạy `init -lockfile=readonly`, nên đổi provider thì phải commit lại `.terraform.lock.hcl` (`terraform init -upgrade` kèm `terraform providers lock` cho các nền tảng cần). Job `script-tests` chạy test Python của `infra/scripts/tests/` (`seed-cognito.sh`, `verify-clean.sh`, `demo-token.sh`, `cost-report.py`) và `.github/scripts/tests/`. Job chưa nằm trong required status checks của `main`; thêm vào ruleset do chủ repo quyết định (BL-012).
 
 Chi tiết cấu hình: [docs/03 mục 13](../../docs/03_HIGH_LEVEL_ARCHITECTURE.md).
