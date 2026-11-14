@@ -208,9 +208,9 @@ Log ứng dụng dùng `nestjs-pino`, mỗi dòng là một JSON object trên st
 | `level` | Số Pino: trace 10, debug 20, info 30, warn 40, error 50, fatal 60 |
 | `time` | ISO 8601 UTC, có `Z` |
 | `message` | Thông điệp chẩn đoán cố định, không nội suy dữ liệu cá nhân hoặc error text |
-| `role` | `api` hoặc `worker`; tiến trình `both` mặc định `api`, HTTP luôn `api` |
+| `role` | `api` hoặc `worker`; HTTP luôn `api`; polling loop, consumer và tác vụ nền luôn `worker` kể cả trong tiến trình `both`; ngoài mọi context (khởi động, tắt máy) tiến trình `both` mặc định `api` |
 | `appRole` | Vai trò tiến trình `api`, `worker` hoặc `both` |
-| `correlationId` | UUID server của HTTP request; `null` ngoài request/context |
+| `correlationId` | UUID server của HTTP request hoặc UUID trong event của message; `null` ngoài request/message |
 
 `LOG_LEVEL` giữ nguyên sáu giá trị: `verbose`→trace, `debug`→debug, `log`→info, `warn`→warn, `error`→error, `fatal`→fatal. Chỉ ghi mức đã chọn và các mức nghiêm trọng hơn. Dùng `new Logger(TenService.name)` từ Nest để log đi qua cùng cấu hình.
 
@@ -220,16 +220,20 @@ HTTP completion chỉ ghi method, status và thời gian xử lý; không ghi UR
 
 **Envelope và độ bền.** Mỗi khoá `level`, `time`, `message`, `appRole`, `role`, `correlationId` xuất hiện đúng một lần: object bạn truyền vào log không đặt được các khoá này (kể cả giá trị hợp lệ). `message` luôn là chuỗi; đối số không có chỗ điền trong chuỗi định dạng bị bỏ. Một lời gọi log hỏng (getter ném lỗi, Proxy bị thu hồi) không bao giờ làm hỏng kết quả của caller: `SafeLogger` (bọc `Logger` của Nest) và hook của pino ghi dòng cố định `Log call failed` thay vì ném lỗi. Chuỗi dài hơn 4096 ký tự thành `[Omitted]`, mỗi lần ghi log quét tối đa 64 KiB và giữ 1000 phần tử đầu của một mảng.
 
-**Lỗi khi khởi động và lỗi cấp tiến trình.** Cấu hình sai (Joi hoặc `APP_ROLE`) ghi một dòng `Application startup failed` có `invalidKeys`: tên biến sai, hoặc `<cross-field>` cho quy tắc giữa nhiều biến, **không** kèm giá trị. `uncaughtException` và `unhandledRejection` ghi đúng một dòng JSON `level:60` rồi thoát mã 1, không in stack ra stderr.
+**Context log (BL-024).** Mở context bằng một hàm duy nhất, `runInLogContext(fn, { role, correlationId })` trong `@common/logging/log-context` (HTTP middleware, `ConsumerBase` và `PollingLoop` đều dùng nó; `runAsWorker(fn)` cho tác vụ nền). Hàm bind `role` và `correlationId` đúng một lần từ giá trị đã kiểm (`role` chỉ `api|worker`, `correlationId` chỉ UUID, sai thì `null`), lưu bằng AsyncLocalStorage nên request hoặc message chạy song song không lẫn ID, và luôn bắt đầu từ logger gốc nên việc chạy nền khởi động từ trong request không thừa hưởng ID của request. Binding do code khác tạo (`logger.child`, `PinoLogger.assign`) đi qua hook `onChild` của pino: `role` và `correlationId` giữ giá trị đã bind trước đó (không gán lại được), `role` sai bị bỏ còn `correlationId` không phải UUID thành dấu `[Invalid]` (không ghi giá trị gốc, và outbox writer vẫn từ chối ghi event trong context hỏng, TC-57-07), khoá `level`/`time`/`message`/`msg`/`appRole` bị bỏ, các khoá còn lại được che như object log; mỗi khoá xuất hiện đúng một lần. Không dùng `PinoLogger` hay `req.log` trong code mới: ESLint (`no-restricted-syntax`) chặn chúng ngoài `common/logging`, test và sáu file cũ ghi trong `eslint.config.mjs`; log bằng `Logger` của Nest để đi qua `SafeLogger`. Consumer không đọc `customers` và không log tên khách: khoá `fullName`, `full_name`, `ownerName`, `customerName` luôn bị che.
+
+**Lỗi nội bộ của Nest/TypeORM (BL-026).** Mặc định chỉ ghi `context`, loại lỗi và `Diagnostic event`. Ngoại lệ là allowlist thông điệp cố định theo `context` (`INTERNAL_MESSAGES` trong `logging.options.ts`): `TypeOrmModule` «Unable to connect to the database. Retrying (n)...» và ba câu cố định của `ExceptionHandler` (không giải được dependency, không tạo được module, export sai). Khớp chặt theo regex neo đầu, chỉ chữ số và định danh điền vào chỗ trống; câu khớp dạng tiền tố chỉ ghi phần khớp, không ghi phần sau. Thêm một thông điệp phải kèm test không lộ giá trị. `process.emitWarning` đi qua logger JSON thành một dòng `warn` `Process warning` có `warningName` và `warningCode` (đúng định dạng, không thì bỏ); message chỉ được ghi khi là câu cố định trong allowlist (hiện có cảnh báo `sslmode` của `pg-connection-string`).
+
+**Lỗi khi khởi động và lỗi cấp tiến trình.** Cấu hình sai (Joi hoặc `APP_ROLE`) ghi một dòng `Application startup failed` có `invalidKeys`: tên biến sai, hoặc `<cross-field>` cho quy tắc giữa nhiều biến, **không** kèm giá trị. `uncaughtException` và `unhandledRejection` ghi đúng một dòng JSON `level:60` rồi thoát mã 1, không in stack ra stderr. Lỗi ném đồng bộ khi nạp `env.bootstrap` (trước khi logger có) ghi một dòng `fatal` cố định `Environment bootstrap failed`, không message, rồi thoát mã 1.
 
 **Giới hạn đã biết:**
 - Heuristic che số từ 8 chữ số chỉ chạy trên `message`; số tài khoản trong field khác chỉ được che theo tên khoá (v1 định danh tài khoản bằng UUID).
 - Tên khoá bí mật không có trong danh sách ở trên vẫn lọt; giá trị bí mật dạng khác (ví dụ chuỗi base64 trần) không bị quét.
-- Binding của `logger.child(...)`, `PinoLogger.assign()` và `runInContext` do code khác tạo **không** được che hay khử trùng khoá (pino đặt lại bộ lọc binding ở mỗi child); gán lại `correlationId` trên logger đã có cho hai khoá. Code gọi thẳng `PinoLogger` hoặc `req.log` chỉ được bảo vệ ở hook của pino, không qua `SafeLogger`.
-- Lỗi ném đồng bộ khi nạp `env.bootstrap` và cảnh báo `process.emitWarning` (ví dụ `sslmode` của `pg-connection-string`) vẫn ra stderr dạng text.
+- `onChild` không thấy `logger.setBindings(...)` gọi thẳng trên một logger (pino không gọi hook ở đó); ESLint chặn `PinoLogger`/`req.log` nên đường này chỉ còn trong sáu file cũ. Code còn giữ `PinoLogger` chỉ được bảo vệ ở hook của pino, không qua `SafeLogger`.
+- Hai dòng cảnh báo cấu hình `DB_*`/`REDIS_*` thiếu hoặc sai của `env.bootstrap` vẫn ra stderr dạng text: chúng chỉ nêu **tên** biến, không có giá trị, và nằm trước khi logger có. Dòng `fatal` của lỗi đồng bộ trong `env.bootstrap` và cảnh báo tiến trình sau khi nạp `process-logging.bootstrap` thì đã là JSON; cảnh báo phát ra **trước** `process-logging.bootstrap` (trong khi nạp `env.bootstrap`) vẫn là text của Node.
+- Tác vụ nền không đi qua `PollingLoop` (timer của `MetricsService`) vẫn ghi `role=api` trong tiến trình `both`, vì chúng là của tiến trình chứ không riêng worker.
 - Dòng log đang ghi dở khi tiến trình crash có thể bị cắt và dính với dòng `fatal`; dòng trước crash có thể xuất hiện sau `fatal` (dùng `time` để sắp xếp).
-- Lỗi nội bộ do Nest hoặc TypeORM phát ra (`ExceptionHandler`, `TypeOrmModule`) chỉ còn `context`, loại lỗi, mã SQLSTATE và thông điệp `Diagnostic event`, vì message gốc có thể chứa SQL hoặc credential.
-- Khi chạy `both`, tác vụ nền log `role=api` cho tới khi DBS-43 gắn context (`role=worker`); context xuyên worker/message và provider AsyncLocalStorage chung thuộc DBS-43.
+- Lỗi nội bộ do Nest hoặc TypeORM phát ra chỉ được ghi thông điệp gốc khi nằm trong allowlist ở trên; mọi thông điệp khác (có thể chứa SQL hoặc credential) vẫn chỉ còn `context`, loại lỗi, mã SQLSTATE và `Diagnostic event`.
 
 Chi tiết và bằng chứng: [DBS-42](../docs/features/DBS-42-json-logger.md).
 
