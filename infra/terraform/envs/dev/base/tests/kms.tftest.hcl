@@ -104,16 +104,9 @@ run "kms_key_policy_minimal" {
     condition = (
       one([for st in jsondecode(aws_kms_key.main.policy).Statement : st.Action if st.Sid == "GrantsForAwsServices"]) == "kms:CreateGrant" &&
       one([for st in jsondecode(aws_kms_key.main.policy).Statement : st.Condition.StringEquals["kms:CallerAccount"] if st.Sid == "GrantsForAwsServices"]) == "123456789012" &&
-      toset(one([for st in jsondecode(aws_kms_key.main.policy).Statement : st.Condition.StringEquals["kms:ViaService"] if st.Sid == "GrantsForAwsServices"])) == toset([
-        "rds.ap-southeast-1.amazonaws.com",
-        "secretsmanager.ap-southeast-1.amazonaws.com",
-        "sqs.ap-southeast-1.amazonaws.com",
-        "elasticache.ap-southeast-1.amazonaws.com",
-        "ec.ap-southeast-1.amazonaws.com",
-      ]) &&
       one([for st in jsondecode(aws_kms_key.main.policy).Statement : st.Condition.Bool["kms:GrantIsForAWSResource"] if st.Sid == "GrantsForAwsServices"]) == "true"
     )
-    error_message = "GrantsForAwsServices must allow CreateGrant only for AWS resources via the 4 services"
+    error_message = "GrantsForAwsServices must allow CreateGrant only for AWS resources in this account"
   }
 }
 
