@@ -1,6 +1,6 @@
 # DBS-138 · Kịch bản demo giữa kỳ và checklist trước khi quay
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev (docs) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-138-demo-script` · **PR:** — · **Cập nhật:** 2026-11-14
+> **Status:** Implemented (sau G4) · **Vai:** Dev (docs) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-138-demo-script` · **PR:** [#197](https://github.com/Lawliet119/digital-banking-simulator/pull/197) · **Cập nhật:** 2026-11-14
 
 ## 1. Bối cảnh
 
