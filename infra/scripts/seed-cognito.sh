@@ -12,11 +12,13 @@
 # Dùng:  COGNITO_USER_POOL_ID=<id> bash infra/scripts/seed-cognito.sh [--dry-run] [--rotate]
 #   COGNITO_USER_POOL_ID  lấy bằng: terraform -chdir=infra/terraform/envs/dev/base output -raw cognito_user_pool_id
 #   SECRET_NAME           mặc định dbs/dev/demo-accounts
+#   KMS_KEY_ID            mặc định alias/dbs-dev (CMK dùng chung, DBS-154)
 #   --rotate              sinh mật khẩu mới cho cả sáu, đặt lại và sign-out phiên cũ
 #   --dry-run             chỉ in kế hoạch, không gọi AWS
 set -euo pipefail
 
 SECRET_NAME="${SECRET_NAME:-dbs/dev/demo-accounts}"
+KMS_KEY_ID="${KMS_KEY_ID:-alias/dbs-dev}"
 ROTATE=0
 DRY_RUN=0
 for arg in "$@"; do
@@ -40,8 +42,8 @@ if [ -z "${COGNITO_USER_POOL_ID:-}" ]; then
 fi
 
 if [ "$DRY_RUN" = 1 ]; then
-  echo "[dry-run] pool: $COGNITO_USER_POOL_ID, secret: $SECRET_NAME, rotate: $ROTATE"
-  echo "[dry-run] 1. đọc secret; thiếu thì sinh mật khẩu và ghi secret TRƯỚC (create-secret có tag project/env/owner)"
+  echo "[dry-run] pool: $COGNITO_USER_POOL_ID, secret: $SECRET_NAME, kms: $KMS_KEY_ID, rotate: $ROTATE"
+  echo "[dry-run] 1. đọc secret; thiếu thì sinh mật khẩu và ghi secret TRƯỚC (create-secret có --kms-key-id và tag project/env/owner)"
   for r in "${ROLES[@]}"; do
     echo "[dry-run] 2. $(email_of "$r"): tạo user (--message-action SUPPRESS) nếu chưa có, đặt mật khẩu từ secret (--permanent), nhóm = $(group_of "$r"), email_verified = true"
   done
@@ -109,12 +111,29 @@ read_secret() { # đặt SECRET_DOC; trả 0 nếu có, 3 nếu chưa có; lỗi
 write_secret() { # stdin: json; $1: put | create
   if [ "$1" = create ]; then
     aws secretsmanager create-secret --name "$SECRET_NAME" \
+      --kms-key-id "$KMS_KEY_ID" \
       --description "Mat khau tai khoan nhan vien demo (DBS-54)" \
       --tags Key=project,Value=dbs Key=env,Value=dev Key=owner,Value=platform \
       --secret-string file:///dev/stdin >/dev/null 2>"$ERR/write"
   else
     aws secretsmanager put-secret-value --secret-id "$SECRET_NAME" \
       --secret-string file:///dev/stdin >/dev/null 2>"$ERR/write"
+  fi
+}
+
+ensure_secret_kms() {
+  local current_kms
+  if ! current_kms="$(aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --query KmsKeyId --output text 2>"$ERR/kms")"; then
+    echo "Không kiểm tra được KmsKeyId của secret $SECRET_NAME:" >&2
+    cat "$ERR/kms" >&2
+    exit 1
+  fi
+  if [ -z "$current_kms" ] || [ "$current_kms" = "None" ] || [ "$current_kms" != "$KMS_KEY_ID" ]; then
+    if ! aws secretsmanager update-secret --secret-id "$SECRET_NAME" --kms-key-id "$KMS_KEY_ID" >/dev/null 2>"$ERR/kms"; then
+      echo "Không cập nhật được KMS key cho secret $SECRET_NAME:" >&2
+      cat "$ERR/kms" >&2
+      exit 1
+    fi
   fi
 }
 
@@ -136,6 +155,8 @@ while true; do
   fi
   echo "Không tạo được secret:" >&2; cat "$ERR/write" >&2; exit 1
 done
+
+ensure_secret_kms
 
 # bổ sung vai trò còn thiếu trong secret
 missing="$(printf '%s' "$SECRET_DOC" | doc_missing_roles)"
