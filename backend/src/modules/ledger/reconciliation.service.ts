@@ -163,7 +163,21 @@ export class ReconciliationService implements OnApplicationBootstrap, OnApplicat
     const outcome = await this.runOnce(options);
     // Counted after the row is committed, once per run; a run that found the lock taken wrote
     // nothing and counts nothing. Read-only: it changes neither the SQL nor the result.
-    if (outcome.executed) countReconciliationRun(outcome.status);
+    if (outcome.executed) {
+      countReconciliationRun(outcome.status);
+      // DBS-123: one structured line per run, whatever the status, so a run is visible in the log
+      // without reading the table. Counts only: no account id, no balance (`reconciliation_runs`
+      // keeps those for the operator).
+      this.logger.log(
+        {
+          event: 'reconciliation_run',
+          status: outcome.status,
+          durationMs: outcome.finishedAt.getTime() - outcome.startedAt.getTime(),
+          mismatchedAccounts: outcome.mismatchedAccounts,
+        },
+        'Ledger reconciliation run finished',
+      );
+    }
     return outcome;
   }
 
