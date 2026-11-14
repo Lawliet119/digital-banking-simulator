@@ -17,3 +17,6 @@ da96d35f50bc23c57e127c3f5b30ee9851cb0bb6:backend/src/modules/risk/rules/r3-new-a
 
 # Mật khẩu thử trong spec bootstrap env, không phải credential. Hạn xem lại: 2027-01-04
 7238cecbc35e1a98bacdde0c25341be2f5090461:backend/src/config/env.bootstrap.spec.ts:generic-api-key:77
+
+# JWT giả trong test_demo_token.py (DBS-139, commit đã nằm trên main; token dựng từ ba đoạn rời, không phải bí mật). Hạn xem lại: 2027-02-09
+69900301b72c010468229cb43ab9de73b761db3a:infra/scripts/tests/test_demo_token.py:jwt:20
