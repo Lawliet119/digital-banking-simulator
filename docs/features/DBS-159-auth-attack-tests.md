@@ -69,7 +69,7 @@ Nạp tiền dùng chung cơ chế: operator Chi nạp 300.000đ vào B1 với k
 
 Ca thu hồi chạy đường SQL: harness không nạp `SessionRevocationModule`, nên không có cache Redis. Đường cache Redis đã có test ở DBS-114 (`session-revocation-cache.db-spec.ts`).
 
-**H3. Vai trò chỉ lấy từ `cognito:groups` (T21).** Mỗi 403 có `errorCode=FORBIDDEN`. Hiện 403 do `RolesGuard` **không** ghi `audit_log` (BL-132), và test khẳng định đúng trạng thái này, để khi BL-132 xong test đổi màu và phải sửa theo.
+**H3. Vai trò chỉ lấy từ `cognito:groups` (T21).** Mỗi 403 có `errorCode=FORBIDDEN`. Mỗi 403 do `RolesGuard` ghi đúng một dòng `audit_log` `DENIED` (BL-132, đã xong): ban đầu test khẳng định 403 không ghi dòng nào để khi BL-132 xong test đổi màu; nay TC-159-08..10 khẳng định đúng một dòng mỗi 403, không có dòng nghiệp vụ nào.
 
 | Thử | Kết quả | Ghi DB |
 |---|---|---|
@@ -111,9 +111,9 @@ File: `backend/test/db/auth-attacks.db-spec.ts`, lớp security trên PostgreSQL
 | TC-159-05 | DoD #2, T1 | `POST /v1/transfers` với: không token, rác, khóa khác cùng `kid`, payload sửa, `alg none`, HS256 bằng khóa công khai, ID token → 401. Payload sửa và không token trên nạp tiền → 401. Không ghi DB | `UNAUTHENTICATED` |
 | TC-159-06 | DoD #2, T1 | Token khách hết hạn trên chuyển tiền, token operator hết hạn trên nạp tiền → 401. Không ghi DB | `TOKEN_EXPIRED` |
 | TC-159-07 | DoD #2, T2, AC-11.1 | Operator khóa A2 của An; token cũ chuyển A1 → B1 → 401, không ghi DB. Token mới `iat` = giây ngay sau mốc → 201 (đường SQL) | `SESSION_REVOKED` |
-| TC-159-08 | DoD #2, T21 | Token khách + giả vai trò qua header, cookie, query, body → 403 trên nạp tiền và khóa tài khoản. Không ghi DB, không thêm `audit_log` (BL-132), tài khoản vẫn ACTIVE, `sessions_revoked_at` vẫn NULL | `FORBIDDEN` |
-| TC-159-09 | DoD #2, T21 | Token ký đúng, `cognito:groups=["customer"]`, kèm `role`/`custom:role`/`scope` = `operator` → 403 trên nạp tiền | `FORBIDDEN` |
-| TC-159-10 | DoD #2, T21 | `auditor` và `admin` trên nạp tiền và khóa; `operator` trên chuyển tiền → 403, không ghi DB | `FORBIDDEN` |
+| TC-159-08 | DoD #2, T21 | Token khách + giả vai trò qua header, cookie, query, body → 403 trên nạp tiền và khóa tài khoản. Không ghi dòng nghiệp vụ nào (chuyển tiền, sổ, khóa, event, số dư), `audit_log` tăng đúng 2 dòng `DENIED` (`access.denied`, `actor_role=customer` là vai trò thật của token, `target=route`, `POST /v1/operator/deposits` và `POST /v1/operator/accounts/:id/lock`, `correlation_id` của response), tài khoản vẫn ACTIVE, `sessions_revoked_at` vẫn NULL. **Đổi ở BL-132**: trước đó khẳng định không thêm `audit_log` | `FORBIDDEN` |
+| TC-159-09 | DoD #2, T21 | Token ký đúng, `cognito:groups=["customer"]`, kèm `role`/`custom:role`/`scope` = `operator` → 403 trên nạp tiền; thêm đúng 1 dòng `DENIED` vai `customer` (BL-132) | `FORBIDDEN` |
+| TC-159-10 | DoD #2, T21 | `auditor` và `admin` trên nạp tiền và khóa; `operator` trên chuyển tiền → 403, không ghi dòng nghiệp vụ; mỗi 403 một dòng `DENIED` với đúng vai thật (auditor, admin, operator): 5 dòng (BL-132, BL-019) | `FORBIDDEN` |
 | TC-159-11 | DoD #2, T21 | Body chuyển tiền thêm `role`, `userId` → 400, không ghi DB. Header giả + body hợp lệ → 201, `transfers.initiated_by` và `audit_log.actor_user_id` là user của token, `actor_role='customer'` | 400, không có mã |
 | quy trình | DoD #3 | File nằm trong `test/db`, nên job `db` của CI (`npm run test:db`) tự chạy; kiểm trên run CI của PR | — |
 | quy trình | DoD #4 | PR merge, CI xanh, bảng đối chiếu | — |
@@ -245,7 +245,7 @@ Quét giới hạn và DoD: T1, T13, T21 của threat model có dòng bước 5;
   1. Kế hoạch §7 tách bước 2–4 thành ba commit. Thực tế file spec được viết một lần trong một commit, vì 11 ca dùng chung dữ liệu và `beforeAll`. Không ảnh hưởng nội dung; agent tự quyết.
   2. Không có ca nào đỏ thật trên code gốc, nên thay "đỏ trước" bằng bốn lần làm hỏng code sản phẩm ở trên. Agent tự quyết, ghi trước khi viết §8.
 - **Bàn giao cho vai khác:**
-  - BL-132 (403 của `RolesGuard` chưa ghi `audit_log`, Dev chủ audit DBS-56): thêm DBS-159 làm nguồn. Khi BL-132 xong, TC-159-08 sẽ đỏ, và người làm BL-132 sửa ca này để khẳng định có dòng `DENIED`.
+  - BL-132 (403 của `RolesGuard` chưa ghi `audit_log`, Dev chủ audit DBS-56): thêm DBS-159 làm nguồn. Khi BL-132 xong, TC-159-08 sẽ đỏ, và người làm BL-132 sửa ca này để khẳng định có dòng `DENIED`. **Đã làm** (nhánh `feat/audit-denied-bl-132-019`): TC-159-08, 09, 10 đổi sang khẳng định `audit_log` tăng đúng một dòng `DENIED` mỗi 403 và không có dòng nghiệp vụ nào.
   - Cognito và Redis thật trên cloud vẫn thuộc DBS-186.
   - Không có dòng `BL-NNN` mới.
 

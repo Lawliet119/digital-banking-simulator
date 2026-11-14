@@ -79,12 +79,75 @@ describe('DBS-107 R6 drain', () => {
     });
   });
 
-  it('explains the percentage and snapshot amounts without pinning sentence wording', () => {
+  it('BL-184 H7 explains the percentage and snapshot amounts in the shared money format', () => {
     const hit = rule.evaluate({ ...event, amount: '950000' }, features, params);
-    expect(hit?.explanation).toMatch(/95(?:[.,]0+)?\s*%/);
-    const ungrouped = hit?.explanation.replace(/[.,\s]/g, '');
-    expect(ungrouped).toContain('950000');
-    expect(ungrouped).toContain('1000000');
+    expect(hit?.explanation).toBe('Chuyển xấp xỉ 95,00% số dư (950.000đ/1.000.000đ).');
+  });
+
+  // BL-207(d): the percentage is shown rounded down, so it never overstates the drain.
+  it.each([
+    ['99996', '100000', '99,99'],
+    ['999999', '1000000', '99,99'],
+    ['1000000', '1000000', '100,00'],
+    ['900000', '1000000', '90,00'],
+    ['900001', '1000001', '90,00'],
+    ['9', '10', '90,00'],
+  ])('rounds %s of %s down to %s%%', (amount, balance, percent) => {
+    const hit = rule.evaluate(
+      { ...event, amount, fromBalanceBefore: balance },
+      features,
+      // minBalance 1: the small balances below are only there to exercise the percentage text.
+      { ...params, thresholds: { minBalancePercent: 90, minBalance: '1' } },
+    );
+    expect(hit?.explanation).toContain(`xấp xỉ ${percent}% số dư`);
+  });
+
+  it('formats the largest balance without losing digits', () => {
+    const hit = rule.evaluate(
+      { ...event, amount: '9223372036854775807', fromBalanceBefore: '9223372036854775807' },
+      features,
+      params,
+    );
+    expect(hit?.explanation).toBe(
+      'Chuyển xấp xỉ 100,00% số dư (9.223.372.036.854.775.807đ/9.223.372.036.854.775.807đ).',
+    );
+  });
+
+  // BL-212: the 90 % boundary near 2^63 - 1, where a Number (53-bit) comparison cannot tell
+  // neighbouring amounts apart. 0.9 * 9223372036854775807 = 8301034833169298226.3.
+  it.each([
+    ['9223372036854775807', '8301034833169298227', true], // first amount that is >= 90 %
+    ['9223372036854775807', '8301034833169298226', false], // one less
+    ['9223372036854775807', '9223372036854775807', true],
+    ['9000000000000000000', '8100000000000000000', true], // exactly 90 %
+    ['9000000000000000000', '8099999999999999999', false], // 1 below exactly 90 % (same double as 8.1e18)
+  ])(
+    'compares 90 percent exactly near 2^63: %s balance, %s amount, hit=%s',
+    (balance, amount, hit) => {
+      const result = rule.evaluate(
+        { ...event, amount, fromBalanceBefore: balance },
+        features,
+        params,
+      );
+      expect(result !== null).toBe(hit);
+    },
+  );
+
+  it('the near-2^63 cases above are ones a floating-point comparison would get wrong', () => {
+    expect(Number('8099999999999999999')).toBe(Number('8100000000000000000'));
+    expect(Number('8301034833169298226')).toBe(Number('8301034833169298227'));
+  });
+
+  it('does not lose the digits of an amount equal to the largest balance when the percent is rounded down', () => {
+    // 99.999999...% of 2^63 - 1 must read 99,99 not 100,00 (BL-207(d)).
+    const hit = rule.evaluate(
+      { ...event, amount: '9223372036854775806', fromBalanceBefore: '9223372036854775807' },
+      features,
+      params,
+    );
+    expect(hit?.explanation).toBe(
+      'Chuyển xấp xỉ 99,99% số dư (9.223.372.036.854.775.806đ/9.223.372.036.854.775.807đ).',
+    );
   });
 
   it('uses the configured percent, minimum balance and weight', () => {
@@ -131,6 +194,30 @@ describe('DBS-107 R6 drain', () => {
 
   it('returns null when disabled even when the trigger is present', () => {
     expect(rule.evaluate(event, features, { ...params, enabled: false })).toBeNull();
+  });
+
+  // BL-207(a): a switched-off rule judges only its configuration, never the event snapshot.
+  it.each([
+    ['sameOwner', { sameOwner: 'x' }],
+    ['balance snapshot', { fromBalanceBefore: 'x' }],
+    ['amount', { amount: '0' }],
+  ])('returns null when disabled even with a malformed %s', (_name, fields) => {
+    expect(
+      rule.evaluate({ ...event, ...fields } as unknown as TransferEvent, features, {
+        ...params,
+        enabled: false,
+      }),
+    ).toBeNull();
+  });
+
+  it('still rejects a bad configuration when disabled', () => {
+    expect(() =>
+      rule.evaluate(event, features, {
+        ...params,
+        enabled: false,
+        thresholds: { minBalancePercent: 0, minBalance: '1000000' },
+      }),
+    ).toThrow('Invalid R6 configuration');
   });
 
   it.each([undefined, null, 'false', 0, 1])('rejects malformed sameOwner %s', sameOwner => {

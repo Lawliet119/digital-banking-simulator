@@ -258,7 +258,7 @@ Vòng 2:
 
 - **Bàn giao cho vai khác (đã có dòng `docs/BACKLOG.md`):**
   - **BL-203 đã xóa** sau khi kiểm xong trên CloudWatch (M-144-09). Phần alarm và dashboard (quy tắc `Maximum`/`breaching`/`GreaterThanThreshold`/`notBreaching`, chi phí ≈ 115 metric) nằm ở observability và được BL-051, BL-179 và DBS-145 trỏ tới; metric của worker xem sau DBS-121.
-  - **BL-204** (#4): metric thời gian giao dịch → cờ, `ai_status`, độ trễ AI, fallback baseline, `risk_rule_error_total`; `RiskMetrics` chưa là provider; cần API mẫu phân phối ở `MetricsService`.
+  - **BL-204** (#4): metric thời gian giao dịch → cờ, `ai_status`, độ trễ AI, fallback baseline, `risk_rule_error_total`; `RiskMetrics` chưa là provider; cần API mẫu phân phối ở `MetricsService`. *Cập nhật (BL-204): đã có `MetricsService.recordDistribution`, `risk_transfer_to_flag_ms`, `risk_ai_call_duration_ms`, `risk_decision_total{AiStatus}`, `risk_rule_error_total{Rule}` và `reconciliation_runs_total{Status}`; `RiskMetrics` đã là provider của `RiskWorkerModule`. Dimension `AiStatus` và `Status` thêm vào allowlist nhãn. Danh sách đầy đủ ở observability 01-concept-brief; còn mở: `risk_redis_fallback_total` chưa có chỗ gọi.*
   - Cập nhật tại chỗ: BL-127 (`registerGauge` dùng được cho metric đối soát), BL-152 (counter Redis đã xuất bằng EMF; còn dashboard và kiểm `opossum`), BL-179 (metric đã có, còn cảnh báo).
 
 ## 9. Tài liệu đã cập nhật

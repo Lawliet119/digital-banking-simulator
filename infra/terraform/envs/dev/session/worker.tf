@@ -85,9 +85,10 @@ resource "aws_ecs_task_definition" "worker" {
   }])
 }
 
-# deploy.sh chỉ cập nhật service api (BL mới: thêm worker); service worker theo `image_tag` mỗi lần dựng phiên, nên
-# không có ignore_changes. Lăn 0%/100%: không bao giờ hai worker song song nhân đôi kết nối; khoảng trống xử lý
-# ngắn chấp nhận được vì outbox giữ sự kiện (ADR-03).
+# BL-248: deploy.sh đăng ký revision mới của dbs-worker (chỉ đổi image) và đổi task_definition của service này sau khi
+# api đã khỏe, như với api (ecs.tf); Terraform không kéo về revision cũ nên có ignore_changes. Lần dựng phiên đầu vẫn
+# theo `image_tag`. Lăn 0%/100%: không bao giờ hai worker song song nhân đôi kết nối; khoảng trống xử lý ngắn chấp nhận
+# được vì outbox giữ sự kiện (ADR-03).
 resource "aws_ecs_service" "worker" {
   name                               = "worker"
   cluster                            = aws_ecs_cluster.main.id
@@ -107,6 +108,10 @@ resource "aws_ecs_service" "worker" {
     subnets          = local.base.public_subnet_ids
     security_groups  = [local.base.worker_security_group_id]
     assign_public_ip = true
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 }
 

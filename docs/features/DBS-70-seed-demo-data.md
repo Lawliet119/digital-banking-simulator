@@ -85,12 +85,21 @@ Script hoàn toàn không kết nối PostgreSQL trực tiếp, chỉ tương t�
    - Trả về status `201`.
 
 ### 2.3 Tính Idempotent khi chạy lại nhiều lần (DoD #2)
+> Từ BL-213, bước 4 và 5 của §2.2 chỉ gửi khi số dư cho thấy chưa làm (§2.4); các dòng replay bên dưới còn đúng khi seed lỡ gửi lại trong hạn giữ khóa (chạy song song, chạy dở).
 - Khi thực thi lại `npm run seed`:
   - `POST /v1/customers/me` trả về `200` với hồ sơ hiện tại.
   - `GET /v1/accounts` lấy lại các tài khoản hiện có theo thứ tự `createdAt ASC, id ASC`, tái sử dụng đúng `accountId` cũ.
   - `POST /v1/operator/deposits` với sub `demo-operator` và `Idempotency-Key` cố định kích hoạt cơ chế replay của bảng `idempotency_keys`, trả về kết quả cũ với status `201` mà không tạo thêm bút toán hay số dư mới.
   - `POST /v1/transfers` với sub khách gửi và `Idempotency-Key` cố định kích hoạt replay tương tự.
   - Kết quả: Không có tài khoản bị tạo trùng, số dư không bị nhân đôi, không phát sinh lỗi.
+
+### 2.4 Chạy lại sau khi `idempotency_keys` bị dọn (BL-213)
+`Idempotency-Key` cố định chỉ che chạy lại trong thời hạn giữ bản ghi (DBS-136 xóa `idempotency_keys` quá `IDEMPOTENCY_KEY_RETENTION_DAYS` ngày, mặc định 7). Sau hạn đó, replay theo khóa không còn: nếu chỉ dựa vào khóa thì seed nạp và chuyển thêm một lần nữa. Seed vẫn chỉ nói chuyện qua API, nên thêm bước đọc trạng thái qua API (không đọc DB):
+- `planBalanceTrail()` tính từ kế hoạch dãy số dư mỗi tài khoản đi qua: chỉ số 0 là rỗng, 1 là sau lệnh nạp, rồi một giá trị cho mỗi lệnh chuyển chạm tài khoản đó (Thu Hà CHECKING: 0, 10tr, 12tr, 11,5tr).
+- Trước mỗi lệnh nạp, seed đọc số dư (`GET /v1/accounts` bằng token chủ tài khoản) và tìm vị trí của nó trong dãy. Vị trí 0 (còn rỗng) thì nạp với khóa cố định như cũ; vị trí từ 1 trở lên nghĩa là lệnh nạp (hoặc các bước sau nó) đã vào sổ, bước được **bỏ qua** (`skipped: true`, `transferId: null`, báo trong bản tóm tắt).
+- Trước mỗi lệnh chuyển, seed đọc số dư hai phía và so với vị trí mà lệnh đó để lại trong dãy của từng phía. Cả hai phía đã tới vị trí đó thì bỏ qua; cả hai chưa tới thì gửi với khóa cố định; chạy dở giữa chừng chỉ gửi phần còn thiếu.
+- **Số dư ngoài dãy kế hoạch, hoặc hai phía của một lệnh chuyển không khớp nhau, thì seed dừng** (`SeedError`, mã thoát 1, thông báo nêu tài khoản, số dư thực và dãy kế hoạch) trước khi chuyển bất kỳ đồng nào; cách xử lý là dựng lại cơ sở dữ liệu. Chọn dừng thay vì đoán để không bao giờ tạo thêm tiền khi không chắc.
+- Giới hạn còn lại: dãy được tra theo giá trị, nên một kế hoạch có hai bước để cùng một số dư trên một tài khoản sẽ nhập nhằng (kế hoạch hiện tại không có); và nếu có người nạp rồi rút đúng bằng số cũ thì seed không thấy khác biệt.
 
 ---
 
@@ -102,7 +111,8 @@ Script hoàn toàn không kết nối PostgreSQL trực tiếp, chỉ tương t�
 - **Module nghiệp vụ gọi tới:** Accounts (`CustomersController`, `AccountsController`), Ledger (`OperatorDepositsController`, `TransfersController`), Identity (`dev-auth.ts`).
 - **Test suite:**
   - `backend/test/db/seed.db-spec.ts`: Tích hợp end-to-end với PostgreSQL 17 thật qua Testcontainers (`npm run test:db`), kiểm tra seed lần 1, seed lần 2 (idempotency), và gọi `checkLedgerInvariants` (DoD #1, #2, #3).
-  - `backend/test/seed.e2e-spec.ts`: Kiểm tra offline CLI argument parsing, flags, và xử lý khi server không kết nối được (`TC-70-04`).
+  - `backend/test/db/seed-rerun.db-spec.ts`: chạy lại sau khi xóa `idempotency_keys` (`TC-70-05` đến `TC-70-07`, BL-213), mỗi ca một cơ sở dữ liệu mới.
+  - `backend/test/seed.e2e-spec.ts`: Kiểm tra offline CLI argument parsing, flags, và xử lý khi server không kết nối được (`TC-70-04`), cùng dãy số dư kế hoạch và hiển thị bước bị bỏ qua (`TC-70-04g`, `TC-70-04h`).
 
 ### 3.2 Sơ đồ luồng tương tác (Mermaid)
 
@@ -151,9 +161,13 @@ sequenceDiagram
 | ID | Truy vết (DoD / AC) | Lớp | Given · When · Then | Trạng thái mong đợi |
 |---|---|---|---|---|
 | `TC-70-01` | DoD #1 | DB integration (`test/db/seed.db-spec.ts`) | **Given** Ứng dụng NestJS kết nối PostgreSQL 17 Testcontainers · **When** hàm seed chạy lần đầu qua HTTP API · **Then** 3 hồ sơ khách hàng được tạo, 4 tài khoản CHECKING/SAVINGS được mở, nạp 85.000.000 VND và thực hiện 2 giao dịch chuyển tiền mẫu, số dư cuối cùng khớp chính xác với thiết kế | Hoàn tất 100%, HTTP 200/201 |
-| `TC-70-02` | DoD #2 | DB integration (`test/db/seed.db-spec.ts`) | **Given** Cơ sở dữ liệu đã chạy seed lần 1 · **When** chạy lại hàm seed lần thứ 2 với Idempotency-Key cố định · **Then** toàn bộ lệnh nạp và chuyển tiền được replay nguyên vẹn; không tạo tài khoản trùng, không nhân đôi số dư, không phát sinh ngoại lệ | Hoàn tất 100%, 0 lỗi |
+| `TC-70-02` | DoD #2 | DB integration (`test/db/seed.db-spec.ts`) | **Given** Cơ sở dữ liệu đã chạy seed lần 1 · **When** chạy lại hàm seed lần thứ 2 với Idempotency-Key cố định · **Then** toàn bộ lệnh nạp và chuyển tiền được bỏ qua vì số dư đã đúng kế hoạch (§2.4; khóa cố định vẫn là lớp bảo vệ thứ hai); không tạo tài khoản trùng, không nhân đôi số dư, không phát sinh ngoại lệ | Hoàn tất 100%, 0 lỗi |
 | `TC-70-03` | DoD #3 | DB integration (`test/db/seed.db-spec.ts`) | **Given** Dữ liệu đã được seed qua API · **When** thực thi bộ kiểm tra 5 bất biến sổ cái `checkLedgerInvariants(runner)` · **Then** trạng thái trả về là `PASS`, tổng Nợ = tổng Có, tổng số dư toàn hệ thống (bao gồm funding âm) = 0 | `result.status === 'PASS'` |
 | `TC-70-04` | DoD #1, DoD #4 | Offline CLI e2e (`test/seed.e2e-spec.ts`) | **Given** Tham số dòng lệnh CLI `--url`, `--key-dir`, `--auth` · **When** gọi CLI với cờ `--help` hoặc URL không thể kết nối · **Then** in hướng dẫn sử dụng hoặc ném lỗi kết nối rõ ràng và thoát có kiểm soát | Exit code 0 (khi help) hoặc khác 0 (khi fail) |
+| `TC-70-05` | BL-213 | DB integration (`test/db/seed-rerun.db-spec.ts`) | **Given** Seed đã chạy xong và bảng `idempotency_keys` bị xóa sạch (như job DBS-136) · **When** chạy lại seed · **Then** số dư đúng kế hoạch (48tr / 20tr / 11,5tr / 5,5tr), funding vẫn -85tr, vẫn 6 dòng `transfers`, mọi bước báo `skipped`, 5 bất biến `PASS` | Không nạp, không chuyển thêm |
+| `TC-70-06` | BL-213 | DB integration (`test/db/seed-rerun.db-spec.ts`) | **Given** Lần chạy đầu dừng sau 4 lệnh nạp và lệnh chuyển thứ nhất, `idempotency_keys` đã bị xóa · **When** chạy lại seed · **Then** 4 lệnh nạp và lệnh chuyển 1 bị bỏ qua, chỉ lệnh chuyển 2 được gửi, số dư đúng kế hoạch | Chỉ gửi bước còn thiếu |
+| `TC-70-07` | BL-213 | DB integration (`test/db/seed-rerun.db-spec.ts`) | **Given** Seed đã chạy, có thêm 1.000.000 VND nạp vào Minh Anh CHECKING (49tr, ngoài kế hoạch) và khóa bị xóa · **When** chạy lại seed · **Then** ném `SeedError` "Seed stopped before the deposit: the balance of demo-customer-minh-anh:CHECKING is 49000000 ...", số dư và số lệnh chuyển giữ nguyên | Dừng, không chuyển tiền |
+| `TC-70-04g/h` | BL-213 | Offline (`test/seed.e2e-spec.ts`) | `planBalanceTrail()` trả đúng dãy số dư và vị trí từng lệnh chuyển; `formatReport` ghi bước bỏ qua thay vì `Tx: null` | Đúng dãy / đúng nhãn |
 | `Quy trình` | DoD #5 | Quy trình | Mở PR sau G4, CI xanh, Dev review và điền bảng đối chiếu | — |
 
 ---

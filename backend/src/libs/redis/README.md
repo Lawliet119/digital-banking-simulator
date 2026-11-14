@@ -18,13 +18,16 @@ giao dịch hay dữ liệu cá nhân.
 Kho cấu hình risk dùng thêm `serverTimeMs()`, `readExpiringVersion(key)`,
 `setVersionBefore(key,version,deadlineMs)` và `setIfAbsent(key,value,ttlSeconds)`.
 Lua giới hạn thời hạn và so sánh version atomically; lệnh cũ/quá hạn không ghi đè version mới,
-`SET NX` không thay nội dung version có sẵn. Các lệnh vẫn qua breaker như những method khác.
+`SET NX` không thay nội dung version có sẵn. `readExpiringVersion` trả `null` khi key vắng hoặc quá hạn, và ném `RedisUnavailableError` với `reason: 'CORRUPT'` khi key có mà không phải marker do code này ghi (sai kiểu, sai định dạng, ngoài int4, TTL lệch); `setVersionBefore` vẫn sửa được key hỏng đó. Các lệnh vẫn qua breaker như những method khác.
 Caller phải lấy Redis TIME trước khi đọc primary và tự kiểm deadline lúc chọn snapshot; xem
 [bugfix freshness](../../../../docs/features/BUG-20261109-risk-config-freshness.md).
 
 Mọi lệnh đi qua `opossum`: timeout `min(config,50ms)`, ngưỡng lỗi 50%, volume 10, rolling 10s,
 reset 5s. Một listener `failure` tự viết bù khoảng hở `opossum` dùng `>` strict thành `>=50` theo
-đúng rolling stats, không đổi hằng số đã chốt. Deadline chỉ từ chối sau khi timer của nó chạy hết;
+đúng rolling stats, không đổi hằng số đã chốt. `opossum` 10.0.0 phát sự kiện `fire` trước khi xét
+trạng thái nên một lệnh bị từ chối nhanh lúc OPEN cũng làm tăng `stats.fires`; vì thế `RedisClient`
+từ chối `CIRCUIT_OPEN` ngay trong adapter (cùng điều kiện với `opossum`: không closed và chưa tới
+lượt thử half-open), để chỉ các lệnh đã chạy mới vào mẫu số của tỷ lệ lỗi (BL-152). Deadline chỉ từ chối sau khi timer của nó chạy hết;
 không cam kết scheduler hard real-time. Không offline queue, không tự retry theo lệnh, không gửi
 lại lệnh chưa hoàn tất. Reconnect nền được phép và không buffer lệnh. Lúc khởi động có thể trả
 `UNAVAILABLE` cho tới khi `isReady`. `circuitState` chỉ đọc: `closed`/`open`/`half-open`/`shutdown`.

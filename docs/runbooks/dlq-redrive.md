@@ -4,7 +4,7 @@
 
 ## Khi nào dùng
 
-- **Alarm DLQ** (BL-051, DBS-163) báo có message, hoặc thấy `ApproximateNumberOfMessages` của một DLQ lớn hơn 0.
+- **Alarm DLQ** báo có message, hoặc thấy `ApproximateNumberOfMessages` của một DLQ lớn hơn 0. Trên AWS alarm là `dbs-dev-risk-dlq-not-empty` hoặc `dbs-dev-notification-dlq-not-empty` (`ApproximateNumberOfMessagesVisible` > 0 trong 1 phút, `infra/terraform/envs/dev/base/alarms.tf`), thư gửi tới topic SNS `dbs-dev-alarms`; alarm giữ ở ALARM tới khi DLQ cạn. Alarm `dbs-dev-risk-rule-error` (lỗi luật, kèm `Rule`) và `dbs-dev-risk-config-invalid` báo sớm hơn, trước khi message tới DLQ ([observability](../components/observability/01-concept-brief.md#alarm-cloudwatch-bl-051-bl-117-bl-127-bl-179-bl-182)). Alarm mới ở Terraform, **chưa kích hoạt thử trên AWS** (BL-051).
 - **Một message vào DLQ vì một trong hai lý do:**
   - **Hỏng:** không phải JSON, sai schema, hoặc là loại sự kiện mà consumer không biết. Message này vào DLQ ngay lần nhận đầu.
   - **Lỗi 5 lần liền** (`MAX_ATTEMPTS` của `ConsumerBase`). Ở production, các lần thử cách nhau 5, 10, 20, 40 s, nên message vào DLQ khoảng 75–80 s sau lần nhận đầu.
@@ -14,7 +14,7 @@ Chỉ redrive **sau khi đã sửa nguyên nhân**: deploy bản sửa, gỡ c�
 
 ## Quyền
 
-**Ops** (không phải task `worker`; DBS-73 từ chối worker đọc hoặc xóa DLQ) cần các quyền sau:
+**Ops** (không phải task `worker`; DBS-73 từ chối worker đọc hoặc xóa DLQ) cần các quyền sau. Từ BL-241, queue policy còn `Deny` các thao tác message cho principal ngoài danh sách cho phép (role `dbs-dev-worker-task` và `sqs_ops_principal_arns`, mặc định mọi IAM user của tài khoản): người redrive phải nằm trong danh sách đó, nếu không sẽ gặp `explicit deny in a resource-based policy` dù identity policy đủ quyền (`infra/terraform/README.md`, mục SQS).
 - **Trên DLQ:** `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, `sqs:GetQueueAttributes`, `sqs:StartMessageMoveTask`, `sqs:ListMessageMoveTasks`, `sqs:CancelMessageMoveTask`.
 - **Trên queue chính:** `sqs:SendMessage`, `sqs:GetQueueAttributes`.
 

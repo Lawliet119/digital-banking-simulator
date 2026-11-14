@@ -13,7 +13,7 @@
 - Decision lưu model yêu cầu/phản hồi, SHA-256 rubric/input, request ID/probability khi hợp lệ; success/fallback cùng claim/flag/hits/audit atomic. Không log body, features, key hay auth. Migration down từ chối khi có lịch sử quota/permit.
 - Test dùng PostgreSQL thật và loopback synthetic, không có biến endpoint production; kết quả và giới hạn ở [RSK-02](../../../../docs/features/RSK-02-durable-ai-gate.md).
 
-DBS-59 định nghĩa `RiskRule`/`FeatureProvider`. Sáu luật R1–R6 và `ScoringService` thuần, không gọi DB hay network. `OnlineFeatureProvider({ facts, perTxLimit })` đọc 5 SELECT từ `v_transfer_facts` theo event-time mili giây; R1/R5 aggregate SQL-authoritative, không tin coverage Redis. Lỗi SQL/luật được chuyển tới consumer để retry; R3/R6 dùng snapshot event. `RuleSetRepository` vẫn cache cấu hình bằng Redis. Năm SELECT độc lập không bảo đảm chung snapshot; tải DB tăng, chưa đo 120 TPS hay hot-account SLO. Xem [DBS-109](../../../../docs/features/DBS-109-online-feature-provider.md), [DBS-111](../../../../docs/features/DBS-111-risk-scoring-consumer.md) và [regression thứ tự](../../../../docs/features/BUG-20261110-fraud-feature-order.md).
+DBS-59 định nghĩa `RiskRule`/`FeatureProvider`. Sáu luật R1–R6 và `ScoringService` thuần, không gọi DB hay network. `OnlineFeatureProvider({ facts, perTxLimit })` đọc 5 SELECT từ `v_transfer_facts` theo event-time mili giây; R1/R5 aggregate SQL-authoritative, không tin coverage Redis. Lỗi SQL/luật được chuyển tới consumer để retry; R3/R6 dùng snapshot event. `RuleSetRepository` chỉ cache **chỉ số** phiên bản (`cfg:risk:latest:v2`, chỉ đi tiến) trong Redis; nội dung luật luôn từ PostgreSQL (BL-208). Năm SELECT độc lập không bảo đảm chung snapshot; tải DB tăng, chưa đo 120 TPS hay hot-account SLO. Xem [DBS-109](../../../../docs/features/DBS-109-online-feature-provider.md), [DBS-111](../../../../docs/features/DBS-111-risk-scoring-consumer.md) và [regression thứ tự](../../../../docs/features/BUG-20261110-fraud-feature-order.md).
 
 **DBS-128 offline:** `new OfflineFeatureProvider(facts, perTxLimit)` nhận completed TRANSFER facts bất biến (`id`, `fromAccountId`, `toAccountId`, `createdAt`, `amount`); event phải khớp fact. Cần cấp đầy đủ lịch sử; ID trùng với cùng facts được gộp, khác facts bị từ chối. Provider không đọc nhãn, holdout hay gọi mạng.
 
@@ -34,7 +34,10 @@ Migration DBS-58 tạo ba bảng ban đầu và seed `rule_only`; RSK-01 thêm d
 - **Hệ thống chỉ gắn cờ, không tự khóa tài khoản.** Khách hàng không bao giờ thấy cờ.
 - `rule_only` là mặc định; khi được bật qua gate ADR-14, API AI chỉ bổ sung điểm ở worker, lỗi thì dùng kết quả luật và không ảnh hưởng giao dịch đã hoàn tất.
 - **Luật là hàm thuần** `evaluate(event, features, params)`: không gọi Redis hay DB. Đặc trưng đến từ `FeatureProvider` (online: SQL; offline: dữ liệu trong bộ nhớ) để dùng cùng code luật.
-- Mọi cửa sổ thời gian tính theo `occurredAt` của sự kiện, không theo giờ worker.
+- Mọi cửa sổ thời gian tính theo `occurredAt` của sự kiện, không theo giờ worker. Provider online cắt về mili giây, nên R4 đầu-cuối có độ phân giải mili giây.
+- **Luật tắt chỉ kiểm cấu hình** rồi trả `null`, không kiểm dữ liệu provider hay snapshot (BL-207(a)); tắt luật trong phiên bản mới cứu được consumer khi provider phát dữ liệu hỏng. Luật bật gặp dữ liệu hỏng thì ném lỗi (ADR-14), gồm R4 khi lệnh ngược không strictly trước event.
+- **Tuổi âm:** `fromAccountCreatedAt` sau `occurredAt` (đồng hồ lùi) được coi là tuổi 0 ở R3 và projection AI, giao dịch vẫn được chấm; schema event không từ chối (BL-184 H8). Kiểm thời gian thực dùng `isRealUtcTime` của `@common/events`.
+- **Explanation R1–R6** dùng một định dạng chung (`rules/explanation-format.ts`): `20.000.000đ`, thập phân dấu phẩy, mọi phép chia làm tròn xuống.
 - R3, R6 dùng **ảnh chụp** trong sự kiện (`fromBalanceBefore`, `fromAccountCreatedAt`), không đọc trạng thái hiện tại.
 - Consumer idempotent: ghi `processed_events` cùng transaction với cờ; khóa chính `fraud_flags(transfer_id)` chặn cờ trùng.
 - **Consumer chỉ khởi động khi `runsWorkers()`** — instance `api` không bao giờ poll queue.
@@ -46,7 +49,7 @@ DBS-160 triển khai API quản trị cấu hình fraud có phiên bản cho `AP
 - `GET /v1/admin/risk-config`: Đọc cấu hình hiện hành mới nhất (`version`, `config`, `createdBy`, `createdAt`).
 - `GET /v1/admin/risk-config/versions?limit=50&before=10`: Danh sách phiên bản giảm dần, phân trang con trỏ `before`.
 - `GET /v1/admin/risk-config/versions/:version`: Đọc chi tiết một phiên bản bất biến.
-- `POST /v1/admin/risk-config/versions`: Tạo phiên bản mới tuần tự hóa qua advisory lock `(20261110, 160)` và ghi `audit_log` (`action: 'risk_config.create'`) nguyên tử trong cùng transaction. Validate nghiêm ngặt các tham số R1–R6 và khối `ai` (nếu có).
+- `POST /v1/admin/risk-config/versions`: Tạo phiên bản mới tuần tự hóa qua advisory lock `(20261110, 160)` và ghi `audit_log` (`action: 'risk_config.create'`) nguyên tử trong cùng transaction. Validate nghiêm ngặt khóa của R1–R6 và khối `ai` (nếu có), rồi gọi `parseRuleSet`; `parseRuleSet` hỏi từng luật chấp nhận tham số của nó (`config/rule-params.ts`, cả khi luật tắt), nên API và worker dùng chung một bộ kiểm tra, không có danh sách miền giá trị thứ hai (BL-188, BL-208 #4).
 
 ## Export công khai (`index.ts`)
 

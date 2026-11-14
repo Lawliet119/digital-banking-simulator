@@ -77,6 +77,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: node --test ../load-tests/fraud-dataset/generate.test.mjs ../load-tests/fraud-dataset/inspect-fraud.test.mjs ../load-tests/fraud-dataset/generate-fraud.test.mjs ../load-tests/fraud-dataset/split.test.mjs
+      - run: node --test ../load-tests/test/config.test.mjs ../load-tests/test/fixture-validation.test.mjs ../load-tests/test/runner.test.mjs
 
   e2e:
     name: e2e
@@ -139,6 +140,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/consumer-base.services-spec.ts
       - name: Notification consumer review focus - duplicate, broken, reordered (DBS-104)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/notification-consumer-review.services-spec.ts
+      - name: Risk and notification consumers - unknown event type, bad schema, broken JSON (BL-010)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/consumer-poison.services-spec.ts
       - name: correlationId across API, outbox, SQS and consumer (DBS-134)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/correlation-chain.services-spec.ts
       - name: Auditor traces one transfer by its correlationId end to end (DBS-135)
@@ -167,6 +170,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/worker-recovery.services-spec.ts
       - name: Failing notification dead-letters alone, broken messages, redrive (DBS-125)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/dlq-isolation.services-spec.ts
+      - name: Rule-set switch while Valkey caches the old latest version (RSK-06 DoD 4, BL-239)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/risk-config-switch.services-spec.ts
 
   db:
     name: db
@@ -249,6 +254,11 @@ jobs:
           persist-credentials: false
       - name: Build image
         run: docker build --provenance=false --sbom=false -t dbs-api:scan backend
+      # BL-245: run-trivy.sh chạy `cosign verify` trên image Trivy ghim digest trước khi dùng nó.
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        with:
+          cosign-release: v3.1.4
+
       - name: Trivy (lỗ hổng HIGH/CRITICAL có bản sửa, secret trong image)
         run: bash .github/scripts/run-trivy.sh dbs-api:scan
 

@@ -34,7 +34,7 @@ Chỉ TRANSFER; count phải là số nguyên an toàn không âm, sameOwner ph�
 
 ## 5. Manual
 
-`npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts` từ `backend/`: M-106-01 kiểm 4/5 và sameOwner; M-95/105/106/107-02 kiểm DEPOSIT.
+`npx ts-node -r tsconfig-paths/register test/manual/r3-r6.manual.ts` từ `backend/`: M-106-01 kiểm 4/5 và sameOwner; M-95/105/106/107-02 kiểm DEPOSIT. BL-212: M-106-02 thêm đường lỗi (đếm âm, `windowMinutes: 59` ném lỗi; R5 tắt bỏ qua đếm hỏng).
 
 ## 6. Review
 
@@ -76,6 +76,6 @@ Reviewer: subagent `fable` (mô hình mạnh nhất có sẵn), prompt `prompts/
 
 | # | Mức | Xử lý |
 |---|---|---|
-| 1 | should-fix | Không sửa: R5 tắt vẫn kiểm dữ liệu provider trước `enabled` → BL-207 |
+| 1 | should-fix | **Đã sửa ở BL-207(a):** R5 tắt trả `null` ngay sau khi kiểm cấu hình, không kiểm `sameOwner` và count |
 | 2 | minor | **Đã sửa:** §8 trỏ sang DBS-109 |
 | 3 | minor | Không sửa: manual thiếu đường lỗi → BL-212 |

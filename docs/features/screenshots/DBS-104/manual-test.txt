@@ -3,3 +3,11 @@ M-104-01 PASS: eventId x3 -> acknowledged,acknowledged,acknowledged; notificatio
 M-104-02 PASS: dead-lettered,acknowledged,dead-lettered,acknowledged; DLQ holds both broken bodies after one receive; 2 good events processed
 M-104-03 PASS: forward and reversed order -> no error, identical notification_log (6 rows)
 cleanup done: temp database dropped, temp queues deleted
+
+--- BL-212 (2026-11-14, Node 24, ElasticMQ :9324 + postgres:17 tạm; script đã siết, chạy lại) ---
+M-104-02 đọc DLQ có retry; M-104-03 xử lý từng event một và so cả event_id; thêm M-104-04 (hồi phục).
+M-104-01 PASS: eventId x3 -> acknowledged,acknowledged,acknowledged; notification_log rows = 1
+M-104-02 PASS: dead-lettered,acknowledged,dead-lettered,acknowledged; DLQ holds both broken bodies after one receive; 2 good events processed
+M-104-03 PASS: handled one at a time, forward and reversed -> identical notification_log (6 rows, event_id compared)
+M-104-04 PASS: missing recipient -> failed, nothing written; user created -> acknowledged, 2 rows, 1 processed_events, DLQ empty
+cleanup done: temp database dropped, temp queues deleted

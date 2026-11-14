@@ -1,11 +1,12 @@
 import { performance } from 'node:perf_hooks';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 import { DataSource, type EntityManager } from 'typeorm';
 import { sqsConfig } from '@config/sqs.config';
 import type { DomainEvent } from '@common/events';
 import { ConsumerBase, type UnknownEventPolicy } from '@common/messaging';
+import { MetricsService } from '@common/metrics';
 import { TransactionService } from '@database/transaction.service';
 import { PoisonMessageError, SqsClient } from '@libs/sqs';
 import { AuditService } from '@modules/audit';
@@ -16,6 +17,7 @@ import { RiskAiService } from './ai/risk-ai.service';
 import { toAiFeatureInput } from './ai/feature-projection';
 import { RuleSetRepository } from './config/rule-set.repository';
 import { OnlineFeatureProvider } from './features/online-feature-provider';
+import { countDecision } from './risk-scoring.metrics';
 import { ScoringService, type ScoringResult } from './scoring.service';
 
 /** `processed_events.consumer` of this module. */
@@ -29,6 +31,8 @@ interface Prepared {
   readonly snapshot: FeatureInput;
   readonly assessment?: AiAssessment;
   won: boolean;
+  /** `fraud_flags.created_at - transfers.created_at` in ms, set in `apply` when this delivery wrote a flag. */
+  flagLagMs?: number;
 }
 
 /** No conflict target: both unique indexes of risk_decisions are arbiters, so a loser gets 0 rows, never 23505 (RSK-01). */
@@ -68,6 +72,8 @@ export class RiskScoringConsumer extends ConsumerBase {
     private readonly audit: AuditService,
     private readonly db: DataSource,
     private readonly ai: RiskAiService,
+    /** Absent in a test that builds the consumer by hand: then nothing is measured. */
+    @Optional() private readonly metrics?: MetricsService,
   ) {
     super(tx, sqs, pino);
   }
@@ -113,7 +119,17 @@ export class RiskScoringConsumer extends ConsumerBase {
     if (baseline.mode === 'rules_with_external_ai' && baseline.aiStatus !== 'CONFIG_INVALID') {
       assessment = this.paidAssessments.get(event.eventId);
       if (!assessment) {
-        assessment = await this.ai.evaluate(snapshot, ruleSet, selectedAtMonotonicMs);
+        const aiStartedAt = performance.now();
+        try {
+          assessment = await this.ai.evaluate(snapshot, ruleSet, selectedAtMonotonicMs);
+        } finally {
+          // Admission (gate) and provider request together, whatever the outcome: a slow
+          // UNAVAILABLE is exactly what `risk_ai_call_duration_ms` must show (BL-204).
+          this.metrics?.recordDistribution(
+            'risk_ai_call_duration_ms',
+            performance.now() - aiStartedAt,
+          );
+        }
         this.paidAssessments.remember(event.eventId, assessment);
       }
     }
@@ -139,6 +155,7 @@ export class RiskScoringConsumer extends ConsumerBase {
     const decision = prepared as Prepared | null | undefined;
     if (!decision) return;
     decision.won = false; // a deadlock retry runs this again from the start
+    decision.flagLagMs = undefined;
     const { result } = decision;
     const ai = persistedAssessment(result.aiStatus, decision.assessment);
     const claimed: unknown[] = await manager.query(CLAIM_DECISION, [
@@ -161,10 +178,14 @@ export class RiskScoringConsumer extends ConsumerBase {
     if (claimed.length === 0) return; // another event of this transfer decided first
     decision.won = true;
     if (result.level === 'LOW') return;
-    await manager.query(
-      `INSERT INTO fraud_flags(transfer_id, score, risk_level, rule_set_version) VALUES ($1, $2, $3, $4)`,
-      [decision.transferId, result.score, result.level, decision.ruleSetVersion],
+    // `occurredAt` is `transfers.created_at` and `created_at` of the flag is the clock of the same
+    // database, so the difference is the SLO measure of docs/03 §14 (transfer -> flag, p95 < 5 s).
+    const flagged = await manager.query<{ lag_ms: number }[]>(
+      `INSERT INTO fraud_flags(transfer_id, score, risk_level, rule_set_version) VALUES ($1, $2, $3, $4)
+       RETURNING (EXTRACT(EPOCH FROM created_at - $5::timestamptz) * 1000)::float8 AS lag_ms`,
+      [decision.transferId, result.score, result.level, decision.ruleSetVersion, event.occurredAt],
     );
+    decision.flagLagMs = Number(flagged[0]?.lag_ms);
     for (const hit of result.hits) {
       await manager.query(
         `INSERT INTO fraud_rule_hits(transfer_id, rule_id, weight, explanation) VALUES ($1, $2, $3, $4)`,
@@ -186,6 +207,11 @@ export class RiskScoringConsumer extends ConsumerBase {
     const decision = prepared as Prepared | null | undefined;
     this.paidAssessments.forget(event.eventId);
     if (!decision?.won) return;
+    // Labels are the fixed `ai_status` values only; no id, no amount (see risk-scoring.metrics).
+    countDecision(decision.result.aiStatus);
+    if (decision.flagLagMs !== undefined && Number.isFinite(decision.flagLagMs)) {
+      this.metrics?.recordDistribution('risk_transfer_to_flag_ms', decision.flagLagMs);
+    }
     // Ids, the level and the rule ids only: no amount and no explanation in the logs.
     this.logger.log(
       {

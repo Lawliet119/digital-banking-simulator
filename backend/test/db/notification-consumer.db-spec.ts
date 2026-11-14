@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
-import { DataSource } from 'typeorm';
+import { DataSource, QueryFailedError } from 'typeorm';
+import type { DomainEvent } from '@common/events';
 import { NotificationConsumer } from '@modules/notification';
+import { noticesFor } from '@modules/notification/notification.consumer';
 import { AuditService } from '@modules/audit';
 import { TransactionService } from '@database/transaction.service';
-import type { SqsClient } from '@libs/sqs';
+import { PoisonMessageError, type SqsClient } from '@libs/sqs';
 import {
   ACCOUNT_ACTIVE_SAMPLE,
   ACCOUNT_LOCKED_SAMPLE,
@@ -149,10 +151,37 @@ describe('NotificationConsumer (real PostgreSQL)', () => {
     expect(row.message).not.toMatch(FORBIDDEN);
   });
 
-  it('TC-102-02 no message the consumer can write names a reason or a risk', async () => {
-    const all = await q('SELECT DISTINCT message FROM notification_log');
-    expect(all.length).toBeGreaterThanOrEqual(5);
-    for (const { message } of all as { message: string }[]) expect(message).not.toMatch(FORBIDDEN);
+  it('TC-102-02 no message the consumer can write names a reason or a risk, whatever the event carries', async () => {
+    // Self-contained (no reliance on rows left by other tests): every event shape the consumer
+    // accepts, each also carrying extra fields that look like a fraud reason.
+    const reasonFields = { note: 'Nghi ngờ gian lận, fraud suspicious', riskScore: 90 };
+    const variants = [
+      { ...TRANSFER_SAMPLE },
+      { ...TRANSFER_SAMPLE, toUserId: TRANSFER_SAMPLE.fromUserId, sameOwner: true },
+      { ...DEPOSIT_SAMPLE },
+      { ...ACCOUNT_LOCKED_SAMPLE },
+      { ...ACCOUNT_ACTIVE_SAMPLE },
+    ].flatMap(base => [base, { ...base, ...reasonFields }]);
+    const seen = new Set<string>();
+    for (const variant of variants) {
+      const event = { ...variant, eventId: randomUUID() } as unknown as DomainEvent;
+      const notices = noticesFor(event);
+      expect(notices.length).toBeGreaterThanOrEqual(1);
+      for (const notice of notices) {
+        expect(notice.message).not.toMatch(FORBIDDEN);
+        seen.add(notice.message);
+      }
+      await consumer.handle(event); // and what is really written, not only what noticesFor returns
+      const written = await rows(event.eventId);
+      expect(written.map(r => r.message).sort()).toEqual(notices.map(n => n.message).sort());
+      for (const { message } of written) expect(message).not.toMatch(FORBIDDEN);
+    }
+    // sender, recipient, deposit, lock and unlock texts are all reached by the variants.
+    expect(seen.size).toBe(5);
+    // A status event that carries a `reason` is refused by the schema itself, before any text exists.
+    const withReason = { ...ACCOUNT_LOCKED_SAMPLE, eventId: randomUUID(), reason: 'fraud' };
+    await expect(consumer.handle(withReason)).rejects.toBeInstanceOf(PoisonMessageError);
+    expect(await rows(withReason.eventId)).toEqual([]);
   });
 
   it('TC-102-05 an event received again writes nothing more', async () => {
@@ -164,7 +193,17 @@ describe('NotificationConsumer (real PostgreSQL)', () => {
 
   it('TC-102-06 a recipient that is not a user rolls the whole event back, so nothing is half-written', async () => {
     const event = { ...TRANSFER_SAMPLE, eventId: randomUUID(), toUserId: randomUUID() };
-    await expect(consumer.handle(event)).rejects.toThrow();
+    // Not just "any error": the foreign key of notification_log.user_id (23503) is what refuses it,
+    // and it is a plain error, not a PoisonMessageError, so the frame retries instead of dead-lettering.
+    const failure: unknown = await consumer.handle(event).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(QueryFailedError);
+    expect(failure).not.toBeInstanceOf(PoisonMessageError);
+    expect(failure).toMatchObject({
+      driverError: { code: '23503', constraint: 'notification_log_user_id_fkey' },
+    });
     expect(await rows(event.eventId)).toEqual([]);
     expect(await q('SELECT 1 FROM processed_events WHERE event_id=$1', [event.eventId])).toEqual(
       [],

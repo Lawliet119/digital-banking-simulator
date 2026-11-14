@@ -51,13 +51,44 @@ describe('DBS-105 R4 round trip', () => {
     ['2026-10-19T10:59:59.999Z', false],
     ['2026-10-19T11:00:00.001Z', true],
     ['2026-10-19T11:59:59.999Z', true],
-    ['2026-10-19T12:00:00.000Z', false],
-    ['2026-10-19T12:00:00.001Z', false],
     ['2026-10-18T12:00:00.000Z', false],
   ])('uses the half-open historical interval for %s', (reverseTransferOccurredAt, hits) => {
     expect(rule.evaluate(event, { ...features, reverseTransferOccurredAt }, params) !== null).toBe(
       hits,
     );
+  });
+
+  // BL-207(b): the provider only returns transfers strictly before the event, so a reverse fact at
+  // or after occurredAt is a provider fault. It fails closed (ADR-14: a feature fault rolls back and
+  // retries), exactly like the AI projection does; it is never silently scored as "no reverse".
+  it.each([
+    ['at the same instant', '2026-10-19T12:00:00.000Z'],
+    ['one millisecond after', '2026-10-19T12:00:00.001Z'],
+    ['a day after', '2026-10-20T12:00:00.000Z'],
+  ])('throws when the reverse transfer is %s the event', (_name, reverseTransferOccurredAt) => {
+    expect(() => rule.evaluate(event, { ...features, reverseTransferOccurredAt }, params)).toThrow(
+      'Invalid R4 reverse timestamp',
+    );
+  });
+
+  it('BL-207(c) compares at the resolution of the timestamps it receives (ms from the provider)', () => {
+    // The provider cuts both instants to milliseconds, so the smallest elapsed it can hand over is 1 ms.
+    const hit = rule.evaluate(
+      event,
+      { ...features, reverseTransferOccurredAt: '2026-10-19T11:59:59.999Z' },
+      params,
+    );
+    expect(hit?.explanation).toBe('Tài khoản đích đã chuyển ngược lại chưa đến 0,01 phút trước.');
+  });
+
+  it.each([
+    ['2026-10-19T11:45:00.000Z', 'khoảng 15,00'],
+    ['2026-10-19T11:59:59.999Z', 'chưa đến 0,01'],
+    ['2026-10-19T11:00:00.000Z', 'khoảng 60,00'],
+    ['2026-10-19T11:30:30.500Z', 'khoảng 29,49'],
+  ])('explains a reverse transfer at %s as %s minutes, rounded down', (reverse, text) => {
+    const hit = rule.evaluate(event, { ...features, reverseTransferOccurredAt: reverse }, params);
+    expect(hit?.explanation).toBe(`Tài khoản đích đã chuyển ngược lại ${text} phút trước.`);
   });
 
   it('preserves sub-millisecond ordering at both ends of the reverse window', () => {
@@ -139,6 +170,37 @@ describe('DBS-105 R4 round trip', () => {
     expect(rule.evaluate(event, features, { ...params, enabled: false })).toBeNull();
   });
 
+  // BL-207(a): a switched-off rule judges only its configuration (R3 policy), so disabling R4 in a
+  // new rule-set version rescues the consumer from a provider that emits bad data.
+  it.each([
+    ['an unparsable reverse timestamp', { reverseTransferOccurredAt: 'not-a-date' }, {}],
+    ['a non-string reverse timestamp', { reverseTransferOccurredAt: 5 }, {}],
+    [
+      'a reverse transfer after the event',
+      { reverseTransferOccurredAt: '2026-10-20T00:00:00Z' },
+      {},
+    ],
+    ['an unparsable occurredAt', {}, { occurredAt: 'garbage' }],
+  ])('returns null when disabled even with %s', (_name, featureFields, eventFields) => {
+    expect(
+      rule.evaluate(
+        { ...event, ...eventFields },
+        { ...features, ...featureFields } as unknown as Features,
+        { ...params, enabled: false },
+      ),
+    ).toBeNull();
+  });
+
+  it('still rejects a bad configuration when disabled', () => {
+    expect(() =>
+      rule.evaluate(event, features, {
+        ...params,
+        enabled: false,
+        thresholds: { reverseWindowMinutes: 61 },
+      }),
+    ).toThrow('Invalid R4 configuration');
+  });
+
   it.each(['', 'not-a-date', undefined])('rejects an invalid reverse timestamp %s', value => {
     expect(() =>
       rule.evaluate(
@@ -155,8 +217,32 @@ describe('DBS-105 R4 round trip', () => {
     ).toThrow();
   });
 
+  // BL-212 (DBS-105 review #4): the upper bound of the window is 60 minutes. 61 is refused when
+  // the rule is enabled, and a reverse transfer 61 minutes back is not a round trip at 60.
+  it('rejects a reverseWindowMinutes of 61 when enabled, and accepts the bounds 1 and 60', () => {
+    expect(() =>
+      rule.evaluate(event, features, { ...params, thresholds: { reverseWindowMinutes: 61 } }),
+    ).toThrow('Invalid R4 configuration');
+    for (const reverseWindowMinutes of [1, 60]) {
+      expect(() =>
+        rule.evaluate(event, features, { ...params, thresholds: { reverseWindowMinutes } }),
+      ).not.toThrow();
+    }
+  });
+
+  it('a reverse transfer 61 minutes back is outside the 60-minute window, 60 minutes back is inside', () => {
+    const back = (reverseTransferOccurredAt: string) =>
+      rule.evaluate(event, { ...features, reverseTransferOccurredAt }, params);
+    expect(back('2026-10-19T10:59:00.000Z')).toBeNull(); // 61:00.000
+    expect(back('2026-10-19T10:59:59.999Z')).toBeNull(); // 60:00.001
+    expect(back('2026-10-19T11:00:00.000Z')?.explanation).toBe(
+      'Tài khoản đích đã chuyển ngược lại khoảng 60,00 phút trước.',
+    );
+  });
+
   it.each([
     { ...params, enabled: 'yes' },
+    { ...params, thresholds: { reverseWindowMinutes: 61 } },
     { ...params, weight: -1 },
     { ...params, weight: 0.5 },
     { ...params, weight: 2147483648 },

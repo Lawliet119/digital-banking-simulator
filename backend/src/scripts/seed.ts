@@ -112,19 +112,26 @@ export interface SeedCustomerResult {
   accounts: SeedAccountResult[];
 }
 
+/** Status of a step that the seed did not send because the balance already shows its effect. */
+export const SEED_STEP_SKIPPED = 'SKIPPED_ALREADY_APPLIED';
+
 export interface SeedDepositResult {
   toAccountId: string;
   amount: string;
-  transferId: string;
+  /** `null` when the step was skipped (nothing was sent, so there is no transfer to name). */
+  transferId: string | null;
   status: string;
+  /** BL-213: the balance already reflected this deposit, so it was not sent again. */
+  skipped?: boolean;
 }
 
 export interface SeedTransferResult {
   fromAccountId: string;
   toAccountId: string;
   amount: string;
-  transferId: string;
+  transferId: string | null;
   status: string;
+  skipped?: boolean;
 }
 
 export interface SeedReport {
@@ -252,19 +259,21 @@ export async function resolveTokens(
   }
 
   // Cloud mode
-  const operator = cliCloudTokens?.operatorToken ?? process.env.DBS_OPERATOR_TOKEN;
-  const c1 = cliCloudTokens?.customer1Token ?? process.env.DBS_CUSTOMER_1_TOKEN;
-  const c2 = cliCloudTokens?.customer2Token ?? process.env.DBS_CUSTOMER_2_TOKEN;
-  const c3 = cliCloudTokens?.customer3Token ?? process.env.DBS_CUSTOMER_3_TOKEN;
+  // BL-252: biến môi trường là đường chính (token trên argv lộ qua `ps` và lịch sử shell); cờ `--*-token` chỉ còn
+  // là phương án dự phòng đã lỗi thời (runSeedCli cảnh báo). Biến rỗng coi như chưa đặt.
+  const operator = process.env.DBS_OPERATOR_TOKEN || cliCloudTokens?.operatorToken;
+  const c1 = process.env.DBS_CUSTOMER_1_TOKEN || cliCloudTokens?.customer1Token;
+  const c2 = process.env.DBS_CUSTOMER_2_TOKEN || cliCloudTokens?.customer2Token;
+  const c3 = process.env.DBS_CUSTOMER_3_TOKEN || cliCloudTokens?.customer3Token;
 
   if (!operator) {
     throw new SeedError(
-      'Missing operator token for cloud auth. Provide --operator-token or DBS_OPERATOR_TOKEN.',
+      'Missing operator token for cloud auth. Set DBS_OPERATOR_TOKEN (the deprecated --operator-token flag also works).',
     );
   }
   if (!c1 || !c2 || !c3) {
     throw new SeedError(
-      'Missing customer tokens for cloud auth. Provide --customer1-token, --customer2-token, --customer3-token (or DBS_CUSTOMER_{1,2,3}_TOKEN).',
+      'Missing customer tokens for cloud auth. Set DBS_CUSTOMER_1_TOKEN, DBS_CUSTOMER_2_TOKEN and DBS_CUSTOMER_3_TOKEN (the deprecated --customer{1,2,3}-token flags also work).',
     );
   }
 
@@ -276,6 +285,57 @@ export async function resolveTokens(
       'demo-customer-van-binh': c3,
     },
   };
+}
+
+const accountKey = (sub: string, type: string): string => `${sub}:${type}`;
+
+export interface SeedBalanceTrail {
+  /** Per account: the balances it passes through, index 0 = empty, 1 = after the deposit, then one per transfer that touches it. */
+  trails: Map<string, bigint[]>;
+  /** Per transfer: the index in the trail of the sender and of the receiver once that transfer is applied. */
+  transferPositions: { from: number; to: number }[];
+}
+
+/**
+ * BL-213: the seed decides from the balance whether a step already happened, so it must know which
+ * balance each step leaves behind. Deposits come first, then the transfers in order (the order
+ * `runSeed` executes them in).
+ */
+export function planBalanceTrail(
+  customers: readonly SeedCustomerPlan[] = SEED_CUSTOMERS,
+  transfers: readonly SeedTransferPlan[] = SEED_TRANSFERS,
+): SeedBalanceTrail {
+  const trails = new Map<string, bigint[]>();
+  for (const customer of customers) {
+    for (const account of customer.accounts) {
+      trails.set(accountKey(customer.sub, account.type), [0n, BigInt(account.initialDeposit)]);
+    }
+  }
+  const transferPositions = transfers.map(transfer => {
+    const fromKey = accountKey(transfer.fromSub, transfer.fromAccountType);
+    const toKey = accountKey(transfer.toSub, transfer.toAccountType);
+    const fromTrail = trails.get(fromKey);
+    const toTrail = trails.get(toKey);
+    if (!fromTrail || !toTrail) {
+      throw new SeedError(
+        `Transfer plan references an account missing from the plan: ${fromKey} -> ${toKey}`,
+      );
+    }
+    const amount = BigInt(transfer.amount);
+    fromTrail.push(fromTrail[fromTrail.length - 1] - amount);
+    toTrail.push(toTrail[toTrail.length - 1] + amount);
+    return { from: fromTrail.length - 1, to: toTrail.length - 1 };
+  });
+  return { trails, transferPositions };
+}
+
+function divergence(what: string, key: string, balance: bigint, trail: bigint[]): SeedError {
+  return new SeedError(
+    `Seed stopped before ${what}: the balance of ${key} is ${balance}, which is not one of the ` +
+      `balances the demo plan passes through (${trail.join(', ')}). Something else changed this ` +
+      `account, so the seed cannot tell which steps already ran and will not move money. ` +
+      `Rebuild the database (or fix the account) and run the seed again.`,
+  );
 }
 
 export async function runSeed(
@@ -367,13 +427,62 @@ export async function runSeed(
     });
   }
 
+  // BL-213: the fixed Idempotency-Key only protects a re-run until the key row is cleaned up
+  // (DBS-136, 7 days by default). So each step first reads the balance through the API and
+  // compares it with the balances the plan passes through: a step whose effect is already there
+  // is skipped, a balance outside the plan stops the seed before it moves any money.
+  const { trails, transferPositions } = planBalanceTrail();
+  const readBalance = async (sub: string, accountId: string): Promise<bigint> => {
+    const token = tokens.customers[sub];
+    if (!token) {
+      throw new SeedError(`No token provided for customer ${sub}`);
+    }
+    const res = await requestJson<RawAccountDto[]>(`${baseUrl}/v1/accounts`, 'GET', token);
+    const match = (res.data || []).find(a => a.id === accountId);
+    if (!match || match.balance === undefined) {
+      throw new SeedError(`Cannot read the balance of account ${accountId} (${sub}) from the API`);
+    }
+    return BigInt(match.balance);
+  };
+  const positionOf = (
+    what: string,
+    sub: string,
+    type: string,
+    balance: bigint,
+  ): { position: number; trail: bigint[] } => {
+    const key = accountKey(sub, type);
+    const trail = trails.get(key);
+    if (!trail) {
+      throw new SeedError(`Account ${key} is not part of the demo plan`);
+    }
+    const position = trail.indexOf(balance);
+    if (position < 0) {
+      throw divergence(what, key, balance, trail);
+    }
+    return { position, trail };
+  };
+
   // 2. Operator deposits
   const depositResults: SeedDepositResult[] = [];
   for (const plan of SEED_CUSTOMERS) {
     for (const accPlan of plan.accounts) {
-      const acc = accountLookup.get(`${plan.sub}:${accPlan.type}`);
+      const acc = accountLookup.get(accountKey(plan.sub, accPlan.type));
       if (!acc) {
         throw new SeedError(`Missing account lookup for ${plan.sub}:${accPlan.type}`);
+      }
+
+      const balance = await readBalance(plan.sub, acc.id);
+      const { position } = positionOf('the deposit', plan.sub, accPlan.type, balance);
+      if (position >= 1) {
+        // Balance already past "empty": the deposit (or what followed it) is in the ledger.
+        depositResults.push({
+          toAccountId: acc.id,
+          amount: accPlan.initialDeposit,
+          transferId: null,
+          status: SEED_STEP_SKIPPED,
+          skipped: true,
+        });
+        continue;
       }
 
       const depositRes = await requestJson<RawTransferResultDto>(
@@ -395,7 +504,7 @@ export async function runSeed(
 
   // 3. Customer transfers
   const transferResults: SeedTransferResult[] = [];
-  for (const txPlan of SEED_TRANSFERS) {
+  for (const [index, txPlan] of SEED_TRANSFERS.entries()) {
     const fromAcc = accountLookup.get(`${txPlan.fromSub}:${txPlan.fromAccountType}`);
     const toAcc = accountLookup.get(`${txPlan.toSub}:${txPlan.toAccountType}`);
     if (!fromAcc) {
@@ -412,6 +521,42 @@ export async function runSeed(
     const senderToken = tokens.customers[txPlan.fromSub];
     if (!senderToken) {
       throw new SeedError(`No token provided for sender customer ${txPlan.fromSub}`);
+    }
+
+    const expected = transferPositions[index];
+    const label = `transfer #${index + 1}`;
+    const from = positionOf(
+      label,
+      txPlan.fromSub,
+      txPlan.fromAccountType,
+      await readBalance(txPlan.fromSub, fromAcc.id),
+    );
+    const to = positionOf(
+      label,
+      txPlan.toSub,
+      txPlan.toAccountType,
+      await readBalance(txPlan.toSub, toAcc.id),
+    );
+    const fromDone = from.position >= expected.from;
+    const toDone = to.position >= expected.to;
+    if (fromDone !== toDone) {
+      throw new SeedError(
+        `Seed stopped before ${label}: the sender ${accountKey(txPlan.fromSub, txPlan.fromAccountType)} ` +
+          `${fromDone ? 'already shows' : 'does not show'} the transfer but the receiver ` +
+          `${accountKey(txPlan.toSub, txPlan.toAccountType)} ${toDone ? 'does' : 'does not'}. ` +
+          `The two sides disagree, so the seed will not move money. Rebuild the database and run the seed again.`,
+      );
+    }
+    if (fromDone && toDone) {
+      transferResults.push({
+        fromAccountId: fromAcc.id,
+        toAccountId: toAcc.id,
+        amount: txPlan.amount,
+        transferId: null,
+        status: SEED_STEP_SKIPPED,
+        skipped: true,
+      });
+      continue;
     }
 
     const transferRes = await requestJson<RawTransferResultDto>(
@@ -554,20 +699,21 @@ export function printHelp(): string {
     '  --url <url>              API base URL (default: http://127.0.0.1:3000 or DBS_API_URL)',
     '  --auth <local|cloud>     Authentication mode: local | cloud (default: local)',
     '  --key-dir <path>         Local JWT signing key directory (default: .auth-local)',
-    '  --operator-token <jwt>   Operator access token (required for cloud auth)',
-    '  --customer1-token <jwt>  Customer 1 token (Nguyễn Minh Anh, required for cloud)',
-    '  --customer2-token <jwt>  Customer 2 token (Trần Thu Hà, required for cloud)',
-    '  --customer3-token <jwt>  Customer 3 token (Nguyễn Văn Bình, required for cloud)',
+    '  --operator-token <jwt>   DEPRECATED, use DBS_OPERATOR_TOKEN (a token on argv shows up in `ps`)',
+    '  --customer1-token <jwt>  DEPRECATED, use DBS_CUSTOMER_1_TOKEN',
+    '  --customer2-token <jwt>  DEPRECATED, use DBS_CUSTOMER_2_TOKEN',
+    '  --customer3-token <jwt>  DEPRECATED, use DBS_CUSTOMER_3_TOKEN',
     '  --quiet, -q              Suppress summary output on success',
     '  --help, -h               Show this help message',
     '',
     'Environment variables:',
     '  DBS_API_URL / API_URL    Default API base URL',
     '  AUTH_MODE                Set to "local" or "cognito" (mapped to cloud)',
-    '  DBS_OPERATOR_TOKEN       Operator token for cloud auth',
-    '  DBS_CUSTOMER_1_TOKEN     Customer 1 token for cloud auth',
-    '  DBS_CUSTOMER_2_TOKEN     Customer 2 token for cloud auth',
-    '  DBS_CUSTOMER_3_TOKEN     Customer 3 token for cloud auth',
+    '  DBS_OPERATOR_TOKEN       Operator token for cloud auth (required; wins over the flag)',
+    '  DBS_CUSTOMER_1_TOKEN     Customer 1 token, Nguyễn Minh Anh (required for cloud)',
+    '  DBS_CUSTOMER_2_TOKEN     Customer 2 token, Trần Thu Hà (required for cloud)',
+    '  DBS_CUSTOMER_3_TOKEN     Customer 3 token, Nguyễn Văn Bình (required for cloud)',
+    '                           Get them with infra/scripts/demo-token.sh --role operator|customer1|customer2|customer3',
     '',
   ].join('\n');
 }
@@ -595,18 +741,22 @@ export function formatReport(report: SeedReport): string {
   lines.push(`OPERATOR DEPOSITS (${report.deposits.length} transactions):`);
   for (const d of report.deposits) {
     const amountStr = `${Number(d.amount).toLocaleString('vi-VN')} VND`;
-    lines.push(`• Target: ${d.toAccountId} | Amount: ${amountStr} | Tx: ${d.transferId}`);
+    const tx = d.skipped ? 'skipped (balance already reflects it)' : d.transferId;
+    lines.push(`• Target: ${d.toAccountId} | Amount: ${amountStr} | Tx: ${tx}`);
   }
 
   lines.push('');
   lines.push(`CUSTOMER TRANSFERS (${report.transfers.length} transactions):`);
   for (const t of report.transfers) {
     const amountStr = `${Number(t.amount).toLocaleString('vi-VN')} VND`;
-    lines.push(`• From: ${t.fromAccountId} -> To: ${t.toAccountId} | Amount: ${amountStr}`);
+    const note = t.skipped ? ' | skipped (balance already reflects it)' : '';
+    lines.push(`• From: ${t.fromAccountId} -> To: ${t.toAccountId} | Amount: ${amountStr}${note}`);
   }
 
   lines.push('');
-  lines.push('Idempotency verified: Re-running seed replays transactions without duplicate funds.');
+  lines.push(
+    'Re-run safe: each deposit/transfer is sent only when the API balance shows it has not happened yet, so it holds even after the Idempotency-Key rows were cleaned up.',
+  );
   lines.push('Ledger invariant: System funding covers all deposits; total ledger balance = 0.');
   lines.push('============================================================');
   return lines.join('\n');
@@ -622,6 +772,24 @@ export async function runSeedCli(argv: string[], io?: SeedCliIo): Promise<number
     if (args.help) {
       stdout(`${printHelp()}\n`);
       return 0;
+    }
+
+    const usedFlags = (
+      [
+        ['--operator-token', args.operatorToken],
+        ['--customer1-token', args.customer1Token],
+        ['--customer2-token', args.customer2Token],
+        ['--customer3-token', args.customer3Token],
+      ] as const
+    )
+      .filter(([, value]) => value !== undefined)
+      .map(([flag]) => flag);
+    if (usedFlags.length > 0) {
+      // Chỉ nêu tên cờ, không bao giờ in giá trị token.
+      stderr(
+        `Warning: ${usedFlags.join(', ')} is deprecated: a token on the command line is visible in \`ps\` and shell history. ` +
+          'Use DBS_OPERATOR_TOKEN and DBS_CUSTOMER_{1,2,3}_TOKEN instead.\n',
+      );
     }
 
     const report = await runSeed(

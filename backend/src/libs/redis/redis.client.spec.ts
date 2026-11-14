@@ -126,6 +126,101 @@ describe('DBS-76 Redis policy', () => {
     await expect(client.get('key')).rejects.toMatchObject({ reason: 'COMMAND_FAILED' });
     expect(client.circuitState).toBe('open');
   });
+  /**
+   * BL-152: the >=50% listener and opossum itself both read `stats.fires`. opossum emits `fire`
+   * before it checks the state, so a call fast-rejected while OPEN also raises `fires` (and
+   * `rejects`), but never `failures` or `successes`. These tests drive the real opossum with a caller
+   * that keeps retrying while OPEN.
+   */
+  describe('BL-152 a caller that retries while the breaker is OPEN', () => {
+    /** Five successes then five failures: the tenth call is exactly 50% and opens the breaker. */
+    async function openAtFiveOfTen(): Promise<void> {
+      for (let i = 0; i < 5; i++) await client.get('key');
+      driver.get.mockRejectedValue(new Error('down'));
+      for (let i = 0; i < 5; i++)
+        await expect(client.get('key')).rejects.toMatchObject({ reason: 'COMMAND_FAILED' });
+      expect(client.circuitState).toBe('open');
+    }
+    /** `calls` retries spread over `ms`, every one fast-rejected without touching Redis. */
+    async function retryWhileOpen(calls: number, ms: number): Promise<void> {
+      const reads = driver.get.mock.calls.length;
+      for (let i = 0; i < calls; i++) {
+        await expect(client.get('key')).rejects.toMatchObject({ reason: 'CIRCUIT_OPEN' });
+        await jest.advanceTimersByTimeAsync(ms / calls);
+      }
+      expect(driver.get.mock.calls.length).toBe(reads);
+    }
+
+    it('TC-76-05c opossum 10.0.0 counts a fast-rejected call in stats.fires (the premise of BL-152)', async () => {
+      const CircuitBreaker = (await import('opossum')).default;
+      const breaker = new CircuitBreaker(() => Promise.reject(new Error('down')), {
+        volumeThreshold: 1,
+        resetTimeout: 5000,
+      });
+      try {
+        await expect(breaker.fire()).rejects.toThrow('down');
+        expect(breaker.opened).toBe(true);
+        const before = breaker.stats;
+        await expect(breaker.fire()).rejects.toMatchObject({ code: 'EOPENBREAKER' });
+        expect(breaker.stats.fires).toBe(before.fires + 1);
+        expect(breaker.stats.rejects).toBe(before.rejects + 1);
+        expect(breaker.stats.failures).toBe(before.failures);
+      } finally {
+        breaker.shutdown();
+      }
+    });
+
+    it('TC-76-05d retries do not move the half-open time (exactly resetTimeout after it opened)', async () => {
+      await openAtFiveOfTen();
+      await retryWhileOpen(49, 4900);
+      await jest.advanceTimersByTimeAsync(99);
+      expect(client.circuitState).toBe('open');
+      await jest.advanceTimersByTimeAsync(1);
+      expect(client.circuitState).toBe('half-open');
+    });
+
+    it('TC-76-05e a failed half-open probe re-opens for another full resetTimeout despite the retries', async () => {
+      await openAtFiveOfTen();
+      await retryWhileOpen(50, 5000);
+      expect(client.circuitState).toBe('half-open');
+      await expect(client.get('key')).rejects.toMatchObject({ reason: 'COMMAND_FAILED' });
+      expect(client.circuitState).toBe('open');
+      await jest.advanceTimersByTimeAsync(4999);
+      expect(client.circuitState).toBe('open');
+      await jest.advanceTimersByTimeAsync(1);
+      expect(client.circuitState).toBe('half-open');
+    });
+
+    it('TC-76-05f after recovery the breaker still opens on the same 5/10 rule: the retries are not counted as calls', async () => {
+      await openAtFiveOfTen();
+      await retryWhileOpen(50, 5000);
+      driver.get.mockResolvedValue('restored');
+      expect(await client.get('key')).toBe('restored'); // the half-open probe closes the breaker
+      expect(client.circuitState).toBe('closed');
+      // The window (10 s) still holds the ten calls that opened it, plus the probe: 5 failures in 11
+      // calls that ran. One more failure makes 6 of 12 = 50%, exactly the boundary, so it opens now.
+      // Were the 49 fast-rejects counted as calls, 6 of 61 would keep it closed for dozens more.
+      driver.get.mockRejectedValue(new Error('down again'));
+      await expect(client.get('key')).rejects.toMatchObject({ reason: 'COMMAND_FAILED' });
+      expect(client.circuitState).toBe('open');
+      expect(driver.get).toHaveBeenCalledTimes(12);
+    });
+
+    it('TC-76-05g the same boundary holds below it: 4 failures of 12 that ran stay closed after recovery', async () => {
+      await openAtFiveOfTen();
+      await retryWhileOpen(50, 5000);
+      driver.get.mockResolvedValue('restored');
+      for (let i = 0; i < 2; i++) expect(await client.get('key')).toBe('restored');
+      expect(client.circuitState).toBe('closed');
+      // 5 failures in 12 ran (5/12 = 41.7%). A sixth makes 6/13 = 46%: still below the boundary.
+      driver.get.mockRejectedValue(new Error('down again'));
+      await expect(client.get('key')).rejects.toMatchObject({ reason: 'COMMAND_FAILED' });
+      expect(client.circuitState).toBe('closed');
+      // The seventh makes 7 of 14 = 50%: open.
+      await expect(client.get('key')).rejects.toMatchObject({ reason: 'COMMAND_FAILED' });
+      expect(client.circuitState).toBe('open');
+    });
+  });
   it('TC-76-01 invalidTTL never calls Redis or counts fallback; unavailable is explicit', async () => {
     for (const ttl of [0, -1, 1.5, 604801, 1e30]) {
       await expect(client.set('key', 'v', ttl)).rejects.toThrow(TypeError);

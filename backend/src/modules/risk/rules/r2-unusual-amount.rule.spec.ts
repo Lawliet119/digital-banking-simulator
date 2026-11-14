@@ -101,18 +101,22 @@ describe('DBS-94 R2 unusual amount', () => {
     });
     expect(run(max, ft({ medianAmount30dTimes2: '18446744073709551614' }), one)).toBeNull();
     const hit = run(max, ft({ medianAmount30dTimes2: '2' }));
-    expect(hit?.explanation).toBe(`Số tiền ${max} gấp ${max}× trung vị 30 ngày (1)`);
+    // BL-184 H7: one money format (dot-grouped, `đ`), shared with R3 and R6.
+    expect(hit?.explanation).toBe(
+      'Số tiền 9.223.372.036.854.775.807đ gấp 9.223.372.036.854.775.807× trung vị 30 ngày (1đ)',
+    );
   });
 
   it.each([
-    ['50000000', '8000000', 'Số tiền 50000000 gấp 12,5× trung vị 30 ngày (4000000)'],
-    ['5000001', '2000000', 'Số tiền 5000001 gấp hơn 5× trung vị 30 ngày (1000000)'],
-    ['5009999', '2000000', 'Số tiền 5009999 gấp hơn 5× trung vị 30 ngày (1000000)'],
-    ['5010000', '2000000', 'Số tiền 5010000 gấp 5,01× trung vị 30 ngày (1000000)'],
-    ['10050000', '2000000', 'Số tiền 10050000 gấp 10,05× trung vị 30 ngày (1000000)'],
-    ['10500000', '2000000', 'Số tiền 10500000 gấp 10,5× trung vị 30 ngày (1000000)'],
-    ['12000000', '2000000', 'Số tiền 12000000 gấp 12× trung vị 30 ngày (1000000)'],
-    ['8', '3', 'Số tiền 8 gấp 5,33× trung vị 30 ngày (1,5)'],
+    ['50000000', '8000000', 'Số tiền 50.000.000đ gấp 12,5× trung vị 30 ngày (4.000.000đ)'],
+    ['5000001', '2000000', 'Số tiền 5.000.001đ gấp hơn 5× trung vị 30 ngày (1.000.000đ)'],
+    ['5009999', '2000000', 'Số tiền 5.009.999đ gấp hơn 5× trung vị 30 ngày (1.000.000đ)'],
+    ['5010000', '2000000', 'Số tiền 5.010.000đ gấp 5,01× trung vị 30 ngày (1.000.000đ)'],
+    ['10050000', '2000000', 'Số tiền 10.050.000đ gấp 10,05× trung vị 30 ngày (1.000.000đ)'],
+    ['10500000', '2000000', 'Số tiền 10.500.000đ gấp 10,5× trung vị 30 ngày (1.000.000đ)'],
+    ['12000000', '2000000', 'Số tiền 12.000.000đ gấp 12× trung vị 30 ngày (1.000.000đ)'],
+    ['8', '3', 'Số tiền 8đ gấp 5,33× trung vị 30 ngày (1,5đ)'],
+    ['5000003', '2000001', 'Số tiền 5.000.003đ gấp hơn 5× trung vị 30 ngày (1.000.000,5đ)'],
   ])('TC-94-05 explains amount %s against doubled median %s', (amount, doubled, expected) => {
     expect(run(amount, ft({ medianAmount30dTimes2: doubled }))?.explanation).toBe(expected);
   });
@@ -120,19 +124,33 @@ describe('DBS-94 R2 unusual amount', () => {
   it('TC-94-05 shows the configured multiplier when the excess is tiny, also a decimal one', () => {
     const one = withThresholds({ medianMultiplier: 1, historyDays: 30, minHistory: 5 });
     expect(run('1004000', baseFeatures, one)?.explanation).toBe(
-      'Số tiền 1004000 gấp hơn 1× trung vị 30 ngày (1000000)',
+      'Số tiền 1.004.000đ gấp hơn 1× trung vị 30 ngày (1.000.000đ)',
     );
     const m35 = withThresholds({ medianMultiplier: 3.5, historyDays: 30, minHistory: 5 });
     expect(run('3500001', baseFeatures, m35)?.explanation).toBe(
-      'Số tiền 3500001 gấp hơn 3,5× trung vị 30 ngày (1000000)',
+      'Số tiền 3.500.001đ gấp hơn 3,5× trung vị 30 ngày (1.000.000đ)',
     );
     expect(run('7000000', baseFeatures, m35)?.explanation).toBe(
-      'Số tiền 7000000 gấp 7× trung vị 30 ngày (1000000)',
+      'Số tiền 7.000.000đ gấp 7× trung vị 30 ngày (1.000.000đ)',
     );
   });
 
   it('TC-94-06 does not trigger when disabled', () => {
     expect(run('900000000', baseFeatures, { ...v1, enabled: false })).toBeNull();
+  });
+
+  // BL-207(a): a switched-off rule judges only its configuration, never the provider's data.
+  describe('disabled rule ignores bad data', () => {
+    const off = { ...v1, enabled: false };
+    it.each([-1, 1.5, NaN, '6', undefined])('historyCount30d %p', count => {
+      expect(run('9000000', ft({ historyCount30d: count }), off)).toBeNull();
+    });
+    it.each(['abc', 4, undefined, '1.5'])('medianAmount30dTimes2 %p', median => {
+      expect(run('9000000', ft({ medianAmount30dTimes2: median }), off)).toBeNull();
+    });
+    it.each(['0', '', 5, undefined])('amount %p', amount => {
+      expect(rule.evaluate(ev(amount), baseFeatures, off)).toBeNull();
+    });
   });
 
   it('TC-94-06 uses the configured multiplier and weight instead of the seed', () => {

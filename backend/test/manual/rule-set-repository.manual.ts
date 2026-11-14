@@ -1,20 +1,17 @@
 // From backend/: DATABASE_URL=<postgres server> npx ts-node -r tsconfig-paths/register test/manual/rule-set-repository.manual.ts
-// Needs `docker compose up -d` (Valkey on :6379, container dbs-valkey-1) and a PostgreSQL server for the throwaway DB.
-// It uses the real keys cfg:risk:latest and cfg:risk:v{n} of the local Valkey and deletes them at the end.
+// Needs Docker (a disposable Valkey container is started and removed by the script) and a PostgreSQL
+// server for the throwaway DB. BL-212: it no longer writes into the shared compose Valkey, so a local
+// worker on the compose PostgreSQL can never read the throwaway versions of this script.
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { setTimeout as wait } from 'node:timers/promises';
+import { createClient } from 'redis';
 import { DataSource } from 'typeorm';
 import { RedisClient, RedisMetrics } from '@libs/redis';
-import {
-  LATEST_KEY,
-  RuleSetRepository,
-  versionKey,
-} from '@modules/risk/config/rule-set.repository';
+import { LATEST_KEY, RuleSetRepository } from '@modules/risk/config/rule-set.repository';
 import { RiskMetrics } from '@modules/risk/risk.metrics';
+import { until } from '../support/manual-wait';
 import { createTempDatabase, migrate } from '../support/temp-database';
+import { startValkeyContainer, type StartedValkey } from '../support/valkey.container';
 
-const CONTAINER = 'dbs-valkey-1';
 const rules = (r1Weight: number) => ({
   R1: { enabled: true, weight: r1Weight, maxTransfers: 5, windowMinutes: 10 },
   R2: { enabled: true, weight: 25, medianMultiplier: 5, historyDays: 30, minHistory: 5 },
@@ -31,21 +28,23 @@ const rules = (r1Weight: number) => ({
 
 async function main(): Promise<void> {
   const db = await createTempDatabase();
+  let valkey: StartedValkey | undefined;
   let source: DataSource | undefined;
   let client: RedisClient | undefined;
+  let admin: ReturnType<typeof createClient> | undefined;
   let paused = false;
   try {
     await migrate(db.url);
     source = await new DataSource({ type: 'postgres', url: db.url }).initialize();
-    client = new RedisClient(
-      { url: 'redis://localhost:6379', commandTimeoutMs: 50 },
-      new RedisMetrics(),
-    );
-    while (!client.isReady) await wait(20);
-    for (const key of [LATEST_KEY, versionKey(1), versionKey(2), versionKey(3)])
-      await client.del(key);
+    valkey = await startValkeyContainer();
+    client = new RedisClient({ url: valkey.url, commandTimeoutMs: 50 }, new RedisMetrics());
+    admin = createClient({ url: valkey.url });
+    admin.on('error', () => undefined);
+    await admin.connect();
+    await until(() => client!.isReady, 'Valkey to accept the client', 10_000, 20);
     const metrics = new RiskMetrics();
-    const fresh = () => new RuleSetRepository({ redis: client!, db: source!, metrics });
+    const fresh = (m = metrics) =>
+      new RuleSetRepository({ redis: client!, db: source!, metrics: m });
     const add = (n: number, r1Weight: number) =>
       source!.query('INSERT INTO risk_rule_sets(version,config) VALUES($1,$2::jsonb)', [
         n,
@@ -60,16 +59,19 @@ async function main(): Promise<void> {
     const first = await fresh().current();
     assert.equal(first.version, 1);
     assert.equal((await client.readExpiringVersion(LATEST_KEY))?.version, 1);
-    assert.ok(await client.get(versionKey(1)));
     console.log(
-      `M-110-01 PASS: current version ${first.version} (R1 weight ${first.rules.R1.weight}); ${LATEST_KEY} and ${versionKey(1)} stored`,
+      `M-110-01 PASS: current version ${first.version} (R1 weight ${first.rules.R1.weight}); ${LATEST_KEY} stored`,
     );
 
     // M-110-02: version 2 appears; the cache keeps v1 until latest expires.
     await add(2, 55);
     assert.equal((await fresh().current()).version, 1);
-    execFileSync('docker', ['exec', CONTAINER, 'valkey-cli', 'PEXPIRE', LATEST_KEY, '1']);
-    await wait(50);
+    await admin.pExpire(LATEST_KEY, 1);
+    await until(
+      async () => (await admin!.exists(LATEST_KEY)) === 0,
+      `${LATEST_KEY} to expire`,
+      5000,
+    );
     const second = await fresh().current();
     assert.equal(second.version, 2);
     assert.equal(second.rules.R1.weight, 55);
@@ -78,35 +80,59 @@ async function main(): Promise<void> {
     );
 
     // M-110-03: Valkey paused, version 3 added: read straight from PostgreSQL.
-    execFileSync('docker', ['pause', CONTAINER]);
+    await valkey.pause();
     paused = true;
     await add(3, 61);
     const during = await fresh().current();
     assert.equal(during.version, 3);
     assert.equal(during.rules.R1.weight, 61);
-    execFileSync('docker', ['unpause', CONTAINER]);
-    paused = false;
     console.log(
       `M-110-03 PASS: Valkey paused -> version ${during.version} read from PostgreSQL at once (config fallbacks=${await metrics.configFallbackCount()})`,
     );
-  } finally {
-    if (paused) execFileSync('docker', ['unpause', CONTAINER]);
-    if (client) {
-      for (let attempt = 0; attempt < 40; attempt++) {
+
+    // M-110-04 (BL-212): recovery. After the unpause the cache works again: a cold read stores
+    // `latest` for version 3 and the next read is answered from it.
+    await valkey.resume();
+    paused = false;
+    await until(
+      async () => {
         try {
-          await client.ping();
-          break;
+          await client!.ping();
+          return true;
         } catch {
-          await wait(250);
+          return false;
         }
-      }
-      for (const key of [LATEST_KEY, versionKey(1), versionKey(2), versionKey(3)])
-        await client.del(key).catch(() => undefined);
-      client.onModuleDestroy();
+      },
+      'Valkey to answer PING after the unpause',
+      20_000,
+      250,
+    );
+    await admin.del(LATEST_KEY);
+    assert.equal((await fresh().current()).version, 3);
+    assert.equal((await client.readExpiringVersion(LATEST_KEY))?.version, 3);
+    console.log('M-110-04 PASS: Valkey back -> latest stored again for version 3');
+
+    // M-110-05 (BL-212): the error path. A `latest` nobody wrote (junk, outside int4) is not
+    // believed: the repository answers from PostgreSQL, counts it as corrupt, and repairs the key.
+    for (const junk of ['9999999999', 'x', '{"v":3}']) {
+      await admin.set(LATEST_KEY, junk, { PX: 5000 });
+      const m = new RiskMetrics();
+      const set = await fresh(m).current();
+      assert.equal(set.version, 3, `junk "${junk}" must not change the answer`);
+      assert.equal(await m.configFallbackCount('corrupt'), 1, `junk "${junk}" counted as corrupt`);
+      assert.equal((await client.readExpiringVersion(LATEST_KEY))?.version, 3);
     }
+    console.log(
+      'M-110-05 PASS: junk latest ("9999999999", "x", JSON) -> PostgreSQL v3, counted corrupt, key repaired',
+    );
+  } finally {
+    if (paused) await valkey?.resume().catch(() => undefined);
+    client?.onModuleDestroy();
+    if (admin?.isOpen) admin.destroy();
     await source?.destroy();
     await db.drop();
-    console.log('cleanup done: temp database dropped, cfg:risk keys deleted');
+    await valkey?.stop();
+    console.log('cleanup done: temp database dropped, disposable Valkey removed');
   }
 }
 

@@ -3,3 +3,10 @@ M-109-01 PASS: txCount10m=7 newRecipients1h=3 reverse=2026-10-19T02:40:00.000Z (
 M-109-02 PASS: same event again and SQL-only give identical features
 M-109-03 PASS: Valkey paused -> exact features from SQL (R1 fallbacks=2); after unpause txCount1h=10 includes the transfers made during the outage
 cleanup done: temp database dropped
+
+--- BL-212 (2026-11-14, Node 24, ElasticMQ :9324 + postgres:17 tạm; script đã siết, chạy lại) ---
+Script đã viết lại ở BUG-20261110 (không còn Redis, nên không còn vòng chờ Valkey); thêm M-ORDER-03 (lỗi SQL rồi hồi phục). M-109-01..03 cũ của doc không còn tương ứng với script.
+M-ORDER-01 PASS: committed undelivered rows counted by R1/R5; redelivery unchanged
+M-ORDER-02 PASS: historical replay does not mutate future windows
+M-ORDER-03 PASS: SQL failure -> extract rejects; after recovery the features equal the healthy ones
+cleanup: isolated temporary database dropped

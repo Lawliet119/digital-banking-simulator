@@ -343,7 +343,7 @@ Quét DoD và BACKLOG: DoD #1 → bước 1, 3; #2 → TC-02/04/05; #3 → bư�
   - **BL-043** (task tích hợp AI): thay nhánh `scoringConfig` (hiện chấm `rule_only` khi khối `ai` hợp lệ).
   - **BL-046** còn: DLQ của lỗi luật trên queue thật, metric `risk_rule_error_total`.
   - **BL-041** còn: review UC-10 và provider offline.
-  - **BL-010** còn: test tự động `UNKNOWN_EVENT_TYPE` riêng cho từng consumer.
+  - **BL-010**: test tự động `UNKNOWN_EVENT_TYPE`, sai schema và JSON hỏng riêng cho từng consumer đã có ở `test/services/consumer-poison.services-spec.ts` (TC-010-01..03).
   - BL-187, BL-205 (các mục khác mục 8) và BL-223 không đổi.
 
 ## 9. Tài liệu đã cập nhật

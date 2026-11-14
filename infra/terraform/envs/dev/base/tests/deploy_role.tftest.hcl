@@ -1,4 +1,10 @@
 mock_provider "aws" {
+  # BL-051: ARN SNS giả đúng định dạng cho alarm_actions (provider kiểm định dạng khi apply).
+  mock_resource "aws_sns_topic" {
+    defaults = {
+      arn = "arn:aws:sns:ap-southeast-1:123456789012:dbs-dev-alarms"
+    }
+  }
   mock_resource "aws_cognito_user_pool" {
     defaults = {
       id = "ap-southeast-1_ABCDEFGHI"

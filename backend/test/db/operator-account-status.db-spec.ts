@@ -433,6 +433,7 @@ describe('DBS-113 operator account lock and unlock', () => {
     const target = await customer('Hoàng Minh Đức');
     const beforeAudit = (await q('SELECT count(*)::int AS n FROM audit_log'))[0].n;
 
+    const refusals: [string, string, string][] = [];
     for (const role of ['customer', 'auditor', 'admin'] as const) {
       const token = await app.issuer.token(role, { sub: randomUUID() });
       const lockForbidden = await lockReq(
@@ -441,6 +442,11 @@ describe('DBS-113 operator account lock and unlock', () => {
         token,
       ).expect(403);
       expect(lockForbidden.body.errorCode).toBe(ErrorCode.FORBIDDEN);
+      refusals.push([
+        role,
+        'POST /v1/operator/accounts/:id/lock',
+        String(lockForbidden.headers['x-correlation-id']),
+      ]);
 
       const unlockForbidden = await unlockReq(
         target.accountId,
@@ -448,6 +454,28 @@ describe('DBS-113 operator account lock and unlock', () => {
         token,
       ).expect(403);
       expect(unlockForbidden.body.errorCode).toBe(ErrorCode.FORBIDDEN);
+      refusals.push([
+        role,
+        'POST /v1/operator/accounts/:id/unlock',
+        String(unlockForbidden.headers['x-correlation-id']),
+      ]);
+    }
+    // BL-132 / BL-019 (AC-8.1): the refusal of the auditor (and the others) is one DENIED row each.
+    for (const [role, route, correlationId] of refusals) {
+      expect(
+        await q(
+          'SELECT actor_role, action, outcome, target_type, target_id FROM audit_log WHERE correlation_id=$1',
+          [correlationId],
+        ),
+      ).toEqual([
+        {
+          actor_role: role,
+          action: 'access.denied',
+          outcome: 'DENIED',
+          target_type: 'route',
+          target_id: route,
+        },
+      ]);
     }
 
     const unauthLock = await request(app.url)
@@ -465,7 +493,8 @@ describe('DBS-113 operator account lock and unlock', () => {
     const [acc] = await q('SELECT status FROM accounts WHERE id = $1', [target.accountId]);
     expect(acc.status).toBe('ACTIVE');
     const afterAudit = (await q('SELECT count(*)::int AS n FROM audit_log'))[0].n;
-    expect(afterAudit).toBe(beforeAudit);
+    // Only the 6 DENIED rows above; the 401s (no identity) and the account itself add nothing.
+    expect(afterAudit).toBe(beforeAudit + refusals.length);
   });
 
   it('TC-113-08 validates :id and reason boundaries (400 on invalid inputs, 200 on 1..200 chars and SQL injection strings)', async () => {

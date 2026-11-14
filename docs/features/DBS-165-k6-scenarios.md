@@ -72,7 +72,7 @@ File chính: năm entrypoint, `lib/config.js` (cấu hình thuần), `lib/client
 | TC-165-03 | DoD1,2; SEC05 | k6/HTTP/PG thật | biên10/11 và100/101; 429 RATE_LIMITED + Retry-After; cùng phút và luân phiên URL |
 | TC-165-04 | DoD3 | smoke HTTP/PG thật | đủ5 script chạy local; không retry/SQL seed tiền; checker PASS sau mỗi run |
 | TC-165-05 | DoD4 | Node unit/manual | runner giữ exit lỗi, vẫn checker khi k6 lỗi; raw/summary JSON; thiếu config/fixture sai/target down phải đỏ |
-| TC-165-06 | DoD1,4 | Node unit và kiểm output | fixture thiếu bị từ chối; không dùng tag URL hay token trong raw output. Validator URL/token được đọc đối chiếu, chưa có unit riêng cho từng biến thể sai |
+| TC-165-06 | DoD1,4 | Node unit và kiểm output | fixture thiếu bị từ chối; không dùng tag URL hay token trong raw output. Từ BL-233, mỗi biến thể sai của validator có một unit riêng trong `load-tests/test/fixture-validation.test.mjs` (CI chạy ở job `unit`): `cleanUrl` từ chối thiếu/không phải chuỗi, thiếu scheme, scheme khác http(s), khoảng trắng hoặc xuống dòng, query, fragment, userinfo; `validateFixture` từ chối sai số khách (0, 1, 2, 4), `customers` không phải mảng, `baseUrl` thiếu/sai/khác mục tiêu (host, cổng, scheme), `accountId` thiếu/sai độ dài/không hex, `sub` thiếu, token thiếu/không phải chuỗi/sai số đoạn/đoạn rỗng/có khoảng trắng/có tiền tố Bearer/ký tự ngoài base64url, hai khách trùng tài khoản; `assertTokensOutliveRun` (tách từ `run.cjs`, hành vi giữ nguyên) từ chối token hết hạn, hết hạn trước khi chạy xong, thiếu hoặc sai kiểu `exp`, sai hoặc thiếu `sub`, payload không phải JSON, và chốt biên đúng 60 giây sau khi chạy xong; lỗi không lặp lại URL hay token bị từ chối |
 | Quy trình | DoD5 | review/CI | CI xanh, Dev khác review, merge do người quản lý repo |
 
 ## 5. Test thủ công
@@ -120,8 +120,8 @@ Kiểm tra bàn giao: lint đạt, typecheck đạt; unit98 suites/1770 tests đ
 | TC-165-03 | rate-limit.js qua2AppModule dùng chung Valkey | đạt local10/11 và100/101; cloud/ALB chưa chạy BL-232 |
 | TC-165-04 | smoke.cjs từ clone sạch | đủ5bài, checkerPASS sau mỗi bài |
 | TC-165-05 | runner.test.mjs và API unreachable | đạt: k6 exit99, checker vẫnPASS; checker lỗi thì runner đỏ |
-| TC-165-06 | unitfixture thiếu, đọc validator, kiểm raw output | đơn giản hóa: chưa unit từng biến thể URL/token sai; không đổi chính sách auth backend; raw không token/Authorization/DB URL/ARN |
-| DoD5 quy trình | PR/CI/Dev review | CI sẽ đối chiếu exact head sau push; Dev review/merge còn BL-233 |
+| TC-165-06 | unitfixture thiếu, đọc validator, kiểm raw output | đã có unit từng biến thể URL/token sai (BL-233, `fixture-validation.test.mjs`); không đổi chính sách auth backend; raw không token/Authorization/DB URL/ARN |
+| DoD5 quy trình | PR/CI/Dev review | Cập nhật 2026-11-14 (kiểm bằng `gh`): [PR #128](https://github.com/Lawliet119/digital-banking-simulator/pull/128) đã merge ngày 2026-11-11, 6 job CI xanh; GitHub không có review của người khác tác giả. Dev khác review còn ở BL-233 |
 
 | Bước | Lệnh/kết quả thật | Kết luận |
 |---|---|---|

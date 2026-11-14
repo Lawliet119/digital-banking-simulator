@@ -66,7 +66,7 @@ resource "aws_iam_role_policy" "deploy" {
         Resource = local.ecs_service_arn
       },
       {
-        # DBS-121 (BL-242): service worker; chưa có script deploy dùng (BL riêng), quyền theo bàn giao DBS-120.
+        # DBS-121 (BL-242): service worker; deploy.sh lăn worker sau api (BL-248). Dùng DescribeServices (poll) và UpdateService.
         Effect   = "Allow"
         Action   = ["ecs:DescribeServices", "ecs:UpdateService"]
         Resource = local.ecs_worker_service_arn

@@ -1,6 +1,7 @@
 import { parseMoney, parsePositiveMoney } from '@common/money';
 import type { Features, TransferEvent } from '../features/feature-provider';
 import { riskTimeNanoseconds } from '../risk-time';
+import { formatDong } from './explanation-format';
 import type { RiskRule, RuleHit, RuleParams } from './rule';
 
 const MAX_WEIGHT = 2147483647;
@@ -24,12 +25,6 @@ function utcInstant(value: unknown, field: string): bigint {
   } catch {
     return invalidField(field);
   }
-}
-
-/** Whole-dong amount with dot-grouped thousands, as in the guide's sample (`20.000.000đ`). */
-function formatDong(amount: bigint): string {
-  // On the digit string only: `Number` and `toLocaleString` lose digits above 2^53.
-  return `${amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
 }
 
 /** The age rounded down, so the text never says more than the real age. */

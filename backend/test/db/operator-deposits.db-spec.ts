@@ -186,11 +186,30 @@ describe('DBS-60 operator deposits through real JWT/HTTP/PG and double entry', (
     expect(
       (await deposit(target.accountId, '1', randomUUID(), expired).expect(401)).body.errorCode,
     ).toBe('TOKEN_EXPIRED');
+    const refusals: [string, string][] = [];
     for (const role of ['customer', 'auditor', 'admin'] as const) {
       const jwt = await app.issuer.token(role, { sub: randomUUID() });
+      const res = await deposit(target.accountId, '1', randomUUID(), jwt).expect(403);
+      expect(res.body.errorCode).toBe('FORBIDDEN');
+      refusals.push([role, String(res.headers['x-correlation-id'])]);
+    }
+    // BL-132 / BL-019 (AC-8.1): every refusal is one DENIED row with the caller's real role, the
+    // auditor included; the money totals below do not move, only `audits` grows by three.
+    for (const [role, correlationId] of refusals) {
       expect(
-        (await deposit(target.accountId, '1', randomUUID(), jwt).expect(403)).body.errorCode,
-      ).toBe('FORBIDDEN');
+        await q(
+          'SELECT actor_role, action, outcome, target_type, target_id FROM audit_log WHERE correlation_id=$1',
+          [correlationId],
+        ),
+      ).toEqual([
+        {
+          actor_role: role,
+          action: 'access.denied',
+          outcome: 'DENIED',
+          target_type: 'route',
+          target_id: 'POST /v1/operator/deposits',
+        },
+      ]);
     }
     for (const amount of [100, '0', '-1', '1.5', '1e3', '01', '9223372036854775808'])
       await request(app.url)
@@ -207,7 +226,9 @@ describe('DBS-60 operator deposits through real JWT/HTTP/PG and double entry', (
         .set('Idempotency-Key', randomUUID())
         .send({ toAccountId: target.accountId, amount: '1', [field]: randomUUID() })
         .expect(400);
-    expect(await totals()).toEqual(before);
+    const [now] = await totals();
+    const [was] = before;
+    expect({ ...now, audits: now.audits - refusals.length }).toEqual(was);
   });
 
   it('TC-60-05 key is required/bounded; canonical hash and result stored', async () => {

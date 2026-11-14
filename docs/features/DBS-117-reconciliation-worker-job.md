@@ -18,7 +18,7 @@
 - **Phụ thuộc (kiểm trên board và xác minh trực tiếp trong repo tại `main` `f95e428`):**
   - `DBS-116` (*Migration: reconciliation_runs*, Tuần 4): **Done** trên board — đã có trên `main` ([`1793577600000-CreateReconciliationRuns.ts`](../../backend/src/database/migrations/1793577600000-CreateReconciliationRuns.ts), [`reconciliation-schema.db-spec.ts`](../../backend/test/db/reconciliation-schema.db-spec.ts), [`reconciliation-migration-revert.db-spec.ts`](../../backend/test/db/reconciliation-migration-revert.db-spec.ts), [`DBS-116-reconciliation-runs.md`](DBS-116-reconciliation-runs.md)).
   - `DBS-61` (*UC-5 chuyển tiền bản thô: hai bút toán trong một transaction*, Tuần 2): **Done** trên board — đã có trên `main` (`PR #61`, [`transfer.service.ts`](../../backend/src/modules/ledger/transfer.service.ts), [`ledger-posting.service.ts`](../../backend/src/modules/ledger/ledger-posting.service.ts)).
-  - `DBS-69` (*Script kiểm tra bất biến sổ cái (SQL) và cách thử bằng cố ý làm lệch*, Tuần 2): **Done** trên board — đã có trên `main` (`PR #35`, [`invariants.sql`](../../backend/test/support/invariants.sql), [`invariants.ts`](../../backend/test/support/invariants.ts)).
+  - `DBS-69` (*Script kiểm tra bất biến sổ cái (SQL) và cách thử bằng cố ý làm lệch*, Tuần 2): **Done** trên board — đã có trên `main` (`PR #35`, [`invariants.sql`](../../backend/src/scripts/invariants/invariants.sql), [`invariants.ts`](../../backend/test/support/invariants.ts)).
 - **Đã có gì trong codebase (đã đọc và chạy xác minh):**
   - **Bảng `public.reconciliation_runs` (`DBS-116`):** 9 cột (`id bigint GENERATED ALWAYS AS IDENTITY`, `started_at timestamptz NOT NULL`, `finished_at timestamptz`, `status text NOT NULL` với `CHECK (status IN ('OK','MISMATCH','ERROR'))`, `total_debit bigint`, `total_credit bigint`, `total_balance bigint`, `mismatched_accounts int NOT NULL DEFAULT 0`, `details jsonb` với `reconciliation_runs_details_check` chỉ chấp nhận `NULL` hoặc mảng các object đóng `{"accountId": "<uuid>", "balance": "<signed-bigint-string>", "ledgerBalance": "<signed-bigint-string>"}`).
   - **Hạ tầng chạy nền theo `APP_ROLE` (`ADR-13`):**
@@ -27,7 +27,7 @@
     - [`src/modules/index.ts`](../../backend/src/modules/index.ts) tách `apiModules` (`LedgerModule`, `AccountsModule`, ...) và `workerModules` (`OutboxRelayModule`, `NotificationModule`).
   - **Phân quyền DB tối thiểu (`database-design.md` §8.1 & [`infra/scripts/db-roles.sql`](../../infra/scripts/db-roles.sql)):**
     - Theo [`database-design.md`](../components/_shared/database-design.md) §8.1, `dbs_worker` chỉ có quyền `SELECT` trên `accounts`, `ledger_entries`, `v_transfer_facts` (**không** có quyền `SELECT` trên bảng `transfers` — đã khóa cứng bởi `TC-ROLE-03` trong [`db-roles.db-spec.ts`](../../backend/test/db/db-roles.db-spec.ts)) và quyền `SELECT, INSERT, DELETE` trên `reconciliation_runs` (`DELETE` cho job dọn 90 ngày, chưa có code; không `UPDATE`); `dbs_api` chỉ có `SELECT` trên `reconciliation_runs`.
-    - Hiện tại [`infra/scripts/db-roles.sql`](../../infra/scripts/db-roles.sql) chưa có dòng `GRANT SELECT ON reconciliation_runs TO dbs_api;` và `GRANT INSERT ON reconciliation_runs TO dbs_worker;`, còn [`invariants.sql`](../../backend/test/support/invariants.sql) của `DBS-69` đang nằm trong `test/support/` và đọc trực tiếp `public.transfers` nên `dbs_worker` không dùng trực tiếp được.
+    - Hiện tại [`infra/scripts/db-roles.sql`](../../infra/scripts/db-roles.sql) chưa có dòng `GRANT SELECT ON reconciliation_runs TO dbs_api;` và `GRANT INSERT ON reconciliation_runs TO dbs_worker;`, còn [`invariants.sql`](../../backend/src/scripts/invariants/invariants.sql) của `DBS-69` đang nằm trong `test/support/` và đọc trực tiếp `public.transfers` nên `dbs_worker` không dùng trực tiếp được.
   - **Baseline trên nhánh `feat/DBS-117-reconciliation-worker-job` (`main` `f95e428`):**
     - `npm run lint:check`: PASS (0 lỗi).
     - `npm run typecheck`: PASS (0 lỗi).
@@ -398,7 +398,7 @@ Kịch bản chạy bằng script thực tế `node backend/scripts/manual-dbs11
 | `TC-117-10` | [`db-roles.db-spec.ts`](../../backend/test/db/db-roles.db-spec.ts) › `TC-117-10` | đạt trên commit `055190c` |
 | `TC-117-11` | [`reconciliation-job.db-spec.ts`](../../backend/test/db/reconciliation-job.db-spec.ts) › `TC-117-11` | đạt trên commit `5030edf` |
 | `TC-117-12` | [`reconciliation.types.spec.ts`](../../backend/src/modules/ledger/reconciliation.types.spec.ts) › `TC-117-12` | đạt trên commit `b994775` |
-| `Quy trình` | DoD #5: PR đã merge vào `main` (CI xanh); Dev review | chưa làm (chờ mở PR sau G4, theo dõi tại `BL-196`) |
+| `Quy trình` | DoD #5: PR đã merge vào `main` (CI xanh); Dev review | Cập nhật 2026-11-14 (kiểm bằng `gh`): [PR #86](https://github.com/Lawliet119/digital-banking-simulator/pull/86) đã merge vào `main` ngày 2026-11-09, 6 job CI xanh; GitHub không có review của người khác tác giả. Dev khác review còn mở, theo dõi tại `BL-196`. (Ghi chú trước đó: chờ mở PR sau G4.) |
 
 - **Test thủ công:** chạy trên commit code cuối `6f0f95d7ddd2fbb6fdcc9665c8216e8b7b2576ca` qua [`backend/scripts/manual-dbs117.cjs`](../../backend/scripts/manual-dbs117.cjs), toàn bộ 7 bước thành công:
 

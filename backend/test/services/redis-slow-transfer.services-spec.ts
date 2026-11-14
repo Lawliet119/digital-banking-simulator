@@ -165,7 +165,20 @@ describe('DBS-100 Review Focus 5: Redis slow or dead during customer transfers',
     expect(p95).toBeLessThan(1000);
   });
 
+  const balanceOf = async (accountId: string): Promise<bigint> => {
+    const rows = (await db.runner.query('SELECT balance::text FROM accounts WHERE id = $1', [
+      accountId,
+    ])) as { balance: string }[];
+    return BigInt(rows[0].balance);
+  };
+
   it('TC-100-02 Redis outage: transfers continue without blocking, balances updated correctly (DoD #2)', async () => {
+    // BL-217: the case reads the balances it starts from (TC-100-01 leaves 25 transfers behind when it
+    // ran first, none when this case runs alone with -t) and checks the change, not an absolute value.
+    const srcBefore = await balanceOf(sourceCustomer.accountId);
+    const dstBefore = await balanceOf(targetCustomer.accountId);
+    expect(srcBefore).toBeGreaterThanOrEqual(BigInt('500000'));
+
     // Shut down proxy to simulate complete Redis outage
     await proxy.stop();
 
@@ -176,20 +189,13 @@ describe('DBS-100 Review Focus 5: Redis slow or dead during customer transfers',
     expect(res.body.status).toBe('COMPLETED');
 
     // Verify balances committed to PostgreSQL
-    const srcRow = (await db.runner.query('SELECT balance::text FROM accounts WHERE id = $1', [
-      sourceCustomer.accountId,
-    ])) as { balance: string }[];
-    const dstRow = (await db.runner.query('SELECT balance::text FROM accounts WHERE id = $1', [
-      targetCustomer.accountId,
-    ])) as { balance: string }[];
-
-    // 100M initial - ((5 + 20) * 100k) from TC-100-01 - 500k from TC-100-02 = 97,000,000 VND
-    expect(srcRow[0].balance).toBe('97000000');
-    // 0 initial + ((5 + 20) * 100k) + 500k = 3,000,000 VND
-    expect(dstRow[0].balance).toBe('3000000');
+    expect(await balanceOf(sourceCustomer.accountId)).toBe(srcBefore - BigInt(transferAmount));
+    expect(await balanceOf(targetCustomer.accountId)).toBe(dstBefore + BigInt(transferAmount));
   });
 
   it('TC-100-03 /health/ready returns 200 OK with redis degraded when Redis is down (DoD #2)', async () => {
+    // BL-217: the outage does not depend on TC-100-02 having run first (stop() is idempotent).
+    await proxy.stop();
     const res = await request(app.url).get('/health/ready').expect(200);
 
     expect(res.body).toMatchObject({

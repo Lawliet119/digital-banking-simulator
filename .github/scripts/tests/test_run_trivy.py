@@ -30,13 +30,25 @@ exit 0
 """
 
 
-def run(fail="", ignorefile=True):
+# BL-245: cosign giả; ghi argv vào $FAKE_COSIGN_LOG, thoát 1 nếu FAKE_FAIL có `cosign`
+FAKE_COSIGN = r"""#!/usr/bin/env bash
+echo "$*" >> "$FAKE_COSIGN_LOG"
+[[ ",$FAKE_FAIL," == *,cosign,* ]] && exit 1
+exit 0
+"""
+
+
+def run(fail="", ignorefile=True, image=IMAGE, with_cosign=True, extra_env=None):
     work = pathlib.Path(tempfile.mkdtemp())
     bindir = work / "bin"
     bindir.mkdir()
     fake = bindir / "docker"
     fake.write_text(FAKE_DOCKER)
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    if with_cosign:
+        cs = bindir / "cosign"
+        cs.write_text(FAKE_COSIGN)
+        cs.chmod(cs.stat().st_mode | stat.S_IEXEC)
     cwd = work / "repo"
     cwd.mkdir()
     if ignorefile:
@@ -47,11 +59,15 @@ def run(fail="", ignorefile=True):
         "PATH": f"{bindir}:{os.environ['PATH']}",
         "FAKE_LOG": str(log),
         "FAKE_FAIL": fail,
-        "TRIVY_IMAGE": IMAGE,
+        "FAKE_COSIGN_LOG": str(work / "cosign.log"),
+        "TRIVY_IMAGE": image,
         "RUNNER_TEMP": str(work / "tmp"),
+        **(extra_env or {}),
     }
     proc = subprocess.run(["bash", str(SCRIPT), "dbs-api:test"], capture_output=True, text=True, env=env, cwd=str(cwd))
     calls = log.read_text().splitlines() if log.exists() else []
+    cosign_log = work / "cosign.log"
+    run.cosign_calls = cosign_log.read_text().splitlines() if cosign_log.exists() else []
     shutil.rmtree(work, ignore_errors=True)
     return proc.returncode, proc.stdout + proc.stderr, calls
 
@@ -120,6 +136,45 @@ class RunTrivy(unittest.TestCase):
         code, out, calls = run(ignorefile=False)
         self.assertNotEqual(code, 0, out)
         self.assertEqual(calls, [])
+
+    # TC-245-01: cosign verify chạy đúng image ghim digest, identity chốt theo phiên bản, issuer GitHub Actions
+    def test_cosign_verifies_the_pinned_digest_with_version_bound_identity(self):
+        code, out, calls = run()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(len(run.cosign_calls), 1, run.cosign_calls)
+        c = run.cosign_calls[0]
+        self.assertTrue(c.startswith(f"verify {IMAGE} "), c)
+        self.assertIn("--certificate-oidc-issuer https://token.actions.githubusercontent.com", c)
+        self.assertIn("--certificate-identity-regexp ^https://github[.]com/aquasecurity/trivy/[.]github/workflows/", c)
+        self.assertIn("@refs/tags/v0[.]76[.]1$", c)
+
+    # TC-245-02: chữ ký sai thì đỏ và không có lệnh docker nào chạy
+    def test_cosign_failure_is_red_and_docker_never_runs(self):
+        code, out, calls = run(fail="cosign")
+        self.assertNotEqual(code, 0, out)
+        self.assertEqual(calls, [])
+
+    def test_missing_cosign_is_red_and_docker_never_runs(self):
+        # PATH chỉ có bindir giả (không cosign) + thư mục hệ thống không chứa cosign
+        code, out, calls = run(with_cosign=False)
+        self.assertNotEqual(code, 0, out)
+        self.assertIn("cosign", out)
+        self.assertEqual(calls, [])
+
+    def test_image_without_digest_or_other_repo_is_rejected(self):
+        for bad in ("ghcr.io/aquasecurity/trivy:0.76.1", "ghcr.io/aquasecurity/trivy:latest@sha256:" + "a" * 64,
+                    "ghcr.io/evil/trivy:0.76.1@sha256:" + "a" * 64):
+            code, out, calls = run(image=bad)
+            self.assertNotEqual(code, 0, bad)
+            self.assertEqual(run.cosign_calls, [], bad)
+            self.assertEqual(calls, [], bad)
+
+    # TC-245-03: lối thoát chạy tay có cảnh báo, không gọi cosign
+    def test_skip_flag_warns_and_skips_cosign(self):
+        code, out, calls = run(with_cosign=False, extra_env={"TRIVY_SKIP_COSIGN": "1"})
+        self.assertEqual(code, 0, out)
+        self.assertIn("::warning::", out)
+        self.assertEqual(len(calls), 5)
 
     def test_missing_trivy_image_variable_stops(self):
         proc = subprocess.run(["bash", str(SCRIPT), "x"], capture_output=True, text=True,

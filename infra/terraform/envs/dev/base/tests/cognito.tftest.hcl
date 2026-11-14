@@ -1,4 +1,10 @@
 mock_provider "aws" {
+  # BL-051: ARN SNS giả đúng định dạng cho alarm_actions (provider kiểm định dạng khi apply).
+  mock_resource "aws_sns_topic" {
+    defaults = {
+      arn = "arn:aws:sns:ap-southeast-1:123456789012:dbs-dev-alarms"
+    }
+  }
   # Giá trị giả đúng định dạng id của Cognito (provider kiểm định dạng khi apply).
   mock_resource "aws_cognito_user_pool" {
     defaults = {
@@ -155,4 +161,62 @@ run "rejects_bad_deletion_protection" {
   }
 
   expect_failures = [var.cognito_deletion_protection]
+}
+
+# TC-101-01: role riêng để seed (BL-101): quyền đúng danh sách ở README, không wildcard, không quyền xóa
+run "cognito_seeder_role" {
+  command = apply
+
+  assert {
+    condition     = aws_iam_role.cognito_seeder.name == "dbs-dev-cognito-seeder"
+    error_message = "seeder role must be dbs-dev-cognito-seeder"
+  }
+
+  assert {
+    condition = (
+      length(jsondecode(aws_iam_role.cognito_seeder.assume_role_policy).Statement) == 1 &&
+      jsondecode(aws_iam_role.cognito_seeder.assume_role_policy).Statement[0].Action == "sts:AssumeRole" &&
+      jsondecode(aws_iam_role.cognito_seeder.assume_role_policy).Statement[0].Principal.AWS == "arn:aws:iam::123456789012:root"
+    )
+    error_message = "only principals of this account (with sts:AssumeRole in their own policy) may assume the seeder role"
+  }
+
+  assert {
+    condition = (
+      length(jsondecode(aws_iam_role_policy.cognito_seeder.policy).Statement) == 2 &&
+      alltrue([for st in jsondecode(aws_iam_role_policy.cognito_seeder.policy).Statement : st.Effect == "Allow"])
+    )
+    error_message = "seeder policy must have exactly two Allow statements"
+  }
+
+  assert {
+    condition = (
+      toset(one([for st in jsondecode(aws_iam_role_policy.cognito_seeder.policy).Statement : st.Action if st.Sid == "SeedCognitoUsers"])) == toset([
+        "cognito-idp:AdminGetUser", "cognito-idp:AdminCreateUser", "cognito-idp:AdminSetUserPassword", "cognito-idp:AdminAddUserToGroup",
+        "cognito-idp:AdminRemoveUserFromGroup", "cognito-idp:AdminUpdateUserAttributes", "cognito-idp:AdminListGroupsForUser", "cognito-idp:AdminUserGlobalSignOut",
+      ]) &&
+      one([for st in jsondecode(aws_iam_role_policy.cognito_seeder.policy).Statement : st.Resource if st.Sid == "SeedCognitoUsers"]) == "arn:aws:cognito-idp:ap-southeast-1:123456789012:userpool/${aws_cognito_user_pool.main.id}"
+    )
+    error_message = "the eight Cognito admin actions on the dbs user pool only"
+  }
+
+  assert {
+    condition = (
+      toset(one([for st in jsondecode(aws_iam_role_policy.cognito_seeder.policy).Statement : st.Action if st.Sid == "DemoAccountsSecret"])) == toset([
+        "secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue", "secretsmanager:CreateSecret", "secretsmanager:PutSecretValue", "secretsmanager:TagResource",
+      ]) &&
+      one([for st in jsondecode(aws_iam_role_policy.cognito_seeder.policy).Statement : st.Resource if st.Sid == "DemoAccountsSecret"]) == ["arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/demo-accounts-*"]
+    )
+    error_message = "the five Secrets Manager actions on dbs/dev/demo-accounts-* only"
+  }
+
+  assert {
+    condition     = !strcontains(aws_iam_role_policy.cognito_seeder.policy, "\"*\"") && !strcontains(aws_iam_role_policy.cognito_seeder.policy, ":*\"") && !strcontains(aws_iam_role_policy.cognito_seeder.policy, "Delete") && !strcontains(aws_iam_role_policy.cognito_seeder.policy, "kms:")
+    error_message = "no wildcard action or resource, no delete, no KMS"
+  }
+
+  assert {
+    condition     = output.cognito_seeder_role_arn == aws_iam_role.cognito_seeder.arn
+    error_message = "seeder role arn must be exported"
+  }
 }

@@ -52,6 +52,11 @@ jobs:
       - name: Build image
         run: docker build --provenance=false --sbom=false -t "dbs-api:$IMAGE_TAG" backend
 
+      # BL-245: run-trivy.sh chạy `cosign verify` trên image Trivy ghim digest trước khi dùng nó.
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        with:
+          cosign-release: v3.1.4
+
       - name: Trivy chặn lỗ hổng và secret
         run: bash .github/scripts/run-trivy.sh "dbs-api:$IMAGE_TAG"
 
@@ -81,11 +86,19 @@ jobs:
           docker push "$REGISTRY/$REPOSITORY:$IMAGE_TAG"
 
       # Scan on push chạy ở phía ECR, sau khi đã push, nên chỉ cảnh báo. Cổng chặn là bước Trivy ở trên (DBS-155).
+      # Ngay sau push scan có thể chưa được tạo: `aws ecr wait image-scan-complete` thoát ngay với
+      # ScanNotFoundException, nên tự chờ tối đa 5 phút tới khi trạng thái là COMPLETE hoặc FAILED.
       - name: Kết quả scan
         if: steps.exists.outputs.found == '0'
         run: |
-          aws ecr wait image-scan-complete --repository-name "$REPOSITORY" --image-id imageTag="$IMAGE_TAG" \
-            || echo "::warning::scan chưa hoàn tất hoặc lỗi"
+          status=""
+          for _ in $(seq 1 30); do
+            status=$(aws ecr describe-image-scan-findings --repository-name "$REPOSITORY" \
+              --image-id imageTag="$IMAGE_TAG" --query 'imageScanStatus.status' --output text 2>/dev/null || true)
+            case "$status" in COMPLETE|FAILED) break ;; esac
+            sleep 10
+          done
+          echo "Trạng thái scan ECR: ${status:-chưa có}"
           aws ecr describe-image-scan-findings --repository-name "$REPOSITORY" --image-id imageTag="$IMAGE_TAG" \
             --query 'imageScanFindings.findingSeverityCounts' --output json \
             || echo "::warning::không đọc được kết quả scan"

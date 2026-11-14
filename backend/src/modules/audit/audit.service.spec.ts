@@ -202,4 +202,59 @@ describe('AuditService (DBS-56)', () => {
       );
     });
   });
+
+  describe('recordRoleDenied (BL-132)', () => {
+    const DENIAL = {
+      userId: '11111111-1111-1111-1111-111111111111',
+      roles: ['operator', 'auditor'],
+      method: 'POST',
+      route: '/v1/operator/deposits',
+      correlationId: '33333333-3333-3333-3333-333333333333',
+    } as const;
+
+    it('TC-132-01 commits one DENIED row in its own transaction: access.denied, route target, NO_PERMISSION', async () => {
+      const { dataSource, runner } = makeRunner();
+      const service = new AuditService(new TransactionService(dataSource, CONFIG));
+
+      await service.recordRoleDenied({ ...DENIAL, roles: [...DENIAL.roles] });
+
+      expect(runner.commitTransaction).toHaveBeenCalledTimes(1);
+      const query = runner.manager.query as jest.Mock;
+      expect(query).toHaveBeenCalledTimes(1);
+      const [, params] = query.mock.calls[0] as [string, unknown[]];
+      expect(params).toEqual([
+        DENIAL.userId,
+        'operator,auditor',
+        'access.denied',
+        'DENIED',
+        'route',
+        'POST /v1/operator/deposits',
+        DENIAL.correlationId,
+        JSON.stringify({ reason: 'NO_PERMISSION' }),
+      ]);
+    });
+
+    it('TC-132-02 stores a single derived role as is', async () => {
+      const { dataSource, runner } = makeRunner();
+      const service = new AuditService(new TransactionService(dataSource, CONFIG));
+
+      await service.recordRoleDenied({ ...DENIAL, roles: ['customer'] });
+
+      const [, params] = (runner.manager.query as jest.Mock).mock.calls[0] as [string, unknown[]];
+      expect(params[1]).toBe('customer');
+    });
+
+    it('TC-132-03 rejects, rolled back, when the row cannot be written (fail-closed, like recordDenied)', async () => {
+      const { dataSource, runner } = makeRunner();
+      const failure = new Error('connection terminated');
+      (runner.manager.query as jest.Mock).mockRejectedValue(failure);
+      const service = new AuditService(new TransactionService(dataSource, CONFIG));
+
+      await expect(service.recordRoleDenied({ ...DENIAL, roles: ['customer'] })).rejects.toBe(
+        failure,
+      );
+      expect(runner.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(runner.commitTransaction).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -3,3 +3,11 @@ M-101-01 PASS: same eventId x3 -> 3 acknowledged, processed_events=1, effects=1
 M-101-02 PASS: schema-breaking message -> DLQ at the first receive, source empty
 M-101-03 PASS: failing apply -> failed,failed,failed,failed,dead-lettered; DLQ holds the event; no processed_events row
 cleanup done: temp database dropped, temp queues deleted
+
+--- BL-212 (2026-11-14, Node 24, ElasticMQ :9324 + postgres:17 tạm; script đã siết, chạy lại) ---
+Thêm M-101-04 (đường hồi phục + backoff); DLQ đọc có retry và hạn.
+M-101-01 PASS: same eventId x3 -> 3 acknowledged, processed_events=1, effects=1
+M-101-02 PASS: schema-breaking message -> DLQ at the first receive, source empty
+M-101-03 PASS: failing apply -> failed,failed,failed,failed,dead-lettered; DLQ holds the event; no processed_events row
+M-101-04 PASS: failed, hidden 2025 ms by the backoff, downstream back -> acknowledged; claims=1, effects=1, DLQ empty
+cleanup done: temp database dropped, temp queues deleted

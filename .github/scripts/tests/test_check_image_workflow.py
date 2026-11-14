@@ -22,6 +22,7 @@ COPY = [
     ".github/scripts/run-gitleaks.sh",
     ".github/scripts/run-trivy.sh",
     "infra/terraform/envs/dev/session/ecs.tf",
+    "infra/terraform/envs/dev/session/worker.tf",
 ]
 TRIVY_DIGEST = "sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c"
 
@@ -69,6 +70,33 @@ class ScanGates(unittest.TestCase):
         code, out = self.tree().run()
         self.assertEqual(code, 0, out)
         self.assertIn("OK", out)
+
+    # TC-248-10: service worker phải có ignore_changes (deploy.sh lăn worker, BL-248)
+    def test_worker_service_without_ignore_changes(self):
+        t = self.tree()
+        t.edit("infra/terraform/envs/dev/session/worker.tf", "ignore_changes = [task_definition]", "ignore_changes = [desired_count]")
+        self.assertRed(t, "worker.tf")
+
+    # TC-245-04: kiểm cosign của image Trivy (BL-245)
+    def test_ci_without_cosign_installer(self):
+        t = self.tree()
+        t.edit(".github/workflows/ci.yml", "sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532", "actions/setup-node@" + "a" * 40)
+        self.assertRed(t, "ci.yml job image-scan", "cosign-installer")
+
+    def test_image_cosign_installer_unpinned_or_after_trivy(self):
+        t = self.tree()
+        t.edit(".github/workflows/image.yml", "sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532", "sigstore/cosign-installer@v4")
+        self.assertRed(t, "image.yml job image-push", "cosign-installer")
+
+    def test_run_trivy_without_cosign_verify(self):
+        t = self.tree()
+        t.edit(".github/scripts/run-trivy.sh", "cosign verify", "cosign version", count=0)
+        self.assertRed(t, "cosign verify")
+
+    def test_skip_cosign_variable_in_workflow_is_rejected(self):
+        t = self.tree()
+        t.edit(".github/workflows/ci.yml", "      TRIVY_IMAGE:", "      TRIVY_SKIP_COSIGN: '1'\n      TRIVY_IMAGE:")
+        self.assertRed(t, "TRIVY_SKIP_COSIGN")
 
     # TC-155-04: ci.yml
     def test_job_image_scan_missing(self):
