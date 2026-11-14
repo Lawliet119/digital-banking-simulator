@@ -25,6 +25,20 @@ variable "worker_desired_count" {
 # RSK-03: hai ràng buộc bật AI (đủ biến; tổng kết nối PostgreSQL ≤ 74) nằm ở `lifecycle.precondition` của
 # aws_ecs_task_definition.worker bên dưới. Không dùng khối `check`: nó chỉ in cảnh báo, `plan`/`apply` thật vẫn chạy.
 
+# DBS-123: chu kỳ job đối soát sổ cái. Mặc định của ứng dụng là 300 s: lệch xảy ra ngay sau một lần chạy thì lần chạy
+# kế tới sau 300 s, cộng ≤ 60 s ghi metric và chu kỳ đánh giá alarm, vượt 5 phút của DoD. 60 s: ≤ 60 + 60 + 60 s. Mỗi lần
+# chạy là một truy vấn đọc đọc toàn bộ ledger_entries; dev chỉ vài nghìn dòng nên chấp nhận được, production đặt lại.
+variable "reconciliation_interval_ms" {
+  description = "Chu kỳ job đối soát sổ cái của worker (RECONCILIATION_INTERVAL_MS). 10 s đến 300 s; 300 s là mặc định của ứng dụng và làm alarm trễ hơn 5 phút."
+  type        = number
+  default     = 60000
+
+  validation {
+    condition     = var.reconciliation_interval_ms >= 10000 && var.reconciliation_interval_ms <= 300000
+    error_message = "reconciliation_interval_ms must be between 10000 and 300000 (DBS-123: the alarm must fire within 5 minutes)."
+  }
+}
+
 # Biến môi trường không bí mật. TRUST_PROXY_HOPS và COGNITO_* chỉ để qua kiểm tra cấu hình (validation.schema.ts bắt
 # buộc ở staging/production với mọi role), worker không có HTTP. Không đặt SQS_ENDPOINT (AWS thật) và không có PORT.
 # DB_USER, DB_PASSWORD (role dbs_worker, BL-103), REDIS_AUTH_TOKEN đi qua `secrets`; ECS đọc bằng execution role
@@ -71,6 +85,8 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "SQS_RISK_QUEUE_URL", value = local.base.sqs_risk_queue_url },
       { name = "SQS_NOTIFICATION_QUEUE_URL", value = local.base.sqs_notification_queue_url },
       { name = "RISK_AI_EGRESS_APPROVED", value = tostring(var.risk_ai_egress_approved) },
+      # DBS-123: job đối soát mỗi 60 s để MISMATCH tới alarm trong 5 phút.
+      { name = "RECONCILIATION_INTERVAL_MS", value = tostring(var.reconciliation_interval_ms) },
       ], var.risk_ai_egress_approved ? [
       { name = "RISK_AI_POLICY_REVISION", value = tostring(var.risk_ai_policy_revision) },
       { name = "RISK_AI_DAILY_REQUEST_CAP", value = tostring(var.risk_ai_daily_request_cap) },
