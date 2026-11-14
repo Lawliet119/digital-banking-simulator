@@ -1,0 +1,14 @@
+=== M-154-09: Temporary KMS key revocation drill ===
+Created temp key: <TEMP_KEY>
+Created temp queue with KmsDataKeyReusePeriodSeconds=60
+1) Send while key Enabled:
+1b642d61-b356-44cd-b918-2cbd6afa32b5
+2) Disable key & wait 65s for data key reuse period to expire...
+3) Send while key Disabled (expect KMS.DisabledException):
+
+aws: [ERROR]: An error occurred (KMS.DisabledException) when calling the SendMessage operation: arn:aws:kms:ap-southeast-1:<ACCOUNT_ID>:key/<TEMP_KEY_ID> is disabled. (Service: AWSKMS; Status Code: 400; Error Code: DisabledException; Request ID: 0fc56b1c-dd37-49d2-a311-6485862ee015; Proxy: null)
+Expected failure observed
+4) Re-enable key & send (expect recovery):
+
+aws: [ERROR]: An error occurred (KMS.DisabledException) when calling the SendMessage operation: arn:aws:kms:ap-southeast-1:<ACCOUNT_ID>:key/<TEMP_KEY_ID> is disabled. (Service: AWSKMS; Status Code: 400; Error Code: DisabledException; Request ID: 2a10f082-a78a-4a91-953d-dc17bb353275; Proxy: null)
+Cleaned up temp queue and scheduled key deletion (7 days)

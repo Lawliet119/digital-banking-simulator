@@ -1,0 +1,101 @@
+commit: a5952485fef06d18bb439af9c9ef76537c597961
+date: 2026-11-14T08:04:22Z
+
+=== M-154-03: get-key-policy & get-key-rotation-status ===
+{
+    "KeyRotationEnabled": true,
+    "KeyId": "arn:aws:kms:ap-southeast-1:<ACCOUNT_ID>:key/<CMK_KEY_ID>",
+    "RotationPeriodInDays": 365,
+    "NextRotationDate": "2027-10-26T01:12:32.438000+07:00"
+}
+Extra data: line 43 column 3 (char 1791)
+
+=== M-154-04: direct kms encrypt (expect AccessDeniedException) ===
+
+aws: [ERROR]: An error occurred (AccessDeniedException) when calling the Encrypt operation: User: arn:aws:iam::<ACCOUNT_ID>:user/faker is not authorized to perform: kms:Encrypt on resource: arn:aws:kms:ap-southeast-1:<ACCOUNT_ID>:key/<CMK_KEY_ID> because no resource-based policy allows the kms:Encrypt action
+exited: 254
+
+=== M-154-06: migrate dbs/dev/demo-accounts to CMK ===
+{
+    "ARN": "arn:aws:secretsmanager:ap-southeast-1:<ACCOUNT_ID>:secret:dbs/dev/demo-accounts-e4EjsK",
+    "Name": "dbs/dev/demo-accounts"
+}
+{
+    "Name": "dbs/dev/demo-accounts",
+    "KmsKeyId": "alias/dbs-dev"
+}
+
+=== M-154-10: verify-kms.sh after apply ===
+OK cmk: alias/dbs-dev (Enabled, CUSTOMER, rotation=true)
+BO-QUA rds: không có instance dbs-*
+BO-QUA elasticache: không có replication group dbs-*
+OK sqs: 4 queue dùng CMK
+OK secrets: 2 secret dùng CMK
+KET LUAN: đạt (mọi tài nguyên đang có đều dùng CMK)
+verify-kms exited: 0
+
+=== M-154-11: KMS Cost Explorer ===
+{
+    "ResultsByTime": [
+        {
+            "TimePeriod": {
+                "Start": "2026-10-25",
+                "End": "2026-11-01"
+            },
+            "Total": {
+                "UnblendedCost": {
+                    "Amount": "-0.000000596",
+                    "Unit": "USD"
+                },
+                "UsageQuantity": {
+                    "Amount": "114.200268814",
+                    "Unit": "N/A"
+                }
+            },
+            "Groups": [],
+            "Estimated": false
+        },
+        {
+            "TimePeriod": {
+                "Start": "2026-11-01",
+                "End": "2026-11-15"
+            },
+            "Total": {
+                "UnblendedCost": {
+                    "Amount": "-0.0000003388",
+                    "Unit": "USD"
+                },
+                "UsageQuantity": {
+                    "Amount": "58.4277777812",
+                    "Unit": "N/A"
+                }
+            },
+            "Groups": [],
+            "Estimated": true
+        }
+    ],
+    "DimensionValueAttributes": []
+}
+
+=== M-154-07 (2026-11-14T08:35Z) One-off Fargate dbs-migrate reading CMK-encrypted DB secret ===
+Command: IMAGE_TAG=957dcbfe36dc6916e57cace40d16c501e779a36e AWS_PROFILE=dbs-admin AWS_REGION=ap-southeast-1 bash .github/scripts/migrate.sh
+Result: Revision arn:aws:ecs:ap-southeast-1:<ACCOUNT_ID>:task-definition/dbs-migrate:5 -> task f429db0207714fe1ab1f8fb0bc0d4128
+Migration xong (task f429db0207714fe1ab1f8fb0bc0d4128). Exit code 0.
+API & Worker services scaled to desiredCount=1 -> GET /health/ready -> 200 {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+
+=== M-154-08 (2026-11-14T08:34Z–08:38Z) RDS snapshot CMK encryption ===
+aws rds create-db-snapshot --db-instance-identifier dbs-dev --db-snapshot-identifier dbs-dev-kms-test-snap
+-> dbs-dev-kms-test-snap  available  True  arn:aws:kms:ap-southeast-1:<ACCOUNT_ID>:key/<CMK_KEY_ID>
+aws rds copy-db-snapshot --source-db-snapshot-identifier dbs-dev-kms-test-snap --target-db-snapshot-identifier dbs-dev-kms-test-snap-copy --kms-key-id alias/dbs-dev
+-> dbs-dev-kms-test-snap-copy  available  True  arn:aws:kms:ap-southeast-1:<ACCOUNT_ID>:key/<CMK_KEY_ID>
+Cleanup: deleted both dbs-dev-kms-test-snap and dbs-dev-kms-test-snap-copy.
+
+=== M-154-10 (2026-11-14T08:33Z) verify-kms.sh full live verification ===
+$ AWS_PROFILE=dbs-admin AWS_REGION=ap-southeast-1 bash infra/scripts/verify-kms.sh
+OK cmk: alias/dbs-dev (Enabled, CUSTOMER, rotation=true)
+OK rds: 1 instance dùng CMK
+OK elasticache: 1 nhóm dùng CMK
+OK sqs: 4 queue dùng CMK
+OK secrets: 3 secret dùng CMK
+KET LUAN: đạt (mọi tài nguyên đang có đều dùng CMK)
+Exit code: 0
