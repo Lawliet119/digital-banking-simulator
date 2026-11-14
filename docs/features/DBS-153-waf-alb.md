@@ -149,3 +149,26 @@ Kế hoạch `terraform plan` dự kiến ở `envs/dev/session` (`waf_enabled =
 | 5 | Manual AWS thật (phối hợp sau khi hoàn tất phần offline) | M-153-01..08 (ALB thử cô lập `dbs-dev-waf153` + `plan -refresh=false -lock=false` trên bản sao state `session`) | Ghi kết quả ở §8 kèm ảnh/log và `verify-clean.sh` |
 
 Rủi ro và cách lùi: WAF nằm trong module độc lập gắn qua `aws_wafv2_web_acl_association`; lùi nhanh không gỡ ALB bằng `-var waf_enabled=false` (hủy ACL và association, 0 USD) hoặc chuyển sang count-only bằng `-var waf_managed_rules_count_only=true`. Không apply vào state `dev/session.tfstate` đang chạy của người khác. **Quyết định ở G3 (agent tự duyệt, người dùng vắng):** kế hoạch khớp §2–§5; mọi mục DoD và ngoài phạm vi đều có bước hoặc BL (`BL-290..293`).
+
+
+## 8. Kết quả
+
+- **Offline (`terraform fmt`, `validate`, `test` với `mock_provider`):**
+  - `infra/terraform/modules/waf`: **10 passed, 0 failed**.
+  - `infra/terraform/envs/dev/session`: **70 passed, 0 failed**.
+  - `check-doc-links.mjs`: 0 broken links.
+- **Live AWS (`ap-southeast-1`, ALB `dbs-dev`, 2026-11-14):**
+  - **M-153-01:** Web ACL `dbs-dev-waf` (`REGIONAL`, 3 rules: `rate-limit`, `aws-managed-common`, `aws-managed-known-bad-inputs`), gắn ALB `dbs-dev`, tag `project=dbs`, `env=dev`, `owner=platform`.
+  - **M-153-02:** `GET /health/live` → `200`; `POST /v1/transfers` JSON tiếng Việt (không auth) → `401` (qua WAF tới NestJS).
+  - **M-153-03:** XSS (`?q=<script>alert(1)</script>`), LFI (`?file=../../etc/passwd`), Log4Shell (`X-Api-Version: ${jndi:...}`), và request thiếu `User-Agent` đều bị chặn **`403`**.
+  - **M-153-04:** Hạ `waf_rate_limit = 100`, gửi 300 request → `+20 s` chuyển **`429`**.
+  - **M-153-05:** Thêm `waf_rate_limit_exempt_cidrs = ["<TESTER_IP>/32"]` → `GET /health/live` hồi về **`200`**.
+  - **M-153-06 & M-153-06b:** Bật `waf_managed_rules_count_only = true` → XSS qua WAF tới app (`404`); khôi phục mặc định (`rate_limit=1000`, `exempt=[]`, `count_only=false`) → XSS **`403`**, `/health/live` **`200`**.
+  - **Lưu ý vận hành phát hiện thực tế:** Khi xóa `waf_rate_limit_exempt_cidrs` (từ có CIDR về `[]`), Terraform có thể gặp `WAFAssociatedItemException` nếu cố xóa `aws_wafv2_ip_set` trước khi Web ACL bỏ tham chiếu xong; xử lý bằng cách gỡ tham chiếu khỏi Web ACL rồi xóa IP set.
+- **Bằng chứng:** [manual-test.txt](screenshots/DBS-153/manual-test.txt).
+
+## 9. Tài liệu đã cập nhật
+
+- [docs/features/DBS-153-waf-alb.md](DBS-153-waf-alb.md)
+- [docs/features/screenshots/DBS-153/manual-test.txt](screenshots/DBS-153/manual-test.txt)
+- [infra/terraform/README.md](../../infra/terraform/README.md), [docs/03_HIGH_LEVEL_ARCHITECTURE.md](../03_HIGH_LEVEL_ARCHITECTURE.md), [docs/security/threat-model.md](../security/threat-model.md), [docs/components/platform-infra/01-concept-brief.md](../components/platform-infra/01-concept-brief.md), [docs/BACKLOG.md](../BACKLOG.md) (đã cập nhật ở commit trước).
