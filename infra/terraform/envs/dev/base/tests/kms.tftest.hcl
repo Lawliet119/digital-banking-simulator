@@ -38,23 +38,27 @@ run "kms_key_policy_minimal" {
 
   assert {
     condition = (
-      length(jsondecode(aws_kms_key.main.policy).Statement) == 3 &&
+      length(jsondecode(aws_kms_key.main.policy).Statement) == 4 &&
       toset([for st in jsondecode(aws_kms_key.main.policy).Statement : st.Sid]) == toset([
         "AccountManagesKeyNotData",
         "UseKeyOnlyThroughAwsServices",
         "GrantsForAwsServices",
+        "ElastiCacheServiceLinkedRole",
       ]) &&
       alltrue([for st in jsondecode(aws_kms_key.main.policy).Statement : st.Effect == "Allow" && length(st.Action) > 0])
     )
-    error_message = "key policy must have exactly the 3 expected Allow statements with non-empty actions"
+    error_message = "key policy must have exactly the 4 expected Allow statements with non-empty actions"
   }
 
   assert {
     condition = alltrue([
       for st in jsondecode(aws_kms_key.main.policy).Statement :
-      try(st.Principal.AWS, "") == "arn:aws:iam::123456789012:root" && st.Principal != "*"
+      (
+        try(st.Principal.AWS, "") == "arn:aws:iam::123456789012:root" ||
+        try(st.Principal.AWS, "") == "arn:aws:iam::123456789012:role/aws-service-role/elasticache.amazonaws.com/AWSServiceRoleForElastiCache"
+      ) && st.Principal != "*"
     ])
-    error_message = "all statements must delegate to account root (no Principal *)"
+    error_message = "all statements must delegate to account root or AWSServiceRoleForElastiCache (no Principal *)"
   }
 
   assert {

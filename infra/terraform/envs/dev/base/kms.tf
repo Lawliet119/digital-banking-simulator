@@ -89,6 +89,31 @@ resource "aws_kms_key" "main" {
           }
         }
       },
+      {
+        Sid    = "ElastiCacheServiceLinkedRole"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${var.account_id}:role/aws-service-role/elasticache.amazonaws.com/AWSServiceRoleForElastiCache"
+        }
+        Action = [
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncryptFrom",
+          "kms:ReEncryptTo",
+          "kms:GenerateDataKey",
+          "kms:GenerateDataKeyWithoutPlaintext",
+          "kms:CreateGrant",
+          "kms:ListGrants",
+          "kms:RetireGrant",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:CallerAccount" = var.account_id
+          }
+        }
+      },
     ]
   })
 }
