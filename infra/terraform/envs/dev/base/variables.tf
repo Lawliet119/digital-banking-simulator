@@ -48,6 +48,17 @@ variable "github_branch" {
   default     = "main"
 }
 
+variable "github_deploy_environment" {
+  description = "BL-105: tên GitHub environment mà job `deploy` của deploy.yml khai (`environment:`). Role dbs-github-deploy chỉ tin sub `<prefix>:environment:<tên>`; đổi tên thì phải đổi cả deploy.yml và environment trên GitHub."
+  type        = string
+  default     = "dev"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]+$", var.github_deploy_environment))
+    error_message = "github_deploy_environment chỉ gồm chữ, số, gạch dưới, gạch ngang (ký tự khác bị GitHub mã hóa trong sub)."
+  }
+}
+
 variable "cognito_deletion_protection" {
   description = "ACTIVE chặn xóa user pool. Dev để INACTIVE vì teardown (DBS-208) cần xóa pool; đặt ACTIVE khi pool đã có người dùng thật."
   type        = string

@@ -1,12 +1,15 @@
 # Deploy image dbs-api:<SHA> lên service api của ECS sau khi Image đẩy xong (DBS-38).
-# Xác thực bằng OIDC với role dbs-github-deploy (chỉ tin đúng repo và nhánh main,
-# infra/terraform/envs/dev/base/deploy_role.tf). Cần biến repo AWS_DEPLOY_ROLE_ARN (chủ repo tạo);
-# thiếu biến thì job bị bỏ qua. Chạy lại bằng `gh workflow run deploy.yml --ref main`.
+# Xác thực bằng OIDC với role dbs-github-deploy (infra/terraform/envs/dev/base/deploy_role.tf). Cần biến repo
+# AWS_DEPLOY_ROLE_ARN (chủ repo tạo); thiếu biến thì job bị bỏ qua. Chạy lại bằng `gh workflow run deploy.yml --ref main`.
+#
+# BL-105: job khai `environment: dev` (environment tạo bằng `gh api`, KHÔNG có người duyệt, chỉ cho nhánh được bảo
+# vệ). Khi job gắn environment, `sub` của token OIDC là `repo:<owner>@<id>/<repo>@<id>:environment:dev` và role
+# dbs-github-deploy chỉ tin sub đó: workflow khác trên `main` có `id-token` không assume được role ghi ECS. Đổi tên
+# environment phải đổi cả biến Terraform github_deploy_environment.
 #
 # Quy tắc: chỉ image.yml và deploy.yml được xin `id-token: write`. Role deploy ghi vào ECS nên workflow
-# này không dùng cache và không đưa `github.event.*` thẳng vào `run:`. Nếu sau này có môi trường cần người
-# duyệt, thêm `environment:` và đổi `sub` của role. Script .github/scripts/check-image-workflow.py kiểm
-# điều này. Tên job `deploy` không được trùng sáu tên hợp đồng của ci.yml.
+# này không dùng cache và không đưa `github.event.*` thẳng vào `run:`. Script .github/scripts/check-image-workflow.py
+# kiểm điều này và kiểm job có `environment: dev`. Tên job `deploy` không được trùng sáu tên hợp đồng của ci.yml.
 name: Deploy
 
 on:
@@ -35,6 +38,7 @@ jobs:
       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    environment: dev
     permissions:
       contents: read
       id-token: write

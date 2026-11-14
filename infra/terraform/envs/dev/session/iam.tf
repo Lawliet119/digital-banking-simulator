@@ -9,6 +9,7 @@
 # | dbs-dev-worker-execution  | execution | service worker (DBS-121)      |
 # | dbs-dev-worker-task       | task      | service worker (DBS-121)      |
 # | dbs-dev-migrate-execution | execution | dbs-migrate (không task role) |
+# | dbs-dev-seed-execution    | execution | dbs-seed (BL-252, seed.tf; không task role, không đọc secret) |
 
 locals {
   # Execution role: chỉ aws:SourceAccount (trang task execution role của ECS không nêu aws:SourceArn).
