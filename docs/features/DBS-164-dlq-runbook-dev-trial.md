@@ -1,6 +1,6 @@
 # DBS-164 · Runbook DLQ: xem message, redrive, bỏ qua có ghi nhận
 
-> **Status:** Design approved (sau G2) · **Vai:** Dev (docs) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-164-dlq-runbook` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Plan approved (sau G3) · **Vai:** Dev (docs) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-164-dlq-runbook` · **PR:** — · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
@@ -119,7 +119,7 @@ Task docs-only: kiểm bằng grep đối chiếu và kiểm liên kết; nội 
 | M-164-04 | Alarm: poll `describe-alarms` | `dbs-dev-notification-dlq-not-empty` sang `ALARM` ≤ 5 phút |
 | M-164-05 | Phân loại (mục 2b): `filter-log-events` trên `/dbs/dev/worker`; đối chiếu body với danh sách loại sự kiện ở event-contract | log trống (không có worker: ghi rõ, không phải lỗi runbook); (a) = redrive được, (b) = `invalid_event`, (c) = `unknown_event_type`. `processed_events`: **không chạy** (cần phiên có RDS) |
 | M-164-06 | `dlq:age-check` chỉ báo cáo (mục 3a) | `checked` 3, `fresh` 3, `stale` rỗng, thoát 0 |
-| M-164-07 | Quét + bỏ qua (3b, 3c): lưu body (b) và (c) ra file `scan-notification-….tsv`/`skip-notification-….jsonl` ở thư mục ngoài repo, xóa bằng handle mới nhất; trả (a) về visibility 0 | DLQ còn đúng 1 message (a); file có hai body; không có file nào trong cây repo (`git status` sạch) |
+| M-164-07 | Quét + bỏ qua (3b, 3c): lưu body (b) và (c) vào `$SKIP` (`SCAN` cho các lô quét) ở thư mục ngoài repo, xóa bằng handle mới nhất; trả (a) về visibility 0 | DLQ còn đúng 1 message (a); `$SKIP` có hai body; `git status --porcelain` không có file `.tsv` hay `.jsonl` mới |
 | M-164-08 | Redrive (mục 4): đếm lại và chạy lại `dlq:age-check` (1 message, `fresh`), kiểm `list-message-move-tasks` rỗng (mọi trạng thái), rồi `start-message-move-task` với `--destination-arn`, đợi `COMPLETED` | 1 message chuyển; `dbs-dev-notification-events` có 1, DLQ 0; `ecs list-clusters` vẫn rỗng |
 | M-164-09 | Dọn queue chính ngay: `receive-message`, kiểm `eventId` đúng của (a), `delete-message` bằng handle đó; **không** `purge-queue` | bốn queue 0 ở ba thuộc tính |
 | M-164-10 | Inject (d) vào DLQ, chờ ít nhất 90 giây, chạy `dlq:age-check --max-age-days 0.0007 --delete-stale --quarantine-file "$QF"` với `QF=~/dbs-ops/dlq/stale-notification-<giờ>.jsonl` (mô phỏng quá hạn) | báo cáo: `stale` 1 phần tử, `deleted` 1, `complete: true`, thoát 0; file có body (d); chạy lại cùng tên file thì phải bị chặn bằng kiểm "file chưa tồn tại" của runbook (kiểm bằng `test -e`) |
@@ -163,4 +163,15 @@ Task docs-only: kiểm bằng grep đối chiếu và kiểm liên kết; nội 
 
 ## 7. Kế hoạch triển khai
 
-*(Phase 3)*
+Task docs-only: "test viết trước" là các lệnh grep của TC-164-01/02/04; "đỏ" là grep chưa ra gì vì runbook chưa có phần mới.
+
+| Bước | File | Test viết trước | Kết quả đỏ (điền khi chạy) | Lệnh chứng minh | Commit |
+|---|---|---|---|---|---|
+| 1 | `docs/runbooks/dlq-redrive.md` (tóm tắt, 2b, 3c, mục 3 và 4 thêm file ngoài repo/kiểm lại/move task, sửa câu `processed_events`, bỏ câu "chưa kích hoạt") | TC-164-01, 02, 04 | `grep -c "Phân loại nguyên nhân" docs/runbooks/dlq-redrive.md` = 0; `grep -n "chưa kích hoạt"` còn 1 dòng | các grep ở §4, `check-doc-links.mjs` | `docs(runbook): DLQ phân loại, bỏ qua có ghi nhận, kiểm lại trước redrive (DBS-164)` |
+| 2 | `docs/features/DBS-163-dlq-age-alarms.md` (status, §7 cho khớp thực tế) | TC-164-04 | status còn `Draft` | `grep -n "Status" docs/features/DBS-163-dlq-age-alarms.md` | gộp bước 1 |
+| 3 | `docs/features/screenshots/DBS-164/manual-test.txt` | M-164-01..12 | — | lệnh runbook trên SQS dev thật | `docs(runbook): kết quả chạy thử DLQ trên dev (DBS-164)` |
+| 4 | runbook mục "Lần chạy thật" (kết quả, ngày được redrive lại), `docs/features/README.md`, `docs/BACKLOG.md`, feature doc §8–§9 | G4 | — | `check-doc-links.mjs` | `docs(features): hoàn tất DBS-164, bàn giao BL-360..364` |
+
+- **Plan sweep:** hạn chế nêu trong runbook (`list-message-move-tasks` làm ElasticMQ sập: không đổi), "chưa chạy trên AWS" (bước 1 và 3), doc DBS-163 lệch (bước 2), `processed_events` không kiểm được (bàn giao BL-362), quyền tối thiểu không kiểm (BL-363), log chưa kiểm trên log thật vì không có worker (BL-364), ghi đè file quarantine và `.gitignore` (BL-360, BL-361). Không còn mục nào chưa có hàng kế hoạch.
+- **Rủi ro và cách lùi:** (1) lần thử để message tổng hợp trong queue dev: dọn ở M-164-09/11 bằng `delete-message` theo `eventId`, không `purge-queue`, kiểm lại không có cluster ECS trước redrive; (2) file thử chứa body tổng hợp: xóa cuối lần thử; (3) sai nhãn runbook phát hiện khi chạy: sửa tài liệu theo kết quả, không sửa kết quả. Back-out: không đổi code, bỏ commit docs. Hệ quả: DLQ notification hết cửa sổ redrive tới 2026-11-21 (ghi ở §8).
+- **Quyết định ở G3 (agent tự quyết):** BL của task này lấy dải 360–364 (các PR khác đang mở dùng dải 265–342, BL-350, 351 đã dùng).
