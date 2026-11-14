@@ -28,7 +28,7 @@ Sản phẩm: [`docs/runbooks/async-incident-scenarios.md`](../runbooks/async-in
 **Chạy local (chung).** Từ `backend/`, cần Docker (Testcontainers tự dựng ElasticMQ và Valkey) và một PostgreSQL 17 đang chạy làm máy chủ; mỗi test tạo database tạm riêng (`dbs_test_<12 hex>`) rồi xóa, nên lặp bao nhiêu lần cũng cho cùng kết quả:
 
 ```bash
-docker run -d --rm --name dbs-pg -p 55433:5432 -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test postgres:17 -c timezone=UTC
+docker run -d --rm --name dbs183-pg -p 55433:5432 -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test postgres:17 -c timezone=UTC
 export DATABASE_URL=postgres://test:test@localhost:55433/postgres
 npm run test:services -- --runInBand --runTestsByPath test/services/dlq-isolation.services-spec.ts --verbose
 ```
@@ -42,7 +42,7 @@ npm run test:services -- --runInBand --runTestsByPath test/services/dlq-isolatio
 
 `dlq-isolation.services-spec.ts` có bốn test: TC-125-01..03 và TC-046-01 (không thuộc kịch bản nào).
 
-**Chạy cloud (chung; DBS-184 chạy và ghi bằng chứng).** Cần phiên ECS và RDS ([Dựng từ trạng thái trống](../../infra/terraform/README.md#dựng-từ-trạng-thái-trống-và-đo-thời-gian-dbs-139), ≈ 12 phút) và token nhân viên, khách (kịch bản [demo giữa kỳ](../demos/demo-midterm-end-to-end.md), nhánh cloud). **Chi phí và dọn:** ≈ 0,14 USD/giờ khi api và worker chạy, quên tắt ≈ 3 USD/ngày, trần một phiên 90 phút. Ngân sách thời gian: (a)+(c) ≈ 10 phút (150 s chờ DLQ, alarm tới 5 phút, khôi phục), (b) ≈ 5 phút, (d) ≈ 12 phút (alarm `outbox-age` kêu sau ≈ 9 phút 22 giây). Cuối cùng **bắt buộc**: `desired-count` của `worker` về 1 (để `dbs-dev-outbox-age` không kẹt ở `ALARM`), `terraform destroy` phiên, `verify-clean.sh` thoát 0, báo trong kênh chat.
+**Chạy cloud (chung; DBS-184 chạy và ghi bằng chứng).** Cần phiên ECS và RDS ([Dựng từ trạng thái trống](../../infra/terraform/README.md#dựng-từ-trạng-thái-trống-và-đo-thời-gian-dbs-139), ≈ 12 phút) và token nhân viên, khách (kịch bản [demo giữa kỳ](../demos/demo-midterm-end-to-end.md), nhánh cloud). **Chi phí và dọn:** ≈ 0,14 USD/giờ khi api và worker chạy, quên tắt ≈ 2 USD/ngày khi không có task (README Terraform) và ≈ 3,4 USD/ngày khi api và worker chạy, trần một phiên 90 phút. Ngân sách thời gian: (a)+(c) ≈ 10 phút (150 s chờ DLQ, alarm tới 5 phút, khôi phục), (b) ≈ 5 phút, (d) ≈ 12 phút (alarm `outbox-age` kêu sau ≈ 9 phút 22 giây). Cuối cùng **bắt buộc**: `desired-count` của `worker` về 1 (để `dbs-dev-outbox-age` không kẹt ở `ALARM`), `terraform destroy` phiên, `verify-clean.sh` thoát 0, báo trong kênh chat.
 
 | Kịch bản | Ép sự cố | Mong đợi (đã đo ở đâu) | Xác nhận |
 |---|---|---|---|
@@ -51,10 +51,10 @@ npm run test:services -- --runInBand --runTestsByPath test/services/dlq-isolatio
 | (c) | cùng sự cố và cùng một chuyển tiền của (a); quan sát phía giao dịch | chuyển tiền 201 `COMPLETED`; cờ rủi ro xuất hiện (`GET /v1/operator/fraud-flags`) trong vài giây; bất biến sổ cái PASS | API; `GET /v1/audit/entries?action=notification.sent&correlationId=<C>` (auditor) trả **0** dòng khi lỗi còn và **1** dòng sau khi sửa và gửi lại (không endpoint nào đọc `notification_log`); `invariants.js` bằng task ECS chạy một lần ([backend/README §9](../../backend/README.md)); DLQ risk 0 |
 | (d) | `aws ecs update-service --cluster dbs-dev --service worker --desired-count 0`, chờ `runningCount` 0, chuyển N lệnh đạt ngưỡng, rồi `--desired-count 1` | chuyển tiền vẫn 201 khi worker tắt; `dbs-dev-outbox-age` sang `ALARM` sau ≈ 9 phút 22 giây (BL-182, đo 2026-11-14); bật lại: outbox xả trong ≈ 4 giây, đủ N cờ, mỗi cờ đúng một audit `fraud.flagged`, queue và DLQ về 0 | `GET /v1/operator/fraud-flags`, `GET /v1/audit/entries?action=fraud.flagged` (auditor); `get-queue-attributes` bốn queue; `describe-alarms` |
 
-**Cách ép lỗi notification trên cloud (đề xuất, chưa kiểm; DBS-184 xác nhận).** Ops không có đường ghi vào RDS (BL-362). Dùng `dbs-migrate`, task chạy một lần nối RDS bằng role `dbs_migrator`, là **chủ** của `notification_log` và đã có cách ghi đè lệnh trong [backend/README §9](../../backend/README.md) (không dùng `dbs-db-roles`: task đó cố ý chạy không ghi đè và là task duy nhất đọc secret master; master RDS cũng không phải superuser nên không `ALTER` được bảng của `dbs_migrator`). Ghi đè `command` của container `migrate` bằng một lệnh `node` dùng thư viện `pg` và biến `DB_*` (TLS bằng `DATABASE_SSL_CA_PATH`) chạy `ALTER TABLE notification_log ADD CONSTRAINT dbs183_block CHECK (false) NOT VALID`, và `DROP CONSTRAINT dbs183_block` để khôi phục; kiểm bằng `exitCode` của task, rồi một task nữa kiểm `pg_constraint` không còn `dbs183_block`. Lệnh `node` cụ thể chưa được chạy: DBS-184 viết và kiểm; nếu không làm được thì (a) và (c) trên cloud ghi **chưa chạy** kèm lý do, (b) và (d) không cần ghi RDS nên vẫn chạy. Đừng chạy khi người khác đang dùng cùng phiên (constraint ảnh hưởng mọi thông báo). Một lệnh ép lỗi chính thức là bàn giao (§8).
+**Cách ép lỗi notification trên cloud (đề xuất, chưa kiểm; DBS-184 xác nhận).** Ops không có đường ghi vào RDS (BL-362). Dùng `dbs-migrate`, task chạy một lần nối RDS bằng role `dbs_migrator`, là **chủ** của `notification_log` và đã có cách ghi đè lệnh trong [backend/README §9](../../backend/README.md) (không dùng `dbs-db-roles`: task đó cố ý chạy không ghi đè và là task duy nhất đọc secret master; master RDS cũng không phải superuser nên không `ALTER` được bảng của `dbs_migrator`). Ghi đè `command` của container `migrate` bằng một lệnh `node` dùng thư viện `pg` và biến `DB_*` (TLS bằng `DATABASE_SSL_CA_PATH`) chạy `ALTER TABLE notification_log ADD CONSTRAINT dbs183_block CHECK (false) NOT VALID`, và `DROP CONSTRAINT dbs183_block` để khôi phục; kiểm bằng `exitCode` của task, rồi một task nữa kiểm `pg_constraint` không còn `dbs183_block`. Lệnh `node` cụ thể chưa được chạy: DBS-184 viết và kiểm; nếu không làm được thì (a) và (c) trên cloud ghi **chưa chạy** kèm lý do, (b) và (d) không cần ghi RDS nên vẫn chạy. Trước `ADD` và trước `DROP`, kiểm `aws ecs list-tasks --cluster dbs-dev --family dbs-migrate --desired-status RUNNING` rỗng (`migrate.sh` từ chối chạy khi còn task `dbs-migrate` đang chạy, và một migration chạy lúc `CHECK (false)` còn đó mà ghi `notification_log` sẽ làm deploy hỏng); **không deploy** cho tới khi `DROP CONSTRAINT` được xác nhận. Đừng chạy khi người khác đang dùng cùng phiên (constraint ảnh hưởng mọi thông báo). Một lệnh ép lỗi chính thức là bàn giao (§8).
 
 **Dọn để chạy lại.**
-- (a), (c): `DROP CONSTRAINT` rồi kiểm; message notification trong DLQ là **sự kiện hợp lệ** (`attempts_exhausted`) mà nguyên nhân đã sửa, không thuộc bốn trường hợp được bỏ qua ở runbook DLQ mục 3c. Xử lý theo runbook: redrive nếu DLQ đó chưa redrive trong 6 ngày; còn khóa (DLQ notification tới 2026-11-21, DLQ risk tới 2026-11-20) thì gửi lại thân message bằng `send-message` vào `dbs-dev-notification-events` rồi xóa bản trong DLQ theo handle, ghi `eventId` (mục "Lần chạy thật" của runbook). Kết quả: `notification.sent` có đúng 1 dòng (kịch bản (c)).
+- (a), (c): `DROP CONSTRAINT` rồi kiểm; message notification trong DLQ là **sự kiện hợp lệ** (`attempts_exhausted`) mà nguyên nhân đã sửa, không thuộc bốn trường hợp được bỏ qua ở runbook DLQ mục 3c. Xử lý **mọi** message `attempts_exhausted` của cửa sổ này (không chỉ message của chuyển tiền thử, vì constraint chặn cả nạp tiền và giao dịch khác), ghi từng `eventId`: redrive cả DLQ nếu DLQ đó chưa redrive trong 6 ngày; còn khóa (DLQ notification tới 2026-11-21, DLQ risk tới 2026-11-20) thì với từng message `receive-message --message-attribute-names All`, gửi lại thân vào `dbs-dev-notification-events` bằng `send-message --message-attributes` **mang theo `OriginalSentTimestamp`** của bản trong DLQ (để tuổi message vẫn tính từ lần gửi gốc, BL-210), rồi xóa bản trong DLQ theo handle (mục "Lần chạy thật" của runbook). `processed_events` và `INSERT … ON CONFLICT DO NOTHING` bảo đảm mỗi `eventId` chỉ áp một lần dù cùng lúc có redrive và gửi lại. Kết quả: `notification.sent` có đúng 1 dòng cho mỗi sự kiện đã gửi lại (kịch bản (c)).
 - (b): xóa hai message khỏi DLQ theo handle (runbook mục 3b và 3c, ghi nhận bằng GitHub issue); **không** `purge-queue`.
 - (d): `desired-count 1`, outbox rỗng (không còn alarm `outbox-age`).
 - Local: không cần dọn (database tạm tự xóa); dừng container PostgreSQL.
@@ -93,7 +93,7 @@ Task docs-only: các lệnh local của kịch bản chính là test tự độn
 
 ## 5. Test thủ công (local thật; phần cloud chỉ kiểm tên và cú pháp với AWS, không chạy sự cố)
 
-Điều kiện: Docker bật; PostgreSQL 17 tạm cổng 55433 (cổng 5432 bị Postgres native chiếm); không `DATABASE_URL` từ shell khác.
+Điều kiện: Docker bật; Node 24 trên `PATH` (`engines.node` là `>=24`; trên máy này `node` mặc định là v18) và `npm ci` trong `backend/`; PostgreSQL 17 tạm cổng 55433 (cổng 5432 bị Postgres native chiếm); không `DATABASE_URL` từ shell khác; trên Git Bash đặt `MSYS_NO_PATHCONV=1` trước mọi lệnh `aws logs … --log-group-name /dbs/…`.
 
 | Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
@@ -102,7 +102,7 @@ Task docs-only: các lệnh local của kịch bản chính là test tự độn
 | M-183-03 | `consumer-poison.services-spec.ts --verbose` | TC-010-01..03 đạt: kịch bản (b) |
 | M-183-04 | Chạy lại M-183-01, M-183-02 và M-183-03 lần hai; rồi `docker exec dbs183-pg psql -U test -d postgres -Atc "SELECT count(*) FROM pg_database WHERE datname LIKE 'dbs_test_%'"` | cùng số test đạt; số database tạm còn lại là `0` |
 | M-183-05 | Kiểm tên trên AWS (chỉ đọc): `describe-alarms` hai alarm DLQ; `get-queue-url` bốn queue; `describe-services` không có cluster (không có phiên); cú pháp `aws ecs update-service help`, `aws ecs run-task help` | tên khớp; ghi rõ alarm `dbs-dev-outbox-age` và task `dbs-migrate` chỉ tồn tại khi có phiên (không kiểm được lúc này) |
-| M-183-06 | Dừng container PostgreSQL | không còn container tạm |
+| M-183-06 | `docker stop dbs183-pg` | không còn container tạm (`docker ps` không có `dbs183-pg`) |
 
 ## 6. Domain review (AI)
 
@@ -122,5 +122,16 @@ Task docs-only: các lệnh local của kịch bản chính là test tự độn
 | 10 | minor | thứ tự đo 155 s và 139 s | đã sửa (155 s DBS-163 risk; 139 s DBS-164 notification) |
 | 11 | minor | "DLQ về 0" không nói cách | đã sửa: xóa theo handle, không `purge` |
 | 12 | minor | thiếu bảng bàn giao | sẽ có ở §8 |
+
+**Vòng 2** ([nguyên văn](screenshots/DBS-183/domain-review-2.md)): 6 phát hiện (blocking 0, should-fix 2, minor 4), **APPROVE**; đã sửa hết:
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| 2.1 | should-fix | tên container PostgreSQL không thống nhất | đã sửa: `dbs183-pg` ở §2 và §5, M-183-06 có lệnh `docker stop` |
+| 2.2 | should-fix | dọn (a), (c) chỉ nói một message; constraint chặn mọi thông báo | đã sửa: xử lý mọi message `attempts_exhausted` của cửa sổ, ghi từng `eventId` |
+| 2.3 | minor | `migrate.sh` từ chối khi còn task `dbs-migrate`; migration lúc constraint còn | đã thêm kiểm `list-tasks` rỗng trước ADD/DROP và không deploy tới khi DROP xong |
+| 2.4 | minor | gửi lại mất `OriginalSentTimestamp` | đã sửa: `send-message --message-attributes` mang theo thuộc tính |
+| 2.5 | minor | chi phí lệch README | đã sửa: 2 USD/ngày không task, 3,4 USD/ngày khi có task |
+| 2.6 | minor | thiếu Node 24, `npm ci`, `MSYS_NO_PATHCONV` | đã thêm vào điều kiện §5 |
 
 **Quyết định ở G2 (agent tự quyết):** (1) cloud (a) và (c) dùng `dbs-migrate` với ghi đè lệnh `node` chưa kiểm, DBS-184 xác nhận; (2) PR chỉ merge sau #198.
