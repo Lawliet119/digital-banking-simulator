@@ -87,13 +87,20 @@ export class FraudHttpService {
         counterpartyAccountId: row.counterpartyAccountId,
         createdAt: row.createdAt,
       }));
+      // BL-226 (DBS-135, AC-8.2): a view of one flag is a step of that transfer's chain, same as
+      // the review, so the auditor who looks up the transfer's code sees who opened the flag. The
+      // request's own code stays in metadata.id (log lines, response header). The flag was read
+      // above, so its transfer exists (foreign key): no fallback to the request code.
+      const chainCode = await transferCorrelationId(manager, id);
+      if (!chainCode) throw new Error('Transfer of a viewed flag has no correlationId');
       await this.audit.record(manager, {
         actor,
         role: 'operator',
         action: 'fraud_flag.view',
         outcome: 'SUCCESS',
         target: { type: 'fraud_flag', id },
-        correlationId,
+        correlationId: chainCode,
+        metadata: { id: correlationId },
       });
       return { ...rows[0], hits, recentTransactions };
     });
