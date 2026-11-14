@@ -46,6 +46,7 @@ describe('DBS-77 SQS transport', () => {
         MaxNumberOfMessages: 10,
         VisibilityTimeout: 30,
         MessageAttributeNames: ['All'],
+        MessageSystemAttributeNames: ['ApproximateReceiveCount', 'SentTimestamp'],
       },
     });
     expect(AwsClient).toHaveBeenCalledWith({
@@ -150,6 +151,74 @@ describe('DBS-77 SQS transport', () => {
     expect(results).toEqual([{ messageId: 'poison', status: 'failed' }]);
     expect(send).toHaveBeenCalledTimes(2);
   });
+  describe('BL-210 a dead-lettered copy keeps the time of the first send', () => {
+    const body = '{"eventType":"TransferCompleted"}';
+    /** One poison message received from `source`; returns the input of the SendMessage to the DLQ. */
+    async function deadLetterInput(message: Record<string, unknown>): Promise<unknown> {
+      send
+        .mockResolvedValueOnce({
+          Messages: [{ MessageId: 'm', Body: body, ReceiptHandle: 'receipt', ...message }],
+        })
+        .mockResolvedValue({});
+      await client.processBatch(
+        'source',
+        'dlq',
+        () => Promise.reject(new PoisonMessageError('invalid schema')),
+        { waitTimeSeconds: 0 },
+      );
+      return (send.mock.calls[1][0] as { input: unknown }).input;
+    }
+
+    it('TC-210-01 copies SentTimestamp into OriginalSentTimestamp and keeps the other attributes', async () => {
+      const input = await deadLetterInput({
+        Attributes: { SentTimestamp: '1700000000000', ApproximateReceiveCount: '5' },
+        MessageAttributes: { correlationId: { DataType: 'String', StringValue: 'c-1' } },
+      });
+      expect(input).toEqual({
+        QueueUrl: 'dlq',
+        MessageBody: body,
+        MessageAttributes: {
+          correlationId: { DataType: 'String', StringValue: 'c-1' },
+          OriginalSentTimestamp: { DataType: 'Number', StringValue: '1700000000000' },
+        },
+      });
+    });
+
+    it('TC-210-02 a message that already carries OriginalSentTimestamp (a replayed one) keeps the older value', async () => {
+      const input = await deadLetterInput({
+        Attributes: { SentTimestamp: '1700999999999' },
+        MessageAttributes: {
+          OriginalSentTimestamp: { DataType: 'Number', StringValue: '1700000000000' },
+        },
+      });
+      expect(input).toMatchObject({
+        MessageAttributes: {
+          OriginalSentTimestamp: { DataType: 'Number', StringValue: '1700000000000' },
+        },
+      });
+    });
+
+    it('TC-210-03 a malformed or forged OriginalSentTimestamp is replaced by the queue SentTimestamp', async () => {
+      for (const forged of ['yesterday', '-5', '1e12', '17000000000001234567890', '']) {
+        send.mockReset();
+        const input = await deadLetterInput({
+          Attributes: { SentTimestamp: '1700000000000' },
+          MessageAttributes: { OriginalSentTimestamp: { DataType: 'String', StringValue: forged } },
+        });
+        expect(input).toMatchObject({
+          MessageAttributes: {
+            OriginalSentTimestamp: { DataType: 'Number', StringValue: '1700000000000' },
+          },
+        });
+      }
+    });
+
+    it('TC-210-04 a message without SentTimestamp is forwarded with its attributes unchanged', async () => {
+      const input = await deadLetterInput({});
+      expect(input).toEqual({ QueueUrl: 'dlq', MessageBody: body, MessageAttributes: undefined });
+    });
+  });
+
   it('TC-102-04 changeVisibility hides a received message for the given seconds and validates its input', async () => {
     send.mockResolvedValue({});
     await client.changeVisibility('queue', { ReceiptHandle: 'receipt' }, 40);

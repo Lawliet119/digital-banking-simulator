@@ -172,6 +172,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/worker-recovery.services-spec.ts
       - name: Failing notification dead-letters alone, broken messages, redrive (DBS-125)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/dlq-isolation.services-spec.ts
+      - name: DLQ message keeps its first send time; age check before redrive (BL-210)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/dlq-age-check.services-spec.ts
       - name: Rule-set switch while Valkey caches the old latest version (RSK-06 DoD 4, BL-239)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/risk-config-switch.services-spec.ts
 

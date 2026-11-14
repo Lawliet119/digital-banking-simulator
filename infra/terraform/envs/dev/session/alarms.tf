@@ -146,7 +146,7 @@ resource "aws_cloudwatch_metric_alarm" "risk_config_invalid" {
   ok_actions    = local.alarm_actions
 }
 
-# Lỗi mã luật hoặc truy vấn feature (ADR-14): rollback, không ack, retry rồi vào DLQ sau ≈ 75-80 giây. Một lỗi tất định đưa
+# Lỗi mã luật hoặc truy vấn feature (ADR-14): rollback, không ack, retry rồi vào DLQ sau ≈ 150 giây (backoff 10, 20, 40, 80, BL-210). Một lỗi tất định đưa
 # MỌI event vào DLQ, nên alarm kêu sớm hơn alarm DLQ. Metric có dimension Rule (R1..R6): sáu metric khai tường minh gộp
 # bằng SUM(METRICS()) (bộ dimension `[Role, Rule]`, không có bộ tổng).
 resource "aws_cloudwatch_metric_alarm" "risk_rule_error" {

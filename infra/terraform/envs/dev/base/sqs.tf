@@ -6,9 +6,14 @@ locals {
   sqs_consumers = toset(["risk", "notification"])
 }
 
-# DLQ giữ 6 ngày. Queue standard tính hạn trong DLQ từ lúc gửi gốc, nên message không sống quá
-# 6 ngày < 7 ngày của processed_events (database-design §10). Redrive reset hạn: xem quy tắc redrive
-# ở README Terraform.
+# DLQ giữ 6 ngày. Chỉ việc SQS tự chuyển (redrive_policy, maxReceiveCount) giữ hạn tính từ lúc gửi
+# gốc. Consumer của app (ConsumerBase, libs/sqs deadLetter) chuyển bằng SendMessage: bản sao là message
+# mới, hạn DLQ tính lại từ lúc chuyển, nên message có thể sống tới 4 + 6 ngày kể từ lúc gửi gốc, dài hơn
+# 7 ngày của processed_events (database-design §10, BL-210). Vì vậy bản sao mang thuộc tính
+# OriginalSentTimestamp (epoch ms của lần gửi gốc, giữ qua mọi lần chuyển và replay) và Ops chạy
+# `npm run --silent dlq:age-check` trước mỗi redrive: message gửi gốc quá 6 ngày không được replay
+# (docs/runbooks/dlq-redrive.md). Redrive (start-message-move-task) cũng reset hạn: xem quy tắc ở README
+# Terraform.
 resource "aws_sqs_queue" "dlq" {
   for_each = local.sqs_consumers
 

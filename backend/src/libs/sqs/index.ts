@@ -1,6 +1,8 @@
 export {
   SqsClient,
   PoisonMessageError,
+  ORIGINAL_SENT_TIMESTAMP,
+  originalSentTimestampOf,
   type ReceiveOptions,
   type SendOptions,
   type BatchResult,

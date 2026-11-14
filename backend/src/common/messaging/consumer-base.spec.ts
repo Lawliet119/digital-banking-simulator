@@ -14,7 +14,8 @@ class TestConsumer extends ConsumerBase {
   readonly committed: DomainEvent[] = [];
   seenCorrelationId: unknown = 'not-run';
   failure: Error | undefined;
-  backoff = 5;
+  /** `undefined` keeps the production default of `ConsumerBase` (BL-210: the tests must see it). */
+  backoff: number | undefined;
   policy: UnknownEventPolicy = 'dead-letter';
 
   constructor(
@@ -26,7 +27,7 @@ class TestConsumer extends ConsumerBase {
     super(tx, sqs, pino);
   }
   protected override get retryBackoffSeconds(): number {
-    return this.backoff;
+    return this.backoff ?? super.retryBackoffSeconds;
   }
   protected override get unknownEventPolicy(): UnknownEventPolicy {
     return this.policy;
@@ -268,9 +269,11 @@ describe('DBS-101 ConsumerBase (unit)', () => {
         'database unavailable',
       );
     }
-    expect(changeVisibility.mock.calls.map((call: unknown[]) => call[2] as number)).toEqual([
-      5, 10, 20, 40,
-    ]);
+    const delays = changeVisibility.mock.calls.map((call: unknown[]) => call[2] as number);
+    expect(delays).toEqual([10, 20, 40, 80]);
+    // BL-210: the window between the first receive and the DLQ covers ADR-03's 120 s, so a
+    // PostgreSQL failover of about two minutes does not dead-letter the events in flight.
+    expect(delays.reduce((sum, seconds) => sum + seconds, 0)).toBeGreaterThanOrEqual(120);
     expect(changeVisibility.mock.calls[0][0]).toBe(
       'http://localhost:9324/000000000000/unit-events',
     );

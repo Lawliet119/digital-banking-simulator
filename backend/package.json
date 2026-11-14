@@ -25,6 +25,7 @@
     "test": "jest --config ./test/jest-unit.js",
     "test:e2e": "jest --config ./test/jest-e2e.js",
     "test:db": "jest --config ./test/jest-db.js",
+    "dlq:age-check": "ts-node -r tsconfig-paths/register src/scripts/dlq-age-check.main.ts",
     "check:invariants": "ts-node -r tsconfig-paths/register src/scripts/invariants/invariants.ts",
     "check:invariants:dist": "node dist/scripts/invariants/invariants.js",
     "auth:dev-keys": "ts-node -r tsconfig-paths/register src/scripts/dev-auth.keys.ts",

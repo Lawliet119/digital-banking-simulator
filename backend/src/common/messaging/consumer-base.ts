@@ -16,6 +16,12 @@ import { countConsumerMessage, type ConsumerOutcome } from './consumer.metrics';
 
 /** Receives a message may get before it is dead-lettered: 4 retries after the first (ADR-03). */
 export const MAX_ATTEMPTS = 5;
+/**
+ * First backoff in seconds (BL-210). It doubles per failure: 10, 20, 40, 80 between the five
+ * receives, so a message is dead-lettered about 150 s after its first failure. That covers the 120 s
+ * ADR-03 assumed and a PostgreSQL Multi-AZ failover (60 to 120 s); 75 s (5, 10, 20, 40) did not.
+ */
+const DEFAULT_BACKOFF_SECONDS = 10;
 const LONG_POLL_SECONDS = 20;
 /** The backoff before a retry never exceeds this (the visibility timeout the queue starts from is 30 s). */
 const MAX_BACKOFF_SECONDS = 300;
@@ -113,11 +119,12 @@ export abstract class ConsumerBase implements OnApplicationBootstrap, BeforeAppl
 
   /**
    * Seconds the first failed message stays hidden before it is delivered again; each further
-   * failure doubles it, up to 300 s. 0 turns the backoff off (the queue's own visibility
-   * timeout applies). A consumer of a slow dependency raises it, a test sets 0.
+   * failure doubles it, up to 300 s. The default 10 gives 10, 20, 40, 80 s (150 s in all, BL-210).
+   * 0 turns the backoff off (the queue's own visibility timeout applies). A consumer of a slow
+   * dependency raises it, a test sets 0.
    */
   protected get retryBackoffSeconds(): number {
-    return 5;
+    return DEFAULT_BACKOFF_SECONDS;
   }
 
   protected get unknownEventPolicy(): UnknownEventPolicy {

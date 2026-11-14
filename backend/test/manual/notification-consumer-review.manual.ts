@@ -22,7 +22,7 @@ const endpoint = process.env.SQS_ENDPOINT ?? 'http://localhost:9324';
 process.env.AWS_ACCESS_KEY_ID = 'local';
 process.env.AWS_SECRET_ACCESS_KEY = 'local';
 
-/** M-104-04: no backoff, so the redelivery after the user is created does not wait 5 s. */
+/** M-104-04: no backoff, so the redelivery after the user is created does not wait 10 s. */
 class NoBackoffNotification extends NotificationConsumer {
   protected override get retryBackoffSeconds(): number {
     return 0;

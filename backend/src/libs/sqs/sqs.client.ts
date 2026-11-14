@@ -26,6 +26,35 @@ export interface SendOptions {
   timeoutMs?: number;
 }
 export type SqsMessage = Message;
+
+/**
+ * Name of the message attribute that carries the time (epoch milliseconds) a message was first sent
+ * to its queue (BL-210). `deadLetter` forwards with `SendMessage`, which makes a new message, so the
+ * DLQ's own `SentTimestamp` and retention restart at forward time; this attribute keeps the first
+ * send, which is what the 6-day replay limit counts from (database-design §10,
+ * `docs/runbooks/dlq-redrive.md`).
+ */
+export const ORIGINAL_SENT_TIMESTAMP = 'OriginalSentTimestamp';
+
+const EPOCH_MILLIS = /^\d{1,15}$/;
+
+/**
+ * The time a message was first sent to its queue, in epoch milliseconds: the smaller of the
+ * `OriginalSentTimestamp` it already carries (it went through a DLQ and a replay before) and the
+ * queue's own `SentTimestamp`. A malformed attribute is ignored. `undefined` when neither exists.
+ */
+export function originalSentTimestampOf(
+  message: Pick<Message, 'Attributes' | 'MessageAttributes'>,
+): number | undefined {
+  const candidates: number[] = [];
+  for (const raw of [
+    message.MessageAttributes?.[ORIGINAL_SENT_TIMESTAMP]?.StringValue,
+    message.Attributes?.SentTimestamp,
+  ]) {
+    if (raw !== undefined && EPOCH_MILLIS.test(raw)) candidates.push(Number(raw));
+  }
+  return candidates.length === 0 ? undefined : Math.min(...candidates);
+}
 export interface BatchResult {
   messageId: string | undefined;
   status: 'acknowledged' | 'dead-lettered' | 'failed';
@@ -95,7 +124,7 @@ export class SqsClient implements OnApplicationShutdown {
         MaxNumberOfMessages: batch,
         VisibilityTimeout: visibility,
         MessageAttributeNames: ['All'],
-        MessageSystemAttributeNames: ['ApproximateReceiveCount'],
+        MessageSystemAttributeNames: ['ApproximateReceiveCount', 'SentTimestamp'],
       }),
       options.abortSignal === undefined ? undefined : { abortSignal: options.abortSignal },
     );
@@ -167,14 +196,24 @@ export class SqsClient implements OnApplicationShutdown {
     );
   }
 
-  /** Copies the raw message to the DLQ, then deletes the source; a DLQ send failure propagates. */
+  /**
+   * Copies the raw message to the DLQ, then deletes the source; a DLQ send failure propagates. The
+   * copy carries `OriginalSentTimestamp` (BL-210), so the age of the event survives the forward.
+   */
   private async deadLetter(queue: string, dlq: string, message: Message): Promise<void> {
     // Preserve raw message attributes, including types unknown to this adapter.
+    const original = originalSentTimestampOf(message);
     await this.sdk.send(
       new SendMessageCommand({
         QueueUrl: dlq,
         MessageBody: message.Body,
-        MessageAttributes: message.MessageAttributes,
+        MessageAttributes:
+          original === undefined
+            ? message.MessageAttributes
+            : {
+                ...message.MessageAttributes,
+                [ORIGINAL_SENT_TIMESTAMP]: { DataType: 'Number', StringValue: String(original) },
+              },
       }),
     );
     // Forwarding already succeeded; report dead-lettered even if this delete fails,

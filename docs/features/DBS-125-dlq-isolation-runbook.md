@@ -63,7 +63,7 @@
 **Giới hạn 5 lần là của `ConsumerBase`** (`MAX_ATTEMPTS = 5`): nó chuyển message ở lần nhận thứ 5. Redrive của ElasticMQ (`maxReceiveCount = 5`) kiểm trước khi tăng số đếm nên chỉ chạy ở lần thứ 6, tức không bao giờ tới lượt. Vì vậy chỉ có một bản trong DLQ, trừ khi lệnh xóa trong `deadLetter` thất bại.
 
 **Thời gian:**
-- Production: backoff 5, 10, 20, 40 s thay thế visibility 30 s, nên message vào DLQ khoảng 75–80 s sau lần nhận đầu.
+- Production: backoff 10, 20, 40, 80 s thay thế visibility 30 s, nên message vào DLQ khoảng 150 s sau lần nhận đầu (BL-210). Bản gốc của DBS-125 dùng 5, 10, 20, 40 s ≈ 75–80 s; các số 75 s trong §8 và `manual-test.txt` là kết quả đo trước BL-210.
 - Test: `retryBackoffSeconds = 0` và visibility 1 s, nên 5 lần nhận xong trong vài giây.
 - Trong test chỉ có **một** poller notification, và không ai đọc trộm queue chính, nếu không số lần nhận sẽ tăng.
 
@@ -108,7 +108,7 @@ Hai process thật (`node dist/main`, api và worker), ElasticMQ riêng `dbs125-
 
 | Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
-| M-125-01 | Tạo khách, nạp tiền; đợi `notification-events` và `risk-events` cạn; thêm constraint; một lệnh AC-9.1 | Lệnh 201; cờ 65 MEDIUM có ngay (risk không bị chặn). ≈ 75–80 s sau lệnh: đọc DLQ theo runbook thấy 1 message có `eventId` của lệnh; `notification_log` của `eventId` = 0. Bằng chứng 5 lần nhận: `SentTimestamp` của message DLQ − `transfers.created_at` ≈ 75 s (5 + 10 + 20 + 40), vì worker không log lỗi này |
+| M-125-01 | Tạo khách, nạp tiền; đợi `notification-events` và `risk-events` cạn; thêm constraint; một lệnh AC-9.1 | Lệnh 201; cờ 65 MEDIUM có ngay (risk không bị chặn). ≈ 150–155 s sau lệnh (BL-210; trước đó 75–80 s): đọc DLQ theo runbook thấy 1 message có `eventId` của lệnh; `notification_log` của `eventId` = 0. Bằng chứng 5 lần nhận: `SentTimestamp` của message DLQ − `transfers.created_at` ≈ 150 s (10 + 20 + 40 + 80; đo ban đầu 75 s với 5 + 10 + 20 + 40), vì worker không log lỗi này |
 | M-125-02 | Gửi `{not json` vào `risk-events` | `risk-events-dlq` có 1 message ngay |
 | M-125-03 | Theo runbook: quét hai DLQ (nhận với visibility 1800, lưu body và handle mới nhất, xóa message hỏng bằng chính handle đó, giữ ẩn message hợp lệ; dừng khi nhận rỗng và số message hiện = 0; rồi trả message hợp lệ về bằng `change-message-visibility 0`); gỡ constraint; đọc `QueueArn`; `start-message-move-task` cho `notification-events-dlq` với đích ghi rõ; theo dõi bằng `get-queue-attributes` (không dùng `list-message-move-tasks` ở local) | `notification-events-dlq` về 0; `notification_log` của `eventId` đúng 2 dòng; `notification-events` và cả hai DLQ đều 0 |
 | M-125-04 | `npm run --silent check:invariants` | PASS |

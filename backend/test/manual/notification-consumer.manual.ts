@@ -17,7 +17,7 @@ const endpoint = process.env.SQS_ENDPOINT ?? 'http://localhost:9324';
 process.env.AWS_ACCESS_KEY_ID = 'local';
 process.env.AWS_SECRET_ACCESS_KEY = 'local';
 
-/** M-102-06 only: no backoff, so the five receives of a failing message do not wait 75 s. */
+/** M-102-06 only: no backoff, so the five receives of a failing message do not wait 150 s. */
 class NoBackoffNotification extends NotificationConsumer {
   protected override get retryBackoffSeconds(): number {
     return 0;
@@ -107,7 +107,7 @@ async function main(): Promise<void> {
     const marks = await q('SELECT 1 FROM processed_events WHERE event_id=$1', [orphan.eventId]);
     assert.equal(marks.length, 0);
     console.log(
-      'M-102-03 PASS: recipient missing -> failed, rolled back (no mark), message hidden by the 5 s backoff (immediate receive is empty)',
+      'M-102-03 PASS: recipient missing -> failed, rolled back (no mark), message hidden by the 10 s backoff (immediate receive is empty)',
     );
 
     // M-102-04 (BL-212): a redelivered duplicate is acknowledged and adds no row.
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
     assert.equal(afterDup.length, 2);
     console.log('M-102-04 PASS: same eventId again -> acknowledged, notification_log still 2 rows');
 
-    // M-102-05 (BL-212): the recovery path. The missing user is created; once the 5 s backoff of
+    // M-102-05 (BL-212): the recovery path. The missing user is created; once the 10 s backoff of
     // M-102-03 has passed (bounded wait), the same message is applied, once, with both notices.
     await q('INSERT INTO users(id,cognito_sub) VALUES($1,$2)', [orphan.toUserId, randomUUID()]);
     assert.deepEqual(await drainStatuses(consumer, 1, 20_000), ['acknowledged']);
