@@ -1,0 +1,35 @@
+=== DBS-163 Live DLQ & Queue Age Alarm Test (2026-11-14) ===
+Environment: ap-southeast-1, profile=dbs-admin, worker desiredCount=0 during test
+
+=== M-163-01: Baseline ===
+dbs-dev-notification-dlq-not-empty : OK
+dbs-dev-notification-events-age    : OK
+dbs-dev-risk-dlq-not-empty         : OK
+dbs-dev-risk-events-age            : OK
+
+=== M-163-03..04: Poison message -> risk-events -> DLQ -> ALARM ===
+T0 = 2026-11-14T08:44:20Z
+Sent {"khong":"hop le"} to https://sqs.ap-southeast-1.<ACCOUNT_ID>.amazonaws.com/<ACCOUNT_ID>/dbs-dev-risk-events
+Received 5 times (--visibility-timeout 0), 6th receive -> moved to dbs-dev-risk-events-dlq (ApproximateNumberOfMessages=1)
+Polling dbs-dev-risk-dlq-not-empty:
+  +27s .. +139s : OK
+  +155s         : ALARM (within <= 300s target)
+
+=== M-163-05: Delete from DLQ -> OK ===
+Deleted message from dbs-dev-risk-events-dlq
+  +3s .. +162s  : ALARM
+  +178s         : OK
+
+=== M-163-06: Message in notification-events -> age > 120s ALARM ===
+T1 = 2026-11-14T08:49:54Z
+Sent {"event":"age-test"} to dbs-dev-notification-events
+  +3s .. +242s  : OK
+  +259s         : ALARM (within <= 300s target)
+
+=== M-163-07: Delete from notification-events -> OK ===
+Deleted message from dbs-dev-notification-events
+  +2s .. +97s   : ALARM
+  +113s         : OK
+
+=== M-163-08: Cleanup ===
+Unsubscribed & deleted dbs-163-probe SQS queue; scaled worker back to desiredCount=1.

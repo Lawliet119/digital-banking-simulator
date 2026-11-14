@@ -5,6 +5,7 @@
 ## Khi nào dùng
 
 - **Alarm DLQ** báo có message, hoặc thấy `ApproximateNumberOfMessages` của một DLQ lớn hơn 0. Trên AWS alarm là `dbs-dev-risk-dlq-not-empty` hoặc `dbs-dev-notification-dlq-not-empty` (`ApproximateNumberOfMessagesVisible` > 0 trong 1 phút, `infra/terraform/envs/dev/base/alarms.tf`), thư gửi tới topic SNS `dbs-dev-alarms`; alarm giữ ở ALARM tới khi DLQ cạn. Alarm `dbs-dev-risk-rule-error` (lỗi luật, kèm `Rule`) và `dbs-dev-risk-config-invalid` báo sớm hơn, trước khi message tới DLQ ([observability](../components/observability/01-concept-brief.md#alarm-cloudwatch-bl-051-bl-117-bl-127-bl-179-bl-181-bl-182)). Alarm mới ở Terraform, **chưa kích hoạt thử trên AWS** (BL-051).
+- **Alarm chỉ đếm message nhìn thấy** (`ApproximateNumberOfMessagesVisible`, [DBS-163](../features/DBS-163-dlq-age-alarms.md)): khi quét DLQ ở bước 3 (ẩn 1800 s) alarm về `OK` dù message còn trong DLQ, và bật lại khi hết ẩn nếu chưa xử lý. Thư `OK` không có nghĩa là xong; kiểm `ApproximateNumberOfMessages` và `…NotVisible` cùng bằng 0.
 - **Một message vào DLQ vì một trong hai lý do:**
   - **Hỏng:** không phải JSON, sai schema, hoặc là loại sự kiện mà consumer không biết. Message này vào DLQ ngay lần nhận đầu.
   - **Lỗi 5 lần liền** (`MAX_ATTEMPTS` của `ConsumerBase`). Ở production, các lần thử cách nhau 5, 10, 20, 40 s, nên message vào DLQ khoảng 75–80 s sau lần nhận đầu.
