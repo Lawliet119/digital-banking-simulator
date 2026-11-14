@@ -162,8 +162,23 @@ Kết quả review độc lập tại [domain-review.md](screenshots/DBS-154/dom
 
 ## 8. Kết quả
 
-(điền ở Phase 4–5)
+- **Offline / tự động (sau sửa `GrantsForAwsServices` cho `ec.amazonaws.com`):**
+  - `terraform fmt -check -recursive` & `terraform validate`: đạt.
+  - `envs/dev/base`: `terraform test` **56 passed, 0 failed** (gồm `kms.tftest.hcl`: 3/3 pass).
+  - `infra/scripts/tests`: `python3 -m unittest discover -s infra/scripts/tests -v` đạt (TC-154-09..12).
+- **Live AWS (`ap-southeast-1`, profile `dbs-admin`):**
+  - **M-154-03 / M-154-04:** CMK `alias/dbs-dev` bật xoay khóa 365 ngày; gọi `aws kms encrypt` trực tiếp bị `AccessDeniedException` (key policy chặn dùng data action ngoài dịch vụ AWS).
+  - **M-154-05 / M-154-06:** 4 SQS queue và 3 Secrets Manager secret (gồm `demo-accounts` sau khi chạy `seed-cognito.sh`) đều dùng CMK `alias/dbs-dev`.
+  - **M-154-07:** Task Fargate `dbs-migrate` (`f429db0207714fe1ab1f8fb0bc0d4128`) đọc secret DB mã hóa CMK và chạy migration thành công (exit 0); `api` & `worker` chạy healthy (`/health/ready` 200, `database: up`, `redis: up`).
+  - **M-154-08:** Snapshot RDS `dbs-dev-kms-test-snap` và bản copy `--kms-key-id alias/dbs-dev` đều `Encrypted=True` với CMK; đã xóa 2 snapshot test.
+  - **M-154-09:** Diễn tập thu hồi khóa tạm trên queue test (`manual-test-m09.txt`) → `KMS.DisabledException`, đã dọn sạch queue & khóa tạm.
+  - **M-154-10:** `bash infra/scripts/verify-kms.sh` thoát 0: `OK cmk`, `OK rds: 1`, `OK elasticache: 1`, `OK sqs: 4`, `OK secrets: 3`.
+  - **Phát hiện thực tế trên AWS (đã sửa):** ElastiCache `CreateReplicationGroup` gọi `kms:CreateGrant` với `invokedBy: ec.amazonaws.com` nhưng không truyền `kms:ViaService`; đã cập nhật `GrantsForAwsServices` dùng `kms:GrantIsForAWSResource = "true"` + `kms:CallerAccount` (giữ `kms:ViaService` trên `UseKeyOnlyThroughAwsServices`).
+- **Bằng chứng (đã redact account ID / key ID):** [manual-test.txt](screenshots/DBS-154/manual-test.txt), [manual-test-m09.txt](screenshots/DBS-154/manual-test-m09.txt).
 
 ## 9. Tài liệu đã cập nhật
 
-(điền ở Phase 5)
+- [docs/features/DBS-154-kms-cmk.md](DBS-154-kms-cmk.md)
+- [docs/features/screenshots/DBS-154/manual-test.txt](screenshots/DBS-154/manual-test.txt)
+- [docs/features/screenshots/DBS-154/manual-test-m09.txt](screenshots/DBS-154/manual-test-m09.txt)
+- [infra/terraform/README.md](../../infra/terraform/README.md), [docs/03_HIGH_LEVEL_ARCHITECTURE.md](../03_HIGH_LEVEL_ARCHITECTURE.md), [docs/runbooks/dlq-redrive.md](../runbooks/dlq-redrive.md), [docs/BACKLOG.md](../BACKLOG.md) (đã cập nhật ở các commit trước trên nhánh).
