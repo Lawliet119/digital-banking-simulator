@@ -190,6 +190,8 @@ Script khởi chạy server test, chạy `seed.ts` lần 1, in bảng số dư; 
 
 ## 6. Nhật ký review và thay đổi
 
+- **Ghi chú 2026-11-14 (BL-214, techlead):** bản trả lời nguyên văn của hai lượt domain review không còn (không được lưu lúc làm task) và model của reviewer không ghi lại được. Các phát hiện và kết quả APPROVE ở mục này là bản tóm tắt duy nhất; techlead chấp nhận đóng mà không dựng lại `domain-review.md`.
+
 ### Lần 1: Domain Review (2026-11-09)
 - **Kết quả:** `REVISE`
 - **Các phát hiện và cách xử lý:**

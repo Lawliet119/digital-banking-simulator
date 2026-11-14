@@ -124,11 +124,11 @@ WHERE account_id = $1
 
 | ID | Luật | Điều kiện kích hoạt (`v1`) | Nguồn dữ liệu | Trọng số (`v1`) |
 |---|---|---|---|---|
-| **R1** | Velocity | > 5 lệnh chuyển từ tài khoản nguồn trong 10 phút (tính cả lệnh này) | Redis sorted set, dự phòng SQL | 30 |
+| **R1** | Velocity | > 5 lệnh chuyển từ tài khoản nguồn trong 10 phút (tính cả lệnh này) | SQL aggregate trên `v_transfer_facts` (đã commit; bộ đếm Redis cũ bỏ ở [BUG-20261110](../../features/BUG-20261110-fraud-feature-order.md)) | 30 |
 | **R2** | Số tiền bất thường | `amount > 5 × trung vị` các lệnh chuyển 30 ngày trước của chính tài khoản; cần **≥ 5 lệnh lịch sử**, không đủ thì bỏ qua | SQL | 25 |
 | **R3** | Tài khoản mới chuyển lớn | Tuổi tài khoản nguồn < 24 giờ **và** `amount > 10.000.000` | Snapshot `fromAccountCreatedAt` | 35 |
 | **R4** | Chuyển vòng | Có lệnh `to → from` đã `COMPLETED` trong 1 giờ trước đó | SQL | 20 |
-| **R5** | Fan-out (mule) | ≥ 5 người nhận **mới** trong 1 giờ (mới = chưa nhận tiền từ tài khoản này trong 30 ngày trước) | Redis sorted set + SQL kiểm tra "mới" | 40 |
+| **R5** | Fan-out (mule) | ≥ 5 người nhận **mới** trong 1 giờ (mới = chưa nhận tiền từ tài khoản này trong 30 ngày trước) | SQL aggregate trên `v_transfer_facts`, cùng truy vấn kiểm tra "mới" | 40 |
 | **R6** | Rút cạn | `amount ≥ 90% × fromBalanceBefore` **và** `fromBalanceBefore ≥ 1.000.000` | Snapshot `fromBalanceBefore` | 30 |
 
 **Ngoại lệ chung:** chuyển giữa **hai tài khoản của cùng một khách hàng** không kích hoạt R5, R6 (chuyển tiền tiết kiệm sang tài khoản khác của mình là bình thường). `sameOwner` **đã có** trong [event contract](../_shared/event-contract.md) và type [`TransferCompleted`](../../../backend/src/common/events/event-types.ts); thiếu hoặc sai kiểu là event malformed, xử lý theo schema/DLQ của consumer contract, không bỏ miễn trừ hay tự gán `false`.
