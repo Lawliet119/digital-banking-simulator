@@ -516,12 +516,13 @@ describe('DBS-42 JSON logging options', () => {
       expect(log.rows()[1].message).toBe('Count 1234567');
     });
 
-    it('records, as the DBS-43 baseline, that bindings made by other code are not cleaned', () => {
+    it('BL-024 keeps the first correlationId when other code binds it again, once in the line', () => {
       const log = capture();
       const child = log.logger.child({ correlationId: ID });
       child.child({ correlationId: 'second' }).info('Fixed message');
-      // Pino resets its bindings formatter for every child, so DBS-42 cannot filter these.
-      expect(occurrences(log.text(), 'correlationId')).toBe(2);
+      // Pino resets its bindings formatter for every child; `onChild` rebuilds the bindings.
+      expect(occurrences(log.text(), 'correlationId')).toBe(1);
+      expect(log.rows()[0].correlationId).toBe(ID);
     });
 
     it('regression: a serialized error shape is still reduced to safe fields', () => {

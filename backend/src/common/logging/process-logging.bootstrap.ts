@@ -3,6 +3,7 @@ import { PinoLogger } from 'nestjs-pino';
 import pino from 'pino';
 import { AppRole, getAppRole } from '../app-role/app-role';
 import { createLoggingOptions, safeErrorMetadata } from './logging.options';
+import { installProcessWarningLogger } from './process-warning';
 
 /**
  * Side-effect module: import it right after `env.bootstrap` in main.ts. It builds the one logger
@@ -72,6 +73,9 @@ function logFatalAndExit(error: unknown, message: string): never {
   // alive, so it must end itself.
   process.exit(1);
 }
+
+// `process.emitWarning` (the sslmode warning of pg-connection-string) would print text to stderr.
+installProcessWarningLogger(bootstrapLogger.logger);
 
 process.on('uncaughtException', error => logFatalAndExit(error, 'Uncaught exception'));
 process.on('unhandledRejection', reason => logFatalAndExit(reason, 'Unhandled promise rejection'));

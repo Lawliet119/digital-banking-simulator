@@ -1,3 +1,5 @@
+import { runAsWorker } from '../logging/log-context';
+
 /**
  * Runs `step` again and again until `stop()`: the loop behind every background job (outbox relay,
  * queue consumers). `step` returns how many milliseconds to wait before the next run (0 = go on
@@ -25,7 +27,9 @@ export class PollingLoop {
   start(): void {
     if (!this.stopped) return;
     this.stopped = false;
-    this.running = this.run();
+    // The whole loop, the error reporter included, runs in a worker log context, so a background
+    // job says `role=worker` even in an `APP_ROLE=both` process (BL-024).
+    this.running = runAsWorker(() => this.run());
   }
 
   async stop(): Promise<void> {

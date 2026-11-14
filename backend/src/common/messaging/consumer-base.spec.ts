@@ -4,6 +4,7 @@ import type { EntityManager } from 'typeorm';
 import type { TransactionService } from '@database/transaction.service';
 import type { DomainEvent } from '@common/events';
 import { PoisonMessageError, type SqsClient, type SqsMessage } from '@libs/sqs';
+import { createLoggingOptions } from '@common/logging/logging.options';
 import { TRANSFER_SAMPLE } from '../../../test/support/event-samples';
 import { ConsumerBase, MAX_ATTEMPTS, dlqUrlFor, type UnknownEventPolicy } from './consumer-base';
 
@@ -67,7 +68,10 @@ describe('DBS-101 ConsumerBase (unit)', () => {
   const processBatch = jest.fn();
   const changeVisibility = jest.fn();
   const sqs = { processBatch, changeVisibility } as unknown as SqsClient;
-  const pino = new PinoLogger({ pinoHttp: { level: 'silent' } } as never);
+  // The production options (they hold the `onChild` hook), only silenced.
+  const pino = new PinoLogger({
+    pinoHttp: { ...createLoggingOptions({ role: 'both' }), level: 'silent' },
+  });
   const message = (receiveCount: number): SqsMessage => ({
     MessageId: 'm-1',
     Attributes: { ApproximateReceiveCount: String(receiveCount) },
@@ -204,6 +208,23 @@ describe('DBS-101 ConsumerBase (unit)', () => {
     );
     expect(consumer.seenCorrelationId).toBe(TRANSFER_SAMPLE.correlationId);
     expect(after).toBe(outer);
+  });
+
+  it('BL-024 the attempt binds role=worker and the event id once, whatever other code assigns', async () => {
+    class Probe extends TestConsumer {
+      bindings: Record<string, unknown> = {};
+      protected override apply(): Promise<void> {
+        this.pino.assign({ correlationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', role: 'api' });
+        this.bindings = this.pino.logger.bindings();
+        return Promise.resolve();
+      }
+    }
+    const probe = new Probe(tx, sqs, pino);
+    await probe.handle(TRANSFER_SAMPLE, message(1));
+    expect(probe.bindings).toMatchObject({
+      role: 'worker',
+      correlationId: TRANSFER_SAMPLE.correlationId,
+    });
   });
 
   it('TC-134-09 the backoff warning of a failed event carries that event correlationId', async () => {
