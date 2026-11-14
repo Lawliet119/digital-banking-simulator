@@ -10,11 +10,15 @@ export const OUTBOX_AGE_METRIC = 'outbox_oldest_unpublished_age_seconds';
  * (docs/03 §14: under 10 s, alarm over 30 s: the relay or the worker is stuck). Rows come out of
  * the relay in `id` order, so the first row of the partial index `outbox_unpublished_idx` is the
  * one that has waited longest; no other row is looked at.
+ *
+ * A quarantined row (BL-181) is not waiting for the relay, it was taken out of its loop, so it is
+ * left out: otherwise one poison event would keep this alarm firing for ever and hide a real
+ * stall. `outbox_quarantined_events` and its own alarm report those rows.
  */
 export const OUTBOX_AGE_SQL = `
   SELECT GREATEST(0, EXTRACT(EPOCH FROM clock_timestamp() - created_at))::float8 AS age
   FROM outbox_events
-  WHERE published_at IS NULL
+  WHERE published_at IS NULL AND quarantined_at IS NULL
   ORDER BY id
   LIMIT 1`;
 

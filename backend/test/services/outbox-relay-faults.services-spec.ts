@@ -170,6 +170,54 @@ describe('outbox relay under failure (real PostgreSQL + ElasticMQ)', () => {
     await drain(notificationUrl);
   });
 
+  it('TC-181-17 an event SQS refuses with a 400 is quarantined after its attempts, across restarts, and the healthy events still arrive', async () => {
+    // ElasticMQ does not enforce MaximumMessageSize, so the refusal of an over-256 KiB body is
+    // played by a 400 with the name SQS gives it; everything else is real (PostgreSQL, ElasticMQ).
+    const poison = transferEvent();
+    await enqueue(poison);
+    const good = Array.from({ length: 3 }, transferEvent);
+    for (const event of good) await enqueue(event);
+    const refuse: Send = async (url, body, attributes) => {
+      if (idOf(body) === poison.eventId) {
+        throw Object.assign(new Error('MessageBody must be shorter than 262144 bytes'), {
+          name: 'InvalidParameterValue',
+          $metadata: { httpStatusCode: 400 },
+        });
+      }
+      return sqs.send(url, body, attributes);
+    };
+    const row = async () =>
+      (
+        await q(
+          'SELECT attempts,last_error_code,quarantined_at FROM outbox_events WHERE event_id=$1',
+          [poison.eventId],
+        )
+      )[0];
+
+    // A new relay on each run: nothing is parked in memory, only the row remembers.
+    const first = await relayWith(refuse).relayOnce(100, { quarantineAfterAttempts: 3 });
+    expect(first.published).toBe(3);
+    expect(first.failure).toBeDefined();
+    await relayWith(refuse).relayOnce(100, { quarantineAfterAttempts: 3 });
+    expect(await row()).toMatchObject({
+      attempts: 2,
+      last_error_code: 'SQS_400_InvalidParameterValue',
+      quarantined_at: null,
+    });
+    await relayWith(refuse).relayOnce(100, { quarantineAfterAttempts: 3 });
+    const quarantined = await row();
+    expect(quarantined.attempts).toBe(3);
+    expect(quarantined.quarantined_at).not.toBeNull();
+
+    // From now on no relay touches it, and nothing of it reached a queue.
+    const probe = jest.fn();
+    expect(await relayWith(probe).relayOnce()).toEqual({ published: 0 });
+    expect(probe).not.toHaveBeenCalled();
+    const risk = (await drain(riskUrl)).map(e => e.eventId);
+    expect(risk.sort()).toEqual(good.map(e => e.eventId).sort());
+    await drain(notificationUrl);
+  });
+
   it('TC-91-05 when every send fails with a transient error the batch stops after three', async () => {
     for (const event of Array.from({ length: 20 }, transferEvent)) await enqueue(event);
     let calls = 0;

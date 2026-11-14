@@ -88,6 +88,18 @@ GRANT SELECT, DELETE ON idempotency_keys TO dbs_worker;
 -- of published rows can succeed.
 GRANT SELECT, DELETE ON outbox_events TO dbs_worker;
 GRANT UPDATE (published_at) ON outbox_events TO dbs_worker;
+-- BL-181 (migration 1795000009000): the relay counts a failure that will repeat and quarantines the
+-- event. Column level, like published_at: dbs_worker cannot touch event_type, payload or the ids.
+-- Guarded like risk_decisions below: this file also runs on a database migrated only up to step 7.
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'outbox_events'
+                AND column_name = 'quarantined_at') THEN
+    GRANT UPDATE (attempts, last_attempt_at, last_error_code, quarantined_at)
+      ON public.outbox_events TO dbs_worker;
+  END IF;
+END $$;
 GRANT SELECT, INSERT, DELETE ON processed_events TO dbs_worker;
 GRANT INSERT ON audit_log TO dbs_worker;
 GRANT SELECT, INSERT ON fraud_flags TO dbs_worker;

@@ -3,6 +3,8 @@ import type { SqsClient } from '@libs/sqs';
 import {
   classifySendError,
   OutboxRelayService,
+  QueueNotConfiguredError,
+  quarantineCodeOf,
   RELAY_BATCH_SIZE,
   RELAY_IDLE_DELAY_MS,
   relayDelayMs,
@@ -109,5 +111,47 @@ describe('DBS-91 relay failure policy', () => {
     const { relay } = relayOver(events(2), () => Promise.resolve());
     const result = await relay.relayOnce();
     expect(Object.keys(result)).toEqual(['published']);
+  });
+
+  describe('BL-181 quarantineCodeOf: only a fault of the event itself are counted', () => {
+    const named = (status: number, name: string) =>
+      Object.assign(new Error('secret payload text'), {
+        name,
+        $metadata: { httpStatusCode: status },
+      });
+
+    it('gives a short code for SQS 400 and 413, with the error name when it is a plain identifier', () => {
+      expect(quarantineCodeOf(named(400, 'InvalidParameterValue'))).toBe(
+        'SQS_400_InvalidParameterValue',
+      );
+      expect(quarantineCodeOf(named(400, 'InvalidMessageContents'))).toBe(
+        'SQS_400_InvalidMessageContents',
+      );
+      expect(quarantineCodeOf(named(413, 'RequestEntityTooLarge'))).toBe(
+        'SQS_413_RequestEntityTooLarge',
+      );
+      expect(quarantineCodeOf(http(400))).toBe('SQS_400');
+    });
+
+    it('never puts the message or a name that is not an identifier into the code', () => {
+      expect(quarantineCodeOf(named(400, 'bad name with spaces'))).toBe('SQS_400');
+      expect(quarantineCodeOf(named(400, 'x'.repeat(200)))).toBe('SQS_400');
+      expect(quarantineCodeOf(named(400, 'InvalidParameterValue'))).not.toContain('secret');
+    });
+
+    it('leaves deployment faults and transient failures in the normal loop', () => {
+      expect(
+        quarantineCodeOf(named(400, 'AWS.SimpleQueueService.NonExistentQueue')),
+      ).toBeUndefined();
+      expect(quarantineCodeOf(named(400, 'QueueDoesNotExist'))).toBeUndefined();
+      expect(quarantineCodeOf(named(403, 'AccessDenied'))).toBeUndefined();
+      expect(quarantineCodeOf(http(404))).toBeUndefined();
+      expect(quarantineCodeOf(new QueueNotConfiguredError('risk'))).toBeUndefined();
+      expect(quarantineCodeOf(http(429))).toBeUndefined();
+      expect(quarantineCodeOf(http(500))).toBeUndefined();
+      expect(quarantineCodeOf(new Error('socket hang up'))).toBeUndefined();
+      expect(quarantineCodeOf(null)).toBeUndefined();
+      expect(quarantineCodeOf('weird')).toBeUndefined();
+    });
   });
 });
