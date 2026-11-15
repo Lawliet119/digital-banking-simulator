@@ -220,13 +220,15 @@ phase_ac91() {
 
 phase_dlq_wait() {
   need API
-  local i n first="" t0
-  t0="$(date -u +%s)"
-  say "chờ message attempts_exhausted vào dbs-dev-notification-events-dlq (tối đa 8 phút)"
-  for i in $(seq 1 48); do
+  local i n first="" last="" lastn=-1 since a91
+  a91="$(epoch "$(ld ac91_at)")"
+  say "chờ message attempts_exhausted vào dbs-dev-notification-events-dlq: tới khi qua 200 s kể từ lệnh AC-9.1 và số message không đổi 40 s (tối đa 12 phút)"
+  for i in $(seq 1 72); do
     n="$(aws sqs get-queue-attributes --queue-url "$(qurl notification-events-dlq)" --attribute-names ApproximateNumberOfMessages --query Attributes.ApproximateNumberOfMessages --output text)"
-    if [ "$n" -ge 1 ] 2>/dev/null && [ -z "$first" ]; then first="$(date -u +%s)"; say "message đầu tiên vào DLQ notification (số hiện $n)"; fi
-    [ -n "$first" ] && [ $(( $(date -u +%s) - first )) -ge 60 ] && break
+    if [ "$n" -ge 1 ] 2>/dev/null && [ -z "$first" ]; then first="$(date -u +%s)"; say "message đầu tiên vào DLQ notification (số hiện $n), $(( first - a91 )) s sau lệnh AC-9.1"; fi
+    if [ "$n" != "$lastn" ]; then lastn="$n"; last="$(date -u +%s)"; fi
+    since=$(( $(date -u +%s) - last ))
+    [ -n "$first" ] && [ $(( $(date -u +%s) - a91 )) -ge 200 ] && [ "$since" -ge 40 ] && break
     sleep 10
   done
   say "DLQ notification: $(qcount notification-events-dlq); queue chính notification: $(qcount notification-events)"
