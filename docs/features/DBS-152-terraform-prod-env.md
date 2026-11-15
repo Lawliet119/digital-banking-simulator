@@ -1,6 +1,6 @@
 # DBS-152 · Terraform envs/prod: cấu hình production (TLS, TRUST_PROXY_HOPS, rediss, DB SSL)
 
-> **Status:** Implemented (offline/read-only verified; G1–G4 tự duyệt 2026-11-14, người dùng vắng) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác (bỏ yêu cầu theo quyết định techlead, #175) · **Nhánh:** `feat/DBS-152-terraform-prod-env` · **PR:** — · **Cập nhật:** 2026-11-14
+> **Status:** Implemented (offline/read-only verified; G1–G4 tự duyệt 2026-11-14, người dùng vắng) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác (bỏ yêu cầu theo quyết định techlead, #175) · **Nhánh:** `feat/DBS-152-terraform-prod-env` · **PR:** #182 · **Cập nhật:** 2026-11-14
 
 ## 1. Bối cảnh
 
