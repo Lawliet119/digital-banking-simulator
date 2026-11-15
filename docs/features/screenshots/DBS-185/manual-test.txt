@@ -1,0 +1,80 @@
+66830df3d56cef690e10198b9b5316e7d98b3621
+02:08:47.318 === M-185-01: kiểm tĩnh và công cụ (TC-185-03, 06)
+----------------------------------------------------------------------
+Ran 35 tests in 2.102s
+
+OK
+inline script slow-on: 5772 byte; overrides JSON 5921 ký tự (giới hạn 8192)
+inline script slow-off: 5772 byte; overrides JSON 5922 ký tự (giới hạn 8192)
+inline script watch: 5772 byte; overrides JSON 5919 ký tự (giới hạn 8192)
+inline script probe: 5772 byte; overrides JSON 5919 ký tự (giới hạn 8192)
+02:08:50.292 === M-185-02: api (role api) + hai khách + nạp + T0
+02:08:51.605 api sẵn sàng (pid 1063)
+{"id":"f37fb0dc-498e-4894-9eaf-a93890cfaace","fullName":"Tran Van An","createdAt":"2026-11-15T02:09:01.020Z"}
+
+{"id":"fd2f4644-c954-4769-9419-b6d2dc8510e6","fullName":"Nguyen Thi Binh","createdAt":"2026-11-15T02:09:01.289Z"}
+
+AN_ACC=cdfc0bab-b041-4895-a4f1-6bccdff71bc8 BINH_ACC=17908d29-1777-4e3a-a7a3-18f8d0093391
+{"transferId":"e4f5e190-0c0b-4b02-9bbd-d10532e899c3","status":"COMPLETED"}
+02:09:02.746 T0: transfers(An)=0 entries=1 balances=0/1000000
+02:09:02.763 T0 probe (TC-185-02):
+{"t":"2026-11-15T02:09:02.891Z","event":"probe","balances":[{"id":"17908d29-1777-4e3a-a7a3-18f8d0093391","balance":"0"},{"id":"cdfc0bab-b041-4895-a4f1-6bccdff71bc8","balance":"1000000"}],"transfers":0,"entries":[{"direction":"CREDIT","n":1,"amount":"1000000"}],"triggerPresent":0,"reconciliation":[]}
+02:09:02.920 T0 invariants:
+{"status":"PASS","totals":{"debit":"1000000","credit":"1000000","balance":"0"},"violations":[]}
+exit=0
+kiểm tay TC-185-02: balances/entries/transfers ở trên so với: transfers(An)=0 entries=1 balances=0/1000000
+02:09:04.440 === TC-185-01: slow-on, watch, phiên giả (LOCK idempotency_keys + INSERT ledger_entries), slow-off
+{"t":"2026-11-15T02:09:05.602Z","event":"SLOW_ON","sleepSeconds":8}
+02:09:08.683 slow-off (chờ phiên giả xong)
+{"t":"2026-11-15T02:09:13.932Z","event":"SLOW_OFF","triggerPresent":0}
+02:09:13.981 slow-off xong sau 5 s
+ERROR:  insert or update on table "ledger_entries" violates foreign key constraint "ledger_entries_transfer_debit_fkey"
+DETAIL:  Key (transfer_id, amount, transfer_status, debit_account)=(1b718bcc-2b25-4933-8451-7f11ca0f5bc5, 1, COMPLETED, cdfc0bab-b041-4895-a4f1-6bccdff71bc8) is not present in table "transfers".
+{"t":"2026-11-15T02:09:04.577Z","event":"READY","watchSeconds":20}
+{"t":"2026-11-15T02:09:24.682Z","event":"DONE"}
+{"t":"2026-11-15T02:09:06.596Z","event":"sample","inflight":[{"pid":122,"locks":"idempotency_keys:RowExclusiveLock,ledger_entries:RowExclusiveLock"}]}
+{"t":"2026-11-15T02:09:12.626Z","event":"sample","inflight":[{"pid":122,"locks":"idempotency_keys:RowExclusiveLock,ledger_entries:RowExclusiveLock"}]}
+số mẫu có backend giữa transaction: 4
+trigger còn: 0 hàm còn: 0
+02:09:26.603 === M-185-03..06 (TC-185-04): kill giữa transaction, gửi lại sau khi hold nhả
+02:09:26.685 --- kill giữa transaction: K=865f3cb0-2320-458c-8777-7c919f94a2ee
+{"t":"2026-11-15T02:09:26.806Z","event":"SLOW_ON","sleepSeconds":20}
+02:09:32.997 mẫu giữa chừng: {"t":"2026-11-15T02:09:30.991Z","event":"sample","inflight":[{"pid":69,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock,ledger_entries:AccessShareLock,ledger_entries:RowExclusiveLock,transfers:RowExclusiveLock"}]}
+02:09:33.238 đã taskkill /F /T api (pid 1063)
+02:09:34.339 client lần đầu: http=000 curl: (56) Recv failure: Connection was reset
+02:09:34.361 slow-off (chờ backend mồ côi hết)
+{"t":"2026-11-15T02:09:48.592Z","event":"SLOW_OFF","triggerPresent":0}
+02:10:18.268 inflight pid=69; mẫu đầu có backend: {"t":"2026-11-15T02:09:28.976Z","event":"sample","inflight":[{"pid":69,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock,ledger_entries:AccessShareLock,ledger_entries:RowExclusiveLock,transfers:RowExclusiveLock"}]}
+02:10:18.326 mẫu cuối: {"t":"2026-11-15T02:10:15.199Z","event":"sample","inflight":[]}
+02:10:18.345 T5 probe sau kill:
+{"t":"2026-11-15T02:10:18.487Z","event":"probe","keyRows":[],"balances":[{"id":"17908d29-1777-4e3a-a7a3-18f8d0093391","balance":"0"},{"id":"cdfc0bab-b041-4895-a4f1-6bccdff71bc8","balance":"1000000"}],"transfers":0,"entries":[{"direction":"CREDIT","n":1,"amount":"1000000"}],"inflightLocks":0,"triggerPresent":0,"reconciliation":[]}
+02:10:19.182 T5 so với T0: transfers(An)=0 entries=1 balances=0/1000000
+02:10:20.998 api sẵn sàng (pid 1311)
+02:10:21.018 gửi lại K lần 1
+http=201 C2=f3685b9f-febe-4257-a5ee-0969bbcd51ee body={"transferId":"a675f71c-f8f3-4f11-b9ea-be8efaa1316e","status":"COMPLETED"}
+02:10:21.388 gửi lại K lần 2
+http=201 C3=9617c001-de03-4bf0-82c0-6d7f23578f05 body={"status":"COMPLETED","transferId":"a675f71c-f8f3-4f11-b9ea-be8efaa1316e"}
+02:10:21.720 T9 probe sau gửi lại:
+{"t":"2026-11-15T02:10:21.850Z","event":"probe","keyRows":[{"user_id":"dd1f1711-dfaf-4243-9ae6-bcca8e40c9b3","response_code":201,"transfer_id":"a675f71c-f8f3-4f11-b9ea-be8efaa1316e"}],"balances":[{"id":"17908d29-1777-4e3a-a7a3-18f8d0093391","balance":"100000"},{"id":"cdfc0bab-b041-4895-a4f1-6bccdff71bc8","balance":"900000"}],"transfers":1,"entries":[{"direction":"CREDIT","n":2,"amount":"1100000"},{"direction":"DEBIT","n":1,"amount":"100000"}],"triggerPresent":0,"reconciliation":[]}
+02:10:22.506 T9: transfers(An)=1 entries=3 balances=100000/900000
+02:10:22.524 invariants:
+{"status":"PASS","totals":{"debit":"1100000","credit":"1100000","balance":"0"},"violations":[]}
+02:10:23.488 === M-185-07 (TC-185-05): kill rồi gửi lại NGAY khi backend mồ côi còn chờ
+02:10:23.785 --- kill, retry ngay: K=f023c14f-a054-4660-a0a3-c9fa1590eeaf
+{"t":"2026-11-15T02:10:23.912Z","event":"SLOW_ON","sleepSeconds":20}
+02:10:30.063 mẫu giữa chừng: {"t":"2026-11-15T02:10:28.083Z","event":"sample","inflight":[{"pid":167,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock,ledger_entries:AccessShareLock,ledger_entries:RowExclusiveLock,transfers:RowExclusiveLock"}]}
+02:10:30.259 đã taskkill /F /T api (pid 1311)
+02:10:31.332 client lần đầu: http=000 curl: (56) Recv failure: Connection was reset
+02:10:32.659 api sẵn sàng (pid 1389)
+02:10:32.697 gửi lại K2 ngay (backend mồ côi còn ngủ, trigger còn bật)
+http=201 sau 33 s body={"transferId":"5123f3e2-3577-4717-96f4-ff0f5d365c80","status":"COMPLETED"} Retry-After=
+02:11:05.375 slow-off sau khi gửi lại
+{"t":"2026-11-15T02:11:05.501Z","event":"SLOW_OFF","triggerPresent":0}
+02:11:14.953 T9 probe:
+{"t":"2026-11-15T02:11:15.074Z","event":"probe","keyRows":[{"user_id":"dd1f1711-dfaf-4243-9ae6-bcca8e40c9b3","response_code":201,"transfer_id":"5123f3e2-3577-4717-96f4-ff0f5d365c80"}],"balances":[{"id":"17908d29-1777-4e3a-a7a3-18f8d0093391","balance":"200000"},{"id":"cdfc0bab-b041-4895-a4f1-6bccdff71bc8","balance":"800000"}],"transfers":2,"entries":[{"direction":"CREDIT","n":3,"amount":"1200000"},{"direction":"DEBIT","n":2,"amount":"200000"}],"triggerPresent":0,"reconciliation":[]}
+02:11:15.335 trigger còn: 0
+02:11:16.134 giao dịch của An: trước=1 sau=2 (kỳ vọng +1); transfers(An)=2 entries=5 balances=200000/800000
+02:11:16.151 invariants:
+{"status":"PASS","totals":{"debit":"1200000","credit":"1200000","balance":"0"},"violations":[]}
+02:11:17.222 đã taskkill /F /T api (pid 1389)
+02:11:17.239 === xong (còn dọn container dbs185-pg, dbs185-valkey)
