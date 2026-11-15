@@ -163,6 +163,97 @@ class OverridesTest(unittest.TestCase):
         self.assertNotEqual(res.returncode, 0)
 
 
+def hold_log(waiter_from=3, locks="accounts:RowShareLock,idempotency_keys:RowExclusiveLock", release=True, samples=30, waiter_until=None):
+    """Nhật ký giả của `hold`: LOCKED lúc t=0, mẫu mỗi 2 s; waiter xuất hiện từ mẫu `waiter_from`."""
+    lines = [{"t": "2026-11-15T01:00:00.000Z", "event": "LOCKED", "holderXid": "761", "holderPid": 192}]
+    for i in range(samples):
+        sec = 2 * (i + 1)
+        present = i >= waiter_from and (waiter_until is None or i < waiter_until)
+        lines.append({"t": "2026-11-15T01:%02d:%02d.000Z" % (sec // 60, sec % 60), "event": "sample",
+                      "waiters": [{"pid": 4242, "locks": locks}] if present else []})
+    if release:
+        lines.append({"t": "2026-11-15T01:01:00.500Z", "event": "RELEASED"})
+    return "\n".join(json.dumps(x) for x in lines) + "\n"
+
+
+def task_json(exit_code=137, exec_stopped="2026-11-15T01:00:16.000Z"):
+    return json.dumps({"stoppingAt": "2026-11-15T01:00:12.000Z", "executionStoppedAt": exec_stopped,
+                       "stoppedAt": "2026-11-15T01:00:40.000Z", "stopCode": "UserInitiated",
+                       "containers": [{"name": "api", "exitCode": exit_code}]})
+
+
+class EvaluateTest(unittest.TestCase):
+    """Điều kiện «Lần chạy hợp lệ» của §2 (domain review vòng 2, 3)."""
+
+    def evaluate(self, hold, task, code="502", corr="no", tmp=None):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            h, t = pathlib.Path(d, "hold.jsonl"), pathlib.Path(d, "task.json")
+            h.write_text(hold, encoding="utf-8")
+            t.write_text(task, encoding="utf-8")
+            res = run_tools("evaluate", "--hold-log", str(h), "--task-json", str(t), "--container", "api",
+                            "--client-code", code, "--client-has-correlation", corr)
+        return res, json.loads(res.stdout)
+
+    def test_valid_run(self):
+        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15), task_json())
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertTrue(out["valid"], out)
+        self.assertEqual(out["reasons"], [])
+        self.assertEqual(out["waiterPid"], 4242)
+
+    def test_dropped_connection_is_valid_too(self):
+        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15), task_json(), code="000")
+        self.assertEqual(res.returncode, 0, out)
+
+    def test_app_503_is_invalid(self):
+        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15), task_json(), code="503", corr="yes")
+        self.assertEqual(res.returncode, 3)
+        self.assertIn("CLIENT_CODE", out["reasons"])
+        self.assertIn("CLIENT_HAS_CORRELATION", out["reasons"])
+
+    def test_graceful_exit_is_invalid(self):
+        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15), task_json(exit_code=143))
+        self.assertEqual(res.returncode, 3)
+        self.assertIn("EXIT_NOT_137", out["reasons"])
+
+    def test_no_waiter_is_invalid(self):
+        res, out = self.evaluate(hold_log(waiter_from=99), task_json())
+        self.assertEqual(res.returncode, 3)
+        self.assertIn("NO_WAITER", out["reasons"])
+
+    def test_claimkey_lock_required(self):
+        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15, locks="accounts:RowShareLock"), task_json())
+        self.assertIn("NO_CLAIMKEY_LOCK", out["reasons"])
+
+    def test_late_waiter_is_invalid(self):
+        # mẫu thứ 12 = LOCKED + 26 s
+        res, out = self.evaluate(hold_log(waiter_from=12, waiter_until=24), task_json(exec_stopped="2026-11-15T01:00:40.000Z"))
+        self.assertIn("W1_TOO_LATE", out["reasons"])
+
+    def test_kill_after_lock_timeout_window_is_invalid(self):
+        # waiter từ mẫu 3 (S0 = LOCKED + 6 s); kill lúc LOCKED + 40 s >= S0 + 25
+        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15), task_json(exec_stopped="2026-11-15T01:00:40.000Z"))
+        self.assertIn("KILL_TOO_LATE", out["reasons"])
+
+    def test_orphan_still_waiting_at_last_sample_is_invalid(self):
+        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=None), task_json())
+        self.assertIn("ORPHAN_STILL_WAITING", out["reasons"])
+
+    def test_missing_release_is_invalid(self):
+        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15, release=False), task_json())
+        self.assertIn("NO_RELEASED", out["reasons"])
+
+    def test_epoch_timestamps_from_cli_v1(self):
+        # AWS CLI v1 in số giây epoch
+        task = json.dumps({"stoppingAt": 1794704412.0, "executionStoppedAt": 1794704416.5, "stoppedAt": 1794704440.0,
+                           "containers": [{"name": "api", "exitCode": 137}]})
+        hold = hold_log(waiter_from=3, waiter_until=15).replace("2026-11-15T01:00", "2026-11-15T01:00")
+        # LOCKED = 2026-11-15T01:00:00Z = 1794704400
+        res, out = self.evaluate(hold, task)
+        self.assertEqual(res.returncode, 0, out)
+
+
 class DbScriptStaticTest(unittest.TestCase):
     """TC-185-03: ac-5-10-db.js chỉ đọc và khóa, không ghi, không in mật khẩu."""
 
@@ -194,8 +285,9 @@ class DbScriptStaticTest(unittest.TestCase):
         self.assertNotRegex(hold, r"READ\s+ONLY")
 
     def test_password_never_logged(self):
-        self.assertEqual(len(re.findall(r"DB_PASSWORD", self.src)), 1)
-        for m in re.finditer(r"(console\.log|log)\(([^;]*)\)", self.src):
+        code = "\n".join(ln for ln in self.src.splitlines() if not ln.lstrip().startswith("//"))
+        self.assertEqual(len(re.findall(r"DB_PASSWORD", code)), 1)
+        for m in re.finditer(r"(console\.log|log)\(([^;]*)\)", code):
             self.assertNotRegex(m.group(2), r"password|DATABASE_URL|env\b", m.group(0))
 
     def test_size_for_inline(self):
@@ -217,16 +309,16 @@ class KillScriptTest(unittest.TestCase):
         if not bash:
             self.skipTest("không có bash")
         res = subprocess.run(
-            [bash, str(KILL_SH), "kill"], capture_output=True, text=True, check=False,
+            [bash, str(KILL_SH), "kill"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
             env={"PATH": "/usr/bin:/bin", "CUST_TOKEN": "eyJ-not-a-real-token"},
         )
         self.assertNotEqual(res.returncode, 0)
         self.assertNotIn("eyJ-not-a-real-token", res.stdout + res.stderr)
 
     def test_never_echoes_tokens(self):
-        src = KILL_SH.read_text(encoding="utf-8")
-        self.assertNotRegex(src, r"set\s+-[a-z]*x")
-        self.assertNotRegex(src, r"curl[^\n]*\s-v\b")
+        src = "\n".join(ln for ln in KILL_SH.read_text(encoding="utf-8").splitlines() if not ln.lstrip().startswith("#"))
+        self.assertIsNone(re.search(r"\bset\s+-[a-z]*x", src), "set -x")
+        self.assertIsNone(re.search(r"curl[^\n]*\s-v\b", src), "curl -v")
         for var in ("CUST_TOKEN", "AUD_TOKEN"):
             for line in src.splitlines():
                 if re.search(r"\b(echo|printf)\b", line):
