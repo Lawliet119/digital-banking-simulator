@@ -12,7 +12,7 @@ Demo bắt buộc "Failure / recovery" ([docs/03 §17](../03_HIGH_LEVEL_ARCHITEC
 | D | Redis chậm hoặc chết giữa luồng chuyển tiền: fail-open, bất biến đúng | [DBS-100](../features/DBS-100-redis-slow-transfer.md) | đã chạy (test services) |
 | E | Dừng task api giữa lệnh chuyển tiền, gửi lại cùng `Idempotency-Key`: đúng một giao dịch (AC-5.10) | [DBS-185](../features/DBS-185-ac-5-10-kill-task-cloud.md) | đã chạy trên cloud (2026-11-15); video chưa (BL-380) |
 
-Bản chạy lặp lại được của A–C (lệnh local bằng test dịch vụ, lệnh cloud, kết quả mong đợi, cách xác nhận): [kịch bản sự cố bất đồng bộ](../runbooks/async-incident-scenarios.md) ([DBS-183](../features/DBS-183-async-incident-scenarios.md)).
+Bản chạy lặp lại được của A–C (lệnh local bằng test dịch vụ, lệnh cloud **đã chạy trên AWS ngày 2026-11-15 ([DBS-184](../features/DBS-184-cloud-incident-scenarios.md))** kèm số đo, cách xác nhận; bảng tổng hợp: [P4](../deliverables/P4-incident-table.md)): [kịch bản sự cố bất đồng bộ](../runbooks/async-incident-scenarios.md) ([DBS-183](../features/DBS-183-async-incident-scenarios.md)).
 
 ## Chuẩn bị chung
 

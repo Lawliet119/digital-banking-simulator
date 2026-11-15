@@ -1,6 +1,6 @@
 # DBS-184 · Chạy bốn kịch bản sự cố trên cloud và ghi bằng chứng
 
-> **Status:** Draft (đang làm, đến G2) · **Vai:** Dev (chạy cloud, script vận hành, tài liệu) · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-184-cloud-incident-scenarios` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (sau G4) · **Vai:** Dev (chạy cloud, script vận hành, tài liệu) · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-184-cloud-incident-scenarios` · **PR:** (gắn sau khi mở) · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
@@ -116,3 +116,59 @@ Video: **chưa làm** (G1 quyết định 4).
 - **Plan sweep:** hạn chế trong tài liệu liền kề: runbook DBS-183 «phần cloud chưa chạy», «cách ép lỗi là đề xuất chưa kiểm», «BL-364» (bước 5); P4 «cloud chưa chạy» (bước 5); Demo 3 phần A–C (bước 5, thêm liên kết kết quả cloud); BL-364, 370, 371 (bước 5, xóa nếu đạt); BL-372 giữ; DoD 1 (bước 4), DoD 2 video (BL mới), DoD 3 quy trình.
 - **Rủi ro và cách lùi:** quên `destroy` ≈ 3,4 USD/ngày (kết thúc bằng `final-check`, `destroy`, `verify-clean.sh`; nếu hết giới hạn giữa chừng, ghi handoff); constraint hoặc worker 0 bị bỏ lại (`trap`, `final-check`); lần đo không đạt ngưỡng p95 thì ghi nguyên văn, không sửa ngưỡng; DLQ còn message sau khi dọn thì dừng và ghi. Back-out: bỏ commit, trên cloud `destroy`.
 - **Quyết định ở G3 (agent tự quyết):** (1) tái dùng `ac-5-10-tools.py overrides` thay vì công cụ mới; (2) chạy `incident-cloud.sh` theo pha để quan sát từng bước; (3) test DB chạy tay local, không đưa vào CI.
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra** (docs và script vận hành; không đổi `backend/`): `python infra/scripts/tests/test_incident_scenarios.py` → `Ran 12 tests … OK`; `python infra/scripts/tests/test_ac_5_10.py` → `Ran 36 tests … OK` (cùng job `script-tests` của CI); `check-doc-links.mjs` xem dòng G4; `grep -ciE "eyJ|arn:aws|[0-9]{12}|ReceiptHandle|\"Body\"|sqs\..*amazonaws|bearer "` trên `manual-test.txt` và `manual-test-cloud.txt` → 0.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-184-01 | `test_incident_scenarios.py` (`OverridesScriptTest` 3, `DbScriptStaticTest` 5, `ShellScriptTest` 4): đúng hai lệnh DDL, không ghi dữ liệu, không in mật khẩu, `--overrides` 2.737 ký tự ≤ 8.192, `bash -n`, không `purge-queue`/`start-message-move-task`, không in token | đạt |
+| TC-184-02 | M-184-01 (local, PostgreSQL 17 tạm): `INSERT notification_log` lỗi `23514` khi chặn, được lại sau khi gỡ; `block` hai lần và `unblock` hai lần idempotent; `RETRY` một lần khi bị khóa giữ 9 s rồi thành công | đạt |
+| TC-184-03 | (a) cloud: DLQ notification 28 message, ≈ 152 s sau lỗi đầu; alarm `ALARM`; 28 dòng log `attempts_exhausted` | đạt |
+| TC-184-04 | (b) cloud: hai message vào DLQ sau 2 s, alarm sau 190 s, log đúng (message 1 không log; message 2 `invalid_event`) | đạt |
+| TC-184-05 | (c) cloud: mọi lệnh 201, cờ 65 MEDIUM sau 2,4 s theo `transferId`, DLQ risk 0, `notification.sent` 0 → 1 sau gửi lại, `invariants.js` PASS | đạt |
+| TC-184-06 | (d) cloud: chuyển tiền 201 khi worker tắt, `outbox-age` `ALARM` 9 phút 5 giây, bật lại: cờ sau 43 s, một `fraud.flagged`, đủ `notification.sent`, queue 0, alarm `OK` | đạt |
+| TC-184-07 | p95 máy chủ 29 ms (L0) và 31 ms (L1), 24 lệnh mỗi trạng thái; thỏa ngưỡng (< 300 ms và ≤ max(43,5; 79) ms) | đạt (chỉ báo, mẫu nhỏ) |
+| TC-184-08 | bảng P4: bốn dòng cloud mới (làm gì → phản ứng → phục hồi → bằng chứng); log lưu `screenshots/DBS-184/`; video chưa | **một phần** (BL-383) |
+| TC-184-09 | quy trình (PR, CI xanh, Dev review) | làm ở PR |
+| TC-184-10 | `check-doc-links.mjs`; grep bằng chứng | đạt |
+
+- **Test thủ công** (raw: [local](screenshots/DBS-184/manual-test.txt), [cloud](screenshots/DBS-184/manual-test-cloud.txt); không có token, ARN, id tài khoản hay body message). Mọi bước dưới đây đã chạy.
+
+| Bước | Kết quả |
+|---|---|
+| M-184-01 | đạt: test tĩnh 12 + 36 OK; local TC-184-02 (xem trên) |
+| M-184-02 | đạt: `apply` 57 tài nguyên 9 phút 27 giây; `db-roles.sh`, `migrate.sh`, bật api và worker, `seed-cognito.sh`, `seed-cloud.sh` trong 4 phút 12 giây; `/health/ready` 200 |
+| M-184-03 | đạt: L0: 24 lệnh 201; máy chủ p50 26, p95 29, p99 31 ms; phía khách p95 86,9 ms |
+| M-184-04 | đạt: (b) như TC-184-04; bỏ qua có ghi nhận: file ngoài repo 2 dòng, [issue #201](https://github.com/Lawliet119/digital-banking-simulator/issues/201), DLQ 0/0/0, hai alarm `OK` sau 2 phút 53 giây |
+| M-184-05 | đạt: `block` (`BLOCKED`, `check`: `blocked: true`, 62 dòng `notification_log`); L1: 24 lệnh 201; máy chủ p50 25, p95 31, p99 58 ms; phía khách p95 94,6 ms; lệnh 44.000.000 201, `C` và `T` ghi, cờ 65 MEDIUM OPEN sau 2,4 s, DLQ risk 0/0/0, audit `notification.sent` 0 dòng; DLQ notification đầu tiên 21 s sau lệnh AC-9.1 (≈ 152 s sau lệnh lỗi đầu); 28 message; alarm `ALARM` 03:38:06 (117 s sau message đầu); 28 dòng log (đếm theo cửa sổ 03:33–03:44: 28; cửa sổ của pha `dlq-wait` chỉ đếm 18 vì bắt đầu từ lệnh AC-9.1) |
+| M-184-06 | đạt: `unblock` (`blocked: false`); `resend`: 28 `eventId`, thuộc tính `OriginalSentTimestamp`, `correlationId`, `eventType` đều có, không bản trùng, 25 s; DLQ 0/0/0 và hai alarm `OK` sau 1 phút 53 giây; audit `notification.sent` của lệnh AC-9.1 = 1, `fraud.flagged` = 1; `invariants.js` PASS (131.554.000) |
+| M-184-07 | đạt: `worker-off` (`runningCount` 0 sau 13 s); nạp 40.000.000, lệnh 43.000.000 và hai lệnh nhỏ 201, cờ 404; `outbox-age` `ALARM` 03:57:00 (545 s); `worker-on`: running sau 29 s, cờ 65 MEDIUM sau 43 s, một `fraud.flagged`, `notification.sent` 1 cho hai lệnh nhỏ và (kiểm lại sau) cho lệnh 43.000.000, bốn queue 0/0/0, `outbox-age` `OK` 04:02:00; `invariants.js` PASS (214.556.000) |
+| M-184-08 | đạt: `final-check` ĐẠT (không constraint, worker 1/1, bốn queue 0/0/0, ba alarm `OK`); `terraform destroy` 57 tài nguyên 8 phút 00 giây, state rỗng, `verify-clean.sh` thoát 0 (13 loại sạch) |
+
+- **Phát hiện khi chạy (đã đi vào BL hoặc sửa tài liệu):** (1) log `dead_letter` thật khớp lệnh lọc của runbook DLQ 2b và các trường đã mô tả (BL-364 đóng; mẫu dán vào runbook DLQ); (2) cách ép lỗi notification bằng task `dbs-migrate` chạy được (BL-370 đóng); (3) bốn kịch bản chạy được trên cloud với số đo thật (BL-371 đóng); (4) task worker bị `stop-task` thoát **exit 137** sau 79 s thay vì êm (BL-384); (5) lệnh gửi lại tay `OriginalSentTimestamp` chạy được 28 `eventId` nhưng vẫn là script bash chưa có test (BL-372 cập nhật); (6) alarm DLQ chỉ đếm message hiện nên cần ≈ 2–3 phút để về `OK` giữa các kịch bản; (7) kiểm `notification.sent` ngay lúc cờ vừa hiện có thể thấy 0 dòng (≤ 1 s trễ), kiểm lại thấy 1.
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` (xem PR): feature doc DBS-184; `infra/scripts/incident-db.js`, `incident-cloud.sh`, `ac-5-10-tools.py` (`--script`), `tests/test_incident_scenarios.py`; `docs/runbooks/async-incident-scenarios.md`, `docs/runbooks/dlq-redrive.md` (mẫu log thật); `docs/deliverables/P4-incident-table.md`; `docs/demos/demo-3-failure-recovery.md`; `docs/features/README.md`; `docs/BACKLOG.md`; ba file trong `screenshots/DBS-184/` và file review. Không có file trong `backend/` hay `infra/terraform`. Đúng với §7.
+- **Ảnh chụp:** không áp dụng (task vận hành; bằng chứng là output thô). Video chưa có (BL-383).
+- **Lệch so với kế hoạch (quyết định agent tự duyệt):**
+  1. **Cửa sổ đếm log** của `dlq-wait` bắt đầu từ lệnh AC-9.1 nên chỉ thấy 18 dòng; số 28 lấy bằng một lệnh `filter-log-events` chạy tay sau đó trên toàn cửa sổ (kết quả ở `manual-test-cloud.txt`). Không đổi kết luận.
+  2. **Điều phối** bằng một script trình chạy (không commit) gọi `incident-cloud.sh` tuần tự theo pha và lấy token mới mỗi pha; `incident-cloud.sh` được commit và chạy nguyên bản (commit `8dccc42` đặt sau lần chạy, nội dung `dlq-wait` đã sửa trước khi chạy).
+  3. **GitHub issue #201** tạo đúng theo runbook DLQ 3c (ghi nhận bỏ qua); không phải thao tác lên board.
+  4. **Không chạy vòng domain review thứ hai** (G2 quyết định 1): kết quả cloud không làm đổi thiết kế.
+- **Bàn giao cho vai khác:** **BL-383** (Dev quay, gộp BL-380 và DBS-140): video và một lần chạy liền mạch. **BL-384** (Dev worker): worker thoát 137 sau `stop-task`. **BL-385** (#5 Platform & Ops): p95 dưới tải k6 khi consumer lỗi hoặc worker tắt. **BL-372** (Dev chủ outbox/messaging) cập nhật: có script `resend` chạy thật, còn thiếu CLI có test. Đã xóa BL-364, BL-370, BL-371.
+
+## 9. Tài liệu đã cập nhật
+
+- `docs/runbooks/async-incident-scenarios.md` (phần cloud đã chạy, số đo, cách ép lỗi đã kiểm, giới hạn), `docs/runbooks/dlq-redrive.md` (mục 2b: mẫu log thật), `docs/deliverables/P4-incident-table.md` (bốn dòng cloud kể cả AC-5.10 của DBS-185), `docs/demos/demo-3-failure-recovery.md` (liên kết kết quả cloud), `docs/features/README.md` (hàng DBS-184).
+- `docs/BACKLOG.md`: thêm BL-383, BL-384, BL-385; cập nhật BL-372; **xóa BL-364, BL-370, BL-371** (xử lý xong).
+
+## Checklist G4
+
+- [x] 10/10 test case đạt đủ độ sâu trừ TC-184-08 «một phần» (video: BL-383) và TC-184-09 (quy trình, làm ở PR); 0 đơn giản hóa
+- [x] Test thủ công: local trên `94e1f97` (SHA ở dòng đầu `manual-test.txt`), cloud trên `8dccc42` (dòng đầu `manual-test-cloud.txt`); mọi bước M-184-01..08 đã chạy; không có «chưa chạy» ngoài video
+- [x] Ảnh chụp: không áp dụng; `manual-test*.txt` không có token, ARN, id tài khoản, `ReceiptHandle`, body (grep = 0)
+- [x] `git diff --stat origin/main...HEAD` khớp §7; mỗi lệch có quyết định ở trên
+- [x] Baseline (task vận hành, không đổi `backend/`): 12 + 36 test OK, `check-doc-links.mjs` sạch
+- [x] Mọi doc có fact bị đổi đã sửa; trạng thái doc Implemented
+- [x] Bàn giao và DoD chưa đạt (video) có BL-383..385 trong `docs/BACKLOG.md`; dòng BL-364, 370, 371 đã xóa

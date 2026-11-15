@@ -74,6 +74,8 @@ aws logs filter-log-events --log-group-name /dbs/dev/worker --start-time <epoch 
 
 Trên Git Bash (Windows) đặt `MSYS_NO_PATHCONV=1` trước lệnh: nếu không, `/dbs/dev/worker` bị đổi thành đường dẫn Windows và AWS báo `InvalidParameterException` (đã gặp ở DBS-164). Lệnh trả `0` khi chưa có dòng nào (worker chưa chạy hoặc không có message lỗi).
 
+**Đã kiểm trên log thật** ([DBS-184](../features/DBS-184-cloud-incident-scenarios.md), 2026-11-15): lệnh trên với `consumer = "risk"` trả đúng một dòng cho message sai schema, `{"level":50,…,"context":"ConsumerBase","consumer":"risk","outcome":"dead_letter","receiveCount":1,"messageId":"…","reason":"invalid_event","issueCodes":["MISSING_FIELD"],"message":"risk message dead-lettered"}` (không có `eventId`, không có body); với `consumer = "notification"` có 28 dòng `reason: "attempts_exhausted"`, `receiveCount: 5` và `eventId`. Message không phải JSON không có dòng nào. Pattern chữ trơn `"dead_letter"` còn khớp cả dòng metric `Diagnostic event` (mức 30): dùng pattern JSON ở trên.
+
 Dòng có `consumer` (`risk` hoặc `notification`), `outcome: "dead_letter"`, `reason`, `receiveCount`; `eventId` (khi body hợp lệ) **hoặc** `messageId` và `issueCodes` (khi body không hợp lệ: body không bao giờ được ghi vào log); `errorType` (`Error` hoặc `NonError`) và `code` (SQLSTATE hoặc mã mạng) của lỗi gốc nếu có (hai dòng `invalid_event` và `unknown_event_type` không có hai trường này). **`messageId` trong log là id trên queue chính**: bản sao trong DLQ có `MessageId` mới, nên đối chiếu `invalid_event` với message trong DLQ theo khung giờ, `consumer`, `issueCodes` và nội dung body (mục 2), rồi ghi cả hai id.
 
 | `reason` (hoặc dấu hiệu) | Nghĩa | Việc làm |
