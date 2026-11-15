@@ -1,0 +1,142 @@
+Script started on 2026-11-15 12:24:10+00:00 [COMMAND="bash docs/deliverables/P3-rollback-drill/drill.sh" <not executed on terminal>]
+=== DBS-156 diễn tập rollback, chạy 1115122410, cluster dbs-dev, api=api worker=worker ===
+=== [Phase A] Nền tốt và giao dịch TRƯỚC khi deploy lỗi, 2026-11-15T12:24:11Z ===
+-----------------------------------------------
+|              DescribeServices               |
++---------+---------+----------+--------------+
+| desired |  name   | running  |    state     |
++---------+---------+----------+--------------+
+|  1      |  api    |  1       |  COMPLETED   |
+|  1      |  worker |  1       |  COMPLETED   |
++---------+---------+----------+--------------+
+Task definition tốt: api=dbs-api:16 worker=dbs-worker:12
+Revision ACTIVE của dbs-api:    dbs-api:16	dbs-api:10
+Revision ACTIVE của dbs-worker: dbs-worker:12	dbs-worker:7
+Health live: 200
+Health ready: 200
+Đã lấy token operator, customer1, customer2 (không in)
+Tài khoản: customer1=063be3c9-b4c6-496a-a26d-b2e7ce6df57f customer2=678fca22-eba4-4442-927b-e4fba8643e64
+Số dư đầu (customer1, customer2): 53500000, 13000000
+Nạp 5.000.000 vào customer1 (Idempotency-Key drill156-1115122410-dep1):
+  PASS  nạp 5.000.000 trả 201 (= 201)
+  PASS  nạp trạng thái COMPLETED (= COMPLETED)
+Chuyển 1.000.000 customer1 -> customer2 (Idempotency-Key drill156-1115122410-tr1):
+  PASS  chuyển 1.000.000 trả 201 (= 201)
+  PASS  chuyển trạng thái COMPLETED (= COMPLETED)
+transferId trước sự cố: 7cff9ef6-3606-4b4d-ad88-02e1afeda25d
+Số dư TRƯỚC sự cố (customer1, customer2): 57500000, 14000000
+  PASS  số dư customer1 = đầu + 5.000.000 - 1.000.000 (= 57500000)
+  PASS  số dư customer2 = đầu + 1.000.000 (= 14000000)
+=== [Phase B] Đăng ký và deploy task definition lỗi (DB_HOST sai), 2026-11-15T12:24:21Z ===
+Đã đăng ký bản lỗi: api=dbs-api:18 worker=dbs-worker:14 (chỉ khác DB_HOST=broken-db-host.invalid)
+Deploy lỗi bắt đầu lúc 2026-11-15T12:24:25Z; chờ MỖI service có ít nhất một task của bản lỗi dừng vì lỗi (failedTasks >= 1), tối đa 300 giây
+(503 của /health/ready một mình KHÔNG chứng minh bản lỗi hỏng: api chạy 1 task với minimumHealthyPercent 0 nên deploy tốt cũng có khoảng 503)
+  +13s health/ready=200 | api 1 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 1 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +26s health/ready=200 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +39s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +52s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +65s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +78s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +91s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +103s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +116s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +129s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +146s health/ready=000 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 1 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +159s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 1 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +172s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=0
+  +184s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=1
+  +197s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=1 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=1
+  Task bản lỗi đã dừng (api): Essential container in task exited 1
+  Task bản lỗi đã dừng (worker): Essential container in task exited 1
+  Deployment lúc t0: api [PRIMARY/IN_PROGRESS/failed=1/dbs-api:18; ACTIVE/COMPLETED/failed=0/dbs-api:16; ] worker [PRIMARY/IN_PROGRESS/failed=1/dbs-worker:14; ACTIVE/COMPLETED/failed=0/dbs-worker:12; ]
+  PASS  cả hai bản lỗi thật sự hỏng trước khi rollback (api failedTasks=1, worker failedTasks=1)
+  PASS  PRIMARY của api vẫn là bản lỗi lúc t0 (circuit breaker chưa tự rollback) (= dbs-api:18)
+  PASS  PRIMARY của worker vẫn là bản lỗi lúc t0 (circuit breaker chưa tự rollback) (= dbs-worker:14)
+=== [Phase C] Rollback về dbs-api:16 và dbs-worker:12 ===
+Rollback bắt đầu t0=1794745666 (2026-11-15T12:27:46Z)
+  +2s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +8s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +14s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +21s health=502 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +28s health=000 | api 0 1 IN_PROGRESS dbs-api:16 | worker 0 1 IN_PROGRESS dbs-worker:12
+  +39s health=000 | api 0 1 IN_PROGRESS dbs-api:16 | worker 0 1 IN_PROGRESS dbs-worker:12
+  +50s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 0 1 IN_PROGRESS dbs-worker:12
+  +57s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 0 1 IN_PROGRESS dbs-worker:12
+  +63s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +70s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +76s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +82s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +89s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +95s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +102s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +108s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +114s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +121s health=503 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +127s health=200 | api 0 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +133s health=200 | api 1 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +140s health=200 | api 1 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +146s health=200 | api 1 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +153s health=200 | api 1 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +159s health=200 | api 1 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +165s health=200 | api 1 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +172s health=200 | api 1 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +178s health=200 | api 1 1 IN_PROGRESS dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +184s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +191s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +197s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +204s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +210s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +216s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +223s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +229s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +235s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +242s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +248s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +254s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +260s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 IN_PROGRESS dbs-worker:12
+  +267s health=200 | api 1 1 COMPLETED dbs-api:16 | worker 1 1 COMPLETED dbs-worker:12
+Rollback XONG lúc 2026-11-15T12:32:14Z: /health/ready 200 sau 127s, api COMPLETED sau 184s, worker COMPLETED sau 267s, tổng 267s
+Mất phục vụ ước tính (health khác 200): từ 40s sau deploy lỗi tới 330s, khoảng 290s (api 1 task, BL-234)
+  PASS  tổng 267s <= 600s
+=== [Phase D] Kiểm sau rollback, 2026-11-15T12:32:14Z ===
+[{"name":"api","running":1,"desired":1,"deployments":[{"status":"PRIMARY","rolloutState":"COMPLETED"}]},{"name":"worker","running":1,"desired":1,"deployments":[{"status":"PRIMARY","rolloutState":"COMPLETED"}]}]
+TD hiện tại: api=dbs-api:16 worker=dbs-worker:12
+  PASS  health live (= 200)
+  PASS  health ready (= 200)
+  PASS  log của task tốt api/api/<task> từ t0 không có 'Application startup failed' (= 0)
+  PASS  log của task tốt worker/worker/<task> từ t0 không có 'Application startup failed' (= 0)
+  PASS  log worker từ t0 có 'Worker started' (= ok)
+  SQS dbs-dev-risk-events: {"ApproximateNumberOfMessages":"0","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+  SQS dbs-dev-risk-events-dlq: {"ApproximateNumberOfMessages":"0","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+  SQS dbs-dev-notification-events: {"ApproximateNumberOfMessages":"0","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+  SQS dbs-dev-notification-events-dlq: {"ApproximateNumberOfMessages":"0","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+--- Giao dịch mẫu sau rollback (token lấy lại vì sống 15 phút) ---
+Đã lấy token operator, customer1, customer2 (không in)
+(a) Số dư sau rollback (customer1, customer2): 57500000, 14000000
+  PASS  (a) customer1 còn nguyên số dư trước sự cố (= 57500000)
+  PASS  (a) customer2 còn nguyên số dư trước sự cố (= 14000000)
+(b) Replay đúng lệnh chuyển trước sự cố (Idempotency-Key drill156-1115122410-tr1, cùng body):
+  PASS  (b) replay trả 201 (= 201)
+  PASS  (b) replay cùng transferId với lần đầu (= 7cff9ef6-3606-4b4d-ad88-02e1afeda25d)
+  PASS  (b) replay trạng thái COMPLETED (= COMPLETED)
+  PASS  (b) replay không chuyển lần hai (customer1) (= 57500000)
+  PASS  (b) replay không chuyển lần hai (customer2) (= 14000000)
+(c) Nạp mới 2.000.000 và chuyển mới 500.000:
+  PASS  (c) nạp mới trả 201 (= 201)
+  PASS  (c) nạp mới COMPLETED (= COMPLETED)
+  PASS  (c) chuyển mới trả 201 (= 201)
+  PASS  (c) chuyển mới COMPLETED (= COMPLETED)
+  PASS  (c) chuyển mới có transferId khác lần trước (= ok)
+Số dư cuối (customer1, customer2): 59000000, 14500000
+  PASS  (c) customer1 = trước sự cố + 2.000.000 - 500.000 (= 59000000)
+  PASS  (c) customer2 = trước sự cố + 500.000 (= 14500000)
+=== [Phase E] Dọn bản lỗi và kiểm từ chối revision INACTIVE, 2026-11-15T12:32:30Z ===
+Đã hủy đăng ký dbs-api:18 và dbs-worker:14: INACTIVE, INACTIVE
+  PASS  AWS từ chối update-service về revision INACTIVE:  An error occurred (ClientException) when calling the UpdateService operation: TaskDefinition is inactive 
+  PASS  service api vẫn ở dbs-api:16 sau lần bị từ chối (= dbs-api:16)
+=== [Phase F] Bất biến sổ cái (invariants.js trong task dbs-migrate), 2026-11-15T12:32:33Z ===
+{"status":"PASS","totals":{"debit":"104500000","credit":"104500000","balance":"0"},"violations":[]}
+  PASS  invariants.js thoát 0 (0 sạch, 1 vi phạm, 2 không kết luận) (= 0)
+=== TỔNG KẾT 2026-11-15T12:33:27Z: TẤT CẢ ĐẠT; rollback tổng 267s (ngưỡng 600s) ===
+
+Script done on 2026-11-15 12:33:27+00:00 [COMMAND_EXIT_CODE="0"]

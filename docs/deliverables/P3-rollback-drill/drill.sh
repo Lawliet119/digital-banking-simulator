@@ -170,17 +170,25 @@ upd() { # <service> <task-definition>: update-service, ghi FAIL nếu AWS từ c
   fi
   say "  FAIL  update-service $1 -> $2 bị từ chối"; DRILL_FAILS=$((DRILL_FAILS + 1)); return 1
 }
-on_exit() { # chạy khi main thoát giữa chừng: đưa hai service về bản tốt, hủy đăng ký bản lỗi
+on_exit() { # chạy MỘT lần khi main thoát giữa chừng: đưa hai service về bản tốt, hủy đăng ký bản lỗi
+  # Gỡ trap ngay (không chạy lại), bỏ qua SIGPIPE (Ctrl-C giết luôn sed ở đầu kia ống), làm lệnh aws TRƯỚC khi in.
+  trap - EXIT INT TERM; trap '' PIPE
+  local msg=""
   if [ "${ROLLED_BACK:-1}" = 0 ]; then
-    say "!!! Script dừng trước khi rollback xong: đưa $API_SVC về $API_GOOD_TD và $WORKER_SVC về $WORKER_GOOD_TD"
-    aws ecs update-service --cluster "$CLUSTER" --service "$API_SVC" --task-definition "$API_GOOD_TD" --force-new-deployment >/dev/null
-    aws ecs update-service --cluster "$CLUSTER" --service "$WORKER_SVC" --task-definition "$WORKER_GOOD_TD" --force-new-deployment >/dev/null
+    aws ecs update-service --cluster "$CLUSTER" --service "$API_SVC" --task-definition "$API_GOOD_TD" --force-new-deployment >/dev/null 2>&1
+    aws ecs update-service --cluster "$CLUSTER" --service "$WORKER_SVC" --task-definition "$WORKER_GOOD_TD" --force-new-deployment >/dev/null 2>&1
+    msg="đã đưa $API_SVC về $API_GOOD_TD và $WORKER_SVC về $WORKER_GOOD_TD; "
+    ROLLED_BACK=1
   fi
   if [ "${BAD_DEREG:-1}" = 0 ]; then
-    say "!!! Hủy đăng ký bản lỗi còn ACTIVE: $API_BAD_TD, $WORKER_BAD_TD"
     aws ecs deregister-task-definition --task-definition "$API_BAD_TD" >/dev/null 2>&1
     aws ecs deregister-task-definition --task-definition "$WORKER_BAD_TD" >/dev/null 2>&1
+    msg="${msg}đã hủy đăng ký $API_BAD_TD, $WORKER_BAD_TD"
+    BAD_DEREG=1
   fi
+  # In ra fd 3 (stderr gốc, mở trước ống) để thông báo vẫn tới được khi sed đã chết; chỉ có tên revision, không bí mật.
+  [ -n "$msg" ] && printf '!!! Script dừng giữa chừng: %s\n' "$msg" >&3 2>/dev/null
+  return 0
 }
 
 make_bad_td() { # <file describe-task-definition> <file ra>: cùng image, chỉ DB_HOST sai
@@ -248,7 +256,8 @@ main() {
   WORKER_BAD_TD="$(aws ecs register-task-definition --cli-input-json "file://$TMP_DIR/worker-bad.json" --query 'taskDefinition.taskDefinitionArn' --output text | tdname)"
   say "Đã đăng ký bản lỗi: api=$API_BAD_TD worker=$WORKER_BAD_TD (chỉ khác DB_HOST=broken-db-host.invalid)"
   ROLLED_BACK=0; BAD_DEREG=0
-  trap on_exit EXIT INT TERM
+  trap on_exit EXIT
+  trap 'on_exit; exit 130' INT TERM
   T_BAD="$(epoch)"
   upd "$API_SVC" "$API_BAD_TD" || return 2
   upd "$WORKER_SVC" "$WORKER_BAD_TD" || return 2
@@ -304,12 +313,17 @@ main() {
   for g in api worker; do
     svc="$API_SVC"; [ "$g" = worker ] && svc="$WORKER_SVC"
     tid="$(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$svc" --desired-status RUNNING --query 'taskArns[0]' --output text)"; tid="${tid##*/}"
+    if [ -z "$tid" ] || [ "$tid" = "None" ]; then check "có task RUNNING của $g sau rollback" có "không"; continue; fi
     eval "TID_$g=\$tid"
+    n_stream="$(aws logs describe-log-streams --log-group-name "/dbs/dev/$g" --log-stream-name-prefix "$g/$g/$tid" --query 'length(logStreams)' --output text)"
+    check "luồng log $g/$g/<task tốt> tồn tại (để phép đếm bên dưới có nghĩa)" 1 "$n_stream"
     n_fail="$(aws logs filter-log-events --log-group-name "/dbs/dev/$g" --log-stream-names "$g/$g/$tid" --start-time $((T0 * 1000)) --filter-pattern '"Application startup failed"' --query 'length(events)' --output text | awk '{n += $1} END {print n + 0}')"
     check "log của task tốt $g/$g/<task> từ t0 không có 'Application startup failed'" 0 "$n_fail"
   done
   n_w="$(aws logs filter-log-events --log-group-name /dbs/dev/worker --log-stream-names "worker/worker/$TID_worker" --start-time $((T0 * 1000)) --filter-pattern '"Worker started"' --query 'length(events)' --output text | awk '{n += $1} END {print n + 0}')"
   [ "${n_w:-0}" -ge 1 ] && check "log worker từ t0 có 'Worker started'" ok ok || check "log worker từ t0 có 'Worker started'" ok "không có ($n_w)"
+  n_a="$(aws logs filter-log-events --log-group-name /dbs/dev/api --log-stream-names "api/api/${TID_api:-none}" --start-time $((T0 * 1000)) --filter-pattern '"HTTP listener started"' --query 'length(events)' --output text | awk '{n += $1} END {print n + 0}')"
+  [ "${n_a:-0}" -ge 1 ] && check "log api từ t0 có 'HTTP listener started'" ok ok || check "log api từ t0 có 'HTTP listener started'" ok "không có ($n_a)"
   for q in risk notification; do
     for suffix in events events-dlq; do
       url="$(aws sqs get-queue-url --queue-name "dbs-dev-$q-$suffix" --query QueueUrl --output text)"
@@ -377,5 +391,6 @@ main() {
   [ "$DRILL_FAILS" -eq 0 ]
 }
 
-main 2>&1 | redact
+exec 3>&2
+main 2>&1 | (trap '' INT; redact)
 exit "${PIPESTATUS[0]}"
