@@ -1,0 +1,51 @@
+# Câu bảo vệ 7: HA và hồi phục (ghi chú kèm bằng chứng)
+
+> **Status:** Draft (chưa luyện với người khác, chưa có video) · **Owner:** Dev · **Nguồn:** [DBS-197](../features/DBS-197-defense-q7-notes.md) · **Cập nhật:** 2026-11-15
+
+Ghi chú để trả lời câu 7 bằng bằng chứng. Mỗi ý có link tới tài liệu nguồn và log thô; số liệu lấy từ tài liệu đó, không viết lại. **Văn bản chính xác của câu 7 không có trong repo** ([ADR-11](../adr/0011-aws-managed-session-based.md) chỉ liệt kê «câu bảo vệ 4, 7, 8, 9» làm lý do chọn dịch vụ managed; `team.md` của skill không gán chủ cho câu 7); ghi chú trả lời chủ đề «khi một phần hệ thống chết thì tiền và sự kiện còn đúng không, hồi phục mất bao lâu». Ghi chú này chia ba tầng: thiết kế (đã có), bằng chứng đã đo (dev, Single-AZ trừ RDS ở DBS-181), và giới hạn phải nói thẳng.
+
+## 1. Trả lời ngắn (30 giây)
+
+Tiền không phụ thuộc vào bất kỳ thành phần nào ngoài PostgreSQL: lệnh chuyển tiền là **một transaction** (sổ cái, mã yêu cầu, audit, outbox), nên khi một thành phần khác chết thì lệnh vẫn đúng hoặc không xảy ra, chứ không dở dang. Sự kiện đi sau qua **outbox → SQS → consumer**, ít nhất một lần và khử trùng bằng `processed_events`, nên worker hay consumer chết chỉ làm **trễ** cờ gian lận và thông báo, không mất. Chúng tôi đã **chạy thật trên AWS dev** năm sự cố: task api bị dừng giữa lệnh, RDS failover, worker tắt, consumer notification lỗi, message hỏng; relay/queue chết và Redis chậm hoặc chết mới chạy **local**. Số đo ở bảng dưới; cái chưa đạt (một task api, một lần failover chỉ có bản tóm tắt, chưa quay video) ở mục 4.
+
+## 2. Bảng bằng chứng: chết gì → phản ứng → phục hồi
+
+| Sự cố | Phản ứng của hệ thống | Phục hồi (đo) | Bằng chứng |
+|---|---|---|---|
+| **Task api chết giữa lệnh chuyển tiền** (ECS `stop-task`, transaction đang mở trên RDS giữ bằng trigger `pg_sleep` tạm; revision `dbs-api` tạm với `stopTimeout` 2 và `deregistration_delay` 0) | transaction không bao giờ commit; client lần đầu nhận lỗi của ALB; không còn dòng mã yêu cầu, giao dịch hay bút toán | gửi lại **cùng `Idempotency-Key`** → 201, đúng **một** giao dịch, hai bút toán; lần hai replay cùng `transferId`; đối soát 0 lệch, `invariants.js` PASS. Task mới RUNNING sau **131 s**, service ổn định sau **137 s** kể từ `stop-task` (dev chỉ có 1 task: mất dịch vụ ≈ 2 phút; với `deregistration_delay` 30 s của Terraform lâu hơn ≈ 30 s, BL-382) | [DBS-185](../features/DBS-185-ac-5-10-kill-task-cloud.md), [Demo 3 E](../demos/demo-3-failure-recovery.md#e-dừng-task-api-giữa-lệnh-chuyển-tiền-ac-510-dbs-185), [raw](../features/screenshots/DBS-185/manual-test-cloud.txt) |
+| **RDS primary lỗi** (`reboot --force-failover`, Multi-AZ) | `/health/ready` trả 503 trong lúc chuyển; app tự nối lại, không restart task | khoảng 503 trên health probe **12,7 s và 14,7 s** (hai lần; từ 503 đầu tới 503 cuối, ≈ 2 request/giây), tự phục hồi; **chưa kiểm dưới lệnh chuyển tiền thật** | [DBS-181](../features/DBS-181-rds-failover-drill.md), [raw](../features/screenshots/DBS-181/manual-test.txt): bản tóm tắt, không có log từng request, không có sự kiện RDS, và cả hai vòng đều ghi AZ `ap-southeast-1a` sau failover (AZ không đổi như kỳ vọng): BL-386 |
+| **Worker chết** | chuyển tiền và nạp tiền vẫn 201; sự kiện nằm trong outbox; alarm `outbox-age` sang `ALARM` sau **9 phút 5 giây** | bật lại: worker chạy sau 29 s, cờ gian lận sau **43 s** kể từ lúc bật, đúng một audit `fraud.flagged`, đủ thông báo, queue và DLQ về 0, alarm `OK` sau 4 phút 39 giây | [DBS-184](../features/DBS-184-cloud-incident-scenarios.md) (d), [runbook](../runbooks/async-incident-scenarios.md#d-worker-tắt-rồi-bật--outbox-gửi-bù); local: [DBS-124](../features/DBS-124-worker-down-recovery.md) |
+| **Consumer notification lỗi liên tục** | chuyển tiền vẫn 201, cờ rủi ro vẫn tạo (65 MEDIUM sau 2,4 s); message vào DLQ sau đúng 5 lần (≈ 152 s, backoff 10+20+40+80 s); alarm DLQ; p95 chuyển tiền máy chủ **29 → 31 ms** (p99 31 → 58 ms; consumer chạy ở task worker riêng nên p95 của API ít bị ảnh hưởng theo thiết kế: bằng chứng yếu) | gỡ lỗi, gửi lại tay 28 sự kiện (≈ 30 s, không bản trùng gửi đi); kiểm `notification.sent` cho lệnh AC-9.1 = 1 (khử trùng kiểm ở local, DBS-125); DLQ 0; sạch sau 5 phút | [DBS-184](../features/DBS-184-cloud-incident-scenarios.md) (a), (c); [runbook DLQ](../runbooks/dlq-redrive.md); local: [DBS-125](../features/DBS-125-dlq-isolation-runbook.md) |
+| **Message hỏng** | vào DLQ ngay (2 s), không bị thử lại, không chặn queue; alarm sau 190 s | bỏ qua có ghi nhận ([issue #201](https://github.com/Lawliet119/digital-banking-simulator/issues/201)) | [DBS-184](../features/DBS-184-cloud-incident-scenarios.md) (b) |
+| **Relay/queue chết** | sự kiện chờ trong outbox, gửi bù khi queue lên | không mất sự kiện; bản trùng bị consumer chặn | [DBS-91](../features/DBS-91-relay-fault-tolerance.md) (local) |
+| **Redis chậm hoặc chết** | rate limit fail-open, `/health/ready` báo `degraded`, chuyển tiền vẫn COMPLETED, bất biến PASS | không cần khôi phục: bộ đếm rate limit mất (fail-open); mốc thu hồi phiên đọc lại từ PostgreSQL ([DBS-186](P4-incident-table.md), local) | [DBS-100](../features/DBS-100-redis-slow-transfer.md) (local) |
+
+Tổng hợp một chỗ: [bảng sự cố P4](P4-incident-table.md) và [Demo 3](../demos/demo-3-failure-recovery.md).
+
+## 3. Vì sao đúng (để trả lời «tại sao tiền không sai»)
+
+- **Một transaction, một mã yêu cầu theo người dùng:** `INSERT … ON CONFLICT DO NOTHING` trên `idempotency_keys` cùng transaction với sổ cái ([ADR-05](../adr/0005-idempotency-in-postgres.md)). Gửi lại sau khi bị ngắt là an toàn vì bản bị ngắt không để lại gì; gửi lại sau khi đã commit trả kết quả cũ.
+- **Không gọi dịch vụ ngoài trong transaction tiền:** Redis, SQS, AI nằm ngoài; outbox ghi sự kiện **cùng transaction**, relay gửi sau ([ADR-03](../adr/0003-sync-transfer-async-outbox-sqs.md)).
+- **At-least-once + khử trùng:** `processed_events` và `ON CONFLICT DO NOTHING` làm cho gửi lại, redrive và gửi lại tay vô hại.
+- **Bất biến kiểm được:** `invariants.js` (nợ = có, số dư = tổng bút toán, tổng số dư = 0) đã chạy trên RDS thật sau sự cố task api (DBS-185), sau (c) và (d) của DBS-184 (PASS); **chưa chạy sau failover RDS** và sau (b). Đối soát chạy mỗi 5 phút ở worker; chỉ DBS-185 có dòng `reconciliation_runs` `OK` sau lần gửi lại.
+- **Mục tiêu thiết kế:** RPO ≤ 5 phút, RTO ≤ 30 phút, 99,9% ở cấu hình production ([docs/03 D-7](../03_HIGH_LEVEL_ARCHITECTURE.md)); số đo ở dev **không** chứng minh các mục tiêu đó cho production.
+
+## 4. Giới hạn phải nói thẳng (đừng để giảng viên tìm ra trước)
+
+- **Dev chạy 1 task api, Single-AZ ngoài thời điểm diễn tập RDS**; production thiết kế ≥ 2 task trên 2 AZ, RDS và Valkey Multi-AZ ([docs/03 §13](../03_HIGH_LEVEL_ARCHITECTURE.md)). Ở dev, task api chết = mất dịch vụ ≈ 2 phút ([BL-382](../BACKLOG.md)).
+- **Giữ transaction bằng trigger `pg_sleep` tạm và cấu hình tạm** (revision `dbs-api` `stopTimeout` 2, `deregistration_delay` 0): không có cách tự nhiên để dừng task đúng giữa transaction vì mọi transaction chỉ sống vài giây. **Tiêu chí «lần chạy hợp lệ» đã đổi sau lần chạy** (ban đầu đòi exit 137, thực tế 0) và kết luận được lập lại trên tệp đã lưu; lần chạy đầu bằng cách giữ khóa dòng không hợp lệ ([DBS-185 §8](../features/DBS-185-ac-5-10-kill-task-cloud.md)). Lỗi 502 của client do ALB gỡ target ở +25 s, không do kill. Task dừng bằng `stop-task` (ứng dụng thoát 0; worker thoát 137 sau 79 s: [BL-384](../BACKLOG.md)), không phải crash cứng; điều chứng minh là transaction đang mở trên DB khi task chết và không bao giờ commit. Ứng dụng không chờ request đang chạy khi SIGTERM ([BL-381](../BACKLOG.md)).
+- **Chưa diễn tập sao lưu:** không có drill PITR hay khôi phục snapshot (dev: `backup_retention_period` 1, `skip_final_snapshot`), nên RPO ≤ 5 phút và RTO ≤ 30 phút chỉ là thiết kế, không có số đo ([BL-388](../BACKLOG.md)). Valkey dev 1 node không replica; Redis chết chỉ thử local.
+- **Mẫu nhỏ:** p95 khi consumer lỗi đo trên 24 lệnh, một người gửi, tải thấp; tải 120 RPS chưa đo khi có sự cố ([BL-385](../BACKLOG.md)).
+- **DLQ:** redrive thật khóa DLQ 6 ngày ([runbook DLQ](../runbooks/dlq-redrive.md)); lần chạy dùng gửi lại tay (script bash chưa có test, [BL-372](../BACKLOG.md)).
+- **Video chưa có:** DLQ và outbox gửi bù [BL-383](../BACKLOG.md), kill task api [BL-380](../BACKLOG.md), failover RDS [BL-386](../BACKLOG.md). Bằng chứng hiện là log thô (DBS-184, DBS-185 có dấu thời gian từng bước; DBS-181 là bản tóm tắt). **Chưa luyện trả lời trước người khác** ([BL-387](../BACKLOG.md)).
+
+## 5. Câu hỏi vặn dự đoán (chưa luyện, chưa gặp: điền sau khi luyện với người khác)
+
+| Câu hỏi | Trả lời có bằng chứng |
+|---|---|
+| «Nếu task chết sau khi commit nhưng trước khi trả lời?» | Logic replay đã kiểm (DBS-79; ở DBS-185 lần gửi thứ hai replay sau khi đã có 201). **Điểm chết đúng giữa commit và trả lời chưa được thử** riêng. |
+| «Sao không dùng 2 phiên bản để khỏi mất 2 phút?» | Production thiết kế ≥ 2 task, 2 AZ ([docs/03 §13](../03_HIGH_LEVEL_ARCHITECTURE.md)); dev giữ 1 task vì chi phí, và ở DBS-185 còn để biết chắc task nào nhận request (G1 quyết định 6). 137 s là số đo của cấu hình 1 task. |
+| «Failover RDS 13 giây có chạm sổ cái không?» | Theo thiết kế: transaction đang chạy lỗi và rollback, thử lại an toàn nhờ mã yêu cầu ([ADR-05](../adr/0005-idempotency-in-postgres.md)). **Chưa kiểm chứng**: lần diễn tập chỉ gửi `GET /health/ready`, không gửi lệnh chuyển tiền ([DBS-181](../features/DBS-181-rds-failover-drill.md)). |
+| «Sự kiện nào bị mất khi worker chết 10 phút?» | Không: outbox giữ; sau khi bật lại cờ xuất hiện sau 43 s kể từ lúc bật (worker chạy sau 29 s); cờ trễ ≈ 9 phút, alarm báo ở phút thứ 9. |
+| «Redrive DLQ có gửi thông báo hai lần không?» | Không: `processed_events` và `ON CONFLICT`; ranh giới 7 ngày dedup nên redrive bị chặn với message quá 6 ngày ([runbook DLQ](../runbooks/dlq-redrive.md)). |
+| «Làm sao biết đối soát không bị lệch sau sự cố?» | DBS-185: `reconciliation_runs` số 10 `OK` sau lần gửi lại; `invariants.js` PASS sau DBS-185, DBS-184 (c) và (d). Chưa có sau failover RDS. |
