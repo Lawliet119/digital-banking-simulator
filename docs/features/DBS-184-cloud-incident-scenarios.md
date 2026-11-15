@@ -1,6 +1,6 @@
 # DBS-184 · Chạy bốn kịch bản sự cố trên cloud và ghi bằng chứng
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev (chạy cloud, script vận hành, tài liệu) · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-184-cloud-incident-scenarios` · **PR:** (gắn sau khi mở) · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (sau G4) · **Vai:** Dev (chạy cloud, script vận hành, tài liệu) · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-184-cloud-incident-scenarios` · **PR:** [#202](https://github.com/Lawliet119/digital-banking-simulator/pull/202) · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
