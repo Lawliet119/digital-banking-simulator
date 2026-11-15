@@ -13,3 +13,5 @@ Năm bản nộp của môn học. Mỗi bản là **bản ghép trỏ về ngu�
 | **P5** | AI Engineering | #4 | 9 | `components/risk`, `components/fraud-dataset`, [FRAUD_DETECTION_GUIDE](../components/risk/FRAUD_DETECTION_GUIDE.md) §6, §9 (giới hạn) | _chưa nộp_ |
 
 Bằng chứng (ảnh chụp, kết quả k6, log diễn tập) để cạnh bản nộp tương ứng khi có, rồi link từ bản nộp. [Bảng diễn tập sự cố P4](P4-incident-table.md) phân biệt bằng chứng local và cloud; bản P4 tổng hợp vẫn chưa nộp.
+
+[Ghi chú câu bảo vệ 7 (HA và hồi phục) kèm bằng chứng](defense-q7-ha-recovery.md) (DBS-197): bảng sự cố, vì sao tiền không sai, giới hạn; chưa luyện với người khác, chưa có video.
