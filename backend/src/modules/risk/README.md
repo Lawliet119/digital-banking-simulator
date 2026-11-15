@@ -24,7 +24,7 @@ Phát hiện giao dịch đáng ngờ; nhân viên review và quyết định.
 |             |                                                                                             |
 | ----------- | ------------------------------------------------------------------------------------------- |
 | Use case    | UC-9 chấm điểm · UC-10 review cờ · UC-12 cấu hình luật                                      |
-| Chạy ở      | **api** (controller review) **+ worker** (consumer chấm điểm); UC-12 chưa triển khai |
+| Chạy ở      | **api** (controller review) **+ worker** (consumer chấm điểm); UC-12: API quản trị cấu hình ở api (`/v1/admin/risk-config`), chưa có giao diện web (BL-235) |
 | Sở hữu bảng | `risk_rule_sets`, `risk_decisions`, `fraud_flags`, `fraud_rule_hits` và gate quota AI |
 
 Migration DBS-58 tạo ba bảng ban đầu và seed `rule_only`; RSK-01 thêm decision. API operator và worker có trong nhánh này, không thay logic tiền; xem [kiến trúc](../../../../docs/components/risk/02-architecture.md).

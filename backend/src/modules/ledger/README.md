@@ -59,7 +59,7 @@ Sync guard (DBS-82): `SyncGuardService.checkGuards(manager, lockedFrom, lockedTo
 
 `reconciliation_runs` có trong [migration](../../database/migrations/1793577600000-CreateReconciliationRuns.ts), với status `OK`, `MISMATCH`, `ERROR`, các tổng bigint nullable và details không chứa văn bản tự do. Hợp đồng JSON chỉ gồm `accountId`, `balance`, `ledgerBalance`; tiền trong JSON là chuỗi nguyên signed bigint. [Schema chuẩn](../../../../docs/components/_shared/database-design.md#49-notificationlog-reconciliationruns) và [DBS-116](../../../../docs/features/DBS-116-reconciliation-runs.md) mô tả các ràng buộc và kiểm thử.
 
-Bảng không tự chạy hoặc tính đối soát; job nằm ở mục dưới (DBS-117). Quyền production và cleanup 90 ngày thuộc DBS-119/job cleanup. Revert chỉ được khi rỗng, trong transaction READ COMMITTED; writer đồng thời được khóa/kiểm lại trước DROP. Không xóa kết quả đã ghi để ép revert.
+Bảng không tự chạy hoặc tính đối soát; job nằm ở mục dưới (DBS-117). Quyền production trên bảng này nằm trong migration `CreateDbRolesAndGrants` ([DBS-119](../../../../docs/features/DBS-119-db-roles-grant-matrix.md)); chưa có job dọn dòng quá 90 ngày. Revert chỉ được khi rỗng, trong transaction READ COMMITTED; writer đồng thời được khóa/kiểm lại trước DROP. Không xóa kết quả đã ghi để ép revert.
 
 ## Job đối soát ở role worker (DBS-117)
 
@@ -68,5 +68,6 @@ Bảng không tự chạy hoặc tính đối soát; job nằm ở mục dưới
 - **Một instance:** `pg_try_advisory_xact_lock(20261108, 117)` ở câu đầu transaction; không lấy được khóa thì trả `{ executed: false }`, không đọc sổ, không ghi dòng. Khóa tự nhả khi COMMIT/ROLLBACK.
 - **Bốn kiểm tra** trong **một** câu `WITH … SELECT` (một snapshot, không khóa hàng `accounts`): tổng Nợ = tổng Có; `accounts.balance` = Σ(Có) − Σ(Nợ) từng tài khoản; Σ balance = 0; mỗi `COMPLETED` (đọc qua `v_transfer_facts`, không đọc `transfers`) có đúng một Nợ và một Có khớp. `statement_timeout` 60 s, truyền được `reconcileOnce({ statementTimeoutMs })`.
 - **Lưu `reconciliation_runs`:** `OK` / `MISMATCH` (details `{accountId, balance, ledgerBalance}` theo `accountId`) / `ERROR` khi tổng hoặc `ledgerBalance` vượt miền signed bigint (cột vượt = NULL, `details` NULL; đóng BL-165) hoặc truy vấn lỗi runtime. Job chỉ `INSERT` (không `RETURNING`); `dbs_worker` không có `UPDATE` trên bảng này.
-- **Chưa làm:** quyền production trên ECS (DBS-119), cleanup 90 ngày (BL-166), đối soát gia tăng, metric/alarm khi `MISMATCH`/`ERROR` (BL-127).
+- **Metric và alarm:** mỗi lượt tăng counter `reconciliation_runs_total` theo `Status`; alarm `dbs-dev-reconciliation-failed` (`infra/terraform/envs/dev/session/alarms.tf`) báo khi `MISMATCH` hoặc `ERROR`.
+- **Giới hạn hiện tại:** chưa có job dọn `reconciliation_runs` quá 90 ngày, chưa có đối soát gia tăng; quyền production của `dbs_worker` chưa kiểm trên ECS thật.
 - Bằng chứng: [DBS-117](../../../../docs/features/DBS-117-reconciliation-worker-job.md).

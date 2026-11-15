@@ -43,7 +43,7 @@
   2. **«Task definition cũ»** = revision đang chạy tốt ngay trước lúc deploy lỗi (lần 2 và 3: `dbs-api:16`, `dbs-worker:12`).
   3. **Hai service rollback liên tiếp**; thời gian đo từ lệnh `update-service` đầu tiên của rollback tới khi **cả hai** `COMPLETED` đúng revision, `runningCount = desiredCount` và `/health/ready` = 200 qua ALB (≤ 600 s). Đo thêm riêng từng service.
   4. **Giao dịch mẫu đi qua API thật**, không SQL: khách `customer1`, `customer2` và tài khoản do `seed-cloud.sh` tạo; operator nạp, `customer1` chuyển. Chứng chỉ ALB dev tự ký nên `curl -k` (BL-252).
-  5. **«Video» của DoD 2:** người quay video không có ở phiên này. Thay bằng **bản ghi terminal phát lại được** (`script --log-timing`, phát bằng `scriptreplay`) trong `docs/deliverables/P3-rollback-drill/`, **không gọi là video**; việc quay màn hình thật là BL-393. DoD 2 vì vậy ghi «một phần».
+  5. **«Video» của DoD 2:** người quay video không có ở phiên này. Thay bằng **bản ghi terminal phát lại được** (`script --log-timing`, phát bằng `scriptreplay`) trong `docs/deliverables/P3-rollback-drill/` (nay đã gỡ khỏi cây làm việc, lấy lại từ lịch sử git tại commit `dd93d1b`), **không gọi là video**; việc quay màn hình thật là BL-393. DoD 2 vì vậy ghi «một phần».
   6. **Chạy lại trên phiên dựng mới** (thay vì dùng stack còn sót): lần 1 không có giao dịch mẫu, và credit hạn hẹp nên phải `destroy` ngay sau lần chạy cuối (lần 3, cùng phiên với lần 2), rồi `verify-clean.sh` thoát 0.
 
 ## 2. Hành vi
@@ -84,7 +84,7 @@ Mất phục vụ khi deploy lỗi (api 1 task, min healthy 0%, BL-234) cũng đ
 
 ## 3. Kiến trúc
 
-- **Vị trí:** không đổi code sản phẩm, Terraform hay CI. File mới: [`docs/runbooks/rollback.md`](../runbooks/rollback.md); bằng chứng ở `docs/deliverables/P3-rollback-drill/` (`drill.sh`, `timings.md`, bản ghi terminal phát lại được `run-2/` và `run-3/`, mỗi thư mục có `drill.typescript` + `drill.timing`). Sửa: `infra/terraform/README.md` (mục Rollback thủ công), docs/03 §13.3, `docs/deliverables/P4-incident-table.md` (một dòng), `docs/features/README.md`, `docs/BACKLOG.md`.
+- **Vị trí:** không đổi code sản phẩm, Terraform hay CI. File mới: [`docs/runbooks/rollback.md`](../runbooks/rollback.md); bằng chứng ở `docs/deliverables/P3-rollback-drill/` (`drill.sh`, `timings.md`). Bản ghi terminal thô của lần 2 và lần 3 (`run-2/`, `run-3/`, mỗi thư mục có `drill.typescript` + `drill.timing`) đã gỡ khỏi cây làm việc; lấy lại từ lịch sử git tại commit `dd93d1b`. Sửa: `infra/terraform/README.md` (mục Rollback thủ công), docs/03 §13.3, `docs/deliverables/P4-incident-table.md` (một dòng), `docs/features/README.md`, `docs/BACKLOG.md`.
 - **Công cụ dùng (có sẵn):** `aws ecs describe-task-definition / register-task-definition / update-service / describe-services`, `aws logs`, `aws sqs`, `infra/scripts/demo-token.sh`, `infra/scripts/ac-5-10-tools.py overrides` (dựng ghi đè cho task `dbs-migrate`), `curl -k`. Không symbol nào bị đổi.
 - **Chạy ở đâu:** `drill.sh` cần Linux (python3, curl ≥ 7.55) hoặc container `dbs-awscli`; Git Bash trên Windows không đủ.
 - **Dữ liệu:** chỉ qua API (nạp, chuyển, đọc tài khoản); không SQL. Bảng chạm gián tiếp: `accounts`, `transfers`, `ledger_entries`, `idempotency_keys`, `audit_log`, `outbox_events`.
@@ -123,7 +123,7 @@ Task vận hành và tài liệu: không có code sản phẩm nên không có t
 | TC-156-01 | DoD 2 (runbook, log trong repo) | tài liệu | `check-doc-links.mjs` sau khi thêm runbook và sửa các doc: 0 link hỏng | — |
 | TC-156-02 | DoD 1 (công cụ tạo bản lỗi) | unit (có sẵn) | `python3 -m unittest discover .github/scripts/tests` vẫn xanh (chỉ cần khi doc đổi script CI; task này không đổi) | — |
 | TC-156-03 | DoD 1, 3 (kịch bản chạy lại được) | tĩnh | `bash -n drill.sh`; kịch bản chạy thật ở M-156-01..08 | — |
-| TC-156-04 | DoD 2 (không lộ bí mật) | tĩnh | `grep -E` trên `run-*/drill.typescript`, `timings.md`, `manual-test.txt`: không khớp `[0-9]{12}` (id tài khoản AWS), `elb\.amazonaws\.com` (DNS ALB), `eyJ` (JWT) | — |
+| TC-156-04 | DoD 2 (không lộ bí mật) | tĩnh | `grep -E` trên `run-*/drill.typescript` (đã gỡ, xem §8), `timings.md`, `manual-test.txt`: không khớp `[0-9]{12}` (id tài khoản AWS), `elb\.amazonaws\.com` (DNS ALB), `eyJ` (JWT) | — |
 | TC-156-05 | DoD 2 (runbook đủ nội dung) | tài liệu | grep runbook: có đủ mục «Khi nào rollback», «Trước khi làm», «Rollback», «Kiểm sau rollback», «Giao dịch mẫu», «Khi không rollback được», «Số đo»; tên service `api` / `worker`; không còn `dbs-dev-api` / `dbs-dev-worker` làm tên service | — |
 | quy trình | DoD 1, 3 | thủ công | M-156-01..08 trên AWS thật (§5) | — |
 | quy trình | PR | — | PR, CI, bảng đối chiếu | — |
@@ -188,15 +188,15 @@ Lần 2 còn một FAIL của chính script: kiểm `Worker started` đọc sai 
 | Bước | File | Kiểm trước | Lệnh chứng minh | Commit |
 |---|---|---|---|---|
 | 1 | `docs/runbooks/rollback.md`, `drill.sh` (tên service, giao dịch mẫu, quyền, đường INACTIVE, sau mọi lần rollback) | TC-156-05: còn `dbs-dev-api` làm tên service | `grep`, `bash -n` | `docs(runbook)`, `fix(ops)` |
-| 2 | Dựng phiên, chạy `drill.sh` (lần 2, rồi lần 3 sau review), `destroy` | M-156-01..08 | `run-*/drill.typescript`, `verify-clean.sh` | gộp bước 3 |
-| 3 | `timings.md`, `manual-test.txt`, `run-2/`, `run-3/` | TC-156-04 | `grep -E` không lộ bí mật | `docs(ops)` |
+| 2 | Dựng phiên, chạy `drill.sh` (lần 2, rồi lần 3 sau review), `destroy` | M-156-01..08 | `run-*/drill.typescript` (đã gỡ sau đó), `verify-clean.sh` | gộp bước 3 |
+| 3 | `timings.md`, `manual-test.txt`, `run-2/`, `run-3/` (đã gỡ sau đó) | TC-156-04 | `grep -E` không lộ bí mật | `docs(ops)` |
 | 4 | feature doc §1–§9, README Terraform, docs/03 §13.3, P4, `docs/features/README.md`, BACKLOG | TC-156-01 | `check-doc-links.mjs` | `docs(features)` |
 
 Rủi ro và cách lùi: diễn tập làm api mất phục vụ trên stack dev (không khách thật); script chết giữa chừng thì `trap` đưa về bản tốt; quên `destroy` thì tốn khoảng 0,14 USD/giờ, nên `destroy` chạy ngay sau lần 3. Lùi PR: chỉ tài liệu và một script diễn tập, bỏ commit là đủ.
 
 ## 8. Kết quả
 
-- **Kiểm tự động:** `check-doc-links.mjs` → 0 liên kết hỏng (TC-156-01); `bash -n drill.sh` đạt (TC-156-03); `grep -E '[0-9]{12}|elb\.amazonaws\.com|eyJ'` trên `run-2/drill.typescript`, `run-3/drill.typescript`, `timings.md`, `manual-test.txt` → 0 dòng (TC-156-04); runbook đủ bảy mục, không còn `dbs-dev-api`/`dbs-dev-worker` làm tên service (TC-156-05). TC-156-02 không chạy: task không đổi script CI.
+- **Kiểm tự động:** `check-doc-links.mjs` → 0 liên kết hỏng (TC-156-01); `bash -n drill.sh` đạt (TC-156-03); `grep -E '[0-9]{12}|elb\.amazonaws\.com|eyJ'` trên `run-2/drill.typescript`, `run-3/drill.typescript` (khi còn trong cây làm việc), `timings.md`, `manual-test.txt` → 0 dòng (TC-156-04); runbook đủ bảy mục, không còn `dbs-dev-api`/`dbs-dev-worker` làm tên service (TC-156-05). TC-156-02 không chạy: task không đổi script CI.
 - **Ba lần chạy trên AWS dev** (`ap-southeast-1`, cluster `dbs-dev`, api 1 task, worker 1 task):
 
 | Lần | Ngày, image | Bản tốt → bản lỗi | Bản lỗi hỏng thật trước rollback? | Rollback tổng | Health 200 | api COMPLETED | worker COMPLETED | Giao dịch mẫu | Dùng làm |
@@ -205,7 +205,7 @@ Rủi ro và cách lùi: diễn tập làm api mất phục vụ trên stack dev
 | 2 | 2026-11-15, `c96c1de` | `dbs-api:16`/`dbs-worker:12` → `:17`/`:13` | **không**: rollback lúc +47 s, chưa task lỗi nào dừng | 305 s | +86 s | +118 s | +305 s | đạt (trừ một FAIL của script) | lịch sử |
 | 3 | 2026-11-15, `c96c1de` | `dbs-api:16`/`dbs-worker:12` → `:18`/`:14` | **có**: api và worker mỗi bên 1 task `Essential container in task exited 1`, PRIMARY vẫn là bản lỗi lúc `t0` | **267 s** | +127 s | +184 s | +267 s | **đạt hết** | **bằng chứng chính** |
 
-- **Lần 3 chi tiết** (raw: [run-3/drill.typescript](../deliverables/P3-rollback-drill/run-3/drill.typescript), phát lại bằng `scriptreplay -t run-3/drill.timing run-3/drill.typescript`; tóm tắt ở [manual-test.txt](screenshots/DBS-156/manual-test.txt)):
+- **Lần 3 chi tiết** (bản ghi terminal thô `run-3/drill.typescript` + `run-3/drill.timing` không còn trong cây làm việc, lấy lại từ lịch sử git tại commit `dd93d1b`, đường dẫn cũ `docs/deliverables/P3-rollback-drill/run-3/`; tóm tắt ở [manual-test.txt](screenshots/DBS-156/manual-test.txt)):
 
 | Bước | Kết quả |
 |---|---|
@@ -218,9 +218,9 @@ Rủi ro và cách lùi: diễn tập làm api mất phục vụ trên stack dev
 | M-156-07 | đạt: hủy đăng ký `:18`, `:14`; `update-service` về revision INACTIVE bị từ chối (`TaskDefinition is inactive`); api vẫn ở `dbs-api:16` |
 | M-156-08 | đạt: `invariants.js` thoát 0 (`debit` = `credit` = 104.500.000, `balance` 0). Sau đó `terraform destroy` phiên: bắt đầu 19:33:45, xong 19:41:23 (+07), «Destroy complete! Resources: 63 destroyed.»; `verify-clean.sh` «KET LUAN: sạch (13 loại)», thoát 0; `terraform state list` của `session` rỗng; không còn container. Còn sót `dbs-api:10` ACTIVE của phiên cũ (không tốn tiền, đúng hiện tượng BL-396) |
 
-- **DoD:** 1 đạt (lần 3); 2 **một phần**: log và runbook có, video màn hình thật **chưa có** (bản ghi terminal phát lại được thay tạm, BL-393); 3 đạt (lần 3).
+- **DoD:** 1 đạt (lần 3); 2 **một phần**: log và runbook có, video màn hình thật **chưa có** (bản ghi terminal phát lại được thay tạm, nay đã gỡ khỏi cây làm việc, xem §8; BL-393); 3 đạt (lần 3).
 - **Lệch so với kế hoạch (agent tự duyệt):** (1) chạy thêm lần 3 sau review; (2) `drill.sh` sửa sau lần 2; lần 3 chạy từ working tree và được commit ngay sau thành `f2d6a45` (12:33:59Z, sau khi lần 3 xong lúc 12:33:27Z); output của lần 3 khớp mã đó. Sau vòng review 2, `drill.sh` sửa thêm: trap chạy đúng một lần và an toàn khi Ctrl-C, kiểm luồng log của task tốt tồn tại, thêm kiểm dòng `HTTP listener started` của api. Các sửa này chỉ thêm kiểm và đổi đường hủy giữa chừng; đường chạy bình thường đã đo không đổi, nên không chạy lần 4 (tiết kiệm credit); (3) không sửa `deploy.sh`: việc «hủy đăng ký bản lỗi sau rollback» và «dọn revision phiên cũ» thành bước runbook và BL-396.
-- **Ảnh chụp:** bản ghi terminal phát lại được thay cho ảnh (`run-2/`, `run-3/`).
+- **Ảnh chụp:** bản ghi terminal phát lại được (`run-2/`, `run-3/`) thay cho ảnh khi làm task; sau đó đã gỡ khỏi cây làm việc, lấy lại từ lịch sử git tại commit `dd93d1b`.
 - **Bàn giao cho vai khác:**
 
 | Việc | Vai | BL |
@@ -233,7 +233,7 @@ Rủi ro và cách lùi: diễn tập làm api mất phục vụ trên stack dev
 
 ## 9. Tài liệu đã cập nhật
 
-- Mới: `docs/runbooks/rollback.md`, `docs/deliverables/P3-rollback-drill/` (`drill.sh`, `timings.md`, `run-2/`, `run-3/`), `docs/features/screenshots/DBS-156/` (`manual-test.txt`, `domain-review.md`).
+- Mới: `docs/runbooks/rollback.md`, `docs/deliverables/P3-rollback-drill/` (`drill.sh`, `timings.md`; `run-2/`, `run-3/` thêm lúc làm task, đã gỡ sau đó), `docs/features/screenshots/DBS-156/` (`manual-test.txt`, `domain-review.md`).
 - Sửa: `infra/terraform/README.md` (mục Rollback thủ công), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §13.3 (dòng Rollback), `docs/deliverables/P4-incident-table.md` (một dòng DBS-156), `docs/features/README.md` (hàng DBS-156), `docs/BACKLOG.md` (thêm BL-393, BL-394, BL-395, BL-396; BL-104 thêm nguồn DBS-156).
 
 ## Checklist G4

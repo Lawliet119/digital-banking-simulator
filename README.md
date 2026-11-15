@@ -1,20 +1,19 @@
 # Digital Banking Simulator
 
-> Educational digital banking backend: double-entry ledger, idempotent transfers, rule-based fraud detection & immutable audit trail.
-> NestJS · PostgreSQL · Redis · AWS (ECS Fargate, SQS) · Terraform.
+Backend của một ngân hàng số mô phỏng: sổ cái bút toán kép, chuyển tiền idempotent, phát hiện gian lận theo luật và nhật ký kiểm toán chỉ cho ghi thêm. Công nghệ: NestJS, PostgreSQL, Redis (Valkey), AWS (ECS Fargate, SQS), Terraform.
 
-⚠️ **Mô phỏng phục vụ học tập** — đồ án môn *Cloud Application Development* (đề tài #4). Không xử lý tiền thật, không dùng dữ liệu cá nhân thật.
+> **Mô phỏng phục vụ học tập.** Đồ án môn *Cloud Application Development* (đề tài #4). Không xử lý tiền thật, không dùng dữ liệu cá nhân thật.
 
-## Hệ thống làm gì
+## Cam kết của hệ thống
 
-Backend cho một ngân hàng số quy mô nhỏ, tập trung vào 4 điều mà một ngân hàng không được làm sai:
+Hệ thống tập trung vào bốn điều mà một ngân hàng không được làm sai:
 
-| | Cam kết | Cách làm |
-|---|---|---|
-| 💰 | **Tiền không bao giờ sai** | Sổ cái bút toán kép; mọi thay đổi số dư nằm trong một transaction PostgreSQL |
-| 🔁 | **Không bao giờ trừ tiền hai lần** | Mã yêu cầu (`Idempotency-Key`) lưu cùng transaction với giao dịch |
-| 🔍 | **Truy vết được mọi thao tác** | Nhật ký kiểm toán chỉ cho ghi thêm, ghi cùng transaction với nghiệp vụ |
-| 🚨 | **Phát hiện gian lận trong vài giây** | 6 luật chạy bất đồng bộ sau mỗi giao dịch; nhân viên review và quyết định |
+| Cam kết | Cách làm |
+|---|---|
+| **Tiền không bao giờ sai** | Sổ cái bút toán kép; mọi thay đổi số dư nằm trong một transaction PostgreSQL |
+| **Không trừ tiền hai lần** | Mã yêu cầu (`Idempotency-Key`) lưu cùng transaction với giao dịch |
+| **Truy vết được mọi thao tác** | Nhật ký kiểm toán chỉ cho ghi thêm, ghi cùng transaction với nghiệp vụ |
+| **Phát hiện gian lận trong vài giây** | Sáu luật (R1–R6) chạy bất đồng bộ sau mỗi giao dịch; nhân viên review và quyết định. Tín hiệu từ API AI bên ngoài là phần bổ sung có điều kiện, không thay luật ([ADR-14](docs/adr/0014-fraud-rules-external-ai.md)) |
 
 ## Kiến trúc
 
@@ -28,43 +27,11 @@ flowchart LR
     WRK --> RD
 ```
 
-Modular monolith (NestJS): **một ứng dụng, một image**, chạy thành `api` hoặc `worker` theo biến `APP_ROLE` ([ADR-13](docs/adr/0013-one-app-app-role.md)). Chi tiết và lý do ở [docs/03_HIGH_LEVEL_ARCHITECTURE.md](docs/03_HIGH_LEVEL_ARCHITECTURE.md).
+Modular monolith (NestJS): một ứng dụng, một image, chạy thành `api` hoặc `worker` theo biến `APP_ROLE` ([ADR-13](docs/adr/0013-one-app-app-role.md)). Chi tiết và lý do: [docs/03_HIGH_LEVEL_ARCHITECTURE.md](docs/03_HIGH_LEVEL_ARCHITECTURE.md). Bản trung lập với nhà cung cấp cloud: [docs/ABSTRACT_ARCHITECTURE.md](docs/ABSTRACT_ARCHITECTURE.md).
 
-## Cấu trúc repo
+## Bắt đầu nhanh
 
-```
-digital-banking-simulator/
-├── backend/              # ứng dụng NestJS duy nhất — xem backend/README.md
-│   ├── src/
-│   │   ├── common/       # app-role, ErrorCode, filter lỗi, middleware, utils
-│   │   ├── config/       # cấu hình + validate biến môi trường lúc khởi động
-│   │   ├── database/     # kết nối, TransactionService, migrations
-│   │   ├── libs/         # adapter: redis, sqs
-│   │   ├── modules/      # identity, accounts, ledger, risk, audit, outbox, notification, health
-│   │   └── scripts/      # tạo khóa và token dev, script smoke thủ công
-│   ├── test/             # e2e, db (PostgreSQL thật), services (Testcontainers), manual, support
-│   └── Dockerfile        # một image cho cả api và worker
-├── infra/
-│   ├── terraform/        # hạ tầng AWS
-│   └── local/            # cấu hình cho môi trường local (ElasticMQ...)
-├── docs/
-│   ├── BRD.md            # nghiệp vụ, yêu cầu, mô hình miền (3 phần)
-│   ├── 03_HIGH_LEVEL_ARCHITECTURE.md
-│   ├── README.md         # bản đồ tài liệu: đọc gì trước, một sự thật ở một chỗ
-│   ├── adr/              # Architecture Decision Records (ADR-01…14 Accepted)
-│   ├── security/         # threat model STRIDE
-│   ├── components/       # concept brief từng component + thiết kế dùng chung (DB, event)
-│   ├── features/         # mỗi task một feature doc: thiết kế, test, kết quả
-│   ├── BACKLOG.md        # việc còn tồn sau các task
-│   └── deliverables/     # 5 bản nộp P1–P5
-├── load-tests/           # kịch bản k6
-├── .github/              # CI/CD, PR template
-└── docker-compose.yml    # PostgreSQL, Valkey, ElasticMQ cho dev local
-```
-
-## Chạy local
-
-**Yêu cầu:** Docker, Node.js ≥ 24.
+Yêu cầu: Docker và Node.js ≥ 24.
 
 ```bash
 # 1. Hạ tầng local: PostgreSQL, Valkey (Redis), ElasticMQ (SQS)
@@ -75,44 +42,79 @@ docker compose up -d
 cd backend
 npm install
 cp env/.env.example env/.env.development
-npm run start:dev          # http://localhost:3000/health/ready · http://localhost:3000/docs
+npm run start:dev
 ```
 
-Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db` (trong `backend/`). CI chạy đúng các lệnh này (cộng `build`) trên mỗi PR. Ngoài ra, job `unit` chạy `node --test` của fraud-dataset, còn job `e2e` chạy hai suite `test:db` trên Testcontainers và hai suite `test:services` (`sqs-adapter`, `redis-adapter`); cách đọc kết quả: [CONTRIBUTING mục 4b](CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions). Chi tiết, quy ước và các lệnh khác: [backend/README.md](backend/README.md).
+Ứng dụng nghe ở `http://localhost:3000`: `/health/ready` (kiểm tra sẵn sàng), `/docs` (Swagger UI, không có ở production). Gọi API cần token; cách tạo token thử ở local và nạp dữ liệu demo (`npm run seed`) nằm ở [backend/README.md](backend/README.md) (mục 10 và 12).
 
-| Dịch vụ | Địa chỉ |
+| Dịch vụ local | Địa chỉ |
 |---|---|
 | PostgreSQL | `localhost:5432` |
 | Valkey (Redis) | `localhost:6379` |
 | ElasticMQ (SQS API) | `http://localhost:9324` |
 | ElasticMQ (giao diện xem queue) | `http://localhost:9325` |
 
+## Kiểm thử
+
+Từ thư mục `backend/`, trước khi mở Pull Request:
+
+```bash
+npm run lint:check
+npm run typecheck
+npm test
+npm run test:e2e
+npm run test:db
+```
+
+`test:e2e` và `test:db` cần Docker. CI chạy các lệnh này cùng `build`, quét image và secret, kiểm tra Terraform và test script hạ tầng; cách đọc kết quả ở [CONTRIBUTING mục 4b](CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions). Các lệnh còn lại (`test:services`, `check:invariants`, migration, seed): [backend/README.md](backend/README.md). Kịch bản tải k6 và demo chạy được từng bước: [load-tests/README.md](load-tests/README.md).
+
+## Cấu trúc repo
+
+```
+digital-banking-simulator/
+├── backend/              # ứng dụng NestJS duy nhất; xem backend/README.md
+│   ├── src/
+│   │   ├── common/       # app-role, ErrorCode, filter lỗi, middleware, money, metrics, rate limit
+│   │   ├── config/       # cấu hình và validate biến môi trường lúc khởi động
+│   │   ├── database/     # kết nối, TransactionService, migrations
+│   │   ├── libs/         # adapter: redis, sqs
+│   │   ├── modules/      # identity, accounts, ledger, risk, audit, outbox, notification, health
+│   │   └── scripts/      # công cụ chạy một lần: seed, token dev, kiểm bất biến sổ cái, xuất OpenAPI, kiểm tuổi DLQ
+│   ├── test/             # e2e, db (PostgreSQL thật), services (Testcontainers), manual, support
+│   ├── scripts/          # driver kiểm thử thủ công của từng task
+│   ├── env/              # .env.example của ứng dụng
+│   └── Dockerfile        # một image cho cả api và worker
+├── infra/
+│   ├── terraform/        # hạ tầng AWS (bootstrap, envs/dev, envs/prod)
+│   ├── scripts/          # script vận hành và kiểm tra hạ tầng
+│   └── local/            # cấu hình ElasticMQ cho môi trường local
+├── load-tests/           # kịch bản k6 và bộ dữ liệu fraud (fraud-dataset/)
+├── docs/                 # tài liệu; xem bảng bên dưới
+├── .github/              # CI/CD, script CI, PR template
+├── .env.example          # biến cho docker-compose.yml
+└── docker-compose.yml    # PostgreSQL, Valkey, ElasticMQ cho dev local
+```
+
 ## Tài liệu
+
+Bản đồ đầy đủ và quy tắc "một sự thật ở một chỗ": [docs/README.md](docs/README.md).
 
 | Tài liệu | Nội dung |
 |---|---|
-| [BRD — Business Requirements](docs/BRD.md) | Phần 1 bài toán, mục tiêu, stakeholder, quy trình, quy tắc nghiệp vụ · Phần 2 use case, FR, NFR, tiêu chí chấp nhận, workload · Phần 3 domain model |
-| [03 — High-Level Architecture](docs/03_HIGH_LEVEL_ARCHITECTURE.md) | Kiến trúc, luồng chuyển tiền, dữ liệu, Redis, sự kiện, bảo mật, triển khai |
-| [ADR](docs/adr/README.md) | 13 quyết định kiến trúc đã chốt, 1 đề xuất (ADR-14), kèm lý do |
+| [BRD](docs/BRD.md) | Bài toán, mục tiêu, stakeholder, quy tắc nghiệp vụ; use case, FR, NFR, tiêu chí chấp nhận; mô hình miền |
+| [Kiến trúc tổng thể](docs/03_HIGH_LEVEL_ARCHITECTURE.md) | Kiến trúc, luồng chuyển tiền, dữ liệu, Redis, sự kiện, bảo mật, triển khai |
+| [ADR](docs/adr/README.md) | 14 quyết định kiến trúc (ADR-01…14, đều Accepted), kèm lý do và phương án đã loại |
 | [Threat model](docs/security/threat-model.md) | Mối đe dọa STRIDE của luồng tiền và biện pháp |
-| [Bản đồ tài liệu](docs/README.md) | Đọc gì trước, cấu trúc `docs/`, quy tắc một sự thật ở một chỗ |
 | [Components](docs/components/index.md) | Mục lục từng module và thành phần hạ tầng, kèm concept brief |
-| [Feature docs](docs/features/README.md) | Mỗi task đã làm một file: thiết kế, test case, kết quả. Việc theo tuần nằm trên board của nhóm (`fetch-task.mjs`) |
+| [Feature docs](docs/features/README.md) | Mỗi task một file: thiết kế, test case, kết quả |
+| [Runbooks](docs/runbooks/rollback.md) | Quy trình vận hành: rollback, redrive DLQ, bật bộ luật fraud mới, kịch bản sự cố bất đồng bộ |
 | [Backlog](docs/BACKLOG.md) | Việc còn tồn sau các task |
 | [Deliverables P1–P5](docs/deliverables/README.md) | Năm bản nộp và nguồn của từng bản |
 
-## Nhóm
-
-| Vai trò | Loại | Thành viên |
-|---|---|---|
-| Dev | Software developer (4 người) | _TBD_ · _TBD_ · _TBD_ · _TBD_ |
-| #4 Fraud | Phát hiện gian lận | _TBD_ |
-| #5 Platform & Ops | Cloud và vận hành | _TBD_ |
-
-Cách làm: không ai chờ ai, không có chủ module hay cặp cố định. Review PR: một Dev khác. Quy tắc và cách dùng skill: [CONTRIBUTING](CONTRIBUTING.md).
-
 ## Đóng góp
 
-Đọc [CONTRIBUTING.md](CONTRIBUTING.md) trước khi mở Pull Request. Tóm tắt:
+Nhóm làm việc theo task trên board, không có chủ module cố định, mỗi Pull Request do một Dev khác review. Đọc [CONTRIBUTING.md](CONTRIBUTING.md) trước khi mở Pull Request. Tóm tắt:
+
 - Không push thẳng vào `main`; mọi thay đổi qua Pull Request, một Dev khác review (quy ước nhóm, GitHub không ép số approval) và CI xanh.
+- Tiền là `bigint`/string, mọi thay đổi số dư đi qua `ledger` trong một transaction; không gọi Redis, HTTP, SQS bên trong transaction ([CONTRIBUTING mục 5](CONTRIBUTING.md#5-quy-tắc-bắt-buộc-khi-làm-với-tiền)).
 - **Không bao giờ commit secret** (`.env`, key AWS, `*.tfvars`, `terraform.tfstate`).

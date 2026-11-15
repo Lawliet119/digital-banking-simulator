@@ -9,7 +9,7 @@ Công cụ chạy một lần, không phải một phần của ứng dụng đa
 | `dlq-age-check.ts`, `dlq-age-check.main.ts` | `npm run --silent dlq:age-check -- --queue-url <DLQ>` (BL-210): trước mỗi redrive, liệt kê (và với `--delete-stale --quarantine-file` lưu rồi xóa) message DLQ gửi gốc quá 6 ngày, tính theo `OriginalSentTimestamp`. Mã thoát 0/1/2; xem [runbook](../../../docs/runbooks/dlq-redrive.md) mục 3 |
 | `fraud-ai-evaluate.ts` | Đánh giá feature synthetic bằng OpenAI Decisions khi chạy `--live`; không phải consumer, không lưu cờ hoặc thay module fraud |
 
-Chưa có script seed. Khi có, dữ liệu demo phải đi **qua nghiệp vụ nạp tiền**, không `UPDATE balance` trực tiếp, để bất biến `SUM(balance) = 0` luôn đúng.
+`seed.ts` (cùng `seed-core.ts`, `seed-cloud.ts`) tạo dữ liệu demo qua API: `npm run seed` (xem [backend README mục 12](../../README.md#12-dữ-liệu-demo-scriptsseedts-dbs-70)). Dữ liệu demo phải đi **qua nghiệp vụ nạp tiền**, không `UPDATE balance` trực tiếp, để bất biến `SUM(balance) = 0` luôn đúng.
 
 Chạy: `npx ts-node -r tsconfig-paths/register src/scripts/<tên>.ts` (từ thư mục `backend/`).
 

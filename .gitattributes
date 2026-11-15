@@ -8,6 +8,3 @@
 *.png binary
 *.jpg binary
 *.pdf binary
-# DBS-156: bản ghi terminal của `script`; drill.timing đếm đúng từng byte nên không được chuẩn hóa xuống dòng
-docs/deliverables/P3-rollback-drill/run-*/drill.typescript -text
-docs/deliverables/P3-rollback-drill/run-*/drill.timing -text
