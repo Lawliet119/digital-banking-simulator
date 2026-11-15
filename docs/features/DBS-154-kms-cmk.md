@@ -1,6 +1,6 @@
 # DBS-154 · KMS key do nhóm quản lý cho RDS, SQS và Secrets Manager
 
-> **Status:** Draft · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác (theo team.md) · **Nhánh:** `feat/DBS-154-kms-cmk` (cắt từ `origin/main` `957dcbf`, đã có DBS-120/121/139/145/155) · **PR:** — · **Cập nhật:** 2026-11-14
+> **Status:** Implemented (kiểm chứng live 2026-11-14) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác (theo team.md) · **Nhánh:** `feat/DBS-154-kms-cmk` (cắt từ `origin/main` `957dcbf`, đã có DBS-120/121/139/145/155) · **PR:** #184 · **Cập nhật:** 2026-11-14
 
 ## 1. Bối cảnh
 
