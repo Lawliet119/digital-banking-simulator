@@ -72,6 +72,13 @@ override_resource {
 }
 
 override_resource {
+  target = module.waf[0].aws_wafv2_web_acl.main
+  values = {
+    arn = "arn:aws:wafv2:ap-southeast-1:123456789012:regional/webacl/dbs-dev-waf/00000000-0000-0000-0000-000000000000"
+  }
+}
+
+override_resource {
   target = aws_iam_role.seed_execution
   values = {
     arn = "arn:aws:iam::123456789012:role/dbs-dev-seed-execution"
