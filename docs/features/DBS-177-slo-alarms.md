@@ -21,7 +21,7 @@
 - **Ngoài phạm vi:**
   - SLO «Cảnh báo gian lận trên 1.000 giao dịch > 20 (24 giờ trượt, khi có ≥ 1.000 giao dịch)»: backend chưa có counter riêng cho số cờ gian lận / tổng giao dịch (chỉ có `risk_decision_total{Role,AiStatus}` tách theo 7+ trạng thái AI và `risk_transfer_to_flag_ms` là phân phối độ trễ). Không sửa code backend trong task hạ tầng này; ghi nhận ở **BL-340**.
   - Chạy `terraform apply` / `destroy` và kích hoạt thử từng alarm trên AWS thật: điều phối sau khi dựng `dev/session` (**BL-341**).
-  - Mở PR / merge / Dev review (**BL-342**).
+  - Mở PR, merge, Dev review: xong qua PR #188 (xem §8).
 - **Quyết định ở G1 (tự quyết):**
   1. **Đặt cả 4 alarm SLO mới ở `envs/dev/session/alarms.tf`:** đều gắn với API và worker chỉ tồn tại trong phiên; xóa theo `session` tránh báo động giả và tiết kiệm chi phí. `base/alarms.tf` giữ nguyên SNS topic và 2 alarm DLQ bền vững.
   2. **Tỉ lệ 5xx (`dbs-dev-api-5xx-rate`):** dùng bộ dimension tổng `[]` của `http_5xx_total` và `http_requests_total` (loại `/health/*`, không tính 422/429), biểu thức `IF(mr > 0, 100 * FILL(m5, 0) / mr, 0) > 1`, `period = 300`, `evaluation_periods = 1`, `treat_missing_data = "notBreaching"`. Tránh chia 0 và giữ `OK` khi hệ thống rảnh.
@@ -58,7 +58,7 @@ Mọi alarm gửi `alarm_actions` và `ok_actions` tới `local.base.alarm_topic
 | TC-177-04 | DoD 1 (SLO giao dịch → cờ) | tftest `transfer_to_flag_p95_alarm` | `dbs-dev-transfer-to-flag-p95` dùng `risk_transfer_to_flag_ms` `{Role="worker"}`, `p95`, `900 s × 1`, `> 5000`, `notBreaching` |
 | TC-177-05 | QĐ 6 & không hồi quy | tftest `all_alarms_notify_the_topic`, `alarms_follow_metrics_namespace` | 15 alarm session gửi `ALARM` và `OK` về `alarm_topic_arn`; 4 alarm mới đổi theo `var.metrics_namespace`; các test cũ đạt |
 | TC-177-06 | DoD 2 | thủ công (AWS thật) | Kích hoạt thử từng alarm trên AWS thật khi `dev/session` Up (BL-341) |
-| TC-177-07 | DoD 3 | quy trình | PR, CI, Dev review (BL-342) |
+| TC-177-07 | DoD 3 | quy trình | PR, CI, Dev review (PR #188, xem §8) |
 
 ## 5. Test thủ công (chờ `dev/session` Up — BL-341)
 
@@ -126,4 +126,4 @@ Rủi ro và cách lùi: alarm là tài nguyên độc lập trong `session`, l�
 - `docs/components/observability/01-concept-brief.md` (mục Alarm CloudWatch)
 - `infra/terraform/README.md` (mục Alarm CloudWatch và thông báo)
 - `docs/features/README.md` (thêm hàng DBS-177)
-- `docs/BACKLOG.md` (thêm `BL-340`, `BL-341`, `BL-342`)
+- `docs/BACKLOG.md` (thêm `BL-340`, `BL-341`)
