@@ -152,12 +152,13 @@ curl -sk -o /dev/null -w '%{http_code}\n' https://$ALB/health/live
 curl -sk -o /dev/null -w '%{http_code}\n' https://$ALB/health/ready
 ```
 
-**Rollback thủ công** (diễn tập chính thức ở tuần 6, DBS-156). Chỉ quay lại được image còn trong ECR (giữ 20 image mới nhất, nghĩa là 20 commit gần nhất):
+**Rollback thủ công** (đã diễn tập ở [DBS-156](../../docs/features/DBS-156-rollback-drill.md): 267 s cho cả hai service, ngưỡng 600 s). Quy trình đầy đủ ở [runbook rollback](../../docs/runbooks/rollback.md): rollback **cả** service `api` và `worker` (tên service không có tiền tố `dbs-dev-`), chọn revision chạy ngay trước bản lỗi (revision `ACTIVE` của phiên cũ vẫn còn sau `destroy`), sau đó **hủy đăng ký revision lỗi** và tắt workflow `Deploy` tới khi có bản sửa, vì `deploy.sh` dựng lần deploy kế tiếp từ revision `ACTIVE` mới nhất. Chỉ quay lại được image còn trong ECR (giữ 20 image mới nhất):
 
 ```bash
-aws ecs list-task-definitions --family-prefix dbs-api --sort DESC --max-items 5
-aws ecs update-service --cluster dbs-dev --service api --task-definition dbs-api:<revision>
-aws ecs describe-services --cluster dbs-dev --services api --query 'services[0].deployments'   # PRIMARY phải COMPLETED
+aws ecs list-task-definitions --family-prefix dbs-api --status ACTIVE --sort DESC --max-items 5      # tương tự dbs-worker
+aws ecs update-service --cluster dbs-dev --service api    --task-definition dbs-api:<revision>    --force-new-deployment
+aws ecs update-service --cluster dbs-dev --service worker --task-definition dbs-worker:<revision> --force-new-deployment
+aws ecs describe-services --cluster dbs-dev --services api worker --query 'services[*].deployments'   # PRIMARY phải COMPLETED
 ```
 
 ### Migration trước deploy (DBS-68)
@@ -194,7 +195,7 @@ Mỗi thành phần nối RDS bằng role của mình (ma trận quyền ở [DB
 - **Kết nối.** Pool không đổi (10 mỗi task), nên `số task × 10 + 5 ≤ max_connections − reserved` giữ như cũ (DBS-66 §8, tối đa 6 task cho 74 kết nối dùng được của `db.t4g.micro`). Giới hạn kết nối theo role (`CONNECTION LIMIT`) chưa đặt.
 - **Chưa chạy trên AWS.** Code, test Terraform, test script và test PostgreSQL 17 đã xong; phiên AWS cần xác nhận `rds_superuser` thật, ECS đọc JSON key của secret mới, và `/health/ready` 200 khi api nối bằng `dbs_api`.
 
-**Quy tắc:** migration chạy khi bản app cũ vẫn phục vụ, nên viết theo kiểu expand → migrate → contract (backend README); deploy lỗi sau migration không hoàn tác schema. Task migration chạy bằng execution role riêng `dbs-dev-migrate-execution` và **không có task role** (DBS-120); kết nối bằng secret của `dbs_migrator` (BL-103). Role deploy cần `apply base` để có `iam:PassRole` cho role này trước lần deploy kế tiếp. Migration `1795000008000-EnableUnaccentSearch` (BL-178) chạy `CREATE EXTENSION unaccent`: `unaccent` có trong danh sách extension RDS hỗ trợ; `dbs_migrator` cần `CREATE` trên database `dbs` (extension này là *trusted* từ PG 13, không đòi superuser) và `db-roles.sh` đã cấp quyền đó. Mặc định TypeORM chạy mọi migration chờ trong **một** transaction nên không dùng được `CREATE INDEX CONCURRENTLY` (BL-110). Role `dbs-github-deploy` cần `apply base` để có quyền `ecs:RunTask` (BL-109). Chi phí một lần chạy ≈ 0,012 USD/giờ × thời gian chạy; `destroy session` bỏ task definition, chỉ còn log event ở `base` (7 ngày).
+**Quy tắc:** migration chạy khi bản app cũ vẫn phục vụ, nên viết theo kiểu expand → migrate → contract (backend README); deploy lỗi sau migration không hoàn tác schema. Task migration chạy bằng execution role riêng `dbs-dev-migrate-execution` và **không có task role** (DBS-120); kết nối bằng secret của `dbs_migrator` (BL-103). Role deploy cần `apply base` để có `iam:PassRole` cho role này trước lần deploy kế tiếp. Migration `1795000008000-EnableUnaccentSearch` (BL-178) chạy `CREATE EXTENSION unaccent`: `unaccent` có trong danh sách extension RDS hỗ trợ; `dbs_migrator` cần `CREATE` trên database `dbs` (extension này là *trusted* từ PG 13, không đòi superuser) và `db-roles.sh` đã cấp quyền đó. Mặc định TypeORM chạy mọi migration chờ trong **một** transaction nên không dùng được `CREATE INDEX CONCURRENTLY` (BL-110). Role `dbs-github-deploy` cần `apply base` để có quyền `ecs:RunTask` (BL-109). Chi phí một lần chạy ≈ 0,012 USD/giờ × thời gian chạy; `destroy session` bỏ các revision task definition do Terraform quản lý (revision do `deploy.sh` hay diễn tập đăng ký thì vẫn `ACTIVE`, BL-396), chỉ còn log event ở `base` (7 ngày).
 
 ### Cognito và tài khoản nhân viên demo (DBS-54)
 

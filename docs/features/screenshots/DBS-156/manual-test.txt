@@ -1,0 +1,168 @@
+drill.sh commit f2d6a45 (lần 3, bằng chứng chính); lần 2 chạy bản ngay trước đó (chưa commit, xem domain-review.md #1); lần 1 chạy bản PR đầu 1ca4a41
+
+########## LẦN 1 (2026-11-14, lịch sử)
+=== DBS-156 Live Rollback Drill (2026-11-14) ===
+Command: API_SVC=api WORKER_SVC=worker ALB_URL=https://<ALB_DNS> AWS_PROFILE=dbs-admin AWS_REGION=ap-southeast-1 bash docs/deliverables/P3-rollback-drill/drill.sh
+
+=== [Phase A] Baseline check at 2026-11-14T08:37:02Z ===
+api    1/1  arn:aws:ecs:ap-southeast-1:<ACCOUNT_ID>:task-definition/dbs-api:7
+worker 1/1  arn:aws:ecs:ap-southeast-1:<ACCOUNT_ID>:task-definition/dbs-worker:4
+Health live: 200
+Health ready: 200
+
+=== [Phase B] Register & deploy broken task definitions at 2026-11-14T08:37:07Z ===
+Bad TDs registered: api=dbs-api:8 worker=dbs-worker:5 (DB_HOST=broken-db-host.invalid)
+Polling broken deploy (max 120s)...
+  +10s health/ready=200
+  +20s health/ready=200
+  +30s health/ready=503
+  +40s health/ready=503
+
+=== [Phase C] Rollback to dbs-api:7 and dbs-worker:4 ===
+Rollback start t0=1794645479 (2026-11-14T08:37:59Z)
+  +3s   health=503 | api 0/1 IN_PROGRESS worker 0/1 IN_PROGRESS
+  +35s  health=503 | api 0/1 IN_PROGRESS worker 0/1 IN_PROGRESS
+  +71s  health=503 | api 0/1 IN_PROGRESS worker 0/1 IN_PROGRESS
+  +78s  health=200 | api 0/1 IN_PROGRESS worker 0/1 IN_PROGRESS
+  +84s  health=200 | api 1/1 IN_PROGRESS worker 1/1 IN_PROGRESS
+  +108s health=200 | api 1/1 COMPLETED   worker 1/1 IN_PROGRESS
+  +299s health=200 | api 1/1 COMPLETED   worker 1/1 COMPLETED
+Rollback COMPLETED in 301s at 2026-11-14T08:43:00Z
+
+=== [Phase D] Post-rollback verification & Cleanup ===
+api    1/1 COMPLETED PRIMARY arn:aws:ecs:ap-southeast-1:<ACCOUNT_ID>:task-definition/dbs-api:7
+worker 1/1 COMPLETED PRIMARY arn:aws:ecs:ap-southeast-1:<ACCOUNT_ID>:task-definition/dbs-worker:4
+Health live: 200
+Health ready: 200
+Cleanup: deregister dbs-api:8 -> INACTIVE, deregister dbs-worker:5 -> INACTIVE
+
+########## LẦN 2 (2026-11-15) — trích từ docs/deliverables/P3-rollback-drill/run-2/drill.typescript (đầy đủ ở đó)
+=== DBS-156 diễn tập rollback, chạy 1115121600, cluster dbs-dev, api=api worker=worker ===
+=== [Phase A] Nền tốt và giao dịch TRƯỚC khi deploy lỗi, 2026-11-15T12:16:01Z ===
+Task definition tốt: api=dbs-api:16 worker=dbs-worker:12
+Số dư đầu (customer1, customer2): 48000000, 11500000
+  PASS  nạp 5.000.000 trả 201 (= 201)
+  PASS  nạp trạng thái COMPLETED (= COMPLETED)
+  PASS  chuyển 1.000.000 trả 201 (= 201)
+  PASS  chuyển trạng thái COMPLETED (= COMPLETED)
+transferId trước sự cố: 8f41fb52-b9d8-47d1-afb8-97ee6e065d75
+Số dư TRƯỚC sự cố (customer1, customer2): 52000000, 12500000
+  PASS  số dư customer1 = đầu + 5.000.000 - 1.000.000 (= 52000000)
+  PASS  số dư customer2 = đầu + 1.000.000 (= 12500000)
+=== [Phase B] Đăng ký và deploy task definition lỗi (DB_HOST sai), 2026-11-15T12:16:11Z ===
+Đã đăng ký bản lỗi: api=dbs-api:17 worker=dbs-worker:13 (chỉ khác DB_HOST=broken-db-host.invalid)
+=== [Phase C] Rollback về dbs-api:16 và dbs-worker:12 ===
+Rollback bắt đầu t0=1794745022 (2026-11-15T12:17:02Z)
+Rollback XONG lúc 2026-11-15T12:22:08Z: /health/ready 200 sau 86s, api COMPLETED sau 118s, worker COMPLETED sau 305s, tổng 305s
+Mất phục vụ ước tính (health khác 200): từ 37s sau deploy lỗi tới 134s, khoảng 97s (api 1 task, BL-234)
+  PASS  tổng 305s <= 600s
+=== [Phase D] Kiểm sau rollback, 2026-11-15T12:22:08Z ===
+[{"name":"api","running":1,"desired":1,"deployments":[{"status":"PRIMARY","rolloutState":"COMPLETED"}]},{"name":"worker","running":1,"desired":1,"deployments":[{"status":"PRIMARY","rolloutState":"COMPLETED"}]}]
+  PASS  health live (= 200)
+  PASS  health ready (= 200)
+  PASS  log /dbs/dev/api từ t0: 'Application startup failed' (= 0)
+  PASS  log /dbs/dev/worker từ t0: 'Application startup failed' (= 0)
+  FAIL  log worker từ t0 có 'Worker started': mong đợi 'ok', thực tế 'không có (1
+(a) Số dư sau rollback (customer1, customer2): 52000000, 12500000
+  PASS  (a) customer1 còn nguyên số dư trước sự cố (= 52000000)
+  PASS  (a) customer2 còn nguyên số dư trước sự cố (= 12500000)
+  PASS  (b) replay trả 201 (= 201)
+  PASS  (b) replay cùng transferId với lần đầu (= 8f41fb52-b9d8-47d1-afb8-97ee6e065d75)
+  PASS  (b) replay trạng thái COMPLETED (= COMPLETED)
+  PASS  (b) replay không chuyển lần hai (customer1) (= 52000000)
+  PASS  (c) nạp mới trả 201 (= 201)
+  PASS  (c) nạp mới COMPLETED (= COMPLETED)
+  PASS  (c) chuyển mới trả 201 (= 201)
+  PASS  (c) chuyển mới COMPLETED (= COMPLETED)
+  PASS  (c) chuyển mới có transferId khác lần trước (= ok)
+Số dư cuối (customer1, customer2): 53500000, 13000000
+  PASS  (c) customer1 = trước sự cố + 2.000.000 - 500.000 (= 53500000)
+  PASS  (c) customer2 = trước sự cố + 500.000 (= 13000000)
+=== [Phase E] Dọn bản lỗi và kiểm từ chối revision INACTIVE, 2026-11-15T12:22:24Z ===
+  PASS  AWS từ chối update-service về revision INACTIVE:  An error occurred (ClientException) when calling the UpdateService operation: TaskDefinition is inactive 
+  PASS  service api vẫn ở dbs-api:16 sau lần bị từ chối (= dbs-api:16)
+=== [Phase F] Bất biến sổ cái (invariants.js trong task dbs-migrate), 2026-11-15T12:22:28Z ===
+{"status":"PASS","totals":{"debit":"96000000","credit":"96000000","balance":"0"},"violations":[]}
+  PASS  invariants.js thoát 0 (0 sạch, 1 vi phạm, 2 không kết luận) (= 0)
+=== TỔNG KẾT 2026-11-15T12:23:27Z: 1 kiểm tra KHÔNG đạt; rollback tổng 305s (ngưỡng 600s) ===
+
+########## LẦN 3 (2026-11-15) — trích từ docs/deliverables/P3-rollback-drill/run-3/drill.typescript (đầy đủ ở đó)
+=== DBS-156 diễn tập rollback, chạy 1115122410, cluster dbs-dev, api=api worker=worker ===
+=== [Phase A] Nền tốt và giao dịch TRƯỚC khi deploy lỗi, 2026-11-15T12:24:11Z ===
+Task definition tốt: api=dbs-api:16 worker=dbs-worker:12
+Số dư đầu (customer1, customer2): 53500000, 13000000
+  PASS  nạp 5.000.000 trả 201 (= 201)
+  PASS  nạp trạng thái COMPLETED (= COMPLETED)
+  PASS  chuyển 1.000.000 trả 201 (= 201)
+  PASS  chuyển trạng thái COMPLETED (= COMPLETED)
+transferId trước sự cố: 7cff9ef6-3606-4b4d-ad88-02e1afeda25d
+Số dư TRƯỚC sự cố (customer1, customer2): 57500000, 14000000
+  PASS  số dư customer1 = đầu + 5.000.000 - 1.000.000 (= 57500000)
+  PASS  số dư customer2 = đầu + 1.000.000 (= 14000000)
+=== [Phase B] Đăng ký và deploy task definition lỗi (DB_HOST sai), 2026-11-15T12:24:21Z ===
+Đã đăng ký bản lỗi: api=dbs-api:18 worker=dbs-worker:14 (chỉ khác DB_HOST=broken-db-host.invalid)
+  +184s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=0 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=1
+  +197s health/ready=503 | api 0 1 IN_PROGRESS dbs-api:18 failed(bản lỗi)=1 | worker 0 1 IN_PROGRESS dbs-worker:14 failed(bản lỗi)=1
+  Task bản lỗi đã dừng (api): Essential container in task exited 1
+  Task bản lỗi đã dừng (worker): Essential container in task exited 1
+  Deployment lúc t0: api [PRIMARY/IN_PROGRESS/failed=1/dbs-api:18; ACTIVE/COMPLETED/failed=0/dbs-api:16; ] worker [PRIMARY/IN_PROGRESS/failed=1/dbs-worker:14; ACTIVE/COMPLETED/failed=0/dbs-worker:12; ]
+  PASS  cả hai bản lỗi thật sự hỏng trước khi rollback (api failedTasks=1, worker failedTasks=1)
+  PASS  PRIMARY của api vẫn là bản lỗi lúc t0 (circuit breaker chưa tự rollback) (= dbs-api:18)
+  PASS  PRIMARY của worker vẫn là bản lỗi lúc t0 (circuit breaker chưa tự rollback) (= dbs-worker:14)
+=== [Phase C] Rollback về dbs-api:16 và dbs-worker:12 ===
+Rollback bắt đầu t0=1794745666 (2026-11-15T12:27:46Z)
+Rollback XONG lúc 2026-11-15T12:32:14Z: /health/ready 200 sau 127s, api COMPLETED sau 184s, worker COMPLETED sau 267s, tổng 267s
+Mất phục vụ ước tính (health khác 200): từ 40s sau deploy lỗi tới 330s, khoảng 290s (api 1 task, BL-234)
+  PASS  tổng 267s <= 600s
+=== [Phase D] Kiểm sau rollback, 2026-11-15T12:32:14Z ===
+[{"name":"api","running":1,"desired":1,"deployments":[{"status":"PRIMARY","rolloutState":"COMPLETED"}]},{"name":"worker","running":1,"desired":1,"deployments":[{"status":"PRIMARY","rolloutState":"COMPLETED"}]}]
+  PASS  health live (= 200)
+  PASS  health ready (= 200)
+  PASS  log của task tốt api/api/<task> từ t0 không có 'Application startup failed' (= 0)
+  PASS  log của task tốt worker/worker/<task> từ t0 không có 'Application startup failed' (= 0)
+  PASS  log worker từ t0 có 'Worker started' (= ok)
+(a) Số dư sau rollback (customer1, customer2): 57500000, 14000000
+  PASS  (a) customer1 còn nguyên số dư trước sự cố (= 57500000)
+  PASS  (a) customer2 còn nguyên số dư trước sự cố (= 14000000)
+  PASS  (b) replay trả 201 (= 201)
+  PASS  (b) replay cùng transferId với lần đầu (= 7cff9ef6-3606-4b4d-ad88-02e1afeda25d)
+  PASS  (b) replay trạng thái COMPLETED (= COMPLETED)
+  PASS  (b) replay không chuyển lần hai (customer1) (= 57500000)
+  PASS  (b) replay không chuyển lần hai (customer2) (= 14000000)
+  PASS  (c) nạp mới trả 201 (= 201)
+  PASS  (c) nạp mới COMPLETED (= COMPLETED)
+  PASS  (c) chuyển mới trả 201 (= 201)
+  PASS  (c) chuyển mới COMPLETED (= COMPLETED)
+  PASS  (c) chuyển mới có transferId khác lần trước (= ok)
+Số dư cuối (customer1, customer2): 59000000, 14500000
+  PASS  (c) customer1 = trước sự cố + 2.000.000 - 500.000 (= 59000000)
+  PASS  (c) customer2 = trước sự cố + 500.000 (= 14500000)
+=== [Phase E] Dọn bản lỗi và kiểm từ chối revision INACTIVE, 2026-11-15T12:32:30Z ===
+  PASS  AWS từ chối update-service về revision INACTIVE:  An error occurred (ClientException) when calling the UpdateService operation: TaskDefinition is inactive 
+  PASS  service api vẫn ở dbs-api:16 sau lần bị từ chối (= dbs-api:16)
+=== [Phase F] Bất biến sổ cái (invariants.js trong task dbs-migrate), 2026-11-15T12:32:33Z ===
+{"status":"PASS","totals":{"debit":"104500000","credit":"104500000","balance":"0"},"violations":[]}
+  PASS  invariants.js thoát 0 (0 sạch, 1 vi phạm, 2 không kết luận) (= 0)
+=== TỔNG KẾT 2026-11-15T12:33:27Z: TẤT CẢ ĐẠT; rollback tổng 267s (ngưỡng 600s) ===
+
+########## DỌN PHIÊN CLOUD SAU LẦN 3 (2026-11-15, giờ +07)
+terraform destroy: bắt đầu 19:33:45, xong 19:41:23
+Destroy complete! Resources: 63 destroyed.
+verify-clean.sh (exit 0):
+OK nat-gateway
+OK load-balancer
+OK rds
+OK rds-snapshot-manual
+OK elasticache
+OK ecs
+OK elastic-ip
+OK eni-available
+OK waf-regional
+OK vpc-endpoint-ec2
+OK rds-automated-backup
+OK elasticache-snapshot
+OK ebs
+KET LUAN: sạch (13 loại)
+terraform state list (session): 0 dòng
+aws ecs list-clusters: 0; rds describe-db-instances: 0; elbv2 describe-load-balancers: 0
+revision ACTIVE còn lại của dbs-api: dbs-api:10 (phiên cũ, không tốn tiền, BL-396)
