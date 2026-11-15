@@ -3,6 +3,8 @@
 
   overrides --mode slow-on|slow-off|watch|probe [--env K=V ...]   in JSON cho `aws ecs run-task --overrides`: chạy ac-5-10-db.js bằng
                                                 `node -e` trong container `migrate` của task `dbs-migrate`
+  overrides --script PATH --mode MODE [--env K=V ...]
+                                                như trên với script khác (ví dụ incident-db.js, DBS-184); MODE phải có trong script
   overrides --command CMD [ARG ...]             như trên nhưng ghi đè lệnh khác (ví dụ invariants.js)
   evaluate --watch-log F --task-json F --container NAME --client-code C --client-has-correlation yes|no [--sleep-seconds N]
                                                 kết luận «lần chạy hợp lệ» (§2 của DBS-185) từ nhật ký của `watch`, mô tả task
@@ -46,9 +48,9 @@ def parse_env(pairs):
     return out
 
 
-def inline_script():
+def inline_script(path=None):
     """Bỏ dòng chú thích đầy đủ và dòng trống để vừa giới hạn 8 KiB."""
-    lines = [ln for ln in DB_JS.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.lstrip().startswith("//")]
+    lines = [ln for ln in pathlib.Path(path or DB_JS).read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.lstrip().startswith("//")]
     return "\n".join(lines)
 
 
@@ -57,16 +59,22 @@ def cmd_overrides(args):
         fail("chọn đúng một trong --mode và --command")
     env = parse_env(args.env)
     if args.mode:
-        if args.mode not in ("slow-on", "slow-off", "watch", "probe"):
-            fail("--mode phải là slow-on, slow-off, watch hoặc probe")
-        command = ["node", "-e", inline_script()]
+        if args.script:
+            text = inline_script(args.script)
+            if f"'{args.mode}'" not in text:
+                fail(f"script {pathlib.Path(args.script).name} không có chế độ {args.mode}")
+            command = ["node", "-e", text]
+        else:
+            if args.mode not in ("slow-on", "slow-off", "watch", "probe"):
+                fail("--mode phải là slow-on, slow-off, watch hoặc probe")
+            command = ["node", "-e", inline_script()]
         env = [{"name": "MODE", "value": args.mode}] + env
     else:
         command = args.command
     co = {"name": CONTAINER, "command": command}
     if env:
         co["environment"] = env
-    text = json.dumps({"containerOverrides": [co]}, ensure_ascii=False, separators=(",", ":"))
+    text = json.dumps({"containerOverrides": [co]}, ensure_ascii=True, separators=(",", ":"))
     if len(text) > OVERRIDES_LIMIT:
         fail(f"phần ghi đè dài {len(text)} ký tự, quá giới hạn {OVERRIDES_LIMIT} của ECS")
     print(text)
@@ -171,6 +179,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     o = sub.add_parser("overrides")
     o.add_argument("--mode")
+    o.add_argument("--script")
     o.add_argument("--env", action="append")
     o.add_argument("--command", nargs="+")
     o.set_defaults(fn=cmd_overrides)
