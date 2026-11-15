@@ -1,6 +1,6 @@
 # DBS-146 · Kiểm tra tập dữ liệu giao #4: không rò rỉ nhãn và phân phối hợp lý
 
-> **Status:** Plan approved (G1, G2, G3 qua ngày 2026-11-15) · **Vai:** Dev (dataset) · **Cặp đôi review:** không có Dev review (quyết định techlead, xem DoD 4) · **Nhánh:** `test/DBS-146-dataset-audit` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (G1–G4 qua ngày 2026-11-15; DoD 2 đạt một phần, BL-391) · **Vai:** Dev (dataset) · **Cặp đôi review:** không có Dev review (quyết định techlead, xem DoD 4) · **Nhánh:** `test/DBS-146-dataset-audit` · **PR:** — · **Cập nhật:** 2026-11-15
 
 > **Bức tường dữ liệu:** tài liệu này nằm trong `docs/` mà #4 đọc được, nên **chỉ ghi kết luận và loại phát hiện, không ghi cơ chế sinh dữ liệu** (giá trị, số tài khoản, số dòng từng kịch bản, phân phối ngày). Cơ chế và số liệu theo kịch bản nằm ở `load-tests/fraud-dataset/AUDIT-NOTES.md` (thư mục kín, FRAUD guide §6.2).
 
@@ -207,3 +207,86 @@ flowchart LR
 **Rủi ro và cách lùi:** (1) sửa `scenarios.mjs` làm generator mixed vượt kiểm prevalence/replay: inspector chạy trong mọi lần sinh, test cũ sẽ đỏ; lùi bằng revert commit 2, công cụ ở commit 1 vẫn dùng được. (2) Bộ nhớ: sinh split mặc định ~150 nghìn dòng, đo trước đó 1,7 giây; chạy test từng suite một. (3) TC-146-12 cần backend `node_modules` (đã có); không chạy được trong `node --test` thì chuyển M-146-08.
 
 **Quyết định ở G3 (agent tự quyết):** ba commit theo thứ tự trên để có bằng chứng «trước» thật; TC-146-12 thực hiện thành bước thủ công M-146-08 (cần ts-node của backend, không đưa backend vào suite dataset của CI), ghi «đơn giản hóa» ở §8.
+
+
+Kết quả đỏ thật: bước 1, TC-146-07 đỏ trên generator chưa sửa (6 *tell*: 4 ở nhãn `FRAUD`, 1 ở mức tài khoản, 1 cặp luật); TC-146-09 đỏ cho tới khi ghi golden `ad058b46…`. Bước 2, TC-146-07 đỏ với 1 *tell* còn lại (xem §8, gate phụ 3).
+
+## 8. Kết quả
+
+**Lệnh kiểm tra (2026-11-15, Node 24.22.2, commit `5fba13d`):**
+
+| Lệnh | Kết quả |
+|---|---|
+| `node --test load-tests/fraud-dataset/generate.test.mjs` | 5/5 đạt |
+| `node --test load-tests/fraud-dataset/inspect-fraud.test.mjs` | 33/33 đạt |
+| `node --test load-tests/fraud-dataset/generate-fraud.test.mjs` | 22/22 đạt |
+| `node --test load-tests/fraud-dataset/split.test.mjs` | 10/10 đạt |
+| `node --test load-tests/fraud-dataset/audit-split.test.mjs` | 13/13 đạt, 0 bỏ qua (≈ 58 giây) |
+| `npx prettier@3.3.3 --check` ba tệp `.mjs` đã đổi | sạch |
+| `check-doc-links.mjs` | 462 files, 0 liên kết hỏng |
+
+Baseline trước task 70/70; nay 83/83. Task không đổi backend nên không chạy lint/test backend; M-146-08 có chạy `npm run export-features` của backend.
+
+**Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-146-01 | `audit-split.test.mjs` › TC-146-01 | đạt |
+| TC-146-02 | › TC-146-02 | đạt |
+| TC-146-03 | › TC-146-03 | đạt |
+| TC-146-04 | › TC-146-04 | đạt |
+| TC-146-05 | › TC-146-05 (biên R1–R6) | đạt |
+| TC-146-06 | › TC-146-06 | đạt |
+| TC-146-07 | › TC-146-07 | đạt với **danh sách tell đã biết** thay vì rỗng (gate phụ 3) |
+| TC-146-08 | › TC-146-08 | đạt |
+| TC-146-09 | › TC-146-09 (golden lấy ở `eaa7e8f`) | đạt |
+| TC-146-10 | › TC-146-10 | đạt |
+| TC-146-11 | › TC-146-11 | đạt |
+| TC-146-12 | M-146-08 (thủ công) | đơn giản hóa: không nằm trong `node --test` vì cần ts-node của backend (quyết định G3); chạy tay trên tune mặc định, 0 lệch |
+| TC-146-13 | › TC-146-13 | đạt |
+| TC-146-14 | › TC-146-14 (symlink: junction trên Windows) | đạt |
+| Quy trình DoD 3, 4 | báo cáo, PR, link | xem §9 và PR; Dev review: không có (waiver) |
+
+**Test thủ công** (Git Bash; đầu ra công khai đã gộp, không có danh sách theo kịch bản: [manual-test.txt](screenshots/DBS-146/manual-test.txt); bản thô đầy đủ ở thư mục kín `load-tests/fraud-dataset/reviews/DBS-146/manual-test-raw.txt`):
+
+| Bước | Phản hồi thật (rút gọn) | Kết quả |
+|---|---|---|
+| M-146-01 | Commit `eaa7e8f`: tune hash `6366f108…`; audit exit 0, `dod1:"met"`, A1–A4 = 0, A5/A6 true, B1–B5 true, `dod2:"partial"`, counts nội tại 16 / hạn chế 6 / **tell 6** | đạt (bằng chứng «trước») |
+| M-146-02 | Commit `5fba13d`: tune hash `c387b436…`; exit 0, `dod1:"met"`, B1–B5 true, `dod2:"partial"`, **tell 1**, không còn ứng viên nhãn `FRAUD` hay mức tài khoản | đạt |
+| M-146-03 | Hai lần chạy, `cmp`: giống nhau, 11.661 byte | đạt |
+| M-146-04 | `load-tests/verify-tune.mjs`: 101.551 dòng, 2.485 khách hoạt động, hash `c387b436…`, exit 0 | đạt |
+| M-146-05 | Sửa một byte nhãn: exit 1, `dod1:"failed"`, `tuneMatchesRegenerated:false`; thêm cột: exit 1 thông báo chung; sửa khóa manifest: exit 1, `A5:false` | đạt |
+| M-146-06 | `--seed x`, `--customers 100`, `--bogus 1`, `--days 30 --days 31`, tệp seed rỗng: exit 1, stdout 0 byte, thông báo chung không lặp tham số; không tạo tệp lạ | đạt |
+| M-146-07 | Bốn suite cũ + suite audit: 83/83; `check-doc-links.mjs`: 462 files, 0 hỏng | đạt |
+| M-146-08 | `--hits-out` + `npm run export-features` trên tune mặc định: 101.551/101.551 dòng, provider hit R1 60, R2 2.374, R3 128, R4 128, R5 80, R6 1.077; **0 lệch** ở cả sáu luật | đạt |
+
+**Phạm vi so với §7:** `git diff --stat origin/main...HEAD` khớp các tệp ở §7 bước 1–3, cộng các tệp lệch ghi dưới.
+
+**Ảnh chụp:** không áp dụng (CLI, không giao diện); bằng chứng là `manual-test.txt`.
+
+**Lệch so với kế hoạch (gate phụ, agent tự quyết, ghi trước khi làm):**
+
+1. *Trước lần chạy đầu:* bảng *nội tại* thêm đặc trưng số tiền cho VELOCITY_BURST («lệnh nhỏ»), SLOW_DRIP («rút nhỏ»), BUST_OUT («số tiền lớn») theo đúng chữ của mô tả một câu; và C2 thêm điều kiện `P(S|v) ≥ 0,1`, vì chỉ lift ≥ 10 với tỉ lệ nền khoảng 0,1% sẽ coi một khoảng có độ chính xác 2% là «tầm thường». Cả hai đều chốt trước khi có kết quả.
+2. *Nguyên văn review và đầu ra thủ công thô* có danh sách theo kịch bản nên để trong thư mục kín; `docs/` chỉ có tệp trỏ và bản gộp. Lý do: FRAUD guide §6.2.
+3. *Sau bước 2 còn 1 tell* (một cặp kịch bản–luật ngoài cột «Luật nên bắt»). Sửa nó là đổi ngữ nghĩa kịch bản, ngoài §2.E và quyết định G1 (d). Phương án: (a) sửa trong task này: đổi số liệu của kịch bản, cần review lại; (b) để nguyên, báo `partial`, BL. Chọn (b): thay đổi ít nhất, giữ đúng phạm vi đã duyệt. TC-146-07 khẳng định đúng danh sách tell đã biết, để tell mới vẫn làm test đỏ.
+4. `split.mjs` xuất thêm `canonical`/`insideCheckout` (không đổi hành vi) để `--hits-out` dùng chung luật đường dẫn, như §2 đã ghi.
+5. *Đảo quyết định DBS-127 §2* («không đổi bytes generator cũ»): hash mixed và tune mặc định đổi; tune chưa giao #4 nên không có bản cũ phải giữ.
+
+**Bàn giao cho vai khác:**
+
+- Dev dataset: tell và hạn chế mô phỏng còn lại → **BL-391**.
+- Dev dataset, techlead: hợp đồng kịch bản DBS-126 §2.3 công khai trong `docs/` → **BL-392**.
+- Dev dataset, người quản lý dữ liệu, #4: seed bí mật, sinh và giao lại tune, `split.mjs` đọc seed từ tệp → thêm nguồn vào **BL-171**.
+- Fraud làm P5: hard negatives < 30 dòng/nhóm → thêm nguồn vào **BL-173**; P5 trình bày recall trên các cặp «trong tầm luật» như recall trên dữ liệu thiết kế cho luật ([báo cáo](../components/fraud-dataset/02-dataset-audit.md)).
+- DoD 4 «Dev review»: không có theo quyết định techlead bỏ yêu cầu Dev review ([#175](https://github.com/Lawliet119/digital-banking-simulator/pull/175)); ghi `Techlead waiver` ở PR, không thêm BL.
+
+## 9. Tài liệu đã cập nhật
+
+- Mới: [docs/components/fraud-dataset/02-dataset-audit.md](../components/fraud-dataset/02-dataset-audit.md) (DoD 3).
+- [load-tests/fraud-dataset/README.md](../../load-tests/fraud-dataset/README.md): hash tune mới, mục `audit-split.mjs`, hash mixed mới.
+- [DBS-126](DBS-126-fraud-scenarios.md) §8.3: ba SHA mặc định mới; [DBS-127](DBS-127-customer-split.md) §8: hash tune mới và việc đảo quyết định §2.
+- [brief fraud-dataset](../components/fraud-dataset/01-concept-brief.md): liên kết báo cáo.
+- [docs/features/README.md](README.md): dòng DBS-146.
+- [docs/BACKLOG.md](../BACKLOG.md): thêm BL-391, BL-392; thêm nguồn DBS-146 vào BL-171, BL-173. Không xóa dòng nào.
+- `.github/workflows/ci.yml`: thêm `audit-split.test.mjs` vào bước test dataset.
+- Kín (không thuộc `docs/`): `load-tests/fraud-dataset/AUDIT-NOTES.md`, `load-tests/fraud-dataset/reviews/DBS-146/`.

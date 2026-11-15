@@ -1,0 +1,36 @@
+5fba13d4599f4eddc70ffd57d0fb04e4f55c75da (commit cuối đổi code; M-146-01 chạy ở eaa7e8f, generator chưa sửa)
+== M-146-01 (trước khi sửa generator) · commit eaa7e8f25502a54f7f2c6b5d58cec4afe0468502 · 2026-11-15T10:18:49Z · node v24.22.2
+-- split.mjs --tune-dir <tmp>/tune
+{"version":1,"columns":["tx_id","occurred_at","from_account","to_account","from_customer","to_customer","amount","from_balance_before","from_account_created_at","to_account_created_at","is_fraud","scenario"],"sha256":"6366f108b9f19ca976a64ba52210f62f79ed244040aac02f4b104b70f8b122c0","customers":2800,"transactions":101551,"holdoutCustomers":1200,"holdoutPersisted":false}
+-- audit-split.mjs --tune-csv <tmp>/tune/tune.csv --tune-manifest <tmp>/tune/manifest.json (tóm tắt JSON)
+exit=0
+{"dod1":"met","dod2":"partial","exitCode":0,"leakage":{"A1":0,"A2":0,"A3":0,"A4":0,"A5":true,"A6":true},"checks":{"tuneMatchesRegenerated":true,"B1":true,"B2":true,"B3":true,"B5":true},"holdoutHn":"thin","tune":{"transactions":101551,"fraudRate":0.00993589427972152,"activityMean":0.6044702380952381,"amountNormalP50":"467000"},"holdout":{"transactions":44660,"fraudRate":0.009471562919838783},"counts":{"intrinsic":16,"limitation":6,"tell":6}}   (bản gộp; danh sách phát hiện theo kịch bản ở thư mục kín)
+== M-146-02 (sau khi sửa generator) · commit 5fba13d4599f4eddc70ffd57d0fb04e4f55c75da · 2026-11-15T10:22:46Z · node v24.22.2
+-- split.mjs --tune-dir <tmp>/tune
+{"version":1,"columns":["tx_id","occurred_at","from_account","to_account","from_customer","to_customer","amount","from_balance_before","from_account_created_at","to_account_created_at","is_fraud","scenario"],"sha256":"c387b43605d8a9be05dd8288490130295c6d8928c66fb2c16d2f9cbae36f1b01","customers":2800,"transactions":101551,"holdoutCustomers":1200,"holdoutPersisted":false}
+-- audit-split.mjs --tune-csv <tmp>/tune/tune.csv --tune-manifest <tmp>/tune/manifest.json (tóm tắt JSON)
+exit=0
+{"dod1":"met","dod2":"partial","exitCode":0,"leakage":{"A1":0,"A2":0,"A3":0,"A4":0,"A5":true,"A6":true},"checks":{"tuneMatchesRegenerated":true,"B1":true,"B2":true,"B3":true,"B5":true},"holdoutHn":"thin","tune":{"transactions":101551,"fraudRate":0.00993589427972152,"activityMean":0.6044702380952381,"amountNormalP50":"467000"},"holdout":{"transactions":44660,"fraudRate":0.009471562919838783},"counts":{"intrinsic":16,"limitation":15,"tell":1}}   (bản gộp; danh sách phát hiện theo kịch bản ở thư mục kín)
+== M-146-03..08 · commit 5fba13d4599f4eddc70ffd57d0fb04e4f55c75da · 2026-11-15T10:22:52Z
+-- M-146-03 hai lần audit, cmp
+giống nhau (exit 0/0), 11661 byte
+-- M-146-04 verify-tune
+{"transactions":101551,"activeCustomers":2485,"sha256":"c387b43605d8a9be05dd8288490130295c6d8928c66fb2c16d2f9cbae36f1b01"}
+exit=0
+-- M-146-05 sửa dữ liệu giao
+một byte nhãn: exit=1 dod1=failed tuneMatchesRegenerated=false
+cột giả: exit=1 Audit failed: check arguments, seed file and output path.
+manifest sai: exit=1 A5=false
+-- M-146-06 tham số sai
+[--seed x] exit=1 stdout=0B stderr=Audit failed: check arguments, seed file and output path.
+[--customers 100] exit=1 stdout=0B stderr=Audit failed: check arguments, seed file and output path.
+[--bogus 1] exit=1 stdout=0B stderr=Audit failed: check arguments, seed file and output path.
+[--days 30 --days 31] exit=1 stdout=0B stderr=Audit failed: check arguments, seed file and output path.
+[tệp seed rỗng] exit=1 stderr=Audit failed: check arguments, seed file and output path.
+1.json 2.json e.txt empty m.json o.json o.txt t1.csv t2.csv tune (không có tệp lạ ngoài các tệp tạo bởi bước này)
+-- M-146-08 đối chiếu provider (export-features)
+hits-out exit=0
+[export-features] Processed 101551 transactions in 1.52s
+[export-features] Output written to: F:\tmp\claude\claude\f51806f3441b8fe0\b0aa18c8-7582-4649-99e5-160ad5541c5b\scratchpad\m146b-qzj9\features.csv
+{"rowsExport":101551,"rowsAudit":101551,"missing":0,"providerHits":{"R1":60,"R2":2374,"R3":128,"R4":128,"R5":80,"R6":1077},"mismatches":{"R1":0,"R2":0,"R3":0,"R4":0,"R5":0,"R6":0}}
+cmp exit=0

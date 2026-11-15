@@ -93,6 +93,8 @@ Sweep: không thay generator/scenarios/inspector hiện có; không thêm depend
 
 **Manual trên commit code cuối:** [output thô Git Bash](screenshots/DBS-127/manual-test.txt).
 
+**Sau [DBS-146](DBS-146-dataset-audit.md) (2026-11-15):** hash tune mặc định là `c387b43605d8a9be05dd8288490130295c6d8928c66fb2c16d2f9cbae36f1b01` (số dòng, số khách không đổi); DBS-146 đảo quyết định «không đổi bytes generator cũ» ở §2 vì tune chưa giao #4 (BL-171).
+
 | Bước | Lệnh/phản hồi thật | Kết quả |
 |---|---|---|
 | M-127-01 | CLI hai directory mới, `cmp` hai CSV và artifact bàn giao; registry2800/1200,101551 dòng, hash6366f108…b122c0, holdoutPersisted=false | đạt |

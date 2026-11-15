@@ -84,4 +84,15 @@ Output directory phải mới. Tune package chỉ có `tune.csv` (12 cột) và 
 
 Mặc định holdout chỉ ở RAM, không lưu xuống đĩa. Chỉ dùng `--private-dir <new-absolute-directory>` khi Dev dataset đã kiểm quyền và xác nhận #4 không truy cập được. Công cụ từ chối private-dir trong mọi checkout Git, qua symlink/junction hoặc lồng trong tune-dir. Mode0700/0600 có ý nghĩa trên POSIX; Windows cần ACL riêng, CLI không chứng nhận quyền truy cập. Private package có holdout CSV, simulation và manifest; không giao simulation/source/test cho #4. I/O lỗi thoát1, không báo thành công; manifest cuối là dấu hoàn tất, không dùng output dở.
 
-Mẫu tune mặc định có101.551 dòng, 2.485 khách hoạt động trên registry2.800 khách; SHA256 `6366f108b9f19ca976a64ba52210f62f79ed244040aac02f4b104b70f8b122c0`. Đây là dữ liệu tổng hợp để kiểm/tune, không là bằng chứng recall hoặc nghiệm thu AWS. Cấu hình rất lớn chưa benchmark (BL-173). Theo [feature doc](../../docs/features/DBS-127-customer-split.md), còn phải có nơi giữ nhãn riêng, ngày giao tune cho #4 và xác nhận offline độc lập; nhãn chỉ được giao sau freeze theo giao thức tuần7.
+Mẫu tune mặc định có101.551 dòng, 2.485 khách hoạt động trên registry2.800 khách; SHA256 `c387b43605d8a9be05dd8288490130295c6d8928c66fb2c16d2f9cbae36f1b01` (từ DBS-146; trước đó `6366f108…b122c0`). Đây là dữ liệu tổng hợp để kiểm/tune, không là bằng chứng recall hoặc nghiệm thu AWS. Cấu hình rất lớn chưa benchmark (BL-173). Theo [feature doc](../../docs/features/DBS-127-customer-split.md), còn phải có nơi giữ nhãn riêng, ngày giao tune cho #4 và xác nhận offline độc lập; nhãn chỉ được giao sau freeze theo giao thức tuần7.
+
+## Kiểm rò rỉ và độ hợp lý của split (DBS-146)
+
+```bash
+node load-tests/fraud-dataset/audit-split.mjs [--tune-csv <tune.csv>] [--tune-manifest <manifest.json>] [--hits-out <hits.csv>]
+node --test load-tests/fraud-dataset/audit-split.test.mjs
+```
+
+Sinh lại cặp cohort (holdout chỉ ở RAM), kiểm không trùng khách/tài khoản/`tx_id`, quét nguyên byte gói tune, kiểm header và manifest, tỉ lệ fraud, số tiền, giao dịch/khách/ngày, cài lại R1–R6 offline (đã đối chiếu 0 lệch với `npm run export-features` trên tune mặc định) và tìm bin lộ nhãn. In một dòng JSON; exit 1 khi kiểm bắt buộc hỏng. Seed khác: `DBS_AUDIT_SEED_FILE=<tệp>` (bỏ đúng một dấu xuống dòng cuối; từ chối BOM, ký tự điều khiển). `--hits-out` dùng luật đường dẫn của `split.mjs`. JSON có chi tiết theo kịch bản: không chuyển cho #4. Cơ chế các phát hiện và bảng *nội tại* ở [AUDIT-NOTES.md](AUDIT-NOTES.md); báo cáo công khai ở [docs/components/fraud-dataset/02-dataset-audit.md](../../docs/components/fraud-dataset/02-dataset-audit.md).
+
+DBS-146 đổi ngày mở tài khoản của khách nhóm kịch bản (cùng phân phối với nhóm nền, suy ra bằng hash), nên byte của bộ mixed và tune mặc định đổi; số tiền, thời điểm, người nhận và mọi thống kê khác giữ nguyên. Mixed mặc định `dbs-fraud-v1` từ DBS-146: CSV `b0887ad0d613ee823d5d2c5dda9e09ffb8a9bcad8c98efba515eff62f8e25807`.
