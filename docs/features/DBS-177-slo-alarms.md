@@ -1,6 +1,6 @@
 # DBS-177 · Alarm CloudWatch theo từng SLO (Terraform)
 
-> **Status:** Plan approved (phần offline Terraform + test; chờ test kích hoạt trên AWS thật và PR/review) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác (theo team.md) · **Nhánh:** `infra/DBS-177-slo-alarms` · **PR:** — · **Cập nhật:** 2026-11-14
+> **Status:** Implemented (offline Terraform + test, đã thử đổi trạng thái 4 alarm trên AWS; chờ kích hoạt bằng tải thật BL-341) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác (theo team.md) · **Nhánh:** `infra/DBS-177-slo-alarms` · **PR:** #188 · **Cập nhật:** 2026-11-14
 
 ## 1. Bối cảnh
 
@@ -45,8 +45,8 @@ Mọi alarm gửi `alarm_actions` và `ok_actions` tới `local.base.alarm_topic
 
 - **Vị trí:** `infra/terraform/envs/dev/session/alarms.tf` (thêm 4 `aws_cloudwatch_metric_alarm` và `local.read_routes`), `infra/terraform/envs/dev/session/tests/alarms.tftest.hcl`.
 - **Interface / hợp đồng metric:** khớp `backend/src/common/metrics/metrics.service.ts` (`http_5xx_total`, `http_requests_total`, `http_request_duration_ms`, `risk_transfer_to_flag_ms`). Không thêm biến Terraform hay output mới.
-- **Chi phí:** thêm 4 alarm (7 metric tham chiếu: 2 + 1 + 3 + 1 = +0,70 USD/tháng nếu chạy cả tháng). Tổng cộng 17 alarm (2 ở `base` ≈ 0,20 USD/tháng, 15 ở `session` ≈ 2,80 USD/tháng, tính theo giờ khi bật phiên).
-- **Thay đổi cấp hệ thống:** `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §14, `docs/components/observability/01-concept-brief.md`, `infra/terraform/README.md`, `docs/features/README.md`, `docs/BACKLOG.md` (`BL-340`, `BL-341`, `BL-342`).
+- **Chi phí:** thêm 4 alarm (7 metric tham chiếu: 2 + 1 + 3 + 1 = +0,70 USD/tháng nếu chạy cả tháng). Tổng cộng 18 alarm (2 ở `base` ≈ 0,20 USD/tháng, 16 ở `session` ≈ 2,90 USD/tháng, tính theo giờ khi bật phiên).
+- **Thay đổi cấp hệ thống:** `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §14, `docs/components/observability/01-concept-brief.md`, `infra/terraform/README.md`, `docs/features/README.md`, `docs/BACKLOG.md` (`BL-340`, `BL-341`).
 
 ## 4. Test cases tự động (`terraform test`, `mock_provider`)
 
@@ -102,6 +102,7 @@ Rủi ro và cách lùi: alarm là tài nguyên độc lập trong `session`, l�
   - `envs/dev/base`: `terraform init -backend=false`, `terraform validate` (hợp lệ), `terraform test -parallelism=1`: **53 passed, 0 failed**
   - `envs/dev/session`: `terraform init -backend=false`, `terraform validate` (hợp lệ), `terraform test -parallelism=1`: **70 passed, 0 failed** (`tests/alarms.tftest.hcl`: 16 passed, 0 failed)
   - `check-doc-links.mjs`: xem kết quả chạy sau bước cập nhật docs.
+- **Sau rebase lên main (2026-11-15):** main đã có thêm alarm độ tươi cấu hình luật (BL-188), nên tổng là 18 alarm (2 ở base, 16 ở session) và test đếm đã sửa theo. Bằng chứng live ở manual-test.txt ghi 17 vì chạy trước khi rebase. PR #188 được merge bằng squash, BL-342 đã xóa (PR đã merge, CI xanh); Dev review theo quy trình còn thiếu, ghi Techlead waiver.
 - **Đối chiếu test case:**
 
 | ID | Test | Đạt? |
@@ -112,12 +113,11 @@ Rủi ro và cách lùi: alarm là tài nguyên độc lập trong `session`, l�
 | TC-177-04 | `alarms.tftest.hcl` › `transfer_to_flag_p95_alarm` | đạt |
 | TC-177-05 | `alarms.tftest.hcl` › `all_alarms_notify_the_topic`, `alarms_follow_metrics_namespace` | đạt |
 | TC-177-06 | M-177-01..02 (AWS thật) | đạt một phần: đã apply 4 SLO alarm lên `dev/session` (tổng 17 alarm), test chuyển trạng thái `ALARM → OK` cho cả 4 alarm (`screenshots/DBS-177/manual-test.txt`); test tải k6 thật + hộp thư email giữ ở **BL-341** |
-| TC-177-07 | PR, CI, Dev review | chưa làm (**BL-342**) |
+| TC-177-07 | PR, CI, Dev review | PR #188 merge, CI xanh; Dev review chưa có (Techlead waiver) |
 
 - **Bàn giao cho vai khác:**
   - **BL-340** (Dev / Fraud + #5): thêm metric đếm số cờ gian lận và tổng giao dịch để dựng alarm SLO «> 20 cảnh báo gian lận / 1.000 giao dịch (24 giờ trượt, ≥ 1.000 giao dịch)».
   - **BL-341** (#5 Platform & Ops): chạy thử kích hoạt từng alarm trên AWS thật khi `dev/session` Up và xác nhận email SNS.
-  - **BL-342** (#5 + Dev review): mở PR, CI xanh, Dev review và điền bảng «Đối chiếu test case» trong PR.
 
 ## 9. Tài liệu đã cập nhật
 
