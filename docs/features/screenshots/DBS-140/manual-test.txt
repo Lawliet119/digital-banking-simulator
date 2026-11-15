@@ -1,0 +1,183 @@
+code commit under test: 230132967e21b828e6054be9ed0180edcae0b5b0 (không có code đổi trong task; chỉ tài liệu)
+date: 2026-11-15T06:46:29Z  node: v24.22.2  docker compose: 2.30.3-desktop.1
+môi trường: docker compose project dbs140 (Postgres 55434, Valkey 6381, ElasticMQ 9324), một process node dist/main APP_ROLE=both
+
+##### M-140-01 Bước 0: seed hai lần + check:invariants
+=== [Bước 0 · Reset dữ liệu và seed]
+============================================================
+Digital Banking Simulator — Demo Seed Complete (DBS-70)
+API Base URL: http://127.0.0.1:3000
+============================================================
+CUSTOMERS & ACCOUNTS:
+• Nguyễn Minh Anh (demo-customer-minh-anh)
+  Customer ID: 26208f96-3d53-4f1c-904a-80060c64d22d
+  - [CHECKING] b27662c7-515e-44cd-82e7-31ff9e6acc92 (Created, Balance: 48.000.000 VND)
+  - [SAVINGS] 564cf169-081b-403a-a853-ecde1859b923 (Created, Balance: 20.000.000 VND)
+• Trần Thu Hà (demo-customer-thu-ha)
+  Customer ID: c4ac71d8-805d-4198-ae10-e39830aab398
+  - [CHECKING] 08a06252-beca-4747-9afa-d73a190e6958 (Created, Balance: 11.500.000 VND)
+• Nguyễn Văn Bình (demo-customer-van-binh)
+  Customer ID: 15a3d007-b810-4220-9ffb-c5cfe40278b4
+  - [CHECKING] 0ef8664f-4e41-4b1d-97bd-da257db1cc72 (Created, Balance: 5.500.000 VND)
+OPERATOR DEPOSITS (4 transactions):
+• Target: b27662c7-515e-44cd-82e7-31ff9e6acc92 | Amount: 50.000.000 VND | Tx: ad5d0191-c919-4bd2-bba0-98acf03b27f9
+• Target: 564cf169-081b-403a-a853-ecde1859b923 | Amount: 20.000.000 VND | Tx: 19c1a306-8d3b-411e-90d3-f594c645a1eb
+• Target: 08a06252-beca-4747-9afa-d73a190e6958 | Amount: 10.000.000 VND | Tx: 3b29525a-43ee-43ae-b6ef-fdd291a66037
+• Target: 0ef8664f-4e41-4b1d-97bd-da257db1cc72 | Amount: 5.000.000 VND | Tx: 795ac2cc-4634-46d8-9b7e-57af50ef9578
+CUSTOMER TRANSFERS (2 transactions):
+• From: b27662c7-515e-44cd-82e7-31ff9e6acc92 -> To: 08a06252-beca-4747-9afa-d73a190e6958 | Amount: 2.000.000 VND
+• From: 08a06252-beca-4747-9afa-d73a190e6958 -> To: 0ef8664f-4e41-4b1d-97bd-da257db1cc72 | Amount: 500.000 VND
+Re-run safe: each deposit/transfer is sent only when the API balance shows it has not happened yet, so it holds even after the Idempotency-Key rows were cleaned up.
+Ledger invariant: System funding covers all deposits; total ledger balance = 0.
+============================================================
+============================================================
+Digital Banking Simulator — Demo Seed Complete (DBS-70)
+API Base URL: http://127.0.0.1:3000
+============================================================
+CUSTOMERS & ACCOUNTS:
+• Nguyễn Minh Anh (demo-customer-minh-anh)
+  Customer ID: 26208f96-3d53-4f1c-904a-80060c64d22d
+  - [CHECKING] b27662c7-515e-44cd-82e7-31ff9e6acc92 (Reused, Balance: 48.000.000 VND)
+  - [SAVINGS] 564cf169-081b-403a-a853-ecde1859b923 (Reused, Balance: 20.000.000 VND)
+• Trần Thu Hà (demo-customer-thu-ha)
+  Customer ID: c4ac71d8-805d-4198-ae10-e39830aab398
+  - [CHECKING] 08a06252-beca-4747-9afa-d73a190e6958 (Reused, Balance: 11.500.000 VND)
+• Nguyễn Văn Bình (demo-customer-van-binh)
+  Customer ID: 15a3d007-b810-4220-9ffb-c5cfe40278b4
+  - [CHECKING] 0ef8664f-4e41-4b1d-97bd-da257db1cc72 (Reused, Balance: 5.500.000 VND)
+OPERATOR DEPOSITS (4 transactions):
+• Target: b27662c7-515e-44cd-82e7-31ff9e6acc92 | Amount: 50.000.000 VND | Tx: skipped (balance already reflects it)
+• Target: 564cf169-081b-403a-a853-ecde1859b923 | Amount: 20.000.000 VND | Tx: skipped (balance already reflects it)
+• Target: 08a06252-beca-4747-9afa-d73a190e6958 | Amount: 10.000.000 VND | Tx: skipped (balance already reflects it)
+• Target: 0ef8664f-4e41-4b1d-97bd-da257db1cc72 | Amount: 5.000.000 VND | Tx: skipped (balance already reflects it)
+CUSTOMER TRANSFERS (2 transactions):
+• From: b27662c7-515e-44cd-82e7-31ff9e6acc92 -> To: 08a06252-beca-4747-9afa-d73a190e6958 | Amount: 2.000.000 VND | skipped (balance already reflects it)
+• From: 08a06252-beca-4747-9afa-d73a190e6958 -> To: 0ef8664f-4e41-4b1d-97bd-da257db1cc72 | Amount: 500.000 VND | skipped (balance already reflects it)
+Re-run safe: each deposit/transfer is sent only when the API balance shows it has not happened yet, so it holds even after the Idempotency-Key rows were cleaned up.
+Ledger invariant: System funding covers all deposits; total ledger balance = 0.
+============================================================
+> digital-banking-simulator-backend@0.1.0 check:invariants
+> ts-node -r tsconfig-paths/register src/scripts/invariants/invariants.ts
+{"status":"PASS","totals":{"debit":"87500000","credit":"87500000","balance":"0"},"violations":[]}
+  [bước 0: 9020 ms]
+##### M-140-01 Bước 1-9
+=== [Bước 1–9 · Luồng chính]
+RUN=1794725198
+=== [Bước 1 · Đăng ký]
+{"id":"5c318c5f-1228-43fb-8284-e49a24d684f7","fullName":"Tran Van An","createdAt":"2026-11-15T06:46:51.212Z"}{"id":"479fad95-7f22-4c60-b212-6c5fb772036e","fullName":"Nguyen Thi Binh","createdAt":"2026-11-15T06:46:51.459Z"}
+  [thời gian chạy lệnh: 556 ms] <- Buoc1
+=== [Bước 2 · Mở tài khoản]
+AN_ACC=dbae71ca-4be3-427b-bde7-3254b780e5ea BINH_ACC=f3a7e967-a7c8-48fd-b0d5-dd29f4b54714
+  [thời gian chạy lệnh: 547 ms] <- Buoc2
+=== [Bước 3 · Nạp tiền]
+{"transferId":"9db9abd6-a6f1-419f-81ef-f256af6798ad","status":"COMPLETED"}
+  [thời gian chạy lệnh: 306 ms] <- Buoc3
+=== [Bước 4 · Chuyển tiền (ghi `C` và `T`)]
+HTTP/1.1 201 Created
+{"transferId":"7c2d1e64-19e6-4d72-98ec-2e726ca28f4c","status":"COMPLETED"}
+C=55d2b6f6-052d-45e9-82e3-97bb9a6977fb T=7c2d1e64-19e6-4d72-98ec-2e726ca28f4c
+  [thời gian chạy lệnh: 482 ms] <- Buoc4
+=== [Bước 5 · Cờ gian lận xuất hiện]
+{"items":[{"transferId":"7c2d1e64-19e6-4d72-98ec-2e726ca28f4c","fromAccountId":"dbae71ca-4be3-427b-bde7-3254b780e5ea","toAccountId":"f3a7e967-a7c8-48fd-b0d5-dd29f4b54714","score":65,"riskLevel":"MEDIUM","reviewStatus":"OPEN","ruleSetVersion":1,"createdAt":"2026-11-15T06:46:53.015255Z"}],"nextCursor":null}
+  [thời gian chạy lệnh: 5316 ms] <- Buoc5
+=== [Bước 6 · Khách không thấy cờ]
+{"transferId":"7c2d1e64-19e6-4d72-98ec-2e726ca28f4c","type":"TRANSFER","status":"COMPLETED","amount":"20000000","createdAt":"2026-11-15T06:46:52.783527Z","fromAccountId":"dbae71ca-4be3-427b-bde7-3254b780e5ea","toAccountId":"f3a7e967-a7c8-48fd-b0d5-dd29f4b54714"}
+{"items":[{"entryId":"15","transferId":"7c2d1e64-19e6-4d72-98ec-2e726ca28f4c","type":"TRANSFER","direction":"DEBIT","amount":"20000000","balanceAfter":"1000000","counterpartyAccountId":"f3a7e967-a7c8-48fd-b0d5-dd29f4b54714","createdAt":"2026-11-15T06:46:52.784726Z"},{"entryId":"14","transferId":"9db9abd6-a6f1-419f-81ef-f256af6798ad","type":"DEPOSIT","direction":"CREDIT","amount":"21000000","balanceAfter":"21000000","
+  [thời gian chạy lệnh: 528 ms] <- Buoc6
+=== [Bước 7 · Nhân viên review (chỉ một lần)]
+{"transferId":"7c2d1e64-19e6-4d72-98ec-2e726ca28f4c","fromAccountId":"dbae71ca-4be3-427b-bde7-3254b780e5ea","toAccountId":"f3a7e967-a7c8-48fd-b0d5-dd29f4b54714","score":65,"riskLevel":"MEDIUM","reviewStatus":"OPEN","ruleSetVersion":1,"createdAt":"2026-11-15T06:46:53.015255Z","aiAssessment":null,"hits":[{"ruleId":"R3","weight":35,"explanation":"Tài khoản mở dưới 1 phút trước, chuyển 20.000.000đ"},{"rule
+{"transferId":"7c2d1e64-19e6-4d72-98ec-2e726ca28f4c","reviewStatus":"CONFIRMED_FRAUD"}
+{"errorCode":"FLAG_ALREADY_REVIEWED","type":"about:blank","title":"Conflict","status":409,"detail":"Fraud flag already reviewed","correlationId":"2e6b7b13-a5a6-40de-a10d-ab64d716087c"}
+  [thời gian chạy lệnh: 790 ms] <- Buoc7
+##### Buoc8 (bấm giờ)
+=== [Bước 8 · Kiểm toán viên tra `correlationId` (bấm giờ)]
+fraud_flag.review SUCCESS operator =C
+fraud_flag.view SUCCESS operator =C
+fraud.flagged SUCCESS worker =C
+notification.sent SUCCESS worker =C
+transfer SUCCESS customer =C
+  [thời gian chạy lệnh: 302 ms] <- Buoc8
+step 8 elapsed ms: 373
+=== [Bước 9 · Ca từ chối]
+khach xem co: 403
+auditor review: 403
+{"entries":[{"id":"67","occurredAt":"2026-11-15T06:47:00.734247Z","actorUserId":"4fc24b38-9012-4165-a734-526edbb412fa","actorRole":"auditor","action":"access.denied","outcome":"DENIED","target":{"type":"route","id":"POST /v1/operator/fraud-flags/:transferId/review"},"correlationId":"e4d331d6-b899-4120-b146-6df5004cf107","metadata":{"reason":"NO_PERMISSION"}},{"id":"66","occurredAt":"2026-11-15T06:47:00.484976Z","acto
+  [thời gian chạy lệnh: 776 ms] <- Buoc9
+tổng thời gian chạy lệnh (ms, cộng các bước): 9603
+C1 là UUID: 1
+(đoạn M-140-02..04 của lần chạy đầu bị hỏng ở bước đọc file tạm: node trên Windows không đọc được /tmp của Git Bash; lỗi của script thử, không phải của hệ thống. Chạy lại ở phần 2 bên dưới, cùng stack, không reset.)
+
+================ PHẦN 2: M-140-02..04 (cùng stack, KHÔNG reset, script sửa đọc stdin) ================
+##### M-140-02/03 khởi tạo: cùng stack, KHÔNG reset; chạy Bước 1-4 với RUN riêng để có C1, T1
+=== [Bước 1–9 · Luồng chính]
+RUN (lần 1 của phần 2)=1794725259
+C1 là UUID: 1 | T1 có: co
+##### M-140-02 ca biên (a): token hết hạn (iat/exp trong quá khứ, như token lấy hơn 15 phút trước) rồi lấy lại bằng đúng lệnh tok
+token cu: HTTP 401
+{"errorCode":"TOKEN_EXPIRED","type":"about:blank","title":"Unauthorized","status":401,"detail":"Access token expired","correlationId":"7cec2be8-b18c-4aa9-8424-b2f361b1fc33"}
+
+token m?i: HTTP 200
+số dòng audit theo C1 (không reset): 3
+##### M-140-03 ca biên (b): chạy lại Bước 1-4 KHÔNG reset với RUN mới -> cờ thứ hai; đọc cờ theo transferId
+RUN mới=1794725286
+=== [Bước 4 · Chuyển tiền (ghi `C` và `T`)]
+HTTP/1.1 201 Created
+{"transferId":"f86e0199-4021-4074-a214-4dc2dba55233","status":"COMPLETED"}
+C=<C2> T=f86e0199-4021-4074-a214-4dc2dba55233
+số cờ trong danh sách: 3
+cờ cũ (T1) còn: true OPEN | cờ mới (T2): true 65 MEDIUM OPEN
+##### M-140-03 ca biên (c): mất C -> lấy lại bằng action=transfer
+dòng mới nhất action=transfer có correlationId = C2 (giao dịch vừa chạy): true | có dòng của C1 trong danh sách: true
+##### M-140-04 lệnh trong checklist
+dbs140-elasticmq-1 Up 4 minutes
+dbs140-postgres-1 Up 4 minutes (healthy)
+dbs140-valkey-1 Up 4 minutes (healthy)
+{"status":"PASS","totals":{"debit":"251500000","credit":"251500000","balance":"0"},"violations":[]}
+lỗi trong log app: 0
+
+##### M-140-05 TC-140-01..05 (tc140.mjs) và check-doc-links
+ĐẠT  TC-140-01 có 11 đoạn (cần 11)
+ĐẠT  TC-140-01 tổng cột Phút = 17.5 khớp tổng ghi ở đầu bảng (17.5)
+ĐẠT  TC-140-01 tổng 17.5 phút nằm trong [15, 20]
+ĐẠT  TC-140-01 các mốc mm:ss khớp tổng cộng dồn
+ĐẠT  TC-140-02 anchor tồn tại: #nhánh-cloud
+ĐẠT  TC-140-02 anchor tồn tại: #quy-tắc-khi-quay
+ĐẠT  TC-140-02 anchor tồn tại: #bước-0--reset-dữ-liệu-và-seed
+ĐẠT  TC-140-02 anchor tồn tại: #bước-1--đăng-ký
+ĐẠT  TC-140-02 anchor tồn tại: #bước-2--mở-tài-khoản
+ĐẠT  TC-140-02 anchor tồn tại: #bước-19--luồng-chính
+ĐẠT  TC-140-02 anchor tồn tại: #bước-3--nạp-tiền
+ĐẠT  TC-140-02 anchor tồn tại: #bước-4--chuyển-tiền-ghi-c-và-t
+ĐẠT  TC-140-02 anchor tồn tại: #bước-5--cờ-gian-lận-xuất-hiện
+ĐẠT  TC-140-02 anchor tồn tại: #bước-6--khách-không-thấy-cờ
+ĐẠT  TC-140-02 anchor tồn tại: #bước-7--nhân-viên-review-chỉ-một-lần
+ĐẠT  TC-140-02 anchor tồn tại: #bước-8--kiểm-toán-viên-tra-correlationid-bấm-giờ
+ĐẠT  TC-140-02 anchor tồn tại: #bước-19--luồng-chính
+ĐẠT  TC-140-02 anchor tồn tại: #bước-9--ca-từ-chối
+ĐẠT  TC-140-02 anchor tồn tại: #giới-hạn-hiện-tại
+ĐẠT  TC-140-02 anchor tồn tại: #checklist-trước-khi-quay
+ĐẠT  TC-140-02 anchor tồn tại: #quy-tắc-khi-quay
+ĐẠT  TC-140-02 anchor tồn tại: #chuẩn-bị-chung-local
+ĐẠT  TC-140-02 có liên kết cho bước 0 và 1-9: 0,1,2,3,4,5,6,7,8,9
+ĐẠT  TC-140-02 bước 1 xuất hiện 1 lần trong liên kết
+ĐẠT  TC-140-02 bước 2 xuất hiện 1 lần trong liên kết
+ĐẠT  TC-140-02 bước 3 xuất hiện 1 lần trong liên kết
+ĐẠT  TC-140-02 bước 4 xuất hiện 1 lần trong liên kết
+ĐẠT  TC-140-02 bước 5 xuất hiện 1 lần trong liên kết
+ĐẠT  TC-140-02 bước 6 xuất hiện 1 lần trong liên kết
+ĐẠT  TC-140-02 bước 7 xuất hiện 1 lần trong liên kết
+ĐẠT  TC-140-02 bước 8 xuất hiện 1 lần trong liên kết
+ĐẠT  TC-140-02 bước 9 xuất hiện 1 lần trong liên kết
+ĐẠT  TC-140-05 không có JWT, access key, id 12 số trong docs/demos/demo-midterm-recording.md
+ĐẠT  TC-140-05 không có JWT, access key, id 12 số trong docs/deliverables/midterm-demo-video.md
+ĐẠT  TC-140-05 không có JWT, access key, id 12 số trong docs/features/DBS-140-midterm-demo-video-prep.md
+tc140 exit=0
+448 files checked, 0 broken link(s)
+git check-ignore:
+.gitignore:83:*.mp4	x.mp4
+.gitignore:84:*.mov	x.mov
+.gitignore:85:*.mkv	x.mkv
+.gitignore:86:*.webm	x.webm
+file video trong git: 0
+chuỗi bí mật trong manual-test.txt (eyJ, AKIA): 0
+##### M-140-06 dọn: đã dừng process node (cổng 3000 trống) và xóa container dbs140-*; docker ps chỉ còn container của dự án khác

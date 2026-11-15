@@ -1,0 +1,23 @@
+| # | Severity | Section | Finding | Evidence | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | should-fix | `demo-midterm-recording.md` §2 row I and §1 decision 5 | The fix for round-1 #1 gives two ways to get new tokens, and one of them does not work. If the typist mints tokens "trong cửa sổ khác", the new `OP`, `AUD` and `AN` exist only in that other shell. The recorded terminal keeps the tokens from 2:30. `tok`, `field` and `RUN` are also defined only in the recorded shell, so the other window cannot run `tok … "demo-an-$RUN"` unless it defines them again. The re-mint itself is sound: the guard resolves the user from `sub` (`jwt-auth.guard.ts:73`, `resolveUserId(claims.sub)`), so the same `--sub "demo-an-$RUN"` gives the same An user and account. | `demo-midterm-end-to-end.md` "Bước 1–9 · Luồng chính" (`tok()` and `RUN=` are defined in the recorded shell only); recording script §2 row I: "tạm dừng ghi hoặc người gõ làm trong cửa sổ khác" | Remove the "cửa sổ khác" option. Re-mint in the recorded terminal while recording is paused, for example with a leading space so `HISTCONTROL=ignorespace` keeps it out of history. |
+| 2 | should-fix | Recording script §1 decision 2 vs §2 row I and §5 `TOKEN_EXPIRED` row; `midterm-demo-video.md` checklist line 1 | The plan now pauses recording at 13:00, and the `TOKEN_EXPIRED` incident row says "dừng ghi … ghi tiếp". This contradicts decision 2 ("Một lần quay liền, không dựng phim; cắt ghép làm mất giá trị bằng chứng"). It also contradicts the post-recording checkbox "một lần quay liền". A faithful recording cannot tick that box, so the box could only be ticked falsely. | Recording script lines 12, 29, 61; `midterm-demo-video.md` checklist line 1 | Choose one rule. Option (a): allow exactly one planned pause before step 8, and change decision 2 and the checkbox to "một lần quay, chỉ dừng có chủ đích để lấy lại token trước bước 8". Option (b): re-mint on camera, with the token assigned to a variable so it is never shown. |
+| 3 | should-fix | BACKLOG BL-390 "Đã xong"; design §6 rows 2 and 7 | Some claims have no evidence in the repo. BL-390 says "chạy thử bước 0–9 trên commit hiện tại" is done, and §6 says "script `tc140.mjs` đạt". But `docs/features/screenshots/DBS-140/` holds only `domain-review.md`: there is no `manual-test.txt`. `tc140.mjs` is in the scratchpad, not the repo. BL-390 also cites "DBS-140 §8", and the design doc has only §1–§6. | `ls docs/features/screenshots/DBS-140/` shows only `domain-review.md`; BL-390 row (BACKLOG line 88); design §5 M-140-05 | Do one of two things. Either commit `manual-test.txt` with the results of M-140-01..06 and TC-140-01..05 before stating them, or change BL-390 and §6 to "sẽ chạy ở M-140-01". Write §8, or cite §1 and §5 instead. |
+| 4 | minor | Design §3 file list | §3 lists `docs/features/README.md` as edited, but it has no DBS-140 entry and the file is not modified in git status. | `grep DBS-140 docs/features/README.md` finds nothing | Add the index line, or remove it from §3. |
+| 5 | minor | `midterm-demo-video.md` checklist line 1 | "theo [kịch bản]" links to `demo-midterm-end-to-end.md` (the commands) instead of `demo-midterm-recording.md` (the recording script that holds the 15–20 minute plan). | `midterm-demo-video.md` line 19 | Link to both files, or to the recording script. |
+| 6 | minor | `demo-midterm-end-to-end.md` "Quy tắc khi quay" | "lấy lại bằng đúng lệnh ở bước 1" is wrong: the `tok` and `export` lines are under "Bước 1–9 · Luồng chính", not "Bước 1". This sentence was already there in round 1, but it is now the instruction the recording script relies on. | Demo doc line 22 vs line 78 heading | Change it to: ở Bước 1–9 (anchor bước-19--luồng-chính), cùng RUN và --sub. |
+
+Checked and found clean:
+- **Round-1 findings #2, #4, #5, #6, #7, #8, #9, #10 and #11 are fixed.**
+  - Segment marks add up: 0:00 → 17:30, sum 17,5, cuts of −0,5 each.
+  - Row C links both Bước 1 and Bước 2.
+  - The 10-minute script is replaced by a pointer.
+  - `.gitignore` blocks four video extensions, and no video file is in the repo.
+  - `check-doc-links` reports 0 broken links across 447 files.
+- **Round-1 findings #1 and #3 are fixed in substance.** For #1, row 1 above covers the one remaining gap.
+- **The `action=transfer` recovery of `C` exists** in the demo doc under "Quy tắc khi quay".
+- **`TOKEN_EXPIRED` exists** in `error-code.enum.ts`.
+- **BACKLOG rows are consistent.** BL-380, BL-383 and BL-390 each have an owner and a closing condition. BL-351 and BL-228 are linked to recording script §4.4.
+- **No DoD item is implied as met.** DoD 1–3 are marked "chưa đạt" in the design §1 and §4, in BL-390 and in the deliverables README.
+
+Verdict: REVISE
