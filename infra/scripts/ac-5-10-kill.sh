@@ -225,12 +225,19 @@ phase_recover() {
   for i in $(seq 1 120); do [ "$(health_code)" = "200" ] && break; sleep 2; done
   [ "$(health_code)" = "200" ] || die "/health/ready không 200 sau 4 phút"
   now="$(date -u +%s)"; elapsed=$(( now - t0 ))
-  say "/health/ready 200 sau ${elapsed} s kể từ stop-task"
+  say "/health/ready 200 (đo từ stop-task: ${elapsed} s; nếu pha kill vừa chạy xong thì task mới đã lên từ trước, dùng mốc ECS ngay dưới)"
   st ready_seconds "$elapsed"
   local new_task
   new_task="$(aws ecs list-tasks --cluster "$CLUSTER" --service-name api --desired-status RUNNING --query 'taskArns[0]' --output text)"
-  aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$new_task" --query 'tasks[0].{lastStatus:lastStatus,createdAt:createdAt,startedAt:startedAt}' --output json |
-    sed -E 's/[0-9]{12}/<ACCOUNT_ID>/g'
+  aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$new_task" --query 'tasks[0].{lastStatus:lastStatus,createdAt:createdAt,startedAt:startedAt}' --output json >"$STATE_DIR/new-task.json"
+  python3 - "$STATE_DIR/new-task.json" "$t0" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); t0 = float(sys.argv[2])
+print("task mới (%s): createdAt +%.1f s, startedAt (RUNNING) +%.1f s kể từ stop-task" % (d["lastStatus"], float(d["createdAt"]) - t0, float(d["startedAt"]) - t0))
+PY
+  say "sự kiện ECS gần nhất (gỡ target, task mới, đăng ký target, steady state):"
+  aws ecs describe-services --cluster "$CLUSTER" --services api --query 'services[0].events[:8].[createdAt,message]' --output json |
+    jq -r '.[] | "\(.[0]|floor|todate) \(.[1])"' | cut -c1-160 | sed -E 's/[0-9]{12}/<ACCOUNT_ID>/g'
   say "T7: gửi lại K lần 1"
   local c2 c3 code2 code3
   code2="$(post_transfer "$STATE_DIR/retry1.hdr" "$STATE_DIR/retry1.body")"
