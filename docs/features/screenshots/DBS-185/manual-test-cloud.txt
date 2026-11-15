@@ -1,0 +1,45 @@
+# Lần chạy cloud 1 (KHÔNG HỢP LỆ, giữ nguyên văn): cơ chế giữ khóa dòng
+# Lệnh: ac-5-10-kill.sh prepare, baseline, kill (commit 0233e19). Kết quả: ECS gỡ task khỏi ALB sau ~42 s và SIGTERM sau ~74 s; lock_timeout tối đa 30 s nổ trước (503 cho client, exit 0).
+
+=== prepare
+2026-11-15T01:46:40.696Z đã đăng ký revision tạm dbs-api:13 (gốc dbs-api:12)
+2026-11-15T01:49:49.645Z deregistration_delay = 0
+2026-11-15T01:49:50.113Z api chạy revision tạm, /health/ready 200
+
+=== baseline
+2026-11-15T01:50:06.311Z T0: probe và invariants trước khi kill
+2026-11-15T01:51:05.616Z probe task bc6bdbda18de412dbee028ca712ff074 exitCode=0
+{"t":"2026-11-15T01:50:34.649Z","event":"probe","balances":[{"id":"12d5954b-878d-40f7-9198-c18f4f1b0543","balance":"5500000"},{"id":"dd649854-f08b-4be3-910a-70f75c14f7b3","balance":"48000000"}],"transfers":1,"entries":[{"direction":"CREDIT","n":3,"amount":"55500000"},{"direction":"DEBIT","n":1,"amount":"2000000"}],"reconciliation":[{"id":"2","started_at":"2026-11-15T01:49:38.572Z","finished_at":"2026-11-15T01:49:38.575Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"},{"id":"1","started_at":"2026-11-15T01:44:38.556Z","finished_at":"2026-11-15T01:44:38.563Z","status":"OK","mismatched_accounts":0,"total_debit":"0","total_credit":"0","total_balance":"0"}]}
+2026-11-15T01:52:13.321Z invariants task c118002ee51a4770af3b2c84a9c6a274 exitCode=0 (0 sạch, 1 vi phạm, 2 không nhận là sạch)
+{"status":"PASS","totals":{"debit":"87500000","credit":"87500000","balance":"0"},"violations":[]}
+
+=== kill
+2026-11-15T01:52:27.144Z T1: chạy task giữ khóa 60s trên tài khoản nguồn; task api hiện tại a8294253a31849488906ba5c6481fd3a; K=feb14e80-399c-4e11-8e54-ca412d7d6c6e
+2026-11-15T01:52:54.779Z LOCKED lúc 2026-11-15T01:52:48.111Z (đồng hồ container)
+2026-11-15T01:52:54.787Z T2: gửi K (chạy nền), tuổi LOCKED 6 s
+2026-11-15T01:53:00.424Z T3: stop-task lúc 2026-11-15T01:52:59.790Z (K gửi lúc 2026-11-15T01:52:54.785Z)
+2026-11-15T01:53:25.233Z client lần đầu: http=503, có X-Correlation-Id=yes, thân={"type":"about:blank","title":"Service Unavailable","status":503,"detail":"Service temporarily unavailable — please re
+{
+  "stoppingAt": 1794707580.592,
+  "executionStoppedAt": 1794707656.931,
+  "stoppedAt": 1794707679.772,
+  "stopCode": "UserInitiated",
+  "stoppedReason": "DBS-185 AC-5.10: dung task giua transaction",
+  "exitCodes": [
+    {
+      "name": "api",
+      "exitCode": 0
+    }
+  ]
+}
+2026-11-15T01:54:42.153Z T4: chờ task giữ nhả khóa (RELEASED)
+2026-11-15T01:54:51.877Z task giữ exitCode=0; 30 mẫu; mẫu có waiter:
+{"t":"2026-11-15T01:52:56.141Z","event":"sample","waiters":[{"pid":1972,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock"}]}
+{"t":"2026-11-15T01:52:58.145Z","event":"sample","waiters":[{"pid":1972,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock"}]}
+{"t":"2026-11-15T01:53:00.158Z","event":"sample","waiters":[{"pid":1972,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock"}]}
+2026-11-15T01:54:51.885Z mẫu cuối trước RELEASED: {"t":"2026-11-15T01:53:46.246Z","event":"sample","waiters":[]}
+2026-11-15T01:54:51.927Z đánh giá lần chạy: {"waiterPid": 1972, "locks": "accounts:RowShareLock,idempotency_keys:RowExclusiveLock", "lockedAt": "2026-11-15T01:52:48.111Z", "S0": "2026-11-15T01:52:54.139Z", "W1": "2026-11-15T01:52:56.141Z", "executionStoppedAt": 1794707656.931, "killAfterS0Seconds": 82.792, "exitCode": 0, "valid": false, "reasons": ["KILL_TOO_LATE", "EXIT_NOT_137", "CLIENT_CODE", "CLIENT_HAS_CORRELATION"], "clientCode": "503"}
+2026-11-15T01:54:51.932Z LẦN CHẠY KHÔNG HỢP LỆ: ghi nguyên văn, chạy lại pha kill với K mới
+
+=== tra cứu sau đó (sự kiện service ECS, mốc thời gian task)
+stop-task 01:52:59.8; ECS: 'deregistered 1 targets / begun draining' 01:53:42; executionStoppedAt 01:54:16 (exit 0); request 503 trả về 01:53:25 sau 30133 ms (55P03 lock_timeout)
