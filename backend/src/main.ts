@@ -21,6 +21,15 @@ import { SafeLogger } from './common/logging/safe-logger';
 import { appConfig } from './config/app.config';
 import { ConfigValidationError } from './config/validation.schema';
 
+/**
+ * After the shutdown hooks have run, end the process with `process.exit(0)` (BL-384). Without this
+ * Nest sends the signal to its own process again and relies on the default action to end it, but
+ * in a container Node is PID 1 and the kernel ignores a signal PID 1 has no handler for. The
+ * worker's keep-alive timer below then holds the event loop open until the platform sends SIGKILL
+ * (exit 137, 60 s later). Every hook has finished by the time Nest calls `process.exit`.
+ */
+const SHUTDOWN_OPTIONS = { useProcessExit: true };
+
 async function bootstrap(): Promise<void> {
   // A failing log call must never change what the app does, so every Nest log goes through
   // SafeLogger.
@@ -41,7 +50,7 @@ async function bootstrap(): Promise<void> {
 
     if (!runsHttp(role)) {
       context = await NestFactory.createApplicationContext(AppModule, options);
-      context.enableShutdownHooks();
+      context.enableShutdownHooks([], SHUTDOWN_OPTIONS);
       setInterval(() => undefined, 60_000);
       logger.log('Worker started — no HTTP listener', 'Bootstrap');
       return;
@@ -50,7 +59,7 @@ async function bootstrap(): Promise<void> {
     const app = await NestFactory.create<NestExpressApplication>(AppModule, options);
     context = app;
     const config: ConfigType<typeof appConfig> = app.get(appConfig.KEY);
-    app.enableShutdownHooks();
+    app.enableShutdownHooks([], SHUTDOWN_OPTIONS);
     configureHttpApp(
       app,
       config,
