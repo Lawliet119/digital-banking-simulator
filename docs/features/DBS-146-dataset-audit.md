@@ -260,6 +260,8 @@ Baseline trước task 70/70; nay 83/83. Task không đổi backend nên không 
 | M-146-07 | Bốn suite cũ + suite audit: 83/83; `check-doc-links.mjs`: 462 files, 0 hỏng | đạt |
 | M-146-08 | `--hits-out` + `npm run export-features` trên tune mặc định: 101.551/101.551 dòng, provider hit R1 60, R2 2.374, R3 128, R4 128, R5 80, R6 1.077; **0 lệch** ở cả sáu luật | đạt |
 
+**SHA sau rebase:** rebase lên `c96c1de` đổi SHA commit code `5fba13d` thành `6b88332`; `git diff 5fba13d 6b88332 -- load-tests .github backend` rỗng nên test thủ công vẫn áp dụng.
+
 **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` khớp các tệp ở §7 bước 1–3, cộng các tệp lệch ghi dưới.
 
 **Ảnh chụp:** không áp dụng (CLI, không giao diện); bằng chứng là `manual-test.txt`.
