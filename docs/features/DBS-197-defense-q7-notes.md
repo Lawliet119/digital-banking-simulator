@@ -1,6 +1,6 @@
 # DBS-197 · Chuẩn bị câu bảo vệ 7 kèm bằng chứng
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev (tài liệu) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-197-defense-q7` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (sau G4) · **Vai:** Dev (tài liệu) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-197-defense-q7` · **PR:** [#203](https://github.com/Lawliet119/digital-banking-simulator/pull/203) · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
