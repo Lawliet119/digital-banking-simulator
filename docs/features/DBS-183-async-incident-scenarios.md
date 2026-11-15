@@ -1,6 +1,6 @@
 # DBS-183 · Kịch bản sự cố phần bất đồng bộ (chạy lặp lại được)
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev (docs, chạy test) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-183-async-incident-scenarios` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (sau G4) · **Vai:** Dev (docs, chạy test) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-183-async-incident-scenarios` · **PR:** [#199](https://github.com/Lawliet119/digital-banking-simulator/pull/199) · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
