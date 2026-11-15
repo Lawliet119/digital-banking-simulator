@@ -1,6 +1,6 @@
 # DBS-185 · AC-5.10 trên cloud: dừng task giữa transaction rồi gửi lại
 
-> **Status:** Plan approved (sau G3) · **Vai:** Dev (kịch bản kiểm, script vận hành, chạy cloud) · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-185-ac-5-10-kill-task-cloud` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (sau G4) · **Vai:** Dev (kịch bản kiểm, script vận hành, chạy cloud) · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-185-ac-5-10-kill-task-cloud` · **PR:** — · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
@@ -211,3 +211,65 @@ Công cụ phụ trợ bằng Python (chỉ thư viện chuẩn, chạy được
 ## 8. Kết quả
 
 - **Lệch so với kế hoạch #1 (gate phụ, quyết định trước khi sửa code, 2026-11-15 ~09:00).** *Sự việc:* lần chạy cloud 1 với cơ chế «giữ khóa dòng tài khoản» **không hợp lệ**: stop-task lúc 01:52:59, ECS ghi «deregistered 1 targets / begun draining» lúc 01:53:42 (+42 s), container thoát 0 lúc 01:54:16; `lock_timeout` 30 s (mức Joi tối đa) đã làm request tự rollback bằng 503 lúc 01:53:25. Raw: [manual-test-cloud.txt](screenshots/DBS-185/manual-test-cloud.txt). Domain review vòng 1 #1 đã đoán đúng hướng (độ trễ ALB) nhưng không đoán được độ trễ của bộ lập lịch ECS. *Phương án:* (a) giữ khóa dòng và đòi `lock_timeout` lớn hơn 30 s: không thể, Joi chặn ở 30 000; (b) trigger `pg_sleep` trên `ledger_entries`: giữ được tới `statement_timeout` (≤ 120 s), DDL nhỏ và tạm; (c) `ECS Exec`: phải sửa Terraform. *Chọn (b)* vì thay đổi ít nhất, không đổi ADR, hợp đồng hay luật tiền, và cho bằng chứng mạnh hơn (transaction đã ghi `idempotency_keys` và `transfers`). *Hệ quả:* script `ac-5-10-db.js` đổi chế độ (`slow-on`, `slow-off`, `watch`, `probe`), `evaluate` đổi điều kiện, tài liệu §1–§7 viết lại, vòng domain review 4 cho phần đổi, diễn tập local chạy lại.
+
+- **Lệnh kiểm tra** (chạy lúc bàn giao; task không đổi code `backend/` nên bốn lệnh backend không chạy, xem «Phạm vi»): `python infra/scripts/tests/test_ac_5_10.py` → `Ran 36 tests … OK` (Windows và trong container Linux `dbs-awscli`, giống job `script-tests` của CI); `check-doc-links.mjs` → xem dòng «G4» cuối file; `grep -ciE "eyJ|arn:aws|[0-9]{12}|rds\.amazonaws|bearer "` trên `manual-test.txt` và `manual-test-cloud.txt` → 0.
+- **Đối chiếu test case:**
+
+| ID | Kiểm bằng | Đạt? |
+|---|---|---|
+| TC-185-01 | M-185-03 (local, `manual-test.txt`): `watch` thấy backend giữ `idempotency_keys` và `ledger_entries` trong 4 mẫu (≈ 8 s), `slow-off` chờ 5 s, `pg_trigger` và `pg_proc` không còn `dbs185_slow` | đạt |
+| TC-185-02 | M-185-02, M-185-04..07: `probe` khớp truy vấn tay `counts()` ở mọi mốc; `inflightLocks` = 0 sau kill, không đếm chính phiên probe | đạt |
+| TC-185-03 | `test_ac_5_10.py` (`DbScriptStaticTest`, `OverridesTest`, `KillScriptTest`); script nhúng 5 772 byte, `--overrides` 5 921 ký tự ≤ 8 192 | đạt |
+| TC-185-04 | M-185-04..06 (local): request đứt (`curl: (56)`), `keyRows` = [], `inflightLocks` 0, số liệu bằng T0; gửi lại 201 hai lần cùng `transferId`; 1 giao dịch, 2 dòng sổ; invariants PASS | đạt |
+| TC-185-05 | M-185-07 (local): gửi lại ngay khi trigger còn bật: 201 sau 33 s (chờ bản mồ côi rồi ngủ trong trigger), +1 giao dịch, PASS | đạt |
+| TC-185-06 | `test_ac_5_10.py` `TaskdefTest` (6 test) | đạt |
+| TC-185-07 | `test_ac_5_10.py` `EvaluateTest` (16 test, gồm backend lạ, ba khóa, thoát 0/137/143, dừng sau khi giao dịch hết) | đạt |
+| TC-185-08 | cloud lần 2: bằng chứng ở Demo 3 E và `manual-test-cloud.txt`; hợp lệ theo tiêu chí đã sửa (lệch #2) | đạt |
+| TC-185-09 | `reconciliation_runs` số 10 `OK`; `invariants.js` exit 0 (cả trước và sau) | đạt |
+| TC-185-10 | log, `C1`, `C2`, `C3`, thời gian task mới lên: có. Video: chưa | **một phần** (BL-380) |
+| TC-185-11 | quy trình (PR, CI xanh, Dev review) | làm ở PR |
+| TC-185-12 | `check-doc-links.mjs`; grep bằng chứng = 0 | đạt |
+
+- **Test thủ công** (raw: [local](screenshots/DBS-185/manual-test.txt) trên commit `66830df`, [cloud](screenshots/DBS-185/manual-test-cloud.txt) trên `273e26f`). Local chạy trên `66830df`; các commit sau chỉ đổi `ac-5-10-kill.sh` (không dùng ở local), cách `evaluate` kết luận (có test) và test.
+
+| Bước | Kết quả |
+|---|---|
+| M-185-01 | đạt: 35 test (lúc chạy local), 0 lỗi; sau đó thêm test, nay 36 |
+| M-185-02 | đạt: hai khách, nạp 1.000.000, T0 `probe` (transfers 0, entries 1, số dư 0 / 1.000.000), `check:invariants:dist` PASS |
+| M-185-03 | đạt: xem TC-185-01 |
+| M-185-04 | đạt: `slow-on` (20 s), `watch` thấy backend `pid` 69 giữ năm khóa, `taskkill /F /T` api; client `curl: (56) Connection was reset` |
+| M-185-05 | đạt: `slow-off` xong sau 14 s (chờ mồ côi), mẫu cuối không còn backend, `keyRows` [], `inflightLocks` 0, `triggerPresent` 0, số liệu bằng T0 |
+| M-185-06 | đạt: gửi lại 201 `transferId` `a675f71c-…` hai lần (replay), transfers 1, entries 3, số dư 100.000 / 900.000, invariants PASS |
+| M-185-07 | đạt: gửi lại ngay, 201 sau 33 s, +1 giao dịch (transfers 2), `slow-off`, PASS |
+| M-185-08 | đạt: `terraform apply` 57 tài nguyên, `db-roles.sh`, `migrate.sh`, bật api và worker, `seed-cognito.sh` (6 tài khoản), `seed-cloud.sh`; `/health/ready` 200 (≈ 4 phút 25 giây không kể `apply`) |
+| M-185-09 | đạt: `prepare` (revision `dbs-api:14` từ `:12`, `deregistration_delay` 0), `baseline`: T0 và `invariants.js` PASS (87.500.000) |
+| M-185-10 | đạt sau sửa tiêu chí: lần 2 `kill`: backend `pid` 3174 giữa transaction 02:19:09 → 02:21:03; `stop-task` 02:19:12.7; client 502 không `X-Correlation-Id`; container thoát 0 lúc +69 s (`executionStoppedAt` = `S0` + 74,4 s < `S0` + 105 s); `slow-off` xong, mẫu cuối không còn backend. Script in «KHÔNG HỢP LỆ» vì tiêu chí cũ đòi exit 137; `evaluate` mới chạy lại trên tệp đã lưu: `valid: true` |
+| M-185-11 | đạt: T5 `keyRows` [], `inflightLocks` 0, giao dịch 1, dòng sổ (3 CREDIT, 1 DEBIT), số dư 48.000.000 / 5.500.000 bằng T0; gửi lại 201 `3d4c3901-…` (`C2` `13cdd8b9-…`), lần hai 201 cùng `transferId` (`C3` `02b3cbb0-…`); sau đó giao dịch 2, DEBIT 2, CREDIT 4, số dư 47.900.000 / 5.600.000 |
+| M-185-12 | đạt: đối soát số 10 (02:29:38) `OK`, 0 lệch, nợ = có = 87.600.000, tổng số dư 0; `invariants.js` PASS; audit `C2` có `transfer` và `notification.sent`; log `C2` 201 (163 ms); audit `C1` và `C3`: 0 dòng; log task cũ: `Unhandled exception` mang `C1` lúc 02:20:10 |
+| M-185-13 | đạt: `cleanup` (service về `dbs-api:12`, `deregistration_delay` 30, deregister `:13` và `:14`), không tạo khách Cognito thêm; `terraform destroy` 57 tài nguyên 6 phút 55 giây, state rỗng, `verify-clean.sh` thoát 0 (13 loại sạch) |
+
+- **Phát hiện khi chạy (đã đi vào BL):** (1) ECS `stop-task` mất ≈ 70 s mới SIGTERM trên service có ALB và ≈ 137 s tới khi service ổn định lại (BL-382); (2) khi SIGTERM tới lúc request đang giữa transaction, ứng dụng không chờ: TypeORM thả query runner, request lỗi `Unhandled exception`, container thoát 0 (BL-381); (3) `invariants.js` chạy được trên RDS dev (đóng phần còn mở của BL-128: README §9 đã sửa); (4) job `ReconciliationService` chạy đều mỗi 5 phút (02:09, 02:14, … 02:29:38) và đúng; (5) `SELECT FOR UPDATE` bị PostgreSQL từ chối trong transaction chỉ-đọc.
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` (xem PR) có: feature doc, 5 file bằng chứng/domain review trong `screenshots/DBS-185/`, `infra/scripts/ac-5-10-{db.js,tools.py,kill.sh}`, `infra/scripts/tests/test_ac_5_10.py`, Demo 3, ADR-05, docs/03 §17, `backend/README.md` §9 (chỉ sửa chữ về BL-128), `docs/features/README.md`, `docs/BACKLOG.md`. Không có file trong `backend/src`, `backend/test` hay `infra/terraform`. Đúng với §7 bước 1–6 và hàng 3b.
+- **Ảnh chụp:** không áp dụng (task vận hành, bằng chứng là output thô; video chưa có: BL-380).
+- **Lệch so với kế hoạch (quyết định agent tự duyệt):**
+  1. **Cơ chế giữ transaction** (gate phụ): ghi ở đầu mục này (đoạn «Lệch so với kế hoạch #1»): từ «giữ khóa dòng» sang trigger `pg_sleep`, vì lần chạy cloud 1 không hợp lệ.
+  2. **Tiêu chí «exit 137» bỏ** (quyết định ngay sau lần chạy cloud 2, trước khi sửa `evaluate`): `executionStoppedAt` có `exitCode` 0 thay vì 137. Nguyên nhân quan sát được: ECS gỡ target lúc +25 s, ALB cắt kết nối, SIGTERM tới ≈ +58 s (log task cũ: `Unhandled exception` mang `C1` lúc 02:20:10.5), ứng dụng tắt êm trong ≈ 11 s, không cần SIGKILL; review vòng 2 #5 đã dự đoán «không thể exit 143 trong 2 s vì `pg-pool.end()` chờ» là sai (TypeORM thả query runner trước khi `end()`). *Phương án:* (a) chạy lại tới khi ra 137: không có cách ép trong ECS nếu app tắt êm; (b) giữ tiêu chí và báo «chưa đạt»: sai về thực chất vì giao dịch vẫn bị ngắt giữa chừng và không commit; (c) thay bằng tiêu chí trực tiếp: **vẫn còn mẫu giữa transaction sau lúc task dừng** (`STOPPED_AFTER_TX_END`), chấp nhận mọi exit code. *Chọn (c).* Rủi ro «đổi tiêu chí sau khi thấy kết quả» được giảm bằng: tiêu chí mới kiểm đúng điều AC-5.10 cần (giao dịch mở khi task chết), có test ca không hợp lệ, và `evaluate` mới được chạy lại trên **chính tệp đã lưu** (không chạy lại cloud); kết luận trong Demo 3 và đây ghi rõ «dừng bằng `stop-task`, không phải SIGKILL».
+  3. **`recover` in mốc ECS** được sửa trong lúc pha `verify` đang chạy (script bash đọc từng đoạn nên hai dòng lỗi cú pháp ở cuối log của `verify`; pha đã xong). Con số 352 s trong log `recover` do đo từ `stop-task` tới lúc chạy pha, không phải thời gian task lên; thời gian đúng lấy từ sự kiện ECS (lệnh và kết quả ở `manual-test-cloud.txt`).
+  4. **Local chạy trên `66830df`**, không chạy lại sau các commit sau (xem trên).
+  5. **Dùng khách seed** (`customer1` → `customer3`) thay vì khách đăng ký mới: không tạo thêm khách Cognito nên không có gì để xóa.
+- **Bàn giao cho vai khác:** **BL-380** (Dev quay video, DBS-140): quay một lần chạy liền mạch và bấm giờ. **BL-381** (Dev api): drain request đang chạy khi SIGTERM. **BL-382** (#5 Platform & Ops): ≈ 2 phút mất dịch vụ khi dừng task với `desired_count` 1, đưa vào runbook rollback và RTO. BL-128 phần chạy trên RDS đã đạt (không có dòng backlog để xóa: BL-128 không còn trong `docs/BACKLOG.md`).
+
+## 9. Tài liệu đã cập nhật
+
+- `docs/demos/demo-3-failure-recovery.md` (phần E mới, bảng, trạng thái), `docs/adr/0005-idempotency-in-postgres.md` (mục «Cách kiểm chứng»), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §17 (liên kết), `backend/README.md` §9 (đã chạy `invariants.js` trên RDS dev), `docs/features/README.md` (hàng DBS-185).
+- `docs/BACKLOG.md`: thêm BL-380, BL-381, BL-382. Không xóa dòng nào.
+
+## Checklist G4
+
+- [x] 12/12 test case đạt đủ độ sâu trừ TC-185-10 «một phần» (video: BL-380) và TC-185-11 (quy trình, làm ở PR); 0 đơn giản hóa
+- [x] Test thủ công: local trên `66830df` (SHA ở dòng đầu `manual-test.txt`, các commit sau chỉ đổi phần không chạy ở local), cloud trên `273e26f`; mọi bước M-185-01..13 đã chạy; không có bước «chưa chạy» ngoài video
+- [x] Ảnh chụp: không áp dụng; `manual-test*.txt` không có token, `Authorization`, id tài khoản AWS hay ARN (`grep -ciE "eyJ|arn:aws|[0-9]{12}|rds\.amazonaws|bearer "` = 0)
+- [x] `git diff --stat origin/main...HEAD` khớp §7; mỗi lệch có quyết định ở trên
+- [x] Baseline (task vận hành, không đổi `backend/`): `test_ac_5_10.py` 36 test OK, `check-doc-links.mjs` sạch
+- [x] Mọi doc có fact bị đổi đã sửa; trạng thái doc Implemented
+- [x] Bàn giao và DoD chưa đạt (video) có BL-380..382 trong `docs/BACKLOG.md`

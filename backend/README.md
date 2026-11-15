@@ -289,7 +289,7 @@ aws ecs describe-tasks --cluster $CLUSTER --tasks "$TASK" --query 'tasks[0].cont
 aws logs get-log-events --log-group-name /dbs/dev/api --log-stream-name "migrate/migrate/${TASK##*/}" --query 'events[].message' --output text
 ```
 
-`exitCode` là thẩm quyền cuối cùng như ở bảng trên. Task nối bằng role `dbs_migrator` (BL-103, code xong, chưa chạy trên AWS; trước đó là master) và CLI chỉ chạy một `SELECT` trong transaction `READ ONLY`. Revision `dbs-migrate` mang image của lần deploy gần nhất (`migrate.sh` cập nhật mỗi lần deploy); muốn chạy bản CLI mới hơn thì deploy trước. **Một lần chạy thật trên RDS dev chưa làm** (phần này của BL-128 còn mở).
+`exitCode` là thẩm quyền cuối cùng như ở bảng trên. Task nối bằng role `dbs_migrator` (BL-103; đã chạy trên AWS) và CLI chỉ chạy một `SELECT` trong transaction `READ ONLY`. Revision `dbs-migrate` mang image của lần deploy gần nhất (`migrate.sh` cập nhật mỗi lần deploy); muốn chạy bản CLI mới hơn thì deploy trước. Đã chạy thật trên RDS dev ngày 2026-11-15 (ba lần, trước và sau một lần dừng task giữa transaction): thoát 0, `PASS`, `violations: []` ([DBS-185](../docs/features/DBS-185-ac-5-10-kill-task-cloud.md), [Demo 3 phần E](../docs/demos/demo-3-failure-recovery.md#e-dừng-task-api-giữa-lệnh-chuyển-tiền-ac-510-dbs-185)).
 
 Ví dụ từ file test trong `test/db/`, với QueryRunner đã kết nối:
 

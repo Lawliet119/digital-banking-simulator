@@ -1,28 +1,32 @@
-# Lần chạy cloud 1 (KHÔNG HỢP LỆ, giữ nguyên văn): cơ chế giữ khóa dòng
-# Lệnh: ac-5-10-kill.sh prepare, baseline, kill (commit 0233e19). Kết quả: ECS gỡ task khỏi ALB sau ~42 s và SIGTERM sau ~74 s; lock_timeout tối đa 30 s nổ trước (503 cho client, exit 0).
+273e26fa2e51f20cc36292a530211ccb214ba4d7
+# Raw phiên cloud AC-5.10 (DBS-185), 2026-11-15. Id tài khoản AWS thay bằng <ACCOUNT_ID>; không có token. Dòng 1: SHA commit cuối đổi script.
+# Cấu trúc: (1) lần chạy 1 cơ chế giữ khóa dòng (KHÔNG HỢP LỆ), (2) lần chạy 2 cơ chế trigger pg_sleep (HỢP LỆ theo tiêu chí đã sửa), (3) dọn và xóa phiên.
 
-=== prepare
-2026-11-15T01:46:40.696Z đã đăng ký revision tạm dbs-api:13 (gốc dbs-api:12)
-2026-11-15T01:49:49.645Z deregistration_delay = 0
-2026-11-15T01:49:50.113Z api chạy revision tạm, /health/ready 200
+################ (1) LẦN CHẠY 1: giữ khóa dòng tài khoản (commit 0233e19), KHÔNG HỢP LỆ
 
-=== baseline
-2026-11-15T01:50:06.311Z T0: probe và invariants trước khi kill
-2026-11-15T01:51:05.616Z probe task bc6bdbda18de412dbee028ca712ff074 exitCode=0
-{"t":"2026-11-15T01:50:34.649Z","event":"probe","balances":[{"id":"12d5954b-878d-40f7-9198-c18f4f1b0543","balance":"5500000"},{"id":"dd649854-f08b-4be3-910a-70f75c14f7b3","balance":"48000000"}],"transfers":1,"entries":[{"direction":"CREDIT","n":3,"amount":"55500000"},{"direction":"DEBIT","n":1,"amount":"2000000"}],"reconciliation":[{"id":"2","started_at":"2026-11-15T01:49:38.572Z","finished_at":"2026-11-15T01:49:38.575Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"},{"id":"1","started_at":"2026-11-15T01:44:38.556Z","finished_at":"2026-11-15T01:44:38.563Z","status":"OK","mismatched_accounts":0,"total_debit":"0","total_credit":"0","total_balance":"0"}]}
-2026-11-15T01:52:13.321Z invariants task c118002ee51a4770af3b2c84a9c6a274 exitCode=0 (0 sạch, 1 vi phạm, 2 không nhận là sạch)
+################ (2) LẦN CHẠY 2: trigger pg_sleep(115) (commit 13bce1a trở đi)
+=== prepare + baseline (ac-5-10-kill.sh prepare; baseline). Invariants lần đầu trên RDS dev: PASS
+2026-11-15T02:12:19.398Z đã đăng ký revision tạm dbs-api:14 (gốc dbs-api:12)
+2026-11-15T02:15:11.010Z deregistration_delay = 0
+2026-11-15T02:15:11.545Z api chạy revision tạm, /health/ready 200
+2026-11-15T02:15:12.078Z T0: probe và invariants trước khi kill
+2026-11-15T02:16:17.552Z probe task 0e774b751d384330a4532229ed733778 exitCode=0
+{"t":"2026-11-15T02:15:41.064Z","event":"probe","balances":[{"id":"12d5954b-878d-40f7-9198-c18f4f1b0543","balance":"5500000"},{"id":"dd649854-f08b-4be3-910a-70f75c14f7b3","balance":"48000000"}],"transfers":1,"entries":[{"direction":"CREDIT","n":3,"amount":"55500000"},{"direction":"DEBIT","n":1,"amount":"2000000"}],"triggerPresent":0,"reconciliation":[{"id":"7","started_at":"2026-11-15T02:14:38.681Z","finished_at":"2026-11-15T02:14:38.683Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"},{"id":"6","started_at":"2026-11-15T02:09:38.666Z","finished_at":"2026-11-15T02:09:38.673Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"},{"id":"5","started_at":"2026-11-15T02:04:38.639Z","finished_at":"2026-11-15T02:04:38.657Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"}]}
+2026-11-15T02:17:12.808Z invariants task 53b97245226443a98d77d4bd06e1fe15 exitCode=0 (0 sạch, 1 vi phạm, 2 không nhận là sạch)
 {"status":"PASS","totals":{"debit":"87500000","credit":"87500000","balance":"0"},"violations":[]}
 
-=== kill
-2026-11-15T01:52:27.144Z T1: chạy task giữ khóa 60s trên tài khoản nguồn; task api hiện tại a8294253a31849488906ba5c6481fd3a; K=feb14e80-399c-4e11-8e54-ca412d7d6c6e
-2026-11-15T01:52:54.779Z LOCKED lúc 2026-11-15T01:52:48.111Z (đồng hồ container)
-2026-11-15T01:52:54.787Z T2: gửi K (chạy nền), tuổi LOCKED 6 s
-2026-11-15T01:53:00.424Z T3: stop-task lúc 2026-11-15T01:52:59.790Z (K gửi lúc 2026-11-15T01:52:54.785Z)
-2026-11-15T01:53:25.233Z client lần đầu: http=503, có X-Correlation-Id=yes, thân={"type":"about:blank","title":"Service Unavailable","status":503,"detail":"Service temporarily unavailable — please re
+=== kill (đánh giá dòng cuối theo tiêu chí cũ: EXIT_NOT_137; tiêu chí được sửa sau lần chạy này, xem DBS-185 §8 lệch #2)
+2026-11-15T02:17:35.737Z T1: bật trigger dbs185_slow (pg_sleep 115s); task api hiện tại 639f3816db9c403d891d20a4379aff67; K=d70bea9d-d661-4b63-9136-2d3dc167e5c6
+2026-11-15T02:18:31.296Z task slowon (0b18df7b98ef485ca0ec510f3f8b1e73) exitCode=0
+{"t":"2026-11-15T02:17:58.692Z","event":"SLOW_ON","sleepSeconds":115}
+2026-11-15T02:19:07.666Z READY lúc 2026-11-15T02:18:53.169Z (đồng hồ container)
+2026-11-15T02:19:07.671Z T2: gửi K (chạy nền), tuổi READY 14 s
+2026-11-15T02:19:13.195Z T3: stop-task lúc 2026-11-15T02:19:12.673Z (K gửi lúc 2026-11-15T02:19:07.670Z)
+2026-11-15T02:19:39.129Z client lần đầu: http=502, có X-Correlation-Id=no, thân=<html> <head><title>502 Bad Gateway</title></head> <body> <center><h1>502 Bad Gateway</h1></center> </body> </html>
 {
-  "stoppingAt": 1794707580.592,
-  "executionStoppedAt": 1794707656.931,
-  "stoppedAt": 1794707679.772,
+  "stoppingAt": 1794709153.366,
+  "executionStoppedAt": 1794709221.64,
+  "stoppedAt": 1794709244.371,
   "stopCode": "UserInitiated",
   "stoppedReason": "DBS-185 AC-5.10: dung task giua transaction",
   "exitCodes": [
@@ -32,14 +36,105 @@
     }
   ]
 }
-2026-11-15T01:54:42.153Z T4: chờ task giữ nhả khóa (RELEASED)
-2026-11-15T01:54:51.877Z task giữ exitCode=0; 30 mẫu; mẫu có waiter:
-{"t":"2026-11-15T01:52:56.141Z","event":"sample","waiters":[{"pid":1972,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock"}]}
-{"t":"2026-11-15T01:52:58.145Z","event":"sample","waiters":[{"pid":1972,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock"}]}
-{"t":"2026-11-15T01:53:00.158Z","event":"sample","waiters":[{"pid":1972,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock"}]}
-2026-11-15T01:54:51.885Z mẫu cuối trước RELEASED: {"t":"2026-11-15T01:53:46.246Z","event":"sample","waiters":[]}
-2026-11-15T01:54:51.927Z đánh giá lần chạy: {"waiterPid": 1972, "locks": "accounts:RowShareLock,idempotency_keys:RowExclusiveLock", "lockedAt": "2026-11-15T01:52:48.111Z", "S0": "2026-11-15T01:52:54.139Z", "W1": "2026-11-15T01:52:56.141Z", "executionStoppedAt": 1794707656.931, "killAfterS0Seconds": 82.792, "exitCode": 0, "valid": false, "reasons": ["KILL_TOO_LATE", "EXIT_NOT_137", "CLIENT_CODE", "CLIENT_HAS_CORRELATION"], "clientCode": "503"}
-2026-11-15T01:54:51.932Z LẦN CHẠY KHÔNG HỢP LỆ: ghi nguyên văn, chạy lại pha kill với K mới
+2026-11-15T02:20:50.158Z T4: gỡ trigger (slow-off chờ tới khi backend mồ côi hết)
+2026-11-15T02:21:47.142Z task slowoff (c894fed443b6438fba2094c1d612ea52) exitCode=0
+{"t":"2026-11-15T02:21:11.479Z","event":"SLOW_OFF","triggerPresent":0}
+2026-11-15T02:21:47.801Z chờ watch kết thúc
+2026-11-15T02:22:16.315Z watch exitCode=0; 85 mẫu; mẫu có backend giữa transaction (3 mẫu đầu):
+{"t":"2026-11-15T02:19:09.216Z","event":"sample","inflight":[{"pid":3174,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock,ledger_entries:AccessShareLock,ledger_entries:RowExclusiveLock,transfers:RowExclusiveLock"}]}
+{"t":"2026-11-15T02:19:11.220Z","event":"sample","inflight":[{"pid":3174,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock,ledger_entries:AccessShareLock,ledger_entries:RowExclusiveLock,transfers:RowExclusiveLock"}]}
+{"t":"2026-11-15T02:19:13.224Z","event":"sample","inflight":[{"pid":3174,"locks":"accounts:RowShareLock,idempotency_keys:RowExclusiveLock,ledger_entries:AccessShareLock,ledger_entries:RowExclusiveLock,transfers:RowExclusiveLock"}]}
+2026-11-15T02:22:16.321Z mẫu cuối: {"t":"2026-11-15T02:21:41.484Z","event":"sample","inflight":[]}
+2026-11-15T02:22:16.374Z đánh giá lần chạy: {"inflightPid": 3174, "locks": "accounts:RowShareLock,idempotency_keys:RowExclusiveLock,ledger_entries:AccessShareLock,ledger_entries:RowExclusiveLock,transfers:RowExclusiveLock", "readyAt": "2026-11-15T02:18:53.169Z", "W1": "2026-11-15T02:19:09.216Z", "S0": "2026-11-15T02:19:07.212Z", "executionStoppedAt": 1794709221.64, "killAfterS0Seconds": 74.428, "exitCode": 0, "valid": false, "reasons": ["EXIT_NOT_137"], "clientCode": "502"}
+2026-11-15T02:22:16.380Z LẦN CHẠY KHÔNG HỢP LỆ: ghi nguyên văn, chạy lại pha kill với K mới
 
-=== tra cứu sau đó (sự kiện service ECS, mốc thời gian task)
-stop-task 01:52:59.8; ECS: 'deregistered 1 targets / begun draining' 01:53:42; executionStoppedAt 01:54:16 (exit 0); request 503 trả về 01:53:25 sau 30133 ms (55P03 lock_timeout)
+=== evaluate chạy lại trên chính các tệp đã lưu của lần chạy 2 (watch.jsonl, old-task.json) với tiêu chí đã sửa:
+{"inflightPid": 3174, "locks": "accounts:RowShareLock,idempotency_keys:RowExclusiveLock,ledger_entries:AccessShareLock,ledger_entries:RowExclusiveLock,transfers:RowExclusiveLock", "readyAt": "2026-11-15T02:18:53.169Z", "W1": "2026-11-15T02:19:09.216Z", "S0": "2026-11-15T02:19:07.212Z", "executionStoppedAt": 1794709221.64, "killAfterS0Seconds": 74.428, "lastMidTransactionSample": "2026-11-15T02:21:03.424Z", "exitCode": 0, "valid": true, "reasons": [], "clientCode": "502"}
+
+=== log của task api cũ quanh lúc dừng (lọc dòng không phải health check): C1 = mã của lần bị dừng
+2026-11-15T02:20:10.541Z metric POST /v1/transfers http_request_duration_ms=[60000]; 02:20:10.547Z level 50 'Unhandled exception' correlationId=83bf5675-f8fd-4e73-96d9-2abf580c5066 (C1) khi ứng dụng tắt êm
+
+=== recover (chạy bằng bản script chưa có phần in mốc ECS của T6; số '352 s' do đo từ stop-task tới lúc chạy pha recover, KHÔNG phải thời gian task lên: dùng mốc ECS bên dưới)
+2026-11-15T02:24:08.599Z T5: probe sau kill (K=d70bea9d-d661-4b63-9136-2d3dc167e5c6, inflight pid=3174)
+2026-11-15T02:25:03.122Z probe task c49f75a2f4d847dfa4b07559b61161a1 exitCode=0
+{"t":"2026-11-15T02:24:30.258Z","event":"probe","keyRows":[],"balances":[{"id":"12d5954b-878d-40f7-9198-c18f4f1b0543","balance":"5500000"},{"id":"dd649854-f08b-4be3-910a-70f75c14f7b3","balance":"48000000"}],"transfers":1,"entries":[{"direction":"CREDIT","n":3,"amount":"55500000"},{"direction":"DEBIT","n":1,"amount":"2000000"}],"inflightLocks":0,"triggerPresent":0,"reconciliation":[{"id":"8","started_at":"2026-11-15T02:19:38.692Z","finished_at":"2026-11-15T02:19:38.694Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"},{"id":"7","started_at":"2026-11-15T02:14:38.681Z","finished_at":"2026-11-15T02:14:38.683Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"},{"id":"6","started_at":"2026-11-15T02:09:38.666Z","finished_at":"2026-11-15T02:09:38.673Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"}]}
+2026-11-15T02:25:04.057Z T6: chờ task api mới và /health/ready 200 qua ALB
+2026-11-15T02:25:04.561Z /health/ready 200 sau 352 s kể từ stop-task
+{
+    "lastStatus": "RUNNING",
+    "createdAt": 1794709254.498,
+    "startedAt": 1794709283.541
+}
+2026-11-15T02:25:05.644Z T7: gửi lại K lần 1
+2026-11-15T02:25:06.016Z retry 1: http=201 C2=13cdd8b9-0616-4f7b-9b1b-6c8ea98cec65 thân={"transferId":"3d4c3901-24a9-448a-8a59-9ff93cafbbb4","status":"COMPLETED"}
+2026-11-15T02:25:06.020Z T8: gửi lại K lần 2 (replay)
+2026-11-15T02:25:06.248Z retry 2: http=201 C3=02b3cbb0-b486-437b-980c-9b65027794bb thân={"status":"COMPLETED","transferId":"3d4c3901-24a9-448a-8a59-9ff93cafbbb4"}
+2026-11-15T02:25:06.256Z T9: probe sau khi gửi lại
+2026-11-15T02:25:59.643Z probe task 54afaec4b4934f99952ff554bcafe635 exitCode=0
+{"t":"2026-11-15T02:25:28.557Z","event":"probe","keyRows":[{"user_id":"15727782-f1aa-43dc-bbaf-4fd5131dc7f5","response_code":201,"transfer_id":"3d4c3901-24a9-448a-8a59-9ff93cafbbb4"}],"balances":[{"id":"12d5954b-878d-40f7-9198-c18f4f1b0543","balance":"5600000"},{"id":"dd649854-f08b-4be3-910a-70f75c14f7b3","balance":"47900000"}],"transfers":2,"entries":[{"direction":"CREDIT","n":4,"amount":"55600000"},{"direction":"DEBIT","n":2,"amount":"2100000"}],"triggerPresent":0,"reconciliation":[{"id":"9","started_at":"2026-11-15T02:24:38.704Z","finished_at":"2026-11-15T02:24:38.709Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"},{"id":"8","started_at":"2026-11-15T02:19:38.692Z","finished_at":"2026-11-15T02:19:38.694Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"},{"id":"7","started_at":"2026-11-15T02:14:38.681Z","finished_at":"2026-11-15T02:14:38.683Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"}]}
+
+=== T6: thời gian task mới lên (lệnh describe-services events và describe-tasks, chạy tay sau recover)
+stop-task lúc 2026-11-15T02:19:12.673Z (epoch 1794709152.67)
+2026-11-15T02:21:30Z (service api) has reached a steady state.
+2026-11-15T02:21:22Z (service api) registered 1 targets in (target-group <arn>:targetgroup/dbs-dev-api/9e6880bb1d7f431f
+2026-11-15T02:20:54Z (service api) has started 1 tasks: (task 319f1d18f683432fb32475099632b9d2).
+2026-11-15T02:19:38Z (service api, taskSet ecs-svc/<ACCOUNT_ID>5505559) has begun draining connections on 1 tasks.
+2026-11-15T02:19:38Z (service api) deregistered 1 targets in (target-group <arn>:targetgroup/dbs-dev-api/9e6880bb1d7f43
+2026-11-15T02:15:08Z (service api) has reached a steady state.
+2026-11-15T02:15:08Z (service api) (deployment ecs-svc/<ACCOUNT_ID>5505559) deployment completed.
+{"id":"<arn>:task/dbs-dev/639f3816db9c403d891d20a4379aff67","created":1794708826.831,"started":1794708865.319,"stopping":1794709153.366,"execStopped":1794709221.64,"stopped":1794709244.371,"exit":0}
+{"id":"<arn>:task/dbs-dev/319f1d18f683432fb32475099632b9d2","created":1794709254.498,"started":1794709283.541,"stopping":null,"execStopped":null,"stopped":null,"exit":null}
+=> kể từ stop-task: gỡ target +25.3 s; container cũ thoát (executionStoppedAt) +69.0 s (exit 0); task cũ STOPPED +91.7 s; task mới created +101.8 s; RUNNING (startedAt) +130.9 s; đăng ký target +129.3 s; service steady state +137.3 s
+
+=== verify (cuối log có hai dòng lỗi cú pháp do script bị sửa trong lúc đang chạy; phase đã xong trước đó)
+2026-11-15T02:26:24.593Z T10: chờ reconciliation_runs có dòng started_at sau 2026-11-15T02:25:06Z (tối đa ~10 phút)
+2026-11-15T02:30:44.296Z đối soát sau lần gửi lại: OK mismatched=0 debit=87600000 credit=87600000 balance=0 started=2026-11-15T02:29:38.717Z
+[{"id":"10","started_at":"2026-11-15T02:29:38.717Z","finished_at":"2026-11-15T02:29:38.722Z","status":"OK","mismatched_accounts":0,"total_debit":"87600000","total_credit":"87600000","total_balance":"0"},{"id":"9","started_at":"2026-11-15T02:24:38.704Z","finished_at":"2026-11-15T02:24:38.709Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"},{"id":"8","started_at":"2026-11-15T02:19:38.692Z","finished_at":"2026-11-15T02:19:38.694Z","status":"OK","mismatched_accounts":0,"total_debit":"87500000","total_credit":"87500000","total_balance":"0"}]
+2026-11-15T02:30:44.300Z T11: invariants.js (DBS-69)
+2026-11-15T02:31:49.472Z invariants task 12577becfd5642f4bb2ad1521f559bf3 exitCode=0 (0 sạch, 1 vi phạm, 2 không nhận là sạch)
+{"status":"PASS","totals":{"debit":"87600000","credit":"87600000","balance":"0"},"violations":[]}
+2026-11-15T02:31:50.215Z invariants PASS
+2026-11-15T02:31:50.216Z T12: audit theo C2 (auditor)
+{"entries":[{"id":"37","occurredAt":"2026-11-15T02:25:06.753195Z","actorUserId":null,"actorRole":"worker","action":"notification.sent","outcome":"SUCCESS","target":{"type":"transfer","id":"3d4c3901-24a9-448a-8a59-9ff93cafbbb4"},"correlationId":"13cdd8b9-0616-4f7b-9b1b-6c8ea98cec65","metadata":{"count":2}},{"id":"36","occurredAt":"2026-11-15T02:25:06.207464Z","actorUserId":"15727782-f1aa-43dc-bbaf-4fd5131dc7f5","actorRole":"customer","action":"transfer","outcome":"SUCCESS","target":{"type":"transfer","id":"3d4c3901-24a9-448a-8a59-9ff93cafbbb4"},"correlationId":"13cdd8b9-0616-4f7b-9b1b-6c8ea98ce
+2026-11-15T02:31:50.468Z log api có C2:
+api/api/319f1d18f683432fb32475099632b9d2 {"level":30,"time":"2026-11-15T02:25:06.218Z","req":{"method":"POST"},"role":"api","correlationId":"13cdd8b9-0616-4f7b-9b1b-6c8ea98cec65","appRole":"api","res":{"statusCode":201},"responseTime":163,"message":"Request completed"}
+2026-11-15T02:31:55.025Z log của task api cũ (639f3816db9c403d891d20a4379aff67) từ lúc gửi K tới sau kill (không dòng nào nghĩa là ALB không cắt kết nối trước kill):
+{"level":30,"time":"2026-11-15T02:20:10.540Z","role":"worker","correlationId":null,"appRole":"api","_aws":{"Timestamp":<ACCOUNT_ID>5,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Route","Method"]],"Metrics":[{"Name":"http_requests_total","Unit":"Count"},{"Name":"http_5xx_total","Unit":"Count"},{"Name":"http_aborted_total","Unit":"Count"}]}]},"Route":"/health/ready","Method":"GET"
+{"level":30,"time":"2026-11-15T02:20:10.540Z","role":"worker","correlationId":null,"appRole":"api","_aws":{"Timestamp":<ACCOUNT_ID>5,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Route","Method"]],"Metrics":[{"Name":"http_request_duration_ms","Unit":"Milliseconds"}]}]},"Route":"/health/ready","Method":"GET","http_request_duration_ms":[5,5,100,100],"message":"Diagnostic event"}
+{"level":30,"time":"2026-11-15T02:20:10.541Z","role":"worker","correlationId":null,"appRole":"api","_aws":{"Timestamp":<ACCOUNT_ID>5,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Route","Method"],["Method"],[]],"Metrics":[{"Name":"http_requests_total","Unit":"Count"},{"Name":"http_5xx_total","Unit":"Count"},{"Name":"http_aborted_total","Unit":"Count"}]}]},"Route":"/v1/transfers",
+{"level":30,"time":"2026-11-15T02:20:10.541Z","role":"worker","correlationId":null,"appRole":"api","_aws":{"Timestamp":<ACCOUNT_ID>5,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Route","Method"],["Method"],[]],"Metrics":[{"Name":"http_request_duration_ms","Unit":"Milliseconds"}]}]},"Route":"/v1/transfers","Method":"POST","http_request_duration_ms":[60000],"message":"Diagnostic e
+{"level":50,"time":"2026-11-15T02:20:10.547Z","role":"api","correlationId":"83bf5675-f8fd-4e73-96d9-2abf580c5066","appRole":"api","context":"ProblemDetailsFilter","errorType":"Error","message":"Unhandled exception"}
+infra/scripts/ac-5-10-kill.sh: line 324: syntax error near unexpected token `xem'
+infra/scripts/ac-5-10-kill.sh: line 324: `  *) echo "dùng: $0 prepare|baseline|kill|recover|verify|cleanup (xem đầu file)" >&2; exit 2 ;;'
+
+=== audit theo C1 và C3
+audit C1 (83bf5675-f8fd-4e73-96d9-2abf580c5066): {"entries":[],"nextCursor":null}
+audit C3 (02b3cbb0-b486-437b-980c-9b65027794bb): {"entries":[],"nextCursor":null}
+
+=== cleanup
+2026-11-15T02:32:20.172Z service api về dbs-api:12
+2026-11-15T02:32:20.857Z deregistration_delay về 30
+INACTIVE
+2026-11-15T02:32:21.429Z đã deregister revision tạm cũ dbs-api:13
+INACTIVE
+2026-11-15T02:32:21.944Z đã deregister revision tạm dbs-api:14
+
+################ (3) terraform destroy và verify-clean
+destroy bắt đầu 2026-11-15T02:32:32Z, kết thúc 2026-11-15T02:39:27Z (6 phút 55 giây)
+Destroy complete! Resources: 57 destroyed.
+state list: 0 tài nguyên
+OK nat-gateway
+OK load-balancer
+OK rds
+OK rds-snapshot-manual
+OK elasticache
+OK ecs
+OK elastic-ip
+OK eni-available
+OK waf-regional
+OK vpc-endpoint-ec2
+OK rds-automated-backup
+OK elasticache-snapshot
+OK ebs
+KET LUAN: sạch (13 loại)
+verify-clean exit=0

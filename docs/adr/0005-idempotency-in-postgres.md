@@ -50,5 +50,5 @@ Chọn **A**:
 
 - AC-5.3, 5.4, 5.5 trên Postgres thật, chạy song song thật bằng `Promise.all` (DBS-79, DBS-97).
 - Review Focus 1: lệnh gốc rollback khi lệnh cùng key đang chờ → lệnh sau được xử lý như mới (DBS-81).
-- AC-5.10 trên cloud: dừng task giữa transaction, gửi lại cùng key → đúng một giao dịch (DBS-185).
+- AC-5.10 trên cloud: dừng task api khi transaction đang mở trên RDS, gửi lại cùng key → đúng một giao dịch, hai bút toán, đối soát 0 lệch (DBS-185, chạy 2026-11-15: [Demo 3 phần E](../demos/demo-3-failure-recovery.md#e-dừng-task-api-giữa-lệnh-chuyển-tiền-ac-510-dbs-185)).
 - Test bảo mật: dùng key của user khác không lộ response (DBS-159).
