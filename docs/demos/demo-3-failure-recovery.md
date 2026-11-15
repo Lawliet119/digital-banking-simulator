@@ -10,6 +10,8 @@ Demo bắt buộc "Failure / recovery" ([docs/03 §17](../03_HIGH_LEVEL_ARCHITEC
 | B | Worker chết rồi bật lại: mọi cờ cần có vẫn xuất hiện, không trùng | [DBS-124](../features/DBS-124-worker-down-recovery.md) | đã chạy (M-124-01..05) |
 | C | Consumer lỗi 5 lần → DLQ, consumer khác không bị chặn; đọc và redrive DLQ | [DBS-125](../features/DBS-125-dlq-isolation-runbook.md) | đã chạy (M-125-01..04) |
 | D | Redis chậm hoặc chết giữa luồng chuyển tiền: fail-open, bất biến đúng | [DBS-100](../features/DBS-100-redis-slow-transfer.md) | đã chạy (test services) |
+
+Bản chạy lặp lại được của A–C (lệnh local bằng test dịch vụ, lệnh cloud, kết quả mong đợi, cách xác nhận): [kịch bản sự cố bất đồng bộ](../runbooks/async-incident-scenarios.md) ([DBS-183](../features/DBS-183-async-incident-scenarios.md)).
 | — | Kill API giữa lệnh (AC-5.10) | DBS-185 | chưa làm |
 
 ## Chuẩn bị chung
