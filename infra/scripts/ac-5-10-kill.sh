@@ -6,14 +6,14 @@
 # Chạy trong container Linux `dbs-awscli` (aws, curl, python3, jq), từ gốc repo, theo từng pha:
 #   prepare   revision dbs-api tạm (khóa 30 s, statement 60 s, stopTimeout 2) và deregistration_delay 0
 #   baseline  T0: probe + invariants trước khi kill
-#   kill      T1-T4: giữ khóa, gửi K, stop-task 5 s sau, đánh giá «lần chạy hợp lệ»
+#   kill      T1-T4: bật trigger pg_sleep, theo dõi, gửi K, stop-task 5 s sau, gỡ trigger, đánh giá «lần chạy hợp lệ»
 #   recover   T5-T9: probe, chờ task mới, gửi lại K hai lần, probe
 #   verify    T10-T12: đối soát, invariants, audit theo C2, log
 #   cleanup   trả service về revision gốc, deregistration_delay 30, deregister revision tạm
 # Biến môi trường: API (https://<alb>), CUST_TOKEN (khách chuyển tiền), AUD_TOKEN (auditor, cho verify),
 # FROM_ACCOUNT, TO_ACCOUNT, AMOUNT (mặc định 100000), STATE_DIR (mặc định ./.ac510), CLUSTER (mặc định dbs-dev),
 # AWS_PROFILE và AWS_DEFAULT_REGION. Token KHÔNG bao giờ được in; không dùng `set -x` hay `curl -v`.
-# Task giữ khóa chặn mọi chuyển tiền của FROM_ACCOUNT trong lúc giữ: dùng tài khoản seed riêng.
+# Trigger tạm dbs185_slow làm MỌI lệnh ghi sổ cái ngủ 110 s trong lúc tồn tại: không bật khi người khác dùng phiên.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +22,8 @@ CLUSTER="${CLUSTER:-dbs-dev}"
 LOG_GROUP="/dbs/dev/api"
 AMOUNT="${AMOUNT:-100000}"
 STATE_DIR="${STATE_DIR:-./.ac510}"
-HOLD_SECONDS=60
+SLEEP_SECONDS=110
+WATCH_SECONDS=170
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$*"; }
 die() { say "LỖI: $*" >&2; exit 1; }
@@ -63,7 +64,7 @@ overrides_file() { # <tên> rồi các đối số của `tools overrides`
 run_probe() { # in dòng probe cuối cùng; biến môi trường PROBE_* → env của task
   local envs=(--env "ACCOUNT_ID=$FROM_ACCOUNT" --env "TO_ACCOUNT_ID=$TO_ACCOUNT") f id
   [ -n "$(ld K)" ] && envs+=(--env "IDEM_KEY=$(ld K)")
-  [ -n "$(ld waiter_pid)" ] && envs+=(--env "WAITER_PID=$(ld waiter_pid)")
+  [ -n "$(ld inflight_pid)" ] && envs+=(--env "INFLIGHT_PID=$(ld inflight_pid)")
   f="$(overrides_file probe --mode probe "${envs[@]}")"
   id="$(mig_start "$f")" || die "run-task probe thất bại"
   local code
@@ -122,39 +123,52 @@ phase_prepare() {
 phase_baseline() {
   need API FROM_ACCOUNT TO_ACCOUNT
   st K ""
-  st waiter_pid ""
+  st inflight_pid ""
   say "T0: probe và invariants trước khi kill"
   run_probe
   run_invariants || die "invariants không sạch trước khi kill"
 }
 
+run_db_task() { # <tên> <mode> [--env K=V ...]: chạy xong rồi in các dòng log; trả exit code của task
+  local name="$1" f id code
+  shift
+  f="$(overrides_file "$name" --mode "$@")"
+  id="$(mig_start "$f")" || die "run-task $name thất bại"
+  code="$(mig_wait "$id")"
+  sleep 8
+  say "task $name ($id) exitCode=$code"
+  mig_logs "$id" | cut -c1-300
+  [ "$code" = "0" ]
+}
+
 phase_kill() {
   need API CUST_TOKEN FROM_ACCOUNT TO_ACCOUNT
-  local k old_task hold_f hold_id locked_t line tries
+  local k old_task watch_f watch_id ready_t line tries
   k="$(cat /proc/sys/kernel/random/uuid)"
   st K "$k"
-  st waiter_pid ""
+  st inflight_pid ""
   old_task="$(aws ecs list-tasks --cluster "$CLUSTER" --service-name api --desired-status RUNNING --query 'taskArns' --output json | jq -r 'if length == 1 then .[0] else empty end')"
   [ -n "$old_task" ] || die "cần đúng một task api RUNNING"
   st old_task "$old_task"
-  say "T1: chạy task giữ khóa ${HOLD_SECONDS}s trên tài khoản nguồn; task api hiện tại ${old_task##*/}; K=$k"
-  hold_f="$(overrides_file hold --mode hold --env "ACCOUNT_ID=$FROM_ACCOUNT" --env "HOLD_SECONDS=$HOLD_SECONDS")"
-  hold_id="$(mig_start "$hold_f")" || die "run-task hold thất bại"
-  st hold_id "$hold_id"
-  locked_t=""
+  say "T1: bật trigger dbs185_slow (pg_sleep ${SLEEP_SECONDS}s); task api hiện tại ${old_task##*/}; K=$k"
+  run_db_task slowon slow-on --env "SLEEP_SECONDS=$SLEEP_SECONDS" || die "slow-on thất bại"
+  watch_f="$(overrides_file watch --mode watch --env "WATCH_SECONDS=$WATCH_SECONDS")"
+  watch_id="$(mig_start "$watch_f")" || die "run-task watch thất bại"
+  st watch_id "$watch_id"
+  ready_t=""
   for tries in $(seq 1 60); do
-    line="$(mig_logs "$hold_id" | grep '"event":"LOCKED"' | head -1)"
-    if [ -n "$line" ]; then locked_t="$(printf '%s' "$line" | jq -r .t)"; break; fi
+    line="$(mig_logs "$watch_id" | grep '"event":"READY"' | head -1)"
+    if [ -n "$line" ]; then ready_t="$(printf '%s' "$line" | jq -r .t)"; break; fi
     sleep 5
   done
-  [ -n "$locked_t" ] || die "không thấy LOCKED sau 5 phút"
-  say "LOCKED lúc $locked_t (đồng hồ container)"
+  [ -n "$ready_t" ] || { run_db_task slowoff slow-off || true; die "không thấy READY sau 5 phút"; }
+  say "READY lúc $ready_t (đồng hồ container)"
   # rào chắn thô (đồng hồ máy chạy lệnh so với đồng hồ container): chỉ để từ chối gửi muộn; kết luận do evaluate
-  local age=$(( $(date -u +%s) - $(epoch "$locked_t") ))
-  [ "$age" -le 15 ] || die "LOCKED đã $age s trước: quá hạn gửi K (≤ 15 s); dừng, chạy lại pha kill"
+  local age=$(( $(date -u +%s) - $(epoch "$ready_t") ))
+  if [ "$age" -gt 15 ]; then run_db_task slowoff slow-off || true; die "READY đã $age s trước: quá hạn gửi K (≤ 15 s); đã gỡ trigger, chạy lại pha kill"; fi
   local t_send
   t_send="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
-  say "T2: gửi K (chạy nền), tuổi LOCKED $age s"
+  say "T2: gửi K (chạy nền), tuổi READY $age s"
   (post_transfer "$STATE_DIR/first.hdr" "$STATE_DIR/first.body" >"$STATE_DIR/first.code" 2>/dev/null) &
   local curl_pid=$!
   sleep 5
@@ -175,27 +189,29 @@ phase_kill() {
   aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$old_task" --query 'tasks[0]' --output json >"$STATE_DIR/old-task.json"
   jq '{stoppingAt, executionStoppedAt, stoppedAt, stopCode, stoppedReason, exitCodes: [.containers[]|{name,exitCode}]}' "$STATE_DIR/old-task.json" |
     sed -E 's/[0-9]{12}/<ACCOUNT_ID>/g'
-  say "T4: chờ task giữ nhả khóa (RELEASED)"
-  local hc
-  hc="$(mig_wait "$hold_id")"
+  say "T4: gỡ trigger (slow-off chờ tới khi backend mồ côi hết)"
+  run_db_task slowoff slow-off || say "CẢNH BÁO: slow-off thoát khác 0, kiểm trigger bằng probe"
+  say "chờ watch kết thúc"
+  local wc
+  wc="$(mig_wait "$watch_id")"
   sleep 8
-  mig_logs "$hold_id" >"$STATE_DIR/hold.jsonl"
-  say "task giữ exitCode=$hc; $(grep -c '"event":"sample"' "$STATE_DIR/hold.jsonl") mẫu; mẫu có waiter:"
-  grep '"event":"sample"' "$STATE_DIR/hold.jsonl" | grep -v '"waiters":\[\]' | head -3 | cut -c1-300
-  say "mẫu cuối trước RELEASED: $(grep '"event":"sample"' "$STATE_DIR/hold.jsonl" | tail -1 | cut -c1-200)"
-  local verdict
-  verdict="$("${TOOLS[@]}" evaluate --hold-log "$STATE_DIR/hold.jsonl" --task-json "$STATE_DIR/old-task.json" \
-    --container api --client-code "$code" --client-has-correlation "$corr")"
-  local rc=$?
+  mig_logs "$watch_id" >"$STATE_DIR/watch.jsonl"
+  say "watch exitCode=$wc; $(grep -c '"event":"sample"' "$STATE_DIR/watch.jsonl") mẫu; mẫu có backend giữa transaction (3 mẫu đầu):"
+  grep '"event":"sample"' "$STATE_DIR/watch.jsonl" | grep -v '"inflight":\[\]' | head -3 | cut -c1-400
+  say "mẫu cuối: $(grep '"event":"sample"' "$STATE_DIR/watch.jsonl" | tail -1 | cut -c1-200)"
+  local verdict rc
+  verdict="$("${TOOLS[@]}" evaluate --watch-log "$STATE_DIR/watch.jsonl" --task-json "$STATE_DIR/old-task.json" \
+    --container api --client-code "$code" --client-has-correlation "$corr" --sleep-seconds "$SLEEP_SECONDS")"
+  rc=$?
   say "đánh giá lần chạy: $verdict"
-  st waiter_pid "$(printf '%s' "$verdict" | jq -r '.waiterPid // empty')"
+  st inflight_pid "$(printf '%s' "$verdict" | jq -r '.inflightPid // empty')"
   if [ "$rc" -eq 0 ]; then say "LẦN CHẠY HỢP LỆ"; else say "LẦN CHẠY KHÔNG HỢP LỆ: ghi nguyên văn, chạy lại pha kill với K mới"; return 3; fi
 }
 
 phase_recover() {
   need API CUST_TOKEN FROM_ACCOUNT TO_ACCOUNT
   [ -n "$(ld K)" ] || die "chưa có K: chạy pha kill trước"
-  say "T5: probe sau kill (K=$(ld K), waiter pid=$(ld waiter_pid))"
+  say "T5: probe sau kill (K=$(ld K), inflight pid=$(ld inflight_pid))"
   run_probe
   local i t0 now elapsed
   t0="$(epoch "$(ld t_stop)")"
@@ -222,7 +238,7 @@ phase_recover() {
   st C3 "$c3"
   st retry_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   say "T9: probe sau khi gửi lại"
-  st waiter_pid ""
+  st inflight_pid ""
   run_probe
   [ "$code2" = "201" ] && [ "$code3" = "201" ] || die "lần gửi lại không 201 (code2=$code2, code3=$code3)"
 }

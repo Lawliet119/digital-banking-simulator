@@ -7,6 +7,7 @@ Không cần PostgreSQL hay AWS: phần chạy thật của ac-5-10-db.js (TC-18
 và ghi ở docs/features/screenshots/DBS-185/manual-test.txt.
 """
 import copy
+import datetime
 import json
 import pathlib
 import re
@@ -139,9 +140,9 @@ class OverridesTest(unittest.TestCase):
     """TC-185-03 (kích thước, JSON hợp lệ)."""
 
     def test_overrides_json_valid_and_small(self):
-        for mode in ("hold", "probe"):
+        for mode in ("slow-on", "slow-off", "watch", "probe"):
             res = run_tools("overrides", "--mode", mode, "--env", "ACCOUNT_ID=0b8a3c1e-0000-4000-8000-000000000001",
-                            "--env", "HOLD_SECONDS=60")
+                            "--env", "SLEEP_SECONDS=110")
             self.assertEqual(res.returncode, 0, res.stderr)
             data = json.loads(res.stdout)
             self.assertLessEqual(len(res.stdout.strip()), LIMIT)
@@ -150,7 +151,7 @@ class OverridesTest(unittest.TestCase):
             self.assertEqual(co["command"][:2], ["node", "-e"])
             env = {e["name"]: e["value"] for e in co["environment"]}
             self.assertEqual(env["MODE"], mode)
-            self.assertEqual(env["HOLD_SECONDS"], "60")
+            self.assertEqual(env["SLEEP_SECONDS"], "110")
 
     def test_command_override_for_invariants(self):
         res = run_tools("overrides", "--command", "node", "dist/scripts/invariants/invariants.js")
@@ -163,135 +164,166 @@ class OverridesTest(unittest.TestCase):
         self.assertNotEqual(res.returncode, 0)
 
 
-def hold_log(waiter_from=3, locks="accounts:RowShareLock,idempotency_keys:RowExclusiveLock", release=True, samples=30, waiter_until=None):
-    """Nhật ký giả của `hold`: LOCKED lúc t=0, mẫu mỗi 2 s; waiter xuất hiện từ mẫu `waiter_from`."""
-    lines = [{"t": "2026-11-15T01:00:00.000Z", "event": "LOCKED", "holderXid": "761", "holderPid": 192}]
+BASE = 1794704400.0  # 2026-11-15T01:00:00Z
+INFLIGHT = "accounts:RowShareLock,idempotency_keys:RowExclusiveLock,ledger_entries:RowExclusiveLock,transfers:RowExclusiveLock"
+
+
+def iso(offset):
+    return datetime.datetime.fromtimestamp(BASE + offset, datetime.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def watch_log(inflight_from=3, inflight_until=55, locks=INFLIGHT, done=True, samples=85):
+    """Nhật ký giả của `watch`: READY lúc t=0, mẫu mỗi 2 s; backend giữa transaction từ mẫu `inflight_from`."""
+    lines = [{"t": iso(0), "event": "READY"}]
     for i in range(samples):
-        sec = 2 * (i + 1)
-        present = i >= waiter_from and (waiter_until is None or i < waiter_until)
-        lines.append({"t": "2026-11-15T01:%02d:%02d.000Z" % (sec // 60, sec % 60), "event": "sample",
-                      "waiters": [{"pid": 4242, "locks": locks}] if present else []})
-    if release:
-        lines.append({"t": "2026-11-15T01:01:00.500Z", "event": "RELEASED"})
+        present = i >= inflight_from and (inflight_until is None or i < inflight_until)
+        lines.append({"t": iso(2 * (i + 1)), "event": "sample",
+                      "inflight": [{"pid": 4242, "locks": locks}] if present else []})
+    if done:
+        lines.append({"t": iso(2 * samples + 0.5), "event": "DONE"})
     return "\n".join(json.dumps(x) for x in lines) + "\n"
 
 
-def task_json(exit_code=137, exec_stopped="2026-11-15T01:00:16.000Z"):
-    return json.dumps({"stoppingAt": "2026-11-15T01:00:12.000Z", "executionStoppedAt": exec_stopped,
-                       "stoppedAt": "2026-11-15T01:00:40.000Z", "stopCode": "UserInitiated",
-                       "containers": [{"name": "api", "exitCode": exit_code}]})
+def task_json(exit_code=137, exec_stopped=80):
+    return json.dumps({"stoppingAt": iso(12), "executionStoppedAt": iso(exec_stopped), "stoppedAt": iso(exec_stopped + 24),
+                       "stopCode": "UserInitiated", "containers": [{"name": "api", "exitCode": exit_code}]})
 
 
 class EvaluateTest(unittest.TestCase):
-    """Điều kiện «Lần chạy hợp lệ» của §2 (domain review vòng 2, 3)."""
+    """Điều kiện «Lần chạy hợp lệ» của §2 (TC-185-07)."""
 
-    def evaluate(self, hold, task, code="502", corr="no", tmp=None):
+    def evaluate(self, watch, task, code="504", corr="no"):
         import tempfile
         with tempfile.TemporaryDirectory() as d:
-            h, t = pathlib.Path(d, "hold.jsonl"), pathlib.Path(d, "task.json")
-            h.write_text(hold, encoding="utf-8")
+            h, t = pathlib.Path(d, "watch.jsonl"), pathlib.Path(d, "task.json")
+            h.write_text(watch, encoding="utf-8")
             t.write_text(task, encoding="utf-8")
-            res = run_tools("evaluate", "--hold-log", str(h), "--task-json", str(t), "--container", "api",
-                            "--client-code", code, "--client-has-correlation", corr)
+            res = run_tools("evaluate", "--watch-log", str(h), "--task-json", str(t), "--container", "api",
+                            "--client-code", code, "--client-has-correlation", corr, "--sleep-seconds", "110")
         return res, json.loads(res.stdout)
 
     def test_valid_run(self):
-        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15), task_json())
+        res, out = self.evaluate(watch_log(), task_json())
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         self.assertTrue(out["valid"], out)
         self.assertEqual(out["reasons"], [])
-        self.assertEqual(out["waiterPid"], 4242)
+        self.assertEqual(out["inflightPid"], 4242)
 
-    def test_dropped_connection_is_valid_too(self):
-        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15), task_json(), code="000")
-        self.assertEqual(res.returncode, 0, out)
+    def test_alb_errors_and_dropped_connection_are_valid(self):
+        for code in ("502", "503", "504", "000"):
+            res, out = self.evaluate(watch_log(), task_json(), code=code)
+            self.assertEqual(res.returncode, 0, (code, out))
 
-    def test_app_503_is_invalid(self):
-        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15), task_json(), code="503", corr="yes")
+    def test_app_503_with_correlation_header_is_invalid(self):
+        res, out = self.evaluate(watch_log(), task_json(), code="503", corr="yes")
         self.assertEqual(res.returncode, 3)
+        self.assertEqual(out["reasons"], ["CLIENT_HAS_CORRELATION"])
+
+    def test_201_is_invalid(self):
+        res, out = self.evaluate(watch_log(), task_json(), code="201")
         self.assertIn("CLIENT_CODE", out["reasons"])
-        self.assertIn("CLIENT_HAS_CORRELATION", out["reasons"])
 
     def test_graceful_exit_is_invalid(self):
-        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15), task_json(exit_code=143))
+        res, out = self.evaluate(watch_log(), task_json(exit_code=143))
         self.assertEqual(res.returncode, 3)
         self.assertIn("EXIT_NOT_137", out["reasons"])
 
-    def test_no_waiter_is_invalid(self):
-        res, out = self.evaluate(hold_log(waiter_from=99), task_json())
+    def test_no_inflight_backend_is_invalid(self):
+        res, out = self.evaluate(watch_log(inflight_from=999), task_json())
         self.assertEqual(res.returncode, 3)
-        self.assertIn("NO_WAITER", out["reasons"])
+        self.assertIn("NO_INFLIGHT", out["reasons"])
 
-    def test_claimkey_lock_required(self):
-        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15, locks="accounts:RowShareLock"), task_json())
-        self.assertIn("NO_CLAIMKEY_LOCK", out["reasons"])
+    def test_three_locks_required(self):
+        for missing in ("idempotency_keys", "transfers", "ledger_entries"):
+            locks = ",".join(x for x in INFLIGHT.split(",") if not x.startswith(missing + ":"))
+            res, out = self.evaluate(watch_log(locks=locks), task_json())
+            self.assertIn("NOT_MID_TRANSACTION", out["reasons"], missing)
 
-    def test_late_waiter_is_invalid(self):
-        # mẫu thứ 12 = LOCKED + 26 s
-        res, out = self.evaluate(hold_log(waiter_from=12, waiter_until=24), task_json(exec_stopped="2026-11-15T01:00:40.000Z"))
+    def test_late_first_sample_is_invalid(self):
+        # mẫu thứ 17 = READY + 36 s
+        res, out = self.evaluate(watch_log(inflight_from=17, inflight_until=70), task_json(exec_stopped=90))
         self.assertIn("W1_TOO_LATE", out["reasons"])
 
-    def test_kill_after_lock_timeout_window_is_invalid(self):
-        # waiter từ mẫu 3 (S0 = LOCKED + 6 s); kill lúc LOCKED + 40 s >= S0 + 25
-        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15), task_json(exec_stopped="2026-11-15T01:00:40.000Z"))
+    def test_kill_when_sleep_nearly_over_is_invalid(self):
+        # S0 = READY + 6 s; kill lúc READY + 110 >= S0 + 110 - 10
+        res, out = self.evaluate(watch_log(), task_json(exec_stopped=110))
         self.assertIn("KILL_TOO_LATE", out["reasons"])
 
-    def test_orphan_still_waiting_at_last_sample_is_invalid(self):
-        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=None), task_json())
-        self.assertIn("ORPHAN_STILL_WAITING", out["reasons"])
+    def test_kill_just_in_time_is_valid(self):
+        res, out = self.evaluate(watch_log(), task_json(exec_stopped=105))
+        self.assertEqual(res.returncode, 0, out)
 
-    def test_missing_release_is_invalid(self):
-        res, out = self.evaluate(hold_log(waiter_from=3, waiter_until=15, release=False), task_json())
-        self.assertIn("NO_RELEASED", out["reasons"])
+    def test_orphan_still_present_at_last_sample_is_invalid(self):
+        res, out = self.evaluate(watch_log(inflight_until=None), task_json())
+        self.assertIn("ORPHAN_STILL_PRESENT", out["reasons"])
+
+    def test_watch_not_finished_is_invalid(self):
+        res, out = self.evaluate(watch_log(done=False), task_json())
+        self.assertIn("NO_DONE", out["reasons"])
 
     def test_epoch_timestamps_from_cli_v1(self):
         # AWS CLI v1 in số giây epoch
-        task = json.dumps({"stoppingAt": 1794704412.0, "executionStoppedAt": 1794704416.5, "stoppedAt": 1794704440.0,
+        task = json.dumps({"stoppingAt": BASE + 12, "executionStoppedAt": BASE + 80, "stoppedAt": BASE + 104,
                            "containers": [{"name": "api", "exitCode": 137}]})
-        hold = hold_log(waiter_from=3, waiter_until=15).replace("2026-11-15T01:00", "2026-11-15T01:00")
-        # LOCKED = 2026-11-15T01:00:00Z = 1794704400
-        res, out = self.evaluate(hold, task)
+        res, out = self.evaluate(watch_log(), task)
         self.assertEqual(res.returncode, 0, out)
 
 
 class DbScriptStaticTest(unittest.TestCase):
-    """TC-185-03: ac-5-10-db.js chỉ đọc và khóa, không ghi, không in mật khẩu."""
+    """TC-185-03: ac-5-10-db.js chỉ đọc, khóa DDL của đúng trigger tạm, không in mật khẩu."""
+
+    ALLOWED_DDL = (
+        r"CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.dbs185_slow\(\)",
+        r"CREATE\s+TRIGGER\s+dbs185_slow\s+BEFORE\s+INSERT\s+ON\s+public\.ledger_entries\s+FOR\s+EACH\s+STATEMENT\s+EXECUTE\s+FUNCTION\s+public\.dbs185_slow\(\)",
+        r"DROP\s+TRIGGER\s+IF\s+EXISTS\s+dbs185_slow\s+ON\s+public\.ledger_entries",
+        r"DROP\s+FUNCTION\s+IF\s+EXISTS\s+public\.dbs185_slow\(\)",
+    )
 
     @classmethod
     def setUpClass(cls):
         cls.src = DB_JS.read_text(encoding="utf-8")
+        cls.code = "\n".join(ln for ln in cls.src.splitlines() if not ln.lstrip().startswith("//"))
 
     def sql_strings(self):
-        # mọi chuỗi trong dấu nháy đơn, nháy kép hoặc backtick trông giống câu lệnh SQL
-        found = re.findall(r"""(['"`])((?:\\.|(?!\1).)*?)\1""", self.src, flags=re.S)
-        return [s for _, s in found if re.match(r"\s*(SELECT|BEGIN|ROLLBACK|WITH|INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|TRUNCATE|GRANT|SET|COPY|LOCK)\b", s, flags=re.I)]
+        found = re.findall(r"""(['"`])((?:\\.|(?!\1).)*?)\1""", self.code, flags=re.S)
+        heads = r"\s*(SELECT|BEGIN|ROLLBACK|WITH|INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|TRUNCATE|GRANT|SET|COPY|LOCK)\b"
+        return [s for _, s in found if re.match(heads, s, flags=re.I)]
 
-    def test_only_select_begin_rollback(self):
+    def test_statements_are_reads_or_the_temporary_trigger(self):
         statements = self.sql_strings()
-        self.assertGreaterEqual(len(statements), 4)
+        self.assertGreaterEqual(len(statements), 6)
         for s in statements:
             head = re.match(r"\s*(\w+)", s).group(1).upper()
-            self.assertIn(head, {"SELECT", "BEGIN", "ROLLBACK", "WITH"}, s)
-        forbidden = re.compile(r"\b(INSERT|UPDATE|DELETE|ALTER|DROP|CREATE|TRUNCATE|GRANT|REVOKE|COPY|LOCK)\b", re.I)
-        for s in statements:
-            self.assertIsNone(forbidden.search(re.sub(r"FOR\s+UPDATE", "", s, flags=re.I)), s)
+            if head in ("SELECT", "BEGIN", "ROLLBACK", "WITH"):
+                continue
+            self.assertTrue(any(re.match(p, s.strip(), flags=re.I) for p in self.ALLOWED_DDL), s)
 
-    def test_rollback_in_finally(self):
-        self.assertRegex(self.src, r"finally\s*\{[^}]*ROLLBACK")
+    def test_no_writes_to_data(self):
+        forbidden = re.compile(r"\b(INSERT|UPDATE|DELETE|ALTER|TRUNCATE|GRANT|REVOKE|COPY|LOCK)\b", re.I)
+        for s in self.sql_strings():
+            stripped = re.sub(r"BEFORE\s+INSERT\s+ON", "", s, flags=re.I)
+            self.assertIsNone(forbidden.search(stripped), s)
 
-    def test_no_read_only_transaction(self):
-        # PostgreSQL từ chối SELECT FOR UPDATE trong transaction READ ONLY (domain review vòng 2)
-        hold = self.src[self.src.index("async function hold"):self.src.index("async function probe")]
-        self.assertNotRegex(hold, r"READ\s+ONLY")
+    def test_probe_rolls_back_in_finally(self):
+        probe = self.code[self.code.index("async function probe"):]
+        self.assertRegex(probe, r"finally\s*\{[^}]*ROLLBACK")
+        self.assertRegex(probe, r"BEGIN READ ONLY")
+
+    def test_sleep_seconds_is_a_validated_number(self):
+        self.assertRegex(self.code, r"Number\(env\.SLEEP_SECONDS")
+        self.assertRegex(self.code, r"Number\.isInteger|isFinite")
 
     def test_password_never_logged(self):
-        code = "\n".join(ln for ln in self.src.splitlines() if not ln.lstrip().startswith("//"))
-        self.assertEqual(len(re.findall(r"DB_PASSWORD", code)), 1)
-        for m in re.finditer(r"(console\.log|log)\(([^;]*)\)", code):
+        self.assertEqual(len(re.findall(r"DB_PASSWORD", self.code)), 1)
+        for m in re.finditer(r"(console\.log|log)\(([^;]*)\)", self.code):
             self.assertNotRegex(m.group(2), r"password|DATABASE_URL|env\b", m.group(0))
 
     def test_size_for_inline(self):
         self.assertLessEqual(len(self.src.encode("utf-8")), 9000)
+
+    def test_modes(self):
+        for mode in ("slow-on", "slow-off", "watch", "probe"):
+            self.assertIn(mode, self.code)
 
 
 class KillScriptTest(unittest.TestCase):

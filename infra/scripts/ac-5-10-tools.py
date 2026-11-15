@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Công cụ JSON cho kịch bản AC-5.10 (DBS-185); chỉ dùng thư viện chuẩn, chạy trong container `dbs-awscli`.
 
-  overrides --mode hold|probe [--env K=V ...]   in JSON cho `aws ecs run-task --overrides`: chạy ac-5-10-db.js bằng
+  overrides --mode slow-on|slow-off|watch|probe [--env K=V ...]   in JSON cho `aws ecs run-task --overrides`: chạy ac-5-10-db.js bằng
                                                 `node -e` trong container `migrate` của task `dbs-migrate`
   overrides --command CMD [ARG ...]             như trên nhưng ghi đè lệnh khác (ví dụ invariants.js)
-  evaluate --hold-log F --task-json F --container NAME --client-code C --client-has-correlation yes|no
-                                                kết luận «lần chạy hợp lệ» (§2 của DBS-185) từ nhật ký của `hold`, mô tả task
+  evaluate --watch-log F --task-json F --container NAME --client-code C --client-has-correlation yes|no [--sleep-seconds N]
+                                                kết luận «lần chạy hợp lệ» (§2 của DBS-185) từ nhật ký của `watch`, mô tả task
                                                 api bị dừng và phản hồi của client; thoát 0 nếu hợp lệ, 3 nếu không
   taskdef --container NAME [--env K=V ...] [--stop-timeout N]
                                                 đọc kết quả `aws ecs describe-task-definition` từ stdin, in đầu vào hợp
@@ -57,8 +57,8 @@ def cmd_overrides(args):
         fail("chọn đúng một trong --mode và --command")
     env = parse_env(args.env)
     if args.mode:
-        if args.mode not in ("hold", "probe"):
-            fail("--mode phải là hold hoặc probe")
+        if args.mode not in ("slow-on", "slow-off", "watch", "probe"):
+            fail("--mode phải là slow-on, slow-off, watch hoặc probe")
         command = ["node", "-e", inline_script()]
         env = [{"name": "MODE", "value": args.mode}] + env
     else:
@@ -110,7 +110,7 @@ def to_epoch(value):
 
 def cmd_evaluate(args):
     events = []
-    for line in pathlib.Path(args.hold_log).read_text(encoding="utf-8").splitlines():
+    for line in pathlib.Path(args.watch_log).read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line.startswith("{"):
             continue
@@ -118,42 +118,42 @@ def cmd_evaluate(args):
             events.append(json.loads(line))
         except json.JSONDecodeError:
             continue
-    locked = next((e for e in events if e.get("event") == "LOCKED"), None)
+    ready = next((e for e in events if e.get("event") == "READY"), None)
     samples = [e for e in events if e.get("event") == "sample"]
-    released = any(e.get("event") == "RELEASED" for e in events)
+    done = any(e.get("event") == "DONE" for e in events)
     task = json.loads(pathlib.Path(args.task_json).read_text(encoding="utf-8"))
     reasons = []
-    out = {"waiterPid": None}
-    if locked is None:
-        reasons.append("NO_LOCKED")
-    first = next((i for i, e in enumerate(samples) if e.get("waiters")), None)
+    out = {"inflightPid": None}
+    if ready is None:
+        reasons.append("NO_READY")
+    first = next((i for i, e in enumerate(samples) if e.get("inflight")), None)
     if first is None:
-        reasons.append("NO_WAITER")
-    elif locked is not None:
+        reasons.append("NO_INFLIGHT")
+    elif ready is not None:
         w1 = to_epoch(samples[first]["t"])
-        s0 = to_epoch(samples[first - 1]["t"]) if first > 0 else to_epoch(locked["t"])
-        lk = to_epoch(locked["t"])
-        waiter = samples[first]["waiters"][0]
-        out.update({"waiterPid": waiter["pid"], "locks": waiter.get("locks", ""), "lockedAt": locked["t"],
-                    "S0": samples[first - 1]["t"] if first > 0 else locked["t"], "W1": samples[first]["t"]})
-        if "idempotency_keys:RowExclusiveLock" not in waiter.get("locks", ""):
-            reasons.append("NO_CLAIMKEY_LOCK")
-        if w1 - lk > 20:
+        s0 = to_epoch(samples[first - 1]["t"]) if first > 0 else to_epoch(ready["t"])
+        backend = samples[first]["inflight"][0]
+        locks = backend.get("locks", "")
+        out.update({"inflightPid": backend["pid"], "locks": locks, "readyAt": ready["t"], "W1": samples[first]["t"],
+                    "S0": samples[first - 1]["t"] if first > 0 else ready["t"]})
+        if not all(n in locks for n in ("idempotency_keys:RowExclusiveLock", "transfers:RowExclusiveLock", "ledger_entries:RowExclusiveLock")):
+            reasons.append("NOT_MID_TRANSACTION")
+        if w1 - to_epoch(ready["t"]) > 30:
             reasons.append("W1_TOO_LATE")
         exec_stopped = to_epoch(task.get("executionStoppedAt"))
         out["executionStoppedAt"] = task.get("executionStoppedAt")
         out["killAfterS0Seconds"] = None if exec_stopped is None else round(exec_stopped - s0, 3)
-        if exec_stopped is None or exec_stopped >= s0 + 25:
+        if exec_stopped is None or exec_stopped >= s0 + args.sleep_seconds - 10:
             reasons.append("KILL_TOO_LATE")
-    if not released:
-        reasons.append("NO_RELEASED")
-    elif samples and samples[-1].get("waiters"):
-        reasons.append("ORPHAN_STILL_WAITING")
+    if not done:
+        reasons.append("NO_DONE")
+    elif samples and samples[-1].get("inflight"):
+        reasons.append("ORPHAN_STILL_PRESENT")
     container = next((c for c in task.get("containers", []) if c.get("name") == args.container), {})
     out["exitCode"] = container.get("exitCode")
     if container.get("exitCode") != 137:
         reasons.append("EXIT_NOT_137")
-    if args.client_code not in ("502", "000"):
+    if args.client_code not in ("502", "503", "504", "000"):
         reasons.append("CLIENT_CODE")
     if args.client_has_correlation == "yes":
         reasons.append("CLIENT_HAS_CORRELATION")
@@ -171,7 +171,8 @@ def main():
     o.add_argument("--command", nargs="+")
     o.set_defaults(fn=cmd_overrides)
     e = sub.add_parser("evaluate")
-    e.add_argument("--hold-log", required=True)
+    e.add_argument("--watch-log", required=True)
+    e.add_argument("--sleep-seconds", type=int, default=110)
     e.add_argument("--task-json", required=True)
     e.add_argument("--container", required=True)
     e.add_argument("--client-code", required=True)
