@@ -1,11 +1,11 @@
-# BL-101: role riêng cho `infra/scripts/seed-cognito.sh`, thay cho việc chạy bằng quyền admin toàn quyền.
+# BL-101, DBS-154: role riêng cho `infra/scripts/seed-cognito.sh`, thay cho việc chạy bằng quyền admin toàn quyền.
 # Quyền đúng bằng danh sách ở README Terraform (mục Cognito) và đúng các lệnh `aws` mà script gọi:
-# tám hành động `cognito-idp:Admin*` trên user pool `dbs` và năm hành động `secretsmanager` trên secret `dbs/dev/demo-accounts`.
+# tám hành động `cognito-idp:Admin*` trên user pool `dbs`, sáu hành động `secretsmanager` trên secret `dbs/dev/demo-accounts`,
+# và ba hành động KMS (`Decrypt`, `GenerateDataKey`, `DescribeKey`) trên CMK `alias/dbs-dev` chỉ qua Secrets Manager.
 #
 # Ai assume được: trust là gốc tài khoản (`:root`), nghĩa là chỉ principal của tài khoản này CÓ quyền
 # `sts:AssumeRole` trên role này trong identity policy của chính nó (admin có sẵn) mới assume được; một IAM user
 # khác không tự assume được. Không đòi MFA vì dev không bật MFA cho IAM user (đòi thì không ai assume được).
-# Secret dùng khóa mặc định `aws/secretsmanager` (script không truyền --kms-key-id) nên không cần quyền KMS.
 # Không có quyền xóa secret hay xóa user: teardown secret là việc của admin (README Terraform, mục Cognito).
 locals {
   cognito_user_pool_arn     = "arn:aws:cognito-idp:${var.region}:${var.account_id}:userpool/${aws_cognito_user_pool.main.id}"
@@ -57,9 +57,25 @@ resource "aws_iam_role_policy" "cognito_seeder" {
           "secretsmanager:GetSecretValue",
           "secretsmanager:CreateSecret",
           "secretsmanager:PutSecretValue",
+          "secretsmanager:UpdateSecret",
           "secretsmanager:TagResource",
         ]
         Resource = local.demo_accounts_secret_arns
+      },
+      {
+        Sid    = "KmsForDemoAccountsSecret"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey",
+          "kms:DescribeKey",
+        ]
+        Resource = [aws_kms_key.main.arn]
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "secretsmanager.${var.region}.amazonaws.com"
+          }
+        }
       },
     ]
   })

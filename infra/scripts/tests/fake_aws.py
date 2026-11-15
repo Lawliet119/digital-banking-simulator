@@ -93,11 +93,24 @@ def main():
         elif op == "describe-secret":
             if st["secret"] is None and os.environ.get("FAKE_SECRET_NO_VALUE") != "1":
                 fail("ResourceNotFoundException", op)
-            print(json.dumps({"Name": "x"}))
+            kms_id = st["secret"].get("kms_key_id") if st["secret"] else None
+            if opts.get("query") == ["KmsKeyId"] and opts.get("output") == ["text"]:
+                print(kms_id or "None")
+            else:
+                print(json.dumps({"Name": "x", "KmsKeyId": kms_id}))
         elif op == "create-secret":
             if st["secret"] is not None or os.environ.get("FAKE_SECRET_NO_VALUE") == "1":
                 fail("ResourceExistsException", op, "already exists")
-            st["secret"] = {"value": stdin_text(), "tags": opts.get("tags", [])}
+            st["secret"] = {
+                "value": stdin_text(),
+                "tags": opts.get("tags", []),
+                "kms_key_id": (opts.get("kms-key-id") or [None])[0],
+            }
+        elif op == "update-secret":
+            if st["secret"] is None:
+                fail("ResourceNotFoundException", op)
+            if "kms-key-id" in opts:
+                st["secret"]["kms_key_id"] = opts["kms-key-id"][0]
         elif op == "put-secret-value":
             if st["secret"] is None:
                 fail("ResourceNotFoundException", op)
