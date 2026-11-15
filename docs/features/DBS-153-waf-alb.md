@@ -1,6 +1,6 @@
 # DBS-153 · WAF: managed rules và rate rule gắn ALB (chỉ bật tuần 6–8)
 
-> **Status:** Draft · **Vai:** #5 Platform & Ops · **Cặp đôi review:** — (bỏ yêu cầu Dev khác review theo quyết định techlead, PR #175) · **Nhánh:** `infra/DBS-153-waf-alb` (cắt từ `origin/main` `957dcbf`) · **PR:** — · **Cập nhật:** 2026-11-14
+> **Status:** Implemented (kiểm chứng live 2026-11-14) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** — (bỏ yêu cầu Dev khác review theo quyết định techlead, PR #175) · **Nhánh:** `infra/DBS-153-waf-alb` (cắt từ `origin/main` `957dcbf`) · **PR:** #183 · **Cập nhật:** 2026-11-14
 
 ## 1. Bối cảnh
 
