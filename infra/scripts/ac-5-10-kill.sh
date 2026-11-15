@@ -4,7 +4,7 @@
 # docs/features/DBS-185-ac-5-10-kill-task-cloud.md §2 và docs/demos/demo-3-failure-recovery.md phần E.
 #
 # Chạy trong container Linux `dbs-awscli` (aws, curl, python3, jq), từ gốc repo, theo từng pha:
-#   prepare   revision dbs-api tạm (khóa 30 s, statement 60 s, stopTimeout 2) và deregistration_delay 0
+#   prepare   revision dbs-api tạm (statement_timeout 120 s, stopTimeout 2) và deregistration_delay 0
 #   baseline  T0: probe + invariants trước khi kill
 #   kill      T1-T4: bật trigger pg_sleep, theo dõi, gửi K, stop-task 5 s sau, gỡ trigger, đánh giá «lần chạy hợp lệ»
 #   recover   T5-T9: probe, chờ task mới, gửi lại K hai lần, probe
@@ -97,10 +97,16 @@ header_value() { grep -i "^$2:" "$1" | head -1 | cut -d: -f2- | tr -d ' \r'; }
 phase_prepare() {
   need API
   local td new
-  td="$(aws ecs describe-services --cluster "$CLUSTER" --services api --query 'services[0].taskDefinition' --output text)"
-  st original_td "$td"
+  # chạy lại pha prepare: bắt đầu từ revision gốc đã ghi, không chồng lên revision tạm của lần trước
+  td="$(ld original_td)"
+  if [ -z "$td" ]; then
+    td="$(aws ecs describe-services --cluster "$CLUSTER" --services api --query 'services[0].taskDefinition' --output text)"
+    st original_td "$td"
+  elif [ -n "$(ld manual_td)" ]; then
+    st manual_td_old "$(ld manual_td)"
+  fi
   aws ecs describe-task-definition --task-definition "$td" --output json |
-    "${TOOLS[@]}" taskdef --container api --env DATABASE_LOCK_TIMEOUT_MS=30000 --env DATABASE_STATEMENT_TIMEOUT_MS=60000 \
+    "${TOOLS[@]}" taskdef --container api --env DATABASE_STATEMENT_TIMEOUT_MS=120000 \
       --stop-timeout 2 >"$STATE_DIR/td.json" || die "taskdef thất bại"
   new="$(aws ecs register-task-definition --cli-input-json "file://$STATE_DIR/td.json" \
     --query 'taskDefinition.taskDefinitionArn' --output text)" || die "register-task-definition thất bại"
@@ -279,6 +285,11 @@ phase_cleanup() {
   fi
   if [ -n "$tg" ]; then
     aws elbv2 modify-target-group-attributes --target-group-arn "$tg" --attributes Key=deregistration_delay.timeout_seconds,Value=30 >/dev/null && say "deregistration_delay về 30"
+  fi
+  local older
+  older="$(ld manual_td_old)"
+  if [ -n "$older" ]; then
+    aws ecs deregister-task-definition --task-definition "$older" --query 'taskDefinition.status' --output text && say "đã deregister revision tạm cũ ${older##*/}"
   fi
   if [ -n "$manual" ]; then
     aws ecs deregister-task-definition --task-definition "$manual" --query 'taskDefinition.status' --output text && say "đã deregister revision tạm ${manual##*/}"
