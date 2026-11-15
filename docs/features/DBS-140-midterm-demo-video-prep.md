@@ -1,6 +1,6 @@
 # DBS-140 · Quay và lưu video demo giữa kỳ (phần chuẩn bị của agent)
 
-> **Status:** Implemented (phần chuẩn bị; video thật chưa quay, BL-390) · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-140-video-demo-prep` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (phần chuẩn bị; video thật chưa quay, BL-390) · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-140-video-demo-prep` · **PR:** #204 · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
