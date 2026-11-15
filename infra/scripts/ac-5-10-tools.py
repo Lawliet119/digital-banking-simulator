@@ -147,14 +147,16 @@ def cmd_evaluate(args):
         out["killAfterS0Seconds"] = None if exec_stopped is None else round(exec_stopped - s0, 3)
         if exec_stopped is None or exec_stopped >= s0 + args.sleep_seconds - 10:
             reasons.append("KILL_TOO_LATE")
+        last_mid = max((to_epoch(e["t"]) for e in samples if mid(e)), default=None)
+        if exec_stopped is None or last_mid is None or last_mid < exec_stopped:
+            reasons.append("STOPPED_AFTER_TX_END")  # task dừng khi giao dịch đã xong: không phải ngắt giữa chừng
+        out["lastMidTransactionSample"] = None if last_mid is None else datetime.datetime.fromtimestamp(last_mid, datetime.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     if not done:
         reasons.append("NO_DONE")
     elif samples and mid(samples[-1]):
         reasons.append("ORPHAN_STILL_PRESENT")
     container = next((c for c in task.get("containers", []) if c.get("name") == args.container), {})
     out["exitCode"] = container.get("exitCode")
-    if container.get("exitCode") != 137:
-        reasons.append("EXIT_NOT_137")
     if args.client_code not in ("502", "503", "504", "000"):
         reasons.append("CLIENT_CODE")
     if args.client_has_correlation == "yes":

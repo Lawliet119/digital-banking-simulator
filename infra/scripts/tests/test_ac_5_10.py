@@ -226,10 +226,19 @@ class EvaluateTest(unittest.TestCase):
         res, out = self.evaluate(watch_log(), task_json(), code="201")
         self.assertIn("CLIENT_CODE", out["reasons"])
 
-    def test_graceful_exit_is_invalid(self):
-        res, out = self.evaluate(watch_log(), task_json(exit_code=143))
+    def test_any_normal_container_exit_is_accepted_when_task_stopped_mid_transaction(self):
+        # Lần chạy cloud 2: ECS dừng task, ứng dụng tắt êm (exit 0) trong lúc backend còn ngủ; TypeORM thả query runner
+        # đang chờ nên request lỗi, không commit. 137 (SIGKILL) và 143 (SIGTERM) cũng là dừng giữa transaction.
+        for exit_code in (0, 137, 143):
+            res, out = self.evaluate(watch_log(), task_json(exit_code=exit_code))
+            self.assertEqual(res.returncode, 0, (exit_code, out))
+            self.assertEqual(out["exitCode"], exit_code)
+
+    def test_stop_after_transaction_ended_is_invalid(self):
+        # backend giữa transaction hết lúc READY + 40 s (mẫu 20), task chỉ dừng lúc READY + 80 s: giao dịch đã xong trước đó
+        res, out = self.evaluate(watch_log(inflight_until=20), task_json(exec_stopped=80))
         self.assertEqual(res.returncode, 3)
-        self.assertIn("EXIT_NOT_137", out["reasons"])
+        self.assertIn("STOPPED_AFTER_TX_END", out["reasons"])
 
     def test_no_inflight_backend_is_invalid(self):
         res, out = self.evaluate(watch_log(inflight_from=999), task_json())
