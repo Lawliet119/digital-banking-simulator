@@ -1,6 +1,6 @@
 # DBS-185 · AC-5.10 trên cloud: dừng task giữa transaction rồi gửi lại
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev (kịch bản kiểm, script vận hành, chạy cloud) · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-185-ac-5-10-kill-task-cloud` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (sau G4) · **Vai:** Dev (kịch bản kiểm, script vận hành, chạy cloud) · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-185-ac-5-10-kill-task-cloud` · **PR:** [#200](https://github.com/Lawliet119/digital-banking-simulator/pull/200) · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
