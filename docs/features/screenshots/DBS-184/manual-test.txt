@@ -1,0 +1,35 @@
+94e1f97ca6eb79eed6f8000aa190740b7fdeb942
+03:06:26.096 === M-184-01: kiểm tĩnh (TC-184-01)
+Ran 12 tests in 0.441s
+
+OK
+Ran 36 tests in 2.719s
+
+OK
+overrides notification-block: 2737 ký tự (giới hạn 8192)
+overrides notification-unblock: 2739 ký tự (giới hạn 8192)
+overrides notification-check: 2737 ký tự (giới hạn 8192)
+03:06:30.045 === TC-184-02: PostgreSQL 17 tạm, migration, chặn và gỡ
+03:06:30.079 trạng thái đầu:
+{"t":"2026-11-15T03:06:30.489Z","event":"check","blocked":false,"notificationLogRows":0}
+03:06:30.773 INSERT trước khi chặn: INSERT 0 1
+03:06:30.795 --- notification-block
+{"t":"2026-11-15T03:06:31.079Z","event":"BLOCKED","blocked":true}
+03:06:31.429 INSERT khi bị chặn: ERROR:  new row for relation "notification_log" violates check constraint "dbs183_block"
+03:06:31.732 đếm dòng cũ vẫn đọc được: 1
+03:06:31.755 --- notification-block lần hai (idempotent)
+{"t":"2026-11-15T03:06:32.065Z","event":"BLOCKED","blocked":true}
+03:06:32.114 --- notification-check
+{"t":"2026-11-15T03:06:32.489Z","event":"check","blocked":true,"notificationLogRows":1}
+03:06:32.531 --- notification-unblock
+{"t":"2026-11-15T03:06:32.868Z","event":"UNBLOCKED","blocked":false}
+03:06:33.203 INSERT sau khi gỡ: INSERT 0 1
+03:06:33.229 --- notification-unblock lần hai (idempotent)
+{"t":"2026-11-15T03:06:33.596Z","event":"UNBLOCKED","blocked":false}
+03:06:33.638 === thử lại khi bị khóa: giữ ACCESS SHARE 9 s trong lúc notification-block
+{"t":"2026-11-15T03:06:38.505Z","event":"RETRY","attempt":1,"reason":"lock_timeout"}
+{"t":"2026-11-15T03:06:42.891Z","event":"BLOCKED","blocked":true}
+03:06:42.953 block xong sau 7 s (có RETRY vì lock_timeout 3 s)
+{"t":"2026-11-15T03:06:43.223Z","event":"UNBLOCKED","blocked":false}
+03:06:43.254 trạng thái cuối:
+{"t":"2026-11-15T03:06:43.525Z","event":"check","blocked":false,"notificationLogRows":2}

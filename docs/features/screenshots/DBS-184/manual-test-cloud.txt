@@ -1,0 +1,190 @@
+8dccc42292103488d856eb7a208de23a18bfa5ec
+# Raw phiên cloud DBS-184, 2026-11-15. Id tài khoản AWS thay bằng <ACCOUNT_ID>; không token, không handle hay nội dung message SQS. Dòng 1: SHA commit cuối đổi script.
+# apply 03:06:56 -> 03:16:23 (9 phút 27 giây), setup (db-roles, migrate, bật api+worker, seed) 252 s, các pha 03:20:57 -> 04:04, destroy 04:05:09 -> 04:13:09 (8 phút 00 giây).
+
+################ NHÓM 1: latency L0, bad-messages (b), block, latency L1, ac91, dlq-wait, unblock, resend, verify-c
+
+################ 2026-11-15T03:20:57Z pha: latency L0
+2026-11-15T03:20:58.236Z latency L0: 3 lệnh khởi động rồi 24 lệnh 1.000 VND customer2 -> customer3, 7 s một lệnh
+{"label": "L0", "serverSamples": 24, "clientSamples": 24, "httpCodes": {"201": 24}, "server": {"p50_ms": 26.0, "p95_ms": 29.0, "p99_ms": 31.0, "max_ms": 31.0}, "client": {"p50_ms": 78.9, "p95_ms": 86.9, "p99_ms": 90.4, "max_ms": 90.4}}
+################ pha latency L0 rc=0
+
+################ 2026-11-15T03:24:39Z pha: bad-messages
+2026-11-15T03:24:45.860Z (b) gửi hai message hỏng vào risk-events lúc 2026-11-15T03:24:45.859Z
+2026-11-15T03:24:46.454Z message 1 (không phải JSON): MessageId f8189e19-aa1e-4e39-a531-559463ff790b
+2026-11-15T03:24:47.066Z message 2 (JSON hợp lệ, sai schema): MessageId f07db9c5-ac11-4885-8f6b-2369293482d8
+2026-11-15T03:24:49.867Z DLQ risk sau 2 s: 2/0/0 (mong đợi 2/0/0); risk-events chính: 0/0/0
+2026-11-15T03:24:49.869Z chờ alarm dbs-dev-risk-dlq-not-empty sang ALARM (tối đa 8 phút)
+2026-11-15T03:27:55.653Z alarm: ALARM 2026-11-15T03:27:48.272Z (190 s kể từ lúc gửi)
+2026-11-15T03:27:55.655Z log worker dead_letter từ lúc gửi (BL-364): chỉ in consumer, reason, issueCodes, eventId
+{"level":50,"consumer":"risk","reason":"invalid_event","issueCodes":["MISSING_FIELD"],"eventId":null,"receiveCount":1,"messageId":"f07db9c5-ac11-4885-8f6b-2369293482d8"}
+{"level":30,"consumer":null,"reason":null,"issueCodes":null,"eventId":null,"receiveCount":null,"messageId":null}
+2026-11-15T03:28:00.546Z bỏ qua message f29f4f60-6a74-4483-aa51-2d07c64db607 (nhãn: không phải JSON hoặc sai schema)
+2026-11-15T03:28:01.738Z bỏ qua message 05d2bc0c-3235-4992-ad00-c7ff2ee6d08d (nhãn: không phải JSON hoặc sai schema)
+2026-11-15T03:28:08.925Z file bỏ qua (ngoài repo): 2 dòng; DLQ risk sau xóa: 0/0/0
+2026-11-15T03:31:02.414Z sạch: bốn queue 0/0/0, hai alarm DLQ OK
+################ pha bad-messages rc=0
+
+################ 2026-11-15T03:31:22Z pha: block
+2026-11-15T03:32:21.748Z task notification-block (4229cad991d04517bea33af53e3925ef) exitCode=0
+{"t":"2026-11-15T03:31:50.349Z","event":"BLOCKED","blocked":true}
+2026-11-15T03:33:21.576Z task notification-check (c8b0e5796ceb4bf192f14e1702b659ea) exitCode=0
+{"t":"2026-11-15T03:32:49.582Z","event":"check","blocked":true,"notificationLogRows":62}
+################ pha block rc=0
+
+################ 2026-11-15T03:33:37Z pha: latency L1
+2026-11-15T03:33:37.607Z latency L1: 3 lệnh khởi động rồi 24 lệnh 1.000 VND customer2 -> customer3, 7 s một lệnh
+{"label": "L1", "serverSamples": 24, "clientSamples": 24, "httpCodes": {"201": 24}, "server": {"p50_ms": 25.0, "p95_ms": 31.0, "p99_ms": 58.0, "max_ms": 58.0}, "client": {"p50_ms": 78.8, "p95_ms": 94.6, "p99_ms": 105.0, "max_ms": 105.0}}
+################ pha latency L1 rc=0
+
+################ 2026-11-15T03:37:16Z pha: ac91
+2026-11-15T03:37:17.509Z lệnh AC-9.1 44.000.000: http=201 C=4da8f07b-49c5-4808-9883-81e29be8f7c9 T=4fb5b013-6d80-4fdb-9227-49c57b01a3ae lúc 03:37:17
+2026-11-15T03:37:19.892Z cờ của transferId 4fb5b013-6d80-4fdb-9227-49c57b01a3ae: {"score":65,"riskLevel":"MEDIUM","reviewStatus":"OPEN","ruleSetVersion":1}
+2026-11-15T03:37:22.008Z DLQ risk: 0/0/0 (mong đợi 0/0/0); audit notification.sent của C: 0 dòng (mong đợi 0 khi lỗi còn)
+################ pha ac91 rc=0
+
+################ 2026-11-15T03:37:35Z pha: dlq-wait
+2026-11-15T03:37:35.874Z chờ message attempts_exhausted vào dbs-dev-notification-events-dlq: tới khi qua 200 s kể từ lệnh AC-9.1 và số message không đổi 40 s (tối đa 12 phút)
+2026-11-15T03:37:38.105Z message đầu tiên vào DLQ notification (số hiện 12), 21 s sau lệnh AC-9.1
+2026-11-15T03:41:01.031Z DLQ notification: 28/0/0; queue chính notification: 0/0/0
+2026-11-15T03:41:02.307Z alarm notification-dlq-not-empty: ALARM 2026-11-15T03:38:06.314Z (đo từ lệnh AC-9.1: 225 s)
+2026-11-15T03:41:02.308Z log worker dead_letter attempts_exhausted (BL-364), 3 dòng đầu và tổng:
+tổng 18 dòng
+{"level":50,"consumer":"notification","reason":"attempts_exhausted","eventId":"c9e7b7f8-ff65-4311-b555-a80fd21e5694","receiveCount":5,"messageId":null}
+{"level":50,"consumer":"notification","reason":"attempts_exhausted","eventId":"9316f199-bea9-409a-b6d0-c22a4475111d","receiveCount":5,"messageId":null}
+{"level":50,"consumer":"notification","reason":"attempts_exhausted","eventId":"60f864e3-1e7b-48ba-b235-ae20b4de6a12","receiveCount":5,"messageId":null}
+################ pha dlq-wait rc=0
+
+################ 2026-11-15T03:41:17Z pha: unblock
+2026-11-15T03:42:12.863Z task notification-unblock (b83c5da659224d7281cadb968641e155) exitCode=0
+{"t":"2026-11-15T03:41:39.080Z","event":"UNBLOCKED","blocked":false}
+2026-11-15T03:43:18.428Z task notification-check (f540b6ed525740f48d32e412d1aeebee) exitCode=0
+{"t":"2026-11-15T03:42:42.919Z","event":"check","blocked":false,"notificationLogRows":62}
+################ pha unblock rc=0
+
+################ 2026-11-15T03:43:34Z pha: resend
+2026-11-15T03:43:40.877Z queue chính notification: 0/0/0 (phải 0/0/0 trước khi gửi lại)
+2026-11-15T03:43:42.877Z eventId 0364ecf1-f5b1-45cf-aa53-e955ddd2565b: gửi lại MessageId cũ a023dc40-0bbe-40fd-b31d-9e41d4435272 -> mới 0ac97c2a-7b37-4fa1-bee2-cc56c1fd4d52; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:44.421Z eventId 8ba83d33-8b5c-46c3-acb1-c2344edd2e44: gửi lại MessageId cũ b67f1e20-6897-44ca-8075-5ec8c32d1311 -> mới 61ab16a7-0501-4990-a717-f03083cb2737; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:45.479Z eventId 82812116-0384-4795-8559-e1b3d1ebd051: gửi lại MessageId cũ b77674ff-dc6d-4135-b575-3e9fb5e440f9 -> mới d7dbc020-d1ae-4e79-a41d-3ab29eaf047f; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:46.541Z eventId e8dd10e4-f88b-4aa8-82f8-67e6d438417e: gửi lại MessageId cũ 70d036b7-fd91-4aad-a1fb-36db3de95637 -> mới f1fb7989-9ed4-491a-b2b0-149c5dd0e5b5; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:47.618Z eventId e569a87a-09c9-45a9-8693-9291d4269d1f: gửi lại MessageId cũ 2e5cacb9-dbff-4a03-a2ad-ba3e11126ab2 -> mới 2ce71f4b-69e3-45ec-9458-e078d7cddf15; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:48.702Z eventId 63ee1a58-1a2c-4b66-bdce-dad260f7288f: gửi lại MessageId cũ a1fd6b6b-eecd-4157-b379-7b332cab2524 -> mới 6d828832-34c7-498b-a7df-045120b0b46f; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:49.687Z eventId 9ca31e39-f747-426a-b207-c5d478c04252: gửi lại MessageId cũ 36627dac-be07-459b-bb83-39987c56b53c -> mới 18728b4f-7412-492c-9cde-17c3702471a7; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:51.222Z eventId 61db6e72-4cc4-4dbb-bbf7-9a618ed15f4c: gửi lại MessageId cũ e61da796-d7ad-4a99-bcb3-c348d1296bf6 -> mới 9f8381a9-e643-469b-94cb-2beb95ca7413; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:52.193Z eventId c78c30da-8c9e-422f-ba2a-6f6733ec5805: gửi lại MessageId cũ 2a9e1479-c1c7-40fd-9cd1-38c82a29ca0c -> mới 635b2e7d-43b6-44dc-8a3c-0b8c54bb015c; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:53.175Z eventId ab1af083-0bbe-4ac5-be7d-81d18b55ff06: gửi lại MessageId cũ 9eea2854-f342-4fa4-b24e-91e32b0e5942 -> mới a97ff232-5c78-423c-8f65-200c9ed52b5b; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:54.188Z eventId 60f864e3-1e7b-48ba-b235-ae20b4de6a12: gửi lại MessageId cũ c3b07db7-67db-4a99-a831-07a5245bee66 -> mới c0cd54ef-09be-4892-ba18-38dc8463f603; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:55.165Z eventId eacceb2c-3f32-4ef8-8759-14e2060d73cb: gửi lại MessageId cũ d8584ea0-6982-488a-b73a-de1ef900961d -> mới ab356968-8d3b-4b88-bc76-f711e8a41f26; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:56.709Z eventId fd1638c9-9058-41a6-b949-8a6a05c135ff: gửi lại MessageId cũ caa6f89f-f408-48fb-836b-2942b7d80553 -> mới 4c0fc926-e0f7-433e-b1e4-2421f47cef3c; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:57.718Z eventId 25ad5338-ffa9-4ff1-9c03-126991268fb0: gửi lại MessageId cũ 2734d03a-6157-400f-8a3c-64585b2e8e52 -> mới ff029cd4-f7ca-44e2-ac52-de1136ba431c; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:58.795Z eventId 3f231e85-bc62-444e-ab0c-dbe887a8466c: gửi lại MessageId cũ bbc94319-8baa-4f5f-ad68-e3d381bbc827 -> mới 163a10ed-0330-4f80-9fcf-1f45476bcbdb; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:43:59.801Z eventId c9e7b7f8-ff65-4311-b555-a80fd21e5694: gửi lại MessageId cũ a21be101-857b-4ec7-b4c0-b720e7de15d6 -> mới 96ff9585-7ce9-4eed-ae1a-70364e543ba3; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:00.877Z eventId 9316f199-bea9-409a-b6d0-c22a4475111d: gửi lại MessageId cũ 5a22396a-98d6-4294-a201-731237f630a7 -> mới 89d04e8b-074b-41b5-bdd4-50267c8baff3; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:01.882Z eventId be212f4e-b792-441f-86e8-9efdbc6a680d: gửi lại MessageId cũ db2468a2-b3bc-4229-a693-e7f5b4276bb8 -> mới a97606ef-22d4-4047-9b4b-a1bbcc7eaa07; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:03.511Z eventId 6fca7e79-3fdf-4e74-90c5-62c5bdabbb4c: gửi lại MessageId cũ 12213f0f-c4db-4e79-8c59-9fb48b7ed83d -> mới 8f7ba8bd-d683-4d0c-951f-6da6b14a1bf0; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:04.549Z eventId f246da01-2349-4e40-956f-948153000d39: gửi lại MessageId cũ ba3c652b-1cce-40cc-9b98-480d352fd86e -> mới d203701e-6112-44d7-808b-288a1c5c6511; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:05.535Z eventId d6769587-97c8-452a-8af2-e5a068341e50: gửi lại MessageId cũ 5b314a08-0df7-48d7-a428-f1c9e91f82a2 -> mới e7a76612-b1c6-4415-ad56-243d7f682575; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:06.630Z eventId cd3770c8-c178-4943-ac89-e360bd606449: gửi lại MessageId cũ 8ab7415a-c120-4313-99b2-3bce7d135392 -> mới fef984fd-6bcc-44ea-83d1-e4228df875f5; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:07.635Z eventId 390e1254-37f4-48cf-bd22-c948f530be0f: gửi lại MessageId cũ c00ed4d0-1278-49d7-881c-256fe1540488 -> mới 890ad33b-dcee-4242-a51d-8afb00770386; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:09.190Z eventId 3b60ea47-e172-40e8-822c-f8202818d88a: gửi lại MessageId cũ 7922eb77-fd65-4382-a94e-026f9153b420 -> mới ba7da77a-24e8-4897-9d91-3f4c51333bad; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:10.177Z eventId 9fbd9165-2149-4a60-890e-8e221ffbc54a: gửi lại MessageId cũ 98f8ecc9-1ec5-4732-bb2c-e725e25a652f -> mới e42b67b7-c4d2-4587-9779-c0c9891ef03f; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:11.222Z eventId 8cb77e7d-856b-4893-92d1-6b544e211791: gửi lại MessageId cũ 37b49a3d-1888-4d60-8cf9-70f671a81f3e -> mới 6bfa9cb9-5f5f-470b-9034-6b2af142ae82; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:12.232Z eventId 853dd1e6-0bd9-4b4a-97e6-722b98a8f9f8: gửi lại MessageId cũ f1d5788b-5a81-4987-a1e5-c26fe87d9b0a -> mới 42e52f04-c97e-4de9-80e9-fbdff8d830eb; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:13.317Z eventId 956f4fae-e2c1-4c73-8ed2-1508804ac0b3: gửi lại MessageId cũ 8c872f46-6909-4ddc-a5ce-69b4d242e528 -> mới 11964a29-d431-4e7a-96c1-788052df8bf4; thuộc tính: OriginalSentTimestamp,correlationId,eventType
+2026-11-15T03:44:24.955Z đã gửi lại 28 eventId; file ghi nhận (ngoài repo): 28 dòng
+2026-11-15T03:46:18.289Z sạch: bốn queue 0/0/0, hai alarm DLQ OK
+################ pha resend rc=0
+
+################ 2026-11-15T03:46:32Z pha: verify-c
+2026-11-15T03:46:32.874Z audit notification.sent của C sau khi gửi lại: 1 dòng (mong đợi 1); fraud.flagged: 1 dòng
+2026-11-15T03:47:40.223Z invariants task dfc8fdf7430b40ccacdd8196dfa80191 exitCode=0 (0 sạch)
+{"status":"PASS","totals":{"debit":"131554000","credit":"131554000","balance":"0"},"violations":[]}
+2026-11-15T03:47:40.885Z invariants PASS
+################ pha verify-c rc=0
+DONE 2026-11-15T03:47:41Z
+
+################ NHÓM 2: (d) worker-off, d-traffic, outbox-wait, worker-on, final-check
+
+################ 2026-11-15T03:47:56Z pha: worker-off
+2026-11-15T03:47:57.813Z (d) tắt worker: task 6e60f8afa7944ae9970652f13d47b7d0
+{
+    "stoppingAt": 1794714486.173,
+    "executionStoppedAt": null,
+    "stoppedAt": null,
+    "exitCode": null
+}
+2026-11-15T03:48:11.709Z worker runningCount 0 lúc 03:48:11 (stop-task đặt lúc 2026-11-15T03:47:58.564Z)
+################ pha worker-off rc=0
+
+################ 2026-11-15T03:48:25Z pha: d-traffic
+2026-11-15T03:48:25.915Z nạp 40.000.000 cho customer1 khi worker tắt: http=201
+2026-11-15T03:48:26.134Z lệnh 43.000.000 khi worker tắt: http=201 C=395fc921-65f3-436f-a384-3bcb9b7cb764 T=6f06ce0a-9cb9-43bf-b41d-02713045d67a
+2026-11-15T03:48:26.351Z lệnh nhỏ 1 khi worker tắt: http=201 C=65c0a4b9-60da-44a7-aff4-ab4b450fa3a0
+2026-11-15T03:48:26.563Z lệnh nhỏ 2 khi worker tắt: http=201 C=48a5fcc8-5099-475d-87b9-d30fa379f3e1
+2026-11-15T03:48:26.761Z cờ của T ngay bây giờ (mong đợi chưa có vì worker tắt): 404
+################ pha d-traffic rc=0
+
+################ 2026-11-15T03:48:40Z pha: outbox-wait
+2026-11-15T03:48:40.714Z chờ dbs-dev-outbox-age sang ALARM (trần 15 phút); worker dừng/stop-task lúc 2026-11-15T03:47:58.564Z
+2026-11-15T03:57:03.310Z alarm outbox-age: ALARM 2026-11-15T03:57:00.371Z; đo 545 s kể từ stop-task (chạm ALARM không muộn hơn thời điểm này)
+################ pha outbox-wait rc=0
+
+################ 2026-11-15T03:57:20Z pha: worker-on
+2026-11-15T03:57:21.327Z (d) bật worker lúc 03:57:21
+2026-11-15T03:57:49.884Z worker running sau 29 s
+2026-11-15T03:58:03.533Z cờ của T: {"score":65,"riskLevel":"MEDIUM","reviewStatus":"OPEN","ruleSetVersion":1} (sau 43 s kể từ lúc bật)
+2026-11-15T03:58:03.945Z audit của lệnh 43.000.000: fraud.flagged 1 dòng (mong đợi 1), notification.sent 0 dòng (mong đợi 1)
+2026-11-15T03:58:04.310Z audit notification.sent của hai lệnh nhỏ: 1 và 1 (mong đợi 1 và 1)
+2026-11-15T03:58:04.311Z chờ bốn queue 0 và alarm OK
+2026-11-15T03:58:11.652Z sạch: bốn queue 0/0/0, hai alarm DLQ OK
+2026-11-15T04:02:07.322Z alarm outbox-age: OK 2026-11-15T04:02:00.372Z
+################ pha worker-on rc=0
+
+################ 2026-11-15T04:02:21Z pha: final-check
+2026-11-15T04:03:14.887Z notification: không còn constraint
+2026-11-15T04:03:15.492Z worker desired/running: 1/1
+2026-11-15T04:03:21.351Z bốn queue 0/0/0
+2026-11-15T04:03:23.058Z alarm: risk-dlq OK 2026-11-15T03:30:48.274Z, notification-dlq OK 2026-11-15T03:46:06.312Z, outbox-age OK 2026-11-15T04:02:00.372Z
+2026-11-15T04:03:23.060Z FINAL-CHECK ĐẠT: có thể destroy
+################ pha final-check rc=0
+DONE 2026-11-15T04:03:23Z
+
+################ KIỂM THÊM (lệnh chạy tay, read-only)
+--- đếm dòng log attempts_exhausted trên toàn cửa sổ 03:33-03:44 UTC (cửa sổ của pha dlq-wait bắt đầu từ lệnh AC-9.1 nên chỉ thấy 18):
+attempts_exhausted 03:33-03:44 UTC: 28 dòng; consumer: notification; receiveCount: 5
+dòng đầu 2026-11-15T03:36:09Z, dòng cuối 2026-11-15T03:40:04Z
+--- kiểm pattern lọc của runbook DLQ 2b trên log thật (cửa sổ 03:24-03:30 UTC): dòng khớp pattern JSON và dòng khớp pattern chữ trơn
+pattern runbook (outcome):
+{"level":50,"time":"2026-11-15T03:24:47.267Z","role":"worker","correlationId":null,"appRole":"worker","context":"ConsumerBase","consumer":"risk","outcome":"dead_letter","receiveCount":1,"messageId":"f07db9c5-ac11-4885-8f6b-2369293482d8","reason":"invalid_event","issueCodes":["MISSING_FIELD"],"messag
+---
+{"level":50,"time":"2026-11-15T03:24:47.267Z","role":"worker","correlationId":null,"appRole":"worker","context":"ConsumerBase","consumer":"risk","outcome":"dead_letter","receiveCount":1,"messageId":"f07db9c5-ac11-4885-8f6b-2369293482d8","reason":"invalid_event","issueCodes":["MISSING_FIELD"],"message":"risk message dead-lettered"}
+{"level":30,"time":"2026-11-15T03:25:04.512Z","role":"worker","correlationId":null,"appRole":"worker","_aws":{"Timestamp":<ACCOUNT_ID>0,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Role","Consumer","Outcome"]],"Metrics":[{"Name":"consumer_message_total","Unit":"Count"}]}]},"Role":"worker","Consumer":"risk","Outcome":"dead_letter","consumer_message_total":1,"message":"Diagnostic event"}
+--- sau (d), trước destroy
+=== kiểm thêm sau (d), trước destroy (lệnh chạy tay)
+audit lệnh 43.000.000 (C=395fc921-65f3-436f-a384-3bcb9b7cb764): fraud.flagged:SUCCESS, fraud_flag.view:SUCCESS, notification.sent:SUCCESS, transfer:SUCCESS
+{"stoppingAt":1794714486.173,"executionStoppedAt":1794714557.727,"stoppedAt":1794714580.486,"exit":137,"stopCode":"ServiceSchedulerInitiated"}
+2026-11-15T04:03:50.078Z audit notification.sent của C sau khi gửi lại: 1 dòng (mong đợi 1); fraud.flagged: 1 dòng
+2026-11-15T04:04:52.464Z invariants task 3791714088a64cbf90ae0d79655a4ffc exitCode=0 (0 sạch)
+{"status":"PASS","totals":{"debit":"214556000","credit":"214556000","balance":"0"},"violations":[]}
+2026-11-15T04:04:53.184Z invariants PASS
+
+################ DESTROY VÀ VERIFY-CLEAN
+destroy 04:05:09 -> 04:13:09 (8 phút 00 giây)
+Destroy complete! Resources: 57 destroyed.
+state list: 0 tài nguyên
+OK nat-gateway
+OK load-balancer
+OK rds
+OK rds-snapshot-manual
+OK elasticache
+OK ecs
+OK elastic-ip
+OK eni-available
+OK waf-regional
+OK vpc-endpoint-ec2
+OK rds-automated-backup
+OK elasticache-snapshot
+OK ebs
+KET LUAN: sạch (13 loại)
+verify-clean exit=0
