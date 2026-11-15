@@ -1,6 +1,6 @@
 # DBS-180 · Bật Multi-AZ cho RDS bằng Terraform
 
-> **Status:** Draft · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `infra/DBS-180-rds-multi-az` · **PR:** — · **Cập nhật:** 2026-11-14
+> **Status:** Implemented (đã kiểm chứng live trên AWS 2026-11-14) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev · **Nhánh:** `infra/DBS-180-rds-multi-az` · **PR:** #189 · **Cập nhật:** 2026-11-14
 
 ## 1. Bối cảnh
 
