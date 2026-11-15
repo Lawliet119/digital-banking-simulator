@@ -34,3 +34,9 @@ Rút từ mô tả một câu ở FRAUD guide §6.1 và README dataset. Cặp ng
 Chốt lại 2026-11-15 **trước lần chạy đầu** (gate phụ ở feature doc §8): thêm đặc trưng số tiền cho VELOCITY_BURST, SLOW_DRIP, BUST_OUT theo đúng chữ trong mô tả một câu.
 
 Bảng được viết thành hằng số trong `audit-split.mjs` và kiểm trong `audit-split.test.mjs`.
+
+## Kết quả sau sửa (2026-11-15)
+
+- Nhãn `FRAUD` và mức tài khoản: không còn ứng viên (trước sửa: 4 ứng viên nhãn `FRAUD` lift 15,9–52,2 và 1 ở mức tài khoản, share 0,659).
+- Còn **một tell**: ROUND_TRIP × R6. Tài khoản B của cặp chuyển vòng mở với số dư 0, mỗi lượt chuyển ngược trả lại đúng số vừa nhận, nên `amount = from_balance_before` (100%) ở mọi chiều B→A; R6 bắt một nửa số dòng, `recall_pair = 1` vì chỉ có một cặp. Sửa = đổi số dư mở của B (ngữ nghĩa kịch bản), không làm trong DBS-146; BL.
+- Hạn chế mô phỏng (C3): sáu kịch bản có ≥ 50% dòng vào một `to_account` (VELOCITY_BURST, BUST_OUT, SLOW_DRIP, STRUCTURING, FAN_IN = 1,0; ROUND_TRIP = 0,5). BL.

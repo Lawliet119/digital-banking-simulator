@@ -22,9 +22,18 @@ export function planScenarios({ seed, customers, days, budget }) {
       .digest("hex");
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
   };
+  // DBS-146: opening dates follow the background distribution (30–729 days before START) and are
+  // derived from a hash, not from random(), so every amount, time and recipient stays unchanged.
+  const openedDaysAgo = (i) =>
+    30 +
+    (createHash("sha256")
+      .update(`${seed}:cohort:created:${i}`)
+      .digest()
+      .readUInt32LE(0) %
+      700);
   const registry = Array.from({ length: customers }, (_, i) => ({
     customerId: identifier("customer", i),
-    createdAt: iso(START - 200 * DAY),
+    createdAt: iso(START - openedDaysAgo(i) * DAY),
   }));
   const accounts = registry.map((c, i) => ({
     accountId: identifier("account", i),
