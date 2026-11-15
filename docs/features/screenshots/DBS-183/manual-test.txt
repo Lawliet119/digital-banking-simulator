@@ -1,0 +1,67 @@
+commit under test: 380b38c397cc2617cd7a36e6dfa6139f270b416e  node: v24.22.2  docker: Docker version 27.3.1, build c  free RAM at start: 5.34 GB
+
+##### PASS 1 · M-183-01 dlq-isolation (a, b, c)
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+exit: 0  elapsed: 175 s
+temp databases left: 0
+
+##### PASS 1 · M-183-02 worker-recovery (d)
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+exit: 0  elapsed: 102 s
+temp databases left: 0
+
+##### PASS 1 · M-183-03 consumer-poison (b)
+Test Suites: 1 passed, 1 total
+Tests:       32 passed, 32 total
+exit: 0  elapsed: 40 s
+temp databases left: 0
+
+##### PASS 2 · M-183-04 dlq-isolation (a, b, c)
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+exit: 0  elapsed: 87 s
+temp databases left: 0
+
+##### PASS 2 · M-183-04 worker-recovery (d)
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+exit: 0  elapsed: 102 s
+temp databases left: 0
+
+##### PASS 2 · M-183-04 consumer-poison (b)
+Test Suites: 1 passed, 1 total
+Tests:       32 passed, 32 total
+exit: 0  elapsed: 40 s
+temp databases left: 0
+
+##### Tên test trong các spec đã chạy (grep it(...) tĩnh, vì reporter của jest-services không in tên)
+dlq-isolation: TC-125-01
+dlq-isolation: TC-125-02
+dlq-isolation: TC-046-01
+dlq-isolation: TC-125-03
+worker-recovery: TC-124-01
+worker-recovery: TC-124-02
+consumer-poison: 2 khai báo it(...) (TC-010-01..03 nhân theo từng consumer, tổng 32 test chạy)
+
+##### M-183-05 tên trên AWS (chỉ đọc, ap-southeast-1, profile dbs)
+alarm dbs-dev-risk-dlq-not-empty: 1 (0 = không tồn tại lúc này)
+alarm dbs-dev-notification-dlq-not-empty: 1 (0 = không tồn tại lúc này)
+alarm dbs-dev-outbox-age: 0 (0 = không tồn tại lúc này)
+queue dbs-dev-risk-events: https://sqs.ap-southeast-1.amazonaws.com/<ACCOUNT_ID>/dbs-dev-risk-events
+queue dbs-dev-risk-events-dlq: https://sqs.ap-southeast-1.amazonaws.com/<ACCOUNT_ID>/dbs-dev-risk-events-dlq
+queue dbs-dev-notification-events: https://sqs.ap-southeast-1.amazonaws.com/<ACCOUNT_ID>/dbs-dev-notification-events
+queue dbs-dev-notification-events-dlq: https://sqs.ap-southeast-1.amazonaws.com/<ACCOUNT_ID>/dbs-dev-notification-events-dlq
+ecs clusters (không có phiên): 0
+update-service --desired-count có trong help: 4
+run-task --overrides có trong help: 17
+send-message --message-attributes có trong help: 3
+list-tasks --family có trong help: 2
+
+##### M-183-06 docker stop
+container dbs183-pg còn: 0; container khác của dự án này: 0
+
+##### Ghi chú
+- Lần chạy thủ công đầu (một script chạy cả ba spec liên tiếp) bị hệ thống dừng vì thiếu RAM ngay ở M-183-01, chưa có kết quả; đã dọn container rồi chạy lại từng spec một (kết quả ở trên).
+- Chạy trước đó trong ngày (cùng commit nội dung, một lệnh bốn suite gồm cả consumer-base.services-spec.ts): 4 suite, 42 test đạt, 273,6 s.

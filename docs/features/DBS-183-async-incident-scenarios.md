@@ -1,6 +1,6 @@
 # DBS-183 · Kịch bản sự cố phần bất đồng bộ (chạy lặp lại được)
 
-> **Status:** Plan approved (sau G3) · **Vai:** Dev (docs, chạy test) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-183-async-incident-scenarios` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (sau G4) · **Vai:** Dev (docs, chạy test) · **Cặp đôi review:** Dev khác · **Nhánh:** `docs/DBS-183-async-incident-scenarios` · **PR:** — · **Cập nhật:** 2026-11-15
 
 ## 1. Bối cảnh
 
@@ -150,3 +150,54 @@ Task docs-only: "test viết trước" là các lệnh grep của TC-183-01, 02,
 - **Plan sweep:** hạn chế nêu trong docs: Demo 3 ("kill API giữa lệnh chờ DBS-185": ngoài phạm vi, ghi tên), BL-182 (số đo (d) cloud, dùng không đóng), BL-364 (kiểm log trên cloud: DBS-184), BL-362 (đường ghi RDS), quy tắc 6 ngày của runbook DLQ (ghi trong dọn dẹp (a), (c)), reviewer vòng 1 (hai blocking: bước 1), phụ thuộc #198 (rebase lên `main` sau khi #198 merge, bước trước G4). Không còn mục nào chưa có hàng kế hoạch.
 - **Rủi ro và cách lùi:** (1) lệnh cloud viết từ tài liệu, chưa chạy: ghi rõ "chưa chạy trên cloud (DBS-184)" ở từng kịch bản và ở PR; (2) hai liên kết hỏng cho tới khi #198 merge: rebase và chạy lại link check trước G4; (3) test dịch vụ phụ thuộc Docker và Postgres tạm: dọn container cuối. Back-out: không đổi code, bỏ commit docs.
 - **Quyết định ở G3 (agent tự quyết):** BL của task lấy dải 370–374 (BL-350, 351, 360–364 đã dùng).
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra (docs-only, lúc bàn giao):** `check-doc-links.mjs` → số file và 0 liên kết hỏng (xem checklist G4). TC-183-01: runbook có bốn mục `## (a)` … `## (d)`, mỗi mục đủ sáu tiểu mục (Mục tiêu, Local, Cloud, Kết quả mong đợi, Cách xác nhận, Dọn để chạy lại: mỗi mục 6/6). TC-183-02: các mã `TC-125-01..03`, `TC-046-01` (`dlq-isolation`), `TC-124-01..02` (`worker-recovery`), `TC-010-01..03` (`consumer-poison`) đều có trong `backend/test/services/`. TC-183-04: `reason` `attempts_exhausted` và `invalid_event` ở `consumer-base.ts`; chuyển DLQ không log cho body không phải JSON ở `sqs.client.ts` (hai chỗ `deadLetter`); action `notification.sent` (dòng 42) và `fraud.flagged` (dòng 43) ở `audit.registry.ts`; queue `dbs-dev-${each.key}-events[-dlq]` ở `base/sqs.tf`; alarm `dbs-dev-${each.key}-dlq-not-empty` ở `base/alarms.tf`, `dbs-dev-outbox-age` ở `session/alarms.tf`.
+- **Đối chiếu test case:**
+
+| ID | Kiểm bằng | Đạt? |
+|---|---|---|
+| TC-183-01 | grep tiêu đề và tiểu mục runbook | đạt |
+| TC-183-02 | grep mã TC trong `backend/test/services/` | đạt |
+| TC-183-03 | M-183-01..04: ba spec chạy hai lần | đạt |
+| TC-183-04 | grep đối chiếu nguồn (trên) và M-183-05 | đạt |
+| TC-183-05 | `check-doc-links.mjs` | đạt |
+| TC-183-06 | quy trình | làm ở PR (đã sau #198) |
+
+- **Test thủ công** (raw: [manual-test.txt](screenshots/DBS-183/manual-test.txt); Node 24.22.2, PostgreSQL 17 tạm cổng 55433, Testcontainers cho ElasticMQ và Valkey; chạy từng spec một):
+
+| Bước | Kết quả |
+|---|---|
+| M-183-01 | đạt: `dlq-isolation` 4/4 (TC-125-01..03, TC-046-01), lượt 1: 175 s; kịch bản (a), (b), (c) |
+| M-183-02 | đạt: `worker-recovery` 2/2 (TC-124-01..02), 102 s; kịch bản (d) |
+| M-183-03 | đạt: `consumer-poison` 32/32 (TC-010-01..03 theo từng consumer), 40 s; kịch bản (b) |
+| M-183-04 | đạt: lượt 2 cùng kết quả (4/4 trong 87 s, 2/2 trong 102 s, 32/32 trong 40 s); `SELECT count(*) FROM pg_database WHERE datname LIKE 'dbs_test_%'` = 0 sau mỗi spec: lặp lại được và không để lại database tạm |
+| M-183-05 | đạt: hai alarm DLQ và bốn queue có thật trên AWS (chỉ đọc); `dbs-dev-outbox-age` không có lúc này (chỉ tồn tại khi có phiên, đúng như runbook ghi); không có cluster ECS; `update-service --desired-count`, `run-task --overrides`, `send-message --message-attributes`, `list-tasks --family` đều có trong `help` của AWS CLI |
+| M-183-06 | đạt: `docker stop dbs183-pg`, không còn container tạm |
+| Phần cloud | **chưa chạy** (chờ DBS-184): ép lỗi notification, alarm DLQ/outbox, log `dead_letter`, worker tắt/bật bằng ECS |
+
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD`: runbook mới, feature doc, docs/03 §17, Demo 3, features/README, BACKLOG, bốn file `screenshots/DBS-183/`. Khớp §7 bước 1–4.
+- **Lệch so với kế hoạch (agent tự duyệt):**
+  1. Lần chạy thủ công đầu (một script chạy cả ba spec) bị hệ thống dừng vì thiếu RAM ngay ở M-183-01; đã dọn container và chạy lại từng spec một, kết quả không đổi.
+  2. Reporter của `jest-services` không in tên từng test (kể cả với `--verbose`), nên bằng chứng tên test là grep tĩnh `it('TC-…')` cộng số test đạt.
+  3. Không chạy lại `consumer-base.services-spec.ts` ở hai lượt thủ công (nó có trong lần chạy bốn suite cùng ngày, 42 test đạt): spec này không thuộc bốn kịch bản.
+  4. Không chạy vòng domain review thứ ba (vòng 2 APPROVE).
+- **Ảnh chụp:** không áp dụng (docs-only; bằng chứng là `manual-test.txt`, không có token và id tài khoản AWS).
+- **Bàn giao cho vai khác:** **BL-370** (Dev chạy DBS-184 và #5): lệnh chính thức ép và gỡ lỗi notification trên cloud (hiện chỉ có đề xuất ghi đè `dbs-migrate`, chưa kiểm). **BL-371** (Dev chạy DBS-184): chạy bốn kịch bản trên cloud và sửa runbook theo kết quả (kèm kiểm log `dead_letter`, BL-364). **BL-372** (Dev chủ outbox/messaging): công cụ gửi lại message kèm `OriginalSentTimestamp` khi DLQ bị khóa 6 ngày. Phụ thuộc có sẵn: BL-362 (đường ghi RDS cho Ops), BL-364, BL-182.
+
+## 9. Tài liệu đã cập nhật
+
+- `docs/runbooks/async-incident-scenarios.md` (mới); `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §17 (liên kết ở dòng "Failure / recovery"); `docs/demos/demo-3-failure-recovery.md` (liên kết); `docs/features/README.md` (hàng DBS-183).
+- `docs/BACKLOG.md`: thêm BL-370, BL-371, BL-372; không xóa dòng nào.
+- Sửa chéo từ review của task này: mục 2b của `docs/runbooks/dlq-redrive.md` (body không phải JSON không có dòng log), đã sửa và merge ở PR #198.
+
+## Checklist G4
+
+- [x] 6/6 test case đạt đủ độ sâu (TC-183-06 là quy trình, làm ở PR), 0 đơn giản hóa
+- [x] Test thủ công local chạy trên nội dung runbook cuối (dòng đầu `manual-test.txt` ghi commit `380b38c`; từ đó runbook không đổi, `git diff --stat 380b38c -- docs/runbooks/async-incident-scenarios.md` rỗng); phần cloud **chưa chạy** (chờ DBS-184), nêu trong PR
+- [x] Ảnh chụp: không áp dụng; `manual-test.txt` không có token, header `Authorization` hay id tài khoản AWS
+- [x] `git diff --stat origin/main...HEAD` khớp §7
+- [x] Baseline docs-only (`check-doc-links.mjs`) chạy lúc bàn giao
+- [x] Mọi doc có fact bị đổi đã sửa (docs/03, Demo 3, features/README); trạng thái doc Implemented
+- [x] Bàn giao và DoD chưa đạt có BL-370..372 trong `docs/BACKLOG.md`
