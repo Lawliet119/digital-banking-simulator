@@ -126,18 +126,20 @@ def cmd_evaluate(args):
     out = {"inflightPid": None}
     if ready is None:
         reasons.append("NO_READY")
-    first = next((i for i, e in enumerate(samples) if e.get("inflight")), None)
+    required = ("idempotency_keys:RowExclusiveLock", "transfers:RowExclusiveLock", "ledger_entries:RowExclusiveLock")
+
+    def mid(sample):  # backend giữa transaction = giữ đủ ba khóa; job dọn dẹp của worker chỉ giữ idempotency_keys
+        return [b for b in sample.get("inflight", []) if all(n in b.get("locks", "") for n in required)]
+
+    first = next((i for i, e in enumerate(samples) if mid(e)), None)
     if first is None:
-        reasons.append("NO_INFLIGHT")
+        reasons.append("NOT_MID_TRANSACTION" if any(e.get("inflight") for e in samples) else "NO_INFLIGHT")
     elif ready is not None:
         w1 = to_epoch(samples[first]["t"])
         s0 = to_epoch(samples[first - 1]["t"]) if first > 0 else to_epoch(ready["t"])
-        backend = samples[first]["inflight"][0]
-        locks = backend.get("locks", "")
-        out.update({"inflightPid": backend["pid"], "locks": locks, "readyAt": ready["t"], "W1": samples[first]["t"],
-                    "S0": samples[first - 1]["t"] if first > 0 else ready["t"]})
-        if not all(n in locks for n in ("idempotency_keys:RowExclusiveLock", "transfers:RowExclusiveLock", "ledger_entries:RowExclusiveLock")):
-            reasons.append("NOT_MID_TRANSACTION")
+        backend = mid(samples[first])[0]
+        out.update({"inflightPid": backend["pid"], "locks": backend.get("locks", ""), "readyAt": ready["t"],
+                    "W1": samples[first]["t"], "S0": samples[first - 1]["t"] if first > 0 else ready["t"]})
         if w1 - to_epoch(ready["t"]) > 30:
             reasons.append("W1_TOO_LATE")
         exec_stopped = to_epoch(task.get("executionStoppedAt"))
@@ -147,7 +149,7 @@ def cmd_evaluate(args):
             reasons.append("KILL_TOO_LATE")
     if not done:
         reasons.append("NO_DONE")
-    elif samples and samples[-1].get("inflight"):
+    elif samples and mid(samples[-1]):
         reasons.append("ORPHAN_STILL_PRESENT")
     container = next((c for c in task.get("containers", []) if c.get("name") == args.container), {})
     out["exitCode"] = container.get("exitCode")
@@ -172,7 +174,7 @@ def main():
     o.set_defaults(fn=cmd_overrides)
     e = sub.add_parser("evaluate")
     e.add_argument("--watch-log", required=True)
-    e.add_argument("--sleep-seconds", type=int, default=110)
+    e.add_argument("--sleep-seconds", type=int, default=115)
     e.add_argument("--task-json", required=True)
     e.add_argument("--container", required=True)
     e.add_argument("--client-code", required=True)

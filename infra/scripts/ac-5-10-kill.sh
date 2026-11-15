@@ -13,7 +13,7 @@
 # Biến môi trường: API (https://<alb>), CUST_TOKEN (khách chuyển tiền), AUD_TOKEN (auditor, cho verify),
 # FROM_ACCOUNT, TO_ACCOUNT, AMOUNT (mặc định 100000), STATE_DIR (mặc định ./.ac510), CLUSTER (mặc định dbs-dev),
 # AWS_PROFILE và AWS_DEFAULT_REGION. Token KHÔNG bao giờ được in; không dùng `set -x` hay `curl -v`.
-# Trigger tạm dbs185_slow làm MỌI lệnh ghi sổ cái ngủ 110 s trong lúc tồn tại: không bật khi người khác dùng phiên.
+# Trigger tạm dbs185_slow làm MỌI lệnh ghi sổ cái ngủ 115 s trong lúc tồn tại: không bật khi người khác dùng phiên.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +22,7 @@ CLUSTER="${CLUSTER:-dbs-dev}"
 LOG_GROUP="/dbs/dev/api"
 AMOUNT="${AMOUNT:-100000}"
 STATE_DIR="${STATE_DIR:-./.ac510}"
-SLEEP_SECONDS=110
+SLEEP_SECONDS=115
 WATCH_SECONDS=170
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$*"; }
@@ -190,7 +190,7 @@ phase_kill() {
   jq '{stoppingAt, executionStoppedAt, stoppedAt, stopCode, stoppedReason, exitCodes: [.containers[]|{name,exitCode}]}' "$STATE_DIR/old-task.json" |
     sed -E 's/[0-9]{12}/<ACCOUNT_ID>/g'
   say "T4: gỡ trigger (slow-off chờ tới khi backend mồ côi hết)"
-  run_db_task slowoff slow-off || say "CẢNH BÁO: slow-off thoát khác 0, kiểm trigger bằng probe"
+  run_db_task slowoff slow-off || die "slow-off thất bại (trigger dbs185_slow có thể còn): gỡ tay trước khi làm tiếp"
   say "chờ watch kết thúc"
   local wc
   wc="$(mig_wait "$watch_id")"

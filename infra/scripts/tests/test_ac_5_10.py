@@ -172,13 +172,16 @@ def iso(offset):
     return datetime.datetime.fromtimestamp(BASE + offset, datetime.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def watch_log(inflight_from=3, inflight_until=55, locks=INFLIGHT, done=True, samples=85):
+STRAY = {"pid": 777, "locks": "idempotency_keys:RowExclusiveLock"}  # ví dụ job dọn dẹp của worker
+
+
+def watch_log(inflight_from=3, inflight_until=62, locks=INFLIGHT, done=True, samples=85, stray=False):
     """Nhật ký giả của `watch`: READY lúc t=0, mẫu mỗi 2 s; backend giữa transaction từ mẫu `inflight_from`."""
     lines = [{"t": iso(0), "event": "READY"}]
     for i in range(samples):
         present = i >= inflight_from and (inflight_until is None or i < inflight_until)
-        lines.append({"t": iso(2 * (i + 1)), "event": "sample",
-                      "inflight": [{"pid": 4242, "locks": locks}] if present else []})
+        inflight = ([{"pid": 4242, "locks": locks}] if present else []) + ([STRAY] if stray else [])
+        lines.append({"t": iso(2 * (i + 1)), "event": "sample", "inflight": inflight})
     if done:
         lines.append({"t": iso(2 * samples + 0.5), "event": "DONE"})
     return "\n".join(json.dumps(x) for x in lines) + "\n"
@@ -199,7 +202,7 @@ class EvaluateTest(unittest.TestCase):
             h.write_text(watch, encoding="utf-8")
             t.write_text(task, encoding="utf-8")
             res = run_tools("evaluate", "--watch-log", str(h), "--task-json", str(t), "--container", "api",
-                            "--client-code", code, "--client-has-correlation", corr, "--sleep-seconds", "110")
+                            "--client-code", code, "--client-has-correlation", corr, "--sleep-seconds", "115")
         return res, json.loads(res.stdout)
 
     def test_valid_run(self):
@@ -245,12 +248,12 @@ class EvaluateTest(unittest.TestCase):
         self.assertIn("W1_TOO_LATE", out["reasons"])
 
     def test_kill_when_sleep_nearly_over_is_invalid(self):
-        # S0 = READY + 6 s; kill lúc READY + 110 >= S0 + 110 - 10
-        res, out = self.evaluate(watch_log(), task_json(exec_stopped=110))
+        # S0 = READY + 6 s; kill lúc READY + 112 >= S0 + 115 - 10
+        res, out = self.evaluate(watch_log(), task_json(exec_stopped=112))
         self.assertIn("KILL_TOO_LATE", out["reasons"])
 
     def test_kill_just_in_time_is_valid(self):
-        res, out = self.evaluate(watch_log(), task_json(exec_stopped=105))
+        res, out = self.evaluate(watch_log(), task_json(exec_stopped=110))
         self.assertEqual(res.returncode, 0, out)
 
     def test_orphan_still_present_at_last_sample_is_invalid(self):
@@ -260,6 +263,16 @@ class EvaluateTest(unittest.TestCase):
     def test_watch_not_finished_is_invalid(self):
         res, out = self.evaluate(watch_log(done=False), task_json())
         self.assertIn("NO_DONE", out["reasons"])
+
+    def test_stray_backend_holding_only_the_key_table_is_ignored(self):
+        # job dọn dẹp idempotency_keys của worker hiện ở mọi mẫu: không được làm sai S0, W1 và điều kiện mẫu cuối
+        res, out = self.evaluate(watch_log(stray=True), task_json())
+        self.assertEqual(res.returncode, 0, out)
+        self.assertEqual(out["inflightPid"], 4242)
+
+    def test_only_a_stray_backend_is_not_mid_transaction(self):
+        res, out = self.evaluate(watch_log(inflight_from=999, stray=True), task_json())
+        self.assertIn("NOT_MID_TRANSACTION", out["reasons"])
 
     def test_epoch_timestamps_from_cli_v1(self):
         # AWS CLI v1 in số giây epoch
@@ -320,6 +333,13 @@ class DbScriptStaticTest(unittest.TestCase):
 
     def test_size_for_inline(self):
         self.assertLessEqual(len(self.src.encode("utf-8")), 9000)
+
+    def test_slow_off_waits_for_idle_ledger_and_has_lock_timeout(self):
+        off = self.code[self.code.index("async function slowOff"):self.code.index("const WATCH_SQL")]
+        self.assertRegex(off, r"lock_timeout")
+        self.assertRegex(off, r"pg_locks")
+        self.assertRegex(off, r"ledger_entries")
+        self.assertRegex(off, r"triggerPresent|pg_trigger")
 
     def test_modes(self):
         for mode in ("slow-on", "slow-off", "watch", "probe"):

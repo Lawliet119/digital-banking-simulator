@@ -1,8 +1,8 @@
 // AC-5.10 (DBS-185): làm một giao dịch chuyển tiền «nằm giữa transaction» đủ lâu để dừng task api, rồi thăm dò kết quả.
 // Chạy TRONG task `dbs-migrate` bằng `node -e "$(cat …)"` (qua --overrides; xem ac-5-10-tools.py). Image chỉ có dist/ và
 // node_modules/, nên require('pg') tìm từ /app. Không in mật khẩu. DDL duy nhất: hàm và trigger tạm `dbs185_slow`.
-// MODE=slow-on:  SLEEP_SECONDS (mặc định 110). Trigger BEFORE INSERT trên ledger_entries chỉ gọi pg_sleep rồi trả về.
-// MODE=slow-off: gỡ trigger và hàm; chờ tới khi các transaction đang giữ ledger_entries xong (tối đa 300 s).
+// MODE=slow-on:  SLEEP_SECONDS (mặc định 115, dưới statement_timeout 120 s của api). Trigger BEFORE INSERT trên ledger_entries chỉ gọi pg_sleep rồi trả về.
+// MODE=slow-off: chờ tới khi không còn backend nào giữ ledger_entries, rồi gỡ trigger và hàm (thử lại khi lock_timeout 3 s; tối đa 240 s).
 // MODE=watch:    WATCH_SECONDS (mặc định 170). Mỗi 2 s ghi backend đang giữa transaction (khóa idempotency_keys).
 // MODE=probe:    ACCOUNT_ID, TO_ACCOUNT_ID, IDEM_KEY, INFLIGHT_PID (đều tùy chọn). Chỉ đọc.
 // Kết nối: DATABASE_URL, hoặc DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD (+ DATABASE_SSL, DATABASE_SSL_CA_PATH).
@@ -35,7 +35,7 @@ const DROP_TRIGGER = 'DROP TRIGGER IF EXISTS dbs185_slow ON public.ledger_entrie
 const DROP_FUNCTION = 'DROP FUNCTION IF EXISTS public.dbs185_slow()';
 
 async function slowOn() {
-  const n = Number(env.SLEEP_SECONDS || 110);
+  const n = Number(env.SLEEP_SECONDS || 115);
   if (!Number.isInteger(n) || n < 1 || n > 600) throw new Error('SLEEP_SECONDS must be an integer 1..600');
   await withClient({}, async c => {
     await c.query(DROP_TRIGGER);
@@ -46,10 +46,26 @@ async function slowOn() {
 }
 
 async function slowOff() {
-  await withClient({ statement_timeout: 300000 }, async c => {
-    await c.query(DROP_TRIGGER);
-    await c.query(DROP_FUNCTION);
-    log({ event: 'SLOW_OFF' });
+  const deadline = Date.now() + 240000;
+  const BUSY = `SELECT count(DISTINCT l.pid)::int AS n FROM pg_locks l JOIN pg_class r ON r.oid = l.relation
+    WHERE r.relname = 'ledger_entries' AND l.locktype = 'relation' AND l.granted AND l.mode = 'RowExclusiveLock' AND l.pid <> pg_backend_pid()`;
+  await withClient({ lock_timeout: 3000, statement_timeout: 20000 }, async c => {
+    for (;;) {
+      const busy = (await c.query(BUSY)).rows[0].n;
+      if (busy === 0) {
+        try {
+          await c.query(DROP_TRIGGER);
+          await c.query(DROP_FUNCTION);
+          const left = (await c.query("SELECT count(*)::int AS n FROM pg_trigger WHERE tgname = 'dbs185_slow'")).rows[0].n;
+          log({ event: 'SLOW_OFF', triggerPresent: left });
+          if (left === 0) return;
+        } catch (e) {
+          if (!e || e.code !== '55P03') throw e;
+        }
+      }
+      if (Date.now() > deadline) throw new Error('slow-off timed out: trigger may still exist, busy backends ' + busy);
+      await sleep(2000);
+    }
   });
 }
 
