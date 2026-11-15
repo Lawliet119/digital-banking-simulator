@@ -1,6 +1,6 @@
 # DBS-146 · Kiểm tra tập dữ liệu giao #4: không rò rỉ nhãn và phân phối hợp lý
 
-> **Status:** Implemented (G1–G4 qua ngày 2026-11-15; DoD 2 đạt một phần, BL-391) · **Vai:** Dev (dataset) · **Cặp đôi review:** không có Dev review (quyết định techlead, xem DoD 4) · **Nhánh:** `test/DBS-146-dataset-audit` · **PR:** — · **Cập nhật:** 2026-11-15
+> **Status:** Implemented (G1–G4 qua ngày 2026-11-15; DoD 2 đạt một phần, BL-391) · **Vai:** Dev (dataset) · **Cặp đôi review:** không có Dev review (quyết định techlead, xem DoD 4) · **Nhánh:** `test/DBS-146-dataset-audit` · **PR:** [#205](https://github.com/Lawliet119/digital-banking-simulator/pull/205) · **Cập nhật:** 2026-11-15
 
 > **Bức tường dữ liệu:** tài liệu này nằm trong `docs/` mà #4 đọc được, nên **chỉ ghi kết luận và loại phát hiện, không ghi cơ chế sinh dữ liệu** (giá trị, số tài khoản, số dòng từng kịch bản, phân phối ngày). Cơ chế và số liệu theo kịch bản nằm ở `load-tests/fraud-dataset/AUDIT-NOTES.md` (thư mục kín, FRAUD guide §6.2).
 
