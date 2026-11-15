@@ -1,0 +1,23 @@
+=== DBS-181 Live RDS Multi-AZ Failover Drill (2026-11-14) ===
+Environment: ap-southeast-1, profile=dbs-admin, DB=dbs-dev (db.t4g.micro, MultiAZ=true)
+Probe target: GET https://<ALB_DNS>/health/ready (~2 RPS, 0.5s interval)
+
+=== Baseline ===
+MultiAZ: true
+AZ: ap-southeast-1a
+Status: available
+Endpoint: dbs-dev.<RDS_ID>.ap-southeast-1.rds.amazonaws.com
+
+=== Round 1 (aws rds reboot-db-instance --db-instance-identifier dbs-dev --force-failover) ===
+Triggered at: 2026-11-14T09:32:20Z
+After failover: AZ=ap-southeast-1a, SecondaryAZ=ap-southeast-1b, Status=available
+Probe stats: total=522, ok_200=508, err_503=14, retry_after=0, other=0
+Outage window (first 503 -> last 503): 14.7s
+Self-recovery: Yes (app recovered to 200 automatically without ECS task restart)
+
+=== Round 2 (aws rds reboot-db-instance --db-instance-identifier dbs-dev --force-failover) ===
+Triggered at: 2026-11-14T09:38:19Z
+After failover: AZ=ap-southeast-1a, SecondaryAZ=ap-southeast-1b, Status=available
+Probe stats: total=528, ok_200=514, err_503=14, retry_after=0, other=0
+Outage window (first 503 -> last 503): 12.7s
+Self-recovery: Yes (app recovered to 200 automatically without ECS task restart)
