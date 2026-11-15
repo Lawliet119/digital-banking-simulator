@@ -78,3 +78,9 @@ backend.hcl
 # ---------- Python ----------
 __pycache__/
 *.py[cod]
+
+# ---------- Video demo (chỉ lưu link ở docs/deliverables, không đưa file nặng vào git; DBS-140) ----------
+*.mp4
+*.mov
+*.mkv
+*.webm

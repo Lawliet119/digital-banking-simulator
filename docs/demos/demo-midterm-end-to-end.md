@@ -19,7 +19,7 @@ Một kịch bản duy nhất cho cả nhóm, chạy trọn luồng nghiệp v�
 
 ## Quy tắc khi quay
 
-- **Token không bao giờ hiện trên màn hình.** Luôn gán vào biến (`X=$(…)`), không `echo "$X"`, không `set -x`, không `curl -v`, không dán token vào chat, ghi chú hay commit (cùng quy tắc với [demo-checklist](../runbooks/demo-checklist.md)). Token sống 15 phút: lấy lại bằng đúng lệnh ở bước 1 nếu quá hạn.
+- **Token không bao giờ hiện trên màn hình.** Luôn gán vào biến (`X=$(…)`), không `echo "$X"`, không `set -x`, không `curl -v`, không dán token vào chat, ghi chú hay commit (cùng quy tắc với [demo-checklist](../runbooks/demo-checklist.md)). Token sống 15 phút: lấy lại bằng đúng lệnh `tok` ở [Bước 1–9](#bước-19--luồng-chính) (cùng `RUN` và `--sub`) nếu quá hạn.
 - **Dùng tên không dấu** trong thân JSON gửi bằng `curl -d` trên Windows (Git Bash): thân có dấu bị hỏng (tên lưu thành `Tr?n Van An`). Muốn tên có dấu thì ghi thân ra file và dùng `--data-binary @file`.
 - **Ghi lại `C` ngay ở lần gọi chuyển tiền đầu tiên** (bước 4). Server sinh mã mới cho mỗi request: gửi lại cùng `Idempotency-Key` trả 201 với cùng `transferId` và `status` (thứ tự khóa JSON có thể khác) nhưng header `X-Correlation-Id` là mã mới, không có dòng audit nào mang mã đó. Mất `C` thì dùng `GET /v1/audit/entries?action=transfer` (auditor) và lấy `correlationId` của dòng mới nhất.
 
@@ -274,17 +274,12 @@ Hôm sau chạy `python3 infra/scripts/cost-report.py` để ghi chi phí thật
 - [ ] Reset lại ngay trước khi quay (An và Bình mới), vì cờ cũ làm danh sách ở bước 5 dài hơn.
 - [ ] Cloud: làm theo [demo-checklist](../runbooks/demo-checklist.md) và nhớ `terraform destroy` + `verify-clean.sh` ngay sau khi quay.
 
-## Kịch bản quay (thời lượng gợi ý, tổng ≈ 10 phút)
+## Kịch bản quay
 
-1. Mở màn (1 phút): nêu mục tiêu, bước 0 đã chuẩn bị sẵn.
-2. Bước 1–4 (3 phút): đăng ký, mở tài khoản, nạp, chuyển. Dừng ở `C`: "đây là mã truy vết của giao dịch".
-3. Bước 5–6 (2 phút): cờ xuất hiện ở phía nhân viên, khách không thấy gì.
-4. Bước 7 (1 phút): review một lần, lần hai bị 409.
-5. Bước 8 (2 phút): kiểm toán viên tra `C`, bấm giờ, thấy cả chuỗi.
-6. Bước 9 (1 phút): ca từ chối và nhật ký.
+Trình tự quay, lời dẫn, thời lượng 15–20 phút, việc cần làm trước và sau khi quay, xử lý sự cố: [demo-midterm-recording.md](demo-midterm-recording.md) (DBS-140). Kết quả lần quay thật (link, commit, người quay): [midterm-demo-video.md](../deliverables/midterm-demo-video.md).
 
 ## Giới hạn hiện tại
 
-- Chưa có lần quay (DBS-140).
+- Chưa có lần quay: kịch bản quay đã chuẩn bị ([demo-midterm-recording.md](demo-midterm-recording.md)), việc quay cần người thật (BL-390).
 - 403 do `RolesGuard` ghi dòng `access.denied` (bước 9, BL-132); [Demo 4](demo-4-security-audit.md) phần D đã được sửa theo trong cùng PR với kịch bản này.
 - Điểm 65 chỉ đúng với rule set seed (`rule_only`); không có AI trong kịch bản này.

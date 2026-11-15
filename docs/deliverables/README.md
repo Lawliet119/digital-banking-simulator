@@ -15,3 +15,5 @@ Năm bản nộp của môn học. Mỗi bản là **bản ghép trỏ về ngu�
 Bằng chứng (ảnh chụp, kết quả k6, log diễn tập) để cạnh bản nộp tương ứng khi có, rồi link từ bản nộp. [Bảng diễn tập sự cố P4](P4-incident-table.md) phân biệt bằng chứng local và cloud; bản P4 tổng hợp vẫn chưa nộp.
 
 [Ghi chú câu bảo vệ 7 (HA và hồi phục) kèm bằng chứng](defense-q7-ha-recovery.md) (DBS-197): bảng sự cố, vì sao tiền không sai, giới hạn; chưa luyện với người khác, chưa có video.
+
+[Video demo giữa kỳ](midterm-demo-video.md) (DBS-140): chỗ lưu link video và kiểm sau khi quay; **chưa quay** (cần người thật, BL-390), kịch bản quay ở [demo-midterm-recording.md](../demos/demo-midterm-recording.md).
