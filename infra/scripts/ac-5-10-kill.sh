@@ -28,11 +28,9 @@ WATCH_SECONDS=170
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$*"; }
 die() { say "LỖI: $*" >&2; exit 1; }
 need() { local v; for v in "$@"; do [ -n "${!v:-}" ] || die "thiếu biến môi trường $v"; done; }
-st() { printf '%s' "$2" >"$STATE_DIR/$1"; }
+st() { mkdir -p "$STATE_DIR" && printf '%s' "$2" >"$STATE_DIR/$1"; }
 ld() { cat "$STATE_DIR/$1" 2>/dev/null || true; }
 epoch() { date -u -d "$1" +%s 2>/dev/null; }
-
-mkdir -p "$STATE_DIR" 2>/dev/null || true
 
 net_config() {
   aws ecs describe-services --cluster "$CLUSTER" --services api --query 'services[0].networkConfiguration' --output json
@@ -57,6 +55,7 @@ mig_wait() { # task id -> chờ STOPPED, in exit code
 }
 overrides_file() { # <tên> rồi các đối số của `tools overrides`
   local f="$STATE_DIR/ov-$1.json"
+  mkdir -p "$STATE_DIR"
   shift
   "${TOOLS[@]}" overrides "$@" >"$f" || die "không dựng được overrides"
   printf '%s' "$f"
