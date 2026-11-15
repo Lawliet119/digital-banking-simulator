@@ -1,0 +1,23 @@
+=== DBS-180 Live RDS Multi-AZ Toggle Verification (2026-11-14) ===
+Environment: ap-southeast-1, profile=dbs-admin, DB=dbs-dev (db.t4g.micro)
+
+=== M-180-04: Enable db_multi_az = true ===
+Command: terraform apply -target=aws_db_instance.main ... -var db_multi_az=true -auto-approve
+Duration: 10m 20s
+aws rds describe-db-instances:
+  MultiAZ: True
+  AvailabilityZone: ap-southeast-1a
+  DBInstanceStatus: available
+  Endpoint: dbs-dev.<RDS_ID>.ap-southeast-1.rds.amazonaws.com (unchanged)
+  terraform output db_multi_az: true
+GET /health/ready -> 200
+
+=== M-180-06: Restore db_multi_az = false ===
+Command: terraform apply -target=aws_db_instance.main ... -var db_multi_az=false -auto-approve
+Duration: 4m 34s
+aws rds describe-db-instances:
+  MultiAZ: False
+  AvailabilityZone: ap-southeast-1a
+  SecondaryAvailabilityZone: None
+  DBInstanceStatus: available
+GET /health/ready -> 200
