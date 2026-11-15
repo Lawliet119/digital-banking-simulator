@@ -28,4 +28,4 @@ Ai đang gọi và họ được làm gì. Dùng Cognito, không tự quản m�
 
 ## Export công khai (`index.ts`)
 
-Đã có: `JwtAuthGuard`, `JwksVerifierService`, `IdentityService.resolveUserId(sub)`, kiểu `AuthenticatedUser` (có `userId`), `Roles`, `ROLES_KEY`, `RolesGuard`, `CurrentUser`, `ROLES`, `rolesFromGroups`, kiểu `Role` và `CurrentUserInfo`. Cổng `RoleDenialAudit` và kiểu `RoleDenial` (`RolesGuard` ghi audit `DENIED` khi 403 qua nó, BL-132; `AuditModule` cung cấp bản thật). Chưa có: `IdentityService.revokeSessions(userId, manager)`.
+Đã có: `JwtAuthGuard`, `JwksVerifierService`, `IdentityService.resolveUserId(sub)`, kiểu `AuthenticatedUser` (có `userId`), `Roles`, `ROLES_KEY`, `RolesGuard`, `CurrentUser`, `ROLES`, `rolesFromGroups`, kiểu `Role` và `CurrentUserInfo`. Cổng `RoleDenialAudit` và kiểu `RoleDenial` (`RolesGuard` ghi audit `DENIED` khi 403 qua nó, BL-132; `AuditModule` cung cấp bản thật). Thu hồi phiên: `IdentityService.revokeSessions(manager, userId)` (xem mục trên).

@@ -20,7 +20,7 @@
 
 - **Image:** `c96c1de`. Bản tốt `dbs-api:16`, `dbs-worker:12`; bản lỗi `dbs-api:17`, `dbs-worker:13` (chỉ khác `DB_HOST=broken-db-host.invalid`).
 - **Lỗi của kịch bản:** rollback bắt đầu ở +47 s sau deploy lỗi, khi `/health/ready` ra 503 lần đầu nhưng chưa task lỗi nào dừng: 503 đó do api chạy 1 task với min healthy 0%, nên lần này không chứng minh bản lỗi hỏng (domain review DBS-156 #1).
-- **Số đo:** `/health/ready` 200 sau 86 s, api `COMPLETED` sau 118 s, worker sau 305 s, **tổng 305 s**. Giao dịch mẫu trước và sau rollback đạt. Bản ghi: [run-2/drill.typescript](run-2/drill.typescript).
+- **Số đo:** `/health/ready` 200 sau 86 s, api `COMPLETED` sau 118 s, worker sau 305 s, **tổng 305 s**. Giao dịch mẫu trước và sau rollback đạt. Bản ghi terminal thô (`run-2/drill.typescript`, `run-2/drill.timing`) không còn trong cây làm việc; lấy lại từ lịch sử git tại commit `dd93d1b` (đường dẫn cũ `docs/deliverables/P3-rollback-drill/run-2/`).
 
 ## Lần 3 (2026-11-15, bằng chứng chính)
 
@@ -38,4 +38,4 @@
 | Sau rollback | đến `12:33:27Z` | | số dư nguyên; replay cùng khóa → cùng `transferId`, không chuyển lần hai; nạp và chuyển mới `201` `COMPLETED`; revision lỗi hủy đăng ký, AWS từ chối `update-service` về chúng; `invariants.js` thoát 0 |
 
 - **Mất phục vụ** (`/health/ready` khác 200): khoảng 290 s, từ 40 s sau deploy lỗi tới 127 s sau `T0`, dài vì kịch bản chờ task lỗi dừng thật.
-- Bản ghi phát lại được: [run-3/drill.typescript](run-3/drill.typescript) (`scriptreplay -t run-3/drill.timing run-3/drill.typescript`).
+- Bản ghi terminal thô (`run-3/drill.typescript`, `run-3/drill.timing`) không còn trong cây làm việc; lấy lại từ lịch sử git tại commit `dd93d1b` (đường dẫn cũ `docs/deliverables/P3-rollback-drill/run-3/`), ví dụ `git show dd93d1b:docs/deliverables/P3-rollback-drill/run-3/drill.typescript`. `scriptreplay` cần cả hai file `drill.typescript` và `drill.timing`.

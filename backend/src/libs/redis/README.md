@@ -38,8 +38,9 @@ lần; lỗi validate của caller và lỗi socket nền không tăng. Counter 
 `Registry` riêng của từng `RedisMetrics` (dùng cho `metrics()`/`count()` theo instance) và trên
 `defaultRegister` của `prom-client` (dùng chung một counter cho toàn tiến trình), nên một endpoint
 `/metrics` HTTP dựng theo cách thông thường (`defaultRegister.metrics()`) đã thấy được
-`redis_fallback_total` ngay, không cần biết tới instance `RedisMetrics` cụ thể nào. Việc ghép HTTP
-endpoint/dashboard thật vẫn là việc của task sau (BL-152).
+`redis_fallback_total` ngay, không cần biết tới instance `RedisMetrics` cụ thể nào. Ứng dụng không có
+endpoint HTTP `/metrics`: counter được phát qua CloudWatch EMF (`@common/metrics`, xem
+[observability](../../../../docs/components/observability/01-concept-brief.md)).
 
 **Redis lỗi không được làm hỏng nghiệp vụ — mọi nơi dùng `@libs/redis` phải có đường dự phòng.**
 Caller bắt `RedisUnavailableError` và chọn fallback theo ADR-12: fail-open cho rate limit, đọc
