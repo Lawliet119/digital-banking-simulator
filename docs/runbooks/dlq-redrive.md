@@ -26,6 +26,15 @@
 
 Chỉ redrive **sau khi đã sửa nguyên nhân**: deploy bản sửa, gỡ cấu hình hỏng, hoặc chờ DB hay Redis hồi phục. Redrive khi nguyên nhân còn đó chỉ làm message vào lại DLQ.
 
+### Hạn retention và xử lý lỗi luật tất định / `CONFIG_INVALID` (`RSK-04`)
+
+- **Hạn giữ message:** queue chính (`risk-events`, `notification-events`) giữ **4 ngày** (`345.600` s); DLQ (`risk-events-dlq`, `notification-events-dlq`) giữ **6 ngày** (`518.400` s, ADR-03). Alarm `dbs-dev-<risk|notification>-dlq-oldest-age` cảnh báo sớm khi message nằm trong DLQ quá **1 giờ** (`3600` s), trước SLA redrive 24 giờ.
+- **Lỗi mã luật hoặc truy vấn feature tất định** (`dbs-dev-risk-rule-error` bật, mọi sự kiện `TRANSFER` vào `risk-events-dlq` sau 5 lần / ~2,5 phút):
+  1. Xem log `/dbs/dev/worker` để xác định `Rule` lỗi; **nghiêm cấm redrive** khi chưa deploy bản sửa code (redrive sớm sẽ lỗi lại 5 lần và bị `list-message-move-tasks` chặn redrive tiếp trong 6 ngày).
+  2. Deploy hotfix mã nguồn; chờ worker mới ổn định.
+  3. Chạy `npm run --silent dlq:age-check` (từ chối message gốc quá 6 ngày) rồi mới redrive.
+- **Cấu hình `ai.*` hỏng (`dbs-dev-risk-config-invalid`):** worker chấm tiếp `R1–R6`, ghi `ai_status = CONFIG_INVALID` và **không đẩy DLQ**; không redrive — tạo phiên bản cấu hình đúng qua `POST /v1/admin/risk-config` (UC-12).
+
 ## Quyền
 
 **Ops** (không phải task `worker`; DBS-73 từ chối worker đọc hoặc xóa DLQ) cần các quyền sau. Từ BL-241, queue policy còn `Deny` các thao tác message cho principal ngoài danh sách cho phép (role `dbs-dev-worker-task` và `sqs_ops_principal_arns`, mặc định mọi IAM user của tài khoản): người redrive phải nằm trong danh sách đó, nếu không sẽ gặp `explicit deny in a resource-based policy` dù identity policy đủ quyền (`infra/terraform/README.md`, mục SQS).
