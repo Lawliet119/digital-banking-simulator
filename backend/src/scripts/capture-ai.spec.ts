@@ -92,6 +92,23 @@ describe('capture-ai CLI (DBS-212)', () => {
     expect(assess).toHaveBeenCalledTimes(5);
   });
 
+  it('TC-161-03 sends the rubric from --rubric-file instead of the default one and refuses an empty file', async () => {
+    const rubricPath = join(dir, 'rubric.txt');
+    writeFileSync(rubricPath, '  candidate rubric text \n');
+    const assess = jest.fn((_features: unknown, _options: { rubric: string }) =>
+      Promise.resolve(answer),
+    );
+    await runCaptureAi([...base(), '--rubric-file', rubricPath], { OPENAI_API_KEY: 'k' }, assess);
+    const calls = assess.mock.calls;
+    expect(calls).toHaveLength(5);
+    expect(calls.every(([, options]) => options.rubric === 'candidate rubric text')).toBe(true);
+
+    writeFileSync(rubricPath, '  \n');
+    await expect(
+      runCaptureAi([...base(), '--rubric-file', rubricPath], { OPENAI_API_KEY: 'k' }, assess),
+    ).rejects.toThrow(/--rubric-file is empty/);
+  });
+
   it.each([
     [['--output', 'o', '--seed', 's', '--max-calls', '1'], /Missing required option: --input/],
     [['--input', 'i', '--seed', 's', '--max-calls', '1'], /Missing required option: --output/],
