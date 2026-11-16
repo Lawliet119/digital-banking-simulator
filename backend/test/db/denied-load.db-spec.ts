@@ -65,6 +65,20 @@ describe('BL-019 recordDenied under repeated 403', () => {
       idleInTx: Number(row.idle_in_tx),
     };
   };
+  /**
+   * The last refusal's connection is released a moment after its response is sent, so reading
+   * `pg_stat_activity` the instant the burst ends can still see it `active` (CI flake). Wait up to
+   * 5 s for the app to go quiet: a connection that is really leaked stays open and still fails.
+   */
+  const settle = async (): Promise<Pick<Sample, 'server' | 'active' | 'idleInTx'>> => {
+    const deadline = Date.now() + 5_000;
+    let reading = await appConnections();
+    while ((reading.active > 0 || reading.idleInTx > 0) && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      reading = await appConnections();
+    }
+    return reading;
+  };
   const pool = (): { totalCount: number; waitingCount: number } =>
     (app.source.driver as unknown as { master: { totalCount: number; waitingCount: number } })
       .master;
@@ -143,7 +157,7 @@ describe('BL-019 recordDenied under repeated 403', () => {
     expect(report.maxServerConnections).toBeLessThanOrEqual(POOL_MAX);
     expect(report.maxPoolTotal).toBeLessThanOrEqual(POOL_MAX);
     // A refusal's transaction is short: nothing may stay open or idle in a transaction afterwards.
-    const settled = await appConnections();
+    const settled = await settle();
     expect(settled.active).toBe(0);
     expect(settled.idleInTx).toBe(0);
   }, 120_000);
