@@ -4,10 +4,10 @@
 # Mọi alarm gửi vào topic SNS của base (`alarm_topic_arn`), cả lúc báo (alarm_actions) và lúc hết (ok_actions).
 # Tag lấy từ default_tags của provider (locals.tags), alarm hỗ trợ tag nên không cần khai thêm.
 #
-# Chi phí: 16 alarm ở đây (+ 2 alarm DLQ ở base = 18). Alarm chuẩn 0,10 USD/alarm/tháng; alarm dùng biểu thức metric
-# (SUM(METRICS()) / MAX(METRICS()) / công thức tỉ lệ) bị tính theo số metric được tham chiếu: `risk_rule_error` 6 metric,
-# `read_latency_p95` 3 metric, `reconciliation`, `redis_fallback`, `rate_limited`, `api_5xx_rate` mỗi cái 2; còn lại 1 metric mỗi alarm. Tổng cỡ
-# 3,1 USD/tháng nếu chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều.
+# Chi phí: 17 alarm ở đây (+ 4 alarm DLQ ở base = 21). Alarm chuẩn 0,10 USD/alarm/tháng; alarm dùng biểu thức metric
+# (SUM(METRICS()) / MAX(METRICS()) / công thức tỉ lệ) bị tính theo số metric được tham chiếu: `risk_rule_error` và
+# `risk_ai_fallback_rate` mỗi cái 6 metric, `read_latency_p95` 3 metric, `reconciliation`, `redis_fallback`, `rate_limited`,
+# `api_5xx_rate` mỗi cái 2; còn lại 1 metric mỗi alarm. Tổng cỡ 3,7 USD/tháng nếu chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều.
 #
 # Dimension: bộ đếm của ứng dụng (MetricsService.writeCounters) chỉ xuất ở bộ `[Role, ...nhãn]`, KHÔNG có bộ `[]`; gauge
 # thì ngược lại chỉ có bộ `[]` (outbox_oldest_unpublished_age_seconds, outbox_quarantined_events). Alarm phải khai đúng bộ dimension đó, nếu không
@@ -184,6 +184,76 @@ resource "aws_cloudwatch_metric_alarm" "risk_rule_error" {
         namespace   = var.metrics_namespace
         metric_name = "risk_rule_error_total"
         dimensions  = { Role = local.alarm_role_worker, Rule = metric_query.value }
+        period      = 300
+        stat        = "Sum"
+      }
+    }
+  }
+
+  alarm_actions = local.alarm_actions
+  ok_actions    = local.alarm_actions
+}
+
+# RSK-04 (BL-051): tỉ lệ fallback AI vượt ngưỡng trên các quyết định có gọi AI (bỏ qua DISABLED của rule_only).
+# Dùng SUM(METRICS("fb_")) để bỏ qua các AiStatus chưa từng có điểm dữ liệu, tránh INSUFFICIENT_DATA.
+resource "aws_cloudwatch_metric_alarm" "risk_ai_fallback_rate" {
+  alarm_name        = "dbs-dev-risk-ai-fallback-rate"
+  alarm_description = "Tỉ lệ fallback AI vượt ${var.ai_fallback_rate_threshold_percent}% trong 5 phút (CONFIG_INVALID, REFUSED, INVALID_RESPONSE, UNAVAILABLE, BUDGET_EXHAUSTED trên tổng quyết định gọi AI). Xem log /dbs/dev/worker và trạng thái OpenAI/AiGate; chuyển rule_only qua UC-12 nếu cần."
+
+  threshold           = var.ai_fallback_rate_threshold_percent
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  treat_missing_data  = "notBreaching"
+
+  metric_query {
+    id          = "rate"
+    expression  = "IF(total_ai > 0, 100 * fb_sum / total_ai, 0)"
+    label       = "Tỉ lệ fallback AI (%)"
+    return_data = true
+  }
+
+  metric_query {
+    id          = "fb_sum"
+    expression  = "SUM(METRICS(\"fb_\"))"
+    return_data = false
+  }
+
+  metric_query {
+    id          = "total_ai"
+    expression  = "SUM([succ, fb_sum])"
+    return_data = false
+  }
+
+  metric_query {
+    id          = "succ"
+    return_data = false
+
+    metric {
+      namespace   = var.metrics_namespace
+      metric_name = "risk_decision_total"
+      dimensions  = { Role = local.alarm_role_worker, AiStatus = "SUCCEEDED" }
+      period      = 300
+      stat        = "Sum"
+    }
+  }
+
+  dynamic "metric_query" {
+    for_each = {
+      fb_ci  = "CONFIG_INVALID"
+      fb_ref = "REFUSED"
+      fb_inv = "INVALID_RESPONSE"
+      fb_una = "UNAVAILABLE"
+      fb_bud = "BUDGET_EXHAUSTED"
+    }
+
+    content {
+      id          = metric_query.key
+      return_data = false
+
+      metric {
+        namespace   = var.metrics_namespace
+        metric_name = "risk_decision_total"
+        dimensions  = { Role = local.alarm_role_worker, AiStatus = metric_query.value }
         period      = 300
         stat        = "Sum"
       }
