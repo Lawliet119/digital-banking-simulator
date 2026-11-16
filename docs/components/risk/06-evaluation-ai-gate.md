@@ -73,7 +73,7 @@ Số **thực đo** từ capture (không còn là ước tính của baseline): 
 
 | Việc | Task |
 |---|---|
-| Chỉnh luật B0 rồi chạy lại `compare-modes` với B0 đã chỉnh | DBS-161 |
+| Chỉnh luật B0 rồi chạy lại `compare-modes` với B0 đã chỉnh | DBS-161, xem [07](07-tuning-rules.md) |
 | Đóng băng cấu hình (luật, ngưỡng, trọng số, rubric) | DBS-168 |
 | Chạy holdout đúng một lần | DBS-169 |
 | Đo p95 giao dịch → cờ ở 120 RPS cho B0 và B2, kèm cả độ trễ API | tải trên hệ thống thật |

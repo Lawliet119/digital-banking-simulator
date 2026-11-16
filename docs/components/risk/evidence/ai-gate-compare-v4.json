@@ -1,0 +1,607 @@
+{
+  "sample": {
+    "transfers": 2021,
+    "fraud": 1009,
+    "trainCustomers": 771,
+    "validationCustomers": 309,
+    "trainRows": 1443,
+    "validationRows": 578
+  },
+  "chosen": {
+    "threshold": 0.7,
+    "weight": 20,
+    "selectedOn": "train",
+    "feasible": true
+  },
+  "grid": [
+    {
+      "threshold": 0.5,
+      "weight": 10,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 12.5453,
+      "feasible": true
+    },
+    {
+      "threshold": 0.5,
+      "weight": 20,
+      "trainRecall": 0.52251,
+      "trainAlertsPer1000": 12.5594,
+      "feasible": true
+    },
+    {
+      "threshold": 0.5,
+      "weight": 30,
+      "trainRecall": 0.52251,
+      "trainAlertsPer1000": 12.5594,
+      "feasible": true
+    },
+    {
+      "threshold": 0.5,
+      "weight": 40,
+      "trainRecall": 0.627558,
+      "trainAlertsPer1000": 161.1758,
+      "feasible": false
+    },
+    {
+      "threshold": 0.5,
+      "weight": 50,
+      "trainRecall": 0.627558,
+      "trainAlertsPer1000": 161.1758,
+      "feasible": false
+    },
+    {
+      "threshold": 0.5,
+      "weight": 60,
+      "trainRecall": 0.627558,
+      "trainAlertsPer1000": 161.1758,
+      "feasible": false
+    },
+    {
+      "threshold": 0.55,
+      "weight": 10,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1277,
+      "feasible": true
+    },
+    {
+      "threshold": 0.55,
+      "weight": 20,
+      "trainRecall": 0.52251,
+      "trainAlertsPer1000": 11.1418,
+      "feasible": true
+    },
+    {
+      "threshold": 0.55,
+      "weight": 30,
+      "trainRecall": 0.52251,
+      "trainAlertsPer1000": 11.1418,
+      "feasible": true
+    },
+    {
+      "threshold": 0.55,
+      "weight": 40,
+      "trainRecall": 0.616644,
+      "trainAlertsPer1000": 135.5459,
+      "feasible": false
+    },
+    {
+      "threshold": 0.55,
+      "weight": 50,
+      "trainRecall": 0.616644,
+      "trainAlertsPer1000": 135.5459,
+      "feasible": false
+    },
+    {
+      "threshold": 0.55,
+      "weight": 60,
+      "trainRecall": 0.616644,
+      "trainAlertsPer1000": 135.5459,
+      "feasible": false
+    },
+    {
+      "threshold": 0.6,
+      "weight": 10,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1277,
+      "feasible": true
+    },
+    {
+      "threshold": 0.6,
+      "weight": 20,
+      "trainRecall": 0.52251,
+      "trainAlertsPer1000": 11.1418,
+      "feasible": true
+    },
+    {
+      "threshold": 0.6,
+      "weight": 30,
+      "trainRecall": 0.52251,
+      "trainAlertsPer1000": 11.1418,
+      "feasible": true
+    },
+    {
+      "threshold": 0.6,
+      "weight": 40,
+      "trainRecall": 0.601637,
+      "trainAlertsPer1000": 102.7716,
+      "feasible": false
+    },
+    {
+      "threshold": 0.6,
+      "weight": 50,
+      "trainRecall": 0.601637,
+      "trainAlertsPer1000": 102.7716,
+      "feasible": false
+    },
+    {
+      "threshold": 0.6,
+      "weight": 60,
+      "trainRecall": 0.601637,
+      "trainAlertsPer1000": 102.7716,
+      "feasible": false
+    },
+    {
+      "threshold": 0.65,
+      "weight": 10,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1277,
+      "feasible": true
+    },
+    {
+      "threshold": 0.65,
+      "weight": 20,
+      "trainRecall": 0.52251,
+      "trainAlertsPer1000": 11.1418,
+      "feasible": true
+    },
+    {
+      "threshold": 0.65,
+      "weight": 30,
+      "trainRecall": 0.52251,
+      "trainAlertsPer1000": 11.1418,
+      "feasible": true
+    },
+    {
+      "threshold": 0.65,
+      "weight": 40,
+      "trainRecall": 0.590723,
+      "trainAlertsPer1000": 71.4572,
+      "feasible": false
+    },
+    {
+      "threshold": 0.65,
+      "weight": 50,
+      "trainRecall": 0.590723,
+      "trainAlertsPer1000": 71.4572,
+      "feasible": false
+    },
+    {
+      "threshold": 0.65,
+      "weight": 60,
+      "trainRecall": 0.590723,
+      "trainAlertsPer1000": 71.4572,
+      "feasible": false
+    },
+    {
+      "threshold": 0.7,
+      "weight": 10,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1277,
+      "feasible": true
+    },
+    {
+      "threshold": 0.7,
+      "weight": 20,
+      "trainRecall": 0.52251,
+      "trainAlertsPer1000": 11.1418,
+      "feasible": true
+    },
+    {
+      "threshold": 0.7,
+      "weight": 30,
+      "trainRecall": 0.52251,
+      "trainAlertsPer1000": 11.1418,
+      "feasible": true
+    },
+    {
+      "threshold": 0.7,
+      "weight": 40,
+      "trainRecall": 0.559345,
+      "trainAlertsPer1000": 42.7664,
+      "feasible": false
+    },
+    {
+      "threshold": 0.7,
+      "weight": 50,
+      "trainRecall": 0.559345,
+      "trainAlertsPer1000": 42.7664,
+      "feasible": false
+    },
+    {
+      "threshold": 0.7,
+      "weight": 60,
+      "trainRecall": 0.559345,
+      "trainAlertsPer1000": 42.7664,
+      "feasible": false
+    },
+    {
+      "threshold": 0.75,
+      "weight": 10,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1277,
+      "feasible": true
+    },
+    {
+      "threshold": 0.75,
+      "weight": 20,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1277,
+      "feasible": true
+    },
+    {
+      "threshold": 0.75,
+      "weight": 30,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1277,
+      "feasible": true
+    },
+    {
+      "threshold": 0.75,
+      "weight": 40,
+      "trainRecall": 0.526603,
+      "trainAlertsPer1000": 22.5673,
+      "feasible": false
+    },
+    {
+      "threshold": 0.75,
+      "weight": 50,
+      "trainRecall": 0.526603,
+      "trainAlertsPer1000": 22.5673,
+      "feasible": false
+    },
+    {
+      "threshold": 0.75,
+      "weight": 60,
+      "trainRecall": 0.526603,
+      "trainAlertsPer1000": 22.5673,
+      "feasible": false
+    },
+    {
+      "threshold": 0.8,
+      "weight": 10,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1136,
+      "feasible": true
+    },
+    {
+      "threshold": 0.8,
+      "weight": 20,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1136,
+      "feasible": true
+    },
+    {
+      "threshold": 0.8,
+      "weight": 30,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1136,
+      "feasible": true
+    },
+    {
+      "threshold": 0.8,
+      "weight": 40,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 16.8264,
+      "feasible": true
+    },
+    {
+      "threshold": 0.8,
+      "weight": 50,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 16.8264,
+      "feasible": true
+    },
+    {
+      "threshold": 0.8,
+      "weight": 60,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 16.8264,
+      "feasible": true
+    },
+    {
+      "threshold": 0.85,
+      "weight": 10,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.85,
+      "weight": 20,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.85,
+      "weight": 30,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.85,
+      "weight": 40,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1559,
+      "feasible": true
+    },
+    {
+      "threshold": 0.85,
+      "weight": 50,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1559,
+      "feasible": true
+    },
+    {
+      "threshold": 0.85,
+      "weight": 60,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 11.1559,
+      "feasible": true
+    },
+    {
+      "threshold": 0.9,
+      "weight": 10,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.9,
+      "weight": 20,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.9,
+      "weight": 30,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.9,
+      "weight": 40,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.7101,
+      "feasible": true
+    },
+    {
+      "threshold": 0.9,
+      "weight": 50,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.7101,
+      "feasible": true
+    },
+    {
+      "threshold": 0.9,
+      "weight": 60,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.7101,
+      "feasible": true
+    },
+    {
+      "threshold": 0.95,
+      "weight": 10,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.95,
+      "weight": 20,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.95,
+      "weight": 30,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.95,
+      "weight": 40,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.95,
+      "weight": 50,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    },
+    {
+      "threshold": 0.95,
+      "weight": 60,
+      "trainRecall": 0.521146,
+      "trainAlertsPer1000": 9.696,
+      "feasible": true
+    }
+  ],
+  "validation": {
+    "b0": {
+      "metrics": {
+        "tp": 109,
+        "fp": 0,
+        "fn": 167,
+        "tn": 30360.06,
+        "precision": 1,
+        "recall": 0.394928,
+        "f1": 0.566234,
+        "alertsPer1000": 3.5579
+      },
+      "sampleFlagged": 109,
+      "sampleFraudCaught": 109
+    },
+    "b1": {
+      "metrics": {
+        "tp": 92,
+        "fp": 1206.36,
+        "fn": 184,
+        "tn": 29153.7,
+        "precision": 0.070859,
+        "recall": 0.333333,
+        "f1": 0.116873,
+        "alertsPer1000": 42.3801
+      },
+      "sampleFlagged": 104,
+      "sampleFraudCaught": 92
+    },
+    "b2": {
+      "metrics": {
+        "tp": 109,
+        "fp": 0,
+        "fn": 167,
+        "tn": 30360.06,
+        "precision": 1,
+        "recall": 0.394928,
+        "f1": 0.566234,
+        "alertsPer1000": 3.5579
+      },
+      "sampleFlagged": 109,
+      "sampleFraudCaught": 109
+    }
+  },
+  "byScenario": [
+    {
+      "scenario": "ATO_DRAIN",
+      "inScope": true,
+      "fraud": 42,
+      "b0": 0.666667,
+      "b1": 0.785714,
+      "b2": 0.666667
+    },
+    {
+      "scenario": "BUST_OUT",
+      "inScope": true,
+      "fraud": 29,
+      "b0": 1,
+      "b1": 1,
+      "b2": 1
+    },
+    {
+      "scenario": "FAN_IN",
+      "inScope": false,
+      "fraud": 38,
+      "b0": 0,
+      "b1": 0,
+      "b2": 0
+    },
+    {
+      "scenario": "MULE_FANOUT",
+      "inScope": true,
+      "fraud": 36,
+      "b0": 0.666667,
+      "b1": 0.833333,
+      "b2": 0.666667
+    },
+    {
+      "scenario": "SLOW_DRIP",
+      "inScope": false,
+      "fraud": 35,
+      "b0": 0,
+      "b1": 0,
+      "b2": 0
+    },
+    {
+      "scenario": "STRUCTURING",
+      "inScope": false,
+      "fraud": 54,
+      "b0": 0,
+      "b1": 0,
+      "b2": 0
+    },
+    {
+      "scenario": "VELOCITY_BURST",
+      "inScope": true,
+      "fraud": 42,
+      "b0": 0.666667,
+      "b1": 0,
+      "b2": 0.666667
+    }
+  ],
+  "aiExtraFlags": {
+    "rightSample": 0,
+    "wrongSample": 0,
+    "rightWeighted": 0,
+    "wrongWeighted": 0
+  },
+  "recallGain": {
+    "overall": {
+      "point": 0,
+      "low": 0,
+      "high": 0
+    },
+    "inScope": {
+      "point": 0,
+      "low": 0,
+      "high": 0
+    },
+    "iterations": 2000
+  },
+  "provenance": {
+    "models": [
+      "gpt-6-luna"
+    ],
+    "rubricSha256": [
+      "3d0fd9246b9967727c0bcec8b58677d6246c0c4a9f1f8787df55bd6d503bb6a8"
+    ],
+    "statusCounts": {
+      "SUCCEEDED": 2021
+    }
+  },
+  "cost": {
+    "transfers": 2021,
+    "calls": 2021,
+    "inputTokens": 550436,
+    "usd": 0.055,
+    "usdPer1000Transfers": 0.0272,
+    "assumption": "input tokens x $0.1/1M, output not billed (provider guide as recorded in FRAUD-API-01); an estimate, not an invoice",
+    "callLatencyMs": {
+      "p50": 321,
+      "p95": 364
+    }
+  },
+  "gate": {
+    "items": [
+      {
+        "name": "Recall gain of B2 over B0 >= 5 points and the 95% paired bootstrap interval excludes 0",
+        "status": "fail",
+        "detail": "0.00 points, 95% interval [0.00, 0.00] (validation customers)"
+      },
+      {
+        "name": "Pooled recall >= 70% on the 5 in-scope scenarios (B2)",
+        "status": "pass",
+        "detail": "73.15% (B0 73.15%)"
+      },
+      {
+        "name": "<= 20 flags per 1 000 TRANSFER (B2)",
+        "status": "pass",
+        "detail": "3.5579 per 1 000 (weighted estimate, B0 3.5579)"
+      },
+      {
+        "name": "p95 transfer-to-flag < 5 s at 120 RPS (B0 and B2)",
+        "status": "not-measured",
+        "detail": "needs a load test of the running system; this offline comparison cannot measure it"
+      }
+    ],
+    "verdict": "NO-GO"
+  }
+}

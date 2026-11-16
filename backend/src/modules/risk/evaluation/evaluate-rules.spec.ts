@@ -1,4 +1,5 @@
 import type { AiAssessment } from '../ai/ai-contract';
+import { partOf } from './customer-split';
 import { evaluateRules, parseCapture } from './evaluate-rules';
 
 const HEADER =
@@ -232,5 +233,43 @@ describe('evaluateRules (DBS-132)', () => {
     expect(() => parseCapture(`${line('a')}\n${line('a')}`)).toThrow(/line 2: duplicate txId/);
     expect(() => parseCapture('{"txId":"a"}')).toThrow(/line 1: assessment.status/);
     expect(() => parseCapture('{"assessment":{"status":"SUCCEEDED"}}')).toThrow(/txId/);
+  });
+});
+
+describe('evaluateRules by customer part (DBS-161)', () => {
+  // 40 customers with one transfer each: even ids are fraud (new account, large), odd are normal.
+  const ids = Array.from({ length: 40 }, (_, i) => `T${i}`);
+  const csv = [
+    HEADER,
+    ...ids.map((id, i) =>
+      i % 2 === 0
+        ? row(id, i, '20000000', NEW_ACCOUNT, 1, 'ATO_DRAIN')
+        : row(id, i, '500000', OLD_ACCOUNT, 0, 'NORMAL'),
+    ),
+  ].join('\n');
+  const run = (part?: 'train' | 'validation', seed: string | null = 's') =>
+    evaluateRules({
+      csvText: csv,
+      config: RULE_ONLY,
+      configVersion: 1,
+      seed: seed ?? undefined,
+      part,
+    });
+
+  it('TC-161-01 train and validation are disjoint, together the whole file, and follow the seed', async () => {
+    const [whole, train, validation] = await Promise.all([run(), run('train'), run('validation')]);
+    expect(train.transactions + validation.transactions).toBe(whole.transactions);
+    expect(train.transactions).toBeGreaterThan(0);
+    expect(validation.transactions).toBeGreaterThan(0);
+    expect(train.frauds + validation.frauds).toBe(whole.frauds);
+    expect(train.part).toBe('train');
+    expect(whole.part).toBeNull();
+    const expectedTrain = ids.filter(id => partOf('s', `cust-from-${id}`) === 'train').length;
+    expect(train.transactions).toBe(expectedTrain);
+    expect(await run('train')).toEqual(train);
+  });
+
+  it('TC-161-02 refuses a part without a seed', async () => {
+    await expect(run('train', null)).rejects.toThrow(/--part needs --seed/);
   });
 });
