@@ -22,6 +22,25 @@ variable "worker_desired_count" {
   }
 }
 
+check "risk_ai_config_complete" {
+  assert {
+    condition = !var.risk_ai_egress_approved || (
+      var.risk_ai_policy_revision != null
+      && var.risk_ai_daily_request_cap != null
+      && var.risk_ai_concurrency != null
+      && var.risk_ai_gate_timeout_ms != null
+    )
+    error_message = "When risk_ai_egress_approved is true, risk_ai_policy_revision, risk_ai_daily_request_cap, risk_ai_concurrency, and risk_ai_gate_timeout_ms must all be set."
+  }
+}
+
+check "risk_ai_db_connection_budget" {
+  assert {
+    condition     = !var.risk_ai_egress_approved || (var.desired_count * 10 + var.worker_desired_count * (10 + coalesce(var.risk_ai_concurrency, 0)) + 5 <= 74)
+    error_message = "Total PostgreSQL connections including AI gate (desired_count*10 + worker_desired_count*(10 + risk_ai_concurrency) + 5) must not exceed 74 on db.t4g.micro (docs/03 section 13.2)."
+  }
+}
+
 # Biến môi trường không bí mật. TRUST_PROXY_HOPS và COGNITO_* chỉ để qua kiểm tra cấu hình (validation.schema.ts bắt
 # buộc ở staging/production với mọi role), worker không có HTTP. Không đặt SQS_ENDPOINT (AWS thật) và không có PORT.
 # DB_USER, DB_PASSWORD (role dbs_worker, BL-103), REDIS_AUTH_TOKEN đi qua `secrets`; ECS đọc bằng execution role
@@ -48,7 +67,7 @@ resource "aws_ecs_task_definition" "worker" {
     # Một lô relay có thể tới 25 s (BL-182); mặc định 30 s không chừa chỗ cho consumer đang xử lý.
     stopTimeout = 60
 
-    environment = [
+    environment = concat([
       { name = "NODE_ENV", value = var.node_env },
       { name = "APP_ROLE", value = "worker" },
       { name = "TRUST_PROXY_HOPS", value = "1" },
@@ -67,13 +86,21 @@ resource "aws_ecs_task_definition" "worker" {
       # BL-114: URL hai queue từ output của base (DBS-73).
       { name = "SQS_RISK_QUEUE_URL", value = local.base.sqs_risk_queue_url },
       { name = "SQS_NOTIFICATION_QUEUE_URL", value = local.base.sqs_notification_queue_url },
-    ]
+      { name = "RISK_AI_EGRESS_APPROVED", value = tostring(var.risk_ai_egress_approved) },
+      ], var.risk_ai_egress_approved ? [
+      { name = "RISK_AI_POLICY_REVISION", value = tostring(var.risk_ai_policy_revision) },
+      { name = "RISK_AI_DAILY_REQUEST_CAP", value = tostring(var.risk_ai_daily_request_cap) },
+      { name = "RISK_AI_CONCURRENCY", value = tostring(var.risk_ai_concurrency) },
+      { name = "RISK_AI_GATE_TIMEOUT_MS", value = tostring(var.risk_ai_gate_timeout_ms) },
+    ] : [])
 
-    secrets = [
+    secrets = concat([
       { name = "DB_USER", valueFrom = "${aws_secretsmanager_secret.db_role["worker"].arn}:username::" },
       { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.db_role["worker"].arn}:password::" },
       { name = "REDIS_AUTH_TOKEN", valueFrom = local.base.redis_auth_secret_arn },
-    ]
+      ], var.risk_ai_egress_approved ? [
+      { name = "OPENAI_API_KEY", valueFrom = local.base.openai_api_key_secret_arn },
+    ] : [])
 
     logConfiguration = {
       logDriver = "awslogs"

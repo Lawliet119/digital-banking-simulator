@@ -119,6 +119,7 @@ override_data {
       redis_subnet_group_name    = "dbs-dev"
       redis_security_group_id    = "sg-redis"
       redis_auth_secret_arn      = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf"
+      openai_api_key_secret_arn  = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/openai-api-key-AbCdEf"
       worker_sqs_policy_arn      = "arn:aws:iam::123456789012:policy/dbs-dev-worker-sqs"
       worker_security_group_id   = "sg-worker"
       worker_log_group_name      = "/dbs/dev/worker"
@@ -180,7 +181,7 @@ run "worker_task_definition" {
     condition = (
       toset([for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name]) == toset([
         "NODE_ENV", "APP_ROLE", "TRUST_PROXY_HOPS", "AWS_REGION", "LOG_LEVEL", "COGNITO_USER_POOL_ID", "COGNITO_CLIENT_ID", "COGNITO_ISSUER",
-        "DB_HOST", "DB_PORT", "DB_NAME", "DATABASE_SSL", "DATABASE_SSL_CA_PATH", "REDIS_HOST", "REDIS_PORT", "SQS_RISK_QUEUE_URL", "SQS_NOTIFICATION_QUEUE_URL",
+        "DB_HOST", "DB_PORT", "DB_NAME", "DATABASE_SSL", "DATABASE_SSL_CA_PATH", "REDIS_HOST", "REDIS_PORT", "SQS_RISK_QUEUE_URL", "SQS_NOTIFICATION_QUEUE_URL", "RISK_AI_EGRESS_APPROVED",
       ])
     )
     error_message = "worker env must be exactly the documented set: no SQS_ENDPOINT, no PORT, no secrets in plain text"
@@ -328,4 +329,107 @@ run "accepts_five_plus_one" {
     condition     = aws_ecs_service.worker.desired_count == 1
     error_message = "5 api + 1 worker is within the limit"
   }
+}
+
+# TC-RSK03-02: AI tắt mặc định (risk_ai_egress_approved = false): không có OPENAI_API_KEY, không có policy đọc secret
+run "rsk03_ai_disabled_by_default" {
+  command = apply
+
+  assert {
+    condition     = { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["RISK_AI_EGRESS_APPROVED"] == "false"
+    error_message = "worker must set RISK_AI_EGRESS_APPROVED=false by default"
+  }
+
+  assert {
+    condition     = !contains([for x in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].secrets : x.name], "OPENAI_API_KEY")
+    error_message = "worker must not mount OPENAI_API_KEY when AI egress is disabled"
+  }
+
+  assert {
+    condition     = length(aws_iam_role_policy.worker_read_openai_secret) == 0
+    error_message = "worker execution role must not have OpenAI secret read policy when AI egress is disabled"
+  }
+}
+
+# TC-RSK03-03: khi bật AI (risk_ai_egress_approved = true), chỉ worker đọc được secret và nhận đủ biến hạn mức; api không có
+run "rsk03_ai_enabled_worker_only" {
+  command = apply
+
+  variables {
+    desired_count             = 1
+    worker_desired_count      = 1
+    risk_ai_egress_approved   = true
+    risk_ai_policy_revision   = "2026-11-16-v1"
+    risk_ai_daily_request_cap = 10000
+    risk_ai_concurrency       = 4
+    risk_ai_gate_timeout_ms   = 500
+  }
+
+  assert {
+    condition = (
+      { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["RISK_AI_EGRESS_APPROVED"] == "true"
+      && { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["RISK_AI_POLICY_REVISION"] == "2026-11-16-v1"
+      && { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["RISK_AI_DAILY_REQUEST_CAP"] == "10000"
+      && { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["RISK_AI_CONCURRENCY"] == "4"
+      && { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["RISK_AI_GATE_TIMEOUT_MS"] == "500"
+    )
+    error_message = "worker env must carry all RISK_AI_* values when AI egress is approved"
+  }
+
+  assert {
+    condition = (
+      { for x in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].secrets : x.name => x.valueFrom }["OPENAI_API_KEY"] == "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/openai-api-key-AbCdEf"
+      && length(aws_iam_role_policy.worker_read_openai_secret) == 1
+      && !strcontains(aws_ecs_task_definition.api.container_definitions, "OPENAI_API_KEY")
+      && !strcontains(aws_ecs_task_definition.api.container_definitions, "RISK_AI_")
+    )
+    error_message = "only worker gets OPENAI_API_KEY secret and policy; api must never have AI secret or env"
+  }
+}
+
+# TC-RSK03-04: từ chối giá trị hạn mức không hợp lệ
+run "rsk03_rejects_bad_cap" {
+  command = plan
+
+  variables {
+    risk_ai_daily_request_cap = 0
+  }
+
+  expect_failures = [var.risk_ai_daily_request_cap]
+}
+
+run "rsk03_rejects_bad_revision" {
+  command = plan
+
+  variables {
+    risk_ai_policy_revision = "bad space"
+  }
+
+  expect_failures = [var.risk_ai_policy_revision]
+}
+
+run "rsk03_rejects_missing_limits_when_approved" {
+  command = plan
+
+  variables {
+    risk_ai_egress_approved = true
+  }
+
+  expect_failures = [check.risk_ai_config_complete]
+}
+
+run "rsk03_rejects_db_connection_budget_overflow" {
+  command = plan
+
+  variables {
+    desired_count             = 4
+    worker_desired_count      = 2
+    risk_ai_egress_approved   = true
+    risk_ai_policy_revision   = "2026-11-16-v1"
+    risk_ai_daily_request_cap = 10000
+    risk_ai_concurrency       = 5
+    risk_ai_gate_timeout_ms   = 500
+  }
+
+  expect_failures = [check.risk_ai_db_connection_budget]
 }

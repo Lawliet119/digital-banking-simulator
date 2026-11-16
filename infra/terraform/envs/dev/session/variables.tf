@@ -131,3 +131,54 @@ variable "waf_off_date" {
     error_message = "waf_off_date must be in YYYY-MM-DD format."
   }
 }
+
+# RSK-03 (ADR-14): hạ tầng cho API AI của worker. Mặc định tắt; chỉ bật sau khi RSK-05 và gate ADR-14 được duyệt.
+variable "risk_ai_egress_approved" {
+  description = "Cho phép task worker đọc secret OpenAI API key và bật đường gọi AI (RISK_AI_EGRESS_APPROVED). Mặc định false."
+  type        = bool
+  default     = false
+}
+
+variable "risk_ai_policy_revision" {
+  description = "Phiên bản chính sách AI (RISK_AI_POLICY_REVISION). Bắt buộc khác null khi risk_ai_egress_approved = true."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.risk_ai_policy_revision == null || can(regex("^[A-Za-z0-9_.:-]{1,128}$", var.risk_ai_policy_revision))
+    error_message = "risk_ai_policy_revision must match ^[A-Za-z0-9_.:-]{1,128}$."
+  }
+}
+
+variable "risk_ai_daily_request_cap" {
+  description = "Trần số request AI mỗi ngày (RISK_AI_DAILY_REQUEST_CAP, do AiGate cưỡng chế trên PostgreSQL). Bắt buộc khi bật AI."
+  type        = number
+  default     = null
+
+  validation {
+    condition     = var.risk_ai_daily_request_cap == null || (floor(var.risk_ai_daily_request_cap) == var.risk_ai_daily_request_cap && var.risk_ai_daily_request_cap >= 1 && var.risk_ai_daily_request_cap <= 2147483647)
+    error_message = "risk_ai_daily_request_cap must be an integer between 1 and 2147483647."
+  }
+}
+
+variable "risk_ai_concurrency" {
+  description = "Số request AI đồng thời tối đa (RISK_AI_CONCURRENCY). Mỗi slot mở thêm 1 kết nối PostgreSQL ngoài pool TypeORM (docs/03 §13.2)."
+  type        = number
+  default     = null
+
+  validation {
+    condition     = var.risk_ai_concurrency == null || (floor(var.risk_ai_concurrency) == var.risk_ai_concurrency && var.risk_ai_concurrency >= 1 && var.risk_ai_concurrency <= 2147483647)
+    error_message = "risk_ai_concurrency must be an integer between 1 and 2147483647."
+  }
+}
+
+variable "risk_ai_gate_timeout_ms" {
+  description = "Deadline (ms) cho mỗi lần AiGate kiểm tra hạn mức PostgreSQL (RISK_AI_GATE_TIMEOUT_MS)."
+  type        = number
+  default     = null
+
+  validation {
+    condition     = var.risk_ai_gate_timeout_ms == null || (floor(var.risk_ai_gate_timeout_ms) == var.risk_ai_gate_timeout_ms && var.risk_ai_gate_timeout_ms >= 1 && var.risk_ai_gate_timeout_ms <= 2147483647)
+    error_message = "risk_ai_gate_timeout_ms must be an integer between 1 and 2147483647."
+  }
+}
