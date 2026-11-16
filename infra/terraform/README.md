@@ -456,6 +456,12 @@ Stack `envs/prod/session` (state key `prod/session.tfstate`) dùng lại VPC, su
   (Nếu `apply` lỗi giữa chừng, chạy `destroy -var termination_protection=false` rồi `verify-clean.sh`. Nếu ai đó tắt bảo vệ ngoài Terraform để lại snapshot `dbs-prod-final`, cần xóa snapshot thủ công trước lần `destroy` sau.)
 - **Chi phí ước tính:** ≈ 0,30 USD/giờ khi bật ([ADR-11](../../docs/adr/0011-aws-managed-session-based.md)); kiểm tra cấu hình ngoại tuyến bằng `node infra/scripts/check-prod-config.mjs <plan.json | --self-test>`.
 
+## Hạ tầng API AI cho worker (`RSK-03`, tắt mặc định)
+
+- `dev/base/ai_secret.tf` giữ vỏ secret `dbs/dev/openai-api-key` (mã hóa CMK `alias/dbs-dev`, `recovery_window_in_days = 0`); giá trị nạp ngoài băng dạng raw string (`sk-...`), không nằm trong Terraform state.
+- `dev/session` tắt AI mặc định (`risk_ai_egress_approved = false`, 4 biến hạn mức `default = null`): khi tắt, `dbs-worker` không gắn `OPENAI_API_KEY` và `dbs-dev-worker-execution` không có policy đọc secret. Khi bật (`risk_ai_egress_approved = true`, sau `RSK-05`), Terraform `check` ép đủ 4 biến hạn mức và tổng kết nối PostgreSQL `desired_count * 10 + worker_desired_count * (10 + risk_ai_concurrency) + 5 <= 74`.
+- Tắt mềm AI: tạo phiên bản `rule_only` qua `POST /v1/admin/risk-config` (có hiệu lực sau ≤ 60 s TTL cache, không dừng worker). Tắt cứng: đặt `risk_ai_egress_approved = false`, `terraform apply`, rồi chạy ngay `aws ecs update-service --force-new-deployment` vì `aws_ecs_service.worker` có `ignore_changes = [task_definition]`.
+
 ## Kiểm tra trước khi push
 
 ```bash
