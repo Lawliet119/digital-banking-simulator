@@ -38,6 +38,8 @@ export interface ParsedDataset {
   readonly facts: OfflineTransferFact[];
   readonly events: TransferEvent[];
   readonly labels: Map<string, string>;
+  /** `scenario` column per tx_id (`NORMAL`, a fraud scenario or a hard-negative name). */
+  readonly scenarios: Map<string, string>;
 }
 
 export function parseTransactionCsv(csvText: string): ParsedDataset {
@@ -73,10 +75,12 @@ export function parseTransactionCsv(csvText: string): ParsedDataset {
   const fromCreatedAtIdx = indexMap.get('from_account_created_at')!;
   const toCreatedAtIdx = indexMap.get('to_account_created_at')!;
   const isFraudIdx = indexMap.get('is_fraud')!;
+  const scenarioIdx = indexMap.get('scenario')!;
 
   const facts: OfflineTransferFact[] = [];
   const events: TransferEvent[] = [];
   const labels = new Map<string, string>();
+  const scenarios = new Map<string, string>();
 
   for (let i = 1; i < lines.length; i++) {
     const { text, number } = lines[i];
@@ -129,9 +133,10 @@ export function parseTransactionCsv(csvText: string): ParsedDataset {
     });
 
     labels.set(txId, isFraud);
+    scenarios.set(txId, cols[scenarioIdx]);
   }
 
-  return { facts, events, labels };
+  return { facts, events, labels, scenarios };
 }
 
 /**
