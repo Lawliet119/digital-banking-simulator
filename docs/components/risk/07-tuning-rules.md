@@ -73,7 +73,43 @@ Validation (chỉ để kiểm):
 | ≤ 20 cờ/1.000 TRANSFER | đạt | đạt (3,56 theo ước tính có trọng số của mẫu) |
 | p95 giao dịch → cờ < 5 s ở 120 RPS | chưa đo | chưa đo |
 
-Kết luận: sau khi chỉnh B0, luật một mình đã đạt ngưỡng recall trong phạm vi, và AI không cho thêm giá trị đo được trên tập tune. Phán quyết cổng vẫn là **NO-GO tạm thời, giữ `rule_only`**; quyết định go/no-go ghi vào ADR-14 là PR riêng của cả nhóm, sau DBS-168/169 và đo p95.
+Kết luận cho rubric gốc: sau khi chỉnh B0, luật một mình đã đạt ngưỡng recall trong phạm vi, và AI không cho thêm giá trị đo được. Phần dưới thử chỉnh rubric. Phán quyết cổng vẫn là **NO-GO tạm thời, giữ `rule_only`**; quyết định go/no-go ghi vào ADR-14 là PR riêng của cả nhóm, sau DBS-168/169 và đo p95.
+
+## Chỉnh rubric AI (DBS-161, phần AI)
+
+Rubric gốc (`REVIEW_RUBRIC`) cho AI nhiều giao dịch sạch điểm 0,5–0,7 nên không thể đặt ngưỡng trong ngân sách cảnh báo: AI không thêm giá trị đo được (xem bảng ở trên). Mình thử thêm 3 rubric, mỗi rubric chạy lại capture trên cùng mẫu 2.021 giao dịch (cùng seed, cùng model `gpt-6-luna`) rồi chọn `ai.threshold`/`ai.weight` trên **train** bằng lưới 60 cặp như cũ. Việc đọc lỗi để viết rubric chỉ dùng giao dịch train; trong lúc chọn rubric không đọc validation.
+
+| Rubric | Ý tưởng | AUC trên giao dịch fraud luật bỏ sót vs NORMAL (train) | Recall train tốt nhất (B0 52,25%) |
+|---|---|---:|---:|
+| gốc | "đủ bất thường để review" | 0,904 | 52,25% (ngưỡng 0,5, 12,6 cảnh báo/1.000) |
+| r2 | Mặc định < 0,15, chỉ nâng khi có tín hiệu cụ thể | 0,849 | 52,39% |
+| r3 | Điểm theo mức: tín hiệu yếu +0,1–0,15, mạnh +0,25–0,4 | 0,956 | 55,66% (17,2 cảnh báo/1.000) |
+| **r4** | r3, tín hiệu yếu +0,15–0,2, thêm "số dư thấp so với số tiền" | không đo | **56,07%** (17,3 cảnh báo/1.000) |
+
+Số lần thử: 4 rubric (kể cả rubric gốc), mỗi rubric 60 cặp ngưỡng/trọng số trên train: 240 cấu hình AI. r4 được chọn vì recall train cao nhất. Văn bản: `backend/src/modules/risk/evaluation/rubrics/r4.txt` (sha256 `0640e98b4359bfb5dba55c4ee1ab553c0a321e9298e94a79c7ee77a9c74680b5`; `rubricSha256` trong capture `96e0b08f…a9f0ff`). `REVIEW_RUBRIC` trong code chưa đổi: đổi nó là quyết định ở bước đóng băng (DBS-168).
+
+Phép so sánh chính thức một lần, B0 = luật v4, AI = r4, ngưỡng 0,65, trọng số 40 (chọn trên train): [`evidence/ai-gate-compare-v4-r4.json`](evidence/ai-gate-compare-v4-r4.json), capture [`evidence/ai-gate-capture-tune-r4.jsonl`](evidence/ai-gate-capture-tune-r4.jsonl) (sha256 `24d8be17c96843689a3c24088d6831ef35ff09c42e14bd623318bf1485ca6276`).
+
+| Validation | B0 (luật v4) | B2 (luật v4 + r4) | Mục tiêu cổng |
+|---|---:|---:|---|
+| Recall tổng | 39,49% | 44,20% | tăng ≥ 5 điểm, khoảng 95% loại trừ 0 |
+| Chênh recall B2 − B0 | | **+4,71 điểm** [2,61; 6,99] | **chưa đạt, chưa kết luận**: điểm ước tính thiếu 0,29 điểm, nhưng mục tiêu 5 nằm trong khoảng tin cậy, nên mẫu này không phân biệt được "đạt" với "không đạt" (khoảng đã loại trừ 0) |
+| Recall trong phạm vi | 73,15% | 81,88% (+8,72 điểm [5,63; 11,67]) | ≥ 70%: đạt |
+| Cảnh báo/1.000 (ước tính có trọng số) | 3,56 | 23,67 | ≤ 20: **không đạt** theo ước tính |
+| Chi phí | | ~0,053 USD/1.000 TRANSFER, trễ gọi p95 451 ms | |
+
+Đọc kết quả:
+- **AI nay có đóng góp đo được**: thêm 13 giao dịch fraud đúng (ATO_DRAIN 66,7% → 83,3%, MULE_FANOUT 66,7% → 83,3%), khoảng tin cậy loại trừ 0. Ba kịch bản ngoài tầm (STRUCTURING, SLOW_DRIP, FAN_IN) vẫn 0%: các giao dịch này trông giống giao dịch thường ở 11 trường đưa vào AI, rubric không thể bù thông tin không có trong đầu vào.
+- **Cái giá là cảnh báo**: AI thêm 6 cờ sai trên validation. Mỗi giao dịch NORMAL trong mẫu đại diện cho ~100 giao dịch, nên ước tính 23,67/1.000 rất nhiễu: 6 cờ sai chỉ cho khoảng tin cậy rộng, trên train cùng cấu hình cho 17,2. Chưa thể nói chắc có vượt 20 hay không; đo đúng cần capture đủ ~100.000 giao dịch (khoảng 5 USD) hoặc holdout.
+- **Phán quyết cổng: vẫn NO-GO tạm thời** (giữ `rule_only` cho tới khi có bằng chứng đủ; đây là mặc định an toàn, không phải kết luận thống kê rằng AI không đạt 5 điểm: khoảng tin cậy [2,61; 6,99] chứa 5, và ước tính cảnh báo 23,67/1.000 dựa trên 6 cờ sai nên rất nhiễu), nhưng lý do đã đổi: trước là "AI không đóng góp", nay là "đóng góp có thật, chưa đủ 5 điểm và chưa chứng minh được trong ngân sách cảnh báo".
+- **Không chỉnh thêm rubric trên tập tune nữa**: validation đã được đọc cho r4, tiếp tục sửa theo nó là rò rỉ. Mọi chỉnh sửa tiếp theo chỉ được đánh giá ở holdout (DBS-169).
+
+Tái lập (cần `OPENAI_API_KEY` trong môi trường nếu muốn gọi lại API; chạy trên capture có sẵn thì không gọi):
+
+```bash
+npm run --silent capture-ai -- --input <tune.csv> --output <capture.jsonl> --seed dbs-split-v1   --max-calls 3000 --rubric-file src/modules/risk/evaluation/rubrics/r4.txt
+npm run --silent compare-modes -- --input <tune.csv> --capture ../docs/components/risk/evidence/ai-gate-capture-tune-r4.jsonl   --config src/modules/risk/evaluation/configs/v4.json --config-version 4 --seed dbs-split-v1
+```
 
 ## Tái lập
 

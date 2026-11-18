@@ -12,7 +12,7 @@ import {
 
 const USAGE =
   'Usage: capture-ai --input <tune.csv> --output <capture.jsonl> --seed <text> --max-calls <n> ' +
-  '[--normal-sample <n>] [--model <name>] [--concurrency <n>] [--timeout-ms <n>] [--limit <n>] ' +
+  '[--normal-sample <n>] [--model <name>] [--rubric-file <path>] [--concurrency <n>] [--timeout-ms <n>] [--limit <n>] ' +
   '[--dry-run]   (OPENAI_API_KEY comes from the environment, never from an argument)';
 
 /** Planning figure only (docs/components/risk/05-evaluation-b0-baseline.md); real usage is read from the capture. */
@@ -26,6 +26,7 @@ interface Args {
   maxCalls?: number;
   normalSample: number;
   model: string;
+  rubricFile?: string;
   concurrency: number;
   timeoutMs: number;
   limit?: number;
@@ -57,6 +58,7 @@ function parseArgs(args: string[]): Args {
     else if (arg === '--output') parsed.output = value(i++, arg);
     else if (arg === '--seed') parsed.seed = value(i++, arg);
     else if (arg === '--model') parsed.model = value(i++, arg);
+    else if (arg === '--rubric-file') parsed.rubricFile = value(i++, arg);
     else if (arg === '--max-calls') parsed.maxCalls = positive(value(i++, arg), arg);
     else if (arg === '--normal-sample') parsed.normalSample = positive(value(i++, arg), arg);
     else if (arg === '--concurrency') parsed.concurrency = positive(value(i++, arg), arg);
@@ -93,6 +95,11 @@ export async function runCaptureAi(
     ? new Set(parseCaptureLines(readFileSync(output, 'utf8')).keys())
     : new Set<string>();
 
+  const rubric = options.rubricFile
+    ? readFileSync(resolve(process.cwd(), options.rubricFile), 'utf8').trim()
+    : REVIEW_RUBRIC;
+  if (!rubric) throw new Error('--rubric-file is empty');
+
   const sample = selectSample(csvText, options.seed!, options.normalSample);
   const wanted = sample.txIds.slice(0, options.limit ?? sample.txIds.length);
   const remaining = wanted.filter(id => !done.has(id)).length;
@@ -119,7 +126,7 @@ export async function runCaptureAi(
     seed: options.seed!,
     normalSample: options.normalSample,
     model: options.model,
-    rubric: REVIEW_RUBRIC,
+    rubric,
     apiKey,
     requestTimeoutMs: options.timeoutMs,
     concurrency: options.concurrency,
