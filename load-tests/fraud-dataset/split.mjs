@@ -53,7 +53,7 @@ export function generateSplitDataset({
 }
 
 // Resolve existing ancestors so a junction/symlink cannot disguise a sealed path inside a checkout.
-function canonical(path) {
+export function canonical(path) {
   let parent = resolve(path);
   const suffix = [];
   while (!existsSync(parent)) {
@@ -70,7 +70,7 @@ function contains(parent, child) {
     r === "" || (!r.startsWith(".." + sep) && r !== ".." && !isAbsolute(r))
   );
 }
-function insideCheckout(path) {
+export function insideCheckout(path) {
   for (let p = path; ; p = dirname(p)) {
     if (existsSync(join(p, ".git"))) return true;
     if (dirname(p) === p) return false;

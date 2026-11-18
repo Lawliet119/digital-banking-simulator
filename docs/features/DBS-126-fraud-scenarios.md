@@ -344,6 +344,8 @@ Mẫu `dbs-fraud-v1`, 2.000 khách, 60 ngày:
 | SHA-256 CSV | `fc08c565275646cb19068f088749ae4a6f89e71eb7b172cc1804de8f7b57f7e1` |
 | SHA-256 simulation / stats | `93b6a534392d57566c4385cb073ce902bf3f3fd2e38815bced7c1861a64525da` / `bc291565b3b5357164c6ba48bb3364a164d693d4125b1d4c30132e2ae6c85862` |
 
+**Sau [DBS-146](DBS-146-dataset-audit.md) (2026-11-15):** ngày mở tài khoản của khách nhóm kịch bản đổi để không lộ nhãn; ba SHA mặc định đổi thành CSV `b0887ad0d613ee823d5d2c5dda9e09ffb8a9bcad8c98efba515eff62f8e25807`, simulation `5779806a7e58a91fc249a2f0ee38ab13e2062351573575a5797f76d3b6f1ef00`, stats `95315d3a530b44d40d8ea6b949e28b5aae4ddecc08e3050f45cd4c574a11b84c`. Mọi số đếm, số tiền và tổng ở bảng trên không đổi.
+
 Không có precision/recall, split hoặc scoring online được đo. Cận rất lớn 100.000 khách/90 ngày chưa benchmark; còn **BL-173**, không nhận đã kiểm mọi cấu hình chỉ từ min/default.
 
 ### 8.4 Ảnh và phạm vi
