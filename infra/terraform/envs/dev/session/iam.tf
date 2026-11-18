@@ -181,6 +181,27 @@ resource "aws_iam_role_policy" "worker_read_secrets" {
   })
 }
 
+# RSK-03: chỉ worker_execution được đọc secret OpenAI API key, và chỉ khi risk_ai_egress_approved = true.
+# Tắt mặc định thì không có policy này ("tắt thì không có đường dùng khóa").
+resource "aws_iam_role_policy" "worker_read_openai_secret" {
+  count = var.risk_ai_egress_approved ? 1 : 0
+
+  name = "read-openai-api-key-secret"
+  role = aws_iam_role.worker_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "secretsmanager:GetSecretValue"
+        Resource = local.base.openai_api_key_secret_arn
+      },
+      local.decrypt_via_secrets_manager,
+    ]
+  })
+}
+
 # Quyền SQS: managed policy dbs-dev-worker-sqs ở base (DBS-73), đúng 2 queue và SendMessage vào 2 DLQ.
 resource "aws_iam_role" "worker_task" {
   name               = "dbs-dev-worker-task"

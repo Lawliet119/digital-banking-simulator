@@ -127,6 +127,7 @@ override_data {
       redis_subnet_group_name    = "dbs-dev"
       redis_security_group_id    = "sg-redis"
       redis_auth_secret_arn      = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf"
+      openai_api_key_secret_arn  = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/openai-api-key-AbCdEf"
       worker_sqs_policy_arn      = "arn:aws:iam::123456789012:policy/dbs-dev-worker-sqs"
       worker_security_group_id   = "sg-worker"
       worker_log_group_name      = "/dbs/dev/worker"

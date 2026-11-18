@@ -18,7 +18,9 @@ resource "aws_security_group" "worker" {
   vpc_id      = aws_vpc.main.id
 }
 
-# Task ở public subnet, không NAT: ECR, CloudWatch Logs, SQS, Secrets Manager qua 443.
+# Task ở public subnet, không NAT: ECR, CloudWatch Logs, SQS, Secrets Manager và (khi RSK-03 bật)
+# api.openai.com đều qua 443. SG hoạt động ở tầng L4 nên api_https (security_groups.tf) vẫn mở 443
+# cho Cognito JWKS và AWS APIs theo ADR-10; cô lập AI khỏi `api` thực hiện ở IAM, secret, env và app.
 resource "aws_vpc_security_group_egress_rule" "worker_https" {
   security_group_id = aws_security_group.worker.id
   description       = "HTTPS to AWS APIs (ECR, logs, SQS, Secrets Manager)"

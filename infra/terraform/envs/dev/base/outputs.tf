@@ -97,6 +97,11 @@ output "redis_auth_secret_arn" {
   value = aws_secretsmanager_secret.redis_auth.arn
 }
 
+output "openai_api_key_secret_arn" {
+  description = "ARN vỏ secret khóa API OpenAI cho risk worker (RSK-03); session chỉ cấp quyền đọc khi risk_ai_egress_approved = true."
+  value       = aws_secretsmanager_secret.openai_api_key.arn
+}
+
 # DBS-73: URL queue → biến môi trường của task worker (sqs.config.ts), đưa vào ở DBS-121:
 # sqs_risk_queue_url → SQS_RISK_QUEUE_URL, sqs_notification_queue_url → SQS_NOTIFICATION_QUEUE_URL.
 output "sqs_risk_queue_url" {
