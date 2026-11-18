@@ -93,7 +93,7 @@ Phép so sánh chính thức một lần, B0 = luật v4, AI = r4, ngưỡng 0,6
 | Validation | B0 (luật v4) | B2 (luật v4 + r4) | Mục tiêu cổng |
 |---|---:|---:|---|
 | Recall tổng | 39,49% | 44,20% | tăng ≥ 5 điểm, khoảng 95% loại trừ 0 |
-| Chênh recall B2 − B0 | | **+4,71 điểm** [2,61; 6,99] | **không đạt** (thiếu 0,29 điểm; khoảng đã loại trừ 0) |
+| Chênh recall B2 − B0 | | **+4,71 điểm** [2,61; 6,99] | **chưa đạt, chưa kết luận**: điểm ước tính thiếu 0,29 điểm, nhưng mục tiêu 5 nằm trong khoảng tin cậy, nên mẫu này không phân biệt được "đạt" với "không đạt" (khoảng đã loại trừ 0) |
 | Recall trong phạm vi | 73,15% | 81,88% (+8,72 điểm [5,63; 11,67]) | ≥ 70%: đạt |
 | Cảnh báo/1.000 (ước tính có trọng số) | 3,56 | 23,67 | ≤ 20: **không đạt** theo ước tính |
 | Chi phí | | ~0,053 USD/1.000 TRANSFER, trễ gọi p95 451 ms | |
@@ -101,7 +101,7 @@ Phép so sánh chính thức một lần, B0 = luật v4, AI = r4, ngưỡng 0,6
 Đọc kết quả:
 - **AI nay có đóng góp đo được**: thêm 13 giao dịch fraud đúng (ATO_DRAIN 66,7% → 83,3%, MULE_FANOUT 66,7% → 83,3%), khoảng tin cậy loại trừ 0. Ba kịch bản ngoài tầm (STRUCTURING, SLOW_DRIP, FAN_IN) vẫn 0%: các giao dịch này trông giống giao dịch thường ở 11 trường đưa vào AI, rubric không thể bù thông tin không có trong đầu vào.
 - **Cái giá là cảnh báo**: AI thêm 6 cờ sai trên validation. Mỗi giao dịch NORMAL trong mẫu đại diện cho ~100 giao dịch, nên ước tính 23,67/1.000 rất nhiễu: 6 cờ sai chỉ cho khoảng tin cậy rộng, trên train cùng cấu hình cho 17,2. Chưa thể nói chắc có vượt 20 hay không; đo đúng cần capture đủ ~100.000 giao dịch (khoảng 5 USD) hoặc holdout.
-- **Phán quyết cổng: vẫn NO-GO**, nhưng lý do đã đổi: trước là "AI không đóng góp", nay là "đóng góp có thật, chưa đủ 5 điểm và chưa chứng minh được trong ngân sách cảnh báo".
+- **Phán quyết cổng: vẫn NO-GO tạm thời** (giữ `rule_only` cho tới khi có bằng chứng đủ; đây là mặc định an toàn, không phải kết luận thống kê rằng AI không đạt 5 điểm: khoảng tin cậy [2,61; 6,99] chứa 5, và ước tính cảnh báo 23,67/1.000 dựa trên 6 cờ sai nên rất nhiễu), nhưng lý do đã đổi: trước là "AI không đóng góp", nay là "đóng góp có thật, chưa đủ 5 điểm và chưa chứng minh được trong ngân sách cảnh báo".
 - **Không chỉnh thêm rubric trên tập tune nữa**: validation đã được đọc cho r4, tiếp tục sửa theo nó là rò rỉ. Mọi chỉnh sửa tiếp theo chỉ được đánh giá ở holdout (DBS-169).
 
 Tái lập (cần `OPENAI_API_KEY` trong môi trường nếu muốn gọi lại API; chạy trên capture có sẵn thì không gọi):
