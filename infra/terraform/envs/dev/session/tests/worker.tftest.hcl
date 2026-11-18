@@ -415,7 +415,7 @@ run "rsk03_rejects_missing_limits_when_approved" {
     risk_ai_egress_approved = true
   }
 
-  expect_failures = [check.risk_ai_config_complete]
+  expect_failures = [aws_ecs_task_definition.worker]
 }
 
 run "rsk03_rejects_db_connection_budget_overflow" {
@@ -431,5 +431,5 @@ run "rsk03_rejects_db_connection_budget_overflow" {
     risk_ai_gate_timeout_ms   = 500
   }
 
-  expect_failures = [check.risk_ai_db_connection_budget]
+  expect_failures = [aws_ecs_task_definition.worker]
 }

@@ -22,24 +22,8 @@ variable "worker_desired_count" {
   }
 }
 
-check "risk_ai_config_complete" {
-  assert {
-    condition = !var.risk_ai_egress_approved || (
-      var.risk_ai_policy_revision != null
-      && var.risk_ai_daily_request_cap != null
-      && var.risk_ai_concurrency != null
-      && var.risk_ai_gate_timeout_ms != null
-    )
-    error_message = "When risk_ai_egress_approved is true, risk_ai_policy_revision, risk_ai_daily_request_cap, risk_ai_concurrency, and risk_ai_gate_timeout_ms must all be set."
-  }
-}
-
-check "risk_ai_db_connection_budget" {
-  assert {
-    condition     = !var.risk_ai_egress_approved || (var.desired_count * 10 + var.worker_desired_count * (10 + coalesce(var.risk_ai_concurrency, 0)) + 5 <= 74)
-    error_message = "Total PostgreSQL connections including AI gate (desired_count*10 + worker_desired_count*(10 + risk_ai_concurrency) + 5) must not exceed 74 on db.t4g.micro (docs/03 section 13.2)."
-  }
-}
+# RSK-03: hai ràng buộc bật AI (đủ biến; tổng kết nối PostgreSQL ≤ 74) nằm ở `lifecycle.precondition` của
+# aws_ecs_task_definition.worker bên dưới. Không dùng khối `check`: nó chỉ in cảnh báo, `plan`/`apply` thật vẫn chạy.
 
 # Biến môi trường không bí mật. TRUST_PROXY_HOPS và COGNITO_* chỉ để qua kiểm tra cấu hình (validation.schema.ts bắt
 # buộc ở staging/production với mọi role), worker không có HTTP. Không đặt SQS_ENDPOINT (AWS thật) và không có PORT.
@@ -113,6 +97,23 @@ resource "aws_ecs_task_definition" "worker" {
   }])
 
   depends_on = [aws_secretsmanager_secret_version.db_role]
+
+  lifecycle {
+    precondition {
+      condition = !var.risk_ai_egress_approved || (
+        var.risk_ai_policy_revision != null
+        && var.risk_ai_daily_request_cap != null
+        && var.risk_ai_concurrency != null
+        && var.risk_ai_gate_timeout_ms != null
+      )
+      error_message = "When risk_ai_egress_approved is true, risk_ai_policy_revision, risk_ai_daily_request_cap, risk_ai_concurrency, and risk_ai_gate_timeout_ms must all be set."
+    }
+
+    precondition {
+      condition     = !var.risk_ai_egress_approved || (var.desired_count * 10 + var.worker_desired_count * (10 + coalesce(var.risk_ai_concurrency, 0)) + 5 <= 74)
+      error_message = "Total PostgreSQL connections including AI gate (desired_count*10 + worker_desired_count*(10 + risk_ai_concurrency) + 5) must not exceed 74 on db.t4g.micro (docs/03 section 13.2)."
+    }
+  }
 }
 
 # BL-248: deploy.sh đăng ký revision mới của dbs-worker (chỉ đổi image) và đổi task_definition của service này sau khi
