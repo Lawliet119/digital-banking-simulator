@@ -195,6 +195,7 @@ resource "aws_cloudwatch_metric_alarm" "risk_rule_error" {
 }
 
 # RSK-04 (BL-051): tỉ lệ fallback AI vượt ngưỡng trên các quyết định có gọi AI (bỏ qua DISABLED của rule_only).
+# Chỉ tính tỉ lệ khi có ít nhất 5 quyết định gọi AI trong 5 phút (`total_ai >= 5`): 1 lần fallback trên 1 quyết định không được báo là 100%.
 # Dùng SUM(METRICS("fb_")) để bỏ qua các AiStatus chưa từng có điểm dữ liệu, tránh INSUFFICIENT_DATA.
 resource "aws_cloudwatch_metric_alarm" "risk_ai_fallback_rate" {
   alarm_name        = "dbs-dev-risk-ai-fallback-rate"
@@ -207,7 +208,7 @@ resource "aws_cloudwatch_metric_alarm" "risk_ai_fallback_rate" {
 
   metric_query {
     id          = "rate"
-    expression  = "IF(total_ai > 0, 100 * fb_sum / total_ai, 0)"
+    expression  = "IF(total_ai >= 5, 100 * fb_sum / total_ai, 0)"
     label       = "Tỉ lệ fallback AI (%)"
     return_data = true
   }

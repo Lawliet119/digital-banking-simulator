@@ -37,7 +37,7 @@
      - `fb_ci`, `fb_ref`, `fb_inv`, `fb_una`, `fb_bud`: 5 trạng thái fallback (`CONFIG_INVALID`, `REFUSED`, `INVALID_RESPONSE`, `UNAVAILABLE`, `BUDGET_EXHAUSTED`).
      - `fb_sum = SUM(METRICS("fb_"))`
      - `total_ai = SUM([succ, fb_sum])`
-     - `rate = IF(total_ai > 0, 100 * fb_sum / total_ai, 0)`
+     - `rate = IF(total_ai >= 5, 100 * fb_sum / total_ai, 0)`
    - `threshold = var.ai_fallback_rate_threshold_percent` (default `10`, validation `0 < x <= 100`), `GreaterThanThreshold`, `evaluation_periods = 1`, `treat_missing_data = "notBreaching"`.
    - **Chi phí:** tham chiếu 6 metric (~0,60 USD/tháng nếu session chạy liên tục cả tháng; thực tế tính theo giờ).
 3. **Runbook `docs/runbooks/dlq-redrive.md`:**
@@ -58,7 +58,7 @@
 | ID | Truy vết (DoD / AC) | Lớp | Given · When · Then | Kết quả mong đợi |
 |---|---|---|---|---|
 | TC-RSK04-01 | DoD #1 | `terraform test` (`base`) | `dlq_oldest_age["risk"]` và `["notification"]` có `ApproximateAgeOfOldestMessage > 3600`, `dimensions.QueueName`, `evaluation_periods = 2`, `notBreaching`, gắn `aws_sns_topic.alarms.arn` | Pass |
-| TC-RSK04-02 | DoD #1 | `terraform test` (`session`) | `risk_ai_fallback_rate` có đủ 6 `AiStatus`, biểu thức `SUM(METRICS("fb_"))` & `IF(total_ai > 0, ...)`, `threshold = 10`, `notBreaching`; từ chối `ai_fallback_rate_threshold_percent = 0` hoặc `> 100`; `all_alarms_notify_the_topic` kiểm đủ 15 alarm | Pass |
+| TC-RSK04-02 | DoD #1 | `terraform test` (`session`) | `risk_ai_fallback_rate` có đủ 6 `AiStatus`, biểu thức `SUM(METRICS("fb_"))` & `IF(total_ai >= 5, ...)`, `threshold = 10`, `notBreaching`; từ chối `ai_fallback_rate_threshold_percent = 0` hoặc `> 100`; `all_alarms_notify_the_topic` kiểm đủ 15 alarm | Pass |
 | TC-RSK04-03 | DoD #3 | Backend unit (`jest`) | Chạy `scoring-rule-error.spec.ts` và `risk-scoring.metrics.spec.ts` chứng minh `risk_rule_error_total` và `risk_decision_total{AiStatus="CONFIG_INVALID"}` phát đúng | Pass |
 | TC-RSK04-04 | DoD #4 | `terraform fmt/validate/test` | `fmt -check -recursive`, `validate`, `terraform test` trên `dev/base` và `dev/session` | Pass |
 

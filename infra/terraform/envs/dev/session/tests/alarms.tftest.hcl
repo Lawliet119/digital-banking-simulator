@@ -606,7 +606,7 @@ run "risk_ai_fallback_rate_alarm" {
       aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.comparison_operator == "GreaterThanThreshold" &&
       aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.evaluation_periods == 1 &&
       aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.treat_missing_data == "notBreaching" &&
-      one([for q in aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.metric_query : q.expression if q.id == "rate"]) == "IF(total_ai > 0, 100 * fb_sum / total_ai, 0)" &&
+      one([for q in aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.metric_query : q.expression if q.id == "rate"]) == "IF(total_ai >= 5, 100 * fb_sum / total_ai, 0)" &&
       one([for q in aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.metric_query : q.expression if q.id == "fb_sum"]) == "SUM(METRICS(\"fb_\"))" &&
       one([for q in aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.metric_query : q.expression if q.id == "total_ai"]) == "SUM([succ, fb_sum])" &&
       toset([for q in aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.metric_query : one(q.metric).dimensions["AiStatus"] if length(q.metric) > 0]) == toset(["SUCCEEDED", "CONFIG_INVALID", "REFUSED", "INVALID_RESPONSE", "UNAVAILABLE", "BUDGET_EXHAUSTED"])
