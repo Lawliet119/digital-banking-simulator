@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { SplitPart } from '../modules/risk/evaluation/customer-split';
 import {
   evaluateRules,
   parseCapture,
@@ -9,13 +10,14 @@ import {
 
 const USAGE =
   'Usage: evaluate-rules --input <tune.csv> --config <rule-set.json> [--config-version <n>] ' +
-  '[--seed <text>] [--ai-capture <file.jsonl> [--restrict-to-capture]] [--output <report.json>]';
+  '[--seed <text> [--part train|validation]] [--ai-capture <file.jsonl> [--restrict-to-capture]] [--output <report.json>]';
 
 interface Args {
   input?: string;
   config?: string;
   configVersion: number;
   seed?: string;
+  part?: SplitPart;
   aiCapture?: string;
   restrictToCapture: boolean;
   output?: string;
@@ -34,7 +36,12 @@ function parseArgs(args: string[]): Args {
     else if (arg === '--input') parsed.input = value(i++, arg);
     else if (arg === '--config') parsed.config = value(i++, arg);
     else if (arg === '--seed') parsed.seed = value(i++, arg);
-    else if (arg === '--ai-capture') parsed.aiCapture = value(i++, arg);
+    else if (arg === '--part') {
+      const text = value(i++, arg);
+      if (text !== 'train' && text !== 'validation')
+        throw new Error('Invalid --part: train or validation');
+      parsed.part = text;
+    } else if (arg === '--ai-capture') parsed.aiCapture = value(i++, arg);
     else if (arg === '--output') parsed.output = value(i++, arg);
     else if (arg === '--config-version') {
       const text = value(i++, arg);
@@ -62,7 +69,7 @@ export function formatReport(report: EvaluationReport): string[] {
   const lines = [
     `config version ${report.configVersion}, mode ${report.mode}, ` +
       `thresholds medium=${report.thresholds.medium} high=${report.thresholds.high}, ` +
-      `seed ${report.seed ?? '(not given)'}`,
+      `seed ${report.seed ?? '(not given)'}, part ${report.part ?? 'whole file'}`,
     `csv sha256 ${report.csvSha256}`,
     `${report.transactions} transfers, ${report.frauds} fraud`,
   ];
@@ -100,6 +107,7 @@ export async function runEvaluateRules(args: string[]): Promise<EvaluationReport
     config,
     configVersion: options.configVersion,
     seed: options.seed,
+    part: options.part,
     capture,
     restrictToCapture: options.restrictToCapture,
   });

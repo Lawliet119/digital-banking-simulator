@@ -1,0 +1,51 @@
+{
+  "mode": "rule_only",
+  "thresholds": {
+    "medium": 40,
+    "high": 70
+  },
+  "rules": {
+    "R1": {
+      "enabled": true,
+      "weight": 30,
+      "maxTransfers": 2,
+      "windowMinutes": 10
+    },
+    "R2": {
+      "enabled": true,
+      "weight": 25,
+      "medianMultiplier": 5,
+      "historyDays": 30,
+      "minHistory": 5
+    },
+    "R3": {
+      "enabled": true,
+      "weight": 35,
+      "maxAccountAgeHoursExclusive": 24,
+      "minAmountExclusive": "10000000"
+    },
+    "R4": {
+      "enabled": true,
+      "weight": 20,
+      "reverseWindowMinutes": 60
+    },
+    "R5": {
+      "enabled": true,
+      "weight": 40,
+      "minNewRecipients": 5,
+      "windowMinutes": 60,
+      "noveltyDays": 30,
+      "sameOwnerExempt": true
+    },
+    "R6": {
+      "enabled": true,
+      "weight": 30,
+      "minBalancePercent": 90,
+      "minBalance": "1000000",
+      "sameOwnerExempt": true
+    }
+  },
+  "ml": {
+    "enabled": false
+  }
+}

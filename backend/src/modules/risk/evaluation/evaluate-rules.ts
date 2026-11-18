@@ -4,6 +4,7 @@ import { parseRuleSet } from '../config/rule-set';
 import { parseTransactionCsv } from '../features/export-features';
 import { OfflineFeatureProvider } from '../features/offline-feature-provider';
 import { ScoringService } from '../scoring.service';
+import { partOf, type SplitPart } from './customer-split';
 
 /**
  * Offline quality measurement of the rules (DBS-132, FRAUD guide §6.3): reads the 12-column tune
@@ -38,6 +39,11 @@ export interface EvaluateOptions {
   readonly capture?: ReadonlyMap<string, AiAssessment>;
   /** Evaluate only the transfers present in the capture (history still comes from the whole CSV). */
   readonly restrictToCapture?: boolean;
+  /**
+   * Measure only one part of the customer split (DBS-161): needs `seed`. History for the rules still
+   * comes from the whole CSV, so a rule sees the same past as in production.
+   */
+  readonly part?: SplitPart;
 }
 
 export interface Metrics {
@@ -63,6 +69,8 @@ export interface EvaluationReport {
   readonly mode: string;
   readonly thresholds: { readonly medium: number; readonly high: number };
   readonly seed: string | null;
+  /** Which part of the customer split was measured; null = the whole file. */
+  readonly part: SplitPart | null;
   readonly csvSha256: string;
   readonly transactions: number;
   readonly frauds: number;
@@ -165,9 +173,12 @@ export async function evaluateRules(options: EvaluateOptions): Promise<Evaluatio
       if (!known.has(id)) throw new Error(`Capture has a txId that is not in the CSV: ${id}`);
     }
   }
-  const evaluated = options.restrictToCapture
-    ? events.filter(event => capture!.has(event.transferId))
-    : events;
+  if (options.part && !options.seed) throw new Error('--part needs --seed (the split is seeded)');
+  const inPart = (event: (typeof events)[number]): boolean =>
+    !options.part || partOf(options.seed!, event.fromUserId) === options.part;
+  const evaluated = (
+    options.restrictToCapture ? events.filter(event => capture!.has(event.transferId)) : events
+  ).filter(inPart);
   if (wantsAi) {
     const missing = evaluated.filter(event => !capture!.has(event.transferId));
     if (missing.length > 0) {
@@ -246,6 +257,7 @@ export async function evaluateRules(options: EvaluateOptions): Promise<Evaluatio
     mode: ruleSet.mode,
     thresholds: ruleSet.thresholds,
     seed: options.seed ?? null,
+    part: options.part ?? null,
     csvSha256: createHash('sha256').update(csvText).digest('hex'),
     transactions: evaluated.length,
     frauds,

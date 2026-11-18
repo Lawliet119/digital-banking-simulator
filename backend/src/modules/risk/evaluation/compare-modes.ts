@@ -5,6 +5,7 @@ import { parseTransactionCsv } from '../features/export-features';
 import { OfflineFeatureProvider } from '../features/offline-feature-provider';
 import { ScoringService, type ScoringConfig } from '../scoring.service';
 import type { CaptureLine } from './capture-ai';
+import { isTrainCustomer } from './customer-split';
 import { IN_SCOPE_SCENARIOS } from './evaluate-rules';
 
 /**
@@ -29,7 +30,6 @@ export const THRESHOLD_GRID: readonly number[] = [
   0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95,
 ];
 export const WEIGHT_GRID: readonly number[] = [10, 20, 30, 40, 50, 60];
-const TRAIN_SHARE = 0.7;
 
 const round = (value: number, digits = 6): number => {
   const k = 10 ** digits;
@@ -252,9 +252,7 @@ export async function compareModes(options: CompareOptions): Promise<ComparisonR
   }
   if (rows.length === 0) throw new Error('The capture has no transfer to compare');
 
-  const isTrain = (customer: string): boolean =>
-    parseInt(digest(`${options.seed}:split:${customer}`).slice(0, 8), 16) / 0x100000000 <
-    TRAIN_SHARE;
+  const isTrain = (customer: string): boolean => isTrainCustomer(options.seed, customer);
   const train = rows.filter(row => isTrain(row.customer));
   const validation = rows.filter(row => !isTrain(row.customer));
   for (const [name, part] of [
