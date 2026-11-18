@@ -6,7 +6,7 @@ Chọn thủ công ngưỡng và trọng số của luật R1–R6 trên tập t
 
 | Mục | Giá trị |
 |---|---|
-| Dữ liệu | Tập tune của [baseline B0](05-evaluation-b0-baseline.md): seed `dbs-split-v1`, 101.551 giao dịch, sha256 CSV `6366f108b9f19ca976a64ba52210f62f79ed244040aac02f4b104b70f8b122c0` |
+| Dữ liệu | Tập tune của [baseline B0](05-evaluation-b0-baseline.md): seed `dbs-split-v1`, 101.551 giao dịch, sha256 CSV `c387b43605d8a9be05dd8288490130295c6d8928c66fb2c16d2f9cbae36f1b01` (sau [DBS-146](../../features/DBS-146-dataset-audit.md); hash cũ `6366f108…` trước khi sửa ngày mở tài khoản của generator). Mọi số đo ở đây đã chạy lại trên tune mới và trùng khít với bản cũ |
 | Chia | Theo khách hàng, 70% train / 30% validation, cùng một hàm với `compare-modes` (`evaluation/customer-split.ts`). Train 69.997 giao dịch (733 fraud), validation 31.554 giao dịch (276 fraud). Không khách nào nằm ở cả hai phần |
 | Mục tiêu | Recall lớn nhất với ≤ 20 cảnh báo/1.000 giao dịch (không tối ưu F2). Chọn trên **train**; validation chỉ để kiểm, không để chọn |
 | Nhãn | `is_fraud` chỉ dùng để tính mục tiêu (recall) và `scenario` chỉ để báo cáo sau khi đã chọn. Không có tham số nào được chọn riêng cho một kịch bản |

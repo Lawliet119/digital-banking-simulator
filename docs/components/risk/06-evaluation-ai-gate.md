@@ -8,7 +8,7 @@ Tài liệu này ghi phần **offline** của cổng đánh giá ở [ADR-14](..
 
 | Bước | Nội dung |
 |---|---|
-| Dữ liệu | Tập tune của [baseline B0](05-evaluation-b0-baseline.md): seed `dbs-split-v1`, 101.551 giao dịch, sha256 CSV `6366f108b9f19ca976a64ba52210f62f79ed244040aac02f4b104b70f8b122c0`. Toàn bộ là dữ liệu tổng hợp; chỉ 11 đặc trưng số rời máy (RSK-05) |
+| Dữ liệu | Tập tune của [baseline B0](05-evaluation-b0-baseline.md): seed `dbs-split-v1`, 101.551 giao dịch, sha256 CSV `c387b43605d8a9be05dd8288490130295c6d8928c66fb2c16d2f9cbae36f1b01`. Toàn bộ là dữ liệu tổng hợp; chỉ 11 đặc trưng số rời máy (RSK-05) |
 | Mẫu gọi API | 2.021 giao dịch: mọi giao dịch fraud (1.009) và hard negative (12), cộng 1.000 giao dịch NORMAL chọn theo thứ tự băm có seed. Mỗi dòng NORMAL mang trọng số 100,53 (số dòng NORMAL mà nó đại diện), nên số cảnh báo/1.000 giao dịch được dựng lại cho cả tập mà không phải gọi API 100.000 lần |
 | Capture | Một lần duy nhất bằng `capture-ai`: model `gpt-6-luna`, rubric `REVIEW_RUBRIC` (`rubricSha256` `3d0fd9246b9967727c0bcec8b58677d6246c0c4a9f1f8787df55bd6d503bb6a8`). 2.021 lần gọi, **2.021 SUCCEEDED**, không retry. Bằng chứng: [`evidence/ai-gate-capture-tune.jsonl`](evidence/ai-gate-capture-tune.jsonl) (sha256 `fe3c3157f51f9d2baec0f1d717d341e89c4d112b8950c2f8678c021bc732ef5e`). B1 và B2 chỉ đọc file này, không gọi lại API |
 | Tách theo khách | Khách của tập tune chia bằng băm: **771 khách train** (1.443 dòng) và **309 khách validation** (578 dòng). Không khách nào ở cả hai phía |

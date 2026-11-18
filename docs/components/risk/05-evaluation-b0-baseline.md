@@ -10,7 +10,7 @@
 |---|---|
 | Phiên bản cấu hình | `v1` (`backend/src/modules/risk/evaluation/configs/v1.json`, bản sao seed của migration `CreateFraudStorage`): `rule_only`, ngưỡng MEDIUM 40, HIGH 70; trọng số R1 30, R2 25, R3 35, R4 20, R5 40, R6 30 |
 | Seed | `dbs-split-v1`, 4.000 khách, 60 ngày; tập tune là 70% khách = 2.800 khách |
-| CSV | 101.551 giao dịch `TRANSFER`, 1.009 giao dịch fraud (0,99%); sha256 `6366f108b9f19ca976a64ba52210f62f79ed244040aac02f4b104b70f8b122c0` |
+| CSV | 101.551 giao dịch `TRANSFER`, 1.009 giao dịch fraud (0,99%); sha256 `c387b43605d8a9be05dd8288490130295c6d8928c66fb2c16d2f9cbae36f1b01` |
 | Cách đo | Một giao dịch có cờ khi mức rủi ro là MEDIUM hoặc HIGH (điểm ≥ 40), cùng điều kiện tạo `fraud_flags`. Mẫu số cảnh báo/1.000 là số giao dịch `TRANSFER` |
 | Tái lập | `node load-tests/fraud-dataset/split.mjs --seed dbs-split-v1 --customers 4000 --days 60 --tune-dir <thư mục mới>` rồi `npm run --silent evaluate-rules -- --input <thư mục>/tune.csv --config src/modules/risk/evaluation/configs/v1.json --config-version 1 --seed dbs-split-v1` (từ `backend/`). Chạy hai lần cho hai báo cáo JSON giống từng byte; mất khoảng 24 giây |
 
