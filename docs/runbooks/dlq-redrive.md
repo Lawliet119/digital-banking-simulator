@@ -1,6 +1,6 @@
 # Runbook · Đọc và redrive DLQ (`risk-events-dlq`, `notification-events-dlq`)
 
-> **Status:** Active (chạy thật trên ElasticMQ local ở [DBS-125](../features/DBS-125-dlq-isolation-runbook.md) và trên SQS dev ở [DBS-164](../features/DBS-164-dlq-runbook-dev-trial.md), xem "Lần chạy thật") · **Owner:** Platform & Ops · **Cập nhật:** 2026-11-15 (DBS-164: tóm tắt cho người trực, phân loại nguyên nhân, bỏ qua có ghi nhận)
+> **Status:** Active (chạy thật trên ElasticMQ local ở [DBS-125](../features/DBS-125-dlq-isolation-runbook.md) và trên SQS dev ở [DBS-164](../features/DBS-164-dlq-runbook-dev-trial.md), xem "Lần chạy thật") · **Owner:** Platform & Ops · **Cập nhật:** 2026-11-20 (BL-360: file quarantine không ghi đè; BL-372: mục 3d `dlq:resend`; trước đó 2026-11-15, DBS-164: tóm tắt cho người trực, phân loại nguyên nhân, bỏ qua có ghi nhận)
 
 ## Tóm tắt cho người trực
 
@@ -9,7 +9,7 @@
 | 1 | Alarm `dbs-dev-<risk\|notification>-dlq-not-empty` gửi thư tới topic `dbs-dev-alarms`: xác định DLQ nào | biết tên DLQ |
 | 2 | Đếm (mục 1) rồi xem (mục 2) | biết số message và mẫu body |
 | 3 | **Phân loại nguyên nhân** (mục 2b): log worker, tuổi, nội dung body | mỗi message có một nhãn |
-| 4 | Quét (mục 3): tách hỏng và quá hạn; **bỏ qua có ghi nhận** (mục 3c) mọi message nhãn "bỏ qua" **trước khi redrive** | DLQ chỉ còn message redrive được, hoặc rỗng |
+| 4 | Quét (mục 3): tách hỏng và quá hạn; **bỏ qua có ghi nhận** (mục 3c) mọi message nhãn "bỏ qua" **trước khi redrive** (chỉ cần quay lại một phần: gửi lại có chọn lọc bằng `dlq:resend`, mục 3d, thay cho redrive) | DLQ chỉ còn message redrive được, hoặc rỗng |
 | 5 | Sửa nguyên nhân. **Ngay trước redrive**: đếm lại (mục 1) và chạy lại `dlq:age-check`; có message mới hoặc thoát khác 0 thì quay về bước 3. Kiểm `list-message-move-tasks`: có task **bất kỳ trạng thái** (hoặc `ApproximateNumberOfMessagesMoved` > 0) bắt đầu trong 6 ngày qua thì **không redrive**. Redrive (mục 4); kiểm (mục 5) | queue chính về 0 trong 24 giờ |
 | 6 | Ba thuộc tính của DLQ đều 0, alarm về `OK` (khoảng 3 phút sau khi cạn, đo ở DBS-163); ghi nhận nếu có bỏ qua | alarm `OK` |
 
@@ -39,7 +39,7 @@ Chỉ redrive **sau khi đã sửa nguyên nhân**: deploy bản sửa, gỡ c�
 
 **Ops** (không phải task `worker`; DBS-73 từ chối worker đọc hoặc xóa DLQ) cần các quyền sau. Từ BL-241, queue policy còn `Deny` các thao tác message cho principal ngoài danh sách cho phép (role `dbs-dev-worker-task` và `sqs_ops_principal_arns`, mặc định mọi IAM user của tài khoản): người redrive phải nằm trong danh sách đó, nếu không sẽ gặp `explicit deny in a resource-based policy` dù identity policy đủ quyền (`infra/terraform/README.md`, mục SQS).
 - **Trên DLQ:** `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, `sqs:GetQueueAttributes`, `sqs:StartMessageMoveTask`, `sqs:ListMessageMoveTasks`, `sqs:CancelMessageMoveTask`.
-- **Trên queue chính:** `sqs:SendMessage`, `sqs:GetQueueAttributes`.
+- **Trên queue chính:** `sqs:SendMessage`, `sqs:GetQueueAttributes` (đủ cho `dlq:resend`, mục 3d: gửi lại và kiểm queue rỗng cùng `RedrivePolicy`).
 - **Trên KMS (từ DBS-154):** vì cả 4 queue đều mã hóa bằng CMK `alias/dbs-dev`, người chạy redrive trên AWS cần `kms:Decrypt` và `kms:GenerateDataKey` trên CMK đó với điều kiện `kms:ViaService = sqs.ap-southeast-1.amazonaws.com` trong identity policy (admin có sẵn; nếu dùng role vận hành riêng phải cấp thêm).
 
 ## Biến dùng trong các lệnh
@@ -109,19 +109,19 @@ Redrive chuyển **mọi** message trong DLQ, không lọc được. Một messa
 Từ `backend/` (cần credential Ops đọc và xóa trên DLQ; ở local thêm `--endpoint-url`):
 
 ```bash
-mkdir -p ~/dbs-ops/dlq                                   # ngoài repo; CLI không tự tạo thư mục (thiếu thì thoát 2, không xóa gì)
-QF=~/dbs-ops/dlq/stale-<queue>-$(date +%Y%m%dT%H%M%S).jsonl   # tên mới mỗi lần: CLI GHI ĐÈ file cũ
+mkdir -p ~/dbs-ops/dlq                                   # ngoài repo; CLI tự tạo thư mục cha nếu thiếu (BL-360), lệnh này để bạn thấy chỗ file nằm
+QF=~/dbs-ops/dlq/stale-<queue>-$(date +%Y%m%dT%H%M%S).jsonl   # tên mới mỗi lần: file đã có thì CLI thoát 2 và không xóa gì (BL-360), không ghi đè
 if [ -e "$QF" ]; then echo "đã có $QF, đổi tên"; else
   npm run --silent dlq:age-check -- --queue-url "$DLQ" [--endpoint-url http://localhost:9324] \
     --delete-stale --quarantine-file "$QF"
 fi
 ```
 
-Truyền `--quarantine-file "$QF"` (có dấu cách, biến trong nháy kép): `--quarantine-file=~/…` không được mở rộng `~` trong Git Bash và file rơi vào thư mục hiện tại, tức trong repo.
+Truyền `--quarantine-file "$QF"` (có dấu cách, biến trong nháy kép): `--quarantine-file=~/…` không được mở rộng `~` trong Git Bash; CLI từ chối (thoát 2, trước khi nhận message nào) mọi đường dẫn bắt đầu bằng `~` hoặc nằm trong một cây git, để file không rơi vào repo công khai (BL-360; `.gitignore` vẫn là BL-361).
 
 - Công cụ nhận hết DLQ (ẩn 1800 s như bước quét tay bên dưới), tính tuổi theo `OriginalSentTimestamp`, lấy `SentTimestamp` của queue khi message do SQS tự chuyển và chưa có thuộc tính; message không có thời điểm nào dùng được bị coi là **quá hạn**, không phải mới. Sau đó trả message còn lại về queue (visibility 0).
 - In một báo cáo JSON: `checked`, `fresh`, `stale` (mỗi mục chỉ có `messageId`, `eventId` nếu body là UUID, `ageHours`; **không bao giờ in body**), `deleted`, `failed`, `complete`.
-- Không có `--delete-stale` thì chỉ báo cáo. Có thì công cụ **ghi các message quá hạn (kèm body) vào `--quarantine-file` rồi mới xóa** khỏi DLQ; lỗi ghi file thì không xóa gì. File chứa dữ liệu sự kiện: giữ ngoài repo như dữ liệu điều tra, không đưa lên repo hay kênh chat (xem mục 3c).
+- Không có `--delete-stale` thì chỉ báo cáo. Có thì công cụ **ghi các message quá hạn (kèm body) vào `--quarantine-file` rồi mới xóa** khỏi DLQ; file đã có hoặc lỗi ghi file thì không xóa gì (thoát 2). File chứa dữ liệu sự kiện: giữ ngoài repo như dữ liệu điều tra, không đưa lên repo hay kênh chat (xem mục 3c).
 - Mã thoát: `0` không còn message quá hạn trong DLQ (không có, hoặc đã lưu và xóa hết); `1` còn message quá hạn (chạy không `--delete-stale`): **không redrive**; `2` lỗi tham số, lỗi quét, hoặc quét chưa thấy hết queue (`complete: false`) hay có message không trả về/xóa được (`failed`): **không redrive**, chạy lại sau khi xử lý.
 - Message đã lưu vào file được điều tra tay (áp lại hiệu ứng nếu cần theo quy trình xử lý lỗi), không redrive.
 - Giới hạn mặc định 6 ngày, đổi bằng `--max-age-days`; chỉ hạ, không nâng quá 6 (DLQ giữ 6 ngày, `processed_events` giữ 7 ngày).
@@ -156,6 +156,24 @@ Redrive chuyển **mọi** message của DLQ, nên mọi message nhãn "bỏ qua
 - **File ở ngoài repo, tên không trùng.** `~/dbs-ops/dlq/` (đường dẫn tuyệt đối): file nằm trong cây repo (ví dụ chạy từ `backend/` với đường dẫn tương đối) chưa được `.gitignore`, một lệnh `git add -A` đưa body lên repo công khai (BL-361). Tên theo queue và giờ; CLI ghi đè file cũ nên body của message đã xóa khỏi SQS mất vĩnh viễn nếu dùng lại tên (BL-360). File ở nơi chỉ nhóm vận hành mở được, giữ đủ lâu để điều tra, rồi xóa; không dán vào chat hay issue.
 - **Ghi vào đâu:** một **GitHub issue** trong repo, tiêu đề `DLQ bỏ qua <YYYY-MM-DD> <queue>` (`audit_log` chỉ do api và worker ghi, Ops không có quyền; BACKLOG dành cho việc còn tồn của task, không phải nhật ký vận hành). Nội dung: tên DLQ; số message; `eventId` (hoặc `messageId` của queue chính và của DLQ nếu `invalid_event`); nhãn `reason` ở mục 2b; **GitHub handle** của người quyết định và giờ; cách xử lý (quarantine hay xóa) và **tên file** (không dán đường dẫn có tên người dùng máy); báo cáo JSON của `dlq:age-check` (không có body); việc sửa nguyên nhân (liên kết issue hoặc `BL-NNN`). **Không** dán body, `ReceiptHandle`, nội dung file quarantine, token hay dữ liệu khách (repo công khai).
 - Bỏ qua xong thì tiếp tục bước 6 của bản tóm tắt: ba thuộc tính của DLQ đều 0.
+
+### 3d. Gửi lại có chọn lọc: `dlq:resend` (BL-372)
+
+Dùng khi chỉ **một phần** message của DLQ cần quay lại queue chính sau khi nguyên nhân đã sửa (mục 4 chuyển mọi message, không lọc). Từ `backend/` (ở local thêm `--endpoint-url`):
+
+```bash
+RF=~/dbs-ops/dlq/resend-<queue>-$(date +%Y%m%dT%H%M%S).jsonl   # tên mới mỗi lần; file đã có thì lệnh thoát 2
+npm run --silent dlq:resend -- --from-dlq "$DLQ" --to-queue "$MAIN" [--endpoint-url http://localhost:9324] \
+  --record-file "$RF" --event-id <eventId> [--event-id <eventId> ...]      # hoặc --all
+```
+
+- **Trước khi chạy:** nguyên nhân đã sửa; **queue chính rỗng** (ba thuộc tính 0, lệnh từ chối nếu không: message gửi lại ở tuổi gần 6 ngày phải được xử lý ngay, mà queue chính chỉ giữ 4 ngày); nếu queue chính có `RedrivePolicy` thì phải trỏ đúng DLQ này. Dùng `--all` chỉ sau khi đã bỏ qua có ghi nhận (3c) mọi message không được quay lại. **Mỗi `eventId` chỉ gửi lại một lần** (mục 5): lệnh không nhớ lượt trước, nên khi đã có file ghi nhận cũ cho queue này thì đối chiếu `eventId` trong đó và dùng `--event-id`, không dùng `--all`.
+- **Lệnh làm gì, theo từng `eventId`:** ghi dòng `sending` vào file ghi nhận; gửi body nguyên văn kèm thuộc tính của bản DLQ vào queue chính, `OriginalSentTimestamp` giữ thời điểm gửi gốc (tuổi không đặt lại, quy tắc 6 ngày vẫn tính từ lần gửi đầu); ghi dòng `resent`; xóa bản DLQ theo handle mới nhất, rồi các bản trùng của cùng `eventId`.
+- **Không bao giờ gửi, giữ nguyên trong DLQ và liệt kê ở `skipped`:** message không có `eventId` UUID (`no_event_id`); message consumer sẽ từ chối (`invalid_event`, thiếu trường, loại sự kiện lạ, UUID hoa; đúng các loại «không redrive» ở mục 2b); `eventId` có **bất kỳ** bản nào quá 6 ngày hoặc không có thời điểm gửi (`stale`: dấu `processed_events` có thể đã hết). Xử lý chúng theo 3a hoặc 3c.
+- **Báo cáo và file ghi nhận:** JSON ra stdout (`scanned`, `resent`, `duplicatesDeleted`, `skipped`, `notFound`, `failed`, `complete`, `stoppedEarly`), **không có body**; `failed` chỉ có `messageId`, bước (`send`, `delete`, `release`, `record`) và **tên** lỗi. File ghi nhận là JSON lines (`sending`, `resent`, `duplicate_deleted`, `resent_delete_failed`) có `eventId`, id message cũ và mới, `OriginalSentTimestamp`, giờ: giữ ngoài repo và ghi `eventId` vào GitHub issue như 3c.
+- **Mã thoát:** `0` mọi message được chọn đã gửi (với `--event-id` chỉ xét `eventId` đã chọn); `1` còn message chặn redrive mù trong DLQ (quá hạn, sai contract, hoặc, với `--all`, không có `eventId`) hoặc `eventId` được chọn không có trong DLQ; `2` tham số sai, queue chưa sẵn sàng (không tồn tại, không rỗng, cặp `RedrivePolicy` sai), file ghi nhận đã có, quét chưa hết, hết ngân sách thời gian (1500 s), hoặc một bước lỗi (`failed`): xem DLQ và file ghi nhận trước khi chạy lại.
+- **Sau khi gửi:** queue chính về 0 trong 24 giờ và kiểm hiệu ứng theo `eventId` như mục 5; không đạt thì xử lý tay. Một message gửi lại mà vẫn thất bại sẽ vào DLQ lần nữa: **không** gửi lại lần hai.
+- **Giới hạn đã biết:** mới chạy trên ElasticMQ ([DBS-164](../features/DBS-164-dlq-runbook-dev-trial.md) đã chạy `age-check` trên AWS thật; `dlq:resend` chưa, BL-399); pha `resend` bằng bash của `infra/scripts/incident-cloud.sh` vẫn là bản riêng đã chạy thật ngày 2026-11-15 (BL-399).
 
 ## 4. Redrive
 
@@ -203,5 +221,5 @@ Nâng bản (đổi digest) chỉ khi cần, theo thứ tự:
 ## Lần chạy thật
 
 - **AWS dev, SQS thật, ngày 2026-11-15 ([DBS-164](../features/DBS-164-dlq-runbook-dev-trial.md), [output thô](../features/screenshots/DBS-164/manual-test.txt)):** chạy trọn mục tóm tắt trên `dbs-dev-notification-events-dlq` với ba message tổng hợp (hợp lệ, không phải JSON, loại sự kiện lạ): alarm `ALARM` sau 139 s; `dlq:age-check` báo 3 `fresh`; quét tách hai message "bỏ qua" ra file ngoài repo rồi xóa theo handle; redrive bằng `start-message-move-task` `COMPLETED` (1 message); dọn queue chính theo `eventId`; nhánh quá hạn mô phỏng (`--max-age-days 0.0007`) báo `stale` 1, `deleted` 1 và file quarantine có body; cuối cùng bốn queue 0 và hai alarm `OK`. **Chưa kiểm:** dòng log của worker (không có worker), `processed_events` (không có phiên RDS), danh sách quyền tối thiểu của mục "Quyền" (chạy bằng IAM user nhóm `dbs-admin`, BL-363).
-- **Hệ quả của lần chạy:** DLQ notification được redrive thật ngày 2026-11-15 nên **không redrive lại trước 2026-11-21**; DLQ risk đã redrive ngày 2026-11-14 nên **không trước 2026-11-20**. Sự cố thật trên hai DLQ này trong khoảng đó xử lý tay (xem, quét, bỏ qua có ghi nhận, và xử lý message hợp lệ ngoài `start-message-move-task`, ví dụ gửi lại bằng `send-message` sau khi sửa nguyên nhân và ghi `eventId`).
+- **Hệ quả của lần chạy:** DLQ notification được redrive thật ngày 2026-11-15 nên **không redrive lại trước 2026-11-21**; DLQ risk đã redrive ngày 2026-11-14 nên **không trước 2026-11-20**. Sự cố thật trên hai DLQ này trong khoảng đó xử lý tay (xem, quét, bỏ qua có ghi nhận, và xử lý message hợp lệ ngoài `start-message-move-task`, ví dụ gửi lại bằng `dlq:resend` (mục 3d) sau khi sửa nguyên nhân, kèm file ghi nhận `eventId`).
 - [DBS-125 §8](../features/DBS-125-dlq-isolation-runbook.md#8-kết-quả) (ElasticMQ local, hai process thật). Kịch bản demo: [Demo 3 phần C](../demos/demo-3-failure-recovery.md#c-consumer-lỗi--dlq-dbs-125).

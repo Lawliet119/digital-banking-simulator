@@ -1,0 +1,4 @@
+run1 { code: 0, deleted: [ 'm1' ], err: '' }
+run2 same file { code: 0, deleted: [ 'm2' ], err: '' }
+file now has 1 line(s); contains m1 body: false
+missing parent dir { code: 2, deleted: [], err: 'dlq-age-check failed: Error' } false
