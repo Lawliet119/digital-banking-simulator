@@ -9,7 +9,7 @@ import {
   runDlqAgeCheckCli,
   type DlqPort,
 } from './dlq-age-check';
-import { createExclusiveFile, QuarantineFileExistsError } from './dlq-files';
+import { createExclusiveFile, FileExistsError } from './dlq-files';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 10, 14, 12, 0, 0);
@@ -258,7 +258,7 @@ describe('BL-360 quarantine file is created exclusively', () => {
   it('TC-BL-01 a file that already exists is refused and keeps its content', () => {
     const path = join(dir, 'q.jsonl');
     createExclusiveFile(path, 'first\n');
-    expect(() => createExclusiveFile(path, 'second\n')).toThrow(QuarantineFileExistsError);
+    expect(() => createExclusiveFile(path, 'second\n')).toThrow(FileExistsError);
     expect(readFileSync(path, 'utf8')).toBe('first\n');
   });
 
@@ -303,7 +303,7 @@ describe('BL-360 dlq-age-check never overwrites the quarantine file', () => {
     const second = new FakeDlq([message('old-2', 8), message('fresh', 1)]);
     const result = await run(file, second);
     expect(result.code).toBe(2);
-    expect(result.err).toContain('QuarantineFileExistsError');
+    expect(result.err).toContain('FileExistsError');
     expect(second.deleted).toEqual([]);
     expect(second.released.sort()).toEqual(['fresh', 'old-2']);
     expect(readFileSync(file, 'utf8')).toBe(before);
@@ -315,5 +315,25 @@ describe('BL-360 dlq-age-check never overwrites the quarantine file', () => {
     const result = await run(file, new FakeDlq([message('fresh', 1)]));
     expect(result.code).toBe(0);
     expect(readFileSync(file, 'utf8')).toBe('earlier\n');
+  });
+
+  it('TC-BL-24 a path starting with ~ or inside a git tree is refused before any message is received', async () => {
+    for (const file of ['~/dbs-ops/q.jsonl', 'relative-in-repo.jsonl']) {
+      const dlq = new FakeDlq([message('old', 7)]);
+      const result = await run(file, dlq);
+      expect(result.code).toBe(2);
+      expect(dlq.released).toEqual([]); // nothing was received, so nothing had to be handed back
+      expect(dlq.deleted).toEqual([]);
+    }
+  });
+
+  it('TC-BL-25 a parent that is a regular file exits 2, deletes nothing and hands every message back', async () => {
+    const blocker = join(dir, 'blocker');
+    createExclusiveFile(blocker, 'x');
+    const dlq = new FakeDlq([message('old', 7), message('fresh', 1)]);
+    const result = await run(join(blocker, 'q.jsonl'), dlq);
+    expect(result.code).toBe(2);
+    expect(dlq.deleted).toEqual([]);
+    expect(dlq.released.sort()).toEqual(['fresh', 'old']);
   });
 });

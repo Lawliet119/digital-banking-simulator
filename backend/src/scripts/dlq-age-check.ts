@@ -8,7 +8,7 @@ import {
   type Message,
 } from '@aws-sdk/client-sqs';
 import { ORIGINAL_SENT_TIMESTAMP, originalSentTimestampOf } from '@libs/sqs';
-import { createExclusiveFile, QuarantineFileExistsError } from './dlq-files';
+import { assertSafeOutputPath, createExclusiveFile, FileExistsError } from './dlq-files';
 
 /**
  * Age check for a DLQ before a redrive (BL-210, `docs/runbooks/dlq-redrive.md` section 3).
@@ -302,6 +302,17 @@ export async function runDlqAgeCheckCli(argv: string[], io: CliIo): Promise<numb
     io.stderr(`--delete-stale needs --quarantine-file: nothing is deleted unsaved\n${USAGE}\n`);
     return 2;
   }
+  if (deleteStale && io.writeFile === undefined) {
+    // Before any message is received, so a refused path hides nothing (BL-360).
+    try {
+      assertSafeOutputPath(quarantineFile as string);
+    } catch (error) {
+      io.stderr(`dlq-age-check failed: ${(error as Error).name}
+${(error as Error).message}
+`);
+      return 2;
+    }
+  }
 
   const client =
     io.port === undefined
@@ -342,7 +353,7 @@ export async function runDlqAgeCheckCli(argv: string[], io: CliIo): Promise<numb
   } catch (error) {
     io.stderr(`dlq-age-check failed: ${(error as Error).name}\n`);
     // A fixed sentence only: the quarantine file holds message bodies and is never overwritten (BL-360).
-    if (error instanceof QuarantineFileExistsError)
+    if (error instanceof FileExistsError)
       io.stderr(`${error.message}. Nothing was deleted and every message was handed back.\n`);
     return 2;
   } finally {
