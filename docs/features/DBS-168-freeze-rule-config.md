@@ -1,6 +1,6 @@
 # DBS-168 · Đóng băng phiên bản cấu hình luật trước khi chạy holdout
 
-> **Status:** Implemented (chờ CI và Dev review) · **Vai:** #4 Fraud · **Cặp đôi review:** Dev (theo `references/team.md`) · **Nhánh:** `feat/DBS-168-freeze-rule-config` · **PR:** — · **Cập nhật:** 2026-11-21
+> **Status:** Implemented (chờ CI và Dev review) · **Vai:** #4 Fraud · **Cặp đôi review:** Dev (theo `references/team.md`) · **Nhánh:** `feat/DBS-168-freeze-rule-config` · **PR:** [#219](https://github.com/Lawliet119/digital-banking-simulator/pull/219) · **Cập nhật:** 2026-11-21
 
 ## 1. Bối cảnh
 
