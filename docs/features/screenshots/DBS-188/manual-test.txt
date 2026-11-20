@@ -1,0 +1,864 @@
+c80ee9728563cec91976aef2d487d6ce62ec66fb
+# DBS-188 manual test. Dòng đầu là SHA của commit cuối đổi code (driver). Alarm Terraform nằm ở 3d7a595.
+# Sau khi chạy, nhánh được rebase lên main (DBS-168, #219; không đụng file nào của task này): SHA trên là SHA sau rebase, nội dung file code y hệt SHA lúc chạy (3005669 driver, 4f6af9f alarm).
+# Mọi id tài khoản AWS đã thay bằng <account-id>. Chạy trong Git Bash (UTF-8).
+
+=== M-188-02 driver generate (real API, consumer, MetricsService Role=worker; DATABASE_URL redacted)
+$ npx ts-node -r tsconfig-paths/register test/manual/flag-rate-alarm.manual.ts generate F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages
+stage A: EMF decisions=600 flags=0 (SQL risk_decisions=600, fraud_flags=0); 0.00 per 1,000; 1 line(s)
+stage B: EMF decisions=900 flags=45 (SQL risk_decisions=900, fraud_flags=45); 50.00 per 1,000; 2 line(s)
+stage C: EMF decisions=1050 flags=45 (SQL risk_decisions=1050, fraud_flags=45); 42.86 per 1,000; 1 line(s)
+stage D: EMF decisions=2250 flags=45 (SQL risk_decisions=1050, fraud_flags=45); 20.00 per 1,000; 1 line(s)
+stage E: EMF decisions=2251 flags=46 (SQL risk_decisions=1051, fraud_flags=46); 20.44 per 1,000; 2 line(s)
+generate OK
+[exit 0]
+
+=== M-188-03a pre-check: real namespace DBS/Backend, risk_decision_total {Role=worker}, last 24 h (hourly Sum)
+$ aws cloudwatch get-metric-statistics --namespace DBS/Backend --metric-name risk_decision_total --dimensions Name=Role,Value=worker --start-time 2026-11-19T19:07:57.120Z --end-time 2026-11-20T19:07:57Z --period 3600 --statistics Sum --query Datapoints[].[Timestamp,Sum] --output text
+2026-11-20T23:07:00+07:00	60.0
+2026-11-20T04:07:00+07:00	140.0
+2026-11-20T20:07:00+07:00	40.0
+2026-11-21T00:07:00+07:00	160.0
+2026-11-20T05:07:00+07:00	340.0
+2026-11-20T21:07:00+07:00	200.0
+[exit 0]
+
+=== M-188-03a pre-check: real namespace DBS/Backend, risk_flag_total {Role=worker}, last 24 h (hourly Sum)
+$ aws cloudwatch get-metric-statistics --namespace DBS/Backend --metric-name risk_flag_total --dimensions Name=Role,Value=worker --start-time 2026-11-19T19:07:57.120Z --end-time 2026-11-20T19:07:57Z --period 3600 --statistics Sum --query Datapoints[].[Timestamp,Sum] --output text
+2026-11-20T23:07:00+07:00	9.0
+2026-11-20T04:07:00+07:00	42.0
+2026-11-20T20:07:00+07:00	12.0
+2026-11-21T00:07:00+07:00	24.0
+2026-11-20T05:07:00+07:00	102.0
+2026-11-20T21:07:00+07:00	60.0
+[exit 0]
+
+=== M-188-01 terraform fmt -check -recursive
+$ terraform fmt -check -recursive
+[exit 0]
+
+=== M-188-01 terraform validate
+$ terraform validate -no-color
+Success! The configuration is valid.
+
+[exit 0]
+
+# M-188-01 terraform test (full suite, GOMAXPROCS=2 -parallelism=1) ran earlier on c80ee97: Success! 97 passed, 0 failed (baseline before the task: 94). The new runs: risk_flag_rate_alarm, risk_flag_rate_alarm_metrics_and_window, risk_flag_rate_alarm_description; all_alarms_notify_the_topic and alarms_follow_metrics_namespace extended. Mutation check of alarms.tf (each turned the alarms suite red, 22 passed 1 failed): min_transfers 1000->1, threshold 20->200, > to >=, drop FILL, drop the IF volume guard, window 86400->3600, Role worker->api, treat_missing_data notBreaching->breaching.
+
+=== M-188-03 terraform init (own TF_DATA_DIR, temp state key dev/session-dbs188.tfstate)
+$ terraform init -reconfigure -input=false -no-color -backend-config=bucket=dbs-tfstate-<account-id>-ap-southeast-1 -backend-config=key=dev/session-dbs188.tfstate
+Initializing the backend...
+
+Successfully configured the backend "s3"! Terraform will automatically
+use this backend unless the backend configuration changes.
+
+Initializing modules...
+
+Initializing provider plugins...
+- terraform.io/builtin/terraform is built in to Terraform
+- Reusing previous version of hashicorp/random from the dependency lock file
+- Reusing previous version of hashicorp/aws from the dependency lock file
+- Reusing previous version of hashicorp/tls from the dependency lock file
+- Using previously-installed hashicorp/random v3.9.1
+- Using previously-installed hashicorp/aws v6.70.0
+- Using previously-installed hashicorp/tls v4.4.2
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+[exit 0]
+
+=== M-188-03 terraform plan -target (expected: 1 to add)
+$ terraform plan -no-color -input=false -target=aws_cloudwatch_metric_alarm.risk_flag_rate -var account_id=<account-id> -var state_bucket=dbs-tfstate-<account-id>-ap-southeast-1 -var image_tag=202283a536a2d2d69d03f67a113656453eab779b -var metrics_namespace=DBS/Check-dbs188
+data.terraform_remote_state.base: Reading...
+data.terraform_remote_state.base: Read complete after 0s
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_cloudwatch_metric_alarm.risk_flag_rate will be created
+  + resource "aws_cloudwatch_metric_alarm" "risk_flag_rate" {
+      + actions_enabled                       = true
+      + alarm_actions                         = [
+          + "arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms",
+        ]
+      + alarm_description                     = "Cảnh báo gian lận vượt 20 cờ trên 1.000 giao dịch trong 24 giờ gần nhất, chỉ tính khi có ít nhất 1000 giao dịch được chấm (SLO docs/03 §14, NFR-FRD-02, DBS-188). Có thể là luật báo nhầm hàng loạt, một đợt gian lận thật hoặc cấu hình luật vừa đổi: xem dashboard dbs-dev-overview (cờ theo mức, mode, phần AI), rà phiên bản luật rồi tinh chỉnh (UC-12). Alarm giữ ALARM tới khi đợt cờ ra khỏi cửa sổ 24 giờ."
+      + alarm_name                            = "dbs-dev-risk-flag-rate"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "GreaterThanThreshold"
+      + datapoints_to_alarm                   = 1
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 1
+      + id                                    = (known after apply)
+      + ok_actions                            = [
+          + "arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms",
+        ]
+      + region                                = "ap-southeast-1"
+      + tags_all                              = {
+          + "env"     = "dev"
+          + "owner"   = "platform"
+          + "project" = "dbs"
+        }
+      + threshold                             = 20
+      + treat_missing_data                    = "notBreaching"
+
+      + metric_query {
+          + id          = "d"
+          + return_data = false
+            # (3 unchanged attributes hidden)
+
+          + metric {
+              + dimensions  = {
+                  + "Role" = "worker"
+                }
+              + metric_name = "risk_decision_total"
+              + namespace   = "DBS/Check-dbs188"
+              + period      = 86400
+              + stat        = "Sum"
+                # (1 unchanged attribute hidden)
+            }
+        }
+      + metric_query {
+          + id          = "f"
+          + return_data = false
+            # (3 unchanged attributes hidden)
+
+          + metric {
+              + dimensions  = {
+                  + "Role" = "worker"
+                }
+              + metric_name = "risk_flag_total"
+              + namespace   = "DBS/Check-dbs188"
+              + period      = 86400
+              + stat        = "Sum"
+                # (1 unchanged attribute hidden)
+            }
+        }
+      + metric_query {
+          + expression  = "IF(d >= 1000, 1000 * FILL(f, 0) / d, 0)"
+          + id          = "rate"
+          + label       = "Cờ / 1.000 giao dịch (24 giờ)"
+          + return_data = true
+            # (1 unchanged attribute hidden)
+        }
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + private_subnet_ids = [
+      + "subnet-07938b0e4422c02ae",
+      + "subnet-035204bb27adf5772",
+    ]
+  + public_subnet_ids  = [
+      + "subnet-0fa92ab42a51f458e",
+      + "subnet-0faa4503583aa1b95",
+    ]
+  + vpc_id             = "vpc-0c30109ee998eb80e"
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.
+[exit 0]
+
+=== M-188-03 terraform apply -target
+$ terraform apply -auto-approve -no-color -input=false -target=aws_cloudwatch_metric_alarm.risk_flag_rate -var account_id=<account-id> -var state_bucket=dbs-tfstate-<account-id>-ap-southeast-1 -var image_tag=202283a536a2d2d69d03f67a113656453eab779b -var metrics_namespace=DBS/Check-dbs188
+data.terraform_remote_state.base: Reading...
+data.terraform_remote_state.base: Read complete after 1s
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_cloudwatch_metric_alarm.risk_flag_rate will be created
+  + resource "aws_cloudwatch_metric_alarm" "risk_flag_rate" {
+      + actions_enabled                       = true
+      + alarm_actions                         = [
+          + "arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms",
+        ]
+      + alarm_description                     = "Cảnh báo gian lận vượt 20 cờ trên 1.000 giao dịch trong 24 giờ gần nhất, chỉ tính khi có ít nhất 1000 giao dịch được chấm (SLO docs/03 §14, NFR-FRD-02, DBS-188). Có thể là luật báo nhầm hàng loạt, một đợt gian lận thật hoặc cấu hình luật vừa đổi: xem dashboard dbs-dev-overview (cờ theo mức, mode, phần AI), rà phiên bản luật rồi tinh chỉnh (UC-12). Alarm giữ ALARM tới khi đợt cờ ra khỏi cửa sổ 24 giờ."
+      + alarm_name                            = "dbs-dev-risk-flag-rate"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "GreaterThanThreshold"
+      + datapoints_to_alarm                   = 1
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 1
+      + id                                    = (known after apply)
+      + ok_actions                            = [
+          + "arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms",
+        ]
+      + region                                = "ap-southeast-1"
+      + tags_all                              = {
+          + "env"     = "dev"
+          + "owner"   = "platform"
+          + "project" = "dbs"
+        }
+      + threshold                             = 20
+      + treat_missing_data                    = "notBreaching"
+
+      + metric_query {
+          + id          = "d"
+          + return_data = false
+            # (3 unchanged attributes hidden)
+
+          + metric {
+              + dimensions  = {
+                  + "Role" = "worker"
+                }
+              + metric_name = "risk_decision_total"
+              + namespace   = "DBS/Check-dbs188"
+              + period      = 86400
+              + stat        = "Sum"
+                # (1 unchanged attribute hidden)
+            }
+        }
+      + metric_query {
+          + id          = "f"
+          + return_data = false
+            # (3 unchanged attributes hidden)
+
+          + metric {
+              + dimensions  = {
+                  + "Role" = "worker"
+                }
+              + metric_name = "risk_flag_total"
+              + namespace   = "DBS/Check-dbs188"
+              + period      = 86400
+              + stat        = "Sum"
+                # (1 unchanged attribute hidden)
+            }
+        }
+      + metric_query {
+          + expression  = "IF(d >= 1000, 1000 * FILL(f, 0) / d, 0)"
+          + id          = "rate"
+          + label       = "Cờ / 1.000 giao dịch (24 giờ)"
+          + return_data = true
+            # (1 unchanged attribute hidden)
+        }
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + private_subnet_ids = [
+      + "subnet-07938b0e4422c02ae",
+      + "subnet-035204bb27adf5772",
+    ]
+  + public_subnet_ids  = [
+      + "subnet-0fa92ab42a51f458e",
+      + "subnet-0faa4503583aa1b95",
+    ]
+  + vpc_id             = "vpc-0c30109ee998eb80e"
+aws_cloudwatch_metric_alarm.risk_flag_rate: Creating...
+aws_cloudwatch_metric_alarm.risk_flag_rate: Creation complete after 1s [id=dbs-dev-risk-flag-rate]
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+
+Warning: Applied changes may be incomplete
+
+The plan was created with the -target option in effect, so some changes
+requested in the configuration may have been ignored and the output values
+may not be fully updated. Run the following command to verify that no other
+changes are pending:
+    terraform plan
+
+Note that the -target option is not suitable for routine use, and is provided
+only for exceptional situations such as recovering from errors or mistakes,
+or when Terraform specifically suggests to use it as part of an error
+message.
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+private_subnet_ids = [
+  "subnet-07938b0e4422c02ae",
+  "subnet-035204bb27adf5772",
+]
+public_subnet_ids = [
+  "subnet-0fa92ab42a51f458e",
+  "subnet-0faa4503583aa1b95",
+]
+vpc_id = "vpc-0c30109ee998eb80e"
+[exit 0]
+
+=== create temp log group and stream
+$ aws logs create-log-group --log-group-name dbs188-emf-check
+[exit 0]
+
+=== create stream
+$ aws logs create-log-stream --log-group-name dbs188-emf-check --log-stream-name driver
+[exit 0]
+
+=== M-188-03 describe-alarms (config)
+$ aws cloudwatch describe-alarms --alarm-names dbs-dev-risk-flag-rate --query MetricAlarms[0].{State:StateValue,Threshold:Threshold,Op:ComparisonOperator,Eval:EvaluationPeriods,Missing:TreatMissingData,Actions:AlarmActions,OKActions:OKActions,Queries:Metrics[].{Id:Id,Expr:Expression,Metric:MetricStat.Metric.MetricName,Ns:MetricStat.Metric.Namespace,Dim:MetricStat.Metric.Dimensions,Period:MetricStat.Period,Stat:MetricStat.Stat,Ret:ReturnData}} --output json
+{
+    "State": "INSUFFICIENT_DATA",
+    "Threshold": 20.0,
+    "Op": "GreaterThanThreshold",
+    "Eval": 1,
+    "Missing": "notBreaching",
+    "Actions": [
+        "arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms"
+    ],
+    "OKActions": [
+        "arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms"
+    ],
+    "Queries": [
+        {
+            "Id": "rate",
+            "Expr": "IF(d >= 1000, 1000 * FILL(f, 0) / d, 0)",
+            "Metric": null,
+            "Ns": null,
+            "Dim": null,
+            "Period": null,
+            "Stat": null,
+            "Ret": true
+        },
+        {
+            "Id": "d",
+            "Expr": null,
+            "Metric": "risk_decision_total",
+            "Ns": "DBS/Check-dbs188",
+            "Dim": [
+                {
+                    "Name": "Role",
+                    "Value": "worker"
+                }
+            ],
+            "Period": 86400,
+            "Stat": "Sum",
+            "Ret": false
+        },
+        {
+            "Id": "f",
+            "Expr": null,
+            "Metric": "risk_flag_total",
+            "Ns": "DBS/Check-dbs188",
+            "Dim": [
+                {
+                    "Name": "Role",
+                    "Value": "worker"
+                }
+            ],
+            "Period": 86400,
+            "Stat": "Sum",
+            "Ret": false
+        }
+    ]
+}
+[exit 0]
+
+=== M-188-04 ship stage A (600 decisions, no flag line)
+$ npx ts-node -r tsconfig-paths/register test/manual/flag-rate-alarm.manual.ts ship F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-A.jsonl dbs188-emf-check driver DBS/Check-dbs188
+{
+    "nextSequenceToken": "<redacted>"
+}
+ 
+shipped 1 line(s) of F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-A.jsonl at 2026-11-20T19:12:38.199Z
+[exit 0]
+
+=== stage-A.jsonl content
+$ cat F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-A.jsonl
+{"_aws":{"Timestamp":1795201626255,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Role","AiStatus"],["Role"]],"Metrics":[{"Name":"risk_decision_total","Unit":"Count"}]}]},"Role":"worker","AiStatus":"DISABLED","risk_decision_total":600}
+[exit 0]
+
+=== M-188-04 after stage A: alarm state at 19:13:11Z
+$ aws cloudwatch describe-alarms --alarm-names dbs-dev-risk-flag-rate --query MetricAlarms[0].[StateValue,StateUpdatedTimestamp,StateReason] --output text
+INSUFFICIENT_DATA	2026-11-21T02:12:17.169000+07:00	Unchecked: Initial alarm creation
+[exit 0]
+
+=== M-188-04 after stage A: get-metric-data with the alarm's own expression (24 h bucket)
+$ aws cloudwatch get-metric-data --start-time 2026-11-19T19:12:00Z --end-time 2026-11-20T19:13:00Z --metric-data-queries file://F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/queries.json --query MetricDataResults[].[Label,Values] --output json
+[
+    [
+        "decisions",
+        [
+            600.0
+        ]
+    ],
+    [
+        "flags",
+        [
+            0.0
+        ]
+    ],
+    [
+        "raw_per_1000_no_IF",
+        [
+            0.0
+        ]
+    ],
+    [
+        "alarm_expression",
+        [
+            0.0
+        ]
+    ]
+]
+[exit 0]
+
+=== M-188-04 after stage A: alarm history
+$ aws cloudwatch describe-alarm-history --alarm-name dbs-dev-risk-flag-rate --max-records 12 --query AlarmHistoryItems[].[Timestamp,HistoryItemType,HistorySummary] --output text
+2026-11-21T02:12:17.322000+07:00	ConfigurationUpdate	Alarm "dbs-dev-risk-flag-rate" created
+[exit 0]
+
+=== M-188-04 +2min: alarm state at 19:15:01Z
+$ aws cloudwatch describe-alarms --alarm-names dbs-dev-risk-flag-rate --query MetricAlarms[0].[StateValue,StateUpdatedTimestamp,StateReason] --output text
+OK	2026-11-21T02:13:34.739000+07:00	Threshold Crossed: 1 out of the last 1 datapoints [0.0 (19/11/26 19:13:00)] was not greater than the threshold (20.0) (minimum 1 datapoint for ALARM -> OK transition).
+[exit 0]
+
+=== M-188-04 +2min: get-metric-data with the alarm's own expression (24 h bucket)
+$ aws cloudwatch get-metric-data --start-time 2026-11-19T19:14:00Z --end-time 2026-11-20T19:15:00Z --metric-data-queries file://F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/queries.json --query MetricDataResults[].[Label,Values] --output json
+[
+    [
+        "decisions",
+        [
+            600.0
+        ]
+    ],
+    [
+        "flags",
+        [
+            0.0
+        ]
+    ],
+    [
+        "raw_per_1000_no_IF",
+        [
+            0.0
+        ]
+    ],
+    [
+        "alarm_expression",
+        [
+            0.0
+        ]
+    ]
+]
+[exit 0]
+
+=== M-188-04 +2min: alarm history
+$ aws cloudwatch describe-alarm-history --alarm-name dbs-dev-risk-flag-rate --max-records 12 --query AlarmHistoryItems[].[Timestamp,HistoryItemType,HistorySummary] --output text
+2026-11-21T02:13:34.783000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:13:34.739000+07:00	StateUpdate	Alarm updated from INSUFFICIENT_DATA to OK
+2026-11-21T02:12:17.322000+07:00	ConfigurationUpdate	Alarm "dbs-dev-risk-flag-rate" created
+[exit 0]
+
+=== M-188-05 ship stage B (+300 decisions incl. 45 flags: cumulative 900 / 45 = 50 per 1,000, under 1,000 transfers)
+$ npx ts-node -r tsconfig-paths/register test/manual/flag-rate-alarm.manual.ts ship F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-B.jsonl dbs188-emf-check driver DBS/Check-dbs188
+{
+    "nextSequenceToken": "49679320457869144316302851217508244542108684046590543778"
+}
+ 
+shipped 2 line(s) of F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-B.jsonl at 2026-11-20T19:15:57.787Z
+[exit 0]
+
+=== stage-B.jsonl
+$ cat F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-B.jsonl
+{"_aws":{"Timestamp":1795201650922,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Role","AiStatus"],["Role"]],"Metrics":[{"Name":"risk_decision_total","Unit":"Count"}]}]},"Role":"worker","AiStatus":"DISABLED","risk_decision_total":300}
+{"_aws":{"Timestamp":1795201650922,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Role","RiskLevel","Mode","AiAdded"],["Role"]],"Metrics":[{"Name":"risk_flag_total","Unit":"Count"}]}]},"Role":"worker","RiskLevel":"MEDIUM","Mode":"rule_only","AiAdded":"none","risk_flag_total":45}
+[exit 0]
+
+=== M-188-05 ~4 min after stage B: alarm state at 19:19:53Z
+$ aws cloudwatch describe-alarms --alarm-names dbs-dev-risk-flag-rate --query MetricAlarms[0].[StateValue,StateUpdatedTimestamp,StateReason] --output text
+OK	2026-11-21T02:13:34.739000+07:00	Threshold Crossed: 1 out of the last 1 datapoints [0.0 (19/11/26 19:13:00)] was not greater than the threshold (20.0) (minimum 1 datapoint for ALARM -> OK transition).
+[exit 0]
+
+=== M-188-05 ~4 min after stage B: get-metric-data with the alarm's own expression (24 h bucket)
+$ aws cloudwatch get-metric-data --start-time 2026-11-19T19:18:00Z --end-time 2026-11-20T19:19:00Z --metric-data-queries file://F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/queries.json --query MetricDataResults[].[Label,Values] --output json
+[
+    [
+        "decisions",
+        [
+            900.0
+        ]
+    ],
+    [
+        "flags",
+        [
+            45.0
+        ]
+    ],
+    [
+        "raw_per_1000_no_IF",
+        [
+            50.0
+        ]
+    ],
+    [
+        "alarm_expression",
+        [
+            0.0
+        ]
+    ]
+]
+[exit 0]
+
+=== M-188-05 ~4 min after stage B: alarm history
+$ aws cloudwatch describe-alarm-history --alarm-name dbs-dev-risk-flag-rate --max-records 12 --query AlarmHistoryItems[].[Timestamp,HistoryItemType,HistorySummary] --output text
+2026-11-21T02:13:34.783000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:13:34.739000+07:00	StateUpdate	Alarm updated from INSUFFICIENT_DATA to OK
+2026-11-21T02:12:17.322000+07:00	ConfigurationUpdate	Alarm "dbs-dev-risk-flag-rate" created
+[exit 0]
+
+=== M-188-06 ship stage C (+150 ordinary decisions: cumulative 1,050 / 45 = 42.86 per 1,000)
+$ npx ts-node -r tsconfig-paths/register test/manual/flag-rate-alarm.manual.ts ship F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-C.jsonl dbs188-emf-check driver DBS/Check-dbs188
+{
+    "nextSequenceToken": "49679742958889678343257956040433498617580181379052733362"
+}
+ 
+shipped 1 line(s) of F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-C.jsonl at 2026-11-20T19:20:07.300Z
+[exit 0]
+
+=== M-188-06 ~2 min after stage C: alarm state at 19:22:01Z
+$ aws cloudwatch describe-alarms --alarm-names dbs-dev-risk-flag-rate --query MetricAlarms[0].[StateValue,StateUpdatedTimestamp,StateReason] --output text
+ALARM	2026-11-21T02:21:34.738000+07:00	Threshold Crossed: 1 out of the last 1 datapoints [42.857142857142854 (19/11/26 19:21:00)] was greater than the threshold (20.0) (minimum 1 datapoint for OK -> ALARM transition).
+[exit 0]
+
+=== M-188-06 ~2 min after stage C: get-metric-data with the alarm's own expression (24 h bucket)
+$ aws cloudwatch get-metric-data --start-time 2026-11-19T19:21:00Z --end-time 2026-11-20T19:22:00Z --metric-data-queries file://F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/queries.json --query MetricDataResults[].[Label,Values] --output json
+[
+    [
+        "decisions",
+        [
+            1050.0
+        ]
+    ],
+    [
+        "flags",
+        [
+            45.0
+        ]
+    ],
+    [
+        "raw_per_1000_no_IF",
+        [
+            42.857142857142854
+        ]
+    ],
+    [
+        "alarm_expression",
+        [
+            42.857142857142854
+        ]
+    ]
+]
+[exit 0]
+
+=== M-188-06 ~2 min after stage C: alarm history
+$ aws cloudwatch describe-alarm-history --alarm-name dbs-dev-risk-flag-rate --max-records 12 --query AlarmHistoryItems[].[Timestamp,HistoryItemType,HistorySummary] --output text
+2026-11-21T02:21:34.782000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:21:34.738000+07:00	StateUpdate	Alarm updated from OK to ALARM
+2026-11-21T02:13:34.783000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:13:34.739000+07:00	StateUpdate	Alarm updated from INSUFFICIENT_DATA to OK
+2026-11-21T02:12:17.322000+07:00	ConfigurationUpdate	Alarm "dbs-dev-risk-flag-rate" created
+[exit 0]
+
+=== M-188-07 ship stage D (synthetic +1,200 decisions via countDecision: cumulative 2,250 / 45 = exactly 20.00)
+$ npx ts-node -r tsconfig-paths/register test/manual/flag-rate-alarm.manual.ts ship F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-D.jsonl dbs188-emf-check driver DBS/Check-dbs188
+{
+    "nextSequenceToken": "49679416830026602626825649738835197866410723394189264114"
+}
+ 
+shipped 1 line(s) of F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-D.jsonl at 2026-11-20T19:22:16.966Z
+[exit 0]
+
+=== M-188-07 ~2 min after stage D: alarm state at 19:24:11Z
+$ aws cloudwatch describe-alarms --alarm-names dbs-dev-risk-flag-rate --query MetricAlarms[0].[StateValue,StateUpdatedTimestamp,StateReason] --output text
+OK	2026-11-21T02:23:34.738000+07:00	Threshold Crossed: 1 out of the last 1 datapoints [20.0 (19/11/26 19:23:00)] was not greater than the threshold (20.0) (minimum 1 datapoint for ALARM -> OK transition).
+[exit 0]
+
+=== M-188-07 ~2 min after stage D: get-metric-data with the alarm's own expression (24 h bucket)
+$ aws cloudwatch get-metric-data --start-time 2026-11-19T19:23:00Z --end-time 2026-11-20T19:24:00Z --metric-data-queries file://F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/queries.json --query MetricDataResults[].[Label,Values] --output json
+[
+    [
+        "decisions",
+        [
+            2250.0
+        ]
+    ],
+    [
+        "flags",
+        [
+            45.0
+        ]
+    ],
+    [
+        "raw_per_1000_no_IF",
+        [
+            20.0
+        ]
+    ],
+    [
+        "alarm_expression",
+        [
+            20.0
+        ]
+    ]
+]
+[exit 0]
+
+=== M-188-07 ~2 min after stage D: alarm history
+$ aws cloudwatch describe-alarm-history --alarm-name dbs-dev-risk-flag-rate --max-records 12 --query AlarmHistoryItems[].[Timestamp,HistoryItemType,HistorySummary] --output text
+2026-11-21T02:23:34.779000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:23:34.738000+07:00	StateUpdate	Alarm updated from ALARM to OK
+2026-11-21T02:21:34.782000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:21:34.738000+07:00	StateUpdate	Alarm updated from OK to ALARM
+2026-11-21T02:13:34.783000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:13:34.739000+07:00	StateUpdate	Alarm updated from INSUFFICIENT_DATA to OK
+2026-11-21T02:12:17.322000+07:00	ConfigurationUpdate	Alarm "dbs-dev-risk-flag-rate" created
+[exit 0]
+
+=== M-188-08 ship stage E (one more real ATO_DRAIN: cumulative 2,251 / 46 = 20.44)
+$ npx ts-node -r tsconfig-paths/register test/manual/flag-rate-alarm.manual.ts ship F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-E.jsonl dbs188-emf-check driver DBS/Check-dbs188
+{
+    "nextSequenceToken": "49679443771646079952446958804250667081690487657120924018"
+}
+ 
+shipped 2 line(s) of F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/stages/stage-E.jsonl at 2026-11-20T19:24:24.904Z
+[exit 0]
+
+=== M-188-08 ~2 min after stage E: alarm state at 19:26:23Z
+$ aws cloudwatch describe-alarms --alarm-names dbs-dev-risk-flag-rate --query MetricAlarms[0].[StateValue,StateUpdatedTimestamp,StateReason] --output text
+ALARM	2026-11-21T02:25:34.751000+07:00	Threshold Crossed: 1 out of the last 1 datapoints [20.435362061306087 (19/11/26 19:25:00)] was greater than the threshold (20.0) (minimum 1 datapoint for OK -> ALARM transition).
+[exit 0]
+
+=== M-188-08 ~2 min after stage E: get-metric-data with the alarm's own expression (24 h bucket)
+$ aws cloudwatch get-metric-data --start-time 2026-11-19T19:25:00Z --end-time 2026-11-20T19:26:00Z --metric-data-queries file://F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/queries.json --query MetricDataResults[].[Label,Values] --output json
+[
+    [
+        "decisions",
+        [
+            2251.0
+        ]
+    ],
+    [
+        "flags",
+        [
+            46.0
+        ]
+    ],
+    [
+        "raw_per_1000_no_IF",
+        [
+            20.435362061306087
+        ]
+    ],
+    [
+        "alarm_expression",
+        [
+            20.435362061306087
+        ]
+    ]
+]
+[exit 0]
+
+=== M-188-08 ~2 min after stage E: alarm history
+$ aws cloudwatch describe-alarm-history --alarm-name dbs-dev-risk-flag-rate --max-records 12 --query AlarmHistoryItems[].[Timestamp,HistoryItemType,HistorySummary] --output text
+2026-11-21T02:25:34.794000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:25:34.751000+07:00	StateUpdate	Alarm updated from OK to ALARM
+2026-11-21T02:23:34.779000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:23:34.738000+07:00	StateUpdate	Alarm updated from ALARM to OK
+2026-11-21T02:21:34.782000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:21:34.738000+07:00	StateUpdate	Alarm updated from OK to ALARM
+2026-11-21T02:13:34.783000+07:00	Action	Successfully executed action arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms
+2026-11-21T02:13:34.739000+07:00	StateUpdate	Alarm updated from INSUFFICIENT_DATA to OK
+2026-11-21T02:12:17.322000+07:00	ConfigurationUpdate	Alarm "dbs-dev-risk-flag-rate" created
+[exit 0]
+
+# 01-cloudwatch-flag-rate-alarm-expression.png: image rendered by GetMetricWidgetImage (not a console screenshot) of the running total, same expression as the alarm, 50 minutes: raw 50 per 1,000 at 19:15 (900 decisions) but the alarm expression stays 0 until 1,000 transfers (19:20, 42.86); exactly 20.00 at 19:22; 20.44 at 19:24
+
+=== M-188-09 terraform destroy -target
+$ terraform destroy -auto-approve -no-color -input=false -target=aws_cloudwatch_metric_alarm.risk_flag_rate -var account_id=<account-id> -var state_bucket=dbs-tfstate-<account-id>-ap-southeast-1 -var image_tag=202283a536a2d2d69d03f67a113656453eab779b -var metrics_namespace=DBS/Check-dbs188
+data.terraform_remote_state.base: Reading...
+data.terraform_remote_state.base: Read complete after 1s
+aws_cloudwatch_metric_alarm.risk_flag_rate: Refreshing state... [id=dbs-dev-risk-flag-rate]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  # aws_cloudwatch_metric_alarm.risk_flag_rate will be destroyed
+  - resource "aws_cloudwatch_metric_alarm" "risk_flag_rate" {
+      - actions_enabled                       = true -> null
+      - alarm_actions                         = [
+          - "arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms",
+        ] -> null
+      - alarm_description                     = "Cảnh báo gian lận vượt 20 cờ trên 1.000 giao dịch trong 24 giờ gần nhất, chỉ tính khi có ít nhất 1000 giao dịch được chấm (SLO docs/03 §14, NFR-FRD-02, DBS-188). Có thể là luật báo nhầm hàng loạt, một đợt gian lận thật hoặc cấu hình luật vừa đổi: xem dashboard dbs-dev-overview (cờ theo mức, mode, phần AI), rà phiên bản luật rồi tinh chỉnh (UC-12). Alarm giữ ALARM tới khi đợt cờ ra khỏi cửa sổ 24 giờ." -> null
+      - alarm_name                            = "dbs-dev-risk-flag-rate" -> null
+      - arn                                   = "arn:aws:cloudwatch:ap-southeast-1:<account-id>:alarm:dbs-dev-risk-flag-rate" -> null
+      - comparison_operator                   = "GreaterThanThreshold" -> null
+      - datapoints_to_alarm                   = 1 -> null
+      - dimensions                            = {} -> null
+      - evaluation_interval                   = 0 -> null
+      - evaluation_periods                    = 1 -> null
+      - id                                    = "dbs-dev-risk-flag-rate" -> null
+      - insufficient_data_actions             = [] -> null
+      - ok_actions                            = [
+          - "arn:aws:sns:ap-southeast-1:<account-id>:dbs-dev-alarms",
+        ] -> null
+      - period                                = 0 -> null
+      - region                                = "ap-southeast-1" -> null
+      - tags                                  = {} -> null
+      - tags_all                              = {
+          - "env"     = "dev"
+          - "owner"   = "platform"
+          - "project" = "dbs"
+        } -> null
+      - threshold                             = 20 -> null
+      - treat_missing_data                    = "notBreaching" -> null
+        # (7 unchanged attributes hidden)
+
+      - metric_query {
+          - id          = "d" -> null
+          - period      = 0 -> null
+          - return_data = false -> null
+            # (3 unchanged attributes hidden)
+
+          - metric {
+              - dimensions  = {
+                  - "Role" = "worker"
+                } -> null
+              - metric_name = "risk_decision_total" -> null
+              - namespace   = "DBS/Check-dbs188" -> null
+              - period      = 86400 -> null
+              - stat        = "Sum" -> null
+                # (1 unchanged attribute hidden)
+            }
+        }
+      - metric_query {
+          - id          = "f" -> null
+          - period      = 0 -> null
+          - return_data = false -> null
+            # (3 unchanged attributes hidden)
+
+          - metric {
+              - dimensions  = {
+                  - "Role" = "worker"
+                } -> null
+              - metric_name = "risk_flag_total" -> null
+              - namespace   = "DBS/Check-dbs188" -> null
+              - period      = 86400 -> null
+              - stat        = "Sum" -> null
+                # (1 unchanged attribute hidden)
+            }
+        }
+      - metric_query {
+          - expression  = "IF(d >= 1000, 1000 * FILL(f, 0) / d, 0)" -> null
+          - id          = "rate" -> null
+          - label       = "Cờ / 1.000 giao dịch (24 giờ)" -> null
+          - period      = 0 -> null
+          - return_data = true -> null
+            # (1 unchanged attribute hidden)
+        }
+    }
+
+Plan: 0 to add, 0 to change, 1 to destroy.
+aws_cloudwatch_metric_alarm.risk_flag_rate: Destroying... [id=dbs-dev-risk-flag-rate]
+aws_cloudwatch_metric_alarm.risk_flag_rate: Destruction complete after 1s
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+
+Warning: Applied changes may be incomplete
+
+The plan was created with the -target option in effect, so some changes
+requested in the configuration may have been ignored and the output values
+may not be fully updated. Run the following command to verify that no other
+changes are pending:
+    terraform plan
+
+Note that the -target option is not suitable for routine use, and is provided
+only for exceptional situations such as recovering from errors or mistakes,
+or when Terraform specifically suggests to use it as part of an error
+message.
+
+Destroy complete! Resources: 1 destroyed.
+[exit 0]
+
+=== M-188-09 delete temp log group
+$ aws logs delete-log-group --log-group-name dbs188-emf-check
+[exit 0]
+
+=== M-188-09 remove temp state object
+$ aws s3 rm s3://dbs-tfstate-<account-id>-ap-southeast-1/dev/session-dbs188.tfstate
+delete: s3://dbs-tfstate-<account-id>-ap-southeast-1/dev/session-dbs188.tfstate
+[exit 0]
+
+=== M-188-09 leftovers: alarms
+$ aws cloudwatch describe-alarms --query MetricAlarms[].AlarmName --output text
+dbs-dev-notification-dlq-not-empty	dbs-dev-risk-dlq-not-empty
+[exit 0]
+
+=== M-188-09 leftovers: log groups
+$ aws logs describe-log-groups --query logGroups[].logGroupName --output text
+/dbs/dev/api	/dbs/dev/worker
+[exit 0]
+
+=== M-188-09 leftovers: state objects
+$ aws s3 ls s3://dbs-tfstate-<account-id>-ap-southeast-1/dev/
+2026-11-14 20:33:10     142369 base.tfstate
+2026-11-12 23:14:36       1064 session-dbs145.tfstate
+2026-11-15 19:41:17       2183 session.tfstate
+[exit 0]
+
+=== M-188-09 leftovers: metrics of the temp namespace (cannot be deleted, expire after about 2 weeks)
+$ aws cloudwatch list-metrics --namespace DBS/Check-dbs188 --query Metrics[].[MetricName,Dimensions[0].Value] --output text
+risk_decision_total	worker
+risk_decision_total	worker
+risk_flag_total	worker
+risk_flag_total	worker
+[exit 0]
+
+=== M-188-09 session dir .terraform unchanged (still -backend=false init, no s3 backend)
+$ grep -c "backend" F:/Cloud Application/digital-banking-simulator/.claude/worktrees/agent-aa496da5282307468/infra/terraform/envs/dev/session/.terraform/terraform.tfstate
+grep: F:/Cloud Application/digital-banking-simulator/.claude/worktrees/agent-aa496da5282307468/infra/terraform/envs/dev/session/.terraform/terraform.tfstate: No such file or directory
+[exit 2]
+
+# M-188-09 reading of the line above: .terraform of envs/dev/session has no terraform.tfstate (it was initialised with -backend=false and never reconfigured); the s3 backend of this run lived only in the separate TF_DATA_DIR. The apply/destroy used a temporary alarm in namespace DBS/Check-dbs188; the alarms of base and the metrics of DBS/Backend were not touched.
+
+# Exploratory check before the design was fixed (2026-11-20 18:43 UTC): a single-metric alarm dbs188-exp-window, namespace DBS188/Exp, Period 86400, EvaluationPeriods 1 (since deleted; its metrics stay until they expire). Its StateReason read "Threshold Crossed: 1 datapoint [111.0 (19/11/26 18:45:00)] was not greater than the threshold (1000.0)" when evaluated at about 20/11/26 18:45 UTC: the bucket starts at now minus 24 h. PutMetricData with timestamps 5 h and 20 h old did not become queryable, so data dropping out of the 24 h window could not be exercised on real data.
+
+# Node version note: the shell PATH of the first run resolved to Node 18.20.8 (the AWS steps above and the first driver run used it). After noticing, typecheck, lint:check, `npm test` (139 suites, 2378 tests) and the driver were rerun under Node 24.22.2; the driver printed the same totals (stage A 600/0, B 900/45, C 1050/45, D 2250/45, E 2251/46, "generate OK"). The EMF lines shipped to AWS are the Node 18 run; the Node 24 run has identical totals.
+
+# Not run: data leaving the 24 h window (old data cannot be seeded); delivery of the SNS email (topic dbs-dev-alarms has no subscriber, the Action history items show the publish succeeded); the AI path of the counters (not needed by the alarm).
