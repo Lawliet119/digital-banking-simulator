@@ -53,7 +53,7 @@ async function seed(): Promise<void> {
   ).Attributes?.QueueArn;
   // The source queue dead-letters to `dlq`: `dlq:resend` with another DLQ must refuse (B2 (c)).
   const main = await createQueue(`dlqcli-main-${suffix}`, {
-    RedrivePolicy: JSON.stringify({ deadLetterTargetArn: dlqArn, maxReceiveCount: 5 }),
+    RedrivePolicy: JSON.stringify({ deadLetterTargetArn: dlqArn, maxReceiveCount: 100 }),
   });
   const [a, b, old] = [randomUUID(), randomUUID(), randomUUID()];
   const send = (
@@ -106,7 +106,8 @@ async function counts(queue: string): Promise<void> {
 async function peek(queue: string): Promise<void> {
   const adapter = new SqsClient({ region: 'us-east-1', endpoint });
   const seen = new Map<string, unknown>();
-  for (let i = 0; i < 5; i++) {
+  // Two receives only: each one counts toward maxReceiveCount of the queue's RedrivePolicy.
+  for (let i = 0; i < 2; i++) {
     for (const m of await adapter.receive(queue, { waitTimeSeconds: 1, visibilityTimeout: 0 })) {
       seen.set(m.MessageId!, {
         body: m.Body,
