@@ -1,0 +1,126 @@
+SHA của commit cuối đổi công cụ/dữ liệu: 46f1e6f (git log -1; chạy trên cây sạch)
+
+### M-141-01 kiểm BACKLOG thật
+$ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs --summary
+{
+  "total": 102,
+  "bySection": {
+    "Dev": 27,
+    "Fraud": 15,
+    "Platform & Ops": 52,
+    "Người thật và quay video": 8
+  },
+  "byClass": {
+    "Hoãn": 74,
+    "Trong tải": 8,
+    "Trước tải": 20
+  },
+  "byPriority": {
+    "Thấp": 25,
+    "Trung bình": 59,
+    "Cao": 18
+  }
+}
+{
+  "Dev": {
+    "Hoãn / Thấp": 11,
+    "Hoãn / Trung bình": 12,
+    "Trong tải / Cao": 1,
+    "Trong tải / Trung bình": 2,
+    "Trước tải / Trung bình": 1
+  },
+  "Fraud": {
+    "Hoãn / Trung bình": 9,
+    "Trước tải / Cao": 3,
+    "Hoãn / Thấp": 2,
+    "Trong tải / Cao": 1
+  },
+  "Platform & Ops": {
+    "Hoãn / Trung bình": 20,
+    "Hoãn / Thấp": 12,
+    "Trước tải / Cao": 9,
+    "Trong tải / Cao": 3,
+    "Trước tải / Trung bình": 7,
+    "Trong tải / Trung bình": 1
+  },
+  "Người thật và quay video": {
+    "Hoãn / Trung bình": 7,
+    "Hoãn / Cao": 1
+  }
+[exit 0]
+
+### M-141-02 từ chối: đổi Cao thành Thấp ở một dòng T1
+đổi ưu tiên ở BL-104
+$ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs <scratch>/m141/b02.md
+BL-104: mã T1 chỉ cho Ưu tiên Cao, dòng ghi Thấp
+102 dòng, 1 lỗi
+[exit 1]
+
+### M-141-03 từ chối: xóa ô cuối; nhân đôi dòng; đổi thứ tự
+xóa ô cuối của BL-121
+$ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs <scratch>/m141/b03a.md
+BL-121: cần 8 cột, có 7
+101 dòng, 1 lỗi
+[exit 1]
+nhân đôi BL-121
+$ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs <scratch>/m141/b03b.md
+BL-121: ID trùng
+103 dòng, 1 lỗi
+[exit 1]
+đổi chỗ BL-042 và BL-121
+$ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs <scratch>/m141/b03c.md
+BL-042: trong một mục, ID phải tăng dần (sau BL-121)
+102 dòng, 1 lỗi
+[exit 1]
+
+### M-141-04 dòng mới từ buổi quay: định dạng cũ 5 cột, rồi đủ ba cột
+thêm BL-122 chỉ 5 cột
+$ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs <scratch>/m141/b04a.md
+BL-122: cần 8 cột, có 5
+102 dòng, 1 lỗi
+[exit 1]
+thêm BL-122 đủ ba cột
+$ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs <scratch>/m141/b04b.md
+103 dòng, 0 lỗi
+[exit 0]
+
+### M-141-06 biên: không xuống dòng cuối; CRLF
+$ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs <scratch>/m141/b06a.md
+102 dòng, 0 lỗi
+[exit 0]
+$ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs <scratch>/m141/b06b.md
+102 dòng, 0 lỗi
+[exit 0]
+ô chứa dấu | đã thoát: BACKLOG thật không có dòng nào; ca này do TC-141-07 phủ (phần test đơn vị bên dưới)
+
+### M-141-07 liên kết tài liệu
+$ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs
+486 files checked, 0 broken link(s)
+[exit 0]
+
+### Test đơn vị của validator
+$ node --test .claude/skills/dbs-delivering-task/scripts/check-backlog.test.mjs
+✔ TC-141-01 một bảng đúng định dạng không có lỗi (1.9887ms)
+✔ TC-141-02 dòng thiếu cột bị từ chối (0.2808ms)
+✔ TC-141-03 ưu tiên lạ, hoặc ngoài tập cho phép của mã, bị từ chối (0.7285ms)
+✔ TC-141-04 cột Xử lý: sai định dạng, mã lạ, nhóm không khớp mã, bị từ chối (0.3801ms)
+✔ TC-141-05 ID trùng, ID sai dạng, thứ tự ID không tăng trong một mục: bị từ chối (1.0332ms)
+✔ TC-141-06 ô Việc, Nguồn, Vai, Đóng khi, Hạn để trống bị từ chối (mọi việc có người nhận và hạn) (0.3039ms)
+✔ TC-141-07 dấu gạch đứng đã thoát trong ô không tách cột (0.1984ms)
+✔ TC-141-08 tiêu đề bảng sai cột bị từ chối (0.1405ms)
+✔ TC-141-09 tóm tắt đếm đúng theo mục, nhóm xử lý và ưu tiên (0.3717ms)
+✔ TC-141-10 dòng BL nằm ngoài mọi bảng có tiêu đề bị từ chối (0.3102ms)
+✔ TC-141-14 đầu BACKLOG phải định nghĩa đủ các mã, đúng nhóm và ưu tiên mặc định (0.4057ms)
+✔ TC-141-18 mã L và H6 bắt buộc nêu task đảm nhận; mã khác không được nêu (0.2477ms)
+✔ TC-141-19 cột Hạn: chấp nhận các dạng đã định nghĩa, từ chối dạng khác (0.3797ms)
+✔ TC-141-20 dòng viết lệch (không khoảng trắng, hai khoảng trắng, thụt đầu dòng) vẫn bị bắt; CRLF không làm hỏng (0.1601ms)
+✔ TC-141-21 dòng ngoài bảng có chữ BL- không phải ID không bị tính; văn xuôi không bị bắt (0.0744ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 97.8719
+[exit 0]

@@ -63,7 +63,7 @@ export const MAP = {
   'BL-173': ['H6', 'giới hạn bộ mixed ghi ở P5 (DBS-190)', { task: 'DBS-190' }],
   'BL-187': ['L', 'đo p95 extract fraud ở 120 extract/s trên RDS: tài khoản nóng của DBS-166', { task: 'DBS-166', pri: 'Cao' }],
   'BL-188': ['H4', 'chạy thật verify-worker-rollout và thư SNS'],
-  'BL-236': ['H4', 'chạy export-features trên tập tune thật (chờ backend/data/fraud/)'],
+  'BL-236': ['H4', 'chạy export-features trên tập tune thật (chờ backend/data/fraud/, BL-041); hạn đổi theo kiểm mù M-141-05', { due: 'Sau BL-041' }],
   'BL-238': ['H4', 'chạy parity trên tập tune thật (chờ backend/data/fraud/)'],
   'BL-340': ['H6', 'counter cờ/1.000 giao dịch và alarm thuộc DBS-187, DBS-188', { task: ['DBS-187', 'DBS-188'] }],
   'BL-391': ['H4', 'phát hiện còn lại của audit dataset DBS-146'],
