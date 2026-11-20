@@ -1,4 +1,4 @@
-SHA của commit cuối đổi công cụ/dữ liệu: 46f1e6f (git log -1; chạy trên cây sạch)
+SHA của commit cuối đổi công cụ/dữ liệu: 13534f2 (git log -1; chạy trên cây sạch)
 
 ### M-141-01 kiểm BACKLOG thật
 $ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs --summary
@@ -95,26 +95,26 @@ $ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs <scratch>/m1
 
 ### M-141-07 liên kết tài liệu
 $ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs
-486 files checked, 0 broken link(s)
+487 files checked, 0 broken link(s)
 [exit 0]
 
 ### Test đơn vị của validator
 $ node --test .claude/skills/dbs-delivering-task/scripts/check-backlog.test.mjs
-✔ TC-141-01 một bảng đúng định dạng không có lỗi (1.9887ms)
-✔ TC-141-02 dòng thiếu cột bị từ chối (0.2808ms)
-✔ TC-141-03 ưu tiên lạ, hoặc ngoài tập cho phép của mã, bị từ chối (0.7285ms)
-✔ TC-141-04 cột Xử lý: sai định dạng, mã lạ, nhóm không khớp mã, bị từ chối (0.3801ms)
-✔ TC-141-05 ID trùng, ID sai dạng, thứ tự ID không tăng trong một mục: bị từ chối (1.0332ms)
-✔ TC-141-06 ô Việc, Nguồn, Vai, Đóng khi, Hạn để trống bị từ chối (mọi việc có người nhận và hạn) (0.3039ms)
-✔ TC-141-07 dấu gạch đứng đã thoát trong ô không tách cột (0.1984ms)
-✔ TC-141-08 tiêu đề bảng sai cột bị từ chối (0.1405ms)
-✔ TC-141-09 tóm tắt đếm đúng theo mục, nhóm xử lý và ưu tiên (0.3717ms)
-✔ TC-141-10 dòng BL nằm ngoài mọi bảng có tiêu đề bị từ chối (0.3102ms)
-✔ TC-141-14 đầu BACKLOG phải định nghĩa đủ các mã, đúng nhóm và ưu tiên mặc định (0.4057ms)
-✔ TC-141-18 mã L và H6 bắt buộc nêu task đảm nhận; mã khác không được nêu (0.2477ms)
-✔ TC-141-19 cột Hạn: chấp nhận các dạng đã định nghĩa, từ chối dạng khác (0.3797ms)
-✔ TC-141-20 dòng viết lệch (không khoảng trắng, hai khoảng trắng, thụt đầu dòng) vẫn bị bắt; CRLF không làm hỏng (0.1601ms)
-✔ TC-141-21 dòng ngoài bảng có chữ BL- không phải ID không bị tính; văn xuôi không bị bắt (0.0744ms)
+✔ TC-141-01 một bảng đúng định dạng không có lỗi (3.3815ms)
+✔ TC-141-02 dòng thiếu cột bị từ chối (0.3185ms)
+✔ TC-141-03 ưu tiên lạ, hoặc ngoài tập cho phép của mã, bị từ chối (0.6319ms)
+✔ TC-141-04 cột Xử lý: sai định dạng, mã lạ, nhóm không khớp mã, bị từ chối (0.6106ms)
+✔ TC-141-05 ID trùng, ID sai dạng, thứ tự ID không tăng trong một mục: bị từ chối (1.3621ms)
+✔ TC-141-06 ô Việc, Nguồn, Vai, Đóng khi, Hạn để trống bị từ chối (mọi việc có người nhận và hạn) (0.3416ms)
+✔ TC-141-07 dấu gạch đứng đã thoát trong ô không tách cột (0.2353ms)
+✔ TC-141-08 tiêu đề bảng sai cột bị từ chối (0.1643ms)
+✔ TC-141-09 tóm tắt đếm đúng theo mục, nhóm xử lý và ưu tiên (0.7362ms)
+✔ TC-141-10 dòng BL nằm ngoài mọi bảng có tiêu đề bị từ chối (0.2754ms)
+✔ TC-141-14 đầu BACKLOG phải định nghĩa đủ các mã, đúng nhóm và ưu tiên mặc định (0.4584ms)
+✔ TC-141-18 mã L và H6 bắt buộc nêu task đảm nhận; mã khác không được nêu (0.271ms)
+✔ TC-141-19 cột Hạn: chấp nhận các dạng đã định nghĩa, từ chối dạng khác (0.5589ms)
+✔ TC-141-20 dòng viết lệch (không khoảng trắng, hai khoảng trắng, thụt đầu dòng) vẫn bị bắt; CRLF không làm hỏng (0.2028ms)
+✔ TC-141-21 dòng ngoài bảng có chữ BL- không phải ID không bị tính; văn xuôi không bị bắt (0.0943ms)
 ℹ tests 15
 ℹ suites 0
 ℹ pass 15
@@ -122,5 +122,5 @@ $ node --test .claude/skills/dbs-delivering-task/scripts/check-backlog.test.mjs
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 97.8719
+ℹ duration_ms 102.3715
 [exit 0]
