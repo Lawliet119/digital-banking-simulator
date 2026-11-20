@@ -1,4 +1,4 @@
-SHA của commit cuối đổi công cụ/dữ liệu: 13534f2 (git log -1; chạy trên cây sạch)
+SHA của commit cuối đổi công cụ/dữ liệu: 1a7ed64 (git log -1; chạy trên cây sạch)
 
 ### M-141-01 kiểm BACKLOG thật
 $ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs --summary
