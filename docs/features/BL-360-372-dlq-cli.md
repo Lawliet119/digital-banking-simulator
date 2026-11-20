@@ -1,6 +1,6 @@
 # BL-360 + BL-372 · CLI DLQ: file quarantine không ghi đè, lệnh `dlq:resend`
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev (chủ outbox/messaging) · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/BL-360-372-dlq-cli` · **PR:** — (điền khi mở) · **Cập nhật:** 2026-11-20
+> **Status:** Implemented (sau G4) · **Vai:** Dev (chủ outbox/messaging) · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/BL-360-372-dlq-cli` · **PR:** [#215](https://github.com/Lawliet119/digital-banking-simulator/pull/215) · **Cập nhật:** 2026-11-20
 
 ## 1. Bối cảnh
 
