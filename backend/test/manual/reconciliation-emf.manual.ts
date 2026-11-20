@@ -44,7 +44,6 @@ async function main(): Promise<void> {
   const metrics = new MetricsService(
     { enabled: true, flushMs: 60_000 },
     { role: 'worker' } as never,
-    { logger: {} } as never,
     doc => lines.push(doc),
   );
   await metrics.start();
