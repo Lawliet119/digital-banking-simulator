@@ -268,3 +268,52 @@ describe('BL-360 quarantine file is created exclusively', () => {
     expect(readFileSync(path, 'utf8')).toBe('body\n');
   });
 });
+
+describe('BL-360 dlq-age-check never overwrites the quarantine file', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'bl360-cli-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** The real file writer (no `writeFile` injected). */
+  function run(file: string, dlq: FakeDlq) {
+    const out: string[] = [];
+    const err: string[] = [];
+    return runDlqAgeCheckCli(['--queue-url', 'q', '--delete-stale', '--quarantine-file', file], {
+      stdout: t => out.push(t),
+      stderr: t => err.push(t),
+      env: {},
+      now: () => NOW,
+      port: dlq,
+    }).then(code => ({ code, out: out.join(''), err: err.join('') }));
+  }
+
+  it('TC-BL-03 a second run with the same file name exits 2, deletes nothing and hands every message back', async () => {
+    const file = join(dir, 'sub', 'stale.jsonl');
+    const first = new FakeDlq([
+      message('old-1', 7, { body: '{"eventId":"' + EVENT_ID + '","n":1}' }),
+    ]);
+    expect((await run(file, first)).code).toBe(0);
+    const before = readFileSync(file, 'utf8');
+    expect(before).toContain('old-1');
+
+    const second = new FakeDlq([message('old-2', 8), message('fresh', 1)]);
+    const result = await run(file, second);
+    expect(result.code).toBe(2);
+    expect(result.err).toContain('QuarantineFileExistsError');
+    expect(second.deleted).toEqual([]);
+    expect(second.released.sort()).toEqual(['fresh', 'old-2']);
+    expect(readFileSync(file, 'utf8')).toBe(before);
+  });
+
+  it('TC-BL-04 an existing file is left alone when nothing is stale', async () => {
+    const file = join(dir, 'stale.jsonl');
+    createExclusiveFile(file, 'earlier\n');
+    const result = await run(file, new FakeDlq([message('fresh', 1)]));
+    expect(result.code).toBe(0);
+    expect(readFileSync(file, 'utf8')).toBe('earlier\n');
+  });
+});
