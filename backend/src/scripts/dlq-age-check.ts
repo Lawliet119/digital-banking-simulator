@@ -32,7 +32,7 @@ export const DEFAULT_MAX_AGE_DAYS = 6;
 /** Long enough to hold every message for the whole scan (the runbook uses the same 1800 s). */
 const SCAN_VISIBILITY_SECONDS = 1800;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** What the scan needs from a queue; `awsDlqPort` implements it, the unit tests fake it. */
 export interface DlqPort {
