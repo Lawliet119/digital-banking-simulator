@@ -1,0 +1,88 @@
+0cff73f86cbef83857950e74fd1e17955087972e
+# DBS-187 manual test, 2026-11-20/21. App: node dist/main, APP_ROLE=both METRICS_EMF=true METRICS_FLUSH_MS=5000, Postgres 17 + Valkey 8 throwaway containers, ElasticMQ of docker compose.
+# Raw output below; ids are random UUIDs of this local run, no secret.
+
+===== M-187-01 (4 transfers: 3 small, 1 large) =====
+accounts: c80af3dc-b37a-42cd-8497-e5a0b9dd4383 c20a5044-f387-4a01-bd8d-904434fd4122
+deposit: {"transferId":"bc06c442-70e5-4772-a64b-bbc1b0619512","status":"COMPLETED"}
+--- before: decisions=0 flags=0
+small 1: {"transferId":"ed14c981-4170-4442-8a04-ae5f65629b7d","status":"COMPLETED"}
+small 2: {"transferId":"82f6e11a-e5ff-4595-a130-23fa105cccb7","status":"COMPLETED"}
+small 3: {"transferId":"827dd1ae-2f8d-4afb-9018-ecb7deda1164","status":"COMPLETED"}
+large: {"transferId":"58d4a60c-ffb5-4a89-8e7f-ae3d583547d4","status":"COMPLETED"}
+--- after: decisions=4 flags=1
+--- flag rows: MEDIUM/65
+
+----- EMF lines of risk_decision_total / risk_flag_total in the app stdout -----
+{"n":"risk_decision_total","v":4,"dims":"[[\"Role\",\"AiStatus\"],[\"Role\"]]","AiStatus":"DISABLED","Role":"both"}
+{"n":"risk_flag_total","v":1,"dims":"[[\"Role\",\"RiskLevel\",\"Mode\",\"AiAdded\"],[\"Role\"]]","RiskLevel":"MEDIUM","Mode":"rule_only","AiAdded":"none","Role":"both"}
+TOTAL decision(sum of lines, includes both dim sets once per line)= 4 flag= 1
+
+===== M-187-05 (window with only a LOW transfer, then only a deposit) =====
+WINDOW A (only a LOW transfer) starts at app.log line 213
+WINDOW B (only a deposit) starts at app.log line 225
+--- window A: EMF names written
+      1 "Name":"risk_decision_total"
+--- window B: EMF names written
+
+===== M-187-04 part 1 (resend of a processed event) =====
+payload: {"type": "TRANSFER", "amount": "20000000", "eventId": "7c4d6663-785c-49a1-96a5-19851ef47049", "toUserId": "b5ae9b6c-8eba-45b5-bfb4-fc6e8ab2e895", "eventType": "TransferCompleted", "sameOwner"
+before: decisions=5 flags=1 processed=8
+{
+    "MD5OfMessageBody": "786808fbfa420a1bf152fd7e99b872c3",
+    "MessageId": "6e5e55ce-383d-4316-a411-8027011418a4"
+after:  decisions=5 flags=1 processed=8
+queue depth: {"ApproximateNumberOfMessages":"0","ApproximateNumberOfMessagesNotVisible":"0"}
+--- EMF names written after the resend:
+(end of list; an empty list = counter did not move)
+
+===== M-187-04 part 2 (after restart) and M-187-03 first try (rule set v2 still hidden by the 60 s cache: v1 scored it) =====
+=== M-187-04 part 2: after restart
+flags before: 1
+{"transferId":"9d28bcc5-17e7-4f49-a922-fdcf0538758c","status":"COMPLETED"}
+flags after:  2 (expect 2)
+{"RiskLevel":"MEDIUM","Mode":"rule_only","AiAdded":"none","Role":"both","risk_flag_total":1}
+=== M-187-03: rule set v2 with high = 60 (a MEDIUM 65 becomes HIGH)
+2
+INSERT 0 1
+thresholds of the newest version: {"high": 60, "medium": 40}
+{"transferId":"7090f5bb-8133-4701-a25f-341ac59abc2d","status":"COMPLETED"}
+latest flag: ERROR:  column reference "rule_set_version" is ambiguous
+LINE 1: select risk_level||$$/$$||score||$$/v$$||rule_set_version fr...
+                                                 ^
+{"RiskLevel":"MEDIUM","Mode":"rule_only","AiAdded":"none","Role":"both","risk_flag_total":1}
+
+===== M-187-03 retry (v2 older than the 60 s cache) =====
+{"transferId":"9336894a-7e40-4457-9955-ed1f3dc74de1","status":"COMPLETED"}
+latest flag: HIGH/65/v2
+"RiskLevel":"HIGH","Mode":"rule_only","AiAdded":"none","risk_flag_total":1
+
+===== M-187-06 (AI, driver backend/test/manual/flag-rate-ai.manual.ts) =====
+raised: {"_aws":{"Timestamp":1795194256546,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Role","RiskLevel","Mode","AiAdded"],["Role"]],"Metrics":[{"Name":"risk_flag_total","Unit":"Count"}]}]},"Role":"worker","RiskLevel":"HIGH","Mode":"rules_with_external_ai","AiAdded":"raised","risk_flag_total":1}
+created: {"_aws":{"Timestamp":1795194256848,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Role","RiskLevel","Mode","AiAdded"],["Role"]],"Metrics":[{"Name":"risk_flag_total","Unit":"Count"}]}]},"Role":"worker","RiskLevel":"MEDIUM","Mode":"rules_with_external_ai","AiAdded":"created","risk_flag_total":1}
+none (AI fails): {"_aws":{"Timestamp":1795194256974,"CloudWatchMetrics":[{"Namespace":"DBS/Backend","Dimensions":[["Role","RiskLevel","Mode","AiAdded"],["Role"]],"Metrics":[{"Name":"risk_flag_total","Unit":"Count"}]}]},"Role":"worker","RiskLevel":"MEDIUM","Mode":"rules_with_external_ai","AiAdded":"none","risk_flag_total":1}
+M-187-06 OK
+
+===== M-187-07 (terraform, infra/terraform/envs/dev/session) =====
+FMT_OK
+[32m[1mSuccess![0m The configuration is valid.
+[32mSuccess![0m[0m 94 passed, 0 failed.
+
+===== M-187-08 (every risk_flag_total / risk_decision_total line: fixed sets only, no UUID) =====
+lines checked: 9; violations: 0
+
+===== M-187-09 (real CloudWatch, 2026-11-21, BL-404 một phần; account id không ghi) =====
+# Dựng riêng dashboard: terraform apply -target=aws_cloudwatch_dashboard.overview (state key tạm dev/session-dbs187.tfstate)
+#   -> Apply complete! Resources: 1 added. CloudWatch (PutDashboard) nhận toàn bộ JSON widget.
+# Log group tạm dbs-187-emf-check, PutLogEvents dòng EMF đúng dạng app ghi, Role=worker:
+#   11 khoảng 5 phút trong giờ qua: decisions DISABLED 10 + SUCCEEDED 10; flags rule_only MEDIUM/none 1, rules_with_external_ai MEDIUM/created 1, HIGH/raised 1.
+#   Kỳ vọng: 33 cờ / 220 quyết định = 150,00 cờ/1.000; rule_only 11/110 = 100; rules_with_external_ai 22/110 = 200; created 11; raised 11.
+# CloudWatch trích metric từ EMF (list-metrics: 4 bộ risk_flag_total). get-metric-statistics Role=worker, Sum 24 giờ: risk_decision_total 220, risk_flag_total 33.
+# get-metric-widget-image trên JSON widget lấy từ dashboard THẬT (01..05-*.png):
+#   01 ô 1 giờ  -> 150,0 (đúng)         02 ô 24 giờ -> 150,0 (đúng với dữ liệu thực có)
+#   03 xu hướng -> Tổng 150, rule_only 100, rules_with_external_ai 200 (đúng)
+#   04 theo risk_level, 05 do AI bổ sung: SUM(SEARCH) chạy; created và raised cùng 11 (get-metric-data, vẽ chồng nhau nên chỉ thấy đường cam)
+# CHƯA kiểm được: (1) API get-metric-widget-image vẽ singleValue thành đường, nên chưa thấy giao diện ô số và hành vi setPeriodToTimeRange
+#   trên console; (2) khối dữ liệu cũ (T-4 đến T-20 giờ) để phân biệt ô 1 giờ với 24 giờ: EMF không nhận timestamp cũ và PutMetricData
+#   gửi 48 điểm không xuất hiện trong get-metric-statistics, nên ô 24 giờ chỉ thử với dữ liệu trong giờ qua.
+# Dọn: terraform destroy dashboard (Destroy complete, 0 dashboard còn), xóa log group, xóa state tạm. Metric DBS/Backend vừa tạo vẫn còn (không xóa được, vài series nhỏ).
