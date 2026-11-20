@@ -1,6 +1,6 @@
 # DBS-188 · Alarm khi cảnh báo trên 1.000 giao dịch vượt mục tiêu
 
-> **Status:** Implemented · **Vai:** #4 Fraud (Dev làm thay) · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-188-flag-rate-alarm` · **PR:** — · **Cập nhật:** 2026-11-21
+> **Status:** Implemented · **Vai:** #4 Fraud (Dev làm thay) · **Cặp đôi review:** Dev khác · **Nhánh:** `feat/DBS-188-flag-rate-alarm` · **PR:** [#220](https://github.com/Lawliet119/digital-banking-simulator/pull/220) · **Cập nhật:** 2026-11-21
 
 ## 1. Bối cảnh
 
