@@ -1,4 +1,4 @@
-6d86ae272fe15b06fde62b4aef2bdb878b03cb44
+b838e41c4090bb0e8d608fefe2fe872d1be1958e
 # DBS-187 manual test, 2026-11-20/21. App: node dist/main, APP_ROLE=both METRICS_EMF=true METRICS_FLUSH_MS=5000, Postgres 17 + Valkey 8 throwaway containers, ElasticMQ of docker compose.
 # Raw output below; ids are random UUIDs of this local run, no secret.
 
