@@ -175,6 +175,8 @@ export async function runDlqResend(
   if (complete) {
     const groups = new Map<string, Message[]>();
     const known = new Set<string>();
+    // Events with a copy older than 6 days (or with no send time), counted over every copy, valid or not.
+    const tooOld = new Set<string>();
     for (const message of seen.values()) {
       const messageId = message.MessageId ?? 'unknown';
       const eventId = eventIdOf(message.Body)?.toLowerCase();
@@ -187,6 +189,8 @@ export async function runDlqResend(
         report.skipped.push({ messageId, eventId, reason: 'not_selected' });
         continue;
       }
+      const age = ageOf(message, options.now);
+      if (age === undefined || age > maxAgeMs) tooOld.add(eventId);
       if (!acceptedByConsumers(message.Body)) {
         report.skipped.push({ messageId, eventId, reason: 'invalid_event' });
         continue;
@@ -196,11 +200,7 @@ export async function runDlqResend(
 
     groups: for (const [eventId, messages] of groups) {
       // One copy older than 6 days (or with no send time) blocks every copy of the event.
-      const unsafe = messages.some(m => {
-        const age = ageOf(m, options.now);
-        return age === undefined || age > maxAgeMs;
-      });
-      if (unsafe) {
+      if (tooOld.has(eventId)) {
         for (const m of messages)
           report.skipped.push({ messageId: m.MessageId ?? 'unknown', eventId, reason: 'stale' });
         continue;

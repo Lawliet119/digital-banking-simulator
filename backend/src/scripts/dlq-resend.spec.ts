@@ -209,6 +209,22 @@ describe('BL-372 dlq:resend (library)', () => {
     ]);
   });
 
+  it('TC-BL-38 an old copy that is not a valid event still blocks the valid copy of the same event', async () => {
+    const badOld = { ...TRANSFER_SAMPLE, eventId: A } as Record<string, unknown>;
+    delete badOld.amount;
+    const s = setup([
+      message('bad-old', A, { original: 8, body: JSON.stringify(badOld) }),
+      message('good-new', A, { original: 2 }),
+    ]);
+    const report = await runDlqResend(s.dlq, s.to, options(s));
+    expect(s.to.sent).toEqual([]);
+    expect(s.dlq.deleted).toEqual([]);
+    expect(report.skipped.map(x => [x.messageId, x.reason]).sort()).toEqual([
+      ['bad-old', 'invalid_event'],
+      ['good-new', 'stale'],
+    ]);
+  });
+
   it('TC-BL-09 a body that is not JSON, or has no UUID eventId, is never sent or deleted', async () => {
     const s = setup([
       message('junk', undefined, { original: 1, body: '{not json' }),
