@@ -76,7 +76,8 @@ export interface DlqAgeCheckOptions {
   maxRounds?: number;
 }
 
-function eventIdOf(body: string | undefined): string | undefined {
+/** The `eventId` of a message body, only when it is a UUID; `undefined` for anything else. */
+export function eventIdOf(body: string | undefined): string | undefined {
   try {
     const parsed: unknown = JSON.parse(body ?? '');
     const id = (parsed as { eventId?: unknown } | null)?.eventId;
@@ -92,14 +93,15 @@ export function ageOf(message: Message, now: number): number | undefined {
   return sent === undefined ? undefined : Math.max(0, now - sent);
 }
 
-export async function runDlqAgeCheck(
+/**
+ * Receives the whole DLQ: every message once, with its newest receipt handle (an older handle may
+ * no longer be accepted). `complete` is false when `maxRounds` ran out before the queue was empty.
+ * Used by `dlq:age-check` and `dlq:resend`; the messages stay hidden until the caller hands them back.
+ */
+export async function drainDlq(
   port: DlqPort,
-  options: DlqAgeCheckOptions,
-): Promise<DlqAgeReport> {
-  if (options.deleteStale && !options.saveStale)
-    throw new Error('Deleting stale messages needs saveStale: nothing may be deleted unsaved');
-  const maxRounds = options.maxRounds ?? 200;
-  // Newest receipt handle per message: an older handle may no longer be accepted.
+  maxRounds = 200,
+): Promise<{ seen: Map<string, Message>; complete: boolean }> {
   const seen = new Map<string, Message>();
   let complete = false;
   for (let round = 0; round < maxRounds; round++) {
@@ -110,6 +112,16 @@ export async function runDlqAgeCheck(
       break;
     }
   }
+  return { seen, complete };
+}
+
+export async function runDlqAgeCheck(
+  port: DlqPort,
+  options: DlqAgeCheckOptions,
+): Promise<DlqAgeReport> {
+  if (options.deleteStale && !options.saveStale)
+    throw new Error('Deleting stale messages needs saveStale: nothing may be deleted unsaved');
+  const { seen, complete } = await drainDlq(port, options.maxRounds ?? 200);
 
   const stale: Message[] = [];
   const fresh: Message[] = [];
