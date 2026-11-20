@@ -10,6 +10,7 @@ import {
 } from '@aws-sdk/client-sqs';
 import { ORIGINAL_SENT_TIMESTAMP, PoisonMessageError, SqsClient } from '@libs/sqs';
 import { runDlqResendCli } from '../../src/scripts/dlq-resend';
+import { TRANSFER_SAMPLE } from '../support/event-samples';
 import {
   startElasticMqContainer,
   localSqsClient,
@@ -17,6 +18,10 @@ import {
 } from '../support/elasticmq.container';
 
 const DAY = 24 * 60 * 60 * 1000;
+
+/** A body the consumers accept (`validateEvent`), with this `eventId`. */
+const eventBody = (eventId: string, extra: Record<string, unknown> = {}) =>
+  JSON.stringify({ ...TRANSFER_SAMPLE, eventId, ...extra });
 
 /** BL-372 on the real SQS protocol: a dead-lettered message goes back with its body, attributes and first send time. */
 describe('BL-372 dlq:resend on ElasticMQ', () => {
@@ -77,6 +82,25 @@ describe('BL-372 dlq:resend on ElasticMQ', () => {
         )
       ).Attributes?.ApproximateNumberOfMessages,
     );
+  const attributesOf = async (url: string) => {
+    const a = (
+      await admin.send(
+        new GetQueueAttributesCommand({
+          QueueUrl: url,
+          AttributeNames: [
+            'ApproximateNumberOfMessages',
+            'ApproximateNumberOfMessagesNotVisible',
+            'ApproximateNumberOfMessagesDelayed',
+          ],
+        }),
+      )
+    ).Attributes;
+    return {
+      visible: Number(a?.ApproximateNumberOfMessages),
+      notVisible: Number(a?.ApproximateNumberOfMessagesNotVisible),
+      delayed: Number(a?.ApproximateNumberOfMessagesDelayed),
+    };
+  };
   const deadLetterAll = async (expected: number) => {
     for (let i = 0; i < 6 && (await visibleIn(dlq)) < expected; i++)
       await adapter.processBatch(source, dlq, poison, { waitTimeSeconds: 1 });
@@ -107,11 +131,12 @@ describe('BL-372 dlq:resend on ElasticMQ', () => {
     return { code, out: out.join(''), err: err.join('') };
   };
 
-  it('TC-BL-17 the valid message goes back with body, attributes and first send time; the 7-day-old one stays', async () => {
+  it('TC-BL-17 the valid message goes back with body, attributes and first send time; the 7-day-old and the invalid one stay', async () => {
     const okId = randomUUID();
     const oldId = randomUUID();
+    const badId = randomUUID();
     const firstSend = Date.now() - 2 * DAY;
-    const okBody = JSON.stringify({ eventId: okId, amount: '500000' });
+    const okBody = eventBody(okId, { note: 'BODY-MARKER' });
     await admin.send(
       new SendMessageCommand({
         QueueUrl: source,
@@ -125,7 +150,7 @@ describe('BL-372 dlq:resend on ElasticMQ', () => {
     await admin.send(
       new SendMessageCommand({
         QueueUrl: source,
-        MessageBody: JSON.stringify({ eventId: oldId }),
+        MessageBody: eventBody(oldId),
         MessageAttributes: {
           [ORIGINAL_SENT_TIMESTAMP]: {
             DataType: 'Number',
@@ -134,19 +159,24 @@ describe('BL-372 dlq:resend on ElasticMQ', () => {
         },
       }),
     );
-    await deadLetterAll(2);
+    // A body with an eventId but not an event the consumers accept.
+    await adapter.send(source, JSON.stringify({ eventId: badId }));
+    await deadLetterAll(3);
 
     const record = join(dir, 'nested', 'record.jsonl');
     const result = await resend(record);
     expect(result.code).toBe(1);
     expect(JSON.parse(result.out)).toMatchObject({
-      scanned: 2,
+      scanned: 3,
       resent: 1,
-      skipped: [expect.objectContaining({ eventId: oldId, reason: 'stale' })],
+      skipped: expect.arrayContaining([
+        expect.objectContaining({ eventId: oldId, reason: 'stale' }),
+        expect.objectContaining({ eventId: badId, reason: 'invalid_event' }),
+      ]),
       failed: [],
       complete: true,
     });
-    expect(result.out).not.toContain('500000');
+    expect(result.out).not.toContain('BODY-MARKER');
 
     const [back] = await adapter.receive(source, opts);
     expect(back.Body).toBe(okBody);
@@ -156,19 +186,25 @@ describe('BL-372 dlq:resend on ElasticMQ', () => {
     );
     expect(await visibleIn(source)).toBe(1);
 
-    // The DLQ keeps only the stale one, handed back and visible.
+    // The DLQ keeps the stale and the invalid one, handed back and visible; the deleted copy does not come back.
+    expect(await attributesOf(dlq)).toEqual({ visible: 2, notVisible: 0, delayed: 0 });
     const left = await adapter.receive(dlq, opts);
-    expect(left.map(m => (JSON.parse(m.Body!) as { eventId: string }).eventId)).toEqual([oldId]);
+    expect(left.map(m => (JSON.parse(m.Body!) as { eventId: string }).eventId).sort()).toEqual(
+      [oldId, badId].sort(),
+    );
     const lines = readFileSync(record, 'utf8').trim().split('\n');
-    expect(lines).toHaveLength(1);
-    expect(JSON.parse(lines[0])).toMatchObject({ action: 'resent', eventId: okId });
-    expect(lines[0]).not.toContain('500000');
+    expect(lines.map(l => (JSON.parse(l) as { action: string }).action)).toEqual([
+      'sending',
+      'resent',
+    ]);
+    expect(JSON.parse(lines[1])).toMatchObject({ action: 'resent', eventId: okId });
+    expect(lines[0]).not.toContain('BODY-MARKER');
   });
 
   it('TC-BL-18 a message with no attribute keeps the queue send time across the dead-letter, the resend and a second dead-letter', async () => {
     const eventId = randomUUID();
     const before = Date.now();
-    await adapter.send(source, JSON.stringify({ eventId }));
+    await adapter.send(source, eventBody(eventId));
     await deadLetterAll(1);
     const [firstCopy] = await adapter.receive(dlq, opts);
     const firstSend = Number(firstCopy.MessageAttributes?.[ORIGINAL_SENT_TIMESTAMP]?.StringValue);
@@ -184,5 +220,23 @@ describe('BL-372 dlq:resend on ElasticMQ', () => {
     expect(secondCopy.MessageAttributes?.[ORIGINAL_SENT_TIMESTAMP]?.StringValue).toBe(
       String(firstSend),
     );
+  });
+
+  it('TC-BL-36 a Binary attribute goes through the real SDK unchanged', async () => {
+    const eventId = randomUUID();
+    await admin.send(
+      new SendMessageCommand({
+        QueueUrl: source,
+        MessageBody: eventBody(eventId),
+        MessageAttributes: {
+          blob: { DataType: 'Binary', BinaryValue: new Uint8Array([7, 8, 9]) },
+        },
+      }),
+    );
+    await deadLetterAll(1);
+    expect((await resend(join(dir, 'bin.jsonl'))).code).toBe(0);
+    const [back] = await adapter.receive(source, opts);
+    expect(back.MessageAttributes?.blob?.DataType).toBe('Binary');
+    expect(Array.from(back.MessageAttributes!.blob.BinaryValue!)).toEqual([7, 8, 9]);
   });
 });
