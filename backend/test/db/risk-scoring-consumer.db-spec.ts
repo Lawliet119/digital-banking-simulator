@@ -337,7 +337,8 @@ describe('DBS-111 risk scoring consumer on PostgreSQL', () => {
       AiStatus: 'DISABLED',
       risk_decision_total: 1,
     });
-    expect(decision._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role', 'AiStatus']]);
+    // DBS-187: the same line carries the `[Role]` total, the denominator of the flag rate.
+    expect(decision._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role', 'AiStatus'], ['Role']]);
 
     // Same base as the consumer (fraud_flags.created_at − event occurredAt, the transfer's commit
     // time): transfers.created_at can differ by a few ms and land in the next bucket near a bound.
@@ -394,6 +395,63 @@ describe('DBS-111 risk scoring consumer on PostgreSQL', () => {
     await metrics.flush();
     expect(docs.filter(d => metricNames(d).includes('risk_transfer_to_flag_ms'))).toEqual([]);
     expect(docs.filter(d => metricNames(d).includes('risk_decision_total'))).toHaveLength(1);
+  });
+
+  it('TC-187-06 a MEDIUM flag counts risk_flag_total once with RiskLevel, Mode and AiAdded; a LOW transfer and a duplicate count nothing', async () => {
+    const { metrics, docs } = await collectingMetrics();
+    const withMetrics = buildRiskConsumer(source, { metrics });
+    const { transferId, event } = await ac91();
+    await withMetrics.consumer.handle(event, message(1));
+    await metrics.flush();
+
+    const flags = docs.filter(d => metricNames(d).includes('risk_flag_total'));
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({
+      Role: 'worker',
+      RiskLevel: 'MEDIUM',
+      Mode: 'rule_only',
+      AiAdded: 'none',
+      risk_flag_total: 1,
+    });
+    expect(flags[0]._aws.CloudWatchMetrics[0].Dimensions).toEqual([
+      ['Role', 'RiskLevel', 'Mode', 'AiAdded'],
+      ['Role'],
+    ]);
+    expect(JSON.stringify(flags)).not.toMatch(UUID);
+    expect(await count('fraud_flags WHERE transfer_id = $1', [transferId])).toBe(1);
+
+    docs.length = 0;
+    await withMetrics.consumer.handle({ ...event, eventId: randomUUID() }, message(1)); // duplicate
+    const sender = await fx.customer('Khách LOW C');
+    const recipient = await fx.customer('Khách LOW D');
+    await fx.deposit(sender.accounts[0], '5000000');
+    const lowId = await fx.transfer(
+      sender.token,
+      sender.accounts[0],
+      recipient.accounts[0],
+      '1000',
+    );
+    await withMetrics.consumer.handle(await eventFor(db.runner, lowId), message(1));
+    await metrics.flush();
+    expect(docs.filter(d => metricNames(d).includes('risk_flag_total'))).toEqual([]);
+    expect(docs.filter(d => metricNames(d).includes('risk_decision_total'))).toHaveLength(1);
+  });
+
+  it('TC-187-08 a deadlock retry of the flag transaction still counts the flag once', async () => {
+    const { metrics, docs } = await collectingMetrics();
+    const withMetrics = buildRiskConsumer(source, { metrics });
+    const { event } = await ac91();
+    const record = withMetrics.audit.record.bind(withMetrics.audit);
+    const audit = jest
+      .spyOn(withMetrics.audit, 'record')
+      .mockRejectedValueOnce(Object.assign(new Error('synthetic deadlock'), { code: '40P01' }))
+      .mockImplementation(record);
+    await withMetrics.consumer.handle(event, message(1));
+    await metrics.flush();
+    expect(audit).toHaveBeenCalledTimes(2);
+    const flags = docs.filter(d => metricNames(d).includes('risk_flag_total'));
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ risk_flag_total: 1 });
   });
 
   it('TC-204-08 a rule that throws counts risk_rule_error_total{Rule} per attempt, is still thrown as a retry and goes to the DLQ at the fifth receive', async () => {
