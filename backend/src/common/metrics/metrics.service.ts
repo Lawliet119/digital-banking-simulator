@@ -66,7 +66,14 @@ const COUNTERS: CounterSpec[] = [
   // BL-204/BL-207/BL-046: the scoring half of risk. Every label value is one of a fixed set (rule
   // R1..R6, an `ai_status` of the schema), enforced where the counter is incremented.
   { name: 'risk_rule_error_total', labels: { rule: 'Rule' } },
-  { name: 'risk_decision_total', labels: { ai_status: 'AiStatus' } },
+  // DBS-187: `roleTotal` gives the `[Role]` series, the denominator of flags per 1,000 transfers; the `[Role, AiStatus]` set the alarms use is unchanged.
+  { name: 'risk_decision_total', labels: { ai_status: 'AiStatus' }, roleTotal: true },
+  // DBS-187: one per fraud flag written. `[Role]` is the numerator for the alarm; the full set splits the dashboard by level, mode and AI part.
+  {
+    name: 'risk_flag_total',
+    labels: { risk_level: 'RiskLevel', mode: 'Mode', ai_added: 'AiAdded' },
+    roleTotal: true,
+  },
   // BL-127: one increment per reconciliation run that was recorded; `status` is OK, MISMATCH or ERROR.
   { name: 'reconciliation_runs_total', labels: { status: 'Status' } },
   // BL-209: a message a queue consumer retried or dead-lettered. `consumer` is a literal of the code

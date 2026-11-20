@@ -14,6 +14,7 @@ const COUNTERS = [
   'risk_unsupported_mode_total',
   'risk_rule_error_total',
   'risk_decision_total',
+  'risk_flag_total',
   'reconciliation_runs_total',
 ];
 
@@ -250,12 +251,35 @@ describe('MetricsService', () => {
         ['CONFIG_INVALID', 1],
         ['DISABLED', 5],
       ]);
+      // DBS-187: the same line also carries the `[Role]` total (the denominator of the flag rate).
       expect(line('risk_decision_total')[0]._aws.CloudWatchMetrics[0].Dimensions).toEqual([
         ['Role', 'AiStatus'],
+        ['Role'],
       ]);
       const [run] = line('reconciliation_runs_total');
       expect(run).toMatchObject({ Role: 'api', Status: 'MISMATCH', reconciliation_runs_total: 1 });
       expect(run._aws.CloudWatchMetrics[0].Dimensions).toEqual([['Role', 'Status']]);
+    });
+
+    it('TC-187-05 risk_flag_total is written with Role, RiskLevel, Mode and AiAdded, and the [Role] total next to it', async () => {
+      const flags = counter('risk_flag_total', ['risk_level', 'mode', 'ai_added']);
+      const { service, docs } = collect();
+      await service.start(T0);
+      flags.inc({ risk_level: 'MEDIUM', mode: 'rule_only', ai_added: 'none' }, 3);
+      flags.inc({ risk_level: 'HIGH', mode: 'rules_with_external_ai', ai_added: 'created' });
+      await service.flush(T0 + MINUTE);
+      const lines = docs.filter(d => names(d)[0] === 'risk_flag_total');
+      expect(lines.map(d => [d.RiskLevel, d.Mode, d.AiAdded, d.risk_flag_total]).sort()).toEqual([
+        ['HIGH', 'rules_with_external_ai', 'created', 1],
+        ['MEDIUM', 'rule_only', 'none', 3],
+      ]);
+      expect(lines[0]._aws.CloudWatchMetrics[0].Dimensions).toEqual([
+        ['Role', 'RiskLevel', 'Mode', 'AiAdded'],
+        ['Role'],
+      ]);
+      expect(lines[0]._aws.CloudWatchMetrics[0].Metrics).toEqual([
+        { Name: 'risk_flag_total', Unit: 'Count' },
+      ]);
     });
 
     it('TC-204-02 a label value that looks like an id or an e-mail is redacted, never written as it is', async () => {

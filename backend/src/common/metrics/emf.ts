@@ -25,6 +25,10 @@ export const EMF_DIMENSION_NAMES = [
   // BL-209: which queue consumer, and whether it retried or dead-lettered. Both come from fixed sets.
   'Consumer',
   'Outcome',
+  // DBS-187: the fraud-flag counter. Each one comes from a fixed set checked where the counter is incremented.
+  'RiskLevel',
+  'Mode',
+  'AiAdded',
 ] as const;
 export type EmfDimensionName = (typeof EMF_DIMENSION_NAMES)[number];
 
