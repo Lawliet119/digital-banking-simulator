@@ -612,7 +612,7 @@ Với 1% gian lận, 20 cảnh báo / 1.000 tương ứng precision khoảng 35%
 | Kiểm soát thay đổi luật | Cấu hình có phiên bản, đổi phải tạo phiên bản mới, có nhật ký |
 | Công tắc khẩn cấp | Tắt từng luật, hoặc chuyển về `rule_only` (khối `ml` chỉ nhận `enabled: false`), bằng phiên bản cấu hình mới. Cache latest TTL 60 giây nên đây là chuyển có độ trễ, không phải ngắt egress tức thì (ADR-14) |
 | Giới hạn gọi API AI | `RISK_AI_EGRESS_APPROVED=false` mặc định; policy, quota ngày và concurrency ở gate do Ops khai báo; payload chỉ 11 trường allowlist |
-| Theo dõi báo nhầm | Metric cảnh báo / 1.000 giao dịch trên dashboard; alarm khi vượt ngân sách |
+| Theo dõi báo nhầm | Metric cảnh báo / 1.000 giao dịch trên dashboard (DBS-187); alarm `dbs-dev-risk-flag-rate` khi vượt 20/1.000 trong 24 giờ trượt, chỉ khi có ≥ 1.000 giao dịch (DBS-188). **Bằng chứng vận hành (P5):** bơm giao dịch giống kịch bản chiếm đoạt tài khoản qua consumer thật, đưa dòng EMF lên CloudWatch thật: dưới 1.000 giao dịch alarm không kêu dù 50/1.000; qua 1.000 giao dịch (42,86/1.000) thì `ALARM`; đúng 20,00 thì `OK`; 20,44 thì `ALARM` ([DBS-188 §8](../../features/DBS-188-flag-rate-alarm.md), [manual-test.txt](../../features/screenshots/DBS-188/manual-test.txt)). Giới hạn: tỉ lệ 24 giờ, không phát hiện bùng phát ngắn |
 | Không ảnh hưởng chuyển tiền | Async + DLQ; worker chết thì giao dịch vẫn chạy bình thường |
 
 **Chi phí (ADR-14).**
