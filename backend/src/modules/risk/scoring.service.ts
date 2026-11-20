@@ -38,13 +38,20 @@ export interface ScoringConfig {
   readonly ai?: { readonly threshold: number; readonly weight: number };
 }
 
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+
+/** The one rule that turns a score into a level (also used by the flag metric, DBS-187). */
+export function levelOf(score: number, thresholds: { medium: number; high: number }): RiskLevel {
+  return score >= thresholds.high ? 'HIGH' : score >= thresholds.medium ? 'MEDIUM' : 'LOW';
+}
+
 export interface ScoringResult {
   readonly mode: 'rule_only' | 'rules_with_external_ai';
   readonly hits: readonly RuleHit[];
   readonly ruleScore: number;
   readonly aiAppliedWeight: number;
   readonly score: number;
-  readonly level: 'LOW' | 'MEDIUM' | 'HIGH';
+  readonly level: RiskLevel;
   readonly aiStatus: AiStatus;
 }
 
@@ -208,7 +215,7 @@ export class ScoringService {
       ruleScore,
       aiAppliedWeight,
       score,
-      level: score >= high ? 'HIGH' : score >= medium ? 'MEDIUM' : 'LOW',
+      level: levelOf(score, { medium, high }),
       aiStatus,
     };
   }
