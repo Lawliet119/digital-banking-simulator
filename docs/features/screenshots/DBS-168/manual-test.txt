@@ -1,0 +1,145 @@
+202283a536a2d2d69d03f67a113656453eab779b
+manual test DBS-168 (Windows, Git Bash, Node 24, PostgreSQL 17 container dbs-pg-187 on port 55432), 2026-11-21
+=== M-168-01 freeze:verify on the committed tree
+
+$ npm run --silent freeze:verify
+[freeze-verify] OK    configuration, rubric and seed files: rule_only label 4 sha256 c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8; rules_with_external_ai label 5 sha256 426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9, provider openai, model gpt-6-luna, rubricSha256 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff, ai.threshold 0.65, ai.weight 40
+[freeze-verify] OK    engine files: 33 files unchanged since 2026-11-21, fingerprint 21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] RESULT: FROZEN AS RECORDED
+[exit=0]
+
+=== M-168-02 independent hashes (plain node, no repo code)
+
+$ node F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/m02-hash.mjs
+r4.txt trimmed   96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff
+r4.txt as a file 0640e98b4359bfb5dba55c4ee1ab553c0a321e9298e94a79c7ee77a9c74680b5
+REVIEW_RUBRIC    3d0fd9246b9967727c0bcec8b58677d6246c0c4a9f1f8787df55bd6d503bb6a8
+capture r4: distinct rubricSha256 = 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff
+v4-ai-r4.json ai.rubric sha256 = 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff | provider openai | model gpt-6-luna | threshold 0.65 | weight 40
+[exit=0]
+
+=== M-168-03 capture check: tune capture with r4, then with the original rubric
+
+$ npm run --silent freeze:verify -- --capture /f/Cloud Application/digital-banking-simulator/.claude/worktrees/agent-a3cdcb2a67fc3eb08/docs/components/risk/evidence/ai-gate-capture-tune-r4.jsonl
+[freeze-verify] OK    configuration, rubric and seed files: rule_only label 4 sha256 c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8; rules_with_external_ai label 5 sha256 426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9, provider openai, model gpt-6-luna, rubricSha256 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff, ai.threshold 0.65, ai.weight 40
+[freeze-verify] OK    engine files: 33 files unchanged since 2026-11-21, fingerprint 21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] OK    capture: 2021 lines, status {"SUCCEEDED":2021}, responseModel gpt-6-luna (record it in the holdout report), sample NOT checked (pass --input <holdout.csv> to check it)
+[freeze-verify] RESULT: FROZEN AS RECORDED
+[exit=0]
+
+$ npm run --silent freeze:verify -- --capture /f/Cloud Application/digital-banking-simulator/.claude/worktrees/agent-a3cdcb2a67fc3eb08/docs/components/risk/evidence/ai-gate-capture-tune.jsonl
+[freeze-verify] OK    configuration, rubric and seed files: rule_only label 4 sha256 c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8; rules_with_external_ai label 5 sha256 426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9, provider openai, model gpt-6-luna, rubricSha256 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff, ai.threshold 0.65, ai.weight 40
+[freeze-verify] OK    engine files: 33 files unchanged since 2026-11-21, fingerprint 21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] FAIL  capture: 2021 capture line(s) carry a rubricSha256 other than 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff
+[freeze-verify] RESULT: NOT FROZEN AS RECORDED
+[exit=1]
+
+=== M-168-04 empty database: migrate, then freeze:verify --database-url
+NOTICE:  database "dbs168" does not exist, skipping
+DROP DATABASE
+CREATE DATABASE
+query: INSERT INTO "migrations"("timestamp", "name") VALUES ($1, $2) -- PARAMETERS: [1795000010000,"AddNotificationLogOccurredAt1795000010000"]
+Migration AddNotificationLogOccurredAt1795000010000 has been executed successfully.
+query: COMMIT
+
+$ npm run --silent freeze:verify -- --database-url postgres://banking:***@localhost:55432/dbs168
+[freeze-verify] OK    configuration, rubric and seed files: rule_only label 4 sha256 c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8; rules_with_external_ai label 5 sha256 426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9, provider openai, model gpt-6-luna, rubricSha256 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff, ai.threshold 0.65, ai.weight 40
+[freeze-verify] OK    engine files: 33 files unchanged since 2026-11-21, fingerprint 21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] OK    risk_rule_sets: version 1 equals src/modules/risk/evaluation/configs/v1.json; rule_only not created in risk_rule_sets; rules_with_external_ai not created in risk_rule_sets; active version 1 (rule_only)
+[freeze-verify] RESULT: FROZEN AS RECORDED
+[exit=0]
+
+=== M-168-05 psql on risk_rule_sets
+ version | created_by |   mode    | r1_weight 
+---------+------------+-----------+-----------
+       1 |            | rule_only | 30
+(1 row)
+
+
+=== M-168-06 reject: change maxTransfers 2 -> 3 in v4.json, verify, restore
+
+$ npm run --silent freeze:verify
+[freeze-verify] FAIL  configuration, rubric and seed files: src/modules/risk/evaluation/configs/v4.json: sha256 is 993267f8b8da6811ed7fae15c312fa4a0289ba182d473e781a14171ba920d13a, the manifest freezes c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8
+[freeze-verify] FAIL  configuration, rubric and seed files: src/modules/risk/evaluation/configs/v4-ai-r4.json: apart from mode and ai it must equal src/modules/risk/evaluation/configs/v4.json
+[freeze-verify] OK    engine files: 33 files unchanged since 2026-11-21, fingerprint 21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] RESULT: NOT FROZEN AS RECORDED
+[exit=1]
+
+$ npm run --silent freeze:verify
+[freeze-verify] OK    configuration, rubric and seed files: rule_only label 4 sha256 c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8; rules_with_external_ai label 5 sha256 426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9, provider openai, model gpt-6-luna, rubricSha256 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff, ai.threshold 0.65, ai.weight 40
+[freeze-verify] OK    engine files: 33 files unchanged since 2026-11-21, fingerprint 21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] RESULT: FROZEN AS RECORDED
+[exit=0]
+
+=== M-168-07 reject: edit an engine file (r1-velocity.rule.ts): CLI red, npm test green; restore
+
+$ npm run --silent freeze:verify
+[freeze-verify] OK    configuration, rubric and seed files: rule_only label 4 sha256 c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8; rules_with_external_ai label 5 sha256 426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9, provider openai, model gpt-6-luna, rubricSha256 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff, ai.threshold 0.65, ai.weight 40
+[freeze-verify] FAIL  engine files: src/modules/risk/rules/r1-velocity.rule.ts: sha256 is 5b7ec83f852eef6804a24a7b5799c72fc51a291278b58f41962e81fada1ead0b, the manifest freezes 719f9d2c2402f5cf931c55fbaae08cf657b2b365f1e33c5051f17e3959b06797
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] RESULT: NOT FROZEN AS RECORDED
+[exit=1]
+Test Suites: 2 passed, 2 total
+Tests:       21 passed, 21 total
+
+$ npm run --silent freeze:verify
+[freeze-verify] OK    configuration, rubric and seed files: rule_only label 4 sha256 c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8; rules_with_external_ai label 5 sha256 426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9, provider openai, model gpt-6-luna, rubricSha256 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff, ai.threshold 0.65, ai.weight 40
+[freeze-verify] OK    engine files: 33 files unchanged since 2026-11-21, fingerprint 21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] RESULT: FROZEN AS RECORDED
+[exit=0]
+
+=== M-168-08 capture sample: synthetic CSV (22 rows, no relation to real data)
+synthetic rows 22 capture lines 22
+
+$ npm run --silent freeze:verify -- --capture F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/m08/capture-full.jsonl --input F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/m08/synthetic.csv
+[freeze-verify] OK    configuration, rubric and seed files: rule_only label 4 sha256 c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8; rules_with_external_ai label 5 sha256 426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9, provider openai, model gpt-6-luna, rubricSha256 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff, ai.threshold 0.65, ai.weight 40
+[freeze-verify] OK    engine files: 33 files unchanged since 2026-11-21, fingerprint 21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] OK    capture: 22 lines, status {"SUCCEEDED":22}, responseModel gpt-6-luna (record it in the holdout report), sample equals the frozen sample
+[freeze-verify] RESULT: FROZEN AS RECORDED
+[exit=0]
+
+$ npm run --silent freeze:verify -- --capture F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/m08/capture-missing-one.jsonl --input F:/tmp/claude/claude/b40605182e8b32f5/5a5663c0-3d0d-4bf5-9ade-b7214e513e21/scratchpad/m08/synthetic.csv
+[freeze-verify] OK    configuration, rubric and seed files: rule_only label 4 sha256 c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8; rules_with_external_ai label 5 sha256 426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9, provider openai, model gpt-6-luna, rubricSha256 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff, ai.threshold 0.65, ai.weight 40
+[freeze-verify] OK    engine files: 33 files unchanged since 2026-11-21, fingerprint 21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] FAIL  capture: 1 transfer(s) of the frozen sample are not in the capture
+[freeze-verify] RESULT: NOT FROZEN AS RECORDED
+[exit=1]
+
+=== M-168-09 seed SQL: version 2 = v4.json content in the temporary database
+INSERT 0 1
+
+$ npm run --silent freeze:verify -- --database-url postgres://banking:***@localhost:55432/dbs168
+[freeze-verify] OK    configuration, rubric and seed files: rule_only label 4 sha256 c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8; rules_with_external_ai label 5 sha256 426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9, provider openai, model gpt-6-luna, rubricSha256 96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff, ai.threshold 0.65, ai.weight 40
+[freeze-verify] OK    engine files: 33 files unchanged since 2026-11-21, fingerprint 21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524
+[freeze-verify] OK    amendments: none since the freeze
+[freeze-verify] OK    risk_rule_sets: version 1 equals src/modules/risk/evaluation/configs/v1.json; rule_only created as version 2; rules_with_external_ai not created in risk_rule_sets; active version 2 (rule_only)
+[freeze-verify] RESULT: FROZEN AS RECORDED
+[exit=0]
+ version |   mode    
+---------+-----------
+       1 | rule_only
+       2 | rule_only
+(2 rows)
+
+
+=== cleanup: drop the temporary database
+DROP DATABASE
+
+=== M-168-10 docs checks
+
+$ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs
+488 files checked, 0 broken link(s)
+[exit=0]
+
+$ node .claude/skills/dbs-delivering-task/scripts/check-backlog.mjs
+107 dòng, 0 lỗi
+[exit=0]
