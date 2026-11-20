@@ -1,0 +1,60 @@
+{
+  "mode": "rules_with_external_ai",
+  "thresholds": {
+    "medium": 40,
+    "high": 70
+  },
+  "rules": {
+    "R1": {
+      "enabled": true,
+      "weight": 40,
+      "maxTransfers": 2,
+      "windowMinutes": 10
+    },
+    "R2": {
+      "enabled": true,
+      "weight": 5,
+      "medianMultiplier": 5,
+      "historyDays": 30,
+      "minHistory": 5
+    },
+    "R3": {
+      "enabled": true,
+      "weight": 35,
+      "maxAccountAgeHoursExclusive": 24,
+      "minAmountExclusive": "10000000"
+    },
+    "R4": {
+      "enabled": true,
+      "weight": 20,
+      "reverseWindowMinutes": 60
+    },
+    "R5": {
+      "enabled": true,
+      "weight": 40,
+      "minNewRecipients": 5,
+      "windowMinutes": 60,
+      "noveltyDays": 30,
+      "sameOwnerExempt": true
+    },
+    "R6": {
+      "enabled": true,
+      "weight": 30,
+      "minBalancePercent": 90,
+      "minBalance": "1000000",
+      "sameOwnerExempt": true
+    }
+  },
+  "ml": {
+    "enabled": false
+  },
+  "ai": {
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "rubric": "Estimate how likely it is that this completed transfer deserves an operator review, using only the numeric features supplied, as a graded probability between 0 and 1.\n\nUse a spread of values, not just low and high. A transfer that looks like ordinary activity by an established account (history of transfers, known recipient, amount close to medianAmount30d) is 0.02 to 0.08. Weak signals each add about 0.15 to 0.2: a first transfer to a recipient (newRecipients1h of 1) from an account with little or no history (historyCount30d near 0); two or more transfers within 10 minutes; an amount that is a noticeable share of fromBalanceBefore; a fromBalanceBefore that is small for the amount moved, or an account whose balance is much lower than a typical established account. Strong signals each add about 0.25 to 0.4: the amount drains most of fromBalanceBefore; a large amount (above 10,000,000) from a very new account (accountAgeHours small); several newRecipients1h or distinctRecipients24h; minutesSinceReverse is small (money came back from the recipient shortly before); an amount many times medianAmount30d. Combine signals and cap at 0.95.\n\nTransfers between accounts of the same owner (sameOwner true) are routine unless they drain the balance. Do not infer missing facts, claim fraud, or decide whether to block a transfer.",
+    "threshold": 0.65,
+    "weight": 40,
+    "maxAdmissionDelayMs": 1000,
+    "requestTimeoutMs": 20000
+  }
+}

@@ -13,6 +13,7 @@
     "evaluate-rules": "ts-node -r tsconfig-paths/register src/scripts/evaluate-rules.ts",
     "capture-ai": "ts-node -r tsconfig-paths/register src/scripts/capture-ai.ts",
     "compare-modes": "ts-node -r tsconfig-paths/register src/scripts/compare-modes.ts",
+    "freeze:verify": "ts-node -r tsconfig-paths/register src/scripts/freeze-verify.ts",
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",

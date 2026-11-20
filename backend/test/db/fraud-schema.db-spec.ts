@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DataSource } from 'typeorm';
 import { CreateFraudStorage1792713600000 } from '@database/migrations/1792713600000-CreateFraudStorage';
@@ -154,6 +155,14 @@ describe('DBS-58 fraud migration on PostgreSQL', () => {
       { tgname: 'risk_rule_sets_append_only', tgtype: 27, tgenabled: 'O' },
       { tgname: 'risk_rule_sets_no_truncate', tgtype: 34, tgenabled: 'O' },
     ]);
+  });
+
+  it('TC-168-15 the seeded version 1 equals the evaluation file v1.json that the freeze checks', async () => {
+    const file = JSON.parse(
+      readFileSync(resolve(__dirname, '../../src/modules/risk/evaluation/configs/v1.json'), 'utf8'),
+    ) as unknown;
+    const [row] = await q('SELECT version,config FROM risk_rule_sets ORDER BY version');
+    expect(row).toEqual({ version: 1, config: file });
   });
 
   it('TC-58-02 PK, FK and rule ID constraints reject duplicates and invalid references', async () => {
