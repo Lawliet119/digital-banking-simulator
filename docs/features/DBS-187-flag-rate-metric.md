@@ -162,7 +162,7 @@ Lệnh: từ `backend/` với Node 24 (`export PATH="$APPDATA/fnm/node-versions/
 
 ## 8. Kết quả
 
-**Lệnh kiểm tra** (Node 24.22.2, Postgres 17 và Valkey 8 tạm, 2026-11-20/21; SHA code cuối `0cff73f`):
+**Lệnh kiểm tra** (Node 24.22.2, Postgres 17 và Valkey 8 tạm, 2026-11-20/21; SHA code cuối `6d86ae2`):
 
 | Lệnh | Kết quả |
 |---|---|
@@ -194,7 +194,7 @@ Kiểm chứng test bắt được lỗi (đột biến, rồi hoàn lại): b�
 | TC-187-11 | `dashboard.tftest.hcl` › `dashboard_labels_are_safe` (allowlist thêm `RiskLevel`, `Mode`, `AiAdded`) | đạt |
 | TC-187-12 | quy trình | sau khi merge |
 
-**Test thủ công** (output thô: [manual-test.txt](screenshots/DBS-187/manual-test.txt), SHA `0cff73f`). App thật `node dist/main`, `APP_ROLE=both`, `METRICS_EMF=true`, `METRICS_FLUSH_MS=5000`, `AUTH_MODE=local`, API thật; không driver giả cho counter (trừ M-187-06).
+**Test thủ công** (output thô: [manual-test.txt](screenshots/DBS-187/manual-test.txt), SHA `6d86ae2`). App thật `node dist/main`, `APP_ROLE=both`, `METRICS_EMF=true`, `METRICS_FLUSH_MS=5000`, `AUTH_MODE=local`, API thật; không driver giả cho counter (trừ M-187-06).
 
 | Bước | Kết quả |
 |---|---|
