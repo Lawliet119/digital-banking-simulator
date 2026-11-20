@@ -4,6 +4,7 @@ import type { AiAssessment, AiStatus } from './ai/ai-contract';
 import type { Features, TransferEvent } from './features/feature-provider';
 import { RiskRuleError } from './risk-rule-error';
 import { countRuleError } from './risk-scoring.metrics';
+import { levelOf, type RiskLevel } from './risk-level';
 import { R1VelocityRule } from './rules/r1-velocity.rule';
 import { R2UnusualAmountRule } from './rules/r2-unusual-amount.rule';
 import { R3NewAccountLargeTransferRule } from './rules/r3-new-account-large-transfer.rule';
@@ -38,12 +39,7 @@ export interface ScoringConfig {
   readonly ai?: { readonly threshold: number; readonly weight: number };
 }
 
-export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
-
-/** The one rule that turns a score into a level (also used by the flag metric, DBS-187). */
-export function levelOf(score: number, thresholds: { medium: number; high: number }): RiskLevel {
-  return score >= thresholds.high ? 'HIGH' : score >= thresholds.medium ? 'MEDIUM' : 'LOW';
-}
+export { levelOf, type RiskLevel } from './risk-level';
 
 export interface ScoringResult {
   readonly mode: 'rule_only' | 'rules_with_external_ai';
