@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Message } from '@aws-sdk/client-sqs';
 import {
   ageOf,
@@ -6,6 +9,7 @@ import {
   runDlqAgeCheckCli,
   type DlqPort,
 } from './dlq-age-check';
+import { createExclusiveFile, QuarantineFileExistsError } from './dlq-files';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 10, 14, 12, 0, 0);
@@ -239,5 +243,28 @@ describe('BL-210 dlq-age-check command', () => {
     const result = await run(queueArgs, dlq);
     expect(result.code).toBe(2);
     expect(JSON.parse(result.out).failed).toEqual(['a']);
+  });
+});
+
+describe('BL-360 quarantine file is created exclusively', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'bl360-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('TC-BL-01 a file that already exists is refused and keeps its content', () => {
+    const path = join(dir, 'q.jsonl');
+    createExclusiveFile(path, 'first\n');
+    expect(() => createExclusiveFile(path, 'second\n')).toThrow(QuarantineFileExistsError);
+    expect(readFileSync(path, 'utf8')).toBe('first\n');
+  });
+
+  it('TC-BL-02 missing parent directories are created', () => {
+    const path = join(dir, 'a', 'b', 'q.jsonl');
+    createExclusiveFile(path, 'body\n');
+    expect(readFileSync(path, 'utf8')).toBe('body\n');
   });
 });
