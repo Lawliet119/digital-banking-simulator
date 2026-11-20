@@ -22,6 +22,7 @@ locals {
     "- **Lỗi = 5xx**; 422 và 429 không tính. Tỉ lệ 5xx tính trên bộ dimension tổng, không có probe `/health/*`.",
     "- **Tuổi outbox** dùng `Maximum`. Không có điểm dữ liệu nghĩa là worker không chạy (không phải 0).",
     "- Chỉ vẽ `Role` `api` và `worker`. Widget trống là chưa có nguồn: `risk_decision_total`, `risk_rule_error_total`, `risk_transfer_to_flag_ms` và `reconciliation_runs_total` chỉ có khi worker chạy và đã có dòng sự kiện (metric đếm sự kiện không có điểm khi không có sự kiện).",
+    "- **Cờ / 1.000 giao dịch (DBS-187):** hai ô số là tổng trượt thật của 1 giờ và 24 giờ gần nhất (khoảng thời gian riêng của widget); đường xu hướng dùng bucket 3600 s, không trượt từng phút. Có quyết định mà không có cờ thì hiển thị 0 nhờ `FILL`; widget trống là worker chưa chạy. Chưa kiểm trên console AWS.",
     "- ECS, RDS, Valkey và ALB ở dashboard `dbs-dev-infra`. Alarm: xem `alarms.tf`.",
   ])
 
@@ -363,6 +364,120 @@ locals {
     }
   }
 
+  # DBS-187: cờ trên 1.000 giao dịch. f = risk_flag_total, d = risk_decision_total, cả hai bộ `[Role]` (tổng, không nhãn);
+  # `FILL(f, 0)` vì app không phát dòng khi không có cờ. Ô số: tổng trượt thật nhờ `setPeriodToTimeRange` và khoảng thời
+  # gian riêng của widget; metric math của CloudWatch không có hàm dịch thời gian nên không dựng được trượt bằng đường.
+  w_flag_rate_1h = {
+    type   = "metric"
+    x      = 0
+    y      = 40
+    width  = 6
+    height = 4
+    properties = {
+      title                = "Cờ / 1.000 giao dịch, 1 giờ gần nhất"
+      region               = local.dash_region
+      view                 = "singleValue"
+      setPeriodToTimeRange = true
+      start                = "-PT1H"
+      end                  = "P0D"
+      metrics = [
+        [local.dash_ns, "risk_flag_total", "Role", "worker", { id = "f", stat = "Sum", visible = false }],
+        [local.dash_ns, "risk_decision_total", "Role", "worker", { id = "d", stat = "Sum", visible = false }],
+        [{ expression = "IF(d > 0, 1000 * FILL(f, 0) / d, 0)", label = "Cờ / 1.000 giao dịch (SLO ≤ 20)", id = "r" }],
+      ]
+    }
+  }
+
+  w_flag_rate_24h = {
+    type   = "metric"
+    x      = 6
+    y      = 40
+    width  = 6
+    height = 4
+    properties = {
+      title                = "Cờ / 1.000 giao dịch, 24 giờ gần nhất"
+      region               = local.dash_region
+      view                 = "singleValue"
+      setPeriodToTimeRange = true
+      start                = "-PT24H"
+      end                  = "P0D"
+      metrics = [
+        [local.dash_ns, "risk_flag_total", "Role", "worker", { id = "f", stat = "Sum", visible = false }],
+        [local.dash_ns, "risk_decision_total", "Role", "worker", { id = "d", stat = "Sum", visible = false }],
+        [{ expression = "IF(d > 0, 1000 * FILL(f, 0) / d, 0)", label = "Cờ / 1.000 giao dịch (SLO ≤ 20)", id = "r" }],
+      ]
+    }
+  }
+
+  # Xu hướng và tách theo mode. rule_only: mẫu số là quyết định có AiStatus = DISABLED (bất biến rule_only ⇔ DISABLED);
+  # rules_with_external_ai: mẫu số là phần còn lại của tổng.
+  w_flag_rate_trend = {
+    type   = "metric"
+    x      = 12
+    y      = 40
+    width  = 12
+    height = 6
+    properties = {
+      title  = "Cờ / 1.000 giao dịch: xu hướng và theo mode (period 3600)"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 3600
+      metrics = [
+        [local.dash_ns, "risk_flag_total", "Role", "worker", { id = "f", stat = "Sum", visible = false }],
+        [local.dash_ns, "risk_decision_total", "Role", "worker", { id = "d", stat = "Sum", visible = false }],
+        [local.dash_ns, "risk_decision_total", "Role", "worker", "AiStatus", "DISABLED", { id = "dd", stat = "Sum", visible = false }],
+        [{ expression = "SUM(SEARCH('{\"${local.dash_ns}\",Role,RiskLevel,Mode,AiAdded} MetricName=\"risk_flag_total\" Mode=\"rule_only\"', 'Sum', 3600))", id = "fr", visible = false }],
+        [{ expression = "SUM(SEARCH('{\"${local.dash_ns}\",Role,RiskLevel,Mode,AiAdded} MetricName=\"risk_flag_total\" Mode=\"rules_with_external_ai\"', 'Sum', 3600))", id = "fe", visible = false }],
+        [{ expression = "IF(d > 0, 1000 * FILL(f, 0) / d, 0)", label = "Tổng", id = "r" }],
+        [{ expression = "IF(FILL(dd, 0) > 0, 1000 * FILL(fr, 0) / FILL(dd, 0), 0)", label = "rule_only", id = "rr" }],
+        [{ expression = "IF(d - FILL(dd, 0) > 0, 1000 * FILL(fe, 0) / (d - FILL(dd, 0)), 0)", label = "rules_with_external_ai", id = "re" }],
+      ]
+      annotations = {
+        horizontal = [{ label = "SLO ≤ 20 / 1.000", value = 20 }]
+      }
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
+  w_flag_by_level = {
+    type   = "metric"
+    x      = 0
+    y      = 46
+    width  = 12
+    height = 6
+    properties = {
+      title  = "Cờ theo risk_level"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 300
+      metrics = [
+        [{ expression = "SUM(SEARCH('{\"${local.dash_ns}\",Role,RiskLevel,Mode,AiAdded} MetricName=\"risk_flag_total\" RiskLevel=\"MEDIUM\"', 'Sum', 300))", label = "MEDIUM", id = "m1" }],
+        [{ expression = "SUM(SEARCH('{\"${local.dash_ns}\",Role,RiskLevel,Mode,AiAdded} MetricName=\"risk_flag_total\" RiskLevel=\"HIGH\"', 'Sum', 300))", label = "HIGH", id = "m2" }],
+      ]
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
+  # DoD 4: «cờ do AI bổ sung» là `created` (không có AI thì không có cờ); `raised` (AI nâng MEDIUM lên HIGH) vẽ riêng.
+  w_flag_ai = {
+    type   = "metric"
+    x      = 12
+    y      = 46
+    width  = 12
+    height = 6
+    properties = {
+      title  = "Cờ do AI bổ sung"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 300
+      metrics = [
+        [{ expression = "SUM(SEARCH('{\"${local.dash_ns}\",Role,RiskLevel,Mode,AiAdded} MetricName=\"risk_flag_total\" AiAdded=\"created\"', 'Sum', 300))", label = "created (AI tạo cờ)", id = "a1" }],
+        [{ expression = "SUM(SEARCH('{\"${local.dash_ns}\",Role,RiskLevel,Mode,AiAdded} MetricName=\"risk_flag_total\" AiAdded=\"raised\"', 'Sum', 300))", label = "raised (AI nâng lên HIGH)", id = "a2" }],
+      ]
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
   dashboard_body = {
     start          = "-PT3H"
     periodOverride = "inherit"
@@ -370,6 +485,7 @@ locals {
       local.w_text, local.w_overall, local.w_transfer, local.w_reads, local.w_errors, local.w_volume,
       local.w_routes, local.w_outbox, local.w_dlq, local.w_age, local.w_redis, local.w_rate, local.w_risk,
       local.w_recon, local.w_risk_health, local.w_flag,
+      local.w_flag_rate_1h, local.w_flag_rate_24h, local.w_flag_rate_trend, local.w_flag_by_level, local.w_flag_ai,
     ]
   }
 }

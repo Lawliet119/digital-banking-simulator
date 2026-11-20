@@ -9,7 +9,8 @@
 # `risk_ai_fallback_rate` mỗi cái 6 metric, `read_latency_p95` 3 metric, `reconciliation`, `redis_fallback`, `rate_limited`,
 # `api_5xx_rate` mỗi cái 2; còn lại 1 metric mỗi alarm. Tổng cỡ 3,7 USD/tháng nếu chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều.
 #
-# Dimension: bộ đếm của ứng dụng (MetricsService.writeCounters) chỉ xuất ở bộ `[Role, ...nhãn]`, KHÔNG có bộ `[]`; gauge
+# Dimension: bộ đếm của ứng dụng (MetricsService.writeCounters) xuất ở bộ `[Role, ...nhãn]` và, với counter có `roleTotal`
+# (`risk_config_redis_fallback_total`, `risk_decision_total`, `risk_flag_total`), thêm bộ tổng `[Role]`; KHÔNG có bộ `[]`; gauge
 # thì ngược lại chỉ có bộ `[]` (outbox_oldest_unpublished_age_seconds, outbox_quarantined_events). Alarm phải khai đúng bộ dimension đó, nếu không
 # sẽ không bao giờ có dữ liệu. Metric của worker mang `Role=worker`, của api mang `Role=api`.
 #
