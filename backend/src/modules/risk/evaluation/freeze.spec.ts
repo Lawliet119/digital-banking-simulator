@@ -27,7 +27,10 @@ const FROZEN = {
   dbSeed: '876bdd9750a0067039dc5af59d318c7767f535e7dea8ed30ecbba886ec127aa8',
   rubricFile: '0640e98b4359bfb5dba55c4ee1ab553c0a321e9298e94a79c7ee77a9c74680b5',
   rubric: '96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff',
-  engine: '21742a3cab9d9e9f8599cc1d5c74dff3fff7c553de5b21cc2bf4fab068db5524',
+  engine: 'b62a0ab2a528e34301df4cd91ccaf5aec6d1b8efc8597be1d305008d760e5d0f',
+  labels: { ruleOnly: 4, withAi: 5 },
+  capture: { seed: 'dbs-split-v1', normalSample: 1000000, timeoutMs: 20000 },
+  responseModels: ['gpt-6-luna'],
 };
 
 const realRead: ReadText = path => {
@@ -62,13 +65,19 @@ describe('freeze of the rule configuration (DBS-168)', () => {
   it('TC-168-01 the repository matches its manifest, and the manifest its pinned values', () => {
     const m = manifest();
     expect(verifyFreeze(m, realRead)).toEqual([]);
+    // After an amendment the values to expect are the ones that amendment recorded.
+    const expected = m.amendments[m.amendments.length - 1]?.expected ?? FROZEN;
+    expect(m.modes.rule_only.configSha256).toBe(expected.ruleOnly);
+    expect(m.modes.rules_with_external_ai.configSha256).toBe(expected.withAi);
+    expect(m.dbSeed.configSha256).toBe(expected.dbSeed);
+    expect(m.modes.rules_with_external_ai.ai.rubricFileSha256).toBe(expected.rubricFile);
+    expect(m.modes.rules_with_external_ai.ai.rubricSha256).toBe(expected.rubric);
+    expect(engineFingerprint(m)).toBe(expected.engine);
     if (m.amendments.length === 0) {
-      expect(m.modes.rule_only.configSha256).toBe(FROZEN.ruleOnly);
-      expect(m.modes.rules_with_external_ai.configSha256).toBe(FROZEN.withAi);
-      expect(m.dbSeed.configSha256).toBe(FROZEN.dbSeed);
-      expect(m.modes.rules_with_external_ai.ai.rubricFileSha256).toBe(FROZEN.rubricFile);
-      expect(m.modes.rules_with_external_ai.ai.rubricSha256).toBe(FROZEN.rubric);
-      expect(engineFingerprint(m)).toBe(FROZEN.engine);
+      expect(m.modes.rule_only.evaluationVersion).toBe(FROZEN.labels.ruleOnly);
+      expect(m.modes.rules_with_external_ai.evaluationVersion).toBe(FROZEN.labels.withAi);
+      expect(m.modes.rules_with_external_ai.capture).toEqual(FROZEN.capture);
+      expect(m.modes.rules_with_external_ai.ai.responseModels).toEqual(FROZEN.responseModels);
     }
   });
 
@@ -172,6 +181,16 @@ describe('freeze of the rule configuration (DBS-168)', () => {
     expect(
       verifyFreeze(retunedAi.m, retunedAi.read).some(p => p.includes('apart from mode and ai')),
     ).toBe(true);
+  });
+
+  it('TC-168-09b a rubric file with carriage returns is reported (capture-ai would send another rubric)', () => {
+    const m = manifest();
+    const file = m.modes.rules_with_external_ai.ai.rubricFile;
+    const problems = verifyFreeze(
+      m,
+      override(file, t => t.replace(/\n/g, '\r\n')),
+    );
+    expect(problems.some(p => p.includes(file) && p.includes('carriage returns'))).toBe(true);
   });
 
   it('TC-168-09 a missing file is reported', () => {
@@ -403,9 +422,11 @@ describe('freeze of the rule configuration (DBS-168)', () => {
       withAi.ai.rubricFileSha256,
       m.dbSeed.configSha256,
       fingerprint,
-      `${ruleOnly.configSha256.slice(0, 8)}…${ruleOnly.configSha256.slice(-4)}`,
-      `${withAi.configSha256.slice(0, 8)}…${withAi.configSha256.slice(-4)}`,
-      `${fingerprint.slice(0, 8)}…${fingerprint.slice(-4)}`,
+      // The announcement is the anchor outside the repository: it keeps the values of the freeze.
+      `${FROZEN.ruleOnly.slice(0, 8)}…${FROZEN.ruleOnly.slice(-4)}`,
+      `${FROZEN.withAi.slice(0, 8)}…${FROZEN.withAi.slice(-4)}`,
+      `${FROZEN.engine.slice(0, 8)}…${FROZEN.engine.slice(-4)}`,
+      `--normal-sample ${withAi.capture.normalSample}`,
     ]) {
       expect(record).toContain(value);
     }

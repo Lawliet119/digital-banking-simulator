@@ -62,7 +62,22 @@ export interface FreezeManifest {
     readonly configSha256: string;
   };
   readonly engine: { readonly files: Readonly<Record<string, string>> };
-  readonly amendments: readonly { readonly id: string; readonly date: string }[];
+  /**
+   * One entry per change made after the freeze. `expected` holds the values the repository must have
+   * after that change, so the pinned values of the spec move only together with an entry here.
+   */
+  readonly amendments: readonly {
+    readonly id: string;
+    readonly date: string;
+    readonly expected: {
+      readonly ruleOnly: string;
+      readonly withAi: string;
+      readonly dbSeed: string;
+      readonly rubricFile: string;
+      readonly rubric: string;
+      readonly engine: string;
+    };
+  }[];
 }
 
 /** Reads a text file by path relative to `backend/`; `undefined` when it does not exist. */
@@ -119,6 +134,14 @@ export function verifyFreeze(manifest: FreezeManifest, read: ReadText): string[]
   checkHash(read, withAi.configFile, withAi.configSha256, problems);
   checkHash(read, ai.rubricFile, ai.rubricFileSha256, problems);
   checkHash(read, manifest.dbSeed.configFile, manifest.dbSeed.configSha256, problems);
+
+  const rubricFileText = read(ai.rubricFile);
+  if (rubricFileText?.includes('\r')) {
+    // capture-ai only trims the file, so a CRLF checkout would send (and hash) another rubric.
+    problems.push(
+      `${ai.rubricFile}: contains carriage returns, capture-ai would send another rubric`,
+    );
+  }
 
   const ruleOnlyJson = readJson(read, ruleOnly.configFile);
   if (ruleOnlyJson !== undefined) {
