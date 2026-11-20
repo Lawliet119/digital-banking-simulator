@@ -168,7 +168,7 @@ Lệnh: Terraform ở `infra/terraform/envs/dev/session` (`GOMAXPROCS=2 terrafor
 
 ## 8. Kết quả
 
-**Lệnh kiểm tra** (Node 24.22.2, Terraform 1.16.6, 2026-11-21; SHA code cuối `3005669`, alarm ở `4f6af9f`):
+**Lệnh kiểm tra** (Node 24.22.2, Terraform 1.16.6, 2026-11-21; SHA code cuối `c80ee97`, alarm ở `3d7a595`):
 
 | Lệnh | Kết quả |
 |---|---|
@@ -193,13 +193,13 @@ Lệnh: Terraform ở `infra/terraform/envs/dev/session` (`GOMAXPROCS=2 terrafor
 | TC-188-09 | `check-doc-links.mjs`, `check-backlog.mjs` sạch; `FRAUD_DETECTION_GUIDE.md` §7 | đạt |
 | TC-188-10 | quy trình | sau khi merge |
 
-**Test thủ công** (output thô: [manual-test.txt](screenshots/DBS-188/manual-test.txt), SHA dòng đầu `3005669`; không token, không id tài khoản AWS):
+**Test thủ công** (output thô: [manual-test.txt](screenshots/DBS-188/manual-test.txt), SHA dòng đầu `c80ee97`; không token, không id tài khoản AWS):
 
 | Bước | Kết quả |
 |---|---|
 | M-188-01 | **đạt.** `fmt`, `validate` sạch; `terraform test` 97/97 |
 | M-188-02 | **đạt.** Driver (API, consumer, `MetricsService` thật với `Role=worker`, DB tạm): A 600 quyết định/0 cờ, B 900/45 (50 cờ/1.000), C 1.050/45 (42,86), D 2.250/45 (đúng 20,00), E 2.251/46 (20,44); tổng EMF khớp SQL (`risk_decisions` 1.051, `fraud_flags` 46; D không thêm dòng SQL). Lần chạy đầu của driver lệch (120 cờ trong giai đoạn A) vì dùng 5 người nhận khác nhau cho mỗi người gửi chạm R5: đã sửa thành một người nhận cố định |
-| M-188-03 | **đạt.** Trước hết kiểm `DBS/Backend`: còn 940 quyết định và 249 cờ tổng hợp trong 24 giờ (BL-406). `plan -target`: 1 to add; `apply`: alarm `dbs-dev-risk-flag-rate` có hai metric `{Role=worker}` period 86400 và biểu thức đúng, action ALARM và OK tới topic `dbs-dev-alarms`; CloudWatch **nhận** alarm biểu thức metric với period 86400 |
+| M-188-03 | **đạt.** Trước hết kiểm `DBS/Backend`: còn 940 quyết định và 249 cờ tổng hợp trong 24 giờ (BL-410). `plan -target`: 1 to add; `apply`: alarm `dbs-dev-risk-flag-rate` có hai metric `{Role=worker}` period 86400 và biểu thức đúng, action ALARM và OK tới topic `dbs-dev-alarms`; CloudWatch **nhận** alarm biểu thức metric với period 86400 |
 | M-188-04 | **đạt.** Đẩy A: `get-metric-data` ra 600 quyết định, `FILL(f, 0)` = 0 **dù chưa từng có series cờ**, biểu thức thô 0; alarm `INSUFFICIENT_DATA` → `OK` sau ≈ 80 giây (`StateReason`: «[0.0 (19/11/26 19:13:00)]» khi đánh giá lúc 19:13:34 UTC: bucket bắt đầu đúng bây giờ − 24 giờ) |
 | M-188-05 | **đạt.** Đẩy B (900 quyết định, 45 cờ): thô 50/1.000, **biểu thức của alarm 0**, alarm vẫn `OK` sau 4 phút (giao dịch tối thiểu có tác dụng) |
 | M-188-06 | **đạt.** Đẩy C lúc 19:20:07 UTC (1.050/45): alarm `OK` → **`ALARM`** lúc 19:21:34 UTC, `StateReason` 42,857; Action SNS thành công. Độ trễ ≈ 1,5 phút = nạp EMF + một lần đánh giá |
@@ -216,13 +216,13 @@ Lệnh: Terraform ở `infra/terraform/envs/dev/session` (`GOMAXPROCS=2 terrafor
 **Lệch so với kế hoạch** (gate phụ, agent tự duyệt): (1) bản nháp đầu của driver cho số liệu lệch (120 cờ ở giai đoạn A) và được sửa (người nhận cố định) trước khi chạy bằng chứng, nhờ tự kiểm tổng ở mỗi giai đoạn; (2) driver chỉ đẩy hai counter alarm đọc, vì harness có Redis tắt nên còn phát `risk_config_redis_fallback_total` (không đẩy); (3) ảnh là ảnh render bằng API chứ không phải console; (4) không có lượt domain review thứ hai (G2, quyết định 1); (5) TC-188-06 không thêm `run` mới vì hai test sẵn có đã khóa đủ tên và metric; (6) số alarm: cập nhật cả BL-341 và các doc lệch (18 → 22).
 
 **Bàn giao cho vai khác** (BL trong [`docs/BACKLOG.md`](../BACKLOG.md)):
-- **BL-405** (#5): apply `base` để có hai alarm `…-dlq-oldest-age` (chưa có trên tài khoản).
-- **BL-406** (#5): số tổng hợp trong `DBS/Backend` có thể làm alarm thật kêu giả tới ≈ 22/11 01:00 +07.
-- **BL-407** (Dev #4): alarm theo `RiskLevel` / `Mode` (cần bộ dimension mới).
-- **BL-408**: test hợp đồng giữa phát metric và alarm (đổi bộ dimension thì alarm im lặng).
+- **BL-409** (#5): apply `base` để có hai alarm `…-dlq-oldest-age` (chưa có trên tài khoản).
+- **BL-410** (#5): số tổng hợp trong `DBS/Backend` có thể làm alarm thật kêu giả tới ≈ 22/11 01:00 +07.
+- **BL-411** (Dev #4): alarm theo `RiskLevel` / `Mode` (cần bộ dimension mới).
+- **BL-412**: test hợp đồng giữa phát metric và alarm (đổi bộ dimension thì alarm im lặng).
 - **BL-341** (sửa): còn 21 alarm chưa kích hoạt thử.
 - Việc đã **hết** của task này: **BL-340** (xóa).
-- DoD 5: không còn việc của DBS-188; `dlq-oldest-age` ở BL-405.
+- DoD 5: không còn việc của DBS-188; `dlq-oldest-age` ở BL-409.
 
 ## 9. Tài liệu đã cập nhật
 
@@ -230,5 +230,5 @@ Lệnh: Terraform ở `infra/terraform/envs/dev/session` (`GOMAXPROCS=2 terrafor
 - `docs/components/observability/01-concept-brief.md` (hàng alarm mới, số alarm, chi phí, bỏ câu «chưa có alarm cho > 20 cờ/1.000», lưu ý số tổng hợp trong `DBS/Backend`).
 - `docs/components/risk/FRAUD_DETECTION_GUIDE.md` §7 (hàng «Theo dõi báo nhầm», **P5**: bằng chứng vận hành).
 - `infra/terraform/README.md` (số alarm base/session, chi phí), `infra/terraform/envs/dev/session/alarms.tf` (chú thích đầu file).
-- `docs/BACKLOG.md`: **xóa BL-340**; sửa BL-341; thêm BL-405, BL-406, BL-407, BL-408.
+- `docs/BACKLOG.md`: **xóa BL-340**; sửa BL-341; thêm BL-409, BL-410, BL-411, BL-412.
 - `docs/features/README.md`: thêm dòng DBS-188.

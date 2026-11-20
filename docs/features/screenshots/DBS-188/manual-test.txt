@@ -1,5 +1,6 @@
-3005669cd5c5b6d8b157084e0bba3fe64de66cf5
-# DBS-188 manual test. Dòng đầu là SHA của commit cuối đổi code (driver). Alarm Terraform nằm ở 4f6af9f.
+c80ee9728563cec91976aef2d487d6ce62ec66fb
+# DBS-188 manual test. Dòng đầu là SHA của commit cuối đổi code (driver). Alarm Terraform nằm ở 3d7a595.
+# Sau khi chạy, nhánh được rebase lên main (DBS-168, #219; không đụng file nào của task này): SHA trên là SHA sau rebase, nội dung file code y hệt SHA lúc chạy (3005669 driver, 4f6af9f alarm).
 # Mọi id tài khoản AWS đã thay bằng <account-id>. Chạy trong Git Bash (UTF-8).
 
 === M-188-02 driver generate (real API, consumer, MetricsService Role=worker; DATABASE_URL redacted)
@@ -42,7 +43,7 @@ Success! The configuration is valid.
 
 [exit 0]
 
-# M-188-01 terraform test (full suite, GOMAXPROCS=2 -parallelism=1) ran earlier on 3005669: Success! 97 passed, 0 failed (baseline before the task: 94). The new runs: risk_flag_rate_alarm, risk_flag_rate_alarm_metrics_and_window, risk_flag_rate_alarm_description; all_alarms_notify_the_topic and alarms_follow_metrics_namespace extended. Mutation check of alarms.tf (each turned the alarms suite red, 22 passed 1 failed): min_transfers 1000->1, threshold 20->200, > to >=, drop FILL, drop the IF volume guard, window 86400->3600, Role worker->api, treat_missing_data notBreaching->breaching.
+# M-188-01 terraform test (full suite, GOMAXPROCS=2 -parallelism=1) ran earlier on c80ee97: Success! 97 passed, 0 failed (baseline before the task: 94). The new runs: risk_flag_rate_alarm, risk_flag_rate_alarm_metrics_and_window, risk_flag_rate_alarm_description; all_alarms_notify_the_topic and alarms_follow_metrics_namespace extended. Mutation check of alarms.tf (each turned the alarms suite red, 22 passed 1 failed): min_transfers 1000->1, threshold 20->200, > to >=, drop FILL, drop the IF volume guard, window 86400->3600, Role worker->api, treat_missing_data notBreaching->breaching.
 
 === M-188-03 terraform init (own TF_DATA_DIR, temp state key dev/session-dbs188.tfstate)
 $ terraform init -reconfigure -input=false -no-color -backend-config=bucket=dbs-tfstate-<account-id>-ap-southeast-1 -backend-config=key=dev/session-dbs188.tfstate
