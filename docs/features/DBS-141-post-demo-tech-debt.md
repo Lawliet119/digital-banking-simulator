@@ -315,7 +315,7 @@ node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs          →
 
   Đơn giản hóa: kết quả chọn mã của từng dòng là phán đoán, **không** có test tự động; kiểm bằng ba lượt review độc lập và M-141-05 (đã chạy, xem dưới).
 
-- **Test thủ công** (cây sạch, commit `46f1e6f`; output thô [manual-test.txt](screenshots/DBS-141/manual-test.txt)):
+- **Test thủ công** (cây sạch, commit `13534f2`; output thô [manual-test.txt](screenshots/DBS-141/manual-test.txt)):
 
 | Bước | Kết quả |
 |---|---|
