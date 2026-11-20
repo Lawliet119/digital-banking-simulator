@@ -1,6 +1,6 @@
 # DBS-168 · Đóng băng phiên bản cấu hình luật trước khi chạy holdout
 
-> **Status:** Plan approved (đang làm, đến G4) · **Vai:** #4 Fraud · **Cặp đôi review:** Dev (theo `references/team.md`) · **Nhánh:** `feat/DBS-168-freeze-rule-config` · **PR:** — · **Cập nhật:** 2026-11-21
+> **Status:** Implemented (chờ CI và Dev review) · **Vai:** #4 Fraud · **Cặp đôi review:** Dev (theo `references/team.md`) · **Nhánh:** `feat/DBS-168-freeze-rule-config` · **PR:** — · **Cập nhật:** 2026-11-21
 
 ## 1. Bối cảnh
 
@@ -25,9 +25,10 @@
   6. Thông báo cả nhóm: agent không gửi được. Bản ghi chứa đoạn tin nhắn đã soạn; việc gửi và ghi ngày giờ + đường dẫn tin là BL-405 (người thật).
   7. Seed: ghi `dbs-split-v1` và nêu cả ba vai trò của nó. **Không** ghi seed sinh holdout (có seed đó là tái tạo được holdout): ngoài bản ghi, thuộc #6.
 - **Quyết định thêm sau domain review (agent tự quyết, G2):**
-  8. Kiểm mã engine **chỉ ở CLI, không ở `npm test`** (review #1): kiểm trong CI sẽ làm đỏ mọi PR chạm 33 file `risk`, tức một lệnh cấm sửa module mà chưa ai quyết. Techlead muốn khóa cứng thì thêm một bước CI chạy `freeze:verify` (BL-406).
-  9. Capture holdout cho **mọi giao dịch** (`--normal-sample 1000000`, trọng số 1) thay vì mẫu thưa (review #2): `evaluate-rules` không dùng trọng số, nên mẫu thưa làm precision, FPR và cảnh báo/1.000 của B2 sai nặng; gọi hết khoảng 43.000 giao dịch tốn khoảng 1,2 USD ([06](../components/risk/06-evaluation-ai-gate.md)) và không bị giới hạn kinh phí (fraud). Đây là tham số đo, không phải tham số mô hình, nên không phải tune.
-  10. Đóng băng cả mã của bộ kiểm (`freeze.ts`, `freeze-verify.ts`), `common/money`, `utc-time` và các giá trị gốc ghim trong spec (review #6, #7).
+  8. Kiểm mã engine **chỉ ở CLI, không ở `npm test`** (review #1): kiểm trong CI sẽ làm đỏ mọi PR chạm 35 file `risk`, tức một lệnh cấm sửa module mà chưa ai quyết. Techlead muốn khóa cứng thì thêm một bước CI chạy `freeze:verify` (BL-406).
+  9. Capture holdout cho **mọi giao dịch** (`--normal-sample 1000000`, trọng số 1) thay vì mẫu thưa (review #2): `evaluate-rules` không dùng trọng số, nên mẫu thưa làm precision, FPR và cảnh báo/1.000 của B2 sai nặng; gọi hết khoảng 43.000 giao dịch tốn khoảng 2,3 USD (capture r4 trung bình 527 token đầu vào mỗi lần gọi; số 1,2 USD ở [06](../components/risk/06-evaluation-ai-gate.md) đo trên rubric gốc 272 token) và không bị giới hạn kinh phí (fraud). Đây là tham số đo, không phải tham số mô hình, nên không phải tune.
+  10. Dòng capture thất bại không được chạy lại (chính sách ghi ở bản ghi §4; round 2 #2). Hash của hai barrel `index.ts` được thêm vào danh sách engine (round 2 #5); `freeze:verify` từ chối rubric có ký tự CR (round 2 #6); mỗi amendment mang `expected` hash để spec ghim tiếp (round 2 #1).
+  11. Đóng băng cả mã của bộ kiểm (`freeze.ts`, `freeze-verify.ts`), `common/money`, `utc-time` và các giá trị gốc ghim trong spec (review #6, #7).
 
 ## 2. Hành vi
 
@@ -42,7 +43,7 @@
 | `npm run --silent freeze:verify` (không tham số), mọi thứ khớp | in từng nhóm `OK` (file cấu hình, mã engine kèm dấu vân tay, amendments), `RESULT: FROZEN AS RECORDED`, exit 0 |
 | File cấu hình, rubric hoặc `v1.json` có sha256 khác manifest | in tên file, hash mong đợi và hash thực, exit 1 |
 | `v4-ai-r4.json` khác v4 ở chỗ không phải `mode` và `ai`; `ai.rubric` ≠ `r4.txt` đã `trim()`; `sha256(ai.rubric)` ≠ `rubricSha256`; `ai.provider/model/threshold/weight/...` ≠ manifest; khối `ai` không hợp lệ | exit 1, nêu trường (kiểm cấu trúc độc lập với kiểm hash) |
-| Một trong 33 file mã engine khác hash | exit 1 và nêu file. Chỉ ở CLI, `npm test` không kiểm (quyết định 8) |
+| Một trong 35 file mã engine khác hash | exit 1 và nêu file. Chỉ ở CLI, `npm test` không kiểm (quyết định 8) |
 | `--capture <file.jsonl>`: dòng có `rubricSha256` ≠ giá trị đóng băng, `requestedModel`/`provider` khác, không dòng nào mang `rubricSha256`, file không đọc được | exit 1. Khi đạt in các `responseModel` đã thấy (ghi vào báo cáo holdout); `responseModel` khác với tune → dòng `WARN`, không fail |
 | `--capture ... --input <holdout.csv>`: capture thiếu giao dịch của mẫu đóng băng, thừa dòng ngoài mẫu, hoặc `sampleWeight` khác | exit 1. Không có `--input` thì in «sample NOT checked» |
 | `--database-url <url>`: bảng `risk_rule_sets` không có version 1 hoặc version 1 ≠ `v1.json`; không đọc được | exit 1. Ngược lại in, với mỗi mode, số version DB có `config` bằng đúng file đóng băng (hoặc «not created») và version hiện hành cùng mode của nó. URL không bao giờ được in |
@@ -65,7 +66,7 @@ Không chỉnh tham số, rubric, mô hình, tham số lấy mẫu, quy trình �
 flowchart LR
   M[freeze-manifest.json] --> V[verifyFreeze]
   F[v4.json · v4-ai-r4.json · r4.txt · v1.json] --> V
-  E[33 file mã engine] --> VE[verifyEngine, chỉ CLI]
+  E[35 file mã engine] --> VE[verifyEngine, chỉ CLI]
   D[09-freeze-rule-config.md] --> T[freeze.spec.ts: bản ghi nêu đúng hash, đúng chỗ]
   C[capture holdout + CSV holdout] --> VC[verifyCapture]
   DB[(risk_rule_sets)] --> MR[matchRuleSetRows]
@@ -81,7 +82,7 @@ flowchart LR
 
 | ID | Truy vết | Lớp | Given · When · Then | Kết quả |
 |---|---|---|---|---|
-| TC-168-01 | DoD 1, 2 | unit | manifest và file thật của repo → `verifyFreeze`; manifest không có `amendments` thì các hash bằng giá trị ghim trong spec (cả dấu vân tay engine) | không vấn đề |
+| TC-168-01 | DoD 1, 2 | unit | manifest và file thật của repo → `verifyFreeze`; các hash bằng giá trị ghim trong spec, hoặc bằng `expected` của amendment cuối nếu có (gồm dấu vân tay engine); khi chưa có amendment, cả nhãn 4/5, tham số lấy mẫu và `responseModels` | không vấn đề |
 | TC-168-02 | DoD 2 | unit | đổi `maxTransfers` 2 → 3 trong bản sao trong bộ nhớ của `v4.json` | vấn đề nêu file và hash mong đợi |
 | TC-168-03 | DoD 2 | unit | cùng nội dung nhưng xuống dòng CRLF | vẫn khớp |
 | TC-168-04 | DoD 4 | unit | `v4-ai-r4.json`: `mode = rules_with_external_ai`, `ai.provider/model/threshold/weight` đúng manifest; phần trừ `mode` và `ai` bằng v4 | đạt |
@@ -90,6 +91,7 @@ flowchart LR
 | TC-168-07 | DoD 4 | unit | (hash đã cập nhật) khối `ai` thiếu `threshold`; `weight` 40,5; `threshold` 0,7 | «valid ai block»; «ai.threshold is 0.7» |
 | TC-168-08 | DoD 4 | unit | (hash đã cập nhật) v4 đổi `mode` sang AI; `v4-ai-r4.json` đổi `weight` luật | «must be mode rule_only»; «apart from mode and ai» |
 | TC-168-09 | DoD 1 | unit | thiếu file `v1.json` | vấn đề nêu file |
+| TC-168-09b | DoD 4 | unit | file rubric có ký tự CR (checkout CRLF) | báo «carriage returns» |
 | TC-168-10 | DoD 1 | unit | `matchRuleSetRows`: chỉ version 1 = v1 → «chưa tạo» cả hai mode, hiện hành 1; thêm version 2 = `v4.json` → `rule_only` là version 2, hiện hành 2; version 1 khác v1 hoặc bảng rỗng → vấn đề | đạt |
 | TC-168-11 | DoD 2 | unit | `verifyEngine` với manifest giả: file đổi nội dung / bị xóa → nêu tên; dấu vân tay đổi theo hash, không theo thứ tự | đạt |
 | TC-168-12a–d | DoD 4 | unit | `verifyCapture`: (a) đúng rubric/model, dòng không rubric bị bỏ qua; (b) rubric, model, provider khác, không có rubric, không phải JSON → vấn đề; (c) `responseModel` khác → cảnh báo, không fail; (d) với CSV tổng hợp 22 dòng: đủ mẫu → đạt; thiếu một dòng, mẫu thưa khác (trọng số lệch), dòng lạ → vấn đề | đạt |
@@ -124,12 +126,12 @@ Không test nào mở `load-tests/fraud-dataset/` hay cần nhãn holdout (CSV t
 
 | # | Mức | Phát hiện | Xử lý |
 |---|---|---|---|
-| 1 | blocking | Tài liệu nói `npm test` không kiểm mã engine nhưng TC-168-11 và CLI không tham số kiểm nó trên repo thật; M-168-07 sẽ sai; mọi PR chạm 33 file `risk` sẽ đỏ | đã sửa: bỏ kiểm engine thật khỏi `npm test` (spec dùng manifest giả; CLI spec bơm manifest không engine); quyết định 8; TC-168-11, 14a, 14e |
+| 1 | blocking | Tài liệu nói `npm test` không kiểm mã engine nhưng TC-168-11 và CLI không tham số kiểm nó trên repo thật; M-168-07 sẽ sai; mọi PR chạm 35 file `risk` sẽ đỏ | đã sửa: bỏ kiểm engine thật khỏi `npm test` (spec dùng manifest giả; CLI spec bơm manifest không engine); quyết định 8; TC-168-11, 14a, 14e |
 | 2 | blocking | `evaluate-rules --restrict-to-capture` bỏ qua `sampleWeight`: precision, FPR, cảnh báo/1.000 của B2 sai; không có B1, bootstrap; lệnh để mở cho DBS-169 | đã sửa: capture mọi giao dịch (trọng số 1, quyết định 9), quy trình đo đóng băng ở bản ghi §4; phần công cụ B1/ablation/bootstrap tham số cố định chuyển BL-407 (ngoài phạm vi, phải xong trước khi mở nhãn) |
 | 3 | should-fix | Khối `capture` của manifest không được kiểm; capture thiếu hoặc lấy mẫu khác vẫn qua | đã sửa: `verifyCapture(…, csvText)`, `--input`, TC-168-12d, 14c |
 | 4 | should-fix | Capture holdout lộ nhãn (trọng số 1 = fraud/hard negative); không có quy tắc nơi lưu | đã sửa: bản ghi §4 «Bức tường dữ liệu» |
 | 5 | should-fix | Mô tả seed thiếu vai trò công khai (A7-i); thông báo nói giao holdout ngay sau merge, mâu thuẫn điều kiện tiên quyết | đã sửa: bản ghi §1, §7, §8 |
-| 6 | should-fix | Danh sách engine thiếu `common/money`, `utc-time`; bộ kiểm không được đóng băng | đã sửa: 33 file (thêm money, balance, utc-time, `freeze.ts`, `freeze-verify.ts`) |
+| 6 | should-fix | Danh sách engine thiếu `common/money`, `utc-time`; bộ kiểm không được đóng băng | đã sửa: 35 file (thêm money, balance, utc-time, `freeze.ts`, `freeze-verify.ts`) |
 | 7 | should-fix | Sửa đồng thời file, manifest và bản ghi vẫn qua `npm test`; không có dấu vân tay engine trong bản ghi/thông báo | đã sửa một phần: ghim hash gốc trong spec (chỉ nới khi có `amendments`), dấu vân tay trong bản ghi và thông báo. Phần còn lại (CODEOWNERS, mỏ neo ngoài repo) là quyết định của techlead: BL-406, BL-405 |
 | 8 | should-fix | TC-168-07/08 qua vì sai hash, không kiểm cấu trúc | đã sửa: các case tính lại hash của bản sao đã sửa và khẳng định thông báo cấu trúc cụ thể |
 | 9 | minor | TC-168-13 quá lỏng (chuỗi con) | đã sửa: so khớp hàng bảng, cột đúng, hash rút gọn trong thông báo |
@@ -138,7 +140,20 @@ Không test nào mở `load-tests/fraud-dataset/` hay cần nhãn holdout (CSV t
 | 12 | minor | SHA squash merge không được ghi | đã sửa một phần: bản ghi §1 có hàng «Commit đóng băng»; điền ở PR docs ngay sau merge (BL-405 nếu chưa làm) |
 | 13 | minor | 07 dòng «Chỉnh rubric AI» nhắc quyết định ở DBS-168 | đã sửa: thêm vào danh sách cập nhật §3 và §9, và sửa 07 |
 
-**Vòng 2:** không chạy lại reviewer đầy đủ vì hai phát hiện blocking đã được sửa bằng thay đổi mà chính tôi kiểm lại bằng test; ghi rõ ở §8 «Lệch» và để Dev review PR xem lại. **Quyết định ở G2 (agent tự quyết):** như mục 8–10 của §1.
+**Vòng 2** (reviewer fresh, cùng prompt, soi lại các phần đã sửa; [nguyên văn](screenshots/DBS-168/domain-review.md), phần sau dấu `---`): 8 phát hiện (blocking 0, should-fix 2, minor 6), **Verdict: REVISE**, không có blocking. Reviewer xác nhận quyết định 9 (capture mọi giao dịch, `evaluate-rules` không dùng trọng số) là đúng, mọi hash tính lại khớp và không có gì đọc nhãn holdout.
+
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| R2-1 | should-fix | Chỉ ghim hash gốc khi `amendments` rỗng; sau amendment đầu mọi sửa manifest đều qua; thông báo phải sửa theo | đã sửa: mỗi amendment mang `expected` (6 hash), spec ghim theo amendment cuối; thông báo kiểm theo giá trị lúc đóng băng, hash hiện hành nằm ở §1 và §2 của bản ghi |
+| R2-2 | should-fix | Chưa có chính sách cho dòng capture thất bại; chạy lại sau khi thấy kết quả là chọn sau | đã sửa: bản ghi §4 «Dòng capture thất bại» (không chạy lại ngoài hai lần thử có sẵn; `UNAVAILABLE` giữ điểm luật; báo cáo ghi số lượng); quyết định 10 |
+| R2-3 | minor | Nhãn 4/5, `capture.seed`, `normalSample`, `responseModels` không được ghim | đã sửa: ghim trong `FROZEN` và TC-168-13 kiểm `--normal-sample 1000000` trong bản ghi |
+| R2-4 | minor | Chi phí 1,2 USD lấy từ rubric gốc (272 token); r4 là 527 token, khoảng 2,3 USD | đã sửa: bản ghi §2 và quyết định 9 |
+| R2-5 | minor | Hai barrel `common/money/index.ts`, `common/events/index.ts` chưa được hash | đã sửa: 35 file, dấu vân tay mới `b62a0ab2…5d0f` |
+| R2-6 | minor | CRLF: `freeze:verify` chuẩn hóa còn `capture-ai` chỉ `trim()` | đã sửa: `verifyFreeze` từ chối file rubric có ký tự CR; TC-168-09b |
+| R2-7 | minor | §6 và §8 mâu thuẫn về vòng 2 | đã sửa: đoạn này và §8 «Lệch» |
+| R2-8 | minor | BL-407 mã `T2` không khớp định nghĩa; hai dòng nâng Cao chưa nêu lý do | đã sửa: BL-407 mã `T3` (cùng mã với BL-171, BL-392, BL-043 cho việc chặn trước DBS-169, mở nhãn holdout khi chưa có công cụ đo là rò rỉ kết quả); lý do nâng Cao ở §8 |
+
+Sau vòng 2 **không chạy vòng 3**: không còn blocking, mọi phát hiện đã sửa và có test; thay đổi sau vòng 2 là cơ học (thêm trường, thêm file vào danh sách, đổi văn bản). Ghi ở §8 «Lệch» để Dev review PR soi lại. **Quyết định ở G2 (agent tự quyết):** như mục 8–11 của §1.
 
 ## 7. Kế hoạch triển khai
 
@@ -153,11 +168,11 @@ Không test nào mở `load-tests/fraud-dataset/` hay cần nhãn holdout (CSV t
 
 **Sweep giới hạn và DoD:** DoD 1 → bản ghi §1–§2, §8, test 01/13/15, BL-405 (thông báo, SHA); DoD 2 → bản ghi §5, spec 01/02/11, `freeze:verify`; DoD 3 → quy trình; DoD 4 → bản ghi §2, §6, spec 04–08, 12. Giới hạn của 07 («đóng băng cấu hình… DBS-168», «đổi REVIEW_RUBRIC là quyết định ở DBS-168») → quyết định 4 và 07 được sửa. Giới hạn của 06 («đóng băng… DBS-168») → 06 được sửa.
 
-**Rủi ro và cách lùi:** (a) hash engine lệch khi `main` đổi 33 file trước khi merge → tạo lại manifest sau rebase (script đã có trong lịch sử làm việc: hash lại các file) và chạy lại test; (b) ID `BL-405…408` trùng với PR khác (DBS-188) → đổi số khi rebase; (c) lùi: PR chỉ thêm file và một dòng `package.json`, một case db-spec; revert nguyên PR là đủ, không đụng DB hay hành vi chạy. **Quyết định ở G3 (agent tự quyết):** gộp bước 1–4 vào một commit vì TC-168-13 cần cả bản ghi lẫn manifest mới xanh.
+**Rủi ro và cách lùi:** (a) hash engine lệch khi `main` đổi 35 file trước khi merge → tạo lại manifest sau rebase (script đã có trong lịch sử làm việc: hash lại các file) và chạy lại test; (b) ID `BL-405…408` trùng với PR khác (DBS-188) → đổi số khi rebase; (c) lùi: PR chỉ thêm file và một dòng `package.json`, một case db-spec; revert nguyên PR là đủ, không đụng DB hay hành vi chạy. **Quyết định ở G3 (agent tự quyết):** gộp bước 1–4 vào một commit vì TC-168-13 cần cả bản ghi lẫn manifest mới xanh.
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (chạy lúc bàn giao, từ `backend/`): `npm run lint:check` sạch; `npm run typecheck` sạch; `npm test`: 139/141 suite đạt, **2.396 test đạt**, 1 test fail ở lần chạy đầu và 1 suite không nạp được: `src/database/typeorm-options.spec.ts` không nạp được từ trước (`crypto is not defined` với Node 24, giống baseline), `src/modules/accounts/accounts.exports.spec.ts` quá thời gian ở lần chạy đầu khi máy tải (20 giây) và đạt khi chạy riêng (2/2); hai file mới của task: `freeze.spec.ts` + `freeze-verify.spec.ts` 21/21 đạt; db-spec `fraud-schema.db-spec.ts -t "TC-168-15|TC-58-01"` 2/2 đạt trên PostgreSQL 17 thật. Không `.skip`, `.only`, `.todo` trong test của task (0 skipped). Không chạy `test:e2e` và toàn bộ `test:db` trên máy (quá tải, CI chạy). `check-doc-links.mjs`: 0 liên kết hỏng; `check-backlog.mjs`: 0 lỗi.
+- **Lệnh kiểm tra** (chạy lúc bàn giao, từ `backend/`): `npm run lint:check` sạch; `npm run typecheck` sạch; `npm test` (lần chạy cuối): 140/141 suite đạt, **2.398 test đạt**, 0 fail; 1 suite không nạp được từ trước: `src/database/typeorm-options.spec.ts` (`crypto is not defined` với Node 24, giống baseline). Lần chạy trước đó `src/modules/accounts/accounts.exports.spec.ts` quá thời gian (20 giây) khi máy tải và đạt khi chạy riêng (2/2), ở lần cuối đạt; hai file mới của task: `freeze.spec.ts` + `freeze-verify.spec.ts` 22/22 đạt; db-spec `fraud-schema.db-spec.ts -t "TC-168-15|TC-58-01"` 2/2 đạt trên PostgreSQL 17 thật. Không `.skip`, `.only`, `.todo` trong test của task (0 skipped). Không chạy `test:e2e` và toàn bộ `test:db` trên máy (quá tải, CI chạy). `check-doc-links.mjs`: 0 liên kết hỏng; `check-backlog.mjs`: 0 lỗi.
 - **Đối chiếu test case:**
 
 | ID | Test | Đạt? |
@@ -171,6 +186,7 @@ Không test nào mở `load-tests/fraud-dataset/` hay cần nhãn holdout (CSV t
 | TC-168-07 | › TC-168-07 | đạt |
 | TC-168-08 | › TC-168-08 | đạt |
 | TC-168-09 | › TC-168-09 | đạt |
+| TC-168-09b | › TC-168-09b | đạt |
 | TC-168-10 | › TC-168-10 | đạt |
 | TC-168-11 | › TC-168-11 | đạt |
 | TC-168-12a–d | › verifyCapture › TC-168-12a…12d | đạt |
@@ -180,17 +196,17 @@ Không test nào mở `load-tests/fraud-dataset/` hay cần nhãn holdout (CSV t
 | TC-168-16 | quy trình | chờ PR merge, review của Dev và CI |
 | TC-168-17 | không áp dụng | có lý do ở §4 |
 
-- **Test thủ công** (SHA commit cuối đổi code: `202283a`, dòng đầu [manual-test.txt](screenshots/DBS-168/manual-test.txt); đã bỏ mật khẩu DB cục bộ và màu ANSI; không có token, ARN hay id tài khoản AWS):
+- **Test thủ công** (SHA commit cuối đổi code: `984fec7`, dòng đầu [manual-test.txt](screenshots/DBS-168/manual-test.txt); đã bỏ mật khẩu DB cục bộ và màu ANSI; không có token, ARN hay id tài khoản AWS):
 
 | Bước | Lệnh | Kết quả thật (rút gọn) | |
 |---|---|---|---|
-| M-168-01 | `npm run --silent freeze:verify` | ba nhóm `OK`, nhãn 4 `c9da84a3…`, nhãn 5 `426b97fb…`, `rubricSha256` `96e0b08f…`, `ai.threshold 0.65`, `ai.weight 40`, 33 file engine, dấu vân tay `21742a3c…5524`, `FROZEN AS RECORDED`, exit 0 | đạt |
+| M-168-01 | `npm run --silent freeze:verify` | ba nhóm `OK`, nhãn 4 `c9da84a3…`, nhãn 5 `426b97fb…`, `rubricSha256` `96e0b08f…`, `ai.threshold 0.65`, `ai.weight 40`, 35 file engine, dấu vân tay `b62a0ab2…5d0f`, `FROZEN AS RECORDED`, exit 0 | đạt |
 | M-168-02 | `node m02-hash.mjs` (không dùng mã repo) | trim `96e0b08f…`, file `0640e98b…`, `REVIEW_RUBRIC` `3d0fd924…`; capture r4 chỉ có `96e0b08f…`; `ai.rubric` của `v4-ai-r4.json` cũng `96e0b08f…` | đạt |
 | M-168-03 | `freeze:verify --capture` r4 / rubric gốc | r4: `OK capture: 2021 lines, status {"SUCCEEDED":2021}, responseModel gpt-6-luna`, exit 0; rubric gốc: `FAIL capture: 2021 capture line(s) carry a rubricSha256 other than 96e0b08f…`, exit 1 | đạt |
 | M-168-04 | DB trống `dbs168`, `migration:run`, `freeze:verify --database-url` | `OK risk_rule_sets: version 1 equals …/v1.json; rule_only not created …; rules_with_external_ai not created …; active version 1 (rule_only)`, exit 0 | đạt |
 | M-168-05 | `psql` `SELECT … FROM risk_rule_sets` | một hàng: version 1, `created_by` rỗng, `rule_only`, R1 weight 30 | đạt |
 | M-168-06 | đổi `maxTransfers` 2 → 3 rồi khôi phục | `FAIL … v4.json: sha256 is 993267f8…, the manifest freezes c9da84a3…` và `FAIL v4-ai-r4.json: apart from mode and ai it must equal v4.json`, exit 1; sau khôi phục exit 0 | đạt |
-| M-168-07 | thêm một dòng vào `r1-velocity.rule.ts` | `FAIL engine files: …/r1-velocity.rule.ts: sha256 is 5b7ec83f…, the manifest freezes 719f9d2c…`, exit 1; `npm test` hai suite freeze vẫn 21/21 xanh; sau khôi phục exit 0 | đạt |
+| M-168-07 | thêm một dòng vào `r1-velocity.rule.ts` | `FAIL engine files: …/r1-velocity.rule.ts: sha256 is 5b7ec83f…, the manifest freezes 719f9d2c…`, exit 1; `npm test` hai suite freeze vẫn 22/22 xanh; sau khôi phục exit 0 | đạt |
 | M-168-08 | CSV tổng hợp 22 dòng + capture | đủ: `OK capture: 22 lines … sample equals the frozen sample`; thiếu một dòng: `FAIL capture: 1 transfer(s) of the frozen sample are not in the capture`, exit 1 | đạt |
 | M-168-09 | **seed SQL** version 2 = `v4.json` ở DB tạm, `freeze:verify --database-url` | `rule_only created as version 2 … active version 2 (rule_only)`, `psql` hai hàng; DB tạm đã xóa | đạt |
 | M-168-10 | `check-doc-links.mjs`, `check-backlog.mjs` | 488 file 0 liên kết hỏng; 107 dòng 0 lỗi | đạt |
@@ -198,10 +214,11 @@ Không test nào mở `load-tests/fraud-dataset/` hay cần nhãn holdout (CSV t
 - **Phạm vi so với §7:** xem `git diff --stat main...HEAD` ở mô tả PR. File ngoài danh sách §7: không có, trừ `backend/src/scripts/README.md`, `docs/components/index.md`, `docs/features/README.md` (đã nêu ở §3 «Thay đổi cấp hệ thống»).
 - **Ảnh chụp:** không áp dụng. Không có giao diện; bằng chứng là output thô [manual-test.txt](screenshots/DBS-168/manual-test.txt) và [domain-review.md](screenshots/DBS-168/domain-review.md). Không ảnh nào thiếu.
 - **Lệch so với kế hoạch (gate phụ, agent tự duyệt):**
-  1. **Thứ tự pha.** Vì chạy tự động một mạch, mã (`freeze.ts`, test, CLI) đã được viết (test đỏ trước, rồi xanh) **trước khi** có kết quả domain review (G2) và G3. Hậu quả: hai phát hiện blocking của review (kiểm engine lẫn vào `npm test`; quy trình đo bằng mẫu thưa) làm đổi mã sau khi đã viết. Cách giảm: toàn bộ test được viết lại theo review rồi chạy lại; review vòng 2 (§6) soi lại các phần đã đổi; Dev review PR xem lại thứ tự này.
+  1. **Thứ tự pha.** Vì chạy tự động một mạch, mã (`freeze.ts`, test, CLI) đã được viết (test đỏ trước, rồi xanh) **trước khi** có kết quả domain review (G2) và G3. Hậu quả: hai phát hiện blocking của review (kiểm engine lẫn vào `npm test`; quy trình đo bằng mẫu thưa) làm đổi mã sau khi đã viết. Cách giảm: toàn bộ test được viết lại theo review rồi chạy lại; review vòng 2 (§6) soi lại các phần đã đổi và không còn blocking; không chạy vòng 3 (mọi thay đổi sau vòng 2 là cơ học, có test); Dev review PR xem lại thứ tự này.
   2. Kiểm mã engine chỉ ở CLI, không ở `npm test` (quyết định 8).
   3. Capture holdout đủ mọi giao dịch (quyết định 9), khác mẫu thưa của tune.
-  4. Thêm TC-168-15 vào `fraud-schema.db-spec.ts` (file có sẵn) thay vì trong test mới, vì cần PostgreSQL thật và migration sẵn có.
+  4. Ưu tiên của BL-405 (H3, mặc định Trung bình) và BL-407 (T3, mặc định Cao) đều là **Cao**: task DBS-168 là Highest và cả hai chặn DBS-169 (thông báo phải có trước khi #6 giao holdout; công cụ đo phải có trước khi mở nhãn holdout), hạn cứng «Trước DBS-169 (tuần 7)».
+  5. Thêm TC-168-15 vào `fraud-schema.db-spec.ts` (file có sẵn) thay vì trong test mới, vì cần PostgreSQL thật và migration sẵn có.
 - **Bàn giao cho vai khác:** BL-405 (gửi thông báo cả nhóm, điền SHA squash merge: DoD 1 chưa đạt trọn); BL-406 (CODEOWNERS và bước CI `freeze:verify`: techlead); BL-407 (công cụ đo B1, ablation, bootstrap ở tham số cố định, trước khi mở nhãn holdout); BL-408 (tạo version thật trong `risk_rule_sets` sau holdout). Điều kiện tiên quyết đã có dòng sẵn của DBS-169: BL-171, BL-392, BL-043 (nêu trong bản ghi, không đổi).
 - **Chưa chạy:** thông báo cả nhóm (agent không có kênh); chạy holdout (cố ý, DBS-169); `test:e2e` và toàn bộ `test:db` trên máy (CI chạy); CI và Dev review của PR (đang chờ).
 
