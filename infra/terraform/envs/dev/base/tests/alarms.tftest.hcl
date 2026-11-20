@@ -103,3 +103,31 @@ run "dlq_alarms" {
     error_message = "alarms must watch dbs-dev-risk-events-dlq and dbs-dev-notification-events-dlq"
   }
 }
+
+# TC-RSK04-01: alarm tuổi message cũ nhất trên DLQ (escalation 3600 s, 2 điểm, notBreaching)
+run "dlq_oldest_age_alarms" {
+  command = apply
+
+  assert {
+    condition     = toset(keys(aws_cloudwatch_metric_alarm.dlq_oldest_age)) == toset(["risk", "notification"])
+    error_message = "one DLQ oldest-age alarm per consumer: risk and notification"
+  }
+
+  assert {
+    condition = alltrue([for k, a in aws_cloudwatch_metric_alarm.dlq_oldest_age : (
+      a.alarm_name == "dbs-dev-${k}-dlq-oldest-age" &&
+      a.namespace == "AWS/SQS" &&
+      a.metric_name == "ApproximateAgeOfOldestMessage" &&
+      length(a.dimensions) == 1 && a.dimensions["QueueName"] == aws_sqs_queue.dlq[k].name &&
+      a.statistic == "Maximum" &&
+      a.period == 60 &&
+      a.evaluation_periods == 2 &&
+      a.threshold == 3600 &&
+      a.comparison_operator == "GreaterThanThreshold" &&
+      a.treat_missing_data == "notBreaching" &&
+      a.alarm_actions == toset([aws_sns_topic.alarms.arn]) &&
+      a.ok_actions == toset([aws_sns_topic.alarms.arn])
+    )])
+    error_message = "DLQ oldest-age alarm: AWS/SQS ApproximateAgeOfOldestMessage, QueueName, Maximum, 60 s x 2, > 3600, notBreaching, SNS topic"
+  }
+}

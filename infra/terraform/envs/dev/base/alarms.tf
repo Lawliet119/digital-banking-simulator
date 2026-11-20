@@ -2,7 +2,7 @@
 # - Topic SNS và đăng ký email sống qua `destroy` của session: email chỉ phải xác nhận MỘT lần, không phải mỗi phiên.
 # - DLQ nằm ở base và giữ message tới 6 ngày kể cả khi session đã xóa; alarm "DLQ > 0" phải còn đó để không ai quên
 #   message chưa redrive. Alarm của tài nguyên session (tuổi queue, outbox, Redis...) ở session/alarms.tf.
-# Chi phí: 1 topic và 2 alarm chuẩn ≈ 0,20 USD/tháng, tính cả khi session đã xóa.
+# Chi phí: 1 topic và 4 alarm chuẩn ≈ 0,40 USD/tháng, tính cả khi session đã xóa.
 
 # Không bật SSE-KMS cho topic: khóa AWS managed `alias/aws/sns` không cho CloudWatch publish, còn CMK của dự án
 # (kms.tf) cần thêm quyền cho cloudwatch.amazonaws.com. Nội dung thư chỉ có tên alarm, ngưỡng và số đo, không có
@@ -37,6 +37,29 @@ resource "aws_cloudwatch_metric_alarm" "dlq_not_empty" {
   period              = 60
   evaluation_periods  = 1
   threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+}
+
+# RSK-04: cảnh báo bậc 2 (escalation) khi message nằm trong DLQ quá 1 giờ (3600 s), trước SLA redrive 24 giờ
+# và hạn retention 6 ngày. evaluation_periods = 2 lọc nhiễu residual spike khi DLQ vừa cạn; notBreaching khi rỗng.
+resource "aws_cloudwatch_metric_alarm" "dlq_oldest_age" {
+  for_each = aws_sqs_queue.dlq
+
+  alarm_name        = "dbs-dev-${each.key}-dlq-oldest-age"
+  alarm_description = "Message trong DLQ ${each.value.name} quá 1 giờ chưa được xử lý (cảnh báo trước SLA 24 giờ và hạn retention 6 ngày). Kiểm tra và redrive theo docs/runbooks/dlq-redrive.md."
+
+  namespace   = "AWS/SQS"
+  metric_name = "ApproximateAgeOfOldestMessage"
+  dimensions  = { QueueName = each.value.name }
+
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 2
+  threshold           = 3600
   comparison_operator = "GreaterThanThreshold"
   treat_missing_data  = "notBreaching"
 

@@ -112,6 +112,7 @@ run "all_alarms_notify_the_topic" {
           aws_cloudwatch_metric_alarm.outbox_quarantined,
           aws_cloudwatch_metric_alarm.risk_config_invalid,
           aws_cloudwatch_metric_alarm.risk_rule_error,
+          aws_cloudwatch_metric_alarm.risk_ai_fallback_rate,
           aws_cloudwatch_metric_alarm.reconciliation,
           aws_cloudwatch_metric_alarm.redis_node_missing,
           aws_cloudwatch_metric_alarm.redis_fallback,
@@ -130,7 +131,7 @@ run "all_alarms_notify_the_topic" {
 
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.queue_age) == 2
-    error_message = "16 session alarms: 2 queue age + 14 others (18 with the 2 DLQ alarms of base)"
+    error_message = "17 session alarms: 2 queue age + 15 others (21 with the 4 DLQ alarms of base)"
   }
 }
 
@@ -592,4 +593,44 @@ run "transfer_to_flag_p95_alarm" {
     )
     error_message = "transfer to flag: risk_transfer_to_flag_ms {Role=worker} p95 > 5000 ms, 900 s x 1, notBreaching"
   }
+}
+
+# TC-RSK04-02: tỉ lệ fallback AI vượt ngưỡng (mặc định > 10% trên các quyết định có gọi AI, không tính DISABLED)
+run "risk_ai_fallback_rate_alarm" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.alarm_name == "dbs-dev-risk-ai-fallback-rate" &&
+      aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.threshold == 10 &&
+      aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.comparison_operator == "GreaterThanThreshold" &&
+      aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.treat_missing_data == "notBreaching" &&
+      one([for q in aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.metric_query : q.expression if q.id == "rate"]) == "IF(total_ai >= 5, 100 * fb_sum / total_ai, 0)" &&
+      one([for q in aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.metric_query : q.expression if q.id == "fb_sum"]) == "SUM(METRICS(\"fb_\"))" &&
+      one([for q in aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.metric_query : q.expression if q.id == "total_ai"]) == "SUM([succ, fb_sum])" &&
+      toset([for q in aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.metric_query : one(q.metric).dimensions["AiStatus"] if length(q.metric) > 0]) == toset(["SUCCEEDED", "CONFIG_INVALID", "REFUSED", "INVALID_RESPONSE", "UNAVAILABLE", "BUDGET_EXHAUSTED"])
+    )
+    error_message = "AI fallback rate alarm must compute fallback / (SUCCEEDED + fallback) via SUM(METRICS(\"fb_\")), > 10%, notBreaching"
+  }
+}
+
+run "rejects_zero_ai_fallback_threshold" {
+  command = plan
+
+  variables {
+    ai_fallback_rate_threshold_percent = 0
+  }
+
+  expect_failures = [var.ai_fallback_rate_threshold_percent]
+}
+
+run "rejects_above_100_ai_fallback_threshold" {
+  command = plan
+
+  variables {
+    ai_fallback_rate_threshold_percent = 101
+  }
+
+  expect_failures = [var.ai_fallback_rate_threshold_percent]
 }

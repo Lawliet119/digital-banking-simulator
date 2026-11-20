@@ -182,3 +182,15 @@ variable "risk_ai_gate_timeout_ms" {
     error_message = "risk_ai_gate_timeout_ms must be an integer between 1 and 2147483647."
   }
 }
+
+# RSK-04: ngưỡng tỉ lệ fallback AI (%) trên các quyết định có gọi AI.
+variable "ai_fallback_rate_threshold_percent" {
+  description = "Ngưỡng cảnh báo tỉ lệ fallback AI (%) trong 5 phút (RSK-04). Mặc định 10%."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.ai_fallback_rate_threshold_percent > 0 && var.ai_fallback_rate_threshold_percent <= 100
+    error_message = "ai_fallback_rate_threshold_percent must be in (0, 100]."
+  }
+}
