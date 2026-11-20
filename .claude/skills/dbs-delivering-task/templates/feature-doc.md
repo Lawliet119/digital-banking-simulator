@@ -79,7 +79,7 @@ Rủi ro và cách lùi. **Quyết định ở G3:** ghi lại (agent tự quy�
 ![Mô tả](screenshots/DBS-<n>/01-ten.png)
 
 - **Lệch so với kế hoạch:** nêu rõ từng chỗ, kèm lý do và **quyết định agent tự duyệt** (gate phụ), ghi trước khi làm. Chỗ lệch chưa ghi lý do thì chưa qua G4.
-- **Bàn giao cho vai khác:** vai nào, việc gì, đề xuất, và **ID dòng `BL-NNN` đã thêm vào [`docs/BACKLOG.md`](../BACKLOG.md)** (gồm cả DoD chưa đạt); hoặc "không có".
+- **Bàn giao cho vai khác:** vai nào, việc gì, đề xuất, và **ID dòng `BL-NNN` đã thêm vào [`docs/BACKLOG.md`](../BACKLOG.md)** (gồm cả DoD chưa đạt; mỗi dòng đủ ba cột Ưu tiên, Xử lý, Hạn); hoặc "không có".
 
 ## 9. Tài liệu đã cập nhật
 
@@ -93,4 +93,4 @@ Danh sách file docs khác đã sửa trong PR này (ghi cả `BL-NNN` đã thê
 - [ ] `git diff --stat main...HEAD` khớp danh sách file ở §7; mỗi file lạ có quyết định gate phụ ghi ở §8
 - [ ] Bốn lệnh kiểm tra (hoặc baseline của loại task) chạy lúc bàn giao, có số đếm
 - [ ] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc đang là Plan approved (chuyển thành Implemented sau khi G4 qua)
-- [ ] Việc bàn giao cho vai khác và mọi DoD chưa đạt đã ghi ở §8 **và** có dòng `BL-NNN` trong `docs/BACKLOG.md`; dòng backlog task này đã xử lý thì đã xóa
+- [ ] Việc bàn giao cho vai khác và mọi DoD chưa đạt đã ghi ở §8 **và** có dòng `BL-NNN` trong `docs/BACKLOG.md` (`check-backlog.mjs` sạch); dòng backlog task này đã xử lý thì đã xóa
