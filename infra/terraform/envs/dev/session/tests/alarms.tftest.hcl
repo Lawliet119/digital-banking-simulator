@@ -113,6 +113,7 @@ run "all_alarms_notify_the_topic" {
           aws_cloudwatch_metric_alarm.risk_config_invalid,
           aws_cloudwatch_metric_alarm.risk_rule_error,
           aws_cloudwatch_metric_alarm.risk_ai_fallback_rate,
+          aws_cloudwatch_metric_alarm.risk_flag_rate,
           aws_cloudwatch_metric_alarm.reconciliation,
           aws_cloudwatch_metric_alarm.redis_node_missing,
           aws_cloudwatch_metric_alarm.redis_fallback,
@@ -131,7 +132,7 @@ run "all_alarms_notify_the_topic" {
 
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.queue_age) == 2
-    error_message = "17 session alarms: 2 queue age + 15 others (21 with the 4 DLQ alarms of base)"
+    error_message = "18 session alarms: 2 queue age + 16 others (22 with the 4 DLQ alarms of base)"
   }
 }
 
@@ -477,6 +478,7 @@ run "alarms_follow_metrics_namespace" {
       alltrue([for q in aws_cloudwatch_metric_alarm.redis_fallback.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
       alltrue([for q in aws_cloudwatch_metric_alarm.reconciliation.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
       alltrue([for q in aws_cloudwatch_metric_alarm.risk_rule_error.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
+      alltrue([for q in aws_cloudwatch_metric_alarm.risk_flag_rate.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
       alltrue([for q in aws_cloudwatch_metric_alarm.rate_limited.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
       alltrue([for q in aws_cloudwatch_metric_alarm.api_5xx_rate.metric_query : q.metric[0].namespace == "DBS/Backend-alm" if !q.return_data]) &&
       aws_cloudwatch_metric_alarm.transfer_latency_p95.namespace == "DBS/Backend-alm" &&
@@ -612,6 +614,75 @@ run "risk_ai_fallback_rate_alarm" {
       toset([for q in aws_cloudwatch_metric_alarm.risk_ai_fallback_rate.metric_query : one(q.metric).dimensions["AiStatus"] if length(q.metric) > 0]) == toset(["SUCCEEDED", "CONFIG_INVALID", "REFUSED", "INVALID_RESPONSE", "UNAVAILABLE", "BUDGET_EXHAUSTED"])
     )
     error_message = "AI fallback rate alarm must compute fallback / (SUCCEEDED + fallback) via SUM(METRICS(\"fb_\")), > 10%, notBreaching"
+  }
+}
+
+# TC-188-01, 02 (DBS-188): cờ trên 1.000 giao dịch > 20 trong 24 giờ, chỉ khi có >= 1.000 giao dịch. Số tối thiểu nằm TRONG biểu thức
+# (không chỉ trong mô tả): đổi 1000 thành 1, bỏ IF hay đổi > thành >= phải làm test đỏ.
+run "risk_flag_rate_alarm" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.risk_flag_rate.alarm_name == "dbs-dev-risk-flag-rate" &&
+      aws_cloudwatch_metric_alarm.risk_flag_rate.threshold == 20 &&
+      aws_cloudwatch_metric_alarm.risk_flag_rate.comparison_operator == "GreaterThanThreshold" &&
+      aws_cloudwatch_metric_alarm.risk_flag_rate.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.risk_flag_rate.datapoints_to_alarm == 1 &&
+      aws_cloudwatch_metric_alarm.risk_flag_rate.treat_missing_data == "notBreaching"
+    )
+    error_message = "flag rate: > 20 per 1,000, 1 evaluation period, 1 datapoint, notBreaching"
+  }
+
+  assert {
+    condition     = one([for q in aws_cloudwatch_metric_alarm.risk_flag_rate.metric_query : q.expression if q.return_data]) == "IF(d >= 1000, 1000 * FILL(f, 0) / d, 0)"
+    error_message = "flag rate expression must be IF(d >= 1000, 1000 * FILL(f, 0) / d, 0): the minimum volume is part of the condition"
+  }
+
+  assert {
+    condition     = length([for q in aws_cloudwatch_metric_alarm.risk_flag_rate.metric_query : q if q.return_data]) == 1
+    error_message = "exactly one returned series (the rate), the two counters are inputs only"
+  }
+}
+
+# TC-188-03: hai counter của DBS-187 ở bộ dimension tổng [Role] (alarm không dùng được SEARCH), Sum, một bucket 24 giờ
+run "risk_flag_rate_alarm_metrics_and_window" {
+  command = plan
+
+  assert {
+    condition = (
+      toset([for q in aws_cloudwatch_metric_alarm.risk_flag_rate.metric_query : q.id if !q.return_data]) == toset(["f", "d"]) &&
+      one([for q in aws_cloudwatch_metric_alarm.risk_flag_rate.metric_query : q.metric[0].metric_name if q.id == "f"]) == "risk_flag_total" &&
+      one([for q in aws_cloudwatch_metric_alarm.risk_flag_rate.metric_query : q.metric[0].metric_name if q.id == "d"]) == "risk_decision_total"
+    )
+    error_message = "flag rate: f = risk_flag_total, d = risk_decision_total, nothing else"
+  }
+
+  assert {
+    condition = alltrue([for q in aws_cloudwatch_metric_alarm.risk_flag_rate.metric_query : (
+      q.metric[0].namespace == "DBS/Backend" &&
+      jsonencode(q.metric[0].dimensions) == jsonencode({ Role = "worker" }) &&
+      q.metric[0].stat == "Sum" &&
+      q.metric[0].period == 86400
+    ) if !q.return_data])
+    error_message = "flag rate inputs: DBS/Backend, dimension set [Role] with Role=worker only, Sum, 86400 s"
+  }
+
+  assert {
+    condition     = alltrue([for q in aws_cloudwatch_metric_alarm.risk_flag_rate.metric_query : q.metric[0].period * aws_cloudwatch_metric_alarm.risk_flag_rate.evaluation_periods == 86400 if !q.return_data])
+    error_message = "period x evaluation periods must be exactly 24 hours"
+  }
+}
+
+# TC-188-07: người nhận thư biết ngưỡng, số tối thiểu và cửa sổ, và hiểu ALARM giữ tới khi đợt cờ ra khỏi 24 giờ
+run "risk_flag_rate_alarm_description" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for s in ["20", "1.000", "24 giờ", "dbs-dev-overview"] : strcontains(aws_cloudwatch_metric_alarm.risk_flag_rate.alarm_description, s)
+    ])
+    error_message = "flag rate description must name the 20 per 1,000 target, the 1,000-transfer minimum, the 24-hour window and the dashboard"
   }
 }
 

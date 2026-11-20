@@ -1,13 +1,13 @@
-# Alarm CloudWatch của tài nguyên session (docs/03 §14, BL-051, BL-117, BL-127, BL-179, BL-181, BL-182, BL-188, BL-235, DBS-163, DBS-177).
+# Alarm CloudWatch của tài nguyên session (docs/03 §14, BL-051, BL-117, BL-127, BL-179, BL-181, BL-182, BL-188, BL-235, DBS-163, DBS-177, DBS-188).
 # Dựng và xóa cùng phiên: tuổi queue, outbox, Redis, fallback, latency, 5xx đều vô nghĩa khi worker, Valkey, api không chạy, và
 # alarm "thiếu dữ liệu = vi phạm" sẽ kêu mãi sau destroy. Alarm DLQ > 0 và topic SNS ở base/alarms.tf (sống qua destroy).
 # Mọi alarm gửi vào topic SNS của base (`alarm_topic_arn`), cả lúc báo (alarm_actions) và lúc hết (ok_actions).
 # Tag lấy từ default_tags của provider (locals.tags), alarm hỗ trợ tag nên không cần khai thêm.
 #
-# Chi phí: 17 alarm ở đây (+ 4 alarm DLQ ở base = 21). Alarm chuẩn 0,10 USD/alarm/tháng; alarm dùng biểu thức metric
+# Chi phí: 18 alarm ở đây (+ 4 alarm DLQ ở base = 22). Alarm chuẩn 0,10 USD/alarm/tháng; alarm dùng biểu thức metric
 # (SUM(METRICS()) / MAX(METRICS()) / công thức tỉ lệ) bị tính theo số metric được tham chiếu: `risk_rule_error` và
 # `risk_ai_fallback_rate` mỗi cái 6 metric, `read_latency_p95` 3 metric, `reconciliation`, `redis_fallback`, `rate_limited`,
-# `api_5xx_rate` mỗi cái 2; còn lại 1 metric mỗi alarm. Tổng cỡ 3,7 USD/tháng nếu chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều.
+# `api_5xx_rate`, `risk_flag_rate` mỗi cái 2; còn lại 1 metric mỗi alarm. Tổng cỡ 3,9 USD/tháng nếu chạy cả tháng; tính theo giờ nên phiên ngắn rẻ hơn nhiều.
 #
 # Dimension: bộ đếm của ứng dụng (MetricsService.writeCounters) xuất ở bộ `[Role, ...nhãn]` và, với counter có `roleTotal`
 # (`risk_config_redis_fallback_total`, `risk_decision_total`, `risk_flag_total`), thêm bộ tổng `[Role]`; KHÔNG có bộ `[]`; gauge
@@ -31,6 +31,12 @@ locals {
 
   # Rule của risk (R1..R6, ADR-14).
   risk_rules = ["R1", "R2", "R3", "R4", "R5", "R6"]
+
+  # SLO cảnh báo gian lận (docs/03 §14, NFR-FRD-02, chốt 2026-10-11): <= 20 cờ trên 1.000 giao dịch, 24 giờ, chỉ khi có >= 1.000
+  # giao dịch. Là hợp đồng đã chốt, không phải núm vặn nên là locals chứ không phải biến (DBS-188).
+  risk_flag_rate_threshold_per_1000 = 20
+  risk_flag_rate_min_transfers      = 1000
+  risk_flag_rate_window_seconds     = 86400
 
   # Các route đọc (số dư, lịch sử) cho SLO latency đọc p95 < 150 ms (docs/03 §14, DBS-145).
   read_routes = {
@@ -259,6 +265,65 @@ resource "aws_cloudwatch_metric_alarm" "risk_ai_fallback_rate" {
         period      = 300
         stat        = "Sum"
       }
+    }
+  }
+
+  alarm_actions = local.alarm_actions
+  ok_actions    = local.alarm_actions
+}
+
+# --- Cờ trên 1.000 giao dịch vượt mục tiêu (DBS-188, BL-340) ---------------------------------------------------------
+# SLO: <= 20 cờ / 1.000 giao dịch trong 24 giờ trượt, chỉ khi có >= 1.000 giao dịch (docs/03 §14). Hai counter của DBS-187 ở
+# bộ dimension tổng `[Role]` (alarm không dùng được SEARCH): `f` = risk_flag_total (một lần mỗi cờ MEDIUM/HIGH ghi), `d` =
+# risk_decision_total (một lần mỗi TRANSFER được chấm; nạp tiền không chấm). `FILL(f, 0)` vì app chỉ phát dòng khi delta > 0:
+# 24 giờ không có cờ thì `f` không có điểm. `d >= 1000` là số giao dịch tối thiểu: dưới đó trả 0 để một cờ trên vài trăm giao
+# dịch không báo ảo.
+# Cửa sổ trượt: CloudWatch alarm không có tổng trượt, nhưng một chu kỳ 86400 s là MỘT bucket bắt đầu tại `bây giờ − 24 giờ` (đã
+# quan sát trên alarm thật: StateReason ghi mốc đầu bucket), nên mỗi lần đánh giá là tổng của 24 giờ gần nhất. Không dùng
+# "3600 s × 24 chu kỳ": mỗi chu kỳ là một tỉ lệ riêng của một giờ, không cộng được, và số tối thiểu sẽ áp cho từng giờ.
+# Hệ quả (docs/features/DBS-188-flag-rate-alarm.md §2.1): đo tỉ lệ 24 giờ chứ không phải bùng phát ngắn (mẫu số lớn pha loãng);
+# giữ ALARM tới khi đợt cờ ra khỏi 24 giờ hoặc khối lượng pha loãng về <= 20; dưới 1.000 giao dịch trong 24 giờ không bao giờ
+# báo; chỉ Role=worker (APP_ROLE=both local phát Role=both). Không có dữ liệu = notBreaching: worker chết đã có alarm tuổi outbox.
+resource "aws_cloudwatch_metric_alarm" "risk_flag_rate" {
+  alarm_name        = "dbs-dev-risk-flag-rate"
+  alarm_description = "Cảnh báo gian lận vượt ${local.risk_flag_rate_threshold_per_1000} cờ trên 1.000 giao dịch trong 24 giờ gần nhất, chỉ tính khi có ít nhất ${local.risk_flag_rate_min_transfers} giao dịch được chấm (SLO docs/03 §14, NFR-FRD-02, DBS-188). Có thể là luật báo nhầm hàng loạt, một đợt gian lận thật hoặc cấu hình luật vừa đổi: xem dashboard dbs-dev-overview (cờ theo mức, mode, phần AI), rà phiên bản luật rồi tinh chỉnh (UC-12). Alarm giữ ALARM tới khi đợt cờ ra khỏi cửa sổ 24 giờ."
+
+  threshold           = local.risk_flag_rate_threshold_per_1000
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  treat_missing_data  = "notBreaching"
+
+  metric_query {
+    id          = "rate"
+    expression  = "IF(d >= ${local.risk_flag_rate_min_transfers}, 1000 * FILL(f, 0) / d, 0)"
+    label       = "Cờ / 1.000 giao dịch (24 giờ)"
+    return_data = true
+  }
+
+  metric_query {
+    id          = "f"
+    return_data = false
+
+    metric {
+      namespace   = var.metrics_namespace
+      metric_name = "risk_flag_total"
+      dimensions  = { Role = local.alarm_role_worker }
+      period      = local.risk_flag_rate_window_seconds
+      stat        = "Sum"
+    }
+  }
+
+  metric_query {
+    id          = "d"
+    return_data = false
+
+    metric {
+      namespace   = var.metrics_namespace
+      metric_name = "risk_decision_total"
+      dimensions  = { Role = local.alarm_role_worker }
+      period      = local.risk_flag_rate_window_seconds
+      stat        = "Sum"
     }
   }
 
