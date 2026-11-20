@@ -1,0 +1,87 @@
+{
+  "freezeId": "DBS-168",
+  "frozenOn": "2026-11-21",
+  "baseCommit": "9213899483fb155f3cc93b019461ed3484928cc5",
+  "evaluationSeed": "dbs-split-v1",
+  "tune": {
+    "csvSha256": "c387b43605d8a9be05dd8288490130295c6d8928c66fb2c16d2f9cbae36f1b01",
+    "transactions": 101551,
+    "aiCaptureSha256": "24d8be17c96843689a3c24088d6831ef35ff09c42e14bd623318bf1485ca6276"
+  },
+  "modes": {
+    "rule_only": {
+      "evaluationVersion": 4,
+      "configFile": "src/modules/risk/evaluation/configs/v4.json",
+      "configSha256": "c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8"
+    },
+    "rules_with_external_ai": {
+      "evaluationVersion": 5,
+      "configFile": "src/modules/risk/evaluation/configs/v4-ai-r4.json",
+      "configSha256": "426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9",
+      "ai": {
+        "provider": "openai",
+        "model": "gpt-6-luna",
+        "responseModels": [
+          "gpt-6-luna"
+        ],
+        "rubricFile": "src/modules/risk/evaluation/rubrics/r4.txt",
+        "rubricFileSha256": "0640e98b4359bfb5dba55c4ee1ab553c0a321e9298e94a79c7ee77a9c74680b5",
+        "rubricSha256": "96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff",
+        "threshold": 0.65,
+        "weight": 40,
+        "maxAdmissionDelayMs": 1000,
+        "requestTimeoutMs": 20000
+      },
+      "capture": {
+        "seed": "dbs-split-v1",
+        "normalSample": 1000000,
+        "timeoutMs": 20000
+      }
+    }
+  },
+  "dbSeed": {
+    "version": 1,
+    "configFile": "src/modules/risk/evaluation/configs/v1.json",
+    "configSha256": "876bdd9750a0067039dc5af59d318c7767f535e7dea8ed30ecbba886ec127aa8"
+  },
+  "engine": {
+    "files": {
+      "src/common/events/index.ts": "572b3847236e1d59cdc34e4ed60e88cf00febf8f934b723f4fa4a3e9993f69af",
+      "src/common/events/utc-time.ts": "057a2f1660ec0bbd09793253d36b912590987070a358ed68510ade07c2dad9d8",
+      "src/common/money/index.ts": "450d523756559093e371d25c2e5236bd5ebce9a5e1465bce90f3f7df05372ff1",
+      "src/common/money/balance.ts": "621b28e46afd5da19cac278fe8523763f95aab7a1911f8986c7f495a42a1ccae",
+      "src/common/money/money.ts": "12faa7fdec68e5331b1bcf9428e0100e9fce02b0ec9a1319578693a406860bd8",
+      "src/modules/risk/evaluation/freeze.ts": "99c6d95aedb9a4c171c4ffb7776831be1b7e32b2666ec8e58163c536c3680dfb",
+      "src/scripts/freeze-verify.ts": "de72720d1c2eafccff5c42f177818df171c1e8bb796528bde5e68eb1ec1bc1d7",
+      "src/modules/risk/ai/ai-contract.ts": "b90514e0994560d7503b83748683d64784454058b67c7c4e9a02d32762217b94",
+      "src/modules/risk/ai/feature-projection.ts": "42976b020e85539153df0a77610e62786e65954ee835eb9140b78bd6d4f147ae",
+      "src/modules/risk/ai/openai-decisions.ts": "d4c43ba9b01e3980de63269484f470d53f4ae9a3f3471597f478a5a8a18c5142",
+      "src/modules/risk/ai/rubric.ts": "e650643069fd4bd96f66203e01978922727d6778c02c6c022a018cf0ea845a60",
+      "src/modules/risk/config/rule-params.ts": "98585cbef1f7130aa613dca6c5d09b1a110ce59879c5a468550b7aa0014dff71",
+      "src/modules/risk/config/rule-set.ts": "c405d82c1f82462874f482cc7ad940155fcb4de3df60482abde40e5824670ccf",
+      "src/modules/risk/evaluation/capture-ai.ts": "6186e9e90190b4a2b1f3b653b3dfef3691684c55babd109fa6e12131ffbada2f",
+      "src/modules/risk/evaluation/compare-modes.ts": "6f64beb948528652f68d14bf7735d5c9ac8d4067bbe3422b919e9695005bce65",
+      "src/modules/risk/evaluation/customer-split.ts": "9fcf21179eabb3d45bbcc3f2d70d50454b14b96273b29fa2cc0839a1e5430fc6",
+      "src/modules/risk/evaluation/evaluate-rules.ts": "eb18a80fd3ee4f14bc7f4f6d9b6808424603f1152bb2ab936fbd5b082148789b",
+      "src/modules/risk/features/export-features.ts": "222074a44377eff7e1716de631fcdec88e305052f460dd7d70d0ff7a10392290",
+      "src/modules/risk/features/feature-provider.ts": "a0b7701cd932b68507ca76ff56e279a49773e34c88ec33475e2464ea7ca2c4d8",
+      "src/modules/risk/features/offline-feature-provider.ts": "3ef930a4fa1ac3912da947b2360833208f4738f4e0d80c02685eb809de4cf385",
+      "src/modules/risk/risk-level.ts": "60bbe281e8284823d13112bd333cfc54c2b12105de9cc202017efb58b305c976",
+      "src/modules/risk/risk-rule-error.ts": "de8fa0f3b8e6b019b969af7c34971e6dd14a8b3bf82998b2c2a16243139a7c11",
+      "src/modules/risk/risk-time.ts": "7f9a20a782d5ba943f4b5a73309d028fe8130d602583618b7778e40719b71d5c",
+      "src/modules/risk/rules/explanation-format.ts": "035ac371502fadbb1e823df7b518fe9c86ba08ba77a3e61637a8b936b79649b8",
+      "src/modules/risk/rules/r1-velocity.rule.ts": "719f9d2c2402f5cf931c55fbaae08cf657b2b365f1e33c5051f17e3959b06797",
+      "src/modules/risk/rules/r2-unusual-amount.rule.ts": "b94923f02a2d6a87e04609240cad5a554a84764a5edcfc70f300e4caf29523ed",
+      "src/modules/risk/rules/r3-new-account-large-transfer.rule.ts": "4f57d34e6d1e47b15e8680bf54ef46b48d925c774931ce079d7245019d7cdc8e",
+      "src/modules/risk/rules/r4-round-trip.rule.ts": "4f6ab5e3693b270477baaa41f0d1c5614cce96b569f911a84932148d4e799575",
+      "src/modules/risk/rules/r5-fan-out.rule.ts": "17289c5a8c55bcc222abb525fe2b6e4e01b5ce03525f94fe2b1f6917a87a5502",
+      "src/modules/risk/rules/r6-drain.rule.ts": "cf25581101e58ccae0f930da372f5caa7aab5645195628592c0c8499ef8708d9",
+      "src/modules/risk/rules/rule.ts": "ba6e639419361653eb250cc04f443184be744b20ecc26b3178cd57dc3835538f",
+      "src/modules/risk/scoring.service.ts": "40c47c721ca9e6106d50339b65dbdc6b2cc222b43bf00a3cc9e64390a2ebacc4",
+      "src/scripts/capture-ai.ts": "102511718d3fe2528f345df2e965b5069d6ce9bbc2c8265e5c72ecfda57fe653",
+      "src/scripts/compare-modes.ts": "307b22a6ae6ec396edf0b924462e9c64879fd8c6ef2a5257c3f3660a4d46f879",
+      "src/scripts/evaluate-rules.ts": "af5a1f51149736a1f3357595011809922277685015ba4eaa8ed73f9cb7c0efb1"
+    }
+  },
+  "amendments": []
+}

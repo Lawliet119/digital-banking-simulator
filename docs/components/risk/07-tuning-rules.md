@@ -86,7 +86,7 @@ Rubric gốc (`REVIEW_RUBRIC`) cho AI nhiều giao dịch sạch điểm 0,5–0
 | r3 | Điểm theo mức: tín hiệu yếu +0,1–0,15, mạnh +0,25–0,4 | 0,956 | 55,66% (17,2 cảnh báo/1.000) |
 | **r4** | r3, tín hiệu yếu +0,15–0,2, thêm "số dư thấp so với số tiền" | không đo | **56,07%** (17,3 cảnh báo/1.000) |
 
-Số lần thử: 4 rubric (kể cả rubric gốc), mỗi rubric 60 cặp ngưỡng/trọng số trên train: 240 cấu hình AI. r4 được chọn vì recall train cao nhất. Văn bản: `backend/src/modules/risk/evaluation/rubrics/r4.txt` (sha256 `0640e98b4359bfb5dba55c4ee1ab553c0a321e9298e94a79c7ee77a9c74680b5`; `rubricSha256` trong capture `96e0b08f…a9f0ff`). `REVIEW_RUBRIC` trong code chưa đổi: đổi nó là quyết định ở bước đóng băng (DBS-168).
+Số lần thử: 4 rubric (kể cả rubric gốc), mỗi rubric 60 cặp ngưỡng/trọng số trên train: 240 cấu hình AI. r4 được chọn vì recall train cao nhất. Văn bản: `backend/src/modules/risk/evaluation/rubrics/r4.txt` (sha256 `0640e98b4359bfb5dba55c4ee1ab553c0a321e9298e94a79c7ee77a9c74680b5`; `rubricSha256` trong capture `96e0b08f…a9f0ff`). `REVIEW_RUBRIC` trong code không đổi (quyết định ở bước đóng băng DBS-168: runtime lấy rubric từ `ai.rubric` của version, hằng chỉ là mặc định của script `capture-ai`; r4 được đóng băng trong [`v4-ai-r4.json`](../../../backend/src/modules/risk/evaluation/configs/v4-ai-r4.json), xem [09](09-freeze-rule-config.md)). Lưu ý hai hash: `0640e98b…` ở trên là hash của **file** `r4.txt`; `rubricSha256` ghi trong capture (`96e0b08f…a9f0ff`) là hash của chuỗi đã `trim()`.
 
 Phép so sánh chính thức một lần, B0 = luật v4, AI = r4, ngưỡng 0,65, trọng số 40 (chọn trên train): [`evidence/ai-gate-compare-v4-r4.json`](evidence/ai-gate-compare-v4-r4.json), capture [`evidence/ai-gate-capture-tune-r4.jsonl`](evidence/ai-gate-capture-tune-r4.jsonl) (sha256 `24d8be17c96843689a3c24088d6831ef35ff09c42e14bd623318bf1485ca6276`).
 
@@ -129,13 +129,12 @@ npm run --silent compare-modes -- --input <tune.csv> \
 
 ## Đưa vào hệ thống
 
-Các file `v2`–`v4` mới chỉ nằm ở repo để đo. Tạo version thật trong `risk_rule_sets` và kích hoạt nó đổi hành vi chấm điểm của hệ thống đang chạy, nên làm qua API cấu hình luật (UC-12, DBS-160) theo quyết định của nhóm, sau khi cấu hình được đóng băng (DBS-168).
+Các file `v2`–`v4` mới chỉ nằm ở repo để đo. Tạo version thật trong `risk_rule_sets` và kích hoạt nó đổi hành vi chấm điểm của hệ thống đang chạy, nên làm qua API cấu hình luật (UC-12, DBS-160) theo quyết định của nhóm, **sau** holdout. Cấu hình đã được đóng băng ở [09](09-freeze-rule-config.md) (DBS-168): `rule_only` nhãn 4 (`v4.json`) và `rules_with_external_ai` nhãn 5 (`v4-ai-r4.json`); bảng `risk_rule_sets` vẫn chỉ có version 1.
 
 ## Còn lại sau DBS-161
 
 | Việc | Task |
 |---|---|
-| Đóng băng cấu hình (luật, ngưỡng, trọng số, rubric) | DBS-168 |
 | Chạy holdout đúng một lần | DBS-169 |
 | Đo p95 giao dịch → cờ ở 120 RPS cho B0 và B2 | tải trên hệ thống thật |
 | Ghi quyết định go/no-go vào ADR-14 | sau các bước trên |
