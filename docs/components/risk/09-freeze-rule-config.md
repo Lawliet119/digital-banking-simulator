@@ -10,7 +10,7 @@ Từ thời điểm này cấu hình luật dùng cho holdout **không được 
 |---|---|
 | Ngày đóng băng | 2026-11-21 |
 | Commit cơ sở | `9213899483fb155f3cc93b019461ed3484928cc5` (`origin/main` lúc đóng băng; đã có `v1`–`v4.json`, `r4.txt` và mã engine) |
-| Commit đóng băng | SHA squash merge của PR DBS-168: **chưa có lúc viết**; được điền ở đây trong một PR docs ngay sau merge (ghi cả SHA lẫn ngày giờ), trước khi #6 giao holdout. Cho tới lúc đó `git log -- backend/src/modules/risk/evaluation/configs/freeze-manifest.json` chỉ ra commit |
+| Commit đóng băng | `8fc4753abc6b24b250c60f758bda6834e054a133`: squash merge của PR #219 (DBS-168) vào `main` lúc 2026-11-20T19:50:50Z (2026-11-21 02:50 giờ Việt Nam). Mọi hash ở §2 và dấu vân tay ở §1 được kiểm lại trên đúng commit này bằng `freeze:verify` (`FROZEN AS RECORDED`) |
 | Seed | `dbs-split-v1`, một chuỗi ba vai trò: (1) seed chia khách thành train/validation của tập tune; (2) seed lấy mẫu của `capture-ai`; (3) seed mặc định công khai của bộ sinh dữ liệu `split.mjs` (DBS-146 A7-i). Seed bí mật sinh tập holdout **không** nằm trong bản ghi này (thuộc #6; không ghi ở nơi #4 đọc được) |
 | Dữ liệu đã dùng để chọn | tập tune seed `dbs-split-v1`, 101.551 giao dịch, sha256 CSV `c387b43605d8a9be05dd8288490130295c6d8928c66fb2c16d2f9cbae36f1b01`; capture AI của rubric r4 sha256 `24d8be17c96843689a3c24088d6831ef35ff09c42e14bd623318bf1485ca6276` ([07](07-tuning-rules.md)) |
 | Dấu vân tay mã engine | `b62a0ab2a528e34301df4cd91ccaf5aec6d1b8efc8597be1d305008d760e5d0f` (sha256 trên tên và hash của 35 file ở §3; `freeze:verify` in lại) |
