@@ -1,4 +1,3 @@
-import { writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import {
   ChangeMessageVisibilityCommand,
@@ -9,6 +8,7 @@ import {
   type Message,
 } from '@aws-sdk/client-sqs';
 import { ORIGINAL_SENT_TIMESTAMP, originalSentTimestampOf } from '@libs/sqs';
+import { assertSafeOutputPath, createExclusiveFile, FileExistsError } from './dlq-files';
 
 /**
  * Age check for a DLQ before a redrive (BL-210, `docs/runbooks/dlq-redrive.md` section 3).
@@ -32,7 +32,7 @@ export const DEFAULT_MAX_AGE_DAYS = 6;
 /** Long enough to hold every message for the whole scan (the runbook uses the same 1800 s). */
 const SCAN_VISIBILITY_SECONDS = 1800;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** What the scan needs from a queue; `awsDlqPort` implements it, the unit tests fake it. */
 export interface DlqPort {
@@ -76,7 +76,8 @@ export interface DlqAgeCheckOptions {
   maxRounds?: number;
 }
 
-function eventIdOf(body: string | undefined): string | undefined {
+/** The `eventId` of a message body, only when it is a UUID; `undefined` for anything else. */
+export function eventIdOf(body: string | undefined): string | undefined {
   try {
     const parsed: unknown = JSON.parse(body ?? '');
     const id = (parsed as { eventId?: unknown } | null)?.eventId;
@@ -92,14 +93,15 @@ export function ageOf(message: Message, now: number): number | undefined {
   return sent === undefined ? undefined : Math.max(0, now - sent);
 }
 
-export async function runDlqAgeCheck(
+/**
+ * Receives the whole DLQ: every message once, with its newest receipt handle (an older handle may
+ * no longer be accepted). `complete` is false when `maxRounds` ran out before the queue was empty.
+ * Used by `dlq:age-check` and `dlq:resend`; the messages stay hidden until the caller hands them back.
+ */
+export async function drainDlq(
   port: DlqPort,
-  options: DlqAgeCheckOptions,
-): Promise<DlqAgeReport> {
-  if (options.deleteStale && !options.saveStale)
-    throw new Error('Deleting stale messages needs saveStale: nothing may be deleted unsaved');
-  const maxRounds = options.maxRounds ?? 200;
-  // Newest receipt handle per message: an older handle may no longer be accepted.
+  maxRounds = 200,
+): Promise<{ seen: Map<string, Message>; complete: boolean }> {
   const seen = new Map<string, Message>();
   let complete = false;
   for (let round = 0; round < maxRounds; round++) {
@@ -110,6 +112,16 @@ export async function runDlqAgeCheck(
       break;
     }
   }
+  return { seen, complete };
+}
+
+export async function runDlqAgeCheck(
+  port: DlqPort,
+  options: DlqAgeCheckOptions,
+): Promise<DlqAgeReport> {
+  if (options.deleteStale && !options.saveStale)
+    throw new Error('Deleting stale messages needs saveStale: nothing may be deleted unsaved');
+  const { seen, complete } = await drainDlq(port, options.maxRounds ?? 200);
 
   const stale: Message[] = [];
   const fresh: Message[] = [];
@@ -225,7 +237,8 @@ export const USAGE = `Usage: npm run --silent dlq:age-check -- --queue-url <DLQ 
   --endpoint-url <url>       SQS endpoint, for ElasticMQ (http://localhost:9324)
   --max-age-days <n>         replay limit in days (default ${DEFAULT_MAX_AGE_DAYS})
   --delete-stale             delete the stale messages from the DLQ after saving them
-  --quarantine-file <path>   where --delete-stale saves them (JSON lines, bodies included)
+  --quarantine-file <path>   where --delete-stale saves them (JSON lines, bodies included); a new file:
+                             an existing one is refused (exit 2, nothing deleted), missing folders are created
 
 Exit code: 0 no stale message is left in the DLQ, 1 stale messages remain (do not redrive),
 2 the scan failed or did not see every message (do not redrive).`;
@@ -237,7 +250,7 @@ export interface CliIo {
   now: () => number;
   /** For tests: a ready port instead of one built from the arguments. */
   port?: DlqPort;
-  /** For tests: the file writer. */
+  /** For tests: the file writer (default: `createExclusiveFile`, which never overwrites). */
   writeFile?: (path: string, text: string) => void;
 }
 
@@ -289,6 +302,17 @@ export async function runDlqAgeCheckCli(argv: string[], io: CliIo): Promise<numb
     io.stderr(`--delete-stale needs --quarantine-file: nothing is deleted unsaved\n${USAGE}\n`);
     return 2;
   }
+  if (deleteStale && io.writeFile === undefined) {
+    // Before any message is received, so a refused path hides nothing (BL-360).
+    try {
+      assertSafeOutputPath(quarantineFile as string);
+    } catch (error) {
+      io.stderr(`dlq-age-check failed: ${(error as Error).name}
+${(error as Error).message}
+`);
+      return 2;
+    }
+  }
 
   const client =
     io.port === undefined
@@ -299,8 +323,7 @@ export async function runDlqAgeCheckCli(argv: string[], io: CliIo): Promise<numb
       : undefined;
   try {
     const port = io.port ?? awsDlqPort(client as SQSClient, queueUrl);
-    const write =
-      io.writeFile ?? ((path: string, text: string) => writeFileSync(path, text, { mode: 0o600 }));
+    const write = io.writeFile ?? ((path: string, text: string) => createExclusiveFile(path, text));
     const report = await runDlqAgeCheck(port, {
       now: io.now(),
       maxAgeMs: days * DAY_MS,
@@ -329,6 +352,9 @@ export async function runDlqAgeCheckCli(argv: string[], io: CliIo): Promise<numb
     return report.stale.length - report.deleted > 0 ? 1 : 0;
   } catch (error) {
     io.stderr(`dlq-age-check failed: ${(error as Error).name}\n`);
+    // A fixed sentence only: the quarantine file holds message bodies and is never overwritten (BL-360).
+    if (error instanceof FileExistsError)
+      io.stderr(`${error.message}. Nothing was deleted and every message was handed back.\n`);
     return 2;
   } finally {
     client?.destroy();

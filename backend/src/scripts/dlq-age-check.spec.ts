@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Message } from '@aws-sdk/client-sqs';
 import {
   ageOf,
@@ -6,6 +9,7 @@ import {
   runDlqAgeCheckCli,
   type DlqPort,
 } from './dlq-age-check';
+import { createExclusiveFile, FileExistsError } from './dlq-files';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 10, 14, 12, 0, 0);
@@ -239,5 +243,97 @@ describe('BL-210 dlq-age-check command', () => {
     const result = await run(queueArgs, dlq);
     expect(result.code).toBe(2);
     expect(JSON.parse(result.out).failed).toEqual(['a']);
+  });
+});
+
+describe('BL-360 quarantine file is created exclusively', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'bl360-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('TC-BL-01 a file that already exists is refused and keeps its content', () => {
+    const path = join(dir, 'q.jsonl');
+    createExclusiveFile(path, 'first\n');
+    expect(() => createExclusiveFile(path, 'second\n')).toThrow(FileExistsError);
+    expect(readFileSync(path, 'utf8')).toBe('first\n');
+  });
+
+  it('TC-BL-02 missing parent directories are created', () => {
+    const path = join(dir, 'a', 'b', 'q.jsonl');
+    createExclusiveFile(path, 'body\n');
+    expect(readFileSync(path, 'utf8')).toBe('body\n');
+  });
+});
+
+describe('BL-360 dlq-age-check never overwrites the quarantine file', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'bl360-cli-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** The real file writer (no `writeFile` injected). */
+  function run(file: string, dlq: FakeDlq) {
+    const out: string[] = [];
+    const err: string[] = [];
+    return runDlqAgeCheckCli(['--queue-url', 'q', '--delete-stale', '--quarantine-file', file], {
+      stdout: t => out.push(t),
+      stderr: t => err.push(t),
+      env: {},
+      now: () => NOW,
+      port: dlq,
+    }).then(code => ({ code, out: out.join(''), err: err.join('') }));
+  }
+
+  it('TC-BL-03 a second run with the same file name exits 2, deletes nothing and hands every message back', async () => {
+    const file = join(dir, 'sub', 'stale.jsonl');
+    const first = new FakeDlq([
+      message('old-1', 7, { body: '{"eventId":"' + EVENT_ID + '","n":1}' }),
+    ]);
+    expect((await run(file, first)).code).toBe(0);
+    const before = readFileSync(file, 'utf8');
+    expect(before).toContain('old-1');
+
+    const second = new FakeDlq([message('old-2', 8), message('fresh', 1)]);
+    const result = await run(file, second);
+    expect(result.code).toBe(2);
+    expect(result.err).toContain('FileExistsError');
+    expect(second.deleted).toEqual([]);
+    expect(second.released.sort()).toEqual(['fresh', 'old-2']);
+    expect(readFileSync(file, 'utf8')).toBe(before);
+  });
+
+  it('TC-BL-04 an existing file is left alone when nothing is stale', async () => {
+    const file = join(dir, 'stale.jsonl');
+    createExclusiveFile(file, 'earlier\n');
+    const result = await run(file, new FakeDlq([message('fresh', 1)]));
+    expect(result.code).toBe(0);
+    expect(readFileSync(file, 'utf8')).toBe('earlier\n');
+  });
+
+  it('TC-BL-24 a path starting with ~ or inside a git tree is refused before any message is received', async () => {
+    for (const file of ['~/dbs-ops/q.jsonl', 'relative-in-repo.jsonl']) {
+      const dlq = new FakeDlq([message('old', 7)]);
+      const result = await run(file, dlq);
+      expect(result.code).toBe(2);
+      expect(dlq.released).toEqual([]); // nothing was received, so nothing had to be handed back
+      expect(dlq.deleted).toEqual([]);
+    }
+  });
+
+  it('TC-BL-25 a parent that is a regular file exits 2, deletes nothing and hands every message back', async () => {
+    const blocker = join(dir, 'blocker');
+    createExclusiveFile(blocker, 'x');
+    const dlq = new FakeDlq([message('old', 7), message('fresh', 1)]);
+    const result = await run(join(blocker, 'q.jsonl'), dlq);
+    expect(result.code).toBe(2);
+    expect(dlq.deleted).toEqual([]);
+    expect(dlq.released.sort()).toEqual(['fresh', 'old']);
   });
 });

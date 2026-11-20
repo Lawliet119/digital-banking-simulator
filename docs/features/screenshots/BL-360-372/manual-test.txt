@@ -1,0 +1,253 @@
+SHA của commit cuối đổi code: b7c6604 (git log -1 -- 'backend/src/**/*.ts' backend/test)
+
+### M-BL-01 DLQ và queue chính sau seed
+dlq: {"ApproximateNumberOfMessages":"5","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+main: {"ApproximateNumberOfMessages":"0","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+
+### M-BL-03 age-check --delete-stale vào thư mục chưa có
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-age-check.main.ts --queue-url dlqcli-dlq-mwp3i7zy --endpoint-url http://localhost:9324 --delete-stale --quarantine-file ~/dbs-ops/dlq-bl/sub/q.jsonl
+{
+  "checked": 5,
+  "fresh": 4,
+  "stale": [
+    {
+      "messageId": "a221c1dd-c77a-43a8-9841-cfcfc767363f",
+      "eventId": "86122e7f-17e8-43dd-8648-f62a83926801",
+      "ageHours": 168
+    }
+  ],
+  "deleted": 1,
+  "failed": [],
+  "complete": true
+}
+[exit 0]
+file: 1 dòng
+dlq: {"ApproximateNumberOfMessages":"4","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+
+### M-BL-04 thêm một message quá hạn rồi chạy lại cùng tên file
+added one message first sent 8 days ago
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-age-check.main.ts --queue-url dlqcli-dlq-mwp3i7zy --endpoint-url http://localhost:9324 --delete-stale --quarantine-file ~/dbs-ops/dlq-bl/sub/q.jsonl
+dlq-age-check failed: FileExistsError
+The file already exists and is never overwritten: choose a new file name. Nothing was deleted and every message was handed back.
+[exit 2]
+file: 1 dòng (phải vẫn 1)
+dlq: {"ApproximateNumberOfMessages":"5","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+
+### M-BL-05 đường dẫn bắt đầu bằng ~ (không được shell mở rộng)
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-age-check.main.ts --queue-url dlqcli-dlq-mwp3i7zy --endpoint-url http://localhost:9324 --delete-stale --quarantine-file=~/dbs-ops/q2.jsonl
+dlq-age-check failed: UnsafeFilePathError
+The file path starts with ~ or is inside a git tree: use an absolute path outside the repo
+[exit 2]
+dlq: {"ApproximateNumberOfMessages":"5","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+không có thư mục ~ trong backend
+
+### M-BL-06 tham số sai của dlq:resend
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-resend.main.ts --endpoint-url http://localhost:9324 --from-dlq dlqcli-dlq-mwp3i7zy --to-queue dlqcli-main-mwp3i7zy --record-file ~/dbs-ops/dlq-bl/x.jsonl
+choose what to resend: --all or at least one --event-id
+Usage: npm run --silent dlq:resend -- --from-dlq <DLQ url> --to-queue <source queue url> \
+         --record-file <path> (--all | --event-id <uuid> [--event-id <uuid> ...]) [--endpoint-url <url>]
+
+  --from-dlq <url>       the DLQ to take the messages from (required)
+  --to-queue <url>       the queue they go back to (required; must be empty, and its RedrivePolicy,
+                         if any, must point to the DLQ)
+  --record-file <path>   new file: one JSON line per step, no body (required; an existing file is
+                         refused, missing folders are created, not under ~ or inside a git tree)
+  --all                  resend every valid message ... (only after the messages to skip were
+                         dealt with and noted, runbook section 3c)
+  --event-id <uuid>      ... or only the events you name (repeat the option)
+  --endpoint-url <url>   SQS endpoint, for ElasticMQ (http://localhost:9324)
+
+Never sends a message older than 6 days (any copy of the event), without an eventId, or that the
+consumers would refuse; those stay in the DLQ. Check the earlier record files first: an event is resent
+once (runbook section 5).
+
+Exit code: 0 every chosen message was sent, 1 something stays in the DLQ that blocks a redrive (an
+old, invalid or id-less message; with --event-id only the chosen events count) or a chosen event id
+was not found, 2 bad arguments, a queue that is not ready, an incomplete scan, or a failed step.
+[exit 2]
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-resend.main.ts --endpoint-url http://localhost:9324 --from-dlq dlqcli-dlq-mwp3i7zy --to-queue dlqcli-main-mwp3i7zy --record-file ~/dbs-ops/dlq-bl/x.jsonl --event-id abc
+--event-id must be a UUID
+Usage: npm run --silent dlq:resend -- --from-dlq <DLQ url> --to-queue <source queue url> \
+         --record-file <path> (--all | --event-id <uuid> [--event-id <uuid> ...]) [--endpoint-url <url>]
+
+  --from-dlq <url>       the DLQ to take the messages from (required)
+  --to-queue <url>       the queue they go back to (required; must be empty, and its RedrivePolicy,
+                         if any, must point to the DLQ)
+  --record-file <path>   new file: one JSON line per step, no body (required; an existing file is
+                         refused, missing folders are created, not under ~ or inside a git tree)
+  --all                  resend every valid message ... (only after the messages to skip were
+                         dealt with and noted, runbook section 3c)
+  --event-id <uuid>      ... or only the events you name (repeat the option)
+  --endpoint-url <url>   SQS endpoint, for ElasticMQ (http://localhost:9324)
+
+Never sends a message older than 6 days (any copy of the event), without an eventId, or that the
+consumers would refuse; those stay in the DLQ. Check the earlier record files first: an event is resent
+once (runbook section 5).
+
+Exit code: 0 every chosen message was sent, 1 something stays in the DLQ that blocks a redrive (an
+old, invalid or id-less message; with --event-id only the chosen events count) or a chosen event id
+was not found, 2 bad arguments, a queue that is not ready, an incomplete scan, or a failed step.
+[exit 2]
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-resend.main.ts --endpoint-url http://localhost:9324 --from-dlq dlqcli-dlq-mwp3i7zy --to-queue dlqcli-dlq-mwp3i7zy --record-file ~/dbs-ops/dlq-bl/x.jsonl --all
+--from-dlq and --to-queue must be different queues
+Usage: npm run --silent dlq:resend -- --from-dlq <DLQ url> --to-queue <source queue url> \
+         --record-file <path> (--all | --event-id <uuid> [--event-id <uuid> ...]) [--endpoint-url <url>]
+
+  --from-dlq <url>       the DLQ to take the messages from (required)
+  --to-queue <url>       the queue they go back to (required; must be empty, and its RedrivePolicy,
+                         if any, must point to the DLQ)
+  --record-file <path>   new file: one JSON line per step, no body (required; an existing file is
+                         refused, missing folders are created, not under ~ or inside a git tree)
+  --all                  resend every valid message ... (only after the messages to skip were
+                         dealt with and noted, runbook section 3c)
+  --event-id <uuid>      ... or only the events you name (repeat the option)
+  --endpoint-url <url>   SQS endpoint, for ElasticMQ (http://localhost:9324)
+
+Never sends a message older than 6 days (any copy of the event), without an eventId, or that the
+consumers would refuse; those stay in the DLQ. Check the earlier record files first: an event is resent
+once (runbook section 5).
+
+Exit code: 0 every chosen message was sent, 1 something stays in the DLQ that blocks a redrive (an
+old, invalid or id-less message; with --event-id only the chosen events count) or a chosen event id
+was not found, 2 bad arguments, a queue that is not ready, an incomplete scan, or a failed step.
+[exit 2]
+dlq: {"ApproximateNumberOfMessages":"5","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+
+### M-BL-07 queue đích không tồn tại
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-resend.main.ts --endpoint-url http://localhost:9324 --from-dlq dlqcli-dlq-mwp3i7zy --to-queue dlqcli-main-mwp3i7zy-khong-co --record-file ~/dbs-ops/dlq-bl/x.jsonl --all
+dlq-resend failed: QueueDoesNotExist
+[exit 2]
+dlq: {"ApproximateNumberOfMessages":"5","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+
+### M-BL-07b cặp queue sai (queue chính dead-letter tới DLQ khác)
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-resend.main.ts --endpoint-url http://localhost:9324 --from-dlq dlqcli-other-dlq-mwp3i7zy --to-queue dlqcli-main-mwp3i7zy --record-file ~/dbs-ops/dlq-bl/x.jsonl --all
+The destination queue dead-letters to another queue: wrong --from-dlq/--to-queue pair
+Usage: npm run --silent dlq:resend -- --from-dlq <DLQ url> --to-queue <source queue url> \
+         --record-file <path> (--all | --event-id <uuid> [--event-id <uuid> ...]) [--endpoint-url <url>]
+
+  --from-dlq <url>       the DLQ to take the messages from (required)
+  --to-queue <url>       the queue they go back to (required; must be empty, and its RedrivePolicy,
+                         if any, must point to the DLQ)
+  --record-file <path>   new file: one JSON line per step, no body (required; an existing file is
+                         refused, missing folders are created, not under ~ or inside a git tree)
+  --all                  resend every valid message ... (only after the messages to skip were
+                         dealt with and noted, runbook section 3c)
+  --event-id <uuid>      ... or only the events you name (repeat the option)
+  --endpoint-url <url>   SQS endpoint, for ElasticMQ (http://localhost:9324)
+
+Never sends a message older than 6 days (any copy of the event), without an eventId, or that the
+consumers would refuse; those stay in the DLQ. Check the earlier record files first: an event is resent
+once (runbook section 5).
+
+Exit code: 0 every chosen message was sent, 1 something stays in the DLQ that blocks a redrive (an
+old, invalid or id-less message; with --event-id only the chosen events count) or a chosen event id
+was not found, 2 bad arguments, a queue that is not ready, an incomplete scan, or a failed step.
+[exit 2]
+dlq: {"ApproximateNumberOfMessages":"5","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+otherDlq: {"ApproximateNumberOfMessages":"0","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+x.jsonl tồn tại sau M-BL-06/07/07b: no (phải no)
+
+### M-BL-08 queue đích không rỗng
+added one message to the queue
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-resend.main.ts --endpoint-url http://localhost:9324 --from-dlq dlqcli-dlq-mwp3i7zy --to-queue dlqcli-main-mwp3i7zy --record-file ~/dbs-ops/dlq-bl/x.jsonl --all
+The destination queue is not empty: wait until it is drained, then run again
+Usage: npm run --silent dlq:resend -- --from-dlq <DLQ url> --to-queue <source queue url> \
+         --record-file <path> (--all | --event-id <uuid> [--event-id <uuid> ...]) [--endpoint-url <url>]
+
+  --from-dlq <url>       the DLQ to take the messages from (required)
+  --to-queue <url>       the queue they go back to (required; must be empty, and its RedrivePolicy,
+                         if any, must point to the DLQ)
+  --record-file <path>   new file: one JSON line per step, no body (required; an existing file is
+                         refused, missing folders are created, not under ~ or inside a git tree)
+  --all                  resend every valid message ... (only after the messages to skip were
+                         dealt with and noted, runbook section 3c)
+  --event-id <uuid>      ... or only the events you name (repeat the option)
+  --endpoint-url <url>   SQS endpoint, for ElasticMQ (http://localhost:9324)
+
+Never sends a message older than 6 days (any copy of the event), without an eventId, or that the
+consumers would refuse; those stay in the DLQ. Check the earlier record files first: an event is resent
+once (runbook section 5).
+
+Exit code: 0 every chosen message was sent, 1 something stays in the DLQ that blocks a redrive (an
+old, invalid or id-less message; with --event-id only the chosen events count) or a chosen event id
+was not found, 2 bad arguments, a queue that is not ready, an incomplete scan, or a failed step.
+[exit 2]
+dlq: {"ApproximateNumberOfMessages":"5","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+deleted 1 message(s)
+
+### M-BL-09 gửi lại event A
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-resend.main.ts --endpoint-url http://localhost:9324 --from-dlq dlqcli-dlq-mwp3i7zy --to-queue dlqcli-main-mwp3i7zy --record-file ~/dbs-ops/dlq-bl/r1.jsonl --event-id bbfa25ec-7e5c-414c-8ee3-e14194415d5c
+{
+  "scanned": 5,
+  "resent": 1,
+  "duplicatesDeleted": 1,
+  "skipped": [
+    {
+      "messageId": "314cf791-5203-4021-bead-f64765aefbc0",
+      "reason": "no_event_id"
+    },
+    {
+      "messageId": "5b583f5c-3d1b-4016-ad8d-b2d3d943390d",
+      "eventId": "c612a165-c4e9-4734-b744-ef4848f66fbd",
+      "reason": "not_selected"
+    },
+    {
+      "messageId": "91ee691c-34ce-457d-82b7-30bc665b4978",
+      "eventId": "e262920c-f11f-4c34-bf08-f1a4901b2d5e",
+      "reason": "not_selected"
+    }
+  ],
+  "notFound": [],
+  "failed": [],
+  "complete": true,
+  "stoppedEarly": false
+}
+[exit 0]
+--- r1.jsonl
+{"action":"sending","eventId":"bbfa25ec-7e5c-414c-8ee3-e14194415d5c","dlqMessageId":"36e10937-7398-448d-ab16-b782efa821b4","originalSentTimestamp":1794926988328,"at":"…"}
+{"action":"resent","eventId":"bbfa25ec-7e5c-414c-8ee3-e14194415d5c","dlqMessageId":"36e10937-7398-448d-ab16-b782efa821b4","newMessageId":"5d35bd66-eb1b-459c-b009-72e9541e7741","originalSentTimestamp":1794926988328,"at":"…"}
+{"action":"duplicate_deleted","eventId":"bbfa25ec-7e5c-414c-8ee3-e14194415d5c","dlqMessageId":"acc03aa9-b0f0-4b19-a365-d31c991d7fc1","originalSentTimestamp":1795013388325,"at":"…"}
+dlq: {"ApproximateNumberOfMessages":"3","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+main: {"ApproximateNumberOfMessages":"1","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+
+### M-BL-10 peek queue chính
+$ npx ts-node -r tsconfig-paths/register test/manual/dlq-cli.manual.ts peek dlqcli-main-mwp3i7zy
+{"body":"{\"eventId\":\"bbfa25ec-7e5c-414c-8ee3-e14194415d5c\",\"eventType\":\"TransferCompleted\",\"occurredAt\":\"2026-10-19T03:15:42.123Z\",\"correlationId\":\"9b4e7c21-5a0d-4f83-b6e9-1d2c8a7f3045\",\"transferId\":\"5c8d2e47-1b96-4a30-8f5e-7a3b9c0d6e18\",\"type\":\"TRANSFER\",\"fromAccountId\":\"7e1a4b93-2c58-4d06-9b7f-e3a5c8d19f20\",\"toAccountId\":\"1d9f6a38-4e72-4c15-a083-b6d2e7c4f951\",\"amount\":\"500000\",\"fromBalanceBefore\":\"520000\",\"fromAccountCreatedAt\":\"2026-09-30T08:00:00.000Z\",\"toAccountCreatedAt\":\"2026-01-15T08:00:00.000Z\",\"sameOwner\":false,\"fromUserId\":\"b2e5c8a1-6f40-4d93-8c17-a9d3f0e6b724\",\"toUserId\":\"d4a7f1c6-3b85-4e29-b0d8-5c6e9a2f1783\",\"kind\":\"A\"}","attributes":{"OriginalSentTimestamp":"1794926988328","correlationId":"corr-mwp3i7zy"}}
+[exit 0]
+
+### M-BL-11 drain rồi chạy lại cùng file ghi nhận
+deleted 1 message(s)
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-resend.main.ts --endpoint-url http://localhost:9324 --from-dlq dlqcli-dlq-mwp3i7zy --to-queue dlqcli-main-mwp3i7zy --record-file ~/dbs-ops/dlq-bl/r1.jsonl --all
+dlq-resend failed: FileExistsError
+The file already exists and is never overwritten: choose a new file name
+[exit 2]
+dlq: {"ApproximateNumberOfMessages":"3","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+
+### M-BL-12 --all với file mới
+$ npx ts-node -r tsconfig-paths/register src/scripts/dlq-resend.main.ts --endpoint-url http://localhost:9324 --from-dlq dlqcli-dlq-mwp3i7zy --to-queue dlqcli-main-mwp3i7zy --record-file ~/dbs-ops/dlq-bl/r2.jsonl --all
+{
+  "scanned": 3,
+  "resent": 1,
+  "duplicatesDeleted": 0,
+  "skipped": [
+    {
+      "messageId": "314cf791-5203-4021-bead-f64765aefbc0",
+      "reason": "no_event_id"
+    },
+    {
+      "messageId": "91ee691c-34ce-457d-82b7-30bc665b4978",
+      "eventId": "e262920c-f11f-4c34-bf08-f1a4901b2d5e",
+      "reason": "stale"
+    }
+  ],
+  "notFound": [],
+  "failed": [],
+  "complete": true,
+  "stoppedEarly": false
+}
+[exit 1]
+--- r2.jsonl
+{"action":"sending","eventId":"c612a165-c4e9-4734-b744-ef4848f66fbd","dlqMessageId":"5b583f5c-3d1b-4016-ad8d-b2d3d943390d","originalSentTimestamp":1795186188332,"at":"…"}
+{"action":"resent","eventId":"c612a165-c4e9-4734-b744-ef4848f66fbd","dlqMessageId":"5b583f5c-3d1b-4016-ad8d-b2d3d943390d","newMessageId":"3d8302c9-bb67-45ab-8ef0-471c2f4bde95","originalSentTimestamp":1795186188332,"at":"…"}
+dlq: {"ApproximateNumberOfMessages":"2","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
+main: {"ApproximateNumberOfMessages":"1","ApproximateNumberOfMessagesNotVisible":"0","ApproximateNumberOfMessagesDelayed":"0"}
