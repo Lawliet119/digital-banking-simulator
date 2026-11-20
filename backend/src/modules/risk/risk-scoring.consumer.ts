@@ -16,7 +16,7 @@ import { RiskAiService } from './ai/risk-ai.service';
 import { toAiFeatureInput } from './ai/feature-projection';
 import { RuleSetRepository } from './config/rule-set.repository';
 import { OnlineFeatureProvider } from './features/online-feature-provider';
-import { countDecision } from './risk-scoring.metrics';
+import { classifyAiAdded, countDecision, countFlag } from './risk-scoring.metrics';
 import { ScoringService, type ScoringResult } from './scoring.service';
 
 /** `processed_events.consumer` of this module. */
@@ -26,6 +26,8 @@ export const RISK_CONSUMER = 'risk';
 interface Prepared {
   readonly transferId: string;
   readonly ruleSetVersion: number;
+  /** Of the rule set that scored this transfer: the flag metric tells what the AI added by them (DBS-187). */
+  readonly thresholds: { readonly medium: number; readonly high: number };
   readonly result: ScoringResult;
   readonly snapshot: FeatureInput;
   readonly assessment?: AiAssessment;
@@ -137,6 +139,7 @@ export class RiskScoringConsumer extends ConsumerBase {
     const decision: Prepared = {
       transferId: transfer.transferId,
       ruleSetVersion: ruleSet.version,
+      thresholds: ruleSet.thresholds,
       result,
       snapshot,
       assessment,
@@ -207,6 +210,14 @@ export class RiskScoringConsumer extends ConsumerBase {
     if (!decision?.won) return;
     // Labels are the fixed `ai_status` values only; no id, no amount (see risk-scoring.metrics).
     countDecision(decision.result.aiStatus);
+    // DBS-187: a flag was written exactly when the level is not LOW (the claim above was won). Fixed label sets only.
+    if (decision.result.level !== 'LOW') {
+      countFlag(
+        decision.result.level,
+        decision.result.mode,
+        classifyAiAdded(decision.result.ruleScore, decision.result.score, decision.thresholds),
+      );
+    }
     if (decision.flagLagMs !== undefined && Number.isFinite(decision.flagLagMs)) {
       this.metrics?.recordDistribution('risk_transfer_to_flag_ms', decision.flagLagMs);
     }

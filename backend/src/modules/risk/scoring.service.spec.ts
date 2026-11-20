@@ -1,7 +1,7 @@
 import { register } from 'prom-client';
 import type { AiAssessment } from './ai/ai-contract';
 import type { Features, TransferEvent } from './features/feature-provider';
-import { ScoringService, type ScoringConfig } from './scoring.service';
+import { levelOf, ScoringService, type ScoringConfig } from './scoring.service';
 import type { RuleId, RuleParams } from './rules/rule';
 
 const event: TransferEvent = {
@@ -414,5 +414,60 @@ describe('DBS-108 fraud scoring', () => {
       expect(result?.hits.map(h => h.id)).toEqual(['R6']);
       expect(result).toMatchObject({ score: 30, level: 'LOW' });
     });
+  });
+});
+
+describe('DBS-187 level and mode invariants', () => {
+  const young = {
+    ...event,
+    amount: '20000000',
+    fromBalanceBefore: '20800000',
+    fromAccountCreatedAt: '2026-10-19T09:00:00.000Z',
+  };
+
+  it('TC-187-03 levelOf is the one rule for the level, at and around both thresholds', () => {
+    const t = { medium: 40, high: 70 };
+    expect(levelOf(0, t)).toBe('LOW');
+    expect(levelOf(39, t)).toBe('LOW');
+    expect(levelOf(40, t)).toBe('MEDIUM');
+    expect(levelOf(69, t)).toBe('MEDIUM');
+    expect(levelOf(70, t)).toBe('HIGH');
+    expect(levelOf(1000, t)).toBe('HIGH');
+  });
+
+  it('TC-187-03 the level of every result is levelOf(ruleScore + aiAppliedWeight)', () => {
+    const results = [
+      service.score(event, facts, baseline),
+      service.score(young, facts, baseline),
+      service.score(young, facts, withAi, assessment(0.95)),
+      service.score(event, facts, withAi, assessment(0.95)),
+      service.score(young, facts, withAi, assessment(0.1)),
+    ];
+    for (const result of results) {
+      expect(result).not.toBeNull();
+      expect(result!.level).toBe(
+        levelOf(result!.ruleScore + result!.aiAppliedWeight, baseline.thresholds),
+      );
+    }
+  });
+
+  it('TC-187-03 mode rule_only is exactly aiStatus DISABLED, for every way to reach a mode', () => {
+    const cases: Array<[ScoringConfig, AiAssessment | null | undefined]> = [
+      [baseline, undefined],
+      [{ ...baseline, mode: 'rule_only' }, undefined],
+      [{ ...baseline, mode: 'something_else' }, undefined],
+      [withAi, assessment(0.95)],
+      [withAi, assessment(0.1)],
+      [withAi, assessment(null, 'UNAVAILABLE')],
+      [withAi, assessment(null, 'REFUSED')],
+      [withAi, assessment(null, 'BUDGET_EXHAUSTED')],
+      [withAi, assessment(null, 'DISABLED')],
+      [withAi, null],
+      [{ ...withAi, ai: { threshold: 2, weight: 40 } }, assessment(0.95)],
+    ];
+    for (const [config, ai] of cases) {
+      const result = service.score(young, facts, config, ai)!;
+      expect(result.mode === 'rule_only').toBe(result.aiStatus === 'DISABLED');
+    }
   });
 });

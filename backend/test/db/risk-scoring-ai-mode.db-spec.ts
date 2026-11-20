@@ -488,6 +488,79 @@ describe('DBS-111 decisions while the rule set asks for AI (PostgreSQL)', () => 
     expect(requests).toHaveLength(0);
   });
 
+  /** A drain of 94% of a 5M balance: R6 alone (30), so the rules say LOW and an AI weight of 20 makes it MEDIUM. */
+  async function drain() {
+    const sender = await fx.customer('Khách rút gần hết');
+    const recipient = await fx.customer('Khách nhận');
+    await fx.deposit(sender.accounts[0], '5000000');
+    const transferId = await fx.transfer(
+      sender.token,
+      sender.accounts[0],
+      recipient.accounts[0],
+      '4700000',
+    );
+    return { transferId, event: await eventFor(db.runner, transferId) };
+  }
+  const flagLines = (docs: EmfDocument[]) => lines(docs, 'risk_flag_total');
+
+  it('TC-187-07 AiAdded: raised when the AI lifts a rules MEDIUM to HIGH, created when it makes a flag out of a rules LOW, none when the AI fails', async () => {
+    await newVersion(VALID_AI); // threshold 0.8, weight 20, thresholds 40 / 70
+    const raised = await collectingMetrics();
+    responseKind = 'success';
+    const first = await ac91(); // rules 65 (MEDIUM) + 20 = 85 (HIGH)
+    await buildRiskConsumer(source, { ai: runtime(), metrics: raised.metrics }).consumer.handle(
+      first.event,
+    );
+    await raised.metrics.flush();
+    expect(flagLines(raised.docs)).toHaveLength(1);
+    expect(flagLines(raised.docs)[0]).toMatchObject({
+      RiskLevel: 'HIGH',
+      Mode: 'rules_with_external_ai',
+      AiAdded: 'raised',
+      risk_flag_total: 1,
+    });
+
+    const created = await collectingMetrics();
+    const second = await drain(); // rules 30 (LOW) + 20 = 50 (MEDIUM)
+    await buildRiskConsumer(source, { ai: runtime(), metrics: created.metrics }).consumer.handle(
+      second.event,
+    );
+    await created.metrics.flush();
+    expect(flagLines(created.docs)).toHaveLength(1);
+    expect(flagLines(created.docs)[0]).toMatchObject({
+      RiskLevel: 'MEDIUM',
+      Mode: 'rules_with_external_ai',
+      AiAdded: 'created',
+    });
+    expect(
+      await q('SELECT risk_level FROM fraud_flags WHERE transfer_id = $1', [second.transferId]),
+    ).toEqual([{ risk_level: 'MEDIUM' }]);
+
+    const none = await collectingMetrics();
+    responseKind = 'outage';
+    const third = await ac91(); // rules 65 (MEDIUM); the AI fails: no weight
+    await buildRiskConsumer(source, { ai: runtime(), metrics: none.metrics }).consumer.handle(
+      third.event,
+    );
+    await none.metrics.flush();
+    expect(flagLines(none.docs)[0]).toMatchObject({
+      RiskLevel: 'MEDIUM',
+      Mode: 'rules_with_external_ai',
+      AiAdded: 'none',
+    });
+
+    // A drain alone with the AI failing is a LOW transfer: no flag, so no risk_flag_total.
+    const low = await collectingMetrics();
+    const fourth = await drain();
+    await buildRiskConsumer(source, { ai: runtime(), metrics: low.metrics }).consumer.handle(
+      fourth.event,
+    );
+    await low.metrics.flush();
+    expect(flagLines(low.docs)).toEqual([]);
+    expect(lines(low.docs, 'risk_decision_total')).toHaveLength(1);
+    responseKind = 'success';
+  });
+
   it('TC-111-11a a broken ai block records rules_with_external_ai / CONFIG_INVALID with no AI weight, and still flags on the rules', async () => {
     const version = await newVersion({ ...VALID_AI, threshold: 7 });
     const { transferId, event } = await ac91();

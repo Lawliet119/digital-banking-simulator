@@ -4,6 +4,7 @@ import type { AiAssessment, AiStatus } from './ai/ai-contract';
 import type { Features, TransferEvent } from './features/feature-provider';
 import { RiskRuleError } from './risk-rule-error';
 import { countRuleError } from './risk-scoring.metrics';
+import { levelOf, type RiskLevel } from './risk-level';
 import { R1VelocityRule } from './rules/r1-velocity.rule';
 import { R2UnusualAmountRule } from './rules/r2-unusual-amount.rule';
 import { R3NewAccountLargeTransferRule } from './rules/r3-new-account-large-transfer.rule';
@@ -38,13 +39,15 @@ export interface ScoringConfig {
   readonly ai?: { readonly threshold: number; readonly weight: number };
 }
 
+export { levelOf, type RiskLevel } from './risk-level';
+
 export interface ScoringResult {
   readonly mode: 'rule_only' | 'rules_with_external_ai';
   readonly hits: readonly RuleHit[];
   readonly ruleScore: number;
   readonly aiAppliedWeight: number;
   readonly score: number;
-  readonly level: 'LOW' | 'MEDIUM' | 'HIGH';
+  readonly level: RiskLevel;
   readonly aiStatus: AiStatus;
 }
 
@@ -208,7 +211,7 @@ export class ScoringService {
       ruleScore,
       aiAppliedWeight,
       score,
-      level: score >= high ? 'HIGH' : score >= medium ? 'MEDIUM' : 'LOW',
+      level: levelOf(score, { medium, high }),
       aiStatus,
     };
   }

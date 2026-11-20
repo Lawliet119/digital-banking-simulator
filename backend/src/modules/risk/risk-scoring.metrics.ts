@@ -1,5 +1,6 @@
 import { Counter, register } from 'prom-client';
 import type { AiStatus } from './ai/ai-contract';
+import { levelOf, type RiskLevel } from './risk-level';
 import type { RuleId } from './rules/rule';
 
 /**
@@ -10,6 +11,8 @@ import type { RuleId } from './rules/rule';
  */
 export const RULE_ERROR_METRIC = 'risk_rule_error_total';
 export const DECISION_METRIC = 'risk_decision_total';
+/** DBS-187: one increment per fraud flag written; labels risk_level, mode and ai_added (all from fixed sets). */
+export const FLAG_METRIC = 'risk_flag_total';
 
 const RULE_IDS: readonly RuleId[] = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6'];
 /**
@@ -43,6 +46,52 @@ const decisions = sharedCounter(
   'Risk decisions recorded, by the ai_status stored with the decision',
   'ai_status',
 );
+
+export type FlagLevel = Exclude<RiskLevel, 'LOW'>;
+export type FlagMode = 'rule_only' | 'rules_with_external_ai';
+/**
+ * How the AI took part in a flag (DBS-187), from the level the rules alone would give and the final
+ * one: `created` (rules alone LOW, so no flag without the AI), `raised` (rules alone MEDIUM, the AI made
+ * it HIGH), `none` (the level did not change, also when the AI added points to an existing HIGH).
+ */
+export type AiAdded = 'none' | 'created' | 'raised';
+
+const FLAG_LEVELS: readonly string[] = ['MEDIUM', 'HIGH'];
+const FLAG_MODES: readonly string[] = ['rule_only', 'rules_with_external_ai'];
+const AI_ADDED: readonly string[] = ['none', 'created', 'raised'];
+
+const flags = (() => {
+  const existing = register.getSingleMetric(FLAG_METRIC);
+  if (existing instanceof Counter) return existing as Counter<'risk_level' | 'mode' | 'ai_added'>;
+  return new Counter({
+    name: FLAG_METRIC,
+    help: 'Fraud flags written, by risk level, scoring mode and what the AI added',
+    labelNames: ['risk_level', 'mode', 'ai_added'],
+    registers: [register],
+  });
+})();
+
+/** Pure: no label of this metric can hold more than these three values per label. */
+export function classifyAiAdded(
+  ruleScore: number,
+  score: number,
+  thresholds: { medium: number; high: number },
+): AiAdded {
+  const ruleLevel = levelOf(ruleScore, thresholds);
+  const finalLevel = levelOf(score, thresholds);
+  if (ruleLevel === 'LOW' && finalLevel !== 'LOW') return 'created';
+  if (ruleLevel === 'MEDIUM' && finalLevel === 'HIGH') return 'raised';
+  return 'none';
+}
+
+/** One flag written by the delivery that won the claim of its transfer (never LOW, never a duplicate). */
+export function countFlag(level: FlagLevel, mode: FlagMode, aiAdded: AiAdded): void {
+  flags.inc({
+    risk_level: FLAG_LEVELS.includes(level) ? level : UNKNOWN,
+    mode: FLAG_MODES.includes(mode) ? mode : UNKNOWN,
+    ai_added: AI_ADDED.includes(aiAdded) ? aiAdded : UNKNOWN,
+  });
+}
 
 /** One failed evaluation of rule `rule` (every receive of a failing message counts once). */
 export function countRuleError(rule: RuleId): void {

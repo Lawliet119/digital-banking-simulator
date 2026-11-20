@@ -110,13 +110,13 @@ run "dashboard_shape" {
   }
 
   assert {
-    condition     = length(jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets) == 16
-    error_message = "16 widgets: 1 text + 15 metric"
+    condition     = length(jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets) == 21
+    error_message = "21 widgets: 1 text + 20 metric (DBS-187 adds 5 flag-rate widgets)"
   }
 
   assert {
-    condition     = length([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if w.type == "metric"]) == 15 && length([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if w.type == "text"]) == 1
-    error_message = "15 metric widgets and 1 text widget"
+    condition     = length([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if w.type == "metric"]) == 20 && length([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if w.type == "text"]) == 1
+    error_message = "20 metric widgets and 1 text widget"
   }
 
   assert {
@@ -145,7 +145,7 @@ run "dashboard_has_every_metric" {
         "http_request_duration_ms", "http_requests_total", "http_5xx_total", "http_aborted_total",
         "redis_fallback_total", "rate_limited_total",
         "risk_config_redis_fallback_total", "outbox_oldest_unpublished_age_seconds",
-        "reconciliation_runs_total", "risk_decision_total", "risk_rule_error_total", "risk_transfer_to_flag_ms",
+        "reconciliation_runs_total", "risk_decision_total", "risk_flag_total", "risk_rule_error_total", "risk_transfer_to_flag_ms",
         "ApproximateNumberOfMessagesVisible", "ApproximateAgeOfOldestMessage",
       ] : strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "\"${name}\"") || strcontains(aws_cloudwatch_dashboard.overview.dashboard_body, "MetricName=\\\"${name}\\\"")
     ])
@@ -176,7 +176,7 @@ run "dashboard_labels_are_safe" {
     condition = alltrue(flatten([
       for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : [
         for m in try(w.properties.metrics, []) : [
-          for i, v in m : contains(["Route", "Method", "Role", "Rule", "Reason", "Scope", "Status", "AiStatus", "QueueName"], tostring(v)) if i >= 2 && i % 2 == 0 && can(tostring(v))
+          for i, v in m : contains(["Route", "Method", "Role", "Rule", "Reason", "Scope", "Status", "AiStatus", "QueueName", "RiskLevel", "Mode", "AiAdded"], tostring(v)) if i >= 2 && i % 2 == 0 && can(tostring(v))
         ]
       ]
     ]))
@@ -186,7 +186,7 @@ run "dashboard_labels_are_safe" {
   assert {
     condition = alltrue(flatten([
       for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : [
-        for m in try(w.properties.metrics, []) : can(regex("^SEARCH\\('\\{\"DBS/Backend\",(Method|Route|Role|Rule|Reason|Scope|Status|AiStatus)(,(Method|Route|Role|Rule|Reason|Scope|Status|AiStatus))*\\} MetricName=\"[a-z0-9_]+\"", m[0].expression)) if try(m[0].expression, null) != null && startswith(m[0].expression, "SEARCH(")
+        for m in try(w.properties.metrics, []) : can(regex("^(SUM\\()?SEARCH\\('\\{\"DBS/Backend\",(Method|Route|Role|Rule|Reason|Scope|Status|AiStatus|RiskLevel|Mode|AiAdded)(,(Method|Route|Role|Rule|Reason|Scope|Status|AiStatus|RiskLevel|Mode|AiAdded))*\\} MetricName=\"[a-z0-9_]+\"", m[0].expression)) if try(m[0].expression, null) != null && (startswith(m[0].expression, "SEARCH(") || startswith(m[0].expression, "SUM(SEARCH("))
       ]
     ]))
     error_message = "SEARCH must quote the namespace and use allowlisted dimension names only"
@@ -352,6 +352,56 @@ run "dashboard_reconciliation_and_risk_widgets" {
   assert {
     condition     = [for a in [for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Thời gian giao dịch tới cờ: p95 (ms)"][0].properties.annotations.horizontal : a.value] == [5000]
     error_message = "time-to-flag widget: 5 s SLO line"
+  }
+}
+
+# DBS-187 TC-187-10: cờ / 1.000 giao dịch. Hai ô singleValue cho tổng trượt 1 giờ và 24 giờ (setPeriodToTimeRange + start riêng
+# của widget), một đường xu hướng, cờ theo mức, cờ do AI bổ sung. `terraform test` chỉ kiểm JSON dựng ra; console AWS chưa kiểm.
+run "dashboard_flag_rate_widgets" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for hours in ["1", "24"] : (
+        length([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch, ${hours} giờ gần nhất"]) == 1 &&
+        [for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch, ${hours} giờ gần nhất"][0].properties.view == "singleValue" &&
+        [for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch, ${hours} giờ gần nhất"][0].properties.setPeriodToTimeRange == true &&
+        [for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch, ${hours} giờ gần nhất"][0].properties.start == "-PT${hours}H"
+      )
+    ])
+    error_message = "the 1 h and 24 h flag-rate widgets must be singleValue with setPeriodToTimeRange and their own start (-PT1H, -PT24H)"
+  }
+
+  assert {
+    condition = alltrue([
+      for hours in ["1", "24"] : (
+        strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch, ${hours} giờ gần nhất"][0].properties.metrics), "IF(d \\u003e 0, 1000 * FILL(f, 0) / d, 0)") &&
+        strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch, ${hours} giờ gần nhất"][0].properties.metrics), "risk_flag_total") &&
+        strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch, ${hours} giờ gần nhất"][0].properties.metrics), "risk_decision_total")
+      )
+    ])
+    error_message = "the rate is IF(d > 0, 1000 * FILL(f, 0) / d, 0) over risk_flag_total and risk_decision_total ([Role=worker])"
+  }
+
+  assert {
+    condition = (
+      [for a in [for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch: xu hướng và theo mode (period 3600)"][0].properties.annotations.horizontal : a.value] == [20] &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch: xu hướng và theo mode (period 3600)"][0].properties.metrics), "Mode=\\\"rule_only\\\"") &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch: xu hướng và theo mode (period 3600)"][0].properties.metrics), "Mode=\\\"rules_with_external_ai\\\"") &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch: xu hướng và theo mode (period 3600)"][0].properties.metrics), "AiStatus") &&
+      [for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ / 1.000 giao dịch: xu hướng và theo mode (period 3600)"][0].properties.period == 3600
+    )
+    error_message = "trend widget: SLO line 20, period 3600, split by Mode (denominator by AiStatus DISABLED)"
+  }
+
+  assert {
+    condition = (
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ theo risk_level"][0].properties.metrics), "RiskLevel=\\\"MEDIUM\\\"") &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ theo risk_level"][0].properties.metrics), "RiskLevel=\\\"HIGH\\\"") &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ do AI bổ sung"][0].properties.metrics), "AiAdded=\\\"created\\\"") &&
+      strcontains(jsonencode([for w in jsondecode(aws_cloudwatch_dashboard.overview.dashboard_body).widgets : w if try(w.properties.title, "") == "Cờ do AI bổ sung"][0].properties.metrics), "AiAdded=\\\"raised\\\"")
+    )
+    error_message = "flags by RiskLevel (MEDIUM, HIGH) and by AiAdded (created, raised)"
   }
 }
 

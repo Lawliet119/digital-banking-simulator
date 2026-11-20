@@ -202,6 +202,13 @@ describe('DBS-111 transfer → flag through the real relay and consumer loops', 
     // A bucket bound is never lower than the real latency, and p95 stays under the 5 s SLO.
     expect(samples[samples.length - 1]).toBeGreaterThanOrEqual(summary.max);
     expect(samples[Math.ceil(0.95 * SOURCES) - 1]).toBeLessThanOrEqual(5000);
+    // TC-187-09: the running loops count each flag once, with the three fixed labels and no id.
+    const flagLines = emf.filter(d => names(d).includes('risk_flag_total'));
+    expect(flagLines.length).toBeGreaterThan(0);
+    for (const line of flagLines) {
+      expect(line).toMatchObject({ RiskLevel: 'MEDIUM', Mode: 'rule_only', AiAdded: 'none' });
+    }
+    expect(flagLines.reduce((sum, d) => sum + Number(d.risk_flag_total), 0)).toBe(SOURCES);
     const decisions = emf.filter(d => names(d).includes('risk_decision_total'));
     expect(new Set(decisions.map(d => d.AiStatus))).toEqual(new Set(['DISABLED']));
     expect(decisions.reduce((sum, d) => sum + Number(d.risk_decision_total), 0)).toBe(SOURCES);
