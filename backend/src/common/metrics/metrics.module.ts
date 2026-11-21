@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { MetricsService } from './metrics.service';
+import { RuntimeGauges } from './runtime-stats';
 
 /**
  * Global, so a module that owns something worth measuring (the outbox) can register a gauge
@@ -7,7 +8,7 @@ import { MetricsService } from './metrics.service';
  */
 @Global()
 @Module({
-  providers: [MetricsService],
+  providers: [MetricsService, RuntimeGauges],
   exports: [MetricsService],
 })
 export class MetricsModule {}
