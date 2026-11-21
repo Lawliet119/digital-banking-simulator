@@ -25,7 +25,8 @@ set -euo pipefail
 LOADGEN_HOME="${LOADGEN_HOME:-/opt/loadgen}"
 export PATH="$LOADGEN_HOME/node/bin:$PATH"
 # shellcheck disable=SC1091
-[ -f "$LOADGEN_HOME/run.env" ] && source "$LOADGEN_HOME/run.env"
+# set -a: run.env chỉ có KEY=VALUE, nhưng công cụ Node (REDIS_HOST) chạy như tiến trình con nên cần biến được export (lỗi tìm thấy ở lần chạy thật đầu tiên).
+if [ -f "$LOADGEN_HOME/run.env" ]; then set -a; source "$LOADGEN_HOME/run.env"; set +a; fi
 FAULT_DIR="${FAULT_DIR:-$LOADGEN_HOME/fault}"
 EVENTS="$FAULT_DIR/fault-events.jsonl"
 HEALTH="$FAULT_DIR/health.jsonl"

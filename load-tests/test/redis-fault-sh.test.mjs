@@ -40,6 +40,7 @@ if (process.argv[2] === "probe") {
 }
 writeFileSync(process.env.FAKE_STATE + "/node-argv.json", JSON.stringify(process.argv.slice(2)));
 writeFileSync(process.env.FAKE_STATE + "/node-token.txt", process.env.REDIS_AUTH_TOKEN || "");
+writeFileSync(process.env.FAKE_STATE + "/node-host.txt", process.env.REDIS_HOST || "");
 `;
 
 function setup(extraEnv = "") {
@@ -145,6 +146,7 @@ test("TC-167-06 flush and slow pass the token only through the environment of th
   assert.equal(readFileSync(join(t.state, "node-token.txt"), "utf8"), "tok-from-secret");
   const argv = readFileSync(join(t.state, "node-argv.json"), "utf8");
   assert.doesNotMatch(argv, /tok-from-secret/);
+  assert.equal(readFileSync(join(t.state, "node-host.txt"), "utf8"), "redis.example", "REDIS_HOST from run.env must reach the Node tool (it is a child process)");
   assert.deepEqual(JSON.parse(argv).slice(0, 1), ["flush"]);
   assert.equal((await t.run("slow", "10", "100", "200")).code, 0);
   assert.deepEqual(JSON.parse(readFileSync(join(t.state, "node-argv.json"), "utf8")).slice(0, 4), ["slow", "10", "100", "200"]);
