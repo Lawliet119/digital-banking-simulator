@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { emittedCounterDimensionSets } from './metrics.service';
+import { DISTRIBUTION_METRICS, emittedCounterDimensionSets } from './metrics.service';
 
 /**
  * BL-412: contract between what `MetricsService` writes and what the CloudWatch alarms read.
@@ -11,6 +11,22 @@ import { emittedCounterDimensionSets } from './metrics.service';
  * pins the Terraform side only; this test pins the two sides together, red when they drift.
  */
 const ALARMS_TF = resolve(__dirname, '../../../../infra/terraform/envs/dev/session/alarms.tf');
+
+/**
+ * Metrics an alarm reads that are NOT counters of `MetricsService`: CloudWatch built-ins, the HTTP lines, the
+ * gauges and the distributions. They have their own dimension rules; a metric outside both this list and the
+ * counters is reported, so a renamed or removed counter cannot make its alarm quietly lose data.
+ */
+const NOT_COUNTERS: ReadonlySet<string> = new Set([
+  'ApproximateAgeOfOldestMessage',
+  'CPUUtilization',
+  'http_5xx_total',
+  'http_requests_total',
+  'http_request_duration_ms',
+  'outbox_oldest_unpublished_age_seconds',
+  'outbox_quarantined_events',
+  ...DISTRIBUTION_METRICS,
+]);
 
 export interface AlarmMetric {
   metric: string;
@@ -44,7 +60,14 @@ export function findDrift(alarms: AlarmMetric[], emitted: Map<string, string[][]
   const problems: string[] = [];
   for (const { metric, dimensions } of alarms) {
     const sets = emitted.get(metric);
-    if (!sets) continue; // CloudWatch built-in or HTTP metric: not a counter on the list
+    if (!sets) {
+      if (!NOT_COUNTERS.has(metric)) {
+        problems.push(
+          `${metric}: an alarm reads it but it is neither a counter the application writes nor a known non-counter`,
+        );
+      }
+      continue;
+    }
     const wanted = dimensions.join(',');
     if (!sets.some(set => [...set].sort().join(',') === wanted)) {
       problems.push(
@@ -82,7 +105,7 @@ describe('alarm contract: dimensions of counters (BL-412)', () => {
     expect(dims('risk_config_redis_fallback_total')).toContain('Role');
   });
 
-  it('TC-412-03 drift is reported: a counter that loses [Role], gains a label or loses its total', () => {
+  it('TC-412-03 drift is reported: a counter that loses its [Role] total or renames a dimension', () => {
     const alarms = readAlarmMetrics(`
       resource "aws_cloudwatch_metric_alarm" "x" {
         metric_name = "risk_flag_total"
@@ -106,19 +129,37 @@ describe('alarm contract: dimensions of counters (BL-412)', () => {
     expect(findDrift(alarms, renamed)).toHaveLength(1);
   });
 
+  it('TC-412-05 a metric that no counter writes and no non-counter list names is reported (renamed or removed counter)', () => {
+    const alarms = readAlarmMetrics(`
+      metric_name = "risk_flag_totl"
+      dimensions  = { Role = local.alarm_role_worker }
+    `);
+    expect(findDrift(alarms, emitted)).toEqual([
+      'risk_flag_totl: an alarm reads it but it is neither a counter the application writes nor a known non-counter',
+    ]);
+    // The real alarms read no such metric, and the three risk counters of the flag, config and fallback alarms exist.
+    for (const name of [
+      'risk_flag_total',
+      'risk_decision_total',
+      'risk_config_redis_fallback_total',
+    ]) {
+      expect(emitted.has(name)).toBe(true);
+    }
+  });
+
   it('TC-412-04 a block without dimensions does not borrow the next block, and comments are ignored', () => {
     const alarms = readAlarmMetrics(`
       # metric_name = "risk_flag_total"  dimensions = { Role = "x" }
       metric_name = "risk_flag_total"
       namespace   = "DBS/Backend"
       resource "aws_cloudwatch_metric_alarm" "z" {
-        metric_name = "other"
+        metric_name = "CPUUtilization"
         dimensions  = { Role = "worker" }
       }
     `);
     expect(alarms).toEqual([
       { metric: 'risk_flag_total', dimensions: [] },
-      { metric: 'other', dimensions: ['Role'] },
+      { metric: 'CPUUtilization', dimensions: ['Role'] },
     ]);
     // An empty dimension set `[]` is never written for a counter, so an alarm without dimensions is drift.
     expect(findDrift(alarms, emitted)).toHaveLength(1);
