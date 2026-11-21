@@ -1,6 +1,6 @@
 # BL-418 · Hạn mức ngày đọc từ hàng đếm trên `accounts`, không `SUM` trong lúc giữ khóa
 
-> **Status:** Implemented (sau G4) · **Vai:** Dev (chủ ledger) · **Cặp đôi review:** Dev khác · **Nhánh:** `perf/BL-418-daily-limit-lock` · **PR:** [#227](https://github.com/Lawliet119/digital-banking-simulator/pull/227) · **Cập nhật:** 2026-11-21
+> **Status:** Implemented (sau G4) · **Vai:** Dev (chủ ledger) · **Cặp đôi review:** Dev khác · **Nhánh:** `perf/BL-418-daily-limit-lock` · **PR:** [#227](https://github.com/Lawliet119/digital-banking-simulator/pull/227) · **Cập nhật:** 2026-11-22
 
 ## 1. Bối cảnh
 
@@ -19,7 +19,7 @@
 
   **(b) Cục bộ, đo từ phía ứng dụng** (driver `bl-418-lock-hold.manual.ts`: HTTP → Nest → `TransactionService` → Postgres thật, 3 tài khoản, mỗi lệnh khóa 2, 60 giây; bảng trước/sau đầy đủ ở §8.1, output thô `screenshots/BL-418/before-*.txt`): ở «trước», `checkGuards` là 0,84 ms (ngày trống, 11% thời gian giữ khóa), 1,37 ms (8.000 dòng) và 4,20 ms (47.000 dòng, **36%**): **tăng tuyến tính theo số dòng trong ngày**. Vì mỗi lệnh khóa 2 trong 3 tài khoản nên tối đa ≈ 1,5 lệnh chạy cùng lúc, khả năng chịu tải ≈ 1,5 / thời gian giữ khóa (≈ 185 lệnh/giây ở 8,1 ms, ≈ 130 ở 11,5 ms): ở 120/s thời gian giữ khóa quyết định hàng đợi (chờ khóa 55 ms rồi 101 ms, và 1.907 lệnh lỗi khi bão hòa). Giới hạn: máy tải cùng tiến trình Node, Postgres cục bộ không có Multi-AZ và RTT; chỉ dùng để so «trước» và «sau» cùng máy.
 
-  **Cái chưa chứng minh:** trên AWS thời gian giữ khóa thật (gồm COMMIT Multi-AZ, RTT, event loop) chưa ai đo; chờ khóa 22 ms ở chỉ 24 lệnh ghi/giây trên 3 tài khoản gợi ý thời gian giữ khóa lớn hơn nhiều so với 3,3 ms câu lệnh, nên `SUM` có thể chỉ là phần nhỏ (ước 10 đến 20%) của thời gian giữ khóa trên AWS. Task này giảm được thời gian giữ khóa đúng bằng `SUM` và một vòng đi về, **không hứa** p95 từng phút < 300 ms trên AWS: số đó chỉ có sau một lượt k6 thật (§8).
+  **Cái chưa chứng minh:** trên AWS thời gian giữ khóa thật (gồm COMMIT Multi-AZ, RTT, event loop) chưa ai đo; chờ khóa 22 ms ở chỉ 24 lệnh ghi/giây trên 3 tài khoản gợi ý thời gian giữ khóa lớn hơn nhiều so với 3,3 ms câu lệnh, nên `SUM` có thể chỉ là phần nhỏ (ước 10 đến 20%) của thời gian giữ khóa trên AWS. Task này giảm được thời gian giữ khóa đúng bằng `SUM` và một vòng đi về, **không hứa** p95 từng phút < 300 ms trên AWS: số đó chỉ có sau một lượt k6 thật (§8.3: đã đo, chưa đạt trọn).
 - **Ngoài phạm vi:** cỡ api/worker/pool (BL-417), đứng hình 2 giây (BL-419), `pg_stat_statements` thành script (BL-420), phần cấu trúc fraud O(cửa sổ 30 ngày) (BL-413: dòng backlog khác, **không** thuộc task này dù bàn giao nhắc tới), đối soát định kỳ của worker (`reconciliation.service.ts`, có SQL, metric và alarm riêng: **BL-421**), nhóm nhiều tài khoản funding.
 - **Câu hỏi mở:**
   1. `SUM` có đáng sửa không? Đề xuất: có (bảng (b): tăng tuyến tính, 11% đến 39% thời gian giữ khóa; trên AWS 58% thời gian câu lệnh trong khóa), với điều kiện báo trung thực mức giảm thật.
@@ -222,11 +222,11 @@ Thứ tự migration → service → kiểm đối chiếu → test hành vi →
 **Quyết định ở G3 (agent tự quyết):**
 1. Không đổi `checkGuards`, `TransferService`, `LedgerPostingService`: ngày của dòng nợ do chính trigger lấy từ `created_at`, nên không cần truyền «bây giờ» xuống ghi sổ (giữ TC-84-04 «đọc Clock một lần»).
 2. Hai commit code tách nhau (migration và guard) để hoàn tác từng phần được; migration vào `main` trước khi image mới được dùng.
-3. Đo AWS (bước 8) không tự chạy: chi phí và dựng phiên cần người duyệt; nếu không có phiên thì báo trung thực «D4 chưa đo» thay vì suy từ số cục bộ.
+3. Đo AWS (bước 8) không tự chạy: chi phí và dựng phiên cần người duyệt; nếu không có phiên thì báo trung thực «D4 chưa đo» thay vì suy từ số cục bộ. **Cập nhật sau G4:** người yêu cầu duyệt và bước 8 đã chạy thật (§8.3).
 
 ## 8. Kết quả
 
-**Tóm lại (trung thực):** thời gian giữ khóa **đã đo và đã giảm**, AC-5.6 và NFR-COR-03 giữ nguyên (test song song và test chạy thật đều xanh). Điều kiện đóng thứ 4, **p95 chuyển < 300 ms ở từng phút của `baseline` 120 RPS trên AWS, chưa đo**: máy tôi không có phiên AWS (dựng tốn tiền và cần bạn duyệt; bàn giao nêu gộp vào phiên DBS-174 sau khi image build trên `main`). Số cục bộ không thay được số AWS (§1, «Cái chưa chứng minh»): BL-423.
+**Tóm lại (trung thực):** thời gian giữ khóa **đã đo và đã giảm** cả cục bộ (§8.1) lẫn **trên AWS thật** (§8.3: chờ khóa 22,4 → 9,8 ms, `SUM` không còn, p95 `baseline` plateau 120 262 → 92 ms), AC-5.6 và NFR-COR-03 giữ nguyên. Điều kiện đóng thứ 4, **p95 chuyển < 300 ms ở TỪNG phút**, **chưa đạt trọn**: 13 trên 15 khung đủ mẫu dưới 300 ms (trước 11 trên 16), 2 khung vượt (442 và 377 ms) do đuôi 1 đến 2 giây **chưa giải thích được** (không đến từ `SUM`; cùng dạng BL-419). `baseline` plateau 120 còn 9 lỗi timeout trong một phút và 1 dropped iteration, nên `meetsDoD3` sai (trước đạt). Báo cáo: [04](../components/load-tests/04-ket-qua-bl-418-2026-11-22.md).
 
 - **Lệnh kiểm tra** (HEAD `d343484b`, Node 24.22.2; output ở [final-checks.txt](screenshots/BL-418/final-checks.txt)): `npm run lint:check` thoát 0; `npm run typecheck` thoát 0; `npm test` **142 suite / 2.410 test** xanh (baseline 2.404, thêm 6); `npm run test:e2e` **18 suite / 182 test** xanh ở lượt song song cuối (84 s, như CI chạy) và ở lượt `-i`. Hai lượt song song đầu có 1 đến 3 test đỏ `spawnSync ETIMEDOUT` ở các suite sinh tiến trình con (`fraud-ai-cli`, `dev-auth-bootstrap`) khi máy chỉ còn ≈ 1,3 GB RAM; từng suite chạy riêng xanh (7/7 và 4/4, `fraud-ai-cli` cũng xanh ở checkout không có BL-418). Spec db ([db-specs-final.txt](screenshots/BL-418/db-specs-final.txt), từng spec một, `DATABASE_URL` unset, `-i`): `daily-debit-counter` 8, `daily-debit-guard` 3, `daily-debit-counter-flow` 3, `daily-debit-counter-roles` 6, `invariants` 60 (57 cũ + 3), `transfer-concurrency` 13, `midnight-boundary` 11, `money-flow` 8, `customer-transfers` 37, `daily-limit` 3, `sync-guard` 18, `idempotency-rollback` 4, `resource-ownership` 35, `accounts-service` 45, `rejected-transfers` 7; cộng đợt trước đó `account-opening` 11, `account-reads` 10, `accounts-schema` 15, `audit.service` 13, `operator-deposits` 18, `operator-account-status` 12, `operator-account-search` 20, `seed` 3, `seed-rerun` 3, `transaction-history` 9, `migration-run-twice` 2, `migration-revert` 3, `ledger-schema` 32, `db-role-permissions` 13, `db-roles` 12, `ledger-invariants-helper` 2, `reconciliation-intentional-mismatch` 4, `reconciliation-job` 9. Đợt quét đầu bị hệ thống dừng giữa chừng vì RAM ([db-specs-sweep.txt](screenshots/BL-418/db-specs-sweep.txt)); 15 spec còn lại chạy ở lượt sau, tất cả xanh ([db-specs-sweep-2.txt](screenshots/BL-418/db-specs-sweep-2.txt)): `transaction-history-plan` 3, `transfer-status` 6, `transfers-autovacuum` 3, `outbox-writer` 34, `openapi-completeness` 8, `openapi-export` 1, `denied-load` 1, `dedup-cleanup` 11, `notification-consumer` 15, `risk-decisions` 14, `reconciliation-schema` 98, `migration-owner-role` 4, `append-only` 25, `customer-onboarding` 7, `migration-cli-reduced-env` 2. Không có `.skip`, `.only`, `.todo` trong test của task.
 - **Đối chiếu test case:**
@@ -246,7 +246,7 @@ Thứ tự migration → service → kiểm đối chiếu → test hành vi →
 | TC-418-11 | `daily-debit-counter-roles.db-spec` (6 test, vai `dbs_api` và `dbs_worker` thật; gồm `dbs_api` `INSERT` một hàng có `sent_day` tùy ý được chấp nhận và kiểm 6 báo `FAIL` đúng hàng đó) | đạt |
 | TC-418-12 | các spec tiền ở trên, từng spec một | đạt (TC-84-01 giữ nguyên, thêm ghi chú) |
 | TC-418-13 | M-418-07 (driver «sau» đủ 5 cấu hình) | đạt |
-| TC-418-14 | k6 `baseline` trên AWS | **chưa làm (không có phiên AWS)**: BL-423 |
+| TC-418-14 | k6 `baseline` và `stress` trên AWS: [báo cáo 04](../components/load-tests/04-ket-qua-bl-418-2026-11-22.md) | **đạt một phần**: đã chạy thật (invariant PASS, 6 kiểm); điều kiện «từng phút < 300 ms» không đạt trọn (2/15 khung vượt) |
 | TC-418-15 | `daily-debit-counter.db-spec` › TC-418-15 (a) `55P03` và (b) giao dịch dở commit trong lúc migration chờ | đạt |
 | TC-418-16 | [tc-84-01-time.txt](screenshots/BL-418/tc-84-01-time.txt): suite `daily-limit` 26,9 s trước, 24,7 s sau (cache ấm) | đạt |
 
@@ -285,6 +285,24 @@ Output thô ở [manual-test.txt](screenshots/BL-418/manual-test.txt) (dòng đ�
 
 Lỗi của chính kịch bản thủ công đã sửa trước khi lấy số: Git Bash không có `/proc/sys/kernel/random/uuid` (400 `IDEMPOTENCY_KEY_REQUIRED`) và `curl.exe` làm hỏng dấu tiếng Việt khi truyền tham số (`Nguy?n`): helper đổi sang `node` cho UUID và gửi thân qua file; DB dựng lại và chạy lại từ M-418-01, nên `manual-test.txt` chỉ có lần chạy đúng. Lần đo sổ cái lớn đầu thất bại vì seed không chạy (đường dẫn `docker cp`), đã xóa khỏi file và làm lại.
 
+### 8.3 Đo trên AWS (BL-423), 2026-11-21 16:58Z đến 18:02Z
+
+Chạy thật sau merge, image CI `4a987459`, cùng cấu hình DBS-173 (2 api 0,5 vCPU, 1 worker 0,25 vCPU, RDS `db.t4g.small` Multi-AZ, Valkey 1+1), một lượt `baseline` và một lượt `stress`; đã dọn sạch (`verify-clean.sh` thoát 0, chỉ còn `base`). Đầy đủ ở [báo cáo 04](../components/load-tests/04-ket-qua-bl-418-2026-11-22.md); số thô ở `docs/components/load-tests/results/bl418-*`.
+
+| | Trước (DBS-173) | **Sau (BL-418)** |
+|---|---|---|
+| `baseline` plateau 120: chuyển p95 / p99 (ms) | 262,4 / 850,9 | **91,9 / 585,5** |
+| Khung có p95 > 300 ms | 5 / 16 (đỉnh 678) | **2 / 15** (đỉnh 442) |
+| Lỗi hệ thống / dropped / `meetsDoD3` | 1 / 0 / đạt | 9 / 1 / **không đạt** |
+| `baseline` plateau 60: lỗi hệ thống | 70 (đứng hình) | 0 |
+| `stress` plateau 120: p95 (ms), khung > 300 ms | 304,1, 3/5 | **119,9**, 1/5 |
+| `stress` plateau 180: lỗi | 84,9% | 0,13% |
+| Chờ khóa `FOR UPDATE` của api (ms, `pg_stat_statements`) | 22,4 | **9,8** |
+| `SUM` hạn mức ngày (ms mỗi lần) | 1,9 | không còn |
+| Câu lệnh chạy trong khóa (ms) | ≈ 2,9 | ≈ 1,4 (trigger +0,30 trên `INSERT ledger_entries`) |
+
+Điều kiện «từng phút dưới 300 ms» chưa đạt: nút thắt kế tiếp là đuôi 1 đến 2 giây chưa rõ nguyên nhân ([BL-419](../BACKLOG.md)) và cỡ worker/api ([BL-417](../BACKLOG.md)). Mỗi số «sau» là một mẫu, không có khoảng tin cậy.
+
 - **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` nằm ở mục «Kiểm phạm vi» dưới đây.
 - **Ảnh chụp** (`screenshots/BL-418/`): **không phải ảnh chụp màn hình**: chương trình vẽ nguyên văn các đoạn output thô của `manual-test.txt` thành PNG (không có công cụ chụp cửa sổ terminal ở phiên này).
 
@@ -301,12 +319,12 @@ Lỗi của chính kịch bản thủ công đã sửa trước khi lấy số: 
 - **Bàn giao cho vai khác:**
   - **BL-421** (Dev): kiểm `daily_debit_totals` trong job đối soát định kỳ của worker (có metric và alarm).
   - **BL-422** (Platform & Ops): thu hẹp quyền `INSERT` cấp bảng của `dbs_api` trên `accounts`.
-  - **BL-423** (Platform & Ops, mới): đo `baseline` 120 RPS trên AWS sau BL-418 (p95 từng phút < 300 ms), cùng phiên DBS-174.
-  - Dòng **BL-418** đã xóa khỏi BACKLOG (phần đo và giảm thời gian giữ khóa đã làm; phần đo AWS chuyển BL-423). BL-413 (fraud) **không** thuộc task này; BL-187 và BL-417 không đổi vì chưa có số AWS.
+  - **BL-423** (đo AWS): **đã đo và đã xóa khỏi BACKLOG** (§8.3); phần còn mở chuyển vào BL-419 (đuôi 1 đến 2 giây) và BL-417 (cỡ task).
+  - Dòng **BL-418** đã xóa khỏi BACKLOG (đo và giảm thời gian giữ khóa đã làm, đo AWS cũng đã chạy).
 
 ## 9. Tài liệu đã cập nhật
 
-`docs/adr/0004-row-locking-read-committed.md` (bổ sung), `docs/components/_shared/database-design.md` (§3 ngoại lệ thứ hai, §4.2, §5, §6.1, §7.1, §9), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (§6.1), `docs/components/ledger/query-plans.md`, `backend/src/modules/ledger/README.md`, `backend/src/modules/accounts/README.md`, `backend/README.md` (mục 9: sáu bất biến), `.claude/skills/dbs-delivering-task/references/module-notes.md` và `testing.md` (sáu bất biến), `docs/features/README.md` (dòng BL-418), `docs/BACKLOG.md`: **xóa BL-418**, thêm BL-421, BL-422, BL-423.
+`docs/adr/0004-row-locking-read-committed.md` (bổ sung), `docs/components/_shared/database-design.md` (§3 ngoại lệ thứ hai, §4.2, §5, §6.1, §7.1, §9), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (§6.1), `docs/components/ledger/query-plans.md`, `backend/src/modules/ledger/README.md`, `backend/src/modules/accounts/README.md`, `backend/README.md` (mục 9: sáu bất biến), `.claude/skills/dbs-delivering-task/references/module-notes.md` và `testing.md` (sáu bất biến), `docs/features/README.md` (dòng BL-418), `docs/BACKLOG.md`: **xóa BL-418**, thêm BL-421, BL-422; **BL-423** thêm ở PR #227 rồi xóa ở PR đo AWS (số đo ở §8.3), cập nhật BL-417 và BL-419 với số đo mới; thêm [báo cáo 04](../components/load-tests/04-ket-qua-bl-418-2026-11-22.md) và `results/bl418-*`.
 
 ### Kiểm phạm vi
 
