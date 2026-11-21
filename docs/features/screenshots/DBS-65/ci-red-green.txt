@@ -1,0 +1,26 @@
+BL-199 / M-65-10: CI GitHub đỏ rồi xanh (ngày 2026-11-21, PR #222)
+
+ĐỎ  run https://github.com/Lawliet119/digital-banking-simulator/actions/runs/44859178192 · SHA b6ef666b53a6e8a87aff71536ab34bd940130f33 (oracle A=700001 cố ý)
+  typecheck: success
+  script-tests: success
+  lint: success
+  image-scan: success
+  terraform: success
+  e2e: failure
+  unit: success
+  secret-scan: success
+  build: success
+  db: failure
+  Lỗi: TC-65-01 trong test/db/money-flow.db-spec.ts:325 — Expected 700001, Received 700000; e2e 1 failed/12 passed, db 1 failed/1094 passed (assertion đúng chủ đích, không phải lỗi hạ tầng)
+
+XANH run https://github.com/Lawliet119/digital-banking-simulator/actions/runs/44860154376 · SHA b4cd97559821da5d186c27b5241b1275d13bbbf9 (revert, oracle 700000)
+  unit: success
+  build: success
+  terraform: success
+  db: success
+  e2e: success
+  secret-scan: success
+  script-tests: success
+  lint: success
+  typecheck: success
+  image-scan: success

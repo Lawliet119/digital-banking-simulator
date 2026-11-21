@@ -369,3 +369,7 @@ Sau đồng bộ: suite65 đạt8/8,0skip; driverM01–06 đạt trên71c96f58cd
 ## Sau rebase (techlead review PR #95, 2026-11-09)
 
 Rebase lên `main` `18f93dc` (đã có DBS-113, DBS-92, DBS-109, DBS-110). Chạy lại trên PostgreSQL 17 và Valkey thật: `money-flow.db-spec` 8/8, lint và typecheck sạch; `manual-dbs65.cjs` đạt (M-65-01..06 và M-65-08..09), `manual-test.txt` là lần chạy mới, dòng đầu là commit `c3c82873926c06bec022085fe49b9dcb98e84fbb`. Ảnh `01-money-flow.png` và `02-invariants.png` là của lượt trước rebase. Các bước chưa chạy vẫn như đã chấp nhận ở G4: M-65-07 (cloud) và M-65-10 (CI đỏ→xanh). `BL-183..186` của PR bị đánh lại thành `BL-198..201` vì main đã dùng các số đó.
+
+## 10. Bổ sung sau bàn giao: negative control M-65-10 trên GitHub (BL-199, 2026-11-21)
+
+Đã chạy M-65-10 trên PR #222: commit `b6ef666` đặt oracle A=700001 thay vì 700000 → CI đỏ đúng ở TC-65-01 (job `db` và `e2e`, chỉ một case fail, lỗi là assertion chứ không phải hạ tầng); commit revert `b4cd975` khôi phục oracle → mọi job xanh. Không đổi tên job, không skip test, không force-push. Raw: [ci-red-green.txt](screenshots/DBS-65/ci-red-green.txt) (run URL, SHA, kết quả từng job). Ảnh `03-ci.png` **chưa có**: tiện ích Chrome không kết nối được lúc chạy; bằng chứng thay thế là output `gh` gốc ở file trên. Dòng BL-199 đã đóng và xóa khỏi BACKLOG.
