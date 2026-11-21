@@ -1,0 +1,20 @@
+== mutation 1: risk_flag_total mất roleTotal
+      87 |   it('TC-412-01 every counter an alarm reads is written with exactly those dimensions', () => {
+    +   "risk_flag_total: alarm reads [Role] but the application writes [AiAdded,Mode,RiskLevel,Role]",
+  ● alarm contract: dimensions of counters (BL-412) › TC-412-01 every counter an alarm reads is written with exactly those dimensions
+  ● alarm contract: dimensions of counters (BL-412) › TC-412-03 drift is reported: a counter that loses its [Role] total or renames a dimension
+Tests:       2 failed, 3 passed, 5 total
+== mutation 2: risk_decision_total đổi AiStatus thành Status
+      87 |   it('TC-412-01 every counter an alarm reads is written with exactly those dimensions', () => {
+    +   "risk_decision_total: alarm reads [AiStatus,Role] but the application writes [Role,Status] and [Role]",
+  ● alarm contract: dimensions of counters (BL-412) › TC-412-01 every counter an alarm reads is written with exactly those dimensions
+  ● alarm contract: dimensions of counters (BL-412) › TC-412-03 drift is reported: a counter that loses its [Role] total or renames a dimension
+Tests:       2 failed, 3 passed, 5 total
+== mutation 3: risk_flag_total đổi tên thành risk_flag_count
+    +   "risk_flag_total: an alarm reads it but it is neither a counter the application writes nor a known non-counter",
+  ● alarm contract: dimensions of counters (BL-412) › TC-412-01 every counter an alarm reads is written with exactly those dimensions
+  ● alarm contract: dimensions of counters (BL-412) › TC-412-03 drift is reported: a counter that loses its [Role] total or renames a dimension
+  ● alarm contract: dimensions of counters (BL-412) › TC-412-05 a metric that no counter writes and no non-counter list names is reported (renamed or removed counter)
+Tests:       3 failed, 2 passed, 5 total
+== khôi phục
+Tests:       5 passed, 5 total
