@@ -246,7 +246,7 @@ describe('TransferFacts (real PostgreSQL)', () => {
           name,
           true,
         ]);
-        if (name === 'history' || name === 'reverse') r2r4 += plan.ms;
+        if (name === 'account' || name === 'reverse') r2r4 += plan.ms;
       }
       expect(r2r4 + aggregateMs).toBeLessThanOrEqual(30);
     });

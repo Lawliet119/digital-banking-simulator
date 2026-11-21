@@ -23,18 +23,26 @@ describe('BL-184 H2 history window constants', () => {
 
   it('drive the SQL history window, which starts HISTORY_DAYS before the event', () => {
     const occMs = Date.parse('2026-10-19T12:00:00.000Z');
-    const { history } = factQueries('from', 'to', occMs);
-    expect(history.params).toEqual([
+    const { account } = factQueries('from', 'to', occMs);
+    // $2 opens the one scan (30 days before the event); $5 closes the history (the event itself,
+    // strictly before it); $3 closes the scan one millisecond later for the 1 h and 24 h windows.
+    expect(account.params.slice(0, 3)).toEqual([
       'from',
       new Date(occMs - HISTORY_DAYS * DAY_MS).toISOString(),
-      new Date(occMs).toISOString(),
+      new Date(occMs + 1).toISOString(),
     ]);
+    expect(account.params[4]).toBe(new Date(occMs).toISOString());
   });
 
-  it('read count and median from the same rows: one scan of the facts view feeds both', () => {
-    const { sql } = factQueries('from', 'to', 0).history;
-    expect(sql.match(/v_transfer_facts/g)).toHaveLength(1);
-    expect(sql).toMatch(/count\(\*\) OVER \(\) AS n/);
-    expect(sql).toMatch(/FROM h\b/);
+  it('read count and median from the same rows: one scan of the facts view feeds both (DBS-173)', () => {
+    const { sql } = factQueries('from', 'to', 0).account;
+    // One scan (`w`) feeds count, median, velocity and outflow; the only other read of the view is
+    // the primary-key probe for the current transfer.
+    expect(sql.match(/FROM v_transfer_facts/g)).toHaveLength(2);
+    expect(sql.match(/FROM w\b/g)).toHaveLength(1);
+    expect(sql).toMatch(/count\(\*\) FILTER \(WHERE created_at < \$5::timestamptz\)/);
+    expect(sql).toMatch(
+      /array_agg\(amount ORDER BY amount\)\s+FILTER \(WHERE created_at < \$5::timestamptz\)/,
+    );
   });
 });
