@@ -40,7 +40,11 @@ cd "$HOME_DIR/src"
 
 case "${1:-}" in
   prepare)
-    if [ -s "$LOAD_FIXTURE" ]; then echo "fixture đã có: $LOAD_FIXTURE (BL-213: không seed lại trên DB đã đo)"; exit 0; fi
+    if [ -s "$LOAD_FIXTURE" ]; then
+      aws s3 rm "s3://$BUCKET/$TOKENS_S3_KEY" --only-show-errors || true
+      echo "fixture đã có: $LOAD_FIXTURE (BL-213: không seed lại trên DB đã đo)"
+      exit 0
+    fi
     export LOAD_TOKENS_FILE="$HOME_DIR/tokens.json"
     aws s3 cp "s3://$BUCKET/$TOKENS_S3_KEY" "$LOAD_TOKENS_FILE" --only-show-errors
     chmod 600 "$LOAD_TOKENS_FILE"
@@ -72,22 +76,29 @@ case "${1:-}" in
     node load-tests/run.cjs "$scenario" "$@" 2>&1 | tee "$log"
     code=${PIPESTATUS[0]}
     set -e
-    latest="$(ls -dt "load-tests/results/${scenario}-"*/ | head -1)"
-    latest="${latest%/}"
+    # Thư mục kết quả lấy từ dòng `results=` của run.cjs (không đoán theo thời gian: thư mục cũ của cùng bài sẽ bị ghi đè).
+    latest="$(grep -o 'results=[^ ;]*' "$log" | tail -1 | cut -d= -f2- || true)"
+    if [ -z "$latest" ] || [ ! -d "$latest" ]; then
+      echo "run.cjs không tạo thư mục kết quả (lỗi cấu hình); exit=$code" >&2
+      exit "${code:-1}"
+    fi
     inv="$(grep -o 'invariantExit=[0-9]*' "$log" | tail -1 | cut -d= -f2 || true)"
     cp "$log" "$latest/run.log"
-    # runExit giữ mã lỗi của k6 khi k6 đỏ; invariantExit là mã của checker (0 chỉ khi có báo cáo PASS). Cả hai là bằng chứng của BL-127.
-    printf '{"scenario":"%s","startedAt":"%s","finishedAt":"%s","runExit":%s,"invariantExit":%s}\n' \
-      "$scenario" "$started" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$code" "${inv:-null}" > "$latest/exit.json"
-    cat "$latest/exit.json"
+    agg=0
     if [ -s "$latest/raw.json" ]; then
-      node load-tests/aggregate-raw.cjs "$latest"
+      node load-tests/aggregate-raw.cjs "$latest" || agg=$?
       sha256sum "$latest/raw.json" | cut -d' ' -f1 > "$latest/raw.json.sha256"
       stat -c %s "$latest/raw.json" > "$latest/raw.json.size"
       gzip -f "$latest/raw.json"
     fi
+    # runExit giữ mã lỗi của k6 khi k6 đỏ; invariantExit là mã của checker (0 chỉ khi có báo cáo PASS). Cả hai là bằng chứng của BL-127.
+    printf '{"scenario":"%s","startedAt":"%s","finishedAt":"%s","runExit":%s,"invariantExit":%s,"aggregateExit":%s}\n' \
+      "$scenario" "$started" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$code" "${inv:-null}" "$agg" > "$latest/exit.json"
+    cat "$latest/exit.json"
+    # Luôn đẩy kết quả lên bucket, kể cả khi bước rút gọn lỗi (raw.json.gz vẫn nằm trong thư mục).
     aws s3 sync "$latest" "s3://$BUCKET/results/$(basename "$latest")" --only-show-errors
     echo "uploaded s3://$BUCKET/results/$(basename "$latest")"
+    if [ "$code" -eq 0 ] && [ "$agg" -ne 0 ]; then code=$agg; fi
     exit "$code"
     ;;
   *)

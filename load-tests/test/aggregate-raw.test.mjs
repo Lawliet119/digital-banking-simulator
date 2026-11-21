@@ -171,3 +171,19 @@ test("TC-166-22 a 429 is a system error outside the rate-limit scenario (WAF or 
   assert.equal(agg.byScenario.boundary["POST /v1/transfers"].systemErrors, 0);
   assert.equal(agg.unexpected429, 1);
 });
+
+// TC-166-23 (review lượt 2 #1): đạt DoD 3 cần cả ngân sách lỗi lẫn tải thật sự được phát đủ (không dropped iteration).
+test("TC-166-23 dropped iterations fail DoD 3 even when the error rate is clean", async () => {
+  const clean = await aggregateLines(plateauLines("write", 1000));
+  assert.equal(clean.plateaus["120"].droppedIterations, 0);
+  assert.equal(clean.plateaus["120"].meetsDoD3, true);
+  const dropped = await aggregateLines([
+    ...plateauLines("write", 1000),
+    point("dropped_iterations", 1, { scenario: "write_120" }, 5000),
+    point("dropped_iterations", 1, { scenario: "read_120" }, 6000),
+    point("dropped_iterations", 1, { scenario: "write_60" }, 6000),
+  ]);
+  assert.equal(dropped.plateaus["120"].meetsErrorBudget, true);
+  assert.equal(dropped.plateaus["120"].droppedIterations, 2);
+  assert.equal(dropped.plateaus["120"].meetsDoD3, false);
+});

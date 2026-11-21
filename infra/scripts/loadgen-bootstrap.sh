@@ -26,7 +26,7 @@ if [ ! -x "$HOME_DIR/node/bin/node" ]; then
 fi
 export PATH="$HOME_DIR/node/bin:$PATH"
 
-# --- k6: bản chỉ định, mặc định bản phát hành mới nhất ---
+# --- k6: bản chỉ định (mặc định v2.3.0, bản DBS-165 đã kiểm); "latest" lấy bản mới nhất ---
 if [ ! -x "$HOME_DIR/k6/k6" ]; then
   if [ -z "$K6_VERSION" ]; then
     K6_VERSION="$(curl -fsSL https://api.github.com/repos/grafana/k6/releases/latest | grep -m1 '"tag_name"' | sed 's/.*"\(v[^"]*\)".*/\1/')"

@@ -4,7 +4,8 @@
  * lưu trong repo: `aggregate.json` (theo scenario và tên request) và `per-minute.json` (theo phút). Chỉ đọc, không
  * ghi đè raw; thêm `requests.csv.gz` (mỗi request một dòng: epoch_ms,scenario,name,status,duration_ms). Dùng: node load-tests/aggregate-raw.cjs <thư mục kết quả có raw.json hoặc raw.json.gz>
  *
- * Lỗi hệ thống khớp `record()` của lib/client.js: status ngoài 200, 201, 422, 429 (kể cả 0: timeout, đứt kết nối).
+ * Lỗi hệ thống: status ngoài 200, 201, 422, 429 (kể cả 0: timeout, đứt kết nối), và 429 ngoài bài rate-limit (`record()` của
+ * lib/client.js coi 429 là hợp lệ mọi nơi; ở cloud, giới hạn app đã nâng nên 429 là của WAF hoặc ALB, DBS-166 review #2).
  * Phân vị nội suy tuyến tính trên mảng đã sắp xếp (chỉ số p/100 × (n − 1)), cùng cách k6 tính p(95).
  */
 const { createReadStream, createWriteStream, existsSync, writeFileSync } = require("node:fs");
@@ -54,7 +55,7 @@ function summarize(values) {
 
 // Per plateau (read_N + write_N together) over the plateau's own window. The verdict is on the whole window; the
 // per-minute rows start at the plateau's first request (60 s buckets) and are supporting evidence only.
-function summarizePlateaus(plateaus) {
+function summarizePlateaus(plateaus, dropped) {
   const out = {};
   for (const [n, p] of plateaus) {
     const buckets = new Map();
@@ -71,6 +72,10 @@ function summarizePlateaus(plateaus) {
       systemErrors: p.systemErrors,
       errorRate: p.systemErrors / p.requests,
       meetsErrorBudget: p.systemErrors / p.requests < ERROR_BUDGET,
+      droppedIterations: (dropped.get(`read_${n}`) || 0) + (dropped.get(`write_${n}`) || 0),
+      meetsDoD3:
+        p.systemErrors / p.requests < ERROR_BUDGET &&
+        (dropped.get(`read_${n}`) || 0) + (dropped.get(`write_${n}`) || 0) === 0,
       windowSeconds: round(seconds),
       achievedRps: round(p.requests / seconds),
       perMinute: [...buckets.values()].sort((a, b) => a.minute - b.minute),
@@ -87,6 +92,7 @@ async function aggregateLines(lines, onRequest = null) {
   let skippedLines = 0;
   let minMinute = Infinity;
   let unexpected429 = 0;
+  const dropped = new Map(); // scenario -> dropped iterations (k6 could not start the planned load)
   const plateaus = new Map(); // N -> {requests, systemErrors, first, last, minutes: Map}
   let first = Infinity;
   let last = -Infinity;
@@ -147,6 +153,9 @@ async function aggregateLines(lines, onRequest = null) {
       }
       m.values.push(data.value);
       if (isError) m.systemErrors += 1;
+    } else if (metric === "dropped_iterations") {
+      const scenario = (data.tags || {}).scenario || "unknown";
+      dropped.set(scenario, (dropped.get(scenario) || 0) + data.value);
     } else if (metric === "system_errors") {
       sys.total += 1;
       if (data.value) sys.errors += 1;
@@ -204,7 +213,7 @@ async function aggregateLines(lines, onRequest = null) {
       : null,
     skippedLines,
     unexpected429,
-    plateaus: summarizePlateaus(plateaus),
+    plateaus: summarizePlateaus(plateaus, dropped),
     systemErrors: {
       ...sys,
       rate: sys.total ? sys.errors / sys.total : null,
