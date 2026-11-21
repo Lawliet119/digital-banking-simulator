@@ -75,7 +75,8 @@ function fakeRun({ dashboard = DASHBOARD, imageFor } = {}) {
       return { stdout: JSON.stringify({ DashboardName: at("--dashboard-name"), DashboardBody: body }), stderr: "" };
     }
     const ref = at("--metric-widget");
-    call.widget = JSON.parse(readFileSync(ref.slice("file://".length), "utf8"));
+    call.widgetRaw = readFileSync(ref.slice("file://".length));
+    call.widget = JSON.parse(call.widgetRaw.toString("utf8"));
     call.widgetPath = ref.slice("file://".length);
     return imageFor ? imageFor(call) : { stdout: JSON.stringify({ MetricWidgetImage: PNG_B64 }), stderr: "" };
   };
@@ -234,6 +235,24 @@ test("widgetImageProperties rewrites SEARCH periods so the trend widget has no 3
     window15,
   );
   assert.match(keep.properties.metrics[0][0].expression, /'Sum', 300\)$/);
+});
+
+// TC-178-14b: AWS CLI v2 đọc `file://` bằng bảng mã của máy (cp1252 trên Windows) và từ chối tiêu đề tiếng Việt viết UTF-8
+// («Unable to load paramfile … text contents could not be decoded», gặp khi thử thật ở M-178-03): tệp MetricWidget phải thuần ASCII.
+test("the MetricWidget temp file is pure ASCII (non-ASCII characters are written as unicode escapes) and still parses to the same title", async () => {
+  const out = tmp();
+  try {
+    const { run, calls } = fakeRun();
+    await snapshotDashboard({ run, opts: parseArgs(baseArgs(out)), log: () => {} });
+    const images = calls.filter((c) => c.widgetRaw);
+    assert.equal(images.length, 3);
+    for (const c of images) {
+      assert.ok(c.widgetRaw.every((byte) => byte < 0x80), "tệp MetricWidget có byte ngoài ASCII");
+    }
+    assert.ok(images.some((c) => c.widget.title === "Lưu lượng: request mỗi giây"), "tiêu đề tiếng Việt vẫn nguyên sau khi phân tích JSON");
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
 });
 
 // TC-178-14

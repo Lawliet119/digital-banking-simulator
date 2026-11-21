@@ -20,8 +20,8 @@
 //   ký PNG (89 50 4E 47). Ảnh CloudWatch vẽ chữ báo lỗi hoặc «không có dữ liệu» vẫn là PNG hợp lệ: mở ảnh xem.
 // - Mọi chữ in ra (kể cả stderr của `aws`) được che ARN (`<arn>`) và ID tài khoản 12 chữ số (`<acct>`).
 //
-// `aws` được gọi bằng execFile, không qua shell; thân MetricWidget đi qua tệp tạm `file://` (tránh giới hạn độ dài và dấu nháy của
-// Windows). Trên Windows execFile chỉ chạy được `.exe`: để thay `aws` bằng script, dùng `--aws-bin <node> --aws-arg <script.mjs>`.
+// `aws` được gọi bằng execFile, không qua shell; thân MetricWidget đi qua tệp tạm `file://` thuần ASCII (tránh giới hạn độ dài và dấu
+// nháy của Windows, và lỗi bảng mã cp1252 của AWS CLI với tiêu đề tiếng Việt). Trên Windows execFile chỉ chạy được `.exe`: để thay `aws` bằng script, dùng `--aws-bin <node> --aws-arg <script.mjs>`.
 //
 // Thoát: 0 mọi widget metric đã vẽ; 1 có widget lỗi hoặc không đọc được dashboard; 2 dùng sai.
 import { execFile } from "node:child_process";
@@ -170,6 +170,14 @@ export function widgetImageProperties(widget, { start, end, width, height, windo
   return { properties, title: original.title };
 }
 
+/**
+ * JSON thuần ASCII: ký tự ngoài ASCII viết thành `\uXXXX`. AWS CLI v2 đọc `file://` bằng bảng mã của máy (cp1252 trên Windows) và từ chối
+ * tiêu đề tiếng Việt viết UTF-8 («Unable to load paramfile … text contents could not be decoded»); `PYTHONUTF8` không cứu được bản exe.
+ */
+function asciiJson(value) {
+  return JSON.stringify(value).replace(/[\u0080-￿]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
+
 function reasonOf(error) {
   const stderr = typeof error?.stderr === "string" ? error.stderr.trim() : "";
   const text = stderr || (error instanceof Error ? error.message : String(error));
@@ -229,7 +237,7 @@ export async function snapshotDashboard({ run = defaultRun, opts, log = console.
       const file = `${String(number).padStart(2, "0")}-${slugify(title)}.png`;
       const widgetFile = join(work, `widget-${number}.json`);
       try {
-        writeFileSync(widgetFile, JSON.stringify(properties));
+        writeFileSync(widgetFile, asciiJson(properties));
         const { stdout, stderr } = await run(opts.awsBin, [
           ...commonArgs(opts),
           "get-metric-widget-image",
