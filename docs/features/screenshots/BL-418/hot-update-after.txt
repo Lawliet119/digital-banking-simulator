@@ -1,0 +1,20 @@
+
+BL-418 lock hold · accounts=3 rate=24/s seconds=60 pool=10 seeded today's debits per account=8000
+sent 1440 in 60.0 s, non-201: 0
+HTTP latency               n=  1440  mean 14.59 ms  p50 13.74  p95 20.52  p99 26.78  max 52.82
+lock wait (FOR UPDATE)     n=  1440  mean 0.86 ms  p50 0.81  p95 1.20  p99 1.77  max 4.44
+lock hold (to COMMIT)      n=  1440  mean 6.64 ms  p50 6.16  p95 9.72  p99 13.95  max 21.02
+  of which checkGuards     n=  1440  mean 0.03 ms  p50 0.03  p95 0.04  p99 0.07  max 0.23
+accounts UPDATE rows 4314 (3.00 per transfer), HOT 4314 (100.0%), dead tuples 21, trigger on
+
+pg_stat_statements (server side, this run only):
+    1440 calls  mean    0.233 ms      38 buf  INSERT INTO ledger_entries(transfer_id,account_id,direction,amount,balance_aft
+    1440 calls  mean    0.135 ms      25 buf  INSERT INTO transfers(type,from_account_id,to_account_id,amount,status,reject_
+    2880 calls  mean    0.052 ms       6 buf  UPDATE accounts SET balance=balance+$2::bigint, updated_at=clock_timestamp()  
+    1440 calls  mean    0.076 ms      12 buf  INSERT INTO idempotency_keys(user_id,idem_key,request_hash) VALUES($1,$2,$3)  
+    1440 calls  mean    0.060 ms      16 buf  UPDATE idempotency_keys SET transfer_id=$3,response_code=$4,response_body=$5::
+    1440 calls  mean    0.056 ms      13 buf  INSERT INTO audit_log   (actor_user_id, actor_role, action, outcome, target_ty
+    1440 calls  mean    0.039 ms       7 buf  INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation
+    1440 calls  mean    0.038 ms       7 buf  SELECT a.id, a.customer_id AS "customerId", c.user_id AS "userId",   a.type, a
+    1440 calls  mean    0.019 ms       2 buf  SELECT $1 FROM public.accounts a           WHERE a.type <> $2             AND 
+    1443 calls  mean    0.001 ms       0 buf  COMMIT

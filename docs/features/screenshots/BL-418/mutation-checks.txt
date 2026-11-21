@@ -1,0 +1,10 @@
+### Mutation A: CREATE TRIGGER removed (counter never maintained)
+-- daily-debit-counter-flow
+Tests:       3 failed, 3 total
+-- daily-debit-guard
+Tests:       3 failed, 3 total
+### Mutation B: WHERE (sent_day IS NULL OR sent_day <= d) removed (older line moves the counter back)
+-- daily-debit-counter
+Tests:       1 failed, 7 passed, 8 total
+-- daily-debit-guard
+Tests:       1 failed, 2 passed, 3 total

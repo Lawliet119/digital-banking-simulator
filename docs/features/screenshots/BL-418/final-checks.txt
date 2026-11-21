@@ -1,0 +1,31 @@
+HEAD d343484bb5a7cd956bfeb29d1efadc5ac672b5f6
+## npm run lint:check
+> digital-banking-simulator-backend@0.1.0 lint:check
+> eslint "{src,test}/**/*.ts"
+
+exit 0
+## npm run typecheck
+> tsc --noEmit -p tsconfig.json
+
+exit 0
+## npm test
+Test Suites: 142 passed, 142 total
+Tests:       2410 passed, 2410 total
+## npm run test:e2e (DATABASE_URL = throwaway Postgres 17)
+Test Suites: 2 failed, 16 passed, 18 total
+Tests:       3 failed, 179 passed, 182 total
+## npm run test:e2e, second run (first run: 3 tests red with spawnSync ETIMEDOUT in fraud-ai-cli and one more subprocess suite while the machine was busy; fraud-ai-cli alone 7/7 here and on main without BL-418)
+FAIL test/dev-auth-bootstrap.e2e-spec.ts (105.832 s)
+Test Suites: 1 failed, 17 passed, 18 total
+Tests:       1 failed, 181 passed, 182 total
+## npm run test:e2e second run: 1 red (dev-auth-bootstrap, 106 s in the parallel run; alone 4/4 in 32 s). Third run with -i (one suite at a time):
+Test Suites: 18 passed, 18 total
+Tests:       182 passed, 182 total
+Time:        106.746 s, estimated 1292 s
+## npm run lint:check (after the TC-418-09/11 tests were completed)
+
+exit 0
+## npm run test:e2e, parallel as CI runs it, fourth run (machine with 4 GB free)
+Test Suites: 18 passed, 18 total
+Tests:       182 passed, 182 total
+Time:        84.634 s

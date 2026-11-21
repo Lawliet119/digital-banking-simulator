@@ -102,6 +102,11 @@ describe('DBS-84 daily limit: index-only scan, clock read after the lock, only d
     expect(lock.mock.invocationCallOrder[0]).toBeLessThan(now.mock.invocationCallOrder[0]);
   });
 
+  // BL-418: the guard now reads the day total from the locked account row; SENT_TODAY_SQL is the
+  // exact answer for the one case the counter cannot give (the clock is behind the counter's day)
+  // and the reference the counter is tested against, so its plan still has to stay an index-only scan.
+  // The fixture below also proves the counter trigger (one UPDATE per statement) copes with 100,000
+  // debit lines inserted in one statement: see tc-84-01-time.txt for the run time before and after.
   it('TC-84-01 the daily query is an index-only scan on a ledger of 200,000 lines', async () => {
     await db.runner.startTransaction();
     const { hotAccountId } = await loadDailyDebitLedger(db.runner, {

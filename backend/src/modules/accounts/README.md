@@ -14,6 +14,7 @@ Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 ## Phải giữ
 
 - **Số dư chỉ đổi qua `ledger`.** Module này export `lockForUpdate(ids, manager)` và `applyBalanceChange(…, manager)` cho `ledger` gọi, và nhận transaction của `ledger` — không tự mở transaction riêng cho việc đó.
+- **`sent_today` và `sent_day` (BL-418) không do mã ứng dụng ghi.** Bộ đếm hạn mức ngày là dữ liệu dẫn xuất từ `ledger_entries`, do trigger `ledger_entries_daily_debit_counter` giữ (`SECURITY DEFINER`); `dbs_api` không có quyền `UPDATE` hai cột này. `lockForUpdate` trả chúng trong `LockedAccount` (`sentToday`, `sentDay`); `getOwnedAccount` và DTO thì không. Đừng thêm `UPDATE` hai cột này vào service.
 - Mỗi khách tối đa 3 tài khoản (`ACCOUNT_LIMIT_REACHED`); kiểm tra trong transaction mở tài khoản, khóa hàng `customers`.
 - `CHECK (type = 'SYSTEM' OR balance >= 0)` ở mức database.
 - Khóa tài khoản = đổi trạng thái **và** thu hồi phiên của chủ tài khoản trong cùng lệnh (gọi `identity`), không chờ sự kiện.

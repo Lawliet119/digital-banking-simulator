@@ -48,7 +48,9 @@ export class AccountsService {
     if (normalized.length === 0) return [];
     // OF a avoids locking the nullable side of the owner join. SQL order governs lock acquisition.
     const rows = await manager.query<LockedRow[]>(
-      `SELECT ${SNAPSHOT_COLUMNS}, pg_current_xact_id()::text AS txid FROM accounts a
+      `SELECT ${SNAPSHOT_COLUMNS}, a.sent_today::text AS "sentToday",
+              to_char(a.sent_day, 'YYYY-MM-DD') AS "sentDay", pg_current_xact_id()::text AS txid
+       FROM accounts a
        LEFT JOIN customers c ON c.id=a.customer_id
        WHERE a.id=ANY($1::uuid[]) ORDER BY a.id FOR UPDATE OF a`,
       [normalized],

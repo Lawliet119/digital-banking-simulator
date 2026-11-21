@@ -34,6 +34,32 @@ pair_values AS (
   WHERE t.status = 'COMPLETED'
   GROUP BY t.id, t.amount, t.from_account_id, t.to_account_id
 ),
+-- BL-418: accounts.sent_today / sent_day are derived from the DEBIT lines (the trigger
+-- ledger_entries_daily_debit_counter). sent_day is the latest Vietnam day with a DEBIT line of the
+-- account and sent_today the sum of that day; SYSTEM accounts carry no counter.
+debit_days AS (
+  SELECT DISTINCT ON (e.account_id)
+         e.account_id, (e.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS day
+  FROM public.ledger_entries e
+  WHERE e.direction = 'DEBIT'
+  ORDER BY e.account_id, e.created_at DESC
+),
+debit_day_totals AS (
+  SELECT d.account_id, d.day, SUM(e.amount::numeric) AS total
+  FROM debit_days d
+  JOIN public.ledger_entries e
+    ON e.account_id = d.account_id AND e.direction = 'DEBIT'
+   AND e.created_at >= (d.day::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
+   AND e.created_at <  ((d.day + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
+  GROUP BY d.account_id, d.day
+),
+counter_values AS (
+  SELECT a.id, a.sent_day AS actual_day, a.sent_today::numeric AS actual_total,
+         t.day AS expected_day, COALESCE(t.total, 0) AS expected_total
+  FROM public.accounts a
+  LEFT JOIN debit_day_totals t ON t.account_id = a.id
+  WHERE a.type <> 'SYSTEM'
+),
 violations AS (
   SELECT 1 AS ordinal, ''::text AS identifier,
          jsonb_build_object(
@@ -79,6 +105,14 @@ violations AS (
      OR debit_amount <> amount OR credit_amount <> amount
      OR debit_account_id IS DISTINCT FROM from_account_id
      OR credit_account_id IS DISTINCT FROM to_account_id
+  UNION ALL
+  SELECT 6, id::text,
+         jsonb_build_object(
+           'check', 'daily_debit_totals', 'accountId', id::text, 'transferId', NULL,
+           'actual', jsonb_build_object('sentDay', actual_day::text, 'sentToday', actual_total::text),
+           'expected', jsonb_build_object('sentDay', expected_day::text, 'sentToday', expected_total::text))
+  FROM counter_values
+  WHERE actual_day IS DISTINCT FROM expected_day OR actual_total <> expected_total
 )
 SELECT jsonb_build_object(
   'status', CASE WHEN EXISTS (SELECT 1 FROM violations) THEN 'FAIL' ELSE 'PASS' END,

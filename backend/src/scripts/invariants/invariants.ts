@@ -9,7 +9,12 @@ import { validationSchema, type Env } from '@config/validation.schema';
 import { buildSslOptions } from '@database/pg-ssl';
 
 export type InvariantCheck =
-  'ledger_totals' | 'account_balances' | 'total_balances' | 'customer_balances' | 'completed_pairs';
+  | 'ledger_totals'
+  | 'account_balances'
+  | 'total_balances'
+  | 'customer_balances'
+  | 'completed_pairs'
+  | 'daily_debit_totals';
 
 export interface InvariantViolation {
   check: InvariantCheck;
@@ -43,6 +48,7 @@ function validReport(value: unknown): value is LedgerInvariantReport {
     'total_balances',
     'customer_balances',
     'completed_pairs',
+    'daily_debit_totals',
   ]);
   return value.violations.every(
     (v: unknown) =>

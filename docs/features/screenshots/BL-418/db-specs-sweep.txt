@@ -1,0 +1,23 @@
+== account-opening
+Tests:       11 passed, 11 total
+== account-reads
+Tests:       10 passed, 10 total
+== accounts-schema
+Tests:       15 passed, 15 total
+== audit.service
+Tests:       13 passed, 13 total
+== operator-deposits
+Tests:       18 passed, 18 total
+== operator-account-status
+Tests:       12 passed, 12 total
+== operator-account-search
+Tests:       20 passed, 20 total
+== seed
+Tests:       3 passed, 3 total
+== seed-rerun
+Tests:       3 passed, 3 total
+== transaction-history
+Tests:       9 passed, 9 total
+== transaction-history-plan
+SWEEP STOPPED BY THE SYSTEM (low memory) after transaction-history; NOT RUN: transaction-history-plan transfer-status transfers-autovacuum outbox-writer openapi-completeness openapi-export denied-load dedup-cleanup notification-consumer risk-decisions reconciliation-schema migration-owner-role append-only customer-onboarding migration-cli-reduced-env (left to CI)
+Tests:       3 passed, 3 total

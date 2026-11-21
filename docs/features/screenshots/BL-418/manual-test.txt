@@ -1,0 +1,240 @@
+c49790a8ec3e201eea444c3be93b11b791bbefc6  <- last commit that changes code (backend/src *.ts and *.sql): feat(ledger): kiểm bất biến daily_debit_totals cho bộ đếm hạn mức ngày (BL-418). Commits after it change only tests, README and docs.
+Date: 2026-11-21T15:08:57Z  Host: Windows 11, Git Bash, Node v24.22.2, Postgres 17 (Docker bl418-pg, port 55418, DB banking418), Valkey 8 (bl418-valkey, 56379), API: npx nest start (APP_ROLE=api, port 3418), connects as the container superuser
+
+## M-418-01 migration:run, migration:revert, migration:run on an empty database
+$ npm run migration:run
+Migration TuneTransfersAutovacuum1795000011000 has been executed successfully.
+Migration AddDailyDebitCounter1795000012000 has been executed successfully.
+                              Table "public.accounts"
+   Column    |           Type           | Collation | Nullable |      Default      
+-------------+--------------------------+-----------+----------+-------------------
+ id          | uuid                     |           | not null | gen_random_uuid()
+ customer_id | uuid                     |           |          | 
+ type        | text                     |           | not null | 
+ status      | text                     |           | not null | 'ACTIVE'::text
+ balance     | bigint                   |           | not null | 0
+ created_at  | timestamp with time zone |           | not null | now()
+ updated_at  | timestamp with time zone |           | not null | now()
+ sent_today  | bigint                   |           | not null | 0
+ sent_day    | date                     |           |          | 
+Indexes:
+    "accounts_pkey" PRIMARY KEY, btree (id)
+    "accounts_customer_idx" btree (customer_id) WHERE customer_id IS NOT NULL
+    "accounts_single_system" UNIQUE, btree (type) WHERE type = 'SYSTEM'::text
+Check constraints:
+    "accounts_balance_non_negative" CHECK (type = 'SYSTEM'::text OR balance >= 0)
+    "accounts_owner_matches_type" CHECK ((type = 'SYSTEM'::text) = (customer_id IS NULL))
+    "accounts_sent_day_when_sent" CHECK (sent_day IS NOT NULL OR sent_today = 0)
+    "accounts_sent_today_non_negative" CHECK (sent_today >= 0)
+    "accounts_status_check" CHECK (status = ANY (ARRAY['ACTIVE'::text, 'LOCKED'::text]))
+    "accounts_type_check" CHECK (type = ANY (ARRAY['CHECKING'::text, 'SAVINGS'::text, 'SYSTEM'::text]))
+Foreign-key constraints:
+    "accounts_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT
+Referenced by:
+    TABLE "transfers" CONSTRAINT "transfers_from_account_id_fkey" FOREIGN KEY (from_account_id) REFERENCES accounts(id) ON DELETE RESTRICT
+    TABLE "transfers" CONSTRAINT "transfers_to_account_id_fkey" FOREIGN KEY (to_account_id) REFERENCES accounts(id) ON DELETE RESTRICT
+
+               tgname               | per_row | tgnewtable 
+------------------------------------+---------+------------
+ ledger_entries_daily_debit_counter | f       | new_rows
+(1 row)
+
+$ npm run migration:revert
+Migration AddDailyDebitCounter1795000012000 has been reverted successfully.
+ columns_left | functions_left | triggers_left 
+--------------+----------------+---------------
+            0 |              0 |             0
+(1 row)
+
+$ npm run migration:run
+Migration AddDailyDebitCounter1795000012000 has been executed successfully.
+ column_name | data_type | is_nullable | column_default 
+-------------+-----------+-------------+----------------
+ sent_day    | date      | YES         | 
+ sent_today  | bigint    | NO          | 0
+(2 rows)
+
+
+## M-418-02 success path: onboard A (Nguyễn Văn An), B (Trần Thị Bình), C (Lê Văn Cường); deposit; two transfers
+$ POST /v1/customers/me  (khách A)
+{"id":"e8fc4491-dc4f-4520-816e-77672b0cac9f","fullName":"Nguyễn Văn An","createdAt":"2026-11-21T15:09:38.028Z"}
+HTTP 200
+$ POST /v1/accounts (khách A)
+{"id":"82477e74-6741-4c54-8f65-52376acd56f7","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-21T15:09:38.386Z","updatedAt":"2026-11-21T15:09:38.386Z"}
+HTTP 201
+$ POST /v1/customers/me  (khách B)
+{"id":"a4f077b2-aa08-4a84-873d-aa4cd73629af","fullName":"Trần Thị Bình","createdAt":"2026-11-21T15:09:38.845Z"}
+HTTP 200
+$ POST /v1/accounts (khách B)
+{"id":"9060424e-7382-4f85-9522-3b363962310d","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-21T15:09:39.196Z","updatedAt":"2026-11-21T15:09:39.196Z"}
+HTTP 201
+$ POST /v1/customers/me  (khách C)
+{"id":"99e73b21-816b-4d60-b579-4ae88ed6f659","fullName":"Lê Văn Cường","createdAt":"2026-11-21T15:09:39.624Z"}
+HTTP 200
+$ POST /v1/accounts (khách C)
+{"id":"32b1c89d-ee77-413a-94cd-33efc9583af7","type":"CHECKING","status":"ACTIVE","balance":"0","createdAt":"2026-11-21T15:09:39.981Z","updatedAt":"2026-11-21T15:09:39.981Z"}
+HTTP 201
+A=82477e74-6741-4c54-8f65-52376acd56f7 B=9060424e-7382-4f85-9522-3b363962310d C=32b1c89d-ee77-413a-94cd-33efc9583af7
+$ POST /v1/operator/deposits  500.000.000 cho A, 10.000.000 cho C
+{"transferId":"6d07bcde-1979-4ea7-9b41-9e793c59ddbc","status":"COMPLETED"}
+HTTP 201
+{"transferId":"cdc251fe-5ef4-4a6d-86ef-293a7a8cb2b1","status":"COMPLETED"}
+HTTP 201
+$ POST /v1/transfers A->B 30.000.000 (Idempotency-Key 6d1d44a2-d3da-4764-ae16-abe32e2c0719)
+{"transferId":"19029da7-7d49-4e56-893d-c5fd1a5ef402","status":"COMPLETED"}
+HTTP 201
+$ POST /v1/transfers A->B 20.000.000
+{"transferId":"8a2efce7-76b1-4494-a302-f9c24a1c9ae3","status":"COMPLETED"}
+HTTP 201
+                  id                  |   full_name   |   type   |  balance   | sent_today |  sent_day  
+--------------------------------------+---------------+----------+------------+------------+------------
+ 32b1c89d-ee77-413a-94cd-33efc9583af7 | Lê Văn Cường  | CHECKING |   10000000 |          0 | 
+ 82477e74-6741-4c54-8f65-52376acd56f7 | Nguyễn Văn An | CHECKING |  450000000 |   50000000 | 2026-11-21
+ 9060424e-7382-4f85-9522-3b363962310d | Trần Thị Bình | CHECKING |   50000000 |          0 | 
+ 00000000-0000-4000-8000-000000000001 |               | SYSTEM   | -510000000 |          0 | 
+(4 rows)
+
+              account_id              | ledger_debit_sum | debit_lines 
+--------------------------------------+------------------+-------------
+ 00000000-0000-4000-8000-000000000001 |        510000000 |           2
+ 82477e74-6741-4c54-8f65-52376acd56f7 |         50000000 |           2
+(2 rows)
+
+
+## M-418-03 AC-5.6: A sends up to 180.000.000, then two 15.000.000 transfers released at the same time
+$ POST /v1/transfers A->B 50000000
+{"transferId":"bce271b5-39e6-41b0-85d5-c746ad1b5111","status":"COMPLETED"}
+HTTP 201
+$ POST /v1/transfers A->B 50000000
+{"transferId":"4c687aed-28a3-4e2c-bb00-c31e05d0c5c5","status":"COMPLETED"}
+HTTP 201
+$ POST /v1/transfers A->B 30000000
+{"transferId":"f6df143d-8204-4366-96a9-533e6b1f2bee","status":"COMPLETED"}
+HTTP 201
+ sent_today |  sent_day  
+------------+------------
+  180000000 | 2026-11-21
+(1 row)
+
+$ two POST /v1/transfers A->B 15.000.000 in parallel (background curl, same start)
+parallel #1:
+{"transferId":"5bfe1416-d3d5-490e-b776-d7cecf27327a","status":"COMPLETED"}
+HTTP 201
+parallel #2:
+{"errorCode":"LIMIT_PER_DAY_EXCEEDED","transferId":"e42cd136-1b3c-4717-a816-46d8f65a703a","type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"Transfer rejected","correlationId":"3b0cc3b9-5956-4ca1-b3a3-cfc1d55e1b45"}
+HTTP 422
+ sent_today |  sent_day  
+------------+------------
+  195000000 | 2026-11-21
+(1 row)
+
+ ledger_debit_sum_today | debit_lines 
+------------------------+-------------
+              195000000 |           6
+(1 row)
+
+  status   |     reject_reason      | count 
+-----------+------------------------+-------
+ COMPLETED |                        |     1
+ REJECTED  | LIMIT_PER_DAY_EXCEEDED |     1
+(2 rows)
+
+
+## M-418-04 refusals leave the counter alone, and a replayed Idempotency-Key answers the same
+before: A 195000000, C 0
+### M-418-04a A->B 60.000.000 (above 50.000.000 per transfer)
+{"errorCode":"LIMIT_PER_TX_EXCEEDED","transferId":"0e085639-2f7a-45c0-bb8c-b08cb2fd2f88","type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"Transfer rejected","correlationId":"7a7da0ff-92dc-4631-a6e9-78c166ec9217"}
+HTTP 422
+after 04a: A sent_today 195000000
+### M-418-04b A->B 10.000.000 (195.000.000 + 10.000.000 is above 200.000.000; balance is enough)
+{"errorCode":"LIMIT_PER_DAY_EXCEEDED","transferId":"3b199a23-cae5-4163-bb8b-88bdeeff977c","type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"Transfer rejected","correlationId":"6a7c275c-73db-4595-86e7-e4cd98afee5b"}
+HTTP 422
+after 04b: A sent_today 195000000
+### M-418-04c C->B 20.000.000 (C holds 10.000.000)
+{"errorCode":"INSUFFICIENT_FUNDS","transferId":"253c06c0-cb53-46ed-8eaa-612ce950a156","type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"Transfer rejected","correlationId":"4c589ffc-3f23-4d6b-964f-22f41c7c5c8f"}
+HTTP 422
+after 04c: C sent_today 0, sent_day 'NULL'
+### M-418-04d replay of the very first transfer (Idempotency-Key 6d1d44a2-d3da-4764-ae16-abe32e2c0719)
+{"status":"COMPLETED","transferId":"19029da7-7d49-4e56-893d-c5fd1a5ef402"}
+HTTP 201
+after 04d: A sent_today 195000000 ; debit lines of A 6
+  status   |     reject_reason      | count 
+-----------+------------------------+-------
+ COMPLETED |                        |     6
+ REJECTED  | INSUFFICIENT_FUNDS     |     1
+ REJECTED  | LIMIT_PER_DAY_EXCEEDED |     2
+ REJECTED  | LIMIT_PER_TX_EXCEEDED  |     1
+(4 rows)
+
+
+## M-418-06 npm run check:invariants: clean, then the counter of A is changed by hand, then restored
+$ npm run --silent check:invariants   (clean data)
+{"status":"PASS","totals":{"debit":"705000000","credit":"705000000","balance":"0"},"violations":[]}
+exit code: 0
+$ psql: UPDATE accounts SET sent_today = 1 WHERE id = A   (superuser, simulates a bad edit)
+UPDATE 1
+$ npm run --silent check:invariants   (counter tampered)
+{"status":"FAIL","totals":{"debit":"705000000","credit":"705000000","balance":"0"},"violations":[{"check":"daily_debit_totals","actual":{"sentDay":"2026-11-21","sentToday":"1"},"expected":{"sentDay":"2026-11-21","sentToday":"195000000"},"accountId":"82477e74-6741-4c54-8f65-52376acd56f7","transferId":null}]}
+exit code: 1
+$ psql: restore
+UPDATE 1
+$ npm run --silent check:invariants   (restored)
+{"status":"PASS","totals":{"debit":"705000000","credit":"705000000","balance":"0"},"violations":[]}
+exit code: 0
+
+## M-418-05 backfill on real data (API stopped): migration:revert then migration:run, counters against the ledger
+before revert: 00000000-0000-4000-8000-000000000001=0/NULL, 32b1c89d-ee77-413a-94cd-33efc9583af7=0/NULL, 82477e74-6741-4c54-8f65-52376acd56f7=195000000/2026-11-21, 9060424e-7382-4f85-9522-3b363962310d=0/NULL
+$ npm run migration:revert
+Migration AddDailyDebitCounter1795000012000 has been reverted successfully.
+$ npm run migration:run   (time the whole command)
+Migration AddDailyDebitCounter1795000012000 has been executed successfully.
+wall time of npm run migration:run: 5027 ms (includes node and ts-node start-up)
+                  id                  |   full_name   |  counter  | counter_day | ledger_sum_that_day 
+--------------------------------------+---------------+-----------+-------------+---------------------
+ 32b1c89d-ee77-413a-94cd-33efc9583af7 | Lê Văn Cường  |         0 |             |                   0
+ 82477e74-6741-4c54-8f65-52376acd56f7 | Nguyễn Văn An | 195000000 | 2026-11-21  |           195000000
+ 9060424e-7382-4f85-9522-3b363962310d | Trần Thị Bình |         0 |             |                   0
+ 00000000-0000-4000-8000-000000000001 |               |         0 |             |                   0
+(4 rows)
+
+$ npm run --silent check:invariants
+{"status":"PASS","totals":{"debit":"705000000","credit":"705000000","balance":"0"},"violations":[]}
+exit code: 0
+
+## M-418-05 (large ledger, second database banking418big): backfill time = time accounts is locked
+seed SQL: ~1,000,000 DEBIT lines, 500 accounts, 2 years (not balanced: no check:invariants on this database)
+-------------+----------
+     1000000 |      500
+(1 row)
+
+seed took 50 s
+$ npm run migration:show (node start-up only, for comparison)
+wall time: 5136 ms
+$ npm run migration:run (adds the columns, the trigger and backfills 500 accounts from 1,000,000 lines)
+Migration AddDailyDebitCounter1795000012000 has been executed successfully.
+wall time of npm run migration:run: 4977 ms
+ accounts_with_counter | total_of_counters 
+-----------------------+-------------------
+                   500 |           1553546
+(1 row)
+
+ mismatched_accounts 
+---------------------
+                   0
+(1 row)
+
+(banking418big dropped)
+
+## M-418-07 lock-hold driver, before and after, same five configurations (full output in before-*.txt, after-*.txt)
+before: code of origin/main 5195c751 (before-sha.txt: 5195c75195c76635ecb709af77a505f4d6710f74); after: 2b284c3844378471a471eab03af90beb279e61b6 (src identical to the last code commit above)
+| debit lines today per account | rate | lock wait mean | lock hold mean | checkGuards mean | non-201 |
+| (before -> after) | | | | | |
+| 0 | 24/s | 0.84 -> 0.84 ms | 7.39 -> 6.44 ms | 0.84 -> 0.03 ms | 0 -> 0 |
+| 8000 | 24/s | 0.87 -> 0.89 ms | 8.02 -> 6.78 ms | 1.37 -> 0.03 ms | 0 -> 0 |
+| 47000 | 24/s | 1.80 -> 0.79 ms | 11.58 -> 6.14 ms | 4.20 -> 0.03 ms | 0 -> 0 |
+| 8000 | 120/s | 55.12 -> 2.87 ms | 8.09 -> 6.32 ms | 1.69 -> 0.03 ms | 0 -> 0 |
+| 47000 | 120/s | 101.49 -> 3.78 ms | 11.53 -> 6.48 ms | 4.53 -> 0.03 ms | 1907 -> 0 |
+
+## M-418-08 HOT updates of accounts (8,000 debit lines per account, 24 transfers/s, 60 s; files hot-update-*.txt)
+pre-BL-418 write pattern (trigger disabled): accounts UPDATE rows 2849 (1.98 per transfer), HOT 2849 (100.0%), dead tuples 58, trigger DISABLED (pre-BL-418 write pattern)
+with the counter trigger:                    accounts UPDATE rows 4314 (3.00 per transfer), HOT 4314 (100.0%), dead tuples 21, trigger on
