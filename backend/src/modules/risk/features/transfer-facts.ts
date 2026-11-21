@@ -127,6 +127,8 @@ export function factQueries(
     //    count(DISTINCT ...) and a plain count of recipients agree.
     //  - the current transfer is looked up by primary key with the same predicates and window, which
     //    is what `bool_or(id = $9)` over the window answered, without making the scan read the heap.
+    //    $9 is left uncast: it takes the type of `id` (uuid here), and the text-typed synthetic view of the
+    //    DBS-128 parity test runs the same statement.
     account: {
       sql: `WITH w AS (
               SELECT created_at, amount, to_account_id
@@ -138,7 +140,7 @@ export function factQueries(
                     + agg.amounts[(agg.n + 2) / 2]::numeric)::text AS median2,
                    agg.hour, agg.ten, agg.recipients, agg.total, agg.small,
                    EXISTS (SELECT 1 FROM v_transfer_facts
-                           WHERE id = $9::uuid AND from_account_id = $1 AND ${COMPLETED}
+                           WHERE id = $9 AND from_account_id = $1 AND ${COMPLETED}
                              AND created_at >= $4::timestamptz AND created_at < $3::timestamptz) AS current
             FROM (SELECT (count(*) FILTER (WHERE created_at < $5::timestamptz))::int AS n,
                          array_agg(amount ORDER BY amount)
