@@ -7,12 +7,13 @@ process.env.NODE_ENV = 'test';
 require('ts-node/register');
 require('tsconfig-paths/register');
 const assert = require('node:assert/strict');
-const { execFileSync, spawn, spawnSync } = require('node:child_process');
+const { execFileSync, spawn } = require('node:child_process');
 const { setTimeout: sleep } = require('node:timers/promises');
 const { createDedupCleanupFixture } = require('../test/support/dedup-cleanup');
 const { ELASTICMQ_IMAGE } = require('../test/support/elasticmq.container');
 
 const ROWS = 100_000;
+const NAMES = ['dbs-bl218-mq', 'dbs-bl218-valkey'];
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8' }).trim();
 const hostPort = (name, port) => docker('port', name, String(port)).split('\n')[0].split(':').pop();
 
@@ -39,19 +40,44 @@ async function waitFor(check, label, ms = 60_000) {
 }
 
 function hardKill(child) {
-  // Windows: /F = TerminateProcess, không có SIGTERM, không chạy shutdown hook (giống SIGKILL).
-  spawnSync('taskkill', ['/PID', String(child.pid), '/F', '/T']);
+  // Không chạy shutdown hook. Windows: kill() đã là TerminateProcess; nơi khác là SIGKILL.
+  child.kill('SIGKILL');
 }
 
+const exited = child =>
+  child.exitCode !== null || child.signalCode !== null
+    ? Promise.resolve()
+    : new Promise(resolve => child.once('exit', resolve));
+
+const moneySnapshot = async owner => ({
+  accounts: await owner.query('SELECT id,balance::text FROM accounts ORDER BY id'),
+  transfers: await owner.query('SELECT count(*)::int AS n FROM transfers'),
+  ledgerEntries: await owner.query('SELECT count(*)::int AS n FROM ledger_entries'),
+});
+
 async function main() {
-  console.log(execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim());
-  console.log('BL-218 worker thật (node dist/main, APP_ROLE=worker) / hard-kill / PostgreSQL 17');
+  const git = (...a) => execFileSync('git', a, { encoding: 'utf8' }).trim();
+  const dirty = git('status', '--porcelain', '--', '.')
+    .split(String.fromCharCode(10))
+    .filter(Boolean).length;
+  console.log(
+    git('describe', '--always', '--dirty', '--abbrev=40'),
+    '| file đổi chưa commit:',
+    dirty,
+  );
   let f;
   const extra = [];
   let worker;
   let passed = false;
   try {
     f = await createDedupCleanupFixture();
+    for (const name of NAMES) {
+      try {
+        docker('rm', '-f', '-v', name); // bỏ container sót của lần chạy trước
+      } catch {
+        // chưa có thì thôi
+      }
+    }
     for (const [name, args] of [
       [
         'dbs-bl218-mq',
@@ -65,8 +91,8 @@ async function main() {
       ],
       ['dbs-bl218-valkey', ['-p', '127.0.0.1::6379', 'valkey/valkey:8-alpine']],
     ]) {
-      docker('run', '-d', '--name', name, ...args);
       extra.push(name);
+      docker('run', '-d', '--name', name, ...args);
     }
     const mq = `http://127.0.0.1:${hostPort('dbs-bl218-mq', 9324)}`;
     const env = {
@@ -105,6 +131,7 @@ async function main() {
       `INSERT INTO processed_events(consumer,event_id,processed_at)
        SELECT 'fresh',gen_random_uuid(),now()-interval '1 day' FROM generate_series(1,50) g`,
     );
+    const money = await moneySnapshot(f.owner);
     const before = await f.counts();
     assert.equal(before.keys, ROWS + 51);
     assert.equal(before.marks, ROWS + 50);
@@ -122,15 +149,15 @@ async function main() {
       return c.keys < before.keys && c.keys > 51 + 1000 ? c : null;
     }, 'worker bắt đầu dọn');
     hardKill(worker.child);
-    await new Promise(r => worker.child.once('exit', r));
+    await exited(worker.child);
     const afterKill = await f.counts();
     assert.ok(
-      afterKill.keys > 51 || afterKill.marks > 50,
-      'worker đã dọn xong trước khi bị kill, chạy lại với ROWS lớn hơn',
+      afterKill.keys > 51 && afterKill.keys < before.keys,
+      'kill không rơi vào giữa lúc dọn idempotency_keys, chạy lại',
     );
-    assert.ok(afterKill.keys >= 51 && afterKill.marks >= 50);
+    assert.ok(afterKill.marks >= 50);
     console.log(
-      `M03 HARD-KILL giữa chừng: thấy keys=${partial.keys}; sau khi chết keys=${afterKill.keys} marks=${afterKill.marks} (còn dư, chưa dọn hết)`,
+      `M03 HARD-KILL giữa chừng: thấy keys=${partial.keys}; sau khi chết keys=${afterKill.keys} marks=${afterKill.marks} (idempotency_keys còn dư chưa dọn hết; processed_events đã dọn xong trước khi kill, 50 còn hạn + mark của consumer thật)`,
     );
     execFileSync(
       process.execPath,
@@ -165,6 +192,7 @@ async function main() {
     await sleep(2000);
     assert.equal(worker.child.exitCode, null, 'worker phải còn sống sau khi dọn');
     await f.invariants();
+    assert.deepEqual(await moneySnapshot(f.owner), money);
     execFileSync(
       process.execPath,
       [
@@ -180,7 +208,7 @@ async function main() {
       },
     );
     console.log(
-      'M05 checker tiền sau restart: exit 0; balance và ledger không đổi vì chỉ dọn metadata',
+      'M05 checker tiền sau restart: exit 0; balance từng tài khoản, số transfers và số ledger_entries giống hệt trước khi worker chạy',
     );
     passed = true;
     console.log('--- log worker (30 dòng cuối) ---');
@@ -192,16 +220,30 @@ async function main() {
       );
     }
     if (worker?.child.exitCode === null) hardKill(worker.child);
+    const cleanupErrors = [];
     for (const name of extra) {
       try {
         docker('rm', '-f', '-v', name);
-      } catch {}
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
     }
-    if (f) {
-      const id = f.containerId;
-      await f.close();
-      assert.equal(docker('ps', '-aq', '--filter', `id=${id}`), '');
-      console.log('M06 dọn: PG/ElasticMQ/Valkey riêng đã xóa; Compose dùng chung không đụng');
+    try {
+      if (f) await f.close();
+      const left = docker('ps', '-aq', '--filter', 'name=dbs-bl218-');
+      if (left || (f && docker('ps', '-aq', '--filter', `id=${f.containerId}`))) {
+        throw new Error('container dbs-bl218-* hoặc PG riêng còn sót');
+      }
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    if (cleanupErrors.length) {
+      console.error('M06 dọn container THẤT BẠI:', cleanupErrors.map(e => e.message).join(' | '));
+      process.exitCode = 1;
+    } else {
+      console.log(
+        'M06 dọn: PG/ElasticMQ/Valkey riêng đã xóa (đã kiểm docker ps); Compose dùng chung không đụng',
+      );
     }
   }
   console.log('RESULT PASS: 6/6 bước');
