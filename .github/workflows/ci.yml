@@ -77,7 +77,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: node --test ../load-tests/fraud-dataset/generate.test.mjs ../load-tests/fraud-dataset/inspect-fraud.test.mjs ../load-tests/fraud-dataset/generate-fraud.test.mjs ../load-tests/fraud-dataset/split.test.mjs ../load-tests/fraud-dataset/audit-split.test.mjs
-      - run: node --test ../load-tests/test/config.test.mjs ../load-tests/test/fixture-validation.test.mjs ../load-tests/test/runner.test.mjs
+      - run: node --test ../load-tests/test/config.test.mjs ../load-tests/test/fixture-validation.test.mjs ../load-tests/test/runner.test.mjs ../load-tests/test/aggregate-raw.test.mjs ../load-tests/test/loadgen-tokens.test.mjs
 
   e2e:
     name: e2e
@@ -323,11 +323,11 @@ jobs:
           terraform_wrapper: false
       - name: terraform fmt -check -recursive
         run: terraform fmt -check -recursive -diff infra/terraform
-      - name: init, validate, test (bootstrap, modules/waf, envs/dev/base, envs/dev/session, envs/prod/session)
+      - name: init, validate, test (bootstrap, modules/waf, envs/dev/base, envs/dev/session, envs/dev/loadgen, envs/prod/session)
         shell: bash
         run: |
           set -euo pipefail
-          for dir in infra/terraform/bootstrap infra/terraform/modules/waf infra/terraform/envs/dev/base infra/terraform/envs/dev/session infra/terraform/envs/prod/session; do
+          for dir in infra/terraform/bootstrap infra/terraform/modules/waf infra/terraform/envs/dev/base infra/terraform/envs/dev/session infra/terraform/envs/dev/loadgen infra/terraform/envs/prod/session; do
             echo "::group::$dir"
             terraform -chdir="$dir" init -backend=false -input=false -lockfile=readonly
             terraform -chdir="$dir" validate
