@@ -1,0 +1,107 @@
+{
+  "window": {
+    "start": "2026-11-21T01:53:09.322Z",
+    "end": "2026-11-21T01:53:14.335Z"
+  },
+  "skippedLines": 0,
+  "unexpected429": 0,
+  "plateaus": {
+    "5": {
+      "requests": 26,
+      "systemErrors": 0,
+      "errorRate": 0,
+      "meetsErrorBudget": true,
+      "droppedIterations": 0,
+      "meetsDoD3": true,
+      "windowSeconds": 5.013,
+      "achievedRps": 5.187,
+      "perMinute": [
+        {
+          "minute": 0,
+          "requests": 26,
+          "systemErrors": 0
+        }
+      ]
+    }
+  },
+  "systemErrors": {
+    "total": 26,
+    "errors": 0,
+    "rate": 0
+  },
+  "metrics": {
+    "read_latency": {
+      "operation=balance,plateau=5,profile=smoke": {
+        "count": 10,
+        "p50": 19.732,
+        "p90": 30.489,
+        "p95": 49.677,
+        "p99": 65.028,
+        "max": 68.865
+      },
+      "operation=history,plateau=5,profile=smoke": {
+        "count": 10,
+        "p50": 14.3,
+        "p90": 23.475,
+        "p95": 25.751,
+        "p99": 27.572,
+        "max": 28.027
+      }
+    },
+    "transfer_latency": {
+      "plateau=5,profile=smoke": {
+        "count": 6,
+        "p50": 36.413,
+        "p90": 46.327,
+        "p95": 47.786,
+        "p99": 48.954,
+        "max": 49.245
+      }
+    }
+  },
+  "byScenario": {
+    "read_5": {
+      "GET /v1/accounts/:id": {
+        "count": 10,
+        "systemErrors": 0,
+        "status": {
+          "200": 10
+        },
+        "p50": 19.732,
+        "p90": 30.489,
+        "p95": 49.677,
+        "p99": 65.028,
+        "max": 68.865,
+        "avgRequestsPerSecondOverWholeRun": 1.995
+      },
+      "GET /v1/accounts/:id/transactions": {
+        "count": 10,
+        "systemErrors": 0,
+        "status": {
+          "200": 10
+        },
+        "p50": 14.3,
+        "p90": 23.475,
+        "p95": 25.751,
+        "p99": 27.572,
+        "max": 28.027,
+        "avgRequestsPerSecondOverWholeRun": 1.995
+      }
+    },
+    "write_5": {
+      "POST /v1/transfers": {
+        "count": 6,
+        "systemErrors": 0,
+        "status": {
+          "201": 6
+        },
+        "p50": 36.413,
+        "p90": 46.327,
+        "p95": 47.786,
+        "p99": 48.954,
+        "max": 49.245,
+        "avgRequestsPerSecondOverWholeRun": 1.197
+      }
+    }
+  }
+}

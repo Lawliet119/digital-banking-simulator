@@ -1,0 +1,58 @@
+{
+  "window": {
+    "start": "2026-11-21T01:55:10.946Z",
+    "end": "2026-11-21T01:57:02.903Z"
+  },
+  "skippedLines": 0,
+  "unexpected429": 0,
+  "plateaus": {},
+  "systemErrors": {
+    "total": 112,
+    "errors": 0,
+    "rate": 0
+  },
+  "metrics": {
+    "transfer_latency": {
+      "profile=full": {
+        "count": 11,
+        "p50": 35.39,
+        "p90": 77.014,
+        "p95": 105.012,
+        "p99": 127.41,
+        "max": 133.01
+      }
+    }
+  },
+  "byScenario": {
+    "boundary": {
+      "POST /v1/transfers": {
+        "count": 11,
+        "systemErrors": 0,
+        "status": {
+          "201": 10,
+          "429": 1
+        },
+        "p50": 35.39,
+        "p90": 77.014,
+        "p95": 105.012,
+        "p99": 127.41,
+        "max": 133.01,
+        "avgRequestsPerSecondOverWholeRun": 0.098
+      },
+      "GET /v1/accounts/:id": {
+        "count": 101,
+        "systemErrors": 0,
+        "status": {
+          "200": 100,
+          "429": 1
+        },
+        "p50": 16.735,
+        "p90": 31.289,
+        "p95": 35.691,
+        "p99": 42.749,
+        "max": 43.072,
+        "avgRequestsPerSecondOverWholeRun": 0.902
+      }
+    }
+  }
+}

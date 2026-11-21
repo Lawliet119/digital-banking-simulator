@@ -1,0 +1,1 @@
+[{"minute":0,"scenario":"duplicates","name":"POST /v1/transfers","count":528,"systemErrors":0,"p50":34.48,"p90":44.765,"p95":61.097,"p99":352.227,"max":368.265},{"minute":1,"scenario":"duplicates","name":"POST /v1/transfers","count":143,"systemErrors":0,"p50":34.995,"p90":42.118,"p95":55.714,"p99":78.198,"max":90.722}]
