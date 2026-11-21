@@ -1,6 +1,6 @@
 # observability — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 (dashboard, alarm; metric do Dev phát) · **Verified against code:** một phần: log JSON có `correlationId` (DBS-42); metric HTTP, tuổi outbox và counter `redis_fallback_total`, `rate_limited_total` xuất bằng CloudWatch EMF trong `common/metrics` (DBS-144, kiểm bằng test và **kiểm trên CloudWatch thật ngày 2026-11-09**, xem «Kết quả kiểm trên CloudWatch»). Dashboard `dbs-dev-overview` dựng bằng Terraform (DBS-145, kiểm trên CloudWatch thật bằng số mô phỏng, xem «Dashboard»). Alarm CloudWatch dựng bằng Terraform (`base/alarms.tf`, `session/alarms.tf`), kiểm bằng `terraform test` với provider giả, **chưa kích hoạt thử trên AWS thật**; dashboard `dbs-dev-infra` (ECS, ALB, RDS, Valkey) cũng chưa kiểm trên CloudWatch thật. Chưa có: metric của AI (BL-204) · **Cập nhật:** 2026-11-14
+> **Status:** Draft · **Owner:** #5 (dashboard, alarm; metric do Dev phát) · **Verified against code:** một phần: log JSON có `correlationId` (DBS-42); metric HTTP, tuổi outbox và counter `redis_fallback_total`, `rate_limited_total` xuất bằng CloudWatch EMF trong `common/metrics` (DBS-144, kiểm bằng test và **kiểm trên CloudWatch thật ngày 2026-11-09**, xem «Kết quả kiểm trên CloudWatch»). Dashboard `dbs-dev-overview` dựng bằng Terraform (DBS-145, kiểm trên CloudWatch thật bằng số mô phỏng, xem «Dashboard»). Từ DBS-178 dashboard có 33 widget (thêm trạng thái alarm và health, độ sâu hàng đợi chính, request/giây, consumer, quyết định risk) và công cụ chụp `infra/scripts/dashboard-snapshot.mjs`; ảnh lúc chạy tải 120 RPS chờ phiên AWS. Alarm CloudWatch dựng bằng Terraform (`base/alarms.tf`, `session/alarms.tf`), kiểm bằng `terraform test` với provider giả, **chưa kích hoạt thử trên AWS thật**; dashboard `dbs-dev-infra` (ECS, ALB, RDS, Valkey) cũng chưa kiểm trên CloudWatch thật. Chưa có: metric của AI (BL-204) · **Cập nhật:** 2026-11-22
 
 ## Component
 
@@ -89,19 +89,22 @@ Namespace `DBS/Backend`. Tên metric giống tên counter prom-client (`snake_ca
 
 Hình dạng dòng (mảng số ≤ 100, không lồng object, ba bộ dimension, đơn vị) vì thế đã được CloudWatch chấp nhận và trích đúng. Metric thử nằm ở `Route=/v1/check-dbs144` và hết hạn tự động sau 15 ngày.
 
-## Dashboard (DBS-145)
+## Dashboard (DBS-145, DBS-178)
 
-`infra/terraform/envs/dev/session/dashboard.tf` dựng dashboard **`dbs-dev-overview`** cùng phiên (`terraform apply` / `destroy` của `session`, hoặc `-target=aws_cloudwatch_dashboard.overview`: dashboard không tham chiếu tài nguyên nào khác của session). Output `dashboard_url`. 16 widget (1 văn bản, 15 metric; ba widget cuối ở hàng 7 là đối soát, CONFIG_INVALID và lỗi luật, thời gian tới cờ), khoảng thời gian mặc định 3 giờ, `periodOverride = inherit` để cửa sổ 5 phút của widget không bị console tính lại:
+`infra/terraform/envs/dev/session/dashboard.tf` dựng dashboard **`dbs-dev-overview`** cùng phiên (`terraform apply` / `destroy` của `session`, hoặc `-target=aws_cloudwatch_dashboard.overview`: dashboard không tham chiếu tài nguyên nào khác của session; trạng thái alarm dùng ARN dựng từ chuỗi chứ không tham chiếu `aws_cloudwatch_metric_alarm`). Output `dashboard_url`. **33 widget (DBS-178)**: 7 văn bản (intro, năm tiêu đề nhóm, «Cách đọc»), 1 widget `alarm`, 25 metric; khoảng thời gian mặc định 3 giờ, `periodOverride = inherit` để cửa sổ 5 phút của widget không bị console tính lại. Bố cục theo thứ tự các chỉ số của DoD (từ trên xuống), mỗi nhóm có một tiêu đề cao 1 dòng:
 
-| Hàng | Widget | Nguồn · đường kẻ ngang (SLO docs/03 §14) |
+| Nhóm | Widget (cột × hàng) | Nguồn · đường kẻ ngang (SLO docs/03 §14) |
 |---|---|---|
-| 2 | Độ trễ toàn dịch vụ p50/p95/p99 (tổng quan, không đường SLO); chuyển tiền `POST /v1/transfers` p95/p99 | `[]`, `[Route,Method]` · 300 ms, 1 s |
-| 3 | Đọc p95 (`GET /v1/accounts`, `/:id`, `/:id/transactions`); tỉ lệ 5xx %; request, 5xx, bị ngắt | 150 ms · `100 * FILL(5xx,0) / request`, 1% |
-| 4 | p95 theo Route (`SEARCH`, loại `/health/*`); tuổi outbox (`Maximum`); DLQ | 10 s và 30 s; DLQ > 0 |
-| 5 | Tuổi message cũ nhất; `redis_fallback_total` (`Role` api, worker); `rate_limited_total` (`Scope` ip, user) | 60 s và 120 s |
-| 6 | Fallback Redis của risk (`SEARCH`) | trống tới khi có nguồn (BL-204) |
-| 7 | Đối soát sổ cái theo `Status` (OK, MISMATCH, ERROR); `risk_decision_total{AiStatus=CONFIG_INVALID}` và `risk_rule_error_total` (`SEARCH`); `risk_transfer_to_flag_ms` p95 | MISMATCH/ERROR > 0; > 0; 5 s (chưa có alarm cho p95) |
-| 8, 9 | **Cờ / 1.000 giao dịch (DBS-187):** hai ô số (1 giờ và 24 giờ gần nhất); xu hướng tổng và theo mode (period 3600); cờ theo `RiskLevel`; cờ do AI bổ sung (`AiAdded`) | `[Role]` của `risk_flag_total` và `risk_decision_total`, `RiskLevel`, `Mode`, `AiAdded` · 20 / 1.000 |
+| **1. Trạng thái** | **Trạng thái alarm SLO** (`type = "alarm"`, 20 alarm: 18 ở `session`, hai `dlq-not-empty` ở `base`); **Health: probe `/health/ready`** request và 5xx | ARN dựng từ chuỗi; `http_requests_total`, `http_5xx_total` bộ `[Route=/health/ready, Method=GET]` (probe chỉ được ghi ở bộ này) |
+| **2. API** | Chuyển tiền `POST /v1/transfers` p95/p99 (12); tỉ lệ 5xx % (12); **request/giây** (8); đọc p95 (8); độ trễ toàn dịch vụ p50/p95/p99 (8); request, 5xx, bị ngắt (8); p95 theo Route (`SEARCH`, loại `/health/*`, 16) | `[Route,Method]`, `[]` · 300 ms, 1 s; 150 ms; `100 * FILL(5xx,0) / request`, 1%; `rq / PERIOD(rq)`, 120 |
+| **3. Hàng đợi** | **Độ sâu hàng đợi chính** (`ApproximateNumberOfMessagesVisible` và `NotVisible`); tuổi message cũ nhất; tuổi outbox; DLQ (12); **consumer retry và dead_letter** (`SEARCH`, 12) | `AWS/SQS` `QueueName` = hai hàng chính (không có SLO độ sâu); 60 s và 120 s; 10 s và 30 s; DLQ > 0; `consumer_message_total{Role,Consumer,Outcome}` |
+| **4. Redis, giới hạn, đối soát** | `redis_fallback_total` (`Role` api, worker); `rate_limited_total` (`Scope` ip, user); đối soát sổ cái theo `Status` | MISMATCH/ERROR > 0 |
+| **5. Fraud** | Cờ / 1.000 giao dịch: ô 1 giờ, ô 24 giờ, xu hướng và theo mode (period 3600); cờ theo `RiskLevel`; cờ do AI bổ sung (`AiAdded`); **quyết định theo `AiStatus`** (`SEARCH`); thời gian giao dịch → cờ p95; CONFIG_INVALID và lỗi luật; fallback Redis của cấu hình luật (`SEARCH`) | `[Role]` của `risk_flag_total` và `risk_decision_total`, `[Role,AiStatus]` · 20 / 1.000; 5 s (chưa có alarm cho p95) |
+| cuối | **Cách đọc** | giới hạn của từng widget, gồm health và Redis |
+
+**Trạng thái health (DBS-178).** Hai widget bổ sung nhau: widget `alarm` cho biết hệ thống có đang vi phạm SLO nào không; widget probe cho biết ALB (mỗi 15 giây) có thấy `/health/ready` trả 5xx không (503 = PostgreSQL không sẵn sàng; không có điểm dữ liệu = chưa có request tới api, không phải «khỏe»). **Redis chết KHÔNG làm probe lỗi:** `HealthController.ready()` vẫn trả 200 với `redis: "degraded"` (chỉ PostgreSQL làm nó 503, DBS-78), nên Redis chết hiện ở `redis_fallback_total`, không ở probe; số fallback của api còn gồm cả lượt `ping` của chính probe (`ready()` gọi `redis.ping()` qua `RedisClient.run`, mà `run` tăng bộ đếm ở mỗi lần lỗi). Số task khỏe sau ALB ở `dbs-dev-infra`. Widget `alarm` **không** liệt kê hai alarm `dlq-oldest-age` vì chúng chưa được apply ở `base` (BL-409): thêm tên vào `dash_alarm_names` khi apply. Test chống trôi: `terraform test` so danh sách với `alarm_name` của alarm session, và `load-tests/test/dashboard-snapshot.test.mjs` (`alarmContract`) đọc `alarms.tf` của `session` và `base` rồi báo đỏ khi thêm alarm mà dashboard chưa có tên.
+
+Chi phí: dashboard không tính theo widget; vượt 50 metric mỗi dashboard thì không còn trong 3 dashboard miễn phí (≈ 3 USD/tháng tính theo giờ tồn tại).
 
 **Cách tính cờ / 1.000 giao dịch.** `IF(d > 0, 1000 * FILL(f, 0) / d, 0)` với `f` = `risk_flag_total{Role=worker}`, `d` = `risk_decision_total{Role=worker}`. Phải có `FILL` vì app chỉ phát dòng khi delta > 0: một cửa sổ chỉ có lệnh LOW có `d` mà không có `f`. Hai ô số dùng `setPeriodToTimeRange` và `start` riêng của widget (`-PT1H`, `-PT24H`) để lấy tổng thật của cả khoảng; metric math của CloudWatch không có hàm dịch thời gian nên đường xu hướng chỉ theo bucket 3600 s, không trượt từng phút. Mẫu số theo mode: `rule_only` dùng quyết định `AiStatus=DISABLED` (bất biến `rule_only` ⇔ `DISABLED`), `rules_with_external_ai` là phần còn lại. Trong chế độ `APP_ROLE=both` (chạy local) `Role` là `both`, nên widget trống; trên ECS worker mang `Role=worker`. Biểu thức, `FILL`, `IF` và `SUM(SEARCH)` đã chạy trên CloudWatch thật (DBS-187 M-187-09); **giao diện ô `singleValue` trên console chưa xem**, xem BL-404.
 
@@ -116,6 +119,25 @@ Hình dạng dòng (mảng số ≤ 100, không lồng object, ba bộ dimension
 Giới hạn: **không có số task đang chạy của ECS** (`RunningTaskCount` thuộc `ECS/ContainerInsights`, Container Insights đang `disabled` ở `ecs.tf` và bật là tốn tiền theo task), nên task api đếm bằng `HealthyHostCount` và worker chỉ nhìn được qua tuổi outbox (không có điểm = không chạy). Tỉ lệ 5xx ở ALB tính cả probe `/health/*` và 5xx do ALB sinh, nên không bằng tỉ lệ ở `overview` (chỉ request ứng dụng).
 
 Đường kẻ chỉ để nhìn, không phải alarm (alarm ở mục dưới). Biến `metrics_namespace` (mặc định `DBS/Backend`) chỉ đổi khi thử dashboard bằng số mô phỏng. Ảnh chụp lúc có tải nhẹ: [tổng hợp 12 widget](../../features/screenshots/DBS-145/00-dashboard-overview.png) và từng widget ở [`screenshots/DBS-145/`](../../features/screenshots/DBS-145/). **Đó là số mô phỏng** (30 phút EMF do chính mã `common/metrics` sinh, namespace `DBS/Backend-dbs145`, không phải app chạy trên ECS), ảnh render bằng `GetMetricWidgetImage`, không phải màn hình console; chi tiết và số đối chiếu ở [DBS-145](../../features/DBS-145-cloudwatch-dashboard.md) §8. Đọc ảnh: p95 chuyển tiền nằm sát đường 300 ms vì CloudWatch ước lượng phân vị quanh biên bucket (xem «Bàn giao cho #5»), không phải vi phạm SLO.
+
+### Chụp ảnh lúc chạy tải (DBS-178)
+
+`infra/scripts/dashboard-snapshot.mjs` (Node, không phụ thuộc ngoài) chụp một PNG cho mỗi widget metric trong một khung thời gian **tuyệt đối** (ví dụ plateau 120 RPS), bằng `aws cloudwatch get-dashboard` rồi `get-metric-widget-image`; chỉ ĐỌC, cần `cloudwatch:GetDashboard` và `cloudwatch:GetMetricWidgetImage`, ≈ 0,02 USD cho 1.000 metric vẽ:
+
+```
+node infra/scripts/dashboard-snapshot.mjs --profile dbs \
+  --start 2026-11-22T10:00:00Z --end 2026-11-22T10:15:00Z \
+  --out docs/components/observability/screenshots/120rps-redis-on
+```
+
+Chạy **≈ 5 phút sau** khi plateau kết thúc (EMF và SQS nhập số chậm). Tên tệp `NN-<tiêu đề không dấu>.png` theo thứ tự đọc (y rồi x); thoát 0 mọi widget vẽ được, 1 có widget lỗi hoặc không đọc được dashboard, 2 dùng sai. Giới hạn, đều in ở đầu tệp script:
+- **`singleValue` bị vẽ thành đường** (API chỉ vẽ `timeSeries`, bar, pie): hai ô cờ / 1.000 giao dịch ra đồ thị theo khung chụp, tiêu đề thêm « (đồ thị trong khung chụp)». Ô số thật chỉ xem trên console (BL-404).
+- **`period` lớn hơn khung chụp bị hạ** về `floor(khung / 60) * 60` (cả ở thuộc tính `period` lẫn ở đối số chu kỳ của `SEARCH`), tiêu đề thêm « (period X → Y giây theo khung chụp)»; ví dụ xu hướng 3600 s trong khung 15 phút.
+- **`text` và `alarm` không vẽ được** bằng API: in `SKIP`; ảnh của chúng chụp từ console (BL-262).
+- Ảnh CloudWatch vẽ chữ báo lỗi hoặc không có dữ liệu vẫn là PNG hợp lệ: **mở ảnh xem**. Cảnh báo `invalid input` trên stderr không làm thất bại khi ảnh đúng chữ ký PNG.
+- Mọi chữ in ra được che ARN và ID tài khoản. Trên Windows `aws.exe` cần đường dẫn dạng `C:/...`; AWS CLI v2 đọc `file://` bằng cp1252 nên công cụ ghi tệp MetricWidget **thuần ASCII** (`\uXXXX`), nếu không tiêu đề tiếng Việt báo «Unable to load paramfile» (gặp khi thử thật).
+
+Đã thử trên CloudWatch thật (chỉ đọc, DBS-178 M-178-03): 25/25 widget metric của body Terraform được `get-metric-widget-image` chấp nhận (cú pháp `PERIOD`, `SEARCH`, dimension), nhưng **không có dữ liệu** trong khung thử, nên ảnh trống; xem [ảnh mẫu](../../features/screenshots/DBS-178/). Ảnh lúc chạy tải 120 RPS: **chờ phiên AWS** (DBS-167, BL-262, BL-404); đường dẫn sẽ là `docs/components/observability/screenshots/`.
 
 ## Alarm CloudWatch (BL-051, BL-117, BL-127, BL-179, BL-181, BL-182)
 

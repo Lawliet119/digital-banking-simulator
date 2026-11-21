@@ -1,6 +1,6 @@
 # DBS-178 · Dashboard hoàn chỉnh và ảnh chụp lúc chạy tải
 
-> **Status:** Plan approved (sau G3) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-178-dashboard-complete` · **PR:** — · **Cập nhật:** 2026-11-22
+> **Status:** Implemented một phần (sau G4 của phần trước-khi-dựng; ảnh 120 RPS chờ phiên AWS) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác (chưa chỉ định) · **Nhánh:** `feat/DBS-178-dashboard-complete` · **PR:** — · **Cập nhật:** 2026-11-22
 
 ## 1. Bối cảnh
 
@@ -54,7 +54,7 @@ Cột 24, `start = -PT3H`, `periodOverride = inherit` (giữ). 33 widget: 7 `tex
 | **5. Fraud** (49; 50) | Cờ/1.000 giao dịch 1 giờ (0, 6×6), 24 giờ (6, 6×6), xu hướng (12, 12×6) | · 20 | giữ, ô số cao 6 |
 | (56) | Cờ theo `risk_level` (0, 8×6); cờ do AI (8, 8×6); **Risk: quyết định theo AiStatus** (16, 8×6) | SEARCH `{ns,Role,AiStatus}` `risk_decision_total`, Sum, 300 s | cuối **mới** |
 | (62) | Thời gian giao dịch → cờ p95 (0, 8×6); CONFIG_INVALID và lỗi luật (8, 8×6); fallback Redis của cấu hình luật (16, 8×6) | · 5 s | giữ |
-| cuối (68) | **Cách đọc** (24×5) | | chuyển từ đầu trang; thêm ghi chú health |
+| cuối (68) | **Cách đọc** (24×7) | | chuyển từ đầu trang; thêm ghi chú health |
 
 Quy tắc:
 - **Alarm widget** dùng ARN dạng `arn:aws:cloudwatch:<var.region>:<var.account_id>:alarm:<tên>`; 20 tên: 16 alarm đơn của `session/alarms.tf` (`dbs-dev-outbox-age`, `-outbox-quarantined`, `-risk-config-invalid`, `-risk-rule-error`, `-risk-ai-fallback-rate`, `-risk-flag-rate`, `-reconciliation-failed`, `-redis-node-missing`, `-redis-fallback`, `-risk-config-redis-fallback`, `-risk-config-freshness`, `-rate-limited`, `-api-5xx-rate`, `-transfer-latency-p95`, `-read-latency-p95`, `-transfer-to-flag-p95`), hai `<tên hàng chính>-age` và hai `dbs-dev-<khóa>-dlq-not-empty`. Dashboard không tham chiếu tài nguyên session.
@@ -85,7 +85,7 @@ node infra/scripts/dashboard-snapshot.mjs --start 2026-11-22T10:00:00Z --end 202
 | một widget lỗi (aws lỗi, không phải PNG) | in `FAIL <tiêu đề>: <lý do>`, **vẫn vẽ các widget còn lại**, cuối cùng **thoát 1** |
 | mọi widget vẽ được | **thoát 0**; in tóm tắt `N ảnh, M bỏ qua, K lỗi` |
 
-Không có thư viện ngoài; gọi `aws` bằng `execFile` (không qua shell), thân `MetricWidget` đi qua tệp tạm `file://` (tránh giới hạn độ dài và dấu nháy ở Windows), tệp tạm xóa sau khi gọi. Mọi chữ tool in ra (kể cả stderr của `aws`) qua bước che: `arn:aws...` → `<arn>`, dãy 12 chữ số → `<acct>` (lỗi `AccessDenied` của AWS CLI chứa ARN người dùng và ID tài khoản). Ghi đè ảnh cùng tên (chạy lại được). Quyền IAM tối thiểu: `cloudwatch:GetDashboard` và `cloudwatch:GetMetricWidgetImage`. Chụp xong chờ ≈ 5 phút sau plateau rồi mới chạy (EMF và SQS có độ trễ nhập số).
+Không có thư viện ngoài; gọi `aws` bằng `execFile` (không qua shell), thân `MetricWidget` đi qua tệp tạm `file://` (tránh giới hạn độ dài và dấu nháy ở Windows), tệp tạm xóa sau khi gọi. Mọi chữ tool in ra (kể cả stderr của `aws`) qua bước che: `arn:aws...` → `<arn>`, dãy 12 chữ số → `<acct>` (lỗi `AccessDenied` của AWS CLI chứa ARN người dùng và ID tài khoản). Ghi đè ảnh cùng tên (chạy lại được). Tệp MetricWidget **thuần ASCII** (ký tự ngoài ASCII viết `\uXXXX`): AWS CLI v2 đọc `file://` bằng bảng mã của máy (cp1252 trên Windows) và từ chối tiêu đề tiếng Việt viết UTF-8 («Unable to load paramfile»; phát hiện khi thử thật ở M-178-03, không có trong thiết kế ban đầu: xem §8 «Lệch so với kế hoạch»). Quyền IAM tối thiểu: `cloudwatch:GetDashboard` và `cloudwatch:GetMetricWidgetImage`. Chụp xong chờ ≈ 5 phút sau plateau rồi mới chạy (EMF và SQS có độ trễ nhập số).
 
 ## 3. Kiến trúc
 
@@ -128,6 +128,7 @@ Terraform: `infra/terraform/envs/dev/session/tests/dashboard.tftest.hcl` (mock p
 | TC-178-12 | DoD 2 | unit | `slugify`: bỏ dấu tiếng Việt, `đ` → `d`, ký tự lạ → `-`, không `--`, không `-` đầu/cuối, tối đa 60; tên tệp khớp `^\d{2}-[a-z0-9]+(-[a-z0-9]+)*\.png$` cho mọi tiêu đề thật trong `dashboard.tf` | — |
 | TC-178-13 | DoD 2 | unit | `widgetImageProperties`: `singleValue` → `timeSeries`, không `setPeriodToTimeRange`, `period` 300, tiêu đề có hậu tố; `start`/`end` tuyệt đối thay thế `-PT1H`/`P0D`; `periodFor`: 3600 và 900 trong khung 15 phút → 900, khung 270 s → 240, khung 90 s → 60, period nhỏ hơn khung giữ nguyên; widget xu hướng (bản mẫu chép đúng từ `dashboard.tf` vào test) trong khung 15 phút **không còn `3600` nào** trong `period` hay trong mọi `SEARCH(…, N)`, và tiêu đề có hậu tố; giữ `metrics`, `annotations`, `yAxis`; không đổi widget gốc | — |
 | TC-178-14 | DoD 2 | unit | `snapshotDashboard` với `aws` giả: dashboard có text, alarm, 3 metric widget (một `singleValue`) → một lần `get-dashboard`, ba lần `get-metric-widget-image`, ba PNG đúng tên và nội dung, text/alarm `SKIP`; tệp `MetricWidget` đọc được lúc gọi mang `start`/`end` tuyệt đối; tệp tạm bị xóa | thoát 0 |
+| TC-178-14b | DoD 2 | unit | tệp `MetricWidget` ghi cho `aws` **không có byte ngoài ASCII** mà `JSON.parse` vẫn ra đúng tiêu đề tiếng Việt (tái hiện lỗi cp1252 ở M-178-03) | — |
 | TC-178-15 | DoD 2 | unit | một widget `aws` lỗi, một widget trả byte không phải PNG → hai `FAIL`, các widget khác vẫn ghi ảnh, **thoát 1** | thoát 1 |
 | TC-178-16 | DoD 2 | unit | stderr `invalid input` kèm PNG hợp lệ → thành công, cảnh báo được in; stderr cùng chữ nhưng ảnh không phải PNG → thất bại | — |
 | TC-178-17 | DoD 2 | unit | `get-dashboard` lỗi, hoặc `DashboardBody` không phải JSON, hoặc không có widget → thoát 1, không ghi ảnh; thân JSON không nằm trong argv (dùng `file://`); `--region`, `--profile`, `--output json`, `--no-cli-pager` có mặt; lệnh gọi widget dùng `region` của widget | thoát 1 |
@@ -146,9 +147,9 @@ Terraform: `infra/terraform/envs/dev/session/tests/dashboard.tftest.hcl` (mock p
 | Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
 | M-178-01 | Từ `infra/terraform/envs/dev/session`: `terraform init -backend=false && terraform fmt -check && terraform validate && terraform test` | không lỗi; số test = 103 + test mới, 0 failed |
-| M-178-02 | `grep -nE "aws_[a-z_]+\.[a-z_]+" dashboard.tf` và `grep -no "local\.[a-z_]*" dashboard.tf \| sort -u` | tài nguyên: chỉ `aws_cloudwatch_dashboard.overview`; `local.` chỉ là local của chính `dashboard.tf` (`dash_*`, `w_*`, `dlq_names`, `queue_names`, `dashboard_body`) và `local.base`, không dùng `redis_node_id` hay local của `alarms.tf` (`-target` vẫn đúng) |
+| M-178-02 | `grep -nE "aws_[a-z_]+\.[a-z_]+" dashboard.tf` và `grep -no "local\.[a-z_]*" dashboard.tf \| sort -u` | tài nguyên: không dòng nào khớp `aws_<loại>.<tên>` (khai báo `resource "aws_cloudwatch_dashboard" "overview"` dùng cú pháp khác, nên không có tham chiếu tới tài nguyên nào); `local.` chỉ là local của chính `dashboard.tf` (`dash_*`, `w_*`, `dlq_names`, `queue_names`, `dashboard_body`) và `local.base`, không dùng `redis_node_id` hay local của `alarms.tf` (`-target` vẫn đúng) |
 | M-178-03 | Lấy body do Terraform dựng, **không cần AWS**: tạo tệp tạm `tests/zz_dump.tftest.hcl` (không commit) gồm 103 dòng đầu của `dashboard.tftest.hcl` và một `run` có `assert { condition = aws_cloudwatch_dashboard.overview.dashboard_body == "" ... error_message = "BODY=${aws_cloudwatch_dashboard.overview.dashboard_body}" }` (`condition = false` bị từ chối: điều kiện phải tham chiếu một đối tượng), chạy `terraform test -json -filter='tests\zz_dump.tftest.hcl'` (**dấu `\`**: `tests/zz...` in «Found 0 files» và vẫn thoát 0), rút `dashboard_body` từ `diagnostic.detail` bắt đầu bằng `BODY=` vào `$TMP/body.json` (ngoài repo; chứa ID giả `123456789012`), xóa tệp tạm. Đầu ra phải có «Found 1 file and 1 run block». Với từng widget metric **mới** gọi `aws cloudwatch get-metric-widget-image --profile dbs --region ap-southeast-1 --output json` (chỉ đọc) | mỗi lệnh trả PNG hợp lệ (chữ ký `89504E47`); mở từng PNG xem có chữ báo lỗi trong ảnh không. Không dữ liệu thì ảnh trống: chỉ chứng minh JSON widget được CloudWatch chấp nhận (cú pháp `SEARCH`, `PERIOD`, dimension) |
-| M-178-04 | Chạy công cụ chụp qua tiến trình thật với `aws` giả (giữ `export PATH` Node 24 ở trên: `node` mặc định của máy là 18): `node infra/scripts/dashboard-snapshot.mjs --aws-bin "$(which node)" --aws-arg load-tests/test/fixtures/fake-aws-cloudwatch.mjs ...` (fake đọc body từ biến `FAKE_DASHBOARD_BODY_FILE` = `$TMP/body.json`, trả PNG nhỏ) | 25 ảnh `01-…png`..`25-…png`, 8 widget `SKIP` (7 text + 1 alarm), thoát 0; tên tệp không dấu; thân `$TMP/body.json` không bao giờ nằm trong repo |
+| M-178-04 | Chạy công cụ chụp qua tiến trình thật với `aws` giả (giữ `export PATH` Node 24 ở trên: `node` mặc định của máy là 18; đặt `NODE=$(node -p "process.execPath.split(String.fromCharCode(92)).join('/')")`, vì `$(which node)` cho đường dẫn dạng `/c/...` mà Node trên Windows hiểu thành đường dẫn tương đối): `node infra/scripts/dashboard-snapshot.mjs --aws-bin "$NODE" --aws-arg load-tests/test/fixtures/fake-aws-cloudwatch.mjs ...` (fake đọc body từ biến `FAKE_DASHBOARD_BODY_FILE` = `$TMP/body.json`, trả PNG nhỏ) | 25 ảnh `01-…png`..`25-…png`, 8 widget `SKIP` (7 text + 1 alarm), thoát 0; tên tệp không dấu; thân `$TMP/body.json` không bao giờ nằm trong repo |
 | M-178-05 | Biên và lỗi: `--end` trước `--start` (thoát 2, không gọi aws); `--dashboard dbs-dev-khong-co --profile dbs --region ap-southeast-1` với `aws` thật (chỉ đọc, `ResourceNotFound`); cùng lệnh với profile không có quyền (nếu có) hoặc `AWS_PROFILE` sai | thoát 2; thoát 1 kèm thông báo đã che ARN/ID tài khoản, không tệp ảnh nào |
 
 **B. Phiên AWS-A (người điều phối; điền kết quả sau phiên, không điền trước)**
@@ -184,13 +185,91 @@ Terraform: `infra/terraform/envs/dev/session/tests/dashboard.tftest.hcl` (mock p
 
 | Bước | File | Test viết trước | Kết quả đỏ | Lệnh chứng minh | Commit |
 |---|---|---|---|---|---|
-| 1 | `docs/features/DBS-178-dashboard-complete.md` (§1–§5, §7), `docs/features/screenshots/DBS-178/domain-review.md` | không áp dụng | | `check-doc-links.mjs` | `docs(observability): thiết kế dashboard hoàn chỉnh (DBS-178)` |
-| 2 | `session/tests/dashboard.tftest.hcl` | TC-178-01..09 (cập nhật `dashboard_shape` 21 → 33) | *(điền khi chạy)* | `terraform test` | cùng bước 3 hoặc riêng nếu đỏ có ý nghĩa |
-| 3 | `session/dashboard.tf` | các test bước 2 | | `terraform fmt -check && validate && test` | `feat(infra): dashboard đủ trạng thái health, độ sâu hàng đợi, fraud (DBS-178)` |
-| 4 | `load-tests/test/dashboard-snapshot.test.mjs`, `load-tests/test/fixtures/fake-aws-cloudwatch.mjs` | TC-178-11..17, 20..22 | *(điền khi chạy)* | `node --test load-tests/test/dashboard-snapshot.test.mjs` | |
-| 5 | `infra/scripts/dashboard-snapshot.mjs`, `.github/workflows/ci.yml` | các test bước 4 | | `node --test ...` | `feat(infra): công cụ chụp ảnh dashboard lặp lại được (DBS-178)` |
-| 6 | M-178-01..05 chạy thật; `docs/components/observability/01-concept-brief.md`, `infra/terraform/README.md`, `docs/features/README.md`; `docs/features/screenshots/DBS-178/manual-test.txt` | không áp dụng | | `check-doc-links.mjs`, `check-backlog.mjs` (nếu đổi BACKLOG: không đổi) | `docs(observability): cập nhật dashboard và cách chụp (DBS-178)` |
+| 1 | `docs/features/DBS-178-dashboard-complete.md` (§1–§5, §7), `docs/features/screenshots/DBS-178/domain-review.md` | không áp dụng | | `check-doc-links.mjs` (504 tệp, 0 hỏng) | `96c41007` `docs(observability): thiết kế dashboard hoàn chỉnh và công cụ chụp (DBS-178)` |
+| 2 | `session/tests/dashboard.tftest.hcl` | TC-178-01..09 (cập nhật `dashboard_shape` 21 → 33) | `13 passed, 4 failed, 7 skipped`: `dashboard_shape`, `dashboard_has_every_metric`, `dashboard_labels_are_safe` đỏ vì chưa có widget mới/allowlist, `dashboard_alarm_status_widget` đỏ (`Invalid index`: chưa có widget `alarm`), bảy run sau bị bỏ qua | `terraform test` | cùng commit bước 3 (không commit trạng thái đỏ để CI mỗi commit vẫn xanh) |
+| 3 | `session/dashboard.tf`, `session/tests/dashboard.tftest.hcl` | các test bước 2 | | `terraform fmt -check && validate && test` → `111 passed, 0 failed` (103 cũ + 8 run mới) | `5c87380a` `feat(infra): dashboard đủ trạng thái health, độ sâu hàng đợi và chỉ số fraud (DBS-178)` |
+| 4 | `load-tests/test/dashboard-snapshot.test.mjs`, `load-tests/test/fixtures/fake-aws-cloudwatch.mjs` | TC-178-11..17, 20..22 | `ERR_MODULE_NOT_FOUND ... infra/scripts/dashboard-snapshot.mjs` (module chưa có) | `node --test load-tests/test/dashboard-snapshot.test.mjs` | cùng commit bước 5 |
+| 5 | `infra/scripts/dashboard-snapshot.mjs`, `.github/workflows/ci.yml` | các test bước 4 | | `node --test ...` → 22 pass, 0 fail; chạy từ `backend/` như CI | `5ccabd72` `feat(infra): công cụ chụp ảnh dashboard CloudWatch lặp lại được (DBS-178)` |
+| 5b (phát sinh) | `infra/scripts/dashboard-snapshot.mjs`, test | TC-178-14b | `AssertionError: tệp MetricWidget có byte ngoài ASCII` (lỗi thật gặp ở M-178-03: 11/25 widget `Unable to load paramfile`) | `node --test ...` → 23 pass; M-178-03 lại: 25/25 | `dc44e19b` `fix(infra): tệp MetricWidget của công cụ chụp thuần ASCII ... (DBS-178)` |
+| 6 | M-178-01..05 chạy thật (SHA `dc44e19b`); `docs/components/observability/01-concept-brief.md`, `infra/terraform/README.md`, `docs/features/README.md`; `docs/features/screenshots/DBS-178/manual-test.txt` | không áp dụng | | `check-doc-links.mjs`, `check-backlog.mjs` (nếu đổi BACKLOG: không đổi) | `docs(observability): cập nhật dashboard và cách chụp (DBS-178)` |
 
 Rủi ro và cách lùi: (a) widget `alarm` có thể hiện lỗi nếu một ARN không tồn tại: chỉ đưa vào alarm chắc chắn có, kiểm ở M-178-06; (b) `PERIOD()` hay `SEARCH` sai cú pháp: M-178-03 gọi CloudWatch thật; (c) body dashboard lớn hơn: giới hạn của `PutDashboard` là 1 MB, body hiện ≈ 25 KB; (d) hai phiên cùng dựng dùng chung tên dashboard (đã biết, README). Lùi: `git revert`, `apply` lại. Không có migration, không đổi app.
 
 **Quyết định ở G3 (agent tự quyết):** (1) Plan sweep: mọi dòng DoD 1 có TC (01–09, 20), DoD 2 có công cụ (TC-178-11..17, 21, 22) nhưng **ảnh thật chờ AWS** (TC-178-19, M-178-07..09), DoD 3 là quy trình (TC-178-18); không còn mục nào trong giới hạn của doc quan sát bị bỏ sót (probe `/health/ready` và Redis `degraded` đã ghi; `dlq-oldest-age` có ngoại lệ tường minh). (2) Thứ tự: test Terraform đỏ trước khi sửa `dashboard.tf`; test Node đỏ (module chưa có) trước khi viết công cụ. (3) Không thêm BL mới trước khi có kết quả: BL-262 và BL-404 đã phủ phần chưa chụp; các bàn giao mới (thêm `dlq-oldest-age`) ghi vào BL-409 hiện có nếu cần, quyết ở §8.
+
+## 8. Kết quả
+
+**Tóm tắt trung thực:** phần code, test và tài liệu **trước khi dựng** đã xong và kiểm; **DoD 2 (ảnh lúc chạy tải 120 RPS) và DoD 3 (PR merge, CI xanh, Dev review) chưa đạt**: ảnh cần stack AWS đang chạy tải (phiên AWS-A, người điều phối), PR chưa mở (theo yêu cầu), Dev review chưa có (techlead waiver).
+
+- **Lệnh kiểm tra** (SHA `dc44e19b`, Windows, Node 24.22.2, Terraform 1.16.6):
+  - `cd infra/terraform/envs/dev/session && terraform init -backend=false && terraform fmt -check -recursive && terraform validate && terraform test` → `fmt` sạch, `Success! The configuration is valid.`, **`Success! 111 passed, 0 failed.`** (103 test cũ + 8 run mới của DBS-178; baseline trước task: 103).
+  - `node --test load-tests/test/dashboard-snapshot.test.mjs` (cả từ `backend/` như CI): **23 tests, 23 pass, 0 fail, 0 skipped**. Tệp có thêm 1 test hợp đồng đọc `alarms.tf` thật.
+  - `node .claude/skills/dbs-delivering-task/scripts/check-doc-links.mjs` → `504 files checked, 0 broken link(s)`. `docs/BACKLOG.md` không đổi nên không chạy `check-backlog.mjs` (không đổi dòng nào).
+  - Bốn lệnh backend **không chạy** (không đổi `backend/`; không có Docker): quyết định G1 số 5. Chạy cả cụm test Node của job `unit` từ `backend/`: `runner.test.mjs` đỏ vì worktree không có `backend/node_modules` (`Cannot find module '../backend/node_modules/pg'`), không liên quan task; các tệp còn lại xanh.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-178-01 | `dashboard.tftest.hcl` › `dashboard_shape` (33 widget; 7 text, 1 alarm, 25 metric; lưới 24 cột; không chồng nhau; region) | đạt |
+| TC-178-02 | › `dashboard_alarm_status_widget`, `dashboard_alarm_arns_follow_account` (20 ARN, tập tên = `alarm_name` của 16 alarm đơn + `queue_age` + hai `dlq-not-empty`, không `dlq-oldest-age`, ARN theo `account_id`) | đạt. Hai tên `dlq-not-empty` của base viết lại từ khóa mock (chỉ chứng minh mẫu tên); lớp chống trôi thật là TC-178-20 |
+| TC-178-03 | › `dashboard_health_probe_widget` | đạt |
+| TC-178-04 | › `dashboard_queue_depth_widget` | đạt |
+| TC-178-05 | › `dashboard_rps_and_slo_widgets` | đạt |
+| TC-178-06 | › `dashboard_risk_decisions_and_consumer_widgets` | đạt |
+| TC-178-07 | › `dashboard_covers_dod` | đạt (kiểm bằng chuỗi trong body; độ sâu hơn là TC-178-03..06) |
+| TC-178-08 | › `dashboard_layout_and_notes` | đạt |
+| TC-178-09 | › `dashboard_labels_are_safe`, `dashboard_namespace_variable`, `overview_has_no_infra_metrics`, `dashboard_outputs` (allowlist thêm `Consumer`, `Outcome`) | đạt |
+| TC-178-10 | `terraform test` toàn bộ: 111 passed (103 cũ xanh; ba run cũ sửa có chủ đích) | đạt |
+| TC-178-11 | `dashboard-snapshot.test.mjs` › ba test `parseArgs` | đạt |
+| TC-178-12 | › `slugify ...`, `every real widget title of dashboard.tf ...` | đạt |
+| TC-178-13 | › `periodFor ...`, ba test `widgetImageProperties` (singleValue, period hạ, SEARCH hạ theo khung) | đạt |
+| TC-178-14, 14b | › `snapshotDashboard renders every metric widget ...`, `numbers images in reading order`, `the MetricWidget temp file is pure ASCII` | đạt |
+| TC-178-15, 16 | › `a failing widget and a non-PNG answer ...`, `a warning on stderr ...` | đạt |
+| TC-178-17 | › `main exits 1 and writes nothing ...` (4 kịch bản), `main exits 2`, `aws is called without a shell ...`, `each widget is rendered in its own region` | đạt |
+| TC-178-18 | PR merge, CI xanh, Dev review, bảng «Đối chiếu test case» trong PR | **chưa làm**: quy trình; PR chưa mở (không `git push`/`gh` theo yêu cầu phiên); Dev review thay bằng domain review AI (techlead waiver) |
+| TC-178-19 | ảnh lúc chạy tải 120 RPS lưu `docs/components/observability` | **chưa làm**: chờ phiên AWS-A (M-178-07..09); công cụ chụp sẵn sàng và đã thử trên CloudWatch thật (M-178-03) |
+| TC-178-20 | › `the real alarms.tf, base/alarms.tf and dashboard.tf agree ...`, `the alarm contract goes red when ...` (5 ca đột biến) | đạt |
+| TC-178-21 | › `ARNs and 12-digit account ids never reach the output ...` | đạt |
+| TC-178-22 | › `the real CLI writes PNGs through execFile ...`, `the real CLI exits 2 ... and 1 on an AWS error with the ARN redacted` | đạt |
+
+- **Test thủ công** (output thô ở [manual-test.txt](screenshots/DBS-178/manual-test.txt), dòng đầu là SHA `dc44e19b009045afe0d060372f089c1e8d77665e`; ID tài khoản AWS đã thay `<acct>`, không token, không `Authorization`):
+
+| Bước | Kết quả |
+|---|---|
+| M-178-01 | **đạt**: `init: ok`, `fmt -check: ok`, `valid`, `Success! 111 passed, 0 failed.` |
+| M-178-02 | **đạt**: không có tham chiếu `aws_<loại>.<tên>` nào trong `dashboard.tf`; `local.` chỉ của chính tệp và `local.base` |
+| M-178-03 | **đạt, với một lỗi phát hiện và sửa**: body dựng bằng `terraform test -json` (`Found 1 file and 1 run block`, 33 widget: text 7, alarm 1, metric 25, 17.165 byte). Lần đầu `get-metric-widget-image` thật (profile `dbs`, chỉ đọc) báo `Unable to load paramfile ... text contents could not be decoded` cho 11/25 widget có dấu tiếng Việt: AWS CLI đọc `file://` bằng cp1252. Đã thêm TC-178-14b (đỏ), sửa công cụ ghi tệp thuần ASCII (xem «Lệch so với kế hoạch» số 1), chạy lại: **25 ảnh, 8 bỏ qua, 0 lỗi, 25/25 chữ ký PNG `89504e47`**. Khung thử là 1 giờ gần đây, **không có dữ liệu** (không có tải), nên ảnh trống: chỉ chứng minh JSON widget (cú pháp `PERIOD`, `SEARCH`, dimension, `annotations`) được CloudWatch chấp nhận. Ba ảnh mẫu ở mục Ảnh chụp |
+| M-178-04 | **đạt**: tiến trình thật, `aws` giả qua `--aws-bin <node.exe> --aws-arg fake-aws-cloudwatch.mjs`, body thật: 25 ảnh `01-…`..`25-…`, 8 `SKIP`, thoát 0, 0 tên tệp có ký tự ngoài ASCII |
+| M-178-05 | **đạt**: `--end` trước `--start` → thoát 2, không thư mục ra; thời điểm không múi giờ → thoát 2; dashboard không tồn tại (aws thật) → `ResourceNotFound`, thoát 1, không thư mục ra; profile sai → thoát 1; `AccessDenied` giả có ARN → thoát 1, in `<arn>`. Không thử profile thật thiếu quyền (không có profile như vậy) |
+| M-178-06..10 | **chưa chạy (điền sau phiên AWS)**: cần stack AWS đang chạy tải 120 RPS, người điều phối làm |
+
+- **Bàn giao M-178-06..10 (người điều phối, phiên AWS-A)** — điền ở đây sau phiên, đừng bịa trước:
+  - M-178-06 (`get-dashboard`, `put-dashboard` tên tạm, `DashboardValidationMessages`, cách widget `alarm` xử lý alarm thiếu): *điền sau phiên AWS*
+  - M-178-07 (ảnh Redis bật 120 RPS, `redis_fallback_total` ≈ 0): *điền sau phiên AWS*
+  - M-178-08 (ảnh Redis tắt, `redis_fallback_total` > 0, probe 200): *điền sau phiên AWS*
+  - M-178-09 (ảnh console của widget `alarm` và hai ô `singleValue`; đóng BL-262, BL-404): *điền sau phiên AWS*
+  - M-178-10 (quét ID/ARN/tên miền, `verify-clean.sh`): *điền sau phiên AWS*
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` ở commit mã cuối `dc44e19b` (chưa tính commit tài liệu): `.github/workflows/ci.yml` (1 dòng), `infra/scripts/dashboard-snapshot.mjs` (+292), `session/dashboard.tf` (+319/-58 gộp), `session/tests/dashboard.tftest.hcl` (+267), `load-tests/test/dashboard-snapshot.test.mjs` (+568), `load-tests/test/fixtures/fake-aws-cloudwatch.mjs` (+94), feature doc và `domain-review.md`. Khớp danh sách ở §7. Commit tài liệu cuối thêm `01-concept-brief.md`, `infra/terraform/README.md`, `docs/features/README.md`, `manual-test.txt`, ba ảnh và, ngoài danh sách §7, một dòng ở `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (lệch số 4).
+- **Ảnh chụp** (`docs/features/screenshots/DBS-178/`; **đây là ảnh vẽ bằng `GetMetricWidgetImage` trên CloudWatch thật nhưng KHÔNG có dữ liệu**, không phải ảnh lúc chạy tải; ảnh 120 RPS chờ phiên AWS):
+
+![Probe /health/ready (khung không có dữ liệu)](screenshots/DBS-178/01-m03-health-probe-khong-du-lieu.png)
+![Request mỗi giây với đường 120 RPS (khung không có dữ liệu)](screenshots/DBS-178/02-m03-luu-luong-khong-du-lieu.png)
+![Độ sâu hàng đợi chính, hai hàng và hai loại số (số 0 thật từ SQS)](screenshots/DBS-178/03-m03-do-sau-hang-doi-chinh.png)
+
+- **Lệch so với kế hoạch** (mỗi chỗ có lý do; không có thay đổi hợp đồng, ADR, `ErrorCode`, env var hay quy tắc tiền):
+  1. **Ghi tệp MetricWidget thuần ASCII** (không có trong thiết kế): phát hiện khi thử thật M-178-03 (lỗi cp1252 của AWS CLI trên Windows), thêm TC-178-14b trước khi sửa; hệ quả: tệp tạm chỉ có ASCII, hành vi còn lại không đổi. Quyết định (agent tự quyết, ghi trước khi làm): sửa trong công cụ thay vì bắt người dùng đặt biến môi trường, vì `PYTHONUTF8` không ảnh hưởng bản exe của AWS CLI v2 và công cụ phải chạy được ở mọi máy Windows của nhóm.
+  2. Test chống trôi tên alarm viết bằng Node (TC-178-20) ngoài `terraform test`, theo phát hiện của reviewer V1-4: `terraform test` không liệt kê được mọi resource và không thấy alarm của `base`.
+  3. Tiêu đề nhóm cuối («Cách đọc») cao 7, không 5 như bảng §2.1 ban đầu (đã sửa bảng): nội dung dài hơn khi thêm ghi chú health.
+  4. `docs/03_HIGH_LEVEL_ARCHITECTURE.md` được sửa một dòng (§14 mục Dashboard), ngoài danh sách tài liệu ở §3: để mục tham chiếu đúng nội dung mới và neo `#dashboard-dbs-145-dbs-178`.
+- **Bàn giao cho vai khác:**
+  - **Người điều phối (phiên AWS-A, cùng DBS-167):** M-178-06..10 ở trên; đóng **BL-262** và **BL-404** sau khi có ảnh console (cả hai **giữ nguyên** ở PR này, không xóa); chép ảnh 120 RPS vào `docs/components/observability/screenshots/`; cập nhật dòng ảnh ở `01-concept-brief.md` mục «Chụp ảnh lúc chạy tải».
+  - **#5, khi `base` được apply (BL-409):** thêm hai tên `dbs-dev-<khóa>-dlq-oldest-age` vào `dash_alarm_names` ở `dashboard.tf`, bỏ ngoại lệ trong `alarmContract` (`dashboard-snapshot.test.mjs`) và sửa test `dashboard_alarm_status_widget` (20 → 22). Đã có dòng **BL-409** (giữ) cho việc apply base; **không thêm BL mới**: việc này là một dòng trong cột «Việc còn thiếu» của BL-409 khi nó được làm; người điều phối ghi vào dòng đó nếu muốn.
+  - Chưa có `BL-NNN` mới trong PR này: mọi DoD chưa đạt (ảnh) đã có BL-262/BL-404 và phiên AWS-A theo `TonightWorks.md`; DoD 3 (PR, review) là quy trình.
+
+## 9. Tài liệu đã cập nhật
+
+- `docs/components/observability/01-concept-brief.md`: mục «Dashboard (DBS-145, DBS-178)» viết lại (bảng 33 widget theo nhóm, trạng thái health và giới hạn probe/Redis, chi phí) và mục mới «Chụp ảnh lúc chạy tải (DBS-178)»; dòng Status và ngày.
+- `infra/terraform/README.md`: mục «Dashboard CloudWatch» (DBS-178: 33 widget, widget alarm dựng ARN từ chuỗi, cách chụp, neo mới).
+- `docs/03_HIGH_LEVEL_ARCHITECTURE.md`: một dòng §14 mục Dashboard (DBS-178) và neo `#dashboard-dbs-145-dbs-178`.
+- `docs/features/README.md`: thêm dòng DBS-178.
+- `docs/BACKLOG.md`: **không đổi** (BL-262 và BL-404 giữ cho người điều phối; không thêm BL mới).

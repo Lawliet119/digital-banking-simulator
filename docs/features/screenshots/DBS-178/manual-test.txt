@@ -1,0 +1,147 @@
+dc44e19b009045afe0d060372f089c1e8d77665e
+# Manual test DBS-178 2026-11-21T23:18:45Z; ID tai khoan AWS thay bang <acct>
+node v24.22.2; terraform Terraform v1.16.6
+
+$ M-178-01 terraform init/fmt/validate/test (envs/dev/session)
+init: ok
+fmt -check: ok
+Success! The configuration is valid.
+  run "dashboard_shape"... pass
+  run "dashboard_has_every_metric"... pass
+  run "dashboard_labels_are_safe"... pass
+  run "dashboard_slo_lines"... pass
+  run "dashboard_route_search_excludes_health"... pass
+  run "dashboard_queue_names"... pass
+  run "dashboard_error_rate_expression"... pass
+  run "dashboard_outputs"... pass
+  run "dashboard_namespace_variable"... pass
+  run "dashboard_reconciliation_and_risk_widgets"... pass
+  run "dashboard_flag_rate_widgets"... pass
+  run "infra_dashboard_shape"... pass
+  run "infra_dashboard_metrics"... pass
+  run "dashboard_alarm_status_widget"... pass
+  run "dashboard_alarm_arns_follow_account"... pass
+  run "dashboard_health_probe_widget"... pass
+  run "dashboard_queue_depth_widget"... pass
+  run "dashboard_rps_and_slo_widgets"... pass
+  run "dashboard_risk_decisions_and_consumer_widgets"... pass
+  run "dashboard_covers_dod"... pass
+  run "dashboard_layout_and_notes"... pass
+Success! 111 passed, 0 failed.
+
+$ M-178-02 dashboard.tf khong tham chieu tai nguyen session
+--- tai nguyen aws_*.* trong dashboard.tf (bo dong chu thich):
+--- local.* doc trong dashboard.tf:
+local.base local.dash_alarm_arns local.dash_alarm_names local.dash_intro local.dash_ns local.dash_region local.dash_text local.dashboard_body local.dlq_names local.queue_names local.w_age local.w_alarms local.w_consumer local.w_dlq local.w_errors local.w_flag local.w_flag_ai local.w_flag_by_level local.w_flag_rate_1h local.w_flag_rate_24h local.w_flag_rate_trend local.w_h_api local.w_h_fraud local.w_h_queue local.w_h_redis local.w_h_status local.w_health local.w_intro local.w_notes local.w_outbox local.w_overall local.w_queue_depth local.w_rate local.w_reads local.w_recon local.w_redis local.w_risk local.w_risk_decisions local.w_risk_health local.w_routes local.w_rps local.w_transfer local.w_volume 
+
+$ M-178-03 lay body bang terraform test -json, render widget bang GetMetricWidgetImage that (chi doc, profile dbs)
+ghi F:/tmp/claude/claude/b40605182e8b32f5/b017cc55-f429-42d3-b6fb-8850e48fab32/scratchpad/body.json Found 1 file and 1 run block
+widgets 33 {"text":7,"alarm":1,"metric":25} bytes 17165
+khung: 2026-11-21T22:10:46Z -> 2026-11-21T23:10:46Z
+SKIP text  ## DBS dev: sức khỏe hệ thống
+SKIP text  ### 1. Trạng thái: alarm và health
+SKIP alarm  Trạng thái alarm SLO
+OK   01-health-probe-health-ready-request-va-5xx.png  Health: probe /health/ready (request và 5xx)
+SKIP text  ### 2. API: lưu lượng, độ trễ, lỗi (SLO docs/03 §14)
+OK   02-chuyen-tien-post-v1-transfers-p95-va-p99-ms.png  Chuyển tiền POST /v1/transfers: p95 và p99 (ms)
+OK   03-ti-le-5xx.png  Tỉ lệ 5xx (%)
+OK   04-luu-luong-request-moi-giay.png  Lưu lượng: request mỗi giây
+OK   05-doc-p95-ms.png  Đọc: p95 (ms)
+OK   06-do-tre-toan-dich-vu-ms.png  Độ trễ toàn dịch vụ (ms)
+OK   07-request-5xx-bi-ngat.png  Request, 5xx, bị ngắt
+OK   08-p95-theo-route-ms.png  p95 theo Route (ms)
+SKIP text  ### 3. Hàng đợi, outbox, DLQ
+OK   09-do-sau-hang-doi-chinh-cho-xu-ly-va-dang-xu-ly.png  Độ sâu hàng đợi chính (chờ xử lý và đang xử lý)
+OK   10-tuoi-message-cu-nhat-giay.png  Tuổi message cũ nhất (giây)
+OK   11-tuoi-outbox-chua-gui-cu-nhat-giay.png  Tuổi outbox chưa gửi cũ nhất (giây)
+OK   12-dlq-so-message.png  DLQ: số message
+OK   13-consumer-message-retry-va-dead-letter.png  Consumer: message retry và dead_letter
+SKIP text  ### 4. Redis, giới hạn tốc độ, đối soát
+OK   14-redis-fallback.png  Redis fallback
+OK   15-request-bi-rate-limit.png  Request bị rate limit
+OK   16-doi-soat-so-cai-so-lan-chay-theo-ket-qua.png  Đối soát sổ cái: số lần chạy theo kết quả
+SKIP text  ### 5. Cảnh báo gian lận (fraud)
+OK   17-co-1-000-giao-dich-1-gio-gan-nhat.png  Cờ / 1.000 giao dịch, 1 giờ gần nhất
+OK   18-co-1-000-giao-dich-24-gio-gan-nhat.png  Cờ / 1.000 giao dịch, 24 giờ gần nhất
+OK   19-co-1-000-giao-dich-xu-huong-va-theo-mode-period-3600.png  Cờ / 1.000 giao dịch: xu hướng và theo mode (period 3600)
+OK   20-co-theo-risk-level.png  Cờ theo risk_level
+OK   21-co-do-ai-bo-sung.png  Cờ do AI bổ sung
+OK   22-risk-quyet-dinh-cham-diem-theo-aistatus.png  Risk: quyết định chấm điểm theo AiStatus
+OK   23-thoi-gian-giao-dich-toi-co-p95-ms.png  Thời gian giao dịch tới cờ: p95 (ms)
+OK   24-risk-config-invalid-va-loi-luat.png  Risk: CONFIG_INVALID và lỗi luật
+OK   25-risk-fallback-redis-cua-cau-hinh-luat.png  Risk: fallback Redis của cấu hình luật
+SKIP text  ### Cách đọc
+25 ảnh, 8 bỏ qua, 0 lỗi
+exit=0
+tep: 25; chu ky PNG:
+     25 89504e47
+
+$ M-178-04 cong cu chup qua tien trinh that voi aws gia (fixture), body that tu M-178-03
+SKIP text  ## DBS dev: sức khỏe hệ thống
+SKIP text  ### 1. Trạng thái: alarm và health
+SKIP alarm  Trạng thái alarm SLO
+OK   01-health-probe-health-ready-request-va-5xx.png  Health: probe /health/ready (request và 5xx)
+SKIP text  ### 2. API: lưu lượng, độ trễ, lỗi (SLO docs/03 §14)
+OK   02-chuyen-tien-post-v1-transfers-p95-va-p99-ms.png  Chuyển tiền POST /v1/transfers: p95 và p99 (ms)
+OK   03-ti-le-5xx.png  Tỉ lệ 5xx (%)
+OK   04-luu-luong-request-moi-giay.png  Lưu lượng: request mỗi giây
+OK   05-doc-p95-ms.png  Đọc: p95 (ms)
+OK   06-do-tre-toan-dich-vu-ms.png  Độ trễ toàn dịch vụ (ms)
+OK   07-request-5xx-bi-ngat.png  Request, 5xx, bị ngắt
+OK   08-p95-theo-route-ms.png  p95 theo Route (ms)
+SKIP text  ### 3. Hàng đợi, outbox, DLQ
+OK   09-do-sau-hang-doi-chinh-cho-xu-ly-va-dang-xu-ly.png  Độ sâu hàng đợi chính (chờ xử lý và đang xử lý)
+OK   10-tuoi-message-cu-nhat-giay.png  Tuổi message cũ nhất (giây)
+OK   11-tuoi-outbox-chua-gui-cu-nhat-giay.png  Tuổi outbox chưa gửi cũ nhất (giây)
+OK   12-dlq-so-message.png  DLQ: số message
+OK   13-consumer-message-retry-va-dead-letter.png  Consumer: message retry và dead_letter
+SKIP text  ### 4. Redis, giới hạn tốc độ, đối soát
+OK   14-redis-fallback.png  Redis fallback
+OK   15-request-bi-rate-limit.png  Request bị rate limit
+OK   16-doi-soat-so-cai-so-lan-chay-theo-ket-qua.png  Đối soát sổ cái: số lần chạy theo kết quả
+SKIP text  ### 5. Cảnh báo gian lận (fraud)
+OK   17-co-1-000-giao-dich-1-gio-gan-nhat.png  Cờ / 1.000 giao dịch, 1 giờ gần nhất
+OK   18-co-1-000-giao-dich-24-gio-gan-nhat.png  Cờ / 1.000 giao dịch, 24 giờ gần nhất
+OK   19-co-1-000-giao-dich-xu-huong-va-theo-mode-period-3600.png  Cờ / 1.000 giao dịch: xu hướng và theo mode (period 3600)
+OK   20-co-theo-risk-level.png  Cờ theo risk_level
+OK   21-co-do-ai-bo-sung.png  Cờ do AI bổ sung
+OK   22-risk-quyet-dinh-cham-diem-theo-aistatus.png  Risk: quyết định chấm điểm theo AiStatus
+OK   23-thoi-gian-giao-dich-toi-co-p95-ms.png  Thời gian giao dịch tới cờ: p95 (ms)
+OK   24-risk-config-invalid-va-loi-luat.png  Risk: CONFIG_INVALID và lỗi luật
+OK   25-risk-fallback-redis-cua-cau-hinh-luat.png  Risk: fallback Redis của cấu hình luật
+SKIP text  ### Cách đọc
+25 ảnh, 8 bỏ qua, 0 lỗi
+exit=0
+so anh: 25
+01-health-probe-health-ready-request-va-5xx.png
+02-chuyen-tien-post-v1-transfers-p95-va-p99-ms.png
+03-ti-le-5xx.png
+...
+24-risk-config-invalid-va-loi-luat.png
+25-risk-fallback-redis-cua-cau-hinh-luat.png
+ten tep co ky tu ngoai ASCII: 0
+
+$ M-178-05 bien va loi
+--- end truoc start:
+LỖI --start phải trước --end
+Dùng: node infra/scripts/dashboard-snapshot.mjs --start <ISO có múi giờ> --end <ISO có múi giờ> --out <thư mục>
+        [--dashboard dbs-dev-overview] [--region ap-southeast-1] [--profile <tên>] [--width 1200] [--height 450]
+exit=2; thu muc ra ton tai: khong
+--- khung khong co mui gio:
+LỖI --start thiếu múi giờ (thêm Z hoặc +07:00): 2026-11-22T10:00:00
+exit=2
+--- dashboard khong ton tai, aws that (chi doc):
+LỖI không đọc được dashboard dbs-dev-khong-co: aws: [ERROR]: An error occurred (ResourceNotFound) when calling the GetDashboard operation: Dashboard dbs-dev-khong-co does not exist
+exit=1; thu muc ra ton tai: khong
+--- aws that, profile khong co quyen/khong ton tai (AWS_PROFILE sai):
+LỖI không đọc được dashboard dbs-dev-overview: aws: [ERROR]: The config profile (khong-co-profile) could not be found
+exit=1
+--- aws gia tra AccessDenied co ARN (FAKE_AWS_FAIL=1):
+LỖI không đọc được dashboard dbs-dev-overview: An error occurred (AccessDenied) when calling the GetDashboard operation: User: <arn> is not authorized to perform: cloudwatch:GetDashboard on resource: <arn>
+exit=1
+
+$ node --test (test cua cong cu, chay tu backend/ nhu CI)
+ℹ tests 23
+ℹ pass 23
+ℹ fail 0
+ℹ skipped 0
