@@ -56,7 +56,7 @@ resource "aws_db_instance" "main" {
 }
 
 # BL-324: nhắc tắt Multi-AZ. Multi-AZ chỉ bật khi diễn tập failover (DBS-181); quên tắt tốn ≈ +0,72 USD/ngày. Check này cảnh báo (không chặn)
-# ở mọi `terraform plan`/`apply` còn `db_multi_az = true`, nên phiên dựng lại hay chạy plan cuối phiên đều thấy. Bước kiểm cuối phiên:
+# ở mọi `terraform plan`/`apply` còn `db_multi_az = true`. Giới hạn: check đọc biến, không đọc trạng thái RDS thật; plan không truyền `-var db_multi_az=true` thì check qua và chỉ thấy diff `multi_az: true -> false`. Bước kiểm cuối phiên (đọc state):
 # `terraform output db_multi_az` phải in `false` (infra/terraform/README.md, mục RDS).
 check "db_multi_az_off" {
   assert {

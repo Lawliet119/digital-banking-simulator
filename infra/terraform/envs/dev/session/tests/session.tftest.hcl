@@ -598,7 +598,7 @@ run "rds_multi_az_on_warns" {
   expect_failures = [check.db_multi_az_off]
 }
 
-# BL-324 TC-324-02: Single-AZ mặc định không cảnh báo (rds_multi_az_default_off bên dưới chạy apply, check mà fail thì run đó đỏ)
+# BL-324 TC-324-02: Single-AZ mặc định không cảnh báo (rds_multi_az_default_off bên trên chạy apply, check mà fail thì run đó đỏ)
 
 # TC-180-02: bật Multi-AZ bằng đúng một biến, giữ nguyên mọi cấu hình khác (cỡ, mã hóa, backup, ép TLS, không public)
 run "rds_multi_az_drill" {
