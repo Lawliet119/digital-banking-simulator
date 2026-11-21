@@ -383,7 +383,7 @@ describe('TransferFacts cost (real PostgreSQL, DBS-173)', () => {
       const recording: Queryable = {
         query: async (sql, params) => {
           seen.push({ sql, params: params ?? [] });
-          return source.query(sql, params);
+          return (await source.query(sql, params)) as unknown;
         },
       };
       await new TransferFacts(recording).accountFacts(hot, transferId, OCC, LIMIT);
@@ -469,7 +469,7 @@ describe('TransferFacts cost (real PostgreSQL, DBS-173)', () => {
       const recording: Queryable = {
         query: async (sql, params) => {
           seen.push({ sql, params: params ?? [] });
-          return source.query(sql, params);
+          return (await source.query(sql, params)) as unknown;
         },
       };
       await new TransferFacts(recording).newRecipientCount(hot, OCC);
@@ -503,7 +503,7 @@ describe('TransferFacts cost (real PostgreSQL, DBS-173)', () => {
       const recording: Queryable = {
         query: async (sql, params) => {
           seen.push({ sql, params: params ?? [] });
-          return source.query(sql, params);
+          return (await source.query(sql, params)) as unknown;
         },
       };
       await new TransferFacts(recording).accountFacts(lazy, unknown, OCC, LIMIT);
