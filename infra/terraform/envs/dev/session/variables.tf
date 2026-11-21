@@ -194,3 +194,28 @@ variable "ai_fallback_rate_threshold_percent" {
     error_message = "ai_fallback_rate_threshold_percent must be in (0, 100]."
   }
 }
+
+# DBS-166: cấu hình riêng cho đợt đo tải, không dùng cho vận hành thường ngày. Chỉ ba khóa được phép để không thể
+# đổi NODE_ENV, TLS hay DB qua đường này: hai giới hạn tốc độ (docs/03 §12: nâng bằng env khi chạy tải, bài rate-limit
+# chạy với mặc định) và client Cognito tạm của stack loadgen (token sống đủ dài cho baseline 46 phút).
+variable "api_extra_environment" {
+  description = "Biến môi trường thêm hoặc ghi đè cho task api: RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE, RATE_LIMIT_TRANSFERS_PER_MINUTE (số nguyên dương), COGNITO_CLIENT_ID."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for k, v in var.api_extra_environment :
+      contains(["RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE", "RATE_LIMIT_TRANSFERS_PER_MINUTE", "COGNITO_CLIENT_ID"], k)
+    ])
+    error_message = "api_extra_environment accepts only RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE, RATE_LIMIT_TRANSFERS_PER_MINUTE and COGNITO_CLIENT_ID."
+  }
+
+  validation {
+    condition = alltrue([
+      for k, v in var.api_extra_environment :
+      k == "COGNITO_CLIENT_ID" ? can(regex("^[0-9a-z]{1,128}$", v)) : can(regex("^[1-9][0-9]{0,8}$", v))
+    ])
+    error_message = "Rate limits must be positive integers (up to 9 digits) and COGNITO_CLIENT_ID lowercase letters and digits."
+  }
+}
