@@ -44,7 +44,7 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 | `npm run test:e2e` | e2e (`test/*.e2e-spec.ts`) |
 | `npm run test:db` | test trên PostgreSQL thật (`test/db/*.db-spec.ts`): ràng buộc DB, migration run → revert → run. Tự động khởi tạo PostgreSQL 17 qua Testcontainers (hoặc dùng `DATABASE_URL` có sẵn nếu đã xuất ra môi trường). Cần Docker Desktop bật; nếu Docker tắt thì test báo lỗi ngay, không treo |
 | `npm run test:services -- --runInBand` | sample Valkey 8 và ElasticMQ thật (`test/services/`): mỗi lần chạy tự tạo container/cổng động, thử SET/GET, SQS send/receive, pause/resume và stop/start rồi dọn container. Cần Docker; không lấy endpoint từ Compose |
-| `npm run check:invariants` | kiểm năm bất biến sổ cái trên `DATABASE_URL` (hoặc bộ `DB_*` như ECS): exit 0 sạch, 1 có vi phạm, 2 không nhận là sạch; mã thoát là thẩm quyền cuối cùng |
+| `npm run check:invariants` | kiểm sáu bất biến sổ cái trên `DATABASE_URL` (hoặc bộ `DB_*` như ECS): exit 0 sạch, 1 có vi phạm, 2 không nhận là sạch; mã thoát là thẩm quyền cuối cùng |
 | `npm run check:invariants:dist` | cùng CLI, chạy bằng `node` từ `dist` (sau `npm run build`); trong image và ECS one-off task dùng `node dist/scripts/invariants/invariants.js`, xem §9 |
 | `npm run auth:dev-keys` | sinh khóa ký thử nghiệm và JWKS vào `backend/.auth-local/` (bị gitignore); chỉ chạy được khi `NODE_ENV` là `development`, `test` hoặc để trống. Xem [mục 10](#10-token-thử-ở-local) |
 | `npm run --silent auth:dev-token -- --role <vai>` | in một access token mẫu của `customer`, `operator`, `auditor` hoặc `admin` (stdout chỉ có token); tùy chọn `--sub`, `--iat`, `--exp`, `--dir` |
@@ -55,7 +55,7 @@ Muốn chạy tách như trên AWS: mở hai terminal, `npm run start:dev:api` v
 
 Trước khi mở Pull Request: `npm run lint:check && npm run typecheck && npm test && npm run test:e2e && npm run test:db`. CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) giữ sáu job `lint`, `typecheck`, `unit`, `e2e`, `db`, `build`. Job `e2e` chạy thêm sample DBS-39, migration run → revert → run và suite DBS-65 qua Testcontainers với `DATABASE_URL` được gỡ bỏ; job `db` vẫn chạy toàn bộ DB suite trên PostgreSQL service. Lệnh này không revert database dùng chung: test tạo và xóa database `dbs_test_*` riêng. Cách đọc kết quả: [CONTRIBUTING mục 4b](../CONTRIBUTING.md#4b-đọc-kết-quả-ci-trên-github-actions).
 
-Kiểm luồng tuần2 riêng: `npm run test:db -- --runInBand --runTestsByPath test/db/money-flow.db-spec.ts`. Suite tạo hồ sơ và tài khoản qua HTTP, operator nạp, customer chuyển rồi kiểm list/detail, audit, outbox và năm bất biến; có replay, key theo user, thiếu tiền, kiểm quyền và số tiền lớn hơn2^53. PostgreSQL/Valkey là thật; giữ JWT, role guard và rate limit mặc định. Valkey riêng của suite vẫn cần Docker kể cả khi có `DATABASE_URL`. Không thể dùng Docker thì suite thất bại, không skip thành xanh.
+Kiểm luồng tuần2 riêng: `npm run test:db -- --runInBand --runTestsByPath test/db/money-flow.db-spec.ts`. Suite tạo hồ sơ và tài khoản qua HTTP, operator nạp, customer chuyển rồi kiểm list/detail, audit, outbox và các bất biến; có replay, key theo user, thiếu tiền, kiểm quyền và số tiền lớn hơn2^53. PostgreSQL/Valkey là thật; giữ JWT, role guard và rate limit mặc định. Valkey riêng của suite vẫn cần Docker kể cả khi có `DATABASE_URL`. Không thể dùng Docker thì suite thất bại, không skip thành xanh.
 
 Kiểm quyền DB API/worker: `npm run test:db -- --runInBand --runTestsByPath test/db/db-role-permissions.db-spec.ts`; test tay độc lập `node scripts/manual-dbs122.cjs`. [DBS-122](../docs/features/DBS-122-db-role-permissions.md) dùng PostgreSQL17 container riêng kể cả khi có `DATABASE_URL`, chạy migration thật và đăng nhập bằng `dbs_api`/`dbs_worker`; chỉ bật LOGIN/password ngẫu nhiên trong container đó. Không thay role/credential của Compose hoặc CI service. Tiền setup qua HTTP thật; cờ/audit là SQL đầu vào phép thử quyền, không phải kết quả consumer fraud. Bằng chứng `42501` kiểm đúng ACL, có valid-input/negative control và cleanup container.
 
@@ -248,19 +248,20 @@ npm run --silent check:invariants
 npm run check:invariants -- --help
 ```
 
-[Nguồn SQL](src/scripts/invariants/invariants.sql) và [hàm/CLI](src/scripts/invariants/invariants.ts) dùng chung một SELECT để năm phép kiểm nhìn cùng snapshot:
+[Nguồn SQL](src/scripts/invariants/invariants.sql) và [hàm/CLI](src/scripts/invariants/invariants.ts) dùng chung một SELECT để sáu phép kiểm nhìn cùng snapshot:
 
 1. Tổng DEBIT = tổng CREDIT.
 2. Mỗi `accounts.balance` = SUM(CREDIT) − SUM(DEBIT); không có entry thì kỳ vọng 0.
 3. SUM(balance) toàn hệ thống = 0, **gồm tài khoản SYSTEM funding**.
 4. Không tài khoản khách nào âm; funding được phép âm.
 5. Mỗi COMPLETED có đúng một DEBIT và một CREDIT, đúng amount và tài khoản nguồn/đích của transfer; bắt cả transfer chưa có entry.
+6. `daily_debit_totals` (BL-418): với mọi tài khoản không phải SYSTEM, bộ đếm hạn mức ngày `accounts.sent_day`/`sent_today` bằng (ngày giờ Việt Nam lớn nhất có dòng DEBIT, tổng DEBIT của ngày đó) tính lại từ `ledger_entries`; tài khoản chưa từng ghi nợ phải có `sent_day` NULL và `sent_today` 0. Bộ đếm do trigger giữ nên chỉ lệch khi bị sửa tay hoặc trigger bị tắt.
 
 PASS/FAIL là JSON trên stdout, gồm `totals` và `violations` với `check`, `accountId`/`transferId`, `actual`, `expected`. Mọi số tiền, tổng và count là chuỗi chính xác, kể cả SUM vượt int64. Không parse aggregate bằng `Number`, `parseInt` hoặc parser `Money` giới hạn int64.
 
 | Exit | Ý nghĩa | Cách xử lý |
 |---|---|---|
-| 0 | PASS, đủ năm phép kiểm sạch | Có thể tiếp tục bước sau |
+| 0 | PASS, đủ sáu phép kiểm sạch | Có thể tiếp tục bước sau |
 | 1 | FAIL, có vi phạm | Giữ IDs/report, điều tra; công cụ không tự sửa dữ liệu |
 | 2 | Không nhận là sạch: ERROR trên stderr (cấu hình, kết nối, quyền, schema, I/O, timeout, hoặc dọn dẹp lỗi sau commit). Có thể kèm report PASS trên stdout | Mã thoát là **thẩm quyền cuối cùng**: exit 2 kèm PASS là "không nhận là sạch". Sửa môi trường rồi chạy lại |
 

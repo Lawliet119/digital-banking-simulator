@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { DataSource, type QueryRunner } from 'typeorm';
 import { buildSslOptions } from '@database/pg-ssl';
 import { checkLedgerInvariants } from '../support/invariants';
+import { counterOf } from '../support/daily-debit-counter';
 import {
   INVARIANT_FUNDING_ID,
   invariantState,
@@ -186,6 +187,85 @@ describe('DBS-69 ledger invariant checks (real PostgreSQL)', () => {
       );
     },
   );
+  describe('BL-418 daily_debit_totals: the day counter on accounts against the ledger', () => {
+    const daily = (
+      id: string,
+      actual: { sentDay: string | null; sentToday: string },
+      expected: { sentDay: string | null; sentToday: string },
+    ) => ({
+      check: 'daily_debit_totals',
+      accountId: id,
+      transferId: null,
+      actual,
+      expected,
+    });
+
+    it('TC-418-10 passes when every counter equals the ledger (SYSTEM funding is not checked)', async () => {
+      const refs = await seedInvariantLedger(db.runner);
+      const report = await checkLedgerInvariants(db.runner);
+      expect(report.violations).toEqual([]);
+      expect(report.status).toBe('PASS');
+      expect((await counterOf(db.runner, refs.senderId)).sentToday).toBe('250000');
+      // the funding account is the debit side of the deposit and carries no counter
+      expect(await counterOf(db.runner, INVARIANT_FUNDING_ID)).toEqual({
+        sentToday: '0',
+        sentDay: null,
+      });
+    });
+
+    it('TC-418-10 detects a counter that is one dong off, a wrong day, and a wiped counter', async () => {
+      const refs = await seedInvariantLedger(db.runner);
+      const truth = await counterOf(db.runner, refs.senderId);
+      expect(truth.sentToday).toBe('250000');
+      const [{ yesterday }] = await db.runner.query(
+        `SELECT to_char(sent_day - 1, 'YYYY-MM-DD') AS yesterday FROM accounts WHERE id=$1`,
+        [refs.senderId],
+      );
+      const expected = { sentDay: truth.sentDay, sentToday: '250000' };
+      const cases: [string, string, { sentDay: string | null; sentToday: string }][] = [
+        [
+          'UPDATE accounts SET sent_today = sent_today + 1 WHERE id = $1',
+          'off by one',
+          { sentDay: truth.sentDay, sentToday: '250001' },
+        ],
+        [
+          'UPDATE accounts SET sent_day = sent_day - 1 WHERE id = $1',
+          'wrong day',
+          { sentDay: yesterday as string, sentToday: '250000' },
+        ],
+        [
+          'UPDATE accounts SET sent_today = 0, sent_day = NULL WHERE id = $1',
+          'wiped',
+          { sentDay: null, sentToday: '0' },
+        ],
+      ];
+      for (const [sql, , actual] of cases) {
+        await db.runner.query('SAVEPOINT tampered');
+        await db.runner.query(sql, [refs.senderId]);
+        const report = await checkLedgerInvariants(db.runner);
+        expect(report.status).toBe('FAIL');
+        expect(report.violations).toEqual([daily(refs.senderId, actual, expected)]);
+        await db.runner.query('ROLLBACK TO SAVEPOINT tampered');
+      }
+      expect((await checkLedgerInvariants(db.runner)).status).toBe('PASS');
+    });
+
+    it('TC-418-10 detects a counter on an account that never sent anything', async () => {
+      const refs = await seedInvariantLedger(db.runner);
+      await db.runner.query(
+        'UPDATE accounts SET sent_today = 5, sent_day = current_date WHERE id = $1',
+        [refs.unusedId],
+      );
+      const report = await checkLedgerInvariants(db.runner);
+      expect(report.violations).toEqual([
+        daily(
+          refs.unusedId,
+          { sentDay: (await counterOf(db.runner, refs.unusedId)).sentDay, sentToday: '5' },
+          { sentDay: null, sentToday: '0' },
+        ),
+      ]);
+    });
+  });
   it('TC-69-05 detects a one-dong global balance error and the affected account', async () => {
     const refs = await seedInvariantLedger(db.runner);
     await db.runner.query('UPDATE accounts SET balance=balance+1 WHERE id=$1', [refs.senderId]);
