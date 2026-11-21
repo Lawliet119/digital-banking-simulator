@@ -189,3 +189,17 @@ Lệnh Git Bash `node scripts/manual-dbs136.cjs 2>&1 | tee ../docs/features/scre
 ## 9. Tài liệu
 
 Đã cập nhật backend README, module outbox README, env example, database-design retention/index, API design retention, feature index. BACKLOG thêm BL-218 (BL-205 cũ, đánh lại số khi rebase) và xử lý phần retention của BL-201, không xóa phần onboarding chưa giải quyết. Feature/evidence136 lưu raw,2ảnh manual,ảnh kiến trúc,domain review và kết quả kiểm tra. Kết quả CI động cập nhật ở PR để không tạo commit mới đổi HEAD đang xác minh.
+
+## 10. Bổ sung sau bàn giao: worker thật, kill và restart (BL-218, 2026-11-21)
+
+Đã chạy dọn dedup bằng **tiến trình worker thật**, không phải lifecycle service trong cùng process: `node dist/main` với `APP_ROLE=worker`, full `AppModule`, kết nối bằng role `dbs_worker` vào PostgreSQL 17 riêng, kèm ElasticMQ và Valkey riêng (`dbs-bl218-*`, xóa hết ở cuối). Script: `backend/scripts/manual-bl218.cjs`; raw: [bl218-real-worker.txt](screenshots/DBS-136/bl218-real-worker.txt).
+
+| Bước | Kết quả |
+|---|---|
+| Seed | 1 khoản nạp thật qua HTTP (key `bl218-live-key` còn hạn), thêm 100.000 key và 100.000 mark quá hạn (8 ngày), 50 key và 50 mark còn hạn |
+| Hard-kill giữa lúc dọn | `taskkill /F` (không chạy shutdown hook) khi còn 99.051 key; sau khi chết còn 93.051 key: dọn dở, không hỏng |
+| Checker tiền sau kill | `invariants.ts` PASS, exit 0 |
+| Restart worker mới | dọn đúng 93.000 key còn dư (96 lô); còn 51 key (50 còn hạn + key khoản nạp) và 50 mark còn hạn, cộng 2 mark do consumer của chính worker ghi cho khoản nạp |
+| Checker tiền sau restart | PASS, exit 0; balance và ledger không đổi vì chỉ dọn metadata |
+
+Redrive queue thật và ECS vẫn thuộc BL-051; BL-218 chỉ đóng phần worker thật, kill và restart. Dòng BL-218 đã xóa khỏi BACKLOG.

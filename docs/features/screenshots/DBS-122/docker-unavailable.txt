@@ -1,0 +1,14 @@
+BL-215: chạy DBS-122 khi Docker daemon không khả dụng (ngày 2026-11-21)
+Cách làm: đặt DOCKER_HOST=tcp://127.0.0.1:1 chỉ trong process con của lệnh; không tắt Docker Desktop, không dừng container nào.
+Code SHA: 0d5874b64491ae9cee0e041d6a201870668e9979 (origin/main), Node 24.22.2, DATABASE_URL không đặt.
+Lệnh: DOCKER_HOST=tcp://127.0.0.1:1 npm run test:db -- --runInBand --runTestsByPath test/db/db-role-permissions.db-spec.ts
+
+> jest --config ./test/jest-db.js --runInBand --runTestsByPath test/db/db-role-permissions.db-spec.ts
+
+Error: Jest: Got error running globalSetup - backend/test/support/jest-global-setup.ts, reason: [Testcontainers] Docker is not running or unreachable. Please start Docker Desktop to run database tests. Error details: Could not find a working container runtime strategy
+    at assertDockerAvailable (backend/test/support/postgres.container.ts:36:15)
+    at async startPostgresContainer (backend/test/support/postgres.container.ts:62:5)
+    at async globalSetup (backend/test/support/jest-global-setup.ts:9:33)
+PROCESS_EXIT=1
+
+Kết luận: harness dừng ở globalSetup với thông báo rõ và exit 1; không có suite nào chạy, không skip thành xanh.
