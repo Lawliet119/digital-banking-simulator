@@ -8,7 +8,7 @@
 |---|---|---|
 | `RiskWorkerModule`, `RiskScoringConsumer` | worker | Nhận `TransferCompleted` qua `risk-events`; dedup, chấm, lưu decision/cờ/audit; không chặn giao dịch đã hoàn tất |
 | `ScoringService`, `rules/r1-*.ts` … `r6-*.ts` | worker/offline | Sáu luật thuần, tính baseline một lần; áp dụng weight AI theo cấu hình, không gọi I/O |
-| `OnlineFeatureProvider`, `TransferFacts` | worker | 5 SELECT tới view `v_transfer_facts` trong một transaction `REPEATABLE READ READ ONLY` (một snapshot, một connection) theo event-time mili giây; R1/R5 dùng SQL aggregate thay cache theo thứ tự nhận event |
+| `OnlineFeatureProvider`, `TransferFacts` | worker | 3 SELECT tới view `v_transfer_facts` trong một transaction `REPEATABLE READ READ ONLY` (một snapshot, một connection) theo event-time mili giây: `accountFacts` (một lượt quét tài khoản nguồn trong 30 ngày cho R2 history, R1 velocity và R6 outflow, DBS-173), `reverseTransfer` (R4) và `newRecipientCount` (R5); R1/R5 dùng SQL aggregate thay cache theo thứ tự nhận event |
 | `OfflineFeatureProvider` | offline | Trích đặc trưng trên snapshot fact tổng hợp bất biến; xuất cùng 11 trường qua mapper |
 | `RuleSetRepository` | worker | Chọn version trong `risk_rule_sets`; Redis cache cấu hình, lỗi/miss đọc PostgreSQL |
 | `RiskAiService`, `ai/openai-decisions.ts`, `AiGate` | worker | Với version AI hợp lệ: admission bền vững, gửi 11 trường cho OpenAI Decisions có timeout, lưu provenance/fallback |

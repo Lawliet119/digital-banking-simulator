@@ -379,7 +379,7 @@ Schema chính thức của `risk_rule_sets`, `fraud_flags`, `fraud_rule_hits`, `
 
 ### 5.4 Bộ đếm Redis (R1, R5)
 
-> **Lịch sử (ADR-08, đã thay bởi ADR-14 và các task DBS-109/111).** Mục này mô tả thiết kế bộ đếm Redis ban đầu. Hiện hành: `OnlineFeatureProvider` đọc 5 SELECT từ `v_transfer_facts` theo `occurredAt`, R1/R5 dùng SQL aggregate vì thứ tự giao message không bằng thứ tự commit nên không thể chứng minh coverage của cache; Redis chỉ cache cấu hình luật (`cfg:risk:latest:v2`, `cfg:risk:v{n}`; TTL của key latest là 60 giây). Xem [kiến trúc risk §2.3](02-architecture.md) và [DBS-109](../../features/DBS-109-online-feature-provider.md). Metric `risk_redis_fallback_total` đã bỏ (BL-204): đọc feature đi thẳng SQL nên không có lần "rơi về" nào để đếm.
+> **Lịch sử (ADR-08, đã thay bởi ADR-14 và các task DBS-109/111).** Mục này mô tả thiết kế bộ đếm Redis ban đầu. Hiện hành: `OnlineFeatureProvider` đọc 3 SELECT từ `v_transfer_facts` theo `occurredAt` (một câu `accountFacts` cho history, velocity và outflow; `reverseTransfer`; `newRecipientCount`; DBS-173), R1/R5 dùng SQL aggregate vì thứ tự giao message không bằng thứ tự commit nên không thể chứng minh coverage của cache; Redis chỉ cache cấu hình luật (`cfg:risk:latest:v2`, `cfg:risk:v{n}`; TTL của key latest là 60 giây). Xem [kiến trúc risk §2.3](02-architecture.md) và [DBS-109](../../features/DBS-109-online-feature-provider.md). Metric `risk_redis_fallback_total` đã bỏ (BL-204): đọc feature đi thẳng SQL nên không có lần "rơi về" nào để đếm.
 
 | Luật | Key | Lệnh |
 |---|---|---|
@@ -616,7 +616,7 @@ Với 1% gian lận, 20 cảnh báo / 1.000 tương ứng precision khoảng 35%
 | Không ảnh hưởng chuyển tiền | Async + DLQ; worker chết thì giao dịch vẫn chạy bình thường |
 
 **Chi phí (ADR-14).**
-- Mode `rule_only` (mặc định): không gọi API ngoài nên không tốn token hay phí provider. Chi phí chỉ là CPU worker (đã nằm trong ECS chung) và 5 SELECT feature mỗi TRANSFER tới `v_transfer_facts`; tải phụ lên RDS ở 120 RPS **chưa đo** trên RDS (kiến trúc risk §2.3; số đo cục bộ ở BUG-20261110-fraud-feature-order).
+- Mode `rule_only` (mặc định): không gọi API ngoài nên không tốn token hay phí provider. Chi phí chỉ là CPU worker (đã nằm trong ECS chung) và 3 SELECT feature mỗi TRANSFER tới `v_transfer_facts`; tải phụ lên RDS đã đo ở DBS-166 và DBS-173 ([báo cáo](../load-tests/03-ket-qua-toi-uu-p95-2026-11-21.md)): chi phí mỗi giao dịch tăng theo số dòng trong cửa sổ 30 ngày của tài khoản nguồn (kiến trúc risk §2.3).
 - Mode `rules_with_external_ai`: mỗi TRANSFER được admission đều có thể gọi API, không lọc trước theo điểm luật. Có phí theo token của provider, cộng egress, secret, quota và latency. Retry hoặc hai delivery đồng thời có thể gọi thêm, không hứa exactly-once billing. Giá tham khảo trong ADR-14 ($0,10/1M token input theo trang provider ngày 2026-10-25) cần xác nhận lại; ước tính cost/1.000 TRANSFER phải ghi giả định, không phải hóa đơn thực.
 - `risk_decisions` thêm một dòng cho mọi TRANSFER (≈ 616 B/dòng đo ở RSK-01).
 - Không có chi phí train, `.onnx` hay `onnxruntime-node`: các mục này thuộc hướng ADR-08 đã bị thay.
@@ -718,7 +718,7 @@ Với 1% gian lận, 20 cảnh báo / 1.000 tương ứng precision khoảng 35%
 >
 > **An toàn:** hệ thống không bao giờ tự chặn hay tự khóa — chỉ gắn cờ có giải thích tiếng Việt theo 6 nhóm rủi ro `R1–R6`, nhân viên quyết định cuối cùng. Khách không thấy cờ (AC-10.2). Mỗi cờ ghi phiên bản cấu hình `rule_set_version`, mỗi quyết định có nhật ký. Nếu bật API AI: gọi ở worker sau commit, ngoài transaction; chỉ gửi 11 trường allowlist, không gửi ID hay văn bản tự do; lỗi hoặc timeout thì giữ điểm sáu luật; egress mặc định tắt và phải được Ops phê duyệt. Toàn bộ chạy bất đồng bộ nên không ảnh hưởng chuyển tiền.
 >
-> **Chi phí:** `rule_only` không gọi API nên không tốn token. Nếu bật `rules_with_external_ai` thì có phí theo token của provider, tính cho mọi TRANSFER được admission và có thể bị gọi thừa khi retry/đua; chi phí ước tính phải ghi giả định. Không có chi phí train hay lưu mô hình. Cả hai mode đều tốn 5 SELECT mỗi TRANSFER, tải RDS ở 120 RPS chưa đo.
+> **Chi phí:** `rule_only` không gọi API nên không tốn token. Nếu bật `rules_with_external_ai` thì có phí theo token của provider, tính cho mọi TRANSFER được admission và có thể bị gọi thừa khi retry/đua; chi phí ước tính phải ghi giả định. Không có chi phí train hay lưu mô hình. Cả hai mode đều tốn 3 SELECT mỗi TRANSFER (tải RDS ở 120 RPS đã đo: [báo cáo DBS-173](../load-tests/03-ket-qua-toi-uu-p95-2026-11-21.md)).
 
 Các chữ X, Y, Z điền từ kết quả tuần 7, nếu có đo thật.
 

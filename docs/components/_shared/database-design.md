@@ -467,7 +467,7 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | **Hạn mức ngày:** `SUM(amount)` tiền đi hôm nay của một tài khoản (ledger, **trong lúc đang giữ khóa**) | `ledger_entries_daily_debit_idx`: `ledger_entries (account_id, created_at) INCLUDE (amount) WHERE direction = 'DEBIT'` | Index một phần + `INCLUDE` cho phép *index-only scan*: không đọc bảng. Chạy khi đang giữ khóa nên mỗi mili-giây đều làm tài khoản nóng chậm đi |
 | Lịch sử giao dịch phân trang cursor (UC-6) | `ledger_entries_account_history_idx`: `ledger_entries (account_id, created_at DESC, id DESC)` | Cursor là cặp `(created_at, id)`: ổn định khi nhiều dòng cùng thời điểm |
 | Trạng thái một giao dịch (UC-7) | PK `transfers(id)` | Có sẵn |
-| **R1/R2/R5** đếm lệnh, trung vị số tiền, người nhận mới (risk) | `transfers_account_completed_idx`: `transfers (from_account_id, created_at) INCLUDE (amount, to_account_id) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Một index phục vụ cả ba luật, và nhỏ vì loại `REJECTED` và `DEPOSIT` |
+| **R1/R2/R5/R6** đếm lệnh, trung vị số tiền, người nhận mới, tổng chi 24 giờ (risk) | `transfers_account_completed_idx`: `transfers (from_account_id, created_at) INCLUDE (amount, to_account_id) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Một index phục vụ cả các luật, và nhỏ vì loại `REJECTED` và `DEPOSIT`. Từ DBS-173, R1 (velocity), R2 (history) và R6 (outflow) đọc index này **một lần** trong một câu SQL (`TransferFacts.accountFacts`) thay vì ba lần; index-only scan cần visibility map mới nên `transfers` có `autovacuum_vacuum_insert_scale_factor = 0` và `autovacuum_vacuum_insert_threshold = 1000` (migration `TuneTransfersAutovacuum1795000011000`, [§7.4](#74-đã-đo-truy-vấn-đặc-trưng-fraud-dbs-173-2026-11-21)) |
 | **R4** có lệnh chuyển ngược trong 1 giờ (risk) | `transfers_pair_completed_idx`: `transfers (from_account_id, to_account_id, created_at) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Truy vấn theo cặp |
 | Relay lấy sự kiện chưa gửi (`outbox`) | `outbox_unpublished_idx`: `outbox_events (id) WHERE published_at IS NULL AND quarantined_at IS NULL` (BL-181) | Chỉ chứa các dòng đang chờ relay, không có dòng cách ly: luôn nhỏ dù bảng lớn |
 | Đếm sự kiện bị cách ly (gauge) | `outbox_quarantined_idx`: `outbox_events (id) WHERE quarantined_at IS NOT NULL AND published_at IS NULL` (BL-181) | Chỉ chứa dòng cách ly: thường rỗng |
@@ -549,6 +549,17 @@ Query audit được kiểm bằng đúng projection/order/limit+1 của service
 ### 7.3 Đã đo: relay lấy lô sự kiện chưa gửi (DBS-171, 2026-11-11)
 
 PostgreSQL 17, 400.000 dòng `outbox_events` đã gửi + 1.000 dòng chưa gửi, `VACUUM (ANALYZE)`, `limit = 100`; câu SQL là hằng số `PENDING_BATCH_SQL` của `OutboxRelayService`, chạy bằng `backend/test/db/outbox-relay-plan.db-spec.ts`. Plan: `Limit` → `Index Scan` trên `outbox_unpublished_idx`, không `Seq Scan`, không `Sort`; trung vị 5 lần **0,093 ms** (không có id parked) và **0,098 ms** (50 id parked), 5 block. Tổng hợp cả năm truy vấn nóng và test của từng cái: [docs/components/ledger/query-plans.md](../ledger/query-plans.md).
+
+### 7.4 Đã đo: truy vấn đặc trưng fraud (DBS-173, 2026-11-21)
+
+RDS PostgreSQL 17 `db.t4g.small` thật, tài khoản nóng 29.525 dòng `COMPLETED TRANSFER` trên 52.000 dòng của bảng, DB rảnh (số lúc tải cao hơn 2 đến 5 lần). Ba truy vấn cũ của DBS-109 (`history`, `velocity`, `outflow24h`) so với `accountFacts`:
+
+| | SQL cũ, visibility map cũ (85%) | SQL cũ sau `VACUUM` | `accountFacts`, visibility map cũ | `accountFacts`, sau `VACUUM` |
+|---|---|---|---|---|
+| Kiểu quét | Seq Scan cả bảng, 3 lần | Index Only Scan (history, outflow), Seq Scan (velocity, vì `bool_or(id)` cần heap) | Seq Scan, 1 lần | Index Only Scan, `Heap Fetches` 0, 1 lần |
+| Thời gian | 36,7 + 14,4 + 25,5 = 76,6 ms | 25,8 + 14,4 + 18,6 = 58,8 ms | 38,7 ms | **26,2 ms** |
+
+Dưới tải (`hot-account`, 38.445 dòng của tài khoản nóng, migration autovacuum đã chạy): visibility map 1.249/1.250 trang (99,9%, trước là 85%), `Index Only Scan` với `Heap Fetches` 683 (1,8%, trước 39%), 1.073 buffer cho `accountFacts`; `newRecipientCount` 642 buffer (trước 1.545). Ép `random_page_cost = 1.1` khi visibility map cũ làm index-only scan **chậm hơn** Seq Scan (61 đến 96 ms so với 14 ms) vì 39% là heap fetch: không dùng. Chi phí còn lại vẫn O(số dòng trong cửa sổ 30 ngày) (≈ 0,9 µs mỗi dòng khi rảnh, 2,4 µs khi RDS bận), xem [báo cáo](../load-tests/03-ket-qua-toi-uu-p95-2026-11-21.md) §6. Bằng chứng: [DBS-173](../../features/DBS-173-p95-120rps.md), `docs/components/load-tests/results/explain-pgss/`.
 
 ---
 
