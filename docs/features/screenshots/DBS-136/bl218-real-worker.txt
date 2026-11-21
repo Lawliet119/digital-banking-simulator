@@ -1,16 +1,17 @@
-0d5874b64491ae9cee0e041d6a201870668e9979
-BL-218 worker thật (node dist/main, APP_ROLE=worker) / hard-kill / PostgreSQL 17
+f5a0fa70d6a31598f0a37089d578f369e3cbea8c-dirty | file đổi chưa commit: 0
+Error response from daemon: No such container: dbs-bl218-mq
+Error response from daemon: No such container: dbs-bl218-valkey
 M01 SEED: idempotency_keys=100051 (100000 quá hạn, 51 còn hạn gồm key của khoản nạp), processed_events=100050 (100000 quá hạn, 50 còn hạn)
-M02 worker pid=37964 đã chạy bằng node dist/main
-M03 HARD-KILL giữa chừng: thấy keys=99051; sau khi chết keys=93051 marks=52 (còn dư, chưa dọn hết)
+M02 worker pid=29772 đã chạy bằng node dist/main
+M03 HARD-KILL giữa chừng: thấy keys=99051; sau khi chết keys=99051 marks=52 (idempotency_keys còn dư chưa dọn hết; processed_events đã dọn xong trước khi kill, 50 còn hạn + mark của consumer thật)
 {"status":"PASS","totals":{"debit":"1000000","credit":"1000000","balance":"0"},"violations":[]}
 M03 checker tiền sau kill: exit 0
 M04 RESTART: worker mới dọn hết phần quá hạn; còn đúng 51 key (gồm key khoản nạp), 50 mark 'fresh' còn hạn, cộng 2 mark do consumer thật của worker ghi cho khoản nạp
 {"status":"PASS","totals":{"debit":"1000000","credit":"1000000","balance":"0"},"violations":[]}
-M05 checker tiền sau restart: exit 0; balance và ledger không đổi vì chỉ dọn metadata
+M05 checker tiền sau restart: exit 0; balance từng tài khoản, số transfers và số ledger_entries giống hệt trước khi worker chạy
 --- log worker (30 dòng cuối) ---
-{"level":30,"time":"2026-11-21T03:02:21.331Z","appRole":"worker","role":"worker","correlationId":null,"context":"Bootstrap","message":"Worker started — no HTTP listener"}
-{"level":30,"time":"2026-11-21T03:02:21.371Z","role":"worker","correlationId":null,"appRole":"worker","context":"ReconciliationService","event":"reconciliation_run","status":"OK","durationMs":8,"mismatchedAccounts":0,"message":"Ledger reconciliation run finished"}
-{"level":30,"time":"2026-11-21T03:02:25.223Z","role":"worker","correlationId":null,"appRole":"worker","context":"OutboxCleanupService","outbox":0,"processed":0,"idempotency":93000,"batches":96,"message":"Outbox cleanup removed old rows"}
-M06 dọn: PG/ElasticMQ/Valkey riêng đã xóa; Compose dùng chung không đụng
+{"level":30,"time":"2026-11-21T03:44:09.292Z","appRole":"worker","role":"worker","correlationId":null,"context":"Bootstrap","message":"Worker started — no HTTP listener"}
+{"level":30,"time":"2026-11-21T03:44:09.330Z","role":"worker","correlationId":null,"appRole":"worker","context":"ReconciliationService","event":"reconciliation_run","status":"OK","durationMs":8,"mismatchedAccounts":0,"message":"Ledger reconciliation run finished"}
+{"level":30,"time":"2026-11-21T03:44:13.383Z","role":"worker","correlationId":null,"appRole":"worker","context":"OutboxCleanupService","outbox":0,"processed":0,"idempotency":99000,"batches":102,"message":"Outbox cleanup removed old rows"}
+M06 dọn: PG/ElasticMQ/Valkey riêng đã xóa (đã kiểm docker ps); Compose dùng chung không đụng
 RESULT PASS: 6/6 bước

@@ -190,16 +190,16 @@ Lệnh Git Bash `node scripts/manual-dbs136.cjs 2>&1 | tee ../docs/features/scre
 
 Đã cập nhật backend README, module outbox README, env example, database-design retention/index, API design retention, feature index. BACKLOG thêm BL-218 (BL-205 cũ, đánh lại số khi rebase) và xử lý phần retention của BL-201, không xóa phần onboarding chưa giải quyết. Feature/evidence136 lưu raw,2ảnh manual,ảnh kiến trúc,domain review và kết quả kiểm tra. Kết quả CI động cập nhật ở PR để không tạo commit mới đổi HEAD đang xác minh.
 
-## 10. Bổ sung sau bàn giao: worker thật, kill và restart (BL-218, 2026-11-21)
+## 10. Bổ sung sau bàn giao: worker thật, kill và restart (BL-218, phần local, 2026-11-21)
 
-Đã chạy dọn dedup bằng **tiến trình worker thật**, không phải lifecycle service trong cùng process: `node dist/main` với `APP_ROLE=worker`, full `AppModule`, kết nối bằng role `dbs_worker` vào PostgreSQL 17 riêng, kèm ElasticMQ và Valkey riêng (`dbs-bl218-*`, xóa hết ở cuối). Script: `backend/scripts/manual-bl218.cjs`; raw: [bl218-real-worker.txt](screenshots/DBS-136/bl218-real-worker.txt).
+Đã chạy dọn dedup bằng **tiến trình worker thật**, không phải lifecycle service trong cùng process: `node dist/main` với `APP_ROLE=worker`, full `AppModule`, kết nối bằng role `dbs_worker` vào PostgreSQL 17 riêng, kèm ElasticMQ và Valkey riêng (`dbs-bl218-*`, xóa hết ở cuối và kiểm bằng `docker ps`). Script: `backend/scripts/manual-bl218.cjs`, chạy trên commit `f5a0fa7` (dòng đầu raw có hậu tố `-dirty` chỉ vì các file doc của PR chưa commit lúc đó; `file đổi chưa commit: 0` dưới `backend/`). Raw: [bl218-real-worker.txt](screenshots/DBS-136/bl218-real-worker.txt).
 
 | Bước | Kết quả |
 |---|---|
 | Seed | 1 khoản nạp thật qua HTTP (key `bl218-live-key` còn hạn), thêm 100.000 key và 100.000 mark quá hạn (8 ngày), 50 key và 50 mark còn hạn |
-| Hard-kill giữa lúc dọn | `taskkill /F` (không chạy shutdown hook) khi còn 99.051 key; sau khi chết còn 93.051 key: dọn dở, không hỏng |
+| Hard-kill giữa lúc dọn | `child.kill('SIGKILL')` (TerminateProcess trên Windows, không chạy shutdown hook) khi `idempotency_keys` còn 99.051 dòng: mới dọn 1 lô, còn dư 99.000 dòng quá hạn. `processed_events` đã dọn xong trước khi kill (ở mỗi lượt worker dọn bảng này trước), chỉ còn 50 mark còn hạn và 2 mark của consumer thật cho khoản nạp |
 | Checker tiền sau kill | `invariants.ts` PASS, exit 0 |
-| Restart worker mới | dọn đúng 93.000 key còn dư (96 lô); còn 51 key (50 còn hạn + key khoản nạp) và 50 mark còn hạn, cộng 2 mark do consumer của chính worker ghi cho khoản nạp |
-| Checker tiền sau restart | PASS, exit 0; balance và ledger không đổi vì chỉ dọn metadata |
+| Restart worker mới | dọn đúng 99.000 key còn dư (102 lô); còn 51 key (50 còn hạn + key khoản nạp) và 50 mark còn hạn, cộng 2 mark của consumer thật |
+| Sau restart | checker tiền PASS, exit 0; số dư từng tài khoản, số `transfers` và số `ledger_entries` bằng đúng snapshot trước khi worker chạy (script `assert.deepEqual`) |
 
-Redrive queue thật và ECS vẫn thuộc BL-051; BL-218 chỉ đóng phần worker thật, kill và restart. Dòng BL-218 đã xóa khỏi BACKLOG.
+**Giới hạn:** lần kill rơi giữa các lô (mỗi lô là một transaction đã commit), không chứng minh được việc kill giữa một transaction; việc đó do TC-136-03/04/09 và rollback của PostgreSQL bảo đảm. Phần chạy trên **ECS (môi trường triển khai)** chưa làm, nên **BL-218 giữ lại trong BACKLOG, thu hẹp còn phần ECS**. Redrive queue thật trước đây trỏ BL-051, dòng đó đã đóng và không còn theo dõi riêng.
