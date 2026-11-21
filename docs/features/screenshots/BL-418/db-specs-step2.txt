@@ -1,0 +1,24 @@
+== daily-limit
+Tests:       3 passed, 3 total
+== midnight-boundary
+Tests:       11 passed, 11 total
+== transfer-concurrency
+Tests:       13 passed, 13 total
+== sync-guard
+Tests:       18 passed, 18 total
+== accounts-service
+Tests:       45 passed, 45 total
+== money-flow
+Tests:       8 passed, 8 total
+== idempotency-rollback
+Tests:       4 passed, 4 total
+== customer-transfers
+Tests:       37 passed, 37 total
+== resource-ownership
+Tests:       35 passed, 35 total
+== invariants
+Tests:       57 passed, 57 total
+== rejected-transfers
+Tests:       7 passed, 7 total
+== transfer-facts
+Tests:       12 passed, 12 total
