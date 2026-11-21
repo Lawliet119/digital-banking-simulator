@@ -185,3 +185,7 @@ Sơ đồ §3 đã render bằng mermaid-cli và mở kiểm [ảnh render](scre
 ## 9. Tài liệu
 
 Đã cập nhật [database-design8](../components/_shared/database-design.md#81-ba-role-postgres), [backend README](../../backend/README.md), [feature index](README.md), [BACKLOG](../BACKLOG.md) thêm BL-215 (BL-202 cũ về review/merge đã xóa khi PR được review và merge); không xóa backlog task khác. Feature doc và evidence122 lưu trong PR.
+
+## 10. Bổ sung sau bàn giao: chạy khi Docker không với tới được (BL-215, 2026-11-21)
+
+Đã chạy `db-role-permissions.db-spec.ts` với `DOCKER_HOST=tcp://127.0.0.1:1` chỉ trong process con của lệnh (không tắt Docker Desktop, không đụng container nào). Đây **mô phỏng** daemon không với tới được qua cấu hình `DOCKER_HOST`, không phải daemon tắt thật. Harness dừng ở `globalSetup` với thông báo `[Testcontainers] Docker is not running or unreachable...` và exit 1; không suite nào chạy, không skip thành xanh. Raw: [docker-unavailable.txt](screenshots/DBS-122/docker-unavailable.txt). TC-122-08 (inject lỗi runtime-getter) vẫn là kiểm đơn vị. Điều kiện đóng của BL-215 («Docker không khả dụng trong môi trường riêng; không skip thành xanh») đã thỏa; dòng đã xóa khỏi BACKLOG.

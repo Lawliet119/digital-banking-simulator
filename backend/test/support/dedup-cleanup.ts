@@ -199,6 +199,9 @@ export async function createDedupCleanupFixture() {
       close,
       accountId: account.id,
       containerId: container.getId(),
+      // BL-218: manual script starts a real worker process against this cluster.
+      ownerUrl: url,
+      workerUrl: urls.dbs_worker,
       async reset() {
         await owner.query('DELETE FROM idempotency_keys');
         await owner.query('DELETE FROM processed_events');
