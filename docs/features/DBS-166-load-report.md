@@ -56,7 +56,7 @@ Ngưỡng chung của k6 (`lib/config.js`) áp cho mọi bài trừ `rate-limit`
 
 Điểm gãy được xác định là plateau đầu tiên mà một ngưỡng đỏ, kèm nút thắt (CPU task, CPU RDS, số kết nối, độ trễ Redis) đọc từ CloudWatch.
 
-**Phán quyết DoD 3 (chốt trước khi chạy, review #1):** «đạt» chỉ khi, trên đúng cửa sổ của plateau 120 RPS của `baseline` (`read_120` và `write_120` gộp, từ yêu cầu đầu tới yêu cầu cuối của plateau, ≈ 900 giây), tỉ lệ lỗi hệ thống **< 0,1%**, tính từ `requests.csv.gz` bởi `aggregate-raw.cjs` (`plateaus["120"].meetsErrorBudget`, TC-166-20..21). Lỗi hệ thống = status ngoài 200/201/422/429, status 0 (timeout, đứt kết nối), và **mọi 429 ngoài bài `rate-limit`** (review #2). Chuỗi theo phút của plateau (`perMinute`, cửa sổ 60 giây tính từ đầu plateau) chỉ là bằng chứng phụ để chỉ ra phút nào lỗi. Ngưỡng `system_errors` của k6 tính trên cả lượt baseline nên không dùng làm phán quyết DoD 3. Không đạt thì báo cáo nêu lý do và hướng xử lý, không chạy lại để chọn lượt đẹp: mọi lượt đã chạy đều có trong báo cáo. RPS đạt được theo từng plateau (`achievedRps`) và `dropped_iterations` được ghi để biết plateau nào bị giới hạn bởi phía client (`maxVUs` 300, timeout 2 giây, review #12).
+**Phán quyết DoD 3 (chốt trước khi chạy, review #1):** «đạt» chỉ khi, trên đúng cửa sổ của plateau 120 RPS của `baseline` (`read_120` và `write_120` gộp, từ yêu cầu đầu tới yêu cầu cuối của plateau, ≈ 900 giây), tỉ lệ lỗi hệ thống **< 0,1%** và **không có dropped iteration** (tải 120 RPS được phát đủ), tính từ `requests.csv.gz` và `raw.json` bởi `aggregate-raw.cjs` (`plateaus["120"].meetsDoD3`, TC-166-20..23). Lỗi hệ thống = status ngoài 200/201/422/429, status 0 (timeout, đứt kết nối), và **mọi 429 ngoài bài `rate-limit`** (review #2). Chuỗi theo phút của plateau (`perMinute`, cửa sổ 60 giây tính từ đầu plateau) chỉ là bằng chứng phụ để chỉ ra phút nào lỗi. Ngưỡng `system_errors` của k6 tính trên cả lượt baseline nên không dùng làm phán quyết DoD 3. Không đạt thì báo cáo nêu lý do và hướng xử lý, không chạy lại để chọn lượt đẹp: mọi lượt đã chạy đều có trong báo cáo. RPS đạt được theo từng plateau (`achievedRps`) và `dropped_iterations` được ghi để biết plateau nào bị giới hạn bởi phía client (`maxVUs` 300, timeout 2 giây, review #12).
 
 ## 3. Kiến trúc
 
@@ -103,14 +103,14 @@ flowchart LR
 
 ## 5. Test thủ công (kế hoạch chạy)
 
-Điều kiện: `AWS_PROFILE=dbs`, `ap-southeast-1`, Git Bash, Node 24, `PYTHONUTF8=1`, `MSYS_NO_PATHCONV=1`; `python3` giả bằng shim trỏ `python` (cho `db-roles.sh`, `migrate.sh`). State tạm: `dev/session-dbs166.tfstate`, `dev/loadgen-dbs166.tfstate` (không đụng `dev/base.tfstate`, `dev/session.tfstate`). Mọi `plan`/`apply`/`destroy` của `session` dùng `-var-file=dbs166.tfvars` (không commit): `account_id`, `state_bucket`, `image_tag` (SHA 40 ký tự có trong ECR), `db_instance_class=db.t4g.small`, `db_multi_az=true`, `redis_replicas=1`, `desired_count`, `worker_desired_count`, `waf_rate_limit_exempt_cidrs`, `api_extra_environment`. SSM chạy bằng `AWS-RunShellScript` với `executionTimeout=5400` và `--output-s3-bucket-name`; bài dài chạy nền (`nohup`) và hỏi bằng lệnh ngắn.
+Điều kiện: `AWS_PROFILE=dbs`, `ap-southeast-1`, Git Bash, Node 24, `PYTHONUTF8=1`, `MSYS_NO_PATHCONV=1`; `python3` giả bằng shim trỏ `python` (cho `db-roles.sh`, `migrate.sh`). State tạm: `dev/session-dbs166.tfstate`, `dev/loadgen-dbs166.tfstate` (không đụng `dev/base.tfstate`, `dev/session.tfstate`). Mọi `plan`/`apply`/`destroy` của `session` dùng `-var-file=dbs166.tfvars` (không commit): `account_id`, `state_bucket`, `image_tag` (SHA 40 ký tự có trong ECR), `db_instance_class=db.t4g.small`, `db_multi_az=true`, `redis_replicas=1`, `desired_count`, `worker_desired_count`, `waf_rate_limit_exempt_cidrs`, `api_extra_environment`. SSM chạy bằng `AWS-RunShellScript` với `executionTimeout=5400` và `--output-s3-bucket-name`; bài dài chạy nền bằng `nohup setsid bash …/loadgen-run.sh run <bài> > /opt/loadgen/logs/<bài>.out 2>&1 &` và hỏi bằng lệnh SSM ngắn; bằng chứng là `run.log` và `exit.json` trong thư mục kết quả, không phải output SSM (cắt ở 24.000 ký tự).
 
 | Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
 | M-166-01 | `aws sts get-caller-identity`, `describe-budgets`, `verify-clean.sh`; lưu `describe-user-pool-client` của `dbs-app` và `terraform plan -lock=false` của `base` (chỉ đọc, không apply); `ecr describe-images` cho SHA | đúng tài khoản, có budget, sạch (exit 0), SHA có trong ECR |
-| M-166-02 | `apply` loadgen; `git archive --add-file=COMMIT -o src.tgz HEAD backend load-tests infra/scripts` (COMMIT chứa SHA harness) lên bucket cùng `loadgen-bootstrap.sh`; chạy bootstrap bằng SSM (k6 v2.3.0); ghi `/opt/loadgen/run.env` (BUCKET, BASE_URL, DB_HOST, TOKENS_S3_KEY); `loadgen-tokens.mjs` với `COGNITO_CLIENT_ID` của `dbs-loadgen`, đẩy token lên bucket | máy tải có Node, k6, `npm ci`; in phiên bản và SHA; token sống ≥ 230 phút |
-| M-166-03 | `apply` session (`desired_count=0`, `worker_desired_count=0`), `db-roles.sh`, `IMAGE_TAG=<sha> migrate.sh`, rồi `apply` lại với `desired_count=2`, `worker_desired_count=1` | các migration thoát 0; `/health/ready` 200 qua ALB; hai task api và một worker `RUNNING` |
-| M-166-04 | `loadgen-run.sh prepare`; smoke `run baseline --smoke` (giữ nguyên giới hạn mặc định: ≈ 5 lệnh chia ba khách, tránh đỏ giả của 10 chuyển/phút) | fixture 3 khách, CHECKING ≥ 50 triệu; smoke đạt, `invariantExit=0` từ checker thật; token trong bucket và trên máy đã xóa |
+| M-166-02 | `apply` loadgen; `git archive --add-file=COMMIT -o src.tgz HEAD backend load-tests infra/scripts` (loại `fraud-dataset`; COMMIT chứa SHA harness) và `loadgen-bootstrap.sh` lên bucket; chạy bootstrap bằng SSM (k6 v2.3.0) | máy tải có Node, k6, `npm ci`; in phiên bản và SHA |
+| M-166-03 | `apply` session (`desired_count=0`, `worker_desired_count=0`), `db-roles.sh`, `IMAGE_TAG=<sha> migrate.sh`, rồi `apply` lại với `desired_count=2`, `worker_desired_count=1`; ghi `/opt/loadgen/run.env` (BUCKET, BASE_URL từ `alb_dns_name`, DB_HOST từ `db_address`, TOKENS_S3_KEY) | các migration thoát 0; `/health/ready` 200 qua ALB; hai task api và một worker `RUNNING` |
+| M-166-04 | `loadgen-tokens.mjs` với `COGNITO_CLIENT_ID` của `dbs-loadgen` (ngay trước prepare, để 240 phút dùng cho tải), đẩy lên bucket, xóa bản trên máy vận hành; `loadgen-run.sh prepare`; smoke `run baseline --smoke` (giữ giới hạn mặc định: ≈ 5 lệnh chia ba khách, tránh đỏ giả của 10 chuyển/phút) | fixture 3 khách, CHECKING ≥ 50 triệu; smoke đạt, `invariantExit=0` từ checker thật; token trong bucket và trên máy đã xóa; chạy lại `prepare` bị từ chối |
 | M-166-05 | `run rate-limit` (mặc định 10/100); đếm dòng log theo log stream `api/api/<task-id>` của từng task trong đúng cửa sổ | biên 10/11 và 100/101; cả hai task có request (BL-179); `request.ip` là IP máy tải |
 | M-166-06 | cập nhật `api_extra_environment` (cả ba khóa) trong tfvars, `apply`, `update-service` bằng ARN task definition từ state, chờ ổn định; một request đọc kiểm tra | hai task mới `RUNNING`, ALB healthy, không 401 (token vẫn hợp lệ) |
 | M-166-07 | `run baseline`; nghỉ; `run hot-account`; nghỉ; `quiesce`; `run duplicate`; nghỉ; `run stress` | mỗi bài có `summary.json`, `invariants.txt`, `exit.json` (`invariantExit` 0), `run.log`, `aggregate.json`, `requests.csv.gz` |
@@ -146,9 +146,20 @@ Bước nào không chạy được ghi **chưa chạy** kèm lý do; số trong
 | 16 | minor | ràng buộc ngày WAF 2026-11-26 | đã sửa G1 QĐ 11 |
 | 17 | bàn giao | 429 hợp lệ ở `client.js` (DBS-165), hot-account một nguồn một đích, role DB chỉ-SELECT cho harness | chuyển sang §8 «Bàn giao» (BL mới) |
 
-**Quyết định ở G2 (agent tự quyết):** chạy lượt review thứ hai (opus, effort high) trên mọi phần đã đổi, kết quả ở dưới; sửa có hành vi mới đều có test đỏ rồi xanh (TC-166-20..22).
+**Lượt 2 (opus, effort high, 2026-11-21):** 8 phát hiện (blocking 0, should-fix 4, minor 4), Verdict REVISE; [nguyên văn](screenshots/DBS-166/domain-review-r2.md). Đã xác nhận 17 sửa của lượt 1 đúng (tên scenario `boundary`, nhóm `read_N`/`write_N`, Multi-AZ với 3 task, ngân sách 53,2 triệu).
 
-(kết quả lượt 2: điền khi có)
+| # | Mức | Phát hiện | Xử lý |
+|---|---|---|---|
+| R2-1 | should-fix | phán quyết chỉ xét tỉ lệ lỗi, không xét tải có được phát đủ | đã sửa: `aggregate-raw.cjs` đọc `dropped_iterations`, `plateaus[N].meetsDoD3` = lỗi < 0,1% **và** 0 dropped; TC-166-23 |
+| R2-2 | should-fix | `loadgen-run.sh`: chọn thư mục kết quả bằng `ls -dt`, aggregate lỗi làm bỏ upload | đã sửa: lấy từ dòng `results=`, `aggregateExit` trong `exit.json`, luôn `s3 sync` |
+| R2-3 | should-fix | `run.env` cần output của session nhưng ghi ở M-02; token hết hạn dần khi RDS Multi-AZ dựng | đã sửa M-166-03/04 và README: `run.env` sau session, token ngay trước `prepare` |
+| R2-4 | should-fix | §6 #15, #17 dẫn tới §8 và BACKLOG chưa có | chưa làm ở G2, làm ở Phase 5 (§8 «Rà lại backlog», «Bàn giao», `docs/BACKLOG.md`); G4 kiểm |
+| R2-5 | minor | §6 #7 nói README Terraform đã sửa nhưng chưa có | đã sửa: README có mục «Máy chạy tải và đợt đo k6 (DBS-166)» |
+| R2-6 | minor | cách chạy nền `nohup` chưa ghi | đã sửa §5 và README |
+| R2-7 | minor | token còn lại ở đường thoát sớm của `prepare` và trên máy vận hành | đã sửa: `prepare` luôn xóa khóa S3; M-166-04 xóa bản trên máy vận hành |
+| R2-8 | minor | ba comment lạc hậu | đã sửa |
+
+**Quyết định ở G2 (agent tự quyết):** mọi phát hiện lượt 2 đã sửa hoặc có hạn rõ (R2-4 ở Phase 5, G4 kiểm); không chạy lượt 3 vì không còn phát hiện blocking, các sửa có hành vi đều có test đỏ rồi xanh (TC-166-20..23) và không đổi thiết kế. Kết luận cuối: lượt 1 REVISE (1 blocking, đã sửa bằng mã và test), lượt 2 REVISE chỉ còn should-fix/minor đã sửa hoặc có hạn. Reviewer sau của PR kiểm lại phần này.
 
 ## 7. Kế hoạch triển khai
 
