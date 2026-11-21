@@ -1,6 +1,6 @@
 # BL-418 · Hạn mức ngày đọc từ hàng đếm trên `accounts`, không `SUM` trong lúc giữ khóa
 
-> **Status:** Plan approved (sau G3) · **Vai:** Dev (chủ ledger) · **Cặp đôi review:** Dev khác · **Nhánh:** `perf/BL-418-daily-limit-lock` · **PR:** — · **Cập nhật:** 2026-11-21
+> **Status:** Implemented (sau G4) · **Vai:** Dev (chủ ledger) · **Cặp đôi review:** Dev khác · **Nhánh:** `perf/BL-418-daily-limit-lock` · **PR:** (điền khi mở) · **Cập nhật:** 2026-11-21
 
 ## 1. Bối cảnh
 
@@ -236,4 +236,89 @@ Thứ tự migration → service → kiểm đối chiếu → test hành vi →
 
 ## 8. Kết quả
 
-(Điền ở Phase 4 và 5.)
+**Tóm lại (trung thực):** thời gian giữ khóa **đã đo và đã giảm**, AC-5.6 và NFR-COR-03 giữ nguyên (test song song và test chạy thật đều xanh). Điều kiện đóng thứ 4, **p95 chuyển < 300 ms ở từng phút của `baseline` 120 RPS trên AWS, chưa đo**: máy tôi không có phiên AWS (dựng tốn tiền và cần bạn duyệt; bàn giao nêu gộp vào phiên DBS-174 sau khi image build trên `main`). Số cục bộ không thay được số AWS (§1, «Cái chưa chứng minh»): BL-423.
+
+- **Lệnh kiểm tra** (HEAD `d343484b`, Node 24.22.2; output ở [final-checks.txt](screenshots/BL-418/final-checks.txt)): `npm run lint:check` thoát 0; `npm run typecheck` thoát 0; `npm test` **142 suite / 2.410 test** xanh (baseline 2.404, thêm 6); `npm run test:e2e` **18 suite / 182 test** xanh khi chạy từng suite một (`-i`). Hai lượt chạy song song đầu có 1 đến 3 test đỏ `spawnSync ETIMEDOUT` ở các suite sinh tiến trình con (`fraud-ai-cli`, `dev-auth-bootstrap`) khi máy bận; từng suite chạy riêng xanh (7/7 và 4/4, `fraud-ai-cli` cũng xanh ở checkout không có BL-418). Spec db ([db-specs-final.txt](screenshots/BL-418/db-specs-final.txt), từng spec một, `DATABASE_URL` unset, `-i`): `daily-debit-counter` 8, `daily-debit-guard` 3, `daily-debit-counter-flow` 3, `daily-debit-counter-roles` 6, `invariants` 60 (57 cũ + 3), `transfer-concurrency` 13, `midnight-boundary` 11, `money-flow` 8, `customer-transfers` 37, `daily-limit` 3, `sync-guard` 18, `idempotency-rollback` 4, `resource-ownership` 35, `accounts-service` 45, `rejected-transfers` 7; cộng đợt trước đó `account-opening` 11, `account-reads` 10, `accounts-schema` 15, `audit.service` 13, `operator-deposits` 18, `operator-account-status` 12, `operator-account-search` 20, `seed` 3, `seed-rerun` 3, `transaction-history` 9, `migration-run-twice` 2, `migration-revert` 3, `ledger-schema` 32, `db-role-permissions` 13, `db-roles` 12, `ledger-invariants-helper` 2, `reconciliation-intentional-mismatch` 4, `reconciliation-job` 9. **Chưa chạy** (hệ thống dừng đợt quét vì RAM, [db-specs-sweep.txt](screenshots/BL-418/db-specs-sweep.txt)): `transaction-history-plan`, `transfer-status`, `transfers-autovacuum`, `outbox-writer`, `openapi-completeness`, `openapi-export`, `denied-load`, `dedup-cleanup`, `notification-consumer`, `risk-decisions`, `reconciliation-schema`, `migration-owner-role`, `append-only`, `customer-onboarding`, `migration-cli-reduced-env`: để CI chạy; không có `.skip`, `.only`, `.todo` trong test của task.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-418-01 | `daily-debit-counter.db-spec` › TC-418-01 | đạt |
+| TC-418-02 | `daily-debit-counter.db-spec` › 4 test TC-418-02 (cộng dồn và nửa đêm, câu `INSERT` nhiều dòng một lần UPDATE, hai người ghi không khóa, số > 2^53) | đạt |
+| TC-418-03 | `daily-debit-counter.db-spec` › TC-418-03 (backfill, revert, run lại) | đạt |
+| TC-418-04 | `daily-debit-guard.db-spec` (2 test) và `sync-guard.service.spec` (2 test) | đạt |
+| TC-418-05 | `daily-debit-guard.db-spec` › TC-418-05 (48 dòng ngẫu nhiên có seed, 33 mốc đồng hồ, cả hai đường) | đạt |
+| TC-418-06 | `sync-guard.service.spec` › 4 test TC-418-06 (ngày VN, biên, thứ tự lỗi, > 2^53) | đạt |
+| TC-418-07 | `daily-debit-counter-flow.db-spec` › TC-418-07 (4 lý do từ chối, bộ đếm không đổi) | đạt |
+| TC-418-08 | `daily-debit-counter-flow.db-spec` › TC-418-08 (lỗi `40P01` sau dòng sổ cái; lần đầu đã cộng 7.000.000, retry chỉ còn một lần) | đạt |
+| TC-418-09 | `daily-debit-counter-flow.db-spec` › TC-418-09 | **đơn giản hóa**: 18 lệnh song song trên 3 tài khoản (hình dạng AC-5.6: 180tr rồi 6 lệnh 15tr mỗi tài khoản, đúng 1 `COMPLETED`), không phải 40 lệnh; tải nặng hơn đã có ở `transfer-concurrency` (DBS-80, 98, 99), chạy xanh |
+| TC-418-10 | `invariants.db-spec` › 3 test BL-418 | đạt |
+| TC-418-11 | `daily-debit-counter-roles.db-spec` (6 test, vai `dbs_api` và `dbs_worker` thật) | **đơn giản hóa** một ý: kiểm 6 báo `FAIL` cho hàng do `dbs_api` chèn chưa được kiểm trực tiếp (chỉ kiểm hàng bị `owner` sửa, TC-418-10); phần còn lại đạt |
+| TC-418-12 | các spec tiền ở trên, từng spec một | đạt (TC-84-01 giữ nguyên, thêm ghi chú) |
+| TC-418-13 | M-418-07 (driver «sau» đủ 5 cấu hình) | đạt |
+| TC-418-14 | k6 `baseline` trên AWS | **chưa làm (không có phiên AWS)**: BL-423 |
+| TC-418-15 | `daily-debit-counter.db-spec` › TC-418-15 (a) `55P03` và (b) giao dịch dở commit trong lúc migration chờ | đạt |
+| TC-418-16 | [tc-84-01-time.txt](screenshots/BL-418/tc-84-01-time.txt): suite `daily-limit` 26,9 s trước, 24,7 s sau (cache ấm) | đạt |
+
+Kiểm đột biến ([mutation-checks.txt](screenshots/BL-418/mutation-checks.txt)): bỏ `CREATE TRIGGER` làm 6/6 test hành vi đỏ (flow 3, guard 3); bỏ điều kiện `sent_day <= d` làm 2 test đỏ (TC-418-02 và TC-418-05).
+
+### 8.1 Số đo thời gian giữ khóa, trước và sau (cục bộ)
+
+Cùng driver, cùng máy, 3 tài khoản, mỗi lệnh khóa 2, 60 giây, `pool` 10; «trước» trên `origin/main` `5195c751`, «sau» trên `2b284c38` (src cuối giống). Số trung bình, ms; output thô ở `screenshots/BL-418/before-*.txt`, `after-*.txt`:
+
+| Dòng ghi nợ hôm nay mỗi TK | Tải | Chờ khóa | Giữ khóa tới COMMIT | Trong đó guard | Lệnh không 201 |
+|---|---|---|---|---|---|
+| 0 | 24/s | 0,84 → 0,84 | 7,39 → **6,44** | 0,84 → **0,03** | 0 → 0 |
+| 8.000 | 24/s | 0,87 → 0,89 | 8,02 → **6,78** | 1,37 → **0,03** | 0 → 0 |
+| 47.000 | 24/s | 1,80 → 0,79 | 11,58 → **6,14** | 4,20 → **0,03** | 0 → 0 |
+| 8.000 | 120/s | 55,1 → **2,9** | 8,09 → **6,32** | 1,69 → **0,03** | 0 → 0 |
+| 47.000 | 120/s | 101,5 → **3,8** | 11,53 → **6,48** | 4,53 → **0,03** | **1.907 → 0** |
+
+Đọc số: thời gian giữ khóa **không còn tăng theo số dòng trong ngày** (6,1 đến 6,8 ms phẳng) và guard không còn chiếm đáng kể; ở 120/s với tài khoản 47.000 dòng hệ thống từ bão hòa (1.907 lệnh lỗi, chờ khóa 101 ms) về bình thường. **Giới hạn:** cùng tiến trình Node với máy tải, Postgres cục bộ không có Multi-AZ và RTT mạng; số tuyệt đối ở AWS sẽ khác (giữ khóa ở đó lớn hơn, nên phần giảm theo tỉ lệ nhỏ hơn: §1). Giữ khóa lúc ngày trống giảm 0,95 ms ≈ phần guard (0,81 ms) cộng một vòng đi về, nghĩa là chi phí của trigger ở đường ghi không đo được trong nhiễu.
+
+**HOT update** (M-418-08, 8.000 dòng, 24 lệnh/s, 60 s): số dòng `UPDATE accounts` mỗi lệnh 1,98 → 3,00 (thêm một lần cho dòng nợ), **HOT 100% ở cả hai**, dead tuples 58 → 21. Backfill: 1.000.000 dòng ghi nợ, 500 tài khoản, 0 tài khoản lệch; `migration:run` ≈ 5,0 s so với ≈ 5,1 s của `migration:show` (khởi động node): phần giữ `ACCESS EXCLUSIVE` nằm dưới ngưỡng đo của cách này, tức dưới 1 giây.
+
+### 8.2 Test thủ công
+
+Output thô ở [manual-test.txt](screenshots/BL-418/manual-test.txt) (dòng đầu: SHA `c49790a8`, commit cuối đổi code). API thật `nest start` (role api) nối Postgres 17 và Valkey 8 trong Docker, token bằng `auth:dev-token`, kết nối bằng superuser của container (không phải `dbs_api`; vai `dbs_api` được kiểm ở TC-418-11).
+
+| Bước | Kết quả |
+|---|---|
+| M-418-01 | **đạt**: `run`, `revert` (0 cột, 0 hàm, 0 trigger), `run` lại; `\d accounts` có hai cột, hai CHECK, trigger mức câu lệnh có `new_rows` |
+| M-418-02 | **đạt**: 3 khách tiếng Việt, nạp 500tr cho A và 10tr cho C, chuyển 30tr và 20tr: 201, 201; `sent_today` của A = 50.000.000 = tổng sổ cái; B, C và `funding` (ghi nợ 510tr trong sổ cái) đều 0 |
+| M-418-03 | **đạt** (AC-5.6): A tới 180tr, hai lệnh 15tr song song: một 201, một 422 `LIMIT_PER_DAY_EXCEEDED`; `sent_today` 195.000.000 = tổng sổ cái (6 dòng) |
+| M-418-04a..d | **đạt**: 422 `LIMIT_PER_TX_EXCEEDED`, 422 `LIMIT_PER_DAY_EXCEEDED`, 422 `INSUFFICIENT_FUNDS` (C), mỗi lần bộ đếm không đổi; gửi lại `Idempotency-Key` đầu tiên trả cùng `transferId`, bộ đếm không đổi |
+| M-418-05 | **đạt**: dừng api, `revert` rồi `run` trên dữ liệu thật: bộ đếm = sổ cái ở cả 4 tài khoản; `check:invariants` PASS. Sổ cái lớn trên DB thứ hai: xem §8.1 |
+| M-418-06 | **đạt**: PASS thoát 0; sửa tay `sent_today = 1`: `FAIL` thoát 1 kèm `daily_debit_totals` (thực tế 1, kỳ vọng 195.000.000); khôi phục: PASS thoát 0 |
+| M-418-07 | **đạt**: bảng §8.1 (trong `manual-test.txt`) |
+| M-418-08 | **đạt**: HOT 100% (§8.1) |
+
+Lỗi của chính kịch bản thủ công đã sửa trước khi lấy số: Git Bash không có `/proc/sys/kernel/random/uuid` (400 `IDEMPOTENCY_KEY_REQUIRED`) và `curl.exe` làm hỏng dấu tiếng Việt khi truyền tham số (`Nguy?n`): helper đổi sang `node` cho UUID và gửi thân qua file; DB dựng lại và chạy lại từ M-418-01, nên `manual-test.txt` chỉ có lần chạy đúng. Lần đo sổ cái lớn đầu thất bại vì seed không chạy (đường dẫn `docker cp`), đã xóa khỏi file và làm lại.
+
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` nằm ở mục «Kiểm phạm vi» dưới đây.
+- **Ảnh chụp** (`screenshots/BL-418/`): **không phải ảnh chụp màn hình**: chương trình vẽ nguyên văn các đoạn output thô của `manual-test.txt` thành PNG (không có công cụ chụp cửa sổ terminal ở phiên này).
+
+![M-418-01](screenshots/BL-418/01-migration-up-down-up.png)
+![M-418-03](screenshots/BL-418/02-ac-5-6-parallel-15tr.png)
+![M-418-06](screenshots/BL-418/03-invariants-daily-debit-totals.png)
+![M-418-07](screenshots/BL-418/04-lock-hold-before-after.png)
+
+- **Lệch so với kế hoạch (gate phụ, agent tự duyệt, ghi trước khi làm hoặc ngay khi phát sinh):**
+  1. Thêm file test ngoài §7: `test/db/daily-debit-guard.db-spec.ts` (TC-418-04, 05 tách khỏi `daily-debit-counter.db-spec.ts` để dùng `startDepositApp` và đồng hồ giả), `test/db/daily-debit-counter-roles.db-spec.ts` (TC-418-11 cần vai `dbs_api` thật qua fixture DBS-122), `test/support/daily-debit-counter.ts` (hàm dùng chung). Không đổi hành vi nào của §2.
+  2. Thêm `DISABLE_TRIGGER` và thống kê HOT vào driver đo (M-418-08 cần số «trước» của kiểu ghi cũ).
+  3. Sửa hai dòng ghi chú trong `.claude/skills/dbs-delivering-task/references/` («năm» thành «sáu» bất biến) vì mô tả đó thành sai.
+  4. TC-418-09 rút còn 18 lệnh (bảng đối chiếu); TC-418-11 thiếu một ý (bảng đối chiếu).
+  5. Chỗ chưa kiểm cuối cùng: đợt quét 15 spec db bị hệ thống dừng (nêu ở «Lệnh kiểm tra»).
+- **Bàn giao cho vai khác:**
+  - **BL-421** (Dev): kiểm `daily_debit_totals` trong job đối soát định kỳ của worker (có metric và alarm).
+  - **BL-422** (Platform & Ops): thu hẹp quyền `INSERT` cấp bảng của `dbs_api` trên `accounts`.
+  - **BL-423** (Platform & Ops, mới): đo `baseline` 120 RPS trên AWS sau BL-418 (p95 từng phút < 300 ms), cùng phiên DBS-174.
+  - Dòng **BL-418** đã xóa khỏi BACKLOG (phần đo và giảm thời gian giữ khóa đã làm; phần đo AWS chuyển BL-423). BL-413 (fraud) **không** thuộc task này; BL-187 và BL-417 không đổi vì chưa có số AWS.
+
+## 9. Tài liệu đã cập nhật
+
+`docs/adr/0004-row-locking-read-committed.md` (bổ sung), `docs/components/_shared/database-design.md` (§3 ngoại lệ thứ hai, §4.2, §5, §6.1, §7.1, §9), `docs/03_HIGH_LEVEL_ARCHITECTURE.md` (§6.1), `docs/components/ledger/query-plans.md`, `backend/src/modules/ledger/README.md`, `backend/src/modules/accounts/README.md`, `backend/README.md` (mục 9: sáu bất biến), `.claude/skills/dbs-delivering-task/references/module-notes.md` và `testing.md` (sáu bất biến), `docs/features/README.md` (dòng BL-418), `docs/BACKLOG.md`: **xóa BL-418**, thêm BL-421, BL-422, BL-423.
+
+### Kiểm phạm vi
+
+`git diff --name-only origin/main...HEAD` (không tính `screenshots/`): 26 file. Khớp §7: migration `1795000012000-AddDailyDebitCounter.ts`; `account.types.ts`, `accounts.service.ts`, `sync-guard.service.ts` và `sync-guard.service.spec.ts`; `invariants.sql`, `invariants.ts`, `invariants.db-spec.ts`, `backend/README.md`; `daily-debit-counter.db-spec.ts`, `daily-debit-counter-flow.db-spec.ts`, `daily-limit.db-spec.ts`; `bl-418-lock-hold.manual.ts`; tài liệu §3.3 (ADR-04, database-design, docs/03, query-plans, README ledger và accounts), `BACKLOG.md`, `features/README.md` và chính feature doc này. **Ngoài §7, đã ghi ở «Lệch so với kế hoạch»:** `daily-debit-guard.db-spec.ts`, `daily-debit-counter-roles.db-spec.ts`, `test/support/daily-debit-counter.ts`, hai file ghi chú trong `.claude/skills/dbs-delivering-task/references/`. Không file nào của `transfer.service.ts`, `ledger-posting.service.ts`, `deposit.service.ts`, `db-roles.sql`, Terraform hay CI.
