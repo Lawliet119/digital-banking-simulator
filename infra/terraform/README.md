@@ -244,7 +244,7 @@ Phần chưa chạy thật: một lần seed bằng role này trên AWS (còn m�
 | **Tổng** | **≈ 0,0288 USD/giờ** | **≈ 0,0586 USD/giờ** | **≈ +0,030 USD/giờ (gấp ≈ 2,03 lần)** |
 
 - Bật khi diễn tập (sửa tại chỗ, kéo dài vài phút và làm chậm I/O trong lúc tạo standby; báo kênh trước khi bật): `terraform apply -var db_multi_az=true` (kèm đủ biến của phiên đang chạy).
-- Tắt ngay sau khi diễn tập xong để tiết kiệm (quên tắt ≈ +0,72 USD/ngày): chạy lại `terraform apply` không truyền `db_multi_az=true` (về mặc định `false`) và xác nhận `terraform output db_multi_az` = `false`.
+- Tắt ngay sau khi diễn tập xong để tiết kiệm (quên tắt ≈ +0,72 USD/ngày): chạy lại `terraform apply` không truyền `db_multi_az=true` (về mặc định `false`) và xác nhận `terraform output db_multi_az` = `false`. Quên tắt thì `check "db_multi_az_off"` (`envs/dev/session/rds.tf`) cảnh báo ở mọi `terraform plan` và `apply` còn `db_multi_az = true` (BL-324).
 
 **Chi phí khi bật** (ADR-11): RDS ≈ 0,025 USD/giờ + gp3 20 GB ≈ 0,004 USD/giờ + secret master 0,40 USD/tháng theo tỉ lệ. Dev mất dữ liệu mỗi lần `destroy` (không snapshot cuối, xóa cả backup tự động); seed lại bằng migration và script (DBS-68). Tạo mất 10–15 phút, xóa 5–8 phút: `destroy` ngay khi kiểm xong, không để qua đêm. Tên database `dbs` (local và CI dùng `banking`; app chỉ nhận `DATABASE_URL`). CA của RDS ghim `rds-ca-rsa2048-g1`.
 

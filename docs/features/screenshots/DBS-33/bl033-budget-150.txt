@@ -1,0 +1,14 @@
+BL-033: thêm ngưỡng ACTUAL > 150 USD cho budget "My Monthly Cost Budget" (2026-11-21)
+Profile dbs, ap-southeast-1; account ID và địa chỉ email đã che.
+
+$ aws budgets create-notification --budget-name "My Monthly Cost Budget" --notification NotificationType=ACTUAL,ComparisonOperator=GREATER_THAN,Threshold=150,ThresholdType=ABSOLUTE_VALUE --subscribers <người nhận của ngưỡng 100>
+exit 0
+
+$ aws budgets describe-notifications-for-budget --account-id <account> --budget-name "My Monthly Cost Budget" --query Notifications[].[NotificationType,ComparisonOperator,Threshold,ThresholdType]
+ACTUAL	GREATER_THAN	100.0	ABSOLUTE_VALUE
+ACTUAL	GREATER_THAN	150.0	ABSOLUTE_VALUE
+ACTUAL	GREATER_THAN	50.0	ABSOLUTE_VALUE
+FORECASTED	GREATER_THAN	100.0	None
+
+Người nhận của ngưỡng 150: loại EMAIL (cùng người nhận với ngưỡng 100)
+Hạn mức budget: 150.0	USD

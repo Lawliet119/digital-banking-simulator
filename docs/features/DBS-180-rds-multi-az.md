@@ -130,3 +130,7 @@ Rủi ro và cách lùi: chuyển tại chỗ trên RDS dùng chung có thể l�
 - [docs/features/DBS-180-rds-multi-az.md](DBS-180-rds-multi-az.md)
 - [docs/features/screenshots/DBS-180/manual-test.txt](screenshots/DBS-180/manual-test.txt)
 - [infra/terraform/README.md](../../infra/terraform/README.md), [docs/BACKLOG.md](../BACKLOG.md) (đã cập nhật ở commit trước).
+
+## 10. Bổ sung sau bàn giao: check nhắc tắt Multi-AZ (BL-324, 2026-11-21)
+
+Thêm `check "db_multi_az_off"` ở `infra/terraform/envs/dev/session/rds.tf`: cảnh báo (không chặn) ở mọi `terraform plan` và `apply` khi `db_multi_az = true`, nhắc rằng quên tắt tốn ≈ +0,72 USD/ngày. Bước kiểm cuối phiên: `terraform output db_multi_az` phải in `false` (đã có ở README, mục RDS). Test: `rds_multi_az_on_warns` (plan với `db_multi_az = true` phải báo `check.db_multi_az_off`), hai run đang bật Multi-AZ (`rds_variables`, `rds_multi_az_drill`) khai `expect_failures`, và `rds_multi_az_default_off` (apply mặc định) xanh chứng minh Single-AZ không cảnh báo. Bằng chứng đỏ rồi xanh: [bl324-terraform-test.txt](screenshots/DBS-180/bl324-terraform-test.txt) (`terraform test` toàn stack session: 78 passed, 2 failed, 18 skipped khi chưa có check; 98 passed, 0 failed sau khi thêm). Không apply AWS. Dòng BL-324 đã đóng và xóa khỏi BACKLOG.

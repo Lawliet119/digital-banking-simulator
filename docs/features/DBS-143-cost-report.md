@@ -16,7 +16,7 @@
   - Chi phí gộp 01/10–03/11: **0,6514 USD**. Lớn nhất: KMS 0,285, Secrets Manager 0,180, ALB 0,101 (4 giờ), ElastiCache 0,038 (2 giờ node), RDS 0,021 (0,73 giờ instance + gp3).
   - Phiên dựng có phát sinh vào ngày 25/10 và 29/10 (theo `USAGE_TYPE` theo ngày).
   - **Tag `project`, `env`, `owner` đang `Inactive` trong Cost allocation tags**, nên Cost Explorer chưa nhóm được theo tag env. Việc bật tag (và backfill) là thay đổi cài đặt billing của tài khoản.
-  - Budget "My Monthly Cost Budget" 150 USD: ngưỡng ACTUAL > 50, ACTUAL > 100, FORECASTED > 100; chưa có ACTUAL > 150 (BL-033, người dùng tự sửa trên console).
+  - Budget "My Monthly Cost Budget" 150 USD: ngưỡng ACTUAL > 50, ACTUAL > 100, FORECASTED > 100; lúc viết chưa có ACTUAL > 150; đã thêm ngày 2026-11-21 (BL-033, xem [DBS-33](DBS-33-terraform-vpc-ecr.md)).
   - Cost Explorer không trả số dư credit còn lại; số đó chỉ có trên console Billing → Credits.
   - Dimension `SERVICE` 01/10–03/11 có cả `AWS Data Transfer` và `AWS Glue`. Tài khoản đứng riêng (`AWSOrganizationsNotInUseException`), nên tự bật được cost allocation tag.
   - **State thật của `base` lệch với `main`** (`terraform plan` chỉ đọc, phát hiện ở Phase 2): plan từ `main` cho kết quả 2 add (`aws_iam_role.github_deploy`, `aws_iam_role_policy.deploy`), 11 destroy (4 queue SQS, 4 queue policy, 2 redrive allow policy, `aws_iam_policy.worker_sqs`). Các queue này được apply từ nhánh DBS-73 (PR #40, chưa merge). Vì thế ai `apply base` đầy đủ từ `main` sẽ xóa queue SQS của DBS-73.

@@ -207,3 +207,7 @@ Mỗi bước: viết test trước, chạy thấy đỏ đúng lý do, viết t
 ## 9. Tài liệu đã cập nhật
 
 `infra/terraform/README.md` (thứ tự dựng/xóa, bảng biến, security group ở `base`, ngoại lệ `dbs-api`, lệnh kiểm tra cho ba stack), `.gitignore` (`*.tfplan`), `docs/features/README.md` (dòng DBS-33), `docs/BACKLOG.md` (thêm BL-031, BL-032, BL-033; không xóa dòng nào).
+
+## Bổ sung sau bàn giao: ngưỡng cảnh báo 150 USD (BL-033, 2026-11-21)
+
+Đã thêm ngưỡng ACTUAL > 150 USD (ABSOLUTE_VALUE) cho budget «My Monthly Cost Budget» bằng `aws budgets create-notification` (profile `dbs`, ap-southeast-1), dùng lại người nhận (EMAIL) của ngưỡng 100. `describe-notifications-for-budget` nay có ACTUAL 50, 100, 150 và FORECASTED 100. Raw đã che account ID và email: [bl033-budget-150.txt](screenshots/DBS-33/bl033-budget-150.txt). Thay đổi nằm ngoài Terraform (budget tạo tay ở DBS-4); thu hồi bằng `aws budgets delete-notification` với cùng tham số. Dòng BL-033 đã đóng và xóa khỏi BACKLOG.
