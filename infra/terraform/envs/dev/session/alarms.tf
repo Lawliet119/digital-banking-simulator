@@ -13,6 +13,7 @@
 # (`risk_config_redis_fallback_total`, `risk_decision_total`, `risk_flag_total`), thêm bộ tổng `[Role]`; KHÔNG có bộ `[]`; gauge
 # thì ngược lại chỉ có bộ `[]` (outbox_oldest_unpublished_age_seconds, outbox_quarantined_events). Alarm phải khai đúng bộ dimension đó, nếu không
 # sẽ không bao giờ có dữ liệu. Metric của worker mang `Role=worker`, của api mang `Role=api`.
+# Test hợp đồng (BL-412): `backend/src/common/metrics/alarm-contract.spec.ts` đọc file này và đỏ khi bộ dimension một alarm đọc không còn được MetricsService phát.
 #
 # Alarm không dùng được SEARCH, nên metric có dimension thay đổi (Rule R1..R6, Status MISMATCH/ERROR, Scope ip/user,
 # Role api/worker, các route đọc) được gộp bằng `SUM(METRICS())` hoặc `MAX(METRICS())` trên các metric khai tường minh.

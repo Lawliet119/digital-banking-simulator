@@ -1,0 +1,17 @@
+== mutation 1: risk_flag_total mất roleTotal
+ 1 file changed, 29 insertions(+), 6 deletions(-)
+  ● alarm contract: dimensions of counters (BL-412) › TC-412-01 every counter an alarm reads is written with exactly those dimensions
+    +   "risk_flag_total: alarm reads [Role] but the application writes [AiAdded,Mode,RiskLevel,Role]",
+      64 |   it('TC-412-01 every counter an alarm reads is written with exactly those dimensions', () => {
+    +   "risk_flag_total: alarm reads [Role] but the application writes [AiAdded,Mode,RiskLevel,Role]",
+Tests:       2 failed, 2 passed, 4 total
+== mutation 2: risk_decision_total đổi AiStatus thành Status
+  ● alarm contract: dimensions of counters (BL-412) › TC-412-01 every counter an alarm reads is written with exactly those dimensions
+    +   "risk_decision_total: alarm reads [AiStatus,Role] but the application writes [Role,Status] and [Role]",
+    +   "risk_decision_total: alarm reads [AiStatus,Role] but the application writes [Role,Status] and [Role]",
+    +   "risk_decision_total: alarm reads [AiStatus,Role] but the application writes [Role,Status] and [Role]",
+      64 |   it('TC-412-01 every counter an alarm reads is written with exactly those dimensions', () => {
+    +   "risk_decision_total: alarm reads [AiStatus,Role] but the application writes [Role,Status] and [Role]",
+Tests:       2 failed, 2 passed, 4 total
+== khôi phục
+Tests:       4 passed, 4 total

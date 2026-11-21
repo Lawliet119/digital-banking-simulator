@@ -93,6 +93,33 @@ export const DISTRIBUTION_METRICS = [
 ] as const;
 export type DistributionMetric = (typeof DISTRIBUTION_METRICS)[number];
 
+/**
+ * The dimension sets one counter line carries: `[Role, ...labels]` and, with `roleTotal`, the total `[Role]`.
+ * There is never an empty set `[]`. An alarm only gets data when its dimensions equal one of these sets exactly.
+ */
+export function counterDimensionSets(
+  labels: EmfDimensionName[],
+  total: boolean,
+): EmfDimensionName[][] {
+  return [
+    ['Role', ...labels],
+    ...(total && labels.length > 0 ? [['Role'] as EmfDimensionName[]] : []),
+  ];
+}
+
+/**
+ * Metric name -> the dimension sets `MetricsService` writes for it, taken from the same list and the same
+ * function as the flush. The contract test (BL-412) compares them with the alarms in `alarms.tf`.
+ */
+export function emittedCounterDimensionSets(): Map<string, EmfDimensionName[][]> {
+  return new Map(
+    COUNTERS.map(spec => [
+      spec.name,
+      counterDimensionSets(Object.values(spec.labels), spec.roleTotal === true),
+    ]),
+  );
+}
+
 const PASS_THROUGH: RequestHandler = (_req, _res, next) => next();
 
 /**
@@ -212,10 +239,6 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
   }
 
   private async writeCounters(timestamp: number, now: number): Promise<void> {
-    const dimensionSets = (labels: EmfDimensionName[], total: boolean): EmfDimensionName[][] => [
-      ['Role', ...labels],
-      ...(total && labels.length > 0 ? [['Role'] as EmfDimensionName[]] : []),
-    ];
     for (const counter of await this.readCounters()) {
       const before = this.baseline.get(counter.key) ?? 0;
       this.baseline.set(counter.key, counter.value);
@@ -227,7 +250,7 @@ export class MetricsService implements OnApplicationBootstrap, OnApplicationShut
         {
           timestamp,
           dimensions,
-          dimensionSets: dimensionSets(
+          dimensionSets: counterDimensionSets(
             Object.keys(counter.dimensions) as EmfDimensionName[],
             counter.roleTotal,
           ),
