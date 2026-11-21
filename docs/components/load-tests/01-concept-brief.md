@@ -1,6 +1,6 @@
 # load-tests — Concept Brief
 
-> **Status:** Draft · **Owner:** #5 chạy, Dev viết script · **Verified against code:** n/a (chưa có code) · **Cập nhật:** 2026-10-03
+> **Status:** Active · **Owner:** #5 chạy, Dev viết script · **Verified against code:** `load-tests/` (DBS-165) chạy thật trên AWS ngày 2026-11-21 (DBS-166) · **Cập nhật:** 2026-11-21
 
 ## Component
 
@@ -22,6 +22,10 @@ Mọi cam kết về hiệu năng và tính đúng phải có số đo, không c
 - Các kịch bản: baseline (12 → 60 → 120 RPS), tài khoản nóng, request trùng song song, stress, rate limit.
 - Sau mỗi lần chạy kiểm tra bất biến: tổng Nợ = tổng Có, tổng số dư = 0, không tài khoản khách nào âm.
 - Chạy từ một máy cùng region, không từ laptop qua mạng nhà.
+
+## Kết quả
+
+- [Kết quả tải trên AWS, 2026-11-21](02-ket-qua-tai-cloud-2026-11-21.md): p95, p99, lỗi ở 12, 60, 120 RPS, tài khoản nóng, stress, nút thắt và hướng xử lý; kết quả thô ở [results/](results/).
 
 ## Ngoài phạm vi (v1)
 

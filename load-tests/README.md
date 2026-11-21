@@ -28,7 +28,7 @@ Suite dùng DB tạm PostgreSQL 17, giữ seed qua deposit API. Lệnh bỏ DATA
 
 ## Năm kịch bản k6
 
-> **Status:** Implemented (script và smoke local); chưa nghiệm thu NFR trên AWS. Dev viết script, Platform & Ops chạy tải cùng region. [Thiết kế và bằng chứng DBS-165](../docs/features/DBS-165-k6-scenarios.md).
+> **Status:** Implemented; đã chạy trên AWS ngày 2026-11-21 ([DBS-166](../docs/features/DBS-166-load-report.md), [kết quả](../docs/components/load-tests/02-ket-qua-tai-cloud-2026-11-21.md)): đạt ngưỡng NFR ở 12, 60, 120 RPS trên DB mới, không đạt `hot-account` và `stress` khi worker bật. Dev viết script, Platform & Ops chạy tải cùng region. [Thiết kế và bằng chứng DBS-165](../docs/features/DBS-165-k6-scenarios.md).
 
 | Kịch bản | Mục đích | Liên quan |
 |---|---|---|
@@ -40,7 +40,7 @@ Suite dùng DB tạm PostgreSQL 17, giữ seed qua deposit API. Lệnh bỏ DATA
 
 Sau mỗi lần chạy phải kiểm tra bất biến: tổng Nợ = tổng Có, tổng số dư = 0, không tài khoản khách nào âm.
 
-`run.cjs` tự gọi checker này sau mỗi run (kể cả run đỏ), ghi `invariants.txt` và in `invariantExit` (BL-127); chạy tay (ví dụ sau k6 chạy trực tiếp) từ checkout có devDependencies: `npm run --silent check:invariants` trong `backend/` với `DATABASE_URL` của môi trường vừa chạy tải. Phải nhận exit **0**; exit **1** kèm IDs vi phạm, exit **2** là lỗi chưa kiểm được. Giữ report và mã thoát cùng bằng chứng load run, không bỏ qua lỗi. Công cụ kiểm thêm từng balance khớp sổ và mỗi COMPLETED đủ cặp/đúng tiền/nguồn/đích; funding được âm nhưng vẫn tính vào tổng. [Cách dùng, quyền DB và giới hạn full scan](../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái). Câu SQL riêng trả report, CLI mới ánh xạ kết quả thành exit code.
+`run.cjs` tự gọi checker này sau mỗi run (kể cả run đỏ), ghi `invariants.txt` và in `invariantExit`; từ DBS-166 nó chạy CLI thật `backend/src/scripts/invariants/invariants.ts` (trước đó gọi tệp re-export nên thoát 0 mà không kiểm) và chỉ nhận 0 khi có báo cáo `PASS` trên stdout; chạy tay (ví dụ sau k6 chạy trực tiếp) từ checkout có devDependencies: `npm run --silent check:invariants` trong `backend/` với `DATABASE_URL` của môi trường vừa chạy tải. Phải nhận exit **0**; exit **1** kèm IDs vi phạm, exit **2** là lỗi chưa kiểm được. Giữ report và mã thoát cùng bằng chứng load run, không bỏ qua lỗi. Công cụ kiểm thêm từng balance khớp sổ và mỗi COMPLETED đủ cặp/đúng tiền/nguồn/đích; funding được âm nhưng vẫn tính vào tổng. [Cách dùng, quyền DB và giới hạn full scan](../backend/README.md#9-kiểm-tra-bất-biến-sổ-cái). Câu SQL riêng trả report, CLI mới ánh xạ kết quả thành exit code.
 
 Kết quả chạy lưu ở `load-tests/results/` (không commit); số liệu tổng hợp đưa vào báo cáo P4.
 
@@ -66,6 +66,10 @@ node load-tests/run.cjs baseline --smoke
 Runner tự seed nếu chưa có fixture. Local token dùng helper DBS-53, hạn4giờ, chỉ cho local; đặt ACCESS_TOKEN_TTL_SECONDS tương ứng nếu diễn tập thu hồi phiên. Fixture/token chỉ ở results (gitignore, quyền0600 khi OS hỗ trợ). Không bật K6_HTTP_DEBUG, không in/commit fixture. Có thể tái dùng bằng `LOAD_FIXTURE=/absolute/path/to/fixture.json` với cùng BASE_URL. Runner kiểm exp đủ toàn run+biên, số dư và ngân sách ngày.
 
 `--smoke` giảm tải/thời lượng nhưng giữ thresholds và gắn profile smoke; không chứng minh120RPS/15phút. Bỏ cờ để dùng tải mặc định. Tất cả có checks=100%, lỗi hệ thống<0,1%; bài arrival-rate yêu cầu dropped_iterations=0. Loại422 nghiệp vụ và429 khỏi lỗi hệ thống theo BRD, nhưng vẫn làm bài performance đỏ vì không đúng đường thành công. Không retry. Ngưỡng latency tách từng plateau/route. k6 có thể bắt đầu iteration đúng biên cuối; preflight cộng biên ngân sách và hậu kiểm dùng số burst thực tế.
+
+### Chạy trên AWS (DBS-166)
+
+Máy tải EC2 cùng region, token Cognito 240 phút và `LOAD_FIXTURE` tái dùng cho năm bài: `infra/terraform/README.md` mục «Máy chạy tải và đợt đo k6». Sau mỗi lượt, `load-tests/aggregate-raw.cjs <thư mục kết quả>` rút gọn `raw.json` thành `aggregate.json` (phán quyết từng plateau: lỗi < 0,1% và 0 dropped iteration; 429 ngoài bài `rate-limit` tính là lỗi), `per-minute.json` và `requests.csv.gz`.
 
 ### Cognito và TLS
 

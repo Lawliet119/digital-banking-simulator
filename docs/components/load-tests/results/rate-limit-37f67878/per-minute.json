@@ -1,0 +1,1 @@
+[{"minute":0,"scenario":"boundary","name":"POST /v1/transfers","count":11,"systemErrors":0,"p50":35.39,"p90":77.014,"p95":105.012,"p99":127.41,"max":133.01},{"minute":1,"scenario":"boundary","name":"GET /v1/accounts/:id","count":101,"systemErrors":0,"p50":16.735,"p90":31.289,"p95":35.691,"p99":42.749,"max":43.072}]
