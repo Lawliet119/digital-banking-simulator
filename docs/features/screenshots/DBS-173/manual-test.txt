@@ -1,0 +1,42 @@
+409f9f12949d4ca0c3825a333656ce8dbea0830f
+# DBS-173 manual test (Git Bash). Dòng đầu là SHA của commit cuối đổi mã.
+## M-173-01: tài khoản nóng 64.289 giao dịch + 200.000 của tài khoản khác (seed SQL), PostgreSQL 17 Docker (UTC), VACUUM ANALYZE
+seed SQL: 64289 transfers for one account, 200000 for another
+
+query                         ms  scans  heapFetch  buffers  node types
+history (old)               27.6      1          0      950   Aggregate, WindowAgg, Sort, Index Only Scan
+velocity (old)               8.4      2          0     2262   Aggregate, Bitmap Heap Scan, Bitmap Index Scan
+outflow (old)               16.0      1          0      950   Aggregate, Sort, Index Only Scan
+accountFacts (new)          27.9      2          0      953   Subquery Scan, Index Scan, Aggregate, Sort, Index Only Scan
+newRecipientCount            7.6      2          0      953   Aggregate, Nested Loop, Index Only Scan
+
+old three together: 52.0 ms; accountFacts: 27.9 ms; ratio 0.54
+same values: {"history":{"count":64289,"median2":"2497620"},"velocity":{"tenMinutes":14999,"hour":64289,"includesCurrent":false},"outflow":{"distinctRecipients":1,"sum":"107060378300","small":25713}} newRecipients=1
+
+## M-173-02: keep-alive ocioso 70 s (ALB giữ 60 s). Trước: app.setup.ts của d6bf542d; sau: nhánh
+### trước (git show d6bf542d:backend/src/app.setup.ts)
+server keepAliveTimeout=5000 ms, headersTimeout=60000 ms
+request 1: status 200 on local port 53078
+idle for 70000 ms ...
+request 2: status 200 on local port 53084: a NEW connection (the old one was closed)
+exit=1
+### sau (nhánh)
+server keepAliveTimeout=65000 ms, headersTimeout=66000 ms
+request 1: status 200 on local port 53092
+idle for 70000 ms ...
+request 2: status 200 on local port 53099: a NEW connection (the old one was closed)
+exit=1
+
+### lần chạy đúng điều kiện: ocioso 62 s (quá 60 s của ALB, chưa tới 65 s của keepAliveTimeout mới). Lượt 70 s ở trên chỉ cho thấy server đóng sau 65 s như đã cấu hình.
+#### trước (d6bf542d)
+server keepAliveTimeout=5000 ms, headersTimeout=60000 ms
+request 1: status 200 on local port 53104
+idle for 62000 ms ...
+request 2: status 200 on local port 53112: a NEW connection (the old one was closed)
+exit=1
+#### sau (nhánh)
+server keepAliveTimeout=65000 ms, headersTimeout=66000 ms
+request 1: status 200 on local port 53114
+idle for 62000 ms ...
+request 2: status 200 on local port 53114: the SAME connection was reused
+exit=0
