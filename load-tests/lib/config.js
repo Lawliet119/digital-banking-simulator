@@ -6,6 +6,16 @@ export const SCENARIOS = [
   "rate-limit",
 ];
 export const AMOUNT = "1000";
+/**
+ * The HTTP statuses a scenario treats as an answer of the system (everything else, and 0, is a system error).
+ * 429 belongs to the `rate-limit` scenario only: there the application limiter is the thing under test. In every other
+ * scenario the limits are raised for the run (README, «Chuẩn bị môi trường riêng»), so a 429 is the WAF or the ALB
+ * pushing back and has to count against `system_errors` (BL-415, DBS-166 review #2). `aggregate-raw.cjs` applies the
+ * same rule to the raw file.
+ */
+export function validStatuses(kind) {
+  return kind === "rate-limit" ? [200, 201, 422, 429] : [200, 201, 422];
+}
 export const SYSTEM_TAGS = [
   "status",
   "method",

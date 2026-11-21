@@ -6,7 +6,11 @@ import {
   requireBudget,
   dailyLimit,
   sameCompletedBodies,
+  validStatuses,
+  SCENARIOS,
 } from "../lib/config.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 test("TC-165-01 baseline measures each plateau and each read route at 80/20 for 15 minutes", () => {
   const plan = workload("baseline");
@@ -100,4 +104,29 @@ test("TC-165-02 preflight uses the target's TRANSFER_LIMIT_PER_DAY when it is lo
   assert.throws(() => dailyLimit({ TRANSFER_LIMIT_PER_DAY: "abc" }), /TRANSFER_LIMIT_PER_DAY/);
   assert.doesNotThrow(() => requireBudget(row, 18000, 200000000n));
   assert.throws(() => requireBudget(row, 18000, 10000000n), /budget/i);
+});
+
+// BL-415 (a): a 429 is the application limiter's answer only in the rate-limit scenario. Everywhere else the
+// application limits are raised for the run, so a 429 comes from the WAF or the ALB path and must be a system error.
+test("TC-415-01 429 is a valid answer only in the rate-limit scenario", () => {
+  for (const kind of SCENARIOS) {
+    const valid = validStatuses(kind);
+    assert.deepEqual(
+      valid.filter((s) => s !== 429),
+      [200, 201, 422],
+    );
+    assert.equal(valid.includes(429), kind === "rate-limit", kind);
+  }
+  // an unknown or missing scenario never gets the exception
+  assert.equal(validStatuses(undefined).includes(429), false);
+  assert.equal(validStatuses("write_120").includes(429), false);
+});
+
+test("TC-415-02 the k6 client and the runner use that rule instead of a fixed status list", () => {
+  const root = resolve(import.meta.dirname, "..");
+  const client = readFileSync(resolve(root, "lib/client.js"), "utf8");
+  const runner = readFileSync(resolve(root, "run.cjs"), "utf8");
+  assert.match(client, /validStatuses\(__ENV\.LOAD_SCENARIO\)/);
+  assert.doesNotMatch(client, /200,\s*201,\s*422,\s*429/);
+  assert.match(runner, /LOAD_SCENARIO:\s*kind/);
 });
