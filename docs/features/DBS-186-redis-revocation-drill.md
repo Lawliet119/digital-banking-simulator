@@ -1,6 +1,6 @@
 # DBS-186 · Thu hồi phiên khi Redis mất dữ liệu hoặc dừng
 
-> **Status:** Implemented (phần local, #127) · phần cloud (§1.1, §2.1, §3.1, §5.1, §7.1): Draft, driver viết và chạy thử local, chưa chạy trên AWS · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `codex/DBS-186-redis-revocation-drill`; phần cloud `test/DBS-186-cloud-drill` · **PR:** [#127](https://github.com/Lawliet119/digital-banking-simulator/pull/127); phần cloud chưa có · **Cập nhật:** 2026-11-22
+> **Status:** Implemented (phần local, #127) · phần cloud (§1.1, §2.1, §3.1, §5.1, §7.1): Plan approved, driver viết và chạy thử với máy chủ giả, chưa chạy trên AWS · **Vai:** Dev · **Cặp đôi review:** Dev khác · **Nhánh:** `codex/DBS-186-redis-revocation-drill`; phần cloud `test/DBS-186-cloud-drill` · **PR:** [#127](https://github.com/Lawliet119/digital-banking-simulator/pull/127); phần cloud chưa có · **Cập nhật:** 2026-11-22
 
 ## 1. Bối cảnh
 
@@ -314,11 +314,11 @@ Bàn giao: BL-220 cloud/P4 thực, BL-222 boundary Cognito thật, BL-230 CI/Dev
 | Bất biến DBS-69 sau từng kịch bản; alarm Redis đã lên/xuống | điền sau phiên AWS |
 | Dòng P4 cloud, BL-220 (thu hẹp), BL-222 | điền sau phiên AWS (hiện P4 có dòng «chờ chạy»; BL giữ) |
 
-**Kết quả chạy local của driver (máy chủ giả, hook giả; không phải bằng chứng cloud):** điền khi chạy ở Phase 4 (xem dưới khi có).
+**Kết quả chạy local của driver (máy chủ giả, hook giả; KHÔNG phải bằng chứng cloud), SHA code `5369ac4d`:** `node --test infra/scripts/tests/drill-revocation-cloud.test.mjs` trên Windows, Node 24.22.2: **53 test, 51 đạt, 0 đỏ, 2 bỏ qua** (hai ca SIGINT: Windows không gửi được SIGINT có xử lý tới tiến trình con). Cùng tệp trong Docker `node:22-bookworm-slim` (Linux): **53 test, 51 đạt, 0 đỏ, 2 bỏ qua** (hai ca TLS: image không có `openssl`; hai ca SIGINT chạy và đạt). Hai lượt hợp lại chạy đủ 53 ca; CI Linux (`ubuntu-24.04`, có `openssl`) chạy cả 53. Đột biến tạm làm test đỏ đúng chỗ (§ evidence mục 5). Chạy đầu-cuối CLI với máy chủ giả: ca đạt exit 0 (24 bước, 16 lần gọi hook, thứ tự lock → fault → request kế tiếp đúng), negative control exit 1 ở `flush.next-request`; không có chuỗi JWT trong đầu ra. Raw: [cloud-driver-local.txt](screenshots/DBS-186/cloud-driver-local.txt). Không chạy backend thật + Docker PostgreSQL: RAM chỉ còn vài GB, và logic backend (guard, cache, SQL) đã có test thật ở TC-186-01..03 (#127); máy chủ giả chỉ mô phỏng luật guard để kiểm driver.
 
 ## 9. Tài liệu đã cập nhật
 
-Feature này và feature index; deliverables README và P4-incident-table mới; BACKLOG cập nhật BL-220/222, thêm BL-230 cho quy trình và BL-231 cho native crash; evidence raw/review/PNG. Không xóa backlog vì cloud được user hoãn trong phiên này.
+Feature này và feature index; deliverables README và P4-incident-table mới; BACKLOG cập nhật BL-220/222, thêm BL-230 cho quy trình và BL-231 cho native crash; evidence raw/review/PNG. Không xóa backlog vì cloud được user hoãn trong phiên này. Phần cloud (2026-11-22): `infra/scripts/drill-revocation-cloud.mjs`, `infra/scripts/tests/drill-revocation-cloud.test.mjs`, `infra/scripts/tests/drill-fake-backend.mjs`, bước `node --test` trong `.github/workflows/ci.yml`, evidence `domain-review-cloud.md`, `domain-review-cloud-r2.md`, `cloud-driver-local.txt`, dòng «chờ chạy» ở P4. BL-220 và BL-222 **giữ nguyên** (cloud chưa chạy); không thêm BL mới (việc còn lại là chạy trên stack, đã nằm ở BL-220/222; cơ chế hook thật bàn giao DBS-167/Platform ở §1.1 quyết định 9).
 
 ## Checklist G4
 
