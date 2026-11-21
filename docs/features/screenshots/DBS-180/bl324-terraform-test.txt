@@ -1,0 +1,43 @@
+BL-324: check.db_multi_az_off, terraform test (2026-11-21), Terraform v1.16.6, cd infra/terraform/envs/dev/session && terraform test
+
+== ĐỎ: test đã viết, chưa có check trong rds.tf (trích nguyên văn đầu ra)
+  run "rds_instance"... pass
+  run "rds_security"... pass
+  run "rds_parameter_group"... pass
+  run "rds_variables"... fail
+╷
+│ Error: Missing expected failure
+│ 
+│   on tests\session.tftest.hcl line 572, in run "rds_variables":
+│  572:   expect_failures = [check.db_multi_az_off]
+│ 
+│ The checkable object, check.db_multi_az_off, was expected to report an
+│ error but did not.
+╵
+  run "rds_multi_az_default_off"... pass
+  run "rds_multi_az_on_warns"... fail
+╷
+│ Error: Missing expected failure
+│ 
+│   on tests\session.tftest.hcl line 598, in run "rds_multi_az_on_warns":
+│  598:   expect_failures = [check.db_multi_az_off]
+│ 
+│ The checkable object, check.db_multi_az_off, was expected to report an
+│ error but did not.
+╵
+  run "rds_multi_az_drill"... skip
+  run "db_connection"... skip
+  run "db_secret_policy"... skip
+  run "migrate_task_definition"... skip
+...
+Failure! 78 passed, 2 failed, 18 skipped.
+
+== XANH: sau khi thêm check trong rds.tf
+  run "rds_instance"... pass
+  run "rds_security"... pass
+  run "rds_parameter_group"... pass
+  run "rds_variables"... pass
+  run "rds_multi_az_default_off"... pass
+  run "rds_multi_az_on_warns"... pass
+  run "rds_multi_az_drill"... pass
+Success! 98 passed, 0 failed.

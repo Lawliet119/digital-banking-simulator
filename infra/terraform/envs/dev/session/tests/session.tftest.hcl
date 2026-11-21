@@ -568,6 +568,9 @@ run "rds_variables" {
     db_instance_class = "db.t4g.small"
   }
 
+  # BL-324: Multi-AZ bật thì check nhắc tắt luôn cảnh báo.
+  expect_failures = [check.db_multi_az_off]
+
   assert {
     condition     = aws_db_instance.main.multi_az == true && aws_db_instance.main.instance_class == "db.t4g.small"
     error_message = "multi_az and instance class must follow the variables"
@@ -584,6 +587,19 @@ run "rds_multi_az_default_off" {
   }
 }
 
+# BL-324 TC-324-01: bật Multi-AZ thì check cảnh báo nhắc tắt (về false sau diễn tập, quên tắt ≈ +0,72 USD/ngày)
+run "rds_multi_az_on_warns" {
+  command = plan
+
+  variables {
+    db_multi_az = true
+  }
+
+  expect_failures = [check.db_multi_az_off]
+}
+
+# BL-324 TC-324-02: Single-AZ mặc định không cảnh báo (rds_multi_az_default_off bên trên chạy apply, check mà fail thì run đó đỏ)
+
 # TC-180-02: bật Multi-AZ bằng đúng một biến, giữ nguyên mọi cấu hình khác (cỡ, mã hóa, backup, ép TLS, không public)
 run "rds_multi_az_drill" {
   command = apply
@@ -591,6 +607,8 @@ run "rds_multi_az_drill" {
   variables {
     db_multi_az = true
   }
+
+  expect_failures = [check.db_multi_az_off]
 
   assert {
     condition     = aws_db_instance.main.multi_az == true && output.db_multi_az == true

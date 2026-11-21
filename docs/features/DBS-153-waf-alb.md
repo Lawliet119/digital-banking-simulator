@@ -167,8 +167,20 @@ Rủi ro và cách lùi: WAF nằm trong module độc lập gắn qua `aws_wafv
   - **Lưu ý vận hành phát hiện thực tế:** Khi xóa `waf_rate_limit_exempt_cidrs` (từ có CIDR về `[]`), Terraform có thể gặp `WAFAssociatedItemException` nếu cố xóa `aws_wafv2_ip_set` trước khi Web ACL bỏ tham chiếu xong; xử lý bằng cách gỡ tham chiếu khỏi Web ACL rồi xóa IP set.
 - **Bằng chứng:** [manual-test.txt](screenshots/DBS-153/manual-test.txt).
 
+### Đánh giá cải tiến WAF ngoài phạm vi (BL-293, 2026-11-21): không bật gì ở dev
+
+Chỉ đánh giá, không bật gì và không apply AWS. Con số chi phí là **ước tính** theo mô hình đã dùng ở [infra/terraform/README.md](../../infra/terraform/README.md) (5 USD/ACL/tháng, 1 USD/rule hoặc rule group/tháng, phí request không đổi theo số rule); kiểm lại trang giá AWS WAF và CloudWatch trước khi bật cho production.
+
+| Cải tiến | Nhu cầu | Chi phí thêm (ước tính) | Rủi ro | Quyết định |
+|---|---|---|---|---|
+| `AWSManagedRulesSQLiRuleSet` | Thấp ở dev: API dùng truy vấn tham số hóa và DTO validation; `Common` và `KnownBadInputs` đã chặn XSS, LFI, Log4Shell (M-153-03). Có giá trị như lớp phòng thủ chiều sâu ở production | ≈ +1 USD/tháng (một rule group; 24/7 ≈ +0,23 USD/tuần); thêm khoảng 200 WCU (tổng cỡ 1.100 WCU); kiểm lại trần WCU của web ACL và ngưỡng WCU tính thêm phí request trên trang AWS WAF hiện hành trước khi bật | Báo nhầm trên body JSON (chuỗi tiếng Việt, `description` của giao dịch) | Không bật ở dev. Production: thêm group vào `modules/waf` (hiện chưa có SQLi), bật ở chế độ đếm một tuần, xem sampled requests, rồi mới chặn. Lưu ý `waf_managed_rules_count_only` chuyển **mọi** managed group sang đếm (kể cả Common và KnownBadInputs), nên cần cờ hoặc override đếm riêng cho từng group |
+| Alarm `BlockedRequests` | Thấp ở dev: rate rule chặn `429` là chuyện bình thường khi chạy tải k6 (BL-292) nên alarm sẽ nhiễu. Có ích ở production khi có đường cơ sở | ≈ +0,1 USD/alarm/tháng (metric `BlockedRequests` của AWS/WAFV2 có sẵn, không tốn thêm) | Ngưỡng đặt mà chưa có số đo thật thì báo ảo hoặc câm | Không làm ở dev. Production: đặt ngưỡng sau tuần đầu có lưu lượng thật, theo mẫu alarm của `alarms.tf` (`notBreaching`) |
+| Log WAF đầy đủ (CloudWatch Logs hoặc S3) | Thấp ở dev: sampled requests và metric đủ cho điều tra thủ công (M-153-03/04). Cần ở production để điều tra sự cố và kiểm toán | CloudWatch Logs tính theo GB nhận vào cộng lưu trữ; S3 rẻ hơn. Một bản ghi log có header và chi tiết rule khớp nên cỡ 1 KB trở lên mỗi request; cần đo trên lưu lượng thật, ví dụ 1 triệu request ≈ 1 GB trở lên mỗi tháng (ước tính) | Log chứa header: **phải che `Authorization` và `Cookie`** (`redacted_fields`), nếu không token vào log; tên log group buộc bắt đầu bằng `aws-waf-logs-` | Không bật ở dev. Production: bật sang S3 hoặc CloudWatch Logs có che header, giữ ngắn hạn |
+
+Việc cho production được ghi vào dòng BL-281 (WAF riêng cho `envs/prod/session`); BL-293 đã đóng vì điều kiện của nó là đánh giá nhu cầu và chi phí.
+
 ## 9. Tài liệu đã cập nhật
 
-- [docs/features/DBS-153-waf-alb.md](DBS-153-waf-alb.md)
+- [docs/features/DBS-153-waf-alb.md](DBS-153-waf-alb.md) (kèm đánh giá BL-293 ở §8)
 - [docs/features/screenshots/DBS-153/manual-test.txt](screenshots/DBS-153/manual-test.txt)
 - [infra/terraform/README.md](../../infra/terraform/README.md), [docs/03_HIGH_LEVEL_ARCHITECTURE.md](../03_HIGH_LEVEL_ARCHITECTURE.md), [docs/security/threat-model.md](../security/threat-model.md), [docs/components/platform-infra/01-concept-brief.md](../components/platform-infra/01-concept-brief.md), [docs/BACKLOG.md](../BACKLOG.md) (đã cập nhật ở commit trước).
