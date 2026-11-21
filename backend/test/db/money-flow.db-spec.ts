@@ -327,7 +327,7 @@ describe('DBS-65 full HTTP/JWT money flow on real PostgreSQL and Valkey', () => 
       lines: 4,
       keys: 2,
       events: 2,
-      balances: { [FUNDING]: '-1000000', [a.accountId]: '700001', [b.accountId]: '300000' },
+      balances: { [FUNDING]: '-1000000', [a.accountId]: '700000', [b.accountId]: '300000' },
     });
   });
 
