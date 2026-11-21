@@ -1,0 +1,13 @@
+### AFTER (bl-418, trigger on)
+Tests:       3 passed, 3 total
+Time:        27.734 s
+### BEFORE (main-2 checkout without BL-418)
+f9f324f6 test(ops): chạy tải 12-60-120 RPS, tài khoản nóng và stress trên AWS, báo cáo (DBS-166) (#224)
+Tests:       3 passed, 3 total
+Time:        64.39 s, estimated 122 s
+### BEFORE again (main-2, warm ts-jest cache)
+Tests:       3 passed, 3 total
+Time:        26.871 s, estimated 64 s
+### AFTER again (bl-418, warm cache)
+Tests:       3 passed, 3 total
+Time:        24.682 s, estimated 28 s
