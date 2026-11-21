@@ -216,8 +216,8 @@ Lệnh: Terraform ở `infra/terraform/envs/dev/session` (`GOMAXPROCS=2 terrafor
 **Lệch so với kế hoạch** (gate phụ, agent tự duyệt): (1) bản nháp đầu của driver cho số liệu lệch (120 cờ ở giai đoạn A) và được sửa (người nhận cố định) trước khi chạy bằng chứng, nhờ tự kiểm tổng ở mỗi giai đoạn; (2) driver chỉ đẩy hai counter alarm đọc, vì harness có Redis tắt nên còn phát `risk_config_redis_fallback_total` (không đẩy); (3) ảnh là ảnh render bằng API chứ không phải console; (4) không có lượt domain review thứ hai (G2, quyết định 1); (5) TC-188-06 không thêm `run` mới vì hai test sẵn có đã khóa đủ tên và metric; (6) số alarm: cập nhật cả BL-341 và các doc lệch (18 → 22).
 
 **Bàn giao cho vai khác** (BL trong [`docs/BACKLOG.md`](../BACKLOG.md)):
-- **BL-409** (#5): apply `base` để có hai alarm `…-dlq-oldest-age` (chưa có trên tài khoản).
-- **BL-410** (#5): số tổng hợp trong `DBS/Backend` có thể làm alarm thật kêu giả tới ≈ 22/11 01:00 +07.
+- **BL-409** (#5): apply `base` để có hai alarm `…-dlq-oldest-age` (chưa có trên tài khoản). **Cập nhật 2026-11-22:** kế hoạch thật của `base` còn chứa phần RSK-03/RSK-04 chưa apply, nên giữ dòng, xem BACKLOG.
+- **BL-410** (#5, **đã đóng 2026-11-22**, xem [01-concept-brief](../components/observability/01-concept-brief.md)): số tổng hợp trong `DBS/Backend` có thể làm alarm thật kêu giả tới ≈ 22/11 01:00 +07.
 - **BL-411** (Dev #4): alarm theo `RiskLevel` / `Mode` (cần bộ dimension mới).
 - **BL-412**: test hợp đồng giữa phát metric và alarm (đổi bộ dimension thì alarm im lặng).
 - **BL-341** (sửa): còn 21 alarm chưa kích hoạt thử.
