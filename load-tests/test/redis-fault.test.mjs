@@ -96,3 +96,12 @@ test("TC-167-05 the client is built from env and the token never appears in a lo
   await fault.flush(h.deps);
   assert.doesNotMatch(JSON.stringify(h.events), /s3cr3t/);
 });
+
+test("TC-167-05 probe is ok only when a fresh PING answers PONG; an error or a hang is ok=false", async () => {
+  const closed = [];
+  const mk = (call) => ({ call, disconnect: () => closed.push(1) });
+  assert.deepEqual(await fault.probe({ client: mk(async () => "PONG") }), { ok: true });
+  assert.deepEqual(await fault.probe({ client: mk(async () => { throw new Error("ECONNREFUSED"); }) }), { ok: false });
+  assert.deepEqual(await fault.probe({ client: mk(() => new Promise(() => {})), timeoutMs: 20 }), { ok: false });
+  assert.equal(closed.length, 3, "the probe connection is always closed");
+});

@@ -58,19 +58,20 @@ test("TC-167-02 windows split the run at the fault events and percentiles are pe
   assert.equal(w.pre.read.p95, 40);
 });
 
-test("TC-167-02 4xx are not system errors, 5xx, status 0 and 429 are", () => {
+test("TC-167-02 only 200, 201 and 422 are valid: 5xx, status 0, 429 and other 4xx are system errors", () => {
   const r = rows((t, name) => {
     if (name.startsWith("POST") && t === 100) return [422, 50];
     if (name.startsWith("POST") && t === 320) return [503, 50];
     if (name.startsWith("POST") && t === 321) return [0, 2000];
     if (name.startsWith("POST") && t === 322) return [429, 50];
+    if (name.startsWith("POST") && t === 323) return [401, 50];
     return [name.startsWith("POST") ? 201 : 200, 50];
   });
   const out = stats.analyze({ rows: r, events: downEvents, health: healthy(), mode: "down", exit: { runExit: 0, invariantExit: 0 } });
   const w = Object.fromEntries(out.windows.map((x) => [x.name, x]));
   assert.equal(w.pre.systemErrors, 0);
   assert.equal(w.pre.clientErrors, 1);
-  assert.equal(w.fault.systemErrors, 3);
+  assert.equal(w.fault.systemErrors, 4);
 });
 
 test("TC-167-02 control run uses the nominal windows 300 to 600 s from the first request", () => {
@@ -94,11 +95,11 @@ test("TC-167-03 a slowdown inside the SLO and inside the allowance is acceptable
   assert.deepEqual(out.verdict.violations, []);
 });
 
-test("TC-167-03 a slowdown over the allowance (100 ms for slow) is flagged even if the SLO holds", () => {
-  const r = rows((t, name) => (name.startsWith("POST") ? [201, t >= 450 && t < 600 ? 230 : 100] : [200, 40]));
+test("TC-167-03 a slowdown over the allowance (150 ms transfer, 100 ms read in slow mode) is flagged even if the SLO holds", () => {
+  const r = rows((t, name) => (name.startsWith("POST") ? [201, t >= 450 && t < 600 ? 260 : 100] : [200, 40]));
   const out = stats.analyze({ rows: r, events: slowEvents, health: healthy(), mode: "slow", exit: { runExit: 0, invariantExit: 0 } });
   assert.equal(out.verdict.classification, "phải mở BL");
-  assert.ok(out.verdict.degradation.some((d) => d.window === "fault_heavy" && d.delta === 130 && d.allowed === 100));
+  assert.ok(out.verdict.degradation.some((d) => d.window === "fault_heavy" && d.op === "transfer" && d.delta === 160 && d.allowed === 150));
 });
 
 test("TC-167-03 /health/ready other than 200, a 5xx, a failed invariant or a late recovery each require a BL", () => {
@@ -156,4 +157,30 @@ test("TC-167-04 CLI fails (exit 2, no verdict) when the fault run has no fault-e
   assert.equal(control.code, 0);
   assert.ok(existsSync(join(dir, "windows.json")));
   assert.equal(JSON.parse(readFileSync(join(dir, "windows.json"), "utf8")).mode, "none");
+});
+
+test("TC-167-03 reads have their own allowance (100 ms in slow mode)", () => {
+  const r = rows((t, name) => (name.startsWith("POST") ? [201, 100] : [200, t >= 450 && t < 600 ? 150 : 40]));
+  const out = stats.analyze({ rows: r, events: slowEvents, health: healthy(), mode: "slow", exit: { runExit: 0, invariantExit: 0 } });
+  // 150 ms is also at the 150 ms read SLO, so this is an SLO violation as well as a 110 ms degradation
+  assert.ok(out.verdict.degradation.some((d) => d.op === "read" && d.window === "fault_heavy" && d.delta === 110 && d.allowed === 100));
+  assert.notEqual(out.verdict.classification, "đạt");
+});
+
+test("TC-167-03 recovery is the last non-up health sample, not the first up one", () => {
+  const base = rows(() => [200, 50]);
+  // up at +10 s, degraded again +40..+49 s, up for good from +50 s: the api was not recovered at +10 s
+  const flappy = healthy().map((h) =>
+    (h.epoch_ms >= s(600) && h.epoch_ms < s(610)) || (h.epoch_ms >= s(640) && h.epoch_ms < s(650)) ? { ...h, redis: "degraded" } : h,
+  );
+  let out = stats.analyze({ rows: base, events: downEvents, health: flappy, mode: "down", exit: { runExit: 0, invariantExit: 0 } });
+  assert.equal(out.recoverySeconds, 50);
+  // never recovered: the last sample is still degraded
+  const never = healthy().map((h) => (h.epoch_ms >= s(880) ? { ...h, redis: "degraded" } : h));
+  out = stats.analyze({ rows: base, events: downEvents, health: never, mode: "down", exit: { runExit: 0, invariantExit: 0 } });
+  assert.equal(out.recoverySeconds, null);
+  assert.ok(out.verdict.openBl.some((x) => /không bao giờ/.test(x)));
+  // always up after the restore
+  out = stats.analyze({ rows: base, events: downEvents, health: healthy(), mode: "down", exit: { runExit: 0, invariantExit: 0 } });
+  assert.equal(out.recoverySeconds, 0);
 });

@@ -15,8 +15,11 @@
  *   recovery   60 s đầu sau khi khôi phục
  *   after      phần còn lại
  * Tiêu chí (chốt ở feature doc DBS-167 G1.8, không nới sau khi có số): SLO docs/03 §14 ở MỌI cửa sổ; «chấp nhận được» khi
- * chuyển tiền p95 chênh so với `pre` ≤ 100 ms (slow) hoặc ≤ max(20 ms, 2N) (down), N là dao động tự nhiên giữa các cửa sổ
- * của lượt đối chứng (`--noise`). Lỗi hệ thống = 5xx, status 0 và 429 (giới hạn của app đã nâng, như aggregate-raw.cjs).
+ * p95 chênh so với `pre` ≤ 150 ms cho chuyển tiền và ≤ 100 ms cho đọc (slow: 3 và 2 lần gọi Redis nối tiếp × timeout 50 ms) hoặc
+ * ≤ max(20 ms, 2N) (down), N là dao động tự nhiên giữa các cửa sổ của lượt đối chứng (`--noise`). Lỗi hệ thống = mọi status ngoài
+ * 200, 201, 422 (5xx, 0, 429: giới hạn của app đã nâng; như aggregate-raw.cjs và BL-415). Hồi phục = thời gian từ lúc khôi phục
+ * tới mẫu `/health/ready` KHÔNG-`up` cuối cùng (mẫu đi qua ALB nên mỗi giây chỉ trúng một trong hai task: lần `up` đầu tiên không
+ * chứng minh cả hai đã hồi phục). `dropped_iterations` và `invariantExit` là tiêu chí của CẢ LƯỢT, không theo cửa sổ.
  */
 const { createReadStream, existsSync, readFileSync, writeFileSync } = require("node:fs");
 const { createInterface } = require("node:readline");
@@ -27,7 +30,9 @@ const WARMUP_MS = 60_000;
 const NOMINAL_FAULT_START_MS = 300_000;
 const NOMINAL_FAULT_END_MS = 600_000;
 const RECOVERY_MS = 60_000;
-const SLOW_ALLOWANCE_MS = 100;
+// Số lần gọi Redis nối tiếp trên đường đi, mỗi lần bị cắt ở 50 ms (redis.client.ts): chuyển tiền 3 lần (rate limit IP, đọc
+// `revoked_at` của JwtAuthGuard, rate limit khách), đọc 2 lần (IP, `revoked_at`). Review DBS-167 #2.
+const SLOW_ALLOWANCE_MS = { transfer: 150, read: 100 };
 const DOWN_FLOOR_MS = 20;
 const REDIS_UP_LIMIT_S = 60;
 const LIMITS = {
@@ -55,8 +60,10 @@ function classify(name) {
   return null;
 }
 
+// Chỉ 200, 201, 422 là hợp lệ (lib/config.js `validStatuses`, BL-415): 5xx, status 0, 429 và mọi 4xx khác là lỗi hệ thống.
+const VALID_STATUS = new Set([200, 201, 422]);
 function isSystemError(status) {
-  return status === 0 || status >= 500 || status === 429;
+  return !VALID_STATUS.has(status);
 }
 
 function dist(values) {
@@ -73,7 +80,7 @@ function summarize(name, from, to, rows) {
     if (r.epoch_ms < from || r.epoch_ms >= to) continue;
     requests += 1;
     if (isSystemError(r.status)) systemErrors += 1;
-    else if (r.status >= 400) clientErrors += 1;
+    else if (r.status === 422) clientErrors += 1;
     const kind = classify(r.name);
     if (!kind) continue;
     by[kind].push(r.duration_ms);
@@ -136,9 +143,13 @@ function noiseMs(control) {
   return p.length < 2 ? 0 : round(Math.max(...p) - Math.min(...p));
 }
 
+// Giây từ lúc khôi phục tới mẫu cuối cùng không-`up` (0 nếu sau khôi phục chưa từng thấy không-`up`); null nếu mẫu cuối của lượt vẫn không-`up`.
 function recoverySeconds(health, end) {
-  const up = health.filter((h) => h.epoch_ms >= end && h.redis === "up").sort((a, b) => a.epoch_ms - b.epoch_ms)[0];
-  return up ? round((up.epoch_ms - end) / 1000) : null;
+  const after = health.filter((h) => h.epoch_ms >= end).sort((a, b) => a.epoch_ms - b.epoch_ms);
+  if (!after.length) return null;
+  if (after[after.length - 1].redis !== "up") return null;
+  const lastBad = [...after].reverse().find((h) => h.redis !== "up");
+  return lastBad ? round((lastBad.epoch_ms - end) / 1000 + 1) : 0;
 }
 
 function judge({ windows, mode, health, exit, noise, recovery, dropped }) {
@@ -158,21 +169,28 @@ function judge({ windows, mode, health, exit, noise, recovery, dropped }) {
   if (violations.length) openBl.push(`vượt SLO: ${violations.map((v) => `${v.window} ${v.metric}=${v.value}`).join("; ")}`);
   const pre = windows.find((w) => w.name === "pre");
   if (mode !== "none" && pre?.transfer?.p95 != null) {
-    const allowed = mode === "slow" ? SLOW_ALLOWANCE_MS : Math.max(DOWN_FLOOR_MS, 2 * noise);
+    const allowedFor = (op) => (mode === "slow" ? SLOW_ALLOWANCE_MS[op] : Math.max(DOWN_FLOOR_MS, 2 * noise));
     for (const w of windows) {
-      if (!w.name.startsWith("fault") || w.transfer.p95 === null) continue;
-      const delta = round(w.transfer.p95 - pre.transfer.p95);
-      degradation.push({ window: w.name, delta, allowed });
-      if (delta > allowed) openBl.push(`chuyển tiền p95 ở ${w.name} chậm hơn cửa sổ trước ${delta} ms (cho phép ${allowed} ms)`);
+      if (!w.name.startsWith("fault")) continue;
+      for (const op of ["transfer", "read"]) {
+        if (w[op].p95 === null || pre[op].p95 === null) continue;
+        const delta = round(w[op].p95 - pre[op].p95);
+        const allowed = allowedFor(op);
+        degradation.push({ window: w.name, op, delta, allowed });
+        if (delta > allowed) openBl.push(`${op} p95 ở ${w.name} chậm hơn cửa sổ trước ${delta} ms (cho phép ${allowed} ms)`);
+      }
     }
     const rec = windows.find((w) => w.name === "recovery");
-    if (rec?.transfer?.p95 != null && rec.transfer.p95 - pre.transfer.p95 > 2 * noise + (mode === "slow" ? SLOW_ALLOWANCE_MS : DOWN_FLOOR_MS))
-      openBl.push(`p95 chuyển tiền chưa về mức trước trong cửa sổ recovery (+${round(rec.transfer.p95 - pre.transfer.p95)} ms)`);
+    for (const op of ["transfer", "read"]) {
+      const slack = 2 * noise + (mode === "slow" ? SLOW_ALLOWANCE_MS[op] : DOWN_FLOOR_MS);
+      if (rec && rec[op].p95 !== null && pre[op].p95 !== null && rec[op].p95 - pre[op].p95 > slack)
+        openBl.push(`p95 ${op} chưa về mức trước trong cửa sổ recovery (+${round(rec[op].p95 - pre[op].p95)} ms)`);
+    }
   }
   const nonOk = health.filter((h) => h.code !== 200);
   if (nonOk.length) openBl.push(`/health/ready khác 200: ${nonOk.length} lần (đầu tiên ${nonOk[0].code})`);
   if (mode !== "none" && (recovery === null || recovery > REDIS_UP_LIMIT_S))
-    openBl.push(`api báo redis "up" lại ${recovery === null ? "không bao giờ" : `${recovery} s`} sau khôi phục, quá ${REDIS_UP_LIMIT_S} s`);
+    openBl.push(`api chỉ báo redis "up" ổn định ${recovery === null ? "không bao giờ" : `${recovery} s`} sau khôi phục (mẫu không-up cuối cùng), quá ${REDIS_UP_LIMIT_S} s`);
   if (dropped > 0) openBl.push(`dropped_iterations = ${dropped}: tải 120 RPS không được phát đủ`);
   let classification;
   if (exit && exit.invariantExit !== 0) classification = "blocker: bất biến";

@@ -26,8 +26,18 @@ case "$1 $2" in
 esac
 `;
 
+const FAKE_CURL = `#!/usr/bin/env bash
+# fake curl: prints the body, then the HTTP code on its own line (as -w does)
+if [ -n "\${FAKE_CURL_FAIL:-}" ]; then exit 7; fi
+printf '{"status":"ok","redis":"%s"}\n200' "\${FAKE_CURL_REDIS:-up}"
+`;
+
 const FAKE_NODE_TOOL = `
 const { writeFileSync } = require("node:fs");
+if (process.argv[2] === "probe") {
+  console.log(JSON.stringify({ ok: process.env.FAKE_PROBE_OK === "1" }));
+  process.exit(0);
+}
 writeFileSync(process.env.FAKE_STATE + "/node-argv.json", JSON.stringify(process.argv.slice(2)));
 writeFileSync(process.env.FAKE_STATE + "/node-token.txt", process.env.REDIS_AUTH_TOKEN || "");
 `;
@@ -41,6 +51,8 @@ function setup(extraEnv = "") {
   for (const d of [state, bin, home, join(src, "load-tests")]) mkdirSync(d, { recursive: true });
   writeFileSync(join(bin, "aws"), FAKE_AWS);
   chmodSync(join(bin, "aws"), 0o755);
+  writeFileSync(join(bin, "curl"), FAKE_CURL);
+  chmodSync(join(bin, "curl"), 0o755);
   writeFileSync(join(src, "load-tests", "redis-fault.cjs"), FAKE_NODE_TOOL);
   writeFileSync(
     join(home, "run.env"),
@@ -60,16 +72,22 @@ function setup(extraEnv = "") {
     LOADGEN_HOME: toBashPath(home),
     REDIS_FAULT_SRC: toBashPath(src),
     FAULT_DIR: toBashPath(join(dir, "fault")),
+    PROBE_RETRIES: "2",
+    PROBE_SLEEP: "0",
+    HEALTH_SLEEP: "0",
+    WAIT_MAX: "5",
+    CURL_BIN: toBashPath(join(bin, "curl")), // Git Bash on Windows resolves its own curl before PATH entries
   };
-  const run = (...args) =>
+  const run = (...args) => runWith({}, ...args);
+  const runWith = (extra, ...args) =>
     new Promise((res) => {
-      const p = spawn(BASH, [toBashPath(SCRIPT), ...args], { env, stdio: ["ignore", "pipe", "pipe"] });
+      const p = spawn(BASH, [toBashPath(SCRIPT), ...args], { env: { ...env, ...extra }, stdio: ["ignore", "pipe", "pipe"] });
       let out = "";
       p.stdout.on("data", (d) => (out += d));
       p.stderr.on("data", (d) => (out += d));
       p.on("close", (code) => res({ code, out }));
     });
-  return { dir, state, run, env, fault: join(dir, "fault") };
+  return { dir, state, run, runWith, env, fault: join(dir, "fault") };
 }
 
 test("TC-167-06 down adds deny rules 50 and 51 for tcp 6379 from each public CIDR and logs the event", async () => {
@@ -130,4 +148,24 @@ test("TC-167-06 flush and slow pass the token only through the environment of th
   assert.deepEqual(JSON.parse(argv).slice(0, 1), ["flush"]);
   assert.equal((await t.run("slow", "10", "100", "200")).code, 0);
   assert.deepEqual(JSON.parse(readFileSync(join(t.state, "node-argv.json"), "utf8")).slice(0, 4), ["slow", "10", "100", "200"]);
+});
+
+test("TC-167-06 down removes its own rules and fails when a fresh connection still reaches Redis (the rule has no effect)", async () => {
+  const t = setup();
+  const r = await t.runWith({ FAKE_PROBE_OK: "1" }, "down");
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /không có hiệu lực/);
+  assert.deepEqual(readdirSync(join(t.state, "rules")), [], "rules 50 and 51 are rolled back");
+  const events = readFileSync(join(t.fault, "fault-events.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l).action);
+  assert.deepEqual(events, ["restore"], "no `down` event is logged for a rule that did not block");
+});
+
+test("TC-167-06 wait-healthy needs N consecutive 200/up samples and gives up when Redis stays degraded", async () => {
+  const t = setup();
+  const okRun = await t.run("wait-healthy", "3");
+  assert.equal(okRun.code, 0, okRun.out);
+  const bad = await t.runWith({ FAKE_CURL_REDIS: "degraded" }, "wait-healthy", "3");
+  assert.equal(bad.code, 1);
+  assert.match(bad.out, /200 degraded/);
+  assert.equal((await t.runWith({ FAKE_CURL_FAIL: "1" }, "wait-healthy", "3")).code, 1);
 });

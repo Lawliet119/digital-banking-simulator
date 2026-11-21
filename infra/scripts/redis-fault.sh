@@ -7,7 +7,9 @@
 #   flush = `FLUSHALL SYNC` (cùng công cụ).
 #
 #   redis-fault.sh status                 thoát 0 nếu KHÔNG có luật 50/51; thoát 1 nếu còn (từ chối bắt đầu lượt mới)
-#   redis-fault.sh down                   thêm luật 50 và 51, ghi sự kiện `down`
+#   redis-fault.sh down                   thêm luật 50 và 51, rồi kiểm bằng kết nối mới tới Redis từ máy tải (cũng ở public subnet): phải hết
+#                                         giờ, nếu không thì gỡ luật và thoát 1 (luật không có hiệu lực thì lượt «tắt» không có nghĩa); ghi sự kiện `down`
+#   redis-fault.sh wait-healthy [N]       đợi N (mặc định 60) mẫu /health/ready liên tiếp đều 200 và redis "up" (cổng trước mỗi lượt đo)
 #   redis-fault.sh restore                xóa luật 50 và 51 (bỏ qua NotFound; chạy lại được), ghi sự kiện `restore`
 #   redis-fault.sh slow <giây> <P> <chu kỳ>     một bậc xung (DBS-186, thử công cụ)
 #   redis-fault.sh flush                  FLUSHALL SYNC
@@ -29,6 +31,10 @@ EVENTS="$FAULT_DIR/fault-events.jsonl"
 HEALTH="$FAULT_DIR/health.jsonl"
 SRC="${REDIS_FAULT_SRC:-$LOADGEN_HOME/src}"
 NOW_MS() { date +%s%3N; }
+PROBE_RETRIES="${PROBE_RETRIES:-5}"
+PROBE_SLEEP="${PROBE_SLEEP:-2}"
+HEALTH_SLEEP="${HEALTH_SLEEP:-1}"
+WAIT_MAX="${WAIT_MAX:-600}"
 
 need() { for v in "$@"; do [ -n "${!v:-}" ] || { echo "thiếu $v (run.env)" >&2; exit 2; }; done; }
 
@@ -63,8 +69,18 @@ cmd_down() {
       --protocol 6 --port-range From=6379,To=6379 --cidr-block "$cidr" --rule-action deny
     i=$((i + 1))
   done
+  local blocked=0 try
+  for try in $(seq 1 "$PROBE_RETRIES"); do
+    sleep "$PROBE_SLEEP"
+    if with_token node "$SRC/load-tests/redis-fault.cjs" probe | grep -q '"ok":false'; then blocked=1; break; fi
+  done
+  if [ "$blocked" != 1 ]; then
+    echo "luật deny đã thêm nhưng kết nối mới tới Redis vẫn thông: gỡ luật, lượt tắt không có hiệu lực" >&2
+    cmd_restore || true
+    return 1
+  fi
   event down down
-  echo "đã chặn 6379 từ ${REDIS_FAULT_DENY_CIDRS}"
+  echo "đã chặn 6379 từ ${REDIS_FAULT_DENY_CIDRS} (kết nối mới từ máy tải hết giờ)"
 }
 
 cmd_restore() {
@@ -99,14 +115,39 @@ cmd_flush() {
   with_token node "$SRC/load-tests/redis-fault.cjs" flush --events "$EVENTS"
 }
 
+# Một mẫu: in "<mã HTTP> <redis>" ("0 unknown" nếu lỗi mạng).
+health_once() {
+  local body code redis
+  body="$("${CURL_BIN:-curl}" -sk -m 3 -w '
+%{http_code}' "$BASE_URL/health/ready" || true)"
+  code="$(printf '%s' "$body" | tail -n1)"
+  redis="$(printf '%s' "$body" | grep -o '"redis":"[a-z]*"' | head -1 | cut -d'"' -f4 || true)"
+  printf '%s %s
+' "${code:-0}" "${redis:-unknown}"
+}
+
+cmd_wait_healthy() {
+  need BASE_URL
+  local want="${1:-60}" streak=0 waited=0 sample
+  while [ "$streak" -lt "$want" ]; do
+    sample="$(health_once)"
+    if [ "$sample" = "200 up" ]; then streak=$((streak + 1)); else streak=0; fi
+    waited=$((waited + 1))
+    [ "$waited" -le "$WAIT_MAX" ] || { echo "chưa có $want mẫu liên tiếp 200/up sau $WAIT_MAX mẫu (mẫu cuối: $sample)" >&2; return 1; }
+    sleep "$HEALTH_SLEEP"
+  done
+  echo "$want mẫu liên tiếp 200/up"
+}
+
 sample_health() { # sample_health <pid của k6>: mỗi giây một dòng, dừng khi k6 thoát
-  local pid="$1" body code redis
+  local pid="$1" sample code redis
   while kill -0 "$pid" 2>/dev/null; do
-    body="$(curl -sk -m 3 -w '\n%{http_code}' "$BASE_URL/health/ready" || true)"
-    code="$(printf '%s' "$body" | tail -n1)"
-    redis="$(printf '%s' "$body" | grep -o '"redis":"[a-z]*"' | head -1 | cut -d'"' -f4 || true)"
-    printf '{"epoch_ms":%s,"code":%s,"redis":"%s"}\n' "$(NOW_MS)" "${code:-0}" "${redis:-unknown}" >> "$HEALTH"
-    sleep 1
+    sample="$(health_once)"
+    code="${sample%% *}"
+    redis="${sample#* }"
+    printf '{"epoch_ms":%s,"code":%s,"redis":"%s"}
+' "$(NOW_MS)" "$code" "$redis" >> "$HEALTH"
+    sleep "$HEALTH_SLEEP"
   done
 }
 
@@ -155,9 +196,10 @@ case "${1:-}" in
   restore) cmd_restore ;;
   slow) shift; cmd_slow "${1:?giây}" "${2:?P ms}" "${3:?chu kỳ ms}" ;;
   flush) cmd_flush ;;
+  wait-healthy) shift; cmd_wait_healthy "${1:-60}" ;;
   schedule) shift; cmd_schedule "${1:-}" ;;
   *)
-    echo "Dùng: redis-fault.sh status | down | restore | slow <giây> <P> <chu kỳ> | flush | schedule slow|down|none" >&2
+    echo "Dùng: redis-fault.sh status | down | restore | slow <giây> <P> <chu kỳ> | flush | wait-healthy [N] | schedule slow|down|none" >&2
     exit 2
     ;;
 esac

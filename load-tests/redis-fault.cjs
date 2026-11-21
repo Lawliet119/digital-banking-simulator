@@ -5,6 +5,7 @@
  *   REDIS_HOST=… REDIS_AUTH_TOKEN=… node load-tests/redis-fault.cjs slow <giây> <P ms> <chu kỳ ms> [--events file]
  *   REDIS_HOST=… REDIS_AUTH_TOKEN=… node load-tests/redis-fault.cjs slow-stepped <giây nhẹ> <giây nặng> <P nhẹ> <P nặng> <chu kỳ> [--events file]
  *   REDIS_HOST=… REDIS_AUTH_TOKEN=… node load-tests/redis-fault.cjs flush [--events file]
+ *   REDIS_HOST=… REDIS_AUTH_TOKEN=… node load-tests/redis-fault.cjs probe        in {"ok":true|false}: kết nối MỚI + PING, hết giờ sau 3 s
  *
  * «Chậm» = xung `CLIENT PAUSE <P> ALL` mỗi chu kỳ: mọi client (api, worker) chờ tối đa P ms; lệnh tự hết hạn nên nếu tiến trình
  * này chết, Redis chạy lại sau tối đa P ms. P ≤ 500 ms và P < chu kỳ (chặn cứng, nếu không từ chối trước khi gửi lệnh nào). Luôn
@@ -75,7 +76,30 @@ async function flush({ client, now, log }) {
   }
 }
 
-function connect(env = process.env, factory = null) {
+// Kết nối mới + PING; hết giờ hoặc lỗi là ok=false. Dùng để chứng minh luật NACL deny thật sự chặn (redis-fault.sh down).
+async function probe({ client, timeoutMs = 3000 }) {
+  let timer;
+  try {
+    const result = await Promise.race([
+      client.call("PING"),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+      }),
+    ]);
+    return { ok: result === "PONG" };
+  } catch {
+    return { ok: false };
+  } finally {
+    clearTimeout(timer);
+    try {
+      client.disconnect ? client.disconnect() : await client.quit();
+    } catch {
+      // already closed
+    }
+  }
+}
+
+function connect(env = process.env, factory = null, overrides = {}) {
   const host = env.REDIS_HOST;
   const password = env.REDIS_AUTH_TOKEN;
   if (!host) throw new Error("thiếu REDIS_HOST");
@@ -88,6 +112,7 @@ function connect(env = process.env, factory = null) {
     maxRetriesPerRequest: 0,
     enableOfflineQueue: false,
     connectTimeout: 3000,
+    ...overrides,
   };
   if (factory) return factory(options);
   const Redis = require(require.resolve("ioredis", { paths: [join(__dirname, "..", "backend")] }));
@@ -116,6 +141,11 @@ async function main(argv, env = process.env) {
     validatePulse(num(2), num(4));
     validatePulse(num(3), num(4));
     await slowStepped({ client: connect(env), ...clock, lightSeconds: num(0), heavySeconds: num(1), lightPauseMs: num(2), heavyPauseMs: num(3), periodMs: num(4) });
+  } else if (cmd === "probe") {
+    // enableOfflineQueue: PING chờ kết nối xong; thiếu thì lệnh bị từ chối ngay và «bị chặn» sẽ là kết quả giả
+    const client = connect(env, null, { enableOfflineQueue: true });
+    client.on?.("error", () => {}); // lỗi kết nối đã là kết quả (ok=false), không phải sự cố của công cụ
+    console.log(JSON.stringify(await probe({ client })));
   } else if (cmd === "flush") {
     await flush({ client: connect(env), ...clock });
   } else {
@@ -125,7 +155,7 @@ async function main(argv, env = process.env) {
   return 0;
 }
 
-module.exports = { pulse, slowStepped, flush, connect, validatePulse, MAX_PAUSE_MS };
+module.exports = { pulse, slowStepped, flush, probe, connect, validatePulse, MAX_PAUSE_MS };
 
 if (require.main === module)
   main(process.argv.slice(2)).then(
