@@ -1,6 +1,6 @@
 # DBS-166 · Chạy tải 12 → 60 → 120 RPS, tài khoản nóng, stress từ máy cùng region và viết báo cáo
 
-> **Status:** Draft (đang làm, đến G2) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-166-load-report` · **PR:** — · **Cập nhật:** 2026-11-21
+> **Status:** Implemented (sau G4) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-166-load-report` · **PR:** (điền khi mở) · **Cập nhật:** 2026-11-21
 
 ## 1. Bối cảnh
 
@@ -181,8 +181,80 @@ Bước nào không chạy được ghi **chưa chạy** kèm lý do; số trong
 
 ## 8. Kết quả
 
-(điền sau khi chạy)
+- **Lệnh kiểm tra (chạy lúc bàn giao, 2026-11-21):** `node --test load-tests/test/*.test.mjs`: 97 test đạt, 0 lỗi, 0 skipped (trước task: 81). `terraform fmt -check -recursive`, `validate` và `terraform test`: `envs/dev/loadgen` 5 đạt, `envs/dev/session` 102 đạt (trước: 97). `bash -n` hai script máy tải: sạch. `check-backlog.mjs`: 109 dòng, 0 lỗi. Smoke local `load-tests/test/smoke.cjs` (5 bài qua AppModule thật, checker thật, thêm ca âm Valkey và PostgreSQL dừng): thoát 0 ([output](screenshots/DBS-166/local-smoke-driver.txt)). Backend không đổi nên bốn lệnh backend do CI chạy.
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-166-01..03, 13 | `envs/dev/loadgen/tests/loadgen.tftest.hcl` (4 run + 1 từ chối cỡ máy) | đạt |
+| TC-166-04..07 | `load-tests/test/aggregate-raw.test.mjs` (percentile, gộp theo scenario, status 0, CLI `.gz`, CSV từng request) | đạt |
+| TC-166-08..09 | `load-tests/test/loadgen-tokens.test.mjs` | đạt |
+| TC-166-10..12 | `load-tests/test/runner.test.mjs` (CLI thật, thoát 0 im lặng không là PASS, ánh xạ mã thoát) | đạt; negative control tái hiện ở local: với DB không nối được, đường cũ thoát 0 im lặng, đường mới thoát 2 (và smoke local với PostgreSQL dừng cho `invariantExit=2`) |
+| TC-166-14..18 | `envs/dev/session/tests/session.tftest.hcl` (`dbs166_api_extra_environment_*`) | đạt |
+| TC-166-19 | thủ công trên AWS, §5 | đạt phần đã chạy; bước nào chưa chạy ghi dưới đây |
+| TC-166-20..23 | `aggregate-raw.test.mjs` (phán quyết plateau, 429, dropped) | đạt |
+| `loadgen-run.sh` (exit.json, quiesce, prepare xóa token) | không có unit riêng | **đơn giản hóa**: kiểm bằng lượt chạy thật (M-166-04, 07) và `bash -n`, không bằng test tự động (reviewer #6) |
+| Quy trình DoD 5 | CI và squash merge | điền ở PR |
+
+- **Test thủ công (trên AWS ngày 2026-11-21; output thô ở [manual-test.txt](screenshots/DBS-166/manual-test.txt), SHA dòng đầu):**
+
+| Bước | Kết quả thật | Kết luận |
+|---|---|---|
+| M-166-01 | tài khoản đúng, budget có (đã chi 3,15/150 USD), `verify-clean.sh` exit 0, SHA có trong ECR; plan `base` và `dbs-app` đã lưu | đạt |
+| M-166-02 | `apply` loadgen 14 tài nguyên, 15 giây tạo máy; bootstrap Node 24.22.2, k6 v2.3.0 có checksum, `npm ci` 960 gói | đạt |
+| M-166-03 | `apply` session 66 tài nguyên trong 16 phút 9 giây (RDS Multi-AZ 15 phút 48 giây); `db-roles.sh` 55 giây (ba role đăng nhập được); `migrate.sh` 55 giây exit 0; nâng 2 api + 1 worker, `/health/ready` 200 sau ≈ 1 phút | đạt; BL-265 và BL-302(b) có bằng chứng |
+| M-166-04 | `prepare` seed 3 khách và nạp 50 triệu qua API, chạy lại bị từ chối, token đã xóa; smoke `baseline --smoke` 26 request, `invariantExit=0` từ checker thật | đạt |
+| M-166-05 | `rate-limit`: 10×201 rồi 429, 100×200 rồi 429, hai task cùng nhận request (66 và 65), `invariantExit=0` | đạt |
+| M-166-06 | `apply` thêm giới hạn + `update-service` theo ARN từ state; rollout 6 phút, `COGNITO_CLIENT_ID` giữ nguyên (không 401) | đạt |
+| M-166-07 | `baseline`: số ở báo cáo tải, `runExit=99` do 1 phản hồi 502 của ALB, `invariantExit=0`; `hot-account` worker 1: không đạt (1,66% lỗi), `invariantExit=0`; `quiesce` rồi `duplicate`: đạt; `stress` worker 1: không đạt, gãy 120 đến 180 RPS | đã chạy; kết quả đỏ được báo trung thực (DoD cho phép) |
+| M-166-08 | worker 0: `stress` đạt tới 180 RPS (gãy ở 240); `hot-account` đạt. Worker **không** được đưa về 1 trước khi hủy (hủy ngay vì hết việc đo) | đạt; ghi ở «Lệch» |
+| M-166-09 | CloudWatch từng lượt (`cloudwatch.json`), ba ảnh dựng lại từ CloudWatch; `EXPLAIN ANALYZE` truy vấn `history` 86 ms ở 64.289 dòng; `BlockedRequests` của rule `rate-limit` bằng 0 | đạt |
+| M-166-10 | `destroy` loadgen 14 tài nguyên (44 giây), `destroy` session 66 tài nguyên (≈ 7 phút); `verify-clean.sh` exit 0 (13 loại); `list-user-pool-clients` chỉ còn `dbs-app` và `describe` giống hệt trước; plan `base` giống hệt trước; bucket tạm 404; 4 queue SQS của `base` 0 message; state tạm đã xóa | đạt |
+
+- **Chi phí:** máy tải và `session` bật khoảng 2 giờ 40 phút (08:33 đến 11:15 giờ địa phương), ước tính ≈ 1,3 đến 1,5 USD (≈ 0,5 USD/giờ); Cost Explorer trễ nên số thật ghi vào báo cáo chi phí tuần sau. Vượt trần 90 phút của README (ngoại lệ G1 quyết định 8), dưới trần cứng 3,5 giờ.
+- **Phạm vi so với §7:** mọi file đúng kế hoạch; thêm ngoài §7 (quyết định gate phụ ở «Lệch»): `.github/workflows/ci.yml` (chạy test mới và stack `loadgen` trong CI), `infra/terraform/envs/dev/loadgen/.terraform.lock.hcl`, `docs/BACKLOG.md`, `docs/features/README.md`, `load-tests/README.md`, `docs/components/load-tests/*`. `git diff --stat origin/main...HEAD` (trừ tài liệu này, kết quả thô và ảnh):
+
+```
+ .github/workflows/ci.yml                           |   6 +-
+ docs/BACKLOG.md                                    |  47 ++--
+ infra/scripts/loadgen-bootstrap.sh                 |  54 +++++
+ infra/scripts/loadgen-run.sh                       | 108 +++++++++
+ infra/scripts/loadgen-tokens.mjs                   |  92 +++++++
+ infra/terraform/README.md                          |  18 +-
+ infra/terraform/envs/dev/loadgen/ (9 file + test)  | 451 +++++++++
+ infra/terraform/envs/dev/session/{ecs,variables}.tf, tests/session.tftest.hcl | 147 ++++++++-
+ load-tests/aggregate-raw.cjs                       | 264 +++++++++++++++++++++
+ load-tests/run.cjs                                 |  29 ++-
+ load-tests/test/{aggregate-raw,loadgen-tokens,runner}.test.mjs | 265 +++++++++
+```
+
+- **Ảnh chụp** (dựng từ CloudWatch bằng `get-metric-widget-image` sau khi `session` đã hủy, vì dashboard đã bị hủy; không có ảnh console):
+
+![CPU RDS, api, worker](screenshots/DBS-166/01-cpu-rds-api-worker.png)
+![Độ trễ chuyển tiền phía server](screenshots/DBS-166/02-transfer-latency-server.png)
+![Kết nối RDS và request ALB](screenshots/DBS-166/03-rds-connections-alb-requests.png)
+
+  Thiếu: ảnh màn hình console AWS và k6 summary dạng ảnh (không có màn hình trong phiên tự động; output k6 nằm ở `run.log` của từng lượt). Đã ghi vào mục «Bàn giao» (BL-262 đã có cho dashboard).
+- **Lệch so với kế hoạch (quyết định agent tự duyệt, ghi trước khi làm hoặc ngay khi gặp):**
+  1. Viết mã harness, Terraform và test trước khi qua G3 (trong lúc chờ reviewer), không chạy gì trên AWS trước G3 (§7, G3).
+  2. **Lỗi `run.cjs` gọi nhầm checker** (tệp re-export, thoát 0 im lặng) tìm thấy khi đọc mã và sửa trong PR này (TC-166-10..12): ngoài DoD của DBS-165 nhưng chặn DoD 2 của task này; không đổi hợp đồng checker.
+  3. **Thêm hai lượt chẩn đoán worker 0** (`stress` worker 0 theo G1 QĐ 9, và `hot-account` worker 0): lượt thứ hai không có trong kế hoạch ban đầu; thêm sau khi `hot-account` worker 1 đỏ để cô lập nguyên nhân; chi phí thêm ≈ 0,15 USD. Cả hai ghi riêng, không thay thế lượt đỏ.
+  4. Không đưa worker về 1 trước khi hủy (mọi việc đo đã xong, outbox của DB sắp hủy nên không còn ý nghĩa).
+  5. `.github/workflows/ci.yml` và lock file của stack mới: thêm để CI chạy test mới (quy tắc: mọi stack Terraform và test mới phải nằm trong CI).
+  6. Máy tải dùng `dbs_api` (không chỉ-SELECT) vì chưa có role chỉ-đọc cho harness (BL-416).
+  7. Kết quả thô: `requests.csv.gz` thay cho `raw.json` (không commit; kích thước và sha256 ghi cạnh) theo G1 QĐ 6.
+- **Phát hiện khi chạy thật, không nằm trong kế hoạch:** (a) `db-roles.sh` và `migrate.sh` trên Git Bash/Windows cần `TMPDIR` dạng `F:/...` (aws.exe không đọc `/tmp` của MSYS) và shim `python3`; (b) `git archive` và `aws` cần đường dẫn dạng `F:/...`, `tar` cần `--force-local`; (c) `get-metric-widget-image` trả base64 kèm cảnh báo `invalid input` nhưng ảnh hợp lệ. Hai mục đầu nên vào README (đã thêm một dòng ở mục «Máy chạy tải»).
+- **Rà lại backlog (quy tắc «Rà lại» của BACKLOG; lý do «Hoãn» cho từng dòng «Trước tải»/«Trong tải (DBS-166)» còn lại):**
+
+| Dòng | Quyết định | Lý do |
+|---|---|---|
+| BL-127, BL-232, BL-292, BL-265 | **đóng, xóa dòng** | checker exit 0 đi kèm mọi lượt AWS; năm kịch bản đã chạy trên AWS và có báo cáo; miễn trừ WAF đã áp và lưu IP; `dbs` dựng được `session` (dev1 không còn bị `dbs-no-secret` chặn) |
+| BL-179, BL-187, BL-385, BL-382, BL-302 | **Hoãn · H4** kèm số đo | phần đo được đã đo (ghi trong dòng), phần còn lại cần bản sửa hoặc kịch bản chưa có |
+| BL-104, 109, 252, 251, 182, 264, 275, 276, 290, 361, 396 | **Hoãn · H4** | không chặn tải: image có trong ECR, deploy tay bằng `migrate.sh` và `update-service` đã chạy; seed qua `prepare.cjs`; alarm không ảnh hưởng số đo; CVE và `.gitignore` không đổi số đo; chỉ dùng revision do Terraform sở hữu |
+| BL-381 | **Hoãn · H5** | tránh bằng cách không cập nhật service khi bài đang chạy |
+
+- **Bàn giao cho vai khác (dòng mới trong [BACKLOG](../BACKLOG.md)):** BL-413 (Fraud và Dev, Cao): truy vấn `history` tỉ lệ với lịch sử, nút thắt chính; BL-414 (Dev api): 502 do ALB, nghi `keepAliveTimeout`; BL-415 (Dev): harness coi mọi 429 là hợp lệ, `hot-account` một nguồn một đích; BL-416 (Dev, Ops): role chỉ-SELECT cho harness; BL-417 (Ops): đo lại cỡ worker, pool, RDS sau BL-413. Chưa làm: bốn mục nói trên; ảnh console (BL-262 sẵn).
 
 ## 9. Tài liệu đã cập nhật
 
-(điền ở Phase 5)
+`docs/components/load-tests/02-ket-qua-tai-cloud-2026-11-21.md` và `results/` (mới); `docs/components/load-tests/01-concept-brief.md`; `load-tests/README.md` (lỗi checker và cách chạy trên AWS); `infra/terraform/README.md` (mục «Máy chạy tải và đợt đo k6», `loadgen/` trong cấu trúc); `docs/features/README.md` (dòng DBS-166); `docs/BACKLOG.md` (xóa BL-127, BL-232, BL-265, BL-292; đổi BL-104, 109, 179, 182, 187, 251, 252, 264, 275, 276, 280, 290, 291, 302, 361, 381, 382, 385, 396; thêm BL-413 đến BL-417).

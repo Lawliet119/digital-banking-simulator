@@ -1,6 +1,6 @@
 # load-tests: Kết quả tải trên AWS (DBS-166, 2026-11-21)
 
-> **Status:** Đã đo (một phiên, một lượt cho mỗi bài) · **Owner:** #5 Platform & Ops · **Verified against code:** chạy thật trên AWS `ap-southeast-1` ngày 2026-11-21, mọi số lấy từ k6 và CloudWatch của lượt thật · **Cập nhật:** 2026-11-21 · Thiết kế, nhật ký, quyết định: [DBS-166](../../features/DBS-166-load-report.md) · Kịch bản: [load-tests/README](../../../load-tests/README.md) · Kết quả thô: [results/](results/)
+> **Status:** Implemented (một phiên, một lượt cho mỗi bài) · **Owner:** #5 Platform & Ops · **Verified against code:** chạy thật trên AWS `ap-southeast-1` ngày 2026-11-21, mọi số lấy từ k6 và CloudWatch của lượt thật · **Cập nhật:** 2026-11-21 · Thiết kế, nhật ký, quyết định: [DBS-166](../../features/DBS-166-load-report.md) · Kịch bản: [load-tests/README](../../../load-tests/README.md) · Kết quả thô: [results/](results/)
 
 ## 0. Tóm tắt
 
@@ -94,6 +94,12 @@ Mọi ngưỡng latency của docs/03 §14 (chuyển p95 < 300 ms và p99 < 1 s;
 2. Tách tải đọc của worker khỏi RDS chính (replica đọc) hoặc nâng `db.t4g.medium` nếu vẫn cần, và đo lại plateau 120 sau khi có bản sửa truy vấn.
 3. Tăng CPU worker (0,5 vCPU) khi tăng số sự kiện; tăng `DATABASE_POOL_MAX` chỉ sau khi truy vấn nặng được gỡ (pool lớn hơn trên RDS đang cạn CPU làm xấu thêm).
 4. Đặt `keepAliveTimeout` của API lớn hơn thời gian idle của ALB (60 giây) để loại các 502 ngẫu nhiên.
+
+Ảnh dựng từ CloudWatch cho toàn phiên (02:00 đến 04:10Z; thứ tự bài: baseline 02:04, hot-account 02:55, duplicate 03:13, stress 03:14, stress worker 0 03:32, hot-account worker 0 03:50):
+
+![CPU RDS, api, worker](../../features/screenshots/DBS-166/01-cpu-rds-api-worker.png)
+![Độ trễ chuyển tiền phía server](../../features/screenshots/DBS-166/02-transfer-latency-server.png)
+![Kết nối RDS và request ALB](../../features/screenshots/DBS-166/03-rds-connections-alb-requests.png)
 
 ## 8. Cảnh báo vận hành thấy trong lúc đo
 
