@@ -113,7 +113,7 @@ describe('OnlineFeatureProvider reads one snapshot (real PostgreSQL)', () => {
     expect(BigInt(after.sumOut24h)).toBe(BigInt(before.sumOut24h) + 40_000n);
   });
 
-  it('TC-187-02 without a snapshot the same commit splits the five SELECTs (the test can fail)', async () => {
+  it('TC-187-02 without a snapshot the same commit splits the SELECTs (the test can fail)', async () => {
     const before = await features(source);
     const facts = new TransferFacts(source);
     // What the provider did before BL-187: one autocommitted statement per query.
@@ -134,16 +134,16 @@ describe('OnlineFeatureProvider reads one snapshot (real PostgreSQL)', () => {
     ).resolves.toEqual({ hour: before.txCount1h + 1, recipients: before.newRecipients1h + 1 });
   });
 
-  it('TC-187-03 one extraction leases one connection and runs begin, five SELECTs and commit on it', async () => {
+  it('TC-187-03 one extraction leases one connection and runs begin, three SELECTs (accountFacts, reverse, new recipients: DBS-173) and commit on it', async () => {
     const spy = spiedSource(() => Promise.resolve());
     await features(spy.lent);
 
     expect(spy.leases()).toBe(1);
     expect(spy.sql[0]).toMatch(/^START TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/);
-    expect(spy.sql.slice(1, 6).every(text => /v_transfer_facts/.test(text))).toBe(true);
-    expect(spy.sql.slice(1, 6)).toHaveLength(5);
-    expect(spy.sql[6]).toBe('COMMIT');
-    expect(spy.sql).toHaveLength(7);
+    expect(spy.sql.slice(1, 4).every(text => /v_transfer_facts/.test(text))).toBe(true);
+    expect(spy.sql.slice(1, 4)).toHaveLength(3);
+    expect(spy.sql[4]).toBe('COMMIT');
+    expect(spy.sql).toHaveLength(5);
   });
 
   it('TC-187-04 the snapshot is read only and its timeouts do not outlive it', async () => {

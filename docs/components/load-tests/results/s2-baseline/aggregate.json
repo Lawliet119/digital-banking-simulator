@@ -1,0 +1,504 @@
+{
+  "window": {
+    "start": "2026-11-21T09:35:18.408Z",
+    "end": "2026-11-21T10:20:38.450Z"
+  },
+  "skippedLines": 0,
+  "unexpected429": 0,
+  "plateaus": {
+    "12": {
+      "requests": 10802,
+      "systemErrors": 0,
+      "errorRate": 0,
+      "meetsErrorBudget": true,
+      "droppedIterations": 0,
+      "meetsDoD3": true,
+      "windowSeconds": 900.001,
+      "achievedRps": 12.002,
+      "perMinute": [
+        {
+          "minute": 0,
+          "requests": 721,
+          "systemErrors": 0
+        },
+        {
+          "minute": 1,
+          "requests": 720,
+          "systemErrors": 0
+        },
+        {
+          "minute": 2,
+          "requests": 719,
+          "systemErrors": 0
+        },
+        {
+          "minute": 3,
+          "requests": 722,
+          "systemErrors": 0
+        },
+        {
+          "minute": 4,
+          "requests": 720,
+          "systemErrors": 0
+        },
+        {
+          "minute": 5,
+          "requests": 720,
+          "systemErrors": 0
+        },
+        {
+          "minute": 6,
+          "requests": 719,
+          "systemErrors": 0
+        },
+        {
+          "minute": 7,
+          "requests": 720,
+          "systemErrors": 0
+        },
+        {
+          "minute": 8,
+          "requests": 720,
+          "systemErrors": 0
+        },
+        {
+          "minute": 9,
+          "requests": 720,
+          "systemErrors": 0
+        },
+        {
+          "minute": 10,
+          "requests": 721,
+          "systemErrors": 0
+        },
+        {
+          "minute": 11,
+          "requests": 720,
+          "systemErrors": 0
+        },
+        {
+          "minute": 12,
+          "requests": 719,
+          "systemErrors": 0
+        },
+        {
+          "minute": 13,
+          "requests": 721,
+          "systemErrors": 0
+        },
+        {
+          "minute": 14,
+          "requests": 719,
+          "systemErrors": 0
+        },
+        {
+          "minute": 15,
+          "requests": 1,
+          "systemErrors": 0
+        }
+      ]
+    },
+    "60": {
+      "requests": 54002,
+      "systemErrors": 70,
+      "errorRate": 0.0012962482871004778,
+      "meetsErrorBudget": false,
+      "droppedIterations": 0,
+      "meetsDoD3": false,
+      "windowSeconds": 900.002,
+      "achievedRps": 60.002,
+      "perMinute": [
+        {
+          "minute": 0,
+          "requests": 3601,
+          "systemErrors": 0
+        },
+        {
+          "minute": 1,
+          "requests": 3600,
+          "systemErrors": 0
+        },
+        {
+          "minute": 2,
+          "requests": 3600,
+          "systemErrors": 0
+        },
+        {
+          "minute": 3,
+          "requests": 3600,
+          "systemErrors": 0
+        },
+        {
+          "minute": 4,
+          "requests": 3600,
+          "systemErrors": 0
+        },
+        {
+          "minute": 5,
+          "requests": 3601,
+          "systemErrors": 0
+        },
+        {
+          "minute": 6,
+          "requests": 3599,
+          "systemErrors": 0
+        },
+        {
+          "minute": 7,
+          "requests": 3600,
+          "systemErrors": 0
+        },
+        {
+          "minute": 8,
+          "requests": 3599,
+          "systemErrors": 0
+        },
+        {
+          "minute": 9,
+          "requests": 3601,
+          "systemErrors": 70
+        },
+        {
+          "minute": 10,
+          "requests": 3600,
+          "systemErrors": 0
+        },
+        {
+          "minute": 11,
+          "requests": 3600,
+          "systemErrors": 0
+        },
+        {
+          "minute": 12,
+          "requests": 3599,
+          "systemErrors": 0
+        },
+        {
+          "minute": 13,
+          "requests": 3601,
+          "systemErrors": 0
+        },
+        {
+          "minute": 14,
+          "requests": 3600,
+          "systemErrors": 0
+        },
+        {
+          "minute": 15,
+          "requests": 1,
+          "systemErrors": 0
+        }
+      ]
+    },
+    "120": {
+      "requests": 108002,
+      "systemErrors": 1,
+      "errorRate": 0.000009259087794670468,
+      "meetsErrorBudget": true,
+      "droppedIterations": 0,
+      "meetsDoD3": true,
+      "windowSeconds": 900.051,
+      "achievedRps": 119.995,
+      "perMinute": [
+        {
+          "minute": 0,
+          "requests": 7201,
+          "systemErrors": 0
+        },
+        {
+          "minute": 1,
+          "requests": 7200,
+          "systemErrors": 0
+        },
+        {
+          "minute": 2,
+          "requests": 7200,
+          "systemErrors": 0
+        },
+        {
+          "minute": 3,
+          "requests": 7199,
+          "systemErrors": 0
+        },
+        {
+          "minute": 4,
+          "requests": 7201,
+          "systemErrors": 0
+        },
+        {
+          "minute": 5,
+          "requests": 7198,
+          "systemErrors": 0
+        },
+        {
+          "minute": 6,
+          "requests": 7203,
+          "systemErrors": 0
+        },
+        {
+          "minute": 7,
+          "requests": 7199,
+          "systemErrors": 0
+        },
+        {
+          "minute": 8,
+          "requests": 7197,
+          "systemErrors": 0
+        },
+        {
+          "minute": 9,
+          "requests": 7202,
+          "systemErrors": 0
+        },
+        {
+          "minute": 10,
+          "requests": 7200,
+          "systemErrors": 0
+        },
+        {
+          "minute": 11,
+          "requests": 7197,
+          "systemErrors": 1
+        },
+        {
+          "minute": 12,
+          "requests": 7204,
+          "systemErrors": 0
+        },
+        {
+          "minute": 13,
+          "requests": 7197,
+          "systemErrors": 0
+        },
+        {
+          "minute": 14,
+          "requests": 7200,
+          "systemErrors": 0
+        },
+        {
+          "minute": 15,
+          "requests": 4,
+          "systemErrors": 0
+        }
+      ]
+    }
+  },
+  "systemErrors": {
+    "total": 172806,
+    "errors": 71,
+    "rate": 0.0004108653634711758
+  },
+  "metrics": {
+    "read_latency": {
+      "operation=balance,plateau=12,profile=full": {
+        "count": 4321,
+        "p50": 16.071,
+        "p90": 20.122,
+        "p95": 25.444,
+        "p99": 86.387,
+        "max": 534.47
+      },
+      "operation=history,plateau=12,profile=full": {
+        "count": 4320,
+        "p50": 17.941,
+        "p90": 22.073,
+        "p95": 27.703,
+        "p99": 79.247,
+        "max": 435.907
+      },
+      "operation=balance,plateau=60,profile=full": {
+        "count": 21601,
+        "p50": 15.885,
+        "p90": 22.302,
+        "p95": 31.794,
+        "p99": 161.225,
+        "max": 2011.008
+      },
+      "operation=history,plateau=60,profile=full": {
+        "count": 21600,
+        "p50": 18.014,
+        "p90": 24.722,
+        "p95": 35.655,
+        "p99": 175.503,
+        "max": 2010.989
+      },
+      "operation=balance,plateau=120,profile=full": {
+        "count": 43201,
+        "p50": 16.093,
+        "p90": 31.492,
+        "p95": 59.823,
+        "p99": 219.103,
+        "max": 637.988
+      },
+      "operation=history,plateau=120,profile=full": {
+        "count": 43200,
+        "p50": 18.278,
+        "p90": 35.993,
+        "p95": 71.438,
+        "p99": 260.149,
+        "max": 738.326
+      }
+    },
+    "transfer_latency": {
+      "plateau=12,profile=full": {
+        "count": 2161,
+        "p50": 30.097,
+        "p90": 37.356,
+        "p95": 49.03,
+        "p99": 158.131,
+        "max": 634.357
+      },
+      "plateau=60,profile=full": {
+        "count": 10801,
+        "p50": 30.028,
+        "p90": 41.938,
+        "p95": 63.25,
+        "p99": 298.768,
+        "max": 2004.075
+      },
+      "plateau=120,profile=full": {
+        "count": 21601,
+        "p50": 31.881,
+        "p90": 82.357,
+        "p95": 262.41,
+        "p99": 850.894,
+        "max": 2000.101
+      }
+    }
+  },
+  "byScenario": {
+    "read_12": {
+      "GET /v1/accounts/:id": {
+        "count": 4321,
+        "systemErrors": 0,
+        "status": {
+          "200": 4321
+        },
+        "p50": 16.071,
+        "p90": 20.122,
+        "p95": 25.444,
+        "p99": 86.387,
+        "max": 534.47,
+        "avgRequestsPerSecondOverWholeRun": 1.589
+      },
+      "GET /v1/accounts/:id/transactions": {
+        "count": 4320,
+        "systemErrors": 0,
+        "status": {
+          "200": 4320
+        },
+        "p50": 17.941,
+        "p90": 22.073,
+        "p95": 27.703,
+        "p99": 79.247,
+        "max": 435.907,
+        "avgRequestsPerSecondOverWholeRun": 1.588
+      }
+    },
+    "write_12": {
+      "POST /v1/transfers": {
+        "count": 2161,
+        "systemErrors": 0,
+        "status": {
+          "201": 2161
+        },
+        "p50": 30.097,
+        "p90": 37.356,
+        "p95": 49.03,
+        "p99": 158.131,
+        "max": 634.357,
+        "avgRequestsPerSecondOverWholeRun": 0.794
+      }
+    },
+    "read_60": {
+      "GET /v1/accounts/:id": {
+        "count": 21601,
+        "systemErrors": 19,
+        "status": {
+          "0": 19,
+          "200": 21582
+        },
+        "p50": 15.885,
+        "p90": 22.302,
+        "p95": 31.794,
+        "p99": 161.225,
+        "max": 2011.008,
+        "avgRequestsPerSecondOverWholeRun": 7.941
+      },
+      "GET /v1/accounts/:id/transactions": {
+        "count": 21600,
+        "systemErrors": 26,
+        "status": {
+          "0": 26,
+          "200": 21574
+        },
+        "p50": 18.014,
+        "p90": 24.722,
+        "p95": 35.655,
+        "p99": 175.503,
+        "max": 2010.989,
+        "avgRequestsPerSecondOverWholeRun": 7.941
+      }
+    },
+    "write_60": {
+      "POST /v1/transfers": {
+        "count": 10801,
+        "systemErrors": 25,
+        "status": {
+          "0": 25,
+          "201": 10776
+        },
+        "p50": 30.028,
+        "p90": 41.938,
+        "p95": 63.25,
+        "p99": 298.768,
+        "max": 2004.075,
+        "avgRequestsPerSecondOverWholeRun": 3.971
+      }
+    },
+    "read_120": {
+      "GET /v1/accounts/:id": {
+        "count": 43201,
+        "systemErrors": 0,
+        "status": {
+          "200": 43201
+        },
+        "p50": 16.093,
+        "p90": 31.492,
+        "p95": 59.823,
+        "p99": 219.103,
+        "max": 637.988,
+        "avgRequestsPerSecondOverWholeRun": 15.882
+      },
+      "GET /v1/accounts/:id/transactions": {
+        "count": 43200,
+        "systemErrors": 0,
+        "status": {
+          "200": 43200
+        },
+        "p50": 18.278,
+        "p90": 35.993,
+        "p95": 71.438,
+        "p99": 260.149,
+        "max": 738.326,
+        "avgRequestsPerSecondOverWholeRun": 15.882
+      }
+    },
+    "write_120": {
+      "POST /v1/transfers": {
+        "count": 21601,
+        "systemErrors": 1,
+        "status": {
+          "0": 1,
+          "201": 21600
+        },
+        "p50": 31.881,
+        "p90": 82.357,
+        "p95": 262.41,
+        "p99": 850.894,
+        "max": 2000.101,
+        "avgRequestsPerSecondOverWholeRun": 7.941
+      }
+    }
+  }
+}

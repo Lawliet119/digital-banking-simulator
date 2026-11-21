@@ -1,0 +1,3 @@
+[task ec7fa6bf917644a3b3da114cd2169378]
+0	None
+SQL> SELECT from_account_id::text AS hot FROM transfers GROUP BY 1 ORDER BY count(*) DESC LIMIT 1	[{"hot":"09bdf604-da20-4ede-a8e5-344e690f0d41"}]	SQL> SELECT count(*)::int AS hot_rows FROM transfers WHERE from_account_id = '09bdf604-da20-4ede-a8e5-344e690f0d41'	[{"hot_rows":55005}]	SQL> SELECT count(*)::int AS transfers_total FROM transfers	[{"transfers_total":93006}]	SQL> SELECT now() AS at, relpages, relallvisible, autovacuum_count FROM pg_class c JOIN pg_stat_user_tables s ON s.relname = 	[{"at":"2026-11-21T11:12:24.387Z","relpages":1897,"relallvisible":1889,"autovacuum_count":"81"}]

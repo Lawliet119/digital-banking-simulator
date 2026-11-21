@@ -13,6 +13,18 @@ import {
   REQUEST_ID_HEADER,
 } from './common/middleware/correlation-id.middleware';
 
+/**
+ * The ALB closes a connection that has been idle for this long (the default; nothing in Terraform
+ * changes it). The side that closes first must be the ALB: when Node closes first, the ALB can
+ * send a request down a connection Node has just closed and answer 502 itself (BL-414: 1 in
+ * 172,805 requests of the DBS-166 `baseline`, none counted as a 5xx by the application).
+ */
+export const ALB_IDLE_TIMEOUT_MS = 60_000;
+/** Node's default is 5 s, far below the ALB's idle timeout; keep idle connections longer than it. */
+export const HTTP_KEEP_ALIVE_TIMEOUT_MS = ALB_IDLE_TIMEOUT_MS + 5_000;
+/** Node requires `headersTimeout` above `keepAliveTimeout`, or the header timer closes the socket first. */
+export const HTTP_HEADERS_TIMEOUT_MS = HTTP_KEEP_ALIVE_TIMEOUT_MS + 1_000;
+
 export interface HttpSettings {
   /** Number of reverse proxies in front (the ALB). 0 = none. */
   trustProxyHops: number;
@@ -35,6 +47,11 @@ export function configureHttpApp(
   // for the worker, which has no HTTP; calling it again changes nothing, and having it here means
   // the e2e tests, which use this function and not main.ts, exercise the same behaviour.
   installBigIntJson();
+
+  // BL-414: set before anything listens, so no connection is accepted with Node's 5 s default.
+  const server = app.getHttpServer();
+  server.keepAliveTimeout = HTTP_KEEP_ALIVE_TIMEOUT_MS;
+  server.headersTimeout = HTTP_HEADERS_TIMEOUT_MS;
 
   // Behind the ALB, req.ip must be the client, not the load balancer (per-IP rate limiting).
   if (settings.trustProxyHops > 0) {

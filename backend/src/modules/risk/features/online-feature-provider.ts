@@ -18,7 +18,7 @@ export interface OnlineFeatureProviderDeps {
  * Delivery order is not commit order: a Redis coverage timestamp cannot prove that
  * every committed transfer has been consumed. Always read the committed facts.
  * Windows use event time at millisecond resolution; R3/R6 retain event snapshots.
- * The five SELECTs share one `REPEATABLE READ READ ONLY` snapshot (`TransferFacts.snapshot`).
+ * The three SELECTs share one `REPEATABLE READ READ ONLY` snapshot (`TransferFacts.snapshot`).
  * SQL failures reject extraction so the consumer can retry, never score partial facts.
  */
 export class OnlineFeatureProvider implements FeatureProvider {
@@ -32,18 +32,18 @@ export class OnlineFeatureProvider implements FeatureProvider {
 
   async extract(event: TransferEvent): Promise<Features> {
     const occMs = riskTimeMilliseconds(event.occurredAt);
-    // One snapshot for all five SELECTs (BL-187): they all see the same committed facts. They run
+    // One snapshot for all three SELECTs (BL-187): they all see the same committed facts. They run
     // one after another on the snapshot's single connection; the driver deprecates queueing
     // several queries on one client, and PostgreSQL would execute them serially anyway.
-    const [transfers, recipients, history, reverseTransferOccurredAt, outflow] =
+    // `accountFacts` answers history (R2), velocity (R1) and outflow (R6) from one scan of the
+    // account's transfers (DBS-173); R4 and R5 keep their own queries.
+    const [{ history, velocity: transfers, outflow }, recipients, reverseTransferOccurredAt] =
       await this.facts.snapshot(
         async facts =>
           [
-            await facts.velocity(event.fromAccountId, event.transferId, occMs),
+            await facts.accountFacts(event.fromAccountId, event.transferId, occMs, this.perTxLimit),
             await facts.newRecipientCount(event.fromAccountId, occMs),
-            await facts.history(event.fromAccountId, occMs),
             await facts.reverseTransfer(event.fromAccountId, event.toAccountId, occMs),
-            await facts.outflow24h(event.fromAccountId, occMs, this.perTxLimit),
           ] as const,
       );
     // Preserve the reference R1 contract even when the current row is not visible.
