@@ -86,6 +86,13 @@ async function main(): Promise<void> {
            AND NOT EXISTS (SELECT 1 FROM ledger_entries e WHERE e.transfer_id=t.id)`,
       );
     }
+    if (process.env.DISABLE_TRIGGER === '1') {
+      // Reproduces the write pattern of the code before BL-418 (two UPDATE accounts per transfer):
+      // only for the HOT-update comparison, the counter is then stale and nothing reads it.
+      await db.runner.query(
+        'ALTER TABLE ledger_entries DISABLE TRIGGER ledger_entries_daily_debit_counter',
+      );
+    }
     await db.runner.query('VACUUM (ANALYZE) ledger_entries');
     await db.runner.query('VACUUM (ANALYZE) accounts');
 
@@ -132,6 +139,11 @@ async function main(): Promise<void> {
 
     const tokens = await Promise.all(rows.map(r => app.issuer.token('customer', { sub: r.sub })));
     await db.runner.query('SELECT pg_stat_statements_reset()');
+    const statsBefore = (
+      await db.runner.query(
+        `SELECT n_tup_upd::int AS upd, n_tup_hot_upd::int AS hot FROM pg_stat_user_tables WHERE relname='accounts'`,
+      )
+    )[0] as { upd: number; hot: number };
     const latencies: number[] = [];
     let failures = 0,
       sent = 0;
@@ -183,6 +195,17 @@ async function main(): Promise<void> {
     console.log(summary('lock wait (FOR UPDATE)', waits));
     console.log(summary('lock hold (to COMMIT)', holds));
     console.log(summary('  of which checkGuards', guards));
+    // statistics reach the shared view a moment after the transactions end
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    const [accountStats] = (await db.runner.query(
+      `SELECT n_tup_upd::int AS upd, n_tup_hot_upd::int AS hot, n_dead_tup::int AS dead
+       FROM pg_stat_user_tables WHERE relname='accounts'`,
+    )) as { upd: number; hot: number; dead: number }[];
+    const upd = accountStats.upd - statsBefore.upd,
+      hot = accountStats.hot - statsBefore.hot;
+    console.log(
+      `accounts UPDATE rows ${upd} (${(upd / Math.max(1, sent)).toFixed(2)} per transfer), HOT ${hot} (${((100 * hot) / Math.max(1, upd)).toFixed(1)}%), dead tuples ${accountStats.dead}, trigger ${process.env.DISABLE_TRIGGER === '1' ? 'DISABLED (pre-BL-418 write pattern)' : 'on'}`,
+    );
     const stats = await db.runner.query(
       `SELECT calls::int AS calls, round(mean_exec_time::numeric,3) AS mean_ms,
               round(total_exec_time::numeric,0) AS total_ms, shared_blks_hit/greatest(calls,1) AS buf,

@@ -115,7 +115,7 @@ erDiagram
 | Module | Bảng sở hữu | Ghi chú |
 |---|---|---|
 | `identity` | `users` | `sessions_revoked_at` là nguồn sự thật của thu hồi phiên |
-| `accounts` | `customers`, `accounts` | Gồm tài khoản SYSTEM `funding` (tạo bằng migration) |
+| `accounts` | `customers`, `accounts` | Gồm tài khoản SYSTEM `funding` (tạo bằng migration). `sent_today`/`sent_day` là dữ liệu dẫn xuất do trigger của DB ghi, không phải mã ứng dụng (xem ngoại lệ bên dưới, BL-418) |
 | `ledger` | `transfers`, `ledger_entries`, `idempotency_keys`, `reconciliation_runs` | Duy nhất được đổi `accounts.balance`, **thông qua** `AccountsService.applyBalanceChange` |
 | `outbox` | `outbox_events`, `processed_events` | Mọi module ghi sự kiện đều gọi `OutboxWriter.add` |
 | `audit` | `audit_log` | Mọi module ghi qua `AuditService.record`, trong transaction của mình |
@@ -123,6 +123,8 @@ erDiagram
 | `notification` | `notification_log` | v1 chỉ ghi log |
 
 Ngoại lệ đáng chú ý: `risk` cần **đọc** lịch sử chuyển tiền (luật R2, R4, R5). Thay vì cho `risk` `SELECT` thẳng bảng `transfers` (vi phạm quy tắc 9), `ledger` cung cấp một **view chỉ đọc** `v_transfer_facts` làm hợp đồng dữ liệu ổn định. Xem [§8](#8-quyền-truy-cập-và-tính-bất-biến-ở-mức-db).
+
+**Ngoại lệ thứ hai (BL-418): bộ đếm hạn mức ngày.** `ledger_entries` có trigger mức câu lệnh `ledger_entries_daily_debit_counter` (hàm `public.add_daily_debit()`, `SECURITY DEFINER`) ghi `accounts.sent_today`/`sent_day` mỗi khi có dòng `DEBIT` của tài khoản không phải SYSTEM, cùng transaction với dòng sổ cái. Đây là **dữ liệu dẫn xuất**: sổ cái vẫn là nguồn sự thật, và kiểm bất biến `daily_debit_totals` (DBS-69) so hai bên. `AccountsService` chỉ đọc hai cột này (trong `lockForUpdate`); số dư vẫn chỉ đổi qua `applyBalanceChange`. Chọn trigger thay vì để ứng dụng cộng vì mã cũ đang chạy trong lúc triển khai cuốn chiếu vẫn ghi dòng nợ mà không biết cột này, và vì `dbs_api` chỉ có quyền `UPDATE` theo cột (`balance`, `status`, `updated_at`): ứng dụng không tự ghi được bộ đếm.
 
 ---
 
@@ -165,14 +167,19 @@ CREATE TABLE accounts (
   balance     bigint NOT NULL DEFAULT 0,
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now(),
+  sent_today  bigint NOT NULL DEFAULT 0,                -- BL-418, dẫn xuất từ ledger_entries (trigger)
+  sent_day    date,                                     -- ngày giờ VN lớn nhất có dòng DEBIT; NULL = chưa từng ghi nợ
   CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
-  CONSTRAINT accounts_owner_matches_type   CHECK ((type = 'SYSTEM') = (customer_id IS NULL))
+  CONSTRAINT accounts_owner_matches_type   CHECK ((type = 'SYSTEM') = (customer_id IS NULL)),
+  CONSTRAINT accounts_sent_today_non_negative CHECK (sent_today >= 0),
+  CONSTRAINT accounts_sent_day_when_sent   CHECK (sent_day IS NOT NULL OR sent_today = 0)
 ) WITH (fillfactor = 80);                                -- chừa chỗ cho HOT update, xem §9
 
 CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM';
 CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL;
 ```
 
+- **`sent_today` và `sent_day` (BL-418)** là bộ đếm hạn mức ngày: `sent_day` là ngày giờ Việt Nam **lớn nhất** có dòng `DEBIT` của tài khoản (theo `ledger_entries.created_at`), `sent_today` là tổng các dòng đó. Do trigger `ledger_entries_daily_debit_counter` giữ; không bao giờ lùi `sent_day`; tài khoản SYSTEM không có bộ đếm. Guard đọc từ dòng đã khóa: cùng ngày thì dùng `sent_today`, ngày cũ hơn hoặc NULL thì 0, ngày mới hơn đồng hồ thì hỏi sổ cái (`SENT_TODAY_SQL`). Không index hai cột (giữ cập nhật HOT).
 - `type` là `CHECKING` hoặc `SAVINGS`; ở v1 hai loại hành xử giống nhau (chỉ là nhãn). Thêm loại mới bằng migration đổi `CHECK`.
 - **Giới hạn 3 tài khoản/khách (BR-14) không biểu diễn được bằng `CHECK`.** Nó được giữ bằng transaction mở tài khoản có `SELECT … FOR UPDATE` hàng `customers`, rồi `COUNT`. Có test đồng thời bắt buộc cho việc này.
 - Lý do khóa tài khoản (UC-11) **không** nằm ở bảng này mà ở `audit_log`: một tài khoản có thể bị khóa/mở nhiều lần và mỗi lần là một sự kiện.
@@ -445,7 +452,7 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | BR-02 bút toán kép | `UNIQUE (transfer_id, direction)`; `amount > 0`; khóa ngoại tổng hợp: dòng sổ đúng số tiền, đúng tài khoản của giao dịch `COMPLETED`, không có dòng cho `REJECTED` | Cùng transaction ghi đủ 2 dòng (DB chưa ép "đủ cặp"); job đối soát kiểm tổng |
 | BR-03 số dư khách ≥ 0 | `CHECK (type = 'SYSTEM' OR balance >= 0)` | Sync guard (để trả `INSUFFICIENT_FUNDS` thay vì lỗi DB) |
 | BR-05 khác tài khoản | `CHECK (from_account_id <> to_account_id)` | |
-| BR-06 hạn mức | — (không biểu diễn được) | Sync guard sau `FOR UPDATE`; test AC-5.6 |
+| BR-06 hạn mức | — (không biểu diễn được); bộ đếm dẫn xuất `accounts.sent_today`/`sent_day` do trigger giữ (BL-418) | Sync guard sau `FOR UPDATE` đọc bộ đếm từ dòng đã khóa; test AC-5.6; kiểm bất biến `daily_debit_totals` |
 | BR-07 chống trùng | `PRIMARY KEY (user_id, idem_key)` | `ON CONFLICT DO NOTHING`; so `request_hash` |
 | BR-08 giao dịch bất biến | Trigger chặn `UPDATE/DELETE` + thu quyền | |
 | BR-09 audit bất biến | Trigger chặn `UPDATE/DELETE` + thu quyền | Ghi cùng transaction (fail-closed) |
@@ -464,7 +471,7 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | Truy vấn (ai chạy) | Index | Vì sao |
 |---|---|---|
 | Khóa tài khoản `WHERE id = ANY($1) ORDER BY id FOR UPDATE` (ledger) | PK `accounts(id)` | Có sẵn |
-| **Hạn mức ngày:** `SUM(amount)` tiền đi hôm nay của một tài khoản (ledger, **trong lúc đang giữ khóa**) | `ledger_entries_daily_debit_idx`: `ledger_entries (account_id, created_at) INCLUDE (amount) WHERE direction = 'DEBIT'` | Index một phần + `INCLUDE` cho phép *index-only scan*: không đọc bảng. Chạy khi đang giữ khóa nên mỗi mili-giây đều làm tài khoản nóng chậm đi |
+| **Hạn mức ngày (BL-418: đường lùi và đối chiếu, không còn trên đường nóng):** `SUM(amount)` tiền đi hôm nay của một tài khoản. Trước BL-418 chạy **trong lúc đang giữ khóa**; nay guard đọc `accounts.sent_today`/`sent_day` của dòng đã khóa, chỉ hỏi câu này khi đồng hồ lùi sau ngày của bộ đếm | `ledger_entries_daily_debit_idx`: `ledger_entries (account_id, created_at) INCLUDE (amount) WHERE direction = 'DEBIT'` | Index một phần + `INCLUDE` cho phép *index-only scan*: không đọc bảng. Chạy khi đang giữ khóa thì mỗi mili-giây đều làm tài khoản nóng chậm đi (1,9 ms ở `baseline` 120 RPS, 9,6 ms và ≈ 7.100 buffer ở 47.000 dòng, DBS-173): đó là lý do BL-418 chuyển nó ra khỏi đường nóng |
 | Lịch sử giao dịch phân trang cursor (UC-6) | `ledger_entries_account_history_idx`: `ledger_entries (account_id, created_at DESC, id DESC)` | Cursor là cặp `(created_at, id)`: ổn định khi nhiều dòng cùng thời điểm |
 | Trạng thái một giao dịch (UC-7) | PK `transfers(id)` | Có sẵn |
 | **R1/R2/R5/R6** đếm lệnh, trung vị số tiền, người nhận mới, tổng chi 24 giờ (risk) | `transfers_account_completed_idx`: `transfers (from_account_id, created_at) INCLUDE (amount, to_account_id) WHERE status = 'COMPLETED' AND type = 'TRANSFER'` | Một index phục vụ cả các luật, và nhỏ vì loại `REJECTED` và `DEPOSIT`. Từ DBS-173, R1 (velocity), R2 (history) và R6 (outflow) đọc index này **một lần** trong một câu SQL (`TransferFacts.accountFacts`) thay vì ba lần; index-only scan cần visibility map mới nên `transfers` có `autovacuum_vacuum_insert_scale_factor = 0` và `autovacuum_vacuum_insert_threshold = 1000` (migration `TuneTransfersAutovacuum1795000011000`, [§7.4](#74-đã-đo-truy-vấn-đặc-trưng-fraud-dbs-173-2026-11-21)) |
@@ -530,6 +537,8 @@ Timeout `DATABASE_LOCK_TIMEOUT_MS` (2000), `DATABASE_STATEMENT_TIMEOUT_MS` (5000
 Mọi `Seq Scan` xuất hiện trên bảng lớn trong các truy vấn trên là lỗi cần sửa.
 
 ### 7.1 Đã đo: hạn mức ngày (DBS-84, 2026-11-08)
+
+> **BL-418:** `SENT_TODAY_SQL` không còn chạy trong khóa ở đường thường (guard đọc bộ đếm trên `accounts`). Các số dưới đây là chi phí của đường lùi và của câu hỏi tham chiếu mà test dùng để kiểm bộ đếm.
 
 PostgreSQL 17, `timezone = UTC`, 1.000.400 dòng ghi nợ của một tài khoản (730 ngày, 968 dòng hôm nay) + 500.000 dòng của 50.000 tài khoản khác, `VACUUM (ANALYZE)`; nạp và chạy bằng `node backend/scripts/manual-dbs84.cjs` (output thô: [manual-test.txt](../../features/screenshots/DBS-84/manual-test.txt)).
 
@@ -663,7 +672,7 @@ Down của migration fraud phải DROP hai trigger của mình trước khi DROP
 |---|---|
 | Hai lệnh A→B và B→A khóa chéo nhau | `SELECT id, balance, status FROM accounts WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE`: **luôn khóa theo thứ tự id**. `id` không bao giờ thay đổi nên thứ tự khóa ổn định |
 | Chờ khóa vô hạn làm cạn pool | `lock_timeout` 2 s, `statement_timeout` 5 s, `idle_in_transaction_session_timeout` 10 s (đặt `is_local` theo từng transaction, đã có trong `withTransaction`) |
-| Tài khoản nóng: các lệnh xếp hàng chờ khóa | Giữ thời gian giữ khóa ngắn: các lệnh sau `FOR UPDATE` chỉ là sync guard (index-only), 1 `INSERT transfers`, 2 `INSERT ledger_entries`, 2 `UPDATE accounts`, `INSERT outbox`, `INSERT audit`, `UPDATE idempotency_keys`. Khoảng 9 câu lệnh, mỗi câu cỡ 1 ms trong cùng AZ, nên ước lượng trần lý thuyết cỡ vài chục lệnh/giây cho **một** tài khoản. Cần đo bằng load test hot-account (NFR-SCAL-02), không tin ước lượng này |
+| Tài khoản nóng: các lệnh xếp hàng chờ khóa | Giữ thời gian giữ khóa ngắn: các lệnh sau `FOR UPDATE` là sync guard (từ BL-418 không còn truy vấn nào: đọc bộ đếm trên dòng đã khóa), 1 `INSERT transfers`, 2 `INSERT ledger_entries` (trigger bộ đếm cập nhật dòng nợ trong cùng câu, HOT), 2 `UPDATE accounts`, `INSERT outbox`, `INSERT audit`, `UPDATE idempotency_keys`. Khoảng 9 câu lệnh, mỗi câu cỡ 1 ms trong cùng AZ, nên ước lượng trần lý thuyết cỡ vài chục lệnh/giây cho **một** tài khoản. Cần đo bằng load test hot-account (NFR-SCAL-02), không tin ước lượng này |
 | `accounts` bị `UPDATE` liên tục trên cùng hàng | `fillfactor = 80` và **không** index cột `balance`/`status` để các cập nhật là HOT (không phải ghi lại index, ít bloat). Theo dõi `n_dead_tup` và autovacuum của `accounts` khi load test |
 | Giữ khóa trong lúc gọi dịch vụ ngoài | Cấm: không Redis/HTTP/SQS trong transaction; sự kiện đi qua `outbox_events` |
 | Pool | `DATABASE_POOL_MAX` mỗi task × số task ≤ `max_connections` của RDS. Kiểm bằng `SHOW max_connections;` trên instance thật (instance nhỏ chỉ cỡ khoảng một trăm). Chưa cần RDS Proxy/PgBouncer |

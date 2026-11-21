@@ -227,7 +227,7 @@ sequenceDiagram
 | Mã yêu cầu **scope theo user**: `UNIQUE(user_id, key)` | Nếu unique toàn cục, user A dùng trùng mã của B sẽ nhận response của B — lộ dữ liệu |
 | `INSERT … ON CONFLICT DO NOTHING` | Ở READ COMMITTED, câu lệnh chờ transaction đang giữ cùng key kết thúc. Nó commit → câu lệnh không insert, `SELECT` sau thấy response đã lưu. Nó rollback → câu lệnh insert và xử lý như lệnh mới. Không phát sinh lỗi `23505` nên transaction không bị hủy (AC-5.4) |
 | Khóa hai tài khoản **theo thứ tự id** | Hai lệnh A→B và B→A không khóa chéo nhau gây deadlock |
-| Sync guard đặt **sau** `FOR UPDATE` | Hạn mức ngày = tổng tiền đi hôm nay của tài khoản nguồn. Tài khoản nguồn đang bị khóa nên lệnh khác phải chờ; không thể hai lệnh cùng lọt hạn mức (AC-5.6) |
+| Sync guard đặt **sau** `FOR UPDATE` | Hạn mức ngày = tổng tiền đi hôm nay của tài khoản nguồn, đọc từ bộ đếm `accounts.sent_today`/`sent_day` trên chính dòng vừa khóa (trigger của sổ cái giữ, BL-418; không còn `SUM` trong lúc giữ khóa). Tài khoản nguồn đang bị khóa nên lệnh khác phải chờ; không thể hai lệnh cùng lọt hạn mức (AC-5.6) |
 | Lưu cả kết quả `REJECTED` cùng mã yêu cầu | Cùng mã luôn trả cùng kết quả (BR-07) |
 | Tài khoản SYSTEM `funding` chỉ là nguồn của nạp tiền | Đích là SYSTEM: lệnh `TRANSFER` bị từ chối `ACCOUNT_NOT_ACTIVE` (`to_account_id` NULL, cùng câu trả lời với tài khoản không tồn tại). Nguồn là SYSTEM: không khách nào sở hữu nó nên bước kiểm tra sở hữu tài khoản nguồn trả 404 kèm nhật ký `DENIED` (AC-5.8). Id `funding` cố định nên đoán được, không thể để khách chuyển tiền vào hay ra khỏi nó |
 | Không lưu trạng thái lỗi hệ thống | Rollback thì không có gì để lưu; client gửi lại cùng mã (AC-5.10) |
@@ -906,7 +906,7 @@ Danh mục luật R1–R6 định nghĩa ở BRD Phần 2 §2.1. Phần này mô
 | **Sync guard** (module `ledger`) | Trong transaction, sau `FOR UPDATE` | Chặn cứng → `REJECTED` | Vượt hạn mức lần/ngày, tài khoản bị khóa |
 | **Async detection** (module `risk`, chạy ở role worker) | Sau commit, qua sự kiện `TransferCompleted` | Chỉ **gắn cờ** | R1–R6 |
 
-Sync guard phải rẻ (chỉ đọc tài khoản đang khóa và tổng tiền đi trong ngày, ≤ 5 ms) và không được làm hỏng giao dịch. Phân tích lịch sử chạy bất đồng bộ nên không ảnh hưởng SLO chuyển tiền. Đánh đổi: giao dịch đáng ngờ đã chuyển xong khi bị phát hiện. V1 chấp nhận vì có nhân viên review; giữ tiền chờ duyệt là hướng mở rộng.
+Sync guard phải rẻ (chỉ đọc tài khoản đang khóa và bộ đếm tổng tiền đi trong ngày nằm trên dòng đó, không truy vấn, BL-418) và không được làm hỏng giao dịch. Phân tích lịch sử chạy bất đồng bộ nên không ảnh hưởng SLO chuyển tiền. Đánh đổi: giao dịch đáng ngờ đã chuyển xong khi bị phát hiện. V1 chấp nhận vì có nhân viên review; giữ tiền chờ duyệt là hướng mở rộng.
 
 ### 15.2 Nguồn dữ liệu cho từng luật
 

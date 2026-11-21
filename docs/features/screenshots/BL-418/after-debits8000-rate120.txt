@@ -1,0 +1,19 @@
+
+BL-418 lock hold · accounts=3 rate=120/s seconds=60 pool=10 seeded today's debits per account=8000
+sent 7200 in 60.0 s, non-201: 0
+HTTP latency               n=  7200  mean 14.59 ms  p50 11.82  p95 23.99  p99 73.54  max 233.96
+lock wait (FOR UPDATE)     n=  7200  mean 2.87 ms  p50 0.78  p95 8.52  p99 55.88  max 192.64
+lock hold (to COMMIT)      n=  7200  mean 6.32 ms  p50 6.00  p95 8.28  p99 11.60  max 31.16
+  of which checkGuards     n=  7200  mean 0.03 ms  p50 0.03  p95 0.04  p99 0.05  max 0.19
+
+pg_stat_statements (server side, this run only):
+    7200 calls  mean    2.068 ms      12 buf  SELECT a.id, a.customer_id AS "customerId", c.user_id AS "userId",   a.type, a
+    7200 calls  mean    0.231 ms      47 buf  INSERT INTO ledger_entries(transfer_id,account_id,direction,amount,balance_aft
+    7200 calls  mean    0.134 ms      32 buf  INSERT INTO transfers(type,from_account_id,to_account_id,amount,status,reject_
+   14400 calls  mean    0.055 ms      10 buf  UPDATE accounts SET balance=balance+$2::bigint, updated_at=clock_timestamp()  
+    7200 calls  mean    0.065 ms      13 buf  INSERT INTO idempotency_keys(user_id,idem_key,request_hash) VALUES($1,$2,$3)  
+    7200 calls  mean    0.059 ms      17 buf  UPDATE idempotency_keys SET transfer_id=$3,response_code=$4,response_body=$5::
+    7200 calls  mean    0.057 ms      14 buf  INSERT INTO audit_log   (actor_user_id, actor_role, action, outcome, target_ty
+    7200 calls  mean    0.040 ms       8 buf  INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,correlation
+    7200 calls  mean    0.018 ms       5 buf  SELECT $1 FROM public.accounts a           WHERE a.type <> $2             AND 
+    7203 calls  mean    0.001 ms       0 buf  COMMIT

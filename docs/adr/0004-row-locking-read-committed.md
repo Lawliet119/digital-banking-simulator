@@ -6,7 +6,7 @@
 | Ngày | 2026-10-11 |
 | Người viết | #1 (Ledger) |
 | Người duyệt | #4 (cặp đôi); cả nhóm |
-| Liên quan | Driver D-1 · NFR-COR-01, NFR-COR-03, NFR-SCAL-02 · AC-5.6, AC-5.9 · [`docs/03` §6.1](../03_HIGH_LEVEL_ARCHITECTURE.md) · [ADR-02](0002-postgresql-ledger.md) |
+| Liên quan | Driver D-1 · NFR-COR-01, NFR-COR-03, NFR-SCAL-02 · AC-5.6, AC-5.9 · [BL-418](../features/BL-418-daily-limit-counter.md) (bổ sung 2026-11-21) · [`docs/03` §6.1](../03_HIGH_LEVEL_ARCHITECTURE.md) · [ADR-02](0002-postgresql-ledger.md) |
 
 ## Bối cảnh
 
@@ -50,3 +50,7 @@ Chọn **A**:
 - A→B và B→A song song ≥ 100 lần không treo, không 500 (DBS-80); AC-5.9 với ≥ 50 luồng và một tài khoản nóng (DBS-99).
 - Tài khoản nóng 20 lệnh/giây, p95 < 1 giây (DBS-166).
 - Đối soát 0 lệch sau mọi test đồng thời (DBS-69).
+
+## Bổ sung 2026-11-21 (BL-418): hạn mức ngày đọc bộ đếm trên hàng đã khóa
+
+Mục «Lý do» ở trên viết hạn mức ngày là `SUM` trên `ledger_entries`. Số đo thật (DBS-173) cho thấy `SUM` chạy **trong lúc giữ khóa** nên thời gian giữ khóa tăng theo số dòng ghi nợ trong ngày (1,9 ms ở `baseline` 120 RPS, 9,6 ms ở ≈ 47.000 dòng). Quyết định điều chỉnh, **không đổi quy tắc 1 đến 4**: tổng ngày được giữ trên hàng tài khoản (`accounts.sent_today`, `sent_day`), do trigger của `ledger_entries` cộng trong cùng transaction với dòng sổ cái; guard (sau `FOR UPDATE`, như trước) đọc hai cột từ dòng vừa khóa. Hàng tài khoản đã khóa nên mọi lệnh khác từ tài khoản đó vẫn phải chờ và thấy bộ đếm đã commit của lệnh trước (cùng bảo đảm mà `SUM` dựa vào, AC-5.6). `SUM` còn lại làm đường lùi khi đồng hồ ứng dụng lùi sau ngày của bộ đếm, nên kết quả giống hệt bản cũ ở mọi ca. Lý do chọn trigger thay vì để ứng dụng cộng: mã cũ trong lúc triển khai cuốn chiếu vẫn ghi dòng nợ mà không cộng, và `dbs_api` không có quyền ghi hai cột. Sổ cái vẫn là nguồn sự thật: kiểm bất biến `daily_debit_totals` (DBS-69) so hai bên. Chi tiết, số đo trước/sau và cách lùi: [BL-418](../features/BL-418-daily-limit-counter.md).
