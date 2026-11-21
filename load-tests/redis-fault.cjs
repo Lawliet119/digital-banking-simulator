@@ -110,7 +110,8 @@ function connect(env = process.env, factory = null, overrides = {}) {
     password,
     tls: { servername: host },
     maxRetriesPerRequest: 0,
-    enableOfflineQueue: false,
+    // Công cụ phải đợi kết nối xong rồi mới gửi lệnh (khác app, vốn fail-fast): thiếu thì lệnh đầu bị từ chối ngay.
+    enableOfflineQueue: true,
     connectTimeout: 3000,
     ...overrides,
   };
@@ -142,8 +143,7 @@ async function main(argv, env = process.env) {
     validatePulse(num(3), num(4));
     await slowStepped({ client: connect(env), ...clock, lightSeconds: num(0), heavySeconds: num(1), lightPauseMs: num(2), heavyPauseMs: num(3), periodMs: num(4) });
   } else if (cmd === "probe") {
-    // enableOfflineQueue: PING chờ kết nối xong; thiếu thì lệnh bị từ chối ngay và «bị chặn» sẽ là kết quả giả
-    const client = connect(env, null, { enableOfflineQueue: true });
+    const client = connect(env);
     client.on?.("error", () => {}); // lỗi kết nối đã là kết quả (ok=false), không phải sự cố của công cụ
     console.log(JSON.stringify(await probe({ client })));
   } else if (cmd === "flush") {

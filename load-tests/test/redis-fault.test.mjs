@@ -91,6 +91,7 @@ test("TC-167-05 the client is built from env and the token never appears in a lo
   assert.equal(opts.password, "s3cr3t-token-value");
   assert.equal(opts.tls.servername, "redis.example");
   assert.equal(opts.maxRetriesPerRequest, 0);
+  assert.equal(opts.enableOfflineQueue, true, "the tool waits for the connection instead of failing the first command");
   assert.throws(() => fault.connect({ REDIS_HOST: "x" }, () => ({})), /REDIS_AUTH_TOKEN/);
   const h = harness();
   await fault.flush(h.deps);
