@@ -4,8 +4,8 @@
  * lưu trong repo: `aggregate.json` (theo scenario và tên request) và `per-minute.json` (theo phút). Chỉ đọc, không
  * ghi đè raw; thêm `requests.csv.gz` (mỗi request một dòng: epoch_ms,scenario,name,status,duration_ms). Dùng: node load-tests/aggregate-raw.cjs <thư mục kết quả có raw.json hoặc raw.json.gz>
  *
- * Lỗi hệ thống: status ngoài 200, 201, 422, 429 (kể cả 0: timeout, đứt kết nối), và 429 ngoài bài rate-limit (`record()` của
- * lib/client.js coi 429 là hợp lệ mọi nơi; ở cloud, giới hạn app đã nâng nên 429 là của WAF hoặc ALB, DBS-166 review #2).
+ * Lỗi hệ thống: status ngoài 200, 201, 422, 429 (kể cả 0: timeout, đứt kết nối), và 429 ngoài bài rate-limit (từ BL-415 `record()` của
+ * lib/client.js cũng chỉ nhận 429 ở bài rate-limit, qua `validStatuses`; ở cloud, giới hạn app đã nâng nên 429 là của WAF hoặc ALB, DBS-166 review #2).
  * Phân vị nội suy tuyến tính trên mảng đã sắp xếp (chỉ số p/100 × (n − 1)), cùng cách k6 tính p(95).
  */
 const { createReadStream, createWriteStream, existsSync, writeFileSync } = require("node:fs");

@@ -36,7 +36,7 @@ test("percentile: linear interpolation, bounds and unsorted input", () => {
   assert.ok(Math.abs(percentile(hundred, 95) - 95.05) < 1e-9);
 });
 
-// TC-166-05: gộp theo scenario và tên request, đếm lỗi hệ thống theo status (5xx và 0), 422/429 là nghiệp vụ.
+// TC-166-05: gộp theo scenario và tên request, đếm lỗi hệ thống theo status (5xx và 0), 422 là nghiệp vụ; 429 chỉ ở bài rate-limit (BL-415), ngoài đó là lỗi hạ tầng.
 test("aggregateLines groups by scenario and name and counts system errors", async () => {
   const lines = [
     http(100, "write_12", "POST /v1/transfers", 201, 0),

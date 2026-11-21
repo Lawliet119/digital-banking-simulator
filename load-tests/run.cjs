@@ -79,6 +79,7 @@ async function main(argv = process.argv.slice(2)) {
     ...process.env,
     BASE_URL: baseUrl,
     LOAD_RUN_ID: runId,
+    LOAD_SCENARIO: kind, // lib/client.js: 429 is valid only for "rate-limit" (BL-415)
     SMOKE: smoke ? "1" : "0",
     LOAD_FIXTURE: resolve(
       process.env.LOAD_FIXTURE || join(results, "fixture.json"),

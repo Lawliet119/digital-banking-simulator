@@ -2,7 +2,7 @@ import http from "k6/http";
 import { check } from "k6";
 import exec from "k6/execution";
 import { Counter, Rate, Trend } from "k6/metrics";
-import { AMOUNT, validateFixture } from "./config.js";
+import { AMOUNT, validateFixture, validStatuses } from "./config.js";
 
 export const fixture = validateFixture(
   JSON.parse(open(__ENV.LOAD_FIXTURE)),
@@ -12,7 +12,8 @@ export const errors = new Rate("system_errors");
 export const readLatency = new Trend("read_latency", true);
 export const transferLatency = new Trend("transfer_latency", true);
 export const bursts = new Counter("duplicate_bursts");
-http.setResponseCallback(http.expectedStatuses(200, 201, 422, 429));
+const VALID_STATUSES = validStatuses(__ENV.LOAD_SCENARIO);
+http.setResponseCallback(http.expectedStatuses(...VALID_STATUSES));
 
 export function key(suffix = "") {
   return `${__ENV.LOAD_RUN_ID}:${exec.scenario.name}:${exec.scenario.iterationInTest}${suffix}`;
@@ -37,7 +38,7 @@ export function json(response) {
   }
 }
 export function record(response, transfer = false, operation = "") {
-  const validStatus = [200, 201, 422, 429].includes(response.status);
+  const validStatus = VALID_STATUSES.includes(response.status);
   errors.add(!validStatus);
   if (transfer) transferLatency.add(response.timings.duration);
   else if (operation) readLatency.add(response.timings.duration, { operation });
