@@ -7,6 +7,35 @@ resource "aws_ecs_cluster" "main" {
   }
 }
 
+# Biến môi trường mặc định của api; `api_extra_environment` (DBS-166) ghi đè hoặc thêm vài khóa cho đợt đo tải.
+locals {
+  api_base_environment = [
+    { name = "NODE_ENV", value = var.node_env },
+    { name = "APP_ROLE", value = "api" },
+    { name = "TRUST_PROXY_HOPS", value = "1" },
+    { name = "PORT", value = "3000" },
+    { name = "AWS_REGION", value = var.region },
+    { name = "LOG_LEVEL", value = "log" },
+    { name = "COGNITO_USER_POOL_ID", value = local.base.cognito_user_pool_id },
+    { name = "COGNITO_CLIENT_ID", value = local.base.cognito_client_id },
+    { name = "COGNITO_ISSUER", value = local.base.cognito_issuer },
+    # DBS-67: app ghép DATABASE_URL từ DB_* (env.bootstrap). CA bundle nằm trong image (Dockerfile).
+    { name = "DB_HOST", value = aws_db_instance.main.address },
+    { name = "DB_PORT", value = "5432" },
+    { name = "DB_NAME", value = "dbs" },
+    { name = "DATABASE_SSL", value = "true" },
+    { name = "DATABASE_SSL_CA_PATH", value = "/etc/ssl/rds/global-bundle.pem" },
+    # DBS-75: app ghép REDIS_URL = rediss://:<token>@REDIS_HOST:REDIS_PORT (env.bootstrap).
+    { name = "REDIS_HOST", value = aws_elasticache_replication_group.main.primary_endpoint_address },
+    { name = "REDIS_PORT", value = "6379" },
+  ]
+
+  api_environment = concat(
+    [for e in local.api_base_environment : e if !contains(keys(var.api_extra_environment), e.name)],
+    [for k, v in var.api_extra_environment : { name = k, value = v }],
+  )
+}
+
 # Chỉ biến môi trường không bí mật (COGNITO_* là định danh công khai, không phải bí mật).
 # DB_USER, DB_PASSWORD (role dbs_api, BL-103; DBS-67) và REDIS_AUTH_TOKEN (DBS-75) đi qua `secrets`, không viết thẳng; app ghép
 # DATABASE_URL và REDIS_URL từ các phần (env.bootstrap). Thiếu chúng thì app staging từ chối khởi động,
@@ -32,26 +61,7 @@ resource "aws_ecs_task_definition" "api" {
 
     portMappings = [{ containerPort = 3000, protocol = "tcp" }]
 
-    environment = [
-      { name = "NODE_ENV", value = var.node_env },
-      { name = "APP_ROLE", value = "api" },
-      { name = "TRUST_PROXY_HOPS", value = "1" },
-      { name = "PORT", value = "3000" },
-      { name = "AWS_REGION", value = var.region },
-      { name = "LOG_LEVEL", value = "log" },
-      { name = "COGNITO_USER_POOL_ID", value = local.base.cognito_user_pool_id },
-      { name = "COGNITO_CLIENT_ID", value = local.base.cognito_client_id },
-      { name = "COGNITO_ISSUER", value = local.base.cognito_issuer },
-      # DBS-67: app ghép DATABASE_URL từ DB_* (env.bootstrap). CA bundle nằm trong image (Dockerfile).
-      { name = "DB_HOST", value = aws_db_instance.main.address },
-      { name = "DB_PORT", value = "5432" },
-      { name = "DB_NAME", value = "dbs" },
-      { name = "DATABASE_SSL", value = "true" },
-      { name = "DATABASE_SSL_CA_PATH", value = "/etc/ssl/rds/global-bundle.pem" },
-      # DBS-75: app ghép REDIS_URL = rediss://:<token>@REDIS_HOST:REDIS_PORT (env.bootstrap).
-      { name = "REDIS_HOST", value = aws_elasticache_replication_group.main.primary_endpoint_address },
-      { name = "REDIS_PORT", value = "6379" },
-    ]
+    environment = local.api_environment
 
     # Login của role dbs_api (db_roles.tf, BL-103), không phải master; ECS đọc khi task khởi động (execution
     # role, iam.tf). Đổi mật khẩu (db_role_password_version) thì task đang chạy giữ mật khẩu cũ: khởi động lại

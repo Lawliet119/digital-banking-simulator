@@ -13,6 +13,26 @@ const register = [
   join(backend, "node_modules/tsconfig-paths/register"),
 ];
 const tsArgs = (file) => [...register.flatMap((p) => ["-r", p]), file];
+// The CLI itself (BL-128). The old test-support path only re-exports it, so running that file
+// exits 0 without checking anything (found by DBS-166 on a real run).
+const checkerFile = join(backend, "src/scripts/invariants/invariants.ts");
+
+/**
+ * Exit 0 only when the CLI exited 0 AND printed a PASS report. A silent exit 0 means the checker never
+ * ran, which is "not checked" (2), never a pass. 1 (violations) and 2 (check error) pass through.
+ */
+function checkerExit({ status, stdout }) {
+  if (status !== 0) return status ?? 2;
+  for (const line of String(stdout || "").split(/\r?\n/)) {
+    if (!line.startsWith("{")) continue;
+    try {
+      if (JSON.parse(line).status === "PASS") return 0;
+    } catch {
+      // not the report line
+    }
+  }
+  return 2;
+}
 
 async function runChecked({ load, check }) {
   let code = 1;
@@ -134,7 +154,7 @@ async function main(argv = process.argv.slice(2)) {
       // Always check, including seed/preflight/load failure. Nothing silently becomes PASS.
       const r = spawnSync(
         process.execPath,
-        tsArgs(join(backend, "test/support/invariants.ts")),
+        tsArgs(checkerFile),
         {
           cwd: backend,
           env,
@@ -146,8 +166,9 @@ async function main(argv = process.argv.slice(2)) {
       const output = (r.stdout || "") + (r.stderr || "");
       writeFileSync(join(results, "invariants.txt"), output);
       process.stdout.write(output);
-      console.log(`invariantExit=${r.status ?? 2}; results=${results}`);
-      return r.status ?? 2;
+      const exitCode = checkerExit(r);
+      console.log(`invariantExit=${exitCode}; results=${results}`);
+      return exitCode;
     },
   });
   if (code)
@@ -169,4 +190,4 @@ if (require.main === module)
       );
       process.exitCode = 2;
     });
-module.exports = { runChecked, main };
+module.exports = { runChecked, main, checkerExit, checkerFile };

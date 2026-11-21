@@ -1,0 +1,22 @@
+# EXPLAIN (ANALYZE, BUFFERS) của truy vấn `history` của bộ trích đặc trưng fraud (backend/src/modules/risk/features/transfer-facts.ts) trên RDS thật, tài khoản nóng (Minh Anh), sau cả đợt đo, DB không tải, worker 0 (2026-11-21T04:07Z)
+counts {"from_hot":64289,"transfers_total":120699,"entries_total":241398}
+run 1: Planning Time: 0.653 ms | Execution Time: 87.339 ms
+run 2: Planning Time: 0.222 ms | Execution Time: 86.735 ms
+run 3: Planning Time: 0.215 ms | Execution Time: 86.222 ms
+Aggregate  (cost=14005.01..14005.03 rows=1 width=36) (actual time=85.917..85.919 rows=1 loops=1)
+  Buffers: shared hit=2476
+  ->  WindowAgg  (cost=11990.85..11990.88 rows=61973 width=24) (actual time=67.703..77.629 rows=64289 loops=1)
+        Buffers: shared hit=2476
+        ->  WindowAgg  (cost=10131.71..11216.22 rows=61973 width=16) (actual time=30.391..54.616 rows=64289 loops=1)
+              Buffers: shared hit=2476
+              ->  Sort  (cost=10131.69..10286.62 rows=61973 width=8) (actual time=30.382..34.532 rows=64289 loops=1)
+                    Sort Key: transfers.amount
+                    Sort Method: quicksort  Memory: 1537kB
+                    Buffers: shared hit=2476
+                    ->  Seq Scan on transfers  (cost=0.00..5198.84 rows=61973 width=8) (actual time=0.013..26.311 rows=64289 loops=1)
+                          Filter: ((created_at >= '2026-10-22 04:07:05.54+00'::timestamp with time zone) AND (created_at < '2026-11-21 04:07:05.54+00'::timestamp with time zone) AND (from_account_id = '6f5f1816-2958-4932-8978-6c3d32751a39'::uuid) AND (status = 'COMPLETED'::text) AND (type = 'TRANSFER'::text))
+                          Rows Removed by Filter: 56410
+                          Buffers: shared hit=2476
+Planning Time: 0.215 ms
+Execution Time: 86.222 ms
+

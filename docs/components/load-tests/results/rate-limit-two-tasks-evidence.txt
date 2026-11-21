@@ -1,0 +1,9 @@
+# BL-179: dòng log 'Request completed' theo task api trong cửa sổ bài rate-limit (2026-11-21T01:55:09Z đến 01:57:07Z), qua ALB
+# (mã task rút gọn 8 ký tự đầu; số đếm: statusCode 200 và 429 theo task)
+statusCode=200
+     66 task-b8a29f2b
+     65 task-c6631b4d
+      1 task-c6631b4d
+statusCode=429
+      1 task-b8a29f2b
+      1 task-c6631b4d

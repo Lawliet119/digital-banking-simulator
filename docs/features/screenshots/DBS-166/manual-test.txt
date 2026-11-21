@@ -1,0 +1,302 @@
+88246e09024fbfbcf0912c7f8e09cd51a9c24c61
+# DBS-166: output thô của lượt chạy trên AWS ngày 2026-11-21 (giờ UTC trừ khi ghi khác). Số tài khoản AWS đã thay bằng ACCT; không có token hay mật khẩu.
+# Mã harness chạy trên máy tải: commit 169668a582dd79217a9291a49101ab0c02e31a60 (trước rebase; nội dung load-tests, infra/scripts, infra/terraform/envs giống hệt 88246e09024fbfbcf0912c7f8e09cd51a9c24c61, kiểm bằng git diff --stat rỗng).
+
+===== M-166-01 tiền kiểm (chép từ terminal lúc 08:2x giờ địa phương, trước khi dựng) =====
+aws sts get-caller-identity -> user dev1 (nhóm dbs-admin), tài khoản ACCT, ap-southeast-1
+aws budgets describe-budgets -> Free-tier Budget 0.01; My Monthly Cost Budget limit 150.0, đã chi 3.147
+aws ecr describe-images --image-ids imageTag=0d5874b64491ae9cee0e041d6a201870668e9979 -> pushed 2026-11-21T03:12:44+07:00
+bash infra/scripts/verify-clean.sh -> 13 dòng OK (nat-gateway ... ebs), «KET LUAN: sạch (13 loại)», exit 0
+describe-user-pool-client dbs-app: lưu vào dbs-app-before.json (sha256 538da192e3f05485...); list-user-pool-clients: dbs-app
+terraform plan -lock=false (base, chỉ đọc): Plan: 3 to add, 7 to change, 0 to destroy (BL-409 chưa apply); lưu base-plan-before.txt
+
+===== M-166-02 apply loadgen (terraform output, bucket và id rút gọn) =====
+Apply complete! Resources: 14 added, 0 changed, 0 destroyed.
+instance_id = i-03f67c2bc9e134e88 (t3.medium, public subnet)
+public_ip = 13.212.21.237
+cognito_client_id = <client dbs-loadgen>
+bootstrap (SSM): node=v24.22.2 npm=11.19.1 k6=k6 v2.3.0 (go1.26.8, linux/amd64), source=169668a582dd79217a9291a49101ab0c02e31a60
+
+===== M-166-03 apply session (66 tài nguyên) =====
+08:33:13
+Apply complete! Resources: 66 added
+aws_lb.main: Creation complete after 2m12s 
+aws_elasticache_replication_group.main: Creation complete after 9m29s 
+aws_db_instance.main: Creation complete after 15m48s 
+Apply complete! Resources: 66 added, 0 changed, 0 destroyed.
+exit=0
+
+===== M-166-03 db-roles.sh =====
+Revision mới nhất (arn:aws:ecs:ap-southeast-1:ACCT:task-definition/dbs-db-roles:6) đã dùng image này; không đăng ký lại.
+Đã chạy task db-roles d8574ab1ea044f10844b4e011e50fc5b (image 0d5874b)
+--- Log task db-roles (50 dòng cuối) ---
+Đã đặt LOGIN và mật khẩu cho role dbs_api
+Đã đặt LOGIN và mật khẩu cho role dbs_worker
+Đã đặt LOGIN và mật khẩu cho role dbs_migrator
+Đăng nhập thử bằng dbs_api: được
+Đăng nhập thử bằng dbs_worker: được
+Đăng nhập thử bằng dbs_migrator: được
+--- hết log ---
+Đã đặt LOGIN và mật khẩu cho dbs_api, dbs_worker, dbs_migrator (task d8574ab1ea044f10844b4e011e50fc5b).
+
+===== M-166-03 migrate.sh =====
+::add-mask::dbs-dev.c38e8kcc65x0.ap-southeast-1.rds.amazonaws.com
+Revision mới nhất (arn:aws:ecs:ap-southeast-1:ACCT:task-definition/dbs-migrate:12) đã dùng image này; không đăng ký lại.
+Đã chạy task migration 511d71acbc044ad5b956331a4d5e30d0 (image 0d5874b)
+Migration xong (task 511d71acbc044ad5b956331a4d5e30d0).
+
+===== M-166-03 apply desired_count=2, worker=1 và /health/ready qua ALB từ máy tải =====
+Apply complete! Resources: 0 added, 2 changed, 0 destroyed. (08:51:39 đến 08:51:49 giờ địa phương)
+ready=503, 503, 503, 200
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+
+===== M-166-04 prepare (lần 1 và lần 2) trên máy tải =====
+Seed API complete: 3 customers, CHECKING budget >=50000000 VND; fixture stored privately
+prepare exit=0 (token đã xóa khỏi máy và bucket)
+---second-prepare---
+fixture đã có: /opt/loadgen/results/fixture.json (BL-213: không seed lại trên DB đã đo)
+ls: cannot access '/opt/loadgen/tokens.json': No such file or directory
+
+===== M-166-04 smoke baseline --smoke: exit.json, invariants.txt, ngưỡng k6 =====
+{"scenario":"baseline","startedAt":"2026-11-21T01:53:09Z","finishedAt":"2026-11-21T01:53:18Z","runExit":0,"invariantExit":0,"aggregateExit":0}
+{"status":"PASS","totals":{"debit":"172506000","credit":"172506000","balance":"0"},"violations":[]}
+
+█ THRESHOLDS 
+    checks
+    ✓ 'rate==1' rate=100.00%
+    dropped_iterations
+    ✓ 'count==0' count=0
+    read_latency{plateau:5,operation:balance}
+    ✓ 'p(95)<150' p(95)=49.67ms
+    read_latency{plateau:5,operation:history}
+    ✓ 'p(95)<150' p(95)=25.75ms
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+    transfer_latency{plateau:5}
+    ✓ 'p(95)<300' p(95)=47.78ms
+    ✓ 'p(99)<1000' p(99)=48.95ms
+
+===== M-166-05 rate-limit (giới hạn mặc định, 2 task qua ALB): exit.json, invariants.txt, ngưỡng k6 =====
+{"scenario":"rate-limit","startedAt":"2026-11-21T01:55:09Z","finishedAt":"2026-11-21T01:57:06Z","runExit":0,"invariantExit":0,"aggregateExit":0}
+{"status":"PASS","totals":{"debit":"172516000","credit":"172516000","balance":"0"},"violations":[]}
+
+█ THRESHOLDS 
+    checks
+    ✓ 'rate==1' rate=100.00%
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+
+===== M-166-07 baseline đủ tải: exit.json, invariants.txt, ngưỡng k6 =====
+{"scenario":"baseline","startedAt":"2026-11-21T02:04:35Z","finishedAt":"2026-11-21T02:50:21Z","runExit":99,"invariantExit":0,"aggregateExit":0}
+{"status":"PASS","totals":{"debit":"207079000","credit":"207079000","balance":"0"},"violations":[]}
+
+█ THRESHOLDS 
+    checks
+    ✗ 'rate==1' rate=99.99%
+    dropped_iterations
+    ✓ 'count==0' count=0
+    read_latency{plateau:12,operation:balance}
+    ✓ 'p(95)<150' p(95)=23.27ms
+    read_latency{plateau:12,operation:history}
+    ✓ 'p(95)<150' p(95)=24.54ms
+    read_latency{plateau:120,operation:balance}
+    ✓ 'p(95)<150' p(95)=52.9ms
+    read_latency{plateau:120,operation:history}
+    ✓ 'p(95)<150' p(95)=61.06ms
+    read_latency{plateau:60,operation:balance}
+    ✓ 'p(95)<150' p(95)=29.92ms
+    read_latency{plateau:60,operation:history}
+    ✓ 'p(95)<150' p(95)=34.39ms
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+    transfer_latency{plateau:12}
+    ✓ 'p(95)<300' p(95)=41.96ms
+    ✓ 'p(99)<1000' p(99)=105.56ms
+    transfer_latency{plateau:120}
+    ✓ 'p(95)<300' p(95)=218.16ms
+    ✓ 'p(99)<1000' p(99)=703.23ms
+    transfer_latency{plateau:60}
+    ✓ 'p(95)<300' p(95)=59.63ms
+    ✓ 'p(99)<1000' p(99)=153.09ms
+
+===== M-166-07 hot-account (worker 1): exit.json, invariants.txt, ngưỡng k6 =====
+{"scenario":"hot-account","startedAt":"2026-11-21T02:54:49Z","finishedAt":"2026-11-21T03:09:58Z","runExit":99,"invariantExit":0,"aggregateExit":0}
+{"status":"PASS","totals":{"debit":"225079000","credit":"225079000","balance":"0"},"violations":[]}
+
+█ THRESHOLDS 
+    checks
+    ✗ 'rate==1' rate=98.33%
+    dropped_iterations
+    ✓ 'count==0' count=0
+    system_errors
+    ✗ 'rate<0.001' rate=1.66%
+    transfer_latency
+    ✓ 'p(95)<1000' p(95)=823.55ms
+
+===== M-166-07 duplicate: exit.json, invariants.txt, ngưỡng k6 =====
+{"scenario":"duplicate","startedAt":"2026-11-21T03:13:12Z","finishedAt":"2026-11-21T03:14:17Z","runExit":0,"invariantExit":0,"aggregateExit":0}
+{"status":"PASS","totals":{"debit":"225140000","credit":"225140000","balance":"0"},"violations":[]}
+
+█ THRESHOLDS 
+    checks
+    ✓ 'rate==1' rate=100.00%
+    dropped_iterations
+    ✓ 'count==0' count=0
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+    transfer_latency
+    ✓ 'p(95)<300' p(95)=60.32ms
+
+===== M-166-07 stress (worker 1): exit.json, invariants.txt, ngưỡng k6 =====
+{"scenario":"stress","startedAt":"2026-11-21T03:14:29Z","finishedAt":"2026-11-21T03:30:17Z","runExit":99,"invariantExit":0,"aggregateExit":0}
+{"status":"PASS","totals":{"debit":"242640000","credit":"242640000","balance":"0"},"violations":[]}
+
+█ THRESHOLDS 
+    checks
+    ✗ 'rate==1' rate=25.32%
+    dropped_iterations
+    ✗ 'count==0' count=12886
+    read_latency{plateau:120,operation:balance}
+    ✓ 'p(95)<150' p(95)=145.36ms
+    read_latency{plateau:120,operation:history}
+    ✗ 'p(95)<150' p(95)=182.99ms
+    read_latency{plateau:180,operation:balance}
+    ✗ 'p(95)<150' p(95)=2s
+    read_latency{plateau:180,operation:history}
+    ✗ 'p(95)<150' p(95)=2s
+    read_latency{plateau:240,operation:balance}
+    ✗ 'p(95)<150' p(95)=2s
+    read_latency{plateau:240,operation:history}
+    ✗ 'p(95)<150' p(95)=2s
+    system_errors
+    ✗ 'rate<0.001' rate=74.67%
+    transfer_latency{plateau:120}
+    ✗ 'p(95)<300' p(95)=784.2ms
+    ✗ 'p(99)<1000' p(99)=1.76s
+    transfer_latency{plateau:180}
+    ✗ 'p(95)<300' p(95)=2s
+    ✗ 'p(99)<1000' p(99)=2s
+    transfer_latency{plateau:240}
+    ✗ 'p(95)<300' p(95)=2s
+    ✗ 'p(99)<1000' p(99)=2s
+
+===== M-166-08 stress (worker 0): exit.json, invariants.txt, ngưỡng k6 =====
+{"scenario":"stress","startedAt":"2026-11-21T03:32:38Z","finishedAt":"2026-11-21T03:48:24Z","runExit":99,"invariantExit":0,"aggregateExit":0}
+{"status":"PASS","totals":{"debit":"275189000","credit":"275189000","balance":"0"},"violations":[]}
+
+█ THRESHOLDS 
+    checks
+    ✗ 'rate==1' rate=99.73%
+    dropped_iterations
+    ✗ 'count==0' count=205
+    read_latency{plateau:120,operation:balance}
+    ✓ 'p(95)<150' p(95)=28.82ms
+    read_latency{plateau:120,operation:history}
+    ✓ 'p(95)<150' p(95)=32.46ms
+    read_latency{plateau:180,operation:balance}
+    ✓ 'p(95)<150' p(95)=44.83ms
+    read_latency{plateau:180,operation:history}
+    ✓ 'p(95)<150' p(95)=53.21ms
+    read_latency{plateau:240,operation:balance}
+    ✗ 'p(95)<150' p(95)=618.47ms
+    read_latency{plateau:240,operation:history}
+    ✗ 'p(95)<150' p(95)=909.08ms
+    system_errors
+    ✗ 'rate<0.001' rate=0.26%
+    transfer_latency{plateau:120}
+    ✓ 'p(95)<300' p(95)=97.55ms
+    ✓ 'p(99)<1000' p(99)=437.75ms
+    transfer_latency{plateau:180}
+    ✓ 'p(95)<300' p(95)=240.05ms
+    ✓ 'p(99)<1000' p(99)=740.15ms
+    transfer_latency{plateau:240}
+    ✗ 'p(95)<300' p(95)=1.36s
+    ✗ 'p(99)<1000' p(99)=2s
+
+===== M-166-08 hot-account (worker 0, chẩn đoán): exit.json, invariants.txt, ngưỡng k6 =====
+{"scenario":"hot-account","startedAt":"2026-11-21T03:50:08Z","finishedAt":"2026-11-21T04:05:16Z","runExit":0,"invariantExit":0,"aggregateExit":0}
+{"status":"PASS","totals":{"debit":"293190000","credit":"293190000","balance":"0"},"violations":[]}
+
+█ THRESHOLDS 
+    checks
+    ✓ 'rate==1' rate=100.00%
+    dropped_iterations
+    ✓ 'count==0' count=0
+    system_errors
+    ✓ 'rate<0.001' rate=0.00%
+    transfer_latency
+    ✓ 'p(95)<1000' p(95)=52.33ms
+
+===== M-166-05 bằng chứng hai task cùng nhận request (BL-179) =====
+# BL-179: dòng log 'Request completed' theo task api trong cửa sổ bài rate-limit (2026-11-21T01:55:09Z đến 01:57:07Z), qua ALB
+# (mã task rút gọn 8 ký tự đầu; số đếm: statusCode 200 và 429 theo task)
+statusCode=200
+     66 task-b8a29f2b
+     65 task-c6631b4d
+      1 task-c6631b4d
+statusCode=429
+      1 task-b8a29f2b
+      1 task-c6631b4d
+
+===== M-166-06 cập nhật api_extra_environment và update-service =====
+terraform apply: Resources: 1 added, 0 changed, 1 destroyed (task definition dbs-api:20)
+aws ecs update-service --task-definition dbs-api:20 (08:58:16 giờ địa phương)
+rollout COMPLETED lúc 09:04:18 (runningCount 2, deployments 1)
+
+===== M-166-09 EXPLAIN ANALYZE truy vấn history trên RDS thật =====
+# EXPLAIN (ANALYZE, BUFFERS) của truy vấn `history` của bộ trích đặc trưng fraud (backend/src/modules/risk/features/transfer-facts.ts) trên RDS thật, tài khoản nóng (Minh Anh), sau cả đợt đo, DB không tải, worker 0 (2026-11-21T04:07Z)
+counts {"from_hot":64289,"transfers_total":120699,"entries_total":241398}
+run 1: Planning Time: 0.653 ms | Execution Time: 87.339 ms
+run 2: Planning Time: 0.222 ms | Execution Time: 86.735 ms
+run 3: Planning Time: 0.215 ms | Execution Time: 86.222 ms
+Aggregate  (cost=14005.01..14005.03 rows=1 width=36) (actual time=85.917..85.919 rows=1 loops=1)
+  Buffers: shared hit=2476
+  ->  WindowAgg  (cost=11990.85..11990.88 rows=61973 width=24) (actual time=67.703..77.629 rows=64289 loops=1)
+        Buffers: shared hit=2476
+        ->  WindowAgg  (cost=10131.71..11216.22 rows=61973 width=16) (actual time=30.391..54.616 rows=64289 loops=1)
+              Buffers: shared hit=2476
+              ->  Sort  (cost=10131.69..10286.62 rows=61973 width=8) (actual time=30.382..34.532 rows=64289 loops=1)
+                    Sort Key: transfers.amount
+                    Sort Method: quicksort  Memory: 1537kB
+                    Buffers: shared hit=2476
+                    ->  Seq Scan on transfers  (cost=0.00..5198.84 rows=61973 width=8) (actual time=0.013..26.311 rows=64289 loops=1)
+                          Filter: ((created_at >= '2026-10-22 04:07:05.54+00'::timestamp with time zone) AND (created_at < '2026-11-21 04:07:05.54+00'::timestamp with time zone) AND (from_account_id = '6f5f1816-2958-4932-8978-6c3d32751a39'::uuid) AND (status = 'COMPLETED'::text) AND (type = 'TRANSFER'::text))
+                          Rows Removed by Filter: 56410
+                          Buffers: shared hit=2476
+Planning Time: 0.215 ms
+Execution Time: 86.222 ms
+
+===== M-166-10 destroy session =====
+bắt đầu 11:07:40
+Destroy complete! Resources: 66 destroyed.
+exit=0
+kết thúc 11:15:13
+
+===== M-166-10 destroy loadgen =====
+Destroy complete! Resources: 14 destroyed. (11:07:45 đến 11:08:29 giờ địa phương); terraform state list: 0 tài nguyên
+
+===== M-166-10 verify-clean.sh sau khi hủy =====
+OK nat-gateway
+OK load-balancer
+OK rds
+OK rds-snapshot-manual
+OK elasticache
+OK ecs
+OK elastic-ip
+OK eni-available
+OK waf-regional
+OK vpc-endpoint-ec2
+OK rds-automated-backup
+OK elasticache-snapshot
+OK ebs
+KET LUAN: sạch (13 loại)
+verify-clean exit=0
+
+===== M-166-10 trạng thái sau hủy =====
+list-user-pool-clients -> dbs-app (client tạm dbs-loadgen đã xóa)
+cmp dbs-app-before.json dbs-app-after.json -> giống hệt
+terraform plan -lock=false của base trước và sau: giống hệt (diff rỗng)
+aws s3api head-bucket bucket tạm -> 404 Not Found
+aws sqs get-queue-attributes (4 queue của base): 0 message mỗi queue
+state tạm dev/loadgen-dbs166.tfstate và dev/session-dbs166.tfstate đã xóa; dev/base.tfstate giữ nguyên (20:33:10 14/11)
+

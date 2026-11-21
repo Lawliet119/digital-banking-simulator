@@ -75,3 +75,26 @@ test("TC-165-02 negative control: balanced extra transactions must fail cardinal
     /cardinality/i,
   );
 });
+
+// DBS-166 (TC-166-10..12): `backend/test/support/invariants.ts` chỉ re-export từ BL-128, nên chạy nó thoát 0 mà không
+// in gì. Runner phải chạy CLI thật và chỉ nhận PASS khi thoát 0 kèm báo cáo PASS trên stdout.
+const { checkerExit, checkerFile } = require("../run.cjs");
+
+test("TC-166-10 runner runs the real checker CLI, not the re-export", async () => {
+  const { readFileSync } = await import("node:fs");
+  assert.match(checkerFile.replaceAll("\\", "/"), /backend\/src\/scripts\/invariants\/invariants\.ts$/);
+  assert.match(readFileSync(checkerFile, "utf8"), /require\.main === module/);
+  assert.doesNotMatch(readFileSync(new URL("../run.cjs", import.meta.url), "utf8"), /test\/support\/invariants/);
+});
+test("TC-166-11 silent exit 0 is not a pass (negative control for the re-export)", () => {
+  assert.equal(checkerExit({ status: 0, stdout: "", stderr: "" }), 2);
+  assert.equal(checkerExit({ status: 0, stdout: "banner only\n", stderr: "" }), 2);
+  assert.equal(checkerExit({ status: 0, stdout: '{"status":"FAIL"}\n', stderr: "" }), 2);
+});
+test("TC-166-12 exit code mapping keeps violation and error codes", () => {
+  assert.equal(checkerExit({ status: 0, stdout: '{"status":"PASS","totals":{}}\n', stderr: "" }), 0);
+  assert.equal(checkerExit({ status: 1, stdout: '{"status":"FAIL"}\n', stderr: "" }), 1);
+  assert.equal(checkerExit({ status: 2, stdout: "", stderr: "CHECK_ERROR" }), 2);
+  assert.equal(checkerExit({ status: null, stdout: "", stderr: "" }), 2);
+  assert.equal(checkerExit({ status: 0, stdout: 'x\n{"status":"PASS"}\n', stderr: "" }), 0);
+});

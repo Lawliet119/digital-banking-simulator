@@ -1242,3 +1242,75 @@ run "bl103_rejects_version_zero" {
 
   expect_failures = [var.db_role_password_version]
 }
+
+# DBS-166: cấu hình tải của app (docs/03 §12) đi qua biến `api_extra_environment`, chỉ nhận khóa RATE_LIMIT_*.
+run "dbs166_api_extra_environment_default_is_empty" {
+  command = apply
+
+  assert {
+    condition     = !contains([for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name], "RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE")
+    error_message = "without the variable the api keeps the application defaults (10 transfers and 100 requests per minute)"
+  }
+}
+
+run "dbs166_api_extra_environment_raises_rate_limits" {
+  command = apply
+
+  variables {
+    api_extra_environment = {
+      RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE = "1000000"
+      RATE_LIMIT_TRANSFERS_PER_MINUTE       = "1000000"
+    }
+  }
+
+  assert {
+    condition = (
+      { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE"] == "1000000"
+      && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["RATE_LIMIT_TRANSFERS_PER_MINUTE"] == "1000000"
+      && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["TRUST_PROXY_HOPS"] == "1"
+    )
+    error_message = "the two limits are added and the existing environment is untouched"
+  }
+}
+
+run "dbs166_api_extra_environment_rejects_other_keys" {
+  command = plan
+
+  variables {
+    api_extra_environment = {
+      NODE_ENV = "development"
+    }
+  }
+
+  expect_failures = [var.api_extra_environment]
+}
+
+run "dbs166_api_extra_environment_rejects_non_numeric_values" {
+  command = plan
+
+  variables {
+    api_extra_environment = {
+      RATE_LIMIT_TRANSFERS_PER_MINUTE = "unlimited"
+    }
+  }
+
+  expect_failures = [var.api_extra_environment]
+}
+
+run "dbs166_api_extra_environment_replaces_cognito_client_without_duplicate" {
+  command = apply
+
+  variables {
+    api_extra_environment = {
+      COGNITO_CLIENT_ID = "loadgenclient0123456789"
+    }
+  }
+
+  assert {
+    condition = (
+      length([for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e if e.name == "COGNITO_CLIENT_ID"]) == 1
+      && { for e in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].environment : e.name => e.value }["COGNITO_CLIENT_ID"] == "loadgenclient0123456789"
+    )
+    error_message = "the override replaces the base client id; ECS rejects duplicate environment names"
+  }
+}

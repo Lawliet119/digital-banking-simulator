@@ -11,7 +11,8 @@ infra/terraform/
 └── envs/
     ├── dev/
     │   ├── base/     # phần giữ lại: VPC, ECR, KMS, Cognito, logs, OIDC, SQS (hiếm khi đổi)
-    │   └── session/  # phần dựng/xóa hằng ngày: RDS, ElastiCache, ALB, ECS, WAF
+    │   ├── session/  # phần dựng/xóa hằng ngày: RDS, ElastiCache, ALB, ECS, WAF
+    │   └── loadgen/  # máy chạy k6 cùng region, bucket và client Cognito tạm cho một đợt đo tải (DBS-166)
     └── prod/
         └── session/  # Multi-AZ, ≥ 2 task; dùng lại base của dev qua remote state
 ```
@@ -439,6 +440,23 @@ aws ce list-cost-allocation-tag-backfill-history
 ```
 
 > **State `base` đang lệch với `main`:** queue SQS của DBS-73 (PR #40, chưa merge) đã được apply, còn role deploy thì chưa có trong state. `terraform plan` đầy đủ từ `main` sẽ **xóa 11 tài nguyên SQS**. Tới khi DBS-73 merge, chỉ apply tag bằng `-target`: `terraform plan -out=tags.tfplan -var account_id=<account-id> -target='aws_ce_cost_allocation_tag.this'`, rồi `terraform apply tags.tfplan` ([BL-138](../../docs/BACKLOG.md)).
+
+## Máy chạy tải và đợt đo k6 (DBS-166)
+
+Stack `envs/dev/loadgen` dựng **một máy chạy k6 cùng region** (EC2 `t3.medium` ở public subnet, IP công khai gán lúc khởi động, SG không ingress, điều khiển bằng SSM), một bucket S3 tạm và một client Cognito tạm `dbs-loadgen` (access token 240 phút, để một fixture dùng hết năm bài; `base` và app client `dbs-app` không bị đụng). Dựng cho một đợt đo rồi `destroy`; state key riêng, ví dụ `dev/loadgen-dbs166.tfstate`. Stack thêm **một** luật ingress 5432 vào SG RDS của `base` bằng resource nằm trong state của `loadgen`, nên `destroy` gỡ sạch. **Không stop máy tải**: IP công khai sẽ đổi và mất miễn trừ WAF.
+
+Thứ tự (state tạm cho cả hai stack, `-backend-config=key=dev/<tên>-<task>.tfstate`; mọi `plan`, `apply`, `destroy` của `session` dùng cùng một `-var-file` gồm `account_id`, `state_bucket`, `image_tag`, `db_instance_class`, `db_multi_az`, `redis_replicas`, `desired_count`, `worker_desired_count`, `waf_rate_limit_exempt_cidrs`, `api_extra_environment`; thiếu một biến là âm thầm đổi cấu hình):
+
+1. `apply` `loadgen` trước: lấy output `public_ip`, `cognito_client_id`, `bucket`.
+2. `git archive --add-file=COMMIT -o src.tgz HEAD backend load-tests infra/scripts` (loại `load-tests/fraud-dataset`) và `loadgen-bootstrap.sh` lên bucket, chạy bootstrap bằng SSM (`AWS-RunShellScript`, Node 24 và k6 v2.3.0 có kiểm checksum, `npm ci` backend, in SHA của `COMMIT`).
+3. `apply` `session` với `waf_rate_limit_exempt_cidrs=["<public_ip>/32"]`, `api_extra_environment={COGNITO_CLIENT_ID="<id>"}`, `db_instance_class=db.t4g.small`, `db_multi_az=true`, `redis_replicas=1`, `desired_count=0`; `db-roles.sh`; `IMAGE_TAG=<sha> migrate.sh`; rồi `apply` lại với `desired_count=2`, `worker_desired_count=1`.
+4. Ghi `/opt/loadgen/run.env` (`BUCKET`, `BASE_URL=https://<alb_dns_name>`, `DB_HOST=<db_address>`, `TOKENS_S3_KEY`) từ output của `session`, **rồi** lấy token ngay trước `prepare`: `COGNITO_CLIENT_ID=<id> node infra/scripts/loadgen-tokens.mjs tokens.json` trên máy vận hành (máy tải không đọc `demo-accounts`), đẩy lên bucket, xóa bản trên máy vận hành.
+5. `loadgen-run.sh prepare` một lần (BL-213: một DB một đợt đo; xóa token khỏi máy tải và bucket), rồi `loadgen-run.sh run <kịch bản>` từng bài: bài dài chạy nền, ví dụ `nohup setsid bash /opt/loadgen/src/infra/scripts/loadgen-run.sh run baseline > /opt/loadgen/logs/baseline.out 2>&1 &` và hỏi tiến độ bằng lệnh SSM ngắn (bằng chứng là `run.log` và `exit.json` trong thư mục kết quả, không phải output SSM bị cắt ở 24.000 ký tự). Bài `rate-limit` chạy trước với giới hạn mặc định 10/100; sau đó thêm `RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE` và `RATE_LIMIT_TRANSFERS_PER_MINUTE` vào `api_extra_environment` (giữ `COGNITO_CLIENT_ID`), `apply`, rồi `aws ecs update-service --task-definition <ARN từ state>` (service có `ignore_changes = [task_definition]`), rồi baseline, hot-account, `loadgen-run.sh quiesce`, duplicate, stress. `run` luôn chạy checker bất biến (DBS-69) và `aggregate-raw.cjs`, nén `raw.json`, ghi `exit.json`, đẩy kết quả lên bucket.
+6. Kéo kết quả về, `destroy` `session` rồi `loadgen`, `verify-clean.sh` phải thoát 0, `list-user-pool-clients` chỉ còn `dbs-app`.
+
+Chạy từ Git Bash trên Windows: `db-roles.sh` và `migrate.sh` cần `python3` (shim trỏ `python`) và `TMPDIR` dạng `F:/...` (aws.exe không đọc `/tmp` của MSYS); `git archive`, `aws` dùng đường dẫn `F:/...`, `tar` cần `--force-local`; log group không bắt đầu bằng `/` trừ khi đặt `MSYS_NO_PATHCONV=1`. Profile `dbs` (IAM user `dev1`, nhóm `dbs-admin`) dựng được `session` (2026-11-21, 66 tài nguyên).
+
+`api_extra_environment` chỉ nhận ba khóa (hai `RATE_LIMIT_*` là số nguyên dương, và `COGNITO_CLIENT_ID`), thay thế khóa trùng tên của task definition; không dùng ngoài đợt đo. TLS: ALB dev có chứng chỉ tự ký nên k6 chạy với `K6_INSECURE_SKIP_TLS_VERIFY=true` và riêng `prepare` với `NODE_TLS_REJECT_UNAUTHORIZED=0`; TLS tới RDS luôn xác minh bằng CA bundle. Phán quyết DoD 3 (lỗi < 0,1% suốt plateau 120 RPS, không dropped iteration, 429 ngoài bài rate-limit tính là lỗi) do `load-tests/aggregate-raw.cjs` tính trong `aggregate.json` (`plateaus`). Một đợt đủ năm bài khoảng 3 giờ (≈ 0,5 USD/giờ), vượt trần 90 phút của phiên demo: đây là ngoại lệ có chủ đích của task tải, trần cứng 3,5 giờ. Kết quả đo: [docs/components/load-tests](../../docs/components/load-tests/).
 
 ## Môi trường production (`envs/prod/session`, DBS-152)
 
