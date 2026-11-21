@@ -15,6 +15,8 @@ import { DataSource } from 'typeorm';
 import { TransferFacts, type Queryable } from '@modules/risk/features/transfer-facts';
 
 const HOT_ROWS = Number(process.env.HOT_ROWS ?? 64_289);
+/** Rows of other accounts: enough that the busy account is a quarter of the table, so the index pays. */
+const NOISE_ROWS = Number(process.env.NOISE_ROWS ?? 200_000);
 const COMPLETED = `status = 'COMPLETED' AND type = 'TRANSFER'`;
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -62,7 +64,7 @@ async function main(): Promise<void> {
   const occ = Date.now();
   const iso = (ms: number): string => new Date(ms).toISOString();
 
-  console.log(`seed SQL: ${HOT_ROWS} transfers for one account, plus noise`);
+  console.log(`seed SQL: ${HOT_ROWS} transfers for one account, ${NOISE_ROWS} for another`);
   await q(`INSERT INTO users(id, cognito_sub) VALUES ('11111111-1111-4111-8111-111111111111', 'manual-dbs-173')
            ON CONFLICT DO NOTHING`);
   const accounts: string[] = [];
@@ -101,8 +103,8 @@ async function main(): Promise<void> {
     `INSERT INTO transfers(type,from_account_id,to_account_id,amount,status,reject_reason,initiated_by,correlation_id,created_at)
      SELECT 'TRANSFER', $1::uuid, $2::uuid, 1000 + g, 'COMPLETED', NULL,
             '11111111-1111-4111-8111-111111111111', gen_random_uuid(), $3::timestamptz - (g * interval '10 minutes')
-     FROM generate_series(1, 2000) g`,
-    [other, otherTarget, iso(occ)],
+     FROM generate_series(1, $4::int) g`,
+    [other, otherTarget, iso(occ), NOISE_ROWS],
   );
   await q('VACUUM (ANALYZE) transfers');
 
