@@ -22,3 +22,10 @@ Tests:       1 failed, 181 passed, 182 total
 Test Suites: 18 passed, 18 total
 Tests:       182 passed, 182 total
 Time:        106.746 s, estimated 1292 s
+## npm run lint:check (after the TC-418-09/11 tests were completed)
+
+exit 0
+## npm run test:e2e, parallel as CI runs it, fourth run (machine with 4 GB free)
+Test Suites: 18 passed, 18 total
+Tests:       182 passed, 182 total
+Time:        84.634 s

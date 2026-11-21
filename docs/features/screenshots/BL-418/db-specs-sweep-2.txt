@@ -1,0 +1,31 @@
+HEAD 75b09885+tests: the 15 specs the first sweep did not reach (system stopped it, low memory); one at a time, -i
+== transaction-history-plan
+Tests:       3 passed, 3 total
+== transfer-status
+Tests:       6 passed, 6 total
+== transfers-autovacuum
+Tests:       3 passed, 3 total
+== outbox-writer
+Tests:       34 passed, 34 total
+== openapi-completeness
+Tests:       8 passed, 8 total
+== openapi-export
+Tests:       1 passed, 1 total
+== denied-load
+Tests:       1 passed, 1 total
+== dedup-cleanup
+Tests:       11 passed, 11 total
+== notification-consumer
+Tests:       15 passed, 15 total
+== risk-decisions
+Tests:       14 passed, 14 total
+== reconciliation-schema
+Tests:       98 passed, 98 total
+== migration-owner-role
+Tests:       4 passed, 4 total
+== append-only
+Tests:       25 passed, 25 total
+== customer-onboarding
+Tests:       7 passed, 7 total
+== migration-cli-reduced-env
+Tests:       2 passed, 2 total

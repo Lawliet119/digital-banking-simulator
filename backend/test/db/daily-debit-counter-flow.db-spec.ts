@@ -45,7 +45,8 @@ describe('BL-418 the day counter through the real transfer flow', () => {
   beforeAll(async () => {
     db = await createTempDatabase();
     await migrate(db.url);
-    app = await startDepositApp(db.url);
+    // a pool above the 40 requests of TC-418-09 released together
+    app = await startDepositApp(db.url, { poolMax: 60 });
     operator = await app.issuer.token('operator', { sub: randomUUID() });
   });
   afterEach(async () => {
@@ -131,7 +132,7 @@ describe('BL-418 the day counter through the real transfer flow', () => {
     await expectCounterEqualsLedger(source.accountId, sink.accountId);
   });
 
-  it('TC-418-09 AC-5.6 and NFR-COR-03: parallel 15,000,000 transfers after 180,000,000 sent, three accounts at once', async () => {
+  it('TC-418-09 AC-5.6 and NFR-COR-03: 40 parallel 15,000,000 transfers after 180,000,000 sent, three accounts at once', async () => {
     const sources: Target[] = [],
       sinks: Target[] = [];
     for (let i = 0; i < 3; i++) {
@@ -140,22 +141,26 @@ describe('BL-418 the day counter through the real transfer flow', () => {
       for (const amount of ['50000000', '50000000', '50000000', '30000000'])
         expect((await send(sources[i], sinks[i].accountId, amount)).status).toBe(201);
     }
-    // six parallel 15,000,000 per source, all eighteen released together: 180 + 15 fits, 210 does not
+    // 14 + 13 + 13 = 40 requests released together: 180 + 15 = 195 fits once, 210 never
+    const perSource = [14, 13, 13];
     const answers = await Promise.all(
       sources.flatMap((source, i) =>
-        Array.from({ length: 6 }, () => send(source, sinks[i].accountId, '15000000')),
+        Array.from({ length: perSource[i] }, () => send(source, sinks[i].accountId, '15000000')),
       ),
     );
+    let offset = 0;
     for (let i = 0; i < 3; i++) {
-      const mine = answers.slice(i * 6, i * 6 + 6);
+      const mine = answers.slice(offset, offset + perSource[i]);
+      offset += perSource[i];
       expect(mine.filter(a => a.status === 201)).toHaveLength(1);
       const refused = mine.filter(a => a.status === 422);
-      expect(refused).toHaveLength(5);
+      expect(refused).toHaveLength(perSource[i] - 1);
       expect(refused.every(a => a.body.errorCode === 'LIMIT_PER_DAY_EXCEEDED')).toBe(true);
       const counter = await counterOf(db.runner, sources[i].accountId);
       expect(counter.sentToday).toBe('195000000');
       expect(BigInt(counter.sentToday)).toBeLessThanOrEqual(200_000_000n);
     }
+    expect(answers).toHaveLength(40);
     expect(answers.every(a => a.status === 201 || a.status === 422)).toBe(true);
     await expectCounterEqualsLedger(
       ...sources.map(s => s.accountId),

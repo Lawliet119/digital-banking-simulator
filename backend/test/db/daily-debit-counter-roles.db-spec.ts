@@ -5,6 +5,7 @@ import {
   type RolePermissionsFixture,
 } from '../support/db-role-permissions';
 import { counterOf, ledgerTruth } from '../support/daily-debit-counter';
+import { checkLedgerInvariants } from '../support/invariants';
 
 /**
  * BL-418, TC-418-11. The counter is written by a SECURITY DEFINER trigger, so the application role
@@ -54,17 +55,34 @@ describe('BL-418 the day counter under the real dbs_api role', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('TC-418-11 records the accepted gap: dbs_api can INSERT an account with a counter of its choosing (BL-422)', async () => {
+  it('TC-418-11 records the accepted gap: dbs_api can INSERT an account with a counter of its choosing, and the invariant check reports it (BL-422)', async () => {
     const [sender] = fixture.accounts;
-    // The table-level INSERT grant covers the new columns. The invariant check daily_debit_totals
-    // reports such a row (TC-418-10); narrowing the grant is BL-422, work for the roles owner.
-    await expect(
-      rollbackProbe(
-        fixture.api,
-        `INSERT INTO accounts(customer_id, type, status, sent_today, sent_day)
-         SELECT customer_id, 'SAVINGS', 'ACTIVE', 7, DATE '2030-01-01' FROM accounts WHERE id = $1`,
-        [sender],
-      ),
-    ).resolves.toBeUndefined();
+    // The table-level INSERT grant covers the new columns. Narrowing it is BL-422, work for the roles owner.
+    const [created] = await fixture.api.query<{ id: string }[]>(
+      `INSERT INTO accounts(customer_id, type, status, sent_today, sent_day)
+       SELECT customer_id, 'SAVINGS', 'ACTIVE', 7, DATE '2030-01-01' FROM accounts WHERE id = $1
+       RETURNING id`,
+      [sender],
+    );
+    const runner = fixture.owner.createQueryRunner();
+    try {
+      await runner.connect();
+      const report = await checkLedgerInvariants(runner);
+      expect(report.status).toBe('FAIL');
+      expect(report.violations).toEqual([
+        {
+          check: 'daily_debit_totals',
+          accountId: created.id,
+          transferId: null,
+          actual: { sentDay: '2030-01-01', sentToday: '7' },
+          expected: { sentDay: null, sentToday: '0' },
+        },
+      ]);
+    } finally {
+      // the fixture is private to this suite: put the database back as it was
+      await fixture.owner.query('DELETE FROM accounts WHERE id = $1', [created.id]);
+      expect((await checkLedgerInvariants(runner)).status).toBe('PASS');
+      await runner.release();
+    }
   });
 });
