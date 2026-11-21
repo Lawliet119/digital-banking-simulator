@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { DataSource, type QueryRunner } from 'typeorm';
 import {
   attempt,
@@ -14,6 +13,7 @@ import {
   type InvariantAccounts,
 } from '../support/invariant-fixtures';
 import { checkLedgerInvariants } from '../support/invariants';
+import { counterOf, debitAt, ledgerTruth } from '../support/daily-debit-counter';
 
 /**
  * BL-418. The day total of the daily limit (BR-06) is kept on the account row by a statement-level
@@ -23,57 +23,11 @@ import { checkLedgerInvariants } from '../support/invariants';
  * `sync-guard.db-spec.ts`; the concurrent flows are in `daily-debit-counter-flow.db-spec.ts`.
  */
 const PREVIOUS = 'TuneTransfersAutovacuum1795000011000';
-const VN = 'Asia/Ho_Chi_Minh';
 
 const sqlstate = (error: unknown): string | undefined => {
   const e = error as { code?: string; driverError?: { code?: string }; cause?: { code?: string } };
   return e?.driverError?.code ?? e?.code ?? e?.cause?.code;
 };
-
-interface Counter {
-  sentToday: string;
-  sentDay: string | null;
-}
-async function counterOf(runner: Pick<QueryRunner, 'query'>, id: string): Promise<Counter> {
-  const [row] = (await runner.query(
-    `SELECT sent_today::text AS "sentToday", to_char(sent_day,'YYYY-MM-DD') AS "sentDay"
-     FROM accounts WHERE id=$1`,
-    [id],
-  )) as Counter[];
-  return row;
-}
-/** The truth the counter must equal: the latest Vietnam day with a DEBIT line, and that day's sum. */
-async function ledgerTruth(runner: Pick<QueryRunner, 'query'>, id: string): Promise<Counter> {
-  const [row] = (await runner.query(
-    `WITH last AS (
-       SELECT max((created_at AT TIME ZONE '${VN}')::date) AS d
-       FROM ledger_entries WHERE account_id=$1 AND direction='DEBIT')
-     SELECT to_char(last.d,'YYYY-MM-DD') AS "sentDay",
-            coalesce((SELECT sum(amount) FROM ledger_entries e
-                       WHERE e.account_id=$1 AND e.direction='DEBIT'
-                         AND (e.created_at AT TIME ZONE '${VN}')::date = last.d),0)::text AS "sentToday"
-     FROM last`,
-    [id],
-  )) as Counter[];
-  return row;
-}
-
-/** SQL INPUT: a COMPLETED transfer and its DEBIT line at an exact instant (the ledger is append-only). */
-async function debitAt(
-  runner: Pick<QueryRunner, 'query'>,
-  input: { actorId: string; from: string; to: string; amount: string; at: string },
-): Promise<void> {
-  const [transfer] = await runner.query(
-    `INSERT INTO transfers(type,from_account_id,to_account_id,amount,status,initiated_by,correlation_id,created_at)
-     VALUES('TRANSFER',$1,$2,$3,'COMPLETED',$4,$5,$6::timestamptz) RETURNING id`,
-    [input.from, input.to, input.amount, input.actorId, randomUUID(), input.at],
-  );
-  await runner.query(
-    `INSERT INTO ledger_entries(transfer_id,account_id,direction,amount,balance_after,created_at)
-     VALUES($1,$2,'DEBIT',$3,0,$4::timestamptz)`,
-    [transfer.id, input.from, input.amount, input.at],
-  );
-}
 
 describe('BL-418 the daily debit counter on accounts (schema, trigger, backfill, migration)', () => {
   describe('on the final schema', () => {
