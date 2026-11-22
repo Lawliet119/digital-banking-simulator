@@ -170,6 +170,22 @@ describe('BL-421 reconciliation checks the daily debit counter (real PostgreSQL)
     ]);
     expect((await both()).run).toMatchObject({ executed: true, status: 'OK' });
 
+    // (b2) an account that never sent anything must have no counter: a day alone, or an amount alone.
+    await q(
+      "UPDATE public.accounts SET sent_today = 0, sent_day = '2026-11-22'::date WHERE id = $1",
+      [refs.recipientId],
+    );
+    expect((await both()).run).toMatchObject({ executed: true, status: 'MISMATCH' });
+    await q(
+      "UPDATE public.accounts SET sent_today = 5, sent_day = '2026-11-22'::date WHERE id = $1",
+      [refs.recipientId],
+    );
+    expect((await both()).run).toMatchObject({ executed: true, status: 'MISMATCH' });
+    await q('UPDATE public.accounts SET sent_today = 0, sent_day = NULL WHERE id = $1', [
+      refs.recipientId,
+    ]);
+    expect((await both()).run).toMatchObject({ executed: true, status: 'OK' });
+
     // (c) the trigger is off while a balanced transfer posts: only the counter falls behind.
     await q('ALTER TABLE public.ledger_entries DISABLE TRIGGER ledger_entries_daily_debit_counter');
     try {

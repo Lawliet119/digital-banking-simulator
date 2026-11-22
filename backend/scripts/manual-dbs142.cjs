@@ -23,11 +23,11 @@ const LIMITS = {
   reconciliationIntervalMs: 300_000,
 };
 
-/** The SQL of origin/main (before BL-421), read from git so the comparison needs no copy. */
+/** The SQL of 3035f02f, the commit before BL-421 (pinned: origin/main moves on), read from git so the comparison needs no copy. */
 function sqlBeforeBl421() {
   const text = execFileSync(
     'git',
-    ['show', 'origin/main:./src/modules/ledger/reconciliation.service.ts'],
+    ['show', '3035f02f:backend/src/modules/ledger/reconciliation.service.ts'],
     { encoding: 'utf8' },
   );
   const start = text.indexOf('export const RECONCILIATION_CHECK_SQL = `');
@@ -230,6 +230,75 @@ runManual('DBS-142', async ctx => {
   pass(
     'M-142-07',
     `${lines} ledger lines: EXPLAIN ANALYZE ms before BL-421 ${before.join('/')}, after ${after.join('/')}; job OK`,
+  );
+
+  // M-142-09: cost with many accounts, each with a debit line on each of 30 days (the shape of real
+  // data: accounts x days groups), balances rebuilt from the ledger, counters kept by the trigger.
+  const accounts = Number(process.env.BENCH_ACCOUNTS ?? 10_000);
+  const days = 30;
+  await q(
+    `WITH u AS (INSERT INTO users(cognito_sub) SELECT 'bench-' || g FROM generate_series(1, $1::int) g RETURNING id, cognito_sub),
+          c AS (INSERT INTO customers(user_id, full_name) SELECT id, 'Bench ' || cognito_sub FROM u RETURNING id)
+     INSERT INTO accounts(customer_id, type, status) SELECT id, 'CHECKING', 'ACTIVE' FROM c`,
+    [accounts],
+  );
+  const benchIds = `SELECT a.id FROM accounts a JOIN customers c ON c.id = a.customer_id WHERE c.full_name LIKE 'Bench %'`;
+  await q(
+    `WITH t AS (
+       INSERT INTO transfers(id,type,from_account_id,to_account_id,amount,status,initiated_by,correlation_id)
+       SELECT gen_random_uuid(),'DEPOSIT',$1,b.id,$3::bigint,'COMPLETED',$2,gen_random_uuid() FROM (${benchIds}) b
+       RETURNING id, to_account_id, amount)
+     INSERT INTO ledger_entries(transfer_id,account_id,direction,amount,balance_after)
+     SELECT t.id, v.acc, v.d, t.amount, 0 FROM t CROSS JOIN LATERAL (VALUES ($1::uuid,'DEBIT'),(t.to_account_id,'CREDIT')) v(acc,d)`,
+    [FUNDING_ID, sender.userId, String(days * 1000)],
+  );
+  await q(
+    `WITH t AS (
+       INSERT INTO transfers(id,type,from_account_id,to_account_id,amount,status,initiated_by,correlation_id,created_at)
+       SELECT gen_random_uuid(),'TRANSFER',b.id,$1,1000,'COMPLETED',$2,gen_random_uuid(), now() - (d || ' days')::interval
+       FROM (${benchIds}) b CROSS JOIN generate_series(0, $3::int - 1) d
+       RETURNING id, from_account_id, created_at)
+     INSERT INTO ledger_entries(transfer_id,account_id,direction,amount,balance_after,created_at)
+     SELECT t.id, v.acc, v.d, 1000, 0, t.created_at
+     FROM t CROSS JOIN LATERAL (VALUES (t.from_account_id,'DEBIT'),($1::uuid,'CREDIT')) v(acc,d)`,
+    [recipient.accountId, sender.userId, days],
+  );
+  await q(
+    `UPDATE accounts x SET balance = s.net FROM (
+       SELECT account_id, SUM(CASE direction WHEN 'CREDIT' THEN amount ELSE -amount END) AS net
+       FROM ledger_entries GROUP BY account_id) s
+     WHERE x.id = s.account_id AND x.balance <> s.net`,
+  );
+  await q('VACUUM (ANALYZE) accounts, transfers, ledger_entries');
+  const [{ lines2, groups }] = await q(
+    `SELECT (SELECT COUNT(*) FROM ledger_entries)::int AS lines2,
+            (SELECT COUNT(*) FROM (SELECT 1 FROM ledger_entries WHERE direction='DEBIT'
+               GROUP BY account_id, (created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date) g)::int AS groups`,
+  );
+  const before2 = [];
+  const after2 = [];
+  for (let i = 0; i < 3; i++) {
+    before2.push(await explain(sqlBeforeBl421()));
+    after2.push(await explain(RECONCILIATION_CHECK_SQL));
+  }
+  const plan = (await q(`EXPLAIN (ANALYZE, BUFFERS) ${RECONCILIATION_CHECK_SQL}`)).map(
+    r => r['QUERY PLAN'],
+  );
+  console.log(
+    JSON.stringify({
+      step: 'M-142-09',
+      accounts,
+      ledgerLines: lines2,
+      debitGroups: groups,
+      msBeforeBl421: before2,
+      msAfterBl421: after2,
+    }),
+  );
+  console.log(['M-142-09 plan (new SQL):', ...plan].join(String.fromCharCode(10)));
+  assert.equal((await run('M-142-09-job')).status, 'OK');
+  pass(
+    'M-142-09',
+    `${accounts} accounts x ${days} days, ${lines2} ledger lines, ${groups} (account, day) groups: ms before ${before2.join('/')}, after ${after2.join('/')}; job OK`,
   );
 
   await invariant();
