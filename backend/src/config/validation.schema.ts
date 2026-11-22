@@ -75,6 +75,8 @@ export interface Env {
   RISK_AI_CONCURRENCY?: number;
   RISK_AI_GATE_TIMEOUT_MS?: number;
   RECONCILIATION_INTERVAL_MS: number;
+  OUTBOX_RELAY_IDLE_DELAY_MS: number;
+  OUTBOX_RELAY_BATCH_SIZE: number;
   METRICS_EMF?: boolean;
   METRICS_FLUSH_MS: number;
 }
@@ -228,6 +230,9 @@ export const validationSchema = Joi.object<Env>({
   RISK_AI_CONCURRENCY: Joi.number().integer().min(1).max(2147483647).optional(),
   RISK_AI_GATE_TIMEOUT_MS: Joi.number().integer().min(1).max(2147483647).optional(),
   RECONCILIATION_INTERVAL_MS: Joi.number().integer().min(1000).max(86_400_000).default(300_000),
+  // DBS-175: poll and batch of the outbox relay (docs/03 §10). The defaults are the values it always had: 500 ms idle, 100 events.
+  OUTBOX_RELAY_IDLE_DELAY_MS: Joi.number().integer().min(50).max(5000).default(500),
+  OUTBOX_RELAY_BATCH_SIZE: Joi.number().integer().min(1).max(500).default(100),
   // DBS-144. Unset = on in staging and production, off elsewhere (config/metrics.config.ts).
   METRICS_EMF: Joi.boolean().optional(),
   METRICS_FLUSH_MS: Joi.number().integer().min(1000).max(600_000).default(60_000),

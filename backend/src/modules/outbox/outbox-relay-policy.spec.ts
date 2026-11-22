@@ -66,6 +66,36 @@ describe('DBS-91 relay failure policy', () => {
     expect(relayDelayMs({ published: 0, failure: http(400) })).toBe(RELAY_IDLE_DELAY_MS);
   });
 
+  it('TC-175-02 the pace follows the tuning: a batch counts as full at the configured size, idle sleeps the configured delay', () => {
+    expect(relayDelayMs({ published: 24 }, { batchSize: 25, idleDelayMs: 100 })).toBe(100);
+    expect(relayDelayMs({ published: 25 }, { batchSize: 25, idleDelayMs: 100 })).toBe(0);
+    expect(relayDelayMs({ published: 25 }, { idleDelayMs: 100 })).toBe(100); // default size 100: not full
+    expect(relayDelayMs({ published: 0 }, { batchSize: 25 })).toBe(RELAY_IDLE_DELAY_MS);
+    expect(relayDelayMs({ published: 3, truncated: true }, { idleDelayMs: 100 })).toBe(0);
+  });
+
+  it('TC-175-03 relayOnce selects the configured batch size, and the default when the relay is built without limits', async () => {
+    const send = jest.fn().mockResolvedValue(undefined) as unknown as SqsClient['send'];
+    const make = (relayBatchSize?: number) => {
+      const { relay, selects } = relayOver(events(0), send);
+      if (relayBatchSize !== undefined) {
+        Object.assign(relay, {
+          tuning: { batchSize: relayBatchSize, idleDelayMs: 100 },
+        });
+      }
+      return { relay, selects };
+    };
+    const tuned = make(25);
+    await tuned.relay.relayOnce();
+    expect(tuned.selects[0][0]).toBe(25);
+    const plain = make();
+    await plain.relay.relayOnce();
+    expect(plain.selects[0][0]).toBe(RELAY_BATCH_SIZE);
+    const explicit = make(25);
+    await explicit.relay.relayOnce(7);
+    expect(explicit.selects[0][0]).toBe(7); // an explicit limit (tests, manual drivers) still wins
+  });
+
   it('classifies HTTP 4xx (except 429) as permanent and everything else as transient', () => {
     expect(classifySendError(http(400))).toBe('permanent');
     expect(classifySendError(http(404))).toBe('permanent');

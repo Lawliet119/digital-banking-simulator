@@ -3,6 +3,7 @@ import { authConfig } from './auth.config';
 import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from './auth-local';
 import { databaseConfig } from './database.config';
 import { limitsConfig } from './limits.config';
+import { relayConfig } from './relay.config';
 
 const ORIGINAL_ENV = process.env;
 
@@ -51,6 +52,22 @@ describe('databaseConfig', () => {
       statementTimeoutMs: 2222,
       idleInTransactionTimeoutMs: 3333,
     });
+  });
+});
+
+describe('relayConfig', () => {
+  it('TC-175-04 exposes the relay poll and batch: defaults 500 ms and 100, then the environment', () => {
+    delete process.env.OUTBOX_RELAY_IDLE_DELAY_MS;
+    delete process.env.OUTBOX_RELAY_BATCH_SIZE;
+    expect(relayConfig()).toEqual({ idleDelayMs: 500, batchSize: 100 });
+    process.env.OUTBOX_RELAY_IDLE_DELAY_MS = '100';
+    process.env.OUTBOX_RELAY_BATCH_SIZE = '25';
+    try {
+      expect(relayConfig()).toEqual({ idleDelayMs: 100, batchSize: 25 });
+    } finally {
+      delete process.env.OUTBOX_RELAY_IDLE_DELAY_MS;
+      delete process.env.OUTBOX_RELAY_BATCH_SIZE;
+    }
   });
 });
 

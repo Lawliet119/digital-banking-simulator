@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { limitsConfig } from '@config/limits.config';
+import { relayConfig } from '@config/relay.config';
 import { sqsConfig } from '@config/sqs.config';
 import { SqsModule } from '@libs/sqs';
 import { Clock, SystemClock } from '@common/clock';
@@ -16,7 +17,12 @@ import { OutboxRelayService } from './outbox-relay.service';
  * `runsWorkers()` before they start.
  */
 @Module({
-  imports: [ConfigModule.forFeature(sqsConfig), ConfigModule.forFeature(limitsConfig), SqsModule],
+  imports: [
+    ConfigModule.forFeature(sqsConfig),
+    ConfigModule.forFeature(limitsConfig),
+    ConfigModule.forFeature(relayConfig),
+    SqsModule,
+  ],
   providers: [
     { provide: Clock, useClass: SystemClock },
     OutboxRelayService,

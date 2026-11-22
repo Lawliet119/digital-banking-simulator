@@ -181,7 +181,7 @@ run "worker_task_definition" {
     condition = (
       toset([for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name]) == toset([
         "NODE_ENV", "APP_ROLE", "TRUST_PROXY_HOPS", "AWS_REGION", "LOG_LEVEL", "COGNITO_USER_POOL_ID", "COGNITO_CLIENT_ID", "COGNITO_ISSUER",
-        "DB_HOST", "DB_PORT", "DB_NAME", "DATABASE_SSL", "DATABASE_SSL_CA_PATH", "REDIS_HOST", "REDIS_PORT", "SQS_RISK_QUEUE_URL", "SQS_NOTIFICATION_QUEUE_URL", "RISK_AI_EGRESS_APPROVED", "RECONCILIATION_INTERVAL_MS",
+        "DB_HOST", "DB_PORT", "DB_NAME", "DATABASE_SSL", "DATABASE_SSL_CA_PATH", "REDIS_HOST", "REDIS_PORT", "SQS_RISK_QUEUE_URL", "SQS_NOTIFICATION_QUEUE_URL", "RISK_AI_EGRESS_APPROVED", "RECONCILIATION_INTERVAL_MS", "OUTBOX_RELAY_IDLE_DELAY_MS", "OUTBOX_RELAY_BATCH_SIZE",
       ])
     )
     error_message = "worker env must be exactly the documented set: no SQS_ENDPOINT, no PORT, no secrets in plain text"
@@ -455,4 +455,94 @@ run "rejects_reconciliation_interval_below_ten_seconds" {
     reconciliation_interval_ms = 5000
   }
   expect_failures = [var.reconciliation_interval_ms]
+}
+
+# DBS-175: poll và lô của relay. Mặc định giữ nguyên giá trị code vẫn dùng; đổi được, ngoài khoảng bị từ chối.
+run "relay_defaults_unchanged" {
+  command = apply
+
+  variables {
+    worker_desired_count = 1
+  }
+
+  assert {
+    condition = (
+      { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["OUTBOX_RELAY_IDLE_DELAY_MS"] == "500"
+      && { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["OUTBOX_RELAY_BATCH_SIZE"] == "100"
+    )
+    error_message = "TC-175-05: without the variables the worker keeps the relay at 500 ms and 100 events (ADR-03)"
+  }
+}
+
+run "relay_tuned_values_reach_the_worker_only" {
+  command = apply
+
+  variables {
+    worker_desired_count = 1
+    relay_idle_delay_ms  = 100
+    relay_batch_size     = 25
+  }
+
+  assert {
+    condition = (
+      { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["OUTBOX_RELAY_IDLE_DELAY_MS"] == "100"
+      && { for e in jsondecode(aws_ecs_task_definition.worker.container_definitions)[0].environment : e.name => e.value }["OUTBOX_RELAY_BATCH_SIZE"] == "25"
+    )
+    error_message = "TC-175-06: relay_idle_delay_ms and relay_batch_size must reach the worker task definition"
+  }
+
+  assert {
+    condition     = !strcontains(aws_ecs_task_definition.api.container_definitions, "OUTBOX_RELAY")
+    error_message = "TC-175-06: the relay runs in the worker; the api task definition must not carry its tuning"
+  }
+}
+
+run "relay_rejects_idle_delay_below_50" {
+  command = plan
+
+  variables {
+    relay_idle_delay_ms = 49
+  }
+
+  expect_failures = [var.relay_idle_delay_ms]
+}
+
+run "relay_rejects_idle_delay_above_5000" {
+  command = plan
+
+  variables {
+    relay_idle_delay_ms = 5001
+  }
+
+  expect_failures = [var.relay_idle_delay_ms]
+}
+
+run "relay_rejects_fractional_idle_delay" {
+  command = plan
+
+  variables {
+    relay_idle_delay_ms = 250.5
+  }
+
+  expect_failures = [var.relay_idle_delay_ms]
+}
+
+run "relay_rejects_batch_zero" {
+  command = plan
+
+  variables {
+    relay_batch_size = 0
+  }
+
+  expect_failures = [var.relay_batch_size]
+}
+
+run "relay_rejects_batch_above_500" {
+  command = plan
+
+  variables {
+    relay_batch_size = 501
+  }
+
+  expect_failures = [var.relay_batch_size]
 }
