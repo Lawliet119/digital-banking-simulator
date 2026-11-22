@@ -1,0 +1,69 @@
+[ssm a700604f-09d4-42c7-93cb-534be855d431 Success]
+== flush
+{"epoch_ms":1795305495770,"action":"flush","mode":"flush","before":0,"after":0}
+exit=0
+== slow 10 100 200
+{"epoch_ms":1795305496388,"action":"slow_start","mode":"slow","pause_ms":100,"period_ms":200}
+{"epoch_ms":1795305506407,"action":"slow_end","mode":"slow"}
+exit=0
+== down
+23:58:26
+đã chặn 6379 từ 10.20.0.0/24,10.20.1.0/24 (kết nối mới từ máy tải hết giờ)
+exit=0
+23:58:33
+== status (expect 1)
+exit=1
+== health during down (every 3 s for 30 s)
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+== restore
+23:59:05
+đã gỡ luật deny 50/51
+exit=0
+== health after restore (every 5 s, up to 150 s)
+23:59:06 "redis":"degraded"
+23:59:11 "redis":"degraded"
+23:59:17 "redis":"degraded"
+23:59:22 "redis":"degraded"
+23:59:27 "redis":"degraded"
+23:59:32 "redis":"up"
+23:59:37 "redis":"up"
+23:59:42 "redis":"up"
+23:59:47 "redis":"up"
+23:59:52 "redis":"up"
+23:59:57 "redis":"up"
+00:00:02 "redis":"up"
+00:00:07 "redis":"up"
+00:00:12 "redis":"up"
+00:00:17 "redis":"up"
+00:00:22 "redis":"up"
+00:00:27 "redis":"up"
+00:00:32 "redis":"up"
+00:00:37 "redis":"up"
+00:00:42 "redis":"up"
+00:00:47 "redis":"up"
+00:00:52 "redis":"up"
+00:00:57 "redis":"up"
+00:01:02 "redis":"up"
+00:01:07 "redis":"up"
+00:01:12 "redis":"up"
+00:01:17 "redis":"up"
+00:01:23 "redis":"up"
+00:01:28 "redis":"up"
+00:01:33 "redis":"up"
+{"epoch_ms":1795305495770,"action":"flush","mode":"flush","before":0,"after":0}
+{"epoch_ms":1795305496388,"action":"slow_start","mode":"slow","pause_ms":100,"period_ms":200}
+{"epoch_ms":1795305506407,"action":"slow_end","mode":"slow"}
+{"epoch_ms":1795305513610,"action":"down","mode":"down"}
+{"epoch_ms":1795305546768,"action":"restore","mode":"down"}
+
+luật deny 50/51 còn trên acl-08e0399f02bf43af3: chạy redis-fault.sh restore trước
+

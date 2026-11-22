@@ -35,7 +35,25 @@ override_data {
       db_security_group_id = "sg-db"
       cognito_user_pool_id = "ap-southeast-1_ABCDEFGHI"
       kms_key_arn          = "arn:aws:kms:ap-southeast-1:123456789012:key/00000000-0000-0000-0000-000000000000"
+
+      private_subnet_ids      = ["subnet-priv-a", "subnet-priv-b"]
+      redis_security_group_id = "sg-redis"
+      redis_auth_secret_arn   = "arn:aws:secretsmanager:ap-southeast-1:123456789012:secret:dbs/dev/redis-auth-AbCdEf"
     }
+  }
+}
+
+override_resource {
+  target = aws_network_acl.redis_fault
+  values = {
+    id = "acl-0fault"
+  }
+}
+
+override_data {
+  target = data.aws_subnet.public
+  values = {
+    cidr_block = "10.0.0.0/24"
   }
 }
 
@@ -136,5 +154,74 @@ run "loadgen_cognito_client_is_temporary_and_long_lived" {
   assert {
     condition     = aws_cognito_user_pool_client.loadgen.name == "dbs-loadgen"
     error_message = "the temporary client has its own name, never dbs-app"
+  }
+}
+
+# TC-167-07: mặc định (redis_fault_enabled=false) stack không có đường mạng, NACL hay quyền nào tới Redis.
+run "redis_fault_is_off_by_default" {
+  command = apply
+
+  assert {
+    condition     = length(aws_network_acl.redis_fault) == 0 && length(aws_network_acl_association.private) == 0 && length(aws_network_acl_rule.allow_ingress) == 0
+    error_message = "no NACL and no association unless redis_fault_enabled"
+  }
+
+  assert {
+    condition     = length(aws_vpc_security_group_egress_rule.loadgen_to_redis) == 0 && length(aws_vpc_security_group_ingress_rule.redis_from_loadgen) == 0
+    error_message = "no 6379 rule unless redis_fault_enabled"
+  }
+
+  assert {
+    condition     = !strcontains(aws_iam_role_policy.loadgen.policy, "ec2:") && !strcontains(aws_iam_role_policy.loadgen.policy, "redis-auth")
+    error_message = "the instance role has no EC2 permission and cannot read the Redis AUTH secret by default"
+  }
+
+  assert {
+    condition     = output.redis_fault_nacl_id == "" && output.redis_fault_deny_cidrs == "" && output.redis_auth_secret_arn == ""
+    error_message = "the fault outputs are empty when disabled"
+  }
+}
+
+# TC-167-08: bật: 6379 hai phía đúng SG, NACL gắn đúng hai private subnet, Terraform không tạo luật nào số < 100, quyền IAM đúng phạm vi.
+run "redis_fault_enabled_is_scoped" {
+  command = apply
+
+  variables {
+    redis_fault_enabled = true
+  }
+
+  assert {
+    condition     = aws_vpc_security_group_egress_rule.loadgen_to_redis[0].from_port == 6379 && aws_vpc_security_group_egress_rule.loadgen_to_redis[0].to_port == 6379 && aws_vpc_security_group_egress_rule.loadgen_to_redis[0].referenced_security_group_id == "sg-redis"
+    error_message = "egress 6379 goes only to the Valkey security group"
+  }
+
+  assert {
+    condition     = aws_vpc_security_group_ingress_rule.redis_from_loadgen[0].security_group_id == "sg-redis" && aws_vpc_security_group_ingress_rule.redis_from_loadgen[0].from_port == 6379 && aws_vpc_security_group_ingress_rule.redis_from_loadgen[0].to_port == 6379
+    error_message = "the Valkey security group gets exactly one extra ingress rule, on 6379"
+  }
+
+  assert {
+    condition     = toset([for a in aws_network_acl_association.private : a.subnet_id]) == toset(["subnet-priv-a", "subnet-priv-b"])
+    error_message = "the fault NACL is associated with the private subnets only"
+  }
+
+  assert {
+    condition     = aws_network_acl_rule.allow_ingress[0].rule_number == 100 && aws_network_acl_rule.allow_egress[0].rule_number == 100 && aws_network_acl_rule.allow_ingress[0].rule_action == "allow"
+    error_message = "Terraform creates only rule 100 (allow); numbers below 100 belong to redis-fault.sh (50, 51)"
+  }
+
+  assert {
+    condition     = strcontains(aws_iam_role_policy.loadgen.policy, "network-acl/acl-0fault") && strcontains(aws_iam_role_policy.loadgen.policy, "secret:dbs/dev/redis-auth-AbCdEf")
+    error_message = "NACL entry permission is limited to this NACL and the secret to the Valkey AUTH secret"
+  }
+
+  assert {
+    condition     = !strcontains(aws_iam_role_policy.loadgen.policy, "ec2:*") && strcontains(aws_iam_role_policy.loadgen.policy, "ec2:CreateNetworkAclEntry") && strcontains(aws_iam_role_policy.loadgen.policy, "ec2:DeleteNetworkAclEntry")
+    error_message = "only the two entry actions plus Describe"
+  }
+
+  assert {
+    condition     = output.redis_fault_nacl_id == "acl-0fault" && output.redis_fault_deny_cidrs == "10.0.0.0/24"
+    error_message = "outputs feed REDIS_FAULT_NACL_ID and REDIS_FAULT_DENY_CIDRS; the deny CIDRs are the public subnets, never the private ones"
   }
 }

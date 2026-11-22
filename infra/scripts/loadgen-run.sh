@@ -84,12 +84,20 @@ case "${1:-}" in
     fi
     inv="$(grep -o 'invariantExit=[0-9]*' "$log" | tail -1 | cut -d= -f2 || true)"
     cp "$log" "$latest/run.log"
+    # DBS-167: mốc sự cố và mẫu health do redis-fault.sh schedule ghi trong lúc chạy; chép cạnh kết quả rồi dọn để lượt sau không lẫn.
+    for f in fault-events.jsonl health.jsonl; do
+      if [ -s "$HOME_DIR/fault/$f" ]; then mv "$HOME_DIR/fault/$f" "$latest/$f"; fi
+    done
     agg=0
     if [ -s "$latest/raw.json" ]; then
       node load-tests/aggregate-raw.cjs "$latest" || agg=$?
       sha256sum "$latest/raw.json" | cut -d' ' -f1 > "$latest/raw.json.sha256"
       stat -c %s "$latest/raw.json" > "$latest/raw.json.size"
       gzip -f "$latest/raw.json"
+    fi
+    # DBS-167: FAULT_MODE=slow|down|none (và tùy chọn FAULT_NOISE=<ms> từ lượt đối chứng) thì tính thống kê theo cửa sổ ngay tại chỗ.
+    if [ -n "${FAULT_MODE:-}" ] && [ -s "$latest/requests.csv.gz" ]; then
+      node load-tests/window-stats.cjs "$latest" --mode "$FAULT_MODE" ${FAULT_NOISE:+--noise "$FAULT_NOISE"} || true
     fi
     # runExit giữ mã lỗi của k6 khi k6 đỏ; invariantExit là mã của checker (0 chỉ khi có báo cáo PASS). Cả hai là bằng chứng của BL-127.
     printf '{"scenario":"%s","startedAt":"%s","finishedAt":"%s","runExit":%s,"invariantExit":%s,"aggregateExit":%s}\n' \

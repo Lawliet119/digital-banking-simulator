@@ -1,0 +1,323 @@
+45158823e6c45aabab7e52b34e38d1f80e45994b
+# DBS-167: output thô của đợt chạy trên AWS ngày 2026-11-22 (giờ UTC trừ khi ghi khác). Số tài khoản AWS thay bằng ACCT; ARN, tên miền ALB, RDS, Valkey đã che; không có token hay mật khẩu.
+# Mã harness chạy trên máy tải: commit tích hợp 96720c8d (nhánh tạm gộp DBS-178, 167, 186), nội dung load-tests, infra/scripts, infra/terraform giống commit 45158823 của task này.
+
+===== M-167-01 tiền kiểm =====
+aws sts get-caller-identity -> user dev1, tài khoản ACCT, ap-southeast-1
+aws budgets describe-budgets -> Free-tier Budget 0.01 (chi 0.0); My Monthly Cost Budget 150.0 (chi 6.659)
+aws ecr describe-images --image-ids imageTag=76b80bdbc6985738f49a366f0157e1afcc593564 -> pushed 2026-11-22T03:37:02+07:00 (workflow Image trên main, không build tay)
+bash infra/scripts/verify-clean.sh -> 13 dòng OK, «KET LUAN: sạch (13 loại)», exit 0 (lúc 06:2x +07)
+describe-user-pool-client dbs-app: lưu dbs-app-before.json (sha256 538da192e3f05485...); list-user-pool-clients: dbs-app
+terraform plan -lock=false (base, chỉ đọc): đã lưu base-plan-before.txt (so sánh với sau khi hủy ở cuối file)
+
+===== M-167-02 apply loadgen (redis_fault_enabled=true) =====
+STACK-START 2026-11-22T06:30:13+0700
+Plan: 21 tài nguyên tạo mới, gồm aws_network_acl.redis_fault, hai aws_network_acl_association (private subnet), aws_network_acl_rule.allow_ingress/allow_egress (luật 100), aws_vpc_security_group_egress_rule.loadgen_to_redis, aws_vpc_security_group_ingress_rule.redis_from_loadgen
+outputs: redis_fault_nacl_id = acl-08e0399f02bf43af3; redis_fault_deny_cidrs = 10.20.0.0/24,10.20.1.0/24 (hai public subnet); redis_auth_secret_arn = <arn>
+bootstrap (SSM): node=v24.22.2 npm=11.19.1 k6=k6 v2.3.0 (go1.26.8, linux/amd64); source=commit tích hợp
+redis-fault.sh status (instance role) -> «sạch: không có luật deny 50/51», exit 0
+
+===== M-167-03 session =====
+terraform apply session: 06:31:12 đến 06:48:04 (≈ 17 phút), exit=0; db-roles.sh 54 s (ba role đăng nhập được); migrate.sh 54 s exit 0
+pgss.sh enable: SQL> CREATE EXTENSION IF NOT EXISTS pg_stat_statements; kiểm [{"extname":"pg_stat_statements"}]; reset: reset_at 2026-11-21T23:51:58Z (BL-420: lần chạy thật đầu tiên; lần 1 lỗi FileNotFoundError /c/... của Python Windows, sửa bằng pwd -W)
+desired_count=2, worker=1: Apply complete! 0 added, 2 changed; /health/ready: 503, 503, 503, 200 {"status":"ok",...,"redis":"up"}
+prepare (loadgen-tokens.mjs với client dbs-loadgen, token 240 phút): lần 1 exit=1 (npm ci thiếu PATH, token bị xóa theo thiết kế); lần 2: «Seed API complete: 3 customers, CHECKING budget >=50000000 VND; fixture stored privately», exit=0
+
+===== M-167-04 thử công cụ, lượt 1 (lỗi thật: REDIS_HOST không tới công cụ) =====
+[ssm 28fa22a7-d2de-4070-8bf1-7c3e668f7a1e Success]
+== status
+sạch: không có luật deny 50/51
+exit=0
+== flush
+exit=2
+== slow 10 100 200
+exit=2
+== down
+23:55:44
+đã gỡ luật deny 50/51
+exit=1
+23:56:00
+== status (expect 1)
+sạch: không có luật deny 50/51
+exit=0
+== health during down
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}},"redis":"up"}
+== restore
+23:56:24
+đã gỡ luật deny 50/51
+exit=0
+== wait-healthy 60
+23:56:25
+60 mẫu liên tiếp 200/up
+exit=0
+23:57:27
+{"epoch_ms":1795305360369,"action":"restore","mode":"down"}
+{"epoch_ms":1795305385783,"action":"restore","mode":"down"}
+
+lỗi: thiếu REDIS_HOST
+lỗi: thiếu REDIS_HOST
+lỗi: thiếu REDIS_HOST
+lỗi: thiếu REDIS_HOST
+lỗi: thiếu REDIS_HOST
+lỗi: thiếu REDIS_HOST
+lỗi: thiếu REDIS_HOST
+luật deny đã thêm nhưng kết nối mới tới Redis vẫn thông: gỡ luật, lượt tắt không có hiệu lực
+
+
+===== M-167-04 thử công cụ, lượt 2 (sau sửa set -a) =====
+[ssm a700604f-09d4-42c7-93cb-534be855d431 Success]
+== flush
+{"epoch_ms":1795305495770,"action":"flush","mode":"flush","before":0,"after":0}
+exit=0
+== slow 10 100 200
+{"epoch_ms":1795305496388,"action":"slow_start","mode":"slow","pause_ms":100,"period_ms":200}
+{"epoch_ms":1795305506407,"action":"slow_end","mode":"slow"}
+exit=0
+== down
+23:58:26
+đã chặn 6379 từ 10.20.0.0/24,10.20.1.0/24 (kết nối mới từ máy tải hết giờ)
+exit=0
+23:58:33
+== status (expect 1)
+exit=1
+== health during down (every 3 s for 30 s)
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+"redis":"degraded"} http=200
+== restore
+23:59:05
+đã gỡ luật deny 50/51
+exit=0
+== health after restore (every 5 s, up to 150 s)
+23:59:06 "redis":"degraded"
+23:59:11 "redis":"degraded"
+23:59:17 "redis":"degraded"
+23:59:22 "redis":"degraded"
+23:59:27 "redis":"degraded"
+23:59:32 "redis":"up"
+23:59:37 "redis":"up"
+23:59:42 "redis":"up"
+23:59:47 "redis":"up"
+23:59:52 "redis":"up"
+23:59:57 "redis":"up"
+00:00:02 "redis":"up"
+00:00:07 "redis":"up"
+00:00:12 "redis":"up"
+00:00:17 "redis":"up"
+00:00:22 "redis":"up"
+00:00:27 "redis":"up"
+00:00:32 "redis":"up"
+00:00:37 "redis":"up"
+00:00:42 "redis":"up"
+00:00:47 "redis":"up"
+00:00:52 "redis":"up"
+00:00:57 "redis":"up"
+00:01:02 "redis":"up"
+00:01:07 "redis":"up"
+00:01:12 "redis":"up"
+00:01:17 "redis":"up"
+00:01:23 "redis":"up"
+00:01:28 "redis":"up"
+00:01:33 "redis":"up"
+{"epoch_ms":1795305495770,"action":"flush","mode":"flush","before":0,"after":0}
+{"epoch_ms":1795305496388,"action":"slow_start","mode":"slow","pause_ms":100,"period_ms":200}
+{"epoch_ms":1795305506407,"action":"slow_end","mode":"slow"}
+{"epoch_ms":1795305513610,"action":"down","mode":"down"}
+{"epoch_ms":1795305546768,"action":"restore","mode":"down"}
+
+luật deny 50/51 còn trên acl-08e0399f02bf43af3: chạy redis-fault.sh restore trước
+
+
+===== smoke redis-fault --smoke =====
+{"scenario":"redis-fault","startedAt":"2026-11-22T00:01:51Z","finishedAt":"2026-11-22T00:02:00Z","runExit":0,"invariantExit":0,"aggregateExit":0}; ngưỡng k6 đạt (transfer p95 69.52 ms, system_errors 0 trên 27); invariants {"status":"PASS",...}
+
+===== M-167-05 đối chứng (không sự cố), 00:04:52Z đến 00:20:11Z (cuối run.log: window-stats và exit.json) =====
+[ssm d315c1a5-138b-40c4-825c-67fde4eaa732 Success]
+DONE
+pre            n= 28800 lỗi=0 chuyển p95=56.037 p99=243.722 đọc p95=27.71
+fault_nominal  n= 36000 lỗi=0 chuyển p95=84.673 p99=409.214 đọc p95=34.166
+recovery       n=  7200 lỗi=0 chuyển p95=62.563 p99=270.263 đọc p95=30.838
+after          n= 28798 lỗi=0 chuyển p95=71.867 p99=341.094 đọc p95=35.061
+redis "up" lại sau null s; health không-200: 0/872
+phán quyết: đạt
+{"scenario":"redis-fault","startedAt":"2026-11-22T00:04:52Z","finishedAt":"2026-11-22T00:20:11Z","runExit":0,"invariantExit":0,"aggregateExit":0}
+uploaded s3://dbs-loadgen-ACCT-ap-southeast-1/results/redis-fault-d48e6e8a-3084-4de7-872e-80a6f3a2bb2b
+
+
+===== M-167-06 chậm, lượt 1, 00:21:44Z đến 00:37:03Z (cuối run.log: window-stats và exit.json) =====
+[ssm 25ddc821-e867-4f7a-8de8-59fa4d40befa Success]
+DONE
+{"aggregate":"/opt/loadgen/src/load-tests/results/redis-fault-7bfbb957-86c4-42ed-b110-1eb76bde343c/aggregate.json","points":108002}
+pre            n= 28845 lỗi=6 chuyển p95=134.948 p99=1201.189 đọc p95=52.128
+fault_light    n= 18006 lỗi=0 chuyển p95=203.179 p99=680.567 đọc p95=138.277
+fault_heavy    n= 18035 lỗi=0 chuyển p95=160.16 p99=286.048 đọc p95=93.87
+recovery       n=  7200 lỗi=0 chuyển p95=130.594 p99=460.587 đọc p95=48.843
+after          n= 28710 lỗi=0 chuyển p95=107.175 p99=683.352 đọc p95=46.522
+redis "up" lại sau 0 s; health không-200: 0/868
+phán quyết: vượt SLO
+  BL: có lỗi hệ thống (5xx, status 0 hoặc 429) ở cửa sổ pre: 6
+  BL: vượt SLO: pre transfer.p99=1201.189
+{"scenario":"redis-fault","startedAt":"2026-11-22T00:21:44Z","finishedAt":"2026-11-22T00:37:03Z","runExit":99,"invariantExit":0,"aggregateExit":0}
+uploaded s3://dbs-loadgen-ACCT-ap-southeast-1/results/redis-fault-7bfbb957-86c4-42ed-b110-1eb76bde343c
+
+
+===== M-167-07 tắt, 00:38:52Z đến 00:54:12Z (cuối run.log: window-stats và exit.json) =====
+[ssm 4e5fe649-f3e1-4fe8-9341-76455947c7d5 Success]
+DONE
+invariantExit=0; results=/opt/loadgen/src/load-tests/results/redis-fault-2066bced-cf00-40af-9ba7-6a318839bf6d
+Load run FAILED; inspect k6 summary, fixture expiry/budget and invariant report
+{"aggregate":"/opt/loadgen/src/load-tests/results/redis-fault-2066bced-cf00-40af-9ba7-6a318839bf6d/aggregate.json","points":108001}
+pre            n= 29638 lỗi=2 chuyển p95=184.72 p99=902.38 đọc p95=108.197
+fault          n= 36220 lỗi=0 chuyển p95=118.955 p99=642.475 đọc p95=56.687
+recovery       n=  7221 lỗi=0 chuyển p95=120.599 p99=481.126 đọc p95=51.983
+after          n= 27712 lỗi=0 chuyển p95=107.14 p99=380.586 đọc p95=50.069
+redis "up" lại sau 42.507 s; health không-200: 0/869
+phán quyết: phải mở BL
+  BL: có lỗi hệ thống (5xx, status 0 hoặc 429) ở cửa sổ pre: 2
+{"scenario":"redis-fault","startedAt":"2026-11-22T00:38:52Z","finishedAt":"2026-11-22T00:54:12Z","runExit":99,"invariantExit":0,"aggregateExit":0}
+uploaded s3://dbs-loadgen-ACCT-ap-southeast-1/results/redis-fault-2066bced-cf00-40af-9ba7-6a318839bf6d
+
+
+===== M-167-06 chậm, lượt 2 (lặp theo G1.9), 00:55:36Z đến 01:10:54Z (cuối run.log: window-stats và exit.json) =====
+[ssm 3f8611f7-88b5-49c9-9454-4e980b72cb3d Success]
+DONE
+pre            n= 28757 lỗi=83 chuyển p95=211.035 p99=1654.237 đọc p95=81.238
+fault_light    n= 18003 lỗi=0 chuyển p95=289.185 p99=779.846 đọc p95=148.774
+fault_heavy    n= 18036 lỗi=0 chuyển p95=184.681 p99=388.838 đọc p95=110.114
+recovery       n=  7199 lỗi=0 chuyển p95=102.03 p99=238.806 đọc p95=55.556
+after          n= 28708 lỗi=0 chuyển p95=122.588 p99=377.201 đọc p95=55.02
+redis "up" lại sau 5.816 s; health không-200: 0/867
+phán quyết: vượt SLO
+  BL: có lỗi hệ thống (5xx, status 0 hoặc 429) ở cửa sổ pre: 83
+  BL: vượt SLO: pre transfer.p99=1654.237; pre errorRate=0.003; fault_light history.p95=154.333
+  BL: dropped_iterations = 46: tải 120 RPS không được phát đủ
+{"scenario":"redis-fault","startedAt":"2026-11-22T00:55:36Z","finishedAt":"2026-11-22T01:10:54Z","runExit":99,"invariantExit":0,"aggregateExit":0}
+uploaded s3://dbs-loadgen-ACCT-ap-southeast-1/results/redis-fault-c88679a0-e7ce-405c-99d2-9355aa0b431b
+
+
+===== M-167-08 Logs Insights: dòng «rate limit skipped, request allowed (lý do)» theo cửa sổ =====
+-- đối chứng
+control pre {"TIMEOUT":5}
+control nominal_fault {"TIMEOUT":4}
+control after {"TIMEOUT":6}
+-- chậm lượt 1
+slow pre {"TIMEOUT":18}
+slow fault_light {"TIMEOUT":5142}
+slow fault_heavy {"CIRCUIT_OPEN":20317,"TIMEOUT":799}
+slow after {"TIMEOUT":4}
+-- tắt
+down pre {"TIMEOUT":9}
+down fault_first_10s {"CIRCUIT_OPEN":1581,"TIMEOUT":3}
+down fault_rest {"CIRCUIT_OPEN":41359,"TIMEOUT":113}
+down recovery {"TIMEOUT":14,"CIRCUIT_OPEN":5788}
+down after {"TIMEOUT":5}
+
+===== M-167-08 BL-419: event_loop_delay_max_ms theo log stream và phút (lượt chậm 1) =====
+== slow run /dbs/dev/api
+stream=f1d6dc2558164a92a0a2382c6bfa9fac min=2026-11-22 00:22:00.000 loopMax=187.7876
+stream=943aa0499c1f46acbb185ba2cc6bc496 min=2026-11-22 00:22:00.000 loopMax=109.5377
+stream=f1d6dc2558164a92a0a2382c6bfa9fac min=2026-11-22 00:25:00.000 loopMax=95.5785
+stream=f1d6dc2558164a92a0a2382c6bfa9fac min=2026-11-22 00:30:00.000 loopMax=94.7265
+stream=943aa0499c1f46acbb185ba2cc6bc496 min=2026-11-22 00:24:00.000 loopMax=88.9594
+stream=f1d6dc2558164a92a0a2382c6bfa9fac min=2026-11-22 00:24:00.000 loopMax=84.5684
+stream=f1d6dc2558164a92a0a2382c6bfa9fac min=2026-11-22 00:29:00.000 loopMax=84.0442
+stream=f1d6dc2558164a92a0a2382c6bfa9fac min=2026-11-22 00:31:00.000 loopMax=83.782
+== slow run /dbs/dev/worker
+stream=3ac0e4e5a1584848a3e738c924e9d31e min=2026-11-22 00:22:00.000 loopMax=352.5452
+stream=3ac0e4e5a1584848a3e738c924e9d31e min=2026-11-22 00:29:00.000 loopMax=291.7277
+stream=3ac0e4e5a1584848a3e738c924e9d31e min=2026-11-22 00:28:00.000 loopMax=287.7956
+stream=3ac0e4e5a1584848a3e738c924e9d31e min=2026-11-22 00:25:00.000 loopMax=201.6813
+stream=3ac0e4e5a1584848a3e738c924e9d31e min=2026-11-22 00:35:00.000 loopMax=198.4045
+stream=3ac0e4e5a1584848a3e738c924e9d31e min=2026-11-22 00:34:00.000 loopMax=198.0113
+stream=3ac0e4e5a1584848a3e738c924e9d31e min=2026-11-22 00:26:00.000 loopMax=193.6859
+stream=3ac0e4e5a1584848a3e738c924e9d31e min=2026-11-22 00:31:00.000 loopMax=192.5062
+
+===== M-167-08 lịch sử alarm (StateUpdate từ 2026-11-21T23:30Z) =====
+== dbs-dev-redis-fallback
+2026-11-22T06:32:53.135000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+2026-11-22T06:59:53.135000+07:00	Alarm updated from OK to ALARM
+== dbs-dev-redis-node-missing
+2026-11-22T06:42:24.112000+07:00	Alarm updated from INSUFFICIENT_DATA to ALARM
+2026-11-22T06:43:24.112000+07:00	Alarm updated from ALARM to OK
+== dbs-dev-risk-config-redis-fallback
+2026-11-22T06:32:03.561000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+2026-11-22T07:07:03.560000+07:00	Alarm updated from OK to ALARM
+2026-11-22T07:15:03.561000+07:00	Alarm updated from ALARM to OK
+2026-11-22T07:24:03.559000+07:00	Alarm updated from OK to ALARM
+2026-11-22T08:17:03.560000+07:00	Alarm updated from ALARM to OK
+== dbs-dev-transfer-latency-p95
+2026-11-22T06:32:26.166000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+== dbs-dev-read-latency-p95
+2026-11-22T06:32:34.535000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+== dbs-dev-api-5xx-rate
+2026-11-22T06:32:20.128000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+== dbs-dev-rate-limited
+2026-11-22T06:31:42.505000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+== dbs-dev-outbox-age
+2026-11-22T06:31:29.938000+07:00	Alarm updated from INSUFFICIENT_DATA to ALARM
+2026-11-22T06:57:29.936000+07:00	Alarm updated from ALARM to OK
+
+===== M-167-08 ElastiCache describe-events (240 phút): chỉ có sự kiện tạo, không failover =====
+Replication group dbs-dev created; Automatic failover has been turned on; cache cluster dbs-dev-001/002 created (23:37Z đến 23:40Z). Không có sự kiện failover hay reboot trong các lượt.
+
+===== BL-420: pg_stat_statements, delta của lượt đối chứng (pgss_delta.py) =====
+dbs_api       44688      5.5     0.12      11.4  UPDATE accounts SET balance=balance+$2::bigint, updated_at=clock_times
+dbs_api       22344      5.4     0.24      15.3  INSERT INTO idempotency_keys(user_id,idem_key,request_hash) VALUES($1,
+dbs_worker    44659      4.5     0.10       8.8  INSERT INTO processed_events(consumer,event_id) VALUES($1,$2) ON CONFL
+dbs_api       22344      3.8     0.17      18.2  UPDATE idempotency_keys SET transfer_id=$3,response_code=$4,response_b
+dbs_api       67050      3.7     0.05       7.9  SELECT a.id, a.customer_id AS "customerId", c.user_id AS "userId", a.t
+dbs_api      111722      2.8     0.03       2.0  SELECT sessions_revoked_at FROM users WHERE id = $1
+dbs_worker    22329      2.8     0.12      13.9  INSERT INTO audit_log (actor_user_id, actor_role, action, outcome, tar
+dbs_api       44703      2.3     0.05       7.9  SELECT a.id,a.type,a.status,a.balance::text, a.created_at AS "createdA
+dbs_api       22344      2.1     0.09       9.0  INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,cor
+dbs_worker       19      0.9    45.67   21953.7  WITH entry_by_account AS ( SELECT account_id, COALESCE(SUM(amount::num
+dbs_worker    47410      0.8     0.02       1.0  SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+dbs_worker    22337      0.7     0.03       4.3  SELECT EXISTS (SELECT $4 FROM processed_events WHERE consumer = $1 AND
+dbs_worker     1102      0.7     0.66     236.5  UPDATE outbox_events SET published_at = clock_timestamp() WHERE id = A
+dbs_worker    46322      0.6     0.01       0.0  SELECT set_config($4, $1, $5), set_config($6, $2, $7), set_config($8, 
+
+===== M-167-09 hủy stack và kiểm sạch =====
+STACK-END 2026-11-22T08:37:37+0700 (bắt đầu 2026-11-22T06:30:13+0700)
+destroy session: 66 tài nguyên (08:29:28 đến 08:36:44); destroy loadgen: 21 tài nguyên (08:36:47 đến 08:37:29)
+== verify-clean.sh
+OK nat-gateway
+OK load-balancer
+OK rds
+OK rds-snapshot-manual
+OK elasticache
+OK ecs
+OK elastic-ip
+OK eni-available
+OK waf-regional
+OK vpc-endpoint-ec2
+OK rds-automated-backup
+OK elasticache-snapshot
+OK ebs
+KET LUAN: sạch (13 loại)
+verify-clean exit=0
+== list-user-pool-clients
+dbs-app
+dbs-app before: 538da192e3f05485  after: 538da192e3f05485
+== NACL riêng còn không?
+0
+== subnet private dùng NACL mặc định
+True	4
+== bucket tạm
+
+== luật ingress 6379 trong SG redis của base (phải chỉ còn luật từ api)
+6379	sg-0a858d676deec7961
+6379	sg-02c300770f5084abe
+== bucket tạm: head-bucket -> 404 Not Found (đã xóa cùng stack loadgen)
+== SG redis của base: ingress 6379 chỉ từ SG api và SG worker (do base quản lý), không còn luật của loadgen
+== plan base sau khi hủy: giống hệt trước (so sánh dòng Plan/resource) -> không drift
+== state tạm dev/session-dbs167.tfstate và dev/loadgen-dbs167.tfstate đã xóa; ECR: không build tay (image của workflow Image trên main)
+== khách Cognito drill-*: list-users trả 0 (đã xóa cuối drill)
