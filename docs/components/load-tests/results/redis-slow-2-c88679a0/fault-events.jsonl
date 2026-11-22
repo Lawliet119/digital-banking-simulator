@@ -1,0 +1,4 @@
+{"epoch_ms":1795308938306,"action":"k6_seen","mode":"slow"}
+{"epoch_ms":1795309237046,"action":"slow_start","mode":"slow","pause_ms":100,"period_ms":200}
+{"epoch_ms":1795309387108,"action":"slow_step","mode":"slow","pause_ms":180,"period_ms":200}
+{"epoch_ms":1795309537360,"action":"slow_end","mode":"slow"}

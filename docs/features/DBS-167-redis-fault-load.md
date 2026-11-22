@@ -1,6 +1,6 @@
 # DBS-167 · Tải có/không Redis và Redis chậm giữa tải
 
-> **Status:** Plan approved (sau G3) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-167-redis-fault-load` · **PR:** — · **Cập nhật:** 2026-11-22
+> **Status:** Implemented (sau G4) · **Vai:** #5 Platform & Ops · **Cặp đôi review:** Dev khác · **Nhánh:** `test/DBS-167-redis-fault-load` · **PR:** — · **Cập nhật:** 2026-11-22
 
 ## 1. Bối cảnh
 
@@ -138,3 +138,52 @@ flowchart LR
 **Rủi ro và cách lùi:** (a) luật deny còn sót: ba lớp khôi phục (G1.6) và `destroy` loadgen; (b) `FLUSHALL` làm bẩn số: chạy sau các lượt đo; (c) đổi association NACL chạm subnet RDS: apply loadgen trước session; (d) lùi mã: revert commit, chỉ thêm harness, biến mặc định tắt, không migration. **Plan sweep:** DoD 1 (TC-167-01..02, 05..08, M-167-05..07), DoD 2 (TC-167-03..04, health, checker), DoD 3 (báo cáo, BL), DoD 4 (quy trình); BL-216 và BL-221 có bước đo.
 
 **Quyết định ở G3 (agent tự quyết):** thứ tự thực tế lệch skill: bước 1 đến 4 (code harness) đã viết trước khi review G2 trả về; không có gì chạy trên AWS và không có gì lên GitHub trước G3. Sau review mã được sửa và kiểm lại (125 test Node đạt, 7 test Terraform của `loadgen` đạt). **Plan sweep:** DoD 1 (TC-167-01..02, 05..08, M-167-05..07), DoD 2 (TC-167-03..04, health, `wait-healthy`, checker), DoD 3 (báo cáo 05, BL), DoD 4 (quy trình); BL-216 (chậm/tắt) và BL-221 (số đo p95 đọc) có bước đo; giới hạn trong docs: README Terraform «trần 90 phút» (ngoại lệ ghi ở DBS-166 G1.8: trần cứng 3,5 giờ), «không NAT, không endpoint» giữ nguyên. Back-out: revert các commit (chỉ thêm harness, hạ tầng mặc định tắt, không migration).
+
+## 8. Kết quả
+
+- **Lệnh kiểm tra (chạy lúc bàn giao, 2026-11-22):** `node --test load-tests/test/*.test.mjs` (Node 24.22.2; `TEST_BASH` trỏ Git Bash): **125 test đạt, 0 lỗi, 0 skipped** (trước task: 99); `terraform fmt -check`, `validate`, `test` ở `envs/dev/loadgen`: **7 đạt** (trước: 5); `envs/dev/session` `terraform test` ở cây tích hợp (ba nhánh): 111 đạt; `check-doc-links.mjs` và `check-backlog.mjs` (106 dòng): 0 lỗi. Backend không đổi nên bốn lệnh backend do CI chạy. Baseline trước khi sửa: `runner.test.mjs` đỏ chỉ vì worktree mới chưa có `backend/node_modules` (đã nối junction tới bản của `main-2`; 99 đạt).
+- **Đối chiếu test case:**
+
+| ID | Test | Đạt? |
+|---|---|---|
+| TC-167-01 | `load-tests/test/config.test.mjs` › «TC-167-01 redis-fault is one 120 RPS plateau…» | đạt |
+| TC-167-02 | `window-stats.test.mjs` (cửa sổ, phân vị, chỉ 200/201/422 hợp lệ, lượt đối chứng) | đạt |
+| TC-167-03 | `window-stats.test.mjs` (vượt SLO, chấp nhận được, vượt mức cho phép, health/5xx/bất biến/hồi phục, nhiễu N, mức cho phép riêng cho đọc, hồi phục = mẫu không-`up` cuối) | đạt; mutation (đổi hằng số) làm đỏ 2 test |
+| TC-167-04 | `window-stats.test.mjs` › CLI thoát 2 khi thiếu `fault-events.jsonl` hoặc `health.jsonl` | đạt |
+| TC-167-05 | `redis-fault.test.mjs` (7 test: từ chối `P` ≥ 500 hoặc ≥ chu kỳ, `UNPAUSE` luôn chạy, bậc xung, `flush`, token chỉ ở môi trường, `enableOfflineQueue`, `probe`) | đạt |
+| TC-167-06 | `redis-fault-sh.test.mjs` (7 test, bash + `aws`, `curl`, công cụ Node giả) | đạt (đã chạy ở Git Bash; CI Linux chạy cùng file) |
+| TC-167-07, 08 | `loadgen.tftest.hcl` › `redis_fault_is_off_by_default`, `redis_fault_enabled_is_scoped` | đạt; đổi số luật NACL làm đỏ đúng test |
+| TC-167-09 | thủ công trên AWS, [manual-test.txt](screenshots/DBS-167/manual-test.txt) | đạt phần đã chạy (bảng dưới) |
+| Quy trình DoD 4 | CI, Dev review | chờ PR; Dev review **chưa đạt về hình thức** (`Techlead waiver`) |
+
+- **Test thủ công** (AWS `ap-southeast-1`, 2026-11-22; SHA harness trên máy tải: nhánh tích hợp `96720c8d`, nội dung `load-tests`, `infra/scripts`, `infra/terraform` giống commit `45158823` của task này; output thô ở [manual-test.txt](screenshots/DBS-167/manual-test.txt)):
+
+| Bước | Kết quả thật | Kết luận |
+|---|---|---|
+| M-167-01 | tài khoản đúng, budget 6,66/150 USD, `verify-clean.sh` exit 0, image `76b80bdb` có trong ECR; `dbs-app` đã lưu (sha256 `538da192e3f0…`); plan `base` đã lưu | đạt |
+| M-167-02 | `apply` loadgen với `redis_fault_enabled=true`: 21 tài nguyên, NACL `dbs-dev-private-fault` và hai association; bootstrap Node 24.22.2, k6 v2.3.0; `redis-fault.sh status` chạy bằng instance role | đạt |
+| M-167-03 | `apply` session 17 phút (06:31 đến 06:48); `db-roles.sh` 54 s; `migrate.sh` 54 s; `desired_count=2`, `worker=1`; `/health/ready` 200 `redis: up`; **`pgss.sh enable` và `reset` chạy thật lần đầu (BL-420)** | đạt |
+| M-167-04 | thử công cụ (lượt 1: lỗi thật `REDIS_HOST` không tới công cụ, `down` tự gỡ luật và thoát 1 đúng thiết kế; sửa; lượt 2): `flush` ok, `slow 10 100 200` ok, `down` in «kết nối mới hết giờ» sau 7 s, `redis: degraded` ngay, `restore`, api `up` sau ≈ 26 s | đạt sau khi sửa |
+| M-167-05..07 | 3 lượt + 1 lượt lặp (§3 báo cáo): đối chứng (đạt), chậm lượt 1 (vượt SLO ở `pre` vì đứng hình), tắt (phải mở BL: 2 lỗi ở `pre`), chậm lượt 2 (vượt SLO ở `pre` và `history` bậc nhẹ 154 ms); mọi lượt `invariantExit` 0 | đạt về thực thi; kết quả đo xem báo cáo |
+| M-167-08 | CloudWatch từng lượt (`cloudwatch.json`), Logs Insights chứng minh breaker (1.581 `CIRCUIT_OPEN` trong 10 giây đầu của lượt tắt; 20.317 ở bậc nặng), `describe-events` không có failover, lịch sử alarm (`dbs-dev-redis-fallback` OK → ALARM khi Redis tắt) | đạt |
+| M-167-09 | `destroy` session (66 tài nguyên, 7 phút 16 giây) rồi loadgen (21, 42 giây); `verify-clean.sh` exit 0 (13 loại); `list-user-pool-clients` chỉ còn `dbs-app` và `describe-user-pool-client` giống hệt trước (sha256 `538da192e3f0…`); plan `base` giống hệt trước; NACL riêng 0, hai private subnet về NACL mặc định; bucket tạm 404; hai state tạm đã xóa; stack sống 06:30 đến 08:37 +07 (2 giờ 7 phút), ước ≈ 1,1 USD | đạt |
+
+- **Phạm vi so với §7:** `git diff --stat origin/main...HEAD` (trên) khớp §7; thêm ngoài kế hoạch (gate phụ): `infra/scripts/pgss.sh` (sửa đường dẫn Windows, BL-420), `docs/components/load-tests/results/redis-*` (kết quả thô), báo cáo `05-ket-qua-redis-2026-11-22.md`, `docs/BACKLOG.md`.
+- **Lệch so với kế hoạch (agent tự duyệt):** (1) mã bước 1 đến 5 viết trước khi review G2 trả về (ghi ở §6, §7; không lên GitHub, không chạy AWS trước G3); (2) **`flush` thử chạy sau `prepare`**, không trước như review #10 đề nghị (đã có fixture; Redis chỉ có khóa rate limit và cache cấu hình, không ảnh hưởng số đo); (3) **thêm lượt chậm thứ hai** theo G1.9 vì cửa sổ `pre` của lượt 1 vượt SLO; (4) hai lỗi chỉ thấy khi chạy thật và đã sửa: `REDIS_HOST` không được export cho công cụ Node (`set -a`), `enableOfflineQueue` phải bật cho công cụ (lệnh đầu bị từ chối), thêm test cho cả hai; (5) `pgss.sh` Windows (BL-420); (6) hai nhánh khác (DBS-178, DBS-186) chạy chung stack: xem feature doc của từng task.
+- **Phát hiện chính:** xem [báo cáo 05](../components/load-tests/05-ket-qua-redis-2026-11-22.md) §1: Redis tắt an toàn; **Redis chậm vừa phải mới là ca xấu** (đọc p95 138 đến 149 ms, `history` 154 ms vượt SLO ở lượt 2); đứng hình 1 đến 3 giây trước sự cố ở 3/4 lượt, không do event loop, GC hay Redis (BL-419); hồi phục 42,5 giây sau khi mạng thông (BL-424); không có metric chứng minh breaker mở (BL-425).
+- **Bàn giao (BL):** BL-221 (cập nhật, Hoãn · H4), BL-216 (thu hẹp còn failover), BL-419 (cập nhật), **BL-424, BL-425 (mới)**; BL-420 đã đóng (xóa dòng). Không có việc nào chưa làm của DoD mà không có BL.
+- **Ảnh chụp:** ảnh dashboard lúc 120 RPS (Redis bật, Redis tắt) thuộc DBS-178: `docs/components/observability/screenshots/120rps-redis-on|off/`; ảnh trong PR này: không áp dụng (kết quả là số và file thô). Không có ảnh console AWS (không có màn hình trong phiên tự động).
+
+## 9. Tài liệu đã cập nhật
+
+`docs/components/load-tests/05-ket-qua-redis-2026-11-22.md` và `results/redis-*`, `results/redis-evidence/` (mới); `load-tests/README.md` (bài `redis-fault`); `infra/terraform/README.md` (mục `redis_fault_enabled`); `.github/workflows/ci.yml` (bước test Redis); `docs/features/README.md` (dòng DBS-167); `docs/BACKLOG.md` (xóa BL-420; cập nhật BL-216, BL-221, BL-419; thêm BL-424, BL-425).
+
+## Checklist G4
+
+- [x] 8 trong 8 test case tự động đạt đủ độ sâu (TC-167-01..08), 0 đơn giản hóa; TC-167-09 thủ công đã chạy, `loadgen-run.sh` kiểm bằng lượt thật (không có test đơn vị riêng ngoài `redis-fault-sh.test.mjs`)
+- [x] Test thủ công chạy trên cây có commit cuối đổi code của task (`45158823`); đường thành công đã chạy; không có bước «chưa chạy» ngoài ảnh console AWS (không có màn hình)
+- [x] Không có token, header `Authorization`, id tài khoản AWS hay ARN trong `results/redis-*` và `manual-test.txt` (quét `grep -E "amazonaws|ACCT|arn:aws|eyJ"`: 0)
+- [x] `git diff --stat origin/main...HEAD` khớp §7; file lạ có quyết định gate phụ ở trên
+- [x] Lệnh kiểm tra chạy lúc bàn giao có số đếm (đầu mục 8)
+- [x] Doc cập nhật; `check-doc-links.mjs` sạch
+- [x] BL cho mọi việc bàn giao; `check-backlog.mjs` sạch; dòng đã xử lý (BL-420) đã xóa
