@@ -314,7 +314,7 @@ const [action, arg] = process.argv.slice(2);
 const ctl = process.env.FAKE_CTL;
 const q = '?phase=' + encodeURIComponent(process.env.DRILL_PHASE || '') + '&account=' + encodeURIComponent(process.env.DRILL_ACCOUNT_ID || '') + '&run=' + encodeURIComponent(process.env.DRILL_RUN_ID || '');
 const call = async (p, extra = '') => { const r = await fetch(ctl + '/__ctl/' + p + q + extra); return r.text(); };
-const LEAK = ['eyJhbGciOiJub25lIn0.eyJzdWIiOiJsZWFrIn0.c2ln', 'Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJsZWFrIn0.c2ln', `${"pass"}${"word"}=${FAKE_PW}`,
+const LEAK = ['eyJhbGciOiJub25lIn0.eyJzdWIiOiJsZWFrIn0.c2ln', 'Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJsZWFrIn0.c2ln', 'pass' + 'word=' + 'Sup3rSecret' + 'Passw0rd',
   'rediss://default:s3cr3tTokenValue@master.x.cache.amazonaws.com:6379', 'arn:aws:iam::123456789012:role/dbs', 'account 123456789012', 'dbs-123.ap-southeast-1.elb.amazonaws.com'];
 const flush = async () => { const j = JSON.parse(await call('flush')); console.log('DRILL_REVOKED_KEYS_BEFORE=' + j.before); console.log('DRILL_REVOKED_KEYS_AFTER=' + j.after); };
 switch (action) {
