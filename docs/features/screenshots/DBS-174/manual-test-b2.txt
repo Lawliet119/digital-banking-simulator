@@ -1,0 +1,42 @@
+f3ea81270adb11b4cb9bd228b0a3ab98a2301d81
+
+DBS-174, M-174-09 (B2): số đo thật trên AWS ap-southeast-1, phiên 2026-11-22 từ 15:29Z, image 27af44052e679616500c09f4a1c8ca9462985402 (build của workflow Image trên main).
+Đã che: ID tài khoản AWS, tên miền ALB và RDS, mọi token, giá trị khóa OpenAI (chỉ độ dài 164 và tiền tố «sk-» từng được xem).
+Số liệu in lại từ results/dbs174-b2-baseline/ (flag-latency.json, flag-latency-drained.json, ai-gate-evidence.txt, drain-after-rule-only.txt).
+
+Điều kiện B2 của TonightWorks §3 mục 4
+  (a) $ aws secretsmanager describe-secret --secret-id dbs/dev/openai-api-key   (đầu phiên) -> ResourceNotFoundException
+      Người dùng nạp khóa vào backend/env/.env.openai và cho phép tạo secret ở Secrets Manager (xác nhận trong chat, 2026-11-22).
+      $ terraform apply -target=aws_secretsmanager_secret.openai_api_key (dev/base): Apply complete! 1 added, 1 changed (mô tả KMS)
+      $ aws secretsmanager put-secret-value ... --secret-string file://<tạm> : ok, khóa 164 ký tự, file tạm đã ghi đè rồi xóa
+      $ GET https://api.openai.com/v1/models/gpt-6-luna -> 200 id=gpt-6-luna; GET /v1/models -> 200
+  (b) smoke tổng hợp: lần 1 -> 6/6 quyết định UNAVAILABLE (chưa có hàng ai_gate_policy: xem ai-gate-evidence.txt)
+                      lần 2 (sau khi tạo hàng policy) -> 5/5 SUCCEEDED, quyết định p50 1.062 ms
+  (c) risk_ai_egress_approved=true chỉ trong state tạm dev/session-dbs174b2.tfstate; trước khi hủy: apply với false ->
+      "Apply complete! Resources: 1 added, 0 changed, 2 destroyed" (policy đọc secret bị xóa); task definition worker chỉ còn secrets DB_USER, DB_PASSWORD, REDIS_AUTH_TOKEN
+  (d) trần: RISK_AI_DAILY_REQUEST_CAP=40000, RISK_AI_CONCURRENCY=32, RISK_AI_GATE_TIMEOUT_MS=2000; dùng 10.901 yêu cầu qua cổng, 2.560 SUCCEEDED; chi phí ước ≈ 0,6 USD (chưa đối chiếu hóa đơn OpenAI)
+  (e) dữ liệu: tổng hợp (11 trường FeatureInput), «synthetic, RSK-05 duyệt 2026-11-22»; ZDR hay 30 ngày chưa chọn
+
+Cấu hình luật (token admin của dbs-loadgen)
+  latest: version=1 mode=rule_only thresholds={"high":70,"medium":40} ai=none
+  POST versions: 201 version=2 mode=rules_with_external_ai thresholds={"high":70,"medium":30} ai=gpt-6-luna/w40/t0.65
+
+Lượt baseline 12 -> 60 -> 120 RPS (B2), 15:56:45Z đến 16:44:37Z:
+  exit.json: {"scenario":"baseline","startedAt":"2026-11-22T15:56:45Z","finishedAt":"2026-11-22T16:44:37Z","runExit":0,"invariantExit":0,"aggregateExit":0,"flagLatencyExit":1}
+  k6: 0 lỗi hệ thống, 0 dropped ở cả ba plateau; p95 chuyển tiền phía k6 32,7 / 38,7 / 51,1 ms
+  flag-latency (cuối lượt, đợi 122 s): còn 24.086 giao dịch chưa có quyết định
+    12rps: 2160 chuyển, 2160 quyết định, 2160 cờ | quyết định p50/p95/p99/max 1418.73/3727.17/5515.82/8356.2 ms
+    60rps: 10799 chuyển, 8318 quyết định, 8318 cờ | quyết định p50/p95/p99/max 643524.67/1215991.47/1279395.51/1340683.12 ms
+    120rps: 21600 chuyển, 0 quyết định, 0 cờ
+  CloudWatch: CPU worker trung vị 99%, lớn nhất 100%; tuổi outbox lớn nhất 995 s; queue risk lớn nhất 4.218 tin, tuổi 810 s; DLQ 0
+
+Tắt mềm AI và tháo hàng
+  16:45:51Z POST versions: 201 version=3 mode=rule_only thresholds={"high":70,"medium":30} ai=none
+  độ sâu queue risk + notification: 4.416 -> 0 và tuổi outbox 1.044 s -> 0 lúc 16:57:06Z (11 phút 15 giây); xem drain-after-rule-only.txt
+  flag-latency sau tháo hàng: đợi 1 s, còn 0 giao dịch chưa có quyết định
+    12rps: 2160 quyết định | p50/p95/p99/max 1418.73/3727.17/5515.82/8356.2 ms | SUCCEEDED 2160
+    60rps: 10799 quyết định | p50/p95/p99/max 821707.54/1334958.53/1374728.64/1407504.21 ms | SUCCEEDED 392, UNAVAILABLE 8351, DISABLED 2056
+    120rps: 21600 quyết định | p50/p95/p99/max 1024384.67/1187217.21/1208562.49/1219634.41 ms | DISABLED 21600
+
+Hủy
+  xem báo cáo 07 §6.

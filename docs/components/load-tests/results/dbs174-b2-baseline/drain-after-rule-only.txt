@@ -1,0 +1,18 @@
+t0=16:45:51 depth=4416
+16:46:38 depth=4479 outbox_age=1038.567465
+16:47:18 depth=4209 outbox_age=1044.23092
+16:47:57 depth=3745 outbox_age=1044.23092
+16:48:36 depth=2933 outbox_age=1033.472222
+16:49:16 depth=2505 outbox_age=1018.215125
+16:49:55 depth=2115 outbox_age=1018.215125
+16:50:35 depth=1756 outbox_age=1003.482826
+16:51:14 depth=1450 outbox_age=988.470177
+16:51:54 depth=1454 outbox_age=988.470177
+16:52:34 depth=1248 outbox_age=973.459778
+16:53:13 depth=934 outbox_age=954.231051
+16:53:53 depth=790 outbox_age=954.231051
+16:54:33 depth=639 outbox_age=935.060983
+16:55:12 depth=560 outbox_age=915.96291
+16:55:52 depth=561 outbox_age=915.96291
+16:56:30 depth=505 outbox_age=892.640228
+16:57:06 depth=0 outbox_age=0.0

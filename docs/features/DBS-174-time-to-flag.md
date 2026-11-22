@@ -1,6 +1,6 @@
 # DBS-174 · Đo thời gian từ giao dịch tới cờ ở 12/60/120 RPS
 
-> **Status:** Implemented (B0 đã đo trên AWS, B2 chưa chạy được: BL-434; G4 qua; Dev review do opus thay người) · **Vai:** #5 Platform & Ops (board ghi `Dev`) · **Cặp đôi review:** opus high thay người · **Nhánh:** `perf/DBS-174-time-to-flag` · **PR:** — · **Cập nhật:** 2026-11-22
+> **Status:** Implemented (B0 và B2 đã đo trên AWS: báo cáo 06 và 07; B2 sụp đổ ở ≥ 60 RPS: BL-441; G4 qua; Dev review do opus thay người) · **Vai:** #5 Platform & Ops (board ghi `Dev`) · **Cặp đôi review:** opus high thay người · **Nhánh:** `perf/DBS-174-time-to-flag` · **PR:** — · **Cập nhật:** 2026-11-22
 
 ## 1. Bối cảnh
 
@@ -209,7 +209,7 @@ Test chạy trong CI: bước `node --test` của `load-tests/test/flag-latency.
 | M-174-06 | **đạt**: `hot-account` 0 cờ, p95 quyết định 1.691 ms, nguồn 29.526 dòng, truy vấn đặc trưng 30,73 ms; `redis-fault` không cờ 120 RPS p95 2.567 ms |
 | M-174-07 | **đạt** (xem DBS-175) |
 | M-174-08 | **đạt**: hủy sạch (66 + 14 tài nguyên), `verify-clean.sh` thoát 0, chỉ còn `base`, tag ECR đã xóa, state tạm đã xóa |
-| M-174-09 | **chưa chạy (lý do: secret `dbs/dev/openai-api-key` không tồn tại)**: B2; [BL-434](../BACKLOG.md) |
+| M-174-09 | **đạt (phiên AWS thứ hai trong ngày, sau khi người dùng nạp khóa và cho phép tạo secret)**: B2 ở 12/60/120 RPS với dữ liệu tổng hợp ([báo cáo 07](../components/load-tests/07-ket-qua-b2-thoi-gian-toi-co-2026-11-22.md), [manual-test-b2.txt](screenshots/DBS-174/manual-test-b2.txt)): p95 tới cờ 3.744 ms ở 12 RPS (độ phủ AI 100%); 60 và 120 RPS không hội tụ (BL-441); phát hiện hàng `ai_gate_policy` không ai tạo (BL-442) và lý do `UNAVAILABLE` không quan sát được (BL-443) |
 
 - **Phạm vi so với §7:** `git diff --stat main...HEAD` của nhánh khớp §7: `load-tests/{flag-latency.cjs,lib/flag-latency.cjs,aggregate-raw.cjs}` và test, `backend/test/db/flag-latency.db-spec.ts`, `infra/scripts/loadgen-run.sh`, `docs/components/load-tests/results/cw-export.mjs` và kết quả thô, `.github/workflows/ci.yml`, README và tài liệu. File ngoài §7 ban đầu, mỗi cái có lý do: `aggregate-raw.cjs` + test (review #2, xuất mốc plateau thật), `ci.yml` (review #6), `loadgen-run.sh` (đã có ở §7).
 - **Ảnh chụp:** không áp dụng (đo và công cụ dòng lệnh, không có giao diện; không có ảnh console AWS). Bằng chứng: `manual-test.txt` và `results/dbs174-*`.
@@ -222,16 +222,16 @@ Test chạy trong CI: bước `node --test` của `load-tests/test/flag-latency.
   6. Không đo trực tiếp `outbox_events` chưa gửi (quyết định G2, §6).
   7. *CloudWatch xuất lại sau lượt*: metric SQS đến muộn vài phút nên bản xuất ngay sau lượt thiếu các phút cuối (phát hiện ở review diff); mọi `cloudwatch.json` đã xuất lại đủ phút (metric còn sau khi hủy stack).
   8. *Giao dịch đầu tiên của mỗi cửa sổ* bị bỏ sót (mốc cửa sổ là phản hồi k6 đầu tiên): SQL 34.562 so với 34.563 POST; giới hạn đã nêu ở báo cáo 06 §2 và §5, không sửa code vì số đo đã chạy với bản này.
-- **Bàn giao:** [BL-434](../BACKLOG.md) (B2, DoD 5), [BL-436](../BACKLOG.md) (`demo-token.sh` trên Windows), [BL-438](../BACKLOG.md) (role chỉ đọc cho công cụ đo); cập nhật [BL-413](../BACKLOG.md), [BL-417](../BACKLOG.md), [BL-419](../BACKLOG.md) (số mới; BL-413 và BL-419 chuyển từ «Trước tải · T4» sang «Hoãn · H4» vì DBS-174 đã chạy, lý do ở báo cáo 06). Cập nhật thêm [BL-440](../BACKLOG.md) (metric lượng tử hóa). Chỉ BL-434 là DoD chưa đạt của task này; BL-435, BL-437, BL-439 thuộc DBS-175.
+- **Bàn giao:** [BL-441](../BACKLOG.md), [BL-442](../BACKLOG.md), [BL-443](../BACKLOG.md) (từ phiên B2; BL-434 đã đóng), [BL-436](../BACKLOG.md) (`demo-token.sh` trên Windows), [BL-438](../BACKLOG.md) (role chỉ đọc cho công cụ đo); cập nhật [BL-413](../BACKLOG.md), [BL-417](../BACKLOG.md), [BL-419](../BACKLOG.md) (số mới; BL-413 và BL-419 chuyển từ «Trước tải · T4» sang «Hoãn · H4» vì DBS-174 đã chạy, lý do ở báo cáo 06). Cập nhật thêm [BL-440](../BACKLOG.md) (metric lượng tử hóa). DoD 5 **đạt một phần** (B2 đã đo ở báo cáo 07; 429 không quan sát được: BL-443); BL-435, BL-437, BL-439 thuộc DBS-175.
 
 ## 9. Tài liệu đã cập nhật
 
-Báo cáo [06](../components/load-tests/06-ket-qua-thoi-gian-toi-co-2026-11-22.md) (mới); `load-tests/README.md` (mục «Độ trễ giao dịch → quyết định và cờ»); `infra/terraform/README.md` (bước 5, đường dẫn `POST /v1/admin/risk-config/versions`); [observability 01](../components/observability/01-concept-brief.md) (cách đo thứ hai); [P4-production-engineering.md](../deliverables/P4-production-engineering.md) (dòng «thời gian tới cờ» và «việc của người»); `docs/features/README.md`; `docs/BACKLOG.md` (thêm BL-434, BL-436, BL-438, BL-440; cập nhật BL-413, BL-417, BL-419; không xóa dòng nào vì không có dòng nào đóng hẳn: BL-410 và các dòng khác không liên quan).
+Báo cáo [06](../components/load-tests/06-ket-qua-thoi-gian-toi-co-2026-11-22.md) (mới); `load-tests/README.md` (mục «Độ trễ giao dịch → quyết định và cờ»); `infra/terraform/README.md` (bước 5, đường dẫn `POST /v1/admin/risk-config/versions`); [observability 01](../components/observability/01-concept-brief.md) (cách đo thứ hai); [P4-production-engineering.md](../deliverables/P4-production-engineering.md) (dòng «thời gian tới cờ» và «việc của người»); `docs/features/README.md`; `docs/BACKLOG.md` (thêm BL-436, BL-438, BL-440, BL-441, BL-442, BL-443 (BL-434 thêm ở PR trước và đóng ở phiên B2); cập nhật BL-413, BL-417, BL-419; BL-434 thêm ở PR #242 và đóng (xóa) ở PR của phiên B2).
 
 ## Checklist G4
 
 - [x] 18/18 test case đạt đủ độ sâu của task này (TC-174-01..14, 21..24), 0 đơn giản hóa
-- [x] Test thủ công chạy trên commit cuối đổi code (SHA ở dòng đầu `manual-test.txt`); M-174-01..08 đạt, M-174-09 chưa chạy (BL-434) và nêu ở PR
+- [x] Test thủ công chạy trên commit cuối đổi code (SHA ở dòng đầu `manual-test.txt`); M-174-01..09 đạt (M-174-09 ở `manual-test-b2.txt`, SHA ở dòng đầu)
 - [x] Ảnh chụp: không áp dụng (nêu lý do); `manual-test.txt` đã che token, tên miền và ID tài khoản (quét `grep`: 0 kết quả)
 - [x] `git diff --stat` khớp §7, file ngoài kế hoạch có lý do (§8)
 - [x] Bốn lệnh kiểm tra chạy lúc bàn giao, có số đếm (§8)
