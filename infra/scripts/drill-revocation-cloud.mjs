@@ -211,7 +211,9 @@ export function request(urlStr, { method = "GET", headers = {}, body, insecure =
       {
         method,
         agent: false,
-        headers: { ...(payload ? { "content-type": "application/json", "content-length": payload.length } : {}), ...headers },
+        // WAF `AWSManagedRulesCommonRuleSet` (NoUserAgent_HEADER) chặn 403 request không có User-Agent: node:https không tự thêm
+        // (lỗi thấy ở lần chạy cloud đầu tiên, preflight /health/ready trả 403).
+        headers: { "user-agent": "dbs-drill-revocation/1", ...(payload ? { "content-type": "application/json", "content-length": payload.length } : {}), ...headers },
         ...(u.protocol === "https:" ? { rejectUnauthorized: !insecure } : {}),
         timeout: timeoutMs,
       },

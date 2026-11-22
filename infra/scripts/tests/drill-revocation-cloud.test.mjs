@@ -756,3 +756,25 @@ describe("bộ che (redact) và đọc mốc", () => {
     assert.throws(() => parseMarker("hôm qua"), /định dạng/);
   });
 });
+
+describe("TC-186-17 User-Agent (WAF NoUserAgent_HEADER chặn 403 request không có User-Agent)", () => {
+  test("mọi request của driver mang User-Agent, header của người gọi vẫn ghi đè được", async () => {
+    const { request } = await import(pathToFileURL(DRIVER).href);
+    const http = await import("node:http");
+    const seen = [];
+    const server = http.createServer((req, res) => {
+      seen.push(req.headers["user-agent"]);
+      res.end("{}");
+    });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      const url = `http://127.0.0.1:${server.address().port}/x`;
+      await request(url);
+      await request(url, { headers: { "user-agent": "custom/1" } });
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+    assert.match(seen[0], /^dbs-drill-revocation\/\d+$/);
+    assert.equal(seen[1], "custom/1");
+  });
+});
