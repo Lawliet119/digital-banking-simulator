@@ -23,7 +23,7 @@ P = dict(
 H = D('730')
 GB = D('20')
 WAF_RULES = 3                              # modules/waf/main.tf: rate-limit + 2 managed rule group
-RETAINED_DAY = D('0.0619')                 # KMS 0,033 + Secrets 0,027 (ngày 16/11-20/11)
+RETAINED_DAY = D('0.0619')                 # trung bình ngày 16/11-19/11 (0,0619; 0,0619; 0,0619; 0,0619; 20/11 là 0,0627), ≈ KMS 0,033 + Secrets Manager 0,027 + ECR/S3 0,002
 
 
 def fargate(vcpu, gb):
@@ -54,7 +54,7 @@ loadgen_h = P['ec2'] + P['ipv4']
 waf_fixed_month = P['waf_acl'] + WAF_RULES * P['waf_rule']
 waf_fixed_h = waf_fixed_month / H
 retained_month = RETAINED_DAY * D('30.4')
-sec_dev, sec_prod = 2 * P['secret'], 3 * P['secret']  # secret của phiên: 2 (dev), 3 (prod, thêm redis_auth)
+sec_dev, sec_prod = 4 * P['secret'], 2 * P['secret']  # secret của phiên: dev 4 (RDS master + 3 db_role), production 2 (RDS master + redis_auth)
 for name, c in (('dev', dev), ('production', prod)):
     print('==', name, 'USD/giờ', q(sum(c.values())), {k: q(v) for k, v in c.items()})
 print('máy tải/giờ', q(loadgen_h), '· cấu hình đo (production + máy tải)/giờ', q(prod_h + loadgen_h))
@@ -108,7 +108,8 @@ other_load_h = (load_sum - load['WAF_request']) / 12  # phí tải ngoài WAF re
 cfg_h = prod_h + loadgen_h + waf_fixed_h
 retained = RETAINED_DAY * 22
 aws_a = D(2) * cfg_h  # phần UTC 22/11 của phiên AWS-A: 2 giờ ALB (00:00Z-01:37Z); giờ 23:00Z-24:00Z 21/11 đã nằm trong số 21/11
-aws_a_lo, aws_a_hi = aws_a + D('0.3'), aws_a + D('0.6')
+aws_a_lo = aws_a + D('0.3')
+aws_a_hi = D(3) * cfg_h + D('0.6')  # cận trên: giờ 23:00Z-24:00Z 21/11 chưa có trong số đã chốt (3 giờ ALB)
 aws_b = D(5) * cfg_h + waf_rps(120) * D('1.5') + D(5) * other_load_h
 spare_lo, spare_hi = D('1.5'), D('2.0')
 print('giữ lại 22 ngày', q(retained, 2), '· AWS-A (22/11 UTC)', q(aws_a_lo, 2), '-', q(aws_a_hi, 2),
@@ -119,3 +120,5 @@ print('cộng', q(lo, 2), '-', q(hi, 2), '· so với credit 191,2947:', q(hi / 
 print('script: 0,7647 × 22 =', q(D('0.7647') * 22, 4), '· so với credit', q(D('16.8232') / D('191.2947') * 100, 1), '%')
 print('budget tháng 11: 7,766 / 150 =', q(D('7.766') / 150 * 100, 1), '% · dự báo cả tháng 8,567 → phần còn lại 22-30/11', q(D('8.567') - D('7.766'), 3))
 print('21/11 so với tổng kỳ', q(day / D('8.2642') * 100, 1), '%')
+
+print('dự báo AWS 22/11-14/12 = 11,354 (M-179-08); trừ ACTUAL tháng 11 7,766 =', q(D('11.354') - D('7.766'), 2), 'USD sau 21/11')

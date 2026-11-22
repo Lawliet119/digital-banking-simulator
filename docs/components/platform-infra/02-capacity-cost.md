@@ -10,9 +10,9 @@ Mục «capacity & cost» của P4. **Ước lượng, chưa đối chiếu hóa
 |---|---|---|
 | Đã tiêu bao nhiêu? | **8,2642 USD** gộp từ 01/10 tới hết 21/11 (trước credit); credit đã dùng 8,7053 USD từ 01/08 (bằng đúng chi phí gộp từng tháng: 0,4411 + 0,0001 + 0,4977 + 7,7665), còn khoảng **191,2947 / 200 USD** | báo cáo mục 1, 4; manual-test M-179-07 |
 | So với ngân sách tháng? | Tháng 11: ACTUAL **7,766 USD** (5,2 %), FORECASTED cả tháng 8,567 USD, trên Budget **150 USD** | `aws budgets describe-budgets` |
-| Chạy 24/7? | dev **≈ 112,43 USD/tháng** (104,43 khi tắt WAF từ 26/11); production (Multi-AZ) **≈ 203,95 USD/tháng**, vượt Budget 150 USD và trần 200 USD của NFR-COST-01 | §5 |
+| Chạy 24/7? | dev **≈ 113,23 USD/tháng** (105,23 khi tắt WAF từ 26/11); production (Multi-AZ) **≈ 203,55 USD/tháng**, vượt Budget 150 USD và trần 200 USD của NFR-COST-01 | §5 |
 | Một phiên làm việc? | dev 3 giờ **≈ 0,45 USD**; phiên đo tải 5 giờ **≈ 1,72 USD** cộng phí theo tải (≈ 0,26 USD mỗi giờ 120 RPS riêng phí request WAF) | §4 |
-| Còn tới 13/12? | khoảng **6–7 USD** (3,6 % credit còn lại); script dự báo 16,8232 USD, là cận trên | §6 |
+| Còn tới 13/12? | khoảng **6–7 USD** (6,15–7,30; ≤ 3,8 % credit còn lại); script dự báo 16,8232 USD, là cận trên | §6 |
 
 ## 2. Chi phí thật theo dịch vụ (từ 01/10 tới hết 21/11)
 
@@ -28,12 +28,12 @@ Top theo lũy kế (USD, trước credit; đầy đủ ở báo cáo mục 1): R
 | 13/11 | 0,1565 | 1 | task chưa xác định |
 | 14/11 | 1,1895 | 11 | Multi-AZ và failover ([DBS-180](../../features/DBS-180-rds-multi-az.md), [DBS-181](../../features/DBS-181-rds-failover-drill.md)) |
 | 15/11 | 0,4508 | 4 | sự cố cloud ([DBS-184](../../features/DBS-184-cloud-incident-scenarios.md), [DBS-185](../../features/DBS-185-ac-5-10-kill-task-cloud.md)) |
-| 21/11 | 4,5917 | 12 | bốn phiên: đo tải 12/60/120 RPS và tối ưu p95 ([DBS-166](../../features/DBS-166-load-report.md), [DBS-173](../../features/DBS-173-p95-120rps.md)), đo BL-418 (16:58Z–18:02Z, [báo cáo 04](../load-tests/04-ket-qua-bl-418-2026-11-22.md)) và giờ đầu (23:00Z–24:00Z) của phiên AWS-A ([DBS-167](../../features/DBS-167-redis-fault-load.md), dựng 06:30 giờ Việt Nam 22/11) |
+| 21/11 | 4,5917 | 12 | bốn phiên: đo tải 12/60/120 RPS và tối ưu p95 ([DBS-166](../../features/DBS-166-load-report.md), [DBS-173](../../features/DBS-173-p95-120rps.md)), đo BL-418 (stack 16:24Z–18:13Z, đo 16:58Z–18:02Z, [báo cáo 04](../load-tests/04-ket-qua-bl-418-2026-11-22.md)) và giờ đầu (23:00Z–24:00Z) của phiên AWS-A ([DBS-167](../../features/DBS-167-redis-fault-load.md), dựng 06:30 giờ Việt Nam 22/11) |
 | 16/11–20/11 | 0,0619 – 0,0627 | 0 | khoản giữ lại |
 
 ## 3. Đơn giá quan sát (USD, `ap-southeast-1`)
 
-Mỗi đơn giá = chi phí ÷ quantity của chính usage type đó. RDS, Valkey, ALB, Fargate, Secrets Manager lấy từ báo cáo mục 2 (cả kỳ); IPv4, máy tải, WAF, KMS, SQS từ Cost Explorer ngày 21/11 nhóm `USAGE_TYPE` ([manual-test.txt](../../features/screenshots/DBS-179/manual-test.txt) M-179-04). Khớp ước tính ADR-11 và README Terraform.
+Mỗi đơn giá = chi phí ÷ quantity của chính usage type đó. RDS, Valkey, ALB, Fargate, Secrets Manager lấy từ báo cáo mục 2 (cả kỳ); IPv4, máy tải, WAF, KMS, SQS từ Cost Explorer ngày 21/11 nhóm `USAGE_TYPE` ([manual-test.txt](../../features/screenshots/DBS-179/manual-test.txt) M-179-04b). Khớp ước tính ADR-11 và README Terraform.
 
 | Thành phần | Usage type | Đơn giá | Ghi chú |
 |---|---|---:|---|
@@ -48,6 +48,7 @@ Mỗi đơn giá = chi phí ÷ quantity của chính usage type đó. RDS, Valke
 | Máy tải `t3.medium` | `BoxUsage:t3.medium` | 0,0528/giờ | 0,5155 cho 9,764 giờ; cộng IPv4 và EBS gp3 |
 | WAF | `WebACLV2`, `RuleV2`, `RequestV2-Tier1` | 5/web ACL-tháng, 1/rule-tháng (3 rule), 0,60/triệu request | 0,0644 và 0,0386 cho 0,013 và 0,039 tháng; 0,8493 cho 1.415.483 request |
 | Secrets Manager | `AWSSecretsManager-Secret` | 0,40/secret-tháng | |
+| SQS | `Requests-Tier1` | 0,106/triệu request | 0,1434 cho 1.354.806 request ngày 21/11 |
 | KMS | `KMS-Keys` | 1,0/key-tháng | 0,0264 cho 0,026 tháng |
 
 ## 4. Chi phí theo giờ và theo phiên
@@ -72,7 +73,7 @@ Máy tải k6 (`t3.medium` 0,0528 + IPv4 0,005) thêm **0,0578/giờ**, nên c�
 | Loại phiên | 3 giờ | 4 giờ | 5 giờ |
 |---|---:|---:|---:|
 | Dev (làm việc, kiểm tay) | 0,45 | 0,60 | 0,75 |
-| Production + máy tải (đo tải, diễn tập), chưa kể phí theo tải | 1,03 | 1,38 | 1,72 |
+| Cấu hình đo (`dev/session` cỡ production, có WAF) + máy tải, chưa kể phí theo tải | 1,03 | 1,38 | 1,72 |
 
 Dev theo kế hoạch ADR-11 (40–50 giờ/tuần): **6,01–7,52 USD/tuần**.
 
@@ -92,33 +93,33 @@ Mô hình cho ngày này: 12 giờ ALB × 0,3439 (cấu hình đo cộng WAF c�
 | Tài nguyên theo giờ × 730 | 101,75 | 200,87 |
 | WAF cố định (1 web ACL + 3 rule); production không có | 8,00 | 0,00 |
 | Khoản giữ lại (KMS, Secrets Manager của `base`: 0,0619 × 30,4 ngày) | 1,88 | 1,88 |
-| Secret của phiên (RDS master, `db_role`; production thêm `redis_auth`): 2 và 3 × 0,40 | 0,80 | 1,20 |
-| **Cộng, USD/tháng** | **112,43** | **203,95** |
+| Secret của phiên: dev 4 (RDS master + 3 `db_role`), production 2 (RDS master + `redis_auth`), × 0,40 | 1,60 | 0,80 |
+| **Cộng, USD/tháng** | **113,23** | **203,55** |
 | So Budget 150 USD | 75 % | **136 %** |
-| So trần 200 USD của NFR-COST-01 (150–200) | 56 % | **102 %** |
+| So trần 200 USD của NFR-COST-01 (150–200) | 57 % | **102 %** |
 | Số tháng tiêu hết credit còn lại 191,29 USD | 1,7 | 0,9 |
 
-Dev khi WAF tắt (từ 26/11, BL-291): 104,43 USD/tháng. Chưa gồm phí request WAF của dev (0,60/triệu: 12 RPS liên tục = 31,5 triệu request/tháng ≈ 18,9 USD), SQS, data transfer. Kiểm với ADR-11 («24/7 cả 10 tuần ≈ 230–250 USD»): 10 tuần = 70 ngày ≈ 259 USD theo dev có WAF, cùng bậc. Kết luận: dựng rồi xóa theo phiên là bắt buộc, không chạy 24/7 cấu hình nào; dev 24/7 chỉ vừa trong Budget, production không vừa cả Budget lẫn trần 200.
+Dev khi WAF tắt (từ 26/11, BL-291): 105,23 USD/tháng. Chưa gồm phí request WAF của dev (0,60/triệu: 12 RPS liên tục = 31,5 triệu request/tháng ≈ 18,9 USD), SQS, data transfer. Kiểm với ADR-11 («24/7 cả 10 tuần ≈ 230–250 USD»): 10 tuần = 70 ngày ≈ 261 USD theo dev có WAF, cùng bậc. Kết luận: dựng rồi xóa theo phiên là bắt buộc, không chạy 24/7 cấu hình nào; dev 24/7 chỉ vừa trong Budget, production không vừa cả Budget lẫn trần 200.
 
 ## 6. Dự báo tới 13/12/2026 (hạn P4)
 
-Cost Explorer đã chốt tới hết 21/11 UTC, gồm cả phiên BL-418 và giờ đầu của phiên AWS-A. Phần chưa có và phần sắp tới:
+Cost Explorer đã chốt tới hết 21/11 UTC lúc chạy (22/11, chưa tới 24 giờ sau), nên số ngày 21/11 **có thể còn tăng**; theo số đó, nó gồm phiên BL-418 và (có thể) giờ đầu của phiên AWS-A. Phần chưa có và phần sắp tới:
 
 | Khoản | USD | Cách tính |
 |---|---:|---|
 | Giữ lại 22/11–13/12 (22 ngày) | 1,36 | 0,0619 × 22 |
-| Phiên AWS-A, phần ngày UTC 22/11 (DBS-167, DBS-178, DBS-186; hủy 08:37 giờ Việt Nam = 01:37Z, **chưa có trong Cost Explorer**) | 0,99–1,29 | 2 giờ ALB × 0,3439 + phí WAF theo tải 0,3–0,6; DBS-167 tự ghi ≈ 0,5 USD/giờ |
+| Phiên AWS-A, phần ngày UTC 22/11 (DBS-167, DBS-178, DBS-186; hủy 08:37 giờ Việt Nam = 01:37Z, **chưa có trong Cost Explorer**) | 0,99–1,63 | 2 giờ ALB × 0,3439 + phí WAF theo tải 0,3–0,6; cận trên tính 3 giờ ALB nếu giờ 23:00Z 21/11 chưa có trong số đã chốt; DBS-167 tự ghi ≈ 0,5 USD/giờ |
 | Phiên 5 AWS-B (DBS-174, DBS-175), dựng một lần ≤ 5 giờ | 2,30 | 5 × 0,3439 + 0,39 (1,5 giờ ở 120 RPS) + 5 × 0,0390 (phí tải khác) |
 | Dự phòng một phiên làm lại | 1,5–2,0 | |
-| **Cộng** | **≈ 6–7** (6,15–6,95) | không gồm API OpenAI của B2 (chi phí khác, có trần ở DBS-174) |
+| **Cộng** | **≈ 6–7** (6,15–7,30) | không gồm API OpenAI của B2 (chi phí khác, có trần ở DBS-174) |
 
-So với 191,29 USD credit còn lại, kế hoạch dùng khoảng 3,6 %. Script dự báo 16,8232 USD (trung bình 7 ngày cuối 0,7647 USD/ngày × 22 ngày) là cận trên vì 7 ngày cuối gồm cả ngày đo tải 21/11. Con số «dự báo AWS» 8,5669 USD của báo cáo mục 4 **là dự báo cả tháng 11** (gồm 7,766 USD đã phát sinh; khớp FORECASTED 8,567 của Budget; `get-cost-forecast` cho các khoảng bắt đầu 22/11 và 23/11 trả cùng số): phần còn lại 22–30/11 ≈ 0,80 USD. Nhãn «[22/11, hết tháng)» của script là chưa chính xác, ghi ở [BL-427](../../BACKLOG.md).
+So với 191,29 USD credit còn lại, kế hoạch dùng không quá 3,8 %. Script dự báo 16,8232 USD (trung bình 7 ngày cuối 0,7647 USD/ngày × 22 ngày) là cận trên vì 7 ngày cuối gồm cả ngày đo tải 21/11. Con số «dự báo AWS» 8,5669 USD của báo cáo mục 4 **là dự báo cả tháng 11** (gồm 7,766 USD đã phát sinh; khớp FORECASTED 8,567 của Budget; `get-cost-forecast` cho các khoảng bắt đầu 22/11 và 23/11 trả cùng số): phần còn lại 22–30/11 ≈ 0,80 USD. Nhãn «[22/11, hết tháng)» của script là chưa chính xác, ghi ở [BL-427](../../BACKLOG.md). Dự báo AWS cho [22/11, 14/12) là 11,354 USD (cả tháng 11 cộng 1–13/12); trừ 7,766 đã phát sinh còn khoảng 3,59 USD sau 21/11, thấp hơn kế hoạch 6–7 USD vì AWS ngoại suy từ xu hướng nền và không biết trước phiên AWS-B.
 
 ## 7. Giới hạn
 
 - **Chưa đối chiếu hóa đơn.** Số chi phí là Cost Explorer (UnblendedCost, ngày UTC), không phải hóa đơn; số dư credit chỉ có ở console Billing → Credits ([BL-426](../../BACKLOG.md)). Cost Explorer đã điều chỉnh số tháng 8 (0,0544 lúc DBS-143 ngày 04/11, 0,4411 nay), nên số cũ trong báo cáo 11-04 và 11-14 không dùng lại.
 - Ngày UTC 21/11 gộp bốn phiên và hai cấu hình RDS; chi phí «theo phiên» ở §4 là mô hình theo giờ, kiểm trên cả ngày chứ không trên từng phiên riêng, và cao hơn thật khoảng 20 %.
 - Đơn giá lấy từ số đã trả; đổi giá AWS hay đổi loại instance thì cập nhật §3. Phí request WAF 0,60/triệu suy từ 0,8493 USD cho 1.415.483 request.
-- Số secret của phiên (2 ở dev, 3 ở production) là giả định từ Terraform (`rds.tf`, `db_roles.tf`, `redis.tf`), chưa đối chiếu với Secrets Manager thật; sai số tối đa vài chục xu mỗi tháng.
+- Số secret của phiên (4 ở dev, 2 ở production) suy từ Terraform (`rds.tf`, `db_roles.tf`, `redis.tf`); chi phí Secrets Manager ngày 21/11 (0,106 secret-tháng, trừ 2 secret của `base`) cần ít nhất 3 secret của phiên, phù hợp. Chưa đếm trực tiếp trên Secrets Manager; sai số vài chục xu mỗi tháng.
 - Ngưỡng: Budget AWS báo ở 150 USD; NFR-COST-01 của BRD là «≤ 150–200 USD/tháng».
 - So sánh Single-AZ và Multi-AZ kèm RTO/RPO: DBS-182 (task riêng).

@@ -1,13 +1,15 @@
-SHA nền: 1d18d9ab (không đổi code; tài liệu và số liệu, không có commit đổi code)
-Ngày chạy: 2026-11-22; Cost Explorer chốt tới hết 2026-11-21 UTC
+SHA nền: 1d18d9ab (origin/main lúc chạy; không đổi code, tài liệu và số liệu)
+Ngày chạy: 2026-11-22; Cost Explorer chốt tới hết 2026-11-21 UTC (có thể còn tăng); sai số so sánh ±0,0001 USD
 
-### M-179-01 verify-clean.sh
+### M-179-01
+$ bash infra/scripts/verify-clean.sh | tail -4
 OK rds-automated-backup
 OK elasticache-snapshot
 OK ebs
 KET LUAN: sạch (13 loại)
 
-### M-179-02 cost-report.py --start 2026-10-01 --end 2026-11-22 (tóm tắt: mục 1 và mục 4)
+### M-179-02
+$ python infra/scripts/cost-report.py --start 2026-10-01 --end 2026-11-22   (mục 1 và mục 4)
 exit=0
 ## 1. Theo dịch vụ
 
@@ -41,46 +43,42 @@ exit=0
 
 ## 5. Cảnh báo
 
-### M-179-03 get-cost-and-usage MONTHLY theo SERVICE, lọc bỏ Credit/Refund, 2026-10-01..2026-11-22
+### M-179-03
+$ aws ce get-cost-and-usage --time-period Start=2026-10-01,End=2026-11-22 --granularity MONTHLY --metrics UnblendedCost --filter '{"Not":{"Dimensions":{"Key":"RECORD_TYPE","Values":["Credit","Refund"]}}}' --group-by Type=DIMENSION,Key=SERVICE
 Amazon Relational Database Service 1.4266
 Amazon Elastic Load Balancing 0.9283
 AWS WAF 1.0131
 Amazon ElastiCache 0.7488
 TONG 8.2642
 
-### M-179-04 UsageQuantity ALB và node Valkey theo ngày, 2026-10-24..2026-11-22 (cộng lại)
+### M-179-04 UsageQuantity theo ngày: ALB, node Valkey, RDS instance (2026-10-24..2026-11-21), kèm tổng
+$ aws ce get-cost-and-usage --time-period Start=2026-10-24,End=2026-11-22 --granularity DAILY --metrics UsageQuantity --filter '{Dimensions USAGE_TYPE in [LoadBalancerUsage, NodeUsage:cache.t4g.micro, InstanceUsage:db.t4g.micro, InstanceUsage:db.t4g.small, Multi-AZUsage:db.t4g.micro, Multi-AZUsage:db.t4g.small]}' --group-by Type=DIMENSION,Key=USAGE_TYPE
+2026-10-25 APS1-InstanceUsage:db.t4g.micro 0.167
 2026-10-25 APS1-LoadBalancerUsage 2.000
+2026-10-29 APS1-InstanceUsage:db.t4g.micro 0.567
 2026-10-29 APS1-LoadBalancerUsage 2.000
 2026-10-29 APS1-NodeUsage:cache.t4g.micro 2.000
+2026-11-12 APS1-InstanceUsage:db.t4g.micro 0.333
 2026-11-12 APS1-LoadBalancerUsage 1.000
 2026-11-12 APS1-NodeUsage:cache.t4g.micro 2.000
 2026-11-13 APS1-LoadBalancerUsage 1.000
 2026-11-13 APS1-NodeUsage:cache.t4g.micro 1.000
+2026-11-14 APS1-InstanceUsage:db.t4g.micro 4.110
+2026-11-14 APS1-InstanceUsage:db.t4g.small 1.287
 2026-11-14 APS1-LoadBalancerUsage 11.000
+2026-11-14 APS1-Multi-AZUsage:db.t4g.micro 0.306
 2026-11-14 APS1-NodeUsage:cache.t4g.micro 11.000
+2026-11-15 APS1-InstanceUsage:db.t4g.micro 2.619
 2026-11-15 APS1-LoadBalancerUsage 4.000
 2026-11-15 APS1-NodeUsage:cache.t4g.micro 3.000
+2026-11-21 APS1-InstanceUsage:db.t4g.small 0.523
 2026-11-21 APS1-LoadBalancerUsage 12.000
+2026-11-21 APS1-Multi-AZUsage:db.t4g.small 8.689
 2026-11-21 APS1-NodeUsage:cache.t4g.micro 20.000
-{'APS1-LoadBalancerUsage': '33.000', 'APS1-NodeUsage:cache.t4g.micro': '39.000'}
+{'APS1-InstanceUsage:db.t4g.micro': '7.797', 'APS1-LoadBalancerUsage': '33.000', 'APS1-NodeUsage:cache.t4g.micro': '39.000', 'APS1-InstanceUsage:db.t4g.small': '1.810', 'APS1-Multi-AZUsage:db.t4g.micro': '0.306', 'APS1-Multi-AZUsage:db.t4g.small': '8.689'}
 
-### M-179-05 aws budgets describe-budgets
-[
-    {
-        "ten": "Free-tier Budget",
-        "gioi_han": "0.01",
-        "thuc_te": "0.0",
-        "du_bao": "0.8"
-    },
-    {
-        "ten": "My Monthly Cost Budget",
-        "gioi_han": "150.0",
-        "thuc_te": "7.766",
-        "du_bao": "8.567"
-    }
-]
-
-### M-179-04b chi phí gộp theo ngày (24/10-21/11) và theo SERVICE+USAGE_TYPE ngày 21/11
+### M-179-04b chi phí gộp từng ngày (24/10-21/11); ngày 21/11 theo SERVICE+USAGE_TYPE; ngày 16/11-20/11 theo SERVICE
+$ aws ce get-cost-and-usage --time-period Start=2026-10-24,End=2026-11-22 --granularity DAILY --metrics UnblendedCost --filter '{"Not":{"Dimensions":{"Key":"RECORD_TYPE","Values":["Credit","Refund"]}}}'
 2026-10-24 0.000005
 2026-10-25 0.080076064
 2026-10-26 0.0452680318
@@ -110,6 +108,7 @@ TONG 8.2642
 2026-11-19 0.0618749918
 2026-11-20 0.062691108
 2026-11-21 4.5916947393
+$ aws ce get-cost-and-usage --time-period Start=2026-11-21,End=2026-11-22 --granularity DAILY --metrics UnblendedCost UsageQuantity --filter '{"Not":{"Dimensions":{"Key":"RECORD_TYPE","Values":["Credit","Refund"]}}}' --group-by Type=DIMENSION,Key=SERVICE Type=DIMENSION,Key=USAGE_TYPE
 0.8863 8.689 Amazon Relational Database Ser | APS1-Multi-AZUsage:db.t4g.small
 0.8493 1415483.0 AWS WAF | APS1-RequestV2-Tier1
 0.5155 9.764 Amazon Elastic Compute Cloud - | APS1-BoxUsage:t3.medium
@@ -138,30 +137,69 @@ TONG 8.2642
 0.0017 0.017 Amazon EC2 Container Registry  | APS1-TimedStorage-ByteHrs
 0.0013 0.267 Amazon Virtual Private Cloud | APS1-PublicIPv4:IdleAddress
 TONG 4.5917
+$ aws ce get-cost-and-usage --time-period Start=2026-11-16,End=2026-11-21 --granularity DAILY --metrics UnblendedCost --filter '{"Not":{"Dimensions":{"Key":"RECORD_TYPE","Values":["Credit","Refund"]}}}' --group-by Type=DIMENSION,Key=SERVICE   (khoản giữ lại)
+2026-11-16 {'AWS Key Management Ser': 0.0333, 'AWS Secrets Manager': 0.0267, 'Amazon EC2 Container R': 0.0019}
+2026-11-17 {'AWS Key Management Ser': 0.0333, 'AWS Secrets Manager': 0.0267, 'Amazon EC2 Container R': 0.0019}
+2026-11-18 {'AWS Key Management Ser': 0.0333, 'AWS Secrets Manager': 0.0267, 'Amazon EC2 Container R': 0.0019}
+2026-11-19 {'AWS Key Management Ser': 0.0333, 'AWS Secrets Manager': 0.0267, 'Amazon EC2 Container R': 0.0019}
+2026-11-20 {'AWS Key Management Ser': 0.0333, 'AWS Secrets Manager': 0.0267, 'Amazon EC2 Container R': 0.002}
+
+### M-179-05
+$ aws budgets describe-budgets --account-id <account-id> --query Budgets[].{...}
+[
+    {
+        "ten": "Free-tier Budget",
+        "gioi_han": "0.01",
+        "thuc_te": "0.0",
+        "du_bao": "0.8"
+    },
+    {
+        "ten": "My Monthly Cost Budget",
+        "gioi_han": "150.0",
+        "thuc_te": "7.766",
+        "du_bao": "8.567"
+    }
+]
 
 ### M-179-07 credit đã dùng: Credit, Usage theo tháng (RECORD_TYPE) từ 2026-08-01
+$ aws ce get-cost-and-usage --time-period Start=2026-08-01,End=2026-11-22 --granularity MONTHLY --metrics UnblendedCost --group-by Type=DIMENSION,Key=RECORD_TYPE
 2026-08-01 [('Credit', -0.4411), ('Tax', 0.0), ('Usage', 0.4411)]
 2026-09-01 [('Credit', -0.0001), ('Usage', 0.0001)]
 2026-10-01 [('Credit', -0.4977), ('Tax', 0.0), ('Usage', 0.4977)]
 2026-11-01 [('Credit', -7.7665), ('Tax', 0.0), ('Usage', 7.7665)]
 
 ### M-179-08 get-cost-forecast: các khoảng bắt đầu khác nhau (MONTHLY, RECORD_TYPE=Usage)
+$ aws ce get-cost-forecast --time-period Start=<a>,End=<b> --metric UNBLENDED_COST --granularity MONTHLY --filter {Dimensions RECORD_TYPE=Usage}
 2026-11-22..2026-12-01: 8.566893844856697
 2026-11-23..2026-12-01: 8.566893844856697
 2026-11-22..2026-12-14: 11.354078416549372
 
+### M-179-09 WAF: số rule ở modules/waf; production có WAF không
+$ grep -nE ... infra/terraform/modules/waf/main.tf; grep -rl -i "module \"waf\"|aws_wafv2" infra/terraform/envs/{prod,dev}/session
+4:      name       = "aws-managed-common"
+10:      name       = "aws-managed-known-bad-inputs"
+37:  rule {
+38:    name     = "rate-limit"
+infra/terraform/envs/dev/session/tests/seed.tftest.hcl
+infra/terraform/envs/dev/session/tests/session.tftest.hcl
+infra/terraform/envs/dev/session/tests/waf.tftest.hcl
+infra/terraform/envs/dev/session/tests/worker.tftest.hcl
+infra/terraform/envs/dev/session/waf.tf
+(chỉ envs/dev/session có WAF; không có dòng nào của envs/prod/session = production không có WAF)
+
 ### M-179-06 calc.py
+$ python docs/features/screenshots/DBS-179/calc.py
 task api/giờ 0,0308 · task worker/giờ 0,0154
 == dev USD/giờ 0,1394 {'RDS instance': '0,0250', 'RDS storage 20 GB': '0,0038', 'Valkey': '0,0192', 'ALB': '0,0252', 'Fargate api': '0,0308', 'Fargate worker': '0,0154', 'IPv4 công khai': '0,0200'}
 == production USD/giờ 0,2752 {'RDS instance': '0,1020', 'RDS storage 20 GB': '0,0076', 'Valkey': '0,0384', 'ALB': '0,0252', 'Fargate api': '0,0616', 'Fargate worker': '0,0154', 'IPv4 công khai': '0,0250'}
 máy tải/giờ 0,0578 · cấu hình đo (production + máy tải)/giờ 0,3330
 WAF cố định/tháng 8,00 · /giờ 0,0110 · giữ lại/tháng 1,88
-24/7 dev: tài nguyên 101,75 · tổng 112,43 · không WAF (sau 26/11) 104,43
-24/7 production: tài nguyên 200,87 · tổng 203,95
-dev so với 150: 75 % · so với 200: 56 % · tháng tiêu hết credit 191,29: 1,7
+24/7 dev: tài nguyên 101,75 · tổng 113,23 · không WAF (sau 26/11) 105,23
+24/7 production: tài nguyên 200,87 · tổng 203,55
+dev so với 150: 75 % · so với 200: 57 % · tháng tiêu hết credit 191,29: 1,7
 production so với 150: 136 % · so với 200: 102 % · tháng tiêu hết credit 191,29: 0,9
 12 RPS liên tục: request/tháng (triệu) 31,5 · phí 18,9
-ADR-11 24/7 cả 10 tuần = 70/30,4 tháng × dev 259
+ADR-11 24/7 cả 10 tuần = 70/30,4 tháng × dev 261
 -- theo phiên (dev có WAF cố định; production + máy tải)
 3 giờ: dev 0,45 · production+máy tải 1,03
 4 giờ: dev 0,60 · production+máy tải 1,38
@@ -173,21 +211,9 @@ theo tải không kể WAF request / 12 giờ ALB 0,0390
 mô hình: 12 giờ × ( 0,3439 ) = 4,13 + phí tải 1,32 = 5,44 · thật 4,53 · mô hình cao hơn 20 %
 theo giờ thật / giờ ALB 0,2676 · mô hình / giờ 0,3439
 -- dự báo 22/11 đến 13/12
-giữ lại 22 ngày 1,36 · AWS-A (22/11 UTC) 0,99 - 1,29 · AWS-B 2,30 · dự phòng 1,5 - 2,0
-cộng 6,15 - 6,95 · so với credit 191,2947: 3,6 %
+giữ lại 22 ngày 1,36 · AWS-A (22/11 UTC) 0,99 - 1,63 · AWS-B 2,30 · dự phòng 1,5 - 2,0
+cộng 6,15 - 7,30 · so với credit 191,2947: 3,8 %
 script: 0,7647 × 22 = 16,8234 · so với credit 8,8 %
 budget tháng 11: 7,766 / 150 = 5,2 % · dự báo cả tháng 8,567 → phần còn lại 22-30/11 0,801
 21/11 so với tổng kỳ 55,6 %
-
-### M-179-09 WAF: số rule ở modules/waf; production có WAF không
-4:      name       = "aws-managed-common"
-10:      name       = "aws-managed-known-bad-inputs"
-37:  rule {
-38:    name     = "rate-limit"
-72:      metric_name                = "${var.name}-rate-limit"
-infra/terraform/envs/dev/session/tests/seed.tftest.hcl
-infra/terraform/envs/dev/session/tests/session.tftest.hcl
-infra/terraform/envs/dev/session/tests/waf.tftest.hcl
-infra/terraform/envs/dev/session/tests/worker.tftest.hcl
-infra/terraform/envs/dev/session/waf.tf
-(chỉ envs/dev/session có WAF; không có dòng nào của envs/prod/session = production không có WAF)
+dự báo AWS 22/11-14/12 = 11,354 (M-179-08); trừ ACTUAL tháng 11 7,766 = 3,59 USD sau 21/11
