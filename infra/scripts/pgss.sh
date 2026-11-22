@@ -48,6 +48,8 @@ POLL_SECONDS="${POLL_SECONDS:-5}"
 LOG_RETRIES="${LOG_RETRIES:-5}"
 RETRY_SECONDS="${RETRY_SECONDS:-2}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Git Bash trên Windows: `pwd` cho /c/..., Python của Windows không mở được; `pwd -W` cho C:/... (bản chạy thật đầu tiên của BL-420, DBS-167). Linux: không có -W.
+HERE_PY="$(cd "$HERE" && (pwd -W 2>/dev/null || pwd))"
 
 TMP="$(mktemp -d)" # chỉ chứa JSON mạng, task definition, SQL và phản hồi aws (không có bí mật)
 trap 'rm -rf "$TMP"' EXIT
@@ -93,7 +95,7 @@ log_group="$(jget '[c for c in d["taskDefinition"]["containerDefinitions"] if c[
 log_prefix="$(jget '[c for c in d["taskDefinition"]["containerDefinitions"] if c["name"] == "db-roles"][0]["logConfiguration"]["options"]["awslogs-stream-prefix"]' <"$TMP/td.json")"
 
 # --- 4. run-task: ghi đè `command` (đoạn Node của pgss-runner.js) và biến Q64 (SQL, base64) ---
-python3 - "$HERE/pgss-runner.js" "$TMP/queries.json" "$TMP/overrides.json" "$CONTAINER" <<'PY'
+python3 - "$HERE_PY/pgss-runner.js" "$TMP/queries.json" "$TMP/overrides.json" "$CONTAINER" <<'PY'
 import base64, json, sys
 runner = base64.b64encode(open(sys.argv[1], "rb").read()).decode()
 queries = base64.b64encode(open(sys.argv[2], "rb").read()).decode()

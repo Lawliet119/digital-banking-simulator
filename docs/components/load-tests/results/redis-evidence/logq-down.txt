@@ -1,0 +1,5 @@
+down pre {"TIMEOUT":9}
+down fault_first_10s {"CIRCUIT_OPEN":1581,"TIMEOUT":3}
+down fault_rest {"CIRCUIT_OPEN":41359,"TIMEOUT":113}
+down recovery {"TIMEOUT":14,"CIRCUIT_OPEN":5788}
+down after {"TIMEOUT":5}

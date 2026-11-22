@@ -1,0 +1,4 @@
+slow pre {"TIMEOUT":18}
+slow fault_light {"TIMEOUT":5142}
+slow fault_heavy {"CIRCUIT_OPEN":20317,"TIMEOUT":799}
+slow after {"TIMEOUT":4}

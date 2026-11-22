@@ -107,7 +107,7 @@ resource "aws_iam_role_policy" "loadgen" {
   role = aws_iam_role.loadgen.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Sid      = "Bucket"
         Effect   = "Allow"
@@ -127,7 +127,7 @@ resource "aws_iam_role_policy" "loadgen" {
         Resource  = local.base.kms_key_arn
         Condition = { StringEquals = { "kms:ViaService" = "secretsmanager.${var.region}.amazonaws.com" } }
       },
-    ]
+    ], local.redis_fault_statements)
   })
 }
 

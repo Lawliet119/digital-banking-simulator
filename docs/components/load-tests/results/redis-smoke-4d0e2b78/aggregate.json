@@ -1,0 +1,107 @@
+{
+  "window": {
+    "start": "2026-11-22T00:01:51.545Z",
+    "end": "2026-11-22T00:01:56.513Z"
+  },
+  "skippedLines": 0,
+  "unexpected429": 0,
+  "plateaus": {
+    "5": {
+      "requests": 27,
+      "systemErrors": 0,
+      "errorRate": 0,
+      "meetsErrorBudget": true,
+      "droppedIterations": 0,
+      "meetsDoD3": true,
+      "windowSeconds": 4.968,
+      "achievedRps": 5.435,
+      "perMinute": [
+        {
+          "minute": 0,
+          "requests": 27,
+          "systemErrors": 0
+        }
+      ]
+    }
+  },
+  "systemErrors": {
+    "total": 27,
+    "errors": 0,
+    "rate": 0
+  },
+  "metrics": {
+    "transfer_latency": {
+      "plateau=5,profile=smoke": {
+        "count": 6,
+        "p50": 33.404,
+        "p90": 63.43,
+        "p95": 69.522,
+        "p99": 74.396,
+        "max": 75.615
+      }
+    },
+    "read_latency": {
+      "operation=balance,plateau=5,profile=smoke": {
+        "count": 11,
+        "p50": 24.172,
+        "p90": 36.164,
+        "p95": 48.445,
+        "p99": 58.27,
+        "max": 60.726
+      },
+      "operation=history,plateau=5,profile=smoke": {
+        "count": 10,
+        "p50": 25.534,
+        "p90": 28.146,
+        "p95": 32.514,
+        "p99": 36.007,
+        "max": 36.881
+      }
+    }
+  },
+  "byScenario": {
+    "write_5": {
+      "POST /v1/transfers": {
+        "count": 6,
+        "systemErrors": 0,
+        "status": {
+          "201": 6
+        },
+        "p50": 33.404,
+        "p90": 63.43,
+        "p95": 69.522,
+        "p99": 74.396,
+        "max": 75.615,
+        "avgRequestsPerSecondOverWholeRun": 1.208
+      }
+    },
+    "read_5": {
+      "GET /v1/accounts/:id": {
+        "count": 11,
+        "systemErrors": 0,
+        "status": {
+          "200": 11
+        },
+        "p50": 24.172,
+        "p90": 36.164,
+        "p95": 48.445,
+        "p99": 58.27,
+        "max": 60.726,
+        "avgRequestsPerSecondOverWholeRun": 2.214
+      },
+      "GET /v1/accounts/:id/transactions": {
+        "count": 10,
+        "systemErrors": 0,
+        "status": {
+          "200": 10
+        },
+        "p50": 25.534,
+        "p90": 28.146,
+        "p95": 32.514,
+        "p99": 36.007,
+        "max": 36.881,
+        "avgRequestsPerSecondOverWholeRun": 2.013
+      }
+    }
+  }
+}

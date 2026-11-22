@@ -4,6 +4,7 @@ export const SCENARIOS = [
   "duplicate",
   "stress",
   "rate-limit",
+  "redis-fault",
 ];
 export const AMOUNT = "1000";
 /**
@@ -79,13 +80,16 @@ export function workload(kind, smoke = false) {
     };
   } else {
     thresholds.dropped_iterations = ["count==0"];
-    if (kind === "baseline" || kind === "stress") {
+    if (kind === "baseline" || kind === "stress" || kind === "redis-fault") {
+      // redis-fault (DBS-167): one 120 RPS plateau of 900 s, the same mix and thresholds as the baseline plateau.
       const rates = smoke
         ? [5]
         : kind === "baseline"
           ? [12, 60, 120]
-          : [120, 180, 240];
-      const seconds = smoke ? 5 : kind === "baseline" ? 900 : 300;
+          : kind === "redis-fault"
+            ? [120]
+            : [120, 180, 240];
+      const seconds = smoke ? 5 : kind === "stress" ? 300 : 900;
       rates.forEach((rate, i) => {
         options.scenarios[`read_${rate}`] = arrival(
           rate * 4,
@@ -143,7 +147,7 @@ export function durationSeconds(kind, smoke = false) {
     ? 2750
     : kind === "stress"
       ? 950
-      : kind === "hot-account"
+      : kind === "hot-account" || kind === "redis-fault"
         ? 930
         : 90;
 }
@@ -157,6 +161,7 @@ export function maxTransfers(kind, smoke = false) {
     "hot-account": 18001,
     duplicate: 61,
     "rate-limit": 10,
+    "redis-fault": 21601,
   }[kind];
 }
 

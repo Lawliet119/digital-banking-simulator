@@ -1,0 +1,23 @@
+== dbs-dev-redis-fallback
+2026-11-22T06:32:53.135000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+2026-11-22T06:59:53.135000+07:00	Alarm updated from OK to ALARM
+== dbs-dev-redis-node-missing
+2026-11-22T06:42:24.112000+07:00	Alarm updated from INSUFFICIENT_DATA to ALARM
+2026-11-22T06:43:24.112000+07:00	Alarm updated from ALARM to OK
+== dbs-dev-risk-config-redis-fallback
+2026-11-22T06:32:03.561000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+2026-11-22T07:07:03.560000+07:00	Alarm updated from OK to ALARM
+2026-11-22T07:15:03.561000+07:00	Alarm updated from ALARM to OK
+2026-11-22T07:24:03.559000+07:00	Alarm updated from OK to ALARM
+2026-11-22T08:17:03.560000+07:00	Alarm updated from ALARM to OK
+== dbs-dev-transfer-latency-p95
+2026-11-22T06:32:26.166000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+== dbs-dev-read-latency-p95
+2026-11-22T06:32:34.535000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+== dbs-dev-api-5xx-rate
+2026-11-22T06:32:20.128000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+== dbs-dev-rate-limited
+2026-11-22T06:31:42.505000+07:00	Alarm updated from INSUFFICIENT_DATA to OK
+== dbs-dev-outbox-age
+2026-11-22T06:31:29.938000+07:00	Alarm updated from INSUFFICIENT_DATA to ALARM
+2026-11-22T06:57:29.936000+07:00	Alarm updated from ALARM to OK

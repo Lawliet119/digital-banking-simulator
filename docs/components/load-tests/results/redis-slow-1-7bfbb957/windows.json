@@ -1,0 +1,247 @@
+{
+  "mode": "slow",
+  "t0": 1795306905268,
+  "inject": 1795307205626,
+  "end": 1795307505955,
+  "noiseMs": 28.6,
+  "windows": [
+    {
+      "name": "pre",
+      "from": 1795306965268,
+      "to": 1795307205626,
+      "seconds": 240.358,
+      "requests": 28845,
+      "systemErrors": 6,
+      "clientErrors": 0,
+      "errorRate": 0,
+      "transfer": {
+        "count": 5769,
+        "p50": 24.172,
+        "p95": 134.948,
+        "p99": 1201.189,
+        "max": 2000.393
+      },
+      "balance": {
+        "count": 11538,
+        "p50": 13.595,
+        "p95": 48.291,
+        "p99": 415.523,
+        "max": 1073.215
+      },
+      "history": {
+        "count": 11538,
+        "p50": 15.294,
+        "p95": 55.442,
+        "p99": 572.615,
+        "max": 1298.492
+      },
+      "read": {
+        "count": 23076,
+        "p50": 14.573,
+        "p95": 52.128,
+        "p99": 487.162,
+        "max": 1298.492
+      }
+    },
+    {
+      "name": "fault_light",
+      "from": 1795307205626,
+      "to": 1795307355667,
+      "seconds": 150.041,
+      "requests": 18006,
+      "systemErrors": 0,
+      "clientErrors": 0,
+      "errorRate": 0,
+      "transfer": {
+        "count": 3602,
+        "p50": 78.193,
+        "p95": 203.179,
+        "p99": 680.567,
+        "max": 1526.131
+      },
+      "balance": {
+        "count": 7202,
+        "p50": 43.156,
+        "p95": 134.042,
+        "p99": 243.21,
+        "max": 486.442
+      },
+      "history": {
+        "count": 7202,
+        "p50": 48.19,
+        "p95": 142.355,
+        "p99": 299.804,
+        "max": 620.529
+      },
+      "read": {
+        "count": 14404,
+        "p50": 45.84,
+        "p95": 138.277,
+        "p99": 270.351,
+        "max": 620.529
+      }
+    },
+    {
+      "name": "fault_heavy",
+      "from": 1795307355667,
+      "to": 1795307505955,
+      "seconds": 150.288,
+      "requests": 18035,
+      "systemErrors": 0,
+      "clientErrors": 0,
+      "errorRate": 0,
+      "transfer": {
+        "count": 3607,
+        "p50": 24.952,
+        "p95": 160.16,
+        "p99": 286.048,
+        "max": 615.073
+      },
+      "balance": {
+        "count": 7214,
+        "p50": 13.628,
+        "p95": 89.125,
+        "p99": 142.368,
+        "max": 400.533
+      },
+      "history": {
+        "count": 7214,
+        "p50": 15.543,
+        "p95": 96.859,
+        "p99": 149.917,
+        "max": 420.406
+      },
+      "read": {
+        "count": 14428,
+        "p50": 14.731,
+        "p95": 93.87,
+        "p99": 146.467,
+        "max": 420.406
+      }
+    },
+    {
+      "name": "recovery",
+      "from": 1795307505955,
+      "to": 1795307565955,
+      "seconds": 60,
+      "requests": 7200,
+      "systemErrors": 0,
+      "clientErrors": 0,
+      "errorRate": 0,
+      "transfer": {
+        "count": 1440,
+        "p50": 25.419,
+        "p95": 130.594,
+        "p99": 460.587,
+        "max": 761.316
+      },
+      "balance": {
+        "count": 2880,
+        "p50": 14.063,
+        "p95": 44.051,
+        "p99": 187.768,
+        "max": 605.319
+      },
+      "history": {
+        "count": 2880,
+        "p50": 15.849,
+        "p95": 54.401,
+        "p99": 243.909,
+        "max": 593.439
+      },
+      "read": {
+        "count": 5760,
+        "p50": 15.167,
+        "p95": 48.843,
+        "p99": 214.583,
+        "max": 605.319
+      }
+    },
+    {
+      "name": "after",
+      "from": 1795307565955,
+      "to": 1795307805289,
+      "seconds": 239.334,
+      "requests": 28710,
+      "systemErrors": 0,
+      "clientErrors": 0,
+      "errorRate": 0,
+      "transfer": {
+        "count": 5742,
+        "p50": 25.163,
+        "p95": 107.175,
+        "p99": 683.352,
+        "max": 1729.005
+      },
+      "balance": {
+        "count": 11484,
+        "p50": 14.013,
+        "p95": 42.584,
+        "p99": 222.968,
+        "max": 568.251
+      },
+      "history": {
+        "count": 11484,
+        "p50": 15.848,
+        "p95": 48.943,
+        "p99": 269.413,
+        "max": 667.241
+      },
+      "read": {
+        "count": 22968,
+        "p50": 15.137,
+        "p95": 46.522,
+        "p99": 246.351,
+        "max": 667.241
+      }
+    }
+  ],
+  "health": {
+    "samples": 868,
+    "nonOk": 0
+  },
+  "recoverySeconds": 0,
+  "exit": null,
+  "droppedIterations": 0,
+  "verdict": {
+    "classification": "vượt SLO",
+    "violations": [
+      {
+        "window": "pre",
+        "metric": "transfer.p99",
+        "value": 1201.189,
+        "limit": 1000
+      }
+    ],
+    "degradation": [
+      {
+        "window": "fault_light",
+        "op": "transfer",
+        "delta": 68.231,
+        "allowed": 150
+      },
+      {
+        "window": "fault_light",
+        "op": "read",
+        "delta": 86.149,
+        "allowed": 100
+      },
+      {
+        "window": "fault_heavy",
+        "op": "transfer",
+        "delta": 25.212,
+        "allowed": 150
+      },
+      {
+        "window": "fault_heavy",
+        "op": "read",
+        "delta": 41.742,
+        "allowed": 100
+      }
+    ],
+    "openBl": [
+      "có lỗi hệ thống (5xx, status 0 hoặc 429) ở cửa sổ pre: 6",
+      "vượt SLO: pre transfer.p99=1201.189"
+    ]
+  }
+}
