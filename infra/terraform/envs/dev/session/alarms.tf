@@ -338,7 +338,7 @@ resource "aws_cloudwatch_metric_alarm" "risk_flag_rate" {
 # chạy `OK` không gây gì. Đây là sự kiện hiếm nên điểm 300 giây giữ ALARM vài phút; kết quả thật xem bảng reconciliation_runs.
 resource "aws_cloudwatch_metric_alarm" "reconciliation" {
   alarm_name        = "dbs-dev-reconciliation-failed"
-  alarm_description = "Job đối soát sổ cái kết thúc với MISMATCH hoặc ERROR (reconciliation_runs_total, docs/03 §14, BL-127). Mở dòng mới nhất của reconciliation_runs để biết kiểm tra nào lệch; đây là sự cố tiền, không tự hết."
+  alarm_description = "Job đối soát sổ cái kết thúc với MISMATCH hoặc ERROR (reconciliation_runs_total, docs/03 §14, BL-127). Mở dòng mới nhất của reconciliation_runs (số dư từng tài khoản lệch) và dòng log «Ledger reconciliation detected mismatch», trường failedChecks nêu kiểm tra nào lệch (gồm bộ đếm hạn mức ngày, BL-421); chi tiết từng tài khoản: npm run check:invariants. Đây là sự cố tiền, không tự hết."
 
   threshold           = 0
   comparison_operator = "GreaterThanThreshold"

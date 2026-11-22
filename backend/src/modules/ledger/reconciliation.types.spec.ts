@@ -3,6 +3,7 @@ import { validateEnv } from '@config/validation.schema';
 import { ReconciliationService } from './reconciliation.service';
 import {
   classifyReconciliationSnapshot,
+  failedReconciliationChecks,
   isSignedBigIntString,
   RECONCILIATION_ADVISORY_LOCK_KEY,
   type RawReconciliationSnapshot,
@@ -42,6 +43,7 @@ describe('reconciliation.types & ReconciliationService lifecycle (DBS-117)', () 
         debit_equals_credit: true,
         total_balance_is_zero: true,
         completed_pairs_valid: true,
+        daily_counters_valid: true,
         mismatched_details: [],
       };
 
@@ -55,7 +57,7 @@ describe('reconciliation.types & ReconciliationService lifecycle (DBS-117)', () 
       });
     });
 
-    it('classifies each of the 4 invariant violations as MISMATCH when totals fit in bigint', () => {
+    it('classifies each of the 5 invariant violations as MISMATCH when totals fit in bigint', () => {
       const base: RawReconciliationSnapshot = {
         total_debit: '1000',
         total_credit: '1000',
@@ -63,6 +65,7 @@ describe('reconciliation.types & ReconciliationService lifecycle (DBS-117)', () 
         debit_equals_credit: true,
         total_balance_is_zero: true,
         completed_pairs_valid: true,
+        daily_counters_valid: true,
         mismatched_details: [],
       };
 
@@ -88,6 +91,17 @@ describe('reconciliation.types & ReconciliationService lifecycle (DBS-117)', () 
           completed_pairs_valid: false,
         }),
       ).toEqual({
+        status: 'MISMATCH',
+        totalDebit: '1000',
+        totalCredit: '1000',
+        totalBalance: '0',
+        mismatchedAccounts: 0,
+        details: [],
+      });
+
+      // BL-421 / TC-421-01: the daily debit counter (accounts.sent_today, sent_day) disagrees with the
+      // DEBIT lines. Nothing else is wrong, so the run carries no per-account detail.
+      expect(classifyReconciliationSnapshot({ ...base, daily_counters_valid: false })).toEqual({
         status: 'MISMATCH',
         totalDebit: '1000',
         totalCredit: '1000',
@@ -122,6 +136,39 @@ describe('reconciliation.types & ReconciliationService lifecycle (DBS-117)', () 
       });
     });
 
+    it('TC-421-05 names every failed check so a MISMATCH row without detail can be traced (BL-421)', () => {
+      const clean: RawReconciliationSnapshot = {
+        total_debit: '1000',
+        total_credit: '1000',
+        total_balance: '0',
+        debit_equals_credit: true,
+        total_balance_is_zero: true,
+        completed_pairs_valid: true,
+        daily_counters_valid: true,
+        mismatched_details: [],
+      };
+      expect(failedReconciliationChecks(clean)).toEqual([]);
+      expect(failedReconciliationChecks({ ...clean, daily_counters_valid: false })).toEqual([
+        'daily_debit_counters',
+      ]);
+      expect(
+        failedReconciliationChecks({
+          ...clean,
+          debit_equals_credit: false,
+          total_balance_is_zero: false,
+          completed_pairs_valid: false,
+          mismatched_details: [
+            { accountId: '11111111-1111-4111-8111-111111111111', balance: '1', ledgerBalance: '0' },
+          ],
+        }),
+      ).toEqual([
+        'debit_equals_credit',
+        'account_balances',
+        'total_balance_is_zero',
+        'completed_pairs',
+      ]);
+    });
+
     it('classifies signed 64-bit bigint overflow in totals or ledgerBalance as ERROR with NULLs (BL-165)', () => {
       const overflowTotals = classifyReconciliationSnapshot({
         total_debit: '9223372036854775808',
@@ -130,6 +177,7 @@ describe('reconciliation.types & ReconciliationService lifecycle (DBS-117)', () 
         debit_equals_credit: true,
         total_balance_is_zero: true,
         completed_pairs_valid: true,
+        daily_counters_valid: true,
         mismatched_details: [],
       });
       expect(overflowTotals).toEqual({
@@ -148,6 +196,7 @@ describe('reconciliation.types & ReconciliationService lifecycle (DBS-117)', () 
         debit_equals_credit: true,
         total_balance_is_zero: true,
         completed_pairs_valid: true,
+        daily_counters_valid: true,
         mismatched_details: [
           {
             accountId: '11111111-1111-4111-8111-111111111111',

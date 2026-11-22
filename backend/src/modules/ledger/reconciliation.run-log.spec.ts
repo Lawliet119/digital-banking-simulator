@@ -19,6 +19,7 @@ const SNAPSHOT_OK = {
   debit_equals_credit: true,
   total_balance_is_zero: true,
   completed_pairs_valid: true,
+  daily_counters_valid: true,
   mismatched_details: [],
 };
 
@@ -107,5 +108,38 @@ describe('structured log of a reconciliation run (DBS-123)', () => {
     const service = make(() => [{ acquired: false }]);
     await service.reconcileOnce();
     expect(log).not.toHaveBeenCalled();
+  });
+
+  it('TC-421-06 a counter-only MISMATCH logs the failed check by name, with no account id or amount (BL-421)', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn');
+    const service = make(sql => {
+      if (sql.includes('pg_try_advisory_xact_lock')) return [{ acquired: true }];
+      if (sql.includes('INSERT INTO public.reconciliation_runs')) return [];
+      return [{ ...SNAPSHOT_OK, daily_counters_valid: false }];
+    });
+    const outcome = await service.reconcileOnce();
+    expect(outcome).toMatchObject({ executed: true, status: 'MISMATCH', mismatchedAccounts: 0 });
+    expect(warn).toHaveBeenCalledWith(
+      {
+        status: 'MISMATCH',
+        mismatchedAccounts: 0,
+        failedChecks: ['daily_debit_counters'],
+        totalDebit: '100',
+        totalCredit: '100',
+        totalBalance: '0',
+      },
+      'Ledger reconciliation detected mismatch',
+    );
+  });
+
+  it('TC-421-01 a snapshot without daily_counters_valid fails closed as MISMATCH (BL-421)', async () => {
+    const { daily_counters_valid: _omitted, ...withoutField } = SNAPSHOT_OK;
+    void _omitted;
+    const service = make(sql => {
+      if (sql.includes('pg_try_advisory_xact_lock')) return [{ acquired: true }];
+      if (sql.includes('INSERT INTO public.reconciliation_runs')) return [];
+      return [withoutField];
+    });
+    expect(await service.reconcileOnce()).toMatchObject({ executed: true, status: 'MISMATCH' });
   });
 });

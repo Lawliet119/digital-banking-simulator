@@ -1,6 +1,6 @@
 # 03 — High-Level Architecture: Digital Banking Simulator
 
-> **Status:** Accepted v1.12 (chốt 2026-10-11, bổ sung 2026-11-08) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding, mở tài khoản, lịch sử giao dịch, tra cứu operator, khóa/mở khóa tài khoản UC-11), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày, tra cứu lệnh), rate limit (IP + user), audit (ghi + tìm kiếm), outbox writer, outbox relay và consumer thông báo (`notification_log`), health, khung risk và adapter AI độc lập (`ADR-14`); thu hồi phiên SQL + cache Redis sau COMMIT ở `JwtAuthGuard`/IdentityService; script role `dbs_api` / `dbs_worker` đã có và được kiểm (chưa áp dụng cho task ECS); chưa có consumer và scoring đầy đủ của risk, hạ tầng worker/SQS/alarm; job đối soát ledger (4 kiểm tra, lưu `reconciliation_runs`) đã chạy ở role worker (DBS-117) · **Cập nhật:** 2026-11-08
+> **Status:** Accepted v1.12 (chốt 2026-10-11, bổ sung 2026-11-08) · **Owner:** Dev (duyệt kiến trúc) · **Verified against code:** một phần: đã có code cho identity (JWT guard, vai trò), accounts (onboarding, mở tài khoản, lịch sử giao dịch, tra cứu operator, khóa/mở khóa tài khoản UC-11), ledger (nạp tiền, chuyển tiền, idempotency replay, hạn mức lần/ngày, tra cứu lệnh), rate limit (IP + user), audit (ghi + tìm kiếm), outbox writer, outbox relay và consumer thông báo (`notification_log`), health, khung risk và adapter AI độc lập (`ADR-14`); thu hồi phiên SQL + cache Redis sau COMMIT ở `JwtAuthGuard`/IdentityService; script role `dbs_api` / `dbs_worker` đã có và được kiểm (chưa áp dụng cho task ECS); chưa có consumer và scoring đầy đủ của risk, hạ tầng worker/SQS/alarm; job đối soát ledger (5 kiểm tra, gồm bộ đếm hạn mức ngày BL-421, lưu `reconciliation_runs`) đã chạy ở role worker (DBS-117); phần ledger (§6.1 khóa, replay, retry, hạn mức; §8 bất biến, index, đối soát) đối chiếu lại với code ngày 2026-11-22 (DBS-142); các phần còn lại của dòng này (hạ tầng worker/SQS/alarm…) chưa đối chiếu lại · **Cập nhật:** 2026-11-22
 
 > **Cập nhật ADR-14 (Accepted 2026-11-08):** Phương án rules `R1–R6` + API AI ngoài tiến trình ([ADR-14](adr/0014-fraud-rules-external-ai.md), [FRAUD-API-01](features/FRAUD-API-01-external-ai-decision.md), [FRAUD-API-02](features/FRAUD-API-02-standalone-risk.md)) đã được nhóm chấp nhận để thay thế hướng học tham số (`v2`) và mô hình ONNX in-process (`v3`) của [ADR-08](adr/0008-fraud-detection-architecture.md). Baseline `rule_only` (`R1–R6`) vẫn là bắt buộc.
 
@@ -155,10 +155,10 @@ flowchart TB
     WRKM -.-> COMMON
 ```
 
-Sơ đồ trên là kiến trúc đích. Trên nhánh này có hai chỗ khác: `workerModules` mới có `OutboxRelayModule`, `NotificationModule` và `LedgerReconciliationModule` (job đối soát, DBS-117; chưa có consumer và scoring của risk); `notification` mới ghi log, chưa gửi gì ra ngoài. Danh sách module theo role nằm ở `backend/src/modules/index.ts`.
+Sơ đồ trên là kiến trúc đích. Trên nhánh này có hai chỗ khác: `workerModules` có `OutboxRelayModule`, `NotificationModule`, `LedgerReconciliationModule` (job đối soát, DBS-117) và `RiskWorkerModule` (phần risk chạy ở worker; phạm vi xem README module risk); `notification` mới ghi log, chưa gửi gì ra ngoài. Danh sách module theo role nằm ở `backend/src/modules/index.ts`.
 
 **Quy tắc phụ thuộc giữa module:**
-- `ledger` **không** đọc hay ghi bảng `accounts` trực tiếp. Nó gọi các hàm được `accounts` export (`lockForUpdate`, `applyBalanceChange`) và **truyền transaction hiện tại** vào. Nhờ vậy chuyển tiền vẫn là một transaction mà quyền sở hữu dữ liệu không bị phá (P-4).
+- `ledger` **không ghi** bảng `accounts` trực tiếp: khóa và đổi số dư qua các hàm `accounts` export (`lockForUpdate`, `applyBalanceChange`), **truyền transaction hiện tại** vào. Nhờ vậy chuyển tiền vẫn là một transaction mà quyền sở hữu dữ liệu không bị phá (P-4). Hai chỗ chỉ **đọc** thẳng: tra cứu lệnh (`transfer-query.service.ts` nối `accounts` và `customers` để biết chủ hai đầu) và job đối soát (`public.accounts`, vai `dbs_worker` chỉ có `SELECT`).
 - `audit` là thư viện được mọi module ghi gọi **trong transaction của chính module đó**.
 - Mỗi module có một `index.ts` là API công khai duy nhất; module khác chỉ import qua `@modules/<tên>`. **eslint ép quy tắc này** (chặn cả import sâu qua alias lẫn `../` sang module khác), nên không cần thêm plugin. Lý do làm ngay từ tuần 1: codebase lớn lên mà không có rào chắn thì module sẽ tự đăng ký schema của nhau và phải vá phụ thuộc vòng bằng `forwardRef` — không sửa được nữa khi đã có hàng chục module.
 - Không có phụ thuộc vòng.
@@ -198,10 +198,10 @@ sequenceDiagram
     Note over A,DB: Nếu lệnh cùng K đang chạy, câu lệnh này chờ nó commit/rollback
     alt Không insert được (K đã có)
         A->>DB: SELECT request_hash, response
-        A->>DB: COMMIT
-        A-->>C: Response cũ (422 nếu request_hash khác)
+        A->>DB: COMMIT (cùng nội dung) hoặc ROLLBACK (khác nội dung: lỗi ném ngay trong transaction, không ghi gì)
+        A-->>C: Response cũ, hoặc 422 nếu request_hash khác
     else K mới
-        A->>DB: SELECT ... FOR UPDATE 2 tài khoản (theo thứ tự id)
+        A->>DB: SELECT ... FOR UPDATE 2 tài khoản (theo thứ tự id; chỉ tài khoản nguồn nếu đích là funding)
         A->>DB: Sync guard (checkGuards): ACTIVE? hạn mức lần? hạn mức ngày? đủ số dư?
         alt Vi phạm
             A->>DB: INSERT transfer(REJECTED, reason) + audit_log
@@ -226,12 +226,12 @@ sequenceDiagram
 | **Một transaction** cho mã yêu cầu, khóa tài khoản, kiểm tra, bút toán, số dư, nhật ký, outbox | Debit và credit cùng thành công hoặc cùng không xảy ra (BR-02). Không có trạng thái "đã trừ, chưa cộng" |
 | Mã yêu cầu **scope theo user**: `UNIQUE(user_id, key)` | Nếu unique toàn cục, user A dùng trùng mã của B sẽ nhận response của B — lộ dữ liệu |
 | `INSERT … ON CONFLICT DO NOTHING` | Ở READ COMMITTED, câu lệnh chờ transaction đang giữ cùng key kết thúc. Nó commit → câu lệnh không insert, `SELECT` sau thấy response đã lưu. Nó rollback → câu lệnh insert và xử lý như lệnh mới. Không phát sinh lỗi `23505` nên transaction không bị hủy (AC-5.4) |
-| Khóa hai tài khoản **theo thứ tự id** | Hai lệnh A→B và B→A không khóa chéo nhau gây deadlock |
+| Khóa hai tài khoản **theo thứ tự id** | Hai lệnh A→B và B→A không khóa chéo nhau gây deadlock. Ngoại lệ: đích là `funding` thì chỉ khóa tài khoản nguồn (khóa funding sẽ xếp sau mọi lệnh nạp rồi vẫn nhận cùng câu trả lời từ chối) |
 | Sync guard đặt **sau** `FOR UPDATE` | Hạn mức ngày = tổng tiền đi hôm nay của tài khoản nguồn, đọc từ bộ đếm `accounts.sent_today`/`sent_day` trên chính dòng vừa khóa (trigger của sổ cái giữ, BL-418; không còn `SUM` trong lúc giữ khóa). Tài khoản nguồn đang bị khóa nên lệnh khác phải chờ; không thể hai lệnh cùng lọt hạn mức (AC-5.6) |
 | Lưu cả kết quả `REJECTED` cùng mã yêu cầu | Cùng mã luôn trả cùng kết quả (BR-07) |
 | Tài khoản SYSTEM `funding` chỉ là nguồn của nạp tiền | Đích là SYSTEM: lệnh `TRANSFER` bị từ chối `ACCOUNT_NOT_ACTIVE` (`to_account_id` NULL, cùng câu trả lời với tài khoản không tồn tại). Nguồn là SYSTEM: không khách nào sở hữu nó nên bước kiểm tra sở hữu tài khoản nguồn trả 404 kèm nhật ký `DENIED` (AC-5.8). Id `funding` cố định nên đoán được, không thể để khách chuyển tiền vào hay ra khỏi nó |
 | Không lưu trạng thái lỗi hệ thống | Rollback thì không có gì để lưu; client gửi lại cùng mã (AC-5.10) |
-| READ COMMITTED + `FOR UPDATE`, không dùng SERIALIZABLE | Đủ an toàn nhờ khóa hàng; không phải xử lý lỗi `40001`. Chỉ retry có giới hạn khi deadlock `40P01` hoặc mất kết nối |
+| READ COMMITTED + `FOR UPDATE`, không dùng SERIALIZABLE | Đủ an toàn nhờ khóa hàng. Retry có giới hạn (3 lần, backoff gấp đôi có jitter) khi deadlock `40P01` hoặc lỗi tuần tự hóa `40001`; lỗi tạm thời khác (mất kết nối, hết thời gian lệnh hoặc khóa, hết kết nối) **không** retry mà trả 503 kèm `Retry-After` |
 | Redis chỉ đứng trước cửa | Mọi kiểm tra quyết định đúng-sai của tiền nằm trong Postgres; tắt Redis thì luồng vẫn đúng |
 
 **Nạp tiền (UC-3)** dùng cùng luồng với `type = DEPOSIT`: tài khoản nguồn là tài khoản SYSTEM `funding`, chỉ vai trò `operator` gọi được, bỏ qua kiểm tra số dư và hạn mức của tài khoản SYSTEM nhưng vẫn có idempotency, bút toán kép, nhật ký và outbox. Script tạo dữ liệu demo cũng gọi API này thay vì sửa số dư trực tiếp, để bất biến luôn đúng.
@@ -641,8 +641,8 @@ DBS-96: `notification_log.message` chỉ chứa thông báo chung, không chứa
 **Quy ước:**
 - Tiền là `BIGINT` (đồng), không dùng kiểu số thực.
 - Tài khoản SYSTEM `funding` được âm; `SUM(balance mọi tài khoản) = 0` luôn đúng (ví dụ ở BRD Phần 3 §7.3).
-- Job đối soát định kỳ kiểm tra: tổng Nợ = tổng Có; `balance` mỗi tài khoản = tổng bút toán của nó; tổng số dư = 0.
-- Index chính (đầy đủ và lý do ở database-design §6): `ledger_entries(account_id, created_at)` cho lịch sử và hạn mức ngày; `transfers(from_account_id, created_at)` và `transfers(from_account_id, to_account_id, created_at)` cho luật gian lận.
+- Job đối soát định kỳ (worker, `ReconciliationService`) kiểm tra năm điều trong một snapshot: tổng Nợ = tổng Có; `balance` mỗi tài khoản = tổng bút toán của nó; tổng số dư = 0; mỗi lệnh `COMPLETED` có đúng một cặp Nợ và Có; bộ đếm hạn mức ngày `accounts.sent_today`/`sent_day` bằng các dòng Nợ (BL-421). Lệch thì ghi `MISMATCH` và log tên kiểm tra lệch. Script `check:invariants` sau mỗi lượt tải kiểm sáu điều: năm điều trên (cặp bút toán đọc từ `transfers` thay vì `v_transfer_facts`) và số dư khách không âm (`customer_balances`); hai bên viết SQL riêng cho cùng quy tắc, nên đổi một bên thì rà bên kia (BL-428).
+- Index chính (đầy đủ và lý do ở database-design §6): `ledger_entries_account_history_idx (account_id, created_at DESC, id DESC)` cho lịch sử; `ledger_entries_daily_debit_idx (account_id, created_at) INCLUDE (amount) WHERE direction = 'DEBIT'` cho đường lùi `SUM` của hạn mức ngày (đường chính đọc bộ đếm, BL-418) và đối soát; `transfers(from_account_id, created_at)` và `transfers(from_account_id, to_account_id, created_at)` cho luật gian lận.
 
 ---
 
@@ -1031,7 +1031,7 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 14 ADR Accepted (bảng dưới; 
 **Lưu ý với Node/TypeScript khi xử lý tiền:**
 - Driver `pg` trả `BIGINT` dạng **string**. Tiền luôn là `bigint`/string ở domain, API và event; không dùng `number` có phần thập phân.
 - Node là single-thread, nhưng đúng-sai của đồng thời nằm ở **khóa trong DB**, không ở code ứng dụng hay Redis. Nhiều task chạy song song vẫn an toàn nhờ `FOR UPDATE`.
-- Bắt deadlock `40P01` và mất kết nối để retry có giới hạn.
+- Retry có giới hạn khi deadlock `40P01` hoặc lỗi tuần tự hóa `40001`; mất kết nối và hết thời gian trả 503 kèm `Retry-After`, không retry (`common/utils/pg-error.util.ts`).
 
 ## 20. Câu hỏi đã chốt
 

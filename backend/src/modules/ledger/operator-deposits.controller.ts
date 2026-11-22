@@ -65,7 +65,7 @@ export class OperatorDepositsController {
         message: 'Idempotency-Key is required',
       });
     if ([...key].length > 128)
-      throw new BadRequestException('Idempotency-Key must contain at most128 characters');
+      throw new BadRequestException('Idempotency-Key must contain at most 128 characters');
     if (!request.correlationId) throw new Error('Missing server correlation context');
     return this.deposits.deposit(user.userId, key, body, request.correlationId);
   }
