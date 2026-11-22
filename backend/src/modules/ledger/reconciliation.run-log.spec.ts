@@ -19,6 +19,7 @@ const SNAPSHOT_OK = {
   debit_equals_credit: true,
   total_balance_is_zero: true,
   completed_pairs_valid: true,
+  daily_counters_valid: true,
   mismatched_details: [],
 };
 

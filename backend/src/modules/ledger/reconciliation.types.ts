@@ -20,6 +20,7 @@ export interface RawReconciliationSnapshot {
   debit_equals_credit: boolean;
   total_balance_is_zero: boolean;
   completed_pairs_valid: boolean;
+  daily_counters_valid: boolean;
   mismatched_details: MismatchedAccountDetail[];
 }
 
@@ -57,8 +58,25 @@ export function isSignedBigIntString(value: string): boolean {
 }
 
 /**
+ * Names the checks a snapshot failed, for the log line of a `MISMATCH` (`BL-421`): the row of
+ * `reconciliation_runs` keeps account detail for balances only, so a run that failed on totals, on
+ * the pairs of a COMPLETED transfer or on the daily debit counter would otherwise not say which.
+ * Names only, no account id and no amount.
+ */
+export function failedReconciliationChecks(raw: RawReconciliationSnapshot): string[] {
+  const failed: string[] = [];
+  if (!raw.debit_equals_credit) failed.push('debit_equals_credit');
+  if (raw.mismatched_details.length > 0) failed.push('account_balances');
+  if (!raw.total_balance_is_zero) failed.push('total_balance_is_zero');
+  if (!raw.completed_pairs_valid) failed.push('completed_pairs');
+  if (!raw.daily_counters_valid) failed.push('daily_debit_counters');
+  return failed;
+}
+
+/**
  * Classifies the read-only snapshot from `RECONCILIATION_CHECK_SQL` into `OK`, `MISMATCH`, or
- * `ERROR` (`DBS-117` DoD #2, DoD #3, `BL-165`).
+ * `ERROR` (`DBS-117` DoD #2, DoD #3, `BL-165`). A daily debit counter that disagrees with the ledger
+ * (`BL-421`) is a `MISMATCH` that names no account: the row's `details` stay for balances only.
  *
  * When any aggregate (`total_debit`, `total_credit`, `total_balance`, or a per-account
  * `ledgerBalance` / `balance`) overflows signed 64-bit `bigint`, the run is classified as
@@ -90,6 +108,7 @@ export function classifyReconciliationSnapshot(
     raw.debit_equals_credit &&
     raw.total_balance_is_zero &&
     raw.completed_pairs_valid &&
+    raw.daily_counters_valid &&
     raw.mismatched_details.length === 0;
 
   return {

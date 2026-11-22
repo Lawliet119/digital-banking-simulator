@@ -24,6 +24,7 @@ const snapshot = {
   debit_equals_credit: true,
   total_balance_is_zero: mode !== 'MISMATCH',
   completed_pairs_valid: true,
+  daily_counters_valid: true,
   mismatched_details:
     mode === 'MISMATCH' ? [{ accountId: 'a1', balance: '1000000', ledgerBalance: '0' }] : [],
 };

@@ -16,6 +16,7 @@ import { PollingLoop } from '@common/utils/polling-loop';
 import { countReconciliationRun } from './reconciliation.metrics';
 import {
   classifyReconciliationSnapshot,
+  failedReconciliationChecks,
   RECONCILIATION_ADVISORY_LOCK_KEY,
   type ClassifiedReconciliationRun,
   type MismatchedAccountDetail,
@@ -32,6 +33,9 @@ const DEFAULT_RECONCILIATION_STATEMENT_TIMEOUT_MS = 60_000;
  * 3. `SUM(accounts.balance) = 0`.
  * 4. Every `COMPLETED` transfer in `public.v_transfer_facts` has exactly 1 matching `DEBIT` and
  *    1 matching `CREDIT` in `public.ledger_entries`.
+ * 5. (BL-421) The daily debit counter of every non-SYSTEM account (`accounts.sent_day`, `sent_today`,
+ *    kept by the trigger of BL-418) equals the latest Vietnam day with a `DEBIT` line and that day's
+ *    sum: the same rule as check 6 (`daily_debit_totals`) of `invariants.sql`, written in one pass.
  *
  * Uses `public.v_transfer_facts` (never `public.transfers`) so the least-privilege `dbs_worker`
  * role (`database-design.md` §8.1) can execute it without `SELECT` on `transfers`.
@@ -55,6 +59,32 @@ WITH
   balance_sum AS (
     SELECT COALESCE(SUM(balance::numeric), 0) AS total_balance
     FROM public.accounts
+  ),
+  -- BL-421: one pass over the DEBIT lines (a day and its sum per account), then the latest day only.
+  debit_by_day AS (
+    SELECT
+      account_id,
+      (created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS day,
+      SUM(amount::numeric) AS total
+    FROM public.ledger_entries
+    WHERE direction = 'DEBIT'
+    GROUP BY account_id, day
+  ),
+  latest_debit_day AS (
+    SELECT DISTINCT ON (account_id) account_id, day, total
+    FROM debit_by_day
+    ORDER BY account_id, day DESC
+  ),
+  counter_diffs AS (
+    SELECT 1
+    FROM public.accounts a
+    LEFT JOIN latest_debit_day l ON l.account_id = a.id
+    WHERE a.type <> 'SYSTEM'
+      AND (
+        a.sent_day IS DISTINCT FROM l.day
+        OR a.sent_today::numeric <> COALESCE(l.total, 0)
+      )
+    LIMIT 1
   ),
   account_diffs AS (
     SELECT
@@ -93,6 +123,7 @@ SELECT
   (et.debit = et.credit) AS debit_equals_credit,
   (bs.total_balance = 0) AS total_balance_is_zero,
   NOT EXISTS (SELECT 1 FROM invalid_completed_transfers) AS completed_pairs_valid,
+  NOT EXISTS (SELECT 1 FROM counter_diffs) AS daily_counters_valid,
   COALESCE(
     (
       SELECT jsonb_agg(
@@ -204,17 +235,19 @@ export class ReconciliationService implements OnApplicationBootstrap, OnApplicat
 
           const rows = await manager.query<RawReconciliationSnapshot[]>(RECONCILIATION_CHECK_SQL);
           const raw = rows[0];
-          const classified = classifyReconciliationSnapshot({
+          const snapshot: RawReconciliationSnapshot = {
             total_debit: String(raw.total_debit),
             total_credit: String(raw.total_credit),
             total_balance: String(raw.total_balance),
             debit_equals_credit: Boolean(raw.debit_equals_credit),
             total_balance_is_zero: Boolean(raw.total_balance_is_zero),
             completed_pairs_valid: Boolean(raw.completed_pairs_valid),
+            daily_counters_valid: Boolean(raw.daily_counters_valid),
             mismatched_details: Array.isArray(raw.mismatched_details)
               ? raw.mismatched_details
               : (JSON.parse(String(raw.mismatched_details)) as MismatchedAccountDetail[]),
-          });
+          };
+          const classified = classifyReconciliationSnapshot(snapshot);
           const finishedAt = this.clock.now();
 
           await this.insertRun(manager, startedAt, finishedAt, classified);
@@ -224,6 +257,7 @@ export class ReconciliationService implements OnApplicationBootstrap, OnApplicat
               {
                 status: classified.status,
                 mismatchedAccounts: classified.mismatchedAccounts,
+                failedChecks: failedReconciliationChecks(snapshot),
                 totalDebit: classified.totalDebit,
                 totalCredit: classified.totalCredit,
                 totalBalance: classified.totalBalance,
