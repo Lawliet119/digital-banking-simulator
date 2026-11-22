@@ -1,10 +1,24 @@
 # Quy định Quản trị Dữ liệu AI và Phê duyệt Egress (RSK-05)
 
-> **Status:** Proposed, chờ techlead và chủ sở hữu dữ liệu duyệt (chưa có văn bản duyệt; tác giả của PR không có thẩm quyền tự duyệt) · **Vai soạn:** #4 Fraud · **Người duyệt:** techlead, chủ sở hữu dữ liệu (chưa duyệt) · **Cập nhật:** 2026-11-11 · **Liên quan:** [ADR-14](../../adr/0014-fraud-rules-external-ai.md), [Threat Model T25](../../security/threat-model.md), [FRAUD_DETECTION_GUIDE](FRAUD_DETECTION_GUIDE.md)
+> **Status:** Approved (techlead xác nhận duyệt ngày 2026-11-22; techlead và chủ sở hữu dữ liệu duyệt; xem §0: chưa chọn ZDR hay 30 ngày, chưa xác minh điều khoản nhà cung cấp, chưa bật egress cho dữ liệu thật) · **Vai soạn:** #4 Fraud · **Người duyệt:** techlead, chủ sở hữu dữ liệu (xác nhận của techlead trong phiên làm việc 2026-11-22, không có chữ ký) · **Cập nhật:** 2026-11-22 · **Liên quan:** [ADR-14](../../adr/0014-fraud-rules-external-ai.md), [Threat Model T25](../../security/threat-model.md), [FRAUD_DETECTION_GUIDE](FRAUD_DETECTION_GUIDE.md)
 
 ---
 
-## 1. Đề xuất quyết định về quyền gửi dữ liệu (Egress Approval), chờ phê duyệt
+## 0. Văn bản duyệt (ghi ngày 2026-11-22)
+
+**Kết luận: ĐÃ DUYỆT chính sách này.** Techlead và chủ sở hữu dữ liệu đã duyệt RSK-05; techlead xác nhận điều đó trong phiên làm việc ngày **2026-11-22**. Nguồn duy nhất của văn bản duyệt là lời xác nhận đó, do agent (Claude Code) ghi lại theo yêu cầu của techlead. Ngày 2026-11-22 là ngày xác nhận được ghi nhận; ngày diễn ra việc duyệt không có trong nguồn. **Không có chữ ký, tên người duyệt hay biên bản riêng trong repo**, và agent không tự viết thêm; ai cần bằng chứng gốc phải hỏi techlead.
+
+**Phạm vi đã duyệt:**
+1. Chỉ gửi 11 trường `FeatureInput` ở §2, qua `toAiFeatureInput`; không ID, tên, email, số điện thoại, giấy tờ, IP hay thời điểm tuyệt đối (§1.1, §1.2).
+2. Dev, test và CI chỉ dùng dữ liệu synthetic; **dữ liệu giao dịch thật chỉ được gửi sau văn bản này và khi các điều kiện của §1.3 đủ** (§1.3). Duyệt chính sách **không** tự bật egress: `RISK_AI_EGRESS_APPROVED` vẫn mặc định `false`.
+
+**Lựa chọn ZDR hay 30 ngày (§3.2): xác nhận không nêu lựa chọn.** Văn bản này không chọn thay chủ dữ liệu. Vì vậy giữ nguyên điều đã viết ở §3.2: **chưa có chấp nhận bằng văn bản mức lưu giữ tối đa 30 ngày (phương án b)**, nên áp dụng §1.3: với dữ liệu giao dịch thật phải có xác nhận ZDR của nhà cung cấp cho tài khoản dịch vụ. Muốn dùng phương án (b), chủ dữ liệu phải ghi chấp nhận 30 ngày thành văn bản và sửa mục này.
+
+**Chưa có (không bị bỏ qua bởi việc duyệt):** điều khoản dịch vụ và thời gian lưu của OpenAI ở §3.1 và §3.2 vẫn **chưa xác minh** bằng URL, ngày đọc và người xác nhận (ADR-14); việc triển khai kỹ thuật thuộc BL-043 (§3.3, §4).
+
+---
+
+## 1. Quyết định về quyền gửi dữ liệu (Egress Approval), đã duyệt (§0)
 
 Căn cứ theo quyết định kiến trúc [ADR-14](../../adr/0014-fraud-rules-external-ai.md), nhóm phát hiện gian lận sử dụng dịch vụ pretrained **OpenAI Decisions API** làm tín hiệu bổ sung cho 6 luật nghiệp vụ giải thích được (`R1–R6`).
 
@@ -44,16 +58,16 @@ Văn bản này thiết lập ranh giới quản trị dữ liệu bắt buộc 
 ## 3. Điều khoản Dịch vụ Nhà cung cấp & Chính sách Zero Data Retention (ZDR)
 
 1. **Điều khoản dịch vụ và API Data Controls:**
-   - **Chưa xác minh trong repo** (ADR-14 yêu cầu người có thẩm quyền xác nhận lại trên trang điều khoản chính thức; cần dẫn URL, ngày đọc và người xác nhận trước khi duyệt). Nội dung đề xuất: OpenAI cam kết theo chính sách API Data Privacy: Dữ liệu gửi qua API thương mại (`/v1/*`) mặc định **không được sử dụng để huấn luyện (train/fine-tune)** các mô hình của OpenAI.
+   - **Chưa xác minh trong repo** (ADR-14 yêu cầu người có thẩm quyền xác nhận lại trên trang điều khoản chính thức; cần dẫn URL, ngày đọc và người xác nhận trước khi bật egress cho dữ liệu thật). Nội dung đề xuất: OpenAI cam kết theo chính sách API Data Privacy: Dữ liệu gửi qua API thương mại (`/v1/*`) mặc định **không được sử dụng để huấn luyện (train/fine-tune)** các mô hình của OpenAI.
    - Endpoint sử dụng: `POST https://api.openai.com/v1/decisions` với model `gpt-6-luna`.
 
 2. **Chính sách lưu giữ dữ liệu (Retention Policy):**
    - (Chưa xác minh, như trên.) Mặc định của OpenAI API: lưu giữ dữ liệu request tối đa 30 ngày phục vụ rà soát lạm dụng (abuse monitoring), sau đó bị xóa.
    - **Zero Data Retention (ZDR):** Chỉ được áp dụng đối với các tổ chức đủ điều kiện và được OpenAI xác nhận bằng văn bản phê duyệt (ZDR approval). Khi ZDR có hiệu lực, OpenAI không lưu giữ request/response payload trên đĩa sau khi hoàn tất xử lý.
-   - **Quyết định còn mở (chờ chủ sở hữu dữ liệu chọn một):** (a) với dữ liệu giao dịch thật bắt buộc có xác nhận ZDR như §1.3, hoặc (b) chủ sở hữu dữ liệu chấp nhận bằng văn bản mức lưu giữ tối đa 30 ngày vì 11 trường đã bỏ định danh (giảm rủi ro, không triệt tiêu: số tiền và số dư vẫn là dữ liệu tài chính). Tài liệu này không chọn thay họ; khi chưa chọn thì §1.3 áp dụng (không bật egress cho dữ liệu thật).
+   - **Quyết định còn mở (chủ sở hữu dữ liệu chưa chọn; xác nhận duyệt ngày 2026-11-22 không nêu lựa chọn, xem §0):** (a) với dữ liệu giao dịch thật bắt buộc có xác nhận ZDR như §1.3, hoặc (b) chủ sở hữu dữ liệu chấp nhận bằng văn bản mức lưu giữ tối đa 30 ngày vì 11 trường đã bỏ định danh (giảm rủi ro, không triệt tiêu: số tiền và số dư vẫn là dữ liệu tài chính). Tài liệu này không chọn thay họ; khi chưa chọn thì §1.3 áp dụng (không bật egress cho dữ liệu thật).
 
 3. **Quản lý khóa bí mật (Secrets Management):**
-   - **Yêu cầu cho Ops (BL-043):** khóa API `OPENAI_API_KEY` được lưu tại **AWS Secrets Manager**, mã hóa bằng AWS KMS. Hiện `infra/` chưa có secret OpenAI nào; mục này chưa được triển khai.
+   - **Yêu cầu cho Ops (BL-043):** khóa API `OPENAI_API_KEY` được lưu tại **AWS Secrets Manager**, mã hóa bằng AWS KMS. Hiện `infra/terraform/envs/dev/base/ai_secret.tf` có vỏ secret `dbs/dev/openai-api-key` (KMS), chưa apply lên AWS (BL-397; bằng chứng `terraform plan` ở BL-409) và chưa có giá trị khóa hợp lệ; mục này chưa được triển khai xong.
    - Tuyệt đối cấm commit khóa API vào git, file cấu hình, container image hoặc in ra console/log.
    - Logger pino của repo (`backend/src/common/logging/logging.options.ts`, kiểm bởi `logging.options.spec.ts` và `safe-logger.spec.ts`) được cấu hình redact tự động các header `Authorization`, `cookie` và các trường nhạy cảm.
 
