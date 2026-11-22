@@ -39,7 +39,7 @@ print('production 24/7 (203,55) bỏ phần HA =', q(D('203.55') - ha * H, 2), '
 # ngân sách lỗi 99,9% / 30 ngày
 budget = D('43200') * D('0.001') * D('60')  # giây
 print('ngân sách lỗi 30 ngày (giây)', budget, '=', q(budget / 60, 1), 'phút')
-for name, sec in (('RTO giả định 10 phút', D('600')), ('RTO giả định 60 phút', D('3600')), ('failover đo 12,7 s', D('12.7')), ('failover đo 14,7 s', D('14.7')), ('task api dừng đo 137 s (dev 1 task)', D('137')), ('RTO thiết kế 30 phút', D('1800')), ('hai sự cố RTO thiết kế', D('3600'))):
+for name, sec in (('RTO giả định 10 phút', D('600')), ('RTO giả định 60 phút', D('3600')), ('khoảng 503 trên probe 12,7 s (failover chưa xác nhận)', D('12.7')), ('khoảng 503 trên probe 14,7 s (failover chưa xác nhận)', D('14.7')), ('task api dừng, tối đa 137 s (dev 1 task)', D('137')), ('RTO thiết kế 30 phút', D('1800')), ('hai sự cố RTO thiết kế', D('3600'))):
     print(name, q(sec / budget * 100, 2), '% ngân sách lỗi tháng')
 # phiên demo
 for h in (3, 5):

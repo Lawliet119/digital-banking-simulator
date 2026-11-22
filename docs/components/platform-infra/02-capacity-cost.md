@@ -12,7 +12,7 @@ Mục «capacity & cost» của P4. **Ước lượng, chưa đối chiếu hóa
 | So với ngân sách tháng? | Tháng 11: ACTUAL **7,766 USD** (5,2 %), FORECASTED cả tháng 8,567 USD, trên Budget **150 USD** | `aws budgets describe-budgets` |
 | Chạy 24/7? | dev **≈ 113,23 USD/tháng** (105,23 khi tắt WAF từ 26/11); production (Multi-AZ) **≈ 203,55 USD/tháng**, vượt Budget 150 USD và trần 200 USD của NFR-COST-01 | §5 |
 | Một phiên làm việc? | dev 3 giờ **≈ 0,45 USD**; phiên đo tải 5 giờ **≈ 1,72 USD** cộng phí theo tải (≈ 0,26 USD mỗi giờ 120 RPS riêng phí request WAF) | §4 |
-| HA có đáng tiền? | HA thêm **≈ 0,1098 USD/giờ, 80,14 USD/tháng** (RDS Multi-AZ, Valkey replica, task `api` thứ hai); dev không cam kết SLO nên chỉ bật theo phiên (+0,25–0,42 USD cho 3–5 giờ ở cỡ micro); production 24/7 với SLO 99,9 % thì cần RDS Multi-AZ và 2 task `api` (một sự cố RDS Single-AZ ăn 23–69 % ngân sách lỗi tháng tùy RTO khôi phục, chưa đo); số RTO có được (12,7–14,7 s) là khoảng 503 của probe, failover chưa xác nhận | §8 |
+| HA có đáng tiền? | HA thêm **≈ 0,1098 USD/giờ, 80,14 USD/tháng** (RDS Multi-AZ, Valkey replica, task `api` thứ hai); dev không cam kết SLO nên chỉ bật theo phiên (+0,25–0,42 USD cho 3–5 giờ ở cỡ micro); production 24/7 với SLO 99,9 % thì cần RDS Multi-AZ và 2 task `api` (một sự cố RDS Single-AZ ăn 23–69 % ngân sách lỗi tháng tùy RTO khôi phục, chưa đo); số RTO có được (12,7–14,7 s) là khoảng 503 của probe, failover chưa xác nhận (BL-386) | §8 |
 | Còn tới 13/12? | khoảng **6–7 USD** (6,15–7,30; ≤ 3,8 % credit còn lại); script dự báo 16,8232 USD, là cận trên | §6 |
 
 ## 2. Chi phí thật theo dịch vụ (từ 01/10 tới hết 21/11)
@@ -123,11 +123,11 @@ So với 191,29 USD credit còn lại, kế hoạch dùng không quá 3,8 %. Scr
 - Đơn giá lấy từ số đã trả; đổi giá AWS hay đổi loại instance thì cập nhật §3. Phí request WAF 0,60/triệu suy từ 0,8493 USD cho 1.415.483 request.
 - Số secret của phiên (4 ở dev, 2 ở production) suy từ Terraform (`rds.tf`, `db_roles.tf`, `redis.tf`); chi phí Secrets Manager ngày 21/11 (0,106 secret-tháng, trừ 2 secret của `base`) cần ít nhất 3 secret của phiên, phù hợp. Chưa đếm trực tiếp trên Secrets Manager; sai số vài chục xu mỗi tháng.
 - Ngưỡng: Budget AWS báo ở 150 USD; NFR-COST-01 của BRD là «≤ 150–200 USD/tháng».
-- Phần RTO và RPO của §8 chỉ có số cho khoảng 503 của health probe ở hai lần reboot RDS (`db.t4g.micro`, failover chưa được xác nhận) và cho task `api` bị dừng (137 s); mọi mục khác là thiết kế hoặc thuộc tính của dịch vụ theo tài liệu AWS, chưa kiểm ở dự án.
+- Phần RTO và RPO của §8 chỉ có số cho khoảng 503 của health probe ở hai lần reboot RDS (`db.t4g.micro`, failover chưa được xác nhận, BL-386) và cho task `api` bị dừng (137 s); mọi mục khác là thiết kế hoặc thuộc tính của dịch vụ theo tài liệu AWS, chưa kiểm ở dự án.
 
 ## 8. Dev Single-AZ so với production Multi-AZ: HA có đáng tiền không (DBS-182)
 
-Chi phí là mô hình §4–§5 (đơn giá thật, ước lượng chưa đối chiếu hóa đơn); lợi ích lấy từ số đo [DBS-181](../../features/DBS-181-rds-failover-drill.md) (failover RDS) và [DBS-185](../../features/DBS-185-ac-5-10-kill-task-cloud.md) (task `api` dừng, [BL-382](../../BACKLOG.md)), mục tiêu từ docs/03 D-7 và §14. Công thức: [calc.py](../../features/screenshots/DBS-182/calc.py).
+Chi phí là mô hình §4–§5 (đơn giá thật, ước lượng chưa đối chiếu hóa đơn); lợi ích lấy từ [DBS-181](../../features/DBS-181-rds-failover-drill.md) (khoảng 503 của probe khi reboot RDS, failover chưa xác nhận) và [DBS-185](../../features/DBS-185-ac-5-10-kill-task-cloud.md) (task `api` dừng, [BL-382](../../BACKLOG.md)), mục tiêu từ docs/03 D-7 và §14. Công thức: [calc.py](../../features/screenshots/DBS-182/calc.py).
 
 ### 8.1 Hai cấu hình
 
@@ -147,7 +147,7 @@ Chi phí là mô hình §4–§5 (đơn giá thật, ước lượng chưa đố
 |---|---:|---:|---|
 | RDS Multi-AZ (cùng `db.t4g.small`: instance 0,0510 → 0,1020, storage 0,138 → 0,276/GB-tháng) | 0,0548 | 39,99 | **Khoảng 503 trên health probe 14,7 s và 12,7 s** ở hai lần `reboot --force-failover` (DBS-181, `db.t4g.micro`, ≈ 2 RPS, app tự nối lại). **Failover chưa được xác nhận:** raw ghi AZ `ap-southeast-1a` trước và sau cả hai lần, không có sự kiện RDS `failover completed`, probe không có dấu thời gian, nên không phải RTO tính từ lúc kích hoạt ([BL-386](../../BACKLOG.md)). Single-AZ: chưa đo ([BL-388](../../BACKLOG.md)) |
 | Valkey replica (node thứ hai) | 0,0192 | 14,02 | **Chưa có lợi ích đo được cho SLO 5xx:** [DBS-167](../../features/DBS-167-redis-fault-load.md) tắt cả Redis mà giao dịch vẫn chạy, `/health/ready` vẫn 200 ([báo cáo 05](../load-tests/05-ket-qua-redis-2026-11-22.md)). Replica mua liên tục của cache và mốc phiên; failover Valkey chưa diễn tập ([BL-216, BL-220](../../BACKLOG.md)) |
-| Task `api` thứ hai (Fargate 0,5 vCPU/1 GB + 1 IPv4) | 0,0358 | 26,13 | một task `api` dừng ở dev (1 task) mất dịch vụ **137 s** (DBS-185, [BL-382](../../BACKLOG.md); đo với `deregistration_delay` 0, mặc định 30 s thì dài hơn khoảng 30 s, ≈ 6,4 % ngân sách lỗi); với 2 task: chưa đo (BL-382 chỉ có một rollout 2 task với 3 lỗi 5xx của ALB) |
+| Task `api` thứ hai (Fargate 0,5 vCPU/1 GB + 1 IPv4) | 0,0358 | 26,13 | một task `api` dừng ở dev (1 task): service ổn định lại sau **≤ 137 s** kể từ `stop-task`, ALB gỡ target ở +25 s (DBS-185, [BL-382](../../BACKLOG.md); đo với `deregistration_delay` 0, mặc định 30 s thì dài hơn khoảng 30 s, ≈ 6,4 % ngân sách lỗi); với 2 task: chưa đo (BL-382 chỉ có một rollout 2 task với 3 lỗi 5xx của ALB) |
 | **HA cộng** | **0,1098** | **80,14** | 78,8 % của dev 24/7 chỉ tài nguyên (101,75); riêng phần HA dùng hết 191,29 USD credit sau 2,4 tháng |
 | *Không phải HA:* `db.t4g.micro` → `small` (tải 120 RPS, DBS-173) | 0,0260 | 18,98 | dung lượng, không đổi RTO |
 | **Tổng chênh production − dev (tài nguyên)** | **0,1358** | **99,12** | = 0,1098 HA + 0,0260 dung lượng |
@@ -161,7 +161,7 @@ Chưa gồm phí theo tải (data transfer giữa AZ của hai task, backup stor
 | dev `db.t4g.micro` (Multi-AZ micro 0,0298 + replica 0,0192 + task 0,0358) | 0,0848 | **0,25 USD** | **0,42 USD** |
 | cỡ production `db.t4g.small` (0,1098, kể cả đổi cỡ thì thêm 0,0260) | 0,1098 | 0,33 USD (0,41 kể cả đổi cỡ) | 0,55 USD (0,68 kể cả đổi cỡ) |
 
-Quên tắt Multi-AZ ở dev (micro) tốn thêm ≈ 0,72 USD/ngày (DBS-180).
+Quên tắt Multi-AZ ở dev (micro) tốn thêm ≈ 0,71–0,72 USD/ngày (0,0298 × 24 = 0,715; DBS-180 làm tròn 0,030/giờ).
 
 ### 8.3 RTO và RPO
 
@@ -169,13 +169,13 @@ Quên tắt Multi-AZ ở dev (micro) tốn thêm ≈ 0,72 USD/ngày (DBS-180).
 |---|---|---|
 | **RTO khi RDS primary lỗi** | **chưa đo.** Hai đường: khôi phục tại chỗ (chưa đo) hoặc, nếu mất cả AZ, PITR sang instance mới và đổi endpoint (chưa diễn tập, BL-388); mục tiêu 30 phút (D-7) là trần chưa kiểm | khoảng 503 trên probe **12,7–14,7 s**, failover chưa xác nhận (xem §8.2); chưa đo dưới lệnh chuyển tiền thật (BL-386) |
 | **RPO khi RDS primary lỗi** | mục tiêu ≤ 5 phút theo thiết kế PITR (khoảng thời gian tải log, tài liệu AWS, chưa kiểm); retention 1 ngày ở dev chỉ là cửa sổ khôi phục | mục tiêu ≤ 5 phút như trên (retention 7 là cửa sổ khôi phục); standby sao chép đồng bộ nên giao dịch đã commit không mất: **thuộc tính của dịch vụ theo tài liệu AWS, dự án chưa kiểm** (`invariants.js` chưa chạy sau failover RDS) |
-| **Mất một task `api`** | 137 s mất dịch vụ (đo, `deregistration_delay` 0) | ALB chuyển sang task còn lại; chưa đo |
+| **Mất một task `api`** | ≤ 137 s từ `stop-task` tới service ổn định (đo, `deregistration_delay` 0) | ALB chuyển sang task còn lại; chưa đo |
 
-**Quy đổi ra ngân sách lỗi** (SLO 99,9 %/30 ngày = 43,2 phút = 2.592 giây, docs/03 §14; giả định mỗi giây gián đoạn là toàn bộ request lỗi, vì SLO thật tính theo tỉ lệ request 5xx): khoảng 503 12,7–14,7 s dùng **0,49–0,57 %**; một task `api` dừng ở dev 137 s dùng 5,29 %; một sự cố RDS Single-AZ dùng **23,15 % nếu khôi phục xong trong 10 phút, 69,44 % nếu đúng mục tiêu 30 phút, 138,89 % nếu 60 phút**; hai sự cố 30 phút phá SLO.
+**Quy đổi ra ngân sách lỗi** (SLO 99,9 %/30 ngày = 43,2 phút = 2.592 giây, docs/03 §14; giả định mỗi giây gián đoạn là toàn bộ request lỗi, vì SLO thật tính theo tỉ lệ request 5xx): khoảng 503 12,7–14,7 s dùng **0,49–0,57 %**; một task `api` dừng ở dev (tối đa 137 s) dùng tối đa 5,29 %; một sự cố RDS Single-AZ dùng **23,15 % nếu khôi phục xong trong 10 phút, 69,44 % nếu đúng mục tiêu 30 phút, 138,89 % nếu 60 phút**; hai sự cố 30 phút phá SLO.
 
 ### 8.4 Kết luận: HA có đáng tiền không
 
 - **Dev, chạy liên tục: không.** HA thêm 80,14 USD/tháng, dùng hết credit còn lại sau 2,4 tháng, cho môi trường không cam kết SLO. Giữ dev Single-AZ, dựng theo phiên.
-- **Diễn tập và đo: có, theo phiên.** Bật ba biến trong phiên đo: +0,25–0,42 USD (micro) hay +0,33–0,55 USD (cỡ production) cho phiên 3–5 giờ. Đổi lại có số khoảng 503 12,7–14,7 s thay cho con số thiết kế, **với điều kiện lần diễn tập sau xác nhận được failover** (AZ đổi, sự kiện RDS; BL-386).
-- **Production chạy 24/7 với SLO 99,9 %: có, nếu có ngân sách riêng.** Không có HA, một sự cố RDS đã ăn 23–69 % ngân sách lỗi của tháng (tùy RTO khôi phục thật) và hai sự cố có thể phá SLO; 80,14 USD/tháng là giá để thay bằng khoảng gián đoạn vài chục giây, **nếu** số đó giữ được dưới tải thật. Chỉ **RDS Multi-AZ (39,99)** và **task `api` thứ hai (26,13)** có lý do SLO rõ; **Valkey replica (14,02)** chưa có bằng chứng giúp SLO 5xx. Production 24/7 tốn 203,55 USD/tháng, vượt Budget 150 và trần 200 của NFR-COST-01; không có phần HA là 123,41 USD/tháng (vừa Budget 150, gồm cả phần đổi cỡ RDS 18,98). Dự án này chỉ bật production theo đợt, nên SLO 30 ngày chưa bao giờ chạy thật và câu trả lời trên là cho một production giả định có ngân sách riêng.
+- **Diễn tập và đo: có, theo phiên.** Bật ba biến trong phiên đo: +0,25–0,42 USD (micro) hay +0,33–0,55 USD (cỡ production) cho phiên 3–5 giờ. Đổi lại có RTO failover đã xác nhận (AZ đổi, sự kiện RDS `failover completed`, probe có dấu thời gian; [BL-386](../../BACKLOG.md)); số 12,7–14,7 s hiện có là khoảng 503 của probe, failover chưa xác nhận.
+- **Production chạy 24/7 với SLO 99,9 %: có, nếu có ngân sách riêng.** Không có HA, một sự cố RDS đã ăn 23–69 % ngân sách lỗi của tháng (tùy RTO khôi phục thật) và hai sự cố có thể phá SLO; 80,14 USD/tháng gồm **RDS Multi-AZ (39,99)** và **task `api` thứ hai (26,13)**, tổng **66,12 USD/tháng**, là phần có lý do SLO rõ để thay bằng khoảng gián đoạn vài chục giây, **nếu** số đó giữ được dưới tải thật; RDS Multi-AZ còn tránh mất tới ≈ 5 phút giao dịch đã commit khi mất storage Single-AZ (thuộc tính dịch vụ theo tài liệu AWS, chưa kiểm: BL-386, BL-388), lý do mạnh hơn cho một sổ cái. **Valkey replica (14,02)** chưa có bằng chứng giúp SLO 5xx. Production 24/7 tốn 203,55 USD/tháng, vượt Budget 150 và trần 200 của NFR-COST-01; không có phần HA là 123,41 USD/tháng (vừa Budget 150, gồm cả phần đổi cỡ RDS 18,98). Dự án này chỉ bật production theo đợt, nên SLO 30 ngày chưa bao giờ chạy thật và câu trả lời trên là cho một production giả định có ngân sách riêng.
 - **Giới hạn của kết luận:** không đo được tần suất sự cố nên không tính hoàn vốn; không có RTO Single-AZ, RPO của cả hai và RTO dưới lệnh chuyển tiền (BL-386, BL-388); số 12,7–14,7 s đo trên `db.t4g.micro` bằng health probe, failover chưa xác nhận, không dưới tải 120 RPS.

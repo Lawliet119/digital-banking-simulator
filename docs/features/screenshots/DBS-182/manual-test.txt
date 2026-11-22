@@ -1,4 +1,4 @@
-SHA nền: 029ee628 (nhánh dựa trên docs/DBS-179-cost-actual; không đổi code)
+SHA nền: f387052f (nhánh dựa trên docs/DBS-179-cost-actual; không đổi code)
 
 ### M-182-01 đơn giá RDS, Valkey, ALB, Fargate trong manual-test của DBS-179 (số đã trả)
 docs/features/screenshots/DBS-179/manual-test.txt:55:$ aws ce get-cost-and-usage --time-period Start=2026-10-24,End=2026-11-22 --granularity DAILY --m
@@ -15,7 +15,7 @@ docs/components/platform-infra/cost-reports/2026-11-22.md:39:| RDS storage | `AP
 docs/components/platform-infra/cost-reports/2026-11-22.md:40:| RDS storage | `APS1-RDS:Multi-AZ-GP3-Storage` | 0,250 GB-tháng | 0,0690 | 0,2760 |
 docs/components/platform-infra/cost-reports/2026-11-22.md:41:| ElastiCache node | `APS1-NodeUsage:cache.t4g.micro` | 39,000 giờ | 0,7488 | 0,0192 |
 
-### M-182-02 RTO failover (DBS-181, raw) và lớp instance lúc đo
+### M-182-02 khoảng 503 của probe khi reboot RDS (DBS-181, raw; failover chưa xác nhận) và lớp instance lúc đo
 docs/features/screenshots/DBS-181/manual-test.txt:1:=== DBS-181 Live RDS Multi-AZ Failover Drill (2026-11-14) ===
 docs/features/screenshots/DBS-181/manual-test.txt:2:Environment: ap-southeast-1, profile=dbs-admin, DB=dbs-dev (db.t4g.micro, MultiAZ=true)
 docs/features/screenshots/DBS-181/manual-test.txt:6:MultiAZ: true
@@ -56,7 +56,7 @@ docs/03_HIGH_LEVEL_ARCHITECTURE.md:967:| NFR-AVL-01 99,9% | RDS Multi-AZ, ≥ 2 
 docs/BACKLOG.md:137:| BL-382 | Ghi vào runbook rollback và RTO số đo ≈ 2 phút mất dịch vụ khi một task api bị dừng (`desired_count = 1`, đo 137 s); quyết định chạy 2 task api ở dev khi demo hay chấp nhận. DBS-166 đã chạy 2
 docs/BACKLOG.md:54:| BL-220 | Chạy nốt drill thu hồi phiên DBS-114/186 trên cloud: failover ElastiCache (primary
 docs/BACKLOG.md:110:| BL-216 | **Đã đo (DBS-167, [báo cáo 05](components/load-tests/05-ket-qua-redis-2026-11-22.md)
-docs/BACKLOG.md:139:| BL-386 | Chạy lại diễn tập failover RDS (DBS-181/197) với probe có dấu thời gian, s
+docs/BACKLOG.md:139:| BL-386 | Chạy lại diễn tập failover RDS (DBS-181/197) với **AZ sau ≠ AZ trước (ho�
 docs/BACKLOG.md:140:| BL-388 | Diễn tập sao lưu và khôi phục RDS (PITR, snapshot); RPO ≤ 5 phút và RTO ≤ 
 
 ### M-182-05 calc.py
@@ -74,9 +74,9 @@ production 24/7 (203,55) bỏ phần HA = 123,41 (so với Budget 150)
 ngân sách lỗi 30 ngày (giây) 2592.000 = 43,2 phút
 RTO giả định 10 phút 23,15 % ngân sách lỗi tháng
 RTO giả định 60 phút 138,89 % ngân sách lỗi tháng
-failover đo 12,7 s 0,49 % ngân sách lỗi tháng
-failover đo 14,7 s 0,57 % ngân sách lỗi tháng
-task api dừng đo 137 s (dev 1 task) 5,29 % ngân sách lỗi tháng
+khoảng 503 trên probe 12,7 s (failover chưa xác nhận) 0,49 % ngân sách lỗi tháng
+khoảng 503 trên probe 14,7 s (failover chưa xác nhận) 0,57 % ngân sách lỗi tháng
+task api dừng, tối đa 137 s (dev 1 task) 5,29 % ngân sách lỗi tháng
 RTO thiết kế 30 phút 69,44 % ngân sách lỗi tháng
 hai sự cố RTO thiết kế 138,89 % ngân sách lỗi tháng
 phiên 3 giờ: thêm HA 0,33 USD; thêm HA + dung lượng 0,41
@@ -90,5 +90,5 @@ infra/terraform/envs/dev/session/variables.tf:32:variable "desired_count" {
 infra/terraform/envs/dev/session/variables.tf:54:variable "db_instance_class" {
 infra/terraform/envs/dev/session/variables.tf:60:variable "db_multi_az" {
 infra/terraform/envs/dev/session/variables.tf:72:variable "redis_replicas" {
-517 files checked, 0 broken link(s)
+518 files checked, 0 broken link(s)
 107 dòng, 0 lỗi

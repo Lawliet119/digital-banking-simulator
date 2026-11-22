@@ -9,7 +9,7 @@
   1. Bảng so sánh chi phí theo giờ và theo tháng, kèm lợi ích (RTO, RPO) từ DBS-181
   2. Đưa vào P4 (capacity & cost)
   3. PR đã merge vào main; Dev review; không còn liên kết hỏng, tên bảng/cột/mã lỗi khớp các tài liệu khác (đã grep)
-- **Phụ thuộc:** DBS-181 (Done: [feature doc](DBS-181-rds-failover-drill.md), RTO 14,7 s và 12,7 s); DBS-179 (board «To Do», **trong repo xong ở PR #235**: đơn giá thật và `02-capacity-cost.md`). Task này làm trên nhánh dựa vào #235 và rebase khi #235 merge.
+- **Phụ thuộc:** DBS-181 (Done: [feature doc](DBS-181-rds-failover-drill.md), khoảng 503 trên probe 14,7 s và 12,7 s, failover chưa xác nhận); DBS-179 (board «To Do», **trong repo xong ở PR #235**: đơn giá thật và `02-capacity-cost.md`). Task này làm trên nhánh dựa vào #235 và rebase khi #235 merge.
 - **Đã có gì:** `02-capacity-cost.md` §4–§5 (chi phí theo giờ và 24/7 của hai cấu hình), [DBS-180](DBS-180-rds-multi-az.md) (chênh Multi-AZ theo giờ), [DBS-185](DBS-185-ac-5-10-kill-task-cloud.md) và BL-382 (137 s khi task `api` dừng), [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §13.1, §14, D-7.
 - **Ngoài phạm vi:** đo thêm RTO hay RPO trên AWS (BL-386, BL-388 giữ), ghép P4 (DBS-189), đổi Terraform.
 - **BL đã nêu:** BL-386 (failover RDS dưới lệnh chuyển tiền), BL-388 (PITR), BL-220 (failover Valkey), BL-382 (task `api`): giữ nguyên, được trích làm giới hạn.
@@ -50,7 +50,7 @@ Không đổi code, Terraform hay ADR. File mới: `docs/features/DBS-182-ha-cos
 
 ## 6. Domain review (AI)
 
-**Reviewer:** subagent general-purpose, model opus, effort high, 2026-11-22 · **Vòng 1:** 10 phát hiện (blocking 1, should-fix 4, minor 5), verdict REVISE · [trả lời nguyên văn](screenshots/DBS-182/domain-review.md) · **Vòng 2:** không chạy (chỉ sửa nội dung theo phát hiện và số tính lại bằng `calc.py`); diff review cuối do subagent opus thực hiện
+**Reviewer:** subagent general-purpose, model opus, effort high, 2026-11-22 · **Vòng 1:** 10 phát hiện (blocking 1, should-fix 4, minor 5), verdict REVISE · [trả lời nguyên văn](screenshots/DBS-182/domain-review.md) · **Vòng 2 (diff review cuối, opus high):** 9 phát hiện (should-fix 2, minor 7), verdict REVISE, đã sửa hết: còn chỗ gọi «RTO đo» ở dependency, `calc.py` và manual-test; thêm lý do mất dữ liệu (RPO) vào §8.4; giá HA có lý do SLO là 66,12 USD; «≤ 137 s»; 0,71–0,72 USD/ngày; BL-386 ở §1 và §7; thêm tiêu chí «AZ sau ≠ AZ trước» vào BL-386
 
 | # | Mức | Phát hiện | Xử lý |
 |---|---|---|---|
