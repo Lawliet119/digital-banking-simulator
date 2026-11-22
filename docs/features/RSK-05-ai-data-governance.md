@@ -1,6 +1,6 @@
 # RSK-05 · Duyệt quyền gửi dữ liệu giao dịch cho API AI và điều khoản nhà cung cấp
 
-> **Trạng thái:** Proposed (DoD 1 chưa đạt: chưa có văn bản duyệt của techlead và chủ dữ liệu; chờ CI và Dev review) · **Vai:** #4 Fraud · **Nhánh:** `feat/RSK-05-ai-data-governance` · **PR:** [#137](https://github.com/Lawliet119/digital-banking-simulator/pull/137) · **Nền:** `98cdb3017a54a72d73f4e3c92ff2439a3b6d0800`.
+> **Trạng thái:** Implemented 2026-11-22 (DoD 1 **đạt một phần**: có xác nhận duyệt của techlead và chủ dữ liệu ngày 2026-11-22 cho allowlist 11 trường và quy tắc synthetic, ghi ở [§0 của văn bản](../components/risk/04-ai-data-governance.md); điều khoản và thời gian lưu của nhà cung cấp **chưa xác minh**, ZDR hay 30 ngày **chưa chọn**; DoD 4: PR #137 đã merge 2026-11-11, thay đổi 2026-11-22 theo PR riêng (nhánh `docs/RSK-05-approval`), **Dev review không có** (opus thay người); BL-043 còn mở) · **Vai:** #4 Fraud · **Nhánh:** `feat/RSK-05-ai-data-governance` · **PR:** [#137](https://github.com/Lawliet119/digital-banking-simulator/pull/137) · **Nền:** `98cdb3017a54a72d73f4e3c92ff2439a3b6d0800`.
 
 ## 1. Bối cảnh và G1
 
@@ -13,6 +13,7 @@
   4. PR đã merge vào main; Dev review; không còn liên kết hỏng, tên bảng/cột/mã lỗi khớp các tài liệu khác (đã grep).
 
 - **Phụ thuộc:** Làm được ngay (không phụ thuộc task code nào khác).
+- **Cập nhật 2026-11-22 (TonightWorks Phiên 4):** techlead xác nhận trong phiên làm việc rằng techlead và chủ dữ liệu đã duyệt RSK-05. Agent ghi văn bản duyệt vào §0 của `04-ai-data-governance.md` với nguồn là lời xác nhận đó (ngày, phạm vi 11 trường, không tên và không chữ ký bịa thêm), chuyển T25 cho khớp, và **không chọn thay** ZDR hay 30 ngày: xác nhận không nêu lựa chọn, văn bản giữ đúng §3.2 (chưa chấp nhận 30 ngày bằng văn bản, dữ liệu thật cần xác nhận ZDR).
 - **Phạm vi:** Soạn thảo văn bản quản trị dữ liệu `docs/components/risk/04-ai-data-governance.md`, cập nhật Threat Model T25 tại `docs/security/threat-model.md`, cập nhật `backend/src/modules/risk/README.md`, liên kết `docs/features/README.md`.
 
 ## 2. Hành vi và Quy định Quản trị
@@ -37,7 +38,7 @@
   - Môi trường dev, test, CI: Tuyệt đối chỉ sử dụng dữ liệu synthetic (tổng hợp), không gửi dữ liệu khách hàng thật.
   - Môi trường production: Chỉ được gửi sau khi văn bản phê duyệt này có hiệu lực và có xác nhận ZDR chính thức.
 - **Chính sách Zero Data Retention (ZDR):**
-  - Mặc định dữ liệu API được lưu tối đa 30 ngày phục vụ abuse monitoring và không dùng để train model. ZDR chỉ được kích hoạt khi tài khoản tổ chức đủ điều kiện và được OpenAI phê duyệt bằng văn bản.
+  - (Chưa xác minh với nhà cung cấp, xem §3.1 của văn bản.) Mặc định dữ liệu API được lưu tối đa 30 ngày phục vụ abuse monitoring và không dùng để train model. ZDR chỉ được kích hoạt khi tài khoản tổ chức đủ điều kiện và được OpenAI phê duyệt bằng văn bản.
 
 ## 3. Kiến trúc và Kiểm soát Kỹ thuật
 
@@ -46,7 +47,7 @@
 - **Cổng hạn mức bền vững (`Durable AI Gate`):**
   Thực thi tại PostgreSQL (`ai_gate_acquire`) chặn đứng nguy cơ vượt quota chi phí hoặc nghẽn mạng đồng thời.
 - **Threat Model T25:**
-  Cập nhật trạng thái đe dọa rò rỉ thông tin sang *Đã duyệt chính sách và kiểm chứng kỹ thuật*.
+  Cập nhật nội dung T25 theo xác nhận duyệt chính sách ngày 2026-11-22; cột Trạng thái vẫn là «**Thiết kế**» vì quyền gửi dữ liệu thật, ZDR và điều khoản chưa có.
 
 ## 4. Test cases tự động và kiểm chứng
 
@@ -90,13 +91,15 @@
   - TC-RSK05-04: Chờ Dev review trên PR.
 
 - **Bàn giao cho vai khác:**
-  - **Không đóng task RSK-05:** DoD 1 (văn bản duyệt của techlead và chủ dữ liệu) và DoD 4 (merge, Dev review) chưa đạt; chính sách này là đề xuất. Nguồn bổ sung cho BL-043 (phê duyệt dữ liệu/điều khoản/egress) và BL-050.
+  - **DoD 1 đạt một phần (2026-11-22):** xác nhận duyệt allowlist 11 trường và quy tắc synthetic ghi ở §0 của văn bản (không có chữ ký); **điều khoản và thời gian lưu của nhà cung cấp chưa xác minh, ZDR hay 30 ngày chưa chọn**. **DoD 4 chưa đạt về hình thức:** PR #137 đã merge (2026-11-11), thay đổi của lượt này theo PR riêng (nhánh `docs/RSK-05-approval`, `Techlead waiver` ở mô tả PR đó); **Dev review không có** (opus thay người). Việc người: chuyển hàng board RSK-05 sang «In Review», chỉ định Dev review.
+  - **BL-043 giữ nguyên dòng** (điều kiện kỹ thuật chưa đủ, danh sách phần thiếu ở dòng BL-043) và BL-050; chủ dữ liệu cần chọn ZDR hay chấp nhận 30 ngày bằng văn bản.
   - Cung cấp văn bản pháp lý kỹ thuật làm tiền đề cho các task vận hành AI tiếp theo (RSK-03, RSK-07).
 
 ## 9. Tài liệu đã cập nhật
 
 - `docs/components/risk/04-ai-data-governance.md`: Văn bản duyệt quyền dữ liệu AI và chính sách ZDR.
-- `docs/security/threat-model.md`: Cập nhật mối đe dọa T25 thành đã duyệt và kiểm chứng kỹ thuật.
+- `docs/security/threat-model.md`: T25 cập nhật theo xác nhận duyệt ngày 2026-11-22 (cột Trạng thái vẫn «Thiết kế»).
+- Lượt 2026-11-22 (PR của nhánh `docs/RSK-05-approval`): `04-ai-data-governance.md` (§0 mới, trạng thái, §3.1 và §3.3), `FRAUD_DETECTION_GUIDE.md`, `docs/features/README.md`, `docs/BACKLOG.md` (BL-043 giữ, ghi phần thiếu), feature doc này.
 - `backend/src/modules/risk/README.md`: Bổ sung liên kết đến chính sách dữ liệu AI.
 - `docs/features/README.md`: Thêm mục RSK-05 vào danh sách tính năng.
 - `docs/features/RSK-05-ai-data-governance.md`: Hoàn thiện feature doc.
@@ -105,6 +108,6 @@
 
 - [x] N/M test case đạt đủ độ sâu, K đơn giản hóa (nêu lý do từng cái)
 - [x] Test thủ công chạy trên commit cuối đổi code/doc: không có token, header `Authorization`, id tài khoản AWS và ARN
-- [x] `git diff --stat main...HEAD` khớp danh sách file ở §7
-- [x] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc là Proposed
+- [x] `git diff --stat main...HEAD` khớp danh sách file ở §7 (lượt gốc, PR #137); lượt 2026-11-22 liệt kê ở §9
+- [x] Mọi doc có fact bị đổi đã sửa; `check-doc-links.mjs` sạch; trạng thái doc là Proposed (nay Implemented, 2026-11-22)
 - [x] Việc bàn giao cho vai khác và mọi DoD chưa đạt đã ghi ở §8
