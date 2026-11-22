@@ -17,3 +17,8 @@ da96d35f50bc23c57e127c3f5b30ee9851cb0bb6:backend/src/modules/risk/rules/r3-new-a
 
 # Mật khẩu thử trong spec bootstrap env, không phải credential. Hạn xem lại: 2027-01-04
 7238cecbc35e1a98bacdde0c25341be2f5090461:backend/src/config/env.bootstrap.spec.ts:generic-api-key:77
+
+# Mật khẩu giả để kiểm che bí mật của driver drill DBS-186 (commit lịch sử của nhánh; mã hiện tại ghép chuỗi lúc chạy, không còn literal). Không phải credential. Hạn xem lại: 2027-02-20
+5369ac4dc8a9407f53bd457fbc2dcd3b42457cb7:infra/scripts/tests/drill-fake-backend.mjs:generic-api-key:315
+5369ac4dc8a9407f53bd457fbc2dcd3b42457cb7:infra/scripts/tests/drill-revocation-cloud.test.mjs:generic-api-key:731
+5369ac4dc8a9407f53bd457fbc2dcd3b42457cb7:infra/scripts/tests/drill-revocation-cloud.test.mjs:generic-api-key:733
