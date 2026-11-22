@@ -59,10 +59,10 @@ Lệnh đã chạy lúc bàn giao (mã cuối đổi code `dc44e19b`): `terrafor
 6. Sửa một dòng docs/03 §14 và câu chữ BL-262, BL-404 (ngoài danh sách tài liệu ở thiết kế): ghi ở feature doc §8 «Lệch so với kế hoạch» số 4, 5.
 
 **Chỗ cần xem kỹ:**
-- `dbs-dev-redis-fallback` trong `alarm-history.txt` của DBS-167 chuyển OK → ALARM lúc 06:59:53 +07 (= 23:59:53 UTC ngày 21), **trước** lượt đối chứng (00:04:52 UTC) và trước lúc tiêm sự cố (00:44:00 UTC), và không có dòng ALARM → OK sau đó. Lần kêu này không phải do lượt Redis tắt đã chụp; nguyên nhân chưa xác định. Không dùng làm bằng chứng «alarm kêu đúng lúc Redis tắt».
+- `dbs-dev-redis-fallback` trong `alarm-history.txt` của DBS-167 chuyển OK → ALARM lúc 06:59:53 +07 (= 23:59:53 UTC ngày 21), **trước** lượt đối chứng (00:04:52 UTC) và trước lúc tiêm sự cố (00:44:00 UTC), và không có dòng ALARM → OK sau đó. Lần kêu này không phải do lượt Redis tắt đã chụp; nguyên nhân đã xác định (điều phối, DBS-167): trùng lần thử công cụ `redis-fault.sh down` lúc 23:58:26Z đến 23:59:05Z (M-167-04, trước khi chạy tải); alarm không về OK vì ở 120 RPS vẫn có vài `TIMEOUT` mỗi vài phút ngay cả khi Redis khỏe (BL-425 của DBS-167). Không dùng làm bằng chứng «alarm kêu đúng lúc Redis tắt» của lượt chụp.
 - Số trên ảnh là phía máy chủ theo bucket 5 phút (phân vị CloudWatch ước lượng quanh biên bucket); số k6 phía máy khách ở báo cáo tải DBS-167: khác nguồn đo, không so trực tiếp. Lượt Redis tắt: p99 chuyển tiền chạm đường 1 s (≈ 1.020 ms ở điểm 00:40, phần lớn trước sự cố).
 - `redis_fallback_total` lượt Redis bật không tuyệt đối 0 (≈ 0): `/health/ready` ping Redis và có vài `TIMEOUT` lẻ.
-- Điểm cuối của widget «Lưu lượng» giảm (≈ 75 ở bucket cuối): chưa giải thích được, không ảnh hưởng kết luận.
+- Điểm cuối của widget «Lưu lượng» giảm (≈ 75 ở bucket cuối): đã giải thích: bucket cuối là phút dở dang lúc tải kết thúc (plateau của lượt đối chứng kết thúc 00:19:52Z), không ảnh hưởng kết luận.
 - Cách test thủ công: M-178-01..05 chạy lại được từ `docs/features/screenshots/DBS-178/manual-test.txt` (lệnh ở đó); chụp lại: `node infra/scripts/dashboard-snapshot.mjs --profile dbs --start <ISO Z> --end <ISO Z> --out <thư mục>`.
 
 Techlead waiver: không qua human gate G1..G4 và Dev review (thay bằng domain review AI), feature doc tự duyệt, merge không qua người duyệt; không push `main` và không sửa board.
