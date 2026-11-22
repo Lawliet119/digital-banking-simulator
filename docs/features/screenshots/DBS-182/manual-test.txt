@@ -1,4 +1,4 @@
-SHA nền: f387052f (nhánh dựa trên docs/DBS-179-cost-actual; không đổi code)
+SHA nền: 0f40b496 (origin/main sau khi #235 merge; không đổi code)
 
 ### M-182-01 đơn giá RDS, Valkey, ALB, Fargate trong manual-test của DBS-179 (số đã trả)
 docs/features/screenshots/DBS-179/manual-test.txt:55:$ aws ce get-cost-and-usage --time-period Start=2026-10-24,End=2026-11-22 --granularity DAILY --m

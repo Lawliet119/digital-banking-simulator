@@ -9,7 +9,7 @@
   1. Bảng so sánh chi phí theo giờ và theo tháng, kèm lợi ích (RTO, RPO) từ DBS-181
   2. Đưa vào P4 (capacity & cost)
   3. PR đã merge vào main; Dev review; không còn liên kết hỏng, tên bảng/cột/mã lỗi khớp các tài liệu khác (đã grep)
-- **Phụ thuộc:** DBS-181 (Done: [feature doc](DBS-181-rds-failover-drill.md), khoảng 503 trên probe 14,7 s và 12,7 s, failover chưa xác nhận); DBS-179 (board «To Do», **trong repo xong ở PR #235**: đơn giá thật và `02-capacity-cost.md`). Task này làm trên nhánh dựa vào #235 và rebase khi #235 merge.
+- **Phụ thuộc:** DBS-181 (Done: [feature doc](DBS-181-rds-failover-drill.md), khoảng 503 trên probe 14,7 s và 12,7 s, failover chưa xác nhận); DBS-179 (board «To Do», **trong repo xong, `main` #235 `0f40b496`**: đơn giá thật và `02-capacity-cost.md`).
 - **Đã có gì:** `02-capacity-cost.md` §4–§5 (chi phí theo giờ và 24/7 của hai cấu hình), [DBS-180](DBS-180-rds-multi-az.md) (chênh Multi-AZ theo giờ), [DBS-185](DBS-185-ac-5-10-kill-task-cloud.md) và BL-382 (137 s khi task `api` dừng), [docs/03](../03_HIGH_LEVEL_ARCHITECTURE.md) §13.1, §14, D-7.
 - **Ngoài phạm vi:** đo thêm RTO hay RPO trên AWS (BL-386, BL-388 giữ), ghép P4 (DBS-189), đổi Terraform.
 - **BL đã nêu:** BL-386 (failover RDS dưới lệnh chuyển tiền), BL-388 (PITR), BL-220 (failover Valkey), BL-382 (task `api`): giữ nguyên, được trích làm giới hạn.
@@ -79,7 +79,7 @@ Rủi ro: số RTO chỉ trên `micro` và health probe; ghi rõ ở §8.4. Lùi
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (2026-11-22, nhánh dựa trên `origin/main` `1d18d9ab` cộng PR #235): `check-doc-links.mjs` 0 link hỏng; `check-backlog.mjs` 0 lỗi (không đổi `BACKLOG.md`); `calc.py` khớp mọi số §8. Không đổi code nên không chạy baseline backend.
+- **Lệnh kiểm tra** (2026-11-22, trên `origin/main` `0f40b496` (đã gồm DBS-179, #235)): `check-doc-links.mjs` 0 link hỏng; `check-backlog.mjs` 0 lỗi (không đổi `BACKLOG.md`); `calc.py` khớp mọi số §8. Không đổi code nên không chạy baseline backend.
 - **Đối chiếu test case** (output thô: [manual-test.txt](screenshots/DBS-182/manual-test.txt)):
 
 | ID | Cách kiểm | Đạt? |
