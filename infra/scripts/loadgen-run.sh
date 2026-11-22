@@ -95,13 +95,20 @@ case "${1:-}" in
       stat -c %s "$latest/raw.json" > "$latest/raw.json.size"
       gzip -f "$latest/raw.json"
     fi
+    # DBS-174: độ trễ giao dịch → quyết định và → cờ theo plateau, đo bằng SQL sau khi đợi worker xử lý nốt (tối đa 120 giây). Bài không
+    # có plateau (duplicate, rate-limit) thì bỏ qua. Mã 1 là còn giao dịch chưa có quyết định (tồn đọng): ghi vào exit.json, không làm
+    # đỏ lượt (phán quyết tải nằm ở runExit và aggregate.json), nhưng báo cáo phải nêu.
+    flag=0
+    if [ -s "$latest/aggregate.json" ]; then
+      node load-tests/flag-latency.cjs "$latest" || flag=$?
+    fi
     # DBS-167: FAULT_MODE=slow|down|none (và tùy chọn FAULT_NOISE=<ms> từ lượt đối chứng) thì tính thống kê theo cửa sổ ngay tại chỗ.
     if [ -n "${FAULT_MODE:-}" ] && [ -s "$latest/requests.csv.gz" ]; then
       node load-tests/window-stats.cjs "$latest" --mode "$FAULT_MODE" ${FAULT_NOISE:+--noise "$FAULT_NOISE"} || true
     fi
     # runExit giữ mã lỗi của k6 khi k6 đỏ; invariantExit là mã của checker (0 chỉ khi có báo cáo PASS). Cả hai là bằng chứng của BL-127.
-    printf '{"scenario":"%s","startedAt":"%s","finishedAt":"%s","runExit":%s,"invariantExit":%s,"aggregateExit":%s}\n' \
-      "$scenario" "$started" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$code" "${inv:-null}" "$agg" > "$latest/exit.json"
+    printf '{"scenario":"%s","startedAt":"%s","finishedAt":"%s","runExit":%s,"invariantExit":%s,"aggregateExit":%s,"flagLatencyExit":%s}\n' \
+      "$scenario" "$started" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$code" "${inv:-null}" "$agg" "$flag" > "$latest/exit.json"
     cat "$latest/exit.json"
     # Luôn đẩy kết quả lên bucket, kể cả khi bước rút gọn lỗi (raw.json.gz vẫn nằm trong thư mục).
     aws s3 sync "$latest" "s3://$BUCKET/results/$(basename "$latest")" --only-show-errors

@@ -22,6 +22,12 @@ const queries = [
   q("api_cpu_max", "AWS/ECS", "CPUUtilization", [dim("ClusterName", "dbs-dev"), dim("ServiceName", "api")], "Maximum", "api service CPU % (max)"),
   q("api_mem_max", "AWS/ECS", "MemoryUtilization", [dim("ClusterName", "dbs-dev"), dim("ServiceName", "api")], "Maximum", "api service memory % (max)"),
   q("worker_cpu_avg", "AWS/ECS", "CPUUtilization", [dim("ClusterName", "dbs-dev"), dim("ServiceName", "worker")], "Average", "worker CPU % (avg)"),
+  // DBS-174: đỉnh CPU và bộ nhớ worker, độ sâu và tuổi queue risk (backlog của đường bất đồng bộ), DLQ.
+  q("worker_cpu_max", "AWS/ECS", "CPUUtilization", [dim("ClusterName", "dbs-dev"), dim("ServiceName", "worker")], "Maximum", "worker CPU % (max)"),
+  q("worker_mem_max", "AWS/ECS", "MemoryUtilization", [dim("ClusterName", "dbs-dev"), dim("ServiceName", "worker")], "Maximum", "worker memory % (max)"),
+  q("risk_q_depth", "AWS/SQS", "ApproximateNumberOfMessagesVisible", [dim("QueueName", "dbs-dev-risk-events")], "Maximum", "risk-events queue visible messages (max)"),
+  q("risk_q_age", "AWS/SQS", "ApproximateAgeOfOldestMessage", [dim("QueueName", "dbs-dev-risk-events")], "Maximum", "risk-events oldest message age (s, max)"),
+  q("risk_dlq_depth", "AWS/SQS", "ApproximateNumberOfMessagesVisible", [dim("QueueName", "dbs-dev-risk-events-dlq")], "Maximum", "risk-events DLQ visible messages (max)"),
   q("alb_req", "AWS/ApplicationELB", "RequestCount", [dim("LoadBalancer", alb)], "Sum", "ALB requests per minute"),
   q("alb_elb5xx", "AWS/ApplicationELB", "HTTPCode_ELB_5XX_Count", [dim("LoadBalancer", alb)], "Sum", "ALB-generated 5xx"),
   q("alb_tgt5xx", "AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", [dim("LoadBalancer", alb), dim("TargetGroup", tg)], "Sum", "target 5xx"),
