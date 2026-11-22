@@ -29,3 +29,9 @@ variable "instance_type" {
     error_message = "instance_type must be one of t3.small, t3.medium, t3.large, c7i.large."
   }
 }
+
+variable "redis_fault_enabled" {
+  description = "DBS-167, DBS-186: cho máy tải tới Valkey (6379, đọc token AUTH) và dựng NACL dbs-dev-private-fault để redis-fault.sh chặn 6379 (luật 50, 51). Mặc định tắt: stack không có quyền hay đường mạng nào tới Redis. Bật chỉ cho đợt đo Redis; apply stack này TRƯỚC session và hủy SAU session (README Terraform)."
+  type        = bool
+  default     = false
+}

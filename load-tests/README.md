@@ -77,6 +77,10 @@ Runner tự seed nếu chưa có fixture. Local token dùng helper DBS-53, hạn
 
 Máy tải EC2 cùng region, token Cognito 240 phút và `LOAD_FIXTURE` tái dùng cho năm bài: `infra/terraform/README.md` mục «Máy chạy tải và đợt đo k6». Sau mỗi lượt, `load-tests/aggregate-raw.cjs <thư mục kết quả>` rút gọn `raw.json` thành `aggregate.json` (phán quyết từng plateau: lỗi < 0,1% và 0 dropped iteration; 429 ngoài bài `rate-limit` tính là lỗi), `per-minute.json` và `requests.csv.gz`.
 
+### Bài `redis-fault` (DBS-167)
+
+Một plateau 120 RPS, 900 s, tỉ lệ đọc/ghi và ngưỡng như plateau 120 của `baseline`; chạy ba lần trên AWS: không sự cố (đối chứng), Redis chậm giữa tải, Redis tắt giữa tải. Sự cố do `infra/scripts/redis-fault.sh schedule slow|down|none` tiêm lúc +300 s (đợi `k6` chạy; ghi `fault-events.jsonl` và `health.jsonl` mỗi giây cho `GET /health/ready`); `loadgen-run.sh run redis-fault` chép hai file đó cạnh kết quả và, nếu đặt `FAULT_MODE=slow|down|none` (kèm `FAULT_NOISE=<ms>` từ lượt đối chứng), chạy `node load-tests/window-stats.cjs <thư mục> --mode …` để tính p95/p99/lỗi theo cửa sổ (trước, sự cố, hồi phục, sau) và phán quyết theo tiêu chí chốt trước ở [DBS-167](../docs/features/DBS-167-redis-fault-load.md) G1.8. `window-stats.cjs` thoát 2 và không in phán quyết nếu thiếu mốc sự cố. Cần `redis_fault_enabled=true` ở stack `loadgen` ([README Terraform](../infra/terraform/README.md)). Bài này không chạy ngoài đợt đo Redis: `FLUSHALL` và xung `CLIENT PAUSE` làm bẩn số của mọi bài khác.
+
 ### Cognito và TLS
 
 `LOAD_TOKENS_FILE` là file JSON riêng trong results: thuộc tính `operator` và `customers` (map nhãn `demo-customer-minh-anh`, `demo-customer-thu-ha`, `demo-customer-van-binh` sang token Cognito). Đây là nhãn kế hoạch seed, sub thật lấy từ token và đối chiếu ownerDB. Token phải còn hạn toàn run (baseline khoảng46phút+biên), runner không tự gia hạn Cognito.

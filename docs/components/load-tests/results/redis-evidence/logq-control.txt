@@ -1,0 +1,3 @@
+control pre {"TIMEOUT":5}
+control nominal_fault {"TIMEOUT":4}
+control after {"TIMEOUT":6}

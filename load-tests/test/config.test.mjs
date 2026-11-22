@@ -8,6 +8,8 @@ import {
   sameCompletedBodies,
   validStatuses,
   SCENARIOS,
+  durationSeconds,
+  maxTransfers,
 } from "../lib/config.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -129,4 +131,26 @@ test("TC-415-02 the k6 client and the runner use that rule instead of a fixed st
   assert.match(client, /validStatuses\(__ENV\.LOAD_SCENARIO\)/);
   assert.doesNotMatch(client, /200,\s*201,\s*422,\s*429/);
   assert.match(runner, /LOAD_SCENARIO:\s*kind/);
+});
+
+test("TC-167-01 redis-fault is one 120 RPS plateau of 900 s with the shared thresholds", () => {
+  assert(SCENARIOS.includes("redis-fault"));
+  const plan = workload("redis-fault");
+  assert.deepEqual(Object.keys(plan.scenarios).sort(), [
+    "read_120",
+    "write_120",
+  ]);
+  assert.equal(plan.scenarios.write_120.rate, 120);
+  assert.equal(plan.scenarios.read_120.rate / plan.scenarios.write_120.rate, 4);
+  assert.equal(plan.scenarios.read_120.duration, "900s");
+  assert.equal(plan.scenarios.read_120.startTime, "0s");
+  assert.deepEqual(plan.thresholds["transfer_latency{plateau:120}"], [
+    "p(95)<300",
+    "p(99)<1000",
+  ]);
+  assert.deepEqual(plan.thresholds.system_errors, ["rate<0.001"]);
+  assert.deepEqual(plan.thresholds.dropped_iterations, ["count==0"]);
+  assert.equal(durationSeconds("redis-fault"), 930);
+  assert.equal(maxTransfers("redis-fault"), 21601);
+  assert.equal(workload("redis-fault", true).scenarios.write_5.rate, 5);
 });
