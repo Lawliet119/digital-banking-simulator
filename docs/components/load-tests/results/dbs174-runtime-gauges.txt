@@ -1,0 +1,12 @@
+/dbs/dev/api Complete matched 386
+minute=2026-11-22 12:55:00.000 loopMax=687.303
+minute=2026-11-22 12:52:00.000 loopMax=607.087
+minute=2026-11-22 12:50:00.000 loopMax=606.0384
+minute=2026-11-22 12:51:00.000 loopMax=601.8441
+minute=2026-11-22 13:04:00.000 loopMax=581.9212
+/dbs/dev/worker Complete matched 192
+minute=2026-11-22 13:31:00.000 loopMax=392.1289
+minute=2026-11-22 13:21:00.000 loopMax=392.1289
+minute=2026-11-22 11:51:00.000 loopMax=384.0024
+minute=2026-11-22 12:45:00.000 loopMax=376.6624
+minute=2026-11-22 11:50:00.000 loopMax=298.0192

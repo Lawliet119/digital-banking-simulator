@@ -1,0 +1,376 @@
+{
+  "sloMs": 5000,
+  "settledAfterSeconds": 1.4,
+  "undecidedAfterSettle": 0,
+  "backlog": false,
+  "windows": [
+    {
+      "label": "120rps",
+      "from": "2026-11-22T13:38:36.213Z",
+      "to": "2026-11-22T13:53:36.045Z",
+      "transfers": 21600,
+      "deposits": 0,
+      "decided": 21600,
+      "undecided": 0,
+      "flagged": 21600,
+      "decisionLagMs": {
+        "p50": 1640.3,
+        "p95": 6220.55,
+        "p99": 10000.22,
+        "max": 13962.23,
+        "mean": 2234.94
+      },
+      "flagLagMs": {
+        "p50": 1642.54,
+        "p95": 6225.18,
+        "p99": 10000.78,
+        "max": 13965.09,
+        "mean": 2237.28
+      },
+      "decisionP95UnderSlo": false,
+      "flagP95UnderSlo": false,
+      "modes": [
+        {
+          "mode": "rule_only",
+          "aiStatus": "DISABLED",
+          "decisions": 21600
+        }
+      ],
+      "perMinute": [
+        {
+          "minute": 0,
+          "transfers": 1446,
+          "decided": 1446,
+          "flagged": 1446,
+          "decisionP95Ms": 9489.27,
+          "decisionMaxMs": 13763.26,
+          "flagP95Ms": 9492.33
+        },
+        {
+          "minute": 1,
+          "transfers": 1432,
+          "decided": 1432,
+          "flagged": 1432,
+          "decisionP95Ms": 7092.24,
+          "decisionMaxMs": 11545.25,
+          "flagP95Ms": 7095.71
+        },
+        {
+          "minute": 2,
+          "transfers": 1445,
+          "decided": 1445,
+          "flagged": 1445,
+          "decisionP95Ms": 6663.64,
+          "decisionMaxMs": 12541.99,
+          "flagP95Ms": 6664.75
+        },
+        {
+          "minute": 3,
+          "transfers": 1440,
+          "decided": 1440,
+          "flagged": 1440,
+          "decisionP95Ms": 3877.88,
+          "decisionMaxMs": 6318.35,
+          "flagP95Ms": 3879.72
+        },
+        {
+          "minute": 4,
+          "transfers": 1443,
+          "decided": 1443,
+          "flagged": 1443,
+          "decisionP95Ms": 4080.39,
+          "decisionMaxMs": 6578.48,
+          "flagP95Ms": 4086.06
+        },
+        {
+          "minute": 5,
+          "transfers": 1440,
+          "decided": 1440,
+          "flagged": 1440,
+          "decisionP95Ms": 6914.12,
+          "decisionMaxMs": 12753.11,
+          "flagP95Ms": 6915.52
+        },
+        {
+          "minute": 6,
+          "transfers": 1430,
+          "decided": 1430,
+          "flagged": 1430,
+          "decisionP95Ms": 5436.52,
+          "decisionMaxMs": 7561.33,
+          "flagP95Ms": 5438.8
+        },
+        {
+          "minute": 7,
+          "transfers": 1449,
+          "decided": 1449,
+          "flagged": 1449,
+          "decisionP95Ms": 5087.86,
+          "decisionMaxMs": 9925.05,
+          "flagP95Ms": 5089.95
+        },
+        {
+          "minute": 8,
+          "transfers": 1441,
+          "decided": 1441,
+          "flagged": 1441,
+          "decisionP95Ms": 4832.63,
+          "decisionMaxMs": 10127.61,
+          "flagP95Ms": 4834.64
+        },
+        {
+          "minute": 9,
+          "transfers": 1436,
+          "decided": 1436,
+          "flagged": 1436,
+          "decisionP95Ms": 5439.89,
+          "decisionMaxMs": 9169.61,
+          "flagP95Ms": 5441.41
+        },
+        {
+          "minute": 10,
+          "transfers": 1441,
+          "decided": 1441,
+          "flagged": 1441,
+          "decisionP95Ms": 4362.73,
+          "decisionMaxMs": 7452.47,
+          "flagP95Ms": 4363.37
+        },
+        {
+          "minute": 11,
+          "transfers": 1437,
+          "decided": 1437,
+          "flagged": 1437,
+          "decisionP95Ms": 10616.76,
+          "decisionMaxMs": 13962.23,
+          "flagP95Ms": 10617.94
+        },
+        {
+          "minute": 12,
+          "transfers": 1445,
+          "decided": 1445,
+          "flagged": 1445,
+          "decisionP95Ms": 5832.97,
+          "decisionMaxMs": 8634.28,
+          "flagP95Ms": 5833.77
+        },
+        {
+          "minute": 13,
+          "transfers": 1440,
+          "decided": 1440,
+          "flagged": 1440,
+          "decisionP95Ms": 4891.64,
+          "decisionMaxMs": 8653.46,
+          "flagP95Ms": 4892.78
+        },
+        {
+          "minute": 14,
+          "transfers": 1435,
+          "decided": 1435,
+          "flagged": 1435,
+          "decisionP95Ms": 7877.89,
+          "decisionMaxMs": 12943.68,
+          "flagP95Ms": 7881.28
+        }
+      ],
+      "sourceAccountRows30d": [
+        {
+          "source": "nguon-1",
+          "rows30d": 48289
+        },
+        {
+          "source": "nguon-2",
+          "rows30d": 66254
+        },
+        {
+          "source": "nguon-3",
+          "rows30d": 48260
+        }
+      ]
+    },
+    {
+      "label": "run",
+      "from": "2026-11-22T13:38:36.213Z",
+      "to": "2026-11-22T13:53:36.045Z",
+      "transfers": 21600,
+      "deposits": 0,
+      "decided": 21600,
+      "undecided": 0,
+      "flagged": 21600,
+      "decisionLagMs": {
+        "p50": 1640.3,
+        "p95": 6220.55,
+        "p99": 10000.22,
+        "max": 13962.23,
+        "mean": 2234.94
+      },
+      "flagLagMs": {
+        "p50": 1642.54,
+        "p95": 6225.18,
+        "p99": 10000.78,
+        "max": 13965.09,
+        "mean": 2237.28
+      },
+      "decisionP95UnderSlo": false,
+      "flagP95UnderSlo": false,
+      "modes": [
+        {
+          "mode": "rule_only",
+          "aiStatus": "DISABLED",
+          "decisions": 21600
+        }
+      ],
+      "perMinute": [
+        {
+          "minute": 0,
+          "transfers": 1446,
+          "decided": 1446,
+          "flagged": 1446,
+          "decisionP95Ms": 9489.27,
+          "decisionMaxMs": 13763.26,
+          "flagP95Ms": 9492.33
+        },
+        {
+          "minute": 1,
+          "transfers": 1432,
+          "decided": 1432,
+          "flagged": 1432,
+          "decisionP95Ms": 7092.24,
+          "decisionMaxMs": 11545.25,
+          "flagP95Ms": 7095.71
+        },
+        {
+          "minute": 2,
+          "transfers": 1445,
+          "decided": 1445,
+          "flagged": 1445,
+          "decisionP95Ms": 6663.64,
+          "decisionMaxMs": 12541.99,
+          "flagP95Ms": 6664.75
+        },
+        {
+          "minute": 3,
+          "transfers": 1440,
+          "decided": 1440,
+          "flagged": 1440,
+          "decisionP95Ms": 3877.88,
+          "decisionMaxMs": 6318.35,
+          "flagP95Ms": 3879.72
+        },
+        {
+          "minute": 4,
+          "transfers": 1443,
+          "decided": 1443,
+          "flagged": 1443,
+          "decisionP95Ms": 4080.39,
+          "decisionMaxMs": 6578.48,
+          "flagP95Ms": 4086.06
+        },
+        {
+          "minute": 5,
+          "transfers": 1440,
+          "decided": 1440,
+          "flagged": 1440,
+          "decisionP95Ms": 6914.12,
+          "decisionMaxMs": 12753.11,
+          "flagP95Ms": 6915.52
+        },
+        {
+          "minute": 6,
+          "transfers": 1430,
+          "decided": 1430,
+          "flagged": 1430,
+          "decisionP95Ms": 5436.52,
+          "decisionMaxMs": 7561.33,
+          "flagP95Ms": 5438.8
+        },
+        {
+          "minute": 7,
+          "transfers": 1449,
+          "decided": 1449,
+          "flagged": 1449,
+          "decisionP95Ms": 5087.86,
+          "decisionMaxMs": 9925.05,
+          "flagP95Ms": 5089.95
+        },
+        {
+          "minute": 8,
+          "transfers": 1441,
+          "decided": 1441,
+          "flagged": 1441,
+          "decisionP95Ms": 4832.63,
+          "decisionMaxMs": 10127.61,
+          "flagP95Ms": 4834.64
+        },
+        {
+          "minute": 9,
+          "transfers": 1436,
+          "decided": 1436,
+          "flagged": 1436,
+          "decisionP95Ms": 5439.89,
+          "decisionMaxMs": 9169.61,
+          "flagP95Ms": 5441.41
+        },
+        {
+          "minute": 10,
+          "transfers": 1441,
+          "decided": 1441,
+          "flagged": 1441,
+          "decisionP95Ms": 4362.73,
+          "decisionMaxMs": 7452.47,
+          "flagP95Ms": 4363.37
+        },
+        {
+          "minute": 11,
+          "transfers": 1437,
+          "decided": 1437,
+          "flagged": 1437,
+          "decisionP95Ms": 10616.76,
+          "decisionMaxMs": 13962.23,
+          "flagP95Ms": 10617.94
+        },
+        {
+          "minute": 12,
+          "transfers": 1445,
+          "decided": 1445,
+          "flagged": 1445,
+          "decisionP95Ms": 5832.97,
+          "decisionMaxMs": 8634.28,
+          "flagP95Ms": 5833.77
+        },
+        {
+          "minute": 13,
+          "transfers": 1440,
+          "decided": 1440,
+          "flagged": 1440,
+          "decisionP95Ms": 4891.64,
+          "decisionMaxMs": 8653.46,
+          "flagP95Ms": 4892.78
+        },
+        {
+          "minute": 14,
+          "transfers": 1435,
+          "decided": 1435,
+          "flagged": 1435,
+          "decisionP95Ms": 7877.89,
+          "decisionMaxMs": 12943.68,
+          "flagP95Ms": 7881.28
+        }
+      ],
+      "sourceAccountRows30d": [
+        {
+          "source": "nguon-1",
+          "rows30d": 48289
+        },
+        {
+          "source": "nguon-2",
+          "rows30d": 66254
+        },
+        {
+          "source": "nguon-3",
+          "rows30d": 48260
+        }
+      ]
+    }
+  ]
+}

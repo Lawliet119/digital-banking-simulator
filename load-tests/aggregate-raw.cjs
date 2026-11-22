@@ -77,6 +77,9 @@ function summarizePlateaus(plateaus, dropped) {
         p.systemErrors / p.requests < ERROR_BUDGET &&
         (dropped.get(`read_${n}`) || 0) + (dropped.get(`write_${n}`) || 0) === 0,
       windowSeconds: round(seconds),
+      // DBS-174: mốc thật của plateau (k6 xếp plateau cách nhau seconds + 10 giây), để công cụ đo độ trễ tới cờ không đoán cửa sổ.
+      startedAt: new Date(p.first).toISOString(),
+      endedAt: new Date(p.last).toISOString(),
       achievedRps: round(p.requests / seconds),
       perMinute: [...buckets.values()].sort((a, b) => a.minute - b.minute),
     };

@@ -1,0 +1,25 @@
+role          calls  delta_s  mean_ms  buf/call  query
+dbs_worker   148831  17706.1   118.97     751.7  WITH w AS ( SELECT created_at, amount, to_account_id FROM v_transfer_f
+dbs_api      148812   9730.7    65.39      16.6  SELECT a.id, a.customer_id AS "customerId", c.user_id AS "userId", a.t
+dbs_worker   148831   1547.5    10.40     517.4  SELECT count(*)::int AS n FROM (SELECT w.to_account_id AS recipient, (
+dbs_worker      141    175.9  1247.23  471276.9  WITH entry_by_account AS ( SELECT account_id, COALESCE(SUM(amount::num
+dbs_api      263129    122.9     0.47     104.6  SELECT e.id::text AS "entryId", e.transfer_id AS "transferId", t.type,
+dbs_api      148812    108.4     0.73      47.8  INSERT INTO ledger_entries(transfer_id,account_id,direction,amount,bal
+dbs_api      148812     66.1     0.44      31.3  INSERT INTO transfers(type,from_account_id,to_account_id,amount,status
+dbs_worker   148835     56.1     0.38      23.6  INSERT INTO risk_decisions (transfer_id, event_id, rule_set_version, m
+dbs_worker   297656     44.7     0.15      10.4  INSERT INTO notification_log(event_id,kind,user_id,message,correlation
+dbs_api      297624     38.5     0.13       9.6  UPDATE accounts SET balance=balance+$2::bigint, updated_at=clock_times
+dbs_api      148812     33.8     0.23      15.2  INSERT INTO idempotency_keys(user_id,idem_key,request_hash) VALUES($1,
+dbs_worker   259044     29.8     0.12      13.5  INSERT INTO audit_log (actor_user_id, actor_role, action, outcome, tar
+dbs_worker   110216     28.9     0.26      23.9  INSERT INTO fraud_flags(transfer_id, score, risk_level, rule_set_versi
+dbs_worker   297663     28.4     0.10       9.4  INSERT INTO processed_events(consumer,event_id) VALUES($1,$2) ON CONFL
+dbs_api      148812     28.2     0.19      19.4  UPDATE idempotency_keys SET transfer_id=$3,response_code=$4,response_b
+dbs_api      433062     25.4     0.06       6.3  SELECT a.id, a.customer_id AS "customerId", c.user_id AS "userId", a.t
+dbs_api      148812     17.6     0.12       8.6  INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload,cor
+dbs_api      277406     15.9     0.06       6.3  SELECT a.id,a.type,a.status,a.balance::text, a.created_at AS "createdA
+dbs_api      751103     15.6     0.02       2.0  SELECT sessions_revoked_at FROM users WHERE id = $1
+dbs_worker   110216     14.7     0.13       9.8  INSERT INTO fraud_rule_hits(transfer_id, rule_id, weight, explanation)
+dbs_api          10     13.0  1301.86  225226.2  -- One statement gives every check the same MVCC snapshot, including d
+dbs_api      689380     11.5     0.02       1.0  SET TRANSACTION ISOLATION LEVEL READ COMMITTED
+dbs_api      689372     10.4     0.02       0.0  SELECT set_config($4, $1, $5), set_config($6, $2, $7), set_config($8, 
+dbs_migrator  220432      7.3     0.03      12.7  SELECT d.rule_score, (SELECT COALESCE(sum(h.weight), $17) FROM public.
