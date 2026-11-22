@@ -1,0 +1,41 @@
+ecfba754a683eda547706a63a5206065283d1de8
+
+DBS-175: số đo thật trên AWS ap-southeast-1, cùng phiên với DBS-174 (10:37Z đến 14:28Z), plateau 120 RPS 15 phút, cờ mọi giao dịch (v4), bài redis-fault không sự cố, một worker.
+Đã che: ID tài khoản AWS, tên miền, token.
+
+M-175-01 (cấu hình mặc định): worker log {"idleDelayMs":500,"batchSize":100,"message":"Outbox relay started"}
+
+M-175-02 S0 500/100
+--- dbs175-s0-500-100
+flag-latency: SLO p95 < 5000 ms, đợi 1s, còn 0 giao dịch chưa có quyết định
+  120rps: 21600 chuyển, 21600 quyết định, 21600 cờ | quyết định p50/p95/p99/max 1941.33/5236.43/7801.76/13795.32 ms | cờ p50/p95/p99/max 1945.49/5239.81/7804.73/13830.63 ms
+  run: 21600 chuyển, 21600 quyết định, 21600 cờ | quyết định p50/p95/p99/max 1941.33/5236.43/7801.76/13795.32 ms | cờ p50/p95/p99/max 1945.49/5239.81/7804.73/13830.63 ms
+exit.json: {"scenario":"redis-fault","startedAt":"2026-11-22T12:23:06Z","finishedAt":"2026-11-22T12:38:28Z","runExit":0,"invariantExit":0,"aggregateExit":0,"flagLatencyExit":0}
+
+M-175-03 S1 250/100 (log: idleDelayMs 250, batchSize 100; task definition dbs-worker:22)
+--- dbs175-s1-250-100
+flag-latency: SLO p95 < 5000 ms, đợi 0.9s, còn 0 giao dịch chưa có quyết định
+  120rps: 21601 chuyển, 21601 quyết định, 21586 cờ | quyết định p50/p95/p99/max 3506.95/13241.57/19070.03/26655.81 ms | cờ p50/p95/p99/max 3514.09/13246.2/19077.9/26658.4 ms
+  run: 21601 chuyển, 21601 quyết định, 21586 cờ | quyết định p50/p95/p99/max 3506.95/13241.57/19070.03/26655.81 ms | cờ p50/p95/p99/max 3514.09/13246.2/19077.9/26658.4 ms
+exit.json: {"scenario":"redis-fault","startedAt":"2026-11-22T13:16:32Z","finishedAt":"2026-11-22T13:31:54Z","runExit":0,"invariantExit":0,"aggregateExit":0,"flagLatencyExit":0}
+
+M-175-04 S2 100/100 (task definition dbs-worker:23)
+--- dbs175-s2-100-100
+flag-latency: SLO p95 < 5000 ms, đợi 1.4s, còn 0 giao dịch chưa có quyết định
+  120rps: 21600 chuyển, 21600 quyết định, 21600 cờ | quyết định p50/p95/p99/max 1640.3/6220.55/10000.22/13962.23 ms | cờ p50/p95/p99/max 1642.54/6225.18/10000.78/13965.09 ms
+  run: 21600 chuyển, 21600 quyết định, 21600 cờ | quyết định p50/p95/p99/max 1640.3/6220.55/10000.22/13962.23 ms | cờ p50/p95/p99/max 1642.54/6225.18/10000.78/13965.09 ms
+exit.json: {"scenario":"redis-fault","startedAt":"2026-11-22T13:38:35Z","finishedAt":"2026-11-22T13:53:57Z","runExit":0,"invariantExit":0,"aggregateExit":0,"flagLatencyExit":0}
+
+M-175-05 S0b 500/100 lại
+--- dbs175-s0b-500-100-lai
+flag-latency: SLO p95 < 5000 ms, đợi 1.7s, còn 0 giao dịch chưa có quyết định
+  120rps: 21600 chuyển, 21600 quyết định, 21600 cờ | quyết định p50/p95/p99/max 9263.56/33824.4/48488.21/56210.18 ms | cờ p50/p95/p99/max 9266.93/33825.88/48489.22/56212.67 ms
+  run: 21600 chuyển, 21600 quyết định, 21600 cờ | quyết định p50/p95/p99/max 9263.56/33824.4/48488.21/56210.18 ms | cờ p50/p95/p99/max 9266.93/33825.88/48489.22/56212.67 ms
+exit.json: {"scenario":"redis-fault","startedAt":"2026-11-22T14:00:19Z","finishedAt":"2026-11-22T14:15:45Z","runExit":99,"invariantExit":0,"aggregateExit":0,"flagLatencyExit":0}
+
+M-175-06 S3 500/10: chưa chạy (lý do: sau S0b DB đã bão hòa, CPU RDS trung vị 89%, p95 tới cờ 34 giây; cắt đúng thứ tự cắt của §1.7; BL-439)
+
+M-175-07 (từ chối) terraform test, run relay_rejects_idle_delay_above_1000: pass (relay_idle_delay_ms = 1001 bị validation chặn); 121 run pass, 0 fail
+
+M-175-08 (áp tiêu chí §1.5): giữ mặc định 500/100; bảng ở báo cáo 06 §4
+Hủy: xem DBS-174 manual-test.txt (M-174-08).

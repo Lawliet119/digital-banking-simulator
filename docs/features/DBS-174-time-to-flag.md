@@ -127,7 +127,7 @@ DoD 3 («ghi vào báo cáo tải») được chứng minh bằng báo cáo [06]
 | M-174-04 | `run baseline` (12 → 60 → 120) trên DB mới | p50/p95/p99 tới cờ và quyết định ở ba mức; `flagged ≈ transfers` |
 | M-174-05 | `cw-export.mjs` cho cửa sổ lượt (và đối chiếu p95 SQL với `flag_p95` của CloudWatch) | tuổi/độ sâu/đang xử lý queue risk, DLQ delta, tuổi outbox, quarantined, CPU và bộ nhớ worker từng plateau |
 | M-174-06 | v3 = đúng giá trị v1 (không cờ); `run hot-account` với `pgss.sh snapshot` sát đầu và cuối; rồi `run redis-fault` không sự cố (120 RPS, không cờ) | độ trễ quyết định không cờ ở 20/s và 24/s; `flagged = 0`; số dòng 30 ngày của nguồn nóng |
-| M-174-07 | v4 như v2, đợi > 60 s: khối quét relay của DBS-175 (xem DBS-175 §5) | bảng S0..S3 |
+| M-174-07 | v4 như v2, đợi > 60 s: khối quét relay của DBS-175 (xem [DBS-175 §5](DBS-175-relay-tuning.md)) | bảng S0..S3 |
 | M-174-08 | `destroy` `session`, `loadgen`; `verify-clean.sh`; `describe-user-pool-client dbs-app` giống trước; xóa state tạm; xóa tag ECR build tay; xóa token trong bucket | thoát 0, chỉ còn `base` |
 | M-174-09 | (biên) B2 | chỉ khi đủ điều kiện (a) đến (e); không thì «chưa chạy (lý do)» |
 
