@@ -15,9 +15,42 @@ locals {
   dlq_names   = sort(values(local.base.sqs_dlq_names))
   queue_names = [for n in local.dlq_names : trimsuffix(n, "-dlq")]
 
-  dash_text = join("\n", [
+  # DBS-178: 16 alarm đơn của alarms.tf viết tường minh (KHÔNG tham chiếu aws_cloudwatch_metric_alarm: giữ `-target` được). Hai alarm tuổi
+  # hàng chính và hai alarm DLQ rỗng dựng từ tên queue của base. Không có `dlq-oldest-age`: chưa apply ở base (BL-409), thêm khi apply.
+  # Test `load-tests/test/dashboard-snapshot.test.mjs` (TC-178-20) và `tests/dashboard.tftest.hcl` kiểm danh sách này khớp alarms.tf.
+  dash_alarm_names = concat(
+    [
+      "dbs-dev-outbox-age",
+      "dbs-dev-outbox-quarantined",
+      "dbs-dev-risk-config-invalid",
+      "dbs-dev-risk-rule-error",
+      "dbs-dev-risk-ai-fallback-rate",
+      "dbs-dev-risk-flag-rate",
+      "dbs-dev-reconciliation-failed",
+      "dbs-dev-redis-node-missing",
+      "dbs-dev-redis-fallback",
+      "dbs-dev-risk-config-redis-fallback",
+      "dbs-dev-risk-config-freshness",
+      "dbs-dev-rate-limited",
+      "dbs-dev-api-5xx-rate",
+      "dbs-dev-transfer-latency-p95",
+      "dbs-dev-read-latency-p95",
+      "dbs-dev-transfer-to-flag-p95",
+    ],
+    [for n in local.queue_names : "${n}-age"],
+    [for k in sort(keys(local.base.sqs_dlq_names)) : "dbs-dev-${k}-dlq-not-empty"],
+  )
+
+  dash_alarm_arns = [for n in local.dash_alarm_names : "arn:aws:cloudwatch:${local.dash_region}:${var.account_id}:alarm:${n}"]
+
+  dash_intro = join("\n", [
     "## DBS dev: sức khỏe hệ thống",
-    "Metric từ ứng dụng nằm trong namespace `${local.dash_ns}` (CloudWatch EMF, DBS-144); DLQ và tuổi message lấy từ `AWS/SQS`. Đường kẻ ngang là ngưỡng SLO ở docs/03 mục 14, không phải alarm.",
+    "Namespace `${local.dash_ns}` (EMF, DBS-144) và `AWS/SQS`. Đường kẻ ngang là ngưỡng SLO (docs/03 mục 14), không phải alarm. Cách đọc và giới hạn: cuối trang.",
+  ])
+
+  dash_text = join("\n", [
+    "### Cách đọc",
+    "- **Trạng thái:** widget alarm liệt kê 20 alarm theo tên (không gồm `dlq-oldest-age`, chưa apply ở base, BL-409). Probe `/health/ready` đếm request và 5xx của ALB vào task api: 5xx là PostgreSQL không sẵn sàng (503). **Redis chết KHÔNG làm probe lỗi**: `/health/ready` vẫn trả 200 với `redis: degraded`, nên Redis chết hiện ở `redis_fallback_total` (widget `Redis fallback`), không ở probe. Số fallback của api còn gồm cả lượt `ping` của chính probe. Không có điểm dữ liệu ở probe nghĩa là chưa có request tới api, không phải «khỏe». Số task khỏe sau ALB ở dashboard `dbs-dev-infra`.",
     "- **Phân vị** do CloudWatch ước lượng quanh biên bucket (150, 300, 1000 ms): sai khác vài phần trăm. Cửa sổ 5 phút cho độ trễ và 5xx như SLO.",
     "- **Lỗi = 5xx**; 422 và 429 không tính. Tỉ lệ 5xx tính trên bộ dimension tổng, không có probe `/health/*`.",
     "- **Tuổi outbox** dùng `Maximum`. Không có điểm dữ liệu nghĩa là worker không chạy (không phải 0).",
@@ -27,22 +60,200 @@ locals {
   ])
 
   # Một dòng metric (namespace, tên, các cặp dimension, tùy chọn).
-  w_text = {
+  w_intro = {
     type   = "text"
     x      = 0
     y      = 0
     width  = 24
-    height = 4
+    height = 2
+    properties = {
+      markdown = local.dash_intro
+    }
+  }
+
+  # Tiêu đề nhóm (DBS-178): cao 1, rộng 24, ngay trên hàng widget của nhóm.
+  w_h_status = {
+    type       = "text"
+    x          = 0
+    y          = 2
+    width      = 24
+    height     = 1
+    properties = { markdown = "### 1. Trạng thái: alarm và health" }
+  }
+
+  w_h_api = {
+    type       = "text"
+    x          = 0
+    y          = 10
+    width      = 24
+    height     = 1
+    properties = { markdown = "### 2. API: lưu lượng, độ trễ, lỗi (SLO docs/03 §14)" }
+  }
+
+  w_h_queue = {
+    type       = "text"
+    x          = 0
+    y          = 29
+    width      = 24
+    height     = 1
+    properties = { markdown = "### 3. Hàng đợi, outbox, DLQ" }
+  }
+
+  w_h_redis = {
+    type       = "text"
+    x          = 0
+    y          = 42
+    width      = 24
+    height     = 1
+    properties = { markdown = "### 4. Redis, giới hạn tốc độ, đối soát" }
+  }
+
+  w_h_fraud = {
+    type       = "text"
+    x          = 0
+    y          = 49
+    width      = 24
+    height     = 1
+    properties = { markdown = "### 5. Cảnh báo gian lận (fraud)" }
+  }
+
+  w_notes = {
+    type   = "text"
+    x      = 0
+    y      = 68
+    width  = 24
+    height = 7
     properties = {
       markdown = local.dash_text
     }
   }
 
-  w_overall = {
+  # DBS-178: trạng thái health, phần 1. Widget `alarm` không phải metric nên không có `region`; ARN đã mang vùng và tài khoản.
+  w_alarms = {
+    type   = "alarm"
+    x      = 0
+    y      = 3
+    width  = 14
+    height = 7
+    properties = {
+      title  = "Trạng thái alarm SLO"
+      alarms = local.dash_alarm_arns
+    }
+  }
+
+  # DBS-178: trạng thái health, phần 2. `/health/*` chỉ được app ghi ở bộ `[Route, Method]` (http-stats.ts), không có `Role` và không có bộ
+  # tổng: dòng metric khai đúng hai cặp đó. ALB gọi `/health/ready` mỗi 15 giây; 503 là PostgreSQL không sẵn sàng, Redis chết vẫn trả 200.
+  w_health = {
+    type   = "metric"
+    x      = 14
+    y      = 3
+    width  = 10
+    height = 7
+    properties = {
+      title  = "Health: probe /health/ready (request và 5xx)"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 60
+      metrics = [
+        [local.dash_ns, "http_requests_total", "Route", "/health/ready", "Method", "GET", { stat = "Sum", label = "request" }],
+        [local.dash_ns, "http_5xx_total", "Route", "/health/ready", "Method", "GET", { stat = "Sum", label = "5xx (503 = PostgreSQL không sẵn sàng)" }],
+      ]
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
+  # DBS-178: `rq` là http_requests_total bộ `[]` (tổng, không gồm probe `/health/*`); chia cho PERIOD() ra request/giây.
+  w_rps = {
     type   = "metric"
     x      = 0
-    y      = 4
+    y      = 17
+    width  = 8
+    height = 6
+    properties = {
+      title  = "Lưu lượng: request mỗi giây"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 60
+      metrics = [
+        [local.dash_ns, "http_requests_total", { id = "rq", stat = "Sum", visible = false }],
+        [{ expression = "rq / PERIOD(rq)", label = "request/giây", id = "rps" }],
+      ]
+      annotations = {
+        horizontal = [{ label = "Mức tải 120 RPS", value = 120 }]
+      }
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
+  # DBS-178: độ sâu hàng đợi chính. Hai hàng chính là tên DLQ bỏ hậu tố `-dlq`. docs/03 §14 không có SLO độ sâu (chỉ tuổi và DLQ), nên không đường kẻ.
+  w_queue_depth = {
+    type   = "metric"
+    x      = 0
+    y      = 30
+    width  = 8
+    height = 6
+    properties = {
+      title  = "Độ sâu hàng đợi chính (chờ xử lý và đang xử lý)"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 60
+      metrics = concat(
+        [
+          for n in local.queue_names :
+          ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", n, { stat = "Maximum", label = "${n} chờ xử lý" }]
+        ],
+        [
+          for n in local.queue_names :
+          ["AWS/SQS", "ApproximateNumberOfMessagesNotVisible", "QueueName", n, { stat = "Maximum", label = "${n} đang xử lý" }]
+        ],
+      )
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
+  # DBS-178: message mà consumer đã retry hoặc đưa vào DLQ (BL-209). `[Role, Consumer, Outcome]` đúng bộ MetricsService ghi. Báo trước DLQ.
+  w_consumer = {
+    type   = "metric"
+    x      = 12
+    y      = 36
     width  = 12
+    height = 6
+    properties = {
+      title  = "Consumer: message retry và dead_letter"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 60
+      metrics = [
+        [{ expression = "SEARCH('{\"${local.dash_ns}\",Role,Consumer,Outcome} MetricName=\"consumer_message_total\"', 'Sum', 60)", id = "s5" }],
+      ]
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
+  # DBS-178: khối lượng quyết định chấm điểm theo AiStatus: mẫu số của cờ/1.000 giao dịch, và nơi thấy fallback AI (alarm risk-ai-fallback-rate).
+  w_risk_decisions = {
+    type   = "metric"
+    x      = 16
+    y      = 56
+    width  = 8
+    height = 6
+    properties = {
+      title  = "Risk: quyết định chấm điểm theo AiStatus"
+      region = local.dash_region
+      view   = "timeSeries"
+      period = 300
+      metrics = [
+        [{ expression = "SEARCH('{\"${local.dash_ns}\",Role,AiStatus} MetricName=\"risk_decision_total\"', 'Sum', 300)", id = "s6" }],
+      ]
+      yAxis = { left = { min = 0 } }
+    }
+  }
+
+  w_overall = {
+    type   = "metric"
+    x      = 16
+    y      = 17
+    width  = 8
     height = 6
     properties = {
       title  = "Độ trễ toàn dịch vụ (ms)"
@@ -60,8 +271,8 @@ locals {
 
   w_transfer = {
     type   = "metric"
-    x      = 12
-    y      = 4
+    x      = 0
+    y      = 11
     width  = 12
     height = 6
     properties = {
@@ -85,8 +296,8 @@ locals {
 
   w_reads = {
     type   = "metric"
-    x      = 0
-    y      = 10
+    x      = 8
+    y      = 17
     width  = 8
     height = 6
     properties = {
@@ -108,9 +319,9 @@ locals {
 
   w_errors = {
     type   = "metric"
-    x      = 8
-    y      = 10
-    width  = 8
+    x      = 12
+    y      = 11
+    width  = 12
     height = 6
     properties = {
       title  = "Tỉ lệ 5xx (%)"
@@ -131,8 +342,8 @@ locals {
 
   w_volume = {
     type   = "metric"
-    x      = 16
-    y      = 10
+    x      = 0
+    y      = 23
     width  = 8
     height = 6
     properties = {
@@ -151,9 +362,9 @@ locals {
 
   w_routes = {
     type   = "metric"
-    x      = 0
-    y      = 16
-    width  = 8
+    x      = 8
+    y      = 23
+    width  = 16
     height = 6
     properties = {
       title  = "p95 theo Route (ms)"
@@ -169,8 +380,8 @@ locals {
 
   w_outbox = {
     type   = "metric"
-    x      = 8
-    y      = 16
+    x      = 16
+    y      = 30
     width  = 8
     height = 6
     properties = {
@@ -194,9 +405,9 @@ locals {
 
   w_dlq = {
     type   = "metric"
-    x      = 16
-    y      = 16
-    width  = 8
+    x      = 0
+    y      = 36
+    width  = 12
     height = 6
     properties = {
       title  = "DLQ: số message"
@@ -216,8 +427,8 @@ locals {
 
   w_age = {
     type   = "metric"
-    x      = 0
-    y      = 22
+    x      = 8
+    y      = 30
     width  = 8
     height = 6
     properties = {
@@ -241,8 +452,8 @@ locals {
 
   w_redis = {
     type   = "metric"
-    x      = 8
-    y      = 22
+    x      = 0
+    y      = 43
     width  = 8
     height = 6
     properties = {
@@ -260,8 +471,8 @@ locals {
 
   w_rate = {
     type   = "metric"
-    x      = 16
-    y      = 22
+    x      = 8
+    y      = 43
     width  = 8
     height = 6
     properties = {
@@ -279,9 +490,9 @@ locals {
 
   w_risk = {
     type   = "metric"
-    x      = 0
-    y      = 28
-    width  = 24
+    x      = 16
+    y      = 62
+    width  = 8
     height = 6
     properties = {
       title  = "Risk: fallback Redis của cấu hình luật"
@@ -298,8 +509,8 @@ locals {
   # BL-127: kết quả đối soát (dimension Status của reconciliation_runs_total). Chỉ có điểm khi job vừa chạy.
   w_recon = {
     type   = "metric"
-    x      = 0
-    y      = 34
+    x      = 16
+    y      = 43
     width  = 8
     height = 6
     properties = {
@@ -323,7 +534,7 @@ locals {
   w_risk_health = {
     type   = "metric"
     x      = 8
-    y      = 34
+    y      = 62
     width  = 8
     height = 6
     properties = {
@@ -345,8 +556,8 @@ locals {
   # docs/03 §14: thời gian từ giao dịch tới khi có cờ, p95 < 5 giây trong 15 phút (chưa có alarm).
   w_flag = {
     type   = "metric"
-    x      = 16
-    y      = 34
+    x      = 0
+    y      = 62
     width  = 8
     height = 6
     properties = {
@@ -370,9 +581,9 @@ locals {
   w_flag_rate_1h = {
     type   = "metric"
     x      = 0
-    y      = 40
+    y      = 50
     width  = 6
-    height = 4
+    height = 6
     properties = {
       title                = "Cờ / 1.000 giao dịch, 1 giờ gần nhất"
       region               = local.dash_region
@@ -391,9 +602,9 @@ locals {
   w_flag_rate_24h = {
     type   = "metric"
     x      = 6
-    y      = 40
+    y      = 50
     width  = 6
-    height = 4
+    height = 6
     properties = {
       title                = "Cờ / 1.000 giao dịch, 24 giờ gần nhất"
       region               = local.dash_region
@@ -414,7 +625,7 @@ locals {
   w_flag_rate_trend = {
     type   = "metric"
     x      = 12
-    y      = 40
+    y      = 50
     width  = 12
     height = 6
     properties = {
@@ -442,8 +653,8 @@ locals {
   w_flag_by_level = {
     type   = "metric"
     x      = 0
-    y      = 46
-    width  = 12
+    y      = 56
+    width  = 8
     height = 6
     properties = {
       title  = "Cờ theo risk_level"
@@ -461,9 +672,9 @@ locals {
   # DoD 4: «cờ do AI bổ sung» là `created` (không có AI thì không có cờ); `raised` (AI nâng MEDIUM lên HIGH) vẽ riêng.
   w_flag_ai = {
     type   = "metric"
-    x      = 12
-    y      = 46
-    width  = 12
+    x      = 8
+    y      = 56
+    width  = 8
     height = 6
     properties = {
       title  = "Cờ do AI bổ sung"
@@ -481,11 +692,17 @@ locals {
   dashboard_body = {
     start          = "-PT3H"
     periodOverride = "inherit"
+    # Thứ tự đọc từ trên xuống (DBS-178): intro, 1 trạng thái, 2 API, 3 hàng đợi, 4 Redis và đối soát, 5 fraud, cách đọc.
     widgets = [
-      local.w_text, local.w_overall, local.w_transfer, local.w_reads, local.w_errors, local.w_volume,
-      local.w_routes, local.w_outbox, local.w_dlq, local.w_age, local.w_redis, local.w_rate, local.w_risk,
-      local.w_recon, local.w_risk_health, local.w_flag,
-      local.w_flag_rate_1h, local.w_flag_rate_24h, local.w_flag_rate_trend, local.w_flag_by_level, local.w_flag_ai,
+      local.w_intro,
+      local.w_h_status, local.w_alarms, local.w_health,
+      local.w_h_api, local.w_transfer, local.w_errors, local.w_rps, local.w_reads, local.w_overall, local.w_volume, local.w_routes,
+      local.w_h_queue, local.w_queue_depth, local.w_age, local.w_outbox, local.w_dlq, local.w_consumer,
+      local.w_h_redis, local.w_redis, local.w_rate, local.w_recon,
+      local.w_h_fraud, local.w_flag_rate_1h, local.w_flag_rate_24h, local.w_flag_rate_trend,
+      local.w_flag_by_level, local.w_flag_ai, local.w_risk_decisions,
+      local.w_flag, local.w_risk_health, local.w_risk,
+      local.w_notes,
     ]
   }
 }
