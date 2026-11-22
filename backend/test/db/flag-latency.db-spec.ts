@@ -21,6 +21,7 @@ interface Lag {
 }
 interface Win {
   transfers: number;
+  deposits: number;
   decided: number;
   undecided: number;
   flagged: number;
@@ -146,13 +147,16 @@ describe('DBS-174 flag latency tool on PostgreSQL', () => {
   });
 
   it('TC-174-13 source account rows are the 30-day TRANSFER history up to the window end, per source, with no account id in the report', async () => {
-    const [{ n, account }] = await q<{ n: number; account: string }>(
+    const perAccount = await q<{ n: number; account: string }>(
       `SELECT count(*)::int AS n, from_account_id AS account FROM transfers
-        WHERE type = 'TRANSFER' AND status = 'COMPLETED' GROUP BY 2 ORDER BY 1 DESC LIMIT 1`,
+        WHERE type = 'TRANSFER' AND status = 'COMPLETED' GROUP BY 2 ORDER BY 2`,
     );
     const w = await measureWindow(client(), wide());
-    expect(w.sourceAccountRows30d[0]).toEqual({ source: 'nguon-1', rows30d: n });
-    expect(JSON.stringify(w)).not.toContain(account);
+    // Labels follow the sorted account id, so the i-th label is the i-th account of the query above.
+    expect(w.sourceAccountRows30d).toEqual(
+      perAccount.map((r, i) => ({ source: `nguon-${i + 1}`, rows30d: r.n })),
+    );
+    for (const r of perAccount) expect(JSON.stringify(w)).not.toContain(r.account);
     // The window end is a cut: rows created after it are not in the 30-day count.
     const [{ first }] = await q<{ first: Date }>(
       `SELECT min(created_at) AS first FROM transfers WHERE type = 'TRANSFER'`,
@@ -164,5 +168,36 @@ describe('DBS-174 flag latency tool on PostgreSQL', () => {
     });
     expect(early.transfers).toBe(1);
     expect(early.sourceAccountRows30d.reduce((s, r) => s + r.rows30d, 0)).toBe(1);
+  });
+
+  it('TC-174-14 a REJECTED transfer is ignored, deposits are counted apart, and the window is half-open [from, to)', async () => {
+    const [first] = await q<{ id: string; created_at: Date }>(
+      `SELECT id, created_at FROM transfers WHERE type = 'TRANSFER' AND status = 'COMPLETED' ORDER BY created_at LIMIT 1`,
+    );
+    const before = await measureWindow(client(), wide());
+    await q(
+      `INSERT INTO transfers(type, from_account_id, to_account_id, amount, status, reject_reason, initiated_by, correlation_id)
+         SELECT 'TRANSFER', from_account_id, to_account_id, 1000, 'REJECTED', 'INSUFFICIENT_FUNDS', initiated_by, gen_random_uuid()
+           FROM transfers WHERE id = $1`,
+      [first.id],
+    );
+    const after = await measureWindow(client(), wide());
+    expect(after.transfers).toBe(before.transfers); // the rejected row is not a COMPLETED transfer
+    expect(after.undecided).toBe(before.undecided); // and never waits for a decision
+    expect(before.deposits).toBeGreaterThanOrEqual(2); // the operator deposits of TC-174-11 and 12
+
+    const at = first.created_at.toISOString();
+    const upTo = await measureWindow(client(), {
+      label: 'to',
+      from: '2020-01-01T00:00:00.000Z',
+      to: at,
+    });
+    expect(upTo.transfers).toBe(0); // created_at = to is outside
+    const from = await measureWindow(client(), {
+      label: 'from',
+      from: at,
+      to: new Date(first.created_at.getTime() + 1).toISOString(),
+    });
+    expect(from.transfers).toBe(1); // created_at = from is inside
   });
 });

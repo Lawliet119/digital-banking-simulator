@@ -1,11 +1,14 @@
 "use strict";
 // DBS-174: `node load-tests/flag-latency.cjs <thư mục kết quả> [--settle <giây>] [--window label=fromISO,toISO]...`
-// Đọc `aggregate.json` của lượt (cửa sổ từng plateau) hoặc nhận cửa sổ tường minh, tính p50/p95/p99 độ trễ giao dịch → quyết định
-// và → cờ theo plateau và theo phút, rồi ghi `flag-latency.json` cạnh kết quả. Cần DATABASE_URL (và DATABASE_SSL, DATABASE_SSL_CA_PATH
-// như postflight.cjs). Thoát 0 khi đo xong và không tồn đọng, 1 khi còn giao dịch chưa có quyết định sau hạn đợi, 2 khi không đo được.
+// Đọc `aggregate.json` của lượt: mỗi plateau (`baseline`, `stress`, `redis-fault`) thành một cửa sổ theo mốc thật `startedAt/endedAt`,
+// cộng cửa sổ `run` cho cả lượt (cũng là cửa sổ duy nhất của `hot-account`, `duplicate`, `rate-limit`, không có plateau). Hoặc nhận
+// cửa sổ tường minh. Tính p50/p95/p99 độ trễ giao dịch → quyết định và → cờ theo cửa sổ và theo phút, rồi ghi `flag-latency.json`
+// cạnh kết quả. Cần DATABASE_URL (và DATABASE_SSL, DATABASE_SSL_CA_PATH như postflight.cjs).
+// Thoát 0 khi đo xong và không tồn đọng (hoặc lượt không có mốc thời gian để đo: ghi `skipped`), 1 khi còn giao dịch chưa có quyết định
+// sau hạn đợi, 2 khi không đo được.
 const { existsSync, readFileSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
-const { measure, parseWindow, plateauWindows } = require("./lib/flag-latency.cjs");
+const { measure, parseWindow, plateauWindows, runWindow } = require("./lib/flag-latency.cjs");
 
 function parseArgs(argv) {
   const args = { dir: undefined, settle: 120, windows: [] };
@@ -35,7 +38,16 @@ async function connect() {
       : undefined,
   });
   await client.connect();
+  // Role `dbs_api` còn quyền ghi `transfers`, `ledger_entries`, `accounts`: công cụ chỉ đọc, nên chặn ghi ngay ở phiên.
+  await client.query("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY");
   return client;
+}
+
+/** Cửa sổ cần đo của một `aggregate.json`: các plateau rồi cửa sổ `run` (khi không có plateau thì chỉ `run`). */
+function windowsOf(aggregate) {
+  const run = runWindow(aggregate);
+  if (!run) return [];
+  return [...plateauWindows(aggregate), run];
 }
 
 function format(report) {
@@ -52,20 +64,22 @@ function format(report) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  const out = join(args.dir, "flag-latency.json");
   let windows = args.windows;
   if (windows.length === 0) {
     const file = join(args.dir, "aggregate.json");
     if (!existsSync(file)) throw new Error(`không có ${file} và không có --window`);
-    windows = plateauWindows(JSON.parse(readFileSync(file, "utf8")));
+    windows = windowsOf(JSON.parse(readFileSync(file, "utf8")));
     if (windows.length === 0) {
-      console.log("flag-latency: lượt này không có plateau (không phải bài arrival-rate), bỏ qua");
+      writeFileSync(out, `${JSON.stringify({ skipped: "no-window" }, null, 2)}\n`);
+      console.log("flag-latency: aggregate.json không có mốc thời gian (lượt rỗng), bỏ qua");
       return 0;
     }
   }
   const client = await connect();
   try {
     const report = await measure(client, windows, { settleSeconds: args.settle });
-    writeFileSync(join(args.dir, "flag-latency.json"), `${JSON.stringify(report, null, 2)}\n`);
+    writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`);
     console.log(format(report));
     return report.backlog ? 1 : 0;
   } finally {
@@ -83,4 +97,4 @@ if (require.main === module) {
   );
 }
 
-module.exports = { parseArgs, format };
+module.exports = { parseArgs, format, windowsOf };

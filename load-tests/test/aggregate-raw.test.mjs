@@ -148,6 +148,14 @@ test("TC-166-20 plateau verdict: error rate below 0.1% over the whole plateau wi
   assert.ok(p.perMinute.at(-1).systemErrors === 1 && p.meetsErrorBudget);
 });
 
+test("TC-174-14 each plateau exports the ISO time of its first and last request (the real window, DBS-174)", async () => {
+  const agg = await aggregateLines([...plateauLines("write", 2000), http(20, "write_60", "POST /v1/transfers", 201, 5_000_000)]);
+  const p = agg.plateaus["120"];
+  assert.match(p.startedAt, /^\d{4}-\d\d-\d\dT[\d:.]+Z$/);
+  assert.equal(Date.parse(p.endedAt) - Date.parse(p.startedAt), Math.round(p.windowSeconds * 1000));
+  assert.notEqual(agg.plateaus["60"].startedAt, p.startedAt);
+});
+
 test("TC-166-21 plateau verdict: 0.1% or more fails, and a plateau never mixes with another", async () => {
   const bad = await aggregateLines(plateauLines("write", 1000, [10]));
   assert.equal(bad.plateaus["120"].errorRate, 0.001);

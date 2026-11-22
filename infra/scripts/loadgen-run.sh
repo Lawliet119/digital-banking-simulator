@@ -95,11 +95,12 @@ case "${1:-}" in
       stat -c %s "$latest/raw.json" > "$latest/raw.json.size"
       gzip -f "$latest/raw.json"
     fi
-    # DBS-174: độ trễ giao dịch → quyết định và → cờ theo plateau, đo bằng SQL sau khi đợi worker xử lý nốt (tối đa 120 giây). Bài không
-    # có plateau (duplicate, rate-limit) thì bỏ qua. Mã 1 là còn giao dịch chưa có quyết định (tồn đọng): ghi vào exit.json, không làm
+    # DBS-174: độ trễ giao dịch → quyết định và → cờ theo plateau và cho cả lượt, đo bằng SQL sau khi đợi worker xử lý nốt (tối đa
+    # 120 giây); hot-account, duplicate, rate-limit không có plateau nên chỉ có cửa sổ cả lượt. Mã 1 là còn giao dịch chưa có quyết định (tồn đọng): ghi vào exit.json, không làm
     # đỏ lượt (phán quyết tải nằm ở runExit và aggregate.json), nhưng báo cáo phải nêu.
-    flag=0
+    flag=null # null = công cụ không chạy (thiếu aggregate.json); 0 = đo xong hoặc lượt rỗng; 1 = tồn đọng; 2 = không đo được
     if [ -s "$latest/aggregate.json" ]; then
+      flag=0
       node load-tests/flag-latency.cjs "$latest" || flag=$?
     fi
     # DBS-167: FAULT_MODE=slow|down|none (và tùy chọn FAULT_NOISE=<ms> từ lượt đối chứng) thì tính thống kê theo cửa sổ ngay tại chỗ.
