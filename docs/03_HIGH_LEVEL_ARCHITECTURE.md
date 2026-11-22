@@ -155,7 +155,7 @@ flowchart TB
     WRKM -.-> COMMON
 ```
 
-Sơ đồ trên là kiến trúc đích. Trên nhánh này có hai chỗ khác: `workerModules` mới có `OutboxRelayModule`, `NotificationModule` và `LedgerReconciliationModule` (job đối soát, DBS-117; chưa có consumer và scoring của risk); `notification` mới ghi log, chưa gửi gì ra ngoài. Danh sách module theo role nằm ở `backend/src/modules/index.ts`.
+Sơ đồ trên là kiến trúc đích. Trên nhánh này có hai chỗ khác: `workerModules` có `OutboxRelayModule`, `NotificationModule`, `LedgerReconciliationModule` (job đối soát, DBS-117) và `RiskWorkerModule` (phần risk chạy ở worker; phạm vi xem README module risk); `notification` mới ghi log, chưa gửi gì ra ngoài. Danh sách module theo role nằm ở `backend/src/modules/index.ts`.
 
 **Quy tắc phụ thuộc giữa module:**
 - `ledger` **không ghi** bảng `accounts` trực tiếp: khóa và đổi số dư qua các hàm `accounts` export (`lockForUpdate`, `applyBalanceChange`), **truyền transaction hiện tại** vào. Nhờ vậy chuyển tiền vẫn là một transaction mà quyền sở hữu dữ liệu không bị phá (P-4). Hai chỗ chỉ **đọc** thẳng: tra cứu lệnh (`transfer-query.service.ts` nối `accounts` và `customers` để biết chủ hai đầu) và job đối soát (`public.accounts`, vai `dbs_worker` chỉ có `SELECT`).

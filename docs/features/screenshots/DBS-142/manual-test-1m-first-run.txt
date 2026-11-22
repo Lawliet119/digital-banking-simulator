@@ -1,0 +1,31 @@
+(đã che các khóa idempotency ngẫu nhiên thành <idempotency-key> để máy quét bí mật không báo nhầm; số liệu giữ nguyên)
+3035f02fa52233011cf79da72fbc5e077c42d643
+SQL INPUT: users/customers/accounts at migration default ZERO, no SQL balance or ledger seed. ALL funding uses actual deposit HTTP.
+{"method":"POST","path":"/v1/operator/deposits","key":"<idempotency-key>","request":{"toAccountId":"5ddde051-ec0a-4b2b-b932-bc2d351f11f5","amount":"5000000"},"status":201,"correlationId":"23122efa-9259-4513-b094-425e2803d331","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"b4bad8d6-a010-46c2-97d7-a96f2acacf44","status":"COMPLETED"}}
+{"method":"POST","path":"/v1/transfers","key":"<idempotency-key>","request":{"fromAccountId":"5ddde051-ec0a-4b2b-b932-bc2d351f11f5","toAccountId":"ae071fba-0d07-4f98-b692-b213aae6d763","amount":"1500000"},"status":201,"correlationId":"a53dced0-f252-4f77-a7c0-606b3da52d5d","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"e5c4edb5-997b-4fab-ab15-6cb395f86091","status":"COMPLETED"}}
+{"method":"POST","path":"/v1/transfers","key":"<idempotency-key>","request":{"fromAccountId":"5ddde051-ec0a-4b2b-b932-bc2d351f11f5","toAccountId":"ae071fba-0d07-4f98-b692-b213aae6d763","amount":"200000"},"status":201,"correlationId":"132655b6-c574-4a7b-bac4-deb0daab9d9f","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"5912ef90-995a-41a3-a5b9-da8a03a856f2","status":"COMPLETED"}}
+{"step":"M-142-01","outcome":{"executed":true,"startedAt":"2026-11-22T06:24:04.396Z","finishedAt":"2026-11-22T06:24:04.400Z","status":"OK","totalDebit":"6700000","totalCredit":"6700000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"6700000","credit":"6700000","balance":"0"},"violations":[]}}
+M-142-01 PASS: two API transfers (1,500,000 + 200,000): counter {"sentToday":"1700000","sentDay":"2026-11-22"}, job OK, check:invariants PASS
+{"log":"warn","msg":"Ledger reconciliation detected mismatch","status":"MISMATCH","mismatchedAccounts":0,"failedChecks":["daily_debit_counters"],"totalDebit":"6700000","totalCredit":"6700000","totalBalance":"0"}
+{"step":"M-142-02","outcome":{"executed":true,"startedAt":"2026-11-22T06:24:04.419Z","finishedAt":"2026-11-22T06:24:04.421Z","status":"MISMATCH","totalDebit":"6700000","totalCredit":"6700000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+{"step":"M-142-02-check-invariants","violations":[{"check":"daily_debit_totals","actual":{"sentDay":null,"sentToday":"0"},"expected":{"sentDay":"2026-11-22","sentToday":"1700000"},"accountId":"5ddde051-ec0a-4b2b-b932-bc2d351f11f5","transferId":null}]}
+M-142-02 PASS: counter reset to 0: job MISMATCH, log failedChecks=[daily_debit_counters], check:invariants names the account
+{"step":"M-142-03","outcome":{"executed":true,"startedAt":"2026-11-22T06:24:04.431Z","finishedAt":"2026-11-22T06:24:04.433Z","status":"OK","totalDebit":"6700000","totalCredit":"6700000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"6700000","credit":"6700000","balance":"0"},"violations":[]}}
+M-142-03 PASS: counter restored from the ledger: job OK, check:invariants PASS
+{"method":"POST","path":"/v1/transfers","key":"<idempotency-key>","request":{"fromAccountId":"5ddde051-ec0a-4b2b-b932-bc2d351f11f5","toAccountId":"ae071fba-0d07-4f98-b692-b213aae6d763","amount":"100000"},"status":201,"correlationId":"9486c997-cf25-46c8-92d3-e2e20b7192ff","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"4e9cae6d-ce3e-46db-9de8-5bb8aca37858","status":"COMPLETED"}}
+{"log":"warn","msg":"Ledger reconciliation detected mismatch","status":"MISMATCH","mismatchedAccounts":0,"failedChecks":["daily_debit_counters"],"totalDebit":"6800000","totalCredit":"6800000","totalBalance":"0"}
+{"step":"M-142-04","outcome":{"executed":true,"startedAt":"2026-11-22T06:24:04.462Z","finishedAt":"2026-11-22T06:24:04.464Z","status":"MISMATCH","totalDebit":"6800000","totalCredit":"6800000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+{"step":"M-142-04-after-repair","outcome":{"executed":true,"startedAt":"2026-11-22T06:24:04.472Z","finishedAt":"2026-11-22T06:24:04.474Z","status":"OK","totalDebit":"6800000","totalCredit":"6800000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+M-142-04 PASS: trigger off during a real transfer: counter 1,700,000 vs ledger 1,800,000 -> MISMATCH only on the counter; repaired -> OK
+{"step":"M-142-05","outcome":{"executed":true,"startedAt":"2026-11-22T06:24:04.481Z","finishedAt":"2026-11-22T06:24:04.484Z","status":"OK","totalDebit":"6800000","totalCredit":"6800000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+M-142-05 PASS: counter edited on the SYSTEM account: job OK (SYSTEM is excluded)
+{"log":"warn","role":"dbs_worker","msg":"Ledger reconciliation detected mismatch","status":"MISMATCH","mismatchedAccounts":0,"failedChecks":["daily_debit_counters"],"totalDebit":"6800000","totalCredit":"6800000","totalBalance":"0"}
+M-142-06 PASS: run as dbs_worker: OK, then MISMATCH after a +1 edit of the counter, then OK again
+{"step":"M-142-07","ledgerLines":1000010,"msBeforeBl421":[2204.242,1977.816,2008.312],"msAfterBl421":[2086.13,1989.578,2149.103]}
+{"step":"M-142-07-job","outcome":{"executed":true,"startedAt":"2026-11-22T06:25:20.610Z","finishedAt":"2026-11-22T06:25:22.568Z","status":"OK","totalDebit":"1006800000","totalCredit":"1006800000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+M-142-07 PASS: 1000010 ledger lines: EXPLAIN ANALYZE ms before BL-421 2204.242/1977.816/2008.312, after 2086.13/1989.578/2149.103; job OK
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"1006800000","credit":"1006800000","balance":"0"},"violations":[]}}
+M-142-08 PASS: check:invariants PASS at the end
+DBS-142 cleanup PASS: app closed, JWKS directory gone, temporary database absent from pg_database, owned PG17 container removed

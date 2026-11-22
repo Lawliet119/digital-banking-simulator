@@ -1,0 +1,135 @@
+25849047 (commit cuối cùng đổi code; HEAD lúc chạy xem dòng kế tiếp)
+071d2ca424389e6d000d425c04222f30fff1fe4e
+SQL INPUT: users/customers/accounts at migration default ZERO, no SQL balance or ledger seed. ALL funding uses actual deposit HTTP.
+{"method":"POST","path":"/v1/operator/deposits","key":"c74bc425-a043-4646-899f-14a8d685ae3e","request":{"toAccountId":"73b06b99-e26f-415e-bb96-79d20c716ef6","amount":"5000000"},"status":201,"correlationId":"53648814-718a-4480-aaa8-7bde86dff967","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"93f15704-a3ac-4090-8f46-9e8da651633f","status":"COMPLETED"}}
+{"method":"POST","path":"/v1/transfers","key":"204f0ee4-e7c3-4477-8757-e257dd0a954d","request":{"fromAccountId":"73b06b99-e26f-415e-bb96-79d20c716ef6","toAccountId":"064cdb01-2e32-4e91-abbe-4e5de8c90e08","amount":"1500000"},"status":201,"correlationId":"7dad99eb-cc2f-4757-b469-9bd4d18046bc","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"82a0173a-d854-485d-9270-9d58c8c477b1","status":"COMPLETED"}}
+{"method":"POST","path":"/v1/transfers","key":"af2cc063-0800-4b5d-b476-cd3754cdc1fd","request":{"fromAccountId":"73b06b99-e26f-415e-bb96-79d20c716ef6","toAccountId":"064cdb01-2e32-4e91-abbe-4e5de8c90e08","amount":"200000"},"status":201,"correlationId":"253e0e10-7f17-49df-9ab1-591ed01a2ef6","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"5e1f1c80-5674-4220-984a-96bca34fe02d","status":"COMPLETED"}}
+{"step":"M-142-01","outcome":{"executed":true,"startedAt":"2026-11-22T06:41:25.185Z","finishedAt":"2026-11-22T06:41:25.190Z","status":"OK","totalDebit":"6700000","totalCredit":"6700000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"6700000","credit":"6700000","balance":"0"},"violations":[]}}
+M-142-01 PASS: two API transfers (1,500,000 + 200,000): counter {"sentToday":"1700000","sentDay":"2026-11-22"}, job OK, check:invariants PASS
+{"log":"warn","msg":"Ledger reconciliation detected mismatch","status":"MISMATCH","mismatchedAccounts":0,"failedChecks":["daily_debit_counters"],"totalDebit":"6700000","totalCredit":"6700000","totalBalance":"0"}
+{"step":"M-142-02","outcome":{"executed":true,"startedAt":"2026-11-22T06:41:25.219Z","finishedAt":"2026-11-22T06:41:25.222Z","status":"MISMATCH","totalDebit":"6700000","totalCredit":"6700000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+{"step":"M-142-02-check-invariants","violations":[{"check":"daily_debit_totals","actual":{"sentDay":null,"sentToday":"0"},"expected":{"sentDay":"2026-11-22","sentToday":"1700000"},"accountId":"73b06b99-e26f-415e-bb96-79d20c716ef6","transferId":null}]}
+M-142-02 PASS: counter reset to 0: job MISMATCH, log failedChecks=[daily_debit_counters], check:invariants names the account
+{"step":"M-142-03","outcome":{"executed":true,"startedAt":"2026-11-22T06:41:25.237Z","finishedAt":"2026-11-22T06:41:25.240Z","status":"OK","totalDebit":"6700000","totalCredit":"6700000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"6700000","credit":"6700000","balance":"0"},"violations":[]}}
+M-142-03 PASS: counter restored from the ledger: job OK, check:invariants PASS
+{"method":"POST","path":"/v1/transfers","key":"98612571-adcd-4ceb-a917-83ad31ee826a","request":{"fromAccountId":"73b06b99-e26f-415e-bb96-79d20c716ef6","toAccountId":"064cdb01-2e32-4e91-abbe-4e5de8c90e08","amount":"100000"},"status":201,"correlationId":"c0b48aca-3adc-4619-87a5-5a524f541661","retryAfter":null,"contentType":"application/json; charset=utf-8","body":{"transferId":"cc7e3530-9ce7-4121-bc59-50b5ba12deb6","status":"COMPLETED"}}
+{"log":"warn","msg":"Ledger reconciliation detected mismatch","status":"MISMATCH","mismatchedAccounts":0,"failedChecks":["daily_debit_counters"],"totalDebit":"6800000","totalCredit":"6800000","totalBalance":"0"}
+{"step":"M-142-04","outcome":{"executed":true,"startedAt":"2026-11-22T06:41:25.274Z","finishedAt":"2026-11-22T06:41:25.276Z","status":"MISMATCH","totalDebit":"6800000","totalCredit":"6800000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+{"step":"M-142-04-after-repair","outcome":{"executed":true,"startedAt":"2026-11-22T06:41:25.283Z","finishedAt":"2026-11-22T06:41:25.286Z","status":"OK","totalDebit":"6800000","totalCredit":"6800000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+M-142-04 PASS: trigger off during a real transfer: counter 1,700,000 vs ledger 1,800,000 -> MISMATCH only on the counter; repaired -> OK
+{"step":"M-142-05","outcome":{"executed":true,"startedAt":"2026-11-22T06:41:25.294Z","finishedAt":"2026-11-22T06:41:25.296Z","status":"OK","totalDebit":"6800000","totalCredit":"6800000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+M-142-05 PASS: counter edited on the SYSTEM account: job OK (SYSTEM is excluded)
+{"log":"warn","role":"dbs_worker","msg":"Ledger reconciliation detected mismatch","status":"MISMATCH","mismatchedAccounts":0,"failedChecks":["daily_debit_counters"],"totalDebit":"6800000","totalCredit":"6800000","totalBalance":"0"}
+M-142-06 PASS: run as dbs_worker: OK, then MISMATCH after a +1 edit of the counter, then OK again
+{"step":"M-142-07","ledgerLines":100010,"msBeforeBl421":[169.623,166.268,176.929],"msAfterBl421":[191.738,182.403,216.533]}
+{"step":"M-142-07-job","outcome":{"executed":true,"startedAt":"2026-11-22T06:41:34.202Z","finishedAt":"2026-11-22T06:41:34.378Z","status":"OK","totalDebit":"106800000","totalCredit":"106800000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+M-142-07 PASS: 100010 ledger lines: EXPLAIN ANALYZE ms before BL-421 169.623/166.268/176.929, after 191.738/182.403/216.533; job OK
+{"step":"M-142-09","accounts":10000,"ledgerLines":720010,"debitGroups":300031,"msBeforeBl421":[2004.712,1812.514,1816.724],"msAfterBl421":[2250.645,2268.579,2262.838]}
+M-142-09 plan (new SQL):
+Nested Loop  (cost=26278.74..26278.79 rows=1 width=132) (actual time=2203.825..2204.030 rows=1 loops=1)
+  Buffers: shared hit=1675620 read=151912
+  CTE entry_by_account
+    ->  Finalize HashAggregate  (cost=23641.23..23764.80 rows=8238 width=80) (actual time=125.157..129.268 rows=10003 loops=1)
+          Group Key: ledger_entries.account_id
+          Batches: 1  Memory Usage: 7825kB
+          Buffers: shared hit=6461 read=5953
+          ->  Gather  (cost=21664.11..23435.28 rows=16476 width=80) (actual time=95.116..102.964 rows=30009 loops=1)
+                Workers Planned: 2
+                Workers Launched: 2
+                Buffers: shared hit=6461 read=5953
+                ->  Partial HashAggregate  (cost=20664.11..20787.68 rows=8238 width=80) (actual time=90.773..95.044 rows=10003 loops=3)
+                      Group Key: ledger_entries.account_id
+                      Batches: 1  Memory Usage: 5265kB
+                      Buffers: shared hit=6461 read=5953
+                      Worker 0:  Batches: 1  Memory Usage: 5009kB
+                      Worker 1:  Batches: 1  Memory Usage: 5265kB
+                      ->  Parallel Seq Scan on ledger_entries  (cost=0.00..15414.04 rows=300004 width=30) (actual time=0.016..22.140 rows=240003 loops=3)
+                            Buffers: shared hit=6461 read=5953
+  InitPlan 2
+    ->  Subquery Scan on invalid_completed_transfers  (cost=0.85..1.72 rows=1 width=0) (actual time=1564.793..1564.796 rows=0 loops=1)
+          Buffers: shared hit=1658885 read=142991
+          ->  Limit  (cost=0.85..1.71 rows=1 width=56) (actual time=1564.792..1564.795 rows=0 loops=1)
+                Buffers: shared hit=1658885 read=142991
+                ->  GroupAggregate  (cost=0.85..308836.40 rows=360005 width=56) (actual time=1564.790..1564.791 rows=0 loops=1)
+                      Group Key: transfers.id
+                      Filter: ((count(e.id) <> 2) OR (count(e.id) FILTER (WHERE ((e.direction = 'DEBIT'::text) AND (e.amount = transfers.amount) AND (e.account_id = transfers.from_account_id))) <> 1) OR (count(e.id) FILTER (WHERE ((e.direction = 'CREDIT'::text) AND (e.amount = transfers.amount) AND (e.account_id = transfers.to_account_id))) <> 1))
+                      Rows Removed by Filter: 360005
+                      Buffers: shared hit=1658885 read=142991
+                      ->  Nested Loop Left Join  (cost=0.85..284638.86 rows=715898 width=94) (actual time=0.073..1353.656 rows=720010 loops=1)
+                            Buffers: shared hit=1658885 read=142991
+                            ->  Index Scan using transfers_pkey on transfers  (cost=0.42..43288.46 rows=360005 width=56) (actual time=0.048..365.410 rows=360005 loops=1)
+                                  Filter: (status = 'COMPLETED'::text)
+                                  Buffers: shared hit=333718 read=28138
+                            ->  Index Scan using ledger_entries_one_per_direction on ledger_entries e  (cost=0.42..0.65 rows=2 width=54) (actual time=0.002..0.002 rows=2 loops=360005)
+                                  Index Cond: (transfer_id = transfers.id)
+                                  Buffers: shared hit=1325167 read=114853
+  InitPlan 3
+    ->  Subquery Scan on counter_diffs  (cost=204.70..208.98 rows=1 width=0) (actual time=500.347..500.350 rows=0 loops=1)
+          Buffers: shared hit=9648 read=2968
+          ->  Limit  (cost=204.70..208.97 rows=1 width=4) (actual time=500.346..500.348 rows=0 loops=1)
+                Buffers: shared hit=9648 read=2968
+                ->  Merge Right Join  (cost=204.70..42959.73 rows=10002 width=4) (actual time=500.344..500.345 rows=0 loops=1)
+                      Merge Cond: (ledger_entries_1.account_id = a.id)
+                      Filter: ((a.sent_day IS DISTINCT FROM (((ledger_entries_1.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh'::text))::date)) OR ((a.sent_today)::numeric <> COALESCE((sum((ledger_entries_1.amount)::numeric)), '0'::numeric)))
+                      Rows Removed by Filter: 10002
+                      Buffers: shared hit=9648 read=2968
+                      ->  Unique  (cost=204.41..41217.39 rows=200 width=52) (actual time=6.947..482.685 rows=10002 loops=1)
+                            Buffers: shared read=2585
+                            ->  Incremental Sort  (cost=204.41..41037.55 rows=71935 width=52) (actual time=6.946..465.934 rows=300031 loops=1)
+                                  Sort Key: ledger_entries_1.account_id, (((ledger_entries_1.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh'::text))::date) DESC
+                                  Presorted Key: ledger_entries_1.account_id
+                                  Full-sort Groups: 5001  Sort Method: quicksort  Average Memory: 27kB  Peak Memory: 27kB
+                                  Buffers: shared read=2585
+                                  ->  GroupAggregate  (cost=3.76..37080.53 rows=71935 width=52) (actual time=6.820..364.700 rows=300031 loops=1)
+                                        Group Key: ledger_entries_1.account_id, (((ledger_entries_1.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh'::text))::date)
+                                        Buffers: shared read=2585
+                                        ->  Incremental Sort  (cost=3.76..32200.97 rows=362069 width=28) (actual time=5.162..209.425 rows=360005 loops=1)
+                                              Sort Key: ledger_entries_1.account_id, (((ledger_entries_1.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh'::text))::date)
+                                              Presorted Key: ledger_entries_1.account_id
+                                              Full-sort Groups: 5002  Sort Method: quicksort  Average Memory: 28kB  Peak Memory: 28kB
+                                              Pre-sorted Groups: 2  Sort Method: quicksort  Average Memory: 2281kB  Peak Memory: 3710kB
+                                              Buffers: shared read=2585
+                                              ->  Index Only Scan using ledger_entries_daily_debit_idx on ledger_entries ledger_entries_1  (cost=0.42..17629.80 rows=362069 width=28) (actual time=0.034..141.163 rows=360005 loops=1)
+                                                    Heap Fetches: 0
+                                                    Buffers: shared read=2585
+                      ->  Index Scan using accounts_pkey on accounts a  (cost=0.29..1711.34 rows=10002 width=28) (actual time=0.037..13.088 rows=10002 loops=1)
+                            Filter: (type <> 'SYSTEM'::text)
+                            Rows Removed by Filter: 1
+                            Buffers: shared hit=9648 read=383
+  InitPlan 4
+    ->  Aggregate  (cost=1634.22..1634.23 rows=1 width=32) (actual time=4.896..4.898 rows=1 loops=1)
+          Buffers: shared hit=313
+          ->  Sort  (cost=1509.81..1534.69 rows=9953 width=80) (actual time=4.893..4.894 rows=0 loops=1)
+                Sort Key: a_1.id
+                Sort Method: quicksort  Memory: 25kB
+                Buffers: shared hit=313
+                ->  Hash Right Join  (cost=538.07..848.88 rows=9953 width=80) (actual time=4.838..4.840 rows=0 loops=1)
+                      Hash Cond: (e_1.account_id = a_1.id)
+                      Filter: ((a_1.balance)::numeric <> COALESCE((e_1.credit_amount - e_1.debit_amount), '0'::numeric))
+                      Rows Removed by Filter: 10003
+                      Buffers: shared hit=313
+                      ->  CTE Scan on entry_by_account e_1  (cost=0.00..164.76 rows=8238 width=80) (actual time=0.002..0.553 rows=10003 loops=1)
+                      ->  Hash  (cost=413.03..413.03 rows=10003 width=24) (actual time=2.062..2.063 rows=10003 loops=1)
+                            Buckets: 16384  Batches: 1  Memory Usage: 676kB
+                            Buffers: shared hit=313
+                            ->  Seq Scan on accounts a_1  (cost=0.00..413.03 rows=10003 width=24) (actual time=0.008..0.863 rows=10003 loops=1)
+                                  Buffers: shared hit=313
+  ->  Aggregate  (cost=205.95..205.96 rows=1 width=64) (actual time=132.271..132.272 rows=1 loops=1)
+        Buffers: shared hit=6461 read=5953
+        ->  CTE Scan on entry_by_account  (cost=0.00..164.76 rows=8238 width=64) (actual time=125.160..131.254 rows=10003 loops=1)
+              Buffers: shared hit=6461 read=5953
+  ->  Aggregate  (cost=463.05..463.06 rows=1 width=32) (actual time=1.502..1.502 rows=1 loops=1)
+        Buffers: shared hit=313
+        ->  Seq Scan on accounts  (cost=0.00..413.03 rows=10003 width=8) (actual time=0.022..0.800 rows=10003 loops=1)
+              Buffers: shared hit=313
+Planning:
+  Buffers: shared hit=9 read=13
+Planning Time: 0.989 ms
+Execution Time: 2206.340 ms
+{"step":"M-142-09-job","outcome":{"executed":true,"startedAt":"2026-11-22T06:42:45.471Z","finishedAt":"2026-11-22T06:42:47.697Z","status":"OK","totalDebit":"706800000","totalCredit":"706800000","totalBalance":"0","mismatchedAccounts":0,"details":[]}}
+M-142-09 PASS: 10000 accounts x 30 days, 720010 ledger lines, 300031 (account, day) groups: ms before 2004.712/1812.514/1816.724, after 2250.645/2268.579/2262.838; job OK
+{"ledgerInvariants":{"status":"PASS","totals":{"debit":"706800000","credit":"706800000","balance":"0"},"violations":[]}}
+M-142-08 PASS: check:invariants PASS at the end
+DBS-142 cleanup PASS: app closed, JWKS directory gone, temporary database absent from pg_database, owned PG17 container removed

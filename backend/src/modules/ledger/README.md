@@ -74,12 +74,17 @@ Bảng không tự chạy hoặc tính đối soát; job nằm ở mục dưới
 - **Sửa bộ đếm lệch (BL-421):** `dbs_api` và `dbs_worker` không có `UPDATE` trên `sent_today`/`sent_day`, nên chỉ vai owner (`dbs_migrator`) sửa được. Mở `check:invariants` (kiểm `daily_debit_totals`) để lấy tài khoản, rồi dựng lại bộ đếm từ sổ cái, mỗi tài khoản một câu (cùng quy tắc với backfill của migration `AddDailyDebitCounter`):
 
   ```sql
+  BEGIN;
+  SELECT 1 FROM accounts WHERE id = '<id>' FOR UPDATE;  -- chờ lệnh chuyển đang chạy của tài khoản này commit
   WITH d AS (SELECT (created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS day, SUM(amount) AS total
              FROM ledger_entries WHERE account_id = '<id>' AND direction = 'DEBIT'
              GROUP BY 1 ORDER BY 1 DESC LIMIT 1)
   UPDATE accounts SET sent_day = (SELECT day FROM d), sent_today = COALESCE((SELECT total FROM d), 0)
   WHERE id = '<id>' AND type <> 'SYSTEM';
+  COMMIT;
   ```
+
+  Phải khóa hàng trước: ở `READ COMMITTED`, `UPDATE` đứng một mình tính tổng trên snapshot đầu câu lệnh; nếu lúc đó có lệnh chuyển của tài khoản này chưa commit, `UPDATE` chờ khóa rồi ghi đè bằng tổng cũ (thiếu số tiền lệnh vừa commit). Câu `UPDATE` sau `SELECT … FOR UPDATE` có snapshot mới nên thấy dòng đã commit.
 
   Chạy lại `check:invariants` (phải `PASS`). **Lưu ý alarm:** chừng nào bộ đếm còn lệch, mọi lượt đối soát là `MISMATCH` nên alarm `dbs-dev-reconciliation-failed` ở trạng thái ALARM và một lệch số dư xảy ra sau đó không gửi thư mới. Sửa bộ đếm ngay, rồi xem `failedChecks` của các lượt kế tiếp.
 - **Giới hạn hiện tại:** chưa có job dọn `reconciliation_runs` quá 90 ngày, chưa có đối soát gia tăng; quyền production của `dbs_worker` chưa kiểm trên ECS thật.
