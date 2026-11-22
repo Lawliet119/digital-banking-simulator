@@ -1,0 +1,27 @@
+Bằng chứng cổng AI (AiGate, RSK-02) trong phiên đo B2, 2026-11-22. Truy vấn bằng task master một lần chạy (cách `pgss.sh`), kết quả in lại nguyên văn từ log task.
+
+1) Trước khi tạo hàng policy (smoke đầu: cả 6 quyết định `UNAVAILABLE`):
+SQL> SELECT has_function_privilege('dbs_worker','public.ai_gate_acquire(uuid,text,integer,integer)','EXECUTE') AS can_exec
+[{"can_exec":true}]
+SQL> SELECT proname, prosecdef, pg_get_userbyid(proowner) AS owner FROM pg_proc WHERE proname LIKE 'ai_gate%'
+[{"proname":"ai_gate_release","prosecdef":true,"owner":"dbs_migrator"},{"proname":"ai_gate_acquire","prosecdef":true,"owner":"dbs_migrator"}]
+SQL> SET ROLE dbs_worker
+SQL> SELECT public.ai_gate_acquire(gen_random_uuid(),'RSK-05-2026-11-22',40000,32) AS result
+[{"result":"unavailable"}]        <- bảng ai_gate_policy trống: hàm trả 'unavailable' (migration 1795000003000, dòng `IF NOT FOUND ...`)
+
+2) Tạo hàng policy singleton (việc của Ops, khớp RISK_AI_POLICY_REVISION, RISK_AI_DAILY_REQUEST_CAP, RISK_AI_CONCURRENCY của worker):
+SQL> INSERT INTO public.ai_gate_policy(singleton, revision, daily_limit, concurrent_limit) VALUES (true, 'RSK-05-2026-11-22', 40000, 32) ON CONFLICT (singleton) DO NOTHING
+SQL> SELECT revision, daily_limit, concurrent_limit FROM public.ai_gate_policy
+[{"revision":"RSK-05-2026-11-22","daily_limit":40000,"concurrent_limit":32}]
+SQL> SET ROLE dbs_worker
+SQL> SELECT public.ai_gate_acquire(gen_random_uuid(),'RSK-05-2026-11-22',40000,32) AS result
+[{"result":"granted"}]            <- smoke thứ hai: 5/5 quyết định `SUCCEEDED`
+
+3) Truy vấn lúc khoảng 16:56:30Z, khi tháo hàng gần xong (độ sâu queue còn ≈ 500; tổng 34.127 nhỏ hơn 34.572 quyết định của bản sau tháo hàng + smoke):
+SQL> SELECT day, requests FROM public.ai_gate_days ORDER BY day
+[{"day":"2026-11-22T00:00:00.000Z","requests":"10901"}]
+SQL> SELECT count(*) FILTER (WHERE released_at IS NULL) AS active, count(*) AS permits FROM public.ai_gate_permits
+[{"active":"27","permits":"10901"}]
+SQL> SELECT ai_status, count(*) AS n, ... FROM public.risk_decisions GROUP BY ai_status
+[{"ai_status":"DISABLED","n":"23210"},{"ai_status":"SUCCEEDED","n":"2560","with_request_id":"1.000"},{"ai_status":"UNAVAILABLE","n":"8357"}]
+(các số của bảng cuối gồm cả hai lượt smoke và lượt `baseline`)
