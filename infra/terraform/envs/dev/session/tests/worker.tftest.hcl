@@ -507,11 +507,11 @@ run "relay_rejects_idle_delay_below_50" {
   expect_failures = [var.relay_idle_delay_ms]
 }
 
-run "relay_rejects_idle_delay_above_5000" {
+run "relay_rejects_idle_delay_above_1000" {
   command = plan
 
   variables {
-    relay_idle_delay_ms = 5001
+    relay_idle_delay_ms = 1001
   }
 
   expect_failures = [var.relay_idle_delay_ms]
@@ -542,6 +542,44 @@ run "relay_rejects_batch_above_500" {
 
   variables {
     relay_batch_size = 501
+  }
+
+  expect_failures = [var.relay_batch_size]
+}
+
+run "relay_accepts_the_bounds" {
+  command = plan
+
+  variables {
+    relay_idle_delay_ms = 1000
+    relay_batch_size    = 500
+  }
+
+  assert {
+    condition     = var.relay_idle_delay_ms == 1000 && var.relay_batch_size == 500
+    error_message = "TC-175-07: 1000 ms and 500 events are inside the bounds"
+  }
+}
+
+run "relay_accepts_the_lower_bounds" {
+  command = plan
+
+  variables {
+    relay_idle_delay_ms = 50
+    relay_batch_size    = 1
+  }
+
+  assert {
+    condition     = var.relay_idle_delay_ms == 50 && var.relay_batch_size == 1
+    error_message = "TC-175-07: 50 ms and 1 event are inside the bounds"
+  }
+}
+
+run "relay_rejects_fractional_batch" {
+  command = plan
+
+  variables {
+    relay_batch_size = 25.5
   }
 
   expect_failures = [var.relay_batch_size]

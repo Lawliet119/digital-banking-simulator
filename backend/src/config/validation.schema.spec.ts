@@ -144,13 +144,20 @@ describe('validateEnv', () => {
         validateEnv({ ...base, OUTBOX_RELAY_IDLE_DELAY_MS: '50', OUTBOX_RELAY_BATCH_SIZE: '500' }),
       ).toMatchObject({ OUTBOX_RELAY_IDLE_DELAY_MS: 50, OUTBOX_RELAY_BATCH_SIZE: 500 });
       expect(
-        validateEnv({ ...base, OUTBOX_RELAY_IDLE_DELAY_MS: '5000', OUTBOX_RELAY_BATCH_SIZE: '1' }),
-      ).toMatchObject({ OUTBOX_RELAY_IDLE_DELAY_MS: 5000, OUTBOX_RELAY_BATCH_SIZE: 1 });
+        validateEnv({ ...base, OUTBOX_RELAY_IDLE_DELAY_MS: '1000', OUTBOX_RELAY_BATCH_SIZE: '1' }),
+      ).toMatchObject({ OUTBOX_RELAY_IDLE_DELAY_MS: 1000, OUTBOX_RELAY_BATCH_SIZE: 1 });
+    });
+
+    it('reads numeric strings the way Joi converts them: 1e2 is 100', () => {
+      expect(validateEnv({ ...base, OUTBOX_RELAY_BATCH_SIZE: '1e2' })).toMatchObject({
+        OUTBOX_RELAY_BATCH_SIZE: 100,
+      });
     });
 
     it.each([
       ['OUTBOX_RELAY_IDLE_DELAY_MS', '49'],
-      ['OUTBOX_RELAY_IDLE_DELAY_MS', '5001'],
+      ['OUTBOX_RELAY_IDLE_DELAY_MS', '1001'], // ADR-03: the poll is at most 1 s
+      ['OUTBOX_RELAY_IDLE_DELAY_MS', ''],
       ['OUTBOX_RELAY_IDLE_DELAY_MS', '0'],
       ['OUTBOX_RELAY_IDLE_DELAY_MS', '250.5'],
       ['OUTBOX_RELAY_BATCH_SIZE', '0'],

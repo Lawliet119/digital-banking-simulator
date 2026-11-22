@@ -10,6 +10,7 @@ import { type ConfigType } from '@nestjs/config';
 import type { EntityManager } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
 import { relayConfig } from '@config/relay.config';
+import { RELAY_DEFAULT_BATCH_SIZE, RELAY_DEFAULT_IDLE_DELAY_MS } from '@config/relay.defaults';
 import { sqsConfig } from '@config/sqs.config';
 import { SqsClient } from '@libs/sqs';
 import { runsWorkers } from '@common/app-role/app-role';
@@ -19,9 +20,9 @@ import { OUTBOX_ROUTES, ROUTED_EVENT_TYPES, type OutboxQueue } from './outbox-ro
 import type { EventType } from '@common/events';
 
 /** ADR-03 and docs/03 §10: a batch is 100 events. */
-export const RELAY_BATCH_SIZE = 100;
+export const RELAY_BATCH_SIZE = RELAY_DEFAULT_BATCH_SIZE;
 /** docs/03 §10: poll every 500 ms when idle, so an event waits well under the 1 s budget. */
-export const RELAY_IDLE_DELAY_MS = 500;
+export const RELAY_IDLE_DELAY_MS = RELAY_DEFAULT_IDLE_DELAY_MS;
 /**
  * One batch never starts a new event after 15 s. With two queues per event and a 5 s limit per
  * send, a batch is over within 15 + 2 x 5 = 25 s: inside Postgres' idle-in-transaction limit
@@ -180,11 +181,7 @@ export class OutboxRelayService implements OnApplicationBootstrap, BeforeApplica
   /** Outbox id -> when it may be tried again, and how many times it already failed for good. */
   private readonly parked = new Map<string, { retryAt: number; attempts: number }>();
   private readonly relayLoop = new PollingLoop(
-    async () =>
-      relayDelayMs(await this.relayOnce(), {
-        batchSize: this.batchSize,
-        idleDelayMs: this.idleDelayMs,
-      }),
+    async () => this.nextDelayMs(await this.relayOnce()),
     error => this.logger.error(safeErrorMetadata(error), 'Outbox relay failed'),
   );
   constructor(
@@ -194,6 +191,11 @@ export class OutboxRelayService implements OnApplicationBootstrap, BeforeApplica
     // DBS-175: poll and batch from the environment. Absent (a test that builds the relay by hand) = the constants above.
     @Optional() @Inject(relayConfig.KEY) private readonly tuning?: ConfigType<typeof relayConfig>,
   ) {}
+
+  /** How long the loop sleeps after `result`, with the configured poll and batch (throws on a total transient failure). */
+  nextDelayMs(result: RelayResult): number {
+    return relayDelayMs(result, { batchSize: this.batchSize, idleDelayMs: this.idleDelayMs });
+  }
 
   private get batchSize(): number {
     return this.tuning?.batchSize ?? RELAY_BATCH_SIZE;
@@ -207,6 +209,11 @@ export class OutboxRelayService implements OnApplicationBootstrap, BeforeApplica
     // Producers run in every role; only the worker (and `both`) moves events on.
     if (!runsWorkers()) return;
     this.stopping = false;
+    // The values in force, once: with an optional config a wiring mistake would otherwise fall back to the defaults silently.
+    this.logger.log(
+      { idleDelayMs: this.idleDelayMs, batchSize: this.batchSize },
+      'Outbox relay started',
+    );
     this.relayLoop.start();
   }
 

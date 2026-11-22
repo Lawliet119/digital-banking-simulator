@@ -43,13 +43,13 @@ variable "reconciliation_interval_ms" {
 # không đặt thì hành vi không đổi. Mỗi lần đổi là một lần triển khai lại worker (task definition mới); số đo ở
 # docs/components/load-tests/06-ket-qua-thoi-gian-toi-co-2026-11-22.md.
 variable "relay_idle_delay_ms" {
-  description = "Chu kỳ poll của outbox relay khi lô chưa đầy (OUTBOX_RELAY_IDLE_DELAY_MS). 50 đến 5000 ms; 500 là mặc định của ứng dụng."
+  description = "Chu kỳ poll của outbox relay khi lô chưa đầy (OUTBOX_RELAY_IDLE_DELAY_MS). 50 đến 1000 ms (ADR-03: poll ≤ 1 giây); 500 là mặc định của ứng dụng."
   type        = number
   default     = 500
 
   validation {
-    condition     = var.relay_idle_delay_ms >= 50 && var.relay_idle_delay_ms <= 5000 && var.relay_idle_delay_ms == floor(var.relay_idle_delay_ms)
-    error_message = "relay_idle_delay_ms must be an integer between 50 and 5000 (DBS-175, validation.schema.ts)."
+    condition     = var.relay_idle_delay_ms >= 50 && var.relay_idle_delay_ms <= 1000 && var.relay_idle_delay_ms == floor(var.relay_idle_delay_ms)
+    error_message = "relay_idle_delay_ms must be an integer between 50 and 1000 (DBS-175, validation.schema.ts)."
   }
 }
 
