@@ -22,7 +22,7 @@ Khác biệt giữa component và module: xem [glossary](_shared/glossary.md).
 
 | Component | Purpose | Key features | Owner | Docs |
 |---|---|---|---|---|
-| **`platform-infra`** | Hạ tầng AWS bằng Terraform: VPC, ECS Fargate, RDS, ElastiCache, SQS, Cognito, WAF, KMS. | Hai cấu hình dev/prod, tách phần giữ lại và phần dựng/xóa theo giờ, không NAT Gateway, Multi-AZ khi demo HA. | #5 | [01](platform-infra/01-concept-brief.md) |
+| **`platform-infra`** | Hạ tầng AWS bằng Terraform: VPC, ECS Fargate, RDS, ElastiCache, SQS, Cognito, WAF, KMS. | Hai cấu hình dev/prod, tách phần giữ lại và phần dựng/xóa theo giờ, không NAT Gateway, Multi-AZ khi demo HA. | #5 | [01](platform-infra/01-concept-brief.md), [02](platform-infra/02-capacity-cost.md) |
 | **`ci-cd`** | Từ commit tới cloud: lint, test, build một image, quét, đẩy ECR, deploy, rollback. | Lint → typecheck → unit → e2e (Testcontainers) → build → quét lỗ hổng/secret → ECR; OIDC; migration bước riêng. | #5 (deploy, quét); Dev (job test) | [01](ci-cd/01-concept-brief.md) |
 | **`observability`** | SLI/SLO, log JSON có correlationId, dashboard và alarm. | SLI chính, dashboard, alarm (error rate, latency, DLQ > 0, đối soát lệch, Redis), log cấu trúc. | #5 | [01](observability/01-concept-brief.md) |
 

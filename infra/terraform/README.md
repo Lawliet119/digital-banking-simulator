@@ -430,7 +430,7 @@ AWS_PROFILE=dbs-admin python3 infra/scripts/cost-report.py --start 2026-10-01 --
 2. Viết mục "Đề xuất cắt giảm" (script chỉ gợi ý khoản lớn nhất và các cảnh báo).
 3. Commit báo cáo; dán mục "Tóm tắt gửi nhóm" vào kênh chat của nhóm.
 
-Tham số: `--end` không tính (exclusive) và mặc định là hôm nay UTC; `--credit-since` (mặc định 2026-08-01, tháng đầu có credit); `--project-end` mặc định 2026-12-14 (hết ngày 13/12). Script lỗi (credential, quyền) thì thoát 1 và stdout rỗng, không ghi nửa báo cáo. Test: `python3 infra/scripts/tests/test_cost_report.py`.
+Tham số: `--end` không tính (exclusive) và mặc định là hôm nay UTC; `--credit-since` (mặc định 2026-08-01, tháng đầu có credit); `--project-end` mặc định 2026-12-14 (hết ngày 13/12). Script lỗi (credential, quyền) thì thoát 1 và stdout rỗng, không ghi nửa báo cáo. Test: `python3 infra/scripts/tests/test_cost_report.py`. Đơn giá thật, chi phí theo phiên và 24/7 tính từ báo cáo: [`02-capacity-cost.md`](../../docs/components/platform-infra/02-capacity-cost.md) (DBS-179).
 
 **Tag chi phí.** `base/cost_tags.tf` bật `project`, `env`, `owner` trong Cost allocation tags (miễn phí); xóa resource hoặc `destroy base` đặt chúng về Inactive. Tag mới bật cần tới 24 giờ mới nhóm được; dữ liệu cũ cần backfill một lần:
 
