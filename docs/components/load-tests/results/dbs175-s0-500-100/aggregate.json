@@ -1,0 +1,184 @@
+{
+  "window": {
+    "start": "2026-11-22T12:23:07.093Z",
+    "end": "2026-11-22T12:38:07.137Z"
+  },
+  "skippedLines": 0,
+  "unexpected429": 0,
+  "plateaus": {
+    "120": {
+      "requests": 108002,
+      "systemErrors": 0,
+      "errorRate": 0,
+      "meetsErrorBudget": true,
+      "droppedIterations": 0,
+      "meetsDoD3": true,
+      "windowSeconds": 900.043,
+      "startedAt": "2026-11-22T12:23:07.093Z",
+      "endedAt": "2026-11-22T12:38:07.136Z",
+      "achievedRps": 119.996,
+      "perMinute": [
+        {
+          "minute": 0,
+          "requests": 7203,
+          "systemErrors": 0
+        },
+        {
+          "minute": 1,
+          "requests": 7197,
+          "systemErrors": 0
+        },
+        {
+          "minute": 2,
+          "requests": 7203,
+          "systemErrors": 0
+        },
+        {
+          "minute": 3,
+          "requests": 7201,
+          "systemErrors": 0
+        },
+        {
+          "minute": 4,
+          "requests": 7200,
+          "systemErrors": 0
+        },
+        {
+          "minute": 5,
+          "requests": 7199,
+          "systemErrors": 0
+        },
+        {
+          "minute": 6,
+          "requests": 7196,
+          "systemErrors": 0
+        },
+        {
+          "minute": 7,
+          "requests": 7202,
+          "systemErrors": 0
+        },
+        {
+          "minute": 8,
+          "requests": 7198,
+          "systemErrors": 0
+        },
+        {
+          "minute": 9,
+          "requests": 7202,
+          "systemErrors": 0
+        },
+        {
+          "minute": 10,
+          "requests": 7202,
+          "systemErrors": 0
+        },
+        {
+          "minute": 11,
+          "requests": 7200,
+          "systemErrors": 0
+        },
+        {
+          "minute": 12,
+          "requests": 7197,
+          "systemErrors": 0
+        },
+        {
+          "minute": 13,
+          "requests": 7200,
+          "systemErrors": 0
+        },
+        {
+          "minute": 14,
+          "requests": 7200,
+          "systemErrors": 0
+        },
+        {
+          "minute": 15,
+          "requests": 2,
+          "systemErrors": 0
+        }
+      ]
+    }
+  },
+  "systemErrors": {
+    "total": 108002,
+    "errors": 0,
+    "rate": 0
+  },
+  "metrics": {
+    "read_latency": {
+      "operation=balance,plateau=120,profile=full": {
+        "count": 43201,
+        "p50": 17.996,
+        "p90": 44.684,
+        "p95": 57.028,
+        "p99": 151.071,
+        "max": 471.62
+      },
+      "operation=history,plateau=120,profile=full": {
+        "count": 43200,
+        "p50": 20.751,
+        "p90": 51.272,
+        "p95": 65.237,
+        "p99": 173.082,
+        "max": 527.185
+      }
+    },
+    "transfer_latency": {
+      "plateau=120,profile=full": {
+        "count": 21601,
+        "p50": 36.495,
+        "p90": 96.412,
+        "p95": 148.792,
+        "p99": 414.278,
+        "max": 1386.401
+      }
+    }
+  },
+  "byScenario": {
+    "read_120": {
+      "GET /v1/accounts/:id": {
+        "count": 43201,
+        "systemErrors": 0,
+        "status": {
+          "200": 43201
+        },
+        "p50": 17.996,
+        "p90": 44.684,
+        "p95": 57.028,
+        "p99": 151.071,
+        "max": 471.62,
+        "avgRequestsPerSecondOverWholeRun": 47.999
+      },
+      "GET /v1/accounts/:id/transactions": {
+        "count": 43200,
+        "systemErrors": 0,
+        "status": {
+          "200": 43200
+        },
+        "p50": 20.751,
+        "p90": 51.272,
+        "p95": 65.237,
+        "p99": 173.082,
+        "max": 527.185,
+        "avgRequestsPerSecondOverWholeRun": 47.998
+      }
+    },
+    "write_120": {
+      "POST /v1/transfers": {
+        "count": 21601,
+        "systemErrors": 0,
+        "status": {
+          "201": 21601
+        },
+        "p50": 36.495,
+        "p90": 96.412,
+        "p95": 148.792,
+        "p99": 414.278,
+        "max": 1386.401,
+        "avgRequestsPerSecondOverWholeRun": 24
+      }
+    }
+  }
+}

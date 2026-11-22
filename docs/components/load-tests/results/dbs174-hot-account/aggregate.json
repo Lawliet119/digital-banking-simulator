@@ -1,0 +1,43 @@
+{
+  "window": {
+    "start": "2026-11-22T11:51:02.963Z",
+    "end": "2026-11-22T12:06:02.874Z"
+  },
+  "skippedLines": 0,
+  "unexpected429": 0,
+  "plateaus": {},
+  "systemErrors": {
+    "total": 18000,
+    "errors": 0,
+    "rate": 0
+  },
+  "metrics": {
+    "transfer_latency": {
+      "plateau=20,profile=full": {
+        "count": 18000,
+        "p50": 28.519,
+        "p90": 59.912,
+        "p95": 77.521,
+        "p99": 177.8,
+        "max": 1128.556
+      }
+    }
+  },
+  "byScenario": {
+    "hot": {
+      "POST /v1/transfers": {
+        "count": 18000,
+        "systemErrors": 0,
+        "status": {
+          "201": 18000
+        },
+        "p50": 28.519,
+        "p90": 59.912,
+        "p95": 77.521,
+        "p99": 177.8,
+        "max": 1128.556,
+        "avgRequestsPerSecondOverWholeRun": 20.002
+      }
+    }
+  }
+}

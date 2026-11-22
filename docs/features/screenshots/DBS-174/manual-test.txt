@@ -1,0 +1,59 @@
+d50e1f03619cf911db07304e164e0cdd94fb5e29
+
+DBS-174: số đo thật trên AWS ap-southeast-1, một phiên 2026-11-22 từ 10:37Z đến 14:28Z, image b6d56da0226f58ddc2e9dba7c1c91279087ae58d (build tay từ nhánh DBS-175, Trivy sạch).
+Đã che: ID tài khoản AWS, tên miền ALB và RDS, mọi token. Số liệu dưới đây in lại từ flag-latency.json và exit.json trong results/.
+
+M-174-01 (điều kiện B2 và mốc đầu phiên)
+  $ aws secretsmanager describe-secret --secret-id dbs/dev/openai-api-key
+  ResourceNotFoundException: Secrets Manager can't find the specified secret.   -> B2 chưa chạy được
+  $ aws secretsmanager list-secrets (ap-southeast-1, us-east-1, ap-southeast-2) -> chỉ dbs/dev/demo-accounts, dbs/dev/redis-auth
+  $ infra/scripts/verify-clean.sh  -> KET LUAN: sạch (13 loại), thoát 0
+  Queue risk-events, risk-events-dlq, notification-events, notification-events-dlq: 0 tin ở cả ba chỉ số
+
+M-174-02 (dựng, smoke)
+  loadgen: 14 tài nguyên; session: 66 tài nguyên (≈ 18 phút); db-roles.sh, migrate.sh (image b6d56da), pgss.sh enable + reset: thoát 0
+  Worker log: {"context":"OutboxRelayService","idleDelayMs":500,"batchSize":100,"message":"Outbox relay started"}
+  prepare: "Seed API complete: 3 customers ... fixture stored privately"; "token đã xóa khỏi máy và bucket"
+  smoke (baseline --smoke, role dbs_api, phiên chỉ đọc):
+    flag-latency: SLO p95 < 5000 ms, đợi 0s, còn 0 giao dịch chưa có quyết định
+      run: 6 chuyển, 6 quyết định, 0 cờ | quyết định p50/p95/p99/max 320.63/399.32/404.99/406.41 ms
+    exit.json: runExit 0, invariantExit 0, flagLatencyExit 0
+
+M-174-03 (cấu hình v2 «cờ mọi giao dịch», token admin của dbs-loadgen)
+  latest: version=1 mode=rule_only thresholds={"high":70,"medium":40}
+  POST versions: 201 version=2 mode=rule_only thresholds={"high":70,"medium":30}
+  (đợi 75 giây) latest: version=2 ...; sau đó CloudWatch risk_transfer_to_flag_ms có điểm dữ liệu (SampleCount 143 và 50 ở hai phút đầu)
+
+M-174-04 (baseline 12 -> 60 -> 120 RPS, DB mới, v2)
+--- dbs174-baseline-flag
+flag-latency: SLO p95 < 5000 ms, đợi 1s, còn 0 giao dịch chưa có quyết định
+  12rps: 2160 chuyển, 2160 quyết định, 2154 cờ | quyết định p50/p95/p99/max 336/576.95/619.42/1102.41 ms | cờ p50/p95/p99/max 337.78/578.27/622.28/1105.42 ms
+  60rps: 10801 chuyển, 10801 quyết định, 10801 cờ | quyết định p50/p95/p99/max 506.05/823.13/1055.99/2203.86 ms | cờ p50/p95/p99/max 509.9/828.37/1060.45/2205.43 ms
+  120rps: 21601 chuyển, 21601 quyết định, 21601 cờ | quyết định p50/p95/p99/max 1202.32/2006.21/2727.36/5376.65 ms | cờ p50/p95/p99/max 1206.08/2009.31/2730.19/5378.86 ms
+  run: 34562 chuyển, 34562 quyết định, 34556 cờ | quyết định p50/p95/p99/max 965.11/1839.43/2463.13/5376.65 ms | cờ p50/p95/p99/max 968.5/1843.51/2467.52/5378.86 ms
+exit.json: {"scenario":"baseline","startedAt":"2026-11-22T11:03:06Z","finishedAt":"2026-11-22T11:48:57Z","runExit":0,"invariantExit":0,"aggregateExit":0,"flagLatencyExit":0}
+
+M-174-05 (CloudWatch của cửa sổ lượt): xem cloudwatch.json cùng thư mục; tóm tắt trong báo cáo 06 §3.1 và §3.2
+
+M-174-06 (v3 = v1 không cờ; hot-account có pgss; redis-fault không sự cố 120 RPS)
+  POST versions: 201 version=3 thresholds={"high":70,"medium":40}
+--- dbs174-hot-account
+flag-latency: SLO p95 < 5000 ms, đợi 0.3s, còn 0 giao dịch chưa có quyết định
+  run: 17999 chuyển, 17999 quyết định, 0 cờ | quyết định p50/p95/p99/max 933.13/1690.96/2439.28/5456.64 ms | cờ p50/p95/p99/max null/null/null/null ms
+exit.json: {"scenario":"hot-account","startedAt":"2026-11-22T11:51:02Z","finishedAt":"2026-11-22T12:06:10Z","runExit":0,"invariantExit":0,"aggregateExit":0,"flagLatencyExit":0}
+
+  pgss-delta.txt (hot-account): dòng đầu "dbs_worker 15490 476.0 30.73 734.4 WITH w AS (...v_transfer_facts" (mean_ms 30,73)
+--- dbs174-control-120-noflag
+flag-latency: SLO p95 < 5000 ms, đợi 0.7s, còn 0 giao dịch chưa có quyết định
+  120rps: 21600 chuyển, 21600 quyết định, 0 cờ | quyết định p50/p95/p99/max 1331.45/2567.15/3606.9/8131.94 ms | cờ p50/p95/p99/max null/null/null/null ms
+  run: 21600 chuyển, 21600 quyết định, 0 cờ | quyết định p50/p95/p99/max 1331.45/2567.15/3606.9/8131.94 ms | cờ p50/p95/p99/max null/null/null/null ms
+exit.json: {"scenario":"redis-fault","startedAt":"2026-11-22T12:06:17Z","finishedAt":"2026-11-22T12:21:37Z","runExit":0,"invariantExit":0,"aggregateExit":0,"flagLatencyExit":0}
+
+M-174-07 (v4 như v2; khối quét của DBS-175): xem DBS-175 manual-test.txt
+
+M-174-08 (hủy)
+  terraform destroy session: Destroy complete! Resources: 66 destroyed (thoát 0); loadgen: 14 destroyed (thoát 0)
+  verify-clean.sh: KET LUAN: sạch (13 loại), thoát 0; list-user-pool-clients: chỉ dbs-app; plan base: 3 thêm, 7 sửa (như trước, BL-409)
+  xóa dev/loadgen-dbs174.tfstate và dev/session-dbs174.tfstate; aws ecr batch-delete-image tag b6d56da0... (không lỗi)
+
+M-174-09 (B2): chưa chạy (lý do: secret dbs/dev/openai-api-key không tồn tại; BL-434)
