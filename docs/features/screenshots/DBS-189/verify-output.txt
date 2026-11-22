@@ -1,0 +1,153 @@
+SHA nền: 4320a550 (origin/main sau #235 và #236; không đổi code)
+
+### M-189-01
+$ PYTHONUTF8=1 python docs/features/screenshots/DBS-189/verify-numbers.py
+PASS bản ghép[218,2 / 703,2]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[36,7 / 218,2 / 703,2]=True
+PASS bản ghép[344,0 / 1.406,0]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[36,5 / 344,0 / 1.406,0]=True
+PASS bản ghép[262,4 / 850,9]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[31,9 / **262,4** / **850,9**]=True
+PASS bản ghép[**91,9 / 585,5**]=True | 04-ket-qua-bl-418-2026-11-22.md[p95 **91,9 ms**]=True
+PASS bản ghép[**91,9 / 585,5**]=True | 04-ket-qua-bl-418-2026-11-22.md[p99 585,5 ms]=True
+PASS bản ghép[171 (0,158 %) / 54]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[171 / 0,158% / 54]=True
+PASS bản ghép[1 (0,0009 %) / 0]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[**1 / 0,0009% / 0**]=True
+PASS bản ghép[9 (0,0083 %) / 1]=True | 04-ket-qua-bl-418-2026-11-22.md[9 lỗi timeout (0,0083%) và 1 dropped iteration]=True
+PASS bản ghép[chỉ do 1 dropped; tỉ lệ lỗi vẫn < 0,1 %]=True | 04-ket-qua-bl-418-2026-11-22.md[**không đạt** (1 dropped iteration; tỉ lệ lỗi vẫ]=T
+PASS bản ghép[3/15 khung (đỉnh 641 ms)]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[3 / 15 (đỉnh 641)]=True
+PASS bản ghép[7/16 khung (đỉnh 1.985 ms)]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[7 / 16 (đỉnh 1.985)]=True
+PASS bản ghép[5/16 khung (đỉnh 678 ms)]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[**5 / 16 (đỉnh 678)**]=True
+PASS bản ghép[**2/15 khung** (442 và 377 ms)]=True | 04-ket-qua-bl-418-2026-11-22.md[(442 và 377 ms)]=True
+PASS bản ghép[chuyển **42 / 60 ms** (p99 106 / 153 ms)]=True | 02-ket-qua-tai-cloud-2026-11-21.md[chuyển p95 42 / 60 / 218 ms, p99 106 / 153 / 703]=True
+PASS bản ghép[đọc p95 ≤ 61 ms]=True | 02-ket-qua-tai-cloud-2026-11-21.md[đọc p95 ≤ 61 ms]=True
+PASS bản ghép[22,4 → **9,8 ms**]=True | 04-ket-qua-bl-418-2026-11-22.md[22,4 → **9,8 ms**]=True
+PASS bản ghép[p95 824 ms]=True | 02-ket-qua-tai-cloud-2026-11-21.md[p95 824 ms]=True
+PASS bản ghép[299 timeout (1,66 %)]=True | 02-ket-qua-tai-cloud-2026-11-21.md[299 timeout 2 giây (1,66% > 0,1%)]=True
+PASS bản ghép[p95 52 ms, 0 lỗi]=True | 02-ket-qua-tai-cloud-2026-11-21.md[p95 52 ms, 0 lỗi]=True
+PASS bản ghép[p95 **121 ms**]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[35 / **121** / 426]=True
+PASS bản ghép[4 timeout (0,022 %)]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[**4 (0,022%)**]=True
+PASS bản ghép[p95 **2.000 ms**]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[93 / **2.000** / 2.001]=True
+PASS bản ghép[1.881 timeout (10,4 %)]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[**1.881 (10,4%)**]=True
+PASS bản ghép[p95 784 ms]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[784 / 1.770]=True
+PASS bản ghép[43 lỗi (0,119 %)]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[43 / 0,119% / 0]=True
+PASS bản ghép[304,1 ms (hụt 4 ms)]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[**304,1 / 996,8**]=True
+PASS bản ghép[**119,9 ms**]=True | 04-ket-qua-bl-418-2026-11-22.md[p95 **119,9 ms**]=True
+PASS bản ghép[7 lỗi (0,019 %)]=True | 04-ket-qua-bl-418-2026-11-22.md[7 lỗi (0,019%)]=True
+PASS bản ghép[71 lỗi (0,13 %) **nhưng 105 dropped]=True | 04-ket-qua-bl-418-2026-11-22.md[71 (**0,13%**) / 105]=True
+PASS bản ghép[p95 493 ms** (p95 theo phút tới 1.275 ms)]=True | 04-ket-qua-bl-418-2026-11-22.md[493 (p95 theo phút: 226 186 1.275 337 1.245 745)]=True
+PASS bản ghép[plateau 240 vẫn gãy (68,9 %]=True | 04-ket-qua-bl-418-2026-11-22.md[68,9% (trước 98,1%)]=True
+PASS bản ghép[worker bật gãy 120 → 180 RPS, worker tắt gãy ở 2]=True | 02-ket-qua-tai-cloud-2026-11-21.md[gãy ở 120 → 180 RPS]=True
+PASS bản ghép[600 × 201 và 60 × 422]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[600 × 201 cùng thân và 60 × 422]=True
+PASS bản ghép[p95 81 ms]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[p95 81 ms]=True
+PASS bản ghép[8 lượt ở DBS-166]=True | 02-ket-qua-tai-cloud-2026-11-21.md[8 lượt trên AWS]=True
+PASS bản ghép[8 ở DBS-173]=True | 03-ket-qua-toi-uu-p95-2026-11-21.md[cả 8 lượt trên AWS]=True
+PASS bản ghép[2 ở BL-418]=True | 04-ket-qua-bl-418-2026-11-22.md[sau cả hai lượt]=True
+PASS bản ghép[4 ở DBS-167]=True | 05-ket-qua-redis-2026-11-22.md[sau cả bốn lượt]=True
+PASS bản ghép[p95 chuyển tiền 119 ms]=True | 05-ket-qua-redis-2026-11-22.md[p95 chuyển tiền 119 ms]=True
+PASS bản ghép[breaker mở trong 10 giây đầu]=True | 05-ket-qua-redis-2026-11-22.md[Breaker mở trong 10 giây đầu]=True
+PASS bản ghép[ổn định sau **42,5 giây**]=True | 05-ket-qua-redis-2026-11-22.md[**42,5 giây**]=True
+PASS bản ghép[p95 chuyển tiền 203 và 289 ms (SLO 300)]=True | 05-ket-qua-redis-2026-11-22.md[p95 chuyển tiền 203 và 289 ms ở hai lượt (SLO 30]=True
+PASS bản ghép[đọc 138 và 149 ms (SLO 150)]=True | 05-ket-qua-redis-2026-11-22.md[p95 đọc 138 và 149 ms (SLO 150 ms)]=True
+PASS bản ghép[`history` 142 và **154 ms (vượt 4 ms)**]=True | 05-ket-qua-redis-2026-11-22.md[p95 `history` 142 và **154 ms (vượt 4 ms)**]=True
+PASS bản ghép[ECS gỡ target sau 25 s]=True | P4-incident-table.md[ECS gỡ target sau 25 s]=True
+PASS bản ghép[task mới RUNNING sau **131 s**, service ổn định ]=True | P4-incident-table.md[RUNNING sau **131 s**, service ổn định sau **137]=True
+PASS bản ghép[**9 phút 5 giây**]=True | P4-incident-table.md[ALARM` sau **9 phút 5 giây**]=True
+PASS bản ghép[worker chạy sau 29 s, cờ gian lận sau **43 s**]=True | P4-incident-table.md[Worker chạy sau **29 s**, cờ 65 MEDIUM sau **43 ]=True
+PASS bản ghép[alarm `OK` sau 4 phút 39 giây]=True | P4-incident-table.md[alarm `OK` sau 4 phút 39 giây]=True
+PASS bản ghép[vào DLQ sau **2 s**]=True | P4-incident-table.md[Cả hai vào `dbs-dev-risk-events-dlq` sau **2 s**]=True
+PASS bản ghép[sau **190 s**]=True | P4-incident-table.md[sau **190 s**]=True
+PASS bản ghép[`/health/ready` 503 sau 40 s; sau 197 s]=True | P4-incident-table.md[Sau 40 s `/health/ready` 503; sau 197 s]=True
+PASS bản ghép[200 sau 127 s, tổng 267 s]=True | P4-incident-table.md[200 sau 127 s, tổng 267 s]=True
+PASS bản ghép[khoảng 290 s]=True | P4-incident-table.md[khoảng 290 s]=True
+PASS bản ghép[312 ms ở lượt tắt]=True | P4-incident-table.md[(312 ms, đường SQL fallback)]=True
+PASS bản ghép[**84,3 s**]=True | P4-incident-table.md[sau **84,3 s**]=True
+PASS bản ghép[**14,7 s và 12,7 s**]=True | manual-test.txt[Outage window (first 503 -> last 503): 14.7s]=True
+PASS bản ghép[**14,7 s và 12,7 s**]=True | manual-test.txt[Outage window (first 503 -> last 503): 12.7s]=True
+PASS bản ghép[thêm hàng Redis dưới tải 120 RPS và failover RDS]=True | P4-incident-table.md[| DBS-181 / AWS dev]=True
+PASS bản ghép[**91,9 ms** ở lượt mới nhất, lỗi 0,0083 %]=True | 04-ket-qua-bl-418-2026-11-22.md[p95 **91,9 ms**]=True
+PASS bản ghép[**91,9 ms** ở lượt mới nhất, lỗi 0,0083 %]=True | 04-ket-qua-bl-418-2026-11-22.md[9 lỗi timeout (0,0083%)]=True
+PASS bản ghép[(2/15 khung vượt)]=True | 04-ket-qua-bl-418-2026-11-22.md[**2 khung vượt** (442 và 377 ms)]=True
+PASS bản ghép[8,2642 USD đã tiêu]=True | 2026-11-22.md[**8,2642**]=True
+PASS bản ghép[credit còn ≈ 191,29 USD]=True | 2026-11-22.md[Credit còn lại: 191,2947 USD]=True
+PASS bản ghép[24/7 dev ≈ 113,23, production ≈ 203,55 USD/tháng]=True | 02-capacity-cost.md[**113,23** | **203,55**]=True
+PASS bản ghép[24/7 dev ≈ 113,23, production ≈ 203,55 USD/tháng]=True | 02-capacity-cost.md[**80,14**]=True
+PASS bản ghép[ngân sách lỗi 43,2 phút]=True | 02-capacity-cost.md[43,2 phút]=True
+PASS bản ghép[mục tiêu thiết kế 30 phút = 69,44 %]=True | 02-capacity-cost.md[69,44 % nếu đúng mục tiêu 30 phút]=True
+PASS bản ghép[(NACL chặn 6379, 5 phút)]=True | 05-ket-qua-redis-2026-11-22.md[0 lỗi hệ thống trong 5 phút tắt]=True
+PASS bản ghép[NACL chặn 6379]=True | 05-ket-qua-redis-2026-11-22.md[luật deny tcp 6379]=True
+PASS bản ghép[mất dịch vụ ≈ 2 phút]=True | P4-incident-table.md[mất dịch vụ ≈ 2 phút]=True
+PASS bản ghép[mặc định thì dài hơn khoảng 30 s]=True | defense-q7-ha-recovery.md[lâu hơn ≈ 30 s, BL-382]=True
+PASS bản ghép[0,60 USD/triệu]=True | 02-capacity-cost.md[0,60 USD/triệu]=True
+PASS bản ghép[0,3330 + WAF cố định 0,0110 = 0,3439]=True | 02-capacity-cost.md[× 0,3439 (cấu hình đo cộng WAF cố định)]=True
+PASS bản ghép[`redis: up` sau 0 và 5,8 giây]=True | 05-ket-qua-redis-2026-11-22.md[số của lượt chậm là 0 và 5,8 giây]=True
+PASS bản ghép[timeout 2 giây, tới 3 giây]=True | 05-ket-qua-redis-2026-11-22.md[lúc +265 đến +267 s]=True
+PASS bản ghép[**33 widget** (7 văn bản, 1 trạng thái alarm, 25]=True | DBS-178-dashboard-complete.md[33 widget: 7 `text`, 1 `alarm`, 25 `metric`]=True
+PASS bản ghép[**8,2642 USD**]=True | 2026-11-22.md[**8,2642**]=True
+PASS bản ghép[RDS 1,4266]=True | 2026-11-22.md[| RDS | 1,4266 |]=True
+PASS bản ghép[WAF 1,0131]=True | 2026-11-22.md[| AWS WAF | 1,0131 |]=True
+PASS bản ghép[ECS 0,9558]=True | 2026-11-22.md[| ECS | 0,9558 |]=True
+PASS bản ghép[ALB 0,9283]=True | 2026-11-22.md[| ALB | 0,9283 |]=True
+PASS bản ghép[KMS 0,8933]=True | 2026-11-22.md[| AWS Key Management Service | 0,8933 |]=True
+PASS bản ghép[ElastiCache 0,7488]=True | 2026-11-22.md[| ElastiCache | 0,7488 |]=True
+PASS bản ghép[Secrets 0,7072]=True | 2026-11-22.md[| AWS Secrets Manager | 0,7072 |]=True
+PASS bản ghép[máy tải 0,5155]=True | 2026-11-22.md[| Amazon Elastic Compute Cloud - Compute | 0,515]=True
+PASS bản ghép[VPC 0,4700]=True | 2026-11-22.md[| Amazon Virtual Private Cloud | 0,4700 |]=True
+PASS bản ghép[Cost Explorer 0,3500]=True | 2026-11-22.md[| AWS Cost Explorer | 0,3500 |]=True
+PASS bản ghép[SQS 0,1434]=True | 2026-11-22.md[| SQS | 0,1434 |]=True
+PASS bản ghép[8,7053 / ≈ **191,2947**]=True | 2026-11-22.md[Credit đã dùng (từ 2026-08-01): 8,7053 USD]=True
+PASS bản ghép[8,7053 / ≈ **191,2947**]=True | 2026-11-22.md[Credit còn lại: 191,2947 USD]=True
+PASS bản ghép[7,766 trên 150 USD; dự báo cả tháng 8,567]=True | 2026-11-22.md[ACTUAL tháng 11 = 7,766 USD, FORECASTED = 8,567 ]=True
+PASS bản ghép[script dự báo 16,8232 USD]=True | 2026-11-22.md[16,8232 USD]=True
+PASS bản ghép[6,15–7,30]=True | 02-capacity-cost.md[6,15–7,30]=True
+PASS bản ghép[| 0,1394 | 0,2752 |]=True | 02-capacity-cost.md[**0,1394** | **0,2752**]=True
+PASS bản ghép[**113,23** | **203,55**]=True | 02-capacity-cost.md[**113,23** | **203,55**]=True
+PASS bản ghép[0,3330 + WAF cố định 0,0110 = 0,3439]=True | 02-capacity-cost.md[**0,3330 USD/giờ**]=True
+PASS bản ghép[0,3330 + WAF cố định 0,0110 = 0,3439]=True | 02-capacity-cost.md[= 0,0110 USD/giờ]=True
+PASS bản ghép[| 0,45 | — | 1,03 |]=True | 02-capacity-cost.md[| Dev (làm việc, kiểm tay) | 0,45 | 0,60 | 0,75 ]=True
+PASS bản ghép[| 0,45 | — | 1,03 |]=True | 02-capacity-cost.md[| 1,03 | 1,38 | 1,72 |]=True
+PASS bản ghép[≈ 29 % ngày đo 21/11]=True | 02-capacity-cost.md[| 29 % |]=True
+PASS bản ghép[≈ 0,26 USD mỗi giờ 120 RPS]=True | 02-capacity-cost.md[**0,2592 USD**]=True
+PASS bản ghép[RDS Multi-AZ 39,99 + Valkey replica 14,02 + task]=True | 02-capacity-cost.md[| 0,0548 | 39,99 |]=True
+PASS bản ghép[RDS Multi-AZ 39,99 + Valkey replica 14,02 + task]=True | 02-capacity-cost.md[| 0,0192 | 14,02 |]=True
+PASS bản ghép[RDS Multi-AZ 39,99 + Valkey replica 14,02 + task]=True | 02-capacity-cost.md[| 0,0358 | 26,13 |]=True
+PASS bản ghép[**0,1098 USD/giờ, 80,14 USD/tháng**]=True | 02-capacity-cost.md[| **HA cộng** | **0,1098** | **80,14** |]=True
+PASS bản ghép[23–69 %]=True | 02-capacity-cost.md[**23,15 % nếu khôi phục xong trong 10 phút, 69,4]=True
+PASS bản ghép[69,44 %]=True | 02-capacity-cost.md[69,44 %]=True
+PASS bản ghép[0,49–0,57 %]=True | 02-capacity-cost.md[**0,49–0,57 %**]=True
+PASS bản ghép[+0,25–0,42 USD cho 3–5 giờ ở cỡ micro]=True | 02-capacity-cost.md[**0,25 USD** | **0,42 USD**]=True
+PASS bản ghép[(66,12 USD/tháng)]=True | 02-capacity-cost.md[tổng **66,12 USD/tháng**]=True
+PASS SLO nguyên văn: | Tỉ lệ request API không lỗi 5xx (422 và 429 không tính là 
+PASS SLO nguyên văn: | Latency chuyển tiền p95 / p99 | API | p95 < 300 ms, p99 < 
+PASS SLO nguyên văn: | Latency đọc (số dư, lịch sử) p95 | API | < 150 ms | 5 phút
+PASS SLO nguyên văn: | Thời gian từ giao dịch tới khi có cờ p95 | Worker (`fraud_
+PASS SLO nguyên văn: | Tuổi outbox chưa gửi cũ nhất | Worker | < 10 giây | 1 phút
+PASS SLO nguyên văn: | Số message trong DLQ; tuổi message cũ nhất của queue chính
+PASS SLO nguyên văn: | Kết quả đối soát sổ cái | Job đối soát | 0 lệch | Mỗi lần 
+PASS SLO nguyên văn: | Cảnh báo gian lận trên 1.000 giao dịch | Worker | ≤ 20 | 2
+PASS SLO nguyên văn: | Latency Redis, số lần rơi về đường dự phòng (`redis_fallba
+PASS bảng SLO có 9 dòng (có 9)
+PASS docs/components/observability/screenshots/120rps-redis-on: 25 ảnh (bản ghép nói 25)
+PASS docs/components/observability/screenshots/120rps-redis-off: 25 ảnh (bản ghép nói 25)
+PASS bản ghép nêu «mỗi lượt 25 ảnh»
+KET LUAN: mọi cặp khớp
+exit=0
+
+### M-189-02 ca trượt (ba số ngoài danh sách đầu: 121 ms, 39,99, 1.881) và (năm số: 8,2642, 191,29, 43,2 phút, 91,9 ms, timeout 2 giây)
+$ P4_BUNDLE=<bản sao 1> python verify-numbers.py
+FAIL bản ghép[p95 **121 ms**]=False | 03-ket-qua-toi-uu-p95-2026-11-21.md[35 / **121** / 426]=True
+FAIL bản ghép[1.881 timeout (10,4 %)]=False | 03-ket-qua-toi-uu-p95-2026-11-21.md[**1.881 (10,4%)**]=True
+FAIL bản ghép[RDS Multi-AZ 39,99 + Valkey replica 14,02 + task]=False | 02-capacity-cost.md[| 0,0548 | 39,99 |]=True
+FAIL bản ghép[RDS Multi-AZ 39,99 + Valkey replica 14,02 + task]=False | 02-capacity-cost.md[| 0,0192 | 14,02 |]=True
+FAIL bản ghép[RDS Multi-AZ 39,99 + Valkey replica 14,02 + task]=False | 02-capacity-cost.md[| 0,0358 | 26,13 |]=True
+KET LUAN: 5 chỗ lệch
+exit=1
+$ P4_BUNDLE=<bản sao 2> python verify-numbers.py
+FAIL bản ghép[**91,9 ms** ở lượt mới nhất, lỗi 0,0083 %]=False | 04-ket-qua-bl-418-2026-11-22.md[p95 **91,9 ms**]=True
+FAIL bản ghép[**91,9 ms** ở lượt mới nhất, lỗi 0,0083 %]=False | 04-ket-qua-bl-418-2026-11-22.md[9 lỗi timeout (0,0083%)]=True
+FAIL bản ghép[8,2642 USD đã tiêu]=False | 2026-11-22.md[**8,2642**]=True
+FAIL bản ghép[credit còn ≈ 191,29 USD]=False | 2026-11-22.md[Credit còn lại: 191,2947 USD]=True
+FAIL bản ghép[ngân sách lỗi 43,2 phút]=False | 02-capacity-cost.md[43,2 phút]=True
+FAIL bản ghép[timeout 2 giây, tới 3 giây]=False | 05-ket-qua-redis-2026-11-22.md[lúc +265 đến +267 s]=True
+KET LUAN: 6 chỗ lệch
+exit=1
+
+### M-189-03 và M-189-05
+521 files checked, 0 broken link(s)
+107 dòng, 0 lỗi
