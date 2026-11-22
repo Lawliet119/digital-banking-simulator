@@ -88,7 +88,7 @@ describe('DBS-174 flag latency tool on PostgreSQL', () => {
     }
   });
 
-  it('TC-174-11 one flagged and one clean transfer: counts, lag equal to the stored timestamps, decision lag <= flag lag', async () => {
+  it('TC-174-21 one flagged and one clean transfer: counts, lag equal to the stored timestamps, decision lag <= flag lag', async () => {
     const an = await fx.customer('Trần Văn An');
     const binh = await fx.customer('Nguyễn Thị Bình');
     await fx.deposit(an.accounts[0], '21000000');
@@ -125,7 +125,7 @@ describe('DBS-174 flag latency tool on PostgreSQL', () => {
     expect(w.perMinute.reduce((n, m) => n + m.flagged, 0)).toBe(1);
   });
 
-  it('TC-174-12 a completed transfer the worker has not scored is undecided: backlog true after the settle time, windows outside it are empty', async () => {
+  it('TC-174-22 a completed transfer the worker has not scored is undecided: backlog true after the settle time, windows outside it are empty', async () => {
     const cuong = await fx.customer('Lê Văn Cường');
     const dung = await fx.customer('Phạm Thị Dung');
     await fx.deposit(cuong.accounts[0], '5000000');
@@ -146,7 +146,7 @@ describe('DBS-174 flag latency tool on PostgreSQL', () => {
     expect(past.sourceAccountRows30d).toEqual([]);
   });
 
-  it('TC-174-13 source account rows are the 30-day TRANSFER history up to the window end, per source, with no account id in the report', async () => {
+  it('TC-174-23 source account rows are the 30-day TRANSFER history up to the window end, per source, with no account id in the report', async () => {
     const perAccount = await q<{ n: number; account: string }>(
       `SELECT count(*)::int AS n, from_account_id AS account FROM transfers
         WHERE type = 'TRANSFER' AND status = 'COMPLETED' GROUP BY 2 ORDER BY 2`,
@@ -170,7 +170,7 @@ describe('DBS-174 flag latency tool on PostgreSQL', () => {
     expect(early.sourceAccountRows30d.reduce((s, r) => s + r.rows30d, 0)).toBe(1);
   });
 
-  it('TC-174-14 a REJECTED transfer is ignored, deposits are counted apart, and the window is half-open [from, to)', async () => {
+  it('TC-174-24 a REJECTED transfer is ignored, deposits are counted apart, and the window is half-open [from, to)', async () => {
     const [first] = await q<{ id: string; created_at: Date }>(
       `SELECT id, created_at FROM transfers WHERE type = 'TRANSFER' AND status = 'COMPLETED' ORDER BY created_at LIMIT 1`,
     );
@@ -184,7 +184,7 @@ describe('DBS-174 flag latency tool on PostgreSQL', () => {
     const after = await measureWindow(client(), wide());
     expect(after.transfers).toBe(before.transfers); // the rejected row is not a COMPLETED transfer
     expect(after.undecided).toBe(before.undecided); // and never waits for a decision
-    expect(before.deposits).toBeGreaterThanOrEqual(2); // the operator deposits of TC-174-11 and 12
+    expect(before.deposits).toBeGreaterThanOrEqual(2); // the operator deposits of TC-174-21 and 22
 
     const at = first.created_at.toISOString();
     const upTo = await measureWindow(client(), {
