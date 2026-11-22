@@ -129,7 +129,7 @@ HA (RDS Multi-AZ 39,99 + Valkey replica 14,02 + task `api` thứ hai 26,13) thê
 | Chi phí là ước lượng, chưa đối chiếu hóa đơn; phiên AWS-A ngày 22/11 chưa có trong Cost Explorer | [BL-426](../BACKLOG.md) |
 | Sự cố bất đồng bộ và kill task đo ở dev 1 task; chưa có video | [defense-q7](defense-q7-ha-recovery.md), [BL-380](../BACKLOG.md), [BL-383](../BACKLOG.md), [BL-386](../BACKLOG.md) |
 
-**Việc của người trước khi nộp** (agent không làm): kiểm lại số với báo cáo gốc nếu nguồn vừa đổi (chạy lại `verify-numbers.py`); nộp P4 theo hạn của giảng viên (chưa xác nhận trong repo, xem [README](README.md)); cập nhật board (trong repo: DBS-167, 178, 181, 184, 186 đã xong; DBS-173 làm một phần, p95 từng phút chưa đạt; DBS-179, 182, 189 chờ merge); gửi tóm tắt chi phí cho nhóm mỗi thứ Hai ([BL-426](../BACKLOG.md)); chạy phiên AWS còn lại (DBS-174, 175) nếu muốn bổ sung số thời gian tới cờ trước khi nộp.
+**Việc của người trước khi nộp** (agent không làm): kiểm lại số với báo cáo gốc nếu nguồn vừa đổi (chạy lại `verify-numbers.py`); nộp P4 theo hạn của giảng viên (chưa xác nhận trong repo, xem [README](README.md)); cập nhật board (trong repo: DBS-167, 178, 181, 184, 186 đã xong; DBS-173 làm một phần, p95 từng phút chưa đạt; DBS-179 và DBS-182 đã merge, DBS-189 chờ merge); gửi tóm tắt chi phí cho nhóm mỗi thứ Hai ([BL-426](../BACKLOG.md)); chạy phiên AWS còn lại (DBS-174, 175) nếu muốn bổ sung số thời gian tới cờ trước khi nộp.
 
 ## 8. Danh mục nguồn
 

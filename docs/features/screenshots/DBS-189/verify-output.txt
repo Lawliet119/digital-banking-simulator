@@ -1,4 +1,4 @@
-SHA nền: 0f40b496 (origin/main sau #235; nhánh xếp chồng trên PR DBS-182 #236; không đổi code)
+SHA nền: 4320a550 (origin/main sau #235 và #236; không đổi code)
 
 ### M-189-01
 $ PYTHONUTF8=1 python docs/features/screenshots/DBS-189/verify-numbers.py

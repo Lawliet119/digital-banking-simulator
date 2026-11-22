@@ -18,7 +18,7 @@
 | DBS-167 Redis có/không/chậm | To Do | xong, `main` #232 ([báo cáo 05](../components/load-tests/05-ket-qua-redis-2026-11-22.md)) |
 | DBS-181 failover RDS | Done | xong; **failover chưa xác nhận** (AZ không đổi trong raw, [BL-386](../BACKLOG.md)) |
 | DBS-184 sự cố cloud | Done | xong ([DBS-184](DBS-184-cloud-incident-scenarios.md)) |
-| DBS-182 bảng chi phí HA | To Do | xong ở PR riêng của DBS-182 (nhánh xếp chồng lên PR #235, chưa merge lúc viết) |
+| DBS-182 bảng chi phí HA | To Do | xong, `main` #236 `4320a550` |
 | DBS-173 p95 < 300 ms | To Do | làm một phần: p95 tổng đạt, «từng phút < 300 ms» chưa đạt, [BL-419](../BACKLOG.md) (ghi đúng trong bản ghép, không nâng thành «đạt») |
 
   Agent không sửa board; DBS-179 (nguồn chi phí) ở PR #235.
@@ -69,7 +69,7 @@ Không đổi code, Terraform hay ADR. File mới: `docs/deliverables/P4-product
 | 4 | should-fix | bảng SLO «nguyên văn» nhưng đã rút gọn | đã sửa: chép nguyên bảng docs/03 §14 kèm cột «Đo ở đâu»; script kiểm từng dòng |
 | 5 | should-fix | alarm «gửi SNS email» không nêu giới hạn | đã sửa: §4 và §7 ghi BL-276 (`alarm_email` chưa đặt), BL-341 (chưa kêu bằng tải thật) |
 | 6 | should-fix | ảnh dashboard không phải ảnh console | đã sửa: §5 và §7 ghi BL-262, BL-404 |
-| 7 | should-fix | «DBS-173 và 189 đã xong» sai | đã sửa: DBS-173 làm một phần; DBS-179, 182, 189 chờ merge |
+| 7 | should-fix | «DBS-173 và 189 đã xong» sai | đã sửa: DBS-173 làm một phần; DBS-179 và DBS-182 đã merge, DBS-189 chờ merge |
 | 8 | should-fix | plateau 180 «0,13 % lỗi» nghe gần đạt | đã sửa: «105 dropped, p95 493 ms» |
 | 9 | should-fix | HA thiếu điều kiện của nguồn | đã sửa: «nếu có ngân sách riêng và nếu số đo giữ được dưới tải thật», production giả định |
 | 10 | should-fix | feature doc còn chỗ trống | đã sửa: §6, §8, §9, README, status |
@@ -91,11 +91,11 @@ Không đổi code, Terraform hay ADR. File mới: `docs/deliverables/P4-product
 | 2 | `P4-production-engineering.md` | TC-189-01, 04, 05 | M-189-01, M-189-04 | `docs(deliverables): bản ghép P4 (DBS-189)` |
 | 3 | `deliverables/README.md`, `features/README.md`, feature doc §8–§9 | TC-189-06, 07 | M-189-03, M-189-05 | gộp |
 
-Rủi ro: nguồn đổi sau khi ghép (PR của DBS-179 và DBS-182 chưa merge lúc viết; sau rebase `verify-numbers.py` phải chạy lại). Lùi: xóa bản ghép và dòng README. Quét DoD: 1 → bước 2; 2 → bước 1–2; 3 → bước 3 (nộp: người); 4 → bước 3. Không đóng BL; không thêm BL mới trừ khi phát hiện khuyết nguồn.
+Rủi ro: nguồn đổi sau khi ghép (PR của DBS-179 và DBS-182 đã merge, #235 và #236; sau mỗi lần rebase `verify-numbers.py` phải chạy lại). Lùi: xóa bản ghép và dòng README. Quét DoD: 1 → bước 2; 2 → bước 1–2; 3 → bước 3 (nộp: người); 4 → bước 3. Không đóng BL; không thêm BL mới trừ khi phát hiện khuyết nguồn.
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (2026-11-22, nhánh xếp chồng trên PR DBS-182 #236, nền `origin/main` `0f40b496`): `verify-numbers.py` mọi cặp PASS, thoát 0; ca trượt (M-189-02) 5 FAIL, thoát 1; `check-doc-links.mjs` 520 tệp, 0 link và anchor hỏng; `check-backlog.mjs` 107 dòng, 0 lỗi. Không đổi code nên không chạy baseline backend. Output thô: [verify-output.txt](screenshots/DBS-189/verify-output.txt).
+- **Lệnh kiểm tra** (2026-11-22, nền `origin/main` `4320a550`, sau #235 và #236): `verify-numbers.py` mọi cặp PASS, thoát 0; ca trượt (M-189-02) 5 FAIL, thoát 1; `check-doc-links.mjs` 520 tệp, 0 link và anchor hỏng; `check-backlog.mjs` 107 dòng, 0 lỗi. Không đổi code nên không chạy baseline backend. Output thô: [verify-output.txt](screenshots/DBS-189/verify-output.txt).
 - **Đối chiếu test case:**
 
 | ID | Cách kiểm | Đạt? |
