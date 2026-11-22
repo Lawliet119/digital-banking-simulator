@@ -1,6 +1,6 @@
 # ledger — Concept Brief
 
-> **Status:** Draft · **Owner:** Dev · **Verified against code:** một phần: schema `transfers`, `ledger_entries`, `idempotency_keys` (DBS-21) và trigger append-only (DBS-27); kiểu tiền (DBS-22); nạp tiền tại quầy bản thô (DBS-60); chuyển tiền bản thô (DBS-61); checker bất biến (DBS-69). Chưa có: replay idempotency (DBS-79), hạn mức, lịch sử giao dịch, `GET /v1/transfers/{id}`, đối soát · **Cập nhật:** 2026-11-07
+> **Status:** Implemented (module chạy trên `main`; lộ trình §14 là lịch sử) · **Owner:** Dev · **Verified against code:** `2026-11-22` (DBS-142, đối chiếu từng mệnh đề với code và test): đầu trang, §2, §4 đến §8, §10, §11, §13. Chưa đối chiếu: §1, §3, §9, §12 (seed qua API nạp tiền), §15, các số đo hiệu năng (0,163 ms, 0,118 ms) và quyền `dbs_worker` trên ECS thật · **Cập nhật:** 2026-11-22
 
 > Tài liệu giải thích **một module**, cho người chưa đọc BRD và docs/03. Đọc xong bạn biết: ledger là gì, nó giữ lời hứa nào, một lệnh chuyển tiền đi qua những bước nào, và vì sao thiết kế như vậy.
 > Nguồn: `docs/03_HIGH_LEVEL_ARCHITECTURE.md` §6.1, §8 · `docs/BRD.md` (AC-5.x) · `backend/src/modules/ledger/README.md`.
@@ -71,7 +71,7 @@ flowchart LR
 ```mermaid
 erDiagram
     ACCOUNTS ||--o{ LEDGER_ENTRIES : "có nhiều dòng sổ"
-    TRANSFERS ||--|{ LEDGER_ENTRIES : "sinh ra 2 dòng"
+    TRANSFERS ||--o{ LEDGER_ENTRIES : "COMPLETED sinh 2 dòng, REJECTED không có dòng"
     USERS ||--o{ IDEMPOTENCY_KEYS : "gửi"
     TRANSFERS ||--o| IDEMPOTENCY_KEYS : "ứng với"
     TRANSFERS ||--o{ OUTBOX_EVENTS : "phát ra"
@@ -151,8 +151,8 @@ flowchart TD
         direction TB
         TX_START["BEGIN"] --> I["INSERT idempotency_keys (user, K)<br/>ON CONFLICT DO NOTHING"]
         I --> C1{"Insert được?"}
-        C1 -- "Không: K đã có" --> R1["Đọc response cũ → trả lại<br/>(nội dung khác → 422)"]
-        C1 -- "Được: K mới" --> L["SELECT … FOR UPDATE hai tài khoản<br/>theo thứ tự id"]
+        C1 -- "Không: K đã có" --> R1["Đọc response cũ → trả lại<br/>(nội dung khác → 422, ROLLBACK, không ghi gì)"]
+        C1 -- "Được: K mới" --> L["SELECT … FOR UPDATE hai tài khoản<br/>theo thứ tự id (đích là funding: chỉ nguồn)"]
         L --> G["🛡️ Sync guard<br/>ACTIVE? · hạn mức lần? · hạn mức ngày? · đủ số dư?"]
         G --> C2{"Hợp lệ?"}
         C2 -- "Không" --> REJ["INSERT transfer = REJECTED + lý do<br/>+ audit · lưu response"]
@@ -198,7 +198,9 @@ sequenceDiagram
 | 10 lệnh cùng key **song song** | Đúng 1 giao dịch, 10 phản hồi giống nhau (AC-5.4) |
 | Lệnh bị `REJECTED` rồi gửi lại | Nhận lại đúng lời từ chối cũ |
 | Lỗi hệ thống (rollback) | Không lưu key, gửi lại cùng key là an toàn |
-| Thiếu header | `400 IDEMPOTENCY_KEY_REQUIRED` |
+| Thiếu header, hoặc chỉ có khoảng trắng | `400 IDEMPOTENCY_KEY_REQUIRED` |
+| Key dài quá 128 ký tự (đếm theo ký tự Unicode) | `400` thường, không kèm `errorCode` riêng |
+| Vượt giới hạn tốc độ chuyển tiền của người dùng (DBS-89) | `429 RATE_LIMITED`; không chạm sổ cái, không lưu key |
 
 Hai quyết định đáng nhớ:
 - Key nằm **trong Postgres, cùng transaction** với giao dịch (không để ở Redis), nếu không sẽ có khe hở giữa Redis và DB.
@@ -248,7 +250,7 @@ Lệnh 2: đã 180, +15 = 195 ✓ ┘      Lệnh 2: (chờ) → khóa → đã 
 → cả hai lọt, tổng 210 > 200 💥     → đúng 1 COMPLETED, 1 REJECTED, tổng ≤ 200 ✅
 ```
 
-Hạn mức ngày = tổng các dòng `DEBIT` của tài khoản nguồn từ 00:00 giờ Việt Nam (`Asia/Ho_Chi_Minh`) trong `ledger_entries`, có index `(account_id, created_at)`, ngân sách ≤ 5 ms.
+Hạn mức ngày = tổng các dòng `DEBIT` của tài khoản nguồn từ 00:00 giờ Việt Nam (`Asia/Ho_Chi_Minh`). Từ BL-418 guard **không còn `SUM` trong lúc giữ khóa**: nó đọc bộ đếm `accounts.sent_today` và `sent_day` trên chính dòng vừa khóa, do trigger `ledger_entries_daily_debit_counter` giữ cùng transaction với dòng sổ (`sync-guard.service.ts`, `1795000012000-AddDailyDebitCounter.ts`). `SUM` qua index `ledger_entries_daily_debit_idx` chỉ còn là **đường lùi**, khi `sent_day` lớn hơn hôm nay (đồng hồ task chạy lùi so với DB). Đối soát (§11) kiểm bộ đếm với các dòng `DEBIT`.
 
 ---
 
@@ -277,12 +279,12 @@ flowchart TB
     LED -->|"INSERT outbox_events<br/>cùng transaction"| OUT["outbox → SQS"]
     OUT -.->|"bất đồng bộ"| RSK["risk (fraud)"]
     OUT -.->|"bất đồng bộ"| NOT["notification"]
-    LED -->|"LedgerQueryService<br/>lịch sử, trạng thái"| ACC
+    LED -->|"TransactionHistoryService, TransferQueryService<br/>lịch sử, trạng thái"| ACC
     FR["#4 Fraud"] -->|"sync guard viết cùng #1"| LED
 ```
 
 - Nét liền: gọi **đồng bộ, cùng một transaction**. Nét đứt: **bất đồng bộ**, ledger không chờ.
-- `ledger` **không** đọc bảng `accounts` trực tiếp; nó gọi hàm `accounts` export và truyền transaction vào (quy tắc ranh giới module, do eslint ép).
+- `ledger` **không ghi** bảng `accounts` trực tiếp; nó gọi hàm `accounts` export và truyền transaction vào (quy tắc ranh giới module, do eslint ép). Chỗ chỉ **đọc** thẳng: tra cứu lệnh (`TransferQueryService` nối `accounts`, `customers` để biết chủ hai đầu) và job đối soát.
 - `risk` **không** chạm vào luồng chuyển tiền: lỗi ở fraud không thể làm hỏng một lệnh chuyển.
 
 ---
@@ -294,13 +296,13 @@ flowchart TB
 | `POST` | `/v1/transfers` | customer | **Bắt buộc** `Idempotency-Key`; chỉ chuyển từ tài khoản của mình |
 | `POST` | `/v1/operator/deposits` | operator | **Bắt buộc** `Idempotency-Key`; nguồn là `funding` |
 | `GET` | `/v1/accounts/{id}/transactions` | customer | Phân trang cursor, lọc thời gian; chỉ tài khoản của mình |
-| `GET` | `/v1/transfers/{id}` | customer | Chỉ người gửi hoặc người nhận |
+| `GET` | `/v1/transfers/{id}` | customer | Người gửi xem lệnh ở mọi trạng thái; người nhận chỉ xem lệnh `COMPLETED` (lệnh bị từ chối trả 404 cho người nhận) |
 
 Quy ước: tiền là **string** (`"500000"`); lỗi theo RFC 7807 `application/problem+json` kèm `errorCode`, `correlationId`; tài khoản không thuộc mình trả **404** (không phải 403) để không lộ rằng nó tồn tại.
 
 ---
 
-## 11. Năm điều không bao giờ được sai (bất biến)
+## 11. Sáu điều không bao giờ được sai (bất biến)
 
 | # | Bất biến | Bảo vệ bằng |
 |---|---|---|
@@ -308,9 +310,14 @@ Quy ước: tiền là **string** (`"500000"`); lỗi theo RFC 7807 `application
 | 2 | Tổng số dư mọi tài khoản = 0 | Tài khoản SYSTEM `funding` được âm |
 | 3 | Số dư khách ≥ 0 | `CHECK (type = 'SYSTEM' OR balance >= 0)` + sync guard |
 | 4 | Số dư mỗi tài khoản = tổng bút toán của nó | Chỉ đổi số dư qua ledger |
-| 5 | Bút toán không bị sửa/xóa | Thu hồi `UPDATE`/`DELETE` ở mức DB |
+| 5 | Bút toán không bị sửa/xóa | Thu hồi `UPDATE`/`DELETE` ở mức DB và trigger append-only trên `transfers`, `ledger_entries` (DBS-27) |
+| 6 | Bộ đếm hạn mức ngày `sent_today`/`sent_day` bằng các dòng `DEBIT` (BL-418) | Trigger trong cùng transaction; đối soát và `check:invariants` kiểm lại |
 
-**Job đối soát** chạy định kỳ kiểm tra 1, 2, 4 và báo động khi lệch. Sau **mỗi** lần load test cũng chạy lại đúng các kiểm tra này.
+**Hai bộ kiểm khác nhau, đừng nhầm:**
+- **Job đối soát** (worker, mỗi chu kỳ, một snapshot): tổng Nợ = tổng Có (1); tổng số dư = 0 (2); số dư từng tài khoản (4); mỗi lệnh `COMPLETED` có đúng một dòng Nợ và một dòng Có đúng số tiền và tài khoản; và bộ đếm (6, BL-421). Không kiểm số dư khách ≥ 0 (3, đã có `CHECK` ở DB). Lệch thì ghi `MISMATCH` (alarm `reconciliation-failed`) và dòng log có `failedChecks` nêu kiểm tra nào lệch; chi tiết từng tài khoản nằm ở `check:invariants`.
+- **`npm run check:invariants`** (script, chạy tay sau **mỗi** lần load test): sáu kiểm tra, thêm số dư khách ≥ 0, in từng vi phạm theo tài khoản.
+
+Hai bên viết SQL riêng cho cùng một quy tắc. Chỉ bộ đếm có test so hai kết quả (`reconciliation-daily-counter.db-spec.ts`); bốn kiểm còn lại chưa có (BL-428). Đổi quy tắc ở một bên thì rà bên kia.
 
 ---
 
@@ -348,7 +355,7 @@ Quy ước: tiền là **string** (`"500000"`); lỗi theo RFC 7807 `application
 
 ---
 
-## 14. Lộ trình của module (theo roadmap)
+## 14. Lộ trình của module (theo roadmap; lịch sử, trạng thái thật xem [docs/features](../../features/README.md) và [BACKLOG](../../BACKLOG.md))
 
 | Tuần | Việc | Xong khi |
 |---|---|---|
