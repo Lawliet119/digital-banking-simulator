@@ -1,0 +1,178 @@
+5369ac4dc8a9407f53bd457fbc2dcd3b42457cb7
+DBS-186 phần cloud: chạy thử LOCAL driver bằng máy chủ giả và hook giả. KHÔNG phải bằng chứng cloud (không có AWS, Cognito, ElastiCache thật).
+Node v24.22.2, 2026-11-21T23:22:38Z
+
+### 1. Ca đạt (flush + down, hook giả qua spawn)
+2026-11-21T23:22:38.858Z ... preflight: GET /health/ready (PostgreSQL ready, Redis up)
+2026-11-21T23:22:38.871Z PASS preflight 200, redis up (13 ms)
+2026-11-21T23:22:38.871Z ... prepare: khách A và B: hồ sơ, tài khoản, mở khóa nếu còn LOCKED
+2026-11-21T23:22:38.999Z hook sql-marker (prepare): thoát 0, 103 ms
+2026-11-21T23:22:39.001Z PASS prepare A 2 tài khoản, B 1, mở mới 3, mở khóa 0 (130 ms)
+2026-11-21T23:22:39.104Z hook sql-marker (flush): thoát 0, 102 ms
+2026-11-21T23:22:39.105Z ... flush.a-before: A GET /v1/accounts
+2026-11-21T23:22:39.107Z PASS flush.a-before 200 (2 ms)
+2026-11-21T23:22:39.107Z ... flush.b-before: B GET /v1/accounts
+2026-11-21T23:22:39.109Z PASS flush.b-before 200 (2 ms)
+2026-11-21T23:22:39.215Z hook operator-token (token): thoát 0, 102 ms
+2026-11-21T23:22:39.215Z ... flush.lock: operator khóa tài khoản đích của A
+2026-11-21T23:22:39.217Z PASS flush.lock 200 LOCKED (2 ms)
+2026-11-21T23:22:39.312Z hook sql-marker (flush): thoát 0, 94 ms
+2026-11-21T23:22:39.312Z ... flush.marker-after-lock: mốc SQL đổi sau khóa
+2026-11-21T23:22:39.313Z PASS flush.marker-after-lock mốc 2026-11-21 23:22:39.217000+00 (1 ms)
+2026-11-21T23:22:39.313Z ... flush.fault: --flush-cmd (Redis còn sống, mất khóa)
+2026-11-21T23:22:39.411Z hook flush (flush): thoát 0, 98 ms
+2026-11-21T23:22:39.411Z PASS flush.fault khóa revoked_at:* 1 -> 0 (98 ms)
+2026-11-21T23:22:39.411Z ... flush.next-request: A: request kế tiếp phải 401 SESSION_REVOKED
+2026-11-21T23:22:39.413Z PASS flush.next-request 401 SESSION_REVOKED 2 ms (2 ms)
+2026-11-21T23:22:39.419Z ... flush.marker-after-fault: mốc SQL còn nguyên sau flush
+2026-11-21T23:22:39.514Z hook sql-marker (flush): thoát 0, 94 ms
+2026-11-21T23:22:39.514Z PASS flush.marker-after-fault nguyên văn (95 ms)
+2026-11-21T23:22:39.515Z ... flush.bystander: B (không bị thu hồi) vẫn 200
+2026-11-21T23:22:39.517Z PASS flush.bystander 200 (2 ms)
+2026-11-21T23:22:39.520Z ... flush.invariants: bất biến DBS-69
+2026-11-21T23:22:39.618Z hook invariants (flush): thoát 0, 98 ms
+2026-11-21T23:22:39.619Z PASS flush.invariants (99 ms)
+2026-11-21T23:22:39.710Z hook operator-token (token): thoát 0, 91 ms
+2026-11-21T23:22:39.711Z ... down.unlock: operator mở khóa tài khoản đích (mở khóa không xóa mốc)
+2026-11-21T23:22:39.712Z PASS down.unlock 200 (1 ms)
+2026-11-21T23:22:41.316Z hook sql-marker (down): thoát 0, 91 ms
+2026-11-21T23:22:41.316Z ... down.old-token-after-unlock: token A cũ vẫn 401 SESSION_REVOKED sau mở khóa
+2026-11-21T23:22:41.317Z PASS down.old-token-after-unlock 401 SESSION_REVOKED (1 ms)
+2026-11-21T23:22:41.318Z ... down.marker-after-unlock: mốc SQL không đổi khi mở khóa
+2026-11-21T23:22:41.318Z PASS down.marker-after-unlock 2026-11-21 23:22:39.217000+00 (0 ms)
+2026-11-21T23:22:41.320Z ... down.fresh-token-before-lock: token A mới: GET /v1/accounts 200
+2026-11-21T23:22:41.321Z PASS down.fresh-token-before-lock 200 (1 ms)
+2026-11-21T23:22:41.324Z ... down.lock: operator khóa lần hai
+2026-11-21T23:22:41.418Z hook operator-token (token): thoát 0, 93 ms
+2026-11-21T23:22:41.420Z PASS down.lock 200 LOCKED (96 ms)
+2026-11-21T23:22:41.508Z hook sql-marker (down): thoát 0, 88 ms
+2026-11-21T23:22:41.508Z ... down.marker-after-lock: mốc SQL mới sau khóa lần hai
+2026-11-21T23:22:41.509Z PASS down.marker-after-lock 2026-11-21 23:22:41.420000+00 (1 ms)
+2026-11-21T23:22:41.510Z ... down.fault: --down-cmd rồi /health/ready phải báo redis degraded
+2026-11-21T23:22:41.605Z hook down (down): thoát 0, 94 ms
+2026-11-21T23:22:41.606Z PASS down.fault redis degraded sau 1 ms (96 ms)
+2026-11-21T23:22:41.607Z ... down.next-request: A: request kế tiếp phải 401 SESSION_REVOKED (SQL fallback)
+2026-11-21T23:22:41.608Z PASS down.next-request 401 SESSION_REVOKED 1 ms (1 ms)
+2026-11-21T23:22:41.612Z ... down.bystander: B vẫn 200 khi Redis chết (API còn sống)
+2026-11-21T23:22:41.613Z PASS down.bystander 200 (1 ms)
+2026-11-21T23:22:41.617Z ... down.marker-after-fault: mốc SQL còn nguyên khi Redis chết
+2026-11-21T23:22:41.708Z hook sql-marker (down): thoát 0, 91 ms
+2026-11-21T23:22:41.708Z PASS down.marker-after-fault nguyên văn (91 ms)
+2026-11-21T23:22:41.709Z ... down.recover: --up-cmd rồi /health/ready báo redis up (hai lần liên tiếp)
+2026-11-21T23:22:41.811Z hook up (down): thoát 0, 102 ms
+2026-11-21T23:22:41.867Z PASS down.recover 158 ms (158 ms)
+2026-11-21T23:22:41.867Z ... down.after-up: A vẫn 401 SESSION_REVOKED, B 200, mốc nguyên
+2026-11-21T23:22:41.964Z hook sql-marker (down): thoát 0, 94 ms
+2026-11-21T23:22:41.965Z PASS down.after-up 401, 200, mốc nguyên (98 ms)
+2026-11-21T23:22:41.965Z ... down.invariants: bất biến DBS-69
+2026-11-21T23:22:42.056Z hook invariants (down): thoát 0, 91 ms
+2026-11-21T23:22:42.056Z PASS down.invariants (91 ms)
+2026-11-21T23:22:42.057Z VERDICT: PASS (exit 0); báo cáo: F:\tmp\claude\demo186-xzw1Zf\out\report.json
+--- exit 0
+--- report.json: verdict=PASS failedStep=null steps=24 hooks=16
+--- thứ tự sự kiện ở máy chủ giả (không in token):
+    A POST /v1/customers/me -> 200
+    A GET /v1/accounts -> 200
+    A POST /v1/accounts -> 201
+    A GET /v1/accounts -> 200
+    A POST /v1/accounts -> 201
+    A GET /v1/accounts -> 200
+    B POST /v1/customers/me -> 200
+    B GET /v1/accounts -> 200
+    B POST /v1/accounts -> 201
+    B GET /v1/accounts -> 200
+    HOOK marker (prepare)
+    HOOK marker (flush)
+    A GET /v1/accounts -> 200
+    B GET /v1/accounts -> 200
+    HOOK token (token)
+    OP POST /v1/operator/accounts/:id/lock -> 200
+    HOOK marker (flush)
+    HOOK flush (flush)
+    A GET /v1/accounts -> 401
+    HOOK marker (flush)
+    B GET /v1/accounts -> 200
+    HOOK invariants (flush)
+    HOOK token (token)
+    OP POST /v1/operator/accounts/:id/unlock -> 200
+    HOOK marker (down)
+    A GET /v1/accounts -> 401
+    A GET /v1/accounts -> 200
+    HOOK token (token)
+    OP POST /v1/operator/accounts/:id/lock -> 200
+    HOOK marker (down)
+    HOOK down (down)
+    A GET /v1/accounts -> 401
+    B GET /v1/accounts -> 200
+    HOOK marker (down)
+    HOOK up (down)
+    A GET /v1/accounts -> 401
+    B GET /v1/accounts -> 200
+    HOOK marker (down)
+    HOOK invariants (down)
+
+### 2. Negative control: máy chủ giả bỏ SQL fallback (phải thoát khác 0)
+2026-11-21T23:22:42.207Z ... preflight: GET /health/ready (PostgreSQL ready, Redis up)
+2026-11-21T23:22:42.220Z PASS preflight 200, redis up (13 ms)
+2026-11-21T23:22:42.221Z ... prepare: khách A và B: hồ sơ, tài khoản, mở khóa nếu còn LOCKED
+2026-11-21T23:22:42.352Z hook sql-marker (prepare): thoát 0, 104 ms
+2026-11-21T23:22:42.352Z PASS prepare A 2 tài khoản, B 1, mở mới 3, mở khóa 0 (131 ms)
+2026-11-21T23:22:42.454Z hook sql-marker (flush): thoát 0, 101 ms
+2026-11-21T23:22:42.455Z ... flush.a-before: A GET /v1/accounts
+2026-11-21T23:22:42.457Z PASS flush.a-before 200 (2 ms)
+2026-11-21T23:22:42.457Z ... flush.b-before: B GET /v1/accounts
+2026-11-21T23:22:42.460Z PASS flush.b-before 200 (3 ms)
+2026-11-21T23:22:42.575Z hook operator-token (token): thoát 0, 111 ms
+2026-11-21T23:22:42.575Z ... flush.lock: operator khóa tài khoản đích của A
+2026-11-21T23:22:42.577Z PASS flush.lock 200 LOCKED (2 ms)
+2026-11-21T23:22:42.677Z hook sql-marker (flush): thoát 0, 100 ms
+2026-11-21T23:22:42.677Z ... flush.marker-after-lock: mốc SQL đổi sau khóa
+2026-11-21T23:22:42.678Z PASS flush.marker-after-lock mốc 2026-11-21 23:22:42.576000+00 (1 ms)
+2026-11-21T23:22:42.678Z ... flush.fault: --flush-cmd (Redis còn sống, mất khóa)
+2026-11-21T23:22:42.790Z hook flush (flush): thoát 0, 112 ms
+2026-11-21T23:22:42.791Z PASS flush.fault khóa revoked_at:* 1 -> 0 (113 ms)
+2026-11-21T23:22:42.791Z ... flush.next-request: A: request kế tiếp phải 401 SESSION_REVOKED
+2026-11-21T23:22:42.793Z FAIL flush.next-request: request kế tiếp của A sau flush: status 200 thay vì 401; errorCode (không có) thay vì SESSION_REVOKED; thiếu correlationId trong thân
+2026-11-21T23:22:42.798Z VERDICT: FAIL (exit 1), bước lỗi: flush.next-request; báo cáo: F:\tmp\claude\demo186-IuQdME\out\report.json
+--- exit 1
+--- report.json: verdict=FAIL failedStep=flush.next-request steps=8 hooks=5
+--- thứ tự sự kiện ở máy chủ giả (không in token):
+    A POST /v1/customers/me -> 200
+    A GET /v1/accounts -> 200
+    A POST /v1/accounts -> 201
+    A GET /v1/accounts -> 200
+    A POST /v1/accounts -> 201
+    A GET /v1/accounts -> 200
+    B POST /v1/customers/me -> 200
+    B GET /v1/accounts -> 200
+    B POST /v1/accounts -> 201
+    B GET /v1/accounts -> 200
+    HOOK marker (prepare)
+    HOOK marker (flush)
+    A GET /v1/accounts -> 200
+    B GET /v1/accounts -> 200
+    HOOK token (token)
+    OP POST /v1/operator/accounts/:id/lock -> 200
+    HOOK marker (flush)
+    HOOK flush (flush)
+    A GET /v1/accounts -> 200
+
+### 3. node --test (Windows, Node v24.22.2)
+ℹ tests 53
+ℹ suites 14
+ℹ pass 51
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 2
+### 4. node --test (Linux, Docker node:22-bookworm-slim, không có openssl nên 2 ca TLS bỏ qua; hai ca SIGINT chạy)
+# tests 53
+# suites 14
+# pass 51
+# fail 0
+# cancelled 0
+# skipped 2
+
+### 5. Đột biến tạm (không commit; khôi phục nguyên byte) để kiểm độ nhạy của test
+- assertRevoked thành no-op: TC-186-05 và TC-186-06 `pass 2 / fail 5` trên 7 test (cả hai negative control và ba ca 401 sai đều đỏ).
+- bỏ chờ redis degraded sau down và bỏ kiểm DRILL_REVOKED_KEYS_AFTER: TC-186-14 hai ca (flush không xóa gì, down không hiệu lực) đỏ.
+- hook nhận toàn bộ biến môi trường: ca «hook không thấy mật khẩu khách» đỏ.

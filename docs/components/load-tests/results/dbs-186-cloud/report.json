@@ -1,0 +1,988 @@
+{
+  "schema": 1,
+  "runId": "df7a1229",
+  "imageSha": "76b80bdbc6985738f49a366f0157e1afcc593564",
+  "startedAt": "2026-11-22T01:15:51.421Z",
+  "finishedAt": "2026-11-22T01:28:59.848Z",
+  "verdict": "PASS",
+  "exitCode": 0,
+  "failedStep": null,
+  "failure": null,
+  "scenarios": {
+    "flush": {
+      "markerBeforeLock": "2026-11-22T01:15:06.057635Z",
+      "aBefore": {
+        "status": 200,
+        "errorCode": null,
+        "correlationId": "783f08c0-12e4-428f-a717-8bdaae54ffb6",
+        "latencyMs": 263
+      },
+      "markerAfterLock": "2026-11-22T01:16:15.580236Z",
+      "revokedKeys": {
+        "before": 1,
+        "after": 0
+      },
+      "nextRequest": {
+        "status": 401,
+        "errorCode": "SESSION_REVOKED",
+        "correlationId": "d677b15e-d19f-4ea1-a48d-3670126373e6",
+        "latencyMs": 169
+      },
+      "markerAfterFault": "2026-11-22T01:16:15.580236Z",
+      "markerUnchanged": true,
+      "bystander": {
+        "status": 200,
+        "errorCode": null,
+        "correlationId": "52b20713-b8a7-4d37-a5ee-5a21b0ca0339",
+        "latencyMs": 186
+      }
+    },
+    "down": {
+      "oldTokenAfterUnlock": {
+        "status": 401,
+        "errorCode": "SESSION_REVOKED",
+        "correlationId": "09fea2ab-c88f-4834-9c54-ddf247ae08d8",
+        "latencyMs": 137
+      },
+      "markerBeforeLock": "2026-11-22T01:16:15.580236Z",
+      "freshTokenBeforeLock": {
+        "status": 200,
+        "errorCode": null,
+        "correlationId": "0559e131-8728-4399-9bbe-33e4c970fa6c",
+        "latencyMs": 144
+      },
+      "freshTokenIatMinusFloor": 38,
+      "markerAfterLock": "2026-11-22T01:16:56.053159Z",
+      "redisDegradedAfterMs": 218,
+      "nextRequest": {
+        "status": 401,
+        "errorCode": "SESSION_REVOKED",
+        "correlationId": "913696db-8bbf-424f-b823-66760e659470",
+        "latencyMs": 312
+      },
+      "bystander": {
+        "status": 200,
+        "errorCode": null,
+        "correlationId": "ce64cbf2-c499-4fde-bb6f-d6873d464d68",
+        "latencyMs": 431
+      },
+      "markerAfterFault": "2026-11-22T01:16:56.053159Z",
+      "upHookMs": 82866,
+      "recoveryMs": 84251,
+      "afterUp": {
+        "status": 401,
+        "errorCode": "SESSION_REVOKED",
+        "correlationId": "51e78bac-cc8e-438e-932a-9bbe548162f2",
+        "latencyMs": 172
+      },
+      "markerUnchanged": true
+    }
+  },
+  "prepare": {
+    "redisHealth": {
+      "before": "up"
+    },
+    "openedAccounts": 0,
+    "unlockedAccounts": 1,
+    "accountsA": 2,
+    "accountsB": 1,
+    "markerInitial": "2026-11-22T01:15:06.057635Z"
+  },
+  "bl222": {
+    "status": "CAUGHT",
+    "path": "suy ra từ hook, không quan sát trực tiếp",
+    "hit": {
+      "status": "CAUGHT",
+      "attempts": 4,
+      "sameSecond": 5,
+      "plusOne": 2,
+      "laterSecond": 2,
+      "earlierSecond": 1,
+      "violations": 0,
+      "samples": [
+        {
+          "i": 1,
+          "kind": "login",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 892,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true
+        },
+        {
+          "i": 1,
+          "kind": "plus",
+          "relation": "later",
+          "iatMinusFloor": 1,
+          "loginToLockMs": 892,
+          "status": 200,
+          "errorCode": null,
+          "ok": true
+        },
+        {
+          "i": 2,
+          "kind": "login",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 552,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true
+        },
+        {
+          "i": 2,
+          "kind": "plus",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 552,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true
+        },
+        {
+          "i": 3,
+          "kind": "login",
+          "relation": "earlier",
+          "iatMinusFloor": -1,
+          "loginToLockMs": 536,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true
+        },
+        {
+          "i": 3,
+          "kind": "plus",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 536,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true
+        },
+        {
+          "i": 4,
+          "kind": "login",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 517,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true
+        },
+        {
+          "i": 4,
+          "kind": "plus",
+          "relation": "later",
+          "iatMinusFloor": 1,
+          "loginToLockMs": 517,
+          "status": 200,
+          "errorCode": null,
+          "ok": true
+        }
+      ]
+    },
+    "flush": {
+      "status": "CAUGHT",
+      "attempts": 4,
+      "sameSecond": 4,
+      "plusOne": 4,
+      "laterSecond": 4,
+      "earlierSecond": 0,
+      "violations": 0,
+      "samples": [
+        {
+          "i": 1,
+          "kind": "login",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 535,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true
+        },
+        {
+          "i": 1,
+          "kind": "plus",
+          "relation": "later",
+          "iatMinusFloor": 1,
+          "loginToLockMs": 535,
+          "status": 200,
+          "errorCode": null,
+          "ok": true
+        },
+        {
+          "i": 2,
+          "kind": "login",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 542,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true
+        },
+        {
+          "i": 2,
+          "kind": "plus",
+          "relation": "later",
+          "iatMinusFloor": 1,
+          "loginToLockMs": 542,
+          "status": 200,
+          "errorCode": null,
+          "ok": true
+        },
+        {
+          "i": 3,
+          "kind": "login",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 498,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true
+        },
+        {
+          "i": 3,
+          "kind": "plus",
+          "relation": "later",
+          "iatMinusFloor": 1,
+          "loginToLockMs": 498,
+          "status": 200,
+          "errorCode": null,
+          "ok": true
+        },
+        {
+          "i": 4,
+          "kind": "login",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 505,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true
+        },
+        {
+          "i": 4,
+          "kind": "plus",
+          "relation": "later",
+          "iatMinusFloor": 1,
+          "loginToLockMs": 505,
+          "status": 200,
+          "errorCode": null,
+          "ok": true
+        }
+      ]
+    },
+    "down": {
+      "status": "CAUGHT",
+      "attempts": 2,
+      "sameSecond": 2,
+      "plusOne": 2,
+      "laterSecond": 2,
+      "earlierSecond": 0,
+      "violations": 0,
+      "samples": [
+        {
+          "i": 1,
+          "kind": "login",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 540,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true,
+          "upHookMs": 82802,
+          "recoveryMs": 84183
+        },
+        {
+          "i": 1,
+          "kind": "plus",
+          "relation": "later",
+          "iatMinusFloor": 1,
+          "loginToLockMs": 540,
+          "status": 200,
+          "errorCode": null,
+          "ok": true
+        },
+        {
+          "i": 2,
+          "kind": "login",
+          "relation": "same",
+          "iatMinusFloor": 0,
+          "loginToLockMs": 616,
+          "status": 401,
+          "errorCode": "SESSION_REVOKED",
+          "ok": true,
+          "upHookMs": 83318,
+          "recoveryMs": 84679
+        },
+        {
+          "i": 2,
+          "kind": "plus",
+          "relation": "later",
+          "iatMinusFloor": 1,
+          "loginToLockMs": 616,
+          "status": 200,
+          "errorCode": null,
+          "ok": true
+        }
+      ]
+    }
+  },
+  "invariants": [
+    {
+      "after": "flush",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "after": "down",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "after": "boundary",
+      "exit": 0,
+      "status": "PASS"
+    }
+  ],
+  "hooks": [
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2334,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "prepare",
+      "exitCode": 0,
+      "durationMs": 5432,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "flush",
+      "exitCode": 0,
+      "durationMs": 5459,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2532,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "flush",
+      "exitCode": 0,
+      "durationMs": 5501,
+      "timedOut": false
+    },
+    {
+      "name": "flush",
+      "phase": "flush",
+      "exitCode": 0,
+      "durationMs": 5607,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "flush",
+      "exitCode": 0,
+      "durationMs": 5601,
+      "timedOut": false
+    },
+    {
+      "name": "invariants",
+      "phase": "flush",
+      "exitCode": 0,
+      "durationMs": 9363,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2221,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "down",
+      "exitCode": 0,
+      "durationMs": 5530,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2355,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "down",
+      "exitCode": 0,
+      "durationMs": 5396,
+      "timedOut": false
+    },
+    {
+      "name": "down",
+      "phase": "down",
+      "exitCode": 0,
+      "durationMs": 86802,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "down",
+      "exitCode": 0,
+      "durationMs": 5581,
+      "timedOut": false
+    },
+    {
+      "name": "up",
+      "phase": "down",
+      "exitCode": 0,
+      "durationMs": 82865,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "down",
+      "exitCode": 0,
+      "durationMs": 5493,
+      "timedOut": false
+    },
+    {
+      "name": "invariants",
+      "phase": "down",
+      "exitCode": 0,
+      "durationMs": 9270,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2497,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2801,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "boundary-hit",
+      "exitCode": 0,
+      "durationMs": 5556,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2403,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2281,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "boundary-hit",
+      "exitCode": 0,
+      "durationMs": 5522,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2276,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2298,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "boundary-hit",
+      "exitCode": 0,
+      "durationMs": 5508,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2264,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2229,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "boundary-hit",
+      "exitCode": 0,
+      "durationMs": 5470,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2202,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2191,
+      "timedOut": false
+    },
+    {
+      "name": "flush",
+      "phase": "boundary-flush",
+      "exitCode": 0,
+      "durationMs": 5446,
+      "timedOut": false
+    },
+    {
+      "name": "flush",
+      "phase": "boundary-flush-probe",
+      "exitCode": 0,
+      "durationMs": 5460,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "boundary-flush",
+      "exitCode": 0,
+      "durationMs": 5506,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2211,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2206,
+      "timedOut": false
+    },
+    {
+      "name": "flush",
+      "phase": "boundary-flush",
+      "exitCode": 0,
+      "durationMs": 5592,
+      "timedOut": false
+    },
+    {
+      "name": "flush",
+      "phase": "boundary-flush-probe",
+      "exitCode": 0,
+      "durationMs": 5397,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "boundary-flush",
+      "exitCode": 0,
+      "durationMs": 5459,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2225,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2251,
+      "timedOut": false
+    },
+    {
+      "name": "flush",
+      "phase": "boundary-flush",
+      "exitCode": 0,
+      "durationMs": 5497,
+      "timedOut": false
+    },
+    {
+      "name": "flush",
+      "phase": "boundary-flush-probe",
+      "exitCode": 0,
+      "durationMs": 5529,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "boundary-flush",
+      "exitCode": 0,
+      "durationMs": 5456,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2259,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2163,
+      "timedOut": false
+    },
+    {
+      "name": "flush",
+      "phase": "boundary-flush",
+      "exitCode": 0,
+      "durationMs": 5449,
+      "timedOut": false
+    },
+    {
+      "name": "flush",
+      "phase": "boundary-flush-probe",
+      "exitCode": 0,
+      "durationMs": 5420,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "boundary-flush",
+      "exitCode": 0,
+      "durationMs": 5442,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2207,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2292,
+      "timedOut": false
+    },
+    {
+      "name": "down",
+      "phase": "boundary-down",
+      "exitCode": 0,
+      "durationMs": 90389,
+      "timedOut": false
+    },
+    {
+      "name": "up",
+      "phase": "boundary-down",
+      "exitCode": 0,
+      "durationMs": 82802,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "boundary-down",
+      "exitCode": 0,
+      "durationMs": 5541,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2503,
+      "timedOut": false
+    },
+    {
+      "name": "operator-token",
+      "phase": "token",
+      "exitCode": 0,
+      "durationMs": 2329,
+      "timedOut": false
+    },
+    {
+      "name": "down",
+      "phase": "boundary-down",
+      "exitCode": 0,
+      "durationMs": 90516,
+      "timedOut": false
+    },
+    {
+      "name": "up",
+      "phase": "boundary-down",
+      "exitCode": 0,
+      "durationMs": 83318,
+      "timedOut": false
+    },
+    {
+      "name": "sql-marker",
+      "phase": "boundary-down",
+      "exitCode": 0,
+      "durationMs": 5449,
+      "timedOut": false
+    },
+    {
+      "name": "invariants",
+      "phase": "boundary",
+      "exitCode": 0,
+      "durationMs": 9115,
+      "timedOut": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "preflight",
+      "title": "GET /health/ready (PostgreSQL ready, Redis up)",
+      "status": "PASS",
+      "durationMs": 325
+    },
+    {
+      "id": "prepare",
+      "title": "khách A và B: hồ sơ, tài khoản, mở khóa nếu còn LOCKED",
+      "status": "PASS",
+      "durationMs": 11974
+    },
+    {
+      "id": "flush.a-before",
+      "title": "A GET /v1/accounts",
+      "status": "PASS",
+      "durationMs": 264
+    },
+    {
+      "id": "flush.b-before",
+      "title": "B GET /v1/accounts",
+      "status": "PASS",
+      "durationMs": 562
+    },
+    {
+      "id": "flush.lock",
+      "title": "operator khóa tài khoản đích của A",
+      "status": "PASS",
+      "durationMs": 188
+    },
+    {
+      "id": "flush.marker-after-lock",
+      "title": "mốc SQL đổi sau khóa",
+      "status": "PASS",
+      "durationMs": 0
+    },
+    {
+      "id": "flush.fault",
+      "title": "--flush-cmd (Redis còn sống, mất khóa)",
+      "status": "PASS",
+      "durationMs": 5608
+    },
+    {
+      "id": "flush.next-request",
+      "title": "A: request kế tiếp phải 401 SESSION_REVOKED",
+      "status": "PASS",
+      "durationMs": 169
+    },
+    {
+      "id": "flush.marker-after-fault",
+      "title": "mốc SQL còn nguyên sau flush",
+      "status": "PASS",
+      "durationMs": 5601
+    },
+    {
+      "id": "flush.bystander",
+      "title": "B (không bị thu hồi) vẫn 200",
+      "status": "PASS",
+      "durationMs": 593
+    },
+    {
+      "id": "flush.invariants",
+      "title": "bất biến DBS-69",
+      "status": "PASS",
+      "durationMs": 9363
+    },
+    {
+      "id": "down.unlock",
+      "title": "operator mở khóa tài khoản đích (mở khóa không xóa mốc)",
+      "status": "PASS",
+      "durationMs": 154
+    },
+    {
+      "id": "down.old-token-after-unlock",
+      "title": "token A cũ vẫn 401 SESSION_REVOKED sau mở khóa",
+      "status": "PASS",
+      "durationMs": 137
+    },
+    {
+      "id": "down.marker-after-unlock",
+      "title": "mốc SQL không đổi khi mở khóa",
+      "status": "PASS",
+      "durationMs": 0
+    },
+    {
+      "id": "down.fresh-token-before-lock",
+      "title": "token A mới: GET /v1/accounts 200",
+      "status": "PASS",
+      "durationMs": 145
+    },
+    {
+      "id": "down.lock",
+      "title": "operator khóa lần hai",
+      "status": "PASS",
+      "durationMs": 2507
+    },
+    {
+      "id": "down.marker-after-lock",
+      "title": "mốc SQL mới sau khóa lần hai",
+      "status": "PASS",
+      "durationMs": 1
+    },
+    {
+      "id": "down.fault",
+      "title": "--down-cmd rồi /health/ready phải báo redis degraded",
+      "status": "PASS",
+      "durationMs": 87175
+    },
+    {
+      "id": "down.next-request",
+      "title": "A: request kế tiếp phải 401 SESSION_REVOKED (SQL fallback)",
+      "status": "PASS",
+      "durationMs": 537
+    },
+    {
+      "id": "down.bystander",
+      "title": "B vẫn 200 khi Redis chết (API còn sống)",
+      "status": "PASS",
+      "durationMs": 431
+    },
+    {
+      "id": "down.marker-after-fault",
+      "title": "mốc SQL còn nguyên khi Redis chết",
+      "status": "PASS",
+      "durationMs": 5581
+    },
+    {
+      "id": "down.recover",
+      "title": "--up-cmd rồi /health/ready báo redis up (hai lần liên tiếp)",
+      "status": "PASS",
+      "durationMs": 84251
+    },
+    {
+      "id": "down.after-up",
+      "title": "A vẫn 401 SESSION_REVOKED, B 200, mốc nguyên",
+      "status": "PASS",
+      "durationMs": 6356
+    },
+    {
+      "id": "down.invariants",
+      "title": "bất biến DBS-69",
+      "status": "PASS",
+      "durationMs": 9272
+    },
+    {
+      "id": "bl222.hit.1",
+      "title": "lần thử 1/4: đăng nhập rồi khóa ngay; token +1; request sau fault",
+      "status": "PASS",
+      "durationMs": 13435
+    },
+    {
+      "id": "bl222.hit.2",
+      "title": "lần thử 2/4: đăng nhập rồi khóa ngay; token +1; request sau fault",
+      "status": "PASS",
+      "durationMs": 11890
+    },
+    {
+      "id": "bl222.hit.3",
+      "title": "lần thử 3/4: đăng nhập rồi khóa ngay; token +1; request sau fault",
+      "status": "PASS",
+      "durationMs": 12039
+    },
+    {
+      "id": "bl222.hit.4",
+      "title": "lần thử 4/4: đăng nhập rồi khóa ngay; token +1; request sau fault",
+      "status": "PASS",
+      "durationMs": 11932
+    },
+    {
+      "id": "bl222.flush.1",
+      "title": "lần thử 1/4: đăng nhập rồi khóa ngay; token +1; request sau fault",
+      "status": "PASS",
+      "durationMs": 22903
+    },
+    {
+      "id": "bl222.flush.2",
+      "title": "lần thử 2/4: đăng nhập rồi khóa ngay; token +1; request sau fault",
+      "status": "PASS",
+      "durationMs": 23123
+    },
+    {
+      "id": "bl222.flush.3",
+      "title": "lần thử 3/4: đăng nhập rồi khóa ngay; token +1; request sau fault",
+      "status": "PASS",
+      "durationMs": 23049
+    },
+    {
+      "id": "bl222.flush.4",
+      "title": "lần thử 4/4: đăng nhập rồi khóa ngay; token +1; request sau fault",
+      "status": "PASS",
+      "durationMs": 22785
+    },
+    {
+      "id": "bl222.down.1",
+      "title": "lần thử 1/2: đăng nhập rồi khóa ngay; token +1; request sau fault",
+      "status": "PASS",
+      "durationMs": 187968
+    },
+    {
+      "id": "bl222.down.2",
+      "title": "lần thử 2/2: đăng nhập rồi khóa ngay; token +1; request sau fault",
+      "status": "PASS",
+      "durationMs": 188643
+    },
+    {
+      "id": "bl222.invariants",
+      "title": "bất biến DBS-69",
+      "status": "PASS",
+      "durationMs": 9116
+    }
+  ],
+  "cleanup": {
+    "up": "NOT_NEEDED",
+    "redisUp": null
+  },
+  "notes": []
+}

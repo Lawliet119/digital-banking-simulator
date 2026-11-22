@@ -1,0 +1,134 @@
+2026-11-22T01:15:51.423Z ... preflight: GET /health/ready (PostgreSQL ready, Redis up)
+2026-11-22T01:15:51.748Z PASS preflight 200, redis up (325 ms)
+2026-11-22T01:15:51.749Z ... prepare: khách A và B: hồ sơ, tài khoản, mở khóa nếu còn LOCKED
+2026-11-22T01:15:55.275Z hook operator-token (token): thoát 0, 2334 ms
+2026-11-22T01:16:03.723Z hook sql-marker (prepare): thoát 0, 5432 ms
+2026-11-22T01:16:03.723Z PASS prepare A 2 tài khoản, B 1, mở mới 0, mở khóa 1 (11974 ms)
+2026-11-22T01:16:09.183Z hook sql-marker (flush): thoát 0, 5459 ms
+2026-11-22T01:16:09.569Z ... flush.a-before: A GET /v1/accounts
+2026-11-22T01:16:09.833Z PASS flush.a-before 200 (264 ms)
+2026-11-22T01:16:09.834Z ... flush.b-before: B GET /v1/accounts
+2026-11-22T01:16:10.396Z PASS flush.b-before 200 (562 ms)
+2026-11-22T01:16:12.929Z hook operator-token (token): thoát 0, 2532 ms
+2026-11-22T01:16:12.929Z ... flush.lock: operator khóa tài khoản đích của A
+2026-11-22T01:16:13.117Z PASS flush.lock 200 LOCKED (188 ms)
+2026-11-22T01:16:18.619Z hook sql-marker (flush): thoát 0, 5501 ms
+2026-11-22T01:16:18.619Z ... flush.marker-after-lock: mốc SQL đổi sau khóa
+2026-11-22T01:16:18.619Z PASS flush.marker-after-lock mốc 2026-11-22T01:16:15.580236Z (0 ms)
+2026-11-22T01:16:18.620Z ... flush.fault: --flush-cmd (Redis còn sống, mất khóa)
+2026-11-22T01:16:24.227Z hook flush (flush): thoát 0, 5607 ms
+2026-11-22T01:16:24.228Z PASS flush.fault khóa revoked_at:* 1 -> 0 (5608 ms)
+2026-11-22T01:16:24.228Z ... flush.next-request: A: request kế tiếp phải 401 SESSION_REVOKED
+2026-11-22T01:16:24.397Z PASS flush.next-request 401 SESSION_REVOKED 169 ms (169 ms)
+2026-11-22T01:16:24.398Z ... flush.marker-after-fault: mốc SQL còn nguyên sau flush
+2026-11-22T01:16:29.999Z hook sql-marker (flush): thoát 0, 5601 ms
+2026-11-22T01:16:29.999Z PASS flush.marker-after-fault nguyên văn (5601 ms)
+2026-11-22T01:16:29.999Z ... flush.bystander: B (không bị thu hồi) vẫn 200
+2026-11-22T01:16:30.592Z PASS flush.bystander 200 (593 ms)
+2026-11-22T01:16:30.593Z ... flush.invariants: bất biến DBS-69
+2026-11-22T01:16:39.956Z hook invariants (flush): thoát 0, 9363 ms
+2026-11-22T01:16:39.956Z PASS flush.invariants (9363 ms)
+2026-11-22T01:16:42.178Z hook operator-token (token): thoát 0, 2221 ms
+2026-11-22T01:16:42.179Z ... down.unlock: operator mở khóa tài khoản đích (mở khóa không xóa mốc)
+2026-11-22T01:16:42.333Z PASS down.unlock 200 (154 ms)
+2026-11-22T01:16:50.368Z hook sql-marker (down): thoát 0, 5530 ms
+2026-11-22T01:16:50.368Z ... down.old-token-after-unlock: token A cũ vẫn 401 SESSION_REVOKED sau mở khóa
+2026-11-22T01:16:50.505Z PASS down.old-token-after-unlock 401 SESSION_REVOKED (137 ms)
+2026-11-22T01:16:50.506Z ... down.marker-after-unlock: mốc SQL không đổi khi mở khóa
+2026-11-22T01:16:50.506Z PASS down.marker-after-unlock 2026-11-22T01:16:15.580236Z (0 ms)
+2026-11-22T01:16:50.932Z ... down.fresh-token-before-lock: token A mới: GET /v1/accounts 200
+2026-11-22T01:16:51.077Z PASS down.fresh-token-before-lock 200 (145 ms)
+2026-11-22T01:16:51.077Z ... down.lock: operator khóa lần hai
+2026-11-22T01:16:53.432Z hook operator-token (token): thoát 0, 2355 ms
+2026-11-22T01:16:53.584Z PASS down.lock 200 LOCKED (2507 ms)
+2026-11-22T01:16:58.981Z hook sql-marker (down): thoát 0, 5396 ms
+2026-11-22T01:16:58.981Z ... down.marker-after-lock: mốc SQL mới sau khóa lần hai
+2026-11-22T01:16:58.982Z PASS down.marker-after-lock 2026-11-22T01:16:56.053159Z (1 ms)
+2026-11-22T01:16:59.346Z ... down.fault: --down-cmd rồi /health/ready phải báo redis degraded
+2026-11-22T01:18:26.302Z hook down (down): thoát 0, 86802 ms
+2026-11-22T01:18:26.521Z PASS down.fault redis degraded sau 218 ms (87175 ms)
+2026-11-22T01:18:26.522Z ... down.next-request: A: request kế tiếp phải 401 SESSION_REVOKED (SQL fallback)
+2026-11-22T01:18:27.059Z PASS down.next-request 401 SESSION_REVOKED 312 ms (537 ms)
+2026-11-22T01:18:27.060Z ... down.bystander: B vẫn 200 khi Redis chết (API còn sống)
+2026-11-22T01:18:27.491Z PASS down.bystander 200 (431 ms)
+2026-11-22T01:18:27.492Z ... down.marker-after-fault: mốc SQL còn nguyên khi Redis chết
+2026-11-22T01:18:33.073Z hook sql-marker (down): thoát 0, 5581 ms
+2026-11-22T01:18:33.073Z PASS down.marker-after-fault nguyên văn (5581 ms)
+2026-11-22T01:18:33.074Z ... down.recover: --up-cmd rồi /health/ready báo redis up (hai lần liên tiếp)
+2026-11-22T01:19:55.939Z hook up (down): thoát 0, 82865 ms
+2026-11-22T01:19:57.325Z PASS down.recover 84251 ms (84251 ms)
+2026-11-22T01:19:57.326Z ... down.after-up: A vẫn 401 SESSION_REVOKED, B 200, mốc nguyên
+2026-11-22T01:20:03.681Z hook sql-marker (down): thoát 0, 5493 ms
+2026-11-22T01:20:03.682Z PASS down.after-up 401, 200, mốc nguyên (6356 ms)
+2026-11-22T01:20:03.682Z ... down.invariants: bất biến DBS-69
+2026-11-22T01:20:12.953Z hook invariants (down): thoát 0, 9270 ms
+2026-11-22T01:20:12.954Z PASS down.invariants (9272 ms)
+2026-11-22T01:20:12.955Z ... bl222.hit.1: lần thử 1/4: đăng nhập rồi khóa ngay; token +1; request sau fault
+2026-11-22T01:20:15.452Z hook operator-token (token): thoát 0, 2497 ms
+2026-11-22T01:20:18.430Z hook operator-token (token): thoát 0, 2801 ms
+2026-11-22T01:20:26.389Z hook sql-marker (boundary-hit): thoát 0, 5556 ms
+2026-11-22T01:20:26.390Z PASS bl222.hit.1 đăng nhập: 0 -> 401; +1: 1 -> 200 (đăng nhập đến khóa 892 ms) (13435 ms)
+2026-11-22T01:20:26.390Z ... bl222.hit.2: lần thử 2/4: đăng nhập rồi khóa ngay; token +1; request sau fault
+2026-11-22T01:20:28.794Z hook operator-token (token): thoát 0, 2403 ms
+2026-11-22T01:20:31.242Z hook operator-token (token): thoát 0, 2281 ms
+2026-11-22T01:20:38.280Z hook sql-marker (boundary-hit): thoát 0, 5522 ms
+2026-11-22T01:20:38.280Z PASS bl222.hit.2 đăng nhập: 0 -> 401; +1: 0 -> 401 (đăng nhập đến khóa 552 ms) (11890 ms)
+2026-11-22T01:20:38.281Z ... bl222.hit.3: lần thử 3/4: đăng nhập rồi khóa ngay; token +1; request sau fault
+2026-11-22T01:20:40.557Z hook operator-token (token): thoát 0, 2276 ms
+2026-11-22T01:20:43.036Z hook operator-token (token): thoát 0, 2298 ms
+2026-11-22T01:20:50.319Z hook sql-marker (boundary-hit): thoát 0, 5508 ms
+2026-11-22T01:20:50.320Z PASS bl222.hit.3 đăng nhập: -1 -> 401; +1: 0 -> 401 (đăng nhập đến khóa 536 ms) (12039 ms)
+2026-11-22T01:20:50.320Z ... bl222.hit.4: lần thử 4/4: đăng nhập rồi khóa ngay; token +1; request sau fault
+2026-11-22T01:20:52.585Z hook operator-token (token): thoát 0, 2264 ms
+2026-11-22T01:20:54.974Z hook operator-token (token): thoát 0, 2229 ms
+2026-11-22T01:21:02.251Z hook sql-marker (boundary-hit): thoát 0, 5470 ms
+2026-11-22T01:21:02.252Z PASS bl222.hit.4 đăng nhập: 0 -> 401; +1: 1 -> 200 (đăng nhập đến khóa 517 ms) (11932 ms)
+2026-11-22T01:21:02.252Z BL-222 hit: bắt được 5 mẫu cùng giây và 2 mẫu đúng +1 giây trong 4 lần thử, quy tắc đúng
+2026-11-22T01:21:02.252Z ... bl222.flush.1: lần thử 1/4: đăng nhập rồi khóa ngay; token +1; request sau fault
+2026-11-22T01:21:04.455Z hook operator-token (token): thoát 0, 2202 ms
+2026-11-22T01:21:06.793Z hook operator-token (token): thoát 0, 2191 ms
+2026-11-22T01:21:13.877Z hook flush (boundary-flush): thoát 0, 5446 ms
+2026-11-22T01:21:19.501Z hook flush (boundary-flush-probe): thoát 0, 5460 ms
+2026-11-22T01:21:25.155Z hook sql-marker (boundary-flush): thoát 0, 5506 ms
+2026-11-22T01:21:25.155Z PASS bl222.flush.1 đăng nhập: 0 -> 401; +1: 1 -> 200 (đăng nhập đến khóa 535 ms) (22903 ms)
+2026-11-22T01:21:25.156Z ... bl222.flush.2: lần thử 2/4: đăng nhập rồi khóa ngay; token +1; request sau fault
+2026-11-22T01:21:27.367Z hook operator-token (token): thoát 0, 2211 ms
+2026-11-22T01:21:29.716Z hook operator-token (token): thoát 0, 2206 ms
+2026-11-22T01:21:37.070Z hook flush (boundary-flush): thoát 0, 5592 ms
+2026-11-22T01:21:42.636Z hook flush (boundary-flush-probe): thoát 0, 5397 ms
+2026-11-22T01:21:48.278Z hook sql-marker (boundary-flush): thoát 0, 5459 ms
+2026-11-22T01:21:48.279Z PASS bl222.flush.2 đăng nhập: 0 -> 401; +1: 1 -> 200 (đăng nhập đến khóa 542 ms) (23123 ms)
+2026-11-22T01:21:48.280Z ... bl222.flush.3: lần thử 3/4: đăng nhập rồi khóa ngay; token +1; request sau fault
+2026-11-22T01:21:50.505Z hook operator-token (token): thoát 0, 2225 ms
+2026-11-22T01:21:52.912Z hook operator-token (token): thoát 0, 2251 ms
+2026-11-22T01:21:59.984Z hook flush (boundary-flush): thoát 0, 5497 ms
+2026-11-22T01:22:05.715Z hook flush (boundary-flush-probe): thoát 0, 5529 ms
+2026-11-22T01:22:11.328Z hook sql-marker (boundary-flush): thoát 0, 5456 ms
+2026-11-22T01:22:11.329Z PASS bl222.flush.3 đăng nhập: 0 -> 401; +1: 1 -> 200 (đăng nhập đến khóa 498 ms) (23049 ms)
+2026-11-22T01:22:11.330Z ... bl222.flush.4: lần thử 4/4: đăng nhập rồi khóa ngay; token +1; request sau fault
+2026-11-22T01:22:13.589Z hook operator-token (token): thoát 0, 2259 ms
+2026-11-22T01:22:15.890Z hook operator-token (token): thoát 0, 2163 ms
+2026-11-22T01:22:22.944Z hook flush (boundary-flush): thoát 0, 5449 ms
+2026-11-22T01:22:28.525Z hook flush (boundary-flush-probe): thoát 0, 5420 ms
+2026-11-22T01:22:34.114Z hook sql-marker (boundary-flush): thoát 0, 5442 ms
+2026-11-22T01:22:34.115Z PASS bl222.flush.4 đăng nhập: 0 -> 401; +1: 1 -> 200 (đăng nhập đến khóa 505 ms) (22785 ms)
+2026-11-22T01:22:34.116Z BL-222 flush: bắt được 4 mẫu cùng giây và 4 mẫu đúng +1 giây trong 4 lần thử, quy tắc đúng
+2026-11-22T01:22:34.116Z ... bl222.down.1: lần thử 1/2: đăng nhập rồi khóa ngay; token +1; request sau fault
+2026-11-22T01:22:36.323Z hook operator-token (token): thoát 0, 2207 ms
+2026-11-22T01:22:38.761Z hook operator-token (token): thoát 0, 2292 ms
+2026-11-22T01:24:11.023Z hook down (boundary-down): thoát 0, 90389 ms
+2026-11-22T01:25:35.162Z hook up (boundary-down): thoát 0, 82802 ms
+2026-11-22T01:25:42.084Z hook sql-marker (boundary-down): thoát 0, 5541 ms
+2026-11-22T01:25:42.084Z PASS bl222.down.1 đăng nhập: 0 -> 401; +1: 1 -> 200 (đăng nhập đến khóa 540 ms) (187968 ms)
+2026-11-22T01:25:42.086Z ... bl222.down.2: lần thử 2/2: đăng nhập rồi khóa ngay; token +1; request sau fault
+2026-11-22T01:25:44.589Z hook operator-token (token): thoát 0, 2503 ms
+2026-11-22T01:25:47.100Z hook operator-token (token): thoát 0, 2329 ms
+2026-11-22T01:27:19.254Z hook down (boundary-down): thoát 0, 90516 ms
+2026-11-22T01:28:43.919Z hook up (boundary-down): thoát 0, 83318 ms
+2026-11-22T01:28:50.729Z hook sql-marker (boundary-down): thoát 0, 5449 ms
+2026-11-22T01:28:50.729Z PASS bl222.down.2 đăng nhập: 0 -> 401; +1: 1 -> 200 (đăng nhập đến khóa 616 ms) (188643 ms)
+2026-11-22T01:28:50.731Z BL-222 down: bắt được 2 mẫu cùng giây và 2 mẫu đúng +1 giây trong 2 lần thử, quy tắc đúng
+2026-11-22T01:28:50.731Z ... bl222.invariants: bất biến DBS-69
+2026-11-22T01:28:59.846Z hook invariants (boundary): thoát 0, 9115 ms
+2026-11-22T01:28:59.847Z PASS bl222.invariants (9116 ms)
+2026-11-22T01:28:59.854Z VERDICT: PASS (exit 0); báo cáo: F:\tmp\claude\claude\b40605182e8b32f5\b017cc55-f429-42d3-b6fb-8850e48fab32\scratchpad\run167\out\drill\report.json
