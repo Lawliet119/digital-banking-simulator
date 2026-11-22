@@ -1,0 +1,98 @@
+SHA nền: 73c497ae (nhánh xếp chồng trên DBS-182 và DBS-179; không đổi code)
+
+### M-189-01
+$ PYTHONUTF8=1 python docs/features/screenshots/DBS-189/verify-numbers.py
+PASS p95 12/60/120 = 42 / 60 / 218 | 02-ket-qua-tai-cloud-2026-11-21.md | chuyển p95 42 / 60 / 218 ms, p99 106 / 153 / 703 ms
+PASS đọc p95 ≤ 61 ms | 02-ket-qua-tai-cloud-2026-11-21.md | đọc p95 ≤ 61 ms
+PASS hot-account 299 timeout 1,66% | 02-ket-qua-tai-cloud-2026-11-21.md | 299 timeout 2 giây (1,66% > 0,1%)
+PASS hot-account p95 824 | 02-ket-qua-tai-cloud-2026-11-21.md | p95 824 ms
+PASS 218,2 / 703,2 | 03-ket-qua-toi-uu-p95-2026-11-21.md | 36,7 / 218,2 / 703,2
+PASS 262,4 / 850,9 | 03-ket-qua-toi-uu-p95-2026-11-21.md | 31,9 / **262,4** / **850,9**
+PASS 5/16 khung, đỉnh 678 | 03-ket-qua-toi-uu-p95-2026-11-21.md | **5 / 16 (đỉnh 678)**
+PASS 3/15 khung, đỉnh 641 | 03-ket-qua-toi-uu-p95-2026-11-21.md | 3 / 15 (đỉnh 641)
+PASS stress 304,1 / 996,8 | 03-ket-qua-toi-uu-p95-2026-11-21.md | **304,1 / 996,8**
+PASS stress trước 784, 43 lỗi 0,119% | 03-ket-qua-toi-uu-p95-2026-11-21.md | 43 / 0,119% / 0
+PASS hot-account lượt 1 p95 121, 4 timeout | 03-ket-qua-toi-uu-p95-2026-11-21.md | **4 (0,022%)**
+PASS hot-account lượt 2 1.881 timeout 10,4% | 03-ket-qua-toi-uu-p95-2026-11-21.md | **1.881 (10,4%)**
+PASS duplicate 600 × 201, 60 × 422, p95 81 | 03-ket-qua-toi-uu-p95-2026-11-21.md | 600 × 201 cùng thân và 60 × 422
+PASS BL-418 p95 91,9 | 04-ket-qua-bl-418-2026-11-22.md | p95 **91,9 ms**
+PASS BL-418 p99 585,5 | 04-ket-qua-bl-418-2026-11-22.md | p99 585,5 ms
+PASS BL-418 9 timeout 0,0083% | 04-ket-qua-bl-418-2026-11-22.md | 9 lỗi timeout (0,0083%)
+PASS BL-418 2 khung vượt 442 và 377 | 04-ket-qua-bl-418-2026-11-22.md | (442 và 377 ms)
+PASS BL-418 chờ khóa 22,4 → 9,8 | 04-ket-qua-bl-418-2026-11-22.md | 22,4 → **9,8 ms**
+PASS BL-418 stress 119,9; 7 lỗi 0,019% | 04-ket-qua-bl-418-2026-11-22.md | 7 lỗi (0,019%)
+PASS BL-418 plateau 180 0,13% (71) | 04-ket-qua-bl-418-2026-11-22.md | 0,13% lỗi (71)
+PASS BL-418 plateau 240 68,9% | 04-ket-qua-bl-418-2026-11-22.md | 68,9%
+PASS Redis tắt p95 119 ms | 05-ket-qua-redis-2026-11-22.md | p95 chuyển tiền 119 ms
+PASS Redis chậm 203 và 289 | 05-ket-qua-redis-2026-11-22.md | p95 chuyển tiền 203 và 289 ms
+PASS Redis chậm đọc 138 và 149 | 05-ket-qua-redis-2026-11-22.md | p95 đọc 138 và 149 ms
+PASS Redis chậm history 142 và 154 | 05-ket-qua-redis-2026-11-22.md | 142 và **154 ms (vượt 4 ms)**
+PASS Redis breaker mở 10 giây | 05-ket-qua-redis-2026-11-22.md | Breaker mở trong 10 giây đầu
+PASS hồi phục 42,5 giây (BL-424) | BACKLOG.md | **42,5 giây**
+PASS DBS-185 131 s / 137 s | P4-incident-table.md | RUNNING sau **131 s**, service ổn định sau **137 s**
+PASS DBS-185 ECS gỡ target 25 s, 502 | P4-incident-table.md | ECS gỡ target sau 25 s
+PASS DBS-184 worker alarm 9 phút 5 giây | P4-incident-table.md | **9 phút 5 giây**
+PASS DBS-184 worker cờ 43 s; alarm OK 4 phút 39 giây | P4-incident-table.md | cờ 65 MEDIUM sau **43 s**
+PASS DBS-184 (b) 2 s và 190 s | P4-incident-table.md | sau **2 s**; alarm `dbs-dev-risk-dlq-not-empty` `ALARM` sau 
+PASS DBS-156 40 s, 197 s | P4-incident-table.md | Sau 40 s `/health/ready` 503; sau 197 s
+PASS DBS-156 127 s, 267 s | P4-incident-table.md | `/health/ready` 200 sau 127 s, tổng 267 s
+PASS DBS-186 312 ms | P4-incident-table.md | (312 ms, đường SQL fallback)
+PASS DBS-186 recovery 84,3 s | P4-incident-table.md | sau **84,3 s**
+PASS DBS-181 14,7 s | manual-test.txt | Outage window (first 503 -> last 503): 14.7s
+PASS DBS-181 12,7 s | manual-test.txt | Outage window (first 503 -> last 503): 12.7s
+PASS SLO ≥ 99,9%, 43 phút | 03_HIGH_LEVEL_ARCHITECTURE.md | ≥ 99,9% | 30 ngày (ngân sách lỗi ≈ 43 phút)
+PASS SLO p95 < 300, p99 < 1 s | 03_HIGH_LEVEL_ARCHITECTURE.md | p95 < 300 ms, p99 < 1 s ở ≤ 120 RPS
+PASS SLO đọc < 150 | 03_HIGH_LEVEL_ARCHITECTURE.md | | < 150 ms | 5 phút
+PASS SLO cờ < 5 giây | 03_HIGH_LEVEL_ARCHITECTURE.md | | < 5 giây | 15 phút
+PASS SLO outbox < 10 giây | 03_HIGH_LEVEL_ARCHITECTURE.md | | < 10 giây | 1 phút
+PASS SLO cờ/1.000 ≤ 20 | 03_HIGH_LEVEL_ARCHITECTURE.md | | ≤ 20 | 24 giờ trượt
+PASS dashboard 33 widget | DBS-178-dashboard-complete.md | 33 widget: 7 `text`, 1 `alarm`, 25 `metric`
+PASS chi phí 8,2642 | 2026-11-22.md | **8,2642**
+PASS credit còn 191,2947 | 2026-11-22.md | 191,2947
+PASS dự báo 16,8232 | 2026-11-22.md | 16,8232
+PASS 24/7 dev 113,23 | 02-capacity-cost.md | **113,23**
+PASS 24/7 production 203,55 | 02-capacity-cost.md | **203,55**
+PASS HA 80,14 | 02-capacity-cost.md | **80,14**
+PASS giờ dev 0,1394 / production 0,2752 | 02-capacity-cost.md | **0,1394**
+PASS dự báo 6,15–7,30 | 02-capacity-cost.md | 6,15–7,30
+PASS phiên 3 giờ production 1,03 | 02-capacity-cost.md | | 1,03 |
+PASS bản ghép có 42 / 60
+PASS bản ghép có 218,2 / 703,2
+PASS bản ghép có 262,4 / 850,9
+PASS bản ghép có 91,9 / 585,5
+PASS bản ghép có 0,0083 %
+PASS bản ghép có 2/15 khung
+PASS bản ghép có 9,8 ms
+PASS bản ghép có 119,9 ms
+PASS bản ghép có 1.881 timeout (10,4 %)
+PASS bản ghép có 203 và 289
+PASS bản ghép có 154 ms
+PASS bản ghép có 42,5 giây
+PASS bản ghép có 131 s
+PASS bản ghép có 137 s
+PASS bản ghép có 9 phút 5 giây
+PASS bản ghép có 84,3 s
+PASS bản ghép có 14,7 s và 12,7 s
+PASS bản ghép có ≥ 99,9 %
+PASS bản ghép có 33 widget
+PASS bản ghép có 8,2642 USD
+PASS bản ghép có 191,2947
+PASS bản ghép có 16,8232
+PASS bản ghép có 113,23
+PASS bản ghép có 203,55
+PASS bản ghép có 80,14
+PASS bản ghép có 6,15–7,30
+PASS bản ghép có 0,1394
+PASS bản ghép có 0,2752
+KET LUAN: mọi số khớp nguồn
+exit=0
+
+### M-189-02 ca trượt: bản sao đổi 91,9 thành 92,9
+$ P4_BUNDLE=<bản sao> python verify-numbers.py
+FAIL bản ghép có 91,9 / 585,5
+KET LUAN: 1 chỗ lệch
+exit=1
+
+### M-189-03 và M-189-05
+520 files checked, 0 broken link(s)
+107 dòng, 0 lỗi
