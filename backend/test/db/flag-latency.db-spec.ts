@@ -13,15 +13,31 @@ import { createTempDatabase, migrate, type TempDatabase } from '../support/temp-
 installSilentRootLogger();
 
 /* eslint-disable @typescript-eslint/no-require-imports -- the tool is a CommonJS file shared with the k6 runner */
-interface Lag { p50: number | null; p95: number | null; p99: number | null; max: number | null }
+interface Lag {
+  p50: number | null;
+  p95: number | null;
+  p99: number | null;
+  max: number | null;
+}
 interface Win {
-  transfers: number; decided: number; undecided: number; flagged: number; flagP95UnderSlo: boolean | null;
-  decisionLagMs: Lag; flagLagMs: Lag; modes: unknown[]; perMinute: { transfers: number; flagged: number }[];
+  transfers: number;
+  decided: number;
+  undecided: number;
+  flagged: number;
+  flagP95UnderSlo: boolean | null;
+  decisionLagMs: Lag;
+  flagLagMs: Lag;
+  modes: unknown[];
+  perMinute: { transfers: number; flagged: number }[];
   sourceAccountRows30d: { source: string; rows30d: number }[];
 }
 type Db = { query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }> };
 const lib = require('../../../load-tests/lib/flag-latency.cjs') as {
-  measure: (c: Db, w: unknown[], o: { settleSeconds: number }) => Promise<{ backlog: boolean; undecidedAfterSettle: number; windows: Win[] }>;
+  measure: (
+    c: Db,
+    w: unknown[],
+    o: { settleSeconds: number },
+  ) => Promise<{ backlog: boolean; undecidedAfterSettle: number; windows: Win[] }>;
   measureWindow: (c: Db, w: unknown) => Promise<Win>;
 };
 const { measure, measureWindow } = lib;
@@ -55,7 +71,11 @@ describe('DBS-174 flag latency tool on PostgreSQL', () => {
     await migrate(db.url);
     app = await startDepositApp(db.url);
     fx = riskFixtures(app, await app.issuer.token('operator', { sub: randomUUID() }));
-    source = await new DataSource({ type: 'postgres', url: db.url, extra: { max: 10 } }).initialize();
+    source = await new DataSource({
+      type: 'postgres',
+      url: db.url,
+      extra: { max: 10 },
+    }).initialize();
     parts = buildRiskConsumer(source);
   });
   afterAll(async () => {
@@ -74,7 +94,8 @@ describe('DBS-174 flag latency tool on PostgreSQL', () => {
     // BRD AC-9.1: a new account sending 20M out of 21M is R3 + R6 = 65, MEDIUM -> flag.
     const flaggedId = await fx.transfer(an.token, an.accounts[0], binh.accounts[0], '20000000');
     const cleanId = await fx.transfer(an.token, an.accounts[0], binh.accounts[0], '1000');
-    for (const id of [flaggedId, cleanId]) await parts.consumer.handle(await eventFor(db.runner, id), message);
+    for (const id of [flaggedId, cleanId])
+      await parts.consumer.handle(await eventFor(db.runner, id), message);
 
     const report = await measure(client(), [wide()], { settleSeconds: 0 });
     const [w] = report.windows;
@@ -133,7 +154,9 @@ describe('DBS-174 flag latency tool on PostgreSQL', () => {
     expect(w.sourceAccountRows30d[0]).toEqual({ source: 'nguon-1', rows30d: n });
     expect(JSON.stringify(w)).not.toContain(account);
     // The window end is a cut: rows created after it are not in the 30-day count.
-    const [{ first }] = await q<{ first: Date }>(`SELECT min(created_at) AS first FROM transfers WHERE type = 'TRANSFER'`);
+    const [{ first }] = await q<{ first: Date }>(
+      `SELECT min(created_at) AS first FROM transfers WHERE type = 'TRANSFER'`,
+    );
     const early = await measureWindow(client(), {
       label: 'early',
       from: new Date(first.getTime() - 1000).toISOString(),
