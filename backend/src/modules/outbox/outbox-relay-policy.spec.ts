@@ -1,5 +1,9 @@
-import type { TransactionService } from '@database/transaction.service';
-import type { SqsClient } from '@libs/sqs';
+import { ConfigModule } from '@nestjs/config';
+import { Test, type TestingModule } from '@nestjs/testing';
+import { TransactionService } from '@database/transaction.service';
+import { relayConfig } from '@config/relay.config';
+import { sqsConfig } from '@config/sqs.config';
+import { SqsClient } from '@libs/sqs';
 import {
   classifySendError,
   OutboxRelayService,
@@ -25,6 +29,7 @@ const http = (status: number) =>
 function relayOver(
   rows: { id: string; event_type: string; payload: object }[],
   send: SqsClient['send'],
+  tuning?: { batchSize: number; idleDelayMs: number },
 ) {
   const marked: string[][] = [];
   const selects: unknown[][] = [];
@@ -44,6 +49,7 @@ function relayOver(
     tx as unknown as TransactionService,
     { send } as unknown as SqsClient,
     config,
+    tuning,
   );
   return { relay, marked, selects };
 }
@@ -64,6 +70,88 @@ describe('DBS-91 relay failure policy', () => {
     expect(() => relayDelayMs({ published: 0, failure: transient })).toThrow(transient);
     // A permanent failure is parked, so the next poll does not meet it again: no back-off needed.
     expect(relayDelayMs({ published: 0, failure: http(400) })).toBe(RELAY_IDLE_DELAY_MS);
+  });
+
+  it('TC-175-02 the pace follows the tuning: a batch counts as full at the configured size, idle sleeps the configured delay', () => {
+    expect(relayDelayMs({ published: 24 }, { batchSize: 25, idleDelayMs: 100 })).toBe(100);
+    expect(relayDelayMs({ published: 25 }, { batchSize: 25, idleDelayMs: 100 })).toBe(0);
+    expect(relayDelayMs({ published: 25 }, { idleDelayMs: 100 })).toBe(100); // default size 100: not full
+    expect(relayDelayMs({ published: 0 }, { batchSize: 25 })).toBe(RELAY_IDLE_DELAY_MS);
+    expect(relayDelayMs({ published: 3, truncated: true }, { idleDelayMs: 100 })).toBe(0);
+  });
+
+  it('TC-175-03 relayOnce selects the configured batch size, and the default when the relay is built without limits', async () => {
+    const send = jest.fn().mockResolvedValue(undefined) as unknown as SqsClient['send'];
+    const make = (relayBatchSize?: number) =>
+      relayOver(
+        events(0),
+        send,
+        relayBatchSize === undefined ? undefined : { batchSize: relayBatchSize, idleDelayMs: 100 },
+      );
+    const tuned = make(25);
+    await tuned.relay.relayOnce();
+    expect(tuned.selects[0][0]).toBe(25);
+    const plain = make();
+    await plain.relay.relayOnce();
+    expect(plain.selects[0][0]).toBe(RELAY_BATCH_SIZE);
+    const explicit = make(25);
+    await explicit.relay.relayOnce(7);
+    expect(explicit.selects[0][0]).toBe(7); // an explicit limit (tests, manual drivers) still wins
+  });
+
+  it('TC-175-08 the loop sleeps the configured delay and treats the configured size as full', () => {
+    const { relay } = relayOver(events(0), jest.fn(), {
+      batchSize: 25,
+      idleDelayMs: 100,
+    });
+    expect(relay.nextDelayMs({ published: 24 })).toBe(100);
+    expect(relay.nextDelayMs({ published: 25 })).toBe(0);
+    const plain = relayOver(events(0), jest.fn()).relay;
+    expect(plain.nextDelayMs({ published: 99 })).toBe(RELAY_IDLE_DELAY_MS);
+    expect(plain.nextDelayMs({ published: 100 })).toBe(0);
+  });
+
+  it('TC-175-09 Nest hands relayConfig to the relay: OUTBOX_RELAY_* in the environment reach the poll and the pace', async () => {
+    const saved = { ...process.env };
+    process.env = {
+      ...saved,
+      NODE_ENV: 'test',
+      DATABASE_URL: 'postgres://localhost:5432/not_opened',
+      REDIS_URL: 'redis://localhost:6379',
+      SQS_RISK_QUEUE_URL: 'http://localhost:9324/000000000000/risk-events',
+      SQS_NOTIFICATION_QUEUE_URL: 'http://localhost:9324/000000000000/notification-events',
+      OUTBOX_RELAY_BATCH_SIZE: '25',
+      OUTBOX_RELAY_IDLE_DELAY_MS: '100',
+    };
+    const selects: unknown[][] = [];
+    const manager = {
+      query: (sql: string, args: unknown[]) => {
+        if (sql.startsWith('SELECT')) selects.push(args);
+        return Promise.resolve([]);
+      },
+    };
+    let ref: TestingModule | undefined;
+    try {
+      ref = await Test.createTestingModule({
+        imports: [ConfigModule.forFeature(relayConfig)],
+        providers: [
+          OutboxRelayService,
+          {
+            provide: TransactionService,
+            useValue: { run: (cb: (m: typeof manager) => unknown) => cb(manager) },
+          },
+          { provide: SqsClient, useValue: { send: jest.fn() } },
+          { provide: sqsConfig.KEY, useValue: config },
+        ],
+      }).compile();
+      const relay = ref.get(OutboxRelayService);
+      await relay.relayOnce();
+      expect(selects[0][0]).toBe(25);
+      expect(relay.nextDelayMs({ published: 24 })).toBe(100);
+    } finally {
+      process.env = saved;
+      await ref?.close();
+    }
   });
 
   it('classifies HTTP 4xx (except 429) as permanent and everything else as transient', () => {

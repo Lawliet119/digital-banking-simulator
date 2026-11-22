@@ -38,8 +38,8 @@ Tham số chốt cho v1:
 
 | Tham số | Giá trị | Lý do |
 |---|---|---|
-| Chu kỳ poll của relay khi rảnh | 500 ms | Đạt mục tiêu "≤ 1 giây" với dư địa; tinh chỉnh ở DBS-175 |
-| Kích thước lô relay | 100 sự kiện | 120 RPS × 20% ghi ≈ 25 sự kiện/giây, một lô đủ cho vài giây tồn |
+| Chu kỳ poll của relay khi rảnh | 500 ms | Đạt mục tiêu "≤ 1 giây" với dư địa; đặt được bằng `OUTBOX_RELAY_IDLE_DELAY_MS` (50..1000, DBS-175, mặc định không đổi) |
+| Kích thước lô relay | 100 sự kiện | 120 RPS × 20% ghi ≈ 25 sự kiện/giây, một lô đủ cho vài giây tồn; đặt được bằng `OUTBOX_RELAY_BATCH_SIZE` (1..500, DBS-175, mặc định không đổi) |
 | Visibility timeout | 30 giây | Lớn hơn nhiều thời gian xử lý một sự kiện (mục tiêu < 50 ms) |
 | Long polling (`WaitTimeSeconds`) | 20 giây | Giảm số lần gọi rỗng, giảm chi phí |
 | Chuyển DLQ sau | 5 lần nhận (`maxReceiveCount = 5`) | Đủ cho lỗi tạm thời; message sai schema thì consumer chuyển DLQ ngay |

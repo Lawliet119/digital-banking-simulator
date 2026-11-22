@@ -39,6 +39,31 @@ variable "reconciliation_interval_ms" {
   }
 }
 
+# DBS-175: chu kỳ poll khi rảnh và cỡ lô của outbox relay (chạy trong worker). Mặc định là giá trị code vẫn dùng (500 ms, 100 sự kiện):
+# không đặt thì hành vi không đổi. Mỗi lần đổi là một lần triển khai lại worker (task definition mới); số đo ở
+# docs/components/load-tests/06-ket-qua-thoi-gian-toi-co-2026-11-22.md.
+variable "relay_idle_delay_ms" {
+  description = "Chu kỳ poll của outbox relay khi lô chưa đầy (OUTBOX_RELAY_IDLE_DELAY_MS). 50 đến 1000 ms (ADR-03: poll ≤ 1 giây); 500 là mặc định của ứng dụng."
+  type        = number
+  default     = 500
+
+  validation {
+    condition     = var.relay_idle_delay_ms >= 50 && var.relay_idle_delay_ms <= 1000 && var.relay_idle_delay_ms == floor(var.relay_idle_delay_ms)
+    error_message = "relay_idle_delay_ms must be an integer between 50 and 1000 (DBS-175, validation.schema.ts)."
+  }
+}
+
+variable "relay_batch_size" {
+  description = "Số sự kiện tối đa mỗi lô của outbox relay (OUTBOX_RELAY_BATCH_SIZE). 1 đến 500; 100 là mặc định của ứng dụng (ADR-03)."
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.relay_batch_size >= 1 && var.relay_batch_size <= 500 && var.relay_batch_size == floor(var.relay_batch_size)
+    error_message = "relay_batch_size must be an integer between 1 and 500 (DBS-175, validation.schema.ts)."
+  }
+}
+
 # Biến môi trường không bí mật. TRUST_PROXY_HOPS và COGNITO_* chỉ để qua kiểm tra cấu hình (validation.schema.ts bắt
 # buộc ở staging/production với mọi role), worker không có HTTP. Không đặt SQS_ENDPOINT (AWS thật) và không có PORT.
 # DB_USER, DB_PASSWORD (role dbs_worker, BL-103), REDIS_AUTH_TOKEN đi qua `secrets`; ECS đọc bằng execution role
@@ -87,6 +112,9 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "RISK_AI_EGRESS_APPROVED", value = tostring(var.risk_ai_egress_approved) },
       # DBS-123: job đối soát mỗi 60 s để MISMATCH tới alarm trong 5 phút.
       { name = "RECONCILIATION_INTERVAL_MS", value = tostring(var.reconciliation_interval_ms) },
+      # DBS-175: poll và lô của relay.
+      { name = "OUTBOX_RELAY_IDLE_DELAY_MS", value = tostring(var.relay_idle_delay_ms) },
+      { name = "OUTBOX_RELAY_BATCH_SIZE", value = tostring(var.relay_batch_size) },
       ], var.risk_ai_egress_approved ? [
       { name = "RISK_AI_POLICY_REVISION", value = tostring(var.risk_ai_policy_revision) },
       { name = "RISK_AI_DAILY_REQUEST_CAP", value = tostring(var.risk_ai_daily_request_cap) },

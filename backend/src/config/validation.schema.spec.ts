@@ -131,6 +131,50 @@ describe('validateEnv', () => {
     });
   });
 
+  describe('TC-175-01 outbox relay poll and batch (DBS-175)', () => {
+    it('defaults to the values the relay always had: 500 ms idle delay and 100 events', () => {
+      expect(validateEnv(base)).toMatchObject({
+        OUTBOX_RELAY_IDLE_DELAY_MS: 500,
+        OUTBOX_RELAY_BATCH_SIZE: 100,
+      });
+    });
+
+    it('takes numeric strings inside the bounds, edges included', () => {
+      expect(
+        validateEnv({ ...base, OUTBOX_RELAY_IDLE_DELAY_MS: '50', OUTBOX_RELAY_BATCH_SIZE: '500' }),
+      ).toMatchObject({ OUTBOX_RELAY_IDLE_DELAY_MS: 50, OUTBOX_RELAY_BATCH_SIZE: 500 });
+      expect(
+        validateEnv({ ...base, OUTBOX_RELAY_IDLE_DELAY_MS: '1000', OUTBOX_RELAY_BATCH_SIZE: '1' }),
+      ).toMatchObject({ OUTBOX_RELAY_IDLE_DELAY_MS: 1000, OUTBOX_RELAY_BATCH_SIZE: 1 });
+    });
+
+    it('reads numeric strings the way Joi converts them: 1e2 is 100', () => {
+      expect(validateEnv({ ...base, OUTBOX_RELAY_BATCH_SIZE: '1e2' })).toMatchObject({
+        OUTBOX_RELAY_BATCH_SIZE: 100,
+      });
+    });
+
+    it.each([
+      ['OUTBOX_RELAY_IDLE_DELAY_MS', '49'],
+      ['OUTBOX_RELAY_IDLE_DELAY_MS', '1001'], // ADR-03: the poll is at most 1 s
+      ['OUTBOX_RELAY_IDLE_DELAY_MS', ''],
+      ['OUTBOX_RELAY_IDLE_DELAY_MS', '0'],
+      ['OUTBOX_RELAY_IDLE_DELAY_MS', '250.5'],
+      ['OUTBOX_RELAY_BATCH_SIZE', '0'],
+      ['OUTBOX_RELAY_BATCH_SIZE', '501'],
+      ['OUTBOX_RELAY_BATCH_SIZE', '-1'],
+      ['OUTBOX_RELAY_BATCH_SIZE', 'abc'],
+    ])('rejects %s=%s and names only that key', (key, value) => {
+      try {
+        validateEnv({ ...base, [key]: value });
+        throw new Error('expected a ConfigValidationError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ConfigValidationError);
+        expect((error as ConfigValidationError).invalidKeys).toEqual([key]);
+      }
+    });
+  });
+
   describe('TC-92-06 outbox and processed-events retention (DBS-92)', () => {
     it('defaults both to 7 days', () => {
       expect(validateEnv(base)).toMatchObject({
