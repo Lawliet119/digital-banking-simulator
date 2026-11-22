@@ -51,7 +51,7 @@
 
 ### 4.1 Redis tắt: breaker mở nhanh, giao dịch không đổi
 
-Log `rate limit skipped … (lý do)` của api (Logs Insights `/dbs/dev/api`, [`logq-down.txt`](results/redis-evidence/logq-down.txt)): `pre` 9 `TIMEOUT`; 10 giây đầu của sự cố 1.581 `CIRCUIT_OPEN` và chỉ 3 `TIMEOUT` (breaker mở sau khoảng 10 lệnh thất bại mỗi task); 5 phút còn lại 41.359 `CIRCUIT_OPEN`, 113 `TIMEOUT` (lệnh thử half-open mỗi 5 giây). `redis_fallback_total` của api lên khoảng 16.000 mỗi 5 phút và của worker khoảng 2.900 (ảnh `docs/components/observability/screenshots/120rps-redis-off/14-redis-fallback.png`, PR DBS-178). Mất Redis nghĩa là mất rate limit và cache thu hồi phiên (đọc `users.sessions_revoked_at` từ SQL, [DBS-186](../../features/DBS-186-redis-revocation-drill.md)); chuyển tiền không phụ thuộc. Đường đọc vẫn nhanh (p95 57 ms).
+Log `rate limit skipped … (lý do)` của api (Logs Insights `/dbs/dev/api`, [`logq-down.txt`](results/redis-evidence/logq-down.txt)): `pre` 9 `TIMEOUT`; 10 giây đầu của sự cố 1.581 `CIRCUIT_OPEN` và chỉ 3 `TIMEOUT` (breaker mở sau khoảng 10 lệnh thất bại mỗi task); 5 phút còn lại 41.359 `CIRCUIT_OPEN`, 113 `TIMEOUT` (lệnh thử half-open mỗi 5 giây). `redis_fallback_total` của api lên khoảng 16.000 mỗi điểm 60 giây và của worker khoảng 2.900 (period 60 của widget) (ảnh `docs/components/observability/screenshots/120rps-redis-off/14-redis-fallback.png`, PR DBS-178). Mất Redis nghĩa là mất rate limit và cache thu hồi phiên (đọc `users.sessions_revoked_at` từ SQL, [DBS-186](../../features/DBS-186-redis-revocation-drill.md)); chuyển tiền không phụ thuộc. Đường đọc vẫn nhanh (p95 57 ms).
 
 **Hồi phục chậm hơn mạng.** Sau khi luật deny gỡ, api chỉ báo `redis: "up"` ổn định sau **42,5 giây** (mẫu không-`up` cuối cùng, `health.jsonl`): cửa sổ `recovery` còn 5.788 `CIRCUIT_OPEN`. Kết nối TCP đang treo chỉ sống lại ở lần truyền lại kế tiếp và breaker giữ mở tới lúc đó. Dưới ngưỡng 60 giây đã chốt, nên không thành BL; số của lượt chậm là 0 và 5,8 giây. Đáng ghi vì sự cố dài hơn (hàng chục phút) giãn thời gian truyền lại của Linux (tối đa ≈ 15 phút), có thể kéo dài hơn: [BL-424](../../BACKLOG.md).
 
@@ -87,7 +87,7 @@ Ba trong bốn lượt có một lần đứng hình ở cửa sổ `pre`, trư�
 - **BL-419** (cập nhật): thêm số §4.3.
 - **BL-420**: đóng (đã chạy thật, lỗi đường dẫn đã sửa).
 - **BL-424** (mới): breaker và kết nối TCP sau khi mạng thông lại: hồi phục 42,5 giây ở sự cố 5 phút; đo ở sự cố dài hơn, cân nhắc ngắt và nối lại kết nối khi breaker mở hoặc `TCP_USER_TIMEOUT`.
-- **BL-425** (mới): không có metric nào chứng minh breaker mở (`redis_fallback_total` tăng ở mọi lần thất bại, không nhãn lý do, không đo trạng thái breaker); hiện chỉ đếm được bằng Logs Insights; thêm nhãn `Reason` hoặc gauge trạng thái.
+- **BL-425** (mới): không có metric nào chứng minh breaker mở (`redis_fallback_total` tăng ở mọi lần thất bại, không nhãn lý do, không đo trạng thái breaker); hiện chỉ đếm được bằng Logs Insights; thêm nhãn `Reason` hoặc gauge trạng thái. Cùng BL: alarm `dbs-dev-redis-fallback` (Sum > 0, hai điểm liên tiếp) kêu lúc thử tắt Redis (OK → ALARM 06:59:53 +07) và **không về OK** tới hết phiên, vì ở 120 RPS luôn có vài `TIMEOUT` mỗi vài phút ngay cả khi Redis khỏe (lượt đối chứng: 4 đến 6 mỗi 4 phút; [`alarm-history.txt`](results/redis-evidence/alarm-history.txt)): ngưỡng `> 0` không phân biệt Redis khỏe với Redis lỗi khi có tải.
 
 ## 7. Chi phí và thời gian
 
