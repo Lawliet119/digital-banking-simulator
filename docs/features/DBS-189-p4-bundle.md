@@ -40,7 +40,7 @@ Không đổi code, Terraform hay ADR. File mới: `docs/deliverables/P4-product
 | ID | Truy vết | Lớp | Given · When · Then |
 |---|---|---|---|
 | TC-189-01 | DoD 1 | đối chiếu | bản ghép có đủ năm mục: báo cáo tải, bảng sự cố, SLO, dashboard, chi phí · đọc mục lục §1 · mỗi mục có phần và link nguồn |
-| TC-189-02 | DoD 2 | script | `verify-numbers.py` · chạy · mọi số của bản ghép có nguyên văn trong tài liệu gốc (thoát 0) |
+| TC-189-02 | DoD 2 | script | `verify-numbers.py` · chạy · mọi cặp «số trong bản ghép ↔ chuỗi trong nguồn» của `CHECKS` (các số ở §1–§6 nêu trong `CHECKS`), bảng SLO nguyên văn và số ảnh đều khớp (thoát 0); các số không nằm trong `CHECKS` (ví dụ 30 phút ở §6.3) chỉ được đối chiếu mắt ở domain review |
 | TC-189-03 | DoD 2 | script (có thể trượt) | đổi ba số trong bản sao của bản ghép, **không** nằm trong danh sách kiểm cũ (121 ms, 39,99, 1.881) · chạy lại · thoát 1, in dòng `FAIL` cho từng cặp |
 | TC-189-04 | DoD 1, 2 | đối chiếu | các chỗ nguồn ghi «chưa» (p95 từng phút, hot-account ≥ 40.000 dòng, failover RDS chưa xác nhận, RTO Single-AZ, chi phí chưa đối chiếu) xuất hiện ở §7 và ở §1/§3/§6 với cùng mức khẳng định |
 | TC-189-05 | DoD 1 | đối chiếu | mỗi hàng của bảng sự cố §3 có số khớp `P4-incident-table.md` (đã thêm hàng DBS-167 tắt, chậm và DBS-181 trong PR này) hoặc báo cáo 05 |
@@ -51,15 +51,15 @@ Không đổi code, Terraform hay ADR. File mới: `docs/deliverables/P4-product
 
 | Bước | Việc làm | Kết quả mong đợi |
 |---|---|---|
-| M-189-01 | `PYTHONUTF8=1 python docs/features/screenshots/DBS-189/verify-numbers.py` | mọi dòng `PASS`, `KET LUAN: mọi số khớp nguồn`, thoát 0 |
-| M-189-02 | sao bản ghép ra tệp tạm, đổi `121 ms` thành `112 ms`, `39,99` thành `49,99`, `1.881 timeout` thành `1.188 timeout`, chạy `P4_BUNDLE=<bản sao> python verify-numbers.py` | thoát 1, có các dòng `FAIL` cho từng cặp bị đổi |
+| M-189-01 | `PYTHONUTF8=1 python docs/features/screenshots/DBS-189/verify-numbers.py` | mọi dòng `PASS`, `KET LUAN: mọi cặp khớp`, thoát 0 |
+| M-189-02 | sao bản ghép ra tệp tạm, đổi `121 ms` thành `112 ms`, `39,99` thành `49,99`, `1.881 timeout` thành `1.188 timeout`, chạy `P4_BUNDLE=<bản sao> python verify-numbers.py` | thoát 1, có các dòng `FAIL` cho từng cặp bị đổi (5 FAIL); bản sao thứ hai đổi 8,2642, 191,29, 43,2 phút, 91,9 ms, «timeout 2 giây»: 6 FAIL |
 | M-189-03 | mở từng link nguồn ở §2–§6 (bằng `check-doc-links.mjs`) | 0 link và anchor hỏng |
 | M-189-04 | đối chiếu mắt §3 với `P4-incident-table.md` và báo cáo 05 | mỗi số có trong nguồn, không dòng nào mạnh hơn nguồn |
 | M-189-05 | `check-backlog.mjs` | 0 lỗi |
 
 ## 6. Domain review (AI)
 
-**Reviewer:** subagent general-purpose, model opus, effort high, 2026-11-22 · **Vòng 1:** 17 phát hiện (should-fix 9, minor 8), verdict REVISE · [trả lời nguyên văn](screenshots/DBS-189/domain-review.md) · **Vòng 2:** không chạy; chỉ sửa theo phát hiện và chạy lại `verify-numbers.py` (107 PASS), `check-doc-links`, `check-backlog`
+**Reviewer:** subagent general-purpose, model opus, effort high, 2026-11-22 · **Vòng 1:** 17 phát hiện (should-fix 9, minor 8), verdict REVISE · [trả lời nguyên văn](screenshots/DBS-189/domain-review.md) · **Vòng 2 (diff review cuối, opus high):** 10 phát hiện (should-fix 4, minor 6), verdict REVISE, đã sửa hết: defense-q7 §1 và §4 còn câu «local», script chưa phủ §1 và một số số ở §3 và §6.2, «0 và 5,8 giây» (reviewer đúng), «không do event loop/GC» gán nhầm cho BL-418, `meetsDoD3` ở §1, 3/4 lượt gồm lượt tắt, 0,3439, header ngày, M-189-01 kỳ vọng và TC-189-06
 
 | # | Mức | Phát hiện | Xử lý |
 |---|---|---|---|
@@ -75,7 +75,7 @@ Không đổi code, Terraform hay ADR. File mới: `docs/deliverables/P4-product
 | 10 | should-fix | feature doc còn chỗ trống | đã sửa: §6, §8, §9, README, status |
 | 11 | minor | `meetsDoD3 false` chỉ do 1 dropped | đã sửa ở §2.1 |
 | 12 | minor | 137 s đo với cấu hình tạm | đã sửa ở §3 |
-| 13 | minor | «1–3 giây» và thời gian hồi phục «0 và 5,8 giây» | sửa «timeout 2 giây, tới 3 giây, ở cửa sổ `pre`»; **không dùng «0 và 5,8 giây»**: không tìm thấy trong báo cáo 05 (chỉ có «5.788» `CIRCUIT_OPEN`) |
+| 13 | minor | «1–3 giây» và thời gian hồi phục «0 và 5,8 giây» | đã sửa: «timeout 2 giây, tới 3 giây, ở cửa sổ `pre`» và `redis: up` sau 0 và 5,8 giây ở hai lượt chậm (05 §4.1). Lần đầu tôi bác sai phát hiện này (grep cắt dòng ở 300 ký tự); reviewer vòng cuối đúng |
 | 14 | minor | thiếu «mất phục vụ ≈ 290 s» | đã sửa ở §3 |
 | 15 | minor | 1,03 đặt sai cột «Production» | đã sửa: cột riêng «cấu hình đo + máy tải» |
 | 16 | minor | tên alarm ngắn, thiếu link, link xếp chồng | đã sửa: `dbs-dev-redis-fallback`, link BL; PR phải merge sau PR của DBS-182 |
@@ -95,7 +95,7 @@ Rủi ro: nguồn đổi sau khi ghép (PR của DBS-179 và DBS-182 chưa merge
 
 ## 8. Kết quả
 
-- **Lệnh kiểm tra** (2026-11-22, nhánh xếp chồng trên PR DBS-182 #236, nền `origin/main` `0f40b496`): `verify-numbers.py` 107 PASS, thoát 0; ca trượt (M-189-02) 5 FAIL, thoát 1; `check-doc-links.mjs` 520 tệp, 0 link và anchor hỏng; `check-backlog.mjs` 107 dòng, 0 lỗi. Không đổi code nên không chạy baseline backend. Output thô: [verify-output.txt](screenshots/DBS-189/verify-output.txt).
+- **Lệnh kiểm tra** (2026-11-22, nhánh xếp chồng trên PR DBS-182 #236, nền `origin/main` `0f40b496`): `verify-numbers.py` mọi cặp PASS, thoát 0; ca trượt (M-189-02) 5 FAIL, thoát 1; `check-doc-links.mjs` 520 tệp, 0 link và anchor hỏng; `check-backlog.mjs` 107 dòng, 0 lỗi. Không đổi code nên không chạy baseline backend. Output thô: [verify-output.txt](screenshots/DBS-189/verify-output.txt).
 - **Đối chiếu test case:**
 
 | ID | Cách kiểm | Đạt? |
@@ -105,7 +105,7 @@ Rủi ro: nguồn đổi sau khi ghép (PR của DBS-179 và DBS-182 chưa merge
 | TC-189-03 | M-189-02: ba số ngoài danh sách cũ bị đổi · 5 dòng FAIL, thoát 1 | đạt |
 | TC-189-04 | §7 và §1/§3/§6 cùng mức khẳng định (p95 từng phút chưa, hot-account ≥ 40.000 dòng chưa, failover RDS chưa xác nhận, RTO Single-AZ chưa đo, chi phí chưa đối chiếu, alarm chưa email) | đạt (đối chiếu mắt, domain review vòng 1) |
 | TC-189-05 | bảng sự cố §3 so với `P4-incident-table.md` (đã có DBS-167 tắt, chậm, DBS-181) và báo cáo 05 | đạt |
-| TC-189-06 | `docs/deliverables/README.md` có link tới bản ghép; **việc nộp chưa làm (người)** | đơn giản hóa (agent không nộp; ghi ở §7 của bản ghép) |
+| TC-189-06 | `docs/deliverables/README.md` có link tới bản ghép; **việc nộp chưa làm (người)** | chưa đạt (việc của người; ghi ở §7 của bản ghép) |
 | TC-189-07 | `check-doc-links` 0, `check-backlog` 0, tên alarm và BL khớp; **Dev review chưa đạt về hình thức** | đạt phần script; review: chưa làm (opus thay, `Techlead waiver`) |
 
 - **DoD:**
@@ -113,7 +113,7 @@ Rủi ro: nguồn đổi sau khi ghép (PR của DBS-179 và DBS-182 chưa merge
 | DoD | Kết quả |
 |---|---|
 | 1. Bản ghép có báo cáo tải, bảng sự cố, SLO, dashboard, chi phí | đạt |
-| 2. Mọi số trùng báo cáo gốc, có link | đạt theo `verify-numbers.py` (cặp số ↔ nguồn); chi phí vẫn là ước lượng chưa đối chiếu hóa đơn (BL-426) |
+| 2. Mọi số trùng báo cáo gốc, có link | đạt theo `verify-numbers.py` (cặp số ↔ nguồn, phạm vi `CHECKS`) và đối chiếu mắt ở domain review; chi phí vẫn là ước lượng chưa đối chiếu hóa đơn (BL-426) |
 | 3. Nộp đúng hạn; link ghi vào README | link: đạt; **nộp: chưa làm** (việc của người; hạn chưa có trong repo) |
 | 4. PR merge, Dev review, link, tên khớp | link và tên: đạt; **Dev review: chưa đạt về hình thức** (opus thay người, `Techlead waiver`); merge sau CI |
 

@@ -7,7 +7,7 @@
 
 | Mục thầy yêu cầu | Kết quả ngắn | Nguồn |
 |---|---|---|
-| Load test | Ở 120 RPS trên AWS (RDS Multi-AZ, 2 task api, WAF bật): p95 chuyển tiền **91,9 ms** ở lượt mới nhất, lỗi 0,0083 %; p95 **từng phút** < 300 ms **chưa đạt trọn** (2/15 khung vượt); tài khoản nóng ≥ 40.000 dòng chưa đạt | [§2](#2-báo-cáo-tải) |
+| Load test | Ở 120 RPS trên AWS (RDS Multi-AZ, 2 task api, WAF bật): p95 chuyển tiền **91,9 ms** ở lượt mới nhất, lỗi 0,0083 % (`meetsDoD3` không đạt, chỉ do 1 dropped); p95 **từng phút** < 300 ms **chưa đạt trọn** (2/15 khung vượt); tài khoản nóng ≥ 40.000 dòng chưa đạt | [§2](#2-báo-cáo-tải) |
 | Reliability (sự cố) | Redis tắt không làm hỏng giao dịch; Redis chậm vừa phải là ca xấu nhất; kill task, worker chết, DLQ, deploy lỗi, thu hồi phiên, failover RDS có bảng làm gì → phản ứng → phục hồi | [§3](#3-bảng-sự-cố-làm-gì--phản-ứng--thời-gian-phục-hồi) |
 | SLO chính thức | 9 SLI/SLO, alarm theo từng SLI | [§4](#4-slislo-chính-thức) |
 | Dashboard | `dbs-dev-overview` 33 widget, 25 ảnh chụp lúc 120 RPS mỗi lượt Redis bật và tắt | [§5](#5-dashboard) |
@@ -50,7 +50,7 @@ Bảng đầy đủ và phân biệt local với AWS: **[P4-incident-table.md](P
 | Sự cố | Phản ứng | Phục hồi | Nguồn |
 |---|---|---|---|
 | **Redis tắt giữa tải 120 RPS** (NACL chặn 6379, 5 phút) | 0 lỗi hệ thống, `/health/ready` luôn 200 (`redis: "degraded"`), p95 chuyển tiền 119 ms, breaker mở trong 10 giây đầu; bất biến PASS | mạng thông, `redis: "up"` ổn định sau **42,5 giây** ([BL-424](../BACKLOG.md): chậm hơn mạng) | [05 §1](../components/load-tests/05-ket-qua-redis-2026-11-22.md) |
-| **Redis chậm** (`CLIENT PAUSE` 100 ms, bậc nhẹ) | 0 lỗi; p95 chuyển tiền 203 và 289 ms (SLO 300), đọc 138 và 149 ms (SLO 150), `history` 142 và **154 ms (vượt 4 ms)** | hết xung thì về bình thường; ở 3/4 lượt có một lần đứng hình (timeout 2 giây, tới 3 giây) ở cửa sổ `pre`, trước khi tiêm sự cố, nguyên nhân chưa rõ ([BL-419](../BACKLOG.md)) | [05 §1](../components/load-tests/05-ket-qua-redis-2026-11-22.md) |
+| **Redis chậm** (`CLIENT PAUSE` 100 ms, bậc nhẹ) | 0 lỗi; p95 chuyển tiền 203 và 289 ms (SLO 300), đọc 138 và 149 ms (SLO 150), `history` 142 và **154 ms (vượt 4 ms)** | hết xung thì `redis: up` sau 0 và 5,8 giây ở hai lượt chậm; ở 3/4 lượt DBS-167 (hai lượt chậm và lượt tắt) có một lần đứng hình (timeout 2 giây, tới 3 giây) ở cửa sổ `pre`, trước khi tiêm sự cố, nguyên nhân chưa rõ ([BL-419](../BACKLOG.md)) | [05 §1](../components/load-tests/05-ket-qua-redis-2026-11-22.md) |
 | **Task api bị dừng giữa lệnh chuyển tiền** (ECS `stop-task`) | ECS gỡ target sau 25 s, client lần đầu nhận 502 của ALB; transaction không commit, không còn dòng sổ | gửi lại cùng `Idempotency-Key` → đúng một giao dịch, hai bút toán; task mới RUNNING sau **131 s**, service ổn định sau **137 s** (1 task: mất dịch vụ ≈ 2 phút, [BL-382](../BACKLOG.md); đo với `deregistration_delay` 0 và `stopTimeout` 2 tạm, mặc định thì dài hơn khoảng 30 s); đối soát `OK`, bất biến PASS | [DBS-185](../features/DBS-185-ac-5-10-kill-task-cloud.md), [bảng sự cố](P4-incident-table.md) |
 | **Worker chết** (`desired-count 0`) | chuyển tiền và nạp vẫn 201; sự kiện nằm trong outbox; alarm `dbs-dev-outbox-age` `ALARM` sau **9 phút 5 giây** | bật lại: worker chạy sau 29 s, cờ gian lận sau **43 s**, alarm `OK` sau 4 phút 39 giây; bất biến PASS | [DBS-184 (d)](../features/DBS-184-cloud-incident-scenarios.md), [bảng sự cố](P4-incident-table.md) |
 | **Message hỏng** | vào DLQ sau **2 s**, alarm `dbs-dev-risk-dlq-not-empty` sau **190 s** | bỏ qua có ghi nhận | [DBS-184 (b)](../features/DBS-184-cloud-incident-scenarios.md) |
@@ -104,7 +104,7 @@ Nguồn chính: [02-capacity-cost.md](../components/platform-infra/02-capacity-c
 
 | | Dev (Single-AZ) | Production (Multi-AZ) | Cấu hình đo (cỡ production, có WAF) + máy tải |
 |---|---:|---:|---:|
-| Tài nguyên, USD/giờ | 0,1394 | 0,2752 | 0,3330 (cộng WAF cố định 0,0110) |
+| Tài nguyên, USD/giờ | 0,1394 | 0,2752 | 0,3330 + WAF cố định 0,0110 = 0,3439 |
 | 24/7, USD/tháng (gồm secret, giữ lại; WAF chỉ ở dev) | **113,23** | **203,55** | — |
 | Phiên 3 giờ, USD (chưa kể phí theo tải) | 0,45 | — | 1,03 |
 
@@ -118,7 +118,7 @@ HA (RDS Multi-AZ 39,99 + Valkey replica 14,02 + task `api` thứ hai 26,13) thê
 
 | Giới hạn | Nguồn / BL |
 |---|---|
-| p95 theo phút ở 120 RPS **chưa dưới 300 ms trọn 15 phút** (2/15 khung vượt); đuôi 1–2 giây chưa tìm ra nguyên nhân (không do event loop, `SUM`, GC) | [BL-419](../BACKLOG.md), [04 §0](../components/load-tests/04-ket-qua-bl-418-2026-11-22.md) |
+| p95 theo phút ở 120 RPS **chưa dưới 300 ms trọn 15 phút** (2/15 khung vượt); đuôi 1–2 giây chưa tìm ra nguyên nhân (không do `SUM`, [04](../components/load-tests/04-ket-qua-bl-418-2026-11-22.md); các lần đứng hình ở DBS-167 không do event loop hay GC, [05 §4.3](../components/load-tests/05-ket-qua-redis-2026-11-22.md)) | [BL-419](../BACKLOG.md), [04 §0](../components/load-tests/04-ket-qua-bl-418-2026-11-22.md) |
 | Tài khoản nóng ≥ 40.000 dòng **không đạt** (10,4 % timeout): chi phí fraud O(cửa sổ 30 ngày) | [BL-413](../BACKLOG.md), [03 §5.3](../components/load-tests/03-ket-qua-toi-uu-p95-2026-11-21.md) |
 | Điểm gãy: plateau 240 gãy với CPU api và worker 100 % (cỡ task api và worker là quyết định của #5) | [BL-417](../BACKLOG.md), [04 §0](../components/load-tests/04-ket-qua-bl-418-2026-11-22.md) |
 | Một lượt mỗi bài, ba khách, một IP nguồn, không có khoảng tin cậy; hai lượt «trước» khác nhau chứng minh phương sai lớn | [02 §3](../components/load-tests/02-ket-qua-tai-cloud-2026-11-21.md#3-tính-đại-diện-đọc-trước-khi-trích-số) |
