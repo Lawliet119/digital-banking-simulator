@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
-import { existsSync, realpathSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  realpathSync,
+  mkdirSync,
+  writeFileSync,
+} from "node:fs";
 import {
   resolve,
   dirname,
@@ -76,6 +82,31 @@ export function insideCheckout(path) {
     if (dirname(p) === p) return false;
   }
 }
+
+/**
+ * Reads a secret seed from a file, so it never appears in a command line, a shell history or a
+ * process list (BL-171). Drops exactly one trailing newline; rejects a BOM, control characters and
+ * padding. With `checkoutGuard` the file must live outside every git checkout, so a secret seed
+ * cannot be committed by accident. Errors carry no detail: a path or a seed may be private.
+ */
+export function readSeedFile(path, { checkoutGuard = false } = {}) {
+  if (checkoutGuard && insideCheckout(canonical(path))) throw new Error();
+  const raw = readFileSync(path, "utf8");
+  if (raw.startsWith("﻿")) throw new Error();
+  const seed = raw.endsWith("\r\n")
+    ? raw.slice(0, -2)
+    : raw.endsWith("\n")
+      ? raw.slice(0, -1)
+      : raw;
+  if (
+    !seed ||
+    seed.length > 128 ||
+    /[\p{Cc}\p{Cf}]/u.test(seed) ||
+    seed.trim() !== seed
+  )
+    throw new Error();
+  return seed;
+}
 function manifest(part) {
   return {
     version: 1,
@@ -140,9 +171,14 @@ if (
     for (let i = 0; i < args.length; i += 2) {
       const key = args[i]?.startsWith("--") ? args[i].slice(2) : "";
       if (
-        !["seed", "customers", "days", "tune-dir", "private-dir"].includes(
-          key,
-        ) ||
+        ![
+          "seed",
+          "seed-file",
+          "customers",
+          "days",
+          "tune-dir",
+          "private-dir",
+        ].includes(key) ||
         key in options ||
         !args[i + 1] ||
         args[i + 1].startsWith("--")
@@ -159,8 +195,14 @@ if (
     const {
       "tune-dir": tuneDir,
       "private-dir": privateDir,
+      "seed-file": seedFile,
       ...params
     } = options;
+    if (seedFile !== undefined) {
+      // A secret seed comes from a file kept outside the checkout, never from argv.
+      if ("seed" in params) throw new Error("seed and seed-file are exclusive");
+      params.seed = readSeedFile(seedFile, { checkoutGuard: true });
+    }
     if (!tuneDir) throw new Error("tune-dir is required");
     const data = generateSplitDataset(params);
     const report = writeSplit(data, { tuneDir, privateDir });

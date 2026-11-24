@@ -13,7 +13,7 @@ Từ thời điểm này cấu hình luật dùng cho holdout **không được 
 | Commit đóng băng | `8fc4753abc6b24b250c60f758bda6834e054a133`: squash merge của PR #219 (DBS-168) vào `main` lúc 2026-11-20T19:50:50Z (2026-11-21 02:50 giờ Việt Nam). Mọi hash ở §2 và dấu vân tay ở §1 được kiểm lại trên đúng commit này bằng `freeze:verify` (`FROZEN AS RECORDED`) |
 | Seed | `dbs-split-v1`, một chuỗi ba vai trò: (1) seed chia khách thành train/validation của tập tune; (2) seed lấy mẫu của `capture-ai`; (3) seed mặc định công khai của bộ sinh dữ liệu `split.mjs` (DBS-146 A7-i). Seed bí mật sinh tập holdout **không** nằm trong bản ghi này (thuộc #6; không ghi ở nơi #4 đọc được) |
 | Dữ liệu đã dùng để chọn | tập tune seed `dbs-split-v1`, 101.551 giao dịch, sha256 CSV `c387b43605d8a9be05dd8288490130295c6d8928c66fb2c16d2f9cbae36f1b01`; capture AI của rubric r4 sha256 `24d8be17c96843689a3c24088d6831ef35ff09c42e14bd623318bf1485ca6276` ([07](07-tuning-rules.md)) |
-| Dấu vân tay mã engine | `b62a0ab2a528e34301df4cd91ccaf5aec6d1b8efc8597be1d305008d760e5d0f` (sha256 trên tên và hash của 35 file ở §3; `freeze:verify` in lại) |
+| Dấu vân tay mã engine | Lúc đóng băng: `b62a0ab2a528e34301df4cd91ccaf5aec6d1b8efc8597be1d305008d760e5d0f` (sha256 trên tên và hash của 35 file ở §3). **Hiện hành (sau amendment BL-407, 37 file, §5):** `9c9b458e61dcc312c3fb28c167ea772b0a7ca47d5547df598a37b630ae4478b9`; `freeze:verify` in lại |
 | Phán quyết cổng ADR-14 lúc đóng băng | NO-GO tạm thời, hệ thống giữ `rule_only` ([07](07-tuning-rules.md#chỉnh-rubric-ai-dbs-161-phần-ai)). Đóng băng không bật AI |
 
 ## 2. Hai mode đã đóng băng
@@ -46,7 +46,7 @@ Từ thời điểm này cấu hình luật dùng cho holdout **không được 
 
 ## 3. Mã engine cũng được đóng băng
 
-JSON cấu hình đóng băng chưa đủ: sửa luật R1–R6, `ScoringService`, cách đọc tiền, provider offline, hàm đọc CSV hay `evaluate-rules` vẫn đổi kết quả holdout. `configs/freeze-manifest.json` ghi sha256 của 35 file quyết định kết quả: luật R1–R6 và `rule.ts`, `explanation-format.ts`; `scoring.service.ts`, `risk-level.ts`, `risk-rule-error.ts`, `risk-time.ts`; `config/rule-set.ts`, `rule-params.ts`; provider offline, `feature-provider.ts`, `export-features.ts`; `evaluation/` (`evaluate-rules`, `compare-modes`, `capture-ai`, `customer-split`); adapter và hợp đồng AI (`ai/ai-contract.ts`, `feature-projection.ts`, `openai-decisions.ts`, `rubric.ts`); ba script `evaluate-rules`, `compare-modes`, `capture-ai`; `common/money/money.ts`, `balance.ts`, `index.ts`, `common/events/utc-time.ts`, `index.ts` (hai barrel mà engine import qua alias); **và chính bộ kiểm** (`evaluation/freeze.ts`, `scripts/freeze-verify.ts`), để không ai làm lỏng nó mà vẫn đọc «FROZEN AS RECORDED». Cố ý không đưa vào: `risk-scoring.metrics.ts` (chỉ đếm metric, không đổi điểm).
+JSON cấu hình đóng băng chưa đủ: sửa luật R1–R6, `ScoringService`, cách đọc tiền, provider offline, hàm đọc CSV hay `evaluate-rules` vẫn đổi kết quả holdout. `configs/freeze-manifest.json` ghi sha256 của 35 file quyết định kết quả: luật R1–R6 và `rule.ts`, `explanation-format.ts`; `scoring.service.ts`, `risk-level.ts`, `risk-rule-error.ts`, `risk-time.ts`; `config/rule-set.ts`, `rule-params.ts`; provider offline, `feature-provider.ts`, `export-features.ts`; `evaluation/` (`evaluate-rules`, `compare-modes`, `capture-ai`, `customer-split`); adapter và hợp đồng AI (`ai/ai-contract.ts`, `feature-projection.ts`, `openai-decisions.ts`, `rubric.ts`); ba script `evaluate-rules`, `compare-modes`, `capture-ai`; `common/money/money.ts`, `balance.ts`, `index.ts`, `common/events/utc-time.ts`, `index.ts` (hai barrel mà engine import qua alias); **và chính bộ kiểm** (`evaluation/freeze.ts`, `scripts/freeze-verify.ts`), để không ai làm lỏng nó mà vẫn đọc «FROZEN AS RECORDED». Amendment BL-407 (2026-11-24, trước holdout) thêm hai file của công cụ đo holdout: `evaluation/holdout-report.ts` và `scripts/holdout-report.ts` (tổng 37 file). Cố ý không đưa vào: `risk-scoring.metrics.ts` (chỉ đếm metric, không đổi điểm).
 
 `freeze:verify` (không phải `npm test`) so từng file và nêu tên file lệch. Lý do tách: kiểm mã engine trong `npm test` sẽ làm đỏ mọi PR của người khác chạm 35 file này, nghĩa là một lệnh cấm sửa module `risk` mà chưa ai quyết định. Nếu techlead muốn khóa cứng trong CI, thêm bước chạy `freeze:verify` vào workflow là đủ. Còn lại `npm test` kiểm file cấu hình, rubric, `v1.json`, manifest và bản ghi này, kèm các giá trị ghim cố định trong spec (§5 mục 1).
 
@@ -71,7 +71,7 @@ npm run --silent freeze:verify -- --database-url <url>  # risk_rule_sets: versio
 | Số báo cáo | precision, recall, F1, cảnh báo/1.000 giao dịch, recall theo từng kịch bản (kể cả ba kịch bản ngoài tầm luật), recall trong tầm luật; B0 (cột `baseline`) và B2 trên cùng giao dịch |
 | Dòng capture thất bại | `capture-ai` đã tự thử lại tối đa hai lần mỗi giao dịch. **Không chạy lại** sau đó, không xóa dòng để gọi lại: giao dịch `UNAVAILABLE` (hoặc trạng thái khác `SUCCEEDED`) giữ điểm luật như production và được đếm trong báo cáo (`freeze:verify --capture` in số theo trạng thái). Tỉ lệ thất bại cao bất thường là phát hiện cần ghi vào báo cáo, không là lý do chạy lại để «sạch» |
 | Không dùng | `compare-modes` trên holdout (nó chọn lại ngưỡng và trọng số AI từ dữ liệu được đưa vào) |
-| Còn thiếu công cụ | B1 (chỉ AI), ablation theo luật, đường precision–recall và khoảng tin cậy bootstrap có cặp B2 − B0 ở tham số cố định: `compare-modes` không có chế độ «tham số cố định, không chia train/validation». Là việc của DBS-169 (BL-407): công cụ phải mới được viết và đóng băng **trước** khi mở nhãn holdout |
+| Công cụ đo ở tham số cố định (BL-407, đã có) | `npm run --silent holdout-report` (mã ở `evaluation/holdout-report.ts` và `scripts/holdout-report.ts`, đã vào manifest bằng amendment BL-407, [§5](#5-quy-tắc-sau-đóng-băng-và-nhật-ký-thay-đổi)). Tham số lấy từ hai file đã đóng băng, không chọn lại gì. Báo cáo B0, B1 (chỉ AI, ngưỡng đã đóng băng), B2 trên cả file; recall từng kịch bản kể cả ba kịch bản ngoài tầm; ablation từng luật R1–R6 cho B0 và B2; đường precision–recall và average precision; khoảng tin cậy bootstrap 95% theo khách cho mức tăng recall B2 − B0 và cho cảnh báo/1.000; `responseModel`, hash rubric, số trạng thái; cảnh báo rò rỉ. Từ chối chạy khi cấu hình hoặc engine lệch bản ghi, capture sai rubric/model/mẫu hoặc thiếu giao dịch, hoặc file báo cáo đã tồn tại. `--allow-tune` chỉ cho chạy thử trên đúng file tune của manifest và đóng dấu `tune-dry-run`. Hướng dẫn chạy: [10](10-holdout-runbook.md) |
 
 **Lệnh dự kiến** (DBS-169 điền đường dẫn):
 
@@ -81,13 +81,16 @@ npm run --silent evaluate-rules -- --input <holdout.csv> --config src/modules/ri
 npm run --silent capture-ai -- --input <holdout.csv> --output <holdout-capture.jsonl> --seed dbs-split-v1 --max-calls 100000 --model gpt-6-luna --normal-sample 1000000 --timeout-ms 20000 --rubric-file src/modules/risk/evaluation/rubrics/r4.txt
 npm run --silent freeze:verify -- --capture <holdout-capture.jsonl> --input <holdout.csv>
 npm run --silent evaluate-rules -- --input <holdout.csv> --config src/modules/risk/evaluation/configs/v4-ai-r4.json --config-version 5 --ai-capture <holdout-capture.jsonl> --output <report-ai.json>
+npm run --silent holdout-report -- --input <holdout.csv> --capture <holdout-capture.jsonl> --output <holdout-report.json>   # BL-407: B1, ablation, PR, bootstrap
 ```
+
+Cách giao holdout (seed bí mật, cam kết hash) và từng bước chạy: [10](10-holdout-runbook.md). `capture-ai` nạp khóa bằng `node --env-file`, xem ở đó.
 
 «Đúng một lần» chỉ giữ được bằng quy trình, vì `evaluate-rules` không biết file nào là holdout (nó chỉ từ chối file không có nhãn): chạy cả hai mode trong một phiên, lưu hai báo cáo JSON (có `csvSha256` của holdout) và ghi người chạy, lệnh, thời điểm vào feature doc của DBS-169. Chạy lại để «cải thiện» biến holdout thành tune.
 
 **Bức tường dữ liệu.** File holdout CSV, **capture holdout** (mỗi dòng có `sampleWeight`, và với mẫu thưa nó lộ nhãn: trọng số 1 là fraud hoặc hard negative) và hai báo cáo đều mang nhãn. Chúng chỉ nằm ở nơi lưu có quyền riêng của BL-171, **không** vào `docs/components/risk/evidence/` hay repo (bản ghi của tune ở đó là tập tune, không là holdout). Chỉ người được BL-171 cấp quyền chạy `freeze:verify --capture ... --input <holdout.csv>`.
 
-**Điều kiện tiên quyết của DBS-169**, không thuộc DBS-168 và còn mở trong [`docs/BACKLOG.md`](../../BACKLOG.md): BL-171 (nơi lưu nhãn holdout với quyền riêng và holdout sinh từ seed bí mật, DBS-146 A7-ii), BL-392 (hợp đồng kịch bản nằm trong `docs/` nơi #4 đọc được), BL-043 (duyệt RSK-05 trước khi gửi dữ liệu cho API AI, chặn lần capture của mode AI), BL-407 (công cụ đo B1, ablation, bootstrap).
+**Điều kiện tiên quyết của DBS-169**, không thuộc DBS-168 và còn mở trong [`docs/BACKLOG.md`](../../BACKLOG.md): BL-171 (nơi lưu nhãn holdout với quyền riêng và holdout sinh từ seed bí mật, DBS-146 A7-ii; phần mã `split.mjs --seed-file` đã có, phần giao holdout theo [10](10-holdout-runbook.md)), BL-392 (hợp đồng kịch bản nằm trong `docs/` nơi #4 đọc được; techlead ghi quyết định chấp nhận ở [10](10-holdout-runbook.md)), BL-043 (duyệt RSK-05 trước khi gửi dữ liệu cho API AI, chặn lần capture của mode AI), BL-407 (công cụ đo B1, ablation, bootstrap: đã xong, dòng đã xóa khỏi backlog).
 
 ## 5. Quy tắc sau đóng băng và nhật ký thay đổi
 
@@ -102,7 +105,7 @@ Vì một PR sửa đồng thời file, manifest, spec và bản ghi vẫn vư�
 
 | Ngày | Ai | Thay đổi | Lý do | Holdout đã chạy chưa |
 |---|---|---|---|---|
-| (chưa có thay đổi) | | | | |
+| 2026-11-24 | Dev (techlead waiver) | Amendment `BL-407`: thêm `evaluation/holdout-report.ts` và `scripts/holdout-report.ts` vào danh sách engine (35 → 37 file); dấu vân tay engine thành `9c9b458e…78b9`. Không đổi cấu hình, rubric, ngưỡng hay công thức chấm điểm | Công cụ đo holdout ở tham số cố định phải nằm trong bản đóng băng trước khi mở nhãn (BL-407) | Chưa chạy |
 
 ## 6. Công bố về validation (trung thực về thứ tự)
 
