@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
 import { BadRequestException, Injectable, type PipeTransform } from '@nestjs/common';
 
-/** How a lookup is asked: by the whole account id, or by part of the owner's name. */
+/**
+ * How a lookup is asked: by the whole account id, by the whole 12-digit account number, or by part
+ * of the owner's name.
+ */
 export interface ParsedSearch {
-  readonly kind: 'id' | 'name';
+  readonly kind: 'id' | 'number' | 'name';
   /** NFC, trimmed; an `id` term is lower-case. */
   readonly term: string;
 }
@@ -11,6 +14,7 @@ export interface ParsedSearch {
 export const MAX_SEARCH_RESULTS = 20;
 export const MAX_TERM_LENGTH = 100;
 
+const ACCOUNT_NUMBER = /^[0-9]{12}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function invalid(message: string): never {
@@ -29,7 +33,9 @@ export function parseSearchQuery(raw: unknown): ParsedSearch {
     invalid(`q must contain 1 to ${MAX_TERM_LENGTH} characters`);
   }
   if (/\p{Cc}/u.test(term)) invalid('q must not contain control characters');
-  return UUID.test(term) ? { kind: 'id', term: term.toLowerCase() } : { kind: 'name', term };
+  if (UUID.test(term)) return { kind: 'id', term: term.toLowerCase() };
+  // Twelve digits is an account number: it is looked up exactly, not as part of a name.
+  return ACCOUNT_NUMBER.test(term) ? { kind: 'number', term } : { kind: 'name', term };
 }
 
 @Injectable()
@@ -85,11 +91,19 @@ const LITERAL_PATTERN = String.raw`'%' || replace(replace(replace(${FOLDED_TERM}
  * serves `LIKE`, not `strpos`: that is why this stays a `LIKE`).
  */
 export function buildSearchSql(search: ParsedSearch): { sql: string; parameters: unknown[] } {
-  const select = `SELECT a.id, a.type, a.status, c.full_name AS "ownerName"
+  const select = `SELECT a.id, a.account_number AS "accountNumber", a.type, a.status,
+  c.full_name AS "ownerName"
 FROM accounts a JOIN customers c ON c.id = a.customer_id`;
   if (search.kind === 'id') {
     return {
       sql: `${select}\nWHERE a.id = $1::uuid\nLIMIT ${MAX_SEARCH_RESULTS}`,
+      parameters: [search.term],
+    };
+  }
+  if (search.kind === 'number') {
+    // Exact match on the UNIQUE column: at most one row, an Index Scan on accounts_account_number_key.
+    return {
+      sql: `${select}\nWHERE a.account_number = $1\nLIMIT ${MAX_SEARCH_RESULTS}`,
       parameters: [search.term],
     };
   }

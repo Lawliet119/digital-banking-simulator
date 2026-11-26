@@ -28,6 +28,7 @@ const ITEM_KEYS = [
   'amount',
   'balanceAfter',
   'counterpartyAccountId',
+  'counterpartyAccountNumber',
   'createdAt',
   'direction',
   'entryId',

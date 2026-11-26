@@ -23,6 +23,7 @@ import { counterOf, debitAt, ledgerTruth } from '../support/daily-debit-counter'
  * `sync-guard.db-spec.ts`; the concurrent flows are in `daily-debit-counter-flow.db-spec.ts`.
  */
 const PREVIOUS = 'TuneTransfersAutovacuum1795000011000';
+const THIS = 'AddDailyDebitCounter1795000012000';
 
 const sqlstate = (error: unknown): string | undefined => {
   const e = error as { code?: string; driverError?: { code?: string }; cause?: { code?: string } };
@@ -327,7 +328,8 @@ describe('BL-418 the daily debit counter on accounts (schema, trigger, backfill,
       await debitAt(db.runner, { ...base, from: d.id, amount: '50', at: '2026-02-02T16:59:59Z' });
       await debitAt(db.runner, { ...base, from: d.id, amount: '70', at: '2026-02-02T17:00:00Z' });
 
-      await migrate(db.url);
+      // Through this migration only: `undoLast` below has to undo it, not a later one.
+      await migrateThrough(db.url, THIS);
 
       expect(await counterOf(db.runner, a)).toEqual({ sentToday: '3000', sentDay: '2026-02-02' });
       expect(await counterOf(db.runner, d.id)).toEqual({ sentToday: '70', sentDay: '2026-02-03' });

@@ -2205,6 +2205,257 @@
         "description": "\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 409 ACCOUNT_LIMIT_REACHED; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
     },
+    "/v1/accounts/lookup": {
+      "get": {
+        "operationId": "AccountsController_lookup_v1",
+        "parameters": [
+          {
+            "name": "accountNumber",
+            "required": true,
+            "in": "query",
+            "description": "Exactly 12 digits",
+            "schema": {
+              "example": "100000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountLookupDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "accountNumber is missing or is not 12 digits",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ACCOUNT_NOT_FOUND: no customer account has this number (SYSTEM answers the same)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "ACCOUNT_NOT_FOUND": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Not Found",
+                      "status": 404,
+                      "detail": "The resource was not found",
+                      "errorCode": "ACCOUNT_NOT_FOUND",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error; no data if audit fails",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Customer: find the owner of an account number (confirm step of a transfer)",
+        "tags": [
+          "accounts"
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "404": [
+            "ACCOUNT_NOT_FOUND"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
+        "x-roles": [
+          "customer"
+        ],
+        "description": "\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 404 ACCOUNT_NOT_FOUND; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
+      }
+    },
     "/v1/accounts/{id}": {
       "get": {
         "operationId": "AccountsController_get_v1",
@@ -5264,6 +5515,12 @@
             "format": "uuid",
             "example": "2e859a80-d4d0-471d-8cee-e9d0de9d4bc7"
           },
+          "accountNumber": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$",
+            "example": "100000000001",
+            "description": "Customer-facing account number: 12 digits, unique"
+          },
           "type": {
             "type": "string",
             "enum": [
@@ -5298,11 +5555,36 @@
         },
         "required": [
           "id",
+          "accountNumber",
           "type",
           "status",
           "balance",
           "createdAt",
           "updatedAt"
+        ]
+      },
+      "AccountLookupDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "2e859a80-d4d0-471d-8cee-e9d0de9d4bc7"
+          },
+          "accountNumber": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$",
+            "example": "100000000001"
+          },
+          "ownerName": {
+            "type": "string",
+            "example": "Nguyễn Minh Anh"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountNumber",
+          "ownerName"
         ]
       },
       "CreateAccountDto": {
@@ -5328,6 +5610,12 @@
             "type": "string",
             "format": "uuid",
             "example": "8f78e873-7dab-481a-9bbf-577d35e49dd7"
+          },
+          "accountNumber": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$",
+            "example": "100000000001",
+            "description": "Customer-facing account number: 12 digits, unique"
           },
           "type": {
             "type": "string",
@@ -5362,6 +5650,7 @@
         },
         "required": [
           "id",
+          "accountNumber",
           "type",
           "status",
           "balance",
@@ -5376,6 +5665,12 @@
             "type": "string",
             "format": "uuid",
             "example": "2e859a80-d4d0-471d-8cee-e9d0de9d4bc7"
+          },
+          "accountNumber": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$",
+            "example": "100000000001",
+            "description": "Customer-facing account number: 12 digits, unique"
           },
           "type": {
             "type": "string",
@@ -5400,6 +5695,7 @@
         },
         "required": [
           "id",
+          "accountNumber",
           "type",
           "status",
           "ownerName"
@@ -5603,11 +5899,23 @@
             "description": "Source account; absent for a DEPOSIT (the funding account is never shown)",
             "example": "8b3609fb-96a7-434b-a7ba-2ba171955e6d"
           },
+          "fromAccountNumber": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$",
+            "description": "Number of the source account; present exactly when fromAccountId is",
+            "example": "100000000001"
+          },
           "toAccountId": {
             "type": "string",
             "format": "uuid",
             "description": "Destination account; only for a COMPLETED transfer, never for a REJECTED one",
             "example": "bf9c3419-51ff-4e55-b03c-3296f0419c03"
+          },
+          "toAccountNumber": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$",
+            "description": "Number of the destination account; present exactly when toAccountId is",
+            "example": "100000000002"
           },
           "createdAt": {
             "type": "string",
@@ -5669,6 +5977,13 @@
             "description": "The other account of a TRANSFER; null for a DEPOSIT (the funding account is never shown)",
             "example": "bf9c3419-51ff-4e55-b03c-3296f0419c03"
           },
+          "counterpartyAccountNumber": {
+            "type": "string",
+            "pattern": "^[0-9]{12}$",
+            "nullable": true,
+            "description": "Account number of the counterparty; null exactly when counterpartyAccountId is null",
+            "example": "100000000002"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -5684,6 +5999,7 @@
           "amount",
           "balanceAfter",
           "counterpartyAccountId",
+          "counterpartyAccountNumber",
           "createdAt"
         ]
       },
@@ -6171,6 +6487,7 @@
               "IDEMPOTENCY_KEY_REQUIRED",
               "IDEMPOTENCY_KEY_REUSED",
               "ACCOUNT_LIMIT_REACHED",
+              "ACCOUNT_NOT_FOUND",
               "UNAUTHENTICATED",
               "TOKEN_EXPIRED",
               "FORBIDDEN",

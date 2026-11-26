@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionService } from '@database/transaction.service';
-import { AccountsService } from '@modules/accounts';
+import { AccountNumberReader, AccountsService } from '@modules/accounts';
 import { AuditService } from '@modules/audit';
 import { TransactionItemDto, TransactionPageDto } from './transaction-history.dto';
 import {
@@ -13,6 +13,7 @@ import {
 export class TransactionHistoryService {
   constructor(
     private readonly accounts: AccountsService,
+    private readonly accountNumbers: AccountNumberReader,
     private readonly tx: TransactionService,
     private readonly audit: AuditService,
   ) {}
@@ -36,7 +37,14 @@ export class TransactionHistoryService {
     });
     return this.tx.run(async manager => {
       const { sql, parameters } = buildHistorySql(account.id, query);
-      const rows: TransactionItemDto[] = await manager.query(sql, parameters);
+      const rows: Omit<TransactionItemDto, 'counterpartyAccountNumber'>[] = await manager.query(
+        sql,
+        parameters,
+      );
+      const numbers = await this.accountNumbers.numbersOf(
+        manager,
+        rows.flatMap(row => (row.counterpartyAccountId ? [row.counterpartyAccountId] : [])),
+      );
       // Copy field by field: only what is named here can leave the service.
       const items = rows.slice(0, query.limit).map(row => ({
         entryId: row.entryId,
@@ -46,6 +54,9 @@ export class TransactionHistoryService {
         amount: row.amount,
         balanceAfter: row.balanceAfter,
         counterpartyAccountId: row.counterpartyAccountId,
+        counterpartyAccountNumber: row.counterpartyAccountId
+          ? (numbers.get(row.counterpartyAccountId) ?? null)
+          : null,
         createdAt: row.createdAt,
       }));
       await this.audit.record(manager, {

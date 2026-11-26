@@ -166,6 +166,47 @@ describe('DBS-89 rate limit against Valkey and PostgreSQL', () => {
       app.limits.rateLimit.transfersPerMinute = 1000;
     });
 
+    it('TC-A-27 the lookup limit is its own: the 4th lookup in a minute is 429 with Retry-After, and transfers keep their count', async () => {
+      app.limits.rateLimit.requestsPerIpPerMinute = 1000;
+      app.limits.rateLimit.transfersPerMinute = 1000;
+      app.limits.rateLimit.lookupsPerMinute = 3;
+      const giang = await funded(app),
+        hai = await funded(app, '1000');
+      const token = await app.issuer.token('customer', { sub: giang.sub });
+      const [{ account_number: number }] = await q(
+        'SELECT account_number FROM accounts WHERE id=$1',
+        [hai.accountId],
+      );
+      const lookup = (bearer = token) =>
+        request(app.url)
+          .get(`/v1/accounts/lookup?accountNumber=${number}`)
+          .auth(bearer, { type: 'bearer' });
+      const limited = await app.app.get(RateLimitMetrics).count('lookup');
+      freshMinute(app); // :20 of the minute -> 40 seconds left
+      for (let i = 0; i < 3; i++) expect((await lookup()).status).toBe(200);
+      const fourth = await lookup();
+      expect(fourth.status).toBe(429);
+      expect(fourth.headers['retry-after']).toBe('40');
+      expect(fourth.headers['content-type']).toMatch(/application\/problem\+json/);
+      expect(fourth.body).toMatchObject({ status: 429, errorCode: 'RATE_LIMITED' });
+      expect(await app.app.get(RateLimitMetrics).count('lookup')).toBe(limited + 1);
+      // A refused lookup wrote no audit row: the guard answers before the controller.
+      const [{ count }] = await q(
+        "SELECT count(*)::int AS count FROM audit_log WHERE action='account.lookup'",
+      );
+      expect(count).toBeGreaterThanOrEqual(3);
+      expect((await lookup()).status).toBe(429);
+      const after = (
+        await q("SELECT count(*)::int AS count FROM audit_log WHERE action='account.lookup'")
+      )[0].count;
+      expect(after).toBe(count);
+      // Looking up does not use up the transfers of the minute, and another customer has a count.
+      expect((await transfer(app, giang, hai)).status).toBe(201);
+      const other = await app.issuer.token('customer', { sub: hai.sub });
+      expect((await lookup(other)).status).toBe(200);
+      app.limits.rateLimit.lookupsPerMinute = 20;
+    });
+
     it('TC-89-07 /health is never part of the IP limit', async () => {
       app.limits.rateLimit.requestsPerIpPerMinute = 5;
       freshMinute(app);

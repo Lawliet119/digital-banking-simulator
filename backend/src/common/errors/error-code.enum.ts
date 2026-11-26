@@ -33,6 +33,12 @@ export enum ErrorCode {
   /** The customer already has the maximum number of accounts (HTTP 409). BR-14. */
   ACCOUNT_LIMIT_REACHED = 'ACCOUNT_LIMIT_REACHED',
 
+  /**
+   * `GET /v1/accounts/lookup` found no customer account with that number (HTTP 404). A SYSTEM
+   * account answers the same, so the response cannot tell the two apart.
+   */
+  ACCOUNT_NOT_FOUND = 'ACCOUNT_NOT_FOUND',
+
   // ── Authentication (token verification, HTTP 401) ──
   /**
    * No bearer token, a malformed token, a bad signature, an unknown signing key, or a wrong

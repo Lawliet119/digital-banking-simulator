@@ -10,7 +10,7 @@ const config = {
   transfer: { perTx: parsePositiveMoney('50000000'), perDay: parsePositiveMoney('200000000') },
   idempotencyKeyRetentionDays: 7,
   outbox: { retentionDays: 7, processedEventsRetentionDays: 7 },
-  rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100 },
+  rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100, lookupsPerMinute: 20 },
   reconciliationIntervalMs: 300_000,
 };
 const clock: Clock = { now: () => new Date('2026-11-14T00:00:00.000Z') };

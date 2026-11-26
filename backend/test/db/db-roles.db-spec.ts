@@ -475,7 +475,7 @@ describe('least-privilege roles dbs_api, dbs_worker, dbs_migrator (DBS-119)', ()
       transfer: { perTx: parsePositiveMoney('50000000'), perDay: parsePositiveMoney('200000000') },
       idempotencyKeyRetentionDays: 7,
       outbox: { retentionDays: 7, processedEventsRetentionDays: 7 },
-      rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100 },
+      rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100, lookupsPerMinute: 20 },
       reconciliationIntervalMs: 300_000,
     });
 

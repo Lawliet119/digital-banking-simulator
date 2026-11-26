@@ -74,7 +74,9 @@ describe('DBS-87 transfer status (UC-7)', () => {
         status: 'COMPLETED',
         amount: '300000',
         fromAccountId: giang.accountId,
+        fromAccountNumber: expect.stringMatching(/^[0-9]{12}$/),
         toAccountId: hai.accountId,
+        toAccountNumber: expect.stringMatching(/^[0-9]{12}$/),
         createdAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T[\d:]{8}\.\d{6}Z$/),
       });
     }
@@ -118,6 +120,7 @@ describe('DBS-87 transfer status (UC-7)', () => {
         'amount',
         'createdAt',
         'fromAccountId',
+        'fromAccountNumber',
         'rejectReason',
         'status',
         'transferId',
@@ -160,6 +163,7 @@ describe('DBS-87 transfer status (UC-7)', () => {
       status: 'COMPLETED',
       amount: '2500000',
       toAccountId: hai.accountId,
+      toAccountNumber: expect.stringMatching(/^[0-9]{12}$/),
       createdAt: expect.any(String),
     });
     expect(JSON.stringify(res.body)).not.toContain(FUNDING);
@@ -183,8 +187,10 @@ describe('DBS-87 transfer status (UC-7)', () => {
         'amount',
         'createdAt',
         'fromAccountId',
+        'fromAccountNumber',
         'status',
         'toAccountId',
+        'toAccountNumber',
         'transferId',
         'type',
       ]);

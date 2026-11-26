@@ -254,7 +254,7 @@ describe('reconciliation.types & ReconciliationService lifecycle (DBS-117)', () 
         },
         idempotencyKeyRetentionDays: 7,
         outbox: { retentionDays: 7, processedEventsRetentionDays: 7 },
-        rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100 },
+        rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100, lookupsPerMinute: 20 },
         reconciliationIntervalMs: 300_000,
       };
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -10,17 +10,20 @@ import {
   ApiOperation,
   ApiOkResponse,
   ApiParam,
+  ApiQuery,
   ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ErrorCode } from '@common/errors/error-code.enum';
 import { ApiErrorCodes } from '@common/openapi/api-error-codes.decorator';
+import { LimitLookups } from '@common/rate-limit/limit-lookups.decorator';
 import { CurrentUser, type CurrentUserInfo, Roles } from '@modules/identity';
 import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
 import { AccountOpeningService } from './account-opening.service';
 import { CreateAccountDto, OpenedAccountDto } from './open-account.dto';
 import { AccountQueryService } from './account-query.service';
+import { AccountLookupDto, LookupQueryPipe } from './account-lookup.dto';
 import { AccountViewDto } from './account-view.dto';
 
 @ApiTags('accounts')
@@ -47,6 +50,39 @@ export class AccountsController {
     @Req() request: RequestWithCorrelationId,
   ): Promise<AccountViewDto[]> {
     return this.queries.list(user.userId, this.correlationId(request));
+  }
+
+  // Declared before `:id`, or the route `:id` would read "lookup" as an account id.
+  @Get('lookup')
+  @LimitLookups()
+  @ApiErrorCodes({ 404: [ErrorCode.ACCOUNT_NOT_FOUND] })
+  @ApiOperation({
+    summary: 'Customer: find the owner of an account number (confirm step of a transfer)',
+  })
+  @ApiQuery({
+    name: 'accountNumber',
+    type: String,
+    required: true,
+    example: '100000000001',
+    description: 'Exactly 12 digits',
+  })
+  @ApiOkResponse({ type: AccountLookupDto })
+  @ApiBadRequestResponse({ description: 'accountNumber is missing or is not 12 digits' })
+  @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED or TOKEN_EXPIRED' })
+  @ApiForbiddenResponse({ description: 'FORBIDDEN' })
+  @ApiNotFoundResponse({
+    description: 'ACCOUNT_NOT_FOUND: no customer account has this number (SYSTEM answers the same)',
+  })
+  @ApiInternalServerErrorResponse({ description: 'Internal server error; no data if audit fails' })
+  @ApiServiceUnavailableResponse({
+    description: 'SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds',
+  })
+  lookup(
+    @CurrentUser() user: CurrentUserInfo,
+    @Query(LookupQueryPipe) accountNumber: string,
+    @Req() request: RequestWithCorrelationId,
+  ): Promise<AccountLookupDto> {
+    return this.queries.lookup(user.userId, accountNumber, this.correlationId(request));
   }
 
   @Get(':id')

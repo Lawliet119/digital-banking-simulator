@@ -38,11 +38,27 @@ export class TransferStatusDto {
   fromAccountId?: string;
 
   @ApiPropertyOptional({
+    type: String,
+    pattern: '^[0-9]{12}$',
+    description: 'Number of the source account; present exactly when fromAccountId is',
+    example: '100000000001',
+  })
+  fromAccountNumber?: string;
+
+  @ApiPropertyOptional({
     format: 'uuid',
     description: 'Destination account; only for a COMPLETED transfer, never for a REJECTED one',
     example: 'bf9c3419-51ff-4e55-b03c-3296f0419c03',
   })
   toAccountId?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    pattern: '^[0-9]{12}$',
+    description: 'Number of the destination account; present exactly when toAccountId is',
+    example: '100000000002',
+  })
+  toAccountNumber?: string;
 
   @ApiProperty({
     type: String,

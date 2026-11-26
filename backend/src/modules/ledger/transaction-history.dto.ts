@@ -39,6 +39,16 @@ export class TransactionItemDto {
 
   @ApiProperty({
     type: String,
+    pattern: '^[0-9]{12}$',
+    nullable: true,
+    description:
+      'Account number of the counterparty; null exactly when counterpartyAccountId is null',
+    example: '100000000002',
+  })
+  counterpartyAccountNumber!: string | null;
+
+  @ApiProperty({
+    type: String,
     format: 'date-time',
     example: '2026-03-15T02:30:00.123456Z',
     description: 'UTC with exactly six fractional digits',

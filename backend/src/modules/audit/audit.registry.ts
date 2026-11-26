@@ -21,6 +21,7 @@ export const AUDIT_ACTIONS = [
   'account.open',
   'account.list',
   'account.read',
+  'account.lookup',
   'account.transactions',
   'customer.created',
   'customer.read',

@@ -85,7 +85,12 @@ describe('RolesGuard in the real AppModule (e2e)', () => {
     // The guard order is the contract; TC-51-19 proves it by behaviour, this proves it is wired.
     // DBS-89 adds the per-customer transfer limit AFTER the two: it needs `request.user`. The
     // per-IP limit is a middleware, so it is not among the guards.
-    expect(globalGuards).toEqual([JwtAuthGuard.name, RolesGuard.name, 'TransferRateLimitGuard']);
+    expect(globalGuards).toEqual([
+      JwtAuthGuard.name,
+      RolesGuard.name,
+      'TransferRateLimitGuard',
+      'LookupRateLimitGuard',
+    ]);
   });
 
   it('TC-51-14 a protected route with no token is still 401 UNAUTHENTICATED (not 403)', async () => {

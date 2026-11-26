@@ -14,7 +14,7 @@ import { authConfig } from '@config/auth.config';
 import { databaseConfig } from '@config/database.config';
 import { limitsConfig } from '@config/limits.config';
 import { redisConfig } from '@config/redis.config';
-import { RateLimitModule, TransferRateLimitGuard } from '@common/rate-limit';
+import { LookupRateLimitGuard, RateLimitModule, TransferRateLimitGuard } from '@common/rate-limit';
 import { HealthModule } from '@modules/health';
 import { LOCAL_CLIENT_ID, LOCAL_ISSUER } from '@config/auth-local';
 import { TransactionService } from '@database/transaction.service';
@@ -44,7 +44,11 @@ const settings = {
 /** Mutable on purpose: a test that moves more than the real limits allow raises them and restores. */
 export interface FixtureLimits {
   transfer: { perTx: bigint; perDay: bigint };
-  rateLimit: { transfersPerMinute: number; requestsPerIpPerMinute: number };
+  rateLimit: {
+    transfersPerMinute: number;
+    requestsPerIpPerMinute: number;
+    lookupsPerMinute: number;
+  };
 }
 
 export interface DepositApp {
@@ -61,6 +65,7 @@ export interface RateLimitFixture {
   trustProxyHops?: number;
   transfersPerMinute?: number;
   requestsPerIpPerMinute?: number;
+  lookupsPerMinute?: number;
 }
 /** Per-transaction database waits; defaults match env/.env.example. A test shortens them to hit a timeout quickly. */
 export interface DbTimeouts {
@@ -129,6 +134,7 @@ export async function startDepositApp(
     rateLimit: {
       transfersPerMinute: options.rateLimit?.transfersPerMinute ?? 10,
       requestsPerIpPerMinute: options.rateLimit?.requestsPerIpPerMinute ?? 100,
+      lookupsPerMinute: options.rateLimit?.lookupsPerMinute ?? 20,
     },
   };
   const appSettings = { ...settings, trustProxyHops: options.rateLimit?.trustProxyHops ?? 0 };
@@ -180,7 +186,12 @@ export async function startDepositApp(
       providers: [
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
-        ...(rateLimit ? [{ provide: APP_GUARD, useClass: TransferRateLimitGuard }] : []),
+        ...(rateLimit
+          ? [
+              { provide: APP_GUARD, useClass: TransferRateLimitGuard },
+              { provide: APP_GUARD, useClass: LookupRateLimitGuard },
+            ]
+          : []),
       ],
     });
     const redisUrl = options.revocation?.redisUrl ?? rateLimit?.redisUrl;
