@@ -250,10 +250,12 @@ jobs:
   frontend:
     name: frontend
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # `defaults` before `timeout-minutes`: test_check_image_workflow.py edits the first
+    # "timeout-minutes: 10 / defaults:" pair it finds, which must stay the scan job's.
     defaults:
       run:
         working-directory: frontend
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
