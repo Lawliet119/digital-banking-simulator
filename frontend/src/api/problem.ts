@@ -13,6 +13,8 @@ export class ApiProblem extends Error {
     readonly retryAfterSeconds?: number,
     /** Per-field messages of a 400. */
     readonly errors: string[] = [],
+    /** The transfer a 422 rejection was recorded as: its status page explains it. */
+    readonly transferId?: string,
   ) {
     super(detail ?? errorCode ?? `HTTP ${status}`);
     this.name = 'ApiProblem';
@@ -34,6 +36,7 @@ export function toProblem(response: Response, body: unknown): ApiProblem {
     text('correlationId') ?? response.headers.get('X-Correlation-Id') ?? undefined,
     Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
     errors,
+    text('transferId'),
   );
 }
 

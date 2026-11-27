@@ -45,9 +45,14 @@ export function tokenCommand(role: DevRole, sub: string): string[] {
 /**
  * `GET /__dev-auth/token?role=<role>&sub=<id>`: a local access token signed with the key of
  * `backend/.auth-local` (the backend runs with `AUTH_MODE=local`). Only `vite dev` serves it
- * (`apply: 'serve'`); a production build has no such route.
+ * (`apply: 'serve'`); a production build has no such route. `DBS_BACKEND_DIR` points at another
+ * checkout's `backend/` (the one whose API is running, so the keys match).
  */
-export function devAuthPlugin(backendDir = resolve(import.meta.dirname, '../../backend')): Plugin {
+export function devAuthPlugin(
+  backendDir = resolve(
+    process.env.DBS_BACKEND_DIR ?? resolve(import.meta.dirname, '../../backend'),
+  ),
+): Plugin {
   return {
     name: 'dbs-dev-auth',
     apply: 'serve',

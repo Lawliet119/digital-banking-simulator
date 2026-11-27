@@ -21,7 +21,20 @@ npm run dev        # http://127.0.0.1:5173
 
 Vite chuyển `/v1` và `/health` sang `http://127.0.0.1:3000` (đổi bằng `DBS_API_URL`), nên trình duyệt chỉ thấy một origin và API không cần CORS.
 
-Màn hình đăng nhập chọn vai trò và mã người dùng (`sub`). Cùng `sub` là cùng một người ở lần sau. Token do `/__dev-auth/token` của Vite ký bằng lệnh `npm run auth:dev-token` của backend; route này chỉ có ở `vite dev` (`apply: 'serve'`), bản build không có.
+Màn hình đăng nhập chọn vai trò và mã người dùng (`sub`). Cùng `sub` là cùng một người ở lần sau. Token do `/__dev-auth/token` của Vite ký bằng lệnh `npm run auth:dev-token` của backend; route này chỉ có ở `vite dev` (`apply: 'serve'`), bản build không có. Lệnh chạy trong `../backend`; backend đang chạy nằm ở checkout khác thì đặt `DBS_BACKEND_DIR` trỏ tới thư mục `backend/` đó, để token được ký bằng đúng khóa API đang tin.
+
+## Màn hình
+
+| Vai trò    | Route            | Việc                                                                      |
+| ---------- | ---------------- | ------------------------------------------------------------------------- |
+| Khách hàng | `/onboarding`    | tạo hồ sơ khi `GET /v1/customers/me` trả 404                              |
+| Khách hàng | `/accounts`      | danh sách tài khoản (số tài khoản, loại, trạng thái, số dư), mở tài khoản |
+| Khách hàng | `/accounts/:id`  | chi tiết và lịch sử, lọc theo ngày giờ Việt Nam, "Xem thêm" theo cursor   |
+| Khách hàng | `/transfer`      | nhập → xác nhận (tên người nhận từ tra cứu theo số) → kết quả             |
+| Khách hàng | `/transfers/:id` | trạng thái một giao dịch, lý do nếu bị từ chối                            |
+| Khách hàng | `/notifications` | thông báo, tự làm mới 10 giây                                             |
+
+Màn hình khách không có trường nào về cờ gian lận, điểm rủi ro hay AI (AC-10.2). Tài khoản không thuộc mình và id bịa đều chỉ hiện "Không tìm thấy". Sau khi bấm "Chuyển" mà không biết kết quả (mất mạng, 5xx, 429), màn hình chỉ cho bấm "Chuyển" lại với cùng `Idempotency-Key`, không cho sửa để khỏi tạo lệnh thứ hai.
 
 ## Lệnh
 
