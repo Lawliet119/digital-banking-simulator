@@ -55,6 +55,37 @@ Màn hình khách không có trường nào về cờ gian lận, điểm rủi 
 | `npm run test:e2e`  | Playwright, cần backend đang chạy (bước 1); tự bật Vite nếu chưa có      |
 | `npm run api:types` | sinh lại `src/api/schema.d.ts` từ OpenAPI; CI đỏ nếu file đã commit khác |
 
+## Test trên trình duyệt
+
+Playwright chạy với backend thật. Kịch bản có thông báo và cờ gian lận cần worker, nên chạy backend ở `APP_ROLE=both` cùng ElasticMQ (`docker compose up -d`). Mọi request đi từ 127.0.0.1, nên nâng giới hạn tốc độ khi chạy test:
+
+```bash
+# trong backend/, sau bước 1 ở trên
+APP_ROLE=both AUTH_MODE=local AUTH_LOCAL_JWKS_PATH=.auth-local/jwks.json \
+RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE=10000 RATE_LIMIT_TRANSFERS_PER_MINUTE=1000 \
+RATE_LIMIT_LOOKUPS_PER_MINUTE=1000 npm run start:dev
+# trong frontend/
+npm run test:e2e
+# rồi trong backend/
+npm run check:invariants
+```
+
+Mỗi test dùng `sub` ngẫu nhiên nên không phụ thuộc dữ liệu cũ. Job CI `frontend-e2e` chạy đúng các bước này.
+
+| #   | Kịch bản (kế hoạch UI, chặng G)                                   | Test                             |
+| --- | ----------------------------------------------------------------- | -------------------------------- |
+| 1   | Khách mới tạo hồ sơ, mở tài khoản, số dư 0                        | `customer.spec.ts`               |
+| 2   | Nhân viên nạp tiền; khách thấy số dư mới và thông báo             | `demo.spec.ts` G2                |
+| 3   | Tra người nhận theo số, chuyển tiền, thấy Hoàn tất                | `customer.spec.ts`               |
+| 4   | Giao dịch đủ điều kiện gắn cờ hiện ở danh sách cờ của nhân viên   | `demo.spec.ts` G4                |
+| 5   | Không màn hình khách nào có chữ về cờ, gian lận, điểm, AI         | `demo.spec.ts` G5                |
+| 6   | Nhân viên review cờ; lần review thứ hai bị từ chối                | `demo.spec.ts` G6                |
+| 7   | Kiểm toán viên dán mã truy vết, thấy đủ chuỗi bản ghi             | `demo.spec.ts` G7                |
+| 8   | Chuyển quá số dư hiện lý do; số dư không đổi                      | `customer.spec.ts`               |
+| 9   | Mất phản hồi sau "Chuyển", bấm lại: chỉ một lệnh                  | `customer.spec.ts`               |
+| 10  | Nhân viên khóa tài khoản; thao tác kế tiếp của khách về đăng nhập | `demo.spec.ts` G10               |
+| 11  | Khách gõ URL của nhân viên: UI chặn, API trả 403                  | `login.spec.ts`, `staff.spec.ts` |
+
 ## Quy tắc
 
 - **Tiền là chuỗi số nguyên đồng**, xử lý bằng `BigInt` (`src/lib/money.ts`). Không đổi sang `number`.
