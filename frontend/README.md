@@ -25,14 +25,21 @@ Màn hình đăng nhập chọn vai trò và mã người dùng (`sub`). Cùng `
 
 ## Màn hình
 
-| Vai trò    | Route            | Việc                                                                      |
-| ---------- | ---------------- | ------------------------------------------------------------------------- |
-| Khách hàng | `/onboarding`    | tạo hồ sơ khi `GET /v1/customers/me` trả 404                              |
-| Khách hàng | `/accounts`      | danh sách tài khoản (số tài khoản, loại, trạng thái, số dư), mở tài khoản |
-| Khách hàng | `/accounts/:id`  | chi tiết và lịch sử, lọc theo ngày giờ Việt Nam, "Xem thêm" theo cursor   |
-| Khách hàng | `/transfer`      | nhập → xác nhận (tên người nhận từ tra cứu theo số) → kết quả             |
-| Khách hàng | `/transfers/:id` | trạng thái một giao dịch, lý do nếu bị từ chối                            |
-| Khách hàng | `/notifications` | thông báo, tự làm mới 10 giây                                             |
+| Vai trò        | Route                               | Việc                                                                                            |
+| -------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Khách hàng     | `/onboarding`                       | tạo hồ sơ khi `GET /v1/customers/me` trả 404                                                    |
+| Khách hàng     | `/accounts`                         | danh sách tài khoản (số tài khoản, loại, trạng thái, số dư), mở tài khoản                       |
+| Khách hàng     | `/accounts/:id`                     | chi tiết và lịch sử, lọc theo ngày giờ Việt Nam, "Xem thêm" theo cursor                         |
+| Khách hàng     | `/transfer`                         | nhập → xác nhận (tên người nhận từ tra cứu theo số) → kết quả                                   |
+| Khách hàng     | `/transfers/:id`                    | trạng thái một giao dịch, lý do nếu bị từ chối                                                  |
+| Khách hàng     | `/notifications`                    | thông báo, tự làm mới 10 giây                                                                   |
+| Nhân viên      | `/operator/accounts`                | tìm theo tên, số tài khoản hoặc mã; khóa và mở khóa kèm lý do bắt buộc                          |
+| Nhân viên      | `/operator/deposit`                 | nạp tiền tại quầy, cùng quy tắc `Idempotency-Key` như chuyển tiền                               |
+| Nhân viên      | `/operator/fraud-flags`             | danh sách cờ, lọc theo mức và trạng thái review, tự làm mới 10 giây                             |
+| Nhân viên      | `/operator/fraud-flags/:transferId` | điểm do server trả, luật trúng (có thể rỗng), phần AI riêng, form review một lần                |
+| Kiểm toán viên | `/audit`                            | tra nhật ký theo mã truy vết, người, hành động, khoảng thời gian; không có nút ghi              |
+| Quản trị viên  | `/admin/risk-config`                | phiên bản đang hiệu lực và các phiên bản                                                        |
+| Quản trị viên  | `/admin/risk-config/new`            | tạo phiên bản từ bản đang hiệu lực; cảnh báo đóng băng cấu hình; lỗi lấy nguyên từ response 400 |
 
 Màn hình khách không có trường nào về cờ gian lận, điểm rủi ro hay AI (AC-10.2). Tài khoản không thuộc mình và id bịa đều chỉ hiện "Không tìm thấy". Sau khi bấm "Chuyển" mà không biết kết quả (mất mạng, 5xx, 429), màn hình chỉ cho bấm "Chuyển" lại với cùng `Idempotency-Key`, không cho sửa để khỏi tạo lệnh thứ hai.
 

@@ -10,7 +10,14 @@ import { OnboardingPage } from './features/customer/OnboardingPage';
 import { TransferPage } from './features/customer/TransferPage';
 import { TransferStatusPage } from './features/customer/TransferStatusPage';
 import { LoginPage } from './features/LoginPage';
-import { HomeRedirect, RoleHome } from './features/RoleHome';
+import { HomeRedirect } from './features/RoleHome';
+import { AuditPage } from './features/staff/AuditPage';
+import { DepositPage } from './features/staff/DepositPage';
+import { FraudFlagDetailPage } from './features/staff/FraudFlagDetailPage';
+import { FraudFlagsPage } from './features/staff/FraudFlagsPage';
+import { OperatorAccountsPage } from './features/staff/OperatorAccountsPage';
+import { RiskConfigNewPage } from './features/staff/RiskConfigNewPage';
+import { RiskConfigPage } from './features/staff/RiskConfigPage';
 
 /** A customer screen: the role, then a profile (onboarding first when there is none). */
 const customer = (page: ReactNode) => (
@@ -39,26 +46,58 @@ export const router = createBrowserRouter([
       { path: 'transfers/:id', element: customer(<TransferStatusPage />) },
       { path: 'notifications', element: customer(<NotificationsPage />) },
       {
-        path: 'operator',
+        path: 'operator/accounts',
         element: (
           <RequireRole role="operator">
-            <RoleHome role="operator" />
+            <OperatorAccountsPage />
           </RequireRole>
         ),
       },
       {
-        path: 'auditor',
+        path: 'operator/deposit',
+        element: (
+          <RequireRole role="operator">
+            <DepositPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'operator/fraud-flags',
+        element: (
+          <RequireRole role="operator">
+            <FraudFlagsPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'operator/fraud-flags/:transferId',
+        element: (
+          <RequireRole role="operator">
+            <FraudFlagDetailPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'audit',
         element: (
           <RequireRole role="auditor">
-            <RoleHome role="auditor" />
+            <AuditPage />
           </RequireRole>
         ),
       },
       {
-        path: 'admin',
+        path: 'admin/risk-config',
         element: (
           <RequireRole role="admin">
-            <RoleHome role="admin" />
+            <RiskConfigPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'admin/risk-config/new',
+        element: (
+          <RequireRole role="admin">
+            <RiskConfigNewPage />
           </RequireRole>
         ),
       },
