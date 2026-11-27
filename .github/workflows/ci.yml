@@ -244,6 +244,35 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  # Giao diện web (kế hoạch UI, chặng D). Chưa là required check; như mọi job khác không dùng `paths:`.
+  # `api:types` sinh lại kiểu từ docs/deliverables/openapi.json: kiểu đã commit lệch hợp đồng thì đỏ.
+  # Test trình duyệt (Playwright, cần backend thật) là job riêng ở chặng G.
+  frontend:
+    name: frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: API types match docs/deliverables/openapi.json
+        run: |
+          npm run api:types
+          git diff --exit-code -- src/api/schema.d.ts
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
   # Hai job quét của DBS-155. Chạy ở gốc repo (khác sáu job trên, mặc định working-directory là backend).
   # Là required check của `main` (ruleset protect-main, 2026-11-14): đổi tên job thì sửa ruleset cùng lúc.
   # Công cụ chạy bằng image chính thức ghim digest; cách dùng và cờ ở .github/scripts/run-trivy.sh và
