@@ -9,9 +9,13 @@ const LINKS: Record<Role, { to: string; label: string }[]> = {
     { to: '/transfer', label: 'Chuyển tiền' },
     { to: '/notifications', label: 'Thông báo' },
   ],
-  operator: [{ to: '/operator', label: 'Nhân viên' }],
-  auditor: [{ to: '/auditor', label: 'Kiểm toán' }],
-  admin: [{ to: '/admin', label: 'Quản trị' }],
+  operator: [
+    { to: '/operator/accounts', label: 'Tìm tài khoản' },
+    { to: '/operator/deposit', label: 'Nạp tiền' },
+    { to: '/operator/fraud-flags', label: 'Cờ gian lận' },
+  ],
+  auditor: [{ to: '/audit', label: 'Nhật ký kiểm toán' }],
+  admin: [{ to: '/admin/risk-config', label: 'Cấu hình luật' }],
 };
 
 export function Layout() {

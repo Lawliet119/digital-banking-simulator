@@ -33,7 +33,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export const ROLE_HOME: Record<Role, string> = {
   customer: '/accounts',
-  operator: '/operator',
-  auditor: '/auditor',
-  admin: '/admin',
+  operator: '/operator/accounts',
+  auditor: '/audit',
+  admin: '/admin/risk-config',
 };

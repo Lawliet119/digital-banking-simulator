@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-const LABELS = {
-  operator: 'Nhân viên',
-  auditor: 'Kiểm toán viên',
-  admin: 'Quản trị viên',
+/** Each staff role: the radio label, its home and the heading of that home. */
+const HOMES = {
+  operator: ['Nhân viên', '/operator/accounts', 'Tìm tài khoản'],
+  auditor: ['Kiểm toán viên', '/audit', 'Nhật ký kiểm toán'],
+  admin: ['Quản trị viên', '/admin/risk-config', 'Cấu hình luật gian lận'],
 } as const;
 
 /** A fresh subject per run, so no state from an earlier run matters. */
@@ -21,8 +22,8 @@ test('stage D: a new customer signs in and is sent to create a profile, as the s
   await expect(page.getByTestId('who')).toHaveText(subject);
 });
 
-for (const [role, label] of Object.entries(LABELS)) {
-  test(`stage D: ${role} signs in and sees the sub and role the server returns`, async ({
+for (const [role, [label, home, heading]] of Object.entries(HOMES)) {
+  test(`stage D: ${role} signs in, lands on its home and the server knows the sub`, async ({
     page,
   }) => {
     const subject = sub(role);
@@ -32,10 +33,10 @@ for (const [role, label] of Object.entries(LABELS)) {
     await page.getByLabel('Mã người dùng (sub)').fill(subject);
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
 
-    await expect(page).toHaveURL(new RegExp(`/${role}$`));
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(label);
-    await expect(page.getByTestId('me-sub')).toHaveText(subject);
-    await expect(page.getByTestId('me-roles')).toHaveText(label);
+    await expect(page).toHaveURL(new RegExp(`${home}$`));
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(heading);
+    await expect(page.getByTestId('who')).toHaveText(subject);
+    await expect(page.getByTestId('who')).toHaveAttribute('title', label);
   });
 }
 
@@ -44,7 +45,7 @@ test('stage D: a role page of another role is blocked in the UI', async ({ page 
   await page.getByLabel('Mã người dùng (sub)').fill(sub('customer'));
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
   await expect(page).toHaveURL(/\/onboarding$/);
-  await page.goto('/operator');
+  await page.goto('/operator/fraud-flags');
   await expect(page.getByRole('alert')).toContainText('Không có quyền');
 });
 
