@@ -4,7 +4,7 @@ import { AuditHttpModule, AuditModule } from './audit';
 import { HealthModule } from './health';
 import { IdentityModule, SessionRevocationModule } from './identity';
 import { OutboxModule, OutboxRelayModule } from './outbox';
-import { NotificationModule } from './notification';
+import { NotificationHttpModule, NotificationModule } from './notification';
 import { AccountsModule } from './accounts';
 import { RiskModule, RiskWorkerModule } from './risk';
 import { FraudHttpModule } from './risk/fraud-http.module';
@@ -39,6 +39,7 @@ const apiModules: ModuleRef[] = [
   LedgerModule,
   AuditHttpModule,
   FraudHttpModule,
+  NotificationHttpModule,
 ];
 
 const workerModules: ModuleRef[] = [

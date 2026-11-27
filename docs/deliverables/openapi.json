@@ -5313,6 +5313,243 @@
         ],
         "description": "\n\nVai trò: operator. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 409 FLAG_ALREADY_REVIEWED; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
+    },
+    "/v1/notifications": {
+      "get": {
+        "description": "Ordered by the time the event happened. Pass nextCursor back as cursor; there is no OFFSET.\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.",
+        "operationId": "NotificationsController_list_v1",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPageDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid limit or cursor; unknown parameter",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN; the caller is not a customer",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Customer: own notifications, newest first, keyset pagination",
+        "tags": [
+          "notifications"
+        ],
+        "x-roles": [
+          "customer"
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        }
+      }
     }
   },
   "info": {
@@ -6453,6 +6690,62 @@
         },
         "required": [
           "decision"
+        ]
+      },
+      "NotificationItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "42",
+            "description": "notification_log.id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "transfer_completed",
+              "account_status_changed"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "example": "Giao dịch chuyển tiền đã hoàn tất.",
+            "description": "Fixed generic text: no amount and no reason (BR-13)"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-03-15T02:30:00.123456Z",
+            "description": "When the event happened, UTC with exactly six fractional digits"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "message",
+          "occurredAt"
+        ]
+      },
+      "NotificationPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Newest first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationItemDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque cursor for the next page; null on the last page",
+            "example": "bmV4dC1wYWdlLWN1cnNvcg"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
         ]
       },
       "ProblemDetailsDto": {

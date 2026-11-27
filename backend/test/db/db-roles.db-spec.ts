@@ -189,7 +189,9 @@ describe('least-privilege roles dbs_api, dbs_worker, dbs_migrator (DBS-119)', ()
     await denied(apiSource.query('SELECT 1 FROM outbox_events'));
     await denied(apiSource.query('UPDATE outbox_events SET published_at = now()'));
     await denied(apiSource.query('SELECT 1 FROM processed_events'));
-    await denied(apiSource.query('SELECT 1 FROM notification_log'));
+    await apiSource.query('SELECT 1 FROM notification_log');
+    await denied(apiSource.query('UPDATE notification_log SET message = message'));
+    await denied(apiSource.query('DELETE FROM notification_log'));
     await denied(
       apiSource.query(
         "INSERT INTO notification_log(event_id,kind,message) VALUES(gen_random_uuid(),'transfer_completed','x')",
