@@ -310,7 +310,7 @@ flowchart LR
 | Khóa / mở khóa tài khoản | Đảo giao dịch, hoàn tiền (để mở rộng) |
 | Thông báo giả lập | Gửi SMS / email thật |
 | Một loại tiền (VND) | Đa tiền tệ, tỉ giá |
-| Giao tiếp qua API (kiểm thử bằng công cụ) | Ứng dụng di động, giao diện web hoàn chỉnh |
+| Giao tiếp qua API và giao diện web cho bốn vai trò (`frontend/`, [ADR-15](adr/0015-web-frontend.md); đợt này chạy local) | Ứng dụng di động |
 
 ### 7.2 Lý do khoanh phạm vi như vậy
 

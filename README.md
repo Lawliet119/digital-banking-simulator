@@ -47,6 +47,8 @@ npm run start:dev
 
 Ứng dụng nghe ở `http://localhost:3000`: `/health/ready` (kiểm tra sẵn sàng), `/docs` (Swagger UI, không có ở production). Gọi API cần token; cách tạo token thử ở local và nạp dữ liệu demo (`npm run seed`) nằm ở [backend/README.md](backend/README.md) (mục 10 và 12).
 
+**Giao diện web** (bốn vai trò, [ADR-15](docs/adr/0015-web-frontend.md)): chạy backend với `AUTH_MODE=local` (sau `npm run auth:dev-keys`), rồi `cd frontend && npm ci && npm run dev` và mở `http://127.0.0.1:5173`. Chi tiết và test trình duyệt ở [frontend/README.md](frontend/README.md).
+
 | Dịch vụ local | Địa chỉ |
 |---|---|
 | PostgreSQL | `localhost:5432` |
@@ -88,6 +90,7 @@ digital-banking-simulator/
 │   ├── terraform/        # hạ tầng AWS (bootstrap, envs/dev, envs/prod)
 │   ├── scripts/          # script vận hành và kiểm tra hạ tầng
 │   └── local/            # cấu hình ElasticMQ cho môi trường local
+├── frontend/             # giao diện web React + Vite cho bốn vai trò; xem frontend/README.md
 ├── load-tests/           # kịch bản k6 và bộ dữ liệu fraud (fraud-dataset/)
 ├── docs/                 # tài liệu; xem bảng bên dưới
 ├── .github/              # CI/CD, script CI, PR template

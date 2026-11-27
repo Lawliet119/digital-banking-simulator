@@ -7,7 +7,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
-| Phiên bản | 1.14 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
+| Phiên bản | 1.15 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [BRD.md](BRD.md) (Phần 1: BG, BR · Phần 2: UC, FR, NFR · Phần 3: domain model) |
 | Tài liệu liên quan | [ADR-01…14 Accepted](adr/README.md) · [threat model](security/threat-model.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đã chốt ngày 2026-10-11 (lý do ở các ADR). Giá cloud là giá tham khảo region `ap-southeast-1`; số thật lấy từ Cost Explorer |
@@ -82,7 +82,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    C[Client<br/>Postman / k6 / app] -->|HTTPS| EDGE[WAF + Load Balancer]
+    C[Client<br/>web app tĩnh · Postman / k6] -->|HTTPS| EDGE[WAF + Load Balancer]
     EDGE --> API
 
     subgraph RUN[Container runtime - ECS Fargate]
@@ -103,6 +103,7 @@ flowchart LR
 
 | Container | Trách nhiệm | Công nghệ | Trạng thái | Scale |
 |---|---|---|---|---|
+| **Web client** | Giao diện cho bốn vai trò; chỉ gọi các endpoint `/v1` có sẵn, không có logic nghiệp vụ | React + Vite, file tĩnh ở `frontend/` ([ADR-15](adr/0015-web-frontend.md)); local qua Vite proxy, đợt cloud host sau Edge (Static Web Hosting, chưa dựng) | Token trong bộ nhớ và `sessionStorage` | Không có service mới |
 | **WAF + ALB** | TLS, chặn request độc hại, chia tải, health check | AWS WAF, ALB | — | Managed |
 | **API** | Toàn bộ use case đồng bộ; ghi DB trong transaction | NestJS (Node.js, TypeScript), `APP_ROLE=api` | Stateless | Ngang: 1 → N task |
 | **Worker** | Đưa sự kiện từ outbox ra hàng đợi; chấm điểm rủi ro; gửi thông báo | **Cùng image với API**, `APP_ROLE=worker`, không mở cổng HTTP | Stateless | 1–2 task |
@@ -1069,3 +1070,4 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 14 ADR Accepted (bảng dưới; 
 | **1.12** | DBS-89 & CHORE-20261108: R-1 (§9.1) ghi rõ khóa theo phút, thứ tự middleware/guard, `TRUST_PROXY_HOPS`, `rate_limited_total`; bảng API `POST /v1/transfers` có 429; chấp nhận ADR-14 (bỏ hướng ONNX `v3` của ADR-08, chuyển sang `R1–R6` + API AI ngoài tiến trình) |
 | **1.13** | Kế hoạch UI chặng A: số tài khoản 12 chữ số, `GET /v1/accounts/lookup` (mã `ACCOUNT_NOT_FOUND`, giới hạn riêng 20/khách/phút), thêm trường số tài khoản vào view tài khoản, lịch sử và trạng thái lệnh (bảng API §7 và §7.1) |
 | **1.14** | Kế hoạch UI chặng B: `GET /v1/notifications` cho khách (bảng API §7); `dbs_api` đọc được `notification_log`, index `(user_id, occurred_at, id)` |
+| **1.15** | Kế hoạch UI chặng H: khối Web client (file tĩnh, không service mới) ở C4 mức 2 theo [ADR-15](adr/0015-web-frontend.md) |
