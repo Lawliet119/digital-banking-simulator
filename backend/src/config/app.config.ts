@@ -10,6 +10,7 @@ export const appConfig = registerAs('app', () => {
     role: env.APP_ROLE,
     logLevel: env.LOG_LEVEL,
     trustProxyHops: env.TRUST_PROXY_HOPS,
+    drainTimeoutMs: env.HTTP_DRAIN_TIMEOUT_MS,
     corsOrigins: env.CORS_ORIGINS.split(',')
       .map(origin => origin.trim())
       .filter(origin => origin.length > 0),
