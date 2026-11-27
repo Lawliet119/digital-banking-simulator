@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { TransactionService } from '@database/transaction.service';
+import { AccountNumberReader } from '@modules/accounts';
 import { AuditReason, AuditService } from '@modules/audit';
 import { TransferStatusDto } from './transfer-status.dto';
 
@@ -36,6 +37,7 @@ export class TransferQueryService {
   constructor(
     private readonly tx: TransactionService,
     private readonly audit: AuditService,
+    private readonly accountNumbers: AccountNumberReader,
   ) {}
 
   /**
@@ -53,7 +55,11 @@ export class TransferQueryService {
       const isSender = row.senderUserId === userId;
       const isRecipient = row.status === 'COMPLETED' && row.recipientUserId === userId;
       if (!isSender && !isRecipient) return undefined;
-      const view = toView(row);
+      const numbers = await this.accountNumbers.numbersOf(manager, [
+        row.fromAccountId,
+        ...(row.toAccountId ? [row.toAccountId] : []),
+      ]);
+      const view = toView(row, numbers);
       await this.audit.record(manager, {
         actor: userId,
         role: 'customer',
@@ -79,7 +85,7 @@ export class TransferQueryService {
   }
 }
 
-function toView(row: Row): TransferStatusDto {
+function toView(row: Row, numbers: ReadonlyMap<string, string>): TransferStatusDto {
   const view: TransferStatusDto = {
     transferId: row.id,
     type: row.type,
@@ -89,7 +95,13 @@ function toView(row: Row): TransferStatusDto {
   };
   if (row.status === 'REJECTED' && row.rejectReason) view.rejectReason = row.rejectReason;
   // The funding account is the source of every DEPOSIT and belongs to no customer.
-  if (row.type === 'TRANSFER') view.fromAccountId = row.fromAccountId;
-  if (row.status === 'COMPLETED' && row.toAccountId) view.toAccountId = row.toAccountId;
+  if (row.type === 'TRANSFER') {
+    view.fromAccountId = row.fromAccountId;
+    view.fromAccountNumber = numbers.get(row.fromAccountId);
+  }
+  if (row.status === 'COMPLETED' && row.toAccountId) {
+    view.toAccountId = row.toAccountId;
+    view.toAccountNumber = numbers.get(row.toAccountId);
+  }
   return view;
 }

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Counter, register as defaultRegister, Registry } from 'prom-client';
 
-export type RateLimitScope = 'ip' | 'user';
+export type RateLimitScope = 'ip' | 'user' | 'lookup';
 
 // Same pattern as RedisMetrics: one shared Counter per process in the default registry (what a
 // future /metrics endpoint exposes) and one private Counter per instance for tests.

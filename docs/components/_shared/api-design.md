@@ -94,6 +94,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 | `IDEMPOTENCY_KEY_REQUIRED` | `400` | Thiếu hoặc rỗng header `Idempotency-Key` trên `POST /v1/transfers` hoặc `POST /v1/operator/deposits`. | Không |
 | `IDEMPOTENCY_KEY_REUSED` | `422` | Gửi lại cùng `(userId, Idempotency-Key)` khi key còn được giữ (tối thiểu 7 ngày) nhưng khác endpoint hoặc khác nội dung body (`request_hash`). | Không |
 | `ACCOUNT_LIMIT_REACHED` | `409` | Khách hàng đã có đủ 3 tài khoản (tính cả `ACTIVE` và `LOCKED`) khi gọi `POST /v1/accounts`. | Không |
+| `ACCOUNT_NOT_FOUND` | `404` | `GET /v1/accounts/lookup`: không có tài khoản khách nào mang số này. Tài khoản SYSTEM cũng trả mã này nên không phân biệt được. | Không |
 | `UNAUTHENTICATED` | `401` | Thiếu header `Authorization: Bearer`, JWT sai cấu trúc, sai chữ ký, sai `iss`/`client_id`/`token_use`. Lỗi kết nối khi tra cứu `users` **không** phải 401: trả `503 SERVICE_TEMPORARILY_UNAVAILABLE`. | Không |
 | `TOKEN_EXPIRED` | `401` | Access token có chữ ký đúng nhưng đã quá hạn `exp` (cho phép client dùng refresh token lấy token mới). | Không |
 | `SESSION_REVOKED` | `401` | Access token có `iat <= floor(epoch_seconds(users.sessions_revoked_at))`: token cùng giây cũng bị từ chối; Redis chỉ được dùng để từ chối sớm (không bao giờ cho qua), còn lại xác nhận SQL. Token giây sau chỉ qua bước kiểm phiên; quy tắc vai trò/sở hữu/trạng thái vẫn áp dụng ([công thức](../../03_HIGH_LEVEL_ARCHITECTURE.md#62-khóa-tài-khoản-và-thu-hồi-phiên-uc-11)). | Không |
@@ -211,6 +212,13 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
 - **Auth:** `@Roles('customer')`.
 - **Response `200 OK`:** Cùng cấu trúc `CustomerProfileDto` như trên (ghi audit `customer.read` cùng transaction).
 - **Mã lỗi:** `404 Not Found` (nếu khách chưa gọi `POST /v1/customers/me`), `401`, `403`, `500`, `503`.
+
+#### `GET /v1/accounts/lookup?accountNumber=` (tra người nhận, kế hoạch UI chặng A)
+- **Auth:** `@Roles('customer')`; giới hạn riêng `RATE_LIMIT_LOOKUPS_PER_MINUTE` (mặc định 20 mỗi khách mỗi phút).
+- **Query:** `accountNumber` đúng 12 chữ số, không tham số khác.
+- **Response `200 OK`:** `{ "accountId": "<uuid>", "accountNumber": "100000000002", "ownerName": "Nguyễn Minh Anh" }`. Tài khoản `LOCKED` vẫn trả 200.
+- **Mã lỗi:** `400` (sai định dạng), `401`, `403`, `404 ACCOUNT_NOT_FOUND` (không có, hoặc là tài khoản SYSTEM), `429 RATE_LIMITED` (+ `Retry-After`), `500`, `503`.
+- Mọi view tài khoản (`GET/POST /v1/accounts`, `GET /v1/accounts/{id}`, tìm của nhân viên) có thêm `accountNumber`; lịch sử giao dịch có `counterpartyAccountNumber`, trạng thái lệnh chuyển có `fromAccountNumber`, `toAccountNumber`. `POST /v1/transfers` vẫn nhận UUID.
 
 #### `POST /v1/accounts` (UC-2: Mở tài khoản ngân hàng)
 - **Auth:** `@Roles('customer')`.
@@ -346,6 +354,7 @@ Khi lỗi do `ValidationPipe` (400), phản hồi có thêm mảng `errors: stri
         "amount": "300000",
         "balanceAfter": "1200000",
         "counterpartyAccountId": "9a14c320-11b8-4c55-a120-55d89e123456",
+        "counterpartyAccountNumber": "100000000002",
         "createdAt": "2026-11-04T08:10:00.123456Z"
       }
     ],

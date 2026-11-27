@@ -1,5 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { TransactionService } from '@database/transaction.service';
+import { AccountNumberReader } from '@modules/accounts';
 import { AuditReason, AuditService } from '@modules/audit';
 import { buildHistorySql, transferCorrelationId, type TransactionItemDto } from '@modules/ledger';
 import { ErrorCode } from '@common/errors/error-code.enum';
@@ -16,6 +17,7 @@ export class FraudHttpService {
   constructor(
     private readonly tx: TransactionService,
     private readonly audit: AuditService,
+    private readonly accountNumbers: AccountNumberReader,
   ) {}
 
   list(query: FraudQuery, actor: string, correlationId: string): Promise<FraudListDto> {
@@ -76,7 +78,13 @@ export class FraudHttpService {
         cursor: null,
         limit: 10,
       });
-      const movements = await manager.query<TransactionItemDto[]>(history.sql, history.parameters);
+      const movements = await manager.query<
+        Omit<TransactionItemDto, 'counterpartyAccountNumber'>[]
+      >(history.sql, history.parameters);
+      const numbers = await this.accountNumbers.numbersOf(
+        manager,
+        movements.flatMap(row => (row.counterpartyAccountId ? [row.counterpartyAccountId] : [])),
+      );
       const recentTransactions = movements.slice(0, 10).map(row => ({
         entryId: row.entryId,
         transferId: row.transferId,
@@ -85,6 +93,9 @@ export class FraudHttpService {
         amount: row.amount,
         balanceAfter: row.balanceAfter,
         counterpartyAccountId: row.counterpartyAccountId,
+        counterpartyAccountNumber: row.counterpartyAccountId
+          ? (numbers.get(row.counterpartyAccountId) ?? null)
+          : null,
         createdAt: row.createdAt,
       }));
       // BL-226 (DBS-135, AC-8.2): a view of one flag is a step of that transfer's chain, same as

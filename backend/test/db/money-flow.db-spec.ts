@@ -131,7 +131,7 @@ describe('DBS-65 full HTTP/JWT money flow on real PostgreSQL and Valkey', () => 
         status: 'ACTIVE',
       });
       expect(Object.keys(detail.body).sort()).toEqual(
-        ['id', 'type', 'status', 'balance', 'createdAt', 'updatedAt'].sort(),
+        ['id', 'accountNumber', 'type', 'status', 'balance', 'createdAt', 'updatedAt'].sort(),
       );
       await audit(list, owner.userId, 'customer', 'account.list', 'SUCCESS', 'user', owner.userId, {
         count: 1,

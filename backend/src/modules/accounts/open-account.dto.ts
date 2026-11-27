@@ -14,6 +14,14 @@ export class OpenedAccountDto {
   @ApiProperty({ format: 'uuid', example: '8f78e873-7dab-481a-9bbf-577d35e49dd7' })
   id!: string;
 
+  @ApiProperty({
+    type: String,
+    pattern: '^[0-9]{12}$',
+    example: '100000000001',
+    description: 'Customer-facing account number: 12 digits, unique',
+  })
+  accountNumber!: string;
+
   @ApiProperty({ enum: CUSTOMER_ACCOUNT_TYPES, example: 'CHECKING' })
   type!: CustomerAccountType;
 

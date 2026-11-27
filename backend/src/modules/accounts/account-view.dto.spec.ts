@@ -3,6 +3,7 @@ import { toAccountView, type AccountReadRow } from './account-view.dto';
 describe('DBS-64 exact money DTO boundary (not a ledger/API nonzero fixture)', () => {
   const row = (balance: string): AccountReadRow => ({
     id: '2e859a80-d4d0-471d-8cee-e9d0de9d4bc7',
+    accountNumber: '100000000001',
     type: 'CHECKING',
     status: 'ACTIVE',
     balance,
@@ -28,6 +29,7 @@ describe('DBS-64 exact money DTO boundary (not a ledger/API nonzero fixture)', (
     };
     expect(toAccountView(input)).toEqual({
       id: input.id,
+      accountNumber: '100000000001',
       type: 'CHECKING',
       status: 'LOCKED',
       balance: '0',

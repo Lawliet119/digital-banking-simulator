@@ -32,6 +32,9 @@ const METHODS = ['get', 'post', 'put', 'patch', 'delete'];
 
 /** The codes only one route can return: the golden table the enricher output is compared with. */
 const ROUTE_SPECIFIC: Record<string, Record<string, string[]>> = {
+  'GET /v1/accounts/lookup': {
+    '404': ['ACCOUNT_NOT_FOUND'],
+  },
   'POST /v1/transfers': {
     '400': ['IDEMPOTENCY_KEY_REQUIRED'],
     '422': [

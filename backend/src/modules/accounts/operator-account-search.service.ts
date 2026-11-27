@@ -34,6 +34,7 @@ export class OperatorAccountSearchService {
       // Copy field by field: only what is named here can leave the service.
       const items = rows.map(row => ({
         id: row.id,
+        accountNumber: row.accountNumber,
         type: row.type,
         status: row.status,
         ownerName: row.ownerName,

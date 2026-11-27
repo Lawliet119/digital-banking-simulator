@@ -66,7 +66,7 @@ export class AccountOpeningService {
       }
       const [row]: OpenedRow[] = await manager.query(
         `INSERT INTO accounts (customer_id,type) VALUES ($1,$2)
-         RETURNING id,type,status,balance::text,created_at AS "createdAt",updated_at AS "updatedAt"`,
+         RETURNING id,account_number AS "accountNumber",type,status,balance::text,created_at AS "createdAt",updated_at AS "updatedAt"`,
         [customerId, type],
       );
       await this.audit.record(manager, {

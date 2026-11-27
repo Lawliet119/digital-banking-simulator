@@ -22,16 +22,21 @@ describe('TC-89-13 the real AppModule wires the rate limit', () => {
     process.env = original;
   });
 
-  it('registers the global guards JWT, roles, then the per-customer transfer limit', async () => {
+  it('registers the global guards JWT, roles, then the per-customer transfer and lookup limits', async () => {
     const { AppModule } = await import('../src/app.module');
     const { JwtAuthGuard, RolesGuard } = await import('@modules/identity');
-    const { TransferRateLimitGuard } = await import('@common/rate-limit');
+    const { LookupRateLimitGuard, TransferRateLimitGuard } = await import('@common/rate-limit');
     const providers = Reflect.getMetadata('providers', AppModule) as {
       provide?: unknown;
       useClass?: unknown;
     }[];
     const guards = providers.filter(p => p.provide === APP_GUARD).map(p => p.useClass);
-    expect(guards).toEqual([JwtAuthGuard, RolesGuard, TransferRateLimitGuard]);
+    expect(guards).toEqual([
+      JwtAuthGuard,
+      RolesGuard,
+      TransferRateLimitGuard,
+      LookupRateLimitGuard,
+    ]);
   });
 
   it('loads RateLimitModule (and so the per-IP middleware) when the process serves HTTP', async () => {

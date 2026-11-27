@@ -4,6 +4,13 @@ import { formatBalance, parseBalance } from '@common/money';
 export class AccountViewDto {
   @ApiProperty({ format: 'uuid', example: '2e859a80-d4d0-471d-8cee-e9d0de9d4bc7' })
   id!: string;
+  @ApiProperty({
+    type: String,
+    pattern: '^[0-9]{12}$',
+    example: '100000000001',
+    description: 'Customer-facing account number: 12 digits, unique',
+  })
+  accountNumber!: string;
   @ApiProperty({ enum: ['CHECKING', 'SAVINGS'], example: 'CHECKING' })
   type!: 'CHECKING' | 'SAVINGS';
   @ApiProperty({ enum: ['ACTIVE', 'LOCKED'], example: 'ACTIVE' })
@@ -29,6 +36,7 @@ export type AccountReadRow = Omit<AccountViewDto, 'createdAt' | 'updatedAt'> & {
 export function toAccountView(row: AccountReadRow): AccountViewDto {
   return {
     id: row.id,
+    accountNumber: row.accountNumber,
     type: row.type,
     status: row.status,
     balance: formatBalance(parseBalance(row.balance)),

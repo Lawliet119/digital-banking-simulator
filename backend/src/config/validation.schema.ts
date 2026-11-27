@@ -75,6 +75,7 @@ export interface Env {
   PROCESSED_EVENTS_RETENTION_DAYS: number;
   RATE_LIMIT_TRANSFERS_PER_MINUTE: number;
   RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE: number;
+  RATE_LIMIT_LOOKUPS_PER_MINUTE: number;
 
   OPENAI_API_KEY?: string;
   RISK_AI_EGRESS_APPROVED: boolean;
@@ -225,6 +226,8 @@ export const validationSchema = Joi.object<Env>({
   PROCESSED_EVENTS_RETENTION_DAYS: Joi.number().integer().min(7).max(3650).default(7),
   RATE_LIMIT_TRANSFERS_PER_MINUTE: Joi.number().integer().min(1).default(10),
   RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE: Joi.number().integer().min(1).default(100),
+  // Account-number lookups per customer per minute (GET /v1/accounts/lookup).
+  RATE_LIMIT_LOOKUPS_PER_MINUTE: Joi.number().integer().min(1).default(20),
 
   // Optional API key for the external AI fraud evaluation adapter (ADR-14, FRAUD-API-02).
   // Baseline `rule_only` mode runs without it; whitespace-padded keys are rejected.

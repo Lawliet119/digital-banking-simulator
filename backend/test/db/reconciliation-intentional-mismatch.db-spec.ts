@@ -104,7 +104,7 @@ describe('DBS-118: intentional mismatch and concurrent transfers lifecycle', () 
       transfer: { perTx: parsePositiveMoney('50000000'), perDay: parsePositiveMoney('200000000') },
       idempotencyKeyRetentionDays: 7,
       outbox: { retentionDays: 7, processedEventsRetentionDays: 7 },
-      rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100 },
+      rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100, lookupsPerMinute: 20 },
       reconciliationIntervalMs: 300_000,
     });
 
@@ -330,7 +330,7 @@ describe('DBS-118: boundary case - large signed integer precision', () => {
       transfer: { perTx: parsePositiveMoney('50000000'), perDay: parsePositiveMoney('200000000') },
       idempotencyKeyRetentionDays: 7,
       outbox: { retentionDays: 7, processedEventsRetentionDays: 7 },
-      rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100 },
+      rateLimit: { transfersPerMinute: 10, requestsPerIpPerMinute: 100, lookupsPerMinute: 20 },
       reconciliationIntervalMs: 300_000,
     });
 

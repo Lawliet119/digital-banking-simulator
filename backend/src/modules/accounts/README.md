@@ -19,7 +19,8 @@ Hồ sơ khách hàng, tài khoản, trạng thái khóa.
 - `CHECK (type = 'SYSTEM' OR balance >= 0)` ở mức database.
 - Khóa tài khoản = đổi trạng thái **và** thu hồi phiên của chủ tài khoản trong cùng lệnh (gọi `identity`), không chờ sự kiện.
 - Truy cập tài khoản không thuộc mình trả **404**, không phải 403.
-- `GET /v1/operator/accounts` (FR-ACC-04): nhân viên tìm tài khoản theo `accountId` hoặc tên khách, tối đa 20 kết quả, **không trả số dư**, mỗi lần tra cứu ghi nhật ký.
+- Số tài khoản (`accounts.account_number`, 12 chữ số, migration `1795000013000`) có mặt trên `AccountViewDto`, `OpenedAccountDto`, `OperatorAccountDto`; `POST /v1/transfers` vẫn nhận UUID. Module `ledger` đọc số của đối tác qua `AccountNumberReader` (export của module này), không JOIN `accounts` trực tiếp.
+- `GET /v1/operator/accounts` (FR-ACC-04): nhân viên tìm tài khoản theo `accountId`, số tài khoản (đúng 12 chữ số, khớp chính xác) hoặc tên khách, tối đa 20 kết quả, **không trả số dư**, mỗi lần tra cứu ghi nhật ký.
 
 ## Export công khai (`index.ts`)
 
@@ -74,9 +75,13 @@ Primitive cho ledger được chứng minh trong [DBS-55](../../../../docs/featu
 
 `AccountOpeningService` nội bộ khóa hàng `customers` của caller bằng `FOR UPDATE`, rồi COUNT và INSERT trong cùng transaction READ COMMITTED. Audit SUCCESS cùng manager với INSERT. Đủ ba tài khoản: audit REJECTED được commit trước khi trả 409 `ACCOUNT_LIMIT_REACHED`. Chưa onboarding: audit REJECTED (target `user`) cùng transaction, rồi trả 404 sau commit; khác `GET /v1/customers/me` (404, không audit) vì đây là một lệnh ghi bị từ chối. Lỗi audit bất ngờ trả 500 và rollback; lỗi DB tạm thời trả 503 `SERVICE_TEMPORARILY_UNAVAILABLE` với `Retry-After` theo filter hiện có. Không phát sự kiện mới hoặc thay đổi số dư/bút toán. `SELECT … FOR UPDATE` cần quyền `UPDATE` một cột của `customers` cho role ứng dụng; `infra/scripts/db-roles.sql` cấp `UPDATE (full_name)` và `test/db/db-roles.db-spec.ts` chứng minh mở tài khoản chạy được bằng `dbs_api`. Chứng minh request đồng thời, parent lock, timeout/recovery và audit tại [DBS-63](../../../../docs/features/DBS-63-open-accounts.md).
 
+## Tra người nhận theo số tài khoản (kế hoạch UI, chặng A)
+
+`GET /v1/accounts/lookup?accountNumber=<12 chữ số>` (`@Roles('customer')`) trả `{accountId, accountNumber, ownerName}` để màn hình chuyển tiền hiện tên người nhận ở bước xác nhận. Không có tài khoản, hoặc là tài khoản SYSTEM (không có dòng `customers` để JOIN), đều trả cùng 404 `ACCOUNT_NOT_FOUND`. Tài khoản `LOCKED` vẫn trả 200: lệnh chuyển sau đó bị từ chối theo luật sẵn có. Sai định dạng (thiếu, không đủ 12 chữ số, tham số thừa hoặc lặp) là 400. Mỗi lần tra ghi nhật ký `account.lookup` cùng transaction (SUCCESS); lần trượt ghi REJECTED (target `user`, `reason` `ACCOUNT_NOT_FOUND`) để một lượt dò số để lại dấu vết. Giới hạn riêng `RATE_LIMIT_LOOKUPS_PER_MINUTE` (mặc định 20 mỗi khách mỗi phút, scope `lookup` nên không ăn vào 10 lệnh chuyển/phút), do `LookupRateLimitGuard` thực thi trước controller; vượt thì 429 kèm `Retry-After`, fail-open khi Redis hỏng như các giới hạn khác. Route khai báo **trước** `:id` trong controller.
+
 ## Đọc tài khoản và số dư (DBS-64)
 
-`GET /v1/accounts` trả mảng tài khoản của caller (cả ACTIVE/LOCKED), thứ tự createdAt rồi id; chưa có tài khoản trả `[]`. `GET /v1/accounts/{id}` trả đúng một tài khoản thuộc caller. Cả hai trả `{id,type,status,balance,createdAt,updatedAt}`; balance là chuỗi thập phân chính xác qua `@common/money`, không có tên, ownerId hoặc dữ liệu fraud. UUID không hợp lệ, thiếu, của người khác hoặc SYSTEM đều trả cùng 404.
+`GET /v1/accounts` trả mảng tài khoản của caller (cả ACTIVE/LOCKED), thứ tự createdAt rồi id; chưa có tài khoản trả `[]`. `GET /v1/accounts/{id}` trả đúng một tài khoản thuộc caller. Cả hai trả `{id,accountNumber,type,status,balance,createdAt,updatedAt}`; balance là chuỗi thập phân chính xác qua `@common/money`, không có tên, ownerId hoặc dữ liệu fraud. UUID không hợp lệ, thiếu, của người khác hoặc SYSTEM đều trả cùng 404.
 
 `AccountQueryService` dùng PostgreSQL trực tiếp, SQL JOIN customer lọc internal users.id đã xác minh, không cache Redis. SELECT và audit SUCCESS cùng transaction; chỉ trả dữ liệu sau commit. Không có owned row: ghi DENIED riêng bên ngoài transaction rồi mới trả 404; path không hợp lệ không được lưu vào metadata. Audit lỗi trả 500/503 thay vì tiết lộ balance. Số dư phản ánh dữ liệu đã commit tại thời điểm SELECT; có thể có giao dịch khác commit sau đó. Chứng minh đọc số dư sau nạp tiền thật (kể cả >2^53), audit và phép đo p95 HTTP sơ bộ tại [DBS-64](../../../../docs/features/DBS-64-read-accounts.md).
 

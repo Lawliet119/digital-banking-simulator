@@ -47,6 +47,7 @@ describe('DBS-63 real HTTP account opening and parent-row serialization', () => 
       const res = await open(user.token, { type }).expect(201);
       expect(res.body).toEqual({
         id: expect.any(String),
+        accountNumber: expect.stringMatching(/^[0-9]{12}$/),
         type,
         status: 'ACTIVE',
         balance: '0',

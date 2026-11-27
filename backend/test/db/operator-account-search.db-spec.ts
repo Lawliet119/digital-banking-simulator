@@ -11,12 +11,13 @@ import { checkLedgerInvariants } from '../support/invariants';
 type App = Awaited<ReturnType<typeof startDepositApp>>;
 interface Item {
   id: string;
+  accountNumber: string;
   type: string;
   status: string;
   ownerName: string;
 }
 const FUNDING = '00000000-0000-4000-8000-000000000001';
-const KEYS = ['id', 'ownerName', 'status', 'type'];
+const KEYS = ['accountNumber', 'id', 'ownerName', 'status', 'type'];
 const ACTION = 'operator.account.search';
 
 /** DBS-88 FR-ACC-04: an operator finds customer accounts without seeing a balance. */
@@ -80,7 +81,7 @@ describe('DBS-88 operator account search', () => {
     }
   });
 
-  it('TC-88-01 finds one account by its id, with four fields and no balance', async () => {
+  it('TC-88-01 finds one account by its id, with five fields and no balance', async () => {
     const minhAnh = await customer('Trần Hoài Phương');
     await request(app.url)
       .post('/v1/operator/deposits')
@@ -99,6 +100,7 @@ describe('DBS-88 operator account search', () => {
         items: [
           {
             id: minhAnh.accountId,
+            accountNumber: expect.stringMatching(/^[0-9]{12}$/),
             type: 'CHECKING',
             status: 'ACTIVE',
             ownerName: 'Trần Hoài Phương',

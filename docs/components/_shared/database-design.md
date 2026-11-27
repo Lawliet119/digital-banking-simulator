@@ -167,23 +167,28 @@ CREATE TABLE accounts (
   balance     bigint NOT NULL DEFAULT 0,
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now(),
+  account_number text NOT NULL DEFAULT nextval('account_number_seq')::text, -- số tài khoản khách đọc và gõ được (kế hoạch UI, chặng A)
   sent_today  bigint NOT NULL DEFAULT 0,                -- BL-418, dẫn xuất từ ledger_entries (trigger)
   sent_day    date,                                     -- ngày giờ VN lớn nhất có dòng DEBIT; NULL = chưa từng ghi nợ
   CONSTRAINT accounts_balance_non_negative CHECK (type = 'SYSTEM' OR balance >= 0),
   CONSTRAINT accounts_owner_matches_type   CHECK ((type = 'SYSTEM') = (customer_id IS NULL)),
   CONSTRAINT accounts_sent_today_non_negative CHECK (sent_today >= 0),
-  CONSTRAINT accounts_sent_day_when_sent   CHECK (sent_day IS NOT NULL OR sent_today = 0)
+  CONSTRAINT accounts_sent_day_when_sent   CHECK (sent_day IS NOT NULL OR sent_today = 0),
+  CONSTRAINT accounts_account_number_key  UNIQUE (account_number),
+  CONSTRAINT accounts_account_number_format CHECK (account_number ~ '^[0-9]{12}$')
 ) WITH (fillfactor = 80);                                -- chừa chỗ cho HOT update, xem §9
 
 CREATE UNIQUE INDEX accounts_single_system ON accounts (type) WHERE type = 'SYSTEM';
 CREATE INDEX accounts_customer_idx ON accounts (customer_id) WHERE customer_id IS NOT NULL;
 ```
 
+**`account_number`** (migration `1795000013000-AddAccountNumber`): chuỗi 12 chữ số lấy từ sequence `account_number_seq` bắt đầu `100000000001`, không suy ra từ thông tin khách và không đổi sau khi cấp. Cột có `DEFAULT nextval(...)::text` nên một `INSERT` không biết cột này (image API cũ trong lúc triển khai cuốn chiếu, helper test, `seed.ts`) vẫn mở được tài khoản: rollback ứng dụng không cần rollback schema. Dòng cũ được điền theo `created_at, id`. `dbs_api` có `USAGE` trên sequence và vẫn **không** có `UPDATE` trên cột (quyền `UPDATE` chỉ theo `balance`, `status`, `updated_at`), nên ứng dụng không đổi được số đã cấp. UNIQUE tạo index phục vụ `GET /v1/accounts/lookup` và tìm theo số của nhân viên. `POST /v1/transfers` vẫn nhận UUID; số chỉ dùng để tìm và hiển thị. `down()` mất các số đã cấp: đừng revert khi số đã hiện cho khách.
+
 - **`sent_today` và `sent_day` (BL-418)** là bộ đếm hạn mức ngày: `sent_day` là ngày giờ Việt Nam **lớn nhất** có dòng `DEBIT` của tài khoản (theo `ledger_entries.created_at`), `sent_today` là tổng các dòng đó. Do trigger `ledger_entries_daily_debit_counter` giữ; không bao giờ lùi `sent_day`; tài khoản SYSTEM không có bộ đếm. Guard đọc từ dòng đã khóa: cùng ngày thì dùng `sent_today`, ngày cũ hơn hoặc NULL thì 0, ngày mới hơn đồng hồ thì hỏi sổ cái (`SENT_TODAY_SQL`). Không index hai cột (giữ cập nhật HOT).
 - `type` là `CHECKING` hoặc `SAVINGS`; ở v1 hai loại hành xử giống nhau (chỉ là nhãn). Thêm loại mới bằng migration đổi `CHECK`.
 - **Giới hạn 3 tài khoản/khách (BR-14) không biểu diễn được bằng `CHECK`.** Nó được giữ bằng transaction mở tài khoản có `SELECT … FOR UPDATE` hàng `customers`, rồi `COUNT`. Có test đồng thời bắt buộc cho việc này.
 - Lý do khóa tài khoản (UC-11) **không** nằm ở bảng này mà ở `audit_log`: một tài khoản có thể bị khóa/mở nhiều lần và mỗi lần là một sự kiện.
-- Không có số tài khoản dạng người đọc được: v1 dùng `uuid` làm định danh tài khoản trong API. Chấp nhận vì đề tài là backend; thêm `account_number` sau cũng chỉ là một cột `UNIQUE`.
+- Định danh tài khoản trong API vẫn là `uuid`; `account_number` (mục trên) là số cho người đọc, dùng để tra cứu và hiển thị.
 
 ### 4.3 `transfers`
 
@@ -486,6 +491,7 @@ Cột "Bảo vệ" cho thấy luật không chỉ dựa vào code.
 | Hàng đợi cờ chưa review, HIGH lên trước (UC-10) | `fraud_flags (risk_level, created_at DESC) WHERE review_status = 'OPEN'` | Chỉ chứa cờ OPEN, cỡ nhỏ và đúng truy vấn |
 | Đăng nhập / tra user | `users(cognito_sub)` (UNIQUE) | Có sẵn |
 | Liệt kê tài khoản của khách | `accounts (customer_id)` | |
+| Tra chủ tài khoản theo số (`GET /v1/accounts/lookup`, tìm theo số của nhân viên) | `accounts (account_number)` (UNIQUE `accounts_account_number_key`) | Một dòng; test `account-number.db-spec.ts` TC-A-09 khẳng định index UNIQUE btree tồn tại và hợp lệ (đọc `pg_index`, không đo `EXPLAIN`) |
 
 PostgreSQL **không tự đánh index cho cột khóa ngoại**. Các cột khóa ngoại còn lại (`ledger_entries.transfer_id`, `fraud_flags.rule_set_version`…) đều hoặc đã nằm trong một ràng buộc `UNIQUE`/index ở trên, hoặc chỉ có thao tác xóa mới cần (mà ta không xóa).
 

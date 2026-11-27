@@ -85,7 +85,7 @@ describe('DBS-64 own account reads over real HTTP/JWT/PostgreSQL', () => {
     for (const account of res.body) {
       expect(typeof account.balance).toBe('string');
       expect(Object.keys(account).sort()).toEqual(
-        ['id', 'type', 'status', 'balance', 'createdAt', 'updatedAt'].sort(),
+        ['id', 'accountNumber', 'type', 'status', 'balance', 'createdAt', 'updatedAt'].sort(),
       );
     }
   });
@@ -221,6 +221,7 @@ describe('DBS-64 own account reads over real HTTP/JWT/PostgreSQL', () => {
     expect(
       toAccountView({
         id: randomUUID(),
+        accountNumber: '100000000001',
         type: 'CHECKING',
         status: 'ACTIVE',
         balance,
@@ -251,7 +252,7 @@ describe('DBS-64 own account reads over real HTTP/JWT/PostgreSQL', () => {
     expect(schema.properties.balance.type).toBe('string');
     expect(schema.properties.status.enum).toEqual(['ACTIVE', 'LOCKED']);
     expect(Object.keys(schema.properties).sort()).toEqual(
-      ['id', 'type', 'status', 'balance', 'createdAt', 'updatedAt'].sort(),
+      ['id', 'accountNumber', 'type', 'status', 'balance', 'createdAt', 'updatedAt'].sort(),
     );
   });
 

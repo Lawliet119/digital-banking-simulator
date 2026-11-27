@@ -45,6 +45,7 @@ Idempotency (ADR-05): cùng key và cùng body trả lại đúng kết quả l�
 - Nguồn hoặc đích LOCKED, đích không tồn tại hoặc SYSTEM → 422 `ACCOUNT_NOT_ACTIVE`; thiếu tiền (và không vượt hạn mức) → 422 `INSUFFICIENT_FUNDS`. Transfer REJECTED, audit và kết quả của key được commit trước khi trả 422; không có dòng sổ, event hay thay đổi số dư.
 - Đích là tài khoản `funding` không bị khóa (chỉ khóa nguồn), để lệnh chuyển tới `funding` không phải xếp hàng sau các lệnh nạp tiền. Nếu sau này có tài khoản SYSTEM khác, phải mở rộng điều kiện này trong `transfer.service.ts`.
 - Mọi lỗi ghi đều rollback toàn bộ kể cả key; lỗi tạm thời trả 503 và thử lại được với cùng key.
+- Lịch sử giao dịch và trạng thái lệnh chuyển có thêm số tài khoản của đối tác (`counterpartyAccountNumber`, `fromAccountNumber`, `toAccountNumber`), đọc qua `AccountNumberReader` của module `accounts`; số chỉ để hiển thị, `POST /v1/transfers` vẫn nhận UUID.
 - Vượt `RATE_LIMIT_TRANSFERS_PER_MINUTE` (mặc định 10, cửa sổ cố định một phút, đếm trong Redis; Redis lỗi thì bộ giới hạn cho qua) trả 429 `RATE_LIMITED` (DBS-89) trước khi chạm sổ cái.
 - Cùng key khác body: lỗi 422 `IDEMPOTENCY_KEY_REUSED` được ném ngay trong transaction nên transaction **rollback** (không ghi gì); cùng body thì replay và commit.
 - Hai tài khoản khác nhau của cùng một người được phép, event có `sameOwner = true`.
