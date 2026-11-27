@@ -275,6 +275,75 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Test trình duyệt (kế hoạch UI, chặng G): Playwright với backend thật `APP_ROLE=both` (có worker),
+  # PostgreSQL, Valkey và ElasticMQ từ docker-compose.yml, đăng nhập bằng token local. Mọi request
+  # của Playwright đi từ 127.0.0.1, nên giới hạn tốc độ được nâng cho riêng job này. Sau bộ test
+  # chạy bộ kiểm bất biến sổ cái. Chưa là required check.
+  frontend-e2e:
+    name: frontend-e2e
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    timeout-minutes: 30
+    env:
+      NODE_ENV: development
+      APP_ROLE: both
+      PORT: "3000"
+      LOG_LEVEL: warn
+      DATABASE_URL: postgres://banking:banking_local_only@localhost:5432/banking
+      REDIS_URL: redis://localhost:6379
+      AWS_REGION: ap-southeast-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      SQS_ENDPOINT: http://localhost:9324
+      SQS_RISK_QUEUE_URL: http://localhost:9324/000000000000/risk-events
+      SQS_NOTIFICATION_QUEUE_URL: http://localhost:9324/000000000000/notification-events
+      AUTH_MODE: local
+      AUTH_LOCAL_JWKS_PATH: .auth-local/jwks.json
+      RATE_LIMIT_REQUESTS_PER_IP_PER_MINUTE: "10000"
+      RATE_LIMIT_TRANSFERS_PER_MINUTE: "1000"
+      RATE_LIMIT_LOOKUPS_PER_MINUTE: "1000"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: PostgreSQL, Valkey and ElasticMQ
+        working-directory: .
+        run: docker compose up -d --wait postgres valkey elasticmq
+      - name: Backend (build, migrate, local signing key, start)
+        working-directory: backend
+        run: |
+          npm ci
+          npm run build
+          npm run migration:run:prod
+          npm run --silent auth:dev-keys
+          nohup node dist/main.js > "$RUNNER_TEMP/backend.log" 2>&1 &
+          curl -fsS --retry 60 --retry-delay 1 --retry-all-errors http://127.0.0.1:3000/health/ready
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Ledger invariants after the browser tests
+        working-directory: backend
+        run: npm run --silent check:invariants
+      - name: Keep the report and the backend log
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frontend-e2e
+          retention-days: 7
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+            ${{ runner.temp }}/backend.log
+
   # Hai job quét của DBS-155. Chạy ở gốc repo (khác sáu job trên, mặc định working-directory là backend).
   # Là required check của `main` (ruleset protect-main, 2026-11-14): đổi tên job thì sửa ruleset cùng lúc.
   # Công cụ chạy bằng image chính thức ghim digest; cách dùng và cờ ở .github/scripts/run-trivy.sh và
