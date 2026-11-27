@@ -5,6 +5,7 @@ import { AccountsModule } from '@modules/accounts';
 import { LedgerReconciliationModule } from './ledger';
 import { modulesForRole } from './index';
 import { OutboxModule } from './outbox';
+import { NotificationHttpModule, NotificationModule } from './notification';
 import { RiskModule, RiskWorkerModule } from './risk';
 import { SessionRevocationModule } from './identity';
 
@@ -32,6 +33,13 @@ describe('modulesForRole', () => {
     expect(modulesForRole(AppRole.Both)).toContain(AccountsModule);
     expect(modulesForRole(AppRole.Worker)).not.toContain(AccountsModule);
   });
+  it('the api reads notifications; only the worker consumes them', () => {
+    expect(modulesForRole(AppRole.Api)).toContain(NotificationHttpModule);
+    expect(modulesForRole(AppRole.Api)).not.toContain(NotificationModule);
+    expect(modulesForRole(AppRole.Worker)).toContain(NotificationModule);
+    expect(modulesForRole(AppRole.Worker)).not.toContain(NotificationHttpModule);
+  });
+
   it('an api instance serves HTTP, so it loads the health probes', () => {
     expect(modulesForRole(AppRole.Api)).toContain(HealthModule);
   });

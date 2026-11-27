@@ -79,6 +79,8 @@ GRANT SELECT ON fraud_rule_hits TO dbs_api;
 GRANT SELECT ON v_transfer_facts TO dbs_api;
 GRANT SELECT, INSERT ON risk_rule_sets TO dbs_api;
 GRANT SELECT ON reconciliation_runs TO dbs_api;
+-- GET /v1/notifications reads the caller's notices; only the worker writes them.
+GRANT SELECT ON notification_log TO dbs_api;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO dbs_api;
 
 -- dbs_worker

@@ -21,6 +21,7 @@ import { TransactionService } from '@database/transaction.service';
 import { assertNotMigratorUser } from '@database/database-url.guard';
 import { AccountsModule } from '@modules/accounts';
 import { AuditHttpModule, AuditModule } from '@modules/audit';
+import { NotificationHttpModule } from '@modules/notification';
 import { OutboxModule } from '@modules/outbox';
 import { LedgerModule } from '@modules/ledger';
 import { FraudHttpModule } from '@modules/risk/fraud-http.module';
@@ -122,6 +123,8 @@ export async function startDepositApp(
     fraud?: boolean;
     /** DBS-135: mount `GET /v1/audit/entries` (the auditor lookup), as `AppModule` does on the API. */
     audit?: boolean;
+    /** UI plan, stage B: mount `GET /v1/notifications`, as `AppModule` does on the API. */
+    notifications?: boolean;
   } = {},
 ): Promise<DepositApp> {
   const issuer = await createDevTokenIssuer(),
@@ -179,6 +182,7 @@ export async function startDepositApp(
         LedgerModule,
         ...(options.fraud ? [FraudHttpModule] : []),
         ...(options.audit ? [AuditHttpModule] : []),
+        ...(options.notifications ? [NotificationHttpModule] : []),
         ...(rateLimit ? [RateLimitModule, HealthModule] : []),
       ],
       // The same order as AppModule: JWT, roles, per-customer transfer limit (the IP limit is the
