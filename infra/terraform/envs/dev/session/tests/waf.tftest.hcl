@@ -6,6 +6,8 @@ variables {
   state_bucket = "dbs-tfstate-123456789012-ap-southeast-1"
   account_id   = "123456789012"
   image_tag    = "0000000000000000000000000000000000000000"
+  # Ngày thật làm check "waf_off_date" báo lỗi; run nào kiểm cảnh báo thì tự đặt ngày đã qua.
+  waf_off_date = "2099-01-01"
 }
 
 override_resource {
