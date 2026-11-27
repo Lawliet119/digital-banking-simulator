@@ -2,7 +2,7 @@
 
 > **Mục đích:** mô tả Digital Banking Simulator bằng **năng lực** (database, hàng đợi, cache, định danh…) thay vì bằng dịch vụ của một cloud cụ thể. Bản hiện thực trên AWS nằm ở [03_HIGH_LEVEL_ARCHITECTURE.md](03_HIGH_LEVEL_ARCHITECTURE.md); tài liệu này là lớp trừu tượng phía trên nó (nguyên tắc P-5 «concept first, vendor second», ADR-11).
 >
-> **Cập nhật:** 2026-11-11 · **Dựa trên:** BRD, docs/03, ADR-01…14, code ở `backend/`
+> **Cập nhật:** 2026-11-11 · **Dựa trên:** BRD, docs/03, ADR-01…15, code ở `backend/`
 
 ---
 
@@ -71,7 +71,8 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    C[Client] -->|HTTPS| EDGE["<b>Edge</b><br/>TLS · lọc request · chia tải"]
+    C["Client<br/>web app tĩnh · công cụ API"] -->|HTTPS| EDGE["<b>Edge</b><br/>TLS · lọc request · chia tải"]
+    SWH["<b>Static web hosting</b><br/>file tĩnh của giao diện"] -.->|tải app| C
     EDGE --> API
 
     subgraph RT[Môi trường chạy container]
@@ -98,6 +99,7 @@ flowchart LR
 | Khối | Vai trò | Phải bảo đảm | Không được phụ thuộc vào |
 |---|---|---|---|
 | **Edge** | Cửa vào duy nhất | TLS; chia tải giữa các bản API; health check theo endpoint `/health/ready`; giới hạn theo IP ở biên | — |
+| **Static web hosting** | Phục vụ giao diện web (ADR-15) | Chỉ file tĩnh; HTTPS; đặt Content-Security-Policy; cùng origin với API qua Edge, hoặc khai báo origin cho CORS | Logic nghiệp vụ, phiên hay dữ liệu khách ở server: giao diện chỉ gọi API như mọi client khác |
 | **API service** | Mọi use case đồng bộ | Stateless; scale ngang; tắt bất kỳ bản nào cũng không mất dữ liệu | Bộ nhớ cục bộ để giữ trạng thái |
 | **Worker service** | Relay outbox, chấm rủi ro, thông báo, đối soát, dọn dẹp | Thay thế khi tiến trình thoát; nhiều bản chạy song song không xử lý trùng | Cổng HTTP (không có health check HTTP) |
 | **Relational DB** | Nguồn sự thật | ACID nhiều bảng; khóa hàng `SELECT … FOR UPDATE`; `ON CONFLICT`; CHECK/UNIQUE/FK; quyền theo role; sao lưu + khôi phục theo thời điểm; bản sao dự phòng ở production | — |

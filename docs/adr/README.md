@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR theo [mẫu](0000-template.md): bối cảnh, các phương án, lựa chọn, lý do và đánh đổi. Đề bài yêu cầu tối thiểu 3 ADR; nhóm có 14 ADR Accepted.
+Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR theo [mẫu](0000-template.md): bối cảnh, các phương án, lựa chọn, lý do và đánh đổi. Đề bài yêu cầu tối thiểu 3 ADR; nhóm có 15 ADR Accepted.
 
 **Trạng thái:** `Proposed` (đề xuất) → `Accepted` (đã chốt) → có thể `Superseded` (bị thay bởi ADR mới). Đổi một quyết định đã `Accepted` thì viết ADR mới thay thế, không sửa ADR cũ.
 
@@ -20,6 +20,7 @@ Mỗi quyết định kiến trúc quan trọng được ghi thành một ADR th
 | [ADR-12](0012-redis-valkey-node.md) | Valkey node (cluster mode tắt) cho rate limit, mốc thu hồi, bộ đếm, cấu hình; không cache số dư | Không cache · Bộ nhớ từng task · Cache cả số dư; Serverless | #2, #4 | Accepted |
 | [ADR-13](0013-one-app-app-role.md) | Một ứng dụng, một image, chạy theo `APP_ROLE` | Hai app riêng · Hai repo | #1, #5 | Accepted |
 | [ADR-14](0014-fraud-rules-external-ai.md) | Giữ R1–R6 (`rule_only`), dùng API AI bổ sung (`rules_with_external_ai`), bỏ tự train/ONNX; có gate chất lượng/dữ liệu/vận hành | Chỉ rules · Tự train/host · Rules + API hosted | Fraud | Accepted |
+| [ADR-15](0015-web-frontend.md) | Giao diện web là app tĩnh React + Vite gọi `/v1` có sẵn; không thêm service, phân quyền vẫn ở server | Render phía server (service web mới) · Giữ dòng lệnh | Dev | Accepted |
 
 ADR-14 thay thế riêng phần học tham số `v2` và ONNX `v3` của ADR-08; phần 6 luật `R1–R6` của ADR-08 giữ nguyên làm mặc định (`rule_only`).
 

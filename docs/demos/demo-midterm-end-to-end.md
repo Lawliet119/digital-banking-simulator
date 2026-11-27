@@ -184,6 +184,24 @@ curl -sS --get $API/v1/audit/entries -H "Authorization: Bearer $AUD" --data-urle
 
 Mong đợi: hai dòng `403`; lệnh cuối trả các dòng `access.denied` (lý do `NO_PERMISSION`) của hai lần vừa bị từ chối.
 
+## Nhánh giao diện web (local)
+
+Cùng chín bước, làm bằng [giao diện web](../../frontend/README.md) thay cho `curl` ([ADR-15](../adr/0015-web-frontend.md)). Nhánh dòng lệnh ở trên giữ làm phương án dự phòng khi quay. Chuẩn bị như phần "Chuẩn bị chung" (backend `APP_ROLE=both`, `AUTH_MODE=local`, giới hạn tốc độ nới), rồi `cd frontend && npm ci && npm run dev` và mở `http://127.0.0.1:5173`. Mỗi vai trò dùng một cửa sổ riêng (cửa sổ ẩn danh), vì token nằm theo tab.
+
+| Bước | Thao tác trên giao diện | Thấy |
+|---|---|---|
+| 1 | Đăng nhập vai **Khách hàng**, `sub` mới (ví dụ `demo-an-<số>`), nhập họ tên | Trang "Tài khoản của …" |
+| 2 | Chọn loại, bấm **Mở tài khoản**; mở thêm một khách khác (`demo-binh-<số>`) có tài khoản | Số tài khoản 12 chữ số, số dư 0 ₫ |
+| 3 | Vai **Nhân viên** → **Nạp tiền**: số tài khoản của An, 21.000.000 | "Đã nạp 21.000.000 ₫"; An thấy số dư mới và thông báo "vừa được nạp tiền" |
+| 4 | An → **Chuyển tiền**: số tài khoản của Bình, **Kiểm tra** (thấy tên Bình), 20.000.000, **Tiếp tục**, **Chuyển** | Trang giao dịch "Hoàn tất" |
+| 5 | Nhân viên → **Cờ gian lận** (tự làm mới mỗi 10 giây) | Cờ mới, mức Trung bình, điểm 65 (R3 + R6) |
+| 6 | An mở lại tài khoản, giao dịch, thông báo | Không có chữ nào về cờ, điểm hay AI |
+| 7 | Nhân viên mở cờ, chọn kết luận, **Gửi review**; mở cờ ở cửa sổ thứ hai và gửi lần nữa | Lần đầu thành công; lần hai "Cờ này đã được review." |
+| 8 | Vai **Kiểm toán viên** → dán `correlationId` của lệnh chuyển → **Tra cứu** | Các dòng `transfer`, `notification.sent`, `fraud.flagged`, `fraud_flag.review` |
+| 9 | An gõ thẳng `/operator/fraud-flags` | "Không có quyền"; API trả 403 (bước 9 của nhánh dòng lệnh) |
+
+`correlationId` của lệnh chuyển nằm ở header `X-Correlation-Id` của response (tab Network của trình duyệt). Kịch bản này được Playwright chạy tự động: [frontend/e2e/demo.spec.ts](../../frontend/e2e/demo.spec.ts) và bảng 11 kịch bản ở [frontend/README.md](../../frontend/README.md).
+
 ## Nhánh cloud
 
 Cùng bước 1–9 trên môi trường AWS dev. Đã chạy thật ngày 2026-11-14 (ảnh chụp lệnh và kết quả thô: [manual-test-cloud.txt](../features/screenshots/DBS-138/manual-test-cloud.txt)); mỗi lần quay thì chạy thử lại một lượt trước ngày quay (DBS-140).
