@@ -143,6 +143,8 @@ jobs:
         run: npm run test:services -- --runInBand --runTestsByPath test/services/consumer-shutdown.services-spec.ts
       - name: api and worker exit on SIGTERM as PID 1 in the production image (BL-384)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/process-shutdown.services-spec.ts
+      - name: api finishes the running transfer before it exits on SIGTERM (BL-381)
+        run: npm run test:services -- --runInBand --runTestsByPath test/services/api-shutdown.services-spec.ts
       - name: Notification consumer review focus - duplicate, broken, reordered (DBS-104)
         run: npm run test:services -- --runInBand --runTestsByPath test/services/notification-consumer-review.services-spec.ts
       - name: Risk and notification consumers - unknown event type, bad schema, broken JSON (BL-010)

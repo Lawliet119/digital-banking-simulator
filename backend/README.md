@@ -431,6 +431,8 @@ Staging và production bắt buộc `TRUST_PROXY_HOPS` (≥ 1; ALB = 1). Để 0
 
 Image không có `HEALTHCHECK`: service `api` được load balancer kiểm tra qua `/health/ready`, service `worker` không có cổng HTTP: ECS thay task khi tiến trình thoát, còn worker treo được phát hiện qua alarm tuổi outbox và tuổi message (docs/03 §14).
 
+**Tắt êm khi nhận SIGTERM hoặc SIGINT (BL-381, `src/common/shutdown`).** Tiến trình phục vụ HTTP (`api`, `both`) ngừng nhận kết nối mới ngay, trả các request đang chạy với `Connection: close`, và chờ chúng xong **trước khi** chạy các hook đóng Redis và pool database; sau đó thoát mã 0. Request mà client (hoặc load balancer) đã ngắt kết nối vẫn được chờ, nên transaction đang dở vẫn commit. Chờ tối đa `HTTP_DRAIN_TIMEOUT_MS` (mặc định 25.000 ms; log `Requests still running at the drain limit` nêu số request bị bỏ, transaction của chúng rollback). Giá trị này phải nhỏ hơn `stopTimeout` của task (api đang dùng mặc định 30 s của ECS): hết `stopTimeout` là SIGKILL. Test: `test/services/api-shutdown.services-spec.ts` (image thật).
+
 
 ### Thu hồi phiên ngay khi khóa tài khoản
 

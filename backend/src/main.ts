@@ -16,6 +16,7 @@ import { configureHttpApp, setupSwagger } from './app.setup';
 import { getAppRole, runsHttp } from './common/app-role/app-role';
 import { createHttpLogging } from './common/logging/http-logging';
 import { MetricsService } from './common/metrics';
+import { enableGracefulShutdown, InflightRequests } from './common/shutdown';
 import { safeErrorMetadata } from './common/logging/logging.options';
 import { SafeLogger } from './common/logging/safe-logger';
 import { appConfig } from './config/app.config';
@@ -59,7 +60,11 @@ async function bootstrap(): Promise<void> {
     const app = await NestFactory.create<NestExpressApplication>(AppModule, options);
     context = app;
     const config: ConfigType<typeof appConfig> = app.get(appConfig.KEY);
-    app.enableShutdownHooks([], SHUTDOWN_OPTIONS);
+    enableGracefulShutdown(app, {
+      requests: app.get(InflightRequests),
+      drainTimeoutMs: config.drainTimeoutMs,
+      logger,
+    });
     configureHttpApp(
       app,
       config,

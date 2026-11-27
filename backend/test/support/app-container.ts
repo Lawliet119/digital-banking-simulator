@@ -47,8 +47,19 @@ export async function removeImage(tag: string): Promise<void> {
   await run('docker', ['rmi', '-f', tag]).catch(() => undefined);
 }
 
+export interface StartOptions {
+  /** Added to, or replacing, the default variables; `undefined` removes one. */
+  vars?: Record<string, string | undefined>;
+  /** Read-only bind mounts, `[hostPath, containerPath]`. */
+  mounts?: [string, string][];
+  /** Publishes port 3000 on a free host port, see `url()`. */
+  publish?: boolean;
+}
+
 export interface StartedApp {
   name: string;
+  /** `http://127.0.0.1:<port>` of a container started with `publish`. */
+  url(): Promise<string>;
   /** Resolves once the log shows `readyLine`; rejects after `timeoutMs` with the log attached. */
   ready(readyLine: RegExp, timeoutMs?: number): Promise<void>;
   logs(): Promise<string>;
@@ -61,9 +72,10 @@ export async function startApp(
   image: string,
   role: 'api' | 'worker',
   env: AppEnvironment,
+  options: StartOptions = {},
 ): Promise<StartedApp> {
   const name = `dbs-app-test-${role}-${randomBytes(4).toString('hex')}`;
-  const vars: Record<string, string> = {
+  const vars: Record<string, string | undefined> = {
     APP_ROLE: role,
     NODE_ENV: 'development',
     PORT: '3000',
@@ -80,8 +92,12 @@ export async function startApp(
     COGNITO_USER_POOL_ID: 'ap-southeast-1_test',
     COGNITO_CLIENT_ID: 'testclient',
     COGNITO_ISSUER: 'https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_test',
+    ...options.vars,
   };
-  const envArgs = Object.entries(vars).flatMap(([key, value]) => ['-e', `${key}=${value}`]);
+  const envArgs = Object.entries(vars).flatMap(([key, value]) =>
+    value === undefined ? [] : ['-e', `${key}=${value}`],
+  );
+  const mountArgs = (options.mounts ?? []).flatMap(([from, to]) => ['-v', `${from}:${to}:ro`]);
   // No `--init`: the point is Node running as PID 1, exactly as in the ECS task definition.
   await run('docker', [
     'run',
@@ -91,6 +107,8 @@ export async function startApp(
     '--add-host',
     `${HOST_FROM_CONTAINER}:host-gateway`,
     ...envArgs,
+    ...mountArgs,
+    ...(options.publish ? ['-p', '127.0.0.1::3000'] : []),
     image,
   ]);
 
@@ -102,6 +120,10 @@ export async function startApp(
   return {
     name,
     logs,
+    async url() {
+      const { stdout } = await run('docker', ['port', name, '3000/tcp']);
+      return `http://${stdout.trim().split(/\r?\n/)[0]}`;
+    },
     async ready(readyLine, timeoutMs = 90_000) {
       const deadline = Date.now() + timeoutMs;
       for (;;) {

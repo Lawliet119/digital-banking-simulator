@@ -35,6 +35,7 @@ export interface Env {
   LOG_LEVEL: 'fatal' | 'error' | 'warn' | 'log' | 'debug' | 'verbose';
   CORS_ORIGINS: string;
   TRUST_PROXY_HOPS: number;
+  HTTP_DRAIN_TIMEOUT_MS: number;
 
   DATABASE_URL: string;
   DB_HOST?: string;
@@ -108,6 +109,9 @@ export const validationSchema = Joi.object<Env>({
     then: Joi.number().integer().min(1).max(5).required(),
     otherwise: Joi.number().integer().min(0).max(5).default(0),
   }),
+  // BL-381: how long SIGTERM waits for running requests. Keep it below the task's `stopTimeout`
+  // (30 s for the api, 120 s at most on Fargate), which ends the process whatever is running.
+  HTTP_DRAIN_TIMEOUT_MS: Joi.number().integer().min(0).max(110_000).default(25_000),
 
   DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })
