@@ -84,3 +84,7 @@ __pycache__/
 *.mov
 *.mkv
 *.webm
+
+# ---------- Frontend ----------
+frontend/playwright-report/
+frontend/test-results/
