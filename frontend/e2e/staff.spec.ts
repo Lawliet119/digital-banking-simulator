@@ -16,14 +16,15 @@ test('stage F: the operator finds an account by number, locks it with a reason, 
   await expect(row).toContainText('Ngô Bị Khóa');
   await expect(row.getByTestId('account-status')).toHaveText('Hoạt động');
   await row.getByRole('button', { name: 'Khóa' }).click();
-  await expect(row.getByRole('button', { name: 'Xác nhận khóa' })).toBeDisabled();
-  await row.getByLabel('Lý do').fill('Khách báo mất điện thoại');
-  await row.getByRole('button', { name: 'Xác nhận khóa' }).click();
+  const panel = page.getByTestId('lock-panel');
+  await expect(panel.getByRole('button', { name: 'Xác nhận khóa' })).toBeDisabled();
+  await panel.getByLabel('Lý do').fill('Khách báo mất điện thoại');
+  await panel.getByRole('button', { name: 'Xác nhận khóa' }).click();
   await expect(row.getByTestId('account-status')).toHaveText('Bị khóa');
 
   await row.getByRole('button', { name: 'Mở khóa' }).click();
-  await row.getByLabel('Lý do').fill('Khách đã xác minh');
-  await row.getByRole('button', { name: 'Xác nhận mở khóa' }).click();
+  await panel.getByLabel('Lý do').fill('Khách đã xác minh');
+  await panel.getByRole('button', { name: 'Xác nhận mở khóa' }).click();
   await expect(row.getByTestId('account-status')).toHaveText('Hoạt động');
 });
 

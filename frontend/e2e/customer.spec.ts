@@ -10,7 +10,7 @@ test('stage E: a new customer onboards, opens an account and sees a zero balance
   await page.getByRole('button', { name: 'Tạo hồ sơ' }).click();
 
   await expect(page).toHaveURL(/\/accounts$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tài khoản của Lê Thị Mới');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Chào Lê Thị Mới');
   await expect(page.getByText('Bạn chưa có tài khoản nào.')).toBeVisible();
   await page.getByRole('button', { name: 'Mở tài khoản' }).click();
 

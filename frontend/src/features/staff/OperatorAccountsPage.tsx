@@ -3,6 +3,8 @@ import { useState, type FormEvent } from 'react';
 import { call, type Schemas } from '../../api/client';
 import { useApi } from '../../auth/AuthProvider';
 import { ErrorBanner } from '../../components/ErrorBanner';
+import { Icon } from '../../components/Icon';
+import { PageHead, Tag } from '../../components/ui';
 import { ACCOUNT_STATUS, ACCOUNT_TYPE } from '../customer/labels';
 
 type Account = Schemas['OperatorAccountDto'];
@@ -16,63 +18,115 @@ export function OperatorAccountsPage() {
   const api = useApi();
   const [text, setText] = useState('');
   const [q, setQ] = useState('');
+  const [chosenId, setChosenId] = useState<string | undefined>();
   const results = useQuery({
     queryKey: ['operator', 'accounts', q],
     enabled: q.length > 0,
     queryFn: () => call(api.GET('/v1/operator/accounts', { params: { query: { q } } })),
   });
+  const items = results.data?.items ?? [];
+  const chosen = items.find(account => account.id === chosenId);
 
   function search(event: FormEvent) {
     event.preventDefault();
+    setChosenId(undefined);
     setQ(text.trim());
   }
 
   return (
-    <section className="panel">
-      <h1>Tìm tài khoản</h1>
-      <form className="row bottom" onSubmit={search}>
-        <div className="field">
-          <label htmlFor="q">Tên khách, số tài khoản hoặc mã tài khoản</label>
-          <input
-            id="q"
-            value={text}
-            maxLength={100}
-            onChange={event => setText(event.target.value)}
-            autoComplete="off"
-          />
+    <>
+      <PageHead title="Tìm tài khoản" sub="Theo tên khách, số tài khoản hoặc mã tài khoản." />
+      <form className="panel" onSubmit={search}>
+        <div className="row bottom">
+          <div className="field">
+            <label htmlFor="q">Tên khách, số tài khoản hoặc mã tài khoản</label>
+            <input
+              id="q"
+              value={text}
+              maxLength={100}
+              onChange={event => setText(event.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <button type="submit" className="dark" disabled={!text.trim()}>
+            <Icon name="search" size={18} /> Tìm
+          </button>
         </div>
-        <button type="submit" disabled={!text.trim()}>
-          Tìm
-        </button>
       </form>
       <ErrorBanner error={results.error} />
-      {results.data && results.data.items.length === 0 && <p>Không có kết quả.</p>}
-      {results.data && results.data.items.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Số tài khoản</th>
-              <th>Chủ tài khoản</th>
-              <th>Loại</th>
-              <th>Trạng thái</th>
-              <th>Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.data.items.map(account => (
-              <AccountRow key={account.id} account={account} q={q} />
-            ))}
-          </tbody>
-        </table>
+      {results.data && (
+        <div className={chosen ? 'split' : 'col'}>
+          <section className="panel scroll">
+            {items.length === 0 ? (
+              <p className="empty">Không có kết quả.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Chủ tài khoản</th>
+                    <th>Số tài khoản</th>
+                    <th>Loại</th>
+                    <th>Trạng thái</th>
+                    <th className="num">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map(account => (
+                    <tr key={account.id} data-testid="operator-account-row">
+                      <td>
+                        <b>{account.ownerName}</b>
+                      </td>
+                      <td className="mono">{account.accountNumber}</td>
+                      <td>{ACCOUNT_TYPE[account.type]}</td>
+                      <td>
+                        <Tag
+                          tone={account.status === 'ACTIVE' ? 'ok' : 'bad'}
+                          data-testid="account-status"
+                        >
+                          {ACCOUNT_STATUS[account.status]}
+                        </Tag>
+                      </td>
+                      <td className="num">
+                        <button
+                          type="button"
+                          className="chip"
+                          aria-pressed={account.id === chosenId}
+                          onClick={() => setChosenId(account.id)}
+                        >
+                          {account.status === 'ACTIVE' ? 'Khóa' : 'Mở khóa'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+          {chosen && (
+            <StatusPanel
+              key={`${chosen.id}-${chosen.status}`}
+              account={chosen}
+              q={q}
+              onClose={() => setChosenId(undefined)}
+            />
+          )}
+        </div>
       )}
-    </section>
+    </>
   );
 }
 
-function AccountRow({ account, q }: { account: Account; q: string }) {
+function StatusPanel({
+  account,
+  q,
+  onClose,
+}: {
+  account: Account;
+  q: string;
+  onClose: () => void;
+}) {
   const api = useApi();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const locking = account.status === 'ACTIVE';
   const change = useMutation({
@@ -88,50 +142,58 @@ function AccountRow({ account, q }: { account: Account; q: string }) {
               body: { reason: reason.trim() },
             }),
       ),
-    onSuccess: () => {
-      setOpen(false);
-      setReason('');
-      void queryClient.invalidateQueries({ queryKey: ['operator', 'accounts', q] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['operator', 'accounts', q] });
+      onClose();
     },
   });
+  const title = locking ? 'Khóa tài khoản' : 'Mở khóa tài khoản';
 
   return (
-    <tr data-testid="operator-account-row">
-      <td className="mono">{account.accountNumber}</td>
-      <td>{account.ownerName}</td>
-      <td>{ACCOUNT_TYPE[account.type]}</td>
-      <td data-testid="account-status">{ACCOUNT_STATUS[account.status]}</td>
-      <td>
-        {!open && (
-          <button type="button" className="secondary" onClick={() => setOpen(true)}>
-            {locking ? 'Khóa' : 'Mở khóa'}
-          </button>
-        )}
-        {open && (
-          <form
-            className="row"
-            onSubmit={event => {
-              event.preventDefault();
-              if (reason.trim()) change.mutate();
-            }}
-          >
-            <input
-              aria-label="Lý do"
-              placeholder="Lý do (bắt buộc)"
-              value={reason}
-              maxLength={500}
-              onChange={event => setReason(event.target.value)}
-            />
-            <button type="submit" disabled={!reason.trim() || change.isPending}>
-              {locking ? 'Xác nhận khóa' : 'Xác nhận mở khóa'}
-            </button>
-            <button type="button" className="secondary" onClick={() => setOpen(false)}>
-              Hủy
-            </button>
-            <ErrorBanner error={change.error} />
-          </form>
-        )}
-      </td>
-    </tr>
+    <form
+      className="panel"
+      data-testid="lock-panel"
+      aria-label={title}
+      onSubmit={event => {
+        event.preventDefault();
+        if (reason.trim()) change.mutate();
+      }}
+    >
+      <div className="row nowrap">
+        <span className={`tile ${locking ? 'out' : 'in'}`}>
+          <Icon name="lock" />
+        </span>
+        <div>
+          <h2>{title}</h2>
+          <div className="muted">
+            {account.ownerName} · <span className="mono">{account.accountNumber}</span>
+          </div>
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor="reason">Lý do (bắt buộc)</label>
+        <textarea
+          id="reason"
+          rows={3}
+          maxLength={200}
+          value={reason}
+          onChange={event => setReason(event.target.value)}
+        />
+      </div>
+      {locking && <p className="warning">Khách sẽ bị đăng xuất ngay.</p>}
+      <ErrorBanner error={change.error} />
+      <div className="row">
+        <button
+          type="submit"
+          className={locking ? 'danger grow' : 'grow'}
+          disabled={!reason.trim() || change.isPending}
+        >
+          {locking ? 'Xác nhận khóa' : 'Xác nhận mở khóa'}
+        </button>
+        <button type="button" className="secondary" onClick={onClose}>
+          Hủy
+        </button>
+      </div>
+    </form>
   );
 }

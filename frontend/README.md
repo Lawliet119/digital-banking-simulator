@@ -25,23 +25,26 @@ Màn hình đăng nhập chọn vai trò và mã người dùng (`sub`). Cùng `
 
 ## Màn hình
 
-| Vai trò        | Route                               | Việc                                                                                            |
-| -------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Khách hàng     | `/onboarding`                       | tạo hồ sơ khi `GET /v1/customers/me` trả 404                                                    |
-| Khách hàng     | `/accounts`                         | danh sách tài khoản (số tài khoản, loại, trạng thái, số dư), mở tài khoản                       |
-| Khách hàng     | `/accounts/:id`                     | chi tiết và lịch sử, lọc theo ngày giờ Việt Nam, "Xem thêm" theo cursor                         |
-| Khách hàng     | `/transfer`                         | nhập → xác nhận (tên người nhận từ tra cứu theo số) → kết quả                                   |
-| Khách hàng     | `/transfers/:id`                    | trạng thái một giao dịch, lý do nếu bị từ chối                                                  |
-| Khách hàng     | `/notifications`                    | thông báo, tự làm mới 10 giây                                                                   |
-| Nhân viên      | `/operator/accounts`                | tìm theo tên, số tài khoản hoặc mã; khóa và mở khóa kèm lý do bắt buộc                          |
-| Nhân viên      | `/operator/deposit`                 | nạp tiền tại quầy, cùng quy tắc `Idempotency-Key` như chuyển tiền                               |
-| Nhân viên      | `/operator/fraud-flags`             | danh sách cờ, lọc theo mức và trạng thái review, tự làm mới 10 giây                             |
-| Nhân viên      | `/operator/fraud-flags/:transferId` | điểm do server trả, luật trúng (có thể rỗng), phần AI riêng, form review một lần                |
-| Kiểm toán viên | `/audit`                            | tra nhật ký theo mã truy vết, người, hành động, khoảng thời gian; không có nút ghi              |
-| Quản trị viên  | `/admin/risk-config`                | phiên bản đang hiệu lực và các phiên bản                                                        |
-| Quản trị viên  | `/admin/risk-config/new`            | tạo phiên bản từ bản đang hiệu lực; cảnh báo đóng băng cấu hình; lỗi lấy nguyên từ response 400 |
+| Vai trò        | Route                               | Việc                                                                                                |
+| -------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Khách vãng lai | `/welcome`                          | trang giới thiệu (GSAP, tắt khi người dùng chọn giảm chuyển động); `/` chưa đăng nhập về đây        |
+| Khách hàng     | `/onboarding`                       | tạo hồ sơ khi `GET /v1/customers/me` trả 404, xem trước tên                                         |
+| Khách hàng     | `/accounts`                         | tổng số dư, thẻ từng tài khoản, 5 giao dịch gần nhất, biểu đồ số dư, tiền vào/ra 30 ngày, hạn mức   |
+| Khách hàng     | `/accounts/:id`                     | số dư, hạn mức hôm nay, lịch sử lọc tiền vào/ra và theo ngày giờ Việt Nam, "Xem thêm"               |
+| Khách hàng     | `/transfer`                         | nhập (người nhận gần đây, số tiền chọn nhanh) → xác nhận (số dư sau chuyển) → biên lai              |
+| Khách hàng     | `/transfers/:id`                    | biên lai: trạng thái, số tiền, hai tài khoản, lý do nếu bị từ chối                                  |
+| Khách hàng     | `/notifications`                    | số tiền, người đối ứng, số dư sau; lọc vào/ra/tài khoản; đánh dấu đã đọc; tổng hôm nay              |
+| Nhân viên      | `/operator/accounts`                | tìm theo tên, số tài khoản hoặc mã; khóa và mở khóa kèm lý do bắt buộc ở khung bên                  |
+| Nhân viên      | `/operator/deposit`                 | nạp tiền tại quầy, cùng quy tắc `Idempotency-Key` như chuyển tiền                                   |
+| Nhân viên      | `/operator/fraud-flags`             | đếm cờ theo trạng thái review; danh sách có tên hai bên và số tiền; tự làm mới 10 giây              |
+| Nhân viên      | `/operator/fraud-flags/:transferId` | điểm do server trả, luật trúng (có thể rỗng), phần AI riêng, form review một lần                    |
+| Kiểm toán viên | `/audit`                            | tra nhật ký theo mã truy vết, người, hành động, khoảng thời gian; xem một bản ghi; không có nút ghi |
+| Quản trị viên  | `/admin/risk-config`                | trọng số và trạng thái từng luật, ngưỡng, các phiên bản                                             |
+| Quản trị viên  | `/admin/risk-config/new`            | thanh trượt trọng số ghi vào JSON gửi đi; cảnh báo đóng băng; lỗi lấy nguyên từ response 400        |
 
 Màn hình khách không có trường nào về cờ gian lận, điểm rủi ro hay AI (AC-10.2). Tài khoản không thuộc mình và id bịa đều chỉ hiện "Không tìm thấy". Sau khi bấm "Chuyển" mà không biết kết quả (mất mạng, 5xx, 429), màn hình chỉ cho bấm "Chuyển" lại với cùng `Idempotency-Key`, không cho sửa để khỏi tạo lệnh thứ hai.
+
+Giao diện dùng CSS thuần (`src/styles.css`), font Plus Jakarta Sans tự host qua `@fontsource-variable`, GSAP chỉ tải ở trang giới thiệu. Số tiền giữ ở `BigInt` đến bước hiển thị, kể cả biểu đồ số dư (`src/lib/chart.ts`). "Số dư sau chuyển" ở bước xác nhận chỉ để xem; server quyết định có đủ tiền hay không.
 
 ## Lệnh
 
@@ -51,7 +54,7 @@ Màn hình khách không có trường nào về cờ gian lận, điểm rủi 
 | `npm run build`     | kiểm kiểu rồi build vào `dist/`                                          |
 | `npm run lint`      | ESLint và Prettier                                                       |
 | `npm run typecheck` | `tsc --noEmit`                                                           |
-| `npm test`          | Vitest: tiền, idempotency, lỗi, plugin dev-auth                          |
+| `npm test`          | Vitest: tiền, idempotency, lỗi, biểu đồ, cấu hình luật, plugin dev-auth  |
 | `npm run test:e2e`  | Playwright, cần backend đang chạy (bước 1); tự bật Vite nếu chưa có      |
 | `npm run api:types` | sinh lại `src/api/schema.d.ts` từ OpenAPI; CI đỏ nếu file đã commit khác |
 

@@ -1,16 +1,19 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { call } from '../../api/client';
 import { ApiProblem } from '../../api/problem';
 import { useApi } from '../../auth/AuthProvider';
 import { ErrorBanner } from '../../components/ErrorBanner';
+import { PageHead } from '../../components/ui';
+import { parseConfig, readRules, withWeight } from '../../lib/risk-config';
+import { RULE_NAME } from './labels';
 import { useLatestRiskConfig } from './RiskConfigPage';
 
 /**
- * `/admin/risk-config/new`: a new version, starting from the one in force. The screen checks only
- * that the text is a JSON object; every business rule is the server's, and its 400 messages are
- * shown as they come.
+ * `/admin/risk-config/new`: a new version, starting from the one in force. The sliders edit the
+ * weights inside the JSON text, which is what is sent. The screen checks only that the text is a
+ * JSON object; every business rule is the server's, and its 400 messages are shown as they come.
  */
 export function RiskConfigNewPage() {
   const latest = useLatestRiskConfig();
@@ -27,6 +30,7 @@ function ConfigEditor({ initial }: { initial: string }) {
   const navigate = useNavigate();
   const [text, setText] = useState(initial);
   const [parseError, setParseError] = useState<string | undefined>();
+  const rules = readRules(parseConfig(text));
 
   const create = useMutation({
     mutationFn: (config: Record<string, unknown>) =>
@@ -54,23 +58,19 @@ function ConfigEditor({ initial }: { initial: string }) {
   const fieldErrors = create.error instanceof ApiProblem ? create.error.errors : [];
 
   return (
-    <section className="panel">
-      <h1>Tạo phiên bản cấu hình mới</h1>
+    <>
+      <PageHead title="Tạo phiên bản cấu hình mới">
+        <Link to="/admin/risk-config" className="button secondary">
+          Hủy
+        </Link>
+        <button type="button" disabled={create.isPending || !text.trim()} onClick={submit}>
+          {create.isPending ? 'Đang lưu…' : 'Lưu phiên bản mới'}
+        </button>
+      </PageHead>
       <p role="note" className="warning" data-testid="freeze-warning">
-        Không tạo phiên bản mới trên môi trường dùng chung trong giai đoạn đóng băng cấu hình
-        (DBS-168, DBS-169).
+        Phiên bản mới áp dụng cho mọi giao dịch từ lúc lưu. Không tạo phiên bản mới trong giai đoạn
+        đóng băng cấu hình.
       </p>
-      <div className="field">
-        <label htmlFor="config">Cấu hình (JSON)</label>
-        <textarea
-          id="config"
-          rows={20}
-          className="code"
-          spellCheck={false}
-          value={text}
-          onChange={event => setText(event.target.value)}
-        />
-      </div>
       {parseError && (
         <p role="alert" className="error">
           {parseError}
@@ -84,9 +84,48 @@ function ConfigEditor({ initial }: { initial: string }) {
           ))}
         </ul>
       )}
-      <button type="button" disabled={create.isPending || !text.trim()} onClick={submit}>
-        {create.isPending ? 'Đang lưu…' : 'Lưu phiên bản mới'}
-      </button>
-    </section>
+      <div className="split">
+        <section className="panel">
+          <h2>Trọng số từng luật</h2>
+          {rules.length === 0 && (
+            <p className="muted">Cấu hình bên cạnh chưa có luật nào đọc được.</p>
+          )}
+          <ul className="items">
+            {rules.map(rule => (
+              <li key={rule.id} className="item">
+                <span className="tile info">{rule.id}</span>
+                <div className="grow">
+                  <b>{RULE_NAME[rule.id]}</b>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={rule.weight}
+                    aria-label={`Trọng số ${rule.id}`}
+                    onChange={event =>
+                      setText(withWeight(text, rule.id, Number(event.target.value)))
+                    }
+                  />
+                </div>
+                <output>{rule.weight}</output>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="panel">
+          <div className="field">
+            <label htmlFor="config">Cấu hình (JSON)</label>
+            <textarea
+              id="config"
+              rows={24}
+              className="code"
+              spellCheck={false}
+              value={text}
+              onChange={event => setText(event.target.value)}
+            />
+          </div>
+        </section>
+      </div>
+    </>
   );
 }
