@@ -30,7 +30,13 @@ import { ErrorCode } from '@common/errors/error-code.enum';
 import { ApiErrorCodes } from '@common/openapi/api-error-codes.decorator';
 import { CurrentUser, type CurrentUserInfo, Roles } from '@modules/identity';
 import type { RequestWithCorrelationId } from '@common/middleware/correlation-id.middleware';
-import { FraudDetailDto, FraudListDto, FraudProblemDto, ReviewFraudDto } from './fraud-http.dto';
+import {
+  FraudDetailDto,
+  FraudListDto,
+  FraudProblemDto,
+  FraudSummaryDto,
+  ReviewFraudDto,
+} from './fraud-http.dto';
 import { FraudQueryPipe, type FraudQuery } from './fraud-http.query';
 import { FraudHttpService } from './fraud-http.service';
 
@@ -88,6 +94,19 @@ export class FraudHttpController {
   ): Promise<FraudListDto> {
     if (!request.correlationId) throw new Error('Missing server correlation context');
     return this.fraud.list(query, user.userId, request.correlationId);
+  }
+
+  // Declared before `:transferId`, or `summary` would be refused as a malformed UUID.
+  @Get('summary')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Number of flags in each review state' })
+  @ApiOkResponse({ type: FraudSummaryDto })
+  summary(
+    @CurrentUser() user: CurrentUserInfo,
+    @Req() request: RequestWithCorrelationId,
+  ): Promise<FraudSummaryDto> {
+    if (!request.correlationId) throw new Error('Missing server correlation context');
+    return this.fraud.summary(user.userId, request.correlationId);
   }
 
   @Get(':transferId')

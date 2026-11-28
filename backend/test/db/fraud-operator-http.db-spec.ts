@@ -318,6 +318,49 @@ describe('DBS-129/130 actual operator fraud HTTP and PostgreSQL', () => {
     expect(audit).toHaveLength(1);
     expect(audit[0].target_id).toBe(requestCode);
   });
+  it('UI v2: list and detail carry the amount and name both accounts', async () => {
+    const id = await seed('2026-10-23T00:00:00.000001Z');
+    const [expected] = (await q(
+      `SELECT t.amount::text AS amount,
+        a.account_number AS "fromAccountNumber", ca.full_name AS "fromOwnerName",
+        b.account_number AS "toAccountNumber", cb.full_name AS "toOwnerName"
+       FROM transfers t
+       JOIN accounts a ON a.id = t.from_account_id LEFT JOIN customers ca ON ca.id = a.customer_id
+       JOIN accounts b ON b.id = t.to_account_id LEFT JOIN customers cb ON cb.id = b.customer_id
+       WHERE t.id = $1`,
+      [id],
+    )) as Record<string, string>[];
+    expect(expected.fromOwnerName).toEqual(expect.any(String));
+    const list = (await get('?limit=100').expect(200)).body as { items: { transferId: string }[] };
+    expect(list.items.find(item => item.transferId === id)).toMatchObject(expected);
+    expect((await get(`/${id}`).expect(200)).body).toMatchObject(expected);
+  });
+  it('UI v2: summary counts flags per review state, audits, and is for the operator only', async () => {
+    const id = await seed('2026-10-23T00:00:00.000002Z');
+    const before = (await get('/summary').expect(200)).body as {
+      open: number;
+      confirmedFraud: number;
+      falsePositive: number;
+    };
+    await review(id, 'FALSE_POSITIVE').expect(200);
+    const res = await get('/summary').expect(200);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.body).toEqual({
+      open: before.open - 1,
+      confirmedFraud: before.confirmedFraud,
+      falsePositive: before.falsePositive + 1,
+    });
+    expect(
+      await q(
+        "SELECT outcome FROM audit_log WHERE action='fraud_flag.search' AND correlation_id=$1",
+        [res.headers['x-correlation-id']],
+      ),
+    ).toEqual([{ outcome: 'SUCCESS' }]);
+    await request(app.url).get(`${ROOT}/summary`).expect(401);
+    for (const role of ['customer', 'auditor', 'admin'] as const) {
+      await get('/summary', await app.issuer.token(role, { sub: randomUUID() })).expect(403);
+    }
+  });
   it('fails closed for list/detail and rolls review back when real audit INSERT fails', async () => {
     const id = await seed('2026-10-22T00:00:00.000001Z');
     await q(

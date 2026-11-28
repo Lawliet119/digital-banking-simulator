@@ -5608,6 +5608,143 @@
         "description": "\n\nVai trò: operator. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
     },
+    "/v1/operator/fraud-flags/summary": {
+      "get": {
+        "operationId": "FraudHttpController_summary_v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudSummaryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "Malformed query, UUID or body; no errorCode"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED"
+          },
+          "403": {
+            "description": "The caller has none of the allowed roles (errorCode FORBIDDEN)\n\nFORBIDDEN; operator role required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "Internal server error; audit failure returns no data and rolls back review"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudProblemDto"
+                }
+              }
+            },
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Number of flags in each review state",
+        "tags": [
+          "operator fraud"
+        ],
+        "x-roles": [
+          "operator"
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
+        "description": "\n\nVai trò: operator. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
+      }
+    },
     "/v1/operator/fraud-flags/{transferId}": {
       "get": {
         "operationId": "FraudHttpController_detail_v1",
@@ -7522,6 +7659,31 @@
             "format": "uuid",
             "example": "33333333-3333-4333-8333-333333333333"
           },
+          "amount": {
+            "type": "string",
+            "example": "20000000",
+            "description": "Positive whole VND string"
+          },
+          "fromAccountNumber": {
+            "type": "string",
+            "nullable": true,
+            "example": "100000000006"
+          },
+          "fromOwnerName": {
+            "type": "string",
+            "nullable": true,
+            "example": "Lê Hoàng An"
+          },
+          "toAccountNumber": {
+            "type": "string",
+            "nullable": true,
+            "example": "100000000007"
+          },
+          "toOwnerName": {
+            "type": "string",
+            "nullable": true,
+            "example": "Phạm Thanh Bình"
+          },
           "score": {
             "type": "number",
             "example": 45,
@@ -7558,6 +7720,11 @@
           "transferId",
           "fromAccountId",
           "toAccountId",
+          "amount",
+          "fromAccountNumber",
+          "fromOwnerName",
+          "toAccountNumber",
+          "toOwnerName",
           "score",
           "riskLevel",
           "reviewStatus",
@@ -7583,6 +7750,29 @@
         "required": [
           "items",
           "nextCursor"
+        ]
+      },
+      "FraudSummaryDto": {
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "integer",
+            "example": 3,
+            "description": "Not reviewed yet"
+          },
+          "confirmedFraud": {
+            "type": "integer",
+            "example": 1
+          },
+          "falsePositive": {
+            "type": "integer",
+            "example": 2
+          }
+        },
+        "required": [
+          "open",
+          "confirmedFraud",
+          "falsePositive"
         ]
       },
       "FraudHitDto": {
@@ -7663,6 +7853,31 @@
             "format": "uuid",
             "example": "33333333-3333-4333-8333-333333333333"
           },
+          "amount": {
+            "type": "string",
+            "example": "20000000",
+            "description": "Positive whole VND string"
+          },
+          "fromAccountNumber": {
+            "type": "string",
+            "nullable": true,
+            "example": "100000000006"
+          },
+          "fromOwnerName": {
+            "type": "string",
+            "nullable": true,
+            "example": "Lê Hoàng An"
+          },
+          "toAccountNumber": {
+            "type": "string",
+            "nullable": true,
+            "example": "100000000007"
+          },
+          "toOwnerName": {
+            "type": "string",
+            "nullable": true,
+            "example": "Phạm Thanh Bình"
+          },
           "score": {
             "type": "number",
             "example": 45,
@@ -7721,6 +7936,11 @@
           "transferId",
           "fromAccountId",
           "toAccountId",
+          "amount",
+          "fromAccountNumber",
+          "fromOwnerName",
+          "toAccountNumber",
+          "toOwnerName",
           "score",
           "riskLevel",
           "reviewStatus",

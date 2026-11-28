@@ -7,7 +7,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Tài liệu | 03 / 03 — Kiến trúc tổng thể |
-| Phiên bản | 1.17 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
+| Phiên bản | 1.18 — đã chốt; đổi thiết kế thì sửa file này trong cùng PR (code tại [`backend/`](../backend/README.md)) |
 | Dựa trên | [BRD.md](BRD.md) (Phần 1: BG, BR · Phần 2: UC, FR, NFR · Phần 3: domain model) |
 | Tài liệu liên quan | [ADR-01…14 Accepted](adr/README.md) · [threat model](security/threat-model.md) · [adr/](adr/README.md) |
 | Lưu ý | Mọi con số đã chốt ngày 2026-10-11 (lý do ở các ADR). Giá cloud là giá tham khảo region `ap-southeast-1`; số thật lấy từ Cost Explorer |
@@ -507,6 +507,7 @@ sequenceDiagram
 | POST | `/v1/operator/accounts/{id}/lock` | operator | UC-11 | Bắt buộc `{ reason }` (NFC+trim, 1–200 ký tự). Một transaction (`FOR UPDATE OF a`): đổi `accounts.status = 'LOCKED'` + cập nhật `users.sessions_revoked_at = clock_timestamp()` (thu hồi ngay mọi token có `iat <= floor(sessions_revoked_at)` ở `JwtAuthGuard`) + ghi `audit_log` `account.lock` (`metadata.reason` thuộc `AuditReason`, `metadata.id` là 32 hex SHA-256 chuỗi lý do) + phát `AccountStatusChanged` (`newStatus = 'LOCKED'`, không có `reason` — BR-13). Trả 200 `{ id, type, status, updatedAt }` (không `balance`); đã `LOCKED` sẵn thì không phát thêm event hay đổi `sessions_revoked_at` nhưng vẫn ghi audit. Xem [DBS-113](features/DBS-113-lock-unlock-account.md) |
 | POST | `/v1/operator/accounts/{id}/unlock` | operator | UC-11 | Bắt buộc `{ reason }` (NFC+trim, 1–200 ký tự). Một transaction (`FOR UPDATE OF a`): đổi `accounts.status = 'ACTIVE'` + ghi `audit_log` `account.unlock` + phát `AccountStatusChanged` (`newStatus = 'ACTIVE'`, không có `reason`); không xóa `users.sessions_revoked_at`. Trả 200 `{ id, type, status, updatedAt }` (không `balance`); đã `ACTIVE` sẵn thì không phát thêm event nhưng vẫn ghi audit. Xem [DBS-113](features/DBS-113-lock-unlock-account.md) |
 | GET | `/v1/operator/fraud-flags` | operator | UC-10 | Lọc theo trạng thái, mức rủi ro |
+| GET | `/v1/operator/fraud-flags/summary` | operator | UC-9 | Số cờ theo trạng thái review: `{open, confirmedFraud, falsePositive}`. Audit `fraud_flag.search`. Danh sách và chi tiết cờ có thêm `amount`, số tài khoản và tên chủ hai bên |
 | GET | `/v1/operator/fraud-flags/{transferId}` | operator | UC-10 | Chi tiết cờ: điểm, mức, luật kích hoạt kèm giải thích, 10 giao dịch gần nhất của tài khoản nguồn; mỗi lần xem ghi audit |
 | POST | `/v1/operator/fraud-flags/{transferId}/review` | operator | UC-10 | Chỉ review một lần; lần hai trả 409 `FLAG_ALREADY_REVIEWED` |
 | GET | `/v1/audit/entries` | auditor | UC-8 | Lọc theo người, hành động, thời gian, `correlationId` |
@@ -1077,3 +1078,4 @@ Tối thiểu 3 ADR theo đề bài; nhóm có 14 ADR Accepted (bảng dưới; 
 | **1.15** | Kế hoạch UI chặng H: khối Web client (file tĩnh, không service mới) ở C4 mức 2 theo [ADR-15](adr/0015-web-frontend.md) |
 | **1.16** | Giao diện v2 chặng 1: thông báo có chi tiết giao dịch, bộ lọc, đã đọc; thêm `POST /v1/notifications/read` (bảng API §7) |
 | **1.17** | Giao diện v2 chặng 2: hạn mức còn lại, tổng tiền vào ra, người nhận gần đây, lọc chiều ở lịch sử (bảng API §7) |
+| **1.18** | Giao diện v2 chặng 3: cờ gian lận có số tiền, tên và số tài khoản hai bên; thêm `GET /v1/operator/fraud-flags/summary` (bảng API §7) |

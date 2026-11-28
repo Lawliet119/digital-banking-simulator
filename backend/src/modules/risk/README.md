@@ -54,3 +54,7 @@ DBS-160 triển khai API quản trị cấu hình fraud có phiên bản cho `AP
 ## Export công khai (`index.ts`)
 
 Module khác không gọi `risk` nội bộ. Giao tiếp nghiệp vụ qua sự kiện (queue `risk-events`) và HTTP API quản trị (`RiskConfigHttpModule`).
+
+## Danh sách cờ cho giao diện (giao diện v2)
+
+Danh sách và chi tiết cờ trả thêm `amount` (từ `v_transfer_facts`), `fromAccountNumber`, `fromOwnerName`, `toAccountNumber`, `toOwnerName` (qua `AccountHolderReader`). `GET /v1/operator/fraud-flags/summary` đếm cờ theo trạng thái review, audit `fraud_flag.search`. Chỉ vai `operator`; khách vẫn không có đường nào thấy cờ (AC-10.2).

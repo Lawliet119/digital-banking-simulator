@@ -21,6 +21,16 @@ export class FraudFlagDto {
   fromAccountId!: string;
   @ApiProperty({ format: 'uuid', example: '33333333-3333-4333-8333-333333333333' })
   toAccountId!: string;
+  @ApiProperty({ type: String, example: '20000000', description: 'Positive whole VND string' })
+  amount!: string;
+  @ApiProperty({ type: String, nullable: true, example: '100000000006' })
+  fromAccountNumber!: string | null;
+  @ApiProperty({ type: String, nullable: true, example: 'Lê Hoàng An' })
+  fromOwnerName!: string | null;
+  @ApiProperty({ type: String, nullable: true, example: '100000000007' })
+  toAccountNumber!: string | null;
+  @ApiProperty({ type: String, nullable: true, example: 'Phạm Thanh Bình' })
+  toOwnerName!: string | null;
   @ApiProperty({ example: 45, description: 'Tổng điểm rule và AI; không tự cộng hits' })
   score!: number;
   @ApiProperty({ enum: ['MEDIUM', 'HIGH'], example: 'MEDIUM' }) riskLevel!: string;
@@ -54,6 +64,12 @@ export class FraudListDto {
   @ApiProperty({ type: [FraudFlagDto] }) items!: FraudFlagDto[];
   @ApiProperty({ type: String, nullable: true, example: 'bmV4dC1wYWdlLWN1cnNvcg' })
   nextCursor!: string | null;
+}
+
+export class FraudSummaryDto {
+  @ApiProperty({ type: 'integer', example: 3, description: 'Not reviewed yet' }) open!: number;
+  @ApiProperty({ type: 'integer', example: 1 }) confirmedFraud!: number;
+  @ApiProperty({ type: 'integer', example: 2 }) falsePositive!: number;
 }
 
 export class FraudProblemDto {
