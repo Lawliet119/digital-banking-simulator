@@ -474,6 +474,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/notifications/read': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Customer: mark own notifications read, from upToId down in list order
+     * @description Vai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.
+     */
+    post: operations['NotificationsController_markRead_v1'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1094,6 +1114,38 @@ export interface components {
       /** @example Đã xác minh với khách hàng */
       note?: string;
     };
+    NotificationTransferDto: {
+      /**
+       * Format: uuid
+       * @example 3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44
+       */
+      transferId: string;
+      /**
+       * @description DEBIT = money out
+       * @enum {string}
+       */
+      direction: 'DEBIT' | 'CREDIT';
+      /**
+       * @description Positive whole VND string
+       * @example 300000
+       */
+      amount: string;
+      /**
+       * @description Balance of the reader's account after this movement
+       * @example 700000
+       */
+      balanceAfter: string;
+      /**
+       * @description Null for a deposit
+       * @example Trần Thu Hà
+       */
+      counterpartyName: string | null;
+      /**
+       * @description Null for a deposit
+       * @example 100000000004
+       */
+      counterpartyAccountNumber: string | null;
+    };
     NotificationItemDto: {
       /**
        * @description notification_log.id
@@ -1113,6 +1165,15 @@ export interface components {
        * @example 2026-03-15T02:30:00.123456Z
        */
       occurredAt: string;
+      /** @example false */
+      read: boolean;
+      /**
+       * @description The reader's account the notice is about; null on older notices
+       * @example 100000000002
+       */
+      accountNumber: string | null;
+      /** @description Null for a status change and for notices written before this field existed */
+      transfer: components['schemas']['NotificationTransferDto'] | null;
     };
     NotificationPageDto: {
       /** @description Newest first */
@@ -1122,6 +1183,15 @@ export interface components {
        * @example bmV4dC1wYWdlLWN1cnNvcg
        */
       nextCursor: string | null;
+      /**
+       * @description All unread notices, any filter
+       * @example 2
+       */
+      unreadCount: number;
+    };
+    NotificationReadDto: {
+      /** @example 0 */
+      unreadCount: number;
     };
     ProblemDetailsDto: {
       type: string;
@@ -3210,6 +3280,8 @@ export interface operations {
   NotificationsController_list_v1: {
     parameters: {
       query?: {
+        /** @description in = money received, out = money sent, account = lock and unlock */
+        filter?: 'all' | 'in' | 'out' | 'account';
         cursor?: string;
         limit?: number;
       };
@@ -3227,7 +3299,91 @@ export interface operations {
           'application/json': components['schemas']['NotificationPageDto'];
         };
       };
-      /** @description Invalid limit or cursor; unknown parameter */
+      /** @description Invalid limit, filter or cursor; unknown parameter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description UNAUTHENTICATED or TOKEN_EXPIRED */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description FORBIDDEN; the caller is not a customer */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description Too Many Requests (errorCode RATE_LIMITED) */
+      429: {
+        headers: {
+          /** @description Seconds to wait before retrying */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds */
+      503: {
+        headers: {
+          /** @description Seconds to wait before retrying */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+    };
+  };
+  NotificationsController_markRead_v1: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @example 42 */
+          upToId: string;
+        };
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['NotificationReadDto'];
+        };
+      };
+      /** @description upToId is missing or not a notification id */
       400: {
         headers: {
           [name: string]: unknown;

@@ -1,4 +1,6 @@
 export { LedgerModule } from './ledger.module';
+export { LedgerReadModule } from './ledger-read.module';
+export { LedgerLineReader, ledgerLineKey, type LedgerLine } from './ledger-line.reader';
 export { LedgerReconciliationModule } from './ledger-reconciliation.module';
 export {
   RECONCILIATION_CHECK_SQL,

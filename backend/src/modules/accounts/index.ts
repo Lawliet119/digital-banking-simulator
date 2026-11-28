@@ -1,6 +1,7 @@
 export { AccountsService } from './accounts.service';
 export { AccountsModule } from './accounts.module';
 export { AccountNumberReader } from './account-number.reader';
+export { AccountHolderReader, type AccountHolder } from './account-holder.reader';
 export type {
   Account,
   LockedAccount,

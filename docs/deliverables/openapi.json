@@ -5320,6 +5320,22 @@
         "operationId": "NotificationsController_list_v1",
         "parameters": [
           {
+            "name": "filter",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "in",
+                "out",
+                "account"
+              ],
+              "default": "all"
+            },
+            "description": "in = money received, out = money sent, account = lock and unlock"
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -5353,7 +5369,7 @@
             }
           },
           "400": {
-            "description": "Invalid limit or cursor; unknown parameter",
+            "description": "Invalid limit, filter or cursor; unknown parameter",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5549,6 +5565,241 @@
             "SERVICE_TEMPORARILY_UNAVAILABLE"
           ]
         }
+      }
+    },
+    "/v1/notifications/read": {
+      "post": {
+        "operationId": "NotificationsController_markRead_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "upToId"
+                ],
+                "properties": {
+                  "upToId": {
+                    "type": "string",
+                    "example": "42"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationReadDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "upToId is missing or not a notification id",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Bad Request",
+                      "status": 400,
+                      "detail": "The request is invalid",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED or TOKEN_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "UNAUTHENTICATED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "UNAUTHENTICATED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "TOKEN_EXPIRED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "TOKEN_EXPIRED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  },
+                  "SESSION_REVOKED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "detail": "The access token is missing, invalid, expired or revoked",
+                      "errorCode": "SESSION_REVOKED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN; the caller is not a customer",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "FORBIDDEN": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "detail": "The caller's role is not allowed to use this endpoint",
+                      "errorCode": "FORBIDDEN",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests (errorCode RATE_LIMITED)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "RATE_LIMITED": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Too Many Requests",
+                      "status": 429,
+                      "detail": "Too many requests, retry later",
+                      "errorCode": "RATE_LIMITED",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Internal Server Error",
+                      "status": 500,
+                      "detail": "Unexpected error",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetailsDto"
+                },
+                "examples": {
+                  "SERVICE_TEMPORARILY_UNAVAILABLE": {
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Service Unavailable",
+                      "status": 503,
+                      "detail": "Temporarily unavailable, retry with the same Idempotency-Key where one applies",
+                      "errorCode": "SERVICE_TEMPORARILY_UNAVAILABLE",
+                      "correlationId": "4f1c2a9e-7b3d-4e58-9a61-2c0d5e8b7a13"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Customer: mark own notifications read, from upToId down in list order",
+        "tags": [
+          "notifications"
+        ],
+        "x-roles": [
+          "customer"
+        ],
+        "x-error-codes": {
+          "401": [
+            "UNAUTHENTICATED",
+            "TOKEN_EXPIRED",
+            "SESSION_REVOKED"
+          ],
+          "403": [
+            "FORBIDDEN"
+          ],
+          "429": [
+            "RATE_LIMITED"
+          ],
+          "503": [
+            "SERVICE_TEMPORARILY_UNAVAILABLE"
+          ]
+        },
+        "description": "\n\nVai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE."
       }
     }
   },
@@ -6692,6 +6943,55 @@
           "decision"
         ]
       },
+      "NotificationTransferDto": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "3c1f3a9e-2d4b-4a57-8e0f-6b7d9c1a2e44"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "DEBIT",
+              "CREDIT"
+            ],
+            "description": "DEBIT = money out"
+          },
+          "amount": {
+            "type": "string",
+            "example": "300000",
+            "description": "Positive whole VND string"
+          },
+          "balanceAfter": {
+            "type": "string",
+            "example": "700000",
+            "description": "Balance of the reader's account after this movement"
+          },
+          "counterpartyName": {
+            "type": "string",
+            "nullable": true,
+            "example": "Trần Thu Hà",
+            "description": "Null for a deposit"
+          },
+          "counterpartyAccountNumber": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9]{12}$",
+            "example": "100000000004",
+            "description": "Null for a deposit"
+          }
+        },
+        "required": [
+          "transferId",
+          "direction",
+          "amount",
+          "balanceAfter",
+          "counterpartyName",
+          "counterpartyAccountNumber"
+        ]
+      },
       "NotificationItemDto": {
         "type": "object",
         "properties": {
@@ -6717,13 +7017,37 @@
             "format": "date-time",
             "example": "2026-03-15T02:30:00.123456Z",
             "description": "When the event happened, UTC with exactly six fractional digits"
+          },
+          "read": {
+            "type": "boolean",
+            "example": false
+          },
+          "accountNumber": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9]{12}$",
+            "example": "100000000002",
+            "description": "The reader's account the notice is about; null on older notices"
+          },
+          "transfer": {
+            "nullable": true,
+            "description": "Null for a status change and for notices written before this field existed",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NotificationTransferDto"
+              }
+            ]
           }
         },
         "required": [
           "id",
           "kind",
           "message",
-          "occurredAt"
+          "occurredAt",
+          "read",
+          "accountNumber",
+          "transfer"
         ]
       },
       "NotificationPageDto": {
@@ -6741,11 +7065,29 @@
             "nullable": true,
             "description": "Opaque cursor for the next page; null on the last page",
             "example": "bmV4dC1wYWdlLWN1cnNvcg"
+          },
+          "unreadCount": {
+            "type": "integer",
+            "example": 2,
+            "description": "All unread notices, any filter"
           }
         },
         "required": [
           "items",
-          "nextCursor"
+          "nextCursor",
+          "unreadCount"
+        ]
+      },
+      "NotificationReadDto": {
+        "type": "object",
+        "properties": {
+          "unreadCount": {
+            "type": "integer",
+            "example": 0
+          }
+        },
+        "required": [
+          "unreadCount"
         ]
       },
       "ProblemDetailsDto": {

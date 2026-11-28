@@ -17,12 +17,20 @@ interface Notice {
   userId: string;
   kind: 'transfer_completed' | 'account_status_changed';
   message: string;
+  /** The reader's own account this notice is about. */
+  accountId: string;
+  /** The three below are null for a status change; the counterparty is null for a deposit. */
+  transferId: string | null;
+  counterpartyAccountId: string | null;
+  direction: 'DEBIT' | 'CREDIT' | null;
 }
 
 /**
  * Who is told what. The texts are fixed sentences chosen from the event type and status only: no
  * amount, no account number, and nothing from the event that could carry a reason, so a fraud
- * reason cannot reach a customer (BR-13). Whoever owns both ends of a transfer is told once.
+ * reason cannot reach a customer (BR-13). Beside the text, each notice keeps ids only (which
+ * transfer, which account, which side); amounts stay in the ledger. Whoever owns both ends of a
+ * transfer is told once, on the side that sent.
  */
 export function noticesFor(event: DomainEvent): Notice[] {
   if (event.eventType === 'AccountStatusChanged') {
@@ -34,6 +42,10 @@ export function noticesFor(event: DomainEvent): Notice[] {
           event.newStatus === 'LOCKED'
             ? 'Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ ngân hàng để được hỗ trợ'
             : 'Tài khoản của bạn đã được mở khóa',
+        accountId: event.accountId,
+        transferId: null,
+        counterpartyAccountId: null,
+        direction: null,
       },
     ];
   }
@@ -44,12 +56,21 @@ export function noticesFor(event: DomainEvent): Notice[] {
       event.type === 'DEPOSIT'
         ? 'Tài khoản của bạn vừa được nạp tiền'
         : 'Tài khoản của bạn vừa nhận tiền',
+    accountId: event.toAccountId,
+    transferId: event.transferId,
+    // The funding account of a deposit is never named to a customer.
+    counterpartyAccountId: event.type === 'DEPOSIT' ? null : event.fromAccountId,
+    direction: 'CREDIT',
   };
   if (event.type === 'DEPOSIT') return [received];
   const sent: Notice = {
     userId: event.fromUserId,
     kind: 'transfer_completed',
     message: 'Bạn đã chuyển tiền thành công',
+    accountId: event.fromAccountId,
+    transferId: event.transferId,
+    counterpartyAccountId: event.toAccountId,
+    direction: 'DEBIT',
   };
   return event.fromUserId === event.toUserId ? [sent] : [sent, received];
 }
@@ -83,8 +104,9 @@ export class NotificationConsumer extends ConsumerBase {
       await manager.query(
         // occurred_at is the time of the event, not of this processing (BL-211): delivery is not
         // ordered, so readers sort by it (`ORDER BY occurred_at, id`) and not by id or created_at.
-        `INSERT INTO notification_log(event_id,kind,user_id,message,correlation_id,occurred_at)
-         VALUES($1,$2,$3,$4,$5,$6)`,
+        `INSERT INTO notification_log(event_id,kind,user_id,message,correlation_id,occurred_at,
+           transfer_id,account_id,counterparty_account_id,direction)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           event.eventId,
           notice.kind,
@@ -92,6 +114,10 @@ export class NotificationConsumer extends ConsumerBase {
           notice.message,
           event.correlationId,
           event.occurredAt,
+          notice.transferId,
+          notice.accountId,
+          notice.counterpartyAccountId,
+          notice.direction,
         ],
       );
     }
