@@ -97,6 +97,12 @@ variable "metrics_namespace" {
   }
 }
 
+variable "web_enabled" {
+  description = "Giao diện v2: S3 + CloudFront phục vụ frontend và chuyển /v1, /health tới ALB (web.tf). Cần waf_enabled = false."
+  type        = bool
+  default     = false
+}
+
 variable "waf_enabled" {
   description = "Bật AWS WAF gắn vào ALB (DBS-153, chỉ tuần 6-8). Đặt false sau waf_off_date để tắt hẳn (0 USD)."
   type        = bool

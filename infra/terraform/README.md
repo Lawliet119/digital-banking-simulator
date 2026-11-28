@@ -357,6 +357,27 @@ Mỗi service có execution role riêng (ECS agent dùng để kéo image, ghi l
 
 - **Chi phí:** ≈ 1,85 USD/tuần nếu bật 24/7 (5 USD/ACL + 3 USD/3 rule + phí request) hoặc ≈ 0,5 USD/tuần nếu dựng/xóa theo phiên (~45 giờ/tuần). Chi tiết ở [DBS-153 §3](../../docs/features/DBS-153-waf-alb.md).
 
+### Giao diện web: S3 + CloudFront (giao diện v2)
+
+`session/web.tf`, tắt mặc định (`web_enabled = false`). Bật lên thì có bucket riêng tư `dbs-dev-web-<account>` (chỉ distribution đọc được, OAC, `force_destroy`) và một distribution `*.cloudfront.net`:
+
+- File tĩnh từ S3; route của app (không có đuôi file) trả `index.html` bằng CloudFront Function chỉ gắn ở behavior S3, nên 404 của API giữ nguyên.
+- `/v1/*` và `/health/*` tới ALB cổng 80: `CachingDisabled` và `AllViewerExceptHostHeader` (giữ `Authorization`, `Idempotency-Key`, query). Listener 80 chỉ chuyển tiếp khi có header bí mật CloudFront gửi kèm, còn lại vẫn chuyển hướng HTTPS.
+- Header: CSP chỉ `self` và `cognito-idp.<region>.amazonaws.com`, HSTS, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`.
+- API nhận `TRUST_PROXY_HOPS=2` (CloudFront rồi ALB) để giới hạn theo IP tính đúng người dùng.
+- Cần `waf_enabled = false`: rate rule của WAF đếm theo IP nguồn, sau CloudFront đó là IP của CloudFront (`check "web_without_waf"` cảnh báo).
+
+```bash
+terraform -chdir=infra/terraform/envs/dev/session apply -var web_enabled=true -var waf_enabled=false   # cùng các biến khác lúc dựng
+AWS_PROFILE=dbs bash infra/scripts/deploy-web.sh --dry-run   # đọc output, build, kiểm bản build; không gọi AWS
+AWS_PROFILE=dbs bash infra/scripts/deploy-web.sh             # đẩy lên S3, ghi config.json, xóa cache
+terraform -chdir=infra/terraform/envs/dev/session output -raw web_url
+```
+
+`deploy-web.sh` ghi `/config.json` (region, user pool, app client của stack base) để frontend đăng nhập bằng Cognito; file trong `assets/` cache một năm, `index.html` và `config.json` `no-cache`, không đẩy source map. Tắt: apply lại với `web_enabled=false` (bucket xóa cùng file). Test: `session/tests/web.tftest.hcl`.
+
+Rủi ro chấp nhận cho môi trường test: đoạn CloudFront tới ALB đi HTTP (chứng chỉ ALB tự ký); ai gọi thẳng cổng 443 của ALB có thể giả `X-Forwarded-For` để né giới hạn theo IP; header bí mật nằm trong state; Cognito cho tự đăng ký nên người lạ biết địa chỉ cũng mở được tài khoản.
+
 ## Dựng từ trạng thái trống và đo thời gian (DBS-139)
 
 «Trạng thái trống» nghĩa là: `base` đã có (giữ lại, không dựng lại mỗi phiên), `session` rỗng, ECR có image của SHA cần chạy. Bảng dưới đây là các bước theo thứ tự; cột thời gian chỉ ghi số **đo thật** (ngày 2026-11-12, `ap-southeast-1`, profile `dbs-admin`, Terraform 1.16.6) hoặc nói rõ **ước tính, chưa đo** và lý do. Checklist cho người trực demo: [docs/runbooks/demo-checklist.md](../../docs/runbooks/demo-checklist.md).
