@@ -60,8 +60,16 @@ export class AccountTransactionsController {
     schema: { type: 'string', format: 'date-time' },
     description: 'Exclusive UTC Z upper bound; must be later than from',
   })
+  @ApiQuery({
+    name: 'direction',
+    required: false,
+    schema: { type: 'string', enum: ['DEBIT', 'CREDIT'] },
+    description: 'Money out or money in only',
+  })
   @ApiOkResponse({ type: TransactionPageDto })
-  @ApiBadRequestResponse({ description: 'Invalid limit, cursor, from or to; unknown parameter' })
+  @ApiBadRequestResponse({
+    description: 'Invalid limit, cursor, from, to or direction; unknown parameter',
+  })
   @ApiUnauthorizedResponse({ description: 'UNAUTHENTICATED or TOKEN_EXPIRED' })
   @ApiForbiddenResponse({ description: 'FORBIDDEN; the caller is not a customer' })
   @ApiNotFoundResponse({ description: 'Account not found (includes foreign and SYSTEM accounts)' })

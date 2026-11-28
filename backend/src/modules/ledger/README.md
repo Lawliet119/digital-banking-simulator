@@ -11,7 +11,7 @@ Migration `AddAppendOnlyTriggers1792627200002` bật hai trigger cho mỗi bản
 | Use case    | UC-3 nạp tiền · UC-5 chuyển tiền · UC-6 lịch sử · UC-7 trạng thái giao dịch                                                      |
 | Chạy ở      | `api`; job đối soát chạy ở `worker` (scheduler bị chặn ở role `api`, ADR-13)                                                     |
 | Sở hữu bảng | `transfers`, `ledger_entries`, `idempotency_keys`, `reconciliation_runs`; ghi sự kiện qua `OutboxWriter.add` của module `outbox` |
-| Thiết kế    | `docs/03` §6.1 (luồng chuyển tiền), §8 (dữ liệu) · `docs/BRD.md` Phần 2 §3 (AC-5.x)                                                         |
+| Thiết kế    | `docs/03` §6.1 (luồng chuyển tiền), §8 (dữ liệu) · `docs/BRD.md` Phần 2 §3 (AC-5.x)                                              |
 
 ## Phải giữ
 
@@ -88,6 +88,7 @@ Bảng không tự chạy hoặc tính đối soát; job nằm ở mục dưới
   Phải khóa hàng trước: ở `READ COMMITTED`, `UPDATE` đứng một mình tính tổng trên snapshot đầu câu lệnh; nếu lúc đó có lệnh chuyển của tài khoản này chưa commit, `UPDATE` chờ khóa rồi ghi đè bằng tổng cũ (thiếu số tiền lệnh vừa commit). Câu `UPDATE` sau `SELECT … FOR UPDATE` có snapshot mới nên thấy dòng đã commit.
 
   Chạy lại `check:invariants` (phải `PASS`). **Lưu ý alarm:** chừng nào bộ đếm còn lệch, mọi lượt đối soát là `MISMATCH` nên alarm `dbs-dev-reconciliation-failed` ở trạng thái ALARM và một lệch số dư xảy ra sau đó không gửi thư mới. Sửa bộ đếm ngay, rồi xem `failedChecks` của các lượt kế tiếp.
+
 - **Giới hạn hiện tại:** chưa có job dọn `reconciliation_runs` quá 90 ngày, chưa có đối soát gia tăng; quyền production của `dbs_worker` chưa kiểm trên ECS thật.
 - Bằng chứng: [DBS-117](../../../../docs/features/DBS-117-reconciliation-worker-job.md), bộ đếm: [DBS-142](../../../../docs/features/DBS-142-ledger-tech-debt.md) (BL-421).
 
@@ -95,15 +96,19 @@ Bảng không tự chạy hoặc tính đối soát; job nằm ở mục dưới
 
 Tên test không luôn mang nhãn AC; bảng này là chỗ tra (chạy từng file bằng `npm run test:db -- <file>` với `DATABASE_URL` bỏ trống, thư mục `backend/test/db`).
 
-| AC | Test |
-|---|---|
-| 5.1 chuyển 300.000, hai số dư, hai bút toán | `customer-transfers` TC-61-01; `money-flow` TC-65-01 |
-| 5.2 thiếu tiền → `REJECTED`, không bút toán | `customer-transfers` TC-61-02; `money-flow` TC-65-04; `transfer-concurrency` TC-98-03..04 |
-| 5.3 gửi lại cùng key → kết quả cũ | `customer-transfers` TC-79-01, 03, 04, 10; `money-flow` TC-65-02 |
-| 5.4 10 lệnh cùng key song song → 1 giao dịch | `customer-transfers` TC-61-07, TC-79-07 (TC-97-01..03), TC-79-08 |
-| 5.5 cùng key khác nội dung → 422 | `customer-transfers` TC-79-02, TC-79-09 |
-| 5.6 hạn mức ngày, hai lệnh song song | `customer-transfers` TC-54-04, TC-84-06; `transfer-concurrency` TC-98-01..02; `daily-debit-counter-flow` TC-418-09 |
-| 5.7 đích `LOCKED` → `REJECTED` | `rejected-transfers` TC-83-01, TC-83-02 |
-| 5.8 tài khoản của người khác → từ chối, có nhật ký | `customer-transfers` TC-61-03; `resource-ownership` TC-86-01..03; `money-flow` TC-65-05 |
-| 5.9 nhiều khách chuyển chéo, tài khoản nóng | `transfer-concurrency` TC-99-01..03; `reconciliation-intentional-mismatch` TC-118-02 |
-| 5.10 ngắt giữa lúc xử lý, gửi lại → đúng một lần | `idempotency-rollback` TC-81-01..04 (rollback giữa chừng); trên cloud: `infra/scripts/ac-5-10-kill.sh` ([DBS-185](../../../../docs/features/DBS-185-ac-5-10-kill-task-cloud.md)) |
+| AC                                                 | Test                                                                                                                                                                             |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 5.1 chuyển 300.000, hai số dư, hai bút toán        | `customer-transfers` TC-61-01; `money-flow` TC-65-01                                                                                                                             |
+| 5.2 thiếu tiền → `REJECTED`, không bút toán        | `customer-transfers` TC-61-02; `money-flow` TC-65-04; `transfer-concurrency` TC-98-03..04                                                                                        |
+| 5.3 gửi lại cùng key → kết quả cũ                  | `customer-transfers` TC-79-01, 03, 04, 10; `money-flow` TC-65-02                                                                                                                 |
+| 5.4 10 lệnh cùng key song song → 1 giao dịch       | `customer-transfers` TC-61-07, TC-79-07 (TC-97-01..03), TC-79-08                                                                                                                 |
+| 5.5 cùng key khác nội dung → 422                   | `customer-transfers` TC-79-02, TC-79-09                                                                                                                                          |
+| 5.6 hạn mức ngày, hai lệnh song song               | `customer-transfers` TC-54-04, TC-84-06; `transfer-concurrency` TC-98-01..02; `daily-debit-counter-flow` TC-418-09                                                               |
+| 5.7 đích `LOCKED` → `REJECTED`                     | `rejected-transfers` TC-83-01, TC-83-02                                                                                                                                          |
+| 5.8 tài khoản của người khác → từ chối, có nhật ký | `customer-transfers` TC-61-03; `resource-ownership` TC-86-01..03; `money-flow` TC-65-05                                                                                          |
+| 5.9 nhiều khách chuyển chéo, tài khoản nóng        | `transfer-concurrency` TC-99-01..03; `reconciliation-intentional-mismatch` TC-118-02                                                                                             |
+| 5.10 ngắt giữa lúc xử lý, gửi lại → đúng một lần   | `idempotency-rollback` TC-81-01..04 (rollback giữa chừng); trên cloud: `infra/scripts/ac-5-10-kill.sh` ([DBS-185](../../../../docs/features/DBS-185-ac-5-10-kill-task-cloud.md)) |
+
+## Số liệu cho khách (giao diện v2)
+
+`CustomerInsightsController`: `GET /v1/accounts/{id}/limits`, `GET /v1/insights/summary?days=1|30`, `GET /v1/insights/recipients`; lịch sử nhận thêm `direction`. Chỉ đọc, không nằm trên đường tiền; hạn mức đã dùng lấy từ sổ cái (`SENT_TODAY_SQL`). Test: `test/db/customer-insights.db-spec.ts`.

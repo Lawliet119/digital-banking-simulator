@@ -5,6 +5,8 @@ import { BadRequestException, Injectable, type PipeTransform } from '@nestjs/com
 export interface HistoryFilters {
   readonly from: string | null;
   readonly to: string | null;
+  /** Money out (DEBIT) or in (CREDIT) only; absent or null means both. */
+  readonly direction?: 'DEBIT' | 'CREDIT' | null;
 }
 
 export interface HistoryCursor {
@@ -25,7 +27,7 @@ export interface ParsedHistoryQuery extends HistoryFilters {
 export const DEFAULT_HISTORY_LIMIT = 20;
 export const MAX_HISTORY_LIMIT = 100;
 
-const FIELDS = ['limit', 'cursor', 'from', 'to'];
+const FIELDS = ['limit', 'cursor', 'from', 'to', 'direction'];
 const BIGINT_MAX = 9223372036854775807n;
 
 function invalid(message: string): never {
@@ -57,7 +59,13 @@ export function normalizeTimestamp(value: string): string | null {
 
 function fingerprint(filters: HistoryFilters): string {
   return createHash('sha256')
-    .update(JSON.stringify({ from: filters.from, to: filters.to }))
+    .update(
+      JSON.stringify({
+        from: filters.from,
+        to: filters.to,
+        ...(filters.direction ? { direction: filters.direction } : {}),
+      }),
+    )
     .digest('hex');
 }
 
@@ -110,7 +118,11 @@ export function parseHistoryQuery(raw: unknown): ParsedHistoryQuery {
   if (values.from !== undefined && from === null) invalid('from must be a valid UTC timestamp');
   if (values.to !== undefined && to === null) invalid('to must be a valid UTC timestamp');
   if (from !== null && to !== null && from >= to) invalid('from must precede to');
-  const filters: HistoryFilters = { from, to };
+  const direction = values.direction ?? null;
+  if (direction !== null && direction !== 'DEBIT' && direction !== 'CREDIT') {
+    invalid('direction must be DEBIT or CREDIT');
+  }
+  const filters: HistoryFilters = { from, to, direction };
   const limit = values.limit ?? String(DEFAULT_HISTORY_LIMIT);
   if (!matches(/^(?:[1-9]\d?|100)$/, limit)) {
     invalid(`limit must be an integer from 1 to ${MAX_HISTORY_LIMIT}`);
@@ -159,6 +171,7 @@ export function buildHistorySql(
   const predicates = [`e.account_id = ${parameter(accountId)}::uuid`];
   if (query.from !== null) predicates.push(`e.created_at >= ${parameter(query.from)}::timestamptz`);
   if (query.to !== null) predicates.push(`e.created_at < ${parameter(query.to)}::timestamptz`);
+  if (query.direction) predicates.push(`e.direction = ${parameter(query.direction)}`);
   if (query.cursor !== null) {
     predicates.push(
       `(e.created_at, e.id) < (${parameter(query.cursor.t)}::timestamptz, ${parameter(query.cursor.id)}::bigint)`,

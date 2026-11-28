@@ -123,6 +123,7 @@ export class AccountsService {
       role !== 'customer' ||
       (action !== 'account.read' &&
         action !== 'account.transactions' &&
+        action !== 'account.limits' &&
         action !== 'ledger.transfer')
     ) {
       throw new TypeError('Account ownership context is invalid');

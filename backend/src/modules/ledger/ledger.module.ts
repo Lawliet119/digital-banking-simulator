@@ -4,6 +4,8 @@ import { AccountsModule } from '@modules/accounts';
 import { AuditModule } from '@modules/audit';
 import { OutboxModule } from '@modules/outbox';
 import { AccountTransactionsController } from './account-transactions.controller';
+import { CustomerInsightsController } from './customer-insights.controller';
+import { CustomerInsightsService } from './customer-insights.service';
 import { DepositService } from './deposit.service';
 import { LedgerPostingService } from './ledger-posting.service';
 import { OperatorDepositsController } from './operator-deposits.controller';
@@ -23,7 +25,13 @@ import { TransfersController } from './transfers.controller';
     TransferService,
     TransactionHistoryService,
     TransferQueryService,
+    CustomerInsightsService,
   ],
-  controllers: [OperatorDepositsController, TransfersController, AccountTransactionsController],
+  controllers: [
+    OperatorDepositsController,
+    TransfersController,
+    AccountTransactionsController,
+    CustomerInsightsController,
+  ],
 })
 export class LedgerModule {}
