@@ -26,6 +26,7 @@ docs/
 │   └── ledger/  accounts/  identity/  risk/  audit/  outbox/  notification/  health/
 │       platform-infra/  ci-cd/  observability/  fraud-dataset/  load-tests/
 ├── demos/                                 Kịch bản demo bắt buộc chạy được từng bước (Demo 3: failure / recovery; Demo 4: security & audit review; demo giữa kỳ: đăng ký → tra correlationId)
+├── plans/                                 Kế hoạch theo tuần của nhóm (thứ tự ưu tiên, lịch, việc cần quyết)
 ├── runbooks/                              Quy trình vận hành từng bước (đọc và redrive DLQ; bật phiên bản luật fraud mới sau khi thay hết worker cũ)
 └── deliverables/                          Năm bản nộp P1–P5 (bản ghép trỏ về nguồn)
 ```
