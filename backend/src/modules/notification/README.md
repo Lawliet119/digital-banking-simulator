@@ -29,6 +29,12 @@ Writer dùng thông báo chung và kiểm BR-13; COMMENT trong schema không ki�
 
 **Audit của thông báo (DBS-135, AC-8.2):** `apply` ghi thêm một dòng `audit_log` mỗi event (`notification.sent`, worker, `actor` NULL, `correlationId` của event, target là transfer hoặc account, metadata chỉ `count`) trong cùng transaction với `notification_log` và claim `processed_events`, để kiểm toán viên, chỉ đọc được `audit_log`, thấy bước thông báo trong chuỗi của giao dịch. Audit lỗi thì cả transaction rollback và message được giao lại (tối đa 5 lần rồi DLQ). Không ghi câu chữ hay lý do (BR-13).
 
-## Đọc thông báo (kế hoạch UI, chặng B)
+## Đọc thông báo
 
-`GET /v1/notifications` (vai trò `customer`) nằm ở `NotificationHttpModule`, đăng ký trong `apiModules`; consumer vẫn chỉ ở `NotificationModule` của worker. Trả thông báo của chính người gọi, mới nhất trước theo `occurred_at, id` (BL-211), phân trang bằng cursor (base64url của `occurred_at` và `id` của dòng cuối), `limit` 1–50, mặc định 20. Chỉ bốn trường `id`, `kind`, `message`, `occurredAt`: không trả `event_id`, `correlation_id`. Migration `1795000014000-GrantNotificationRead` cấp `SELECT` cho `dbs_api` (không ghi, không xóa) và tạo index `notification_log_user_idx (user_id, occurred_at DESC, id DESC)`. Không ghi audit: khách chỉ đọc câu chung của chính mình (BR-13). Test: `test/db/notifications-read.db-spec.ts`, `test/db/db-roles.db-spec.ts`.
+`NotificationHttpModule` (vai trò `customer`, đăng ký ở `apiModules`); consumer vẫn chỉ ở `NotificationModule` của worker.
+
+- `GET /v1/notifications?limit=&cursor=&filter=all|in|out|account`: thông báo của chính người gọi, mới nhất trước theo `occurred_at, id` (BL-211). Cursor gắn với `filter`. Trả thêm `unreadCount`, và cho mỗi dòng `read`, `accountNumber`, `transfer`.
+- `transfer`: consumer chỉ lưu id (`transfer_id`, `account_id`, `counterparty_account_id`, `direction`); số tiền và số dư sau đọc từ sổ cái qua `LedgerLineReader`, tên và số bên kia qua `AccountHolderReader`. Nạp tiền không lộ tài khoản `funding`. Dòng ghi trước migration `1795000015000` có `transfer = null`.
+- `POST /v1/notifications/read` `{upToId}`: đánh dấu từ thông báo đó trở về cũ hơn. Quyền ghi duy nhất của api trên bảng là `UPDATE (read_at)`.
+- Câu chữ (`message`) vẫn là câu cố định, không số tiền, không lý do khóa (BR-13). Không ghi audit: khách đọc dữ liệu của chính mình.
+- Test: `test/db/notifications-read.db-spec.ts`, `test/db/notification-detail.db-spec.ts`, `test/db/db-roles.db-spec.ts`.

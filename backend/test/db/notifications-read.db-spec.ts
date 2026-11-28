@@ -54,7 +54,7 @@ describe('GET /v1/notifications', () => {
     return token ? call.auth(token, { type: 'bearer' }) : call;
   };
 
-  it('TC-B-01 returns only the caller notices, newest event first, with exactly four fields', async () => {
+  it('TC-B-01 returns only the caller notices, newest event first, without event or correlation ids', async () => {
     const me = await customer();
     const other = await customer();
     const older = await notice(me.userId, '2026-03-01T01:00:00Z');
@@ -71,15 +71,22 @@ describe('GET /v1/notifications', () => {
           kind: 'transfer_completed',
           message: 'Tài khoản của bạn đã bị khóa.',
           occurredAt: '2026-03-02T01:00:00.000000Z',
+          read: false,
+          accountNumber: null,
+          transfer: null,
         },
         {
           id: older,
           kind: 'transfer_completed',
           message: 'Giao dịch đã hoàn tất.',
           occurredAt: '2026-03-01T01:00:00.000000Z',
+          read: false,
+          accountNumber: null,
+          transfer: null,
         },
       ],
       nextCursor: null,
+      unreadCount: 2,
     });
   });
 
@@ -129,7 +136,11 @@ describe('GET /v1/notifications', () => {
 
   it('TC-B-05 a customer with no notice gets an empty page', async () => {
     const me = await customer();
-    expect((await list(me.token).expect(200)).body).toEqual({ items: [], nextCursor: null });
+    expect((await list(me.token).expect(200)).body).toEqual({
+      items: [],
+      nextCursor: null,
+      unreadCount: 0,
+    });
   });
 
   it.each([
@@ -156,7 +167,11 @@ describe('GET /v1/notifications', () => {
 
   it('TC-B-08 the page is an index scan on notification_log_user_idx, without a Sort', async () => {
     const me = await customer();
-    const { sql, parameters } = buildNotificationSql(me.userId, { limit: 20, cursor: null });
+    const { sql, parameters } = buildNotificationSql(me.userId, {
+      limit: 20,
+      cursor: null,
+      filter: 'all',
+    });
     await q('BEGIN');
     try {
       // The table holds a few dozen rows here, so the planner prefers a heap or bitmap scan and a

@@ -7,6 +7,7 @@ import { CustomerProfileService } from './customer-profile.service';
 import { CustomersController } from './customers.controller';
 import { AccountOpeningService } from './account-opening.service';
 import { AccountsController } from './accounts.controller';
+import { AccountHolderReader } from './account-holder.reader';
 import { AccountNumberReader } from './account-number.reader';
 import { AccountQueryService } from './account-query.service';
 import { OperatorAccountSearchService } from './operator-account-search.service';
@@ -22,9 +23,10 @@ import { OperatorAccountsController } from './operator-accounts.controller';
     AccountOpeningService,
     AccountQueryService,
     AccountNumberReader,
+    AccountHolderReader,
     OperatorAccountSearchService,
     OperatorAccountStatusService,
   ],
-  exports: [AccountsService, AccountNumberReader],
+  exports: [AccountsService, AccountNumberReader, AccountHolderReader],
 })
 export class AccountsModule {}

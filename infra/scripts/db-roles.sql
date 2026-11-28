@@ -81,6 +81,15 @@ GRANT SELECT, INSERT ON risk_rule_sets TO dbs_api;
 GRANT SELECT ON reconciliation_runs TO dbs_api;
 -- GET /v1/notifications reads the caller's notices; only the worker writes them.
 GRANT SELECT ON notification_log TO dbs_api;
+-- Marking a notice read is the one write of the api; the column exists from migration 1795000015000.
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'notification_log'
+                AND column_name = 'read_at') THEN
+    GRANT UPDATE (read_at) ON public.notification_log TO dbs_api;
+  END IF;
+END $$;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO dbs_api;
 
 -- dbs_worker

@@ -396,6 +396,10 @@ CREATE TABLE notification_log (
 CREATE INDEX notification_log_event_id_idx ON notification_log(event_id);
 -- Kế hoạch UI chặng B (migration 1795000014000): GET /v1/notifications đọc theo người dùng, mới nhất trước.
 CREATE INDEX notification_log_user_idx ON notification_log(user_id, occurred_at DESC, id DESC);
+-- Giao diện v2 (migration 1795000015000): thêm transfer_id, account_id, counterparty_account_id,
+-- direction ('DEBIT'|'CREDIT') do consumer ghi từ sự kiện (không chép số tiền: api đọc ledger_entries),
+-- và read_at. Tất cả NULL được; dòng cũ không có chi tiết. Không FK: thông báo không được khóa bảng tiền.
+CREATE INDEX notification_log_unread_idx ON notification_log(user_id) WHERE read_at IS NULL;
 -- correlation_id nullable: dòng sinh trước DBS-134 được backfill từ outbox_events theo event_id khi
 -- dòng outbox còn (cleanup DBS-92 xóa dòng cũ), worker bản cũ trong lúc deploy cuốn chiếu có thể
 -- vẫn INSERT không có cột. Code mới luôn điền. Không index: kiểm toán tra theo audit_log.
@@ -610,7 +614,7 @@ Ma trận quyền (S = SELECT, I = INSERT, U = UPDATE, D = DELETE):
 | `fraud_rule_hits` | S | S I |
 | `risk_decisions` ([RSK-01](../../features/RSK-01-risk-decisions-migration.md)) | S | S I |
 | `risk_rule_sets` | S I | S |
-| `notification_log` | S (`GET /v1/notifications`, kế hoạch UI chặng B) | S I D |
+| `notification_log` | S, U (`read_at`) (`GET /v1/notifications`, `POST /v1/notifications/read`) | S I D |
 | `reconciliation_runs` | S | S I D |
 
 Ma trận này được cài thành migration bước 7 TypeORM `1793664000000-CreateDbRolesAndGrants.ts` ([DBS-119](../../features/DBS-119-db-roles-grant-matrix.md)) và script SQL đồng bộ ở [`infra/scripts/db-roles.sql`](../../../infra/scripts/db-roles.sql) (idempotent, chạy bằng tài khoản quản trị/master; bao gồm tạo `dbs_migrator`, `dbs_api`, `dbs_worker`, chuyển quyền sở hữu view `v_transfer_facts` sang `dbs_migrator`, cấp quyền sequences, `notification_log` và `reconciliation_runs`). Toàn bộ ma trận được kiểm chứng tự động bằng `backend/test/db/db-roles.db-spec.ts` (TC-119-01..05): luồng nạp tiền, chuyển tiền, replay và thu hồi phiên chạy được chỉ với quyền đã cấp; job đối soát (DBS-117) chạy được bằng `dbs_worker` (TC-117-10); thao tác ngoài ma trận bị PostgreSQL từ chối với `42501`; `dbs_worker` đọc `v_transfer_facts` thành công dù không có quyền trên `transfers` (BL-005); ứng dụng bị guard `assertNotMigratorUser` chặn kết nối bằng `dbs_migrator` (DoD #2); và trigger `forbid_mutation()` chặn sửa/xóa các bảng chỉ-thêm kể cả khi kết nối bằng `dbs_migrator` (AC-8.1, §8.3).
