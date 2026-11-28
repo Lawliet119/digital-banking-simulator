@@ -12,7 +12,8 @@ locals {
   api_base_environment = [
     { name = "NODE_ENV", value = var.node_env },
     { name = "APP_ROLE", value = "api" },
-    { name = "TRUST_PROXY_HOPS", value = "1" },
+    # Sau CloudFront (web_enabled) có thêm một proxy trước ALB: web.tf.
+    { name = "TRUST_PROXY_HOPS", value = var.web_enabled ? "2" : "1" },
     { name = "PORT", value = "3000" },
     { name = "AWS_REGION", value = var.region },
     { name = "LOG_LEVEL", value = "log" },

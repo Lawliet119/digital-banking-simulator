@@ -106,3 +106,18 @@ output "waf_web_acl_arn" {
   description = "ARN WAF web ACL gắn vào ALB (null khi waf_enabled = false, DBS-153)."
   value       = var.waf_enabled ? module.waf[0].web_acl_arn : null
 }
+
+output "web_url" {
+  description = "Địa chỉ giao diện web (null khi web_enabled = false)."
+  value       = var.web_enabled ? "https://${aws_cloudfront_distribution.web[0].domain_name}" : null
+}
+
+output "web_bucket" {
+  description = "Bucket chứa bản build frontend (null khi web_enabled = false)."
+  value       = var.web_enabled ? aws_s3_bucket.web[0].bucket : null
+}
+
+output "web_distribution_id" {
+  description = "CloudFront distribution của giao diện web, để xóa cache sau khi triển khai (null khi tắt)."
+  value       = var.web_enabled ? aws_cloudfront_distribution.web[0].id : null
+}
