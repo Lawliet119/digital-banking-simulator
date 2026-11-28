@@ -37,8 +37,10 @@ export function OnboardingPage() {
   return (
     <section className="panel narrow">
       <h1>Tạo hồ sơ</h1>
-      <p className="muted">Nhập họ tên để bắt đầu. Họ tên không đổi được sau khi tạo.</p>
-      <form onSubmit={submit}>
+      <p className="muted">
+        Người chuyển tiền cho bạn sẽ thấy tên này để xác nhận. Không đổi được sau khi tạo.
+      </p>
+      <form className="col" onSubmit={submit}>
         <Field
           label="Họ và tên"
           value={fullName}
@@ -48,6 +50,11 @@ export function OnboardingPage() {
           maxLength={200}
           required
         />
+        <div className="balance-card" aria-hidden="true">
+          <span>Xem trước</span>
+          <div className="big">{(trimmed || 'Họ và tên').toLocaleUpperCase('vi-VN')}</div>
+          <span className="mono">**** **** ****</span>
+        </div>
         <ErrorBanner error={create.error} />
         <button type="submit" disabled={create.isPending || !trimmed || Boolean(error)}>
           {create.isPending ? 'Đang tạo…' : 'Tạo hồ sơ'}

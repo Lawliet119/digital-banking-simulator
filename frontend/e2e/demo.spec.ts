@@ -160,8 +160,9 @@ test("G10: the operator locks the customer's account; the customer's next action
   await operator.getByRole('button', { name: 'Tìm' }).click();
   const row = operator.getByTestId('operator-account-row');
   await row.getByRole('button', { name: 'Khóa' }).click();
-  await row.getByLabel('Lý do').fill('Nghi ngờ bị chiếm tài khoản');
-  await row.getByRole('button', { name: 'Xác nhận khóa' }).click();
+  const panel = operator.getByTestId('lock-panel');
+  await panel.getByLabel('Lý do').fill('Nghi ngờ bị chiếm tài khoản');
+  await panel.getByRole('button', { name: 'Xác nhận khóa' }).click();
   await expect(row.getByTestId('account-status')).toHaveText('Bị khóa');
 
   await page.getByRole('link', { name: 'Chuyển tiền' }).click();

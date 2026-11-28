@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 /** Each staff role: the radio label, its home and the heading of that home. */
 const HOMES = {
@@ -7,6 +7,14 @@ const HOMES = {
   admin: ['Quản trị viên', '/admin/risk-config', 'Cấu hình luật gian lận'],
 } as const;
 
+/** A visitor starts on the landing page and follows its sign-in link. */
+async function signInFromLanding(page: Page) {
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/welcome$/);
+  await page.getByRole('link', { name: 'Đăng nhập' }).first().click();
+  await expect(page).toHaveURL(/\/login$/);
+}
+
 /** A fresh subject per run, so no state from an earlier run matters. */
 const sub = (role: string) => `e2e-${role}-${Date.now().toString(36)}`;
 
@@ -14,8 +22,7 @@ test('stage D: a new customer signs in and is sent to create a profile, as the s
   page,
 }) => {
   const subject = sub('customer');
-  await page.goto('/');
-  await expect(page).toHaveURL(/\/login$/);
+  await signInFromLanding(page);
   await page.getByLabel('Mã người dùng (sub)').fill(subject);
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
   await expect(page).toHaveURL(/\/onboarding$/);
@@ -27,8 +34,7 @@ for (const [role, [label, home, heading]] of Object.entries(HOMES)) {
     page,
   }) => {
     const subject = sub(role);
-    await page.goto('/');
-    await expect(page).toHaveURL(/\/login$/);
+    await signInFromLanding(page);
     await page.getByLabel(label).check();
     await page.getByLabel('Mã người dùng (sub)').fill(subject);
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
