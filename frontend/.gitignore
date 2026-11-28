@@ -1,0 +1,3 @@
+
+# Written by infra/scripts/deploy-web.sh; a local copy points vite dev at a user pool.
+public/config.json

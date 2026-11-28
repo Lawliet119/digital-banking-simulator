@@ -30,6 +30,7 @@ export const router = createBrowserRouter([
   { path: '/', element: <HomeRedirect /> },
   { path: '/welcome', element: <LandingPage /> },
   { path: '/login', element: <LoginPage /> },
+  { path: '/signup', element: <LoginPage start="sign-up" /> },
   {
     element: <Layout />,
     children: [
