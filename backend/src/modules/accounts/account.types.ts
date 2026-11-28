@@ -22,7 +22,8 @@ export interface LockedAccount extends Account {
   sentDay: string | null;
 }
 
-export type AccountOwnershipAction = 'account.read' | 'account.transactions' | 'ledger.transfer';
+export type AccountOwnershipAction =
+  'account.read' | 'account.transactions' | 'account.limits' | 'ledger.transfer';
 
 /** Constructed by server code after JWT and the customer-role guard, never by a request DTO. */
 export interface AccountOwnershipContext {

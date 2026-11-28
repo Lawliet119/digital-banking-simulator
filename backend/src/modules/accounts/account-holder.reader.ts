@@ -14,6 +14,19 @@ export interface AccountHolder {
  */
 @Injectable()
 export class AccountHolderReader {
+  /** The accounts of one user, oldest first. */
+  async ownedBy(
+    manager: EntityManager,
+    userId: string,
+  ): Promise<{ accountId: string; accountNumber: string }[]> {
+    return manager.query(
+      `SELECT a.id AS "accountId", a.account_number AS "accountNumber"
+       FROM accounts a JOIN customers c ON c.id = a.customer_id
+       WHERE c.user_id = $1::uuid ORDER BY a.created_at, a.id`,
+      [userId],
+    );
+  }
+
   /** Ids with no account are left out of the map. `ids` are UUIDs read from the database. */
   async holdersOf(
     manager: EntityManager,

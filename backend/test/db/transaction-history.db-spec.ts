@@ -361,6 +361,7 @@ describe('DBS-87 transaction history (UC-6)', () => {
     expect(route.security).toContainEqual({ 'access-token': [] });
     expect((route.parameters as { name: string }[]).map(p => p.name).sort()).toEqual([
       'cursor',
+      'direction',
       'from',
       'id',
       'limit',

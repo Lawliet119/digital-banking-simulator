@@ -370,6 +370,68 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/accounts/{id}/limits': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Customer: transfer limits of an owned account and what is left today
+     * @description Vai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.
+     */
+    get: operations['CustomerInsightsController_limits_v1'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/insights/summary': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Customer: money in and out today or over 30 days, per own account
+     * @description Calendar days in Vietnam time, today included. The totals leave out transfers between the customer’s own accounts.
+     *
+     *     Vai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.
+     */
+    get: operations['CustomerInsightsController_summary_v1'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/insights/recipients': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Customer: the last accounts the customer sent money to
+     * @description Vai trò: customer. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.
+     */
+    get: operations['CustomerInsightsController_recipients_v1'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/audit/entries': {
     parameters: {
       query?: never;
@@ -919,6 +981,87 @@ export interface components {
        * @example bmV4dC1wYWdlLWN1cnNvcg
        */
       nextCursor: string | null;
+    };
+    TransferLimitsDto: {
+      /**
+       * @description Largest single transfer, whole VND (BR-06)
+       * @example 20000000
+       */
+      perTransaction: string;
+      /**
+       * @description Largest total a source account may send per day, Vietnam time
+       * @example 80000000
+       */
+      perDay: string;
+      /**
+       * @description What this account has sent today
+       * @example 2000000
+       */
+      sentToday: string;
+      /**
+       * @description perDay minus sentToday, never below zero
+       * @example 78000000
+       */
+      remainingToday: string;
+    };
+    AccountFlowDto: {
+      /**
+       * Format: uuid
+       * @example 8b3609fb-96a7-434b-a7ba-2ba171955e6d
+       */
+      accountId: string;
+      /** @example 100000000002 */
+      accountNumber: string;
+      /**
+       * @description Money into this account in the window
+       * @example 3000000
+       */
+      moneyIn: string;
+      /**
+       * @description Money out of this account in the window
+       * @example 2000000
+       */
+      moneyOut: string;
+      /** @example 2 */
+      transactions: number;
+    };
+    CustomerSummaryDto: {
+      /**
+       * @example 30
+       * @enum {integer}
+       */
+      days: 1 | 30;
+      /**
+       * @description Money in from outside the customer’s own accounts
+       * @example 3000000
+       */
+      totalIn: string;
+      /**
+       * @description Money out to accounts that are not the customer’s own
+       * @example 2000000
+       */
+      totalOut: string;
+      accounts: components['schemas']['AccountFlowDto'][];
+    };
+    RecentRecipientDto: {
+      /**
+       * Format: uuid
+       * @example bf9c3419-51ff-4e55-b03c-3296f0419c03
+       */
+      accountId: string;
+      /** @example 100000000004 */
+      accountNumber: string;
+      /** @example Trần Thu Hà */
+      ownerName: string;
+      /**
+       * Format: date-time
+       * @example 2026-03-15T02:30:00.000Z
+       */
+      lastTransferAt: string;
+    };
+    RecentRecipientsDto: {
+      /** @description Newest first, at most 5 */
+      items: components['schemas']['RecentRecipientDto'][];
     };
     AuditSearchProblemDto: {
       /** @example about:blank */
@@ -2804,6 +2947,8 @@ export interface operations {
   AccountTransactionsController_transactions_v1: {
     parameters: {
       query?: {
+        /** @description Money out or money in only */
+        direction?: 'DEBIT' | 'CREDIT';
         /** @description Exclusive UTC Z upper bound; must be later than from */
         to?: string;
         /** @description Inclusive UTC Z lower bound */
@@ -2828,7 +2973,7 @@ export interface operations {
           'application/json': components['schemas']['TransactionPageDto'];
         };
       };
-      /** @description Invalid limit, cursor, from or to; unknown parameter */
+      /** @description Invalid limit, cursor, from, to or direction; unknown parameter */
       400: {
         headers: {
           [name: string]: unknown;
@@ -2857,6 +3002,233 @@ export interface operations {
       };
       /** @description Account not found (includes foreign and SYSTEM accounts) */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description Too Many Requests (errorCode RATE_LIMITED) */
+      429: {
+        headers: {
+          /** @description Seconds to wait before retrying */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description Internal server error; no data if audit fails */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds */
+      503: {
+        headers: {
+          /** @description Seconds to wait before retrying */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+    };
+  };
+  CustomerInsightsController_limits_v1: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Account UUID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TransferLimitsDto'];
+        };
+      };
+      /** @description UNAUTHENTICATED or TOKEN_EXPIRED */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description FORBIDDEN; the caller is not a customer */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description Account not found (includes foreign and SYSTEM accounts) */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description Too Many Requests (errorCode RATE_LIMITED) */
+      429: {
+        headers: {
+          /** @description Seconds to wait before retrying */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description Internal server error; no data if audit fails */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds */
+      503: {
+        headers: {
+          /** @description Seconds to wait before retrying */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+    };
+  };
+  CustomerInsightsController_summary_v1: {
+    parameters: {
+      query?: {
+        days?: 1 | 30;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CustomerSummaryDto'];
+        };
+      };
+      /** @description days is not 1 or 30; unknown parameter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description UNAUTHENTICATED or TOKEN_EXPIRED */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description FORBIDDEN; the caller is not a customer */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description Too Many Requests (errorCode RATE_LIMITED) */
+      429: {
+        headers: {
+          /** @description Seconds to wait before retrying */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description Internal server error; no data if audit fails */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description SERVICE_TEMPORARILY_UNAVAILABLE; Retry-After seconds */
+      503: {
+        headers: {
+          /** @description Seconds to wait before retrying */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+    };
+  };
+  CustomerInsightsController_recipients_v1: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RecentRecipientsDto'];
+        };
+      };
+      /** @description UNAUTHENTICATED or TOKEN_EXPIRED */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description FORBIDDEN; the caller is not a customer */
+      403: {
         headers: {
           [name: string]: unknown;
         };
