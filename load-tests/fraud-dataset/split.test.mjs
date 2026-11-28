@@ -10,10 +10,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { generateSplitDataset, writeSplit } from "./split.mjs";
+import { generateSplitDataset, readSeedFile, writeSplit } from "./split.mjs";
 import { inspectDataset } from "./inspect-fraud.mjs";
 import { verifyTune } from "../verify-tune.mjs";
 
@@ -21,6 +21,7 @@ const data = generateSplitDataset();
 const customers = (part) =>
   new Set(part.simulation.customers.map((c) => c.customerId));
 const CLI_FILE = fileURLToPath(new URL("./split.mjs", import.meta.url));
+const CLI_DIR = dirname(CLI_FILE);
 const VERIFY_FILE = fileURLToPath(
   new URL("../verify-tune.mjs", import.meta.url),
 );
@@ -233,3 +234,96 @@ test("TC-127-08 CSV-only verifier rejects malformed headers, IDs, precision, tim
     1,
   );
 });
+
+// BL-171: a secret holdout seed is read from a file kept outside the checkout, never from argv.
+test("TC-171-01 readSeedFile drops exactly one trailing newline and rejects unsafe seeds", () =>
+  temporary((root) => {
+    const at = (name, text) => {
+      const file = join(root, name);
+      writeFileSync(file, text);
+      return file;
+    };
+    assert.equal(readSeedFile(at("lf", "seed-1\n")), "seed-1");
+    assert.equal(readSeedFile(at("crlf", "seed-1\r\n")), "seed-1");
+    assert.equal(readSeedFile(at("bare", "seed-1")), "seed-1");
+    for (const [name, text] of [
+      ["empty", ""],
+      ["newline-only", "\n"],
+      ["two-newlines", "seed-1\n\n"],
+      ["bom", "﻿seed-1"],
+      ["control", "seed\u0007-1"],
+      ["padded", " seed-1"],
+      ["long", "x".repeat(129)],
+    ]) {
+      assert.throws(() => readSeedFile(at(name, text)), name);
+    }
+    assert.equal(readSeedFile(at("max", "x".repeat(128))), "x".repeat(128));
+  }));
+test("TC-171-02 a seed file inside a checkout is refused when the guard is on", () => {
+  const inside = mkdtempSync(join(CLI_DIR, ".seed-guard-"));
+  try {
+    const file = join(inside, "seed.txt");
+    writeFileSync(file, "secret-seed\n");
+    assert.throws(() => readSeedFile(file, { checkoutGuard: true }));
+    assert.equal(readSeedFile(file), "secret-seed");
+  } finally {
+    rmSync(inside, { recursive: true, force: true });
+  }
+});
+test("TC-171-03 CLI --seed-file generates what the same seed given inline would, and never echoes it", () =>
+  temporary((root) => {
+    const seed = "secret-holdout-seed-for-test";
+    const seedFile = join(root, "seed.txt");
+    writeFileSync(seedFile, seed + "\n");
+    const tuneDir = join(root, "tune"),
+      privateDir = join(root, "sealed");
+    const result = cli(
+      "--seed-file",
+      seedFile,
+      "--tune-dir",
+      tuneDir,
+      "--private-dir",
+      privateDir,
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(!result.stdout.includes(seed) && !result.stderr.includes(seed));
+    const expected = generateSplitDataset({ seed });
+    assert.equal(
+      readFileSync(join(tuneDir, "tune.csv"), "utf8"),
+      expected.tune.csv,
+    );
+    assert.equal(
+      readFileSync(join(privateDir, "holdout.csv"), "utf8"),
+      expected.holdout.csv,
+    );
+    // Another seed is another holdout: the file really is what drives the generator.
+    assert.notEqual(expected.holdout.csv, data.holdout.csv);
+  }));
+test("TC-171-04 CLI refuses --seed with --seed-file, a bad seed file and a seed file in a checkout", () =>
+  temporary((root) => {
+    const good = join(root, "good.txt");
+    writeFileSync(good, "secret-seed\n");
+    const bad = join(root, "bad.txt");
+    writeFileSync(bad, "");
+    const inside = mkdtempSync(join(CLI_DIR, ".seed-guard-"));
+    try {
+      const tracked = join(inside, "seed.txt");
+      writeFileSync(tracked, "secret-seed\n");
+      for (const args of [
+        ["--seed", "a", "--seed-file", good],
+        ["--seed-file", bad],
+        ["--seed-file", join(root, "missing.txt")],
+        ["--seed-file", tracked],
+        ["--seed-file", good, "--seed-file", good],
+      ]) {
+        const out = join(root, `out-${Math.random().toString(36).slice(2)}`);
+        const result = cli(...args, "--tune-dir", out);
+        assert.equal(result.status, 1, args.join(" "));
+        assert.ok(!existsSync(out), args.join(" "));
+        assert.ok(!result.stdout.includes('"sha256"'));
+        assert.ok(!result.stderr.includes("secret-seed"));
+      }
+    } finally {
+      rmSync(inside, { recursive: true, force: true });
+    }
+  }));

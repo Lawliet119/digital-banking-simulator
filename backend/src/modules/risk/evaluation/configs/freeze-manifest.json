@@ -80,8 +80,23 @@
       "src/modules/risk/scoring.service.ts": "40c47c721ca9e6106d50339b65dbdc6b2cc222b43bf00a3cc9e64390a2ebacc4",
       "src/scripts/capture-ai.ts": "102511718d3fe2528f345df2e965b5069d6ce9bbc2c8265e5c72ecfda57fe653",
       "src/scripts/compare-modes.ts": "307b22a6ae6ec396edf0b924462e9c64879fd8c6ef2a5257c3f3660a4d46f879",
-      "src/scripts/evaluate-rules.ts": "af5a1f51149736a1f3357595011809922277685015ba4eaa8ed73f9cb7c0efb1"
+      "src/scripts/evaluate-rules.ts": "af5a1f51149736a1f3357595011809922277685015ba4eaa8ed73f9cb7c0efb1",
+      "src/modules/risk/evaluation/holdout-report.ts": "d62a9e545579a69bb8eab48a1148472c26e08abdb3049f805b0776f847eae0ed",
+      "src/scripts/holdout-report.ts": "cec18f525185c0afe950b79f8849f94330420fec365c55a71dabb1f70be62a5a"
     }
   },
-  "amendments": []
+  "amendments": [
+    {
+      "id": "BL-407",
+      "date": "2026-11-24",
+      "expected": {
+        "ruleOnly": "c9da84a345f7da5f50f18059d85e14ee7ed5a5e688d3fc88faed98d39ba655c8",
+        "withAi": "426b97fb6090b0b23c1ef261f4a677962b0d3c5290613a13208a214ab9819dd9",
+        "dbSeed": "876bdd9750a0067039dc5af59d318c7767f535e7dea8ed30ecbba886ec127aa8",
+        "rubricFile": "0640e98b4359bfb5dba55c4ee1ab553c0a321e9298e94a79c7ee77a9c74680b5",
+        "rubric": "96e0b08fadcbd7ec2fdadd71f59569e02b7273db453d657acd44ade7c5f9a0ff",
+        "engine": "9c9b458e61dcc312c3fb28c167ea772b0a7ca47d5547df598a37b630ae4478b9"
+      }
+    }
+  ]
 }
