@@ -474,6 +474,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/operator/fraud-flags/summary': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Number of flags in each review state
+     * @description Vai trò: operator. errorCode: 401 UNAUTHENTICATED | TOKEN_EXPIRED | SESSION_REVOKED; 403 FORBIDDEN; 429 RATE_LIMITED; 503 SERVICE_TEMPORARILY_UNAVAILABLE.
+     */
+    get: operations['FraudHttpController_summary_v1'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/operator/fraud-flags/{transferId}': {
     parameters: {
       query?: never;
@@ -1157,6 +1177,19 @@ export interface components {
        */
       toAccountId: string;
       /**
+       * @description Positive whole VND string
+       * @example 20000000
+       */
+      amount: string;
+      /** @example 100000000006 */
+      fromAccountNumber: string | null;
+      /** @example Lê Hoàng An */
+      fromOwnerName: string | null;
+      /** @example 100000000007 */
+      toAccountNumber: string | null;
+      /** @example Phạm Thanh Bình */
+      toOwnerName: string | null;
+      /**
        * @description Tổng điểm rule và AI; không tự cộng hits
        * @example 45
        */
@@ -1183,6 +1216,17 @@ export interface components {
       items: components['schemas']['FraudFlagDto'][];
       /** @example bmV4dC1wYWdlLWN1cnNvcg */
       nextCursor: string | null;
+    };
+    FraudSummaryDto: {
+      /**
+       * @description Not reviewed yet
+       * @example 3
+       */
+      open: number;
+      /** @example 1 */
+      confirmedFraud: number;
+      /** @example 2 */
+      falsePositive: number;
     };
     FraudHitDto: {
       /**
@@ -1221,6 +1265,19 @@ export interface components {
        * @example 33333333-3333-4333-8333-333333333333
        */
       toAccountId: string;
+      /**
+       * @description Positive whole VND string
+       * @example 20000000
+       */
+      amount: string;
+      /** @example 100000000006 */
+      fromAccountNumber: string | null;
+      /** @example Lê Hoàng An */
+      fromOwnerName: string | null;
+      /** @example 100000000007 */
+      toAccountNumber: string | null;
+      /** @example Phạm Thanh Bình */
+      toOwnerName: string | null;
       /**
        * @description Tổng điểm rule và AI; không tự cộng hits
        * @example 45
@@ -3381,6 +3438,87 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['FraudListDto'];
+        };
+      };
+      /** @description Malformed query, UUID or body; no errorCode */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['FraudProblemDto'];
+        };
+      };
+      /** @description UNAUTHENTICATED or TOKEN_EXPIRED */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['FraudProblemDto'];
+        };
+      };
+      /**
+       * @description The caller has none of the allowed roles (errorCode FORBIDDEN)
+       *
+       *     FORBIDDEN; operator role required
+       */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['FraudProblemDto'];
+        };
+      };
+      /** @description Too Many Requests (errorCode RATE_LIMITED) */
+      429: {
+        headers: {
+          /** @description Seconds to wait before retrying */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['ProblemDetailsDto'];
+        };
+      };
+      /** @description Internal server error; audit failure returns no data and rolls back review */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['FraudProblemDto'];
+        };
+      };
+      /** @description SERVICE_TEMPORARILY_UNAVAILABLE */
+      503: {
+        headers: {
+          /** @description Seconds to wait before retrying */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/problem+json': components['schemas']['FraudProblemDto'];
+        };
+      };
+    };
+  };
+  FraudHttpController_summary_v1: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['FraudSummaryDto'];
         };
       };
       /** @description Malformed query, UUID or body; no errorCode */

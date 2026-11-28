@@ -1,16 +1,29 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import type { EntityManager } from 'typeorm';
 import { TransactionService } from '@database/transaction.service';
-import { AccountNumberReader } from '@modules/accounts';
+import { AccountHolderReader, AccountNumberReader } from '@modules/accounts';
 import { AuditReason, AuditService } from '@modules/audit';
 import { buildHistorySql, transferCorrelationId, type TransactionItemDto } from '@modules/ledger';
 import { ErrorCode } from '@common/errors/error-code.enum';
-import { FraudDetailDto, FraudFlagDto, FraudListDto, ReviewFraudDto } from './fraud-http.dto';
+import {
+  FraudDetailDto,
+  FraudFlagDto,
+  FraudListDto,
+  FraudSummaryDto,
+  ReviewFraudDto,
+} from './fraud-http.dto';
 import { cursorFor, type FraudQuery } from './fraud-http.query';
 
 const PROJECTION = `f.transfer_id AS "transferId", t.from_account_id AS "fromAccountId",
- t.to_account_id AS "toAccountId", f.score, f.risk_level AS "riskLevel",
+ t.to_account_id AS "toAccountId", t.amount::text AS amount, f.score, f.risk_level AS "riskLevel",
  f.review_status AS "reviewStatus", f.rule_set_version AS "ruleSetVersion",
  to_char(f.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "createdAt"`;
+
+/** A flag as the SQL returns it, before the two accounts are named. */
+type FlagRow = Omit<
+  FraudFlagDto,
+  'fromAccountNumber' | 'fromOwnerName' | 'toAccountNumber' | 'toOwnerName'
+>;
 
 @Injectable()
 export class FraudHttpService {
@@ -18,11 +31,60 @@ export class FraudHttpService {
     private readonly tx: TransactionService,
     private readonly audit: AuditService,
     private readonly accountNumbers: AccountNumberReader,
+    private readonly holders: AccountHolderReader,
   ) {}
+
+  /** Adds the number and owner name of both accounts: the operator recognises people, not ids. */
+  private async named<T extends FlagRow>(
+    manager: EntityManager,
+    rows: T[],
+  ): Promise<
+    (T &
+      Pick<
+        FraudFlagDto,
+        'fromAccountNumber' | 'fromOwnerName' | 'toAccountNumber' | 'toOwnerName'
+      >)[]
+  > {
+    const holders = await this.holders.holdersOf(
+      manager,
+      rows.flatMap(row => [row.fromAccountId, row.toAccountId]),
+    );
+    return rows.map(row => ({
+      ...row,
+      fromAccountNumber: holders.get(row.fromAccountId)?.accountNumber ?? null,
+      fromOwnerName: holders.get(row.fromAccountId)?.ownerName ?? null,
+      toAccountNumber: holders.get(row.toAccountId)?.accountNumber ?? null,
+      toOwnerName: holders.get(row.toAccountId)?.ownerName ?? null,
+    }));
+  }
+
+  /** How many flags are in each review state. */
+  summary(actor: string, correlationId: string): Promise<FraudSummaryDto> {
+    return this.tx.run<FraudSummaryDto>(async manager => {
+      const rows: { status: string; count: number }[] = await manager.query(
+        'SELECT review_status AS status, count(*)::int AS count FROM fraud_flags GROUP BY review_status',
+      );
+      const count = (status: string) => rows.find(row => row.status === status)?.count ?? 0;
+      await this.audit.record(manager, {
+        actor,
+        role: 'operator',
+        action: 'fraud_flag.search',
+        outcome: 'SUCCESS',
+        target: { type: 'fraud_flag_search', id: correlationId },
+        correlationId,
+        metadata: { count: rows.reduce((sum, row) => sum + row.count, 0) },
+      });
+      return {
+        open: count('OPEN'),
+        confirmedFraud: count('CONFIRMED_FRAUD'),
+        falsePositive: count('FALSE_POSITIVE'),
+      };
+    });
+  }
 
   list(query: FraudQuery, actor: string, correlationId: string): Promise<FraudListDto> {
     return this.tx.run(async manager => {
-      const rows: FraudFlagDto[] = await manager.query(
+      const rows: FlagRow[] = await manager.query(
         `SELECT ${PROJECTION}
         FROM fraud_flags f JOIN v_transfer_facts t ON t.id = f.transfer_id
         WHERE f.review_status = $1 AND ($2::text IS NULL OR f.risk_level = $2)
@@ -38,7 +100,7 @@ export class FraudHttpService {
           query.limit + 1,
         ],
       );
-      const items = rows.slice(0, query.limit);
+      const items = await this.named(manager, rows.slice(0, query.limit));
       await this.audit.record(manager, {
         actor,
         role: 'operator',
@@ -57,7 +119,7 @@ export class FraudHttpService {
 
   detail(id: string, actor: string, correlationId: string): Promise<FraudDetailDto> {
     return this.tx.run(async manager => {
-      const rows = await manager.query<Omit<FraudDetailDto, 'hits' | 'recentTransactions'>[]>(
+      const rows = await manager.query<(FlagRow & Pick<FraudDetailDto, 'aiAssessment'>)[]>(
         `SELECT ${PROJECTION},
         CASE WHEN d.mode = 'rule_only' THEN NULL ELSE json_build_object(
           'status', d.ai_status, 'probability', d.probability,
@@ -113,7 +175,8 @@ export class FraudHttpService {
         correlationId: chainCode,
         metadata: { id: correlationId },
       });
-      return { ...rows[0], hits, recentTransactions };
+      const [flag] = await this.named(manager, rows);
+      return { ...flag, hits, recentTransactions };
     });
   }
 
