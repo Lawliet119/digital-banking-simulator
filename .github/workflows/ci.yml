@@ -274,6 +274,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: The build has no developer sign-in
+        run: npm run check:dist
 
   # Test trình duyệt (kế hoạch UI, chặng G): Playwright với backend thật `APP_ROLE=both` (có worker),
   # PostgreSQL, Valkey và ElasticMQ từ docker-compose.yml, đăng nhập bằng token local. Mọi request

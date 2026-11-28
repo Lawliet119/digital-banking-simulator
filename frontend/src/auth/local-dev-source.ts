@@ -1,18 +1,27 @@
-import type { AuthSource, SignInRequest } from './auth-source';
+import type { LocalSource, SignInRequest } from './auth-source';
 
 const KEY = 'dbs.token';
 
 /**
  * Tokens signed on this machine by the Vite dev server (`/__dev-auth/token`, which runs the
  * backend's `auth:dev-token`). Works only under `npm run dev` with the backend on
- * `AUTH_MODE=local`. The token is kept in memory and in sessionStorage (one tab, gone when the
- * tab closes); never in localStorage.
+ * `AUTH_MODE=local`; a production build never loads this file. The token is kept in memory and
+ * in sessionStorage (one tab, gone when the tab closes); never in localStorage.
  */
-export class LocalDevSource implements AuthSource {
+export class LocalDevSource implements LocalSource {
+  readonly kind = 'local';
   private token: string | null = sessionStorage.getItem(KEY);
+
+  hasSession(): boolean {
+    return this.token !== null;
+  }
 
   getToken(): Promise<string | null> {
     return Promise.resolve(this.token);
+  }
+
+  userLabel(): Promise<string | null> {
+    return Promise.resolve(null);
   }
 
   async signIn({ role, sub }: SignInRequest): Promise<void> {

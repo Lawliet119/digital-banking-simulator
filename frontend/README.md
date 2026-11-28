@@ -21,7 +21,11 @@ npm run dev        # http://127.0.0.1:5173
 
 Vite chuyển `/v1` và `/health` sang `http://127.0.0.1:3000` (đổi bằng `DBS_API_URL`), nên trình duyệt chỉ thấy một origin và API không cần CORS.
 
-Màn hình đăng nhập chọn vai trò và mã người dùng (`sub`). Cùng `sub` là cùng một người ở lần sau. Token do `/__dev-auth/token` của Vite ký bằng lệnh `npm run auth:dev-token` của backend; route này chỉ có ở `vite dev` (`apply: 'serve'`), bản build không có. Lệnh chạy trong `../backend`; backend đang chạy nằm ở checkout khác thì đặt `DBS_BACKEND_DIR` trỏ tới thư mục `backend/` đó, để token được ký bằng đúng khóa API đang tin.
+Lúc khởi động, app đọc `/config.json` (`region`, `userPoolId`, `userPoolClientId`). Có file thì đăng nhập bằng user pool Cognito: email và mật khẩu qua SRP (AWS Amplify, tải thành chunk riêng), mở tài khoản kèm mã email, quên mật khẩu, đổi mật khẩu lần đầu cho tài khoản do quản trị tạo. Token chỉ nằm trong `sessionStorage`, Amplify tự làm mới access token bằng refresh token, API kiểm đúng app client đó. Một bản build dùng được cho mọi môi trường; `infra/scripts/deploy-web.sh` ghi `config.json` khi triển khai. Muốn `vite dev` dùng Cognito thì đặt một bản ở `public/config.json` (đã gitignore).
+
+Không có `config.json`: ở `vite dev` là form đăng nhập local bên dưới; ở bản build là thông báo "chưa cấu hình". Form local không có trong bản build, `npm run check:dist` kiểm điều đó và CI chạy lệnh này sau `build`.
+
+Màn hình đăng nhập local chọn vai trò và mã người dùng (`sub`). Cùng `sub` là cùng một người ở lần sau. Token do `/__dev-auth/token` của Vite ký bằng lệnh `npm run auth:dev-token` của backend; route này chỉ có ở `vite dev` (`apply: 'serve'`), bản build không có. Lệnh chạy trong `../backend`; backend đang chạy nằm ở checkout khác thì đặt `DBS_BACKEND_DIR` trỏ tới thư mục `backend/` đó, để token được ký bằng đúng khóa API đang tin.
 
 ## Màn hình
 
@@ -48,15 +52,16 @@ Giao diện dùng CSS thuần (`src/styles.css`), font Plus Jakarta Sans tự ho
 
 ## Lệnh
 
-| Lệnh                | Việc                                                                     |
-| ------------------- | ------------------------------------------------------------------------ |
-| `npm run dev`       | dev server, có route ký token local                                      |
-| `npm run build`     | kiểm kiểu rồi build vào `dist/`                                          |
-| `npm run lint`      | ESLint và Prettier                                                       |
-| `npm run typecheck` | `tsc --noEmit`                                                           |
-| `npm test`          | Vitest: tiền, idempotency, lỗi, biểu đồ, cấu hình luật, plugin dev-auth  |
-| `npm run test:e2e`  | Playwright, cần backend đang chạy (bước 1); tự bật Vite nếu chưa có      |
-| `npm run api:types` | sinh lại `src/api/schema.d.ts` từ OpenAPI; CI đỏ nếu file đã commit khác |
+| Lệnh                 | Việc                                                                     |
+| -------------------- | ------------------------------------------------------------------------ |
+| `npm run dev`        | dev server, có route ký token local                                      |
+| `npm run build`      | kiểm kiểu rồi build vào `dist/`                                          |
+| `npm run check:dist` | bản build không chứa đăng nhập local                                     |
+| `npm run lint`       | ESLint và Prettier                                                       |
+| `npm run typecheck`  | `tsc --noEmit`                                                           |
+| `npm test`           | Vitest: tiền, idempotency, lỗi, biểu đồ, cấu hình luật, plugin dev-auth  |
+| `npm run test:e2e`   | Playwright, cần backend đang chạy (bước 1); tự bật Vite nếu chưa có      |
+| `npm run api:types`  | sinh lại `src/api/schema.d.ts` từ OpenAPI; CI đỏ nếu file đã commit khác |
 
 ## Test trên trình duyệt
 

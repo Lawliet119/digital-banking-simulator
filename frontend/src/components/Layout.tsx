@@ -76,7 +76,7 @@ export function Layout() {
               title={me.roles.map(role => ROLE_LABELS[role]).join(', ')}
               style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}
             >
-              {me.sub}
+              {me.label}
             </div>
             <button
               type="button"

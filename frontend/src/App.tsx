@@ -2,8 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { RouterProvider } from 'react-router';
 import { ApiProblem } from './api/problem';
+import type { AuthSource } from './auth/auth-source';
 import { AuthProvider } from './auth/AuthProvider';
-import { LocalDevSource } from './auth/local-dev-source';
 import { router } from './routes';
 
 /** Retries only what may succeed on a second try; a 4xx answer will not change. */
@@ -12,7 +12,7 @@ function retry(failures: number, error: unknown): boolean {
   return failures < 2;
 }
 
-export function App() {
+export function App({ source }: { source: AuthSource }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -23,7 +23,6 @@ export function App() {
         },
       }),
   );
-  const [source] = useState(() => new LocalDevSource());
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider source={source}>
